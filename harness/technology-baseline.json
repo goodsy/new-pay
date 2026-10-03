@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "checkedDate": "2026-10-03",
-  "status": "PAYMENT_API_SKELETON_VERIFIED",
-  "statusNote": "BOOT-001 Verifier VERIFIED(fingerprint f846385e…, commit cbf2c92, 6 tests, GRADLE-DEPS 버전 확인) + Reviewer REVIEW_PASS. Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE는 TECH-001 미검증",
+  "status": "TECH_SMOKE_PENDING_INDEPENDENT_VERIFICATION",
+  "statusNote": "TECH-001 smoke 27 tests·CVE-SCAN 0건 Implementer/Coordinator 실행. 독립 증거는 tasks.json TECH-001.evidence",
   "decisionRef": "D-TECH-001",
   "os": "WSL2 Ubuntu 26.04.1 LTS",
   "jdk": "OpenJDK 25.0.4.1",
@@ -16,7 +16,7 @@
   "jooq": "3.21.7 (BOM, OSS edition, MYSQL dialect)",
   "flyway": "12.4.0 (BOM) + flyway-mysql",
   "mysqlConnectorJ": "9.7.0 (BOM)",
-  "thymeleaf": "3.1.5.RELEASE (BOM, not yet used)",
+  "thymeleaf": "3.1.5.RELEASE (BOM, internal-admin smoke)",
   "database": "MySQL 8.4 LTS (image mysql:8.4.11)",
   "test": {
     "kotest": "6.2.5",
@@ -26,9 +26,9 @@
     "archunit": "1.5.1"
   },
   "containerRuntime": "Docker Desktop (Engine 29.8.0) + Docker Compose v5.5.1",
-  "versionPolicy": "Boot BOM 관리 항목은 override하지 않는다. BOM 밖 항목만 gradle/libs.versions.toml에 고정. M/RC/SNAPSHOT 제외",
-  "kafka": "Not introduced (user decision 2026-10-03); trigger ADR in TECH-001",
-  "redis": "Not introduced (user decision 2026-10-03); trigger ADR in TECH-001",
+  "versionPolicy": "Boot BOM 관리 항목은 override하지 않는다. 예외는 근거·제거 조건을 기록한 같은 minor 안의 보안 patch뿐(securityPatchOverrides). BOM 밖 항목만 gradle/libs.versions.toml에 고정. M/RC/SNAPSHOT 제외",
+  "kafka": "Not introduced; ADR-001",
+  "redis": "Not introduced; ADR-001",
   "domainPersistence": "JPA entity in outbound adapter; pure Domain",
   "supersedes": {
     "springBoot": "4.1.1 (unchanged after user chose 4.1.1 over 3.x)",
@@ -44,5 +44,23 @@
     "Reconciliation",
     "Auditability",
     "Observability"
+  ],
+  "securityPatchOverrides": {
+    "tomcat-embed": {
+      "bom": "11.0.24",
+      "applied": "11.0.26"
+    },
+    "jackson3": {
+      "bom": "3.1.5",
+      "applied": "3.1.7"
+    },
+    "ref": "docs/repository/TECH-BASELINE.md §1.1"
+  },
+  "sbom": "CycloneDX gradle plugin 3.4.1 (runtimeClasspath)",
+  "vulnerabilityScanner": "osv-scanner 2.6.0 (~/.local/bin, sha256 ca69b3d3…b108)",
+  "runtimeUnits": [
+    "apps/payment-api (PAYMENT)",
+    "apps/financial-batch (FINANCIAL)",
+    "apps/internal-admin (no DB)"
   ]
 }

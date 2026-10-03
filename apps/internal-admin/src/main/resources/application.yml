@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: internal-admin
+  thymeleaf:
+    # 템플릿 폴더가 아직 main에 없다(화면은 해당 기능 작업에서 추가). 경고 대신 조용히 넘어간다.
+    check-template-location: false

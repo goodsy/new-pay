@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>기술 조합 확인</title>
+</head>
+<body>
+<h1 id="tech-smoke-title">기술 조합 확인 화면</h1>
+<!-- th:action을 쓰면 Spring Security가 CSRF hidden input을 자동으로 넣는다. -->
+<form id="tech-smoke-form" method="post" th:action="@{/tech-smoke}">
+    <button type="submit">확인</button>
+</form>
+</body>
+</html>

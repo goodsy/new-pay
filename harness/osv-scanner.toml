@@ -1,0 +1,2 @@
+# osv-scanner 설정(CVE-SCAN이 --config로 고정 사용). 무시 목록을 두지 않는다.
+# 취약점을 예외로 두려면 이 파일에 [[IgnoredVulns]]를 추가하고 사유·만료일·승인 근거를 함께 기록한다(fingerprint 대상).

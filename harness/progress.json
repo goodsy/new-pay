@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": "TECH-001",
-  "codeFingerprint": "sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f",
-  "lastSuccessfulStep": "HARNESS-001 DONE (VERIFY-GATE PASS, REVIEW_PASS, fingerprint 99c82a02…)",
+  "activeTaskId": null,
+  "codeFingerprint": "sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c",
+  "lastSuccessfulStep": "TECH-001 DONE (VERIFY-GATE PASS 133025Z, CVE-SCAN 0, REVIEW_PASS)",
   "pendingQuestionIds": [],
-  "nextResumeAction": "TECH-001: harness follow-up → JPA Version/rollback smoke → jOOQ codegen → Batch(financial-batch) → Thymeleaf → CVE/SBOM → Kafka/Redis ADR",
+  "nextResumeAction": "FOUNDATION-001(READY): TECH-001 follow-ups 먼저 → 도메인 경계·Port 기초. 이후 CP-DOMAIN-001, CP-CONTRACT-001 착수 시 Q-CP-KEY/MONEY/RESULT 질문",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -41,6 +41,11 @@
       "at": "2026-10-03T12:26Z",
       "taskId": "HARNESS-001",
       "event": "DONE on sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f"
+    },
+    {
+      "at": "2026-10-03T13:36Z",
+      "taskId": "TECH-001",
+      "event": "DONE on sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c"
     }
   ]
 }

@@ -17,18 +17,27 @@ if [[ -n "$guarded_ignored" ]]; then
   exit 1
 fi
 
+list_file="$(mktemp)"
 manifest_file="$(mktemp)"
-trap 'rm -f "$manifest_file"' EXIT
+trap 'rm -f "$list_file" "$manifest_file"' EXIT
+# 파이프 실패가 errexit/pipefail로 잡히도록 목록을 먼저 파일로 만든다(process substitution 미사용).
+git ls-files -z --cached --others --exclude-standard \
+  | { grep -zv -E '^harness/(tasks|progress|questions)\.json$' || true; } \
+  | sort -z > "$list_file"
+if [[ ! -s "$list_file" ]]; then
+  echo "FAIL: no files to fingerprint" >&2
+  exit 1
+fi
+
 while IFS= read -r -d '' f; do
   if [[ ! -f "$f" ]]; then
     echo "FAIL: tracked file missing from working tree: $f" >&2
     exit 1
   fi
   if [[ -x "$f" ]]; then mode=755; else mode=644; fi
-  printf '%s %s %s\n' "$mode" "$(sha256sum -- "$f" | cut -d' ' -f1)" "$f" >> "$manifest_file"
-done < <(git ls-files -z --cached --others --exclude-standard \
-           | grep -zv -E '^harness/(tasks|progress|questions)\.json$' \
-           | sort -z)
+  hash="$(sha256sum -- "$f")"   # 단독 대입이라 실패 시 errexit로 중단된다
+  printf '%s %s %s\n' "$mode" "${hash%% *}" "$f" >> "$manifest_file"
+done < "$list_file"
 
 if [[ "${1:-}" == "--manifest" ]]; then
   cat "$manifest_file"

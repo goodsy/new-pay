@@ -1,6 +1,6 @@
 # 검증 명령·증거 수집 계약 (HARNESS-001)
 
-작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 3). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
+작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 5). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
 
 ## 1. 실행 위치
 
@@ -20,13 +20,15 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 | 순서 | commandId | 성공 조건 |
 |---|---|---|
 | 1 | FINGERPRINT | exit 0. HEAD 확인 가능, 추적 파일 삭제 없음, source/harness 경로에 무시된 파일 없음 |
-| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(33) |
-| 3 | GRADLE-CHECK | exit 0, timeout 없음, `BUILD SUCCESSFUL`, 출력에 `FROM-CACHE`/`:test UP-TO-DATE`/`:test NO-SOURCE`/`:test SKIPPED` 없음. `--no-build-cache --rerun-tasks` |
+| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(38) |
+| 3 | GRADLE-CHECK | exit 0, timeout 없음, `--console=plain` 출력에 `BUILD SUCCESSFUL`과 모든 실행 단위의 `> Task :apps:<module>:test`(결과 표시 없음=실제 실행) 존재, 출력에 `FROM-CACHE`/`:test UP-TO-DATE`/`:test NO-SOURCE`/`:test SKIPPED` 없음. `--no-build-cache --rerun-tasks` |
 | 4 | TEST-SUMMARY | exit 0. 보고서 존재, 테스트 수 ≥ minTests, failures/errors/skips = 0, 모든 보고서 timestamp ≥ GRADLE-CHECK 시작 UTC(자동 치환) |
 | 5 | IMAGE-DIGESTS | exit 0. 로컬 이미지 ID 기록(사용 증거 아님, §6) |
 | 6 | FINGERPRINT | 값이 존재하고 1번과 같으며 `--expect-fingerprint`와 일치 |
 
-빌드 파일(`*.gradle.kts`, `gradle/**`)이 바뀐 작업은 `GRADLE-DEPS`도 실행해 resolved 버전을 보고한다.
+`--expect-fingerprint`는 필수다(없으면 exit 2). 1번 FINGERPRINT가 기대값과 다르면 빌드 없이 즉시 FAIL한다. GRADLE-CHECK 성공 후 테스트 XML을 증거 로그 디렉터리로 복사해, 이후 실행이 build/를 덮어써도 컨테이너 시작 로그(system-out)와 보고서 hash가 남는다.
+
+빌드 파일(`*.gradle.kts`, `gradle/**`)이나 의존성이 바뀐 작업은 `GRADLE-DEPS-<MODULE>`(모듈별 resolved 버전)과 `CVE-SCAN`(runtime SBOM + osv-scanner, 네트워크 필요)도 실행해 보고한다. CVE-SCAN은 알려진 취약점이 1건이라도 있으면 FAIL(exit 1), 도구/네트워크 오류는 exit 3이다.
 
 ## 3. 판정 규칙
 
@@ -59,17 +61,22 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 
 ## 7. 모듈/테스트 추가 시 갱신 규칙
 
-- 새 Gradle 모듈을 추가하면 같은 변경에서 `TEST-SUMMARY` argv에 그 모듈의 `build/test-results/test` 경로를 추가하고 `GRADLE-CHECK.expectedReports`를 갱신한다.
+- 새 Gradle 모듈(실행 단위)을 추가하면 같은 변경에서 모두 갱신한다:
+  - `TEST-SUMMARY` argv에 그 모듈의 `build/test-results/test` 경로, 하한(minTests) 조정
+  - `GRADLE-CHECK.expectedReports`와 `outputMustMatch`의 `^> Task :apps:<module>:test$`
+  - `GRADLE-DEPS-<MODULE>` 명령
+  - `harness/scripts/cve-scan.py`의 `MODULES`(빠지면 그 모듈은 취약점 검사를 받지 않는다)
+- 현재 하한은 전체 합계(27: payment-api 13, financial-batch 5, internal-admin 9)만 검사한다. 모듈별 하한은 아직 없으며, 모듈별 `> Task :apps:<module>:test` 실행 규칙과 Verifier의 모듈별 개수 보고로 보완한다.
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.
 
 ## 8. Timeout
 
-- 명령별 `timeoutSeconds`를 넘기면 `VERIFY-GATE`가 프로세스 그룹에 SIGKILL을 보내고 최대 10초 더 기다린 뒤 FAIL로 기록한다. 그룹을 벗어난 자손이 남아 pipe를 잡고 있으면 pipe를 닫고 `cleanupUnverified=true`로 표시한다(무한 대기 없음). 이 경계는 `test_timeout_is_failure_and_bounded`로 시험한다. 실제 Gradle JVM이 모두 정리되는지는 timeout 발생 시 Verifier가 `ps`로 확인한다.
+- 명령별 `timeoutSeconds`를 넘기면 `VERIFY-GATE`가 프로세스 그룹에 SIGKILL을 보내고 최대 10초 더 기다린 뒤 FAIL로 기록한다. 그룹을 벗어난 자손이 남아 pipe를 잡고 있으면 pipe를 닫고 `cleanupUnverified=true`로 표시한다(무한 대기 없음). 단순 자식(`test_timeout_is_failure_and_bounded`)과 새 session으로 빠져나가 pipe를 잡은 손자(`test_escaped_descendant_holding_pipe_is_bounded`) 두 경우를 시험한다. 실제 Gradle JVM이 모두 정리되는지는 timeout 발생 시 Verifier가 `ps`로 확인한다.
 - 작업 단위 timeout은 `harness/tasks.json`의 `taskTimeoutSeconds`. 수정 반복은 실패당 3회까지, 초과 시 원인과 다음 조치를 보고한다.
 
 ## 9. 아직 하지 않은 것 (후속)
 
 - HARNESS-002: 범용 자동 Runner(명령 allowlist 실행기, Claude CLI 연동, 중단/재개 시험), CI 연동.
-- TECH-001: 비밀 탐지·의존성 취약점 검사 도구 선정과 gate 편입.
+- 비밀 탐지(gitleaks 등)와 CVE-SCAN의 CI 정기 실행: HARNESS-002.

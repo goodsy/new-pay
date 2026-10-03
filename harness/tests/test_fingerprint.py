@@ -70,6 +70,11 @@ class FingerprintGate(unittest.TestCase):
         self.tracked.unlink()
         self.assertEqual(self.fingerprint()[0], 1)
 
+    def test_unreadable_file_fails(self):
+        os.chmod(self.source, 0o000)
+        self.addCleanup(os.chmod, self.source, 0o644)
+        self.assertEqual(self.fingerprint()[0], 1)
+
     def test_repository_without_head_fails(self):
         shutil.rmtree(self.repo / ".git")
         self.git("init", "-q")

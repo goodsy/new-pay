@@ -10,6 +10,11 @@ kotest = "6.2.5"
 mockk = "1.14.11"
 springmockk = "5.0.1"
 archunit = "1.5.1"
+# SBOM(CycloneDX). 공급망 증거(docs/baseline/architecture/09). 취약점 검사는 osv-scanner(저장소 밖 도구)로 SBOM을 읽는다.
+cyclonedx = "3.4.1"
+# 보안 patch override(Boot 4.1.1 BOM: tomcat 11.0.24, jackson 3.1.5). 근거: docs/repository/TECH-BASELINE.md §1.1
+security-patch-tomcat = "11.0.26"
+security-patch-jackson = "3.1.7"
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -23,7 +28,14 @@ spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-st
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
-spring-modulith-starter-core = { module = "org.springframework.modulith:spring-modulith-starter-core" }
+# Boot 4: starter-batch는 in-memory JobRepository. 재시작에는 JDBC JobRepository(batch-jdbc)가 필요하다.
+spring-boot-starter-batch-jdbc = { module = "org.springframework.boot:spring-boot-starter-batch-jdbc" }
+spring-boot-starter-batch-jdbc-test = { module = "org.springframework.boot:spring-boot-starter-batch-jdbc-test" }
+spring-boot-starter-thymeleaf = { module = "org.springframework.boot:spring-boot-starter-thymeleaf" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-security-test = { module = "org.springframework.boot:spring-boot-starter-security-test" }
+spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-boot-starter-webmvc-test" }
+spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api" }
 spring-modulith-starter-test = { module = "org.springframework.modulith:spring-modulith-starter-test" }
 
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
@@ -31,6 +43,10 @@ jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" 
 flyway-mysql = { module = "org.flywaydb:flyway-mysql" }
 mysql-connector-j = { module = "com.mysql:mysql-connector-j" }
 testcontainers-mysql = { module = "org.testcontainers:testcontainers-mysql" }
+# jOOQ codegen(빌드 도구 전용 source set). 버전은 Boot BOM의 jooq.version을 따른다.
+jooq-codegen = { module = "org.jooq:jooq-codegen" }
+jooq-meta = { module = "org.jooq:jooq-meta" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple" }
 
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
@@ -44,3 +60,4 @@ spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
 kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }

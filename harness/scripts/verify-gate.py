@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """고정 검증 gate 실행기 (HARNESS-001).
 
-사용: verify-gate.py <TASK_ID> [--expect-fingerprint sha256:<hex>]
+사용: verify-gate.py <TASK_ID> --expect-fingerprint sha256:<64 hex>   (기대 fingerprint 필수)
 commands.json에 등록된 gate 순서를 shell 없이 argv로 실행하고 증거를 남긴다.
   FINGERPRINT → HARNESS-SELFTEST → GRADLE-CHECK → TEST-SUMMARY(--not-before 자동) → IMAGE-DIGESTS → FINGERPRINT
 바뀌는 값은 TASK_ID(증거 파일명)와 NOT_BEFORE_UTC(스크립트가 생성)뿐이다. 모델/사용자 문자열을 argv에 넣지 않는다.
@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -30,8 +31,8 @@ POST_KILL_WAIT_SECONDS = 10
 # 판정에 영향을 줄 수 있는 저장소 밖 입력. 값은 비밀일 수 있으므로 이름과 hash만 남긴다.
 ENV_INPUTS = ["JAVA_HOME", "GRADLE_OPTS", "JAVA_OPTS", "JAVA_TOOL_OPTIONS", "GRADLE_USER_HOME", "DOCKER_HOST"]
 ENV_PREFIXES = ["TESTCONTAINERS_", "ORG_GRADLE_PROJECT_"]
-USER_FILES = ["~/.gradle/gradle.properties", "~/.gradle/init.gradle", "~/.gradle/init.gradle.kts",
-              "~/.gradle/init.d", "~/.testcontainers.properties"]
+GRADLE_USER_FILES = ["gradle.properties", "init.gradle", "init.gradle.kts", "init.d"]
+HOME_USER_FILES = ["~/.testcontainers.properties"]
 
 
 def utc_now() -> str:
@@ -42,16 +43,40 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def file_digest(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        return f"UNREADABLE: {type(error).__name__}"
+
+
 def environment_snapshot() -> dict:
+    # 값 hash는 salt가 없다. 저엔트로피 비밀은 역추정될 수 있으므로 증거는 로컬 build/에만 둔다.
     names = sorted({n for n in os.environ if n in ENV_INPUTS or any(n.startswith(p) for p in ENV_PREFIXES)})
+    gradle_home = Path(os.environ.get("GRADLE_USER_HOME") or os.path.expanduser("~/.gradle"))
+    candidates = {str(gradle_home / name): gradle_home / name for name in GRADLE_USER_FILES}
+    candidates.update({spec: Path(os.path.expanduser(spec)) for spec in HOME_USER_FILES})
     files = {}
-    for spec in USER_FILES:
-        path = Path(os.path.expanduser(spec))
+    for label, path in candidates.items():
         if path.is_dir():
-            files[spec] = {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(path.iterdir()) if f.is_file()}
+            files[label] = {f.name: file_digest(f) for f in sorted(path.iterdir()) if f.is_file()}
         elif path.is_file():
-            files[spec] = hashlib.sha256(path.read_bytes()).hexdigest()
+            files[label] = file_digest(path)
     return {"envSha256": {n: sha256_text(os.environ[n]) for n in names}, "userFiles": files}
+
+
+def archive(command: dict, log_dir: Path, index: int) -> list[dict]:
+    """명령이 만든 보고서(예: 테스트 XML)를 증거 디렉터리에 복사한다. 이후 실행이 build/를 덮어써도 남는다."""
+    archived = []
+    target = log_dir / f"{index}-{command['id']}-files"
+    for pattern in command.get("archiveGlobs", []):
+        for source in sorted(ROOT.glob(pattern)):
+            relative = source.relative_to(ROOT)
+            copy = target / relative
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, copy)
+            archived.append({"source": str(relative), "copy": str(copy.relative_to(ROOT)), "sha256": file_digest(copy)})
+    return archived
 
 
 def run(command: dict, argv: list[str]) -> dict:
@@ -78,7 +103,10 @@ def run(command: dict, argv: list[str]) -> dict:
             result["cleanupUnverified"] = True
             proc.stdout.close()
             proc.kill()
-            proc.wait(timeout=POST_KILL_WAIT_SECONDS)
+            try:
+                proc.wait(timeout=POST_KILL_WAIT_SECONDS)
+            except subprocess.TimeoutExpired:
+                pass
             output = ""
     result.update(end=utc_now(), exitCode=proc.returncode, output=output)
     return result
@@ -111,14 +139,12 @@ def fingerprint_of(output: str):
 
 def main() -> int:
     args = sys.argv[1:]
-    expected = None
-    if len(args) == 3 and args[1] == "--expect-fingerprint":
-        expected = args[2]
-        args = args[:1]
-    if len(args) != 1 or not TASK_ID.match(args[0]) or (expected is not None and not FINGERPRINT_VALUE.match(expected)):
-        print("usage: verify-gate.py <TASK_ID> [--expect-fingerprint sha256:<hex>]", file=sys.stderr)
+    # 기대 fingerprint는 필수다. 없으면 어떤 코드에 대해서도 PASS를 낼 수 있다.
+    if (len(args) != 3 or args[1] != "--expect-fingerprint"
+            or not TASK_ID.match(args[0]) or not FINGERPRINT_VALUE.match(args[2])):
+        print("usage: verify-gate.py <TASK_ID> --expect-fingerprint sha256:<64 hex>", file=sys.stderr)
         return 2
-    task_id = args[0]
+    task_id, expected = args[0], args[2]
     commands = {c["id"]: c for c in json.loads((ROOT / "harness/commands.json").read_text(encoding="utf-8"))["commands"]}
 
     stamp = utc_now().replace(":", "")
@@ -143,10 +169,15 @@ def main() -> int:
         log.write_text(output, encoding="utf-8")
         result.update(log=str(log.relative_to(ROOT)), logSha256=sha256_text(output), outputTail=output[-4000:],
                       violations=output_violations(command, output) if result["exitCode"] == 0 else [])
+        result["archived"] = archive(command, log_dir, index) if result["exitCode"] is not None else []
         if command_id == "FINGERPRINT":
             result["codeFingerprint"] = fingerprint_of(output)
         runs.append(result)
         if result["environmentError"] or result["exitCode"] != 0 or result["timedOut"] or result["violations"]:
+            break
+        if index == 0 and result.get("codeFingerprint") != expected:
+            # 다른 코드를 검증하느라 빌드 시간을 쓰지 않는다. 최종 비교는 아래에서 다시 한다.
+            problems.append(f"fingerprint {result.get('codeFingerprint')} != expected {expected} (stopped after stage 0)")
             break
 
     fingerprints = [r.get("codeFingerprint") for r in runs if r["commandId"] == "FINGERPRINT"]
@@ -155,7 +186,7 @@ def main() -> int:
             problems.append("fingerprint missing or malformed")
         elif fingerprints[0] != fingerprints[1]:
             problems.append("fingerprint changed during gate")
-        elif expected is not None and fingerprints[0] != expected:
+        elif fingerprints[0] != expected:
             problems.append(f"fingerprint {fingerprints[0]} != expected {expected}")
     complete = len(runs) == len(GATE) and all(
         r["exitCode"] == 0 and not r["timedOut"] and not r["violations"] for r in runs)

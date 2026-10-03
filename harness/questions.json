@@ -101,6 +101,53 @@
       "humanAnswer": null,
       "humanEvidence": null,
       "appliedSpec": null
+    },
+    {
+      "id": "Q-ADMIN-AUTH",
+      "status": "PROPOSED",
+      "question": "internal-admin(내부 관리자 화면) 인증 방식·권한 모델·세션/CSRF 정책",
+      "recommended": "조직 SSO(OIDC) + MFA, 역할 기반 권한, 서버 세션 + CSRF(동기화 토큰). 결정 전까지 모든 요청 거부 유지",
+      "alternative": "전용 관리자 계정 DB + MFA / 사내망 제한 + 클라이언트 인증서",
+      "dependentTasks": [
+        "실제 관리자 화면 작업(미등록)"
+      ],
+      "askedAt": null,
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "origin": "TECH-001 Implementer 질문 후보"
+    },
+    {
+      "id": "Q-BATCH-META",
+      "status": "PROPOSED",
+      "question": "Spring Batch metadata(BATCH_*) 저장 위치와 보존/정리 정책",
+      "recommended": "FINANCIAL DB 같은 schema(chunk TX와 metadata 원자성 유지), 보존 기간과 정리 Job은 운영 정책으로 별도 확정",
+      "alternative": "FINANCIAL 인스턴스 안 별도 schema/계정(권한 분리), 단 같은 TX 참여 여부 검토 필요",
+      "dependentTasks": [
+        "첫 실제 financial Job(SETTLEMENT-001/RECON-001)"
+      ],
+      "askedAt": null,
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "origin": "TECH-001 Implementer 질문 후보",
+      "technicalNote": "TECH-001: Batch metadata DDL은 시험용 migration 위치(src/test/resources/db/testmigration/financial)에만 PROVISIONAL로 둔다. 답변 전 운영 migration 위치에 넣지 않으며, 실제 DB에 적용하지 않는다. BATCH_* 테이블은 프레임워크 키(JOB_KEY는 hash)라 업무 키 collation 규칙 대상이 아니다."
+    },
+    {
+      "id": "Q-BATCH-JOBPARAM",
+      "status": "PROPOSED",
+      "question": "실제 정산/대사 Job의 식별 JobParameters(예: 업무일·정산일·기관) 정의",
+      "recommended": "업무일(정산 기준일)+대상 범위를 식별 파라미터로, 실행 시각 등은 비식별",
+      "alternative": "회차 번호 기반 식별",
+      "dependentTasks": [
+        "SETTLEMENT-001",
+        "RECON-001"
+      ],
+      "askedAt": null,
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "origin": "TECH-001 Implementer 질문 후보"
     }
   ]
 }

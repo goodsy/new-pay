@@ -428,7 +428,7 @@
       "id": "FOUNDATION-001",
       "title": "도메인 경계·Port·명시 Demo fixture 기초",
       "phase": "SAFE_FOUNDATION",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "BOOT-001",
         "HARNESS-001",
@@ -440,7 +440,8 @@
         "프로젝트 관례에 맞는 최소 구조",
         "미확정 정책을 운영 기본값으로 넣지 않음",
         "ArchitectureSpec의 allowEmptyShould 제거(false)와 실제 domain/application/adapter 대상 확인",
-        "기관 DTO·adapter 패키지 의존 금지 규칙 추가"
+        "기관 DTO·adapter 패키지 의존 금지 규칙 추가",
+        "TECH-001 follow-ups(R1~R3, osv sha256, only-upgrade override, jOOQ 생성 패키지 Modulith 배치, 공통 build/test-support 추출)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -666,7 +667,7 @@
         "실제 DB 제약과 동시 요청 검증",
         "rollback 시 부분 성공 없음",
         "같은 주문 다른 요청키 수렴 및 상이 내용 충돌",
-        "모든 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 Q-CP-KEY 답변에 따른 COLLATE를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
+        "모든 업무 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 Q-CP-KEY 답변에 따른 COLLATE를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지, 프레임워크 테이블 BATCH_* 등은 대상 아님). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
         "Flyway migration 계정과 DML 제한 runtime 계정 분리 검토"
       ],
       "allowedWritePaths": [],
@@ -1323,7 +1324,7 @@
       "id": "TECH-001",
       "title": "안정 GA/BOM 호환 조합과 필수 기술 검증",
       "phase": "SAFE_FOUNDATION",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "BOOT-001",
         "HARNESS-001"
@@ -1336,65 +1337,186 @@
         "8대 원칙 검증 매핑과 JPA 쉬운 설명 규칙 적용",
         "Kafka/Redis 필요성 ADR 작성; 아직 필요 없으면 미도입과 도입 trigger 기록"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
+      "allowedWritePaths": [
+        "apps/**",
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "gradle/libs.versions.toml",
+        "gradle.properties",
+        "harness/**",
+        "docs/repository/**",
+        ".env.example"
+      ],
+      "pathsResolved": true,
       "owner": "coordinator-main-session",
-      "attempts": 0,
+      "attempts": 2,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
-      "principleEvidence": {
-        "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+      "taskTimeoutSeconds": 7200,
+      "evidence": {
+        "verifierRound1": {
+          "verdict": "VERIFIED(gate/deps/smoke), INSUFFICIENT_EVIDENCE(CVE coverage)",
+          "codeFingerprint": "sha256:aa830e5a18f8deaeba5e63a4d304e2611494eaf1be2b93fae9ee5ce2f2f89350",
+          "notes": [
+            "archunit 1.4.2 on runtimeClasspath via spring-modulith-starter-core → fixed (spring-modulith-api)"
+          ],
+          "superseded": true
         },
-        "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+        "final": {
+          "verdict": "VERIFIED",
+          "codeFingerprint": "sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c",
+          "headRevision": "3c16fe1 (dirty, 101 files)",
+          "verifyGate": {
+            "exitCode": 0,
+            "verdict": "PASS",
+            "start": "2026-10-03T13:30:24Z",
+            "end": "2026-10-03T13:33:00Z",
+            "evidenceFile": "build/harness-evidence/TECH-001-2026-10-03T133025Z.json",
+            "evidenceSha256": "1a6a585917e0936e1e1a2c2a28627b59c400b8abd550e30257489022f31407b0"
+          },
+          "harnessSelftest": 48,
+          "gradleTests": {
+            "total": 27,
+            "payment-api": 13,
+            "financial-batch": 5,
+            "internal-admin": 9
+          },
+          "gradleDeps": "tomcat 11.0.26, jackson 3.1.7, no archunit/modulith-core at runtime",
+          "cveScan": {
+            "exitCode": 0,
+            "control": 3,
+            "scanned": {
+              "payment-api": 106,
+              "financial-batch": 53,
+              "internal-admin": 58
+            },
+            "vulnerabilities": 0,
+            "at": "2026-10-03T13:34Z"
+          },
+          "environmentBlockedRun": "132630Z partial (host memory reaping) — not evidence"
         }
       },
-      "note": "dependsOn BOOT-001(DONE), HARNESS-001. payment-api skeleton 위에 Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE/Kafka·Redis ADR"
+      "review": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "reviewedFingerprint": "sha256:aa830e5a18f8deaeba5e63a4d304e2611494eaf1be2b93fae9ee5ce2f2f89350",
+          "findings": {
+            "M1": "fixed: cve-scan.py(이전 SBOM 삭제, 고정 config, --all-packages, 스캔 수=구성요소 수, exit/수 일치, 양성 대조) + test_cve_scan.py 10개",
+            "M2": "fixed: V1 Batch metadata를 test-only 위치로 이동, PROVISIONAL 표시, Q-BATCH-META note",
+            "L1": "fixed: override를 Boot 4.1.1에 묶고 Boot 변경 시 빌드 중단",
+            "L2": "fixed: Implementer 자체 mutation으로 표기",
+            "L3": "fixed",
+            "L4": "fixed: relay·trigger는 제안으로 표기",
+            "L5": "fixed",
+            "L6": "fixed: contract §7",
+            "L7": "fixed: .env.example FINANCIAL 변수",
+            "Info": "fixed: 표 분리, codegen classpath 스캔 범위 명시, CP-DB-001 collation 기준을 업무 키 컬럼으로 한정"
+          }
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "reviewedFingerprint": "sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c",
+          "followUps": [
+            "R1 financial-batch application.yml stale comment + main-only start test",
+            "R2 per-module osv canary",
+            "R3 empty --version / Gradle failure labels",
+            "osv binary sha256 check in cve-scan.py",
+            "useVersion only-upgrade"
+          ]
+        }
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "기술 조합 smoke 작업: 업무 효과 없음. 검증 수단은 PRINCIPLES-VERIFICATION-MAP.md",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Transaction Safety": {
+          "applicability": "FOUNDATION_EVIDENCE",
+          "reason": "TX rollback smoke(TechSmokeJpaSpec), Batch chunk rollback. 업무 효과+Outbox 원자성은 CP-DB-001",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": null,
+          "followUpGate": "CP-DB-001"
+        },
+        "Idempotency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "기술 조합 smoke 작업: 업무 효과 없음. 검증 수단은 PRINCIPLES-VERIFICATION-MAP.md",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Concurrency Control": {
+          "applicability": "FOUNDATION_EVIDENCE",
+          "reason": "@Version 충돌 smoke(실제 MySQL, 두 연결). 다중 스레드 경합·UNIQUE 경쟁은 CP-DB-001",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": null,
+          "followUpGate": "CP-DB-001"
+        },
+        "Recoverability": {
+          "applicability": "FOUNDATION_EVIDENCE",
+          "reason": "Batch checkpoint 재시작 smoke. 외부 효과 회복은 AUTH-001",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": null,
+          "followUpGate": "AUTH-001"
+        },
+        "Reconciliation": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "기술 조합 smoke 작업: 업무 효과 없음. 검증 수단은 PRINCIPLES-VERIFICATION-MAP.md",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Auditability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "기술 조합 smoke 작업: 업무 효과 없음. 검증 수단은 PRINCIPLES-VERIFICATION-MAP.md",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Observability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "기술 조합 smoke 작업: 업무 효과 없음. 검증 수단은 PRINCIPLES-VERIFICATION-MAP.md",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        }
+      },
+      "note": "dependsOn BOOT-001(DONE), HARNESS-001. payment-api skeleton 위에 Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE/Kafka·Redis ADR",
+      "attemptsNote": "Coordinator: harness follow-up에서 --console=verbose ANSI로 출력 규칙 FAIL → plain으로 수정. Implementer: 컴파일 오류 3건 각 1회 수정. CVE-SCAN에서 BOM 취약점 발견 → 보안 patch override / Reviewer CHANGES_REQUIRED(M1 cve-scan false PASS, M2 Batch metadata 선결정, L1~L7) + Verifier(ArchUnit runtime, CVE 증거 부족) 반영",
+      "originalAllowedWritePaths": [],
+      "verificationCommandIds": [
+        "VERIFY-GATE",
+        "GRADLE-DEPS-PAYMENT-API",
+        "GRADLE-DEPS-FINANCIAL-BATCH",
+        "GRADLE-DEPS-INTERNAL-ADMIN",
+        "CVE-SCAN"
+      ],
+      "reports": [
+        "docs/repository/TECH-BASELINE.md",
+        "docs/repository/ADR-001-KAFKA-REDIS-DEFERRAL.md",
+        "docs/repository/PRINCIPLES-VERIFICATION-MAP.md",
+        "docs/repository/HARNESS-VERIFICATION-CONTRACT.md"
+      ],
+      "implementer": {
+        "role": "paycore-implementer",
+        "stage": "smoke tests (JPA, jOOQ codegen, Batch, Thymeleaf+Security)",
+        "mutationREDs": [
+          "Batch reader update() no-op → restart FAIL",
+          "@Version removed → lost update",
+          "permitAll+csrf.disable → 4/5 security tests FAIL",
+          "default-user exclusion removed → FAIL"
+        ]
+      },
+      "lastSuccessfulStep": "구현 완료(27 tests), CVE-SCAN 0건(patch override 후), 문서 갱신",
+      "nextResumeAction": null,
+      "allowedWritePathsNote": "원 카드 allowedWritePaths 빈 값(pathsResolved=false). Coordinator가 착수 시 확정: apps/**, settings/root build, gradle/libs.versions.toml, gradle.properties, harness/**, docs/repository/**, .env.example(Reviewer L7)"
     }
   ]
 }

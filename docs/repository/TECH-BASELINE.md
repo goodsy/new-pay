@@ -1,6 +1,6 @@
-# PayCore 기술 버전 기준선 (빌드 검증 1차)
+# PayCore 기술 버전 기준선 (TECH-001)
 
-확인일 2026-10-03 KST. 상태: **payment-api skeleton 빌드·smoke — Coordinator 실행 통과, 독립 Verifier 최종 증거는 harness/tasks.json BOOT-001 evidence 참조**. Batch/Thymeleaf/jOOQ codegen/CVE는 TECH-001에서 검증 전.
+확인일 2026-10-03 KST. 상태: BOOT-001 skeleton은 독립 검증 완료(harness/tasks.json BOOT-001). TECH-001의 기술 조합 smoke(§5)와 CVE 검사(§1.1)는 Implementer/Coordinator 실행 통과, **독립 Verifier/Reviewer 결과는 harness/tasks.json TECH-001 evidence 참조**.
 
 ## 1. 고정 버전
 
@@ -15,10 +15,30 @@
 | MockK / springmockk | 1.14.11 / 5.0.1 | springmockk 5.x는 Spring Framework 7 기준 |
 | ArchUnit | 1.5.1 | 최신 stable, Java 25 class 분석 통과 |
 | MySQL (Testcontainers/compose) | 8.4.11 | 사용자 확정 8.4 LTS 중 Docker Hub 최신 patch |
+| CycloneDX Gradle plugin | 3.4.1 | 실행 단위별 runtime SBOM(`cyclonedxDirectBom`, runtimeClasspath만) |
+| osv-scanner (저장소 밖 도구) | 2.6.0, SHA-256 `ca69b3d3…b108` | `~/.local/bin`, 공식 SHA256SUMS로 검증 설치. `harness/scripts/cve-scan.py`가 SBOM을 검사 |
 
-Boot 4.1.1 BOM 관리(override 없음): Spring Framework 7.0.9, Hibernate 7.4.5.Final, jOOQ 3.21.7, Flyway 12.4.0, Spring Batch 6.0.5, Testcontainers 2.0.5, MySQL Connector/J 9.7.0, Jackson 3.1.5, JUnit Jupiter 6.0.3, Thymeleaf 3.1.5.RELEASE.
+Modulith는 runtime에 `spring-modulith-api`만 둔다. 구조 검증용 `spring-modulith-core`(ArchUnit 포함)는 테스트(`spring-modulith-starter-test`)에만 있다. 이전 `starter-core`는 ArchUnit 1.4.2를 운영 runtime에 넣었다(TECH-001 Verifier 지적).
+
+Boot 4.1.1 BOM 관리(override 없음): Spring Framework 7.0.9, Hibernate 7.4.5.Final, jOOQ 3.21.7(codegen 포함), Flyway 12.4.0, Spring Batch 6.0.5, Spring Security 7.x, Testcontainers 2.0.5, MySQL Connector/J 9.7.0, JUnit Jupiter 6.0.3, Thymeleaf 3.1.5.RELEASE. 예외는 §1.1의 보안 patch뿐이다.
 
 BOM 밖 최신값과의 차이(의도적으로 override 안 함): jOOQ 3.21.9, Flyway 13.9.0, Connector/J 26.7.0, Kotlin 2.4.20. 보안 패치 필요 시에만 근거를 남기고 override한다.
+
+### 1.1 보안 patch override
+
+2026-10-03 CVE-SCAN에서 Boot 4.1.1 BOM 버전에 알려진 취약점이 있었다. 같은 minor 안의 patch로만 올렸다. 위치: 루트 `build.gradle.kts`(`resolutionStrategy.eachDependency`), 버전: `gradle/libs.versions.toml`의 `security-patch-*`.
+
+| 구성요소 | BOM 버전 | 적용 버전 | 해소된 권고(OSV) | 제거 조건 |
+|---|---|---|---|---|
+| Tomcat embed (core/el/websocket) | 11.0.24 | 11.0.26 | GHSA-9xv2-5v5q-p794(CVE-2026-65905, DIGEST 인증 우회, 9.8), GHSA-gcx9-497g-6cp6(CVE-2026-65182, 9.1), GHSA-h3x4-894j-xpx5(CVE-2026-68525, FORM 인증, 9.1). 모두 11.0.25에서 수정 | Boot BOM의 `tomcat.version` ≥ 11.0.25 |
+| Jackson 3 (`tools.jackson.*`) | 3.1.5 | 3.1.7 | GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24, GHSA-wv8q-qhhj-9h54(3.1.7 수정), GHSA-q4xh-88c3-wmh7, GHSA-gx83-3vf8-gh7j, GHSA-wjgm-6hv5-3cvf(3.1.6 수정). 주로 DoS/검증 우회 | Boot BOM의 `jackson-bom.version` ≥ 3.1.7 |
+
+- 적용 후 CVE-SCAN 결과(2026-10-03, ArchUnit runtime 제거 후): payment-api 106개, financial-batch 53개, internal-admin 58개 runtime 구성요소를 osv가 **모두 스캔**(스캔 수 = SBOM 구성요소 수)했고 알려진 취약점 0건. 같은 실행의 양성 대조(Tomcat 11.0.24 fixture)는 취약점 3건을 찾았다. SBOM에서 tomcat 11.0.26, jackson 3.1.7 실제 해석을 확인했다.
+- 영향 평가: 현재 앱은 Tomcat DIGEST/FORM 인증을 쓰지 않는다(internal-admin은 Spring Security, 인증 방식 미결). 그래도 운영 진입 전 취약 버전을 남기지 않기 위해 지금 올린다.
+- 주의: patch override는 Boot가 시험한 조합을 벗어난다. 전체 GRADLE-CHECK(27 tests)로 회귀를 확인했다. override는 Boot 4.1.1에만 묶여 있어 Boot를 올리면 빌드가 멈추고 재평가를 요구한다(오래된 patch로 조용히 되돌아가지 않음).
+- 범위: SBOM은 앱 runtime만 담는다. jOOQ 생성기 classpath(Testcontainers 등)·Gradle plugin·테스트 의존성은 스캔하지 않는다(운영 배포물이 아님).
+- CVE-SCAN은 OSV API 네트워크를 쓰므로 VERIFY-GATE에 넣지 않는다. 의존성·빌드 파일이 바뀌는 작업과 릴리스 전 별도로 실행한다. 새 권고는 매일 생기므로 "0건"은 스캔 시각 기준이다.
+- CVE-SCAN 판정: 이전 SBOM 삭제 후 재생성, 고정 설정(`harness/osv-scanner.toml`, 무시 목록 없음), 양성 대조 필수, 스캔 수 = 구성요소 수(>0), osv exit와 취약점 수 일치. 하나라도 어긋나면 exit 3(ENVIRONMENT). 판정 로직은 harness self-test(`test_cve_scan.py`)로 고정.
 
 ## 2. 출처
 
@@ -46,8 +66,45 @@ BOM 밖 최신값과의 차이(의도적으로 override 안 함): jOOQ 3.21.9, F
 **Kotlin `allOpen`(Entity/Embeddable/MappedSuperclass)과 `plugin.jpa`(no-arg)**
 - 하는 일: Kotlin 클래스는 기본 final이라 Hibernate가 지연 로딩 프록시(하위 클래스)를 만들 수 없다. 이 plugin이 JPA annotation이 붙은 클래스만 open으로, 인자 없는 생성자를 추가한다.
 - 예: adapter의 `JpaPaymentEntity`는 프록시 가능, 순수 Domain `Payment`에는 JPA annotation이 없으므로 영향 없음.
-- 주의: Entity에 `data class` equals/hashCode를 쓰지 않는다(식별자·프록시 규칙은 첫 Entity 작성 시 시험과 함께 설명).
+- 주의: Entity에 `data class` equals/hashCode를 쓰지 않는다(§4에서 시험 코드와 함께 설명).
 
-## 4. 아직 검증하지 않은 것
+## 4. TECH-001 smoke의 JPA 설명 (시험 코드 기준)
 
-TECH-001 범위: jOOQ codegen(Flyway schema→Testcontainers→codegen 재현), Spring Batch job 실행/재시작, Thymeleaf 렌더, JPA Entity 저장·`@Version` 충돌·rollback, 의존성 CVE 검사, Kafka/Redis 미도입 ADR.
+**`@Version`과 낙관적 잠금** (`TechSmokeItemEntity.version`, `TechSmokeJpaSpec`의 optimistic lock 시험)
+- 하는 일: UPDATE마다 Hibernate가 `WHERE id=? AND version=?`을 붙이고 version을 1 올린다.
+- 예: 거래 A가 id=2를 version 0으로 읽는다. 거래 B(별도 연결)가 이름을 바꿔 commit해 version이 1이 된다. A가 commit하면 `UPDATE … WHERE version=0`이 0행에 맞아 `OptimisticLockingFailureException`이 나고, 행은 B의 값(version 1)을 유지한다.
+- 이유: 사용자·외부 지연 동안 행 잠금을 쥐지 않고도 오래된 쓰기를 감지한다.
+- 주의: `@Version`을 빼면 A가 B를 조용히 덮어쓴다(Implementer 자체 mutation 확인, 저장소의 재현 시험은 없음). 충돌 시 금융 요청을 무작정 재시도하지 말고 현재 상태·기존 요청 결과를 다시 읽는다. Version은 새 행 삽입 경쟁을 막지 못하므로 UNIQUE가 따로 필요하다.
+
+**영속성 컨텍스트·변경 감지, flush와 commit의 차이** (`TechSmokeJpaSpec`)
+- 하는 일: TX 안에서 읽은 Entity는 관리 상태다. `findById(2).name = "…"`처럼 속성만 바꿔도 `save()` 없이 flush 때 UPDATE가 나간다. commit이 flush를 일으킨다.
+- 예: rollback 시험에서 `saveAndFlush`는 TX 안에서 INSERT를 DB로 보낸다. 같은 TX의 JdbcTemplate은 그 행을 본다. 이후 예외로 TX가 rollback되면 행은 사라진다.
+- 이유/의미: flush는 "SQL 실행", commit은 "영구·다른 연결에 보임". 금융 사실은 commit만 사실로 친다.
+- 주의: 분리된 객체나 순수 Domain 객체의 변경은 추적되지 않는다. Mapper가 상태와 version을 명시적으로 옮겨야 한다.
+
+**Entity를 `data class`로 만들지 않는 이유** (`TechSmokeItemEntity` KDoc)
+- data class는 모든 필드(바뀌는 `name`, `version` 포함)로 equals/hashCode를 만든다. 같은 행이 값이 바뀌면 "다른 객체"가 되어 Set/Map에서 사라진다. 자동 toString/copy는 연관이 생기면 LAZY 로딩·순환을 일으킬 수 있다.
+- 여기서는 `Hibernate.getClass()`를 쓴 id 기반 equals로 프록시와 실제 객체를 같게 본다. id가 생성 시 정해지므로 hashCode가 안정적이다.
+- 주의: DB가 id를 생성하는 Entity는 persist 전 id가 null이라 이 규칙을 그대로 쓸 수 없다. 첫 업무 Entity의 ID 전략(미결)과 함께 다시 정한다.
+
+## 5. TECH-001 기술 조합 smoke 결과
+
+| 영역 | 위치 | 확인한 것 | 확인하지 않은 것 |
+|---|---|---|---|
+| JPA + MySQL | payment-api 테스트 `techsmoke` | 저장·조회, `@Version` 충돌 후 값 보존, TX rollback 후 행 없음 | 다중 스레드 경합, 비관적 잠금·deadlock·lock timeout, LAZY/N+1 |
+| jOOQ codegen | payment-api `jooqCodegen` source set, `generateJooqMain/Test` | Flyway migration을 실제 MySQL 8.4.11 컨테이너에 적용한 live schema에서 생성(DDLDatabase/H2 아님), 생성 클래스로 JPA가 쓴 행 조회 | main schema는 아직 비어 있어 생성 클래스 0개. JPA·jOOQ가 같은 TX에 참여하는지는 미검증(같은 commit 데이터를 본다는 것만 확인) |
+| Spring Batch 6 | financial-batch(신규), JDBC JobRepository, 시험용 metadata migration(PROVISIONAL) | chunk 실패 시 그 chunk rollback, 같은 파라미터 재시작 시 checkpoint부터 중복 없이 완료(인스턴스 1, 실행 2) | 프로세스 강제 종료, 동시 실행, 외부 효과 exactly-once, skip/retry 정책 |
+| Thymeleaf + Security | internal-admin(신규), DB 없음 | 기본 거부(미인증 401/403), CSRF hidden input 렌더, CSRF 없는 POST 403, Boot 기본 사용자/비밀번호 미생성 | 실제 인증 방식(미결), 보안 헤더·CSP |
+| 공급망 | CycloneDX SBOM + osv-scanner | §1.1 | 비밀 탐지(gitleaks 등)는 HARNESS-002/CI |
+
+설계 메모:
+- jOOQ 생성기는 별도 source set이라 Testcontainers/codegen이 앱 runtime classpath에 들어가지 않는다(SBOM에서 확인). 생성 코드는 `build/`에만 두고 커밋하지 않는다. **컴파일에 Docker가 필요**하다(입력이 같으면 up-to-date로 건너뜀).
+- Batch metadata(BATCH_*) DDL(spring-batch-core 6.0.5 `schema-mysql.sql` 원문, Apache-2.0, 출처·hash를 파일 머리에 기록)은 **시험용 migration 위치에만** 있다(PROVISIONAL). 운영 위치·권한 분리·보존 정책(Q-BATCH-META)이 답변되기 전에는 `db/migration/financial`에 두지 않는다. 따라서 지금 financial-batch를 실제 DB로 실행하면 JobRepository 테이블이 없다(실제 Job도 없음).
+- 시험용 테이블은 `src/test/resources/db/testmigration/**`의 `V900__tech_smoke.sql`에만 있다. 운영 migration 위치에는 업무/시험 DDL이 없다.
+- JPA smoke Entity는 `com.paycore.techsmoke.payment` 패키지(테스트 소스)에 있다. 앱 패키지 아래에 두면 다른 테스트 컨텍스트가 그 Entity를 스캔해 `ddl-auto: validate`가 실패하기 때문이다. 해당 smoke 컨텍스트에서만 `@AutoConfigurationPackage`로 추가한다.
+
+## 6. 아직 검증하지 않은 것
+
+- jOOQ 생성 코드가 생긴 뒤의 Modulith 모듈 배치(생성 패키지가 `jooq` 모듈로 잡히는 문제) → FOUNDATION-001.
+- 공통 빌드 로직/테스트 지원 추출(세 모듈에 MySqlTestContainerConfig·빌드 블록 중복) → FOUNDATION-001.
+- 비밀 탐지, CI 연동 → HARNESS-002.

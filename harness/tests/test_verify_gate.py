@@ -44,6 +44,8 @@ class VerifyGate(unittest.TestCase):
     def gate(self, *extra, timeout=60):
         registry = {"commands": [{"id": k, "timeoutSeconds": 20, **v} for k, v in self.commands.items()]}
         (self.root / "harness/commands.json").write_text(json.dumps(registry), encoding="utf-8")
+        if not extra:
+            extra = ("--expect-fingerprint", FP_A)
         started = time.monotonic()
         proc = subprocess.run([PY, str(self.root / "harness/scripts/verify-gate.py"), "T-1", *extra],
                               capture_output=True, text=True, timeout=timeout)
@@ -89,11 +91,49 @@ class VerifyGate(unittest.TestCase):
         self.commands["FINGERPRINT"] = {"argv": [PY, "-c", "print('headRevision=abc')"]}
         code, ev, _ = self.gate()
         self.assertEqual((code, ev["verdict"]), (1, "FAIL"))
+        self.assertEqual(len(ev["runs"]), 1)
+
+    def test_missing_fingerprint_on_final_stage_fails(self):
+        # 첫 단계는 정상, 마지막 FINGERPRINT 직전에 출력이 사라지는 경우
+        self.commands["IMAGE-DIGESTS"] = {"argv": [PY, "-c", "open('fp.txt','w').write('garbage')"]}
+        code, ev, _ = self.gate()
+        self.assertEqual((code, ev["verdict"]), (1, "FAIL"))
         self.assertIn("fingerprint missing or malformed", ev["problems"])
 
-    def test_expected_fingerprint_mismatch_fails(self):
+    def test_expected_fingerprint_mismatch_fails_fast(self):
         code, ev, _ = self.gate("--expect-fingerprint", FP_B)
         self.assertEqual((code, ev["verdict"]), (1, "FAIL"))
+        self.assertEqual([r["commandId"] for r in ev["runs"]], ["FINGERPRINT"])
+
+    def test_expected_fingerprint_is_required(self):
+        registry = {"commands": [{"id": k, "timeoutSeconds": 20, **v} for k, v in self.commands.items()]}
+        (self.root / "harness/commands.json").write_text(json.dumps(registry), encoding="utf-8")
+        proc = subprocess.run([PY, str(self.root / "harness/scripts/verify-gate.py"), "T-1"],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+
+    def test_escaped_descendant_holding_pipe_is_bounded(self):
+        # 새 session으로 빠져나간 손자 프로세스가 stdout pipe를 잡은 채 남는 경우
+        grandchild = ("import subprocess, sys, time; "
+                      "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(25)'], start_new_session=True); "
+                      "time.sleep(60)")
+        self.commands["GRADLE-CHECK"] = {"argv": [PY, "-c", grandchild], "timeoutSeconds": 1}
+        code, ev, elapsed = self.gate()
+        self.assertEqual((code, ev["verdict"]), (1, "FAIL"))
+        self.assertTrue(ev["runs"][-1]["timedOut"])
+        self.assertTrue(ev["runs"][-1]["cleanupUnverified"])
+        self.assertLess(elapsed, 40)
+
+    def test_archive_globs_copy_reports_into_evidence(self):
+        report = self.root / "out/TEST-x.xml"
+        report.parent.mkdir()
+        report.write_text("<testsuite/>", encoding="utf-8")
+        self.commands["GRADLE-CHECK"]["archiveGlobs"] = ["out/TEST-*.xml"]
+        code, ev, _ = self.gate()
+        self.assertEqual(code, 0)
+        archived = next(r for r in ev["runs"] if r["commandId"] == "GRADLE-CHECK")["archived"]
+        self.assertEqual(len(archived), 1)
+        self.assertTrue((self.root / archived[0]["copy"]).is_file())
 
     def test_expected_fingerprint_match_passes(self):
         code, ev, _ = self.gate("--expect-fingerprint", FP_A)
