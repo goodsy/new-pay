@@ -248,7 +248,7 @@
       "id": "HARNESS-001",
       "title": "실제 검증 명령 및 증거 수집 계약 등록",
       "phase": "SAFE_FOUNDATION",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "BOOT-001"
       ],
@@ -262,66 +262,167 @@
         "모듈 추가 시 minTests/보고서 경로 갱신 규칙"
       ],
       "allowedWritePaths": [
-        "harness/**"
+        "harness/**",
+        "docs/repository/**",
+        ".gitignore",
+        ".gitattributes"
       ],
       "pathsResolved": true,
-      "owner": null,
-      "attempts": 0,
+      "owner": "coordinator-main-session",
+      "attempts": 2,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": 1800,
-      "evidence": null,
-      "review": null,
-      "principleEvidence": {
-        "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+      "evidence": {
+        "verifierRound1": {
+          "verdict": "VERIFIED",
+          "codeFingerprint": "sha256:9624275666b92f12cd2650c91384b4f35d76d99a543bc80667d4303271a91083",
+          "note": "superseded by review fixes"
         },
-        "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
-        },
-        "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+        "final": {
+          "verdict": "VERIFIED",
+          "codeFingerprint": "sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f",
+          "headRevision": "cbf2c92 (dirty, 68 files)",
+          "verifyGate": {
+            "argv": [
+              "python3",
+              "harness/scripts/verify-gate.py",
+              "HARNESS-001",
+              "--expect-fingerprint",
+              "sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f"
+            ],
+            "exitCode": 0,
+            "verdict": "PASS",
+            "start": "2026-10-03T12:23:06Z",
+            "end": "2026-10-03T12:23:56Z",
+            "evidenceFile": "build/harness-evidence/HARNESS-001-2026-10-03T122307Z.json",
+            "evidenceSha256": "059d38f70dbc72c2c88a59e659633fcf52d0a772300836331e9860d1a6883c3b"
+          },
+          "negativeControl": {
+            "expectFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "exitCode": 1,
+            "verdict": "FAIL",
+            "evidenceFile": "build/harness-evidence/HARNESS-001-2026-10-03T122417Z.json"
+          },
+          "harnessSelftest": {
+            "testsExecuted": 33,
+            "skips": 0,
+            "result": "OK"
+          },
+          "gradleTests": {
+            "testsExecuted": 6,
+            "failures": 0,
+            "errors": 0,
+            "skips": 0,
+            "notBefore": "2026-10-03T12:23:11Z",
+            "reports": {
+              "PaymentApiContextSmokeSpec": "f3b78b678916e95dc342b8489fcc896c564c07b8eaba886f4b835fb22770f191",
+              "ArchitectureSpec": "712468a9b9cc7fa493685907e2be7fe883b36d3c11a57f55480ed0ac65fe001a"
+            }
+          },
+          "containersObserved": "ryuk 0.14.0 and mysql:8.4.11 started this run (Verifier read report system-out)"
         }
       },
-      "note": "BOOT-001에서 commands.json 초안(GRADLE-CHECK/TEST-SUMMARY/FINGERPRINT/GRADLE-DEPS) 등록. 남은 일: 계약 검토·모듈 추가 시 minTests/보고서 경로 갱신 규칙"
+      "review": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "reviewedFingerprint": "sha256:9624275666b92f12cd2650c91384b4f35d76d99a543bc80667d4303271a91083",
+          "findings": {
+            "M1": "fixed",
+            "L1": "fixed: env/user file snapshot + contract limit",
+            "L2": "fixed: selftest in GATE with output rules",
+            "L3": "fixed",
+            "L4": "fixed: wording",
+            "L5": "fixed: ENVIRONMENT_ERROR verdict, timeout test",
+            "L6": "fixed: full logs + sha256",
+            "L7": "fixed",
+            "I1": "accepted"
+          }
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "reviewedFingerprint": "sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f",
+          "followUps": {
+            "N1": "add --console=verbose + positive test-task rule (Verifier saw test task line in plain log)",
+            "N2": "fingerprint.sh: check git ls-files status, fail on 0 files, hash in own assignment",
+            "N3": "test escaped-descendant cleanup branch; catch wait TimeoutExpired; contract §8 wording",
+            "N4": "--expect-fingerprint required",
+            "N5": "GRADLE_USER_HOME-aware snapshot, unreadable file handling",
+            "V1": "archive smoke report container lines into gate logs",
+            "V2": "fail fast on expected fingerprint mismatch after stage 0"
+          }
+        }
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Transaction Safety": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Idempotency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Concurrency Control": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Recoverability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Reconciliation": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Auditability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음. 하네스가 가짜 통과를 막는 것은 이후 모든 원칙 증거의 전제",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        },
+        "Observability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "검증 하네스 작업: 금융 효과·업무 데이터 없음.",
+          "verificationCommandIds": [],
+          "evidence": null,
+          "followUpGate": "각 기능 작업"
+        }
+      },
+      "note": "BOOT-001에서 commands.json 초안(GRADLE-CHECK/TEST-SUMMARY/FINGERPRINT/GRADLE-DEPS) 등록. 남은 일: 계약 검토·모듈 추가 시 minTests/보고서 경로 갱신 규칙",
+      "attemptsNote": "Coordinator 사전 점검에서 fingerprint 무시파일 guard의 pathspec('apps/*/src') 오류 발견 → 'apps/*/src/*'로 수정, 자체 시험으로 고정 / Verifier 우려 + Reviewer CHANGES_REQUIRED(M1, L1~L7) 반영: verify-gate 보강·시험 13개, fingerprint 보강",
+      "verificationCommandIds": [
+        "HARNESS-SELFTEST",
+        "VERIFY-GATE"
+      ],
+      "reports": [
+        "docs/repository/HARNESS-VERIFICATION-CONTRACT.md"
+      ],
+      "lastSuccessfulStep": "HARNESS-001 DONE: VERIFY-GATE PASS + negative control FAIL + REVIEW_PASS on sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f",
+      "nextResumeAction": null,
+      "originalAllowedWritePaths": [],
+      "allowedWritePathsNote": "원 카드 allowedWritePaths는 빈 값(pathsResolved=false). BOOT-001 완료 후 Coordinator가 harness/**, docs/repository/**, .gitignore, .gitattributes로 확정"
     },
     {
       "id": "FOUNDATION-001",
@@ -1222,13 +1323,14 @@
       "id": "TECH-001",
       "title": "안정 GA/BOM 호환 조합과 필수 기술 검증",
       "phase": "SAFE_FOUNDATION",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "BOOT-001",
         "HARNESS-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
+        "HARNESS-001 follow-up N1~N5, V1~V2 반영(첫 단계)",
         "공식 stable GA/지원 상태·BOM과 Kotlin plugins·JDK·Wrapper 버전 고정",
         "실제 DB 후보·jOOQ edition/codegen·JPA/Spring TX·Thymeleaf/Batch smoke test",
         "8대 원칙 검증 매핑과 JPA 쉬운 설명 규칙 적용",
@@ -1236,7 +1338,7 @@
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
-      "owner": null,
+      "owner": "coordinator-main-session",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,

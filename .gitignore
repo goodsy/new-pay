@@ -27,3 +27,7 @@ Thumbs.db
 
 # Claude local-only settings
 .claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc

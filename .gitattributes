@@ -1,0 +1,7 @@
+# 줄바꿈 고정. Windows/WSL 어디서 checkout해도 스크립트가 동작하게 한다.
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.bat text eol=crlf
+*.jar binary

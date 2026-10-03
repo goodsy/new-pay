@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "checkedDate": "2026-10-03",
-  "status": "SKELETON_BUILT_PENDING_FINAL_VERIFIER",
-  "statusNote": "Coordinator 실행 및 Verifier 2차 실행(fingerprint 1a9c7297…) 통과, Reviewer 수정 반영 후 최종 Verifier 증거는 tasks.json BOOT-001.evidence. Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE는 TECH-001 미검증",
+  "status": "PAYMENT_API_SKELETON_VERIFIED",
+  "statusNote": "BOOT-001 Verifier VERIFIED(fingerprint f846385e…, commit cbf2c92, 6 tests, GRADLE-DEPS 버전 확인) + Reviewer REVIEW_PASS. Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE는 TECH-001 미검증",
   "decisionRef": "D-TECH-001",
   "os": "WSL2 Ubuntu 26.04.1 LTS",
   "jdk": "OpenJDK 25.0.4.1",

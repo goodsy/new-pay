@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
-  "codeFingerprint": "sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac",
-  "lastSuccessfulStep": "BOOT-001 DONE (Verifier VERIFIED, Reviewer REVIEW_PASS, fingerprint f846385e…). Uncommitted working tree.",
+  "activeTaskId": "TECH-001",
+  "codeFingerprint": "sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f",
+  "lastSuccessfulStep": "HARNESS-001 DONE (VERIFY-GATE PASS, REVIEW_PASS, fingerprint 99c82a02…)",
   "pendingQuestionIds": [],
-  "nextResumeAction": "HARNESS-001(READY) 점유 → TECH-001 → FOUNDATION-001 → CP-DOMAIN-001. CP-CONTRACT-001 착수 시 Q-CP-KEY/Q-CP-MONEY/Q-CP-RESULT 질문. 변경분은 아직 커밋되지 않음(사용자 요청 시 커밋, +x 보존)",
+  "nextResumeAction": "TECH-001: harness follow-up → JPA Version/rollback smoke → jOOQ codegen → Batch(financial-batch) → Thymeleaf → CVE/SBOM → Kafka/Redis ADR",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -26,6 +26,21 @@
       "at": "2026-10-03T11:57Z",
       "taskId": "BOOT-001",
       "event": "Verifier final VERIFIED + Reviewer round2 REVIEW_PASS on sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac → DONE"
+    },
+    {
+      "at": "2026-10-03 KST",
+      "taskId": "BOOT-001",
+      "event": "committed cbf2c92 (branch feat/foundation-setup)"
+    },
+    {
+      "at": "2026-10-03 KST",
+      "taskId": "HARNESS-001",
+      "event": "VERIFY-GATE/HARNESS-SELFTEST/IMAGE-DIGESTS added; VERIFYING"
+    },
+    {
+      "at": "2026-10-03T12:26Z",
+      "taskId": "HARNESS-001",
+      "event": "DONE on sha256:99c82a0283ac9fe9b17d023215e300720184fa126f86d950b2bd4669efe0bd9f"
     }
   ]
 }
