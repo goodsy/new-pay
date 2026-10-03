@@ -22,8 +22,8 @@ build/
 Thumbs.db
 
 # Local runtime data
-data/
-docker-data/
+/data/
+/docker-data/
 
 # Claude local-only settings
 .claude/settings.local.json

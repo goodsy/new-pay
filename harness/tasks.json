@@ -7,7 +7,7 @@
       "id": "BOOT-001",
       "title": "실제 저장소 조사와 기존 변경 보존",
       "phase": "DISCOVERY",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -18,71 +18,237 @@
       ],
       "allowedWritePaths": [
         "harness/**",
-        "docs/repository/**"
+        "docs/repository/**",
+        "docs/DECISIONS.md",
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "gradle.properties",
+        "gradle/**",
+        "gradlew",
+        "gradlew.bat",
+        "apps/payment-api/**",
+        "compose.yaml",
+        "docker/**",
+        ".env.example",
+        ".gitignore"
       ],
       "pathsResolved": true,
-      "owner": null,
-      "attempts": 0,
+      "owner": "coordinator-main-session",
+      "attempts": 2,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 3600,
+      "evidence": {
+        "verifierRound1": {
+          "verdict": "INSUFFICIENT_EVIDENCE",
+          "reason": "test task FROM-CACHE",
+          "codeFingerprint": "sha256:f87edd49dba62e8a50a23d652a42a149b343ed7c305cf2c8b872e00face3fe1e"
+        },
+        "verifierRound2": {
+          "verdict": "VERIFIED",
+          "codeFingerprint": "sha256:1a9c72973f58c74b45075167df6d60603ab71163c3fcf5daca3d2c0d8f7220be",
+          "commandIds": [
+            "FINGERPRINT",
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "GRADLE-DEPS(round1)"
+          ],
+          "gradleCheck": {
+            "start": "2026-10-03T11:49:33Z",
+            "end": "2026-10-03T11:50:59Z",
+            "exitCode": 0
+          },
+          "testsExecuted": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0,
+          "reports": {
+            "TEST-com.paycore.payment.PaymentApiContextSmokeSpec.xml": "9d203f3369d24eb8b6cc2f41d224553932c5fe270621f841fc233e2f0af02c8f",
+            "TEST-com.paycore.payment.architecture.ArchitectureSpec.xml": "a408255d8db002dc4057328c2e19d99fd68e69f05ffef61b7cc0b5b0e766f5fb"
+          },
+          "note": "superseded by review fixes; final verifier run required on new fingerprint"
+        },
+        "final": {
+          "verdict": "VERIFIED",
+          "codeFingerprint": "sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac",
+          "headRevision": "bac1bbe31f04abe85cea21b25960294946a86f63 (dirty, 62 files)",
+          "environment": "WSL2 Ubuntu 26.04.1, OpenJDK 25.0.4.1, Gradle 9.8.0, Docker 29.8.0, Testcontainers 2.0.5",
+          "runs": [
+            {
+              "commandId": "FINGERPRINT",
+              "exitCode": 0,
+              "at": "2026-10-03T11:55:32Z"
+            },
+            {
+              "commandId": "TEST-SUMMARY (negative control, no --not-before)",
+              "exitCode": 2
+            },
+            {
+              "commandId": "GRADLE-CHECK",
+              "argv": [
+                "./gradlew",
+                "--no-daemon",
+                "--no-build-cache",
+                "--rerun-tasks",
+                "check"
+              ],
+              "start": "2026-10-03T11:55:40Z",
+              "end": "2026-10-03T11:56:28Z",
+              "exitCode": 0,
+              "timedOut": false,
+              "tasks": "5 executed, test not FROM-CACHE"
+            },
+            {
+              "commandId": "TEST-SUMMARY",
+              "notBefore": "2026-10-03T11:55:40Z",
+              "exitCode": 0
+            },
+            {
+              "commandId": "GRADLE-DEPS",
+              "exitCode": 0,
+              "resolved": {
+                "spring-boot": "4.1.1",
+                "kotlin-stdlib": "2.3.21",
+                "hibernate-core": "7.4.5.Final",
+                "jooq": "3.21.7",
+                "flyway-core": "12.4.0",
+                "mysql-connector-j": "9.7.0",
+                "spring-modulith": "2.1.1"
+              }
+            },
+            {
+              "commandId": "FINGERPRINT",
+              "exitCode": 0,
+              "at": "2026-10-03T11:57:02Z",
+              "unchanged": true
+            }
+          ],
+          "testsExecuted": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0,
+          "reports": {
+            "TEST-com.paycore.payment.PaymentApiContextSmokeSpec.xml": "b3f13c4ad3be52222f24170b656edffac0166342d1a9fa8ac583dae183bc5c57",
+            "TEST-com.paycore.payment.architecture.ArchitectureSpec.xml": "ef3ada39455b56a5283cc9a02009c6287a29992b2bfc4e5154307b64c3b5e4d2"
+          },
+          "imageDigests": {
+            "mysql:8.4.11": "sha256:0744ee5ef89ce6ccfa13de3e579fe6b9e27f93dd70da9c06d2c908b1b193fb8d",
+            "testcontainers/ryuk:0.14.0": "sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0"
+          },
+          "fileModes": "755: gradlew, harness/scripts/*, docker/mysql/init/*.sh (untracked; preserve +x on commit)",
+          "limits": "ArchitectureSpec domain rule and Modulith verify have empty targets (vacuous) until FOUNDATION-001. Smoke tests prove wiring only, not any of the 8 principles."
+        }
+      },
+      "review": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "reviewedFingerprint": "sha256:1a9c72973f58c74b45075167df6d60603ab71163c3fcf5daca3d2c0d8f7220be",
+          "findings": {
+            "F1": "fixed: fingerprint includes commands.json",
+            "F2": "fixed: status wording pending final verifier evidence",
+            "F3": "fixed: collation default note + CP-DB-001 criterion + Q-CP-KEY note",
+            "F4": "fixed: .gitignore anchored /data/ /docker-data/",
+            "F5": "fixed: --not-before required, UTC via WSL date -u documented",
+            "F6": "fixed: ddl-auto validate example corrected",
+            "F7": "fixed: smoke spec KDoc softened",
+            "F8": "fixed: init script set -e only, notes on escaping/account split; file mode recorded at commit",
+            "F9": "fixed: path list, originalAllowedWritePaths, table layout",
+            "F10": "fixed: image digest required in verifier evidence (commands.json evidenceRequirements)",
+            "F11": "deferred: FOUNDATION-001 acceptance criterion added"
+          }
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "reviewedFingerprint": "sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac",
+          "newFindings": {
+            "N1": "applied (state files): Q-CP-KEY note on PAD SPACE vs NO PAD; CP-DB-001 behavioral case/trailing-space UNIQUE test",
+            "N2": "applied: Transaction Safety reason reworded",
+            "N3": "resolved: GRADLE-DEPS re-run on final fingerprint",
+            "N4": "accepted: unanchored ignore patterns/file modes not hashed; follow-up HARNESS-001"
+          }
+        }
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. 금액/원장 코드 없음.",
+          "followUpGate": "CP-DOMAIN-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. TX 경계 코드 없음. Flyway/JPA/jOOQ 기동만 smoke 확인.",
+          "followUpGate": "TECH-001(JPA rollback smoke), CP-DB-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. 요청키 처리 없음.",
+          "followUpGate": "CP-DB-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. 실제 MySQL Testcontainers 기반은 준비됨(경합 시험 기반).",
+          "followUpGate": "CP-DB-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다.",
+          "followUpGate": "AUTH-CONTRACT-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다.",
+          "followUpGate": "RECON-CONTRACT-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. 결정/질문/근거는 DECISIONS.md·questions.json에 기록.",
+          "followUpGate": "CP-API-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "DISCOVERY/skeleton 작업: 금융 효과·업무 데이터·외부 호출이 없다. actuator health만 노출.",
+          "followUpGate": "TECH-001/CP-API-001",
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "attemptsNote": "1) Kotest 6 Spec.extensions() final 컴파일 오류 → ProjectConfig. 2) Verifier INSUFFICIENT_EVIDENCE(FROM-CACHE) + Reviewer CHANGES_REQUIRED(F1~F11) 반영",
+      "allowedWritePathsNote": "사용자 2026-10-03 요청(skeleton과 검증 명령 확정)에 따라 Coordinator가 확장",
+      "verificationCommandIds": [
+        "GRADLE-CHECK",
+        "TEST-SUMMARY",
+        "FINGERPRINT"
+      ],
+      "reports": [
+        "docs/repository/BOOT-001-DISCOVERY.md",
+        "docs/repository/TECH-BASELINE.md",
+        "docs/repository/SPLEARN-REFERENCE-REVIEW.md"
+      ],
+      "lastSuccessfulStep": "BOOT-001 DONE: Verifier VERIFIED + Reviewer REVIEW_PASS on sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac",
+      "nextResumeAction": null,
+      "originalAllowedWritePaths": [
+        "harness/**",
+        "docs/repository/**"
+      ]
     },
     {
       "id": "HARNESS-001",
       "title": "실제 검증 명령 및 증거 수집 계약 등록",
       "phase": "SAFE_FOUNDATION",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "BOOT-001"
       ],
@@ -90,14 +256,19 @@
       "acceptanceCriteria": [
         "commands.json에 실제 argv/cwd/timeout 등록",
         "보고서 위치·테스트 수·실패 판정 정의",
-        "없는 명령·가짜 통과 결과 없음"
+        "없는 명령·가짜 통과 결과 없음",
+        "commands.json evidenceRequirements의 digest 예시를 공백/따옴표 없는 형태(--format={{.Id}})로 수정",
+        "fingerprint의 파일 mode·비고정 ignore 패턴(*.log, .env) 처리 검토(Reviewer N4)",
+        "모듈 추가 시 minTests/보고서 경로 갱신 규칙"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
+      "allowedWritePaths": [
+        "harness/**"
+      ],
+      "pathsResolved": true,
       "owner": null,
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
+      "taskTimeoutSeconds": 1800,
       "evidence": null,
       "review": null,
       "principleEvidence": {
@@ -149,7 +320,8 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "note": "BOOT-001에서 commands.json 초안(GRADLE-CHECK/TEST-SUMMARY/FINGERPRINT/GRADLE-DEPS) 등록. 남은 일: 계약 검토·모듈 추가 시 minTests/보고서 경로 갱신 규칙"
     },
     {
       "id": "FOUNDATION-001",
@@ -165,7 +337,9 @@
       "acceptanceCriteria": [
         "소유 DB 경계와 Domain 의존성 분리",
         "프로젝트 관례에 맞는 최소 구조",
-        "미확정 정책을 운영 기본값으로 넣지 않음"
+        "미확정 정책을 운영 기본값으로 넣지 않음",
+        "ArchitectureSpec의 allowEmptyShould 제거(false)와 실제 domain/application/adapter 대상 확인",
+        "기관 DTO·adapter 패키지 의존 금지 규칙 추가"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -390,7 +564,9 @@
       "acceptanceCriteria": [
         "실제 DB 제약과 동시 요청 검증",
         "rollback 시 부분 성공 없음",
-        "같은 주문 다른 요청키 수렴 및 상이 내용 충돌"
+        "같은 주문 다른 요청키 수렴 및 상이 내용 충돌",
+        "모든 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 Q-CP-KEY 답변에 따른 COLLATE를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
+        "Flyway migration 계정과 DML 제한 runtime 계정 분리 검토"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1115,7 +1291,8 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "note": "dependsOn BOOT-001(DONE), HARNESS-001. payment-api skeleton 위에 Batch/Thymeleaf/jOOQ codegen/JPA Version·rollback/CVE/Kafka·Redis ADR"
     }
   ]
 }

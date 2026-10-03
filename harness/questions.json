@@ -3,6 +3,21 @@
   "instruction": "처음에 모두 질문하지 않는다. 필요한 작업 착수 시 확정 문서/최신 답변에 이미 있는지 확인하고 필요한 질문만 ASKED로 바꾼다. 무응답은 동의가 아니다.",
   "questions": [
     {
+      "id": "Q-TECH-BOOT",
+      "status": "APPLIED",
+      "question": "Spring Boot 3.x OSS 지원 종료(2026-06-30)와 JDK 25/Gradle 비호환 상황에서 사용할 Boot 라인",
+      "recommended": "Boot 4.1.1 (OSS 지원, Java 25·Gradle 9 지원, 나머지 확정 스택 유지)",
+      "alternative": "Boot 3.5.16 EOL 위험 수용 / Boot 3.5 + 상용 연장지원",
+      "dependentTasks": [
+        "BOOT-001",
+        "TECH-001"
+      ],
+      "askedAt": "2026-10-03 KST (정확한 메시지 시각 불명)",
+      "humanAnswer": "Boot 4.1.1 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답",
+      "appliedSpec": "D-TECH-001; docs/repository/TECH-BASELINE.md; gradle/libs.versions.toml"
+    },
+    {
       "id": "Q-CP-KEY",
       "status": "PROPOSED",
       "question": "주문 ID와 요청 멱등키의 대소문자·공백·정규화 동일성",
@@ -14,7 +29,8 @@
       "askedAt": null,
       "humanAnswer": null,
       "humanEvidence": null,
-      "appliedSpec": null
+      "appliedSpec": null,
+      "technicalNote": "MySQL 8.4 기본 collation utf8mb4_0900_ai_ci는 대소문자·악센트를 무시한다(미지정=대소문자 무시를 암묵 선택). 후행 공백도 collation마다 다르다: utf8mb4_bin 등 PAD SPACE collation은 비교·UNIQUE에서 후행 공백을 무시하고, utf8mb4_0900_bin 등 0900 계열은 NO PAD다. 권장안(입력 그대로 비교)을 채택하면 NO PAD binary collation이 필요하다. 정책 선택은 사용자 답변으로만 한다."
     },
     {
       "id": "Q-CP-MONEY",

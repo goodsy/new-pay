@@ -1,0 +1,46 @@
+# PayCore version catalog.
+# Boot 관리 항목은 Spring Boot BOM(platform)이 버전을 결정한다. 여기서는 BOM 밖 항목과 plugin만 고정한다.
+# 근거와 확인 일자: docs/repository/TECH-BASELINE.md
+[versions]
+spring-boot = "4.1.1"
+# Boot 4.1.1 BOM의 kotlin.version과 동일하게 유지한다.
+kotlin = "2.3.21"
+spring-modulith = "2.1.1"
+kotest = "6.2.5"
+mockk = "1.14.11"
+springmockk = "5.0.1"
+archunit = "1.5.1"
+
+[libraries]
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
+
+spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-jooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
+spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+spring-modulith-starter-core = { module = "org.springframework.modulith:spring-modulith-starter-core" }
+spring-modulith-starter-test = { module = "org.springframework.modulith:spring-modulith-starter-test" }
+
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+flyway-mysql = { module = "org.flywaydb:flyway-mysql" }
+mysql-connector-j = { module = "com.mysql:mysql-connector-j" }
+testcontainers-mysql = { module = "org.testcontainers:testcontainers-mysql" }
+
+kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+kotest-extensions-spring = { module = "io.kotest:kotest-extensions-spring", version.ref = "kotest" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }

@@ -1,6 +1,53 @@
 {
   "schemaVersion": 1,
-  "status": "NEEDS_REPOSITORY_DISCOVERY",
-  "note": "BOOT-001에서 실저장소 명령을 argv와 검증 범위로 등록한다. 빈 목록은 검증 성공이 아니다.",
-  "commands": []
+  "status": "REGISTERED_BY_BOOT_001",
+  "note": "argv는 WSL 안에서 cwd 기준으로 실행한다. Windows 호스트에서는 hostInvocation 접두사를 붙여 고정 argv만 전달한다. 모델 문자열을 shell로 조합하지 않는다. 빈 결과/0건/환경 오류는 성공이 아니다.",
+  "hostInvocation": ["wsl.exe", "-d", "Ubuntu", "--cd", "/home/sykim/workspace/paycore", "--"],
+  "hostInvocationNote": "Windows Git Bash에서 호출 시 MSYS_NO_PATHCONV=1 필요(없으면 --cd 경로가 변환되어 exit 127). PowerShell에서는 불필요. 주의: wsl.exe는 argv를 WSL 기본 shell을 거쳐 실행하므로 '<', '>', '|', ';', '$', '`', '&', '(' 등 shell 메타문자가 든 argv는 등록·실행하지 않는다(등록된 argv에는 없음)",
+  "evidenceRequirements": "Verifier 증거에는 codeFingerprint, commandId/argv, exit code, 시작/종료 UTC, test 수, 보고서 sha256, 그리고 Testcontainers가 실제 사용한 이미지 digest(`docker image inspect --format '{{index .RepoDigests 0}}' mysql:8.4.11`, testcontainers/ryuk)를 남긴다",
+  "workingDirectory": "/home/sykim/workspace/paycore",
+  "commands": [
+    {
+      "id": "GRADLE-CHECK",
+      "argv": ["./gradlew", "--no-daemon", "--no-build-cache", "--rerun-tasks", "check"],
+      "timeoutSeconds": 900,
+      "env": {},
+      "purpose": "Kotlin 컴파일(경고=오류) + 전체 테스트(Kotest, ArchUnit/Modulith, Testcontainers MySQL 8.4.11). 검증 실행은 build cache/up-to-date 결과를 재사용하지 않는다(FROM-CACHE 보고서는 증거 아님)",
+      "expectedReports": ["apps/payment-api/build/test-results/test/TEST-*.xml"],
+      "minTests": 6,
+      "followWith": "TEST-SUMMARY",
+      "sideEffects": "build/ 산출물 생성. Docker에 mysql:8.4.11 및 testcontainers/ryuk 컨테이너를 일시 기동 후 제거. 운영 DB/endpoint 접근 없음"
+    },
+    {
+      "id": "TEST-SUMMARY",
+      "argv": ["python3", "harness/scripts/test-summary.py", "--not-before", "<GRADLE-CHECK 시작 UTC ISO-8601>", "6", "apps/payment-api/build/test-results/test"],
+      "parameters": {"--not-before": "필수. GRADLE-CHECK 직전 WSL 안에서 `date -u +%Y-%m-%dT%H:%M:%SZ`로 얻은 UTC 시각. 이 값만 바뀌며 다른 argv는 고정"},
+      "timeoutSeconds": 60,
+      "env": {},
+      "purpose": "JUnit XML 보고서 존재·테스트 수(minTests)·failures/errors/skips·보고서 실행시각 신선도 판정, 보고서별 SHA-256/timestamp 출력. exit 0만 PASS",
+      "expectedReports": [],
+      "minTests": null,
+      "sideEffects": "없음(읽기 전용)"
+    },
+    {
+      "id": "FINGERPRINT",
+      "argv": ["harness/scripts/fingerprint.sh"],
+      "timeoutSeconds": 60,
+      "env": {},
+      "purpose": "git 추적+미추적(비무시) 파일 SHA-256 manifest의 hash. harness 진행 상태 JSON(tasks/progress/questions)만 제외하고 commands.json(gate 정의)은 포함. --manifest로 전체 목록",
+      "expectedReports": [],
+      "minTests": null,
+      "sideEffects": "없음(읽기 전용)"
+    },
+    {
+      "id": "GRADLE-DEPS",
+      "argv": ["./gradlew", "--no-daemon", "-q", ":apps:payment-api:dependencies", "--configuration", "runtimeClasspath"],
+      "timeoutSeconds": 300,
+      "env": {},
+      "purpose": "resolved runtime dependency tree (버전 고정 증거)",
+      "expectedReports": [],
+      "minTests": null,
+      "sideEffects": "Gradle 캐시만 사용"
+    }
+  ]
 }

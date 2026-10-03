@@ -1,10 +1,31 @@
 {
   "schemaVersion": 1,
-  "executionStarted": false,
+  "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": null,
-  "lastSuccessfulStep": "Instruction package prepared; no PayCore implementation executed",
+  "codeFingerprint": "sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac",
+  "lastSuccessfulStep": "BOOT-001 DONE (Verifier VERIFIED, Reviewer REVIEW_PASS, fingerprint f846385e…). Uncommitted working tree.",
   "pendingQuestionIds": [],
-  "nextResumeAction": "Read project instructions and start BOOT-001 repository discovery",
-  "events": []
+  "nextResumeAction": "HARNESS-001(READY) 점유 → TECH-001 → FOUNDATION-001 → CP-DOMAIN-001. CP-CONTRACT-001 착수 시 Q-CP-KEY/Q-CP-MONEY/Q-CP-RESULT 질문. 변경분은 아직 커밋되지 않음(사용자 요청 시 커밋, +x 보존)",
+  "events": [
+    {
+      "at": "2026-10-03 KST",
+      "taskId": "BOOT-001",
+      "event": "Q-TECH-BOOT asked/answered (Boot 4.1.1); skeleton created; status VERIFYING"
+    },
+    {
+      "at": "2026-10-03T11:47Z",
+      "taskId": "BOOT-001",
+      "event": "Verifier round1 INSUFFICIENT_EVIDENCE (FROM-CACHE) → commands fixed"
+    },
+    {
+      "at": "2026-10-03T11:51Z",
+      "taskId": "BOOT-001",
+      "event": "Verifier round2 VERIFIED; Reviewer round1 CHANGES_REQUIRED F1-F11 → fixed"
+    },
+    {
+      "at": "2026-10-03T11:57Z",
+      "taskId": "BOOT-001",
+      "event": "Verifier final VERIFIED + Reviewer round2 REVIEW_PASS on sha256:f846385e79bf2833ffd10379ffa231e166bdcaba77f61b3db1143e0ec773b5ac → DONE"
+    }
+  ]
 }
