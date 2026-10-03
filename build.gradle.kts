@@ -24,12 +24,30 @@ val securityPatchVersions = mapOf(
     "tools.jackson.dataformat" to libs.versions.security.patch.jackson.get(),
 )
 
+// 숫자 dotted 버전 비교("11.0.27" > "11.0.26"). pre-release 등 숫자가 아닌 부분이 있으면 GA patch보다 새롭다고 보지 않는다
+// (그 경우 patch를 강제해 runtime에 pre-release가 남지 않게 한다).
+fun isNewer(candidate: String, than: String): Boolean {
+    if (!candidate.matches(Regex("""\d+(\.\d+)*"""))) return false
+    val a = candidate.split('.', '-').map { it.toIntOrNull() ?: 0 }
+    val b = than.split('.', '-').map { it.toIntOrNull() ?: 0 }
+    for (i in 0 until maxOf(a.size, b.size)) {
+        val x = a.getOrElse(i) { 0 }
+        val y = b.getOrElse(i) { 0 }
+        if (x != y) return x > y
+    }
+    return false
+}
+
 subprojects {
     configurations.configureEach {
         resolutionStrategy.eachDependency {
             securityPatchVersions[requested.group]?.let { patched ->
-                useVersion(patched)
-                because("security patch override over Spring Boot BOM (TECH-BASELINE §1.1)")
+                // 올리기만 한다. 다른 의존성이 더 새 버전을 명시하면 그대로 둔다(오래된 patch로 내리지 않음).
+                val requestedVersion = requested.version.orEmpty()
+                if (requestedVersion.isEmpty() || !isNewer(requestedVersion, patched)) {
+                    useVersion(patched)
+                    because("security patch override over Spring Boot BOM (TECH-BASELINE §1.1)")
+                }
             }
         }
     }

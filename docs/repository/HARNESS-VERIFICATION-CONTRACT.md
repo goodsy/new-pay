@@ -1,6 +1,6 @@
 # 검증 명령·증거 수집 계약 (HARNESS-001)
 
-작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 5). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
+작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 8). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
 
 ## 1. 실행 위치
 
@@ -20,7 +20,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 | 순서 | commandId | 성공 조건 |
 |---|---|---|
 | 1 | FINGERPRINT | exit 0. HEAD 확인 가능, 추적 파일 삭제 없음, source/harness 경로에 무시된 파일 없음 |
-| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(38) |
+| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(55) |
 | 3 | GRADLE-CHECK | exit 0, timeout 없음, `--console=plain` 출력에 `BUILD SUCCESSFUL`과 모든 실행 단위의 `> Task :apps:<module>:test`(결과 표시 없음=실제 실행) 존재, 출력에 `FROM-CACHE`/`:test UP-TO-DATE`/`:test NO-SOURCE`/`:test SKIPPED` 없음. `--no-build-cache --rerun-tasks` |
 | 4 | TEST-SUMMARY | exit 0. 보고서 존재, 테스트 수 ≥ minTests, failures/errors/skips = 0, 모든 보고서 timestamp ≥ GRADLE-CHECK 시작 UTC(자동 치환) |
 | 5 | IMAGE-DIGESTS | exit 0. 로컬 이미지 ID 기록(사용 증거 아님, §6) |
@@ -66,7 +66,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
   - `GRADLE-CHECK.expectedReports`와 `outputMustMatch`의 `^> Task :apps:<module>:test$`
   - `GRADLE-DEPS-<MODULE>` 명령
   - `harness/scripts/cve-scan.py`의 `MODULES`(빠지면 그 모듈은 취약점 검사를 받지 않는다)
-- 현재 하한은 전체 합계(27: payment-api 13, financial-batch 5, internal-admin 9)만 검사한다. 모듈별 하한은 아직 없으며, 모듈별 `> Task :apps:<module>:test` 실행 규칙과 Verifier의 모듈별 개수 보고로 보완한다.
+- 현재 하한은 전체 합계(29: payment-api 13, financial-batch 7, internal-admin 9)만 검사한다. 모듈별 하한은 아직 없으며, 모듈별 `> Task :apps:<module>:test` 실행 규칙과 Verifier의 모듈별 개수 보고로 보완한다.
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.

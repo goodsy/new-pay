@@ -1,5 +1,6 @@
 -- PROVISIONAL / TEST-ONLY: Batch metadata 위치·권한 분리(Q-BATCH-META) 답변 전에는 운영 migration 위치(db/migration/financial)에 두지 않는다.
 -- 답변 후 정해진 schema/계정의 정식 migration으로 옮기고, 이 파일은 시험용으로만 유지하거나 제거한다.
+-- 버전 0.1: 이후 운영 위치에 생길 정식 V1과 충돌하지 않도록 시험용 사본은 1보다 앞선 버전을 쓴다.
 -- Spring Batch JDBC JobRepository metadata schema (MySQL).
 -- Source: org.springframework.batch:spring-batch-core:6.0.5, org/springframework/batch/core/schema-mysql.sql
 -- Original file SHA-256: 774f0a4f140011ca6983bbcdd4f9f5c5c448db66838ec639c1b0f84d9c28f4c3

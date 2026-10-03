@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
-  "codeFingerprint": "sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c",
-  "lastSuccessfulStep": "TECH-001 DONE (VERIFY-GATE PASS 133025Z, CVE-SCAN 0, REVIEW_PASS)",
+  "activeTaskId": "FOUNDATION-001",
+  "codeFingerprint": "sha256:89473a912bf3d4220d36742784e4cba6ad83fff13f2ba1e6bdb305e0b8ad6409",
+  "lastSuccessfulStep": "FOUNDATION-001 stage1 DONE (VERIFY-GATE PASS 231827Z, CVE-SCAN canary 0 vulns, REVIEW_PASS)",
   "pendingQuestionIds": [],
-  "nextResumeAction": "FOUNDATION-001(READY): TECH-001 follow-ups 먼저 → 도메인 경계·Port 기초. 이후 CP-DOMAIN-001, CP-CONTRACT-001 착수 시 Q-CP-KEY/MONEY/RESULT 질문",
+  "nextResumeAction": "FOUNDATION-001 stage2: Modulith jOOQ 배치, 공통 build/test-support, 도메인 경계·Port 기초. CP-CONTRACT-001 착수 시 Q-CP-KEY/MONEY/RESULT 질문",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -46,6 +46,11 @@
       "at": "2026-10-03T13:36Z",
       "taskId": "TECH-001",
       "event": "DONE on sha256:17bb2445716dc808c14aa1b76f5893215cd49fb592b6720702c6a3aa5bae3e2c"
+    },
+    {
+      "at": "2026-10-03T23:24Z",
+      "taskId": "FOUNDATION-001",
+      "event": "stage1 DONE on sha256:89473a912bf3d4220d36742784e4cba6ad83fff13f2ba1e6bdb305e0b8ad6409"
     }
   ]
 }

@@ -9,7 +9,9 @@ spring:
     username: ${PAYCORE_FINANCIAL_DB_USERNAME}
     password: ${PAYCORE_FINANCIAL_DB_PASSWORD}
   flyway:
-    # Batch metadata 테이블도 Flyway migration이 schema 기준이다(V1__spring_batch_metadata.sql).
+    # schema 기준은 Flyway migration이다. Batch metadata(BATCH_*) 위치는 Q-BATCH-META 답변 전이라 아직 여기 없다.
+    # (시험용 PROVISIONAL 사본: src/test/resources/db/testmigration/financial/V0_1__spring_batch_metadata.sql)
+    # 따라서 현재 운영 설정으로는 Job을 실행할 수 없다(실제 Job도 없음). MainMigrationLocationSpec이 이 상태를 고정한다.
     locations: classpath:db/migration/financial
   batch:
     jdbc:

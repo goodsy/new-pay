@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 8,
   "status": "REGISTERED_BY_HARNESS_001",
   "contract": "docs/repository/HARNESS-VERIFICATION-CONTRACT.md",
   "note": "argv는 WSL 안에서 workingDirectory 기준으로 shell 없이 실행한다(VERIFY-GATE가 subprocess argv로 실행). 모델 문자열을 argv에 조합하지 않는다. 빈 결과/0건/오래된 보고서/환경 오류는 성공이 아니다.",
@@ -55,9 +55,9 @@
       ],
       "timeoutSeconds": 120,
       "env": {},
-      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(osv exit·취약점 수 불일치, 스캔 수<구성요소 수, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 양성 대조 fixture)",
+      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture)",
       "expectedReports": [],
-      "minTests": 48,
+      "minTests": 55,
       "sideEffects": "임시 디렉터리만 사용. -B로 __pycache__ 미생성",
       "countRegex": "^Ran (\\d+) tests?",
       "outputMustMatch": [
@@ -86,7 +86,7 @@
         "apps/financial-batch/build/test-results/test/TEST-*.xml",
         "apps/internal-admin/build/test-results/test/TEST-*.xml"
       ],
-      "minTests": 27,
+      "minTests": 29,
       "followWith": "TEST-SUMMARY",
       "sideEffects": "build/ 산출물 생성. jOOQ codegen과 테스트가 Docker에 mysql:8.4.11 및 testcontainers/ryuk 컨테이너를 일시 기동 후 제거. 운영 DB/endpoint 접근 없음",
       "outputMustMatch": [
@@ -112,7 +112,7 @@
         "harness/scripts/test-summary.py",
         "--not-before",
         "NOT_BEFORE_UTC",
-        "27",
+        "29",
         "apps/payment-api/build/test-results/test",
         "apps/financial-batch/build/test-results/test",
         "apps/internal-admin/build/test-results/test"
@@ -212,7 +212,7 @@
       ],
       "timeoutSeconds": 600,
       "env": {},
-      "purpose": "이전 SBOM 삭제 후 실행 단위별 runtime SBOM(CycloneDX, runtimeClasspath만) 재생성 → 양성 대조(harness/fixtures/cve-control-vulnerable.cdx.json, 취약점 ≥1 필수) → 모듈별 osv-scanner(--config harness/osv-scanner.toml, --all-packages) 검사. 스캔 패키지 수 = SBOM 구성요소 수(>0), osv exit와 취약점 수 일치를 요구. exit 0=0건, 1=취약점 있음(FAIL), 3=도구/네트워크/판정 불일치(ENVIRONMENT). OSV API 네트워크가 필요해 VERIFY-GATE에는 넣지 않고 빌드 파일·의존성 변경 작업과 릴리스 전 별도 실행",
+      "purpose": "osv 바이너리 SHA-256을 externalTool.sha256과 대조 → 이전 SBOM 삭제 후 runtime SBOM(CycloneDX, runtimeClasspath만) 재생성 → 모듈 SBOM에 canary(log4j-core 2.14.1, runtime에 나타날 수 없는 알려진 취약 artifact)와 같은 이름·버전이 있으면 즉시 FAIL. 아니면 모듈마다 SBOM+canary(harness/fixtures/cve-control-vulnerable.cdx.json)를 한 번의 osv 호출(--config harness/osv-scanner.toml, --all-packages)로 검사(canary). 스캔 수 = 모듈+대조 구성요소 수, 대조 구성요소 취약점 ≥1, osv exit 1 필수, 모듈 취약점은 대조 제외 합계. exit 0=0건, 1=취약점 있음·SBOM 빌드 실패·모듈에 canary artifact 포함(FAIL), 3=도구/네트워크/판정 불일치(ENVIRONMENT). OSV API 네트워크가 필요해 VERIFY-GATE에는 넣지 않고 빌드 파일·의존성 변경 작업과 릴리스 전 별도 실행",
       "expectedReports": [
         "build/cve-scan/*.json",
         "build/cve-scan/*.log",
