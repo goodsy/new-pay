@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "checkedDate": "2026-10-03",
+  "status": "DOCUMENTED_NOT_BUILD_VERIFIED",
+  "springBoot": "4.1.1",
+  "springBatch": "6.0.5",
+  "kotlin": "2.3.21",
+  "hibernate": "7.4.5.Final",
+  "jooq": "3.21.7",
+  "thymeleaf": "3.1.5.RELEASE",
+  "versionPolicy": "Recheck stable GA at implementation; use coherent Boot BOM; no automatic independent overrides",
+  "jdkCandidate": "21 LTS",
+  "databaseCandidate": "PostgreSQL; not selected",
+  "kafka": "Evaluate; not yet introduced",
+  "redis": "Evaluate; not yet introduced",
+  "domainPersistence": "JPA entity in outbound adapter; pure Domain",
+  "principles": [
+    "Financial Consistency",
+    "Transaction Safety",
+    "Idempotency",
+    "Concurrency Control",
+    "Recoverability",
+    "Reconciliation",
+    "Auditability",
+    "Observability"
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "0.2",
+  "executionVerified": false,
+  "files": [
+    {
+      "path": ".claude/agents/paycore-implementer.md",
+      "sha256": "2c516a6b0fdd09df42fe6f185c65a8a0439606ad1d5ca7decc76052aa7ee263f"
+    },
+    {
+      "path": ".claude/agents/paycore-reviewer.md",
+      "sha256": "a85dd17b1a82f4580811523d611abb49c482855934fc0b0a0d765804a716584c"
+    },
+    {
+      "path": ".claude/agents/paycore-verifier.md",
+      "sha256": "5c4bdce4b6b5dcb95cd4677c843505cc79c3e371f8b433c02a73c3f51bac43c5"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "f4ccaf29eacabd6f2e0e83423e16daccdf17521ce70f3b80a52e041cccbf478f"
+    },
+    {
+      "path": "docs/baseline/architecture/00-architecture-overview.md",
+      "sha256": "6a3e52b35d7d28fe45f75e92bbfd1e6483f1971a5f0b5f3e39fe6416d90e7cdc"
+    },
+    {
+      "path": "docs/baseline/architecture/01-runtime-deployment-architecture.md",
+      "sha256": "193f15dc762d6483fdbc1afba43bb97caf0a87052343c84abe633484d07a719f"
+    },
+    {
+      "path": "docs/baseline/architecture/02-database-ownership-and-transaction.md",
+      "sha256": "3346406571634a2cda4ae4c3d5cc5e7b92823017cf8207747545d85deed91a1e"
+    },
+    {
+      "path": "docs/baseline/architecture/03-event-integration-architecture.md",
+      "sha256": "45a25538f2b2fb7472dd95056aa0cde81cd5a457b7a1d30b29cf74e346fe9950"
+    },
+    {
+      "path": "docs/baseline/architecture/04-external-institution-integration.md",
+      "sha256": "21ca0f04b656b77c3a286af5be367e0b04c64c537aedbf4693c481d1f7afbaf8"
+    },
+    {
+      "path": "docs/baseline/architecture/05-security-architecture.md",
+      "sha256": "e9dcabd02ede8eb34003934c81b39b79198233ef866d50afd147a0dbc6b5b956"
+    },
+    {
+      "path": "docs/baseline/architecture/06-reliability-recovery-architecture.md",
+      "sha256": "f0f57739430659dc0f1c63a75eb65fdb7938f50f038b7e68441607dd1b6f54c1"
+    },
+    {
+      "path": "docs/baseline/architecture/07-operations-observability.md",
+      "sha256": "c28964d903ed84ee47f51529caf662f2dc7db9afe8ed2761691e2a6cf3f11492"
+    },
+    {
+      "path": "docs/baseline/architecture/08-testing-verification-architecture.md",
+      "sha256": "d3b42aa2a69b30615f4bd04ebe2f3c566591162b188f1300908f35bf73e0dde9"
+    },
+    {
+      "path": "docs/baseline/architecture/09-ci-cd-and-migration.md",
+      "sha256": "2026542f4a0c6b0fa1d72859ebe9811d72f10360f4fd731a66820e495a8d3f76"
+    },
+    {
+      "path": "docs/baseline/architecture/10-architecture-invariants.md",
+      "sha256": "deea6830105f4940ec47cfc87400dc4beae114d1eb2b15ee702e3b0fc6916d18"
+    },
+    {
+      "path": "docs/baseline/PAYCORE-CREATE-PAYMENT-IMPLEMENTATION-CONTRACT-v0.1.md",
+      "sha256": "8d715715176e78806863f379408ca7ee7802cbf87bc42ac1718607e39a536cfb"
+    },
+    {
+      "path": "docs/baseline/PAYCORE-IMPLEMENTATION-READINESS-REVIEW.md",
+      "sha256": "f9ae9a3d732d4d39d12c3da113969355897030c4f13c5cd4e52761a038a70372"
+    },
+    {
+      "path": "docs/baseline/PayCore-Settlement-Control-Policy-v0.1.md",
+      "sha256": "68ca892b2a53564dc1d19eae4ff84f42419aae8b8f24ac80755b03e3b0b8bd69"
+    },
+    {
+      "path": "docs/baseline/PayCore-v0.1-도메인구조-Seed-MID-Site-확정.md",
+      "sha256": "9d237eb98f8278275c464939a55b86fcf29f10a6c3246851aa14bba98c0481fb"
+    },
+    {
+      "path": "docs/baseline/PAYCORE-VIBE-CODING-IMPLEMENTATION-READINESS-GUIDE-v0.2.md",
+      "sha256": "a6d4f312a9a0660537a454072d052c2f4c2c61788041010bb8cc10256ba8e327"
+    },
+    {
+      "path": "docs/baseline/PayCore-결제시도-규칙-권장안.md",
+      "sha256": "9151261ea46aa26761c3d87a14659385a146904146b659a9dc0c6f516f3cf5c1"
+    },
+    {
+      "path": "docs/baseline/PayCore-결제허용-기관연동-권장안.md",
+      "sha256": "a8b02b7762eec2f4e5bb177f73b9fbd23c3ec14bb26f0bbd34250636b5e37ae5"
+    },
+    {
+      "path": "docs/baseline/PayCore-금융통제-관계-자동대사-대안.md",
+      "sha256": "18f353ebaa02aac00b46efdadc7a9a0639a1174e429ac9e41a85bc064e404426"
+    },
+    {
+      "path": "docs/baseline/PayCore-실서비스-착수검토-2026-10-03.md",
+      "sha256": "a263dbf15e3dfadd584757d69682c58d0180fc486d7b14ac851ccc5ecf0e8c9c"
+    },
+    {
+      "path": "docs/baseline/PayCore-정산지급방식-확정과-상세권장안.md",
+      "sha256": "72591c2874c44b88f97ea2cb0db58dcbc6416f49275a58678120e089b7eb780e"
+    },
+    {
+      "path": "docs/baseline/PayCore-초기-확정사항.md",
+      "sha256": "818cc7a74e9d4572080d2c2d83678e929694daf4b429b1330648400b8bb545c5"
+    },
+    {
+      "path": "docs/baseline/PayCore-최초구현범위-권장안.md",
+      "sha256": "3cf08d326c5b0723ea3ad96c268986f05c1b36ba5253eee5fba37d60ea8d11be"
+    },
+    {
+      "path": "docs/BASELINE-INDEX.md",
+      "sha256": "f24614724a33202044c013809f0ff14f3c9126bb0c4f50e1f6e20fce8c7c6251"
+    },
+    {
+      "path": "docs/DECISIONS.md",
+      "sha256": "4c3a3b4954f92cb8452b09fcf2f77da2a4d0069fe9af9c9231508b5960dd643a"
+    },
+    {
+      "path": "docs/HARNESS-GUIDE.md",
+      "sha256": "3f2220c49b36e03f84e6fe0699980b624c93307500b6b68708f189c6bd1406c8"
+    },
+    {
+      "path": "docs/START-PROMPT.md",
+      "sha256": "5f25320ff1095ddb61dba35ac9466590d64efdc97c27df0cb27ceb4b3f4028b1"
+    },
+    {
+      "path": "docs/TECHNOLOGY-AND-PRINCIPLES.md",
+      "sha256": "4bee6a1cb59ebdb70c28262fa65f1c629092e7de4c2e1cd312a67e8091219e88"
+    },
+    {
+      "path": "harness/commands.json",
+      "sha256": "85fdc34042530be72f318c49d9f85eecdb1625c6250ee26bbd90ca4213bb2ad0"
+    },
+    {
+      "path": "harness/EVIDENCE-TEMPLATE.json",
+      "sha256": "12965806ea39e52271cab5cfedc2acd6a0f1d33791aaa6d72355bb2e1ec3edd3"
+    },
+    {
+      "path": "harness/progress.json",
+      "sha256": "1758dccf91181c3ba3528467656fa31bef091b1433c255f44f5ef9cfc81b05a8"
+    },
+    {
+      "path": "harness/questions.json",
+      "sha256": "79a95dbad2db737e1cb04b28195c01a625b8ac906ad94ac00b8677f90ea02c3c"
+    },
+    {
+      "path": "harness/REVIEW-TEMPLATE.md",
+      "sha256": "c1298a6966ee7070e63ebd7452a1ca8e8af3b44b877a5405deae37965a53f7ae"
+    },
+    {
+      "path": "harness/tasks.json",
+      "sha256": "697ce800de79c02ebabac7129c35bdb8fafeebfbacffb3066cb2e961526e1dd9"
+    },
+    {
+      "path": "harness/technology-baseline.json",
+      "sha256": "22c0b715a74e6356d85af4549be5d89f22b312462f013ae9739c6c6178e48296"
+    },
+    {
+      "path": "README.md",
+      "sha256": "91ce31f3ff77348efaf212666d80cd07410b3d7d944264a43b106c55055e0a63"
+    }
+  ]
+}

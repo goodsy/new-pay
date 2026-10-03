@@ -1,0 +1,64 @@
+{
+  "taskId": null,
+  "specHashes": {},
+  "baseRevision": null,
+  "headRevision": null,
+  "codeFingerprint": null,
+  "startedAt": null,
+  "finishedAt": null,
+  "environment": {},
+  "commandIds": [],
+  "runs": [],
+  "testsExecuted": null,
+  "failures": null,
+  "skips": null,
+  "reports": [],
+  "notApplicable": [],
+  "verifierVerdict": null,
+  "reviewerVerdict": null,
+  "reviewedFingerprint": null,
+  "readyForDone": false,
+  "note": "null/empty means no execution evidence. Coordinator checks evidence before DONE.",
+  "principleEvidence": {
+    "Financial Consistency": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Transaction Safety": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Idempotency": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Concurrency Control": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Recoverability": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Reconciliation": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Auditability": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    },
+    "Observability": {
+      "applicability": "UNASSESSED",
+      "reason": null,
+      "evidence": null
+    }
+  }
+}

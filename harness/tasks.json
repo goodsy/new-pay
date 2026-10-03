@@ -1,0 +1,1121 @@
+{
+  "schemaVersion": 1,
+  "mode": "sequential-coordinator",
+  "instruction": "BACKLOG는 미실행이다. 의존성과 질문/경로/검증을 확인한 Coordinator만 READY로 승격한다. 작업당 3회 수정 상한. taskTimeoutSeconds는 BOOT에서 환경별 등록하며 미등록 상태에서 무제한 실행하지 않는다. 이 파일은 실행기가 아니다.",
+  "tasks": [
+    {
+      "id": "BOOT-001",
+      "title": "실제 저장소 조사와 기존 변경 보존",
+      "phase": "DISCOVERY",
+      "status": "READY",
+      "dependsOn": [],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "실제 모듈/지침/변경 상태를 기록",
+        "빌드 도구와 사용 가능한 검증 명령·환경 확인",
+        "허용 수정 경로와 다음 독립 작업 결정",
+        "참고 splearn 저장소 commit/source 검토 또는 접근 제한과 미완료 사실 기록"
+      ],
+      "allowedWritePaths": [
+        "harness/**",
+        "docs/repository/**"
+      ],
+      "pathsResolved": true,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "HARNESS-001",
+      "title": "실제 검증 명령 및 증거 수집 계약 등록",
+      "phase": "SAFE_FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "BOOT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "commands.json에 실제 argv/cwd/timeout 등록",
+        "보고서 위치·테스트 수·실패 판정 정의",
+        "없는 명령·가짜 통과 결과 없음"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "FOUNDATION-001",
+      "title": "도메인 경계·Port·명시 Demo fixture 기초",
+      "phase": "SAFE_FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "BOOT-001",
+        "HARNESS-001",
+        "TECH-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "소유 DB 경계와 Domain 의존성 분리",
+        "프로젝트 관례에 맞는 최소 구조",
+        "미확정 정책을 운영 기본값으로 넣지 않음"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "CP-DOMAIN-001",
+      "title": "확정된 Order/Payment 활성 규칙 단위 구현",
+      "phase": "SAFE_FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "FOUNDATION-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "REQUESTED 포함 활성 하나",
+        "UNKNOWN/AUTHORIZING/AUTHORIZED 재시도 차단",
+        "안전한 종료 근거 없는 FAILED/EXPIRED 재시도 차단",
+        "fixture 동일성으로 테스트하고 실제 API 동일성은 아직 고정하지 않음"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "CP-CONTRACT-001",
+      "title": "CreatePayment API/동일성/금액 계약 확정",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "BOOT-001"
+      ],
+      "requiredQuestions": [
+        "Q-CP-KEY",
+        "Q-CP-MONEY",
+        "Q-CP-RESULT"
+      ],
+      "acceptanceCriteria": [
+        "질문을 필요한 시점에 제시하고 답변 기록",
+        "현재 기술 초안의 API/DB/Error/Outbox 계약 검토",
+        "업무 의미 변경은 사용자 결정으로 반영"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "CP-DB-001",
+      "title": "주문 점유·멱등 요청·Outbox 로컬 TX",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "CP-DOMAIN-001",
+        "CP-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "실제 DB 제약과 동시 요청 검증",
+        "rollback 시 부분 성공 없음",
+        "같은 주문 다른 요청키 수렴 및 상이 내용 충돌"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "CP-API-001",
+      "title": "CreatePayment Application/API와 통합 검증",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "CP-DB-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "MID/환경 권한 확인",
+        "응답 유실 후 재요청 및 재시작 검증",
+        "동일 source fingerprint 검증+독립 리뷰"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-CONTRACT-001",
+      "title": "가상 승인/조회/UNKNOWN 회복 계약",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "CP-API-001"
+      ],
+      "requiredQuestions": [
+        "Q-AUTH-SCOPE"
+      ],
+      "acceptanceCriteria": [
+        "기관 금융 사실이 PG rollback과 독립적으로 존속",
+        "타임아웃 후 조회·대사 및 중복 승인 차단",
+        "TCP Adapter와 업무 상태 전이 분리"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-001",
+      "title": "가상 TCP 승인·취소·조회 구현",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTH-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "연결 단절·응답 유실·중복 요청·지연 결과 검증",
+        "외부 호출은 로컬 TX 밖",
+        "REAL endpoint 접근 없음"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "ACQUIRING-001",
+      "title": "가상 SFTP 매입과 전송/확정 상태",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTH-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "전송 완료와 업무 수신/매입 확정 구별",
+        "파일 중복·재전송·부분 오류 회복",
+        "파일 계약 미결은 해당 작업에서 질문"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "SETTLEMENT-CONTRACT-001",
+      "title": "영업일·수수료·정산 계약 구체화",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "CP-API-001"
+      ],
+      "requiredQuestions": [
+        "Q-CALENDAR"
+      ],
+      "acceptanceCriteria": [
+        "원승인 수수료/VAT Snapshot 재사용",
+        "취소/반환 날짜와 영업일 적용",
+        "미확정 요율·반올림·계산 숫자는 필요 시 질문"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "SETTLEMENT-001",
+      "title": "정산·입금·선지급 제어 구현",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ACQUIRING-001",
+        "SETTLEMENT-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "버전 정책과 재원/한도/Hold 분리",
+        "승인/전송/매입 확정 단계 변경 시 중복 선지급 없음",
+        "지급 멱등성 및 장애 회복 검증"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "RECON-CONTRACT-001",
+      "title": "대사 자동 회복·보정·Hold 상세 계약",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "SETTLEMENT-001"
+      ],
+      "requiredQuestions": [
+        "Q-CORRECTION"
+      ],
+      "acceptanceCriteria": [
+        "Recovery와 Adjustment 구별",
+        "보정 후 재대사 MATCH 전 해결 금지",
+        "범위별 Hold/kill switch/한도/승인 검토"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "RECON-001",
+      "title": "대사·자동 보정·차단 구현",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "RECON-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "append-only 금융 사실",
+        "Case/보정/업무효과 멱등성",
+        "위험·한도 초과·재처리·취소 경합 검증"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "TECH-001",
+      "title": "안정 GA/BOM 호환 조합과 필수 기술 검증",
+      "phase": "SAFE_FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "BOOT-001",
+        "HARNESS-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "공식 stable GA/지원 상태·BOM과 Kotlin plugins·JDK·Wrapper 버전 고정",
+        "실제 DB 후보·jOOQ edition/codegen·JPA/Spring TX·Thymeleaf/Batch smoke test",
+        "8대 원칙 검증 매핑과 JPA 쉬운 설명 규칙 적용",
+        "Kafka/Redis 필요성 ADR 작성; 아직 필요 없으면 미도입과 도입 trigger 기록"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    }
+  ]
+}

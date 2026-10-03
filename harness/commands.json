@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "status": "NEEDS_REPOSITORY_DISCOVERY",
+  "note": "BOOT-001에서 실저장소 명령을 argv와 검증 범위로 등록한다. 빈 목록은 검증 성공이 아니다.",
+  "commands": []
+}
