@@ -779,11 +779,18 @@
       "id": "CP-DOMAIN-001",
       "title": "확정된 Order/Payment 활성 규칙 단위 구현",
       "phase": "SAFE_FOUNDATION",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "FOUNDATION-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-CPD-ENV",
+        "Q-CPD-EVIDENCE",
+        "Q-CPD-EVIDENCE-CROSS",
+        "Q-CPD-HOLD-REUSE",
+        "Q-CP-KEY",
+        "Q-CP-MONEY"
+      ],
       "acceptanceCriteria": [
         "REQUESTED 포함 활성 하나",
         "UNKNOWN/AUTHORIZING/AUTHORIZED 재시도 차단",
@@ -792,70 +799,315 @@
         "payment-api ArchitectureSpec에서 대상이 생긴 규칙의 allowEmptyShould를 false로 전환하고 그 diff를 Reviewer가 확인",
         "ARCHITECTURE-CONVENTIONS.md \"강제하지 않는 것\"에 application의 java.io/kotlin.io 파일 API 미강제와 application.provided DTO의 jakarta.validation/Jackson 금지(웹 DTO·domain 생성자에서 검증)를 명시 (FOUNDATION-001 round4 L-1/Info-2)"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/payment-api/src/main/kotlin/com/paycore/payment/**",
+        "apps/payment-api/src/test/**",
+        "docs/repository/**",
+        "docs/DECISIONS.md",
+        "harness/commands.json",
+        "harness/tasks.json",
+        "harness/progress.json",
+        "harness/questions.json"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator-main-session",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 7200,
+      "evidence": {
+        "fingerprint": "sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+        "verifyGate": "build/harness-evidence/CP-DOMAIN-001-2026-10-05T210646Z.json",
+        "evidenceSha256": "c558e1938f30585d2c99ff012ff3cc9115988d70b5cc9a96df7a04e95583419a",
+        "verdict": "PASS",
+        "tests": {
+          "payment-api": 227,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 105,
+          "total": 387
+        },
+        "selftest": 59,
+        "at": "2026-10-05T21:15:00Z",
+        "priorGate": "CP-DOMAIN-001-2026-10-05T203250Z.json PASS on sha256:9ce06079…(superseded by review fixes)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "domain 범위: 주문당 활성 하나, 고정 입력 불변(충돌), 과거 승인 후 영구 차단, 종료 상태 덮어쓰기 금지, 근거 append-only, 늦은 성공 hold 멱등((paymentId, reason)당 1건)을 단위 시험으로 증명. 금액·통화 입력 규칙은 D-CP-002로 확정, 금액·통화 불변식 구현은 CP-CONTRACT-001 이후",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "OrderPaymentDecisionTableSpec, OrderPaymentControlSpec(§6-6·7·8), PaymentSpec, mutation M3b·M7·M8·M9·M10"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "DEFERRED",
+          "reason": "domain에는 TX가 없다. Payment·control·요청 결과·Outbox 같은 로컬 TX 원자성과 rollback은 CP-DB-001/CP-API-001(CP-08)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DB-001, CP-API-001"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "다른 요청키·같은 주문·같은 내용 → 기존 활성 시도 재사용, 다른 내용 → 충돌을 domain 판정으로 증명. 같은 멱등키 재요청·payload fingerprint·요청 결과 저장은 CP-API-001(CP-03)",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "OrderPaymentDecisionTableSpec(UseExistingPayment/FixedIntentConflict), OrderPaymentControlSpec §6-1 domain 부분",
+          "followUpGate": "CP-API-001"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "generation+currentPaymentId 기반 stale 판정·점유 거부(CP-09)만 단일 스레드 domain 규칙으로 증명. 실제 동시 생성 수렴·UNIQUE·잠금·Version은 증명하지 않았다(Mock/단위 시험은 DB 경쟁 증거 아님, CP-03/04/10)",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "OrderPaymentControlSpec CP-09 시나리오, mutation M4·M5",
+          "followUpGate": "CP-DB-001(실제 MySQL 다중 connection)"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "UNKNOWN/AUTHORIZING은 timeout·NOT_FOUND·lease 만료로 종료 불가, 근거 후속 추가(append)로 안전 종료 확인 경로를 domain에서 표현. 원 Attempt 조회·재시작 복구는 AUTH-001",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "PaymentSpec 종료 근거 표, mutation M1·M6",
+          "followUpGate": "AUTH-001"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "늦은 성공 → incident hold(조사·대사 대상 표시)만 표현. 대사 Case·Hold 해제·보정은 미구현(정책 미정)",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "OrderPaymentControlSpec 늦은 성공 시나리오, mutation M2",
+          "followUpGate": "AUTH-001, 대사 작업"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "DEFERRED",
+          "reason": "Payment 이력 보존·근거 append-only·IncidentHold 기록은 감사의 기반이지만 행위자·권한·사유·시각 기록은 application/영속 범위",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-API-001, CP-DB-001"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "순수 domain 작업. 지표·추적·UNKNOWN age/Hold 경보는 application/adapter 이후",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-API-001, AUTH-001"
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-06: Test Fixture Policy(CLAUDE.md, 08-testing §Test Fixture Policy) 적용 — domain 테스트는 Named Fixture/Factory·BehaviorSpec, Fixture Monkey 의존성은 CP-DB-001/CP-API-001에서 도입(이번 범위 밖)"
+      ],
+      "implementation": {
+        "implementer": "paycore-implementer",
+        "recordedAt": "2026-10-06",
+        "baseRevision": "75ecd24",
+        "selfVerdict": "NOT_DECIDED (구현자는 DONE 판정 금지 — Verifier/Reviewer 대기)",
+        "items": [
+          "ARCHITECTURE-CONVENTIONS.md '강제하지 않는 것'에 application java.io/kotlin.io 파일 API 미강제(리뷰 확인)와 application(provided DTO 포함)의 jakarta.validation·Jackson annotation 불가(allowlist 위반) → web DTO/ domain 생성자 검증을 명시 (round4 L-1/Info-2)",
+          "apps/payment-api main: com.paycore.payment.payment.domain — Environment{TEST,LIVE}, MerchantAccountId, MerchantOrderId, OrderKey, OrderIntentFingerprint, PaymentId, PaymentStatus, TerminationEvidence(D-CPD-002 충분/불충분), Payment, OrderPaymentControl, PaymentSlotDecision{CreateNewPayment, UseExistingPayment, FixedIntentConflict, Blocked}, BlockReason{INCIDENT_HOLD, AUTHORIZED_NEW_ORDER_REQUIRED, TERMINATION_EVIDENCE_INSUFFICIENT}, IncidentHold/IncidentReason, PaymentDomainException(sealed) 하위 4종",
+          "application/adapter 미생성(CP-API/CP-DB 범위)",
+          "시험(Kotest BehaviorSpec, src/test): OrderKeySpec 10, TerminationEvidenceSpec 43(상태6×근거7 표 + 종류 확인), PaymentSpec 46(AUTHORIZING/UNKNOWN×FAILED/EXPIRED×근거8 표 포함), OrderPaymentDecisionTableSpec 57(계약 §4 표 전 조합: 상태×근거×고정입력 동일/상이×incident hold), OrderPaymentControlSpec 26(CP-05/06/09, 확정 문서 §6-1 domain 부분·5·6·7·8·9)",
+          "Named Test Fixture: OrderFixture, PaymentFixture, OrderPaymentControlFixture(+OrderPaymentScenario), TerminationEvidenceOracle(D-CPD-002 기대값 독립 기술)",
+          "ArchitectureSpec: classesResideInKnownLayers·domainIsPure·coreDoesNotDependOnBaseRootOrCrossCutting·modulesAreFreeOfCycles allowEmptyShould false 전환, Modulith 모듈 'payment' 존재 assertion 추가. application·JPA·repository·controller·web/batch adapter·namedInterface 규칙은 대상 없음 사유를 주석으로 남기고 true 유지",
+          "commands.json GRADLE-CHECK minTests·TEST-SUMMARY 하한 201 → 383, HARNESS-VERIFICATION-CONTRACT.md §7 갱신",
+          "ARCHITECTURE-CONVENTIONS.md §7(payment 모듈 관례, JPA 연결 설명) 추가"
+        ],
+        "decisionModel": {
+          "noControl": "CreateNewPayment(nextSlotGeneration=1)",
+          "differentFixedIntent(any state)": "FixedIntentConflict(currentPaymentId) — 변경 주문은 새 주문 ID",
+          "incidentHold": "Blocked(INCIDENT_HOLD, currentPaymentId); checkAuthorizationStart도 거절",
+          "pastAuthorization(AUTHORIZED, 반환 후 포함)": "Blocked(AUTHORIZED_NEW_ORDER_REQUIRED, authorizedPaymentId)",
+          "REQUESTED/AUTHORIZING/UNKNOWN + same intent": "UseExistingPayment(currentPaymentId, status)",
+          "FAILED/EXPIRED + D-CPD-002 충분 근거 + same intent": "CreateNewPayment(generation+1)",
+          "FAILED/EXPIRED + 근거 없음/timeout/NOT_FOUND/lease 만료/교차 조합": "Blocked(TERMINATION_EVIDENCE_INSUFFICIENT, currentPaymentId)",
+          "occupy": "newPayment.slotGeneration == generation+1 아니면 StaleSlotException, 판정이 CreateNewPayment 아니면 SlotOccupationRejectedException",
+          "stale payment": "decide/checkAuthorizationStart/recordAuthorized는 currentPaymentId+generation 불일치 시 StaleSlotException",
+          "lateSuccess": "reportSuccessAfterTermination(FAILED/EXPIRED Payment, 과거 generation 포함) → IncidentHold append, Payment 상태 불변",
+          "paymentInvariant": "AUTHORIZING/UNKNOWN → FAILED/EXPIRED는 목표 상태에 충분한 D-CPD-002 근거 필요(시간 경과·NOT_FOUND 불가). REQUESTED(미전송)는 근거 그대로 기록하며 종료 가능. AUTHORIZED/FAILED/EXPIRED는 종료 상태, 근거 append-only"
+        },
+        "conventionsDecided": [
+          "모듈명 payment(단일 모듈에 OrderPaymentControl·Payment): 같은 로컬 TX·control이 Payment 상태를 직접 판정, Modulith 경계 넘는 상태 복사 회피 (ARCHITECTURE-CONVENTIONS §7)",
+          "식별자 value class, 빈 문자열만 거부·정규화 없음(공백만 값도 허용)",
+          "고정 입력은 불투명 OrderIntentFingerprint 값 비교",
+          "판정 우선순위: 고정 입력 불일치 → incident hold → 과거 승인 → 상태·근거 (모두 새 Payment 없음, 응답 분류만 다름)",
+          "슬롯 해제는 별도 연산 없이 현재 Payment(id+generation 일치)의 충분 근거로 표현",
+          "영속 복원 factory는 CP-DB-001에서 adapter와 함께 추가(시험 편의 API를 production에 두지 않음)",
+          "같은 멱등키 재요청은 domain 밖(application/idempotency, CP-API)"
+        ],
+        "fixturePolicy": {
+          "source": "CLAUDE.md Test Fixture Policy / docs/baseline/architecture/08-testing-verification-architecture.md (2026-10-06), Coordinator 적용 지시",
+          "applied": [
+            "새 domain 시험은 Kotest BehaviorSpec",
+            "Domain Factory(Payment.request, OrderPaymentControl.open/occupy) → Named Test Fixture(PaymentFixture.requested/authorizing/unknownAuthorization/authorized/failedWithConfirmedDecline/failedBeforeTransmission/failedWithConfirmedNoEffect/expiredUntransmittedWithSessionDiscarded/expiredWithConfirmedNoEffect/expiredWithoutEvidence/failedWithOnlyTimeout/expiredWithOnlyInquiryNotFound, OrderPaymentControlFixture.openedWithRequestedPayment/withCurrentPayment/authorizedOrder/retriedAfterConfirmedDecline)",
+            "상태와 종료 근거는 업무 경로(advance)로 함께 만들고 독립 random 없음, generation·currentPaymentId는 open/occupy가 정함",
+            "reflection·private field 주입·검증 우회 없음. 시험용 restore factory도 production에 두지 않음",
+            "Invalid 입력은 시험 이름에 '(invalid input, explicit)'로 명시하고 공식 경로의 거부를 검증",
+            "Fixture 코드는 src/test에만",
+            "Fixture Monkey·Instancio 미도입(Coordinator 결정, gradle 파일 범위 밖)"
+          ]
+        },
+        "redEvidence": {
+          "red1": "2026-10-05T19:36:26Z ./gradlew --no-daemon --console=plain :apps:payment-api:test --tests com.paycore.payment.payment.domain.* → BUILD FAILED, compileTestKotlin 533 unresolved references(production domain 타입 없음). 컴파일 RED라 행위 RED는 아래 mutation으로 보완",
+          "firstGreenFailure": "2026-10-05T19:41:28Z fixture 경로 오류(EXPIRED+확정 거절을 AUTHORIZING에서 만들려다 domain이 거부) 3건 실패 → fixture를 업무 경로 규칙으로 수정(domain 규칙 변경 없음)",
+          "mutation": {
+            "command": "python3 /tmp/cpd-mutate.py (production 1곳 치환 → 위 domain 시험 → 원복, git status로 원복 확인)",
+            "results": [
+              "M1 TIMEOUT을 FAILED 충분 근거로: 5 failed",
+              "M2 incident hold 무시: 19 failed",
+              "M3 첫 시도는 mutation 자체가 경고=오류로 COMPILE_ERROR(증거 아님) → M3b 과거 승인 시 CreateNewPayment 반환: 2 failed",
+              "M4 occupy generation 검사 제거: 1 failed",
+              "M5 ensureCurrent generation 비교 제거: 1 failed",
+              "M6 AUTHORIZING/UNKNOWN 불충분 근거 종료 허용: 19 failed",
+              "M7 고정 입력 비교 제거: 23 failed",
+              "M8 REQUESTED를 활성에서 제외: 3 failed",
+              "M9 FAILED/EXPIRED에서 markAuthorized 허용(늦은 성공 덮어쓰기): 3 failed",
+              "M10 근거 무시하고 FAILED/EXPIRED면 새 Payment: 13 failed"
+            ],
+            "at": "2026-10-05T19:49Z–20:02Z, 매 회 182 domain tests",
+            "evidenceNature": "/tmp 임시 스크립트(cpd-mutate.py)로 수행한 구현자 보조 증거이며 게이트 증거가 아니다. 스크립트는 저장소에 보존하지 않았고 2026-10-06 리뷰 수정 때 /tmp/cpd-* 임시 파일을 삭제했다(재현 불가). 공식 증거는 Verifier의 등록 명령 실행 결과다"
+          }
+        },
+        "localVerification": {
+          "command": "./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks check",
+          "start": "2026-10-05T20:06:16Z",
+          "end": "2026-10-05T20:20:04Z",
+          "exitCode": 0,
+          "tests": {
+            "total": 383,
+            "payment-api": 223,
+            "financial-batch": 26,
+            "internal-admin": 29,
+            "libs/test-support": 105,
+            "skipped": 0,
+            "failures": 0
+          },
+          "testSummary": "harness/scripts/test-summary.py --not-before 2026-10-05T20:06:16Z → PASS",
+          "harnessSelftest": "Ran 59, OK",
+          "note": "구현자 로컬 실행. 공식 증거는 Verifier의 VERIFY-GATE"
+        },
+        "openItems": [
+          "incident hold 해제 규칙(누가·어떤 근거로·감사) 미정 — 구현하지 않음",
+          "확정 거절/만료 뒤 늦은 성공의 자동 보상취소 여부는 별도 정책 — 구현하지 않음",
+          "해결됨(D-CPD-003, 사용자 확정 2026-10-06 '불인정 유지'): D-CPD-002 표에 없는 교차 조합(EXPIRED+전송 전 실패 확정만, FAILED+미전송·세션 폐기, EXPIRED+확정 거절)은 불충분 — 현 구현 유지, TerminationEvidence KDoc·oracle·판정표 시험 이름에 근거 연결",
+          "REQUESTED(미전송)에서 FAILED/EXPIRED로 갈 때 근거 종류의 출처 일관성(예: 미전송인데 기관 확정 거절 근거) 검증은 AUTH-001에서 Attempt 전송 상태와 함께 정함. 현재는 근거를 그대로 기록하고 새 시도 판정에만 사용",
+          "해결됨(D-CPD-004, 사용자 확정 2026-10-06 '차단 응답'): incident hold 중 같은 입력 재요청은 Blocked(INCIDENT_HOLD)+기존 paymentId — 현 구현 유지, BlockReason KDoc·시험 이름에 근거 연결. 오류 코드/HTTP 매핑은 CP-CONTRACT-001",
+          "같은 멱등키 재요청은 저장된 생성 결과만 반환(D-CP-003, 사용자 확정 2026-10-06) — 구현은 CP-API-001 application/idempotency(현재 권한 재확인 포함)",
+          "ID는 입력 그대로 비교·정규화 없음(D-CP-001, 사용자 확정 — 현 domain 동작과 일치, DB NO PAD binary collation은 CP-DB-001). 금액·통화 입력은 ISO 4217·통화별 minor unit, 허용 통화는 기준정보, 초기 KRW·USD(D-CP-002); 외화 정산 통화·환율은 Q-SETTLE-CURRENCY(SETTLEMENT-CONTRACT-001). 남은 범위: OrderIntentFingerprint에 넣을 필드·표현·버전과 ID 길이·허용 문자·공백만인 값 허용 여부는 CP-CONTRACT-001 API 계약",
+          "판정 결과 → 오류 코드/HTTP(OrderPayloadConflict, OrderBlocked, ResultPending 등) 매핑은 CP-CONTRACT-001",
+          "영속 복원 factory·Mapper·OrderKey UNIQUE·행 잠금/Version·최초 control insert 경쟁은 CP-DB-001(실제 MySQL 다중 connection)",
+          "Fixture Monkey 도입은 CP-DB-001/CP-API-001, Fixture Monkey의 production 유입 금지 ArchUnit 규칙 검토",
+          "PaymentSpec의 '노출 목록 변경 불가' 시험은 사본 반환을 확인하는 수준(Kotlin List는 JVM에서 MutableList로 캐스팅 가능)"
+        ],
+        "questionCandidates": [
+          {
+            "id": "Q-CPD-EVIDENCE-CROSS",
+            "financialMeaning": true,
+            "blocking": false,
+            "question": "D-CPD-002 표에 없는 상태·근거 교차 조합을 새 Payment 근거로 인정할지",
+            "recommended": "현재처럼 불충분(fail-closed). FAILED에는 FAILED 목록, EXPIRED에는 EXPIRED 목록만 인정",
+            "alternative": "논리적으로 더 강한 근거(예: FAILED + 미전송·세션 폐기)는 인정",
+            "impact": "대안 채택 시 TerminationEvidence 표와 시험 oracle 갱신. 현재 구현은 새 시도를 더 막는 쪽이라 금융 위험은 없음",
+            "blockedWork": "없음(AUTH-001 근거 기록 시 참고)",
+            "resolution": "D-CPD-003 (사용자 확정 2026-10-06, 권장안 채택) — 구현 변경 없음"
+          },
+          {
+            "id": "Q-CPD-HOLD-REUSE",
+            "financialMeaning": true,
+            "blocking": false,
+            "question": "incident hold 중 현재 REQUESTED 시도의 같은 내용 재요청을 기존 시도 재사용으로 응답할지, 차단으로 응답할지",
+            "recommended": "차단(Blocked INCIDENT_HOLD, 기존 paymentId 참조) — 추가 승인 차단 원칙(확정 문서 §4)",
+            "alternative": "기존 시도 참조를 반환하되 승인 시작만 차단",
+            "impact": "응답 분류만 다름. 두 안 모두 새 Payment·승인 시작 없음",
+            "blockedWork": "CP-CONTRACT-001 응답 매핑",
+            "resolution": "D-CPD-004 (사용자 확정 2026-10-06, 권장안 채택) — 구현 변경 없음"
+          }
+        ],
+        "reviewFixes": {
+          "round": 1,
+          "recordedAt": "2026-10-06",
+          "implementer": "paycore-implementer",
+          "selfVerdict": "NOT_DECIDED (구현자는 DONE 판정 금지 — Verifier/Reviewer 대기)",
+          "basis": "Reviewer 지적 M-1·M-3·L-1·L-2·L-3·L-4, 사용자 결정 D-CP-001·D-CP-002·D-CP-003·D-CPD-003·D-CPD-004 (docs/DECISIONS.md)",
+          "items": {
+            "M-1": "이미 답한 결정을 미결로 적은 곳 정정(동작 변경 없음): OrderKey.kt KDoc(D-CP-001·D-CP-002·Q-SETTLE-CURRENCY), OrderKeySpec 주석·시험 이름 2개, OrderFixture 주석, ARCHITECTURE-CONVENTIONS §7 식별자·고정 입력 행, 이 기록의 openItems·principleEvidence. D-CPD-003을 TerminationEvidence KDoc·TerminationEvidenceOracle·판정표 교차 조합 시험 이름에, D-CPD-004를 BlockReason.INCIDENT_HOLD·decide KDoc·hold 시험 이름에 연결. 추가로 test migration V900 주석의 'Q-CP-KEY 미결'을 D-CP-001/CP-DB-001로 정정(스키마 변경 없음)",
+            "M-3": "OrderPaymentControl.reportSuccessAfterTermination: 같은 (paymentId, reason) hold가 있으면 no-op. 시험 2건(같은 늦은 성공 3회 보고 → hold 1건; 서로 다른 두 Payment → hold 2건). CP-DB-001 acceptance에 UNIQUE(orderKey, paymentId, reason) 추가",
+            "L-1": "OrderPaymentControl.occupy: 새 Payment id가 이 주문이 아는 ID(currentPaymentId·authorizedPaymentId·hold 대상)이면 PaymentIdReuseException(PaymentDomainException 하위, 새 클래스). generation 검사·판정보다 먼저 검사. 시험 2건(현재 ID 재사용, hold로 알려진 과거 ID 재사용). control이 모르는 과거·다른 주문 ID 중복은 CP-DB-001 PK 책임",
+            "L-2": "이월: AUTH-001·CP-API-001 acceptance에 승인 시작 단일 연산(또는 강제 application 시험) 추가",
+            "L-3": "Payment KDoc에 REQUESTED 종료 근거 출처 미검증(AUTH-001에서 제한)·REQUESTED=미전송 불변식 조건 명시, PaymentFixture에 REQUESTED 경로 fixture 주석. AUTH-001 acceptance에 Attempt 생성+AUTHORIZING 같은 TX1, 출처 제한 시 fixture·판정표 갱신 추가",
+            "L-4": "redEvidence.mutation.evidenceNature 추가, /tmp/cpd-* 임시 파일 삭제"
+          },
+          "redEvidence": {
+            "command": "./gradlew --no-daemon --console=plain :apps:payment-api:test --tests com.paycore.payment.payment.domain.OrderPaymentControlSpec",
+            "at": "2026-10-05T20:57:17Z–20:58:27Z",
+            "precondition": "새 시험 4건 + PaymentIdReuseException 클래스만 추가(검사 미구현) — 컴파일 성공 상태의 행위 RED",
+            "result": "BUILD FAILED, 30 tests completed, 4 failed",
+            "failures": [
+              "같은 늦은 성공 3회 → AssertionFailedError(hold 3건 기록)",
+              "서로 다른 두 Payment → AssertionFailedError(hold 3건, 중복 포함)",
+              "현재 ID 재사용 → AssertionFailedError(예외 없이 점유됨)",
+              "hold로 알려진 과거 ID 재사용 → AssertionFailedError(SlotOccupationRejectedException 발생, PaymentIdReuseException 아님)"
+            ]
+          },
+          "greenEvidence": {
+            "command": "./gradlew --no-daemon --console=plain :apps:payment-api:test --tests com.paycore.payment.payment.domain.*",
+            "result": "BUILD SUCCESSFUL, domain 186 tests(OrderKeySpec 10, OrderPaymentControlSpec 30, OrderPaymentDecisionTableSpec 57, PaymentSpec 46, TerminationEvidenceSpec 43), 0 failed/skipped"
+          },
+          "gateThreshold": "commands.json GRADLE-CHECK minTests·TEST-SUMMARY 하한 383 → 387, HARNESS-VERIFICATION-CONTRACT.md §7 갱신"
+        },
+        "currentModelNote": "2026-10-06 review round2 이후 현재 모델: PaymentDomainException 하위 5종(+PaymentIdReuseException), OrderPaymentControlSpec 30, occupy는 PaymentIdReuse 검사(currentPaymentId/authorizedPaymentId/hold 대상) → generation → 판정 순, 늦은 성공 hold는 (paymentId, reason)당 1건(멱등). 초기 기록의 4종/26/occupy·lateSuccess 설명은 이 노트로 대체"
+      },
+      "reviewRounds": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "fingerprint": "sha256:9ce06079b7d2b0f625f4eac36399ed20efe03488b2236bf3a85a1dc2913a3464",
+          "blocking": [
+            "M-1",
+            "M-2"
+          ],
+          "fixedAlso": [
+            "M-3",
+            "L-1"
+          ]
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "fingerprint": "sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+          "nonBlocking": [
+            "L-A",
+            "L-B",
+            "L-C",
+            "L-D",
+            "L-E",
+            "L-F"
+          ]
+        }
+      },
+      "openItems": [
+        "(round2 L-A, CP-CONTRACT-001 첫 변경) MerchantAccountId 비정규화는 D-CP-001(merchantOrderId·멱등키 범위) 결정이 아니라 구현 관례(fail-closed)로 표기 정정: OrderKey.kt KDoc, OrderKeySpec 시험명, ARCHITECTURE-CONVENTIONS §7, DOMAIN-DEFINITION OrderKey 행",
+        "(round2 L-B, CP-CONTRACT-001 첫 변경) DOMAIN-DEFINITION 고정 주문 입력 행: 입력 규칙 확정(D-CP-001·002), fingerprint 필드·표현·버전은 CP-CONTRACT-001",
+        "(round2 L-C) BOOT-001-DISCOVERY.md Q-CP-KEY 미결 표기에 \"이후 D-CP-001로 확정\" 부기(CP-CONTRACT-001), docker/mysql/init/01-owned-databases.sh 주석은 CP-DB-001"
+      ],
+      "lastSuccessfulStep": "DONE on sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+      "nextResumeAction": "완료. 다음 CP-CONTRACT-001(첫 변경: round2 L-A/L-B/L-C 표기 정정)"
     },
     {
       "id": "CP-CONTRACT-001",
       "title": "CreatePayment API/동일성/금액 계약 확정",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "BOOT-001"
       ],
@@ -867,7 +1119,13 @@
       "acceptanceCriteria": [
         "질문을 필요한 시점에 제시하고 답변 기록",
         "현재 기술 초안의 API/DB/Error/Outbox 계약 검토",
-        "업무 의미 변경은 사용자 결정으로 반영"
+        "업무 의미 변경은 사용자 결정으로 반영",
+        "(CP-DOMAIN-001 이월) OrderIntentFingerprint 구성 필드·표현·버전과 계산 변경 시 호환성",
+        "(CP-DOMAIN-001 이월) merchantOrderId·멱등키 길이·허용 문자·공백-only 허용 여부(D-CP-001; domain은 현재 빈 값만 거부)",
+        "(CP-DOMAIN-001 이월) PaymentSlotDecision/BlockReason → 오류 코드·HTTP 매핑, Blocked(INCIDENT_HOLD)는 참조 paymentId 포함(D-CPD-004)",
+        "(CP-DOMAIN-001 이월) D-CP-003 재요청 응답 형식(최초 생성 결과만, 현재 상태는 조회 API)",
+        "(CP-DOMAIN-001 round2 L-A/L-B/L-C) 첫 변경으로 MID 비정규화 표기·DOMAIN-DEFINITION 고정 입력 행·BOOT-001-DISCOVERY 표기 정정",
+        "Money: ISO 4217 통화·통화별 minor unit 일반 처리, 허용 통화는 MID·기관 계약 기준정보 활성화, 초기 KRW·USD 검증(D-CP-002)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -942,10 +1200,13 @@
         "실제 DB 제약과 동시 요청 검증",
         "rollback 시 부분 성공 없음",
         "같은 주문 다른 요청키 수렴 및 상이 내용 충돌",
-        "모든 업무 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 Q-CP-KEY 답변에 따른 COLLATE를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지, 프레임워크 테이블 BATCH_* 등은 대상 아님). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
+        "모든 업무 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 D-CP-001: NO PAD binary COLLATE(utf8mb4_0900_bin 계열)를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지, 프레임워크 테이블 BATCH_* 등은 대상 아님). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
         "Flyway migration 계정과 DML 제한 runtime 계정 분리 검토",
         "(FOUNDATION-001 L-2 이월) jOOQ 생성 테이블의 모듈 소유 기준과 adapter.query DML 금지 규칙/검사를 결정·구현하고 Reviewer가 확인",
-        "(FOUNDATION-001 round4 L-2) DB 제약/낙관적 락 충돌 예외 처리 관례 결정 후 구현: 충돌만 기존 시도 수렴, deadlock·timeout·연결 오류는 분리 — 실제 MySQL 경쟁 시험으로 확인"
+        "(FOUNDATION-001 round4 L-2) DB 제약/낙관적 락 충돌 예외 처리 관례 결정 후 구현: 충돌만 기존 시도 수렴, deadlock·timeout·연결 오류는 분리 — 실제 MySQL 경쟁 시험으로 확인",
+        "Test Fixture Policy: Fixture Monkey(테스트 전용) 도입·프로젝트 Fixture 뒤에 숨김, production 유입 금지 검사",
+        "(CP-DOMAIN-001 리뷰 M-3) 늦은 성공 incident hold 영속 유일성: UNIQUE(orderKey, paymentId, reason) 제약 + 같은 늦은 성공의 응답·통보·조회 동시/중복 보고가 실제 MySQL에서 hold 1건으로 수렴하는 행위 시험",
+        "(CP-DOMAIN-001 round2 L-C) docker/mysql/init/01-owned-databases.sh의 Q-CP-KEY 주석을 D-CP-001로 정정"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1018,7 +1279,10 @@
       "acceptanceCriteria": [
         "MID/환경 권한 확인",
         "응답 유실 후 재요청 및 재시작 검증",
-        "동일 source fingerprint 검증+독립 리뷰"
+        "동일 source fingerprint 검증+독립 리뷰",
+        "Test Fixture Policy: Fixture Monkey(테스트 전용) 도입·프로젝트 Fixture 뒤에 숨김, production 유입 금지 검사",
+        "(CP-DOMAIN-001 리뷰 L-2) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 하나의 domain 연산(또는 둘을 반드시 함께 호출함을 강제하는 application 시험)으로 묶어 incident hold·슬롯 검사 우회를 막는다",
+        "(D-CP-003) 같은 멱등키 재요청 시 현재 조회 권한(인증 MID·환경) 재확인 후 저장된 생성 결과 반환"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1166,7 +1430,10 @@
       "acceptanceCriteria": [
         "연결 단절·응답 유실·중복 요청·지연 결과 검증",
         "외부 호출은 로컬 TX 밖",
-        "REAL endpoint 접근 없음"
+        "REAL endpoint 접근 없음",
+        "(CP-DOMAIN-001 리뷰 L-2) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 하나의 domain 연산(또는 둘을 반드시 함께 호출함을 강제하는 application 시험)으로 묶어 incident hold·슬롯 검사 우회를 막는다",
+        "(CP-DOMAIN-001 리뷰 L-3) 승인 Attempt 생성과 Payment AUTHORIZING 전이는 같은 TX1에서 커밋한다(REQUESTED = 미전송 불변식). 전송은 TX1 커밋 뒤 TX 밖",
+        "(CP-DOMAIN-001 리뷰 L-3) REQUESTED 종료 근거의 출처를 제한하면(예: 미전송 Payment에 기관 확정 거절·timeout·조회 NOT_FOUND 근거 금지) PaymentFixture(failedWithOnlyTimeout·expiredWithOnlyInquiryNotFound 등 REQUESTED 경로 fixture)와 OrderPaymentDecisionTableSpec 판정표 행을 같은 변경에서 갱신한다"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

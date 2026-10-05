@@ -2,10 +2,13 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
-  "lastSuccessfulStep": "FOUNDATION-001 DONE (stage2 VERIFY-GATE PASS 084903Z 201 tests, CVE 0, REVIEW_PASS round4) on sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22 — staged, 미커밋",
-  "pendingQuestionIds": [],
-  "nextResumeAction": "(1) FOUNDATION-001 변경 커밋 여부 사용자 확인 (2) CP-DOMAIN-001 착수: 첫 변경으로 ARCHITECTURE-CONVENTIONS 문서 보완, 이후 Order/Payment 활성 규칙 domain TDD, 대상 생긴 규칙 allowEmptyShould=false",
+  "codeFingerprint": "sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+  "lastSuccessfulStep": "CP-DOMAIN-001 DONE (VERIFY-GATE PASS 210646Z 387 tests, REVIEW_PASS round2) on sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+  "pendingQuestionIds": [
+    "Q-INCIDENT-HOLD (AUTH-CONTRACT-001 착수 시)",
+    "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
+  ],
+  "nextResumeAction": "CP-CONTRACT-001: 첫 변경으로 MID 비정규화 표기·DOMAIN-DEFINITION 고정 입력 행·BOOT-001 표기 정정 후 CreatePayment 계약(Q-CP-KEY/MONEY/RESULT 답변 반영 D-CP-001~003). G-1(Master 실행 단위)은 AUTH 전 결정",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -56,6 +59,16 @@
       "at": "2026-10-05T09:00Z",
       "taskId": "FOUNDATION-001",
       "event": "DONE on sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22 (review rounds 2-4 fixes, 201 tests)"
+    },
+    {
+      "at": "2026-10-06",
+      "taskId": "CP-DOMAIN-001",
+      "event": "claimed; Q-CPD-ENV, Q-CPD-EVIDENCE answered"
+    },
+    {
+      "at": "2026-10-06",
+      "taskId": "CP-DOMAIN-001",
+      "event": "DONE on sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078"
     }
   ]
 }

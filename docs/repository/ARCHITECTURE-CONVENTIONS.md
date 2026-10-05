@@ -69,6 +69,8 @@ com.paycore.<app>.<module>
 - 모듈 root `package-info`: `classesResideInKnownLayers`는 `<base>.<module>` 바로 아래 클래스도 계층 밖으로 보므로, 모듈 root의 `package-info`(예: `@ApplicationModule(type = OPEN)`로 Modulith 공개 범위를 여는 시도)를 거부한다(fixture `knownlayers.badmoduleinfo`). 이는 OPEN 모듈 선언을 통한 공개 범위 우회를 막는 효과가 있다. 모듈 간 허용 의존을 `@ApplicationModule(allowedDependencies = ...)`로 좁혀야 할 때는 이 규칙에 "모듈 root `package-info`만, `type = OPEN` 금지" 예외를 함께 설계해 다시 검토한다.
 - 강제하지 않는 것:
   - `application.provided` 패키지에 `@NamedInterface`가 **빠진** 경우 자체를 검사하는 규칙은 없다(빠지면 첫 모듈 간 사용에서 Modulith verify가 실패한다). 잘못된 위치에 붙인 경우는 위 규칙이 잡는다.
+  - application의 파일 API: `java.io`(`File`·`FileInputStream` 등)와 `kotlin.io`(`readText`·`writeText` 등)는 `java..`/`kotlin..` 허용 목록 안이라 `applicationDependsOnlyOnPorts`가 막지 않는다(금지 JDK 목록은 `java.nio.file`만 포함). application에서 파일을 읽고 쓰지 않고 `application.required` Port 뒤에 두는지는 리뷰로 확인한다 (FOUNDATION-001 round4 L-1, CP-DOMAIN-001에서 명시).
+  - 입력 검증 위치: `application`(그 공개 API인 `application.provided`의 입력/출력 DTO 포함)은 허용 목록 밖인 `jakarta.validation`(Bean Validation annotation)과 Jackson annotation(`tools.jackson..`·`com.fasterxml.jackson..`)에 의존할 수 없다(RUNTIME annotation도 의존으로 잡혀 `applicationDependsOnlyOnPorts`가 실패시킨다). 따라서 형식 검증·JSON 바인딩은 `adapter.web`의 요청 DTO에서, 업무 불변식은 domain 값 객체/Aggregate 생성자(`init`/`require`)에서 한다. 어느 검증을 web DTO에 둘지/domain에 둘지의 구분 자체는 규칙이 강제하지 않으므로 리뷰로 확인한다 (FOUNDATION-001 round4 Info-2, CP-DOMAIN-001에서 명시).
   - jOOQ DML 금지: `adapter.query`의 jOOQ `insertInto`/`update`/`delete` 사용은 규칙으로 막지 않는다(§4 정책은 리뷰로 확인).
   - jOOQ 생성 코드의 테이블 소유권: 생성 클래스는 패키지 단위로만 `adapter.query`에 제한된다. 어느 모듈의 query adapter가 어느 테이블 클래스를 쓰는지(모듈 간 테이블 소유권)는 검사하지 않는다. 첫 PAYMENT migration 작업에서 테이블 소유 모듈 기준과 함께 정한다(gate).
   - domain의 `java.io`·`java.lang.System`(시계)·`java.lang.Thread` 등 JDK 내부 부작용 API는 허용 목록 안이라 막지 않는다. 시계·ID 생성은 리뷰로 Port/값 주입을 확인한다.
@@ -90,6 +92,26 @@ com.paycore.<app>.<module>
 
 ## 6. 하지 않은 것
 
-- 업무 모듈·Aggregate·Port 시그니처(CP-DOMAIN-001, CP-CONTRACT-001).
+- Port 시그니처·application·adapter(CP-CONTRACT-001, CP-API-001, CP-DB-001). 첫 업무 모듈의 domain은 §7(CP-DOMAIN-001).
 - Outbox/Inbox/Dispatcher 계약(ADR-001 제안을 별도 작업에서 확정).
 - 소유 DB별 migration/runtime 계정 분리(CP-DB-001).
+
+## 7. payment-api 첫 업무 모듈 `payment` (CP-DOMAIN-001)
+
+가역적인 구현 관례다. 업무 규칙은 확정 문서(PayCore-결제시도-규칙-권장안.md)·D-CPD-001·D-CPD-002를 따른다.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 모듈 | `com.paycore.payment.payment` 하나에 `OrderPaymentControl`·`Payment` 두 Aggregate Root | 둘은 PAYMENT DB 같은 로컬 TX로 함께 저장되고(계약 §2·§5), control의 판정이 Payment 상태·근거를 직접 읽는다. 별도 모듈로 나누면 Modulith가 다른 모듈 domain 사용을 막아 provided DTO로 상태를 복사해야 하고 같은 TX 규칙이 모듈 경계를 넘는다. 승인(Authorization)도 "Payment당 논리 Authorization 하나"라 같은 모듈에 들어갈 예정이다. 이름이 `payment.payment`로 겹치지만 app 기본 패키지 + bounded context 관례(§2)를 그대로 따른 결과다 |
+| 범위 | `domain` 패키지만. application/adapter 없음 | CP-API/CP-DB 범위 |
+| 식별자 | `@JvmInline value class`(MerchantAccountId·MerchantOrderId·PaymentId·OrderIntentFingerprint), 빈 문자열만 거부, 정규화 없음 | 정규화 없음(입력 그대로 비교)은 D-CP-001 사용자 확정(DB 키 컬럼 NO PAD binary collation은 CP-DB-001). 길이·허용 문자·공백만인 값의 허용 여부는 API 계약 CP-CONTRACT-001 범위라 domain은 정하지 않는다. 빈 값 거부는 "ID가 값이 있다"는 기술 불변식 |
+| 고정 입력 | 금액·통화·Site를 domain 필드로 두지 않고 불투명 `OrderIntentFingerprint` 값 비교 | 입력 규칙은 확정(D-CP-001 ID 그대로, D-CP-002 ISO 4217 통화·통화별 minor unit, 허용 통화는 기준정보·초기 KRW·USD). fingerprint에 넣을 필드·표현·버전은 CP-CONTRACT-001에서 고정하고 계산은 application 책임. 외화 정산 통화·환율(Q-SETTLE-CURRENCY)은 정산 범위로 별개 |
+| Aggregate 스타일 | 정적 factory(`Payment.request`, `OrderPaymentControl.open`) + private set + 의미 있는 전이 메서드, 목록은 읽기 전용 사본 | SPLEARN 참고 관례(setter 금지·상태 전이 메서드), Spring `Assert` 대신 Kotlin `require`/도메인 예외 |
+| 예외 | 업무 규칙 위반은 `PaymentDomainException` 하위(sealed): 전이 오류·stale slot·점유 거절·승인 시작 거절·Payment ID 재사용(`PaymentIdReuseException`: 현재 점유·과거 승인·hold 대상 ID로 새 점유 시도). 잘못된 인자(다른 주문의 Payment 등)는 `IllegalArgumentException` | 오류 코드/HTTP 매핑은 CP-CONTRACT-001 |
+| 판정 우선순위 | 고정 입력 불일치 → incident hold(활성 시도여도 Blocked(INCIDENT_HOLD)+기존 paymentId, D-CPD-004) → 과거 승인 성공 → 현재 상태·근거(표 밖 교차 근거 불인정, D-CPD-003) | 모든 거절 경로는 새 Payment를 만들지 않으므로 순서는 응답 분류만 바꾼다(금융 효과 동일) |
+| 늦은 성공 hold | `reportSuccessAfterTermination`은 (paymentId, reason)당 hold 하나(중복 보고 no-op) | 같은 늦은 성공이 응답·통보·조회로 여러 번 와도 사건은 하나다. 영속 유일성은 CP-DB-001의 UNIQUE(orderKey, paymentId, reason) |
+| 슬롯 "해제" | 별도 release 연산 없음. 현재 Payment(currentPaymentId+generation 일치)의 D-CPD-002 충분 근거가 해제다 | 오래된 Payment의 결과는 현재 Payment가 아니므로 해제가 되지 않는다(CP-09). control에 상태를 중복 저장하지 않는다 |
+| 복원 factory | 아직 없음 | 시험 편의 API를 production에 두지 않는다(Test Fixture Policy). 영속 복원 factory·Mapper는 CP-DB-001에서 실제 adapter와 함께 추가 |
+| 시험 | 새 domain 시험은 Kotest BehaviorSpec + Named Test Fixture(`PaymentFixture`·`OrderPaymentControlFixture`·`OrderFixture`, src/test만), D-CPD-002 기대값은 시험 oracle(`TerminationEvidenceOracle`)에 독립 기술. Fixture Monkey는 이번에 도입하지 않음 | Test Fixture Policy(2026-10-06), Coordinator 결정 |
+
+JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaPaymentEntity`·`JpaOrderPaymentControlEntity`가 adapter.persistence에서 이 domain 상태를 저장한다. **예** — control의 `generation`은 업무 의미(몇 번째 시도가 슬롯을 점유했나)이고, JPA `@Version`은 같은 행을 동시에 고쳤는지 감지하는 기술 값이라 따로 둔다. **이유** — generation 비교는 오래된 결과를 업무 규칙으로 거부하고, `@Version`/행 잠금/UNIQUE(OrderKey)는 두 요청이 같은 판정을 동시에 내리는 경쟁을 DB에서 막는다(domain 단위 시험은 이 경쟁의 증거가 아니다). **주의** — domain 객체는 JPA가 변경 감지하지 않으므로 Mapper가 상태·근거 목록(append-only)·generation·version을 함께 반영해야 하고, stale domain을 최신 Entity에 덮어써 Version 검사를 우회하면 안 된다.
