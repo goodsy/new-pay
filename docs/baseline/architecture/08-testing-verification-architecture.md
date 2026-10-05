@@ -19,6 +19,62 @@
 - Batch 테스트는 chunk rollback·restart·중복 실행·partition 충돌·동일 업무 키를 검사한다. 정책 계산은 Domain 테스트에 둔다.
 - 기관 simulator는 응답 유실·성공 후 timeout·중복 통보·역순·파일 재수신을 재현한다. 실제 기관 인증 시험은 별도 증거다.
 
+### Test Fixture Policy
+
+2026-10-06 사용자 지정 정책. 기존 TDD·Domain First·Hexagonal 원칙과 위 테스트 계층을 유지하면서 테스트 데이터 생성에 다음 규칙을 적용한다. Fixture는 테스트의 업무 조건을 준비하는 객체·데이터와 생성 도우미를 뜻한다. 아래 코드는 설명용 예시이며 실제 Fixture 구현이나 운영 통화 정책의 확정을 뜻하지 않는다.
+
+1. **핵심 Domain Rule 테스트는 명시적인 Fixture / Factory를 우선한다.** 테스트 본문에서 중요한 업무 조건과 금액을 바로 읽을 수 있어야 한다.
+
+   ```kotlin
+   val payment = PaymentFixture.authorized(
+       amount = 100_000.won()
+   )
+   ```
+
+2. **자동 생성하는 정상 Fixture는 반드시 Domain Invariant를 만족한다.** 예를 들어 Payment의 다음 불변조건을 깨는 랜덤 객체를 정상 Fixture로 생성하지 않는다.
+
+   ```text
+   cancelledAmount
+   + refundedAmount
+   + reservedReturnAmount
+   <= authorizedAmount
+   ```
+
+   `authorizedAmount = 10,000`, `cancelledAmount = 50,000`, `refundedAmount = 20,000`과 같은 조합은 정상 Fixture가 아니다.
+
+3. **관계가 있는 금액·상태 필드를 독립적으로 무작위 생성하지 않는다.** `authorizedAmount`, `cancelledAmount`, `refundedAmount`, `reservedReturnAmount`, `PaymentLifecycleStatus`는 업무적으로 연결되어 있다. 선택한 업무 시나리오와 허용된 상태 전이에 맞추어 함께 구성한다.
+
+4. **Aggregate는 가능한 한 Domain의 공식 생성 경로로 만든다.** 생성 방식의 우선순위는 `Domain Factory → Named Test Fixture → Fixture Monkey`다. Named Test Fixture와 자동 생성 도구도 공식 생성·상태 전이 경로를 우선 사용한다. private field 강제 주입이나 reflection으로 도메인에서 존재할 수 없는 상태를 만드는 방식을 기본 Fixture 생성 방식으로 사용하지 않는다.
+
+5. **기본 자동 Fixture 도구는 Fixture Monkey다.** Application Test, Repository Integration Test, Batch Test, 대량 테스트 데이터 및 복합 데이터셋 생성에 우선 사용한다. 핵심 Domain Behavior Test에서는 Fixture Monkey API를 테스트 본문에 직접 노출하기보다 `PaymentFixture`, `AuthorizationFixture`, `CancellationFixture`, `RefundFixture`, `MerchantAccountFixture`처럼 의미 있는 프로젝트 Fixture 뒤에 숨긴다.
+
+6. **Fixture Monkey API를 테스트 코드에 직접 남발하지 않는다.** 위의 `PaymentFixture.authorized(amount = 100_000.won())`처럼 업무 조건을 표현하는 호출을 권장한다. 다음과 같은 생성 로직이 여러 테스트에서 반복되면 Fixture 클래스로 추출한다.
+
+   ```text
+   비권장 반복 패턴:
+   fixtureMonkey
+       .giveMeBuilder<Payment>()
+       .set(...)
+       .set(...)
+       .set(...)
+       .sample()
+   ```
+
+7. **Invalid Fixture는 실패 검증 의도를 명확히 한다.** 잘못된 금액이나 허용되지 않은 상태 전이를 검증할 때는 `InvalidPaymentFixture` 같은 이름 또는 명시적인 생성 코드로 목적을 드러낸다. 정상 Fixture 생성기에서 우연히 잘못된 상태가 나오게 하지 않는다. 공식 생성 경로가 잘못된 입력을 거부하는지 검증할 때는 그 입력과 거부 결과를 명시하며, Invalid Fixture라는 이름을 Domain Invariant 우회의 근거로 삼지 않는다.
+
+8. **랜덤 데이터 생성과 Business Rule 검증을 구분한다.** Domain Business Rule Test는 명시적 값 중심으로 작성하고, Repository / Batch / 대량 데이터 Test는 자동 생성 Fixture를 적극 활용한다. Application Test에서도 검증 대상인 업무 조건은 명시한다. 자동 생성하더라도 중요한 경계값·기대 결과는 명세에서 정하며, 기존의 시드·시계·업무일 통제와 재현성 요구를 유지한다.
+
+9. **Fixture 이름은 구현 세부사항보다 Business Meaning을 표현한다.** `authorizedPayment()`, `paymentWithUnknownAuthorization()`, `paymentWithReservedReturn()`, `completedCancellation()`, `unknownRefund()`처럼 업무 상황을 드러내는 이름을 우선한다.
+
+10. **Fixture 변경으로 Domain Invariant를 우회하지 않는다.** Domain Rule이 변경되면 관련 Fixture도 함께 변경한다. 테스트를 통과시키기 위해 Fixture에서 Domain 검증을 건너뛰거나, 불가능한 상태를 정상 상태로 취급해서는 안 된다.
+
+**테스트 도구와 코드 배치**
+
+- 테스트 스택은 Kotest BehaviorSpec, MockK, Testcontainers, ArchUnit을 유지하고 자동 Fixture 도구로 Fixture Monkey를 사용한다. 기존 Spring Modulith 경계 검증도 유지한다.
+- Instancio는 별도로 추가하지 않는다. 자동 Fixture 도구를 불필요하게 이중화하지 않는다.
+- Fixture 클래스·Factory 도우미·Fixture Monkey 설정 등 Fixture 관련 코드는 `src/test` 영역에만 둔다. 공통 테스트 지원 라이브러리라도 `src/main`에 Fixture 코드를 두지 않는다. 기존 production Domain Factory는 그대로 사용하며, 테스트 편의를 위한 생성 API나 의존성을 production 코드에 추가하지 않는다.
+- Fixture Monkey는 테스트 전용 의존성으로 제한한다. Domain/Application을 포함한 모든 production 코드에 Fixture Monkey 타입·API·annotation이 유입되지 않게 한다. Domain 테스트의 순수성과 Application의 Port 경계를 유지한다.
+
 ## 예시 흐름 및 필수 시나리오
 
 | 시나리오 | 기대 결과 |

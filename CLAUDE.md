@@ -51,6 +51,15 @@
 
 ## 검증과 안전
 
+### Test Fixture Policy
+
+- [테스트 아키텍처의 Test Fixture Policy](docs/baseline/architecture/08-testing-verification-architecture.md#test-fixture-policy)를 적용한다. 기존 TDD·테스트 계층·Domain First·Hexagonal 원칙은 유지한다.
+- 핵심 Domain Rule 테스트는 업무 조건이 드러나는 명시적 Fixture/Factory를 우선한다. 정상 자동 Fixture는 Domain Invariant를 만족해야 하며, 연관 금액·상태의 독립 random 생성과 테스트 통과를 위한 규칙 우회를 금지한다.
+- Aggregate 생성은 `Domain Factory → Named Test Fixture → Fixture Monkey` 순으로 우선한다. Fixture Monkey를 기본 자동 Fixture 도구로 사용하고 Instancio는 추가하지 않는다. 반복 생성 로직은 업무 의미가 드러나는 Fixture로 모으며 Invalid Fixture의 의도는 명시한다.
+- Fixture 관련 코드는 `src/test`에만 둔다. Fixture Monkey 타입·API·annotation과 테스트 전용 의존성은 Domain/Application을 포함한 production 코드에 유입시키지 않는다.
+
+### 검증 증거와 안전 수칙
+
 - 테스트 0건/보고서 없음/skip/환경 오류는 성공 아님. 실제 DB 경쟁·rollback·응답 유실을 관련 기능에서 검증한다.
 - 정확한 source fingerprint/revision/명세 hash와 환경·명령·exit code·테스트 개수·보고서·시각을 남긴다. 검사 후 변경 시 재검증.
 - API 소유 MID/환경 검증, Secret·카드정보 비노출, Simulator/REAL 격리 시험.

@@ -21,6 +21,8 @@ Coordinator는 각 카드에 위 8개 항목의 적용 여부·검증 ID를 기�
 
 사용자 지정: Kotlin, Spring Boot/Batch, JPA, 복잡한 CQRS 조회는 jOOQ, Thymeleaf 우선/React 후속, DDD/헥사고날.
 
+테스트 기술 추가 지정(2026-10-06): Kotest BehaviorSpec·MockK·Testcontainers·ArchUnit과 기존 테스트 계층을 유지하며, 기본 자동 Fixture 도구는 **Fixture Monkey**를 사용한다. Instancio는 별도로 추가하지 않는다. [Test Fixture Policy](baseline/architecture/08-testing-verification-architecture.md#test-fixture-policy)에 따라 핵심 Domain Rule은 명시적 Fixture/Factory로 검증하고, 정상 자동 Fixture도 Domain Invariant를 만족해야 한다. Fixture 관련 코드는 `src/test`에만 두며 Fixture Monkey 타입·API·annotation은 Domain/Application을 포함한 production 코드에 유입하지 않는다. 이 지정은 문서 정책이며 라이브러리 의존성 추가나 Fixture 구현 완료를 의미하지 않는다.
+
 공식 Boot 안정 문서에 표시된 기준선은 Boot **4.1.1**. 해당 BOM의 Batch **6.0.5**, Kotlin **2.3.21**, Hibernate **7.4.5.Final**, jOOQ **3.21.7**, Thymeleaf **3.1.5.RELEASE**를 함께 검토한다. 라이브러리별 최신 숫자를 따로 섞지 않는다. 조회 시점에는 jOOQ 자체 배포가 3.21.9로 더 앞서지만 임의 override하지 않는다. 근거: [Boot BOM](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html), [jOOQ 배포](https://www.jooq.org/download/).
 
 착수 시 공식 stable GA와 지원/보안 상태를 다시 확인해 정확한 patch를 고정한다. M/RC/SNAPSHOT은 제외한다. Boot 관리 항목은 BOM을 따르고, Kotlin 컴파일러·spring/jpa/all-open plugin은 같은 버전으로 맞춘다. 관리 밖 Spring Modulith·관측 도구·빌드 plugin은 호환표와 smoke test로 선택한다. Modulith는 모듈 경계 검증용 후보이며 필수 사용자 지정은 아니다.
