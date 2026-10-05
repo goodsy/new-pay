@@ -90,6 +90,22 @@ class FingerprintGate(unittest.TestCase):
         code, _ = self.fingerprint()
         self.assertEqual(code, 1)
 
+    def test_ignored_file_under_shared_library_or_build_logic_fails(self):
+        for directory in ("libs/support/src/test", "build-logic/src/main"):
+            target = self.repo / directory / "fixture.log"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n", encoding="utf-8")
+            self.assertEqual(self.fingerprint()[0], 1, directory)
+            target.unlink()
+
+    def test_build_outputs_are_not_flagged(self):
+        # build/는 무시 대상이며 소스가 아니다(kotlin-dsl이 build-logic/build 아래에 .kts를 만든다).
+        for path in ("build-logic/build/kotlin-dsl/extracted/a.gradle.kts", "apps/demo/build/src/x.log"):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n", encoding="utf-8")
+        self.assertEqual(self.fingerprint()[0], 0)
+
     def test_pycache_under_harness_is_allowed(self):
         cache = self.repo / "harness/scripts/__pycache__/m.pyc"
         cache.parent.mkdir()

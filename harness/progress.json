@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": "FOUNDATION-001",
-  "codeFingerprint": "sha256:89473a912bf3d4220d36742784e4cba6ad83fff13f2ba1e6bdb305e0b8ad6409",
-  "lastSuccessfulStep": "FOUNDATION-001 stage1 DONE (VERIFY-GATE PASS 231827Z, CVE-SCAN canary 0 vulns, REVIEW_PASS)",
+  "activeTaskId": null,
+  "codeFingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
+  "lastSuccessfulStep": "FOUNDATION-001 DONE (stage2 VERIFY-GATE PASS 084903Z 201 tests, CVE 0, REVIEW_PASS round4) on sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22 — staged, 미커밋",
   "pendingQuestionIds": [],
-  "nextResumeAction": "FOUNDATION-001 stage2: Modulith jOOQ 배치, 공통 build/test-support, 도메인 경계·Port 기초. CP-CONTRACT-001 착수 시 Q-CP-KEY/MONEY/RESULT 질문",
+  "nextResumeAction": "(1) FOUNDATION-001 변경 커밋 여부 사용자 확인 (2) CP-DOMAIN-001 착수: 첫 변경으로 ARCHITECTURE-CONVENTIONS 문서 보완, 이후 Order/Payment 활성 규칙 domain TDD, 대상 생긴 규칙 allowEmptyShould=false",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -51,6 +51,11 @@
       "at": "2026-10-03T23:24Z",
       "taskId": "FOUNDATION-001",
       "event": "stage1 DONE on sha256:89473a912bf3d4220d36742784e4cba6ad83fff13f2ba1e6bdb305e0b8ad6409"
+    },
+    {
+      "at": "2026-10-05T09:00Z",
+      "taskId": "FOUNDATION-001",
+      "event": "DONE on sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22 (review rounds 2-4 fixes, 201 tests)"
     }
   ]
 }

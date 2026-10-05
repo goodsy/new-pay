@@ -1,5 +1,6 @@
 package com.paycore.payment.techsmoke
 
+import com.paycore.payment.architecture.ArchitectureSpec
 import com.paycore.payment.techsmoke.jooq.tables.TechSmokeItem.TECH_SMOKE_ITEM
 import com.paycore.techsmoke.payment.TechSmokeItemEntity
 import com.paycore.techsmoke.payment.TechSmokeItemRepository
@@ -33,7 +34,7 @@ class TechSmokeJooqSpec(
     test("main codegen (main migrations only) does not contain test-only tables") {
         // main 생성 패키지는 main migration만 반영한다. 현재 main schema가 비어 있어 생성 클래스가 없다.
         shouldThrow<ClassNotFoundException> {
-            Class.forName("com.paycore.payment.jooq.generated.tables.TechSmokeItem")
+            Class.forName("${ArchitectureSpec.GENERATED_JOOQ_PACKAGE}.tables.TechSmokeItem")
         }
     }
 

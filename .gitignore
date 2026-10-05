@@ -31,3 +31,6 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# Kotlin compiler session/error files (Kotlin 2.x)
+.kotlin/

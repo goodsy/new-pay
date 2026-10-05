@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 10,
   "status": "REGISTERED_BY_HARNESS_001",
   "contract": "docs/repository/HARNESS-VERIFICATION-CONTRACT.md",
   "note": "argv는 WSL 안에서 workingDirectory 기준으로 shell 없이 실행한다(VERIFY-GATE가 subprocess argv로 실행). 모델 문자열을 argv에 조합하지 않는다. 빈 결과/0건/오래된 보고서/환경 오류는 성공이 아니다.",
@@ -31,7 +31,7 @@
         "TASK_ID": "작업 ID(정규식 ^[A-Z][A-Z0-9-]{1,40}$). 증거 파일명에만 쓰인다",
         "EXPECTED_FINGERPRINT": "필수. Coordinator가 Verifier에게 준 sha256:<64hex>. 없으면 exit 2, 첫 FINGERPRINT 불일치 시 빌드 없이 즉시 FAIL"
       },
-      "timeoutSeconds": 1500,
+      "timeoutSeconds": 1800,
       "env": {},
       "purpose": "FINGERPRINT → HARNESS-SELFTEST → GRADLE-CHECK → TEST-SUMMARY(--not-before 자동) → IMAGE-DIGESTS → FINGERPRINT를 shell 없이 실행. verdict PASS(exit 0)/FAIL(exit 1)/ENVIRONMENT_ERROR(exit 3). PASS 조건: 모든 단계 exit 0·timeout 없음·출력 규칙 충족, fingerprint 전/후 값 존재·동일·기대값 일치",
       "expectedReports": [
@@ -55,9 +55,9 @@
       ],
       "timeoutSeconds": 120,
       "env": {},
-      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture)",
+      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture, SBOM gradle argv의 --no-build-cache/--rerun-tasks, SBOM 미재생성)",
       "expectedReports": [],
-      "minTests": 55,
+      "minTests": 59,
       "sideEffects": "임시 디렉터리만 사용. -B로 __pycache__ 미생성",
       "countRegex": "^Ran (\\d+) tests?",
       "outputMustMatch": [
@@ -78,22 +78,24 @@
         "--rerun-tasks",
         "check"
       ],
-      "timeoutSeconds": 900,
+      "timeoutSeconds": 1200,
       "env": {},
       "purpose": "Kotlin 컴파일(경고=오류) + 전체 테스트(Kotest, ArchUnit/Modulith, Testcontainers MySQL 8.4.11, jOOQ codegen 포함). 검증 실행은 build cache/up-to-date 결과를 재사용하지 않는다(FROM-CACHE 보고서는 증거 아님). --console=plain(ANSI 없음)으로 task별 결과 줄을 고정 출력해 실행 여부를 출력 규칙으로 검사. verbose는 ANSI 제어문자로 정규식이 깨져 쓰지 않는다. 테스트 XML(system-out의 컨테이너 시작 로그 포함)을 증거에 보관",
       "expectedReports": [
         "apps/payment-api/build/test-results/test/TEST-*.xml",
         "apps/financial-batch/build/test-results/test/TEST-*.xml",
-        "apps/internal-admin/build/test-results/test/TEST-*.xml"
+        "apps/internal-admin/build/test-results/test/TEST-*.xml",
+        "libs/test-support/build/test-results/test/TEST-*.xml"
       ],
-      "minTests": 29,
+      "minTests": 201,
       "followWith": "TEST-SUMMARY",
       "sideEffects": "build/ 산출물 생성. jOOQ codegen과 테스트가 Docker에 mysql:8.4.11 및 testcontainers/ryuk 컨테이너를 일시 기동 후 제거. 운영 DB/endpoint 접근 없음",
       "outputMustMatch": [
         "^BUILD SUCCESSFUL",
         "^> Task :apps:payment-api:test$",
         "^> Task :apps:financial-batch:test$",
-        "^> Task :apps:internal-admin:test$"
+        "^> Task :apps:internal-admin:test$",
+        "^> Task :libs:test-support:test$"
       ],
       "outputMustNotMatch": [
         "FROM-CACHE",
@@ -102,7 +104,8 @@
         ":test SKIPPED"
       ],
       "archiveGlobs": [
-        "apps/*/build/test-results/test/TEST-*.xml"
+        "apps/*/build/test-results/test/TEST-*.xml",
+        "libs/*/build/test-results/test/TEST-*.xml"
       ]
     },
     {
@@ -112,10 +115,11 @@
         "harness/scripts/test-summary.py",
         "--not-before",
         "NOT_BEFORE_UTC",
-        "29",
+        "201",
         "apps/payment-api/build/test-results/test",
         "apps/financial-batch/build/test-results/test",
-        "apps/internal-admin/build/test-results/test"
+        "apps/internal-admin/build/test-results/test",
+        "libs/test-support/build/test-results/test"
       ],
       "timeoutSeconds": 60,
       "env": {},
@@ -148,7 +152,7 @@
       ],
       "timeoutSeconds": 60,
       "env": {},
-      "purpose": "git 추적+미추적(비무시) 파일의 실행비트(755/644)+SHA-256 manifest hash. harness 진행 상태 JSON(tasks/progress/questions)만 제외, commands.json 포함. HEAD 없음·추적 파일 삭제·source/harness 경로의 무시된 파일 존재 시 실패. --manifest로 전체 목록",
+      "purpose": "git 추적+미추적(비무시) 파일의 실행비트(755/644)+SHA-256 manifest hash. harness 진행 상태 JSON(tasks/progress/questions)만 제외, commands.json 포함. HEAD 없음·추적 파일 삭제·source/harness/build-logic/libs 경로의 무시된 파일 존재 시 실패. --manifest로 전체 목록",
       "expectedReports": [],
       "minTests": null,
       "sideEffects": "없음(읽기 전용)"
@@ -212,7 +216,7 @@
       ],
       "timeoutSeconds": 600,
       "env": {},
-      "purpose": "osv 바이너리 SHA-256을 externalTool.sha256과 대조 → 이전 SBOM 삭제 후 runtime SBOM(CycloneDX, runtimeClasspath만) 재생성 → 모듈 SBOM에 canary(log4j-core 2.14.1, runtime에 나타날 수 없는 알려진 취약 artifact)와 같은 이름·버전이 있으면 즉시 FAIL. 아니면 모듈마다 SBOM+canary(harness/fixtures/cve-control-vulnerable.cdx.json)를 한 번의 osv 호출(--config harness/osv-scanner.toml, --all-packages)로 검사(canary). 스캔 수 = 모듈+대조 구성요소 수, 대조 구성요소 취약점 ≥1, osv exit 1 필수, 모듈 취약점은 대조 제외 합계. exit 0=0건, 1=취약점 있음·SBOM 빌드 실패·모듈에 canary artifact 포함(FAIL), 3=도구/네트워크/판정 불일치(ENVIRONMENT). OSV API 네트워크가 필요해 VERIFY-GATE에는 넣지 않고 빌드 파일·의존성 변경 작업과 릴리스 전 별도 실행",
+      "purpose": "osv 바이너리 SHA-256을 externalTool.sha256과 대조 → 이전 SBOM 삭제 후 runtime SBOM(CycloneDX, runtimeClasspath만)을 --no-build-cache --rerun-tasks로 재생성(cache 복원 금지) → 모듈 SBOM에 canary(log4j-core 2.14.1, runtime에 나타날 수 없는 알려진 취약 artifact)와 같은 이름·버전이 있으면 즉시 FAIL. 아니면 모듈마다 SBOM+canary(harness/fixtures/cve-control-vulnerable.cdx.json)를 한 번의 osv 호출(--config harness/osv-scanner.toml, --all-packages)로 검사(canary). 스캔 수 = 모듈+대조 구성요소 수, 대조 구성요소 취약점 ≥1, osv exit 1 필수, 모듈 취약점은 대조 제외 합계. exit 0=0건, 1=취약점 있음·SBOM 빌드 실패·모듈에 canary artifact 포함(FAIL), 3=도구/네트워크/판정 불일치(ENVIRONMENT). OSV API 네트워크가 필요해 VERIFY-GATE에는 넣지 않고 빌드 파일·의존성 변경 작업과 릴리스 전 별도 실행",
       "expectedReports": [
         "build/cve-scan/*.json",
         "build/cve-scan/*.log",

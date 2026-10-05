@@ -1,6 +1,6 @@
 package com.paycore.financial.techsmoke
 
-import com.paycore.financial.support.MySqlTestContainerConfig
+import com.paycore.testsupport.MySqlTestContainerConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.springframework.batch.core.BatchStatus

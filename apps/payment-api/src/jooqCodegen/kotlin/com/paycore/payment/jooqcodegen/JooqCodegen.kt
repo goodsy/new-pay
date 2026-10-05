@@ -1,5 +1,6 @@
 package com.paycore.payment.jooqcodegen
 
+import com.paycore.testsupport.MySqlTestContainerConfig
 import org.flywaydb.core.Flyway
 import org.jooq.codegen.GenerationTool
 import org.jooq.meta.jaxb.Configuration
@@ -32,7 +33,8 @@ fun main(args: Array<String>) {
     val packageName = args[1]
     val migrationDirs = args.drop(2).map(::File).filter(File::isDirectory)
 
-    MySQLContainer(DockerImageName.parse(MYSQL_IMAGE)).use { mysql ->
+    // 이미지 tag는 테스트와 같은 단일 상수(libs/test-support)를 쓴다(compile 시 inline).
+    MySQLContainer(DockerImageName.parse(MySqlTestContainerConfig.MYSQL_IMAGE)).use { mysql ->
         mysql.start()
 
         if (migrationDirs.isNotEmpty()) {
@@ -80,6 +82,3 @@ fun main(args: Array<String>) {
         )
     }
 }
-
-/** payment-api 테스트의 MySqlTestContainerConfig.MYSQL_IMAGE와 같은 값으로 유지한다. */
-private const val MYSQL_IMAGE = "mysql:8.4.11"

@@ -1,31 +1,10 @@
+// 공통 Kotlin/Boot/테스트 설정(kotlin jvm·spring·jpa, Boot plugin, toolchain 25, 경고=오류, JPA allOpen, BOM, JUnit Platform,
+// 테스트 0건 실패, Mockito 제외): build-logic/src/main/kotlin/paycore.kotlin-app.gradle.kts
 plugins {
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
-    alias(libs.plugins.kotlin.jpa)
-    alias(libs.plugins.spring.boot)
-}
-
-kotlin {
-    jvmToolchain(25)
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
-        allWarningsAsErrors = true
-    }
-}
-
-// JPA Entity는 Hibernate 프록시를 위해 open이어야 한다. Domain 모델에는 적용되지 않는다(Entity는 adapter에만 둔다).
-allOpen {
-    annotation("jakarta.persistence.Entity")
-    annotation("jakarta.persistence.MappedSuperclass")
-    annotation("jakarta.persistence.Embeddable")
+    id("paycore.kotlin-app")
 }
 
 dependencies {
-    implementation(platform(libs.spring.boot.bom))
-    implementation(platform(libs.spring.modulith.bom))
-    testImplementation(platform(libs.spring.boot.bom))
-    testImplementation(platform(libs.spring.modulith.bom))
-
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.data.jpa)
@@ -38,10 +17,7 @@ dependencies {
     implementation(libs.flyway.mysql)
     runtimeOnly(libs.mysql.connector.j)
 
-    testImplementation(libs.spring.boot.starter.test) {
-        // Mockito 대신 MockK/springmockk를 사용한다.
-        exclude(group = "org.mockito")
-    }
+    testImplementation(project(":libs:test-support"))
     testImplementation(libs.spring.boot.testcontainers)
     testImplementation(libs.spring.modulith.starter.test)
     testImplementation(libs.testcontainers.mysql)
@@ -53,12 +29,6 @@ dependencies {
     testImplementation(libs.archunit)
 }
 
-tasks.test {
-    useJUnitPlatform()
-    // 테스트 0건은 성공이 아니다(HARNESS-GUIDE §7).
-    failOnNoDiscoveredTests = true
-}
-
 // ---------------------------------------------------------------------------------------------
 // jOOQ codegen: Flyway migration → Testcontainers MySQL 8.4 → jOOQ 생성(live schema).
 // 생성 코드는 build/ 아래에만 두고 commit하지 않는다. 생성기는 별도 source set(jooqCodegen)이라
@@ -68,6 +38,9 @@ val jooqCodegen: SourceSet = sourceSets.create("jooqCodegen")
 
 dependencies {
     "jooqCodegenImplementation"(platform(libs.spring.boot.bom))
+    // MySQL 이미지 tag의 단일 기준(MySqlTestContainerConfig.MYSQL_IMAGE)을 컴파일 시점 상수로만 읽는다.
+    // const val은 호출 측에 inline되므로 생성기 runtime classpath에는 test-support/그 의존성이 들어가지 않는다.
+    "jooqCodegenCompileOnly"(project(":libs:test-support")) { isTransitive = false }
     "jooqCodegenImplementation"(libs.jooq.codegen)
     "jooqCodegenImplementation"(libs.jooq.meta)
     "jooqCodegenImplementation"(libs.flyway.mysql)
@@ -103,10 +76,14 @@ fun registerJooqGenerate(
     )
 }
 
+// 생성 패키지는 app 기본 패키지 아래에 두되 Spring Modulith 모듈 판정에서 제외한다(ArchitectureSpec.GENERATED_JOOQ_PACKAGE,
+// PayCoreArchitectureRules.generatedCode()). adapter.query만 접근할 수 있다. 값이 어긋나지 않게 테스트에 system property로 넘겨 비교한다.
+val mainJooqPackage = "com.paycore.payment.jooq.generated"
+
 val generateJooqMain = registerJooqGenerate(
     taskName = "generateJooqMain",
     migrationDirs = listOf(mainMigrations),
-    packageName = "com.paycore.payment.jooq.generated",
+    packageName = mainJooqPackage,
     outputName = "main",
 )
 
@@ -125,3 +102,5 @@ sourceSets {
 
 tasks.compileKotlin { dependsOn(generateJooqMain) }
 tasks.compileTestKotlin { dependsOn(generateJooqTest) }
+
+tasks.test { systemProperty("paycore.jooq.mainPackage", mainJooqPackage) }

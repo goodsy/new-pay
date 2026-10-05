@@ -35,10 +35,10 @@ BOM 밖 최신값과의 차이(의도적으로 override 안 함): jOOQ 3.21.9, F
 
 - 적용 후 CVE-SCAN 결과(2026-10-03, ArchUnit runtime 제거 후): payment-api 106개, financial-batch 53개, internal-admin 58개 runtime 구성요소를 osv가 **모두 스캔**(스캔 수 = SBOM 구성요소 수)했고 알려진 취약점 0건. 양성 대조(canary)는 매 모듈 검사 안에서 검출된다(§1.1 CVE-SCAN 판정). SBOM에서 tomcat 11.0.26, jackson 3.1.7 실제 해석을 확인했다.
 - 영향 평가: 현재 앱은 Tomcat DIGEST/FORM 인증을 쓰지 않는다(internal-admin은 Spring Security, 인증 방식 미결). 그래도 운영 진입 전 취약 버전을 남기지 않기 위해 지금 올린다.
-- 주의: patch override는 Boot가 시험한 조합을 벗어난다. 전체 GRADLE-CHECK(27 tests)로 회귀를 확인했다. override는 Boot 4.1.1에만 묶여 있어 Boot를 올리면 빌드가 멈추고 재평가를 요구한다. 또한 올리기만 한다: 다른 의존성이 더 새 버전을 명시하면 그대로 둔다(오래된 patch로 내리지 않음).
+- 주의: patch override는 Boot가 시험한 조합을 벗어난다. 전체 GRADLE-CHECK(27 tests)로 회귀를 확인했다. override는 Boot 4.1.1에만 묶여 있어 Boot를 올리면 빌드가 멈추고 재평가를 요구한다. 또한 올리기만 한다: 다른 의존성이 숫자만으로 된 더 새 GA 버전을 명시하면 그대로 둔다(오래된 patch로 내리지 않음). pre-release(예: 3.2.0-rc1, 11.1.0-M1)는 숫자가 더 커도 "더 새 버전"으로 보지 않고 GA patch로 강제한다. 따라서 pre-release가 꼭 필요한 업그레이드는 GRADLE-DEPS 검토에서 드러나며 override를 다시 판단해야 한다.
 - 범위: SBOM은 앱 runtime만 담는다. jOOQ 생성기 classpath(Testcontainers 등)·Gradle plugin·테스트 의존성은 스캔하지 않는다(운영 배포물이 아님).
 - CVE-SCAN은 OSV API 네트워크를 쓰므로 VERIFY-GATE에 넣지 않는다. 의존성·빌드 파일이 바뀌는 작업과 릴리스 전 별도로 실행한다. 새 권고는 매일 생기므로 "0건"은 스캔 시각 기준이다.
-- CVE-SCAN 판정: osv 바이너리 SHA-256 대조, 이전 결과·SBOM 삭제 후 재생성, 고정 설정(`harness/osv-scanner.toml`, 무시 목록 없음). canary는 PayCore runtime에 나타날 수 없는 알려진 취약 artifact(log4j-core 2.14.1, Log4Shell; 앱은 Logback 사용)다. osv 결과는 group 없이 이름·버전만 주므로, 모듈 SBOM에 canary와 같은 이름·버전이 있으면 합치기 전에 FAIL(exit 1)한다. 그렇지 않으면 모듈 SBOM+canary를 **한 번의 osv 호출**로 검사하고, canary 취약점 검출·스캔 수 = 모듈+canary 수·osv exit 1을 모두 요구한다(모듈별 조회가 실제로 동작했다는 증거). 어긋나면 exit 3(ENVIRONMENT), SBOM 빌드 실패는 exit 1(FAIL). 판정 로직은 `test_cve_scan.py`로 고정.
+- CVE-SCAN 판정: osv 바이너리 SHA-256 대조, 이전 결과·SBOM 삭제 후 재생성(`--no-build-cache --rerun-tasks`로 SBOM task를 build cache·up-to-date 결과에서 복원하지 않고 실제 실행한다 — FOUNDATION-001 round3 O-1: 이전 argv는 cache 복원을 허용했다), 고정 설정(`harness/osv-scanner.toml`, 무시 목록 없음). canary는 PayCore runtime에 나타날 수 없는 알려진 취약 artifact(log4j-core 2.14.1, Log4Shell; 앱은 Logback 사용)다. osv 결과는 group 없이 이름·버전만 주므로, 모듈 SBOM에 canary와 같은 이름·버전이 있으면 합치기 전에 FAIL(exit 1)한다. 그렇지 않으면 모듈 SBOM+canary를 **한 번의 osv 호출**로 검사하고, canary 취약점 검출·스캔 수 = 모듈+canary 수·osv exit 1을 모두 요구한다(모듈별 조회가 실제로 동작했다는 증거). 어긋나면 exit 3(ENVIRONMENT), SBOM 빌드 실패는 exit 1(FAIL). 판정 로직은 `test_cve_scan.py`로 고정.
 
 ## 2. 출처
 
@@ -105,6 +105,5 @@ BOM 밖 최신값과의 차이(의도적으로 override 안 함): jOOQ 3.21.9, F
 
 ## 6. 아직 검증하지 않은 것
 
-- jOOQ 생성 코드가 생긴 뒤의 Modulith 모듈 배치(생성 패키지가 `jooq` 모듈로 잡히는 문제) → FOUNDATION-001.
-- 공통 빌드 로직/테스트 지원 추출(세 모듈에 MySqlTestContainerConfig·빌드 블록 중복) → FOUNDATION-001.
+- jOOQ 생성 코드의 Modulith 배치와 공통 빌드/시험 기반은 FOUNDATION-001 stage2에서 구현했다(docs/repository/ARCHITECTURE-CONVENTIONS.md). 생성 패키지 제외는 fixture로 증명했고, 실제 main 생성 클래스는 첫 PAYMENT migration 이후 생긴다.
 - 비밀 탐지, CI 연동 → HARNESS-002.

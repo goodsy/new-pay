@@ -1,6 +1,6 @@
 # 검증 명령·증거 수집 계약 (HARNESS-001)
 
-작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 8). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
+작성 2026-10-03 KST. 명령 원본: `harness/commands.json`(schemaVersion 10). 이 문서는 그 명령을 언제·어떻게 쓰고 무엇을 성공으로 볼지 정한다.
 
 ## 1. 실행 위치
 
@@ -20,7 +20,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 | 순서 | commandId | 성공 조건 |
 |---|---|---|
 | 1 | FINGERPRINT | exit 0. HEAD 확인 가능, 추적 파일 삭제 없음, source/harness 경로에 무시된 파일 없음 |
-| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(55) |
+| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(59) |
 | 3 | GRADLE-CHECK | exit 0, timeout 없음, `--console=plain` 출력에 `BUILD SUCCESSFUL`과 모든 실행 단위의 `> Task :apps:<module>:test`(결과 표시 없음=실제 실행) 존재, 출력에 `FROM-CACHE`/`:test UP-TO-DATE`/`:test NO-SOURCE`/`:test SKIPPED` 없음. `--no-build-cache --rerun-tasks` |
 | 4 | TEST-SUMMARY | exit 0. 보고서 존재, 테스트 수 ≥ minTests, failures/errors/skips = 0, 모든 보고서 timestamp ≥ GRADLE-CHECK 시작 UTC(자동 치환) |
 | 5 | IMAGE-DIGESTS | exit 0. 로컬 이미지 ID 기록(사용 증거 아님, §6) |
@@ -28,7 +28,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 
 `--expect-fingerprint`는 필수다(없으면 exit 2). 1번 FINGERPRINT가 기대값과 다르면 빌드 없이 즉시 FAIL한다. GRADLE-CHECK 성공 후 테스트 XML을 증거 로그 디렉터리로 복사해, 이후 실행이 build/를 덮어써도 컨테이너 시작 로그(system-out)와 보고서 hash가 남는다.
 
-빌드 파일(`*.gradle.kts`, `gradle/**`)이나 의존성이 바뀐 작업은 `GRADLE-DEPS-<MODULE>`(모듈별 resolved 버전)과 `CVE-SCAN`(runtime SBOM + osv-scanner, 네트워크 필요)도 실행해 보고한다. CVE-SCAN은 알려진 취약점이 1건이라도 있으면 FAIL(exit 1), 도구/네트워크 오류는 exit 3이다.
+빌드 파일(`*.gradle.kts`, `gradle/**`)이나 의존성이 바뀐 작업은 `GRADLE-DEPS-<MODULE>`(모듈별 resolved 버전)과 `CVE-SCAN`(runtime SBOM + osv-scanner, 네트워크 필요)도 실행해 보고한다. CVE-SCAN의 SBOM 생성은 `./gradlew --no-build-cache --rerun-tasks ...:cyclonedxDirectBom`으로 매번 실제 실행한다(build cache에서 복원된 SBOM은 증거가 아니다. `test_cve_scan.py`가 argv를 검사한다). CVE-SCAN은 알려진 취약점이 1건이라도 있으면 FAIL(exit 1), 도구/네트워크 오류는 exit 3이다.
 
 ## 3. 판정 규칙
 
@@ -46,7 +46,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 
 - 포함: git 추적 + 미추적(비무시) 저장소 파일의 실행 비트(755/644)와 SHA-256. `harness/commands.json`(gate 정의) 포함. clone별 umask 차이(644/664)는 값에 영향이 없다.
 - 제외: `.gitignore` 대상(build/, .env, .idea/, `__pycache__`), 진행 상태 파일 `harness/tasks.json`, `progress.json`, `questions.json`. 상태 파일은 검증 결과를 기록하느라 검증 후에 바뀌므로 제외하고, 판정 기준을 바꾸는 **저장소 파일**은 모두 포함한다.
-- 보호: `apps/*/src`, `harness/scripts`, `harness/tests`, `docker`, `gradle` 아래에 무시된 파일이 있으면 FINGERPRINT가 실패한다(fingerprint에 안 잡히는 테스트 입력 차단).
+- 보호(`harness/scripts/fingerprint.sh`의 `guarded_ignored` pathspec과 동일): `apps/*/src/**`, `libs/*/src/**`, `build-logic/src/**`, `build-logic/*.kts`(build-logic 바로 아래 Gradle 스크립트만), `harness/scripts`, `harness/tests`, `harness/fixtures`, `docker`, `gradle` 아래에 `.gitignore`로 무시된 파일이 있으면 FINGERPRINT가 실패한다(fingerprint에 안 잡히는 테스트 입력 차단). 예외: 경로에 `/__pycache__/`가 든 파일은 무시한다. 이 목록 밖(예: 루트 `*.gradle.kts`, `gradle.properties`, `build-logic/build/`, `apps/*/build/`)의 무시된 파일은 검사하지 않는다. 루트 Gradle 파일은 추적 파일이면 fingerprint에 포함된다.
 - 한계: 저장소 밖 입력(환경변수 `GRADLE_OPTS`/`JAVA_TOOL_OPTIONS`/`TESTCONTAINERS_*` 등, `~/.gradle/init.d`, `~/.gradle/gradle.properties`, `~/.testcontainers.properties`)은 fingerprint에 없다. 대신 `VERIFY-GATE` 증거의 `environment`에 이름과 값/파일 hash로 기록한다. 값이 달라졌을 때 차단하지는 않으므로 Verifier가 이전 증거와 비교해 차이를 보고한다.
 
 ## 5. 증거 기록
@@ -61,12 +61,12 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 
 ## 7. 모듈/테스트 추가 시 갱신 규칙
 
-- 새 Gradle 모듈(실행 단위)을 추가하면 같은 변경에서 모두 갱신한다:
+- 새 Gradle 모듈(실행 단위·시험 라이브러리)을 추가하면 같은 변경에서 모두 갱신한다(시험 라이브러리는 SBOM/CVE·GRADLE-DEPS 대상이 아님):
   - `TEST-SUMMARY` argv에 그 모듈의 `build/test-results/test` 경로, 하한(minTests) 조정
   - `GRADLE-CHECK.expectedReports`와 `outputMustMatch`의 `^> Task :apps:<module>:test$`
   - `GRADLE-DEPS-<MODULE>` 명령
   - `harness/scripts/cve-scan.py`의 `MODULES`(빠지면 그 모듈은 취약점 검사를 받지 않는다)
-- 현재 하한은 전체 합계(29: payment-api 13, financial-batch 7, internal-admin 9)만 검사한다. 모듈별 하한은 아직 없으며, 모듈별 `> Task :apps:<module>:test` 실행 규칙과 Verifier의 모듈별 개수 보고로 보완한다.
+- 현재 하한은 전체 합계(201: payment-api 41, financial-batch 26, internal-admin 29, libs/test-support 105)만 검사한다. 모듈별 하한은 아직 없으며, 모듈별 `> Task :apps:<module>:test` 실행 규칙과 Verifier의 모듈별 개수 보고로 보완한다.
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.

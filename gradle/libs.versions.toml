@@ -48,6 +48,22 @@ jooq-codegen = { module = "org.jooq:jooq-codegen" }
 jooq-meta = { module = "org.jooq:jooq-meta" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple" }
 
+# libs/test-support 전용(버전은 Boot BOM). spring-boot-test는 MySqlTestContainerConfig 컴파일용(compileOnly),
+# 나머지는 아키텍처 규칙 meta-test fixture 컴파일용(testImplementation)이며 앱 runtime에 들어가지 않는다.
+spring-boot-test = { module = "org.springframework.boot:spring-boot-test" }
+jakarta-persistence-api = { module = "jakarta.persistence:jakarta.persistence-api" }
+spring-context = { module = "org.springframework:spring-context" }
+spring-web = { module = "org.springframework:spring-web" }
+spring-tx = { module = "org.springframework:spring-tx" }
+spring-jdbc = { module = "org.springframework:spring-jdbc" }
+jooq = { module = "org.jooq:jooq" }
+spring-data-commons = { module = "org.springframework.data:spring-data-commons" }
+spring-batch-core = { module = "org.springframework.batch:spring-batch-core" }
+spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+jakarta-transaction-api = { module = "jakarta.transaction:jakarta.transaction-api" }
+jakarta-validation-api = { module = "jakarta.validation:jakarta.validation-api" }
+slf4j-api = { module = "org.slf4j:slf4j-api" }
+
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-extensions-spring = { module = "io.kotest:kotest-extensions-spring", version.ref = "kotest" }

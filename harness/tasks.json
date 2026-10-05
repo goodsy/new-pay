@@ -428,7 +428,7 @@
       "id": "FOUNDATION-001",
       "title": "도메인 경계·Port·명시 Demo fixture 기초",
       "phase": "SAFE_FOUNDATION",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "BOOT-001",
         "HARNESS-001",
@@ -439,7 +439,7 @@
         "소유 DB 경계와 Domain 의존성 분리",
         "프로젝트 관례에 맞는 최소 구조",
         "미확정 정책을 운영 기본값으로 넣지 않음",
-        "ArchitectureSpec의 allowEmptyShould 제거(false)와 실제 domain/application/adapter 대상 확인",
+        "규칙 자체는 meta-test로 증명, 앱 단위 allowEmptyShould는 대상이 생기는 작업(CP-DOMAIN-001)에서 false로 전환",
         "기관 DTO·adapter 패키지 의존 금지 규칙 추가",
         "TECH-001 follow-ups(R1~R3, osv sha256, only-upgrade override, jOOQ 생성 패키지 Modulith 배치, 공통 build/test-support 추출)"
       ],
@@ -448,63 +448,84 @@
         "build.gradle.kts",
         "gradle/libs.versions.toml",
         "harness/**",
-        "docs/repository/**"
+        "docs/repository/**",
+        "build-logic/**",
+        "libs/**",
+        "settings.gradle.kts",
+        "gradle.properties"
       ],
       "pathsResolved": true,
       "owner": "coordinator-main-session",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": 7200,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "fingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
+        "verifyGate": "build/harness-evidence/FOUNDATION-001-2026-10-05T084903Z.json",
+        "verdict": "PASS",
+        "at": "2026-10-05T08:55:59Z"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 4,
+        "reviewedFingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Transaction Safety": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Idempotency": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Concurrency Control": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Recoverability": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Reconciliation": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Auditability": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         },
         "Observability": {
-          "applicability": "PENDING",
-          "reason": "stage1은 하네스·설정 정리. 원칙 평가는 stage2(도메인 경계·Port) 완료 시",
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조·시험 기반 작업: 금융 효과 없음. Domain 순수성·Port 경계 규칙은 이후 모든 원칙 증거의 전제(meta-test로 증명)",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DOMAIN-001 이후 기능 작업"
         }
       },
       "originalAllowedWritePaths": [],
@@ -576,16 +597,189 @@
               "at": "2026-10-03T23:23Z"
             }
           }
+        },
+        "stage2-boundaries-shared-infra": {
+          "status": "DONE",
+          "implementer": "paycore-implementer",
+          "items": [
+            "build-logic convention plugins(paycore.kotlin-base/app/library)",
+            "libs/test-support(MySqlTestContainerConfig 단일화, Kotest ProjectConfig, PayCoreArchitectureRules)",
+            "PayCoreArchitectureRules 규칙 17종, libs/test-support meta-test 105개(규칙별 준수 fixture 통과·위반 fixture 68개 실패·빈 import 실패 + all() 대응 + generatedCode + domainpurity Kotlin 보조 타입 확인)",
+            "앱별 ArchitectureSpec 규칙 적용(빈 대상 허용은 규칙별 명시)",
+            "Modulith jOOQ 생성 패키지 제외 + fixture 증명",
+            "ARCHITECTURE-CONVENTIONS.md, TECH-BASELINE I1",
+            "review round2 수정: domainIsPure 허용 목록, baseRootHoldsOnlyApplicationEntryPoint, coreDoesNotDependOnBaseRootOrCrossCutting, web→application.required 금지, batchAdapterUsesOnlyApplication, @RepositoryDefinition·@ControllerAdvice 포함, namedInterfacesOnlyOnProvidedPackages(+payment-api Modulith fixture 대조)",
+            "review round3 수정: M-A applicationDependsOnlyOnPorts 허용 목록화(<base> 밖 wrapper·java.net/nio.file·임의 외부/메시징 차단, 준수 fixture에 @Service/@Transactional/ApplicationEventPublisher/@Value/Pageable/slf4j/다른 모듈 provided); L-A persistenceTechnologyOnlyInPersistenceAdapter 신설(web EntityManager/JdbcTemplate, batch DataSource+JdbcCursorItemReader/RowMapper, query DataSource, integration Spring Data repository 위반 fixture; crossCutting DataSource 구성 허용; adapter.query java.sql/DataSource 불허 근거 문서화); I-a 금지 JDK에 java.lang.foreign·java.util.prefs; I-b 모듈 root package-info(@ApplicationModule OPEN) 거부 특성화 fixture + 문서; I-c springBootApplicationIsSingleAtBaseRoot 신설(badtwo/badmodule/badnestedonly); I-d domainpurity ok에 companion/$WhenMappings/suspend/lazy; 앱 ArchitectureSpec에 신규 규칙 2종 + 테스트 소스(TechSmoke) 제외 확인 시험; O-1 cve-scan generate_sboms에 --no-build-cache --rerun-tasks + test_cve_scan argv/미재생성 시험; minTests 201/59"
+          ],
+          "mutationREDs": [
+            "domainIsPure에서 jakarta.persistence 제거 → bad fixture 시험 FAIL",
+            "규칙 내부 allowEmptyShould(true) → 빈 import 시험 FAIL",
+            "준수 fixture에 @Embeddable → FAIL",
+            "라이브러리 ProjectConfig 비움 → Spring 주입 spec FAIL",
+            "membership rule에 service 허용 추가 → badservice 시험 FAIL",
+            "provided package-info 삭제 → provided 사용 verify FAIL",
+            "round2 RED(구현 전): domainIsPure 새 위반 fixture 6개(badbaseroot·badtransaction·badslf4j·badvalidation·badjavanet·badcrosscutting), repositories.badannotated, controllers.badrestadvice/badadvice, webadapter.badrequired 시험 FAIL(77건 중 23 FAIL, 2026-10-05T06:34Z)",
+            "round2 RED(구현 전 임시 probe, 실행 후 삭제): 기존 규칙 11종 전체가 coreisolation.bad*3, baseroot.bad*3, batchadapter.badpersistence/badquery/badrequired/badspringdata/badjpa, namedinterface.badtype/badsubpackage를 하나도 잡지 못함(batchadapter.badintegration은 integrationAdapterIsEncapsulated, namedinterface.badpackage는 domainIsPure가 이미 잡음)",
+            "round2 mutation(구현 후, 6개 동시 적용 → 정확히 11건 FAIL 후 복원): base root 조건 항상 참 → baseroot.bad*3 FAIL; FORBIDDEN_JDK 제외 제거 → badjavanet/badjavasql FAIL; core 규칙에서 crossCutting 제거 → coreisolation.badcrosscutting FAIL; @RepositoryDefinition 조건 제거 → badannotated FAIL; batch 규칙에서 data.repository·jakarta.persistence 제거 → badspringdata/badjpa FAIL; NamedInterface 패키지 조건 제거 → badpackage/badsubpackage FAIL",
+            "round3 RED(구현 전, 2026-10-05T08:13Z): 새 위반 fixture appports.badoutsidebase/badjavanet/badjavanio/badmessaging, domainpurity.badforeign/badprefs 시험과 domainpurity ok Kotlin 보조 타입 확인 시험(Ledger.kt 임시 제외) FAIL — 92건 중 7 FAIL",
+            "round3 RED(구현 전 임시 probe ProbeRound3Spec, 실행 후 삭제, 2026-10-05T08:16Z): 기존 규칙 15종 전체가 persistencetech.badwebentitymanager/badwebjdbc/badbatchjdbc/badqueryjdbc/badspringdatarepo, bootapp.badtwo/badmodule을 하나도 잡지 못함(caughtBy=[])",
+            "round3 mutation(구현 후 8개 동시 적용 → 정확히 12건 FAIL 후 복원, 2026-10-05T08:21Z): application 허용에 com.paycore../com.example.. 추가 → badoutsidebase/badmessaging FAIL; 금지 JDK에서 java.net 제거 → domain·application badjavanet FAIL; java.nio.file 제거 → badjavanio FAIL; java.lang.foreign·java.util.prefs 제거 → badforeign/badprefs FAIL; 허용 목록에서 org.slf4j 제거 → appports ok FAIL; 영속 규칙 제외 대상을 crossCutting→adapter.query로 변경 → persistencetech ok·badqueryjdbc FAIL; data.repository 제거 → badspringdatarepo FAIL; SpringBootApplication 개수 조건 항상 참 → bootapp.badtwo FAIL",
+            "round3 mutation(단독): SpringBootApplication 위치 조건 제거 → bootapp.badnestedonly만 FAIL(2026-10-05T08:22Z); classesResideInKnownLayers에 <base>.* 허용 추가 → knownlayers.badmoduleinfo만 FAIL(2026-10-05T08:39Z)",
+            "round3 O-1 RED: test_sbom_generation_bypasses_build_cache_and_reruns_tasks FAIL(argv에 --no-build-cache 없음, 59건 중 1 FAIL, 2026-10-05T08:31Z); 구현 후 --rerun-tasks만 제거 mutation → 같은 시험 FAIL 후 복원"
+          ],
+          "openItems": [
+            "CP-DOMAIN-001에서 첫 클래스가 생기면 해당 규칙의 앱 단위 allowEmptyShould를 false로",
+            "L-2(이월, 첫 PAYMENT migration 작업 gate): jOOQ 생성 코드의 모듈 간 테이블 소유권과 adapter.query의 jOOQ DML 금지는 규칙으로 강제하지 않음",
+            "L-5(이월): commands.json minTests는 전체 합계만. 모듈별 하한 없음(모듈별 :test 실행 출력 규칙과 Verifier 모듈별 개수 보고로 보완)",
+            "@NamedInterface 누락(provided package-info 없음) 자체는 규칙 없음 — 첫 모듈 간 사용에서 Modulith verify가 실패",
+            "round3: 영속 기술 전이 경로(crossCutting/base root @Bean wrapper 경유 adapter→DB)는 미강제(ARCHITECTURE-CONVENTIONS 강제하지 않는 것)",
+            "round3: java.lang.management·ProcessBuilder/Runtime.exec는 domain/application에서 미강제(리뷰 확인)",
+            "round3: adapter.query의 javax.sql/java.sql은 불허로 시작(DSLContext 주입으로 충분). 필요해지면 근거와 함께 재검토(가역)",
+            "round3: application 허용 목록 밖 micrometer·kotlinx 등은 필요 시 Coordinator 결정으로 추가(가역)",
+            "round3: 모듈 간 허용 의존을 @ApplicationModule(allowedDependencies)로 좁힐 때 classesResideInKnownLayers에 모듈 root package-info 예외(OPEN 금지) 재설계 필요",
+            "L-1 application java.io/kotlin.io 파일 API 미차단 → 문서 \"강제하지 않는 것\" 1줄은 CP-DOMAIN-001 첫 변경, 규칙화는 이월",
+            "L-2 application이 org.springframework.dao 충돌 예외를 못 다룸 → CP-DB-001 착수 전 관례 결정(adapter flush+Port 결과 변환 권장), 충돌만 수렴·그 외 오류 분리를 MySQL 경쟁 시험으로 확인",
+            "L-3 Boot 구성 단일성 규칙이 meta-annotation(@SpringBootConfiguration) 미검출",
+            "Info-1 org.springframework.transaction.jta 허용·modulith 전체 허용 범위",
+            "Info-2 application.provided DTO에서 jakarta.validation/Jackson 금지 문서화",
+            "Info-3 @Scheduled 트리거 계층 위치 미정(Recovery 작업)",
+            "Info-4 cve-scan --rerun-tasks가 jOOQ codegen(Docker)까지 재실행 시 오류 분류"
+          ],
+          "review": {
+            "round1": {
+              "verdict": "CHANGES_REQUIRED",
+              "reviewedFingerprint": "sha256:c092869920a9826f5a53e2866e85e196a14ee6205a3148bb47a747a4c20cf86f",
+              "M1": "fixed: classesResideInKnownLayers + fixtures, <base>.domain pinned",
+              "M2": "fixed: Coordinator decision @NamedInterface(\"provided\") via package-info.java in src/*/java; ModulithProvidedExposureSpec 5 cases with control",
+              "L1": "fixed: application forbids org.springframework.data.. except data.domain",
+              "L2": "covered: cross-module integration access fails Modulith verify (fixture)",
+              "L3": "fixed: springDataRepositoriesOnlyInPersistenceAdapter, springBatchOnlyInBatchAdapter"
+            },
+            "round2": {
+              "verdict": "CHANGES_REQUIRED",
+              "reviewedFingerprint": "sha256:fc8b32b3414d07cfb532b1e61679586752e177b0f6ce80245c0b29ba214cec76",
+              "at": "2026-10-05",
+              "M-1": "base root/crossCutting 경유 domain·application 우회 + domain 금지목록 빈틈 → 수정: domain 허용목록, base root/crossCutting 의존 금지, fixture",
+              "L-1": "web→application.required, batch→persistence/query/integration 미차단 → 수정",
+              "L-2": "jOOQ 생성 코드 모듈 간 테이블 소유권·DML 미강제 → 첫 PAYMENT migration 작업 gate로 기록(이월)",
+              "L-3": "@RepositoryDefinition, @ControllerAdvice, @NamedInterface 위치 → 수정(가능 범위)",
+              "L-4": "tasks.json stage2 기록 불일치 → 수정",
+              "L-5": "모듈별 minTests 없음 → 열린 항목(이월)",
+              "I-1": "fingerprint 보호 경로 문서 표현 → 수정",
+              "I-2": "CP-DOMAIN-001 acceptance에 allowEmptyShould false 전환 diff 확인 명시 → 반영"
+            },
+            "round3": {
+              "verdict": "CHANGES_REQUIRED",
+              "reviewedFingerprint": "sha256:9fa585eced270cb843ff955c5c19d3b6d1bd4023c88b3f9565f93ba6d5e5c446",
+              "at": "2026-10-05",
+              "M-A": "application이 <base> 밖 wrapper·java.net/nio.file·메시징으로 Port 우회 가능 → application 허용목록화",
+              "L-A": "web/batch가 JPA/JDBC(DataSource, JdbcTemplate, EntityManager) 직접 사용 가능 → 영속 기술은 adapter.persistence에서만(DataSource 구성은 crossCutting 허용)",
+              "L-B": "L-2 이월이 받는 작업 acceptance에 미연결 → CP-DB-001 acceptance에 추가(완료)",
+              "I-a": "domain java.lang.foreign/java.util.prefs → 금지 추가",
+              "I-b": "모듈 root package-info 차단 효과 문서화",
+              "I-c": "@SpringBootApplication 정확히 1개",
+              "I-d": "Kotlin 생성 타입 ok fixture 보강",
+              "O-1": "Verifier: cve-scan.py generate_sboms가 --no-build-cache 없이 실행돼 SBOM이 build cache에서 복원됨 → 수정"
+            },
+            "round4": {
+              "verdict": "REVIEW_PASS",
+              "reviewedFingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
+              "at": "2026-10-05",
+              "blocking": 0,
+              "carriedOver": [
+                "L-1 application java.io/kotlin.io 파일 API 미차단 → 문서 \"강제하지 않는 것\" 1줄은 CP-DOMAIN-001 첫 변경, 규칙화는 이월",
+                "L-2 application이 org.springframework.dao 충돌 예외를 못 다룸 → CP-DB-001 착수 전 관례 결정(adapter flush+Port 결과 변환 권장), 충돌만 수렴·그 외 오류 분리를 MySQL 경쟁 시험으로 확인",
+                "L-3 Boot 구성 단일성 규칙이 meta-annotation(@SpringBootConfiguration) 미검출",
+                "Info-1 org.springframework.transaction.jta 허용·modulith 전체 허용 범위",
+                "Info-2 application.provided DTO에서 jakarta.validation/Jackson 금지 문서화",
+                "Info-3 @Scheduled 트리거 계층 위치 미정(Recovery 작업)",
+                "Info-4 cve-scan --rerun-tasks가 jOOQ codegen(Docker)까지 재실행 시 오류 분류"
+              ]
+            }
+          },
+          "coordinatorPreRunAbandoned": "gate on c0928699 stopped (code changing per review); fingerprint guard pathspec bug found and fixed before",
+          "gateRuns": [
+            {
+              "fingerprint": "sha256:fc8b32b3414d07cfb532b1e61679586752e177b0f6ce80245c0b29ba214cec76",
+              "verdict": "PASS",
+              "evidence": "build/harness-evidence/FOUNDATION-001-2026-10-05T061643Z.json",
+              "evidenceSha256": "47d61d35f473d3728fd961745431e423e19ae53902ee2028831a38cee171401f",
+              "tests": {
+                "payment-api": 33,
+                "financial-batch": 19,
+                "internal-admin": 22,
+                "libs/test-support": 51,
+                "total": 125
+              },
+              "selftest": 57,
+              "cveScan": "PASS 0 vulns, canary detected (2026-10-05T06:26Z)",
+              "at": "2026-10-05T06:23:41Z",
+              "note": "superseded by round2 review fixes; re-verify required"
+            },
+            {
+              "fingerprint": "sha256:9fa585eced270cb843ff955c5c19d3b6d1bd4023c88b3f9565f93ba6d5e5c446",
+              "verdict": "PASS",
+              "evidence": "build/harness-evidence/FOUNDATION-001-2026-10-05T075422Z.json",
+              "evidenceSha256": "5679b8e2fbc970bdd9f769f7bd7868b241a86410a27afcb6d6c39dc962a65ea5",
+              "tests": {
+                "payment-api": 38,
+                "financial-batch": 23,
+                "internal-admin": 26,
+                "libs/test-support": 85,
+                "total": 172
+              },
+              "selftest": 57,
+              "cveScan": "PASS 0 vulns, canary detected; SBOM restored from build cache (observation O-1)",
+              "gradleDeps": "3 modules exit 0, no test deps in runtimeClasspath, components 106/53/58 unchanged",
+              "at": "2026-10-05T08:00:10Z",
+              "note": "superseded by round3 review fixes"
+            },
+            {
+              "fingerprint": "sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
+              "verdict": "PASS",
+              "evidence": "build/harness-evidence/FOUNDATION-001-2026-10-05T084903Z.json",
+              "evidenceSha256": "05109a27b21f384928be148107b3d9eb1c742bec3ca7d365beccf1872d4db167",
+              "tests": {
+                "payment-api": 41,
+                "financial-batch": 26,
+                "internal-admin": 29,
+                "libs/test-support": 105,
+                "total": 201
+              },
+              "selftest": 59,
+              "cveScan": "PASS 0 vulns, canary detected, SBOM regenerated (metadata.timestamp 08:59Z)",
+              "gradleDeps": "exit 0 x3, components 106/53/58, no test deps in runtime",
+              "at": "2026-10-05T08:55:59Z"
+            }
+          ],
+          "coordinatorDecisions": [
+            "2026-10-05: jakarta.validation은 domain에서 금지(허용목록 밖). 검증은 순수 Kotlin. 가역적 구현 관례",
+            "2026-10-05 (사용자 \"네\" 응답으로 현 상태 유지 확인): (1) adapter.batch는 use case(application.provided/서비스)만 호출, JPA/Spring Data/required 직접 사용 금지 — 배치 reader/writer 직접 DB 접근이 필요해지면 재검토 (2) domain에서 java.io·System clock은 규칙상 미차단(문서 \"강제하지 않는 것\") (3) @NamedInterface는 위치만 검사, 이름 \"provided\" 검사는 미적용",
+            "2026-10-05 round3: application은 허용목록(kotlin, java−금지JDK, org.jetbrains.annotations, <base>..−adapter/generated/baseRoot/crossCutting, org.springframework.{transaction,stereotype,context,beans.factory.annotation}, org.springframework.modulith, org.springframework.data.domain, org.slf4j). micrometer는 필요 시 추가(가역)",
+            "2026-10-05 round3 fix 확인: (a) adapter.query는 java.sql/DataSource 금지(Boot DSLContext 사용) (b) application에서 jakarta.transaction·kotlinx.coroutines 금지(Spring @Transactional 사용) (c) 생성 jOOQ 코드도 영속기술 규칙 대상 (d) tasks.json은 상태파일로 unstaged 유지 가능. 모두 가역적 관례"
+          ],
+          "testCounts": {
+            "payment-api": 41,
+            "financial-batch": 26,
+            "internal-admin": 29,
+            "libs/test-support": 105,
+            "total": 201,
+            "minTests": 201,
+            "previousMinTests": 172,
+            "selftest": 59,
+            "previousSelftestMinTests": 57,
+            "source": "implementer local ./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks check (Verifier must re-run gate)"
+          }
         }
       },
-      "lastSuccessfulStep": "stage1(TECH-001 follow-ups) DONE on sha256:89473a912bf3d4220d36742784e4cba6ad83fff13f2ba1e6bdb305e0b8ad6409",
-      "nextResumeAction": "stage2: I1 문서 → jOOQ 생성 패키지 Modulith 배치 → 공통 build/test-support → 도메인 경계·Port 기초"
+      "lastSuccessfulStep": "stage2 DONE on sha256:e624b0b2611974c4b787c36552d057fc061a81236feaa6e8ae51afe4d6ddad22",
+      "nextResumeAction": "완료. 다음 CP-DOMAIN-001"
     },
     {
       "id": "CP-DOMAIN-001",
       "title": "확정된 Order/Payment 활성 규칙 단위 구현",
       "phase": "SAFE_FOUNDATION",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "FOUNDATION-001"
       ],
@@ -594,7 +788,9 @@
         "REQUESTED 포함 활성 하나",
         "UNKNOWN/AUTHORIZING/AUTHORIZED 재시도 차단",
         "안전한 종료 근거 없는 FAILED/EXPIRED 재시도 차단",
-        "fixture 동일성으로 테스트하고 실제 API 동일성은 아직 고정하지 않음"
+        "fixture 동일성으로 테스트하고 실제 API 동일성은 아직 고정하지 않음",
+        "payment-api ArchitectureSpec에서 대상이 생긴 규칙의 allowEmptyShould를 false로 전환하고 그 diff를 Reviewer가 확인",
+        "ARCHITECTURE-CONVENTIONS.md \"강제하지 않는 것\"에 application의 java.io/kotlin.io 파일 API 미강제와 application.provided DTO의 jakarta.validation/Jackson 금지(웹 DTO·domain 생성자에서 검증)를 명시 (FOUNDATION-001 round4 L-1/Info-2)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -747,7 +943,9 @@
         "rollback 시 부분 성공 없음",
         "같은 주문 다른 요청키 수렴 및 상이 내용 충돌",
         "모든 업무 키 컬럼(environment/MID/merchantOrderId/요청키 등)에 Q-CP-KEY 답변에 따른 COLLATE를 명시하고 information_schema로 검사(서버 기본 utf8mb4_0900_ai_ci 상속 금지, 프레임워크 테이블 BATCH_* 등은 대상 아님). 대소문자만 다른 키·후행 공백만 다른 키를 실제 INSERT해 UNIQUE 수락/거부가 답변 정책과 일치하는지 행위 시험",
-        "Flyway migration 계정과 DML 제한 runtime 계정 분리 검토"
+        "Flyway migration 계정과 DML 제한 runtime 계정 분리 검토",
+        "(FOUNDATION-001 L-2 이월) jOOQ 생성 테이블의 모듈 소유 기준과 adapter.query DML 금지 규칙/검사를 결정·구현하고 Reviewer가 확인",
+        "(FOUNDATION-001 round4 L-2) DB 제약/낙관적 락 충돌 예외 처리 관례 결정 후 구현: 충돌만 기존 시도 수렴, deadlock·timeout·연결 오류는 분리 — 실제 MySQL 경쟁 시험으로 확인"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

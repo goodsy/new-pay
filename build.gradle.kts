@@ -1,10 +1,8 @@
 import org.cyclonedx.gradle.CyclonedxDirectTask
 
+// Kotlin/Spring Boot plugin은 build-logic의 convention plugin(paycore.kotlin-app/-library)이 적용한다.
+// 여기에는 루트가 직접 쓰는 CycloneDX만 둔다(아래 CyclonedxDirectTask 설정).
 plugins {
-    alias(libs.plugins.spring.boot) apply false
-    alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.kotlin.spring) apply false
-    alias(libs.plugins.kotlin.jpa) apply false
     alias(libs.plugins.cyclonedx) apply false
 }
 

@@ -7,10 +7,12 @@ import importlib.util
 import json
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/cve-scan.py"
 spec = importlib.util.spec_from_file_location("cve_scan", SCRIPT)
@@ -135,6 +137,46 @@ class CveScan(unittest.TestCase):
 
     def test_registered_checksum_is_read_from_commands(self):
         self.assertRegex(cve_scan.registered_osv_sha256(cve_scan.COMMANDS), r"^[0-9a-f]{64}$")
+
+    def run_generate_sboms(self, create_sboms: bool) -> list[list[str]]:
+        """generate_sboms를 임시 ROOT에서 실행하고 gradle argv를 기록한다(실제 gradle·저장소 build/는 건드리지 않는다)."""
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(list(argv))
+            self.assertEqual(kwargs.get("cwd"), self.dir)
+            if create_sboms:
+                for module in cve_scan.MODULES:
+                    bom = self.dir / f"apps/{module}/build/reports/cyclonedx-direct/bom.json"
+                    bom.parent.mkdir(parents=True, exist_ok=True)
+                    bom.write_text("{}", encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+
+        with mock.patch.object(cve_scan, "ROOT", self.dir), mock.patch.object(cve_scan.subprocess, "run", fake_run):
+            if create_sboms:
+                cve_scan.generate_sboms()
+            else:
+                with self.assertRaises(cve_scan.ScanError):
+                    cve_scan.generate_sboms()
+        return calls
+
+    def test_sbom_generation_bypasses_build_cache_and_reruns_tasks(self):
+        # O-1: SBOM task 결과를 build cache/up-to-date에서 복원하면 현재 의존성으로 재생성됐다는 증거가 없다.
+        calls = self.run_generate_sboms(create_sboms=True)
+        self.assertEqual(len(calls), 1)
+        argv = calls[0]
+        self.assertIn("--no-build-cache", argv)
+        self.assertIn("--rerun-tasks", argv)
+        for module in cve_scan.MODULES:
+            self.assertIn(f":apps:{module}:cyclonedxDirectBom", argv)
+
+    def test_sbom_not_regenerated_is_error(self):
+        # gradle이 exit 0이어도 이전 SBOM을 지운 뒤 새 파일이 없으면 실패한다.
+        stale = self.dir / "apps/payment-api/build/reports/cyclonedx-direct/bom.json"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("{}", encoding="utf-8")
+        self.run_generate_sboms(create_sboms=False)
+        self.assertFalse(stale.exists())
 
     def test_control_fixture_contains_known_vulnerable_component(self):
         control = json.loads(cve_scan.CONTROL_SBOM.read_text(encoding="utf-8"))

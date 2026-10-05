@@ -1,6 +1,6 @@
 package com.paycore.payment.techsmoke
 
-import com.paycore.payment.support.MySqlTestContainerConfig
+import com.paycore.testsupport.MySqlTestContainerConfig
 import com.paycore.techsmoke.payment.TechSmokeItemEntity
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage
 import org.springframework.boot.test.context.SpringBootTest

@@ -1,6 +1,6 @@
 package com.paycore.payment
 
-import com.paycore.payment.support.MySqlTestContainerConfig
+import com.paycore.testsupport.MySqlTestContainerConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith

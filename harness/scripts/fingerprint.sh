@@ -10,7 +10,7 @@ head="$(git rev-parse --verify HEAD)" || { echo "FAIL: git HEAD not resolvable" 
 
 # 무시 패턴에 걸려 fingerprint에서 빠지지만 빌드/테스트 결과에 영향을 줄 수 있는 위치의 파일은 거부한다.
 guarded_ignored="$(git ls-files --others --ignored --exclude-standard -- \
-  'apps/*/src/*' 'harness/scripts' 'harness/tests' 'docker' 'gradle' | grep -v '/__pycache__/' || true)"
+  ':(glob)apps/*/src/**' ':(glob)libs/*/src/**' ':(glob)build-logic/src/**' ':(glob)build-logic/*.kts' 'harness/scripts' 'harness/tests' 'harness/fixtures' 'docker' 'gradle' | grep -v '/__pycache__/' || true)"
 if [[ -n "$guarded_ignored" ]]; then
   echo "FAIL: ignored files under source/harness paths are not fingerprinted:" >&2
   printf '%s\n' "$guarded_ignored" >&2
