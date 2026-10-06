@@ -53,7 +53,7 @@ Gradle problems report 경고 1건: `/usr/lib/jvm/openjdk-25`(심볼릭 디렉�
 - JDK toolchain 자동 다운로드 금지(`org.gradle.java.installations.auto-download=false`).
 - 테스트 0건 발견 시 실패(`failOnNoDiscoveredTests = true`).
 - 설정: DB 접속은 환경변수만(기본값/비밀번호 없음), `open-in-view: false`, `ddl-auto: validate`, Flyway 위치 `db/migration/payment`.
-- 로컬 개발용 `compose.yaml`: MySQL 8.4.11 단일 인스턴스에 master/payment/financial DB와 DB별 계정. 개발 편의일 뿐 운영 격리 증거가 아님. **collation은 지정하지 않음**(키 동일성 Q-CP-KEY 미결). 단, 미지정은 중립이 아니다: MySQL 8.4 서버 기본값 `utf8mb4_0900_ai_ci`(대소문자·악센트 무시)가 compose와 Testcontainers 모두에 적용된다. 그래서 CP-DB-001 수용 기준에 "모든 키 컬럼의 COLLATE를 명시하고 information_schema로 검사"를 추가했다.
+- 로컬 개발용 `compose.yaml`: MySQL 8.4.11 단일 인스턴스에 master/payment/financial DB와 DB별 계정. 개발 편의일 뿐 운영 격리 증거가 아님. **collation은 지정하지 않음**(키 동일성 Q-CP-KEY 미결(당시; 이후 D-CP-001로 확정)). 단, 미지정은 중립이 아니다: MySQL 8.4 서버 기본값 `utf8mb4_0900_ai_ci`(대소문자·악센트 무시)가 compose와 Testcontainers 모두에 적용된다. 그래서 CP-DB-001 수용 기준에 "모든 키 컬럼의 COLLATE를 명시하고 information_schema로 검사"를 추가했다.
 - **업무 코드·DDL·API 없음.** Flyway migration은 비어 있다.
 
 ### 허용 경로 조정
@@ -89,4 +89,4 @@ Reviewer 지적으로 FINGERPRINT가 gate 정의(commands.json)를 포함하도�
 3. FOUNDATION-001: payment-api 내부 Modulith 모듈·헥사고날 패키지, ArchUnit 규칙을 실제 대상으로 강화.
 4. CP-DOMAIN-001: 확정된 Order/Payment 활성 규칙 단위 테스트(fixture 동일성).
 
-질문 대기: Q-CP-KEY / Q-CP-MONEY / Q-CP-RESULT는 CP-CONTRACT-001 착수 시 제출(지금 일괄 질문하지 않음).
+질문 대기: Q-CP-KEY / Q-CP-MONEY / Q-CP-RESULT는 CP-CONTRACT-001 착수 시 제출(지금 일괄 질문하지 않음). (당시; 이후 D-CP-001 / D-CP-002 / D-CP-003으로 확정)

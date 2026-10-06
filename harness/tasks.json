@@ -1107,14 +1107,19 @@
       "id": "CP-CONTRACT-001",
       "title": "CreatePayment API/동일성/금액 계약 확정",
       "phase": "FEATURE",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "BOOT-001"
       ],
       "requiredQuestions": [
         "Q-CP-KEY",
         "Q-CP-MONEY",
-        "Q-CP-RESULT"
+        "Q-CP-RESULT",
+        "Q-CPC-INTENT",
+        "Q-CPC-IDFORMAT",
+        "Q-CPC-OUTBOX",
+        "Q-CPC-RETENTION",
+        "Q-CPC-AMOUNT"
       ],
       "acceptanceCriteria": [
         "질문을 필요한 시점에 제시하고 답변 기록",
@@ -1127,70 +1132,230 @@
         "(CP-DOMAIN-001 round2 L-A/L-B/L-C) 첫 변경으로 MID 비정규화 표기·DOMAIN-DEFINITION 고정 입력 행·BOOT-001-DISCOVERY 표기 정정",
         "Money: ISO 4217 통화·통화별 minor unit 일반 처리, 허용 통화는 MID·기관 계약 기준정보 활성화, 초기 KRW·USD 검증(D-CP-002)"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/domain/**",
+        "apps/payment-api/src/test/**",
+        "docs/repository/**",
+        "docs/DECISIONS.md",
+        "harness/commands.json",
+        "harness/tasks.json",
+        "harness/progress.json",
+        "harness/questions.json"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator-main-session",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 7200,
+      "evidence": {
+        "fingerprint": "sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
+        "verifyGate": "build/harness-evidence/CP-CONTRACT-001-2026-10-06T033719Z.json",
+        "evidenceSha256": "5e6b6484ff8313bb49d5c19209ffe26d2cfc2bd70cbadb2d0fdc28ac2d6647b5",
+        "verdict": "PASS",
+        "tests": {
+          "payment-api": 285,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 105,
+          "total": 445
+        },
+        "selftest": 59,
+        "goldenVectors": "4/4 독립 재계산 일치",
+        "at": "2026-10-06T03:47:39Z",
+        "priorGate": "CP-CONTRACT-001-2026-10-06T031125Z.json PASS on 8dda94ee…(superseded)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "Money: minor unit Long·1 이상·부동소수점 없음·허용 통화 목록 없음(D-CP-002/D-CPC-005), 고정 주문 입력 fingerprint v1(D-CPC-001)을 domain에서 결정적 계산. 금액 보존의 DB/승인 단계 검사는 후속",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "MoneySpec, OrderIntentSpec(golden vector), OrderFixture가 실제 fingerprint 사용 → OrderPaymentDecisionTableSpec/ControlSpec",
+          "followUpGate": "CP-DB-001, CP-API-001"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE_YET",
+          "reason": "계약 문서 §11(멱등 기록+control+Payment+Outbox 같은 PAYMENT TX, 외부 호출 없음)만 정의. 코드·DB 없음",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DB-001"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "멱등키 형식(D-CPC-002) domain 강제·대소문자 구분 시험. 요청 fingerprint r1·보존 30일(D-CPC-004)·재요청 응답(D-CP-003)은 계약 §5·§7·§8 문서만",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "MerchantRequestIdFormatSpec(IdempotencyKey)",
+          "followUpGate": "CP-API-001"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE_YET",
+          "reason": "UNIQUE 후보·잠금 순서(계약 §11·§12)만 정의. 실제 MySQL 경쟁은 CP-DB-001",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DB-001"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE_YET",
+          "reason": "commit 불명확 시 같은 키 재요청·503 retryable 규칙(계약 §9)만 정의",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-API-001"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "CreatePayment는 금융 효과가 없고 PaymentRequested는 비금융 이벤트(D-CPC-003). 대사 대상 사실 없음",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "RECON-CONTRACT-001"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE_YET",
+          "reason": "Payment에 eligibility snapshotVersion·최초 표시 정보 보존(계약 §12·§13) 정의만",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-DB-001, CP-API-001"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE_YET",
+          "reason": "관측성(requestId/correlation) 코드 없음(CP-API-001). 입력값 비노출 예외 메시지는 보안(A05) 증거로 별도 — Observability 증거 아님",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": null,
+          "followUpGate": "CP-API-001"
         }
-      }
+      },
+      "implementation": {
+        "implementer": "paycore-implementer",
+        "recordedAt": "2026-10-06",
+        "baseRevision": "61e7457",
+        "selfVerdict": "NOT_DECIDED (구현자는 DONE 판정 금지 — Verifier/Reviewer 대기)",
+        "statusUnchanged": "IN_PROGRESS",
+        "items": [
+          "첫 변경(L-A/L-B/L-C): OrderKey.kt MerchantAccountId KDoc·OrderKeySpec 시험명/설명·ARCHITECTURE-CONVENTIONS §7 식별자·고정 입력 행·DOMAIN-DEFINITION OrderKey 행에서 MID 비정규화를 '구현 관례(fail-closed, PG 발급 값)'로 정정, DOMAIN-DEFINITION 용어사전 '고정 주문 입력' 행 D-CPC-001 갱신, BOOT-001-DISCOVERY Q-CP-KEY 표기 2곳에 '(당시; 이후 D-CP-001로 확정)' 부기",
+          "확정 계약 docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md(§1 범위~§16 미결): Command/Context, 요청 schema, Money, OrderIntentFingerprint v1+golden vector+버전 규칙, 멱등 요청 fingerprint r1, 보존 30일, 판정→오류/HTTP 표, 응답 schema, 오류 보안, PaymentRequested v1, DB 제약 후보, eligibility Port 계약, 초안 대비 변경점",
+          "domain: Money.kt(CurrencyCode ISO 4217 형식, CurrencyUnit minor unit 0..4 기준정보 값, Money amountMinor>=1·toMajorUnitString), OrderKey.kt(MerchantOrderId D-CPC-002 생성자 강제, IdempotencyKey, internal MerchantRequestIdFormat), OrderIntent.kt(MerchantSiteId, OrderIntent.fingerprint v1 SHA-256)",
+          "시험: MerchantRequestIdFormatSpec 22, MoneySpec 13, OrderIntentSpec 13(golden vector는 Python hashlib 독립 계산), OrderKeySpec 10→11(공백-only 허용 기대를 D-CPC-002 거절로 변경 — 완화가 아닌 사용자 결정 반영), MoneyFixture 추가, OrderFixture가 실제 v1 fingerprint 계산",
+          "ARCHITECTURE-CONVENTIONS §8(CreatePayment 계약 관례 + JPA 연결 설명) 추가",
+          "commands.json GRADLE-CHECK minTests·TEST-SUMMARY 하한 387 → 436, HARNESS-VERIFICATION-CONTRACT §7 갱신"
+        ],
+        "red": "2026-10-05T23:09Z 신규 3개 spec을 무검증 stub(TODO) 대상으로 실행: 45 tests 중 26 실패(Expected IllegalArgumentException 미발생 17, NotImplementedError 9) — 첫 시도는 테스트 코드의 java.lang.Double 사용 경고(-Werror) 컴파일 실패라 RED 증거로 쓰지 않고 수정 후 재실행",
+        "green": "2026-10-05T23:12Z payment domain 8개 spec 전부 통과(22/13/13/11/30/57/46/43)",
+        "conventionsDecided": [
+          "merchantOrderId·멱등키 형식은 domain 값 객체 생성자에서 강제(web은 먼저 400), 예외 메시지에 입력값 미포함",
+          "MID·MerchantSiteId는 빈 값만 거부, 입력 그대로 비교(형식은 MASTER-DOMAIN-001) (round1 L-3 이후 짝 없는 서로게이트도 거부)",
+          "OrderIntentFingerprint v1 = 'v1:' + sha256hex(길이 접두 canonical: domain tag, version, site, amountMinor, currency), domain 계산, v1 동결·저장 버전으로 재계산 비교",
+          "멱등 요청 fingerprint r1(요청 전체 닫힌 필드 집합, 알 수 없는 필드 400) — 계약만",
+          "HTTP: 신규 201 / 같은 키 재요청 200+Idempotent-Replayed / 활성 재사용 200 EXISTING_ACTIVE_PAYMENT / 업무 거절 409(+referencePaymentId) / 형식 400 / MID 불일치 403 / Site 404 / 미활성 422 / Snapshot·일시 오류 503",
+          "응답 lifecycleAtCreation은 항상 REQUESTED, 현재 상태 미포함(D-CP-003)",
+          "environment는 body에 받지 않고 Credential에서, body merchantAccountId는 인증 MID와 일치 필수",
+          "amount는 JSON integer(소수·지수·문자열 거절), currency 대문자 3자 엄격(변환 없음)",
+          "PaymentRequested eventCategory INTEGRATION_NON_FINANCIAL, effectKey PaymentRequested:{paymentId}, payload에서 paymentKey·orderName 제외"
+        ],
+        "reviewFixes": {
+          "round": "round1 비차단(Coordinator 선택)",
+          "recordedAt": "2026-10-06",
+          "baseFingerprint": "sha256:8dda94ee6515bc729853a0946d0923787c05109a49babce7ab8c815b9719b27a",
+          "items": [
+            "L-3(코드): 짝 없는 UTF-16 서로게이트 — Utf8Text.kt 추가(isWellFormed/requireWellFormed, encode = UTF-8 encoder REPORT·치환 금지), OrderIntent token·fingerprint가 Utf8Text.encode 사용, MerchantSiteId·MerchantAccountId 생성자에서 거부(메시지에 입력값 없음). MerchantOrderId·IdempotencyKey는 D-CPC-002 ASCII 제한으로 이미 거절됨을 시험으로 확인. 계약 §3 표·§3.1(400 INVALID_REQUEST, orderName 포함·구현 CP-API-001)·§6.2(엄격 인코딩)·§7·§14, ARCHITECTURE-CONVENTIONS §7·§8(+JPA/JDBC '?' 치환 주의)",
+            "L-1(문서): 계약 §9 ORDER_ON_HOLD/ORDER_ALREADY_AUTHORIZED/ORDER_RESULT_UNCONFIRMED 멱등 저장 칸 '§16' → 'D-CPC-007 저장·30일 재생'",
+            "L-2(문서): 계약 §8 '이중 Payment' → '동시 활성 Payment·이중 승인을 만들지 않는다' + 30일 경과 후 안전 종료된 원 시도가 있으면 두 번째 Payment가 정당하게 생길 수 있음 명시",
+            "L-5(문서, 관례·가역적 Coordinator 결정): v1 CreatePayment는 생성 시 한도 사전 검사를 하지 않음(권위 판정은 승인 시작, AUTH-CONTRACT-001) — 계약 §4·§9·§13·§16, NotEligible에 한도 reason 없음, ARCHITECTURE-CONVENTIONS §8",
+            "L-6(문서): ARCHITECTURE-CONVENTIONS §8 머리말 D-CPC-001~006 → D-CPC-001~009",
+            "이월 표시만(구현 안 함, 계약 §9·§3·§7·§16): L-4 lock wait timeout 분류 → CP-API-001, L-8 r1 golden vector·orderName 길이 단위 → CP-API-001, L-9 fingerprint(version) API → v2 도입 시",
+            "commands.json GRADLE-CHECK minTests·TEST-SUMMARY 하한 436 → 445, HARNESS-VERIFICATION-CONTRACT §7 갱신"
+          ],
+          "red": "2026-10-06 OrderIntentSpec·OrderKeySpec 대상 실행: 33 tests 중 5 실패 — MerchantSiteId/MerchantAccountId 짝 없는 서로게이트 생성 허용(Expected IllegalArgumentException 미발생), Utf8Text.encode가 예외 없이 '?' 치환, 그리고 'a\\uD800'과 'a?'가 같은 v1 fingerprint(v1:d72e8e488755234fa71a96e91042325ee6b529b583715f8a651d1c757904e4ab)로 충돌. RED 직전 Utf8Text.encode는 기존 toByteArray(UTF_8)와 동일 동작으로만 추출(행위 변경 없음)",
+          "green": "2026-10-06 대상 spec 통과 후 전체 check(--no-build-cache --rerun-tasks) exit 0: payment-api 285, financial-batch 26, internal-admin 29, libs/test-support 105 = 445, failures/errors/skipped 0. v1 golden vector 4개 불변"
+        }
+      },
+      "questionCandidates": [
+        {
+          "id": "Q-CPC-REJECT-REPLAY",
+          "question": "업무 거절(409 ORDER_INTENT_CONFLICT/ORDER_ON_HOLD/ORDER_ALREADY_AUTHORIZED/ORDER_RESULT_UNCONFIRMED)을 그 멱등키 결과로 저장해 30일간 같은 키에 재현하는가",
+          "recommended": "저장·재현(같은 키=과거 결과, 새 고객 시도=새 키 원칙과 일치)",
+          "alternatives": [
+            "저장 안 함(상태 변화 후 같은 키로 새 Payment 생성 가능)"
+          ],
+          "impact": "같은 키 재시도가 새 Payment를 만들 수 있는지",
+          "blocks": [
+            "CP-DB-001 멱등 기록 결과 종류",
+            "CP-API-001"
+          ],
+          "resolution": "D-CPC-007"
+        },
+        {
+          "id": "Q-CPC-LIMIT-STAGE",
+          "question": "건당·일 한도(기준정보) 검사 시점",
+          "recommended": "승인 시작 시(AUTH) 권위 검사, 생성 시는 선택적 건당 사전 거절",
+          "alternatives": [
+            "생성 시 모두",
+            "승인 시만"
+          ],
+          "impact": "한도 초과 Payment가 REQUESTED로 남는지",
+          "blocks": [
+            "MASTER-SNAPSHOT-001",
+            "AUTH-CONTRACT-001"
+          ],
+          "resolution": "D-CPC-008"
+        },
+        {
+          "id": "Q-CPC-AMOUNT-JSON",
+          "question": "2^53-1 초과 금액의 JSON 표현",
+          "recommended": "JSON integer 유지 + 정확 정수 파서(현 계약)",
+          "alternatives": [
+            "amount 문자열"
+          ],
+          "impact": "JS 가맹점 정밀도 손실 위험",
+          "blocks": [
+            "CP-API-001(낮음)"
+          ],
+          "resolution": "D-CPC-009"
+        }
+      ],
+      "openItems": [
+        "MID·MerchantSiteId 형식/길이(계약 §12 VARCHAR(64) 후보) — MASTER-DOMAIN-001에서 확정 후 CP-DB-001 반영",
+        "paymentId/paymentKey 생성기·형식 — CP-API-001",
+        "멱등 기록 30일 경과 삭제 Job — CP-DB-001 이후",
+        "[해결: DOMAIN-DEFINITION 갱신 완료] DOMAIN-DEFINITION IdempotencyRequest 행 '보존 기간 미결' 표기를 D-CPC-004로 갱신(이번 허용 범위 밖 행, Coordinator)",
+        "docker/mysql/init/01-owned-databases.sh Q-CP-KEY 주석 정정은 CP-DB-001 수용 기준(이번 범위 밖)",
+        "eligibility Port 구현 — MASTER-SNAPSHOT-001/CP-API-001(D-CPC-006)"
+      ],
+      "reviewRounds": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "fingerprint": "sha256:8dda94ee6515bc729853a0946d0923787c05109a49babce7ab8c815b9719b27a",
+          "blocking": [
+            "M-1 (tasks.json, fixed by Coordinator)"
+          ],
+          "nonBlocking": [
+            "L-1..L-9"
+          ]
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "fingerprint": "sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
+          "nonBlocking": [
+            "L-10..L-13 fixed in tasks.json by Coordinator"
+          ]
+        }
+      },
+      "lastSuccessfulStep": "DONE on sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
+      "nextResumeAction": "완료. 다음 CP-DB-001"
     },
     {
       "id": "CP-DB-001",
       "title": "주문 점유·멱등 요청·Outbox 로컬 TX",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "CP-DOMAIN-001",
         "CP-CONTRACT-001"
@@ -1206,7 +1371,14 @@
         "(FOUNDATION-001 round4 L-2) DB 제약/낙관적 락 충돌 예외 처리 관례 결정 후 구현: 충돌만 기존 시도 수렴, deadlock·timeout·연결 오류는 분리 — 실제 MySQL 경쟁 시험으로 확인",
         "Test Fixture Policy: Fixture Monkey(테스트 전용) 도입·프로젝트 Fixture 뒤에 숨김, production 유입 금지 검사",
         "(CP-DOMAIN-001 리뷰 M-3) 늦은 성공 incident hold 영속 유일성: UNIQUE(orderKey, paymentId, reason) 제약 + 같은 늦은 성공의 응답·통보·조회 동시/중복 보고가 실제 MySQL에서 hold 1건으로 수렴하는 행위 시험",
-        "(CP-DOMAIN-001 round2 L-C) docker/mysql/init/01-owned-databases.sh의 Q-CP-KEY 주석을 D-CP-001로 정정"
+        "(CP-DOMAIN-001 round2 L-C) docker/mysql/init/01-owned-databases.sh의 Q-CP-KEY 주석을 D-CP-001로 정정",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §8·§12) 멱등 기록 UNIQUE(environment, mid, operation, idempotency_key), 키·fingerprint 컬럼 NO PAD binary collation(D-CP-001)",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §9·D-CPC-007) 멱등 기록에 결과 종류(성공/업무 거절) 컬럼과 거절 재생용 참조 저장 — 같은 키 재요청은 저장된 409 거절 재현",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §8·D-CPC-004) expires_at 처리: 만료(30일)·삭제 전 행에 같은 키가 오면 새 요청으로 처리하되 행 잠금으로 직렬화, '삭제 전까지 저장 결과 재생' 방식 금지 — 실제 MySQL 경쟁 시험",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §12) CHECK(amount_minor >= 1), currency CHAR(3) 대문자 CHECK, payment(mid, orderId) UNIQUE 금지",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §10·D-CPC-003) Outbox event_id·effect_key UNIQUE로 PaymentRequested 생성당 1건, CREATED일 때만 기록",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §11) 잠금 순서 멱등 기록 → OrderPaymentControl → Payment 고정, 교착 시험",
+        "(CP 초안 §7) CP-03·CP-04·CP-08·CP-10을 실제 MySQL 다중 connection으로 검증"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1273,7 +1445,8 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "CP-DB-001"
+        "CP-DB-001",
+        "MASTER-SNAPSHOT-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -1282,7 +1455,16 @@
         "동일 source fingerprint 검증+독립 리뷰",
         "Test Fixture Policy: Fixture Monkey(테스트 전용) 도입·프로젝트 Fixture 뒤에 숨김, production 유입 금지 검사",
         "(CP-DOMAIN-001 리뷰 L-2) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 하나의 domain 연산(또는 둘을 반드시 함께 호출함을 강제하는 application 시험)으로 묶어 incident hold·슬롯 검사 우회를 막는다",
-        "(D-CP-003) 같은 멱등키 재요청 시 현재 조회 권한(인증 MID·환경) 재확인 후 저장된 생성 결과 반환"
+        "(D-CP-003) 같은 멱등키 재요청 시 현재 조회 권한(인증 MID·환경) 재확인 후 저장된 생성 결과 반환",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §9) 오류 매핑 표 전체 구현·시험, 내부 경합(StaleSlot 등)은 409 *_CONFLICT가 아닌 503, 입력값·존재 여부 비노출",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §7) 요청 fingerprint r1 구현 + golden vector(필드 있음/없음 모두), orderName 길이 단위(UTF-16/코드포인트/바이트)와 DB 컬럼 크기 확정",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §3·D-CPC-009) 알 수 없는 필드 400, 정확한 정수 파서(소수·지수·문자열·Long 초과 거절)",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §6.4) 저장된 fingerprint 버전으로 재계산 비교 시험",
+        "(D-CPC-004/007) 응답 유실 뒤 같은 키 재요청, 30일 경과 뒤 같은 키 재요청이 동시 활성 Payment·이중 승인을 만들지 않는 시험, 저장된 거절 재생 시험",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §9) IDEMPOTENCY_REQUEST_IN_PROGRESS 처리와 lock wait timeout 분류 기준(TEMPORARILY_UNAVAILABLE와 구분)",
+        "(D-CP-003) 생성 응답에 현재 상태 미포함, GetPayment 분리",
+        "(CP 초안 §7) CP-01·CP-02·CP-05~CP-07·CP-12 API 수준 검증",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §3.1·§5·§7·§10) 모든 문자열 필드 짝 없는 서로게이트 400·orderName 제어문자 거절, r1은 Utf8Text.encode(엄격 UTF-8), 응답 schema(outcome CREATED/EXISTING_ACTIVE_PAYMENT, lifecycleAtCreation)·Idempotent-Replayed 헤더, PaymentRequested envelope·payload(paymentKey·orderName 제외, eventCategory INTEGRATION_NON_FINANCIAL) 시험, paymentId/paymentKey 생성기(서로게이트 검사 여부 결정 포함)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1357,7 +1539,8 @@
       "acceptanceCriteria": [
         "기관 금융 사실이 PG rollback과 독립적으로 존속",
         "타임아웃 후 조회·대사 및 중복 승인 차단",
-        "TCP Adapter와 업무 상태 전이 분리"
+        "TCP Adapter와 업무 상태 전이 분리",
+        "(D-CPC-008) 기준정보 거래 한도(건당·일)의 권위 판정은 승인 시작에서, 일 한도 점유 방식 정의"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1424,7 +1607,8 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "AUTH-CONTRACT-001"
+        "AUTH-CONTRACT-001",
+        "MASTER-SNAPSHOT-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -2061,6 +2245,78 @@
       "lastSuccessfulStep": "구현 완료(27 tests), CVE-SCAN 0건(patch override 후), 문서 갱신",
       "nextResumeAction": null,
       "allowedWritePathsNote": "원 카드 allowedWritePaths 빈 값(pathsResolved=false). Coordinator가 착수 시 확정: apps/**, settings/root build, gradle/libs.versions.toml, gradle.properties, harness/**, docs/repository/**, .env.example(Reviewer L7)"
+    },
+    {
+      "id": "MASTER-BOOT-001",
+      "title": "Master 실행 단위·MASTER DB 기초",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "FOUNDATION-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "apps/master-api(가칭) 실행 단위, MASTER 소유 DB·Flyway·계정 분리, build-logic·test-support·ArchitectureSpec 적용",
+        "VERIFY-GATE·TEST-SUMMARY·GRADLE-DEPS·CVE 모듈 등록(HARNESS-VERIFICATION-CONTRACT §7)"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "origin": "D-CPC-006 (G-1, 2026-10-06)"
+    },
+    {
+      "id": "MASTER-DOMAIN-001",
+      "title": "Merchant·Site·MID·Agreement·Assignment·Activation domain",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-BOOT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "구조 확정본(PayCore-v0.1-도메인구조-Seed-MID-Site-확정) 규칙: Merchant 1:N Site/MID, MID 단일 Merchant, Assignment 기본 1:1·조건부 공유·PRIMARY/ADDITIONAL·EffectivePeriod, 발급≠개통, Default 비상속",
+        "계약 용어(Contract/ServiceAgreement) 확정(G-3) 등 금융 의미 미결은 질문 후 진행",
+        "Test Fixture Policy"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "origin": "D-CPC-006 (G-1, 2026-10-06)"
+    },
+    {
+      "id": "MASTER-SNAPSHOT-001",
+      "title": "권리 Snapshot·lease·긴급 차단 발행 계약과 PAYMENT 수신",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-DOMAIN-001",
+        "CP-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "허용 확정본 §4.1–4.2: 버전 있는 권리 Snapshot·만료 lease·차단 우선 전파·ACK, 과거 허용 이벤트로 차단 되돌림 금지",
+        "MASTER Outbox → PAYMENT Inbox 로컬 TX, 수치(lease·지연)는 Demo fixture 명시·운영값 미결",
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §13·D-CPC-006) PaymentEligibilityPort/EligibilityResult 제공: Eligible(snapshotVersion, currencyUnit=minor unit 출처), NotFoundOrForbidden, NotEligible(reason), Unavailable — Eligible에 validUntil, Unavailable reason(SNAPSHOT_MISSING·EXPIRED·VERSION_UNSUPPORTED)은 fail-closed, NotEligible reason 고정 4종·v1 한도 reason 없음(§13, D-CPC-008)"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "origin": "D-CPC-006 (G-1, 2026-10-06)"
     }
   ]
 }

@@ -7,8 +7,8 @@ import io.kotest.matchers.shouldNotBe
 
 /**
  * OrderKey = (environment, merchantAccountId, merchantOrderId) — 확정 문서 §1, D-CPD-001(environment TEST/LIVE).
- * ID는 입력 그대로 비교한다(D-CP-001, 사용자 확정 2026-10-06: trim·대소문자 변환·Unicode 정규화 없음). 길이·허용 문자와
- * 공백만인 값의 허용 여부는 API 계약(CP-CONTRACT-001) 범위라 domain에서 정하지 않는다.
+ * merchantOrderId는 입력 그대로 비교하고(D-CP-001, 사용자 확정 2026-10-06) 형식은 D-CPC-002(경계값은 MerchantRequestIdFormatSpec).
+ * MID의 비정규화는 D-CP-001이 아니라 구현 관례(fail-closed, PG 발급 값)이며 MID 형식은 MASTER 발급 규칙이라 domain은 빈 값만 거부한다.
  */
 class OrderKeySpec : BehaviorSpec({
 
@@ -40,18 +40,41 @@ class OrderKeySpec : BehaviorSpec({
         }
     }
 
-    Given("IDs that differ only by case or surrounding spaces (D-CP-001: compared as given, no normalization)") {
+    Given("merchant order IDs that differ only by case or spaces (D-CP-001: compared as given; D-CPC-002: spaces rejected)") {
         Then("case is not folded") {
             MerchantOrderId("ORDER-1") shouldNotBe MerchantOrderId("order-1")
+        }
+        Then("spaces are not trimmed into a valid ID: they are rejected") {
+            shouldThrow<IllegalArgumentException> { MerchantOrderId("order-1 ") }
+            shouldThrow<IllegalArgumentException> { MerchantOrderId(" ") }
+        }
+    }
+
+    Given("MIDs that differ only by case or surrounding spaces (implementation convention: fail-closed, PG-issued value)") {
+        Then("case is not folded") {
             MerchantAccountId("MID-A") shouldNotBe MerchantAccountId("mid-a")
         }
-        Then("spaces are not trimmed and the value is kept as given") {
-            MerchantOrderId("order-1 ") shouldNotBe MerchantOrderId("order-1")
+        Then("spaces are not trimmed and the value is kept as given (MID format belongs to MASTER issuance rules)") {
             MerchantAccountId(" mid-a") shouldNotBe MerchantAccountId("mid-a")
-            MerchantOrderId("order-1 ").value shouldBe "order-1 "
+            MerchantAccountId(" mid-a").value shouldBe " mid-a"
         }
-        Then("a whitespace-only ID is not rejected by the domain (allowed characters belong to the CP-CONTRACT-001 API contract)") {
-            MerchantOrderId(" ").value shouldBe " "
+    }
+
+    Given("identifiers containing an unpaired UTF-16 surrogate (CP-CONTRACT-001 §3.1, L-3)") {
+        val unpaired = listOf("mid\uD800", "\uDC00mid", "\uDC00\uD800")
+        Then("a MID is rejected at creation (a DB key: a JDBC/UTF-8 '?' substitution would merge it with another MID)") {
+            unpaired.forEach { s -> shouldThrow<IllegalArgumentException> { MerchantAccountId(s) } }
+        }
+        Then("a MID with a valid surrogate pair is kept as given") {
+            MerchantAccountId("mid-😀").value shouldBe "mid-😀"
+        }
+        Then("merchant order ID and idempotency key already reject them: D-CPC-002 allows ASCII only") {
+            unpaired.forEach { s ->
+                shouldThrow<IllegalArgumentException> { MerchantOrderId(s) }
+                shouldThrow<IllegalArgumentException> { IdempotencyKey(s) }
+            }
+            shouldThrow<IllegalArgumentException> { MerchantOrderId("order-😀") }
+            shouldThrow<IllegalArgumentException> { IdempotencyKey("key-😀") }
         }
     }
 
@@ -59,13 +82,15 @@ class OrderKeySpec : BehaviorSpec({
         Then("every domain identifier rejects it") {
             shouldThrow<IllegalArgumentException> { MerchantAccountId("") }
             shouldThrow<IllegalArgumentException> { MerchantOrderId("") }
+            shouldThrow<IllegalArgumentException> { MerchantSiteId("") }
+            shouldThrow<IllegalArgumentException> { IdempotencyKey("") }
             shouldThrow<IllegalArgumentException> { PaymentId("") }
             shouldThrow<IllegalArgumentException> { OrderIntentFingerprint("") }
         }
     }
 
-    Given("order intent fingerprints computed by the application") {
-        Then("they are compared as opaque values") {
+    Given("order intent fingerprints (computed by OrderIntent.fingerprint, CP-CONTRACT-001 §6)") {
+        Then("control and Payment compare them as opaque values") {
             OrderIntentFingerprint("fixture:intent-A") shouldBe OrderIntentFingerprint("fixture:intent-A")
             OrderIntentFingerprint("fixture:intent-A") shouldNotBe OrderIntentFingerprint("fixture:intent-a")
         }

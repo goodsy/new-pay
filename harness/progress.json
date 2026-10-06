@@ -2,13 +2,14 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
-  "lastSuccessfulStep": "CP-DOMAIN-001 DONE (VERIFY-GATE PASS 210646Z 387 tests, REVIEW_PASS round2) on sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078",
+  "codeFingerprint": "sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
+  "lastSuccessfulStep": "CP-CONTRACT-001 DONE (VERIFY-GATE PASS 033719Z 445 tests, REVIEW_PASS round2) on sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
   "pendingQuestionIds": [
-    "Q-INCIDENT-HOLD (AUTH-CONTRACT-001 착수 시)",
-    "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
+    "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
+    "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)",
+    "G-3 계약 용어 (MASTER-DOMAIN-001)"
   ],
-  "nextResumeAction": "CP-CONTRACT-001: 첫 변경으로 MID 비정규화 표기·DOMAIN-DEFINITION 고정 입력 행·BOOT-001 표기 정정 후 CreatePayment 계약(Q-CP-KEY/MONEY/RESULT 답변 반영 D-CP-001~003). G-1(Master 실행 단위)은 AUTH 전 결정",
+  "nextResumeAction": "CP-DB-001(주문 점유·멱등 요청·Outbox 로컬 TX, 실제 MySQL 경쟁) → MASTER-BOOT-001 → MASTER-DOMAIN-001 → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -69,6 +70,21 @@
       "at": "2026-10-06",
       "taskId": "CP-DOMAIN-001",
       "event": "DONE on sha256:a94cbfbc4ed5cf2c55b69e38650881b4bf9049d434bf4bb9ec8c5ae264883078"
+    },
+    {
+      "at": "2026-10-06",
+      "taskId": "CP-DOMAIN-001",
+      "event": "pushed 61e7457"
+    },
+    {
+      "at": "2026-10-06",
+      "taskId": "CP-CONTRACT-001",
+      "event": "claimed"
+    },
+    {
+      "at": "2026-10-06",
+      "taskId": "CP-CONTRACT-001",
+      "event": "DONE on sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8"
     }
   ]
 }

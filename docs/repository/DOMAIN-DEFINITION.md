@@ -66,7 +66,7 @@ flowchart LR
 
 | 플랫폼 | 책임 | 원본 DB | 실행 단위(현재 저장소) |
 |---|---|---|---|
-| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | **없음(미결)**: 실행 단위가 아직 없다 |
+| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | 아직 없음. MASTER-BOOT-001에서 생성 예정(D-CPC-006) |
 | Transaction | 주문 결제 통제, Payment, Authorization/Attempt, 취소·환불 거래 상태, 기관 거래 식별자, Routing 실행 결과 | PAYMENT | `apps/payment-api` (`com.paycore.payment`) |
 | Financial | Acquisition, Settlement, AgentSettlement, Payable, Payout, Adjustment, 대사 결과, Hold | FINANCIAL | `apps/financial-batch` (`com.paycore.financial`) |
 | (화면) | 내부 관리자 화면. 데이터는 소유 플랫폼 API에 위임 | 없음 | `apps/internal-admin` (인증 방식 미결: Q-ADMIN-AUTH) |
@@ -103,7 +103,7 @@ flowchart LR
 
 | 개념 | 정의 | 핵심 규칙 | 상태 |
 |---|---|---|---|
-| OrderKey (주문 키) | (environment, merchantAccountId, merchantOrderId) | 주문은 MID 범위. environment는 **TEST/LIVE**(D-CPD-001). 다른 MID로 옮기면 다른 주문. ID는 trim·대소문자 변환 없이 입력 그대로 비교하고 DB는 NO PAD binary collation(D-CP-001). 허용 문자·길이는 CP-CONTRACT-001 API 계약 | 확정 |
+| OrderKey (주문 키) | (environment, merchantAccountId, merchantOrderId) | 주문은 MID 범위. environment는 **TEST/LIVE**(D-CPD-001). 다른 MID로 옮기면 다른 주문. merchantOrderId는 trim·대소문자 변환 없이 입력 그대로 비교하고 DB는 NO PAD binary collation(D-CP-001), 형식은 1~64자 [A-Za-z0-9-_.:]·공백/비ASCII/제어문자 거절·대소문자 구분(D-CPC-002, domain 생성자에서 강제). merchantAccountId(MID)의 비정규화·그대로 비교는 사용자 결정이 아니라 구현 관례(fail-closed, PG 발급 값)이며 MID 형식은 MASTER 발급 규칙(MASTER-DOMAIN-001) | 확정 + 관례(MID) |
 | 주문 결제 통제 (OrderPaymentControl) | 한 OrderKey의 활성 Payment 슬롯·고정 주문 입력(OrderIntentFingerprint)·generation·과거 승인·incident hold를 관리하는 Root. 판정 결과는 PaymentSlotDecision(CreateNewPayment / UseExistingPayment / FixedIntentConflict / Blocked) | 가맹점 상품 주문 전체를 PG로 가져오지 않는다. 규칙 확정(시도 §1·§5, D-CPD-003·004). 코드 `com.paycore.payment.payment.domain`(CP-DOMAIN-001) | 규칙 확정 / 구현 관례 |
 | Payment | 고객의 한 결제 시도 | 주문 1:N Payment 이력. 새 시도는 새 paymentId/paymentKey. REQUESTED 포함 **활성 하나**. 승인된 주문의 금액·통화·MID·Site는 바꾸지 않는다 | 확정(시도 §1·§3) |
 | Payment 상태 | REQUESTED, AUTHORIZING, UNKNOWN, AUTHORIZED, FAILED, EXPIRED | §4.1 표 참조 | 확정(시도 §2) |
@@ -111,7 +111,7 @@ flowchart LR
 | AuthorizationAttempt | 승인 실행 시도(기관 요청 ID·Route·권리 버전·판정 입력 연결) | 여러 Attempt 가능, 동시 실행 중인 외부 승인은 하나. TX1에서 영속화 후 TX 밖에서 전송 | 확정(시도 §1·§5, 허용 §5.3) |
 | 안전한 종료 근거 (TerminationEvidence) | 같은 주문에 새 Payment를 허용하는 근거 | 상태–근거 짝이 표와 맞을 때만 인정하고 교차 조합은 불인정(D-CPD-003). FAILED: 기관 확정 거절 / 전송 전 실패 확정 / 기관 무효과 종결 확인. EXPIRED: (미전송 그리고 인증·세션 폐기) / 기관 무효과 종결 확인. timeout·조회 NOT_FOUND·lease 만료·근거 없음은 불충분 | 확정(D-CPD-002) |
 | Incident hold (IncidentHold) | 확정 거절/만료 뒤 늦은 성공 같은 계약 가정 위반 시 주문의 추가 승인 차단 | hold 중 같은 입력 재요청은 Blocked(INCIDENT_HOLD) + 기존 paymentId 참조(D-CPD-004). 자동 보상취소 여부·해제 규칙은 미결 | 확정 + 미결 |
-| IdempotencyRequest | API 요청 멱등 기록. 범위는 (environment, 인증된 MID, operation, key) + payload fingerprint | 같은 키·같은 내용은 저장된 최초 생성 결과만 반환하고 현재 상태는 조회 API로 제공(D-CP-003), 다른 내용은 충돌. 재조회에도 현재 권한 검사. 보존 기간 미결 | 규칙 확정 / 물리 초안 |
+| IdempotencyRequest | API 요청 멱등 기록. 범위는 (environment, 인증된 MID, operation, key) + payload fingerprint | 같은 키·같은 내용은 저장된 최초 생성 결과만 반환하고 현재 상태는 조회 API로 제공(D-CP-003), 다른 내용은 충돌. 재조회에도 현재 권한 검사. 보존 30일(D-CPC-004), 409 업무 거절도 결과로 저장·재생(D-CPC-007) | 규칙 확정 / 물리 초안 |
 | Cancellation (승인취소) | 카드 승인 거래의 취소 | 신규 승인 권리와 분리된 반환 권한·원 경로로 처리(허용 §4.3). 부분취소 누적은 잠금/버전으로 보호(A02) | 방향 확정 / 상세 미결 |
 | Refund (환불) | 결제수단별 승인취소와 구분되는 반환(계좌환불 등). 거래 상태 원본은 PAYMENT, 실제 지급 실행 원본은 FINANCIAL | Refund 완료일은 외부 반환 사실의 업무시각 기준 | 방향 확정 / 상세 미결 |
 | PaymentTransaction | 승인·취소 등 PAYMENT 확정 금융 사실 기록으로 언급됨(시도 §5, 정산 §16) | **정의 문서 없음** — §6 갭 G-2 | 미결 |
@@ -211,7 +211,7 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 | 실행 backend | SIMULATOR / REAL | 기관 Route가 가상 기관인지 실기관인지 | environment가 아님. 초기에는 모두 SIMULATOR | 허용 §5.5 |
 | 주문 | — | 가맹점의 구매 단위. PG는 상품 주문 전체를 소유하지 않음 | — | CP계약 §2 |
 | 주문 키 | OrderKey | (environment, MID, merchantOrderId) | Payment 키가 아님. Payment는 주문당 N개 | 시도 §1 |
-| 고정 주문 입력 | order intent fingerprint | 주문의 금액·통화·Site·MID 등 바뀌면 안 되는 입력 | 구성 필드와 정규화는 미결(CP-CONTRACT-001) | 시도 §3, CP계약 §2 |
+| 고정 주문 입력 | OrderIntent, OrderIntentFingerprint | 같은 OrderKey에서 바뀌면 안 되는 입력 = merchantSiteId + amount + currency(D-CPC-001). MID·environment는 OrderKey 자체라 별도 비교 대상이 아니다 | 결제수단·주문명 등 표시 정보는 비교하지 않음(최초 값 저장). fingerprint v1 정의·버전 규칙은 `docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md` §6. 멱등 요청 fingerprint(요청 전체)와 다름 | D-CPC-001, 시도 §3 |
 | 결제 시도 | Payment | 고객의 한 결제 시도 | 주문이 아님 | 시도 §1 |
 | 활성 Payment | — | REQUESTED·AUTHORIZING·UNKNOWN 상태의 Payment. 주문당 하나 | REQUESTED도 활성. AUTHORIZED·과거 승인 성공은 활성이 아니라 **성공 점유**로 새 시도를 영구 차단 | 시도 §1–2, CP계약 §2 |
 | 승인 | Authorization | Payment의 논리 승인 | Attempt와 다름 | 시도 §1 |
@@ -262,7 +262,7 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 
 ### 6.2 이 정리에서 발견한 갭(질문 후보, 해당 작업 착수 시 확인)
 
-- **G-1 Master 실행 단위 없음.** Master 플랫폼(MASTER DB)의 실행 단위·작업이 `harness/tasks.json`에 없다. PAYMENT의 신규 승인 판정(허용 §4.1)은 MASTER가 발행하는 권리 Snapshot을 전제로 한다. AUTH 작업 전에 Master 작업 등록, 또는 Demo fixture로 대체할 범위를 정해야 한다.
+- **G-1 Master 실행 단위 없음 → 결정(D-CPC-006: Master 먼저 구현).** MASTER-BOOT-001 / MASTER-DOMAIN-001 / MASTER-SNAPSHOT-001을 등록했고, CP-API-001·AUTH-001은 MASTER-SNAPSHOT-001 이후로 둔다.
 - **G-2 PaymentTransaction 정의 없음.** "시도 §5"와 "정산 §16"에 나오지만, Authorization·Cancellation과의 관계와 금융 사실의 단위가 정의돼 있지 않다. Financial 이벤트 계약의 핵심 단위라 AUTH-CONTRACT-001에서 정의가 필요하다(금융 의미가 있어 사용자 확인 대상).
 - **G-3 계약 용어 변형.** Contract / ServiceAgreement / ContractServiceAgreement가 문서마다 섞여 쓰인다. 같은 개념인지, Contract 아래 ServiceAgreement가 있는 구조인지 Master 작업에서 확정해야 한다.
 - **G-4 incident hold 해제와 자동 보상취소.** 늦은 성공에 대한 처리 정책이 없다(시도 §4에서 "별도 정책"으로 명시).

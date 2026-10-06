@@ -104,8 +104,8 @@ com.paycore.<app>.<module>
 |---|---|---|
 | 모듈 | `com.paycore.payment.payment` 하나에 `OrderPaymentControl`·`Payment` 두 Aggregate Root | 둘은 PAYMENT DB 같은 로컬 TX로 함께 저장되고(계약 §2·§5), control의 판정이 Payment 상태·근거를 직접 읽는다. 별도 모듈로 나누면 Modulith가 다른 모듈 domain 사용을 막아 provided DTO로 상태를 복사해야 하고 같은 TX 규칙이 모듈 경계를 넘는다. 승인(Authorization)도 "Payment당 논리 Authorization 하나"라 같은 모듈에 들어갈 예정이다. 이름이 `payment.payment`로 겹치지만 app 기본 패키지 + bounded context 관례(§2)를 그대로 따른 결과다 |
 | 범위 | `domain` 패키지만. application/adapter 없음 | CP-API/CP-DB 범위 |
-| 식별자 | `@JvmInline value class`(MerchantAccountId·MerchantOrderId·PaymentId·OrderIntentFingerprint), 빈 문자열만 거부, 정규화 없음 | 정규화 없음(입력 그대로 비교)은 D-CP-001 사용자 확정(DB 키 컬럼 NO PAD binary collation은 CP-DB-001). 길이·허용 문자·공백만인 값의 허용 여부는 API 계약 CP-CONTRACT-001 범위라 domain은 정하지 않는다. 빈 값 거부는 "ID가 값이 있다"는 기술 불변식 |
-| 고정 입력 | 금액·통화·Site를 domain 필드로 두지 않고 불투명 `OrderIntentFingerprint` 값 비교 | 입력 규칙은 확정(D-CP-001 ID 그대로, D-CP-002 ISO 4217 통화·통화별 minor unit, 허용 통화는 기준정보·초기 KRW·USD). fingerprint에 넣을 필드·표현·버전은 CP-CONTRACT-001에서 고정하고 계산은 application 책임. 외화 정산 통화·환율(Q-SETTLE-CURRENCY)은 정산 범위로 별개 |
+| 식별자 | `@JvmInline value class`(MerchantAccountId·MerchantOrderId·PaymentId·OrderIntentFingerprint), 정규화 없음 | merchantOrderId의 정규화 없음(입력 그대로 비교)은 D-CP-001 사용자 확정(DB 키 컬럼 NO PAD binary collation은 CP-DB-001), 형식은 D-CPC-002(CP-CONTRACT-001에서 생성자 강제로 변경, §8). MerchantAccountId(MID)의 비정규화·그대로 비교는 D-CP-001이 아니라 **구현 관례**(fail-closed: 정규화로 다른 MID가 같아지는 일을 막는다, MID는 PG가 발급하는 값)이며 MID 형식은 MASTER 발급 규칙(MASTER-DOMAIN-001)이라 domain은 빈 값(과 CP-CONTRACT-001 이후 짝 없는 서로게이트, §8)만 거부한다 |
+| 고정 입력 | control·Payment는 불투명 `OrderIntentFingerprint` 값만 비교 | 구성 필드는 D-CPC-001(merchantSiteId + amount + currency)로 확정됐고 계산은 CP-CONTRACT-001에서 domain `OrderIntent.fingerprint()`(v1)로 고정했다(§8). 외화 정산 통화·환율(Q-SETTLE-CURRENCY)은 정산 범위로 별개 |
 | Aggregate 스타일 | 정적 factory(`Payment.request`, `OrderPaymentControl.open`) + private set + 의미 있는 전이 메서드, 목록은 읽기 전용 사본 | SPLEARN 참고 관례(setter 금지·상태 전이 메서드), Spring `Assert` 대신 Kotlin `require`/도메인 예외 |
 | 예외 | 업무 규칙 위반은 `PaymentDomainException` 하위(sealed): 전이 오류·stale slot·점유 거절·승인 시작 거절·Payment ID 재사용(`PaymentIdReuseException`: 현재 점유·과거 승인·hold 대상 ID로 새 점유 시도). 잘못된 인자(다른 주문의 Payment 등)는 `IllegalArgumentException` | 오류 코드/HTTP 매핑은 CP-CONTRACT-001 |
 | 판정 우선순위 | 고정 입력 불일치 → incident hold(활성 시도여도 Blocked(INCIDENT_HOLD)+기존 paymentId, D-CPD-004) → 과거 승인 성공 → 현재 상태·근거(표 밖 교차 근거 불인정, D-CPD-003) | 모든 거절 경로는 새 Payment를 만들지 않으므로 순서는 응답 분류만 바꾼다(금융 효과 동일) |
@@ -115,3 +115,21 @@ com.paycore.<app>.<module>
 | 시험 | 새 domain 시험은 Kotest BehaviorSpec + Named Test Fixture(`PaymentFixture`·`OrderPaymentControlFixture`·`OrderFixture`, src/test만), D-CPD-002 기대값은 시험 oracle(`TerminationEvidenceOracle`)에 독립 기술. Fixture Monkey는 이번에 도입하지 않음 | Test Fixture Policy(2026-10-06), Coordinator 결정 |
 
 JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaPaymentEntity`·`JpaOrderPaymentControlEntity`가 adapter.persistence에서 이 domain 상태를 저장한다. **예** — control의 `generation`은 업무 의미(몇 번째 시도가 슬롯을 점유했나)이고, JPA `@Version`은 같은 행을 동시에 고쳤는지 감지하는 기술 값이라 따로 둔다. **이유** — generation 비교는 오래된 결과를 업무 규칙으로 거부하고, `@Version`/행 잠금/UNIQUE(OrderKey)는 두 요청이 같은 판정을 동시에 내리는 경쟁을 DB에서 막는다(domain 단위 시험은 이 경쟁의 증거가 아니다). **주의** — domain 객체는 JPA가 변경 감지하지 않으므로 Mapper가 상태·근거 목록(append-only)·generation·version을 함께 반영해야 하고, stale domain을 최신 Entity에 덮어써 Version 검사를 우회하면 안 된다.
+
+## 8. CreatePayment 계약 관례 (CP-CONTRACT-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-CP-001~003, D-CPC-001~009이며 계약 원문은 `docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md`.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 요청 ID 형식 위치 | merchantOrderId·멱등키 형식(D-CPC-002)을 domain 값 객체 생성자(`MerchantOrderId`, `IdempotencyKey`, 공통 `MerchantRequestIdFormat`)에서 강제. web adapter는 같은 규칙으로 먼저 400 | 영구 DB 키라 web 외 경로(Batch·재처리)로도 형식 밖 키가 생기면 안 된다. application.provided DTO의 jakarta.validation 금지(§ 강제하지 않는 것)와 일치. 형식 축소는 기존 키 복원을 깨므로 사용자 결정+migration 필요 |
+| 오류 메시지 | 값 객체 검증 예외 메시지에 입력값을 넣지 않는다(필드명·규칙만) | 로그 주입·입력 노출 방지 |
+| MID·Site 형식 | 빈 값과 짝 없는 UTF-16 서로게이트만 거부, 입력 그대로 비교 | PG(MASTER) 발급 값의 fail-closed 비정규화. 형식은 MASTER-DOMAIN-001. 서로게이트 거부는 UTF-8/JDBC `?` 치환으로 서로 다른 값이 같은 fingerprint·DB 키가 되는 것을 막는 기술 불변식(계약 §3.1, Reviewer L-3) |
+| UTF-8 인코딩 | fingerprint의 token 길이·hash 입력은 `Utf8Text.encode`(malformed REPORT, 치환 금지). `String.toByteArray(UTF_8)` 직접 사용 금지 | 계약 §6.2. well-formed 입력은 표준 UTF-8과 같아 v1 golden vector 불변 |
+| 생성 시 한도 | v1 CreatePayment는 건당·일 한도 사전 검사를 하지 않는다. eligibility NotEligible에 한도 reason 없음 | D-CPC-008상 생성 시 건당 검사는 선택, 권위 판정은 승인 시작(AUTH-CONTRACT-001). Coordinator 결정·가역적(추가 시 계약 개정) |
+| Money | `Money(amountMinor: Long, currency: CurrencyCode)`, 1 이상. 허용 통화 목록 없음. minor unit은 기준정보 `CurrencyUnit(code, 0..4)` | D-CP-002, D-CPC-005. 0·음수 금액이 필요한 개념은 별도 타입 |
+| 고정 입력 계산 | domain `OrderIntent(merchantSiteId, money).fingerprint()` v1(길이 접두 canonical + SHA-256, `v1:` 접두). JDK `MessageDigest`/`HexFormat`만 사용 | API·DB·domain 동일성 단일화(초안 CP-12). domain 순수성 규칙의 java.. 허용 범위 |
+| 멱등 요청 fingerprint | 계약만(`r1:`), 구현은 CP-API-001 application | 요청 전체 비교는 API 입력 모델에 묶여 있다 |
+| HTTP 매핑 | 신규 201, 같은 키 재요청·활성 재사용 200, 업무 거절 409, eligibility 404/422/503 (계약 §9) | 금융 의미 없는 응답 표현 선택 |
+
+JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaPaymentEntity`가 `Money`를 `amount_minor BIGINT` + `currency CHAR(3)` 두 컬럼으로, `OrderIntentFingerprint`를 문자열 컬럼으로 저장하고 Mapper가 domain 값 객체로 되돌린다. **예** — DB에서 읽은 `amount_minor=1050, currency='USD'`는 Mapper에서 `Money(1050, CurrencyCode("USD"))`가 되며 생성자 검증을 다시 통과한다. **이유** — domain에 `@Embeddable`·`AttributeConverter`를 붙이지 않아 순수성을 지키고, 컬럼 CHECK·collation(D-CP-001)과 생성자 검증이 같은 규칙을 이중으로 지킨다. **주의** — JPA가 `BigDecimal`·`Double` 매핑을 기본 제안해도 금액은 `Long`만 쓴다. 저장 키를 복원할 때 형식 검증이 실패하면(규칙 축소 등) 조용히 건너뛰지 말고 오류로 드러낸다. dirty checking은 Entity만 추적하므로 Mapper가 값 객체를 Entity 필드로 다시 반영해야 한다. 짝 없는 서로게이트가 든 문자열은 JDBC 드라이버의 UTF-8 변환에서 `?`로 바뀌어 저장될 수 있어 `mid\uD800`과 `mid?`가 같은 키 컬럼 값이 된다. 그래서 Entity에 넣기 전 domain 생성자(`MerchantAccountId`·`MerchantSiteId`)가 거부한다 — UNIQUE 제약은 이미 바뀐 값만 보므로 이 병합을 막지 못한다.
