@@ -14,8 +14,9 @@ import org.springframework.modulith.core.ApplicationModules
  * payment-api 아키텍처 규칙(PayCoreArchitectureRules — 규칙 자체의 동작 증거는 libs/test-support meta-test).
  *
  * allowEmptyShould(true)는 app 수준에서만, 규칙별로 명시한다. CP-DOMAIN-001에서 첫 업무 모듈 `payment`의 `domain` 패키지가 생겨
- * 계층 소속·domain 순수성·core 격리·모듈 순환 규칙의 대상이 생겼으므로 false로 바꿨다. application·adapter(web/persistence/batch)·
- * provided package-info는 아직 없어(CP-API/CP-DB 범위) 그 규칙만 true로 두고 사유를 적는다. 대상이 이미 있는 규칙은 false다.
+ * 계층 소속·domain 순수성·core 격리·모듈 순환 규칙의 대상이 생겼으므로 false로 바꿨다. CP-DB-001에서 `application`(provided/required,
+ * Use Case 서비스)·`adapter.persistence`(JPA Entity·Spring Data repository)·provided package-info가 생겨 그 규칙도 false로 바꿨다.
+ * 아직 대상이 없는 규칙(web·batch·query adapter, Controller)만 true로 두고 사유를 적는다.
  */
 class ArchitectureSpec : FunSpec({
 
@@ -53,17 +54,17 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("domain/application do not depend on base root or cross-cutting packages") {
-        // 대상 있음(CP-DOMAIN-001): payment.domain. application은 아직 없다(CP-API).
+        // 대상 있음: payment.domain(CP-DOMAIN-001), payment.application(CP-DB-001).
         rules.coreDoesNotDependOnBaseRootOrCrossCutting().allowEmptyShould(false).check(classes)
     }
 
     test("application depends only on ports") {
-        // 빈 대상: application 패키지가 아직 없다(CP-DOMAIN-001은 domain만, application은 CP-API 범위).
-        rules.applicationDependsOnlyOnPorts().allowEmptyShould(true).check(classes)
+        // 대상 있음(CP-DB-001): CreatePaymentService·LocalTransactions·application.provided/required.
+        rules.applicationDependsOnlyOnPorts().allowEmptyShould(false).check(classes)
     }
 
     test("persistence technology (JPA/JDBC/DataSource/Spring Data repository) only in adapter.persistence") {
-        // 대상 있음: PaymentApiApplication(+Kt). 공통 구성 패키지 없음.
+        // 대상 있음: PaymentApiApplication(+Kt), payment 모듈 전체(CP-DB-001: JPA는 adapter.persistence에만). 공통 구성 패키지 없음.
         rules.persistenceTechnologyOnlyInPersistenceAdapter().allowEmptyShould(false).check(classes)
     }
 
@@ -84,13 +85,13 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("JPA mappings only in adapter.persistence") {
-        // 빈 대상: JPA Entity가 아직 없다(TECH-001 smoke Entity는 테스트 소스. payment persistence adapter는 CP-DB 범위).
-        rules.jpaMappingsOnlyInPersistenceAdapter().allowEmptyShould(true).check(classes)
+        // 대상 있음(CP-DB-001): Jpa*Entity, @Embeddable 복합 키(TECH-001 smoke Entity는 테스트 소스라 제외).
+        rules.jpaMappingsOnlyInPersistenceAdapter().allowEmptyShould(false).check(classes)
     }
 
     test("Spring Data repositories only in adapter.persistence") {
-        // 빈 대상: Spring Data Repository가 아직 없다(CP-DB 범위).
-        rules.springDataRepositoriesOnlyInPersistenceAdapter().allowEmptyShould(true).check(classes)
+        // 대상 있음(CP-DB-001): *JpaRepository.
+        rules.springDataRepositoriesOnlyInPersistenceAdapter().allowEmptyShould(false).check(classes)
     }
 
     test("Spring Batch types only in adapter.batch") {
@@ -104,6 +105,16 @@ class ArchitectureSpec : FunSpec({
 
     test("jOOQ and generated jOOQ code only in adapter.query") {
         rules.jooqOnlyInQueryAdapter().allowEmptyShould(false).check(classes)
+    }
+
+    test("adapter.query does not write with jOOQ (DML only through application Port -> adapter.persistence)") {
+        // 빈 대상: adapter.query가 아직 없다(첫 조회 API 작업에서 대상이 생긴다). 규칙 자체의 동작은 libs/test-support meta-test.
+        rules.queryAdapterDoesNotWriteWithJooq().allowEmptyShould(true).check(classes)
+    }
+
+    test("CP-DB-001 main jOOQ classes are generated from the PAYMENT migration but not used outside adapter.query") {
+        // 생성 클래스가 실제로 있어 jooqOnlyInQueryAdapter 통과가 빈 대상 덕분이 아님을 보인다.
+        classes.any { it.packageName.startsWith("$GENERATED_JOOQ_PACKAGE.tables") } shouldBe true
     }
 
     test("integration adapter types are not used outside adapter.integration") {
@@ -121,8 +132,8 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("@NamedInterface only on application.provided package-info") {
-        // 빈 대상: 공개 provided 패키지(package-info)가 아직 없다(application.provided는 CP-API 범위).
-        rules.namedInterfacesOnlyOnProvidedPackages().allowEmptyShould(true).check(classes)
+        // 대상 있음(CP-DB-001): payment.application.provided.package-info.
+        rules.namedInterfacesOnlyOnProvidedPackages().allowEmptyShould(false).check(classes)
     }
 
     test("no cycles between modules") {

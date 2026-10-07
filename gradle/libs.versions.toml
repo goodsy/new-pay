@@ -10,6 +10,9 @@ kotest = "6.2.5"
 mockk = "1.14.11"
 springmockk = "5.0.1"
 archunit = "1.5.1"
+# 테스트 전용 자동 Fixture 도구(Test Fixture Policy). Boot BOM 밖이라 여기서 고정한다. production runtime 유입 금지(verifyTestOnlyDependencies).
+# 1.2.3: 2026-10-07 Maven Central 최신 GA. Kotlin 모듈은 kotlin-reflect/stdlib를 요구하며 버전은 Boot BOM(2.3.21)이 정한다.
+fixture-monkey = "1.2.3"
 # SBOM(CycloneDX). 공급망 증거(docs/baseline/architecture/09). 취약점 검사는 osv-scanner(저장소 밖 도구)로 SBOM을 읽는다.
 cyclonedx = "3.4.1"
 # 보안 patch override(Boot 4.1.1 BOM: tomcat 11.0.24, jackson 3.1.5). 근거: docs/repository/TECH-BASELINE.md §1.1
@@ -70,6 +73,7 @@ kotest-extensions-spring = { module = "io.kotest:kotest-extensions-spring", vers
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
 archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+fixture-monkey-kotlin = { module = "com.navercorp.fixturemonkey:fixture-monkey-kotlin", version.ref = "fixture-monkey" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

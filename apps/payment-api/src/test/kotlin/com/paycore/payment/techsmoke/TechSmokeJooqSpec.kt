@@ -32,10 +32,11 @@ class TechSmokeJooqSpec(
     }
 
     test("main codegen (main migrations only) does not contain test-only tables") {
-        // main 생성 패키지는 main migration만 반영한다. 현재 main schema가 비어 있어 생성 클래스가 없다.
+        // main 생성 패키지는 main migration만 반영한다(CP-DB-001 V1 테이블은 있고 test-only tech_smoke_item은 없다).
         shouldThrow<ClassNotFoundException> {
             Class.forName("${ArchitectureSpec.GENERATED_JOOQ_PACKAGE}.tables.TechSmokeItem")
         }
+        Class.forName("${ArchitectureSpec.GENERATED_JOOQ_PACKAGE}.tables.IdempotencyRequest").simpleName shouldBe "IdempotencyRequest"
     }
 
     test("jOOQ query reads the row committed through JPA") {

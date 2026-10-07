@@ -4,7 +4,7 @@
 
 표시: **확정(D-…)** = 사용자 결정(`docs/DECISIONS.md`), **관례** = 금융 의미가 없는 가역적 구현 선택(이 문서에서 결정·기록), **미결** = §16 질문 후보 또는 후속 작업.
 
-이 문서는 계약이다. 코드로 구현된 범위는 §14에 따로 적는다(domain 값 객체·fingerprint 계산만). API·DB·Outbox·Port 구현은 CP-DB-001 / MASTER-SNAPSHOT-001 / CP-API-001이며 아직 실행 검증되지 않았다.
+이 문서는 계약이다. 코드로 구현된 범위는 §14에 따로 적는다(CP-CONTRACT-001: domain 값 객체·fingerprint 계산, CP-DB-001: PAYMENT migration·영속 Port/adapter·로컬 TX Use Case·Outbox append — §14.1, Verifier/Reviewer 판정 전). API·eligibility Port 구현은 MASTER-SNAPSHOT-001 / CP-API-001이며 아직 없다.
 
 ## 1. 범위
 
@@ -190,7 +190,7 @@ amount는 10진 정수 문자열로 넣는다. JSON 원문 bytes·공백·필드
 | eventCategory | `INTEGRATION_NON_FINANCIAL` — 금융 효과 이벤트(`PaymentAuthorized` 등, AUTH-CONTRACT-001)와 이름·의미 구분 |
 | producer | `payment-api/payment` |
 | aggregateType / aggregateId | `Payment` / paymentId |
-| aggregateVersion | Payment 생성 시 영속 version(최초값, CP-DB-001이 0 또는 1로 고정) |
+| aggregateVersion | Payment 생성 시 영속 version(최초값 **0** — CP-DB-001에서 JPA `@Version` 최초값으로 고정) |
 | occurredAt | Payment 생성 시각(서버 clock, UTC) |
 | correlationId / causationId | requestId / 멱등 기록 ID(`CreatePayment` 요청) |
 | effectKey | `PaymentRequested:{paymentId}` — Payment당 하나, Outbox UNIQUE |
@@ -217,7 +217,7 @@ payload: environment, merchantAccountId, merchantSiteId, merchantOrderId, paymen
 
 \* MID·Site 길이 64는 MASTER 발급 규칙 확정 전 후보(관례). MASTER-DOMAIN-001에서 다르게 정하면 CP-DB-001 migration 전에 맞춘다. Cross-DB FK 없음.
 
-## 13. required Port — eligibility Snapshot(D-CPC-006: 계약만, 미구현)
+## 13. required Port — eligibility Snapshot(D-CPC-006: Port 타입은 CP-DB-001에서 코드로 정의, 구현체 없음)
 
 ```
 PaymentEligibilityPort.evaluate(
@@ -243,6 +243,13 @@ EligibilityResult =
 - `OrderIntent.kt`: `MerchantSiteId`(짝 없는 서로게이트 거부, §3.1), `OrderIntent(merchantSiteId, money).fingerprint()` v1(§6).
 - `Utf8Text.kt`: Unicode 정합성 검사·엄격 UTF-8 인코딩(malformed REPORT, §6.2).
 시험: `MoneySpec`, `MerchantRequestIdFormatSpec`, `OrderIntentSpec`(서로게이트 시험 포함), `OrderKeySpec` 갱신, `OrderFixture`가 v1 fingerprint를 실제 계산. 멱등 요청 fingerprint(§7)·오류 매핑(§9)·Outbox(§10)·Port(§13)는 문서 계약이며 코드 없음.
+
+### 14.1 CP-DB-001에서 구현한 코드(영속·로컬 TX, Verifier/Reviewer 판정 전)
+
+- migration `apps/payment-api/src/main/resources/db/migration/payment/V1__payment_core.sql`: §12 제약 전부(+ 같은 주문 slot_generation당 Payment 하나 UNIQUE, 종료 근거 append-only 테이블). 모든 문자열 컬럼 utf8mb4_0900_bin.
+- application: `CreatePaymentUseCase.create(command)`(§11 잠금 순서·§8 30일 만료 갱신·§9 결과 종류 저장/재생·§10 CREATED만 Outbox), required `PaymentEligibilityPort`/`EligibilityResult`(§13 모양, 서비스가 command 값으로 §3.2 4→5 순서에 호출, Eligible 아니면 전체 rollback 후 `EligibilityRefused` — 운영 구현 bean 없음, ARCHITECTURE-CONVENTIONS §9), `ReportSuccessAfterTerminationUseCase`, 기술 실패 분류(`CreatePaymentFailure`). 요청 fingerprint r1 계산·ID 생성·HTTP 매핑·eligibility Port 구현은 여전히 CP-API-001/MASTER-SNAPSHOT-001.
+- adapter.persistence: JPA Entity·Spring Data repository·Mapper·Port 구현. 관례와 JPA 설명은 ARCHITECTURE-CONVENTIONS §9.
+- 시험: 실제 MySQL 8.4.11 다중 connection 경합(CP-03·CP-04·CP-10)·저장 지점별 rollback(CP-08)·연결 끊김·commit 중 끊김·교착 재시도·잠금 timeout 분류·eligibility 결과별 rollback·분류와 호출 인자(`CreatePaymentEligibilitySpec`)·비UTC JVM에서 DATETIME UTC 저장(`UtcStorageSpec`).
 
 ## 15. 초안 대비 변경점
 

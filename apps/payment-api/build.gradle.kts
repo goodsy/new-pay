@@ -27,6 +27,18 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.springmockk)
     testImplementation(libs.archunit)
+    // 자동 Fixture(테스트 전용, Test Fixture Policy). 프로젝트 Fixture(src/test) 뒤에만 쓴다. Instancio는 쓰지 않는다.
+    // Fixture Monkey는 값 생성에 jqwik(1.7.3) 구현 클래스를 쓰므로 jqwik-engine 모듈은 classpath에 남긴다(빼면 NoClassDefFoundError —
+    // 2026-10-07 확인). 단 jqwik의 JUnit Platform 엔진은 아래 test 설정에서 실행 대상에서 뺀다.
+    testImplementation(libs.fixture.monkey.kotlin)
+}
+
+tasks.test {
+    useJUnitPlatform {
+        // jqwik 엔진은 시험을 갖지 않으며(이 저장소의 시험은 Kotest), 실행되면 작업 트리에 .jqwik-database를 만들어 source fingerprint를
+        // 바꿀 수 있다. Kotest 엔진 실행·failOnNoDiscoveredTests(paycore.kotlin-base)는 그대로다.
+        excludeEngines("jqwik")
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -1355,7 +1355,7 @@
       "id": "CP-DB-001",
       "title": "주문 점유·멱등 요청·Outbox 로컬 TX",
       "phase": "FEATURE",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "CP-DOMAIN-001",
         "CP-CONTRACT-001"
@@ -1380,14 +1380,44 @@
         "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §11) 잠금 순서 멱등 기록 → OrderPaymentControl → Payment 고정, 교착 시험",
         "(CP 초안 §7) CP-03·CP-04·CP-08·CP-10을 실제 MySQL 다중 connection으로 검증"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "libs/test-support/**",
+        "gradle/libs.versions.toml",
+        "build-logic/**",
+        "docker/mysql/init/**",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/tasks.json",
+        "harness/scripts/cve-scan.py"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator-main-session",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 10800,
+      "evidence": {
+        "fingerprint": "sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
+        "verifyGate": "build/harness-evidence/CP-DB-001-2026-10-07T064546Z.json",
+        "evidenceSha256": "721a32a1b46dff21d0227c4fc05f505f0995718614d464e9eafc55b83e507692",
+        "verdict": "PASS",
+        "tests": {
+          "payment-api": 395,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112,
+          "total": 562
+        },
+        "at": "2026-10-07T06:58:36Z",
+        "depsCve": "GRADLE-DEPS x3 exit 0(runtime에 fixture-monkey/jqwik/test-support/testcontainers 없음, 106/53/58), CVE-SCAN PASS 0건·canary 검출 — 2026-10-07T06:04–06:07Z 별도 실행, 이후 의존성 파일 변경 없음",
+        "memoryMinAvailableMB": 917,
+        "priorGate": "CP-DB-001-2026-10-07T055130Z.json PASS on 507163c9…(superseded by review fixes)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02"
+      },
       "principleEvidence": {
         "Financial Consistency": {
           "applicability": "UNASSESSED",
@@ -1437,7 +1467,162 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-07 범위(가역 관례): CP-DB-001 = PAYMENT V1 운영 migration, JPA adapter·Mapper·복원 factory, application.required Port, 계약 §11 순서를 실행하는 application TX 서비스(입력: 검증된 command + 호출자가 계산한 r1·ID), 실제 MySQL 경쟁·rollback 시험. web·eligibility·ID 생성기·r1 계산·오류 매핑은 CP-API-001"
+      ],
+      "implementation": {
+        "implementer": "paycore-implementer",
+        "baseRevision": "24a0eb2",
+        "selfVerdict": "NOT_DECIDED (구현자는 DONE 판정 금지 — Verifier/Reviewer 대기)",
+        "statusUnchanged": "IN_PROGRESS",
+        "stages": [
+          {
+            "stage": "S1-schema",
+            "recordedAt": "2026-10-07",
+            "state": "GREEN",
+            "summary": "PAYMENT 첫 운영 migration apps/payment-api/src/main/resources/db/migration/payment/V1__payment_core.sql(payment, payment_termination_evidence, order_payment_control, incident_hold, idempotency_request, outbox_event). 모든 문자열 컬럼 utf8mb4_0900_bin(NO PAD) 명시, CHECK(amount_minor>=1)·currency REGEXP ^[A-Z]{3}$ 'c'·environment/status/method/result 일관성·expires_at=created_at+30일, UNIQUE 멱등 범위·payment_key·(order, slot_generation)·outbox event_id/effect_key·incident hold(order,payment,reason), payment(order) UNIQUE 없음",
+            "red": "PaymentSchemaSpec 16 tests 중 15 실패 — 테이블 없음(SQLSyntaxErrorException 1146, information_schema 대상 없음). 서버 기본 collation=utf8mb4_0900_ai_ci 확인 test만 통과(검사가 자명하지 않다는 증거)",
+            "green": "PaymentSchemaSpec 16/16 통과(:apps:payment-api:test --tests, 실제 MySQL 8.4.11 Testcontainers). jOOQ main codegen이 6개 테이블 클래스 생성"
+          },
+          {
+            "stage": "S2-domain-restore",
+            "recordedAt": "2026-10-07",
+            "state": "GREEN",
+            "summary": "domain: Payment.reconstitute(slotGeneration>=1, 종료 근거는 FAILED/EXPIRED에만), OrderPaymentControl.reconstitute(generation>=1, hold 중복 거부), PaymentKey(1..64, 짝 없는 서로게이트 거부, 메시지에 값 없음), PaymentMethod{CARD}. 복원 factory는 persistence Mapper 전용(시험 편의 API 아님)",
+            "red": "ReconstitutionSpec 9 tests 중 8 실패 — 비검증 stub(TODO()/검증 없는 PaymentKey): NotImplementedError 4, 'Expected IllegalArgumentException but NotImplementedError' 3, 'no exception was thrown'(PaymentKey) 1",
+            "green": "payment domain 9개 spec 253 tests 통과(ReconstitutionSpec 9 신규, 기존 244 불변)"
+          },
+          {
+            "stage": "S3-ports-adapter",
+            "recordedAt": "2026-10-07",
+            "state": "GREEN",
+            "summary": "application.required Port(IdempotencyRecordStore, OrderPaymentControlStore, PaymentStore, OutboxStore, PersistenceFailure{UniqueConflict(StoreConstraint),OptimisticConflict,Deadlock,LockTimeout,Unavailable}, Versioned), application.provided 값 타입(RequestFingerprint r<n>:hex64, EligibilitySnapshotVersion, IdempotencyRecordId/EventId UUID, CreatePaymentOutcome, CreatePaymentRejection)+package-info @NamedInterface(provided). adapter.persistence: JPA Entity 6종(domain 분리, protected set, updatable=false 생성 불변 컬럼, 자연 키 equals, 연관 매핑 없음), Spring Data repository(잠금 읽기 PESSIMISTIC_WRITE, native INSERT … ON DUPLICATE KEY UPDATE no-op로 insert-first), PaymentPersistenceMapper(domain 생성자 재검증·reconstitute), Jpa*Store(@Transactional MANDATORY, Port 안 flush, 기대 version 비교, 자식만 바뀌면 PESSIMISTIC_FORCE_INCREMENT), PersistenceFailures(MySQL 1062/1213/1205/08xxx 분류, 중복 키 값 미보존), OutboxPayloadJson(Jackson 3, amount JSON 정수, ms UTC). application.yml hibernate.jdbc.time_zone=UTC",
+            "red": "PaymentStoreAdapterSpec 16 tests 중 15 실패(Store TODO stub: NotImplementedError 14, 'Expected IllegalArgumentException but NotImplementedError' 1). TX 밖 호출 거부 test만 통과(@Transactional MANDATORY는 stub에도 적용). 컨텍스트 기동 성공 = ddl-auto=validate가 Entity 매핑을 수락. 추가 mutation RED: 기대 version 비교 제거 시 'stale domain' test 실패(Expected OptimisticConflict but no exception — 오래된 domain이 최신 행을 덮어씀), 복원 후 통과",
+            "green": "PaymentStoreAdapterSpec 16/16(실제 MySQL 8.4.11), PersistenceFailuresSpec 5/5(단위 시험 — 예외 원인 사슬 분류, DB 없음; round1 리뷰 정정). 실제 MySQL에서 1062→UniqueConflict(PAYMENT_ID/PAYMENT_KEY/PAYMENT_ORDER_GENERATION/OUTBOX_EFFECT_KEY/OUTBOX_EVENT_ID), 1205→LockTimeout(다른 연결 FOR UPDATE, 약 3s), 형식 밖 저장 키 복원 시 IllegalArgumentException"
+          },
+          {
+            "stage": "S4-application-tx",
+            "recordedAt": "2026-10-07",
+            "state": "GREEN",
+            "summary": "application: CreatePaymentService(계약 §11 순서: 멱등 기록 insert-first/잠금 → [만료 시 같은 행 갱신 | 같은 fingerprint 재생 | 다른 fingerprint IdempotencyKeyReused] → EligibilityGate(같은 TX, 예외 시 전체 rollback) → control insert-first/잠금 → 현재 Payment 잠금·domain 판정 → 새 Payment+Outbox PaymentRequested v1(CREATED만)+멱등 결과(SUCCESS/REJECTED) 같은 TX), LocalTransactions(TX 소유 확인, READ COMMITTED, 명시적 PlatformTransactionManager: commit 전 실패는 원래 예외 보존·rollback 실패 suppressed, commit 중 실패는 CommitOutcomeUnknown, 교착·내부 경합만 새 TX 재시도 최대 3회), ReportSuccessAfterTerminationService(control→Payment 잠금, hold no-op 수렴), PaymentRequestedEvents(envelope 상수, aggregateVersion=JPA 최초 version 0, causation=멱등 기록 ID). provided: CreatePaymentUseCase/Command/Result{Accepted,Rejected,IdempotencyKeyReused}/Failure{RequestInProgress,TemporarilyUnavailable,IdentifierCollision(GeneratedIdentifier),OutcomeUnknown}/EligibilityGate/NewPaymentIdentifiers/ReportSuccessAfterTerminationUseCase. 시험 지원: FaultInjectionConfig(@Primary Port 대역, Port 성공 직후 hook), DbAccess 잠금 관찰(performance_schema.data_lock_waits), 시험 lock wait 8초",
+            "red": "use case 진입점 TODO stub: application 4개 spec 41 tests 중 40 실패(NotImplementedError 29, Expected Injected/NotEligible/IllegalState/CreatePaymentFailure but NotImplementedError 11). 구현 후 발견·수정 2건: (1) 연결 끊김 시 TransactionTemplate이 rollback 실패 예외(JpaSystemException)로 원래 예외를 덮어써 분류 불가 → 명시적 TX 관리로 교체, commit 단계 실패는 OutcomeUnknown(보수적)으로 분류하고 beforeCommit 실패 시험 기대를 OutcomeUnknown+미저장+같은 키 재요청 생성으로 변경(정책 완화 아님, 더 보수적), (2) 관찰 helper가 INNODB_TRX 캐시(0.1초 유휴 후 갱신) 때문에 대기 TX를 못 봄 → performance_schema.data_lock_waits. mutation RED(복원 후 GREEN): M1 교착 재시도 제거 → 교착 시험 실패, M2 control을 SELECT 후 INSERT로 → CP-04 다른 금액 동시·혼합 부하 시험 TemporarilyUnavailable(1062), M3 만료 기록 재생 → 30일 시험 2건 실패",
+            "green": "CreatePaymentServiceSpec 17, CreatePaymentConcurrencySpec 11, CreatePaymentRollbackSpec 15, IncidentHoldConvergenceSpec 1 = 44 통과(실제 MySQL 8.4.11), 동시성 spec 2회 추가 반복 통과. 혼합 부하(16 동시, 2 주문) InnoDB lock_deadlocks 증가 0, 역순 잠금 시험은 lock_deadlocks ≥1 + gate 2회(재시도) 관찰"
+          },
+          {
+            "stage": "S5-arch-fixture-accounts",
+            "recordedAt": "2026-10-07",
+            "state": "GREEN",
+            "summary": "(1) PayCoreArchitectureRules.queryAdapterDoesNotWriteWithJooq(DSLContext/DSL insertInto·update·delete·mergeInto·truncate·batch*·loadInto·execute*·query, TableRecord store·insert·update·delete·merge) + meta-test fixture jooqdml{ok,badinsert,badupdate,baddelete,badraw,badrecord}; payment-api ArchitectureSpec 적용(adapter.query 없음 → allowEmptyShould(true)) + main jOOQ 생성 클래스 존재 확인. (2) payment-api ArchitectureSpec allowEmptyShould false 전환: applicationDependsOnlyOnPorts, jpaMappingsOnlyInPersistenceAdapter, springDataRepositoriesOnlyInPersistenceAdapter, namedInterfacesOnlyOnProvidedPackages. (3) Fixture Monkey 1.2.3(fixture-monkey-kotlin, testImplementation만) + RandomCreatePaymentFixture(프로젝트 Fixture 뒤, seed 고정, 공식 생성자 경유) + CreatePaymentBulkSpec. jqwik-engine 모듈은 Fixture Monkey 값 생성에 필요(빼면 NoClassDefFoundError)해 유지하고 payment-api test에서 JUnit 엔진 'jqwik'만 excludeEngines(.jqwik-database 미생성 확인). (4) build-logic 관문: paycore.kotlin-app verifyRuntimeHasNoTestTools(runtimeClasspath에 fixturemonkey·instancio·jqwik·kotest·mockk·springmockk·archunit·testcontainers 금지), paycore.kotlin-base verifyNoInstancio(testRuntimeClasspath), 둘 다 check 의존. (5) DatabaseAccountSeparationSpec: migration 계정(ALL)·runtime 계정(SELECT/INSERT/UPDATE/DELETE) 실제 MySQL 권한 경계. (6) docker init 주석 Q-CP-KEY → D-CP-001, 계정 분리 결정·후속 기록. (7) PaymentApiContextSmokeSpec V1 적용 확인, TechSmokeJooqSpec main 생성 클래스 주석·확인 갱신",
+            "red": "jOOQ DML 규칙 predicate를 항상 false로 둔 stub: meta-test 112 중 5 실패(bad fixture 5개 'Expected AssertionError but no exception'). ArchitectureSpec: application에 adapter 참조(JpaPaymentStore::class) 주입 시 applicationDependsOnlyOnPorts 실패. 의존성 관문: payment-api implementation(fixture-monkey-kotlin)·testImplementation(instancio-core 5.4.1) 임시 추가 시 'test-only tools on runtimeClasspath: [com.navercorp.fixturemonkey…, net.jqwik…]', 'Instancio is not allowed: [org.instancio:instancio-core:5.4.1]'로 실패(BUILD FAILED). Fixture Monkey: jqwik-engine 제외 시 CreatePaymentBulkSpec NoClassDefFoundError(net/jqwik/engine/...DefaultCharacterArbitrary) → 엔진 모듈 유지·JUnit 엔진만 제외로 수정",
+            "green": "libs/test-support 112/112, ArchitectureSpec 22, PaymentApiContextSmokeSpec 4, TechSmoke 7, Modulith 8, DatabaseAccountSeparationSpec 4, CreatePaymentBulkSpec 2 통과. verifyRuntimeHasNoTestTools: payment-api 107·financial-batch 54·internal-admin 59 runtime 모듈에 테스트 도구 없음, verifyNoInstancio 통과"
+          },
+          {
+            "stage": "S6-docs-harness",
+            "recordedAt": "2026-10-07",
+            "state": "DOCS_DONE_FULL_CHECK_NOT_RUN",
+            "summary": "ARCHITECTURE-CONVENTIONS §3(jOOQ 쓰기 금지 규칙, 테이블 소유 결정)·§4·§6·§7(복원 factory)·§9(CP-DB-001 관례+JPA 설명) 갱신, CP-CONTRACT-001 §10 aggregateVersion=0·§14.1, TECH-BASELINE Fixture Monkey 행, HARNESS-VERIFICATION-CONTRACT §7, commands.json GRADLE-CHECK minTests·TEST-SUMMARY 445→550",
+            "red": null,
+            "green": "전체 check는 호스트 메모리 부족으로 시스템이 중단시켜 결과 없음(환경 사유, 성공 주장 안 함)"
+          },
+          {
+            "stage": "S7-review-round1-fix",
+            "recordedAt": "2026-10-07",
+            "state": "PARTIAL_RUNS_GREEN",
+            "summary": "M-1: provided EligibilityGate·create(command, gate) 제거 → create(command). application.required PaymentEligibilityPort.evaluate(environment, authenticatedMid, merchantSiteId, currency, paymentMethod, evaluatedAt) + EligibilityResult{Eligible(snapshotVersion, validUntil, currencyUnit), NotFoundOrForbidden, NotEligible(NotEligibleReason 4종), Unavailable(EligibilityUnavailableReason 3종)}, KDoc에 로컬 Snapshot만·원격 호출 금지·같은 PAYMENT TX. CreatePaymentService 주입·command 값으로 호출, 비Eligible은 내부 rollback 신호 → CreatePaymentResult.EligibilityRefused(EligibilityRefusal). 운영 bean 없음(EligibilityPortWiringSpec: main 구현 0, Port 없는 컨텍스트 기동 실패), 시험 대역 RecordingEligibilityPort(EligibilityTestConfig — PaymentDbTest·ContextSmoke·TechSmoke Import). M-2: UtcStorageSpec(Asia/Seoul·UTC JVM, pool 교체, CAST AS CHAR 원문) + application.yml Hikari data-source-properties connectionTimeZone=UTC·forceConnectionTimeZoneToSession=true. L-5 KDoc(ConcurrencySpec·DbAccess) performance_schema.data_lock_waits 정정",
+            "red": "M-2: JPA 경로(native IODKU·Entity)는 처음부터 UTC(hibernate.jdbc.time_zone=UTC — Asia/Seoul·UTC 두 시나리오 원문 동일). plain JDBC(app DataSource) 시험은 RED: Asia/Seoul JVM에서 written '2026-10-07 10:02:03.456'(기대 01:02), read 2026-10-06T16:02:03.456Z, session time_zone SYSTEM → driver 속성 추가 후 GREEN(session +00:00). M-1: 새 시험이 새 API(PaymentEligibilityPort, create(command))를 참조해 compileKotlin 실패(Unresolved reference EligibilityGate/admit, 'create' overrides nothing) — 컴파일 수준 RED(행위 RED는 별도 미측정)",
+            "green": "부분 실행(:apps:payment-api:test --tests, 실제 MySQL 8.4.11): CreatePaymentEligibilitySpec 8, UtcStorageSpec 3, CreatePaymentServiceSpec 16(eligibility 예외 시험은 EligibilitySpec으로 이동), PaymentApiContextSmokeSpec 4, EligibilityPortWiringSpec 2, CreatePaymentConcurrencySpec 11, ArchitectureSpec 22 통과. 전체 check 결과는 아래 openItems/Verifier"
+          }
+        ],
+        "recordedAt": "2026-10-07",
+        "conventionsDecided": [
+          "DB 충돌 예외 처리(FOUNDATION round4 L-2): persistence adapter가 Port 메서드 안에서 flush하고 원인 사슬의 MySQL 코드로 PersistenceFailure(application.required)로 변환 — 1062 UniqueConflict(StoreConstraint, 키 값 미보존), JPA version OptimisticConflict, 1213 Deadlock, 1205 LockTimeout, 08xxx/연결 Unavailable, CHECK 등 결함은 미분류. application은 org.springframework.dao 비의존. 충돌·교착·내부 경합만 새 TX로 같은 의도 재실행(최대 3회), 같은 키 대기 timeout → RequestInProgress, 그 밖 timeout·연결 오류·재시도 소진 → TemporarilyUnavailable, 서버 생성 ID 충돌 → IdentifierCollision, commit 단계 예외 → OutcomeUnknown",
+          "TX 경계: application LocalTransactions가 소유(기존 TX 안 호출 거부), READ COMMITTED, PlatformTransactionManager 직접 사용(TransactionTemplate이 rollback 실패로 원래 예외를 덮어쓰는 문제 회피)",
+          "잠금 순서 멱등 기록 → control → Payment, 최초 insert 경쟁은 native INSERT … ON DUPLICATE KEY UPDATE no-op + SELECT … FOR UPDATE(SELECT 후 INSERT 금지)",
+          "멱등 결과: 같은 TX PENDING 예약 → SUCCESS(CREATED/EXISTING_ACTIVE_PAYMENT)/REJECTED(domain 판정 이름) + Payment 참조, 재생 값은 Payment 생성 시 불변 컬럼(updatable=false)에서 읽음, 만료 행은 같은 잠긴 행을 새 요청으로 갱신(request_record_id = causationId 교체)",
+          "eligibility(round1 M-1로 교체): required PaymentEligibilityPort.evaluate(environment, authenticatedMid, merchantSiteId, currency, paymentMethod, evaluatedAt)를 서비스가 주입받아 command 값·요청 시각으로 멱등 예약 뒤·판정 전 같은 TX에서 호출, Eligible 아니면 전체 rollback 후 EligibilityRefused(NotFoundOrForbidden/NotEligible 4종/Unavailable 3종), 재생 시 미호출. 방어: validUntil ≤ evaluatedAt → Unavailable(SNAPSHOT_EXPIRED), currencyUnit 통화 불일치 → Port 결함 실패. 운영 bean 없음(기동 실패 = fail-closed), 시험은 EligibilityTestConfig",
+          "Outbox PaymentRequested v1: CREATED만, aggregateVersion = JPA 최초 version 0, effect_key PaymentRequested:{paymentId}, payload amount JSON 정수·UTC ms",
+          "Port 갱신은 Versioned + 기대 version, 자식 행만 늘면 PESSIMISTIC_FORCE_INCREMENT로 Aggregate version 증가",
+          "DB: 모든 문자열 utf8mb4_0900_bin, (주문, slot_generation) UNIQUE를 domain occupy의 안전망으로 추가, 참조 FK는 자식 행에만",
+          "jOOQ: PAYMENT DB 전 테이블 소유 모듈 = payment, adapter.query jOOQ 쓰기 금지 ArchUnit 규칙(queryAdapterDoesNotWriteWithJooq), 테이블→모듈 소유 규칙은 두 번째 모듈 생성 작업으로 이월",
+          "계정 분리: 운영은 migration 계정(ALL)·runtime 계정(SELECT/INSERT/UPDATE/DELETE) 분리 — 실제 MySQL 권한 경계 시험, compose 적용은 후속",
+          "Fixture Monkey 1.2.3 testImplementation만, 프로젝트 Fixture 뒤, jqwik JUnit 엔진 excludeEngines, runtime 유입·Instancio는 Gradle check 관문",
+          "도메인 복원 factory reconstitute는 Mapper 전용(시험 편의 API 아님)"
+        ],
+        "jpaChoices": [
+          "Entity–Domain 분리: 역할 Jpa*Entity는 행 모양, Mapper가 domain 생성자 재검증으로 복원 / 예 amount_minor=1050,currency='USD' → Money(1050, USD), 형식 밖 저장 키는 IllegalArgumentException / 이유 domain 순수성 + DB 제약 이중 방어 / 주의 data class 금지, 식별자 기준 equals, protected set, 생성 불변 컬럼 updatable=false",
+          "변경 감지: 역할 잠가 읽은 managed Entity 필드 변경 → flush 시 UPDATE / 예 JpaPaymentStore.update / 이유 바뀐 컬럼만 + @Version 조건 자동 / 주의 domain은 추적 안 됨 → Mapper가 옮기고 기대 version 먼저 비교, 새 행은 persist(save의 merge 덮어쓰기 회피)",
+          "flush vs commit: 역할 Port 끝 flush로 제약·잠금 충돌을 Port 안에서 드러냄 / 예 중복 payment_key → UniqueConflict(PAYMENT_KEY) / 이유 commit 시점 예외는 분류 어렵고 불명확과 섞임 / 주의 flush된 행도 rollback되면 사라짐(각 지점 장애 주입 시험), flush 실패 TX는 rollback 전용",
+          "@Version vs generation: 역할 version은 동시 수정 감지 기술 값, generation은 슬롯 점유 업무 값 / 예 재시도 점유 시 generation 1→2, version 0→1 / 이유 generation은 오래된 결과 업무 거부, version·잠금·UNIQUE는 동시 판정 경쟁 차단 / 주의 aggregateVersion은 JPA version 0",
+          "비관적 잠금 읽기(PESSIMISTIC_WRITE): 역할 판정 행 SELECT … FOR UPDATE / 예 다른 키 8개 동시 → 7개 control 대기 후 재사용 / 이유 낙관적 version만으로 '활성 하나' 불가 / 주의 최소 행·고정 순서, 외부 호출 중 미보유, 1205는 TX 전체 rollback",
+          "연관 매핑·LAZY 미사용: 종료 근거·hold는 별도 Entity INSERT만 / 이유 cascade·orphanRemoval·N+1 경로 제거 / 주의 목록 조회는 jOOQ query adapter",
+          "@Transactional(MANDATORY) Port, Instant↔DATETIME(3) UTC: hibernate.jdbc.time_zone=UTC(JPA·native 파라미터) + Hikari driver 속성 connectionTimeZone=UTC·forceConnectionTimeZoneToSession=true(plain JDBC·jOOQ, 세션 +00:00) — round1 M-2, UtcStorageSpec"
+        ],
+        "questionCandidates": [],
+        "questionCandidatesNote": "금융·정책 의미의 새 미결 없음. 구현 중 판단은 모두 확정 결정(D-CP-001/002, D-CPC-002~007, D-CPD-002~004)과 계약 §8–§12 범위의 가역 관례다. commit 단계 실패를 OutcomeUnknown으로 둔 것은 계약 §9 '커밋 불명확은 같은 키 재요청' 규칙의 보수적 적용이다",
+        "openItems": [
+          "전체 GRADLE-CHECK(--no-build-cache --rerun-tasks check) 미완료: 2026-10-07 실행이 호스트 메모리 부족으로 compile 단계에서 강제 중단됨(테스트 결과 아님). Verifier/Coordinator가 재실행해야 함. minTests 550은 spec별 부분 실행 합계. round1 수정 후(2026-10-07T06:35:51Z 시작) 전체 check도 Claude Code 호스트가 메모리 부족으로 wrapper를 중단(generateJooqMain 단계, 테스트 결과 없음), WSL 안에 남은 Gradle 고아 프로세스는 구현자가 종료함. minTests 562는 부분 실행 합계(성공 주장 아님)",
+          "Verifier: 빌드 파일·의존성 변경(Fixture Monkey, build-logic 관문) → GRADLE-DEPS-*·CVE-SCAN 실행",
+          "Outbox Relay(lease·재발행·published 표시)·Inbox — 별도 작업",
+          "멱등 기록 30일 경과 행 삭제 Job — 후속",
+          "migration/runtime 계정 분리의 compose·운영 적용(compose.yaml·.env.example 경로 허용 필요, spring.flyway.user 분리)",
+          "운영 innodb_lock_wait_timeout·TX timeout 값(CP-API-001, L-4). 시험은 8초 시험 전용 값",
+          "jOOQ 테이블→모듈 소유 규칙: 두 번째 업무 모듈 생성 시",
+          "financial-batch·internal-admin ArchitectureSpec에 queryAdapterDoesNotWriteWithJooq 적용(허용 경로 밖이라 미적용)",
+          "종료 근거 출처·시각·행위자 컬럼(AUTH-001), AUTH의 상태 변경은 control→Payment 잠금 순서 준수",
+          "r1 계산·ID 생성기·eligibility Port 구현·HTTP 매핑·관측성 지표(재시도·lock timeout·Outbox lag)(CP-API-001/MASTER-SNAPSHOT-001/운영)",
+          "jqwik-engine 1.7.3이 JUnit Platform 6 classpath에 남음(실행 제외) — Fixture Monkey 업그레이드 시 재확인"
+        ],
+        "principleEvidence": {
+          "Financial Consistency": "PARTIAL(실제 DB) — CHECK amount>=1·currency 형식, 금액 minor Long 왕복(Long.MAX, 2^53+1 JSON 정수, 무작위 40건), (주문, generation) UNIQUE, 종료 근거 append-only는 애플리케이션 수준(Store가 INSERT만, runtime 계정 UPDATE/DELETE 권한 제한은 openItems L-3). eligibility 거절 시 저장 없음(CreatePaymentEligibilitySpec). 금융 사실(승인)은 아직 없음",
+          "Transaction Safety": "APPLIED(실제 DB) — 멱등 결과+control+Payment+Outbox 같은 로컬 TX, 저장 지점 6곳·commit 직전·연결 끊김·commit 중 끊김 장애 주입 시 부분 성공 없음(CreatePaymentRollbackSpec, ConcurrencySpec), eligibility 모든 거절 종류·만료 갱신 경로 거절 시 전체 rollback(CreatePaymentEligibilitySpec), 외부 호출 없음. 시각 의미: 30일 만료 판정·CHECK(expires_at=created_at+30일)이 쓰는 DATETIME은 JVM 시간대와 무관하게 UTC로 저장·비교됨(UtcStorageSpec: Asia/Seoul·UTC JVM 동일 원문, 경계 -1ms 재생/정각 갱신)",
+          "Idempotency": "APPLIED(실제 DB) — 범위 UNIQUE, 같은 키 동시 8건 1건 생성·재생, 다른 내용 KeyReused, 거절 저장·재생, 30일 만료 경계, effect_key UNIQUE",
+          "Concurrency Control": "APPLIED(실제 DB 다중 connection, performance_schema 대기 관찰) — CP-03/CP-04 동시, 최초 control insert 경쟁, 혼합 16건 교착 0, 역순 잠금 교착 감지·재시도, 오래된 domain 덮어쓰기 거부, hold 동시 8건 1건",
+          "Recoverability": "PARTIAL — 응답 유실 후 같은 키 재요청 재생, commit 불명확 OutcomeUnknown → 같은 키 확인, 교착 재시도. 재시작·Relay 재발행은 미증명",
+          "Reconciliation": "NOT_APPLICABLE — 금융 효과 없음, PaymentRequested는 비금융 이벤트",
+          "Auditability": "PARTIAL — eligibility snapshot 버전(Port 평가 결과에서만, 호출 인자 = command 값 시험)·생성 시각(UTC 원문 저장 증명, UtcStorageSpec)·causation/correlation 보존, hold append-only(애플리케이션 수준). 행위자·근거 출처는 미구현(AUTH-001), eligibility Port 운영 구현 없음(MASTER-SNAPSHOT-001)",
+          "Observability": "NOT_APPLIED — 지표·구조화 로그 없음(CP-API-001/운영). 예외 메시지에 키 값 미포함만 확인"
+        }
+      },
+      "openItems": [
+        "(review L-2) idempotency_request IODKU는 statement binlog에서 unsafe — 운영 binlog_format=ROW 전제를 배포/운영 작업에 기록",
+        "(review L-3) runtime 계정이 append-only 표(payment_termination_evidence, incident_hold)·order_payment_control에 UPDATE/DELETE 가능 — 계정 분리 적용 작업에서 표 단위 GRANT 검토, 현재 append-only는 앱 수준",
+        "(review L-7) 요청 fingerprint r2 도입 시 저장 버전 기준 재계산 비교(현재 문자열 비교)",
+        "(review L-8) 다수 인접 키 갭 잠금 교착·재시도 소진 지표 → 관측성 작업",
+        "(review L-9) jqwik-engine test classpath 잔존 부작용 확인",
+        "(review2 L-12) M-1 행위 mutation RED(갱신 경로 admit 제거, complete 후 Port 호출) 기록 — 선택"
+      ],
+      "reviewRounds": {
+        "round1": {
+          "verdict": "CHANGES_REQUIRED",
+          "fingerprint": "sha256:507163c9df4f87bcd4cf0169f7a9f73c731dd04319a6f5c841231ff5f2886979",
+          "blocking": [
+            "M-1 EligibilityGate → required Port(계약 §13)",
+            "M-2 UTC 저장 증거(비UTC JVM 시험·드라이버 설정)"
+          ],
+          "thisRound": [
+            "L-5 KDoc 관찰 수단 정정",
+            "principleEvidence: append-only는 앱 수준, Auditability/Transaction Safety 시각 의미 PARTIAL"
+          ],
+          "carried": [
+            "L-1,L-4→CP-API-001",
+            "L-6→AUTH-001",
+            "L-2,L-3,L-7,L-8,L-9→openItems"
+          ]
+        },
+        "round2": {
+          "verdict": "REVIEW_PASS",
+          "fingerprint": "sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
+          "nonBlocking": [
+            "L-10→CP-API-001",
+            "L-11→MASTER-SNAPSHOT-001",
+            "L-12 openItems",
+            "Info-1~3"
+          ]
+        }
+      },
+      "lastSuccessfulStep": "DONE on sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
+      "nextResumeAction": "완료. 다음 MASTER-BOOT-001"
     },
     {
       "id": "CP-API-001",
@@ -1464,7 +1649,10 @@
         "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §9) IDEMPOTENCY_REQUEST_IN_PROGRESS 처리와 lock wait timeout 분류 기준(TEMPORARILY_UNAVAILABLE와 구분)",
         "(D-CP-003) 생성 응답에 현재 상태 미포함, GetPayment 분리",
         "(CP 초안 §7) CP-01·CP-02·CP-05~CP-07·CP-12 API 수준 검증",
-        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §3.1·§5·§7·§10) 모든 문자열 필드 짝 없는 서로게이트 400·orderName 제어문자 거절, r1은 Utf8Text.encode(엄격 UTF-8), 응답 schema(outcome CREATED/EXISTING_ACTIVE_PAYMENT, lifecycleAtCreation)·Idempotent-Replayed 헤더, PaymentRequested envelope·payload(paymentKey·orderName 제외, eventCategory INTEGRATION_NON_FINANCIAL) 시험, paymentId/paymentKey 생성기(서로게이트 검사 여부 결정 포함)"
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §3.1·§5·§7·§10) 모든 문자열 필드 짝 없는 서로게이트 400·orderName 제어문자 거절, r1은 Utf8Text.encode(엄격 UTF-8), 응답 schema(outcome CREATED/EXISTING_ACTIVE_PAYMENT, lifecycleAtCreation)·Idempotent-Replayed 헤더, PaymentRequested envelope·payload(paymentKey·orderName 제외, eventCategory INTEGRATION_NON_FINANCIAL) 시험, paymentId/paymentKey 생성기(서로게이트 검사 여부 결정 포함)",
+        "(CP-DB-001 review L-1) IDEMPOTENCY_REQUEST_IN_PROGRESS는 같은 키 또는 인접 범위 갭 잠금 대기를 포함함을 계약 §9·KDoc에 명시(L-4와 함께 lock wait 분류 확정)",
+        "(CP-DB-001 review L-4) 실제 커밋 후 결과 불명확(afterCommit 예외 주입) → 같은 키 재요청 replayed=true·행 1건 시험(응답 유실 시험과 통합)",
+        "(CP-DB-001 review2 L-10) 기동/health 검사로 SELECT @@session.time_zone = +00:00 확인, 배포 문서에 DB URL 시간대 파라미터 금지 규칙"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -1617,7 +1805,8 @@
         "REAL endpoint 접근 없음",
         "(CP-DOMAIN-001 리뷰 L-2) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 하나의 domain 연산(또는 둘을 반드시 함께 호출함을 강제하는 application 시험)으로 묶어 incident hold·슬롯 검사 우회를 막는다",
         "(CP-DOMAIN-001 리뷰 L-3) 승인 Attempt 생성과 Payment AUTHORIZING 전이는 같은 TX1에서 커밋한다(REQUESTED = 미전송 불변식). 전송은 TX1 커밋 뒤 TX 밖",
-        "(CP-DOMAIN-001 리뷰 L-3) REQUESTED 종료 근거의 출처를 제한하면(예: 미전송 Payment에 기관 확정 거절·timeout·조회 NOT_FOUND 근거 금지) PaymentFixture(failedWithOnlyTimeout·expiredWithOnlyInquiryNotFound 등 REQUESTED 경로 fixture)와 OrderPaymentDecisionTableSpec 판정표 행을 같은 변경에서 갱신한다"
+        "(CP-DOMAIN-001 리뷰 L-3) REQUESTED 종료 근거의 출처를 제한하면(예: 미전송 Payment에 기관 확정 거절·timeout·조회 NOT_FOUND 근거 금지) PaymentFixture(failedWithOnlyTimeout·expiredWithOnlyInquiryNotFound 등 REQUESTED 경로 fixture)와 OrderPaymentDecisionTableSpec 판정표 행을 같은 변경에서 갱신한다",
+        "(CP-DB-001 review L-6) ReportSuccessAfterTerminationService 실패 분류(OutcomeUnknown·LockTimeout 등)와 호출 경로(Inbox) 확정"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -2250,7 +2439,7 @@
       "id": "MASTER-BOOT-001",
       "title": "Master 실행 단위·MASTER DB 기초",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "READY",
       "dependsOn": [
         "FOUNDATION-001"
       ],
@@ -2306,7 +2495,9 @@
       "acceptanceCriteria": [
         "허용 확정본 §4.1–4.2: 버전 있는 권리 Snapshot·만료 lease·차단 우선 전파·ACK, 과거 허용 이벤트로 차단 되돌림 금지",
         "MASTER Outbox → PAYMENT Inbox 로컬 TX, 수치(lease·지연)는 Demo fixture 명시·운영값 미결",
-        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §13·D-CPC-006) PaymentEligibilityPort/EligibilityResult 제공: Eligible(snapshotVersion, currencyUnit=minor unit 출처), NotFoundOrForbidden, NotEligible(reason), Unavailable — Eligible에 validUntil, Unavailable reason(SNAPSHOT_MISSING·EXPIRED·VERSION_UNSUPPORTED)은 fail-closed, NotEligible reason 고정 4종·v1 한도 reason 없음(§13, D-CPC-008)"
+        "(docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md §13·D-CPC-006) PaymentEligibilityPort/EligibilityResult 제공: Eligible(snapshotVersion, currencyUnit=minor unit 출처), NotFoundOrForbidden, NotEligible(reason), Unavailable — Eligible에 validUntil, Unavailable reason(SNAPSHOT_MISSING·EXPIRED·VERSION_UNSUPPORTED)은 fail-closed, NotEligible reason 고정 4종·v1 한도 reason 없음(§13, D-CPC-008)",
+        "(CP-DB-001 review2 L-11) 실제 PaymentEligibilityPort 구현 추가 시 EligibilityTestConfig 없이 기동하는 smoke 시험 추가, EligibilityPortWiringSpec의 '구현 0개'를 '정확히 1개'로 전환",
+        "(CP-DB-001) Port의 validUntil == evaluatedAt 처리는 서비스 방어(만료로 간주)와 같거나 더 엄격하게"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

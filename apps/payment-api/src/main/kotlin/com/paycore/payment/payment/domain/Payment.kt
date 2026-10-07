@@ -103,5 +103,30 @@ class Payment private constructor(
             require(slotGeneration >= 1) { "slotGeneration must be positive: $slotGeneration" }
             return Payment(id, orderKey, intent, slotGeneration)
         }
+
+        /**
+         * 영속 복원(persistence Mapper 전용, CP-DB-001). 새 시도를 만들지 않고 이미 저장된 상태를 되돌린다. 시험 편의 생성 API가 아니다:
+         * Named Test Fixture는 [request]와 전이 메서드로 상태를 만든다(Test Fixture Policy).
+         *
+         * 저장 상태가 domain에서 존재할 수 없으면 거부한다(조용히 고치지 않는다): slotGeneration ≥ 1, 종료 근거는 FAILED/EXPIRED에만.
+         * 어떤 전이 경로로 종료됐는지(REQUESTED 종료는 근거 불요)는 행에 없어 검사하지 않는다 — 그 검사는 전이 시점(종료 메서드)의 책임이다.
+         */
+        fun reconstitute(
+            id: PaymentId,
+            orderKey: OrderKey,
+            intent: OrderIntentFingerprint,
+            slotGeneration: Long,
+            status: PaymentStatus,
+            terminationEvidence: List<TerminationEvidence>,
+        ): Payment {
+            require(slotGeneration >= 1) { "slotGeneration must be positive: $slotGeneration" }
+            require(terminationEvidence.isEmpty() || status == FAILED || status == EXPIRED) {
+                "termination evidence is only stored for FAILED/EXPIRED payments: $status"
+            }
+            return Payment(id, orderKey, intent, slotGeneration).also {
+                it.status = status
+                it.evidence += terminationEvidence
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.paycore.payment.techsmoke
 
+import com.paycore.payment.payment.application.EligibilityTestConfig
 import com.paycore.testsupport.MySqlTestContainerConfig
 import com.paycore.techsmoke.payment.TechSmokeItemEntity
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage
@@ -20,7 +21,7 @@ import org.springframework.test.context.TestPropertySource
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 @SpringBootTest
-@Import(MySqlTestContainerConfig::class, TechSmokeJpaPackageConfig::class)
+@Import(MySqlTestContainerConfig::class, TechSmokeJpaPackageConfig::class, EligibilityTestConfig::class)
 @TestPropertySource(properties = [TECH_SMOKE_FLYWAY_LOCATIONS])
 annotation class TechSmokeTest
 

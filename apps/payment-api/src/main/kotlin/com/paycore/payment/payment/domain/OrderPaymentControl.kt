@@ -197,5 +197,26 @@ class OrderPaymentControl private constructor(
             require(firstPayment.slotGeneration == 1L) { "first payment must be generation 1: ${firstPayment.slotGeneration}" }
             return OrderPaymentControl(firstPayment.orderKey, firstPayment.intent, firstPayment.id, 1)
         }
+
+        /**
+         * 영속 복원(persistence Mapper 전용, CP-DB-001). 슬롯을 새로 열지 않고 저장된 control을 되돌린다. 시험 편의 생성 API가 아니다
+         * (Named Test Fixture는 [open]·[occupy]를 쓴다). generation ≥ 1, 사건 보류는 (paymentId, reason)당 하나여야 한다 — 위반 행은
+         * 조용히 고치지 않고 거부한다. 동시 수정 감지(JPA version)는 domain 값이 아니라 adapter가 따로 관리한다.
+         */
+        fun reconstitute(
+            orderKey: OrderKey,
+            fixedIntent: OrderIntentFingerprint,
+            currentPaymentId: PaymentId,
+            generation: Long,
+            authorizedPaymentId: PaymentId?,
+            incidentHolds: List<IncidentHold>,
+        ): OrderPaymentControl {
+            require(generation >= 1) { "generation must be positive: $generation" }
+            require(incidentHolds.toSet().size == incidentHolds.size) { "incident holds must be unique per (paymentId, reason)" }
+            return OrderPaymentControl(orderKey, fixedIntent, currentPaymentId, generation).also {
+                it.authorizedPaymentId = authorizedPaymentId
+                it.holds += incidentHolds
+            }
+        }
     }
 }

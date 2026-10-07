@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
-  "lastSuccessfulStep": "CP-CONTRACT-001 DONE (VERIFY-GATE PASS 033719Z 445 tests, REVIEW_PASS round2) on sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8",
+  "codeFingerprint": "sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
+  "lastSuccessfulStep": "CP-DB-001 DONE (VERIFY-GATE PASS 064546Z 562 tests, REVIEW_PASS round2) on sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)",
     "G-3 계약 용어 (MASTER-DOMAIN-001)"
   ],
-  "nextResumeAction": "CP-DB-001(주문 점유·멱등 요청·Outbox 로컬 TX, 실제 MySQL 경쟁) → MASTER-BOOT-001 → MASTER-DOMAIN-001 → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH",
+  "nextResumeAction": "MASTER-BOOT-001 → MASTER-DOMAIN-001(G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 전체 check 메모리 여유 최저 ~800-900MB",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -85,6 +85,21 @@
       "at": "2026-10-06",
       "taskId": "CP-CONTRACT-001",
       "event": "DONE on sha256:5ac3a3eea23149b8136d0282d1ed7db66c0e7d417697a7f66376cdc558b4d4f8"
+    },
+    {
+      "at": "2026-10-07",
+      "taskId": "CP-CONTRACT-001",
+      "event": "pushed 24a0eb2"
+    },
+    {
+      "at": "2026-10-07",
+      "taskId": "CP-DB-001",
+      "event": "claimed"
+    },
+    {
+      "at": "2026-10-07",
+      "taskId": "CP-DB-001",
+      "event": "DONE on sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02"
     }
   ]
 }

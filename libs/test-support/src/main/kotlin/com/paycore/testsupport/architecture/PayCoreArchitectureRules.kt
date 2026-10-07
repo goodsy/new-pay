@@ -3,6 +3,7 @@ package com.paycore.testsupport.architecture
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.base.DescribedPredicate.not
 import com.tngtech.archunit.core.domain.JavaClass
+import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import com.tngtech.archunit.lang.ArchCondition
@@ -255,6 +256,20 @@ class PayCoreArchitectureRules(
             .`as`("org.jooq and generated jOOQ code are used only from $queryAdapter")
 
     /**
+     * `<module>.adapter.query`(jOOQ CQRS 조회)는 jOOQ로 쓰지 않는다(TECHNOLOGY §4: 업무 테이블 jOOQ DML은 기본 정책 밖, CP-DB-001 결정 —
+     * FOUNDATION-001 L-2 이월). 쓰기는 application Use Case → `application.required` Port → `adapter.persistence`(JPA, 로컬 TX·version·
+     * Outbox 규칙) 경로만 쓴다. 대량 Batch·조건부 갱신이 꼭 필요하면 별도 adapter와 근거를 검토해 이 규칙을 그 위치에 한해 다시 정한다.
+     *
+     * 검사 대상 호출: `DSLContext`/`DSL`의 insertInto·update·delete(From)·mergeInto·truncate·batch*·loadInto·execute*(raw SQL 포함)·query,
+     * `TableRecord`/`UpdatableRecord`의 store·insert·update·delete·merge. 한계: `fetch("<SQL 문자열>")`처럼 조회 API에 DML 문자열을 넣는
+     * 우회와 reflection은 정적 검사로 잡지 않는다(리뷰로 확인).
+     */
+    fun queryAdapterDoesNotWriteWithJooq(): ArchRule =
+        noClasses().that().resideInAPackage(queryAdapter)
+            .should().callMethodWhere(JOOQ_WRITE_CALL)
+            .`as`("$queryAdapter does not issue jOOQ DML (insert/update/delete/merge/truncate/batch/execute or record store)")
+
+    /**
      * 외부 기관 adapter(`<module>.adapter.integration`)의 타입은 그 밖에서 쓰지 않는다. 다른 계층은 `application.required` Port로만
      * 기관 기능에 접근하고, 기관 DTO는 adapter 안에서 Domain/Port 타입으로 변환한다. (계층 단위 규칙: 다른 모듈의 integration
      * adapter 사용은 Modulith verify가 막는다.)
@@ -326,6 +341,7 @@ class PayCoreArchitectureRules(
         "springBatchOnlyInBatchAdapter" to springBatchOnlyInBatchAdapter(),
         "controllersOnlyInWebAdapter" to controllersOnlyInWebAdapter(),
         "jooqOnlyInQueryAdapter" to jooqOnlyInQueryAdapter(),
+        "queryAdapterDoesNotWriteWithJooq" to queryAdapterDoesNotWriteWithJooq(),
         "integrationAdapterIsEncapsulated" to integrationAdapterIsEncapsulated(),
         "webAdapterUsesOnlyApplication" to webAdapterUsesOnlyApplication(),
         "batchAdapterUsesOnlyApplication" to batchAdapterUsesOnlyApplication(),
@@ -375,6 +391,28 @@ class PayCoreArchitectureRules(
             "org.springframework.data.repository..",
             "org.springframework.data.jpa..",
         )
+
+        /** jOOQ 쓰기 진입점(DSLContext/DSL). */
+        val JOOQ_DSL_WRITE_METHODS = setOf(
+            "insertInto", "insertQuery", "update", "updateQuery", "delete", "deleteFrom", "deleteQuery", "mergeInto", "truncate",
+            "truncateTable", "batch", "batchInsert", "batchUpdate", "batchDelete", "batchStore", "batchMerge", "loadInto", "execute",
+            "executeInsert", "executeUpdate", "executeDelete", "query",
+        )
+
+        /** jOOQ Active Record 쓰기(TableRecord/UpdatableRecord). */
+        val JOOQ_RECORD_WRITE_METHODS = setOf("store", "insert", "update", "delete", "merge")
+
+        val JOOQ_WRITE_CALL: DescribedPredicate<JavaMethodCall> =
+            object : DescribedPredicate<JavaMethodCall>("a jOOQ write call (DSLContext/DSL DML or record store)") {
+                override fun test(call: JavaMethodCall): Boolean {
+                    val owner = call.targetOwner
+                    return when {
+                        owner.isAssignableTo("org.jooq.DSLContext") || owner.name == "org.jooq.impl.DSL" -> call.name in JOOQ_DSL_WRITE_METHODS
+                        owner.isAssignableTo("org.jooq.TableRecord") -> call.name in JOOQ_RECORD_WRITE_METHODS
+                        else -> false
+                    }
+                }
+            }
 
         /** 검사 대상 전체에서 `@SpringBootApplication` 클래스가 정확히 1개인지 본다(대상 수는 init에서 받는다). */
         fun beTheOnlySpringBootApplication(): ArchCondition<JavaClass> =

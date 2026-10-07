@@ -52,6 +52,7 @@ com.paycore.<app>.<module>
 | Repository 위치 | Spring Data `Repository` 하위 타입과 `@RepositoryDefinition` interface는 `adapter.persistence`에만 | ArchUnit |
 | Controller 위치 | `@Controller`·`@RestController`·`@ControllerAdvice`·`@RestControllerAdvice`(meta-annotation 포함)는 `adapter.web`에만 | ArchUnit |
 | jOOQ 위치 | `org.jooq`와 생성 jOOQ 클래스는 `adapter.query`(와 생성 코드 자신)에서만 | ArchUnit |
+| jOOQ 쓰기 금지 | `adapter.query`는 jOOQ로 쓰지 않는다: `DSLContext`/`DSL`의 insertInto·update·delete(From)·mergeInto·truncate·batch*·loadInto·execute*(raw SQL)·query, `TableRecord`의 store·insert·update·delete·merge 호출 금지. 업무 쓰기는 application Use Case → `application.required` Port → `adapter.persistence`(JPA)만 (CP-DB-001 결정, FOUNDATION-001 L-2 이월 해소) | ArchUnit `queryAdapterDoesNotWriteWithJooq` |
 | Batch 위치 | `org.springframework.batch` 의존은 `adapter.batch`에서만 | ArchUnit |
 | 기관 DTO 격리 | `adapter.integration` 타입을 다른 계층이 직접 쓰지 않는다. 연동은 `application.required` Port 뒤에 둔다 | ArchUnit(계층 단위) + Modulith(모듈 간) |
 | Web adapter | `adapter.web`은 `adapter.persistence`·`query`·`integration`과 `application.required`를 직접 쓰지 않고 `application.provided`를 부른다 | ArchUnit `webAdapterUsesOnlyApplication`(계층 단위) |
@@ -71,8 +72,12 @@ com.paycore.<app>.<module>
   - `application.provided` 패키지에 `@NamedInterface`가 **빠진** 경우 자체를 검사하는 규칙은 없다(빠지면 첫 모듈 간 사용에서 Modulith verify가 실패한다). 잘못된 위치에 붙인 경우는 위 규칙이 잡는다.
   - application의 파일 API: `java.io`(`File`·`FileInputStream` 등)와 `kotlin.io`(`readText`·`writeText` 등)는 `java..`/`kotlin..` 허용 목록 안이라 `applicationDependsOnlyOnPorts`가 막지 않는다(금지 JDK 목록은 `java.nio.file`만 포함). application에서 파일을 읽고 쓰지 않고 `application.required` Port 뒤에 두는지는 리뷰로 확인한다 (FOUNDATION-001 round4 L-1, CP-DOMAIN-001에서 명시).
   - 입력 검증 위치: `application`(그 공개 API인 `application.provided`의 입력/출력 DTO 포함)은 허용 목록 밖인 `jakarta.validation`(Bean Validation annotation)과 Jackson annotation(`tools.jackson..`·`com.fasterxml.jackson..`)에 의존할 수 없다(RUNTIME annotation도 의존으로 잡혀 `applicationDependsOnlyOnPorts`가 실패시킨다). 따라서 형식 검증·JSON 바인딩은 `adapter.web`의 요청 DTO에서, 업무 불변식은 domain 값 객체/Aggregate 생성자(`init`/`require`)에서 한다. 어느 검증을 web DTO에 둘지/domain에 둘지의 구분 자체는 규칙이 강제하지 않으므로 리뷰로 확인한다 (FOUNDATION-001 round4 Info-2, CP-DOMAIN-001에서 명시).
-  - jOOQ DML 금지: `adapter.query`의 jOOQ `insertInto`/`update`/`delete` 사용은 규칙으로 막지 않는다(§4 정책은 리뷰로 확인).
-  - jOOQ 생성 코드의 테이블 소유권: 생성 클래스는 패키지 단위로만 `adapter.query`에 제한된다. 어느 모듈의 query adapter가 어느 테이블 클래스를 쓰는지(모듈 간 테이블 소유권)는 검사하지 않는다. 첫 PAYMENT migration 작업에서 테이블 소유 모듈 기준과 함께 정한다(gate).
+  - jOOQ DML 우회: `queryAdapterDoesNotWriteWithJooq`(CP-DB-001)는 jOOQ 쓰기 API 호출을 막지만, 조회 API에 DML 문자열을 넣는 경우
+    (`fetch("DELETE …")`)와 reflection은 정적 검사로 잡지 않는다(리뷰로 확인).
+  - jOOQ 생성 코드의 테이블 소유권(CP-DB-001 결정): PAYMENT DB의 모든 테이블(payment, payment_termination_evidence,
+    order_payment_control, incident_hold, idempotency_request, outbox_event) 소유 모듈은 `payment`다(payment-api의 유일한 업무 모듈).
+    생성 클래스는 패키지 단위로 `adapter.query`에만 제한되고, "테이블 → 소유 모듈" 규칙은 **이월**한다: 지금은 다른 모듈이 없어 규칙이
+    자명하게 통과할 뿐이므로, 두 번째 업무 모듈이 PAYMENT DB 테이블을 갖게 되는 작업에서 소유 맵 규칙과 위반 fixture를 함께 도입한다.
   - domain의 `java.io`·`java.lang.System`(시계)·`java.lang.Thread` 등 JDK 내부 부작용 API는 허용 목록 안이라 막지 않는다. 시계·ID 생성은 리뷰로 Port/값 주입을 확인한다.
   - domain·application의 `java.lang.management`(JMX/MXBean), `ProcessBuilder`·`Runtime.exec`(둘 다 `java.lang`)는 금지 JDK 목록에 없다. `java.lang` 전체를 막을 수 없어 패키지 규칙으로 표현하지 않으며, 리뷰로 확인한다.
   - base root의 `@SpringBootApplication` 클래스 자체에 붙는 내용(예: `@Bean` 메서드)과 facade 파일의 다른 최상위 함수는 이름 규칙만으로 막지 않는다. 단 그 클래스가 영속 기술 타입에 직접 의존하면 `persistenceTechnologyOnlyInPersistenceAdapter`가 잡는다.
@@ -82,7 +87,7 @@ com.paycore.<app>.<module>
 
 - 생성 위치: `build/generated-sources/jooq/**`(커밋하지 않음). Flyway migration을 실제 MySQL 8.4 컨테이너에 적용한 schema에서 생성한다.
 - 생성 패키지는 Modulith 업무 모듈이 아니다. Modulith 모듈 목록에서 제외하고, 접근은 `adapter.query`로 제한한다.
-- 업무 테이블에 대한 jOOQ DML은 기본 정책 밖이다(TECHNOLOGY §4). 필요하면 별도 adapter와 근거를 검토한다.
+- 업무 테이블에 대한 jOOQ DML은 기본 정책 밖이다(TECHNOLOGY §4). `adapter.query`의 jOOQ 쓰기는 ArchUnit `queryAdapterDoesNotWriteWithJooq`가 막는다(§3, CP-DB-001). 필요하면 별도 adapter와 근거를 검토한다.
 
 ## 5. 공통 빌드·시험 기반
 
@@ -92,9 +97,9 @@ com.paycore.<app>.<module>
 
 ## 6. 하지 않은 것
 
-- Port 시그니처·application·adapter(CP-CONTRACT-001, CP-API-001, CP-DB-001). 첫 업무 모듈의 domain은 §7(CP-DOMAIN-001).
-- Outbox/Inbox/Dispatcher 계약(ADR-001 제안을 별도 작업에서 확정).
-- 소유 DB별 migration/runtime 계정 분리(CP-DB-001).
+- web adapter·eligibility Port 구현·ID 생성기·요청 fingerprint r1 계산·오류 HTTP 매핑(CP-API-001). 영속 Port·application TX는 §9(CP-DB-001).
+- Outbox Relay(lease·재발행·published 표시)·Inbox·Dispatcher(ADR-001 제안을 별도 작업에서 확정). Outbox append는 §9.
+- 소유 DB별 migration/runtime 계정 분리의 compose/운영 적용(권한 경계 결정·시험은 §9, CP-DB-001).
 
 ## 7. payment-api 첫 업무 모듈 `payment` (CP-DOMAIN-001)
 
@@ -111,7 +116,7 @@ com.paycore.<app>.<module>
 | 판정 우선순위 | 고정 입력 불일치 → incident hold(활성 시도여도 Blocked(INCIDENT_HOLD)+기존 paymentId, D-CPD-004) → 과거 승인 성공 → 현재 상태·근거(표 밖 교차 근거 불인정, D-CPD-003) | 모든 거절 경로는 새 Payment를 만들지 않으므로 순서는 응답 분류만 바꾼다(금융 효과 동일) |
 | 늦은 성공 hold | `reportSuccessAfterTermination`은 (paymentId, reason)당 hold 하나(중복 보고 no-op) | 같은 늦은 성공이 응답·통보·조회로 여러 번 와도 사건은 하나다. 영속 유일성은 CP-DB-001의 UNIQUE(orderKey, paymentId, reason) |
 | 슬롯 "해제" | 별도 release 연산 없음. 현재 Payment(currentPaymentId+generation 일치)의 D-CPD-002 충분 근거가 해제다 | 오래된 Payment의 결과는 현재 Payment가 아니므로 해제가 되지 않는다(CP-09). control에 상태를 중복 저장하지 않는다 |
-| 복원 factory | 아직 없음 | 시험 편의 API를 production에 두지 않는다(Test Fixture Policy). 영속 복원 factory·Mapper는 CP-DB-001에서 실제 adapter와 함께 추가 |
+| 복원 factory | `Payment.reconstitute`·`OrderPaymentControl.reconstitute`(CP-DB-001) — persistence Mapper 전용. 저장 상태가 domain에서 존재할 수 없으면(종료 근거가 FAILED/EXPIRED 밖, generation < 1, 중복 hold) 거부 | 시험 편의 API를 production에 두지 않는다(Test Fixture Policy): Named Test Fixture는 계속 `request`·`open`·전이 메서드로 상태를 만든다. 복원 factory는 실제 adapter의 Mapper가 쓰는 공식 경로 |
 | 시험 | 새 domain 시험은 Kotest BehaviorSpec + Named Test Fixture(`PaymentFixture`·`OrderPaymentControlFixture`·`OrderFixture`, src/test만), D-CPD-002 기대값은 시험 oracle(`TerminationEvidenceOracle`)에 독립 기술. Fixture Monkey는 이번에 도입하지 않음 | Test Fixture Policy(2026-10-06), Coordinator 결정 |
 
 JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaPaymentEntity`·`JpaOrderPaymentControlEntity`가 adapter.persistence에서 이 domain 상태를 저장한다. **예** — control의 `generation`은 업무 의미(몇 번째 시도가 슬롯을 점유했나)이고, JPA `@Version`은 같은 행을 동시에 고쳤는지 감지하는 기술 값이라 따로 둔다. **이유** — generation 비교는 오래된 결과를 업무 규칙으로 거부하고, `@Version`/행 잠금/UNIQUE(OrderKey)는 두 요청이 같은 판정을 동시에 내리는 경쟁을 DB에서 막는다(domain 단위 시험은 이 경쟁의 증거가 아니다). **주의** — domain 객체는 JPA가 변경 감지하지 않으므로 Mapper가 상태·근거 목록(append-only)·generation·version을 함께 반영해야 하고, stale domain을 최신 Entity에 덮어써 Version 검사를 우회하면 안 된다.
@@ -133,3 +138,38 @@ JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음)
 | HTTP 매핑 | 신규 201, 같은 키 재요청·활성 재사용 200, 업무 거절 409, eligibility 404/422/503 (계약 §9) | 금융 의미 없는 응답 표현 선택 |
 
 JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaPaymentEntity`가 `Money`를 `amount_minor BIGINT` + `currency CHAR(3)` 두 컬럼으로, `OrderIntentFingerprint`를 문자열 컬럼으로 저장하고 Mapper가 domain 값 객체로 되돌린다. **예** — DB에서 읽은 `amount_minor=1050, currency='USD'`는 Mapper에서 `Money(1050, CurrencyCode("USD"))`가 되며 생성자 검증을 다시 통과한다. **이유** — domain에 `@Embeddable`·`AttributeConverter`를 붙이지 않아 순수성을 지키고, 컬럼 CHECK·collation(D-CP-001)과 생성자 검증이 같은 규칙을 이중으로 지킨다. **주의** — JPA가 `BigDecimal`·`Double` 매핑을 기본 제안해도 금액은 `Long`만 쓴다. 저장 키를 복원할 때 형식 검증이 실패하면(규칙 축소 등) 조용히 건너뛰지 말고 오류로 드러낸다. dirty checking은 Entity만 추적하므로 Mapper가 값 객체를 Entity 필드로 다시 반영해야 한다. 짝 없는 서로게이트가 든 문자열은 JDBC 드라이버의 UTF-8 변환에서 `?`로 바뀌어 저장될 수 있어 `mid\uD800`과 `mid?`가 같은 키 컬럼 값이 된다. 그래서 Entity에 넣기 전 domain 생성자(`MerchantAccountId`·`MerchantSiteId`)가 거부한다 — UNIQUE 제약은 이미 바뀐 값만 보므로 이 병합을 막지 못한다.
+
+## 9. PAYMENT 영속화·로컬 TX 관례 (CP-DB-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-CP-001·D-CP-002·D-CPC-002~007·D-CPD-002~004와 CP-CONTRACT-001 §8–§12이며 새 금융 정책은 없다.
+코드: `apps/payment-api/src/main/resources/db/migration/payment/V1__payment_core.sql`, `payment.application`(provided/required/서비스), `payment.adapter.persistence`.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| migration | 운영 첫 migration `V1__payment_core.sql`(main). 시험 전용 `db/testmigration/payment/V900__tech_smoke.sql`과 버전이 겹치지 않는다. 모든 문자열 컬럼 `utf8mb4` + `utf8mb4_0900_bin`(NO PAD binary)을 테이블 기본값과 키·fingerprint 컬럼에 명시. 시각은 UTC `DATETIME(3)` | D-CP-001(서버 기본 `utf8mb4_0900_ai_ci` 상속 금지). `PaymentSchemaSpec`이 information_schema와 실제 INSERT(대소문자·후행 공백이 다른 키는 다른 키)로 검사 |
+| DB 제약 | `CHECK(amount_minor >= 1)`, `currency CHAR(3)` + `REGEXP_LIKE('^[A-Z]{3}$','c')`, environment·status·method·결과 종류 CHECK, `expires_at = created_at + 30일` CHECK, UNIQUE: 멱등 범위(environment, MID, operation, key)·`payment_key`·(주문, `slot_generation`)·outbox `event_id`/`effect_key`·incident hold(OrderKey, paymentId, reason). payment에 (environment, MID, orderId) UNIQUE 없음 | 계약 §12. (주문, slot_generation) UNIQUE는 새 정책이 아니라 domain `occupy`(generation +1당 Payment 하나)의 DB 안전망이며 주문 조회 인덱스를 겸한다 |
+| FK | 자식 행(종료 근거 → payment, hold → control)만 FK. control.current_payment_id·멱등 result_payment_id에는 FK 없음 | 잠금 순서(멱등 → control → Payment)대로 삽입하므로 참조가 먼저 생긴다(MySQL에 지연 FK 없음). 원자성은 같은 로컬 TX, 고아 없음은 rollback 시험 |
+| 잠금 순서 | 멱등 기록 → OrderPaymentControl → Payment. 같은 슬롯을 바꾸는 다른 Use Case(늦은 성공 보고 등)도 control → Payment | 계약 §11. 역순 TX와의 교착은 InnoDB가 감지하고 서비스가 재시도한다(`CreatePaymentConcurrencySpec`) |
+| 최초 insert 경쟁 | `INSERT … ON DUPLICATE KEY UPDATE <no-op>`(native) 후 `SELECT … FOR UPDATE`. 목록 SELECT 후 INSERT 금지 | 행이 이미 있으면(다른 TX가 미커밋이어도) 그 행 잠금을 기다리고 커밋 뒤 최신 값을 읽는다. JPA persist로 중복을 시도하면 flush 실패가 TX를 rollback 전용으로 만들어 같은 TX에서 수렴할 수 없다. mutation(SELECT 후 INSERT)은 경합 시험에서 1062로 실패했다 |
+| 격리 수준 | Use Case TX는 READ COMMITTED | 판정 행은 잠금 읽기로 최신 커밋을 보고, 비잠금 읽기도 TX 시작 스냅샷에 묶이지 않는다. 갭 잠금을 줄인다 |
+| TX 경계 | application `LocalTransactions`가 TX를 소유(이미 TX 안이면 거부). `PlatformTransactionManager`를 직접 쓴다(TransactionTemplate 아님) | TransactionTemplate은 rollback 실패 예외로 원래 예외를 덮어써(연결 끊김 시 `JpaSystemException`) application이 분류할 수 없었다. commit 전 실패는 원래 예외 보존(rollback 실패는 suppressed) |
+| DB 충돌 예외 처리(FOUNDATION round4 L-2) | persistence adapter가 Port 메서드 안에서 flush하고 `PersistenceFailures`가 원인 사슬의 MySQL 코드로 `PersistenceFailure`(application.required)로 바꾼다: 1062 → `UniqueConflict(StoreConstraint)`(키 값은 버림), JPA version 충돌 → `OptimisticConflict`, 1213 → `Deadlock`, 1205 → `LockTimeout`, SQLState 08xxx/연결 예외 → `Unavailable`. CHECK 위반 등 결함은 분류하지 않는다. application은 `org.springframework.dao`를 모른다 | **충돌만 수렴**: 교착·내부 경합(오래된 판정·version 충돌·같은 generation 선점)만 DB rollback 확인 뒤 새 TX로 같은 의도를 재실행(최대 3회, 기술 설정). 같은 키 대기 timeout → `RequestInProgress`(409 IN_PROGRESS), 그 밖 timeout·연결 오류·재시도 소진 → `TemporarilyUnavailable`(503), 서버 생성 ID 충돌 → `IdentifierCollision`(사용자 payload 충돌 아님), **commit 단계 예외 → `OutcomeUnknown`**(같은 키 재요청으로 확인, 새 키 금지). HTTP 매핑은 CP-API-001 |
+| 갱신 Port와 version | Port는 `Versioned(value, version)`를 돌려주고 갱신 Port는 기대 version을 받는다. 다르면 `OptimisticConflict` | 오래된 domain 객체로 최신 행을 덮어쓰지 않는다(mutation으로 확인). 자식 행만 늘면 `PESSIMISTIC_FORCE_INCREMENT`로 Aggregate version을 올린다 |
+| 멱등 기록 | 예약은 같은 TX의 `PENDING` 행(커밋된 PENDING은 결함으로 본다). 결과: `SUCCESS`(CREATED/EXISTING_ACTIVE_PAYMENT) 또는 `REJECTED`(domain 판정 이름) + Payment 참조. 재생 응답은 Payment의 생성 시 불변 컬럼(`updatable=false`)에서 다시 읽는다. 만료(요청 시각 ≥ expires_at) 행은 삭제 전이라도 재생하지 않고 같은 잠긴 행을 새 요청으로 갱신(`request_record_id` 교체) | D-CPC-004·007, D-CP-003. 응답 JSON을 저장하지 않아 저장 값과 Payment가 어긋날 여지가 없다. `request_record_id` = 이벤트 causationId |
+| eligibility | required Port `PaymentEligibilityPort.evaluate(environment, authenticatedMid, merchantSiteId, currency, paymentMethod, evaluatedAt)`(계약 §13 모양)를 `CreatePaymentService`가 주입받아 **command 값**과 요청 시각(ms)으로 멱등 예약 뒤·주문 판정 전 같은 TX에서 호출(재생이면 호출 안 함, 교착 재시도 TX마다 다시 평가). Eligible이 아니면 TX 전체 rollback 후 `CreatePaymentResult.EligibilityRefused(NotFoundOrForbidden / NotEligible(4종) / Unavailable(3종))` — 저장 없음. Eligible이라도 `validUntil ≤ evaluatedAt`이면 Unavailable(SNAPSHOT_EXPIRED)(fail-closed 방어), `currencyUnit.code ≠ 요청 통화`면 Port 결함으로 실패(저장 없음). Port 예외는 rollback 후 그대로 전달. Payment `eligibility_snapshot_version`은 Eligible 결과에서만 | 계약 §3.2 순서·§9(eligibility 거절은 저장 안 함)·§13. Port 구현은 로컬 Snapshot만 읽고 원격 호출 금지(DB 잠금 보유 중). **운영 bean 없음(M-1 결정)**: 구현은 MASTER-SNAPSHOT-001/CP-API-001. "모두 Unavailable" 같은 기본 구현도 두지 않는다 — Port가 필수 생성자 인자라 bean이 없으면 컨텍스트 기동이 실패한다(검사 없이 결제가 생성되는 상태 없음). 시험은 `EligibilityTestConfig`(`RecordingEligibilityPort`, Demo Snapshot)를 Import. 증거 `CreatePaymentEligibilitySpec`·`EligibilityPortWiringSpec` |
+| Outbox | CREATED일 때만 PaymentRequested v1을 같은 TX로 append(`PENDING`). `aggregateVersion` = Payment 최초 JPA version **0**, `effect_key` = `PaymentRequested:{paymentId}`, payload는 계약 필드만(paymentKey·orderName 제외, amount는 JSON 정수, 시각 UTC ms) | D-CPC-003, 계약 §10. Relay·Inbox는 후속. Kafka/Redis는 도입하지 않았다(ADR-001) — 금융 안전성은 DB 제약·로컬 TX·Outbox가 보장하며 브로커/캐시가 이를 대체하지 않는다 |
+| incident hold | `incident_hold` append-only 행 + UNIQUE(OrderKey, paymentId, reason). 보고 Use Case는 control 잠금으로 직렬화하고 domain no-op으로 수렴, UNIQUE 충돌은 재판정 재시도 | CP-DOMAIN-001 M-3. 동시 8회 보고 → 1건(`IncidentHoldConvergenceSpec`) |
+| 계정 분리 | 운영은 소유 DB마다 migration 계정(해당 DB ALL)과 runtime 계정(SELECT/INSERT/UPDATE/DELETE)을 분리한다 | `DatabaseAccountSeparationSpec`이 실제 MySQL에서 runtime 계정의 Flyway 실행·CREATE/ALTER/DROP/TRUNCATE·다른 DB 조회 거부를 확인. compose 적용(migration 계정 비밀번호 주입, `spring.flyway.user`)은 compose.yaml·.env.example 변경이 필요한 후속 |
+| 자동 Fixture | Fixture Monkey(테스트 전용)는 프로젝트 Fixture(`RandomCreatePaymentFixture`) 안에서만 쓰고, 공식 생성자로 정상 값을 만든다(seed 고정). Instancio 금지. runtime 유입은 `verifyRuntimeHasNoTestTools`, Instancio는 `verifyNoInstancio`(check 의존) | Test Fixture Policy. 핵심 업무 규칙 시험은 명시 Fixture |
+| 시험 기반 | `@PaymentDbTest`(실제 MySQL 8.4.11 Testcontainers, 시험 전용 lock wait 8초·pool 16), `FaultInjectionConfig`(Port 성공 직후 hook — 장애 주입·경합 붙잡기), 잠금 대기 관찰은 `performance_schema.data_lock_waits` | `information_schema.INNODB_TRX`는 0.1초 유휴 뒤에만 갱신되는 캐시라 짧은 간격 관찰에서 오래된 값을 보여 경합 관찰이 실패했다. Mock 단독은 경합 증거로 쓰지 않는다 |
+
+### 9.1 JPA 선택 설명(이번 코드 기준: 역할 → 예 → 이유 → 주의)
+
+- **Entity와 순수 Domain 분리.** 역할: `JpaPaymentEntity`·`JpaOrderPaymentControlEntity` 등은 행 모양만 갖고 `PaymentPersistenceMapper`가 domain과 변환한다. 예: `amount_minor=1050, currency='USD'` → `Money(1050, CurrencyCode("USD"))`(생성자 재검증), 형식 밖 저장 키(`'bad order'`)는 복원 시 `IllegalArgumentException`. 이유: domain에 JPA annotation이 없어 순수성 규칙과 DB 제약이 같은 규칙을 이중으로 지킨다. 주의: Entity는 data class가 아니고 equals/hashCode는 바뀌지 않는 식별자(업무 ID·자연 키)만, toString은 식별자만. 필드는 `protected set`(Hibernate가 채우는 필드를 final로 두지 않음), 생성 불변 컬럼은 `updatable=false`.
+- **변경 감지(dirty checking).** 역할: 잠가 읽은 Entity는 영속성 컨텍스트가 관리하므로 `row.status = …`만으로 flush 때 UPDATE가 나간다(save 불필요). 예: `JpaPaymentStore.update`. 이유: 바뀐 컬럼만 UPDATE하고 `@Version` 조건을 자동으로 붙인다. 주의: domain 객체는 추적되지 않으므로 Store가 Mapper로 값을 옮겨야 하고, 옮기기 전에 기대 version을 비교한다. Spring Data `save`는 version이 있는 Entity에 merge(덮어쓰기)가 될 수 있어 새 행은 `persist`만 쓴다.
+- **flush와 commit의 차이.** 역할: 각 쓰기 Port 끝의 `flush()`가 SQL을 이 TX 연결로 보내 제약 위반·잠금 충돌을 Port 안에서 드러낸다. 예: 중복 `payment_key` → Port 안에서 `UniqueConflict(PAYMENT_KEY)`. 이유: commit 시점 예외는 원인 분류가 어렵고 "커밋 불명확"과 섞인다. 주의: flush된 행도 commit 전에는 다른 TX에 보이지 않고 rollback되면 사라진다(`CreatePaymentRollbackSpec`이 각 Port flush 뒤 실패를 주입해 확인). flush 실패 뒤 그 TX는 rollback 전용이라 같은 TX에서 재시도하지 않는다.
+- **`@Version`(동시 수정 감지)과 generation(업무).** 역할: `version`은 JPA가 `UPDATE … WHERE version = ?`로 올리는 기술 값, `generation`/`slot_generation`은 몇 번째 시도가 슬롯을 점유했는지의 업무 값. 예: 새 Payment 점유 시 control generation 1 → 2(업무)와 version 0 → 1(기술)이 각각 바뀐다. 이유: generation 비교는 오래된 결과를 업무 규칙으로 거부하고, version·행 잠금·UNIQUE는 같은 판정을 동시에 내리는 경쟁을 DB에서 막는다. 주의: 이벤트 `aggregateVersion`은 JPA version 최초값 0이다(업무 generation이 아님).
+- **비관적 잠금 읽기(`@Lock(PESSIMISTIC_WRITE)`).** 역할: 판정에 쓰는 멱등 행·control·현재 Payment를 `SELECT … FOR UPDATE`로 읽는다. 예: 다른 키 8개가 같은 새 주문을 동시에 요청하면 7개가 control 행에서 기다렸다가 먼저 커밋된 Payment를 재사용한다. 이유: 낙관적 version만으로는 "활성 Payment 하나"를 지키지 못한다(서로 다른 Payment 행 사이의 경쟁). 주의: 잠금은 최소 행·고정 순서로만, 외부 호출 동안 쥐지 않는다. timeout(1205)은 문장만 되돌릴 수 있으므로 TX 전체를 rollback한다.
+- **연관 매핑·LAZY 미사용.** 역할: 종료 근거·incident hold는 `@OneToMany`가 아니라 별도 Entity로 adapter가 INSERT만 한다. 이유: cascade·orphanRemoval이 append-only 사실을 지우거나 LAZY 로딩이 N+1·직렬화 문제를 만드는 경로가 구조적으로 없다. 주의: 조회 화면용 목록은 jOOQ query adapter(조회 전용 규칙)에서 만든다. OSIV는 꺼져 있다.
+- **`@Transactional(MANDATORY)` Port.** 역할: Store는 application이 연 TX 안에서만 동작한다. 예: TX 없이 `lock()` 호출 → `IllegalTransactionStateException`. 이유: TX 경계·재시도·rollback 판단을 application이 소유한다. 주의: Use Case 자체는 이미 열린 TX 안에서 호출되면 거부한다(바깥 TX에 섞이지 않음).
+- **시각 매핑(UTC 저장, CP-DB-001 M-2).** 역할: `Instant` ↔ `DATETIME(3)`(시간대 없는 벽시계 값)을 항상 UTC 벽시계로 쓰고 읽는다. 서비스가 ms로 자른다(30일 CHECK와 Java 계산이 같은 값). 예: `2026-10-07T01:02:03.456Z`는 JVM이 Asia/Seoul이어도 `2026-10-07 01:02:03.456`으로 저장되고 멱등 `expires_at`은 `2026-11-06 01:02:03.456`(`UtcStorageSpec`, 원문은 별도 연결의 `CAST(... AS CHAR)`). 이유: 두 겹으로 고정한다 — (1) `hibernate.jdbc.time_zone=UTC`: Hibernate가 JPA·native query 파라미터를 UTC Calendar로 바인딩(이것만으로 JPA 경로는 처음부터 UTC였다), (2) Hikari driver 속성 `connectionTimeZone=UTC` + `forceConnectionTimeZoneToSession=true`: Hibernate를 거치지 않는 plain JDBC(jOOQ 조회·raw SQL)도 UTC로 변환하고 세션 `time_zone`을 `+00:00`으로 맞춘다. (2) 없이는 Asia/Seoul JVM에서 plain JDBC가 `10:02`로 쓰고 `01:02`을 전날 `16:02Z`로 읽었다(RED). URL이 아니라 driver 속성이라 시험(ServiceConnection URL)·운영(환경변수 URL) 모두 같은 값이 적용된다. 주의: 시간대 이름 테이블이 없는 MySQL에서도 동작하도록 driver가 offset(`+00:00`)으로 세션을 설정한다. DB 기본값 `CURRENT_TIMESTAMP`는 쓰지 않는다(시각은 서버 clock 값을 애플리케이션이 넣음). jOOQ 생성 코드의 `DATETIME`은 `LocalDateTime`(UTC 벽시계)이므로 `Instant`로 바꿀 때 `ZoneOffset.UTC`를 쓴다(시스템 시간대 금지).

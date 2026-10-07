@@ -20,3 +20,42 @@ dependencies {
     // Mockito 제외는 paycore.kotlin-base의 테스트 classpath exclude가 담당한다.
     "testImplementation"(catalog.findLibrary("spring-boot-starter-test").get())
 }
+
+// ---------------------------------------------------------------------------------------------
+// 실행 단위 runtime에 테스트 전용 도구가 새지 않는다(Test Fixture Policy: Fixture Monkey는 테스트 전용, CP-DB-001).
+// runtimeClasspath(배포물·SBOM 대상)에 아래 group이 있으면 check가 실패한다. 테스트 classpath는 대상이 아니다.
+// ---------------------------------------------------------------------------------------------
+val testOnlyGroups = listOf(
+    "com.navercorp.fixturemonkey:",
+    "org.instancio:",
+    "net.jqwik:",
+    "io.kotest:",
+    "io.mockk:",
+    "com.ninja-squad:springmockk:",
+    "com.tngtech.archunit:",
+    "org.testcontainers:",
+)
+
+val verifyRuntimeHasNoTestTools = tasks.register("verifyRuntimeHasNoTestTools") {
+    group = "verification"
+    description = "Fails if a test-only tool (Fixture Monkey, Instancio, jqwik, Kotest, MockK, ArchUnit, Testcontainers) is on runtimeClasspath."
+    val runtimeModules = configurations.named("runtimeClasspath").flatMap { it.incoming.resolutionResult.rootComponent }.map { root ->
+        val modules = linkedSetOf<String>()
+        val visited = mutableSetOf<Any>()
+        val queue = ArrayDeque<org.gradle.api.artifacts.result.ResolvedComponentResult>().apply { add(root) }
+        while (queue.isNotEmpty()) {
+            val component = queue.removeFirst()
+            if (!visited.add(component.id)) continue
+            component.moduleVersion?.let { modules += "${it.group}:${it.name}:${it.version}" }
+            component.dependencies.filterIsInstance<org.gradle.api.artifacts.result.ResolvedDependencyResult>().forEach { queue.add(it.selected) }
+        }
+        modules.toList()
+    }
+    doLast {
+        val found = runtimeModules.get().filter { m -> testOnlyGroups.any(m::startsWith) }
+        if (found.isNotEmpty()) throw GradleException("test-only tools on runtimeClasspath (Test Fixture Policy): $found")
+        logger.lifecycle("verifyRuntimeHasNoTestTools: ${runtimeModules.get().size} runtime modules, no test-only tools")
+    }
+}
+
+tasks.named("check") { dependsOn(verifyRuntimeHasNoTestTools) }

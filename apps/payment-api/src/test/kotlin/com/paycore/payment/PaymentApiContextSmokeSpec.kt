@@ -1,5 +1,6 @@
 package com.paycore.payment
 
+import com.paycore.payment.payment.application.EligibilityTestConfig
 import com.paycore.testsupport.MySqlTestContainerConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -14,10 +15,11 @@ import org.springframework.jdbc.core.JdbcTemplate
 
 /**
  * 기술 조합 smoke test: Boot 4 컨텍스트가 실제 MySQL 8.4에 연결되고 Flyway·JPA·jOOQ가 기동하는지 확인한다.
- * 업무 규칙은 검사하지 않는다. migration이 아직 없으므로 pending=0 검사는 첫 migration 전까지 자명하게 참이다.
+ * 업무 규칙은 검사하지 않는다. CP-DB-001부터 운영 migration V1(PAYMENT 업무 테이블)이 있으므로 pending=0과 V1 적용을 함께 본다.
+ * JPA Entity가 생겼으므로 컨텍스트 기동 자체가 `ddl-auto=validate`(migration schema ↔ Entity 매핑 일치) 통과의 증거다.
  */
 @SpringBootTest
-@Import(MySqlTestContainerConfig::class)
+@Import(MySqlTestContainerConfig::class, EligibilityTestConfig::class)
 class PaymentApiContextSmokeSpec(
     private val jdbcTemplate: JdbcTemplate,
     private val flyway: Flyway,
@@ -32,6 +34,7 @@ class PaymentApiContextSmokeSpec(
     test("Flyway runs against payment migration location") {
         flyway.configuration.locations.map { it.descriptor } shouldBe listOf("classpath:db/migration/payment")
         flyway.info().pending().size shouldBe 0
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1")
     }
 
     test("JPA EntityManagerFactory opens") {

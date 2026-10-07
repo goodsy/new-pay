@@ -186,6 +186,17 @@ class PayCoreArchitectureRulesSpec : FunSpec({
             withGenerated = true,
         ),
         Case(
+            "queryAdapterDoesNotWriteWithJooq", PayCoreArchitectureRules::queryAdapterDoesNotWriteWithJooq, "$F.jooqdml.ok",
+            listOf(
+                // CP-DB-001(FOUNDATION L-2 이월): query adapter의 jOOQ insert/update/delete/raw execute/record store.
+                Violation("$F.jooqdml.badinsert", "OrderInsertingQuery"),
+                Violation("$F.jooqdml.badupdate", "OrderUpdatingQuery"),
+                Violation("$F.jooqdml.baddelete", "OrderDeletingQuery"),
+                Violation("$F.jooqdml.badraw", "RawSqlQuery"),
+                Violation("$F.jooqdml.badrecord", "RecordStoringQuery"),
+            ),
+        ),
+        Case(
             "integrationAdapterIsEncapsulated", PayCoreArchitectureRules::integrationAdapterIsEncapsulated,
             "$F.integration.ok",
             listOf(
