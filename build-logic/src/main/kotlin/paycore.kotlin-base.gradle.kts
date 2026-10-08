@@ -38,6 +38,11 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     // 테스트 0건은 성공이 아니다(HARNESS-GUIDE §7).
     failOnNoDiscoveredTests = true
+    // 메모리 상한(MASTER-BOOT-001, 측정 근거: docs/repository/TECH-BASELINE.md §7). 모듈마다 test JVM 하나만 쓰고(병렬 fork 없음 —
+    // DB 시험은 Spring 컨텍스트마다 MySQL 컨테이너를 띄우므로 fork를 늘리면 컨테이너도 늘어난다), heap 상한을 JVM 기본값(물리 메모리의 1/4)
+    // 대신 고정한다. 실행되는 시험·판정 기준은 바뀌지 않는다. Testcontainers 재사용(withReuse)은 쓰지 않는다(매 실행 새 컨테이너).
+    maxParallelForks = 1
+    maxHeapSize = "1g"
 }
 
 // ---------------------------------------------------------------------------------------------

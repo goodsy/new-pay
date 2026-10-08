@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "status": "REGISTERED_BY_HARNESS_001",
   "contract": "docs/repository/HARNESS-VERIFICATION-CONTRACT.md",
   "note": "argv는 WSL 안에서 workingDirectory 기준으로 shell 없이 실행한다(VERIFY-GATE가 subprocess argv로 실행). 모델 문자열을 argv에 조합하지 않는다. 빈 결과/0건/오래된 보고서/환경 오류는 성공이 아니다.",
@@ -55,9 +55,9 @@
       ],
       "timeoutSeconds": 120,
       "env": {},
-      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture, SBOM gradle argv의 --no-build-cache/--rerun-tasks, SBOM 미재생성)",
+      "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture, SBOM gradle argv의 --no-build-cache/--rerun-tasks, SBOM 미재생성); module-registry(settings.gradle.kts 모듈 ↔ GRADLE-CHECK expectedReports/outputMustMatch·TEST-SUMMARY 경로·하한 일치·GRADLE-DEPS-<APP>·cve-scan MODULES·이 하한 = harness 시험 수)",
       "expectedReports": [],
-      "minTests": 59,
+      "minTests": 68,
       "sideEffects": "임시 디렉터리만 사용. -B로 __pycache__ 미생성",
       "countRegex": "^Ran (\\d+) tests?",
       "outputMustMatch": [
@@ -82,16 +82,18 @@
       "env": {},
       "purpose": "Kotlin 컴파일(경고=오류) + 전체 테스트(Kotest, ArchUnit/Modulith, Testcontainers MySQL 8.4.11, jOOQ codegen 포함). 검증 실행은 build cache/up-to-date 결과를 재사용하지 않는다(FROM-CACHE 보고서는 증거 아님). --console=plain(ANSI 없음)으로 task별 결과 줄을 고정 출력해 실행 여부를 출력 규칙으로 검사. verbose는 ANSI 제어문자로 정규식이 깨져 쓰지 않는다. 테스트 XML(system-out의 컨테이너 시작 로그 포함)을 증거에 보관",
       "expectedReports": [
+        "apps/master-api/build/test-results/test/TEST-*.xml",
         "apps/payment-api/build/test-results/test/TEST-*.xml",
         "apps/financial-batch/build/test-results/test/TEST-*.xml",
         "apps/internal-admin/build/test-results/test/TEST-*.xml",
         "libs/test-support/build/test-results/test/TEST-*.xml"
       ],
-      "minTests": 562,
+      "minTests": 606,
       "followWith": "TEST-SUMMARY",
       "sideEffects": "build/ 산출물 생성. jOOQ codegen과 테스트가 Docker에 mysql:8.4.11 및 testcontainers/ryuk 컨테이너를 일시 기동 후 제거. 운영 DB/endpoint 접근 없음",
       "outputMustMatch": [
         "^BUILD SUCCESSFUL",
+        "^> Task :apps:master-api:test$",
         "^> Task :apps:payment-api:test$",
         "^> Task :apps:financial-batch:test$",
         "^> Task :apps:internal-admin:test$",
@@ -115,7 +117,8 @@
         "harness/scripts/test-summary.py",
         "--not-before",
         "NOT_BEFORE_UTC",
-        "562",
+        "606",
+        "apps/master-api/build/test-results/test",
         "apps/payment-api/build/test-results/test",
         "apps/financial-batch/build/test-results/test",
         "apps/internal-admin/build/test-results/test",
@@ -156,6 +159,23 @@
       "expectedReports": [],
       "minTests": null,
       "sideEffects": "없음(읽기 전용)"
+    },
+    {
+      "id": "GRADLE-DEPS-MASTER-API",
+      "argv": [
+        "./gradlew",
+        "--no-daemon",
+        "-q",
+        ":apps:master-api:dependencies",
+        "--configuration",
+        "runtimeClasspath"
+      ],
+      "timeoutSeconds": 300,
+      "env": {},
+      "purpose": "master-api resolved runtime dependency tree (버전 고정·보안 patch override 증거). 빌드 파일 변경 시 실행",
+      "expectedReports": [],
+      "minTests": null,
+      "sideEffects": "Gradle 캐시만 사용"
     },
     {
       "id": "GRADLE-DEPS-PAYMENT-API",

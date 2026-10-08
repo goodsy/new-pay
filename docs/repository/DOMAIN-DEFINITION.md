@@ -66,7 +66,7 @@ flowchart LR
 
 | 플랫폼 | 책임 | 원본 DB | 실행 단위(현재 저장소) |
 |---|---|---|---|
-| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | 아직 없음. MASTER-BOOT-001에서 생성 예정(D-CPC-006) |
+| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | `apps/master-api` (`com.paycore.master`, MASTER-BOOT-001에서 생성 — D-CPC-006). 업무 모듈·테이블은 아직 없음(MASTER-DOMAIN-001) |
 | Transaction | 주문 결제 통제, Payment, Authorization/Attempt, 취소·환불 거래 상태, 기관 거래 식별자, Routing 실행 결과 | PAYMENT | `apps/payment-api` (`com.paycore.payment`) |
 | Financial | Acquisition, Settlement, AgentSettlement, Payable, Payout, Adjustment, 대사 결과, Hold | FINANCIAL | `apps/financial-batch` (`com.paycore.financial`) |
 | (화면) | 내부 관리자 화면. 데이터는 소유 플랫폼 API에 위임 | 없음 | `apps/internal-admin` (인증 방식 미결: Q-ADMIN-AUTH) |

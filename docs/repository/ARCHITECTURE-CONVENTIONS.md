@@ -6,6 +6,7 @@
 
 | 실행 단위 | 기본 패키지 | 소유 DB | 비고 |
 |---|---|---|---|
+| apps/master-api | `com.paycore.master` | MASTER | Business·Merchant·Site·Contract·MID·개통·정책 정의 원본(MASTER-BOOT-001에서 실행 단위·DB 기초만 생성, 업무 모듈은 MASTER-DOMAIN-001부터) |
 | apps/payment-api | `com.paycore.payment` | PAYMENT | 승인·취소·환불 요청, 주문 결제 통제 |
 | apps/financial-batch | `com.paycore.financial` | FINANCIAL | 매입·정산·대사·지급 Job |
 | apps/internal-admin | `com.paycore.admin` | 없음 | 화면은 소유 플랫폼 API에 위임 |
@@ -99,7 +100,7 @@ com.paycore.<app>.<module>
 
 - web adapter·eligibility Port 구현·ID 생성기·요청 fingerprint r1 계산·오류 HTTP 매핑(CP-API-001). 영속 Port·application TX는 §9(CP-DB-001).
 - Outbox Relay(lease·재발행·published 표시)·Inbox·Dispatcher(ADR-001 제안을 별도 작업에서 확정). Outbox append는 §9.
-- 소유 DB별 migration/runtime 계정 분리의 compose/운영 적용(권한 경계 결정·시험은 §9, CP-DB-001).
+- 소유 DB별 migration/runtime 계정 분리: 로컬 compose에는 MASTER/PAYMENT 적용됨(MASTER-BOOT-001). 남은 것 — payment-api Flyway 계정 바인딩·표 단위 권한(append-only 표 SELECT/INSERT만)은 PAYMENT-DBACCOUNT-001, FINANCIAL은 Q-BATCH-META 답변 후, 운영 Secret 주입은 운영 작업(권한 경계 결정·시험은 §9, CP-DB-001).
 
 ## 7. payment-api 첫 업무 모듈 `payment` (CP-DOMAIN-001)
 
@@ -159,7 +160,7 @@ JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음)
 | eligibility | required Port `PaymentEligibilityPort.evaluate(environment, authenticatedMid, merchantSiteId, currency, paymentMethod, evaluatedAt)`(계약 §13 모양)를 `CreatePaymentService`가 주입받아 **command 값**과 요청 시각(ms)으로 멱등 예약 뒤·주문 판정 전 같은 TX에서 호출(재생이면 호출 안 함, 교착 재시도 TX마다 다시 평가). Eligible이 아니면 TX 전체 rollback 후 `CreatePaymentResult.EligibilityRefused(NotFoundOrForbidden / NotEligible(4종) / Unavailable(3종))` — 저장 없음. Eligible이라도 `validUntil ≤ evaluatedAt`이면 Unavailable(SNAPSHOT_EXPIRED)(fail-closed 방어), `currencyUnit.code ≠ 요청 통화`면 Port 결함으로 실패(저장 없음). Port 예외는 rollback 후 그대로 전달. Payment `eligibility_snapshot_version`은 Eligible 결과에서만 | 계약 §3.2 순서·§9(eligibility 거절은 저장 안 함)·§13. Port 구현은 로컬 Snapshot만 읽고 원격 호출 금지(DB 잠금 보유 중). **운영 bean 없음(M-1 결정)**: 구현은 MASTER-SNAPSHOT-001/CP-API-001. "모두 Unavailable" 같은 기본 구현도 두지 않는다 — Port가 필수 생성자 인자라 bean이 없으면 컨텍스트 기동이 실패한다(검사 없이 결제가 생성되는 상태 없음). 시험은 `EligibilityTestConfig`(`RecordingEligibilityPort`, Demo Snapshot)를 Import. 증거 `CreatePaymentEligibilitySpec`·`EligibilityPortWiringSpec` |
 | Outbox | CREATED일 때만 PaymentRequested v1을 같은 TX로 append(`PENDING`). `aggregateVersion` = Payment 최초 JPA version **0**, `effect_key` = `PaymentRequested:{paymentId}`, payload는 계약 필드만(paymentKey·orderName 제외, amount는 JSON 정수, 시각 UTC ms) | D-CPC-003, 계약 §10. Relay·Inbox는 후속. Kafka/Redis는 도입하지 않았다(ADR-001) — 금융 안전성은 DB 제약·로컬 TX·Outbox가 보장하며 브로커/캐시가 이를 대체하지 않는다 |
 | incident hold | `incident_hold` append-only 행 + UNIQUE(OrderKey, paymentId, reason). 보고 Use Case는 control 잠금으로 직렬화하고 domain no-op으로 수렴, UNIQUE 충돌은 재판정 재시도 | CP-DOMAIN-001 M-3. 동시 8회 보고 → 1건(`IncidentHoldConvergenceSpec`) |
-| 계정 분리 | 운영은 소유 DB마다 migration 계정(해당 DB ALL)과 runtime 계정(SELECT/INSERT/UPDATE/DELETE)을 분리한다 | `DatabaseAccountSeparationSpec`이 실제 MySQL에서 runtime 계정의 Flyway 실행·CREATE/ALTER/DROP/TRUNCATE·다른 DB 조회 거부를 확인. compose 적용(migration 계정 비밀번호 주입, `spring.flyway.user`)은 compose.yaml·.env.example 변경이 필요한 후속 |
+| 계정 분리 | 운영은 소유 DB마다 migration 계정(해당 DB ALL)과 runtime 계정(SELECT/INSERT/UPDATE/DELETE)을 분리한다 | `DatabaseAccountSeparationSpec`이 실제 MySQL에서 runtime 계정의 Flyway 실행·CREATE/ALTER/DROP/TRUNCATE·다른 DB 조회 거부를 확인. MASTER-BOOT-001에서 로컬 compose(`docker/mysql/init`·compose.yaml·.env.example)에 MASTER/PAYMENT 분리를 적용했고 master-api는 `spring.flyway.user`로 migration 계정을 쓴다(`MasterDatabaseAccountSpec`이 init 스크립트 그대로 확인). 아직 남은 것: payment-api Flyway 계정 바인딩·`init-sqls` UTC, runtime 계정의 DB 단위 DML을 표 단위 권한으로 바꾸고 append-only 표는 SELECT/INSERT만(PAYMENT-DBACCOUNT-001 — 현재 append-only는 DB 권한으로 강제되지 않음), FINANCIAL(Q-BATCH-META). TECH-BASELINE §7.1 참고 |
 | 자동 Fixture | Fixture Monkey(테스트 전용)는 프로젝트 Fixture(`RandomCreatePaymentFixture`) 안에서만 쓰고, 공식 생성자로 정상 값을 만든다(seed 고정). Instancio 금지. runtime 유입은 `verifyRuntimeHasNoTestTools`, Instancio는 `verifyNoInstancio`(check 의존) | Test Fixture Policy. 핵심 업무 규칙 시험은 명시 Fixture |
 | 시험 기반 | `@PaymentDbTest`(실제 MySQL 8.4.11 Testcontainers, 시험 전용 lock wait 8초·pool 16), `FaultInjectionConfig`(Port 성공 직후 hook — 장애 주입·경합 붙잡기), 잠금 대기 관찰은 `performance_schema.data_lock_waits` | `information_schema.INNODB_TRX`는 0.1초 유휴 뒤에만 갱신되는 캐시라 짧은 간격 관찰에서 오래된 값을 보여 경합 관찰이 실패했다. Mock 단독은 경합 증거로 쓰지 않는다 |
 

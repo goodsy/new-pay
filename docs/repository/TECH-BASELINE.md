@@ -108,3 +108,53 @@ BOM 밖 최신값과의 차이(의도적으로 override 안 함): jOOQ 3.21.9, F
 
 - jOOQ 생성 코드의 Modulith 배치와 공통 빌드/시험 기반은 FOUNDATION-001 stage2에서 구현했다(docs/repository/ARCHITECTURE-CONVENTIONS.md). 생성 패키지 제외는 fixture로 증명했고, 실제 main 생성 클래스는 첫 PAYMENT migration 이후 생긴다.
 - 비밀 탐지, CI 연동 → HARNESS-002.
+
+## 7. 실행 단위 모듈과 빌드 메모리 관례 (MASTER-BOOT-001, 2026-10-08)
+
+### 7.1 모듈 목록
+
+| Gradle 모듈 | 종류 | 소유 DB | runtime SBOM/CVE·GRADLE-DEPS |
+|---|---|---|---|
+| `:apps:master-api` | 실행 단위(`com.paycore.master`) | MASTER | 대상 |
+| `:apps:payment-api` | 실행 단위(`com.paycore.payment`) | PAYMENT | 대상 |
+| `:apps:financial-batch` | 실행 단위(`com.paycore.financial`) | FINANCIAL | 대상 |
+| `:apps:internal-admin` | 실행 단위(`com.paycore.admin`) | 없음 | 대상 |
+| `:libs:test-support` | 시험 라이브러리(testImplementation 전용) | 없음 | 대상 아님 |
+
+master-api 기술 구성(버전은 모두 Boot 4.1.1 BOM, 새 catalog 항목·override 없음): webmvc, data-jpa, jooq, flyway(+flyway-mysql), actuator(health만 노출), modulith-api, kotlin-reflect, jackson-module-kotlin, mysql-connector-j(runtimeOnly). 시험: test-support, Kotest, ArchUnit, Testcontainers MySQL 8.4.11, modulith-starter-test. MockK·Fixture Monkey는 아직 쓸 시험이 없어 넣지 않았다(첫 Domain/Application 시험에서 추가).
+
+- jOOQ: `DSLContext`(MySQL dialect)만 기동한다. codegen은 생성할 MASTER 테이블이 없어 **이월**(MASTER-DOMAIN-001에서 payment-api와 같은 방식 — Flyway migration → MySQL 8.4.11 컨테이너 → 생성 코드 `build/`만, `jooqOnlyInQueryAdapter`·생성 패키지 제외 설정 포함). 빈 schema 생성은 컴파일마다 컨테이너 하나를 더 띄우는 비용만 있고 검증 가치가 없다.
+- Flyway: 운영 위치 `classpath:db/migration/master`는 비어 있다(업무 테이블은 MASTER-DOMAIN-001). 시험은 시험 전용 위치(`db/testmigration/master/V900__tech_session_probe.sql`)만 추가한다.
+- 계정 분리(CP-DB-001 결정 적용): 앱 DataSource = runtime 계정(`paycore_master`, MASTER DB DML만), Flyway = migration 계정(`paycore_master_migration`, `spring.flyway.user/password`). PAYMENT도 init 스크립트·compose·.env.example에 같은 두 계정을 만들었다(payment-api application.yml의 Flyway 계정 바인딩·`init-sqls` UTC는 허용 경로 밖이라 PAYMENT-DBACCOUNT-001). 한계: runtime 권한은 DB 단위 DML이라 append-only 표의 UPDATE/DELETE 금지가 DB 권한으로 강제되지 않는다. 표 단위 권한(append-only 표는 SELECT/INSERT만)은 PAYMENT-DBACCOUNT-001, MASTER는 MASTER-DOMAIN-001에서 같은 방식으로 적용한다. FINANCIAL은 Q-BATCH-META 답변 후.
+- UTC: payment-api와 같은 driver 속성(`connectionTimeZone=UTC`, `forceConnectionTimeZoneToSession=true`)과 `hibernate.jdbc.time_zone=UTC`. 계정 분리로 Flyway가 별도 연결을 만들면 이 driver 속성이 넘어가지 않으므로 `spring.flyway.init-sqls: SET time_zone = '+00:00'`을 추가했다(시험 컨테이너 OS 시간대 Asia/Seoul에서 이 줄을 빼면 migration 세션이 `SYSTEM`(+09:00)으로 남는 것을 확인 — MasterUtcSessionSpec).
+
+master-api의 JPA 설정(이번 변경과 연결):
+- `ddl-auto: validate` — 하는 일: 기동 시 Entity 매핑과 실제 schema를 비교만 한다. 예: 지금 master-api는 Entity가 0개라 검사 대상이 없고(smoke가 `metamodel.entities.size == 0` 확인), MASTER-DOMAIN-001에서 Merchant Entity를 추가하면 그 컬럼이 Flyway migration에 없을 때 기동이 실패한다. 이유: schema 기준은 Flyway 하나. 주의: 게다가 runtime 계정은 DDL 권한이 없어 `update/create`로 바꿔도 운영에서는 실패한다 — 권한과 설정이 같은 방향을 가리킨다.
+- `open-in-view: false` — 요청 내내 영속성 컨텍스트·연결을 쥐지 않는다. Master 조회 API는 jOOQ query adapter가 DTO를 만든다(§3과 같은 이유).
+- `hibernate.jdbc.time_zone: UTC` — Hibernate가 시각 파라미터를 UTC Calendar로 바인딩한다. 예: JVM 기본 시간대가 Asia/Seoul이어도 정책 유효 시작 시각 `2026-10-08T01:02:03Z`가 DB에 `2026-10-08 01:02:03`으로 저장된다. 주의: Hibernate 밖 경로(jOOQ·JDBC)는 driver 속성이 맡는다.
+- 순수 Domain과 JPA Entity 분리는 payment-api 관례 그대로다(Entity·Spring Data repository는 `<module>.adapter.persistence`만, ArchitectureSpec이 master-api에도 모든 규칙을 적용).
+
+### 7.2 빌드 메모리 관례와 측정
+
+4번째 실행 단위로 전체 check가 더 무거워져(직전 전체 check에서 WSL 가용 메모리 최저 약 800–900MB, Claude Code 호스트가 Gradle을 두 번 중단) 판정 기준(`--no-build-cache --rerun-tasks`, 모든 test 실행)은 그대로 두고 최대 메모리만 낮췄다. 가역 관례다.
+
+| 설정 | 위치 | 값 | 이유 |
+|---|---|---|---|
+| Kotlin 컴파일 실행 방식 | `gradle.properties`, `build-logic/gradle.properties` | `kotlin.compiler.execution.strategy=in-process` | 이전에는 Kotlin compile daemon이 두 개(build-logic Kotlin DSL용 2.4.x, 앱용 2.3.21) 떠서 각각 RSS 약 1.0GB·1.2GB(`-Xmx2g`)를 쓰고, `--no-daemon` 빌드가 끝난 뒤에도 2시간 idle 동안 남았다(고아 프로세스의 원인). in-process는 Gradle daemon heap(-Xmx2g) 안에서 컴파일한다 |
+| test JVM heap | `build-logic` `paycore.kotlin-base`(모든 Test task) | `maxHeapSize = "1g"` | 기본값은 JVM 기본(물리 메모리의 1/4 ≈ 1.9GB). payment-api 395 시험이 1g에서 통과 |
+| test fork 수 | 같은 곳 | `maxParallelForks = 1`(기본값 명시) | DB 시험은 Spring 컨텍스트마다 MySQL 컨테이너를 띄운다. fork를 늘리면 컨테이너·JVM이 같이 늘어난다 |
+| Gradle daemon heap | `gradle.properties` | `-Xmx2g` 유지 | in-process 컴파일을 담는다. 낮추는 것은 측정 없이 하지 않는다 |
+| `org.gradle.parallel`/`workers.max` | — | 기본값 유지(parallel 꺼짐) | 모듈 간 test task가 동시에 돌지 않는다. 바꿀 필요 없음 |
+| Testcontainers 재사용 | — | 쓰지 않음(`withReuse` 없음) | 매 실행 새 컨테이너가 판정 기준이다 |
+
+측정(같은 명령 `./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks :apps:payment-api:test`, 가장 무거운 모듈, WSL 7.8GB, 2초 간격 `/proc/meminfo` MemAvailable·java RSS 합·컨테이너 수 표본, 사용자 개발 MySQL 컨테이너 1개가 계속 떠 있음):
+
+| | 변경 전(09:28–09:37Z) | 변경 후(09:55–10:02Z) |
+|---|---|---|
+| MemAvailable 최저 | 987MB | 2,063MB |
+| java 프로세스 RSS 합 최대 | 4,508MB(Gradle daemon + Kotlin daemon 2개 + test JVM) | 3,334MB(Gradle daemon + test JVM) |
+| 동시 컨테이너 최대(사용자 1 + ryuk 1 포함) | 5 | 5 |
+| 빌드 후 남은 Kotlin daemon | 2개(약 2.2GB, 수동 종료) | 0 |
+| 소요/결과 | 8m43s, BUILD SUCCESSFUL | 7m32s, BUILD SUCCESSFUL(395 tests) |
+
+남은 큰 항목은 payment-api의 Spring 테스트 컨텍스트별 MySQL 컨테이너(동시 3개)다. 컨텍스트 캐시 크기 제한(`spring.test.context.cache.maxSize`)은 컨텍스트 재생성·컨테이너 재기동 시간과 GRADLE-CHECK timeout(1200초) 영향을 측정한 뒤 결정한다(후속, 이번에는 적용하지 않음). 전체 check 측정 결과는 harness/tasks.json MASTER-BOOT-001 implementation에 기록한다.

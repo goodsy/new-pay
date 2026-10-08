@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
-  "lastSuccessfulStep": "CP-DB-001 DONE (VERIFY-GATE PASS 064546Z 562 tests, REVIEW_PASS round2) on sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02",
+  "codeFingerprint": "sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
+  "lastSuccessfulStep": "MASTER-BOOT-001 DONE (VERIFY-GATE PASS 103345Z 606 tests, REVIEW_PASS round2) on sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)",
     "G-3 계약 용어 (MASTER-DOMAIN-001)"
   ],
-  "nextResumeAction": "MASTER-BOOT-001 → MASTER-DOMAIN-001(G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 전체 check 메모리 여유 최저 ~800-900MB",
+  "nextResumeAction": "PAYMENT-DBACCOUNT-001(표 단위 runtime 권한·payment-api Flyway 계정 바인딩) → MASTER-DOMAIN-001(G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 긴 gate는 WSL 내부 setsid nohup 분리 실행(호스트 메모리 압박 시 백그라운드 명령 회수됨)",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -100,6 +100,28 @@
       "at": "2026-10-07",
       "taskId": "CP-DB-001",
       "event": "DONE on sha256:76e8823861c738acb264a7df1f238c7ded29617e6a7d2d3bc452c74baed4af02"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "CP-DB-001",
+      "event": "pushed db9eb17"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "MASTER-BOOT-001",
+      "event": "claimed"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "MASTER-BOOT-001",
+      "event": "review_round1_fail_fixed",
+      "detail": "REVIEW_FAIL(MAJOR-1 append-only DB 권한 미강제 기록 누락, MINOR-2 payment-api Flyway 바인딩 후속 미등록, MINOR-3 문서) → 기록·주석·문서 수정, fingerprint 7330e4cf…; PAYMENT-DBACCOUNT-001 등록(D1/D2)"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "MASTER-BOOT-001",
+      "event": "done",
+      "detail": "VERIFY-GATE PASS 103345Z(606), GRADLE-DEPS x4·CVE-SCAN PASS, REVIEW_PASS round2 — 같은 fingerprint 7330e4cf…"
     }
   ]
 }

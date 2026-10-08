@@ -7,7 +7,10 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${PAYCORE_MYSQL_ROOT_PASSWORD:?set in .env}
       PAYCORE_MASTER_DB_PASSWORD: ${PAYCORE_MASTER_DB_PASSWORD:?set in .env}
+      # migration 계정(Flyway 전용, 자기 DB ALL). runtime 계정(위)은 DML만 갖는다. docker/mysql/init/01-owned-databases.sh
+      PAYCORE_MASTER_DB_MIGRATION_PASSWORD: ${PAYCORE_MASTER_DB_MIGRATION_PASSWORD:?set in .env}
       PAYCORE_PAYMENT_DB_PASSWORD: ${PAYCORE_PAYMENT_DB_PASSWORD:?set in .env}
+      PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD: ${PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD:?set in .env}
       PAYCORE_FINANCIAL_DB_PASSWORD: ${PAYCORE_FINANCIAL_DB_PASSWORD:?set in .env}
     ports:
       - "127.0.0.1:3306:3306"

@@ -13,6 +13,9 @@ dependencyResolutionManagement {
 }
 
 // 실행 단위별 모듈. 소유 DB 경계: docs/baseline/architecture/01-runtime-deployment-architecture.md
+// MASTER DB만 사용한다(D-CPC-006, MASTER-BOOT-001).
+include(":apps:master-api")
+// PAYMENT DB만 사용한다.
 include(":apps:payment-api")
 // FINANCIAL DB만 사용한다.
 include(":apps:financial-batch")

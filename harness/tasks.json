@@ -1631,7 +1631,8 @@
       "status": "BACKLOG",
       "dependsOn": [
         "CP-DB-001",
-        "MASTER-SNAPSHOT-001"
+        "MASTER-SNAPSHOT-001",
+        "PAYMENT-DBACCOUNT-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -2439,7 +2440,7 @@
       "id": "MASTER-BOOT-001",
       "title": "Master 실행 단위·MASTER DB 기초",
       "phase": "FEATURE",
-      "status": "READY",
+      "status": "DONE",
       "dependsOn": [
         "FOUNDATION-001"
       ],
@@ -2447,6 +2448,261 @@
       "acceptanceCriteria": [
         "apps/master-api(가칭) 실행 단위, MASTER 소유 DB·Flyway·계정 분리, build-logic·test-support·ArchitectureSpec 적용",
         "VERIFY-GATE·TEST-SUMMARY·GRADLE-DEPS·CVE 모듈 등록(HARNESS-VERIFICATION-CONTRACT §7)"
+      ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "settings.gradle.kts",
+        "build-logic/**",
+        "libs/test-support/**",
+        "gradle/libs.versions.toml",
+        "docker/mysql/init/**",
+        "compose.yaml",
+        ".env.example",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/tasks.json",
+        "harness/scripts/cve-scan.py",
+        "harness/scripts/verify-gate.py",
+        "harness/tests/**",
+        "gradle.properties"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator-main-session",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": 10800,
+      "evidence": {
+        "fingerprint": "sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
+        "verifyGate": "build/harness-evidence/MASTER-BOOT-001-2026-10-08T103345Z.json",
+        "evidenceSha256": "c6f20db37a352ab4e374cc07123d751f9ac9a2f7d155729259ae5f7f6b931de2",
+        "verdict": "PASS",
+        "tests": {
+          "master-api": 44,
+          "payment-api": 395,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112,
+          "total": 606
+        },
+        "at": "2026-10-08T10:45:00Z",
+        "depsCve": "GRADLE-DEPS x4(MASTER-API 신규 포함) exit 0, CVE-SCAN PASS 0건·canary 검출(master-api 102/payment-api 107/financial-batch 54/internal-admin 59) — 2026-10-08T10:45–10:48Z 같은 fingerprint 연속 실행",
+        "memoryMinAvailableMB": 3600,
+        "runMode": "WSL 내부 setsid nohup 분리 실행(호스트 메모리 압박으로 Claude Code 백그라운드 명령이 회수된 1회 중단 후)",
+        "priorGate": "102028Z(fingerprint 2a77de38…, 리뷰 수정으로 중단)·103006Z(호스트 메모리 압박 중단, 판정 없음) — 증거 아님"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934"
+      },
+      "origin": "D-CPC-006 (G-1, 2026-10-06)",
+      "coordinatorDecisions": [
+        "2026-10-08 관례: 실행 단위 apps/master-api, 기본 패키지 com.paycore.master, 업무 모듈·도메인 클래스는 만들지 않음(MASTER-DOMAIN-001). 4번째 실행 단위로 전체 check 메모리 여유(최저 ~900MB) 악화 우려 → Gradle/test JVM 메모리·병렬도 설정 검토 포함",
+        "2026-10-08 D1/D2(가역 기술): append-only 표 단위 권한·payment-api Flyway migration 계정 바인딩은 PAYMENT-DBACCOUNT-001로 이월"
+      ],
+      "implementation": {
+        "implementer": "paycore-implementer",
+        "baseRevision": "db9eb17",
+        "recordedAt": "2026-10-08",
+        "selfVerdict": "NOT_DECIDED (구현자는 DONE 판정 금지 — Verifier/Reviewer 대기)",
+        "statusUnchanged": "IN_PROGRESS",
+        "decisions": [
+          "실행 단위 apps/master-api, 기본 패키지 com.paycore.master, MASTER DB만 소유(Coordinator 결정 적용). 업무 모듈·도메인 클래스·정책 값 없음(MASTER-DOMAIN-001)",
+          "의존성: webmvc, data-jpa, jooq, flyway(+flyway-mysql), actuator(health만), modulith-api, kotlin-reflect, jackson-module-kotlin, mysql-connector-j(runtimeOnly). 모두 Boot 4.1.1 BOM(새 catalog 항목·override 없음). MockK/Fixture Monkey는 시험 대상이 생길 때 추가",
+          "jOOQ codegen 이월: 생성할 MASTER 테이블이 없다. DSLContext(MySQL dialect)만 기동·smoke. MASTER-DOMAIN-001에서 payment-api 방식(Flyway→MySQL 8.4.11 컨테이너→build/ 생성, 생성 패키지 Modulith 제외)으로 추가",
+          "Flyway 운영 위치 classpath:db/migration/master는 비어 있음(기술 baseline migration도 두지 않음 — financial-batch와 같은 관례). 시험은 시험 전용 db/testmigration/master/V900__tech_session_probe.sql만 추가",
+          "계정 분리 적용(CP-DB-001 결정): docker/mysql/init에서 MASTER·PAYMENT마다 <db>_migration(자기 DB ALL, Flyway 전용)과 <db>(DML만, 앱 DataSource). FINANCIAL은 Q-BATCH-META 미결이라 기존 단일 계정 유지. compose.yaml·.env.example에 migration 비밀번호 변수 추가(compose는 :?set in .env, .env.example 값은 빈 칸). master-api application.yml: datasource=runtime 계정, spring.flyway.user/password=migration 계정",
+          "UTC: payment-api와 같은 Hikari driver 속성(connectionTimeZone=UTC, forceConnectionTimeZoneToSession=true)·hibernate.jdbc.time_zone=UTC. 계정 분리로 Flyway가 별도 연결을 쓰므로 spring.flyway.init-sqls=SET time_zone='+00:00' 추가(빼면 migration 세션이 SYSTEM으로 남음을 mutation으로 확인)",
+          "시험 DB 구성: @ServiceConnection 대신 실제 init 스크립트를 넣은 MySQL 8.4.11 컨테이너(TZ=Asia/Seoul) + DynamicPropertyRegistrar로 운영과 같은 PAYCORE_MASTER_DB_* 변수를 넣어 application.yml 바인딩 그대로 paycore_master에만 연결. 모든 DB spec이 @MasterDbTest 하나의 컨텍스트/컨테이너 공유",
+          "메모리(가역 관례, TECH-BASELINE §7.2): kotlin.compiler.execution.strategy=in-process(루트·build-logic gradle.properties), 모든 Test task maxHeapSize=1g·maxParallelForks=1(build-logic paycore.kotlin-base). Gradle daemon -Xmx2g·parallel 꺼짐·Testcontainers 재사용 안 함 유지. 판정 기준(--no-build-cache --rerun-tasks, 전 test 실행) 불변",
+          "하네스(HARNESS-VERIFICATION-CONTRACT §7): GRADLE-CHECK expectedReports/outputMustMatch ^> Task :apps:master-api:test$, minTests 562→606, TEST-SUMMARY argv 606+master 경로, GRADLE-DEPS-MASTER-API 추가, cve-scan.py MODULES에 master-api, HARNESS-SELFTEST minTests 59→68(신규 test_module_registry 9: settings 모듈↔등록 누락 검사), commands.json schemaVersion 10→11. verify-gate.py·IMAGE-DIGESTS 변경 없음(새 이미지 없음)",
+          "발견·수정: docker/mysql/init/01-owned-databases.sh 작업 트리 사본이 CRLF였다(index는 LF). 실행 비트가 있어 entrypoint가 실행하면 'env: bash\\r' exit 127로 초기화 실패 — compose 첫 기동도 같은 결과였을 것. LF로 고정(.gitattributes *.sh eol=lf와 일치). docs/repository/TECH-BASELINE.md 작업 트리 CRLF도 LF로 맞춤(index LF)",
+          "Reviewer REVIEW_FAIL 반영(2026-10-08, Coordinator 결정 D1·D2, 기술적·가역): 기록/주석/문서만 수정, 코드·시험·GRANT 변경 없음",
+          "D1(MAJOR-1): 현재 runtime 권한 SELECT,INSERT,UPDATE,DELETE ON <db>.*는 append-only를 DB 수준에서 강제하지 못한다(CP-DB-001 review L-3). DB 단위 GRANT는 더해지기만 해 표 단위로 좁힐 수 없고, init 스크립트는 Flyway의 테이블 생성 전에 실행되며, migration 계정에는 GRANT OPTION이 없어 migration이 GRANT할 수도 없다. 후속 방향(PAYMENT-DBACCOUNT-001, Coordinator가 등록): runtime 계정의 DB 단위 DML 제거, migration 계정에 자기 DB 한정 GRANT OPTION, 테이블을 만드는 migration마다 runtime 계정에 표 단위 권한(append-only 표는 SELECT, INSERT만). MASTER-DOMAIN-001도 같은 방식. init 스크립트 주석을 이 내용으로 교체(이전 주석의 'migration 작업에서 표 단위로 줄인다'는 실현 불가 기술이었다)",
+          "D2(MINOR-2): payment-api application.yml의 Flyway migration 계정 바인딩과 spring.flyway.init-sqls UTC는 PAYMENT-DBACCOUNT-001로. .env.example 임시 방법(SPRING_FLYWAY_USER/PASSWORD)에 그 연결은 Hikari UTC 속성·init-sqls가 없어 세션 time_zone이 SYSTEM이라는 주의 추가(현재 V1은 NOW()/CURRENT_TIMESTAMP 시각 데이터 없음)"
+        ],
+        "stages": [
+          {
+            "stage": "RED-harness",
+            "recordedAt": "2026-10-08",
+            "state": "RED",
+            "red": "test_module_registry: apps/master-api 생성·settings 미포함 상태에서 2 실패(app 디렉터리 미포함, selftest 하한 59≠68). settings 포함 후 HEAD commands.json/cve-scan.py로 실행 시 5 실패+1 오류(GRADLE-CHECK expectedReports·outputMustMatch, TEST-SUMMARY 경로, cve MODULES, 하한, GRADLE-DEPS-MASTER-API 없음)",
+            "green": "등록 후 python3 -B -m unittest discover -s harness/tests: Ran 68, OK"
+          },
+          {
+            "stage": "RED-master-1",
+            "recordedAt": "2026-10-08T09:38:16Z",
+            "state": "RED(환경 아님, 저장소 결함)",
+            "red": ":apps:master-api:test 34 tests 중 7 실패: DB spec 3개 컨텍스트 기동 실패 — 컨테이너 exit 127. 원인: 작업 트리 init 스크립트 CRLF('env: bash\\r', docker run으로 재현). MainConfigurationSpec flyway.user/password 미바인딩 실패"
+          },
+          {
+            "stage": "RED-master-2",
+            "recordedAt": "2026-10-08T09:49:18Z",
+            "state": "RED",
+            "red": "init 스크립트 LF만 고친(내용 기존) 상태, application.yml에 UTC·Flyway 계정 없음: 44 tests 중 9 실패 — installed_by=paycore_master(기대 paycore_master_migration), runtime 계정 CREATE/ALTER/DROP/TRUNCATE 성공(기대 1142), migration 계정 없음(접속 거부, SHOW GRANTS 'no such grant'), 앱 세션 time_zone SYSTEM(기대 +00:00), hibernate.jdbc.time_zone null, plain JDBC Instant 쓰기/읽기가 +09:00로 어긋남, Flyway probe 테이블은 runtime 계정 DROP으로 사라짐. 대조 시험(@@system_time_zone=KST, global SYSTEM)은 통과"
+          },
+          {
+            "stage": "GREEN-master",
+            "recordedAt": "2026-10-08T09:51:55Z",
+            "state": "GREEN",
+            "green": ":apps:master-api:test 44/44 통과(ArchitectureSpec 22, MasterApiContextSmokeSpec 6, MasterDatabaseAccountSpec 5, MasterUtcSessionSpec 5, MainConfigurationSpec 4, TestInfrastructureSpec 2), 1m30s",
+            "mutation": "spring.flyway.init-sqls 제거 시 MasterUtcSessionSpec 'Flyway migration session' 실패(expected +00:00 but was SYSTEM) → 복원"
+          },
+          {
+            "stage": "FULL-CHECK",
+            "recordedAt": "2026-10-08T10:04:11Z..10:15:36Z",
+            "state": "GREEN(구현자 실행, 판정 아님)",
+            "command": "./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks check",
+            "result": "exit 0, BUILD SUCCESSFUL in 11m 24s, 60 actionable tasks: 60 executed. 5개 test task 줄 모두 출력, FROM-CACHE/UP-TO-DATE/NO-SOURCE/SKIPPED test 없음",
+            "tests": {
+              "apps/master-api": 44,
+              "apps/payment-api": 395,
+              "apps/financial-batch": 26,
+              "apps/internal-admin": 29,
+              "libs/test-support": 112,
+              "total": 606,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "testSummary": "harness/scripts/test-summary.py --not-before 2026-10-08T10:04:11Z 606 (5개 경로) → total tests=606 PASS(exit 0)",
+            "deps": "GRADLE-DEPS-MASTER-API exit 0: hibernate-core 7.4.5.Final, jooq 3.21.7, flyway-core 12.4.0, mysql-connector-j 9.7.0, tomcat-embed-core 11.0.24→11.0.26(보안 patch override)"
+          }
+        ],
+        "memoryMeasurements": {
+          "method": "2초 간격 /proc/meminfo MemAvailable, java RSS 합, docker 컨테이너 수(사용자 개발 MySQL 1개 상시 포함). WSL 7.8GB",
+          "before_paymentApiTest": "settings 변경 전 ./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks :apps:payment-api:test: MemAvailable 최저 987MB, java RSS 최대 4,508MB(Kotlin compile daemon 2개 약 1.0GB+1.2GB 포함), 컨테이너 최대 5, 8m43s. 빌드 후 Kotlin daemon 2개(약 2.2GB, idle 7200초) 잔존 → 구현자가 종료",
+          "after_paymentApiTest": "같은 명령, 변경 후: MemAvailable 최저 2,063MB, java RSS 최대 3,334MB, 컨테이너 최대 5, 7m32s, 395 tests 통과, 잔존 daemon 0",
+          "after_fullCheck": "전체 check(5개 모듈): MemAvailable 최저 1,890MB(이전 보고 최저 약 800–900MB), java RSS 최대 3,629MB, 컨테이너 최대 5, 11m24s, 잔존 daemon 0"
+        },
+        "changedFiles": [
+          "apps/master-api/** (신규: build.gradle.kts, MasterApiApplication.kt, application.yml, 시험 7개 파일, testmigration V900)",
+          "settings.gradle.kts",
+          "gradle.properties",
+          "build-logic/gradle.properties(신규)",
+          "build-logic/src/main/kotlin/paycore.kotlin-base.gradle.kts",
+          "docker/mysql/init/01-owned-databases.sh",
+          "compose.yaml",
+          ".env.example",
+          "harness/commands.json",
+          "harness/scripts/cve-scan.py",
+          "harness/tests/test_module_registry.py(신규)",
+          "docs/repository/ARCHITECTURE-CONVENTIONS.md",
+          "docs/repository/DOMAIN-DEFINITION.md",
+          "docs/repository/TECH-BASELINE.md",
+          "docs/repository/HARNESS-VERIFICATION-CONTRACT.md"
+        ],
+        "principleEvidence": {
+          "Financial Consistency": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: 금융 사실·금액·정책 Snapshot 없음. MASTER 정책 정의·버전은 MASTER-DOMAIN-001 이후",
+            "verificationCommandIds": [],
+            "evidence": null
+          },
+          "Transaction Safety": {
+            "applicability": "PARTIAL",
+            "reason": "업무 TX 없음. 소유 DB 경계만 확인: 앱은 MASTER DB에만 연결(PAYMENT/FINANCIAL 접속 정보 없음 — MainConfigurationSpec), runtime·migration 계정 모두 다른 소유 DB 접근 거부(MasterDatabaseAccountSpec). 로컬 TX·Outbox는 MASTER-DOMAIN-001 이후",
+            "verificationCommandIds": [
+              "GRADLE-CHECK",
+              "TEST-SUMMARY"
+            ],
+            "evidence": "MasterDatabaseAccountSpec, MainConfigurationSpec"
+          },
+          "Idempotency": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: 요청/이벤트 처리 없음",
+            "verificationCommandIds": [],
+            "evidence": null
+          },
+          "Concurrency Control": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: 경합 대상 테이블 없음",
+            "verificationCommandIds": [],
+            "evidence": null
+          },
+          "Recoverability": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: 외부 호출·재처리 대상 없음",
+            "verificationCommandIds": [],
+            "evidence": null
+          },
+          "Reconciliation": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: 대사 대상 없음",
+            "verificationCommandIds": [],
+            "evidence": null
+          },
+          "Auditability": {
+            "applicability": "PARTIAL",
+            "reason": "schema 변경 주체 분리: Flyway는 migration 계정, 앱은 DML만(installed_by=paycore_master_migration, runtime DDL 1142). 행위자·사유 감사 기록은 MASTER-DOMAIN-001 이후. 한계(MAJOR-1): runtime 권한이 DB 단위 DML이라 append-only 확정 사실 표의 UPDATE/DELETE 금지가 DB 권한으로 강제되지 않는다(PAYMENT 현재, 애플리케이션 규칙만). 표 단위 권한은 PAYMENT-DBACCOUNT-001(D1), MASTER는 MASTER-DOMAIN-001",
+            "verificationCommandIds": [
+              "GRADLE-CHECK",
+              "TEST-SUMMARY"
+            ],
+            "evidence": "MasterApiContextSmokeSpec, MasterDatabaseAccountSpec"
+          },
+          "Observability": {
+            "applicability": "NOT_APPLICABLE",
+            "reason": "기반 작업: actuator health만 노출. 지표·추적·금융 적체 경보는 업무 기능과 함께",
+            "verificationCommandIds": [],
+            "evidence": null
+          }
+        },
+        "openItems": [
+          "Verifier: VERIFY-GATE(전체 check 재실행·fingerprint), GRADLE-DEPS-MASTER-API, CVE-SCAN(빌드 파일·의존성 변경, OSV 네트워크 필요 — 구현자 미실행)",
+          "기존 compose volume은 init 스크립트가 다시 실행되지 않아 권한이 바뀌지 않는다(재생성 또는 수동 GRANT). .env에 새 변수 PAYCORE_MASTER_DB_MIGRATION_PASSWORD·PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD가 없으면 compose가 기동을 거부한다(:?)",
+          "MASTER-DOMAIN-001: 첫 MASTER 테이블과 함께 jOOQ codegen, ArchitectureSpec allowEmptyShould 갱신, append-only 표 단위 GRANT·시험",
+          "FINANCIAL 계정 분리는 Q-BATCH-META(Batch metadata 위치·권한) 답변 후",
+          "메모리 추가 절감 후보: payment-api Spring 테스트 컨텍스트별 MySQL 컨테이너(동시 3개) — spring.test.context.cache.maxSize 제한은 재생성 시간·GRADLE-CHECK timeout(1200초) 영향 측정 후 결정",
+          "운영 배포 시 migration 계정 Secret 주입·회전 방식은 운영 Secret 관리 작업(이 개발 요청 범위 밖)",
+          "L-3(CP-DB-001 review)/MAJOR-1: PAYMENT 계정 분리는 DB 단위 DML이다. append-only 표 payment_termination_evidence, incident_hold(order_payment_control도 검토)의 표 단위 SELECT/INSERT 권한은 적용되지 않았다 → PAYMENT-DBACCOUNT-001(D1)",
+          "MINOR-2: payment-api application.yml Flyway migration 계정 바인딩(PAYCORE_PAYMENT_DB_MIGRATION_*)·spring.flyway.init-sqls UTC → PAYMENT-DBACCOUNT-001(D2). 그 전까지 로컬 compose 새 volume에서는 .env.example의 프로세스별 SPRING_FLYWAY_USER/PASSWORD 임시 방법 필요(세션 time_zone SYSTEM)"
+        ],
+        "questionCandidates": []
+      },
+      "reviewRounds": [
+        {
+          "round": 1,
+          "fingerprint": "sha256:2a77de380cbb65a9d23dcb6f30a2729c33424dcc386dc34c46953313472190b3",
+          "verdict": "REVIEW_FAIL",
+          "findings": [
+            "MAJOR-1 PAYMENT append-only 표 DB 권한 미강제·CP-DB-001 L-3 이월 누락·실현 불가 주석",
+            "MINOR-2 payment-api Flyway 계정 바인딩 후속 미등록",
+            "MINOR-3 ARCHITECTURE-CONVENTIONS 계정 분리 '후속' 문구 stale",
+            "NIT-4 전체 check 10~11분 vs timeout 1200s",
+            "NIT-5 로컬 init 스크립트 비밀번호 프로세스 인자(기존 패턴)"
+          ]
+        },
+        {
+          "round": 2,
+          "fingerprint": "sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
+          "verdict": "REVIEW_PASS",
+          "findings": [
+            "NIT: PAYMENT-DBACCOUNT-001에 REVOKE 선행·GRANT OPTION 범위·계정명 하드코딩 주의(acceptanceCriteria 반영)"
+          ]
+        }
+      ],
+      "lastSuccessfulStep": "DONE (VERIFY-GATE PASS 103345Z 606 tests, REVIEW_PASS round2) on sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934"
+    },
+    {
+      "id": "PAYMENT-DBACCOUNT-001",
+      "title": "PAYMENT·MASTER DB 표 단위 runtime 권한과 payment-api Flyway migration 계정 바인딩",
+      "phase": "FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-BOOT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "(D1, CP-DB-001 review L-3 / MASTER-BOOT-001 review MAJOR-1) runtime 계정의 DB 단위 DML 제거, migration 계정에 자기 DB 한정 GRANT OPTION, 테이블을 만드는 migration이 runtime 계정에 표 단위 권한 부여 — append-only 표(payment_termination_evidence, incident_hold)는 SELECT·INSERT만, order_payment_control은 필요 권한을 검토·기록",
+        "실제 MySQL 8.4.11에서 runtime 계정의 append-only 표 UPDATE/DELETE가 1142로 거부되고 정상 업무 경로(CreatePayment 등)는 통과하는 행위 시험, SHOW GRANTS 전체 고정 시험 갱신",
+        "(D2, MASTER-BOOT-001 review MINOR-2) payment-api application.yml에 spring.flyway.user/password(migration 계정) 바인딩과 spring.flyway.init-sqls UTC — Flyway 세션 time_zone +00:00 시험(TZ=Asia/Seoul 컨테이너 대조)",
+        ".env.example의 SPRING_FLYWAY_USER 임시 방법 문구 제거/정정, 기존 compose volume 재생성 또는 수동 GRANT 안내 문서화",
+        "MASTER-DOMAIN-001이 같은 메커니즘을 쓰도록 ARCHITECTURE-CONVENTIONS 관례로 기록",
+        "FINANCIAL 계정 분리는 Q-BATCH-META 답변 전 범위 밖",
+        "(MASTER-BOOT-001 re-review NIT) 표 단위 GRANT 전에 runtime 계정의 DB 단위 DML을 REVOKE(권한은 합산이므로 남기면 표 단위 권한이 무의미)",
+        "(re-review NIT) 자기 DB 한정 GRANT OPTION이라도 migration 계정이 임의 계정에 권한을 줄 수 있음 — 받는 계정 고정 또는 role 사용, 외부 계정으로의 GRANT 거부 시험",
+        "(re-review NIT) migration에 runtime 계정명 하드코딩 금지 검토 — MySQL role 또는 Flyway placeholder"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -2456,7 +2712,7 @@
       "taskTimeoutSeconds": null,
       "evidence": null,
       "review": null,
-      "origin": "D-CPC-006 (G-1, 2026-10-06)"
+      "origin": "MASTER-BOOT-001 review round1 (2026-10-08) MAJOR-1/MINOR-2, Coordinator 결정 D1/D2(가역 기술 선택)"
     },
     {
       "id": "MASTER-DOMAIN-001",
@@ -2464,7 +2720,8 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "MASTER-BOOT-001"
+        "MASTER-BOOT-001",
+        "PAYMENT-DBACCOUNT-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
