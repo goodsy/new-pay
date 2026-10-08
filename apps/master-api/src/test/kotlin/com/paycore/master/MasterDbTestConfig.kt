@@ -23,7 +23,7 @@ import java.util.UUID
  *   사본이 아니라 실제 compose가 쓰는 파일의 권한 결과를 본다.
  * - 앱 연결: `@ServiceConnection`(컨테이너 기본 `test` 계정·`test` DB)을 쓰지 않는다. 운영과 같은 환경변수 이름
  *   (PAYCORE_MASTER_DB_*)을 [DynamicPropertyRegistrar]로 넣어 application.yml의 바인딩 그대로 MASTER DB(`paycore_master`)에만
- *   붙는다. runtime 계정은 DML만, Flyway는 migration 계정을 쓴다(CP-DB-001 계정 분리 결정).
+ *   붙는다. runtime 계정은 role의 표 단위 권한만, Flyway는 migration 계정을 쓴다(CP-DB-001 계정 분리 결정, PAYMENT-DBACCOUNT-001 표 단위 권한).
  * - 컨테이너 OS 시간대를 Asia/Seoul(+09:00)로 둔다. MySQL 세션 기본값(SYSTEM)이 UTC가 아니어야 UTC 세션 설정 시험이 의미가 있다.
  * - 비밀번호는 JVM마다 임의 생성한 일회용 값이다. 운영 계정/키가 아니다.
  */
@@ -53,7 +53,11 @@ class MasterDbTestConfig {
 @Retention(AnnotationRetention.RUNTIME)
 @SpringBootTest
 @Import(MasterDbTestConfig::class)
-@TestPropertySource(properties = ["spring.flyway.locations=${MasterDbAccounts.MAIN_MIGRATIONS},${MasterDbAccounts.TEST_MIGRATIONS}"])
+@TestPropertySource(
+    properties = [
+        "spring.flyway.locations=${MasterDbAccounts.MAIN_MIGRATIONS},${MasterDbAccounts.TEST_MIGRATIONS},${MasterDbAccounts.TEST_PRIVILEGES}",
+    ],
+)
 annotation class MasterDbTest
 
 object MasterDbAccounts {
@@ -62,13 +66,20 @@ object MasterDbAccounts {
     const val FINANCIAL_DATABASE = "paycore_financial"
 
     const val MASTER_RUNTIME_USER = "paycore_master"
+    const val MASTER_RUNTIME_ROLE = "paycore_master_runtime"
+    const val MASTER_GRANTOR = "paycore_master_grantor"
     const val MASTER_MIGRATION_USER = "paycore_master_migration"
     const val PAYMENT_RUNTIME_USER = "paycore_payment"
     const val PAYMENT_MIGRATION_USER = "paycore_payment_migration"
+    const val PAYMENT_RUNTIME_ROLE = "paycore_payment_runtime"
+    const val PAYMENT_GRANTOR = "paycore_payment_grantor"
     const val FINANCIAL_USER = "paycore_financial"
 
     const val MAIN_MIGRATIONS = "classpath:db/migration/master"
     const val TEST_MIGRATIONS = "classpath:db/testmigration/master"
+
+    /** 시험 전용 표의 runtime 표 단위 권한 migration(schema migration과 다른 위치, PAYMENT-DBACCOUNT-001 §9.2 관례). */
+    const val TEST_PRIVILEGES = "classpath:db/testprivilege/master"
 
     /** 컨테이너 OS 시간대(UTC가 아님). */
     const val CONTAINER_TIME_ZONE = "Asia/Seoul"

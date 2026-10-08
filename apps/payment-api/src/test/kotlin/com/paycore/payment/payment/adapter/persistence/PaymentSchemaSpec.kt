@@ -17,6 +17,8 @@ import io.kotest.matchers.shouldBe
 /**
  * PAYMENT 첫 운영 migration의 DB 제약을 실제 MySQL 8.4에서 검사한다(CP-DB-001, CP-CONTRACT-001 §12).
  * information_schema 검사(선언)와 실제 INSERT 행위(수락/거부)를 함께 본다 — 선언만 보고 동작을 가정하지 않는다.
+ * information_schema(선언) 검사는 root 연결로 읽는다: runtime 계정은 권한 있는 객체만 보이므로 권한 구성에 따라 검사가 빈 결과로
+ * 통과할 수 있다(PAYMENT-DBACCOUNT-001 review NIT-4). INSERT 행위는 runtime 계정(애플리케이션과 같은 권한)으로 본다.
  *
  * 오류 코드: 1062 = 중복 키, 3819 = CHECK 위반, 1406 = 길이 초과(strict mode), 1452 = FK 부모 없음.
  */
@@ -46,7 +48,7 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
         "payment_termination_evidence" to listOf("payment_id"),
     )
 
-    fun stringColumns(): List<Map<String, Any?>> = db.withApp { c ->
+    fun stringColumns(): List<Map<String, Any?>> = db.withRoot { c ->
         with(db) {
             c.rows(
                 """
@@ -63,7 +65,7 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
 
     Given("the PAYMENT migration is applied") {
         Then("all business tables exist with utf8mb4_0900_bin as the table default collation") {
-            val tables = db.withApp { c ->
+            val tables = db.withRoot { c ->
                 with(db) {
                     c.rows(
                         "SELECT TABLE_NAME AS t, TABLE_COLLATION AS coll FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()",
@@ -83,11 +85,11 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
         }
 
         Then("the server default collation is different, so the explicit COLLATE matters (the check is not vacuous)") {
-            db.withApp { c -> with(db) { c.scalar("SELECT @@collation_server") } } shouldBe "utf8mb4_0900_ai_ci"
+            db.withRoot { c -> with(db) { c.scalar("SELECT @@collation_server") } } shouldBe "utf8mb4_0900_ai_ci"
         }
 
         Then("payment has no UNIQUE index on (environment, merchant_account_id, merchant_order_id) but has a lookup index") {
-            val indexes = db.withApp { c ->
+            val indexes = db.withRoot { c ->
                 with(db) {
                     c.rows(
                         """
@@ -104,7 +106,7 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
         }
 
         Then("idempotency_request has UNIQUE(environment, merchant_account_id, operation, idempotency_key)") {
-            val unique = db.withApp { c ->
+            val unique = db.withRoot { c ->
                 with(db) {
                     c.rows(
                         """

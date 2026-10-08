@@ -116,3 +116,14 @@ tasks.compileKotlin { dependsOn(generateJooqMain) }
 tasks.compileTestKotlin { dependsOn(generateJooqTest) }
 
 tasks.test { systemProperty("paycore.jooq.mainPackage", mainJooqPackage) }
+
+// DB 시험 컨테이너는 로컬 개발 초기화 스크립트(docker/mysql/init)를 그대로 넣어 실제 계정·runtime role·권한 부여 procedure를 만든다
+// (PAYMENT-DBACCOUNT-001, master-api와 같은 방식). 스크립트가 바뀌면 시험을 다시 실행하도록 입력으로 둔다.
+// jOOQ 생성기(generateJooq*)는 이 스크립트를 쓰지 않는다: 업무 schema migration만 적용하고 runtime 권한 migration(db/runtime-privilege)은
+// 별도 위치라 적용 대상이 아니다.
+val mysqlInitDir = rootProject.layout.projectDirectory.dir("docker/mysql/init")
+
+tasks.test {
+    inputs.dir(mysqlInitDir).withPropertyName("mysqlInitScripts").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("paycore.mysqlInitDir", mysqlInitDir.asFile.absolutePath)
+}

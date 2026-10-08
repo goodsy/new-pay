@@ -7,7 +7,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${PAYCORE_MYSQL_ROOT_PASSWORD:?set in .env}
       PAYCORE_MASTER_DB_PASSWORD: ${PAYCORE_MASTER_DB_PASSWORD:?set in .env}
-      # migration 계정(Flyway 전용, 자기 DB ALL). runtime 계정(위)은 DML만 갖는다. docker/mysql/init/01-owned-databases.sh
+      # migration 계정(Flyway 전용, 자기 DB ALL, GRANT OPTION 없음). runtime 계정(위)은 runtime role의 표 단위 권한만 갖는다
+      # (권한 migration이 초기화 스크립트의 procedure로 부여). docker/mysql/init/01-owned-databases.sh, 기존 volume 처리는 .env.example
       PAYCORE_MASTER_DB_MIGRATION_PASSWORD: ${PAYCORE_MASTER_DB_MIGRATION_PASSWORD:?set in .env}
       PAYCORE_PAYMENT_DB_PASSWORD: ${PAYCORE_PAYMENT_DB_PASSWORD:?set in .env}
       PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD: ${PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD:?set in .env}

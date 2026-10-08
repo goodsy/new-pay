@@ -1,37 +1,28 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.PaymentDbAccounts
 import org.testcontainers.mysql.MySQLContainer
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.UUID
 
 /**
  * 시험용 원시 JDBC 접근. 애플리케이션 pool과 **별도의 DB 연결**을 열어 다중 connection 경합·제약 행위·잠금 대기 관찰에 쓴다.
- * - [app]: 컨테이너의 일반 계정(애플리케이션과 같은 권한).
- * - [root]: 잠금 대기 관찰(performance_schema.data_lock_waits)·연결 종료(KILL)·계정 분리 시험 전용. Testcontainers는 root 비밀번호를
- *   일반 계정과 같게 설정한다. 일회용 컨테이너 값이며 운영 DB/키가 아니다.
+ * - [app]: PAYMENT runtime 계정(`paycore_payment`, 기본 role `paycore_payment_runtime`) — 애플리케이션 pool과 **같은 권한**(표 단위).
+ *   PAYMENT-DBACCOUNT-001 전에는 컨테이너 기본 `test` 계정(DB ALL)이었다. 이제 시험의 직접 SQL도 runtime 권한 밖의 일을 하면 1142로 실패한다.
+ * - [root]: 잠금 대기 관찰(performance_schema.data_lock_waits)·연결 종료(KILL)·권한 조회 전용. Testcontainers는 root 비밀번호를
+ *   컨테이너 비밀번호와 같게 설정한다. 일회용 컨테이너 값이며 운영 DB/키가 아니다.
  */
 class DbAccess(private val container: MySQLContainer) {
 
-    val databaseName: String get() = container.databaseName
+    val databaseName: String get() = PaymentDbAccounts.PAYMENT_DATABASE
 
-    fun app(): Connection = DriverManager.getConnection(urlFor(container.databaseName), container.username, container.password)
+    fun app(): Connection = PaymentDbAccounts.connect(container, databaseName, PaymentDbAccounts.PAYMENT_RUNTIME_USER)
 
-    fun root(): Connection = DriverManager.getConnection(urlFor(container.databaseName), "root", container.password)
+    fun root(): Connection = PaymentDbAccounts.root(container)
 
-    fun connect(database: String, user: String, password: String): Connection =
-        DriverManager.getConnection(urlFor(database), user, password)
-
-    /** 컨테이너 JDBC URL의 DB 이름만 바꾼다. 새 계정(caching_sha2_password)이 비SSL로 접속할 수 있게 공개키 조회를 허용한다. */
-    fun urlFor(database: String): String {
-        val url = container.jdbcUrl
-        val base = url.substringBefore('?').substringBeforeLast('/') + "/" + database
-        val params = url.substringAfter('?', "").split('&').filter { it.isNotEmpty() }.toMutableList()
-        if (params.none { it.startsWith("allowPublicKeyRetrieval=") }) params += "allowPublicKeyRetrieval=true"
-        if (params.none { it.startsWith("useSSL=") }) params += "useSSL=false"
-        return base + "?" + params.joinToString("&")
-    }
+    /** 초기화 스크립트가 만든 계정(일회용 비밀번호)으로 접속한다(예: migration 계정의 GRANT 거부 시험). */
+    fun connectAs(user: String, database: String = databaseName): Connection = PaymentDbAccounts.connect(container, database, user)
 
     fun <T> withApp(block: (Connection) -> T): T = app().use(block)
 

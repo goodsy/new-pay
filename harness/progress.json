@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
-  "lastSuccessfulStep": "MASTER-BOOT-001 DONE (VERIFY-GATE PASS 103345Z 606 tests, REVIEW_PASS round2) on sha256:7330e4cfb0e8612a75a093124d79e59150779265b3100aac6cc7313acc3c9934",
+  "codeFingerprint": "sha256:9642c6af26b987c4f86acceb33afddd8808633f3168b8a4e522d52b5c4db1304",
+  "lastSuccessfulStep": "PAYMENT-DBACCOUNT-001 DONE (VERIFY-GATE PASS 141619Z 625 tests, REVIEW_PASS round2) on sha256:9642c6af26b987c4f86acceb33afddd8808633f3168b8a4e522d52b5c4db1304",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)",
     "G-3 계약 용어 (MASTER-DOMAIN-001)"
   ],
-  "nextResumeAction": "PAYMENT-DBACCOUNT-001(표 단위 runtime 권한·payment-api Flyway 계정 바인딩) → MASTER-DOMAIN-001(G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 긴 gate는 WSL 내부 setsid nohup 분리 실행(호스트 메모리 압박 시 백그라운드 명령 회수됨)",
+  "nextResumeAction": "MASTER-DOMAIN-001(먼저 G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 로컬 paycore-mysql volume은 권한 갱신 필요(.env.example). 긴 gate는 WSL setsid nohup 분리 실행",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -122,6 +122,23 @@
       "taskId": "MASTER-BOOT-001",
       "event": "done",
       "detail": "VERIFY-GATE PASS 103345Z(606), GRADLE-DEPS x4·CVE-SCAN PASS, REVIEW_PASS round2 — 같은 fingerprint 7330e4cf…"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "MASTER-BOOT-001",
+      "event": "pushed",
+      "detail": "db9eb17..d5a0925"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "PAYMENT-DBACCOUNT-001",
+      "event": "claimed"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "PAYMENT-DBACCOUNT-001",
+      "event": "done",
+      "detail": "review1 FAIL(MAJOR-1 옛 volume DDL 잔존 등) 수정 → VERIFY-GATE PASS 141619Z(625)·DEPS/CVE PASS·REVIEW_PASS round2, fingerprint 9642c6af…"
     }
   ]
 }

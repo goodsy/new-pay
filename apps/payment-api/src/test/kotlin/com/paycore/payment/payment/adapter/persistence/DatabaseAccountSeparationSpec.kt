@@ -1,88 +1,459 @@
 package com.paycore.payment.payment.adapter.persistence
 
-import io.kotest.assertions.throwables.shouldThrow
+import com.paycore.payment.PaymentDbAccounts
+import com.paycore.payment.PaymentDbAccounts.FINANCIAL_DATABASE
+import com.paycore.payment.PaymentDbAccounts.FINANCIAL_USER
+import com.paycore.payment.PaymentDbAccounts.MASTER_DATABASE
+import com.paycore.payment.PaymentDbAccounts.MASTER_MIGRATION_USER
+import com.paycore.payment.PaymentDbAccounts.MASTER_RUNTIME_USER
+import com.paycore.payment.PaymentDbAccounts.PAYMENT_GRANTOR
+import com.paycore.payment.PaymentDbAccounts.PAYMENT_MIGRATION_USER
+import com.paycore.payment.PaymentDbAccounts.PAYMENT_RUNTIME_ROLE
+import com.paycore.payment.PaymentDbAccounts.PAYMENT_RUNTIME_USER
+import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.newOrder
+import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.t0
+import com.paycore.payment.payment.application.CreatePaymentFixture.command
+import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
+import com.paycore.payment.payment.application.provided.CreatePaymentResult
+import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
+import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
+import com.paycore.payment.payment.domain.OrderKey
+import com.paycore.payment.payment.domain.PaymentId
+import com.paycore.payment.payment.domain.TerminationEvidence
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
-import org.flywaydb.core.Flyway
-import org.flywaydb.core.api.FlywayException
+import io.kotest.matchers.types.shouldBeInstanceOf
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
+import org.testcontainers.mysql.MySQLContainer
+import java.sql.Connection
 import java.sql.SQLException
-import java.util.UUID
 
 /**
- * Flyway migration 계정과 DML 제한 runtime 계정 분리 검토(CP-DB-001 acceptance). 실제 MySQL 8.4에서 소유 schema 하나에 두 계정을 만들고
- * (docker/mysql/init/01-owned-databases.sh 주석의 제안 grant와 같은 형태) 권한 경계가 실제로 지켜지는지 본다. 일회용 컨테이너 안의 임시
- * 계정·임의 비밀번호이며 운영 계정/키가 아니다. 운영·compose 적용은 compose.yaml/.env.example 변경이 필요한 후속(openItems).
+ * PAYMENT DB 계정·표 단위 runtime 권한(PAYMENT-DBACCOUNT-001, D1/D2). 실제 MySQL 8.4.11에 로컬 개발 초기화 스크립트
+ * (docker/mysql/init/01-owned-databases.sh)를 그대로 넣고, 운영 migration(V1 업무 schema + V2 runtime 권한)을 migration 계정으로 적용한
+ * 결과를 runtime 계정·migration 계정·root(관찰 전용)로 확인한다.
  *
- * 오류 코드: 1142 = 테이블 명령 권한 없음, 1044 = DB 접근 권한 없음.
+ * 권한 구조: runtime 계정 `paycore_payment`는 DB 단위 권한이 없고 기본 role `paycore_payment_runtime`의 표 단위 권한만 가진다.
+ * 표 단위 권한은 V2가 초기화 스크립트의 procedure `paycore_payment_privilege.set_runtime_table_privileges`(DEFINER = 잠긴 grantor,
+ * 받는 쪽 = runtime role 고정)로 준다. migration 계정은 GRANT OPTION이 없고 그 procedure의 EXECUTE만 있다.
+ *
+ * 오류 코드: 1142 = 테이블 명령 권한 없음, 1044 = DB 접근 권한 없음, 1227 = 전역 권한 필요(CREATE USER·role 부여),
+ * 1370 = routine 실행 권한 없음, 1644 = procedure의 SIGNAL(허용되지 않은 요청).
+ *
+ * CP-DB-001의 같은 이름 spec은 임시 계정에 DB 단위 DML(SELECT/INSERT/UPDATE/DELETE ON db.*)을 준 형태를 확인했다. 그 형태는 append-only 표의
+ * UPDATE/DELETE를 막지 못해(CP-DB-001 review L-3) 이 작업에서 폐기했고, 이 spec은 실제 초기화 스크립트 계정으로 새 형태를 고정한다.
  */
 @PaymentDbTest
-class DatabaseAccountSeparationSpec(private val db: DbAccess) : BehaviorSpec({
+class DatabaseAccountSeparationSpec(
+    private val createPayment: CreatePaymentUseCase,
+    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val payments: JpaPaymentStore,
+    private val transactionManager: PlatformTransactionManager,
+    private val jdbcTemplate: JdbcTemplate,
+    private val db: DbAccess,
+    private val container: MySQLContainer,
+) : BehaviorSpec({
 
-    val suffix = UUID.randomUUID().toString().replace("-", "").take(8)
-    val schema = "paycore_payment_sep_$suffix"
-    val migrator = "pc_mig_$suffix"
-    val runtime = "pc_run_$suffix"
-    val migratorPassword = UUID.randomUUID().toString()
-    val runtimePassword = UUID.randomUUID().toString()
+    val tx = TransactionTemplate(transactionManager)
+    val privilegeProcedure = "${PaymentDbAccounts.PAYMENT_DATABASE}_privilege.set_runtime_table_privileges"
 
-    beforeSpec {
-        db.withRoot { c ->
-            with(db) {
-                c.update("CREATE DATABASE $schema")
-                c.update("CREATE USER '$migrator'@'%' IDENTIFIED BY '$migratorPassword'")
-                c.update("GRANT ALL PRIVILEGES ON $schema.* TO '$migrator'@'%'")
-                c.update("CREATE USER '$runtime'@'%' IDENTIFIED BY '$runtimePassword'")
-                c.update("GRANT SELECT, INSERT, UPDATE, DELETE ON $schema.* TO '$runtime'@'%'")
+    /**
+     * 표별 runtime 권한(mysql.tables_priv 표기). 근거는 현재 코드의 실제 쓰기 경로(V2__payment_runtime_privileges.sql 주석·
+     * ARCHITECTURE-CONVENTIONS §9 표): append-only 확정 사실 표(종료 근거·incident hold)는 SELECT, INSERT만, DELETE 경로는 어느 표에도 없다.
+     */
+    val expectedRuntimeTablePrivileges = mapOf(
+        "payment" to "Select,Insert,Update",
+        "payment_termination_evidence" to "Select,Insert",
+        "order_payment_control" to "Select,Insert,Update",
+        "incident_hold" to "Select,Insert",
+        "idempotency_request" to "Select,Insert,Update",
+        "outbox_event" to "Select,Insert",
+    )
+
+    fun grantsOf(account: String): Set<String> = db.withRoot { c ->
+        c.createStatement().use { s ->
+            s.executeQuery("SHOW GRANTS FOR $account").use { rs -> buildSet { while (rs.next()) add(rs.getString(1)) } }
+        }
+    }
+
+
+    /** PAYMENT 계정 4개 + 같은 서버의 MASTER runtime/migration 계정의 SHOW GRANTS 전체(V1·V2 적용 뒤의 고정 기대값). */
+    val expectedAccountGrants = mapOf(
+        PAYMENT_RUNTIME_USER to setOf(
+            "GRANT USAGE ON *.* TO `paycore_payment`@`%`",
+            "GRANT `paycore_payment_runtime`@`%` TO `paycore_payment`@`%`",
+        ),
+        PAYMENT_RUNTIME_ROLE to setOf(
+            "GRANT USAGE ON *.* TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`idempotency_request` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`incident_hold` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`order_payment_control` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`payment_termination_evidence` TO `paycore_payment_runtime`@`%`",
+        ),
+        PAYMENT_MIGRATION_USER to setOf(
+            "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
+            "GRANT ALL PRIVILEGES ON `paycore_payment`.* TO `paycore_payment_migration`@`%`",
+            "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_migration`@`%`",
+        ),
+        PAYMENT_GRANTOR to setOf(
+            "GRANT USAGE ON *.* TO `paycore_payment_grantor`@`localhost`",
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_payment`.* TO `paycore_payment_grantor`@`localhost` WITH GRANT OPTION",
+            "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_grantor`@`localhost`",
+        ),
+        MASTER_RUNTIME_USER to setOf(
+            "GRANT USAGE ON *.* TO `paycore_master`@`%`",
+            "GRANT `paycore_master_runtime`@`%` TO `paycore_master`@`%`",
+        ),
+        MASTER_MIGRATION_USER to setOf(
+            "GRANT USAGE ON *.* TO `paycore_master_migration`@`%`",
+            "GRANT ALL PRIVILEGES ON `paycore_master`.* TO `paycore_master_migration`@`%`",
+            "GRANT EXECUTE ON PROCEDURE `paycore_master_privilege`.`set_runtime_table_privileges` TO `paycore_master_migration`@`%`",
+        ),
+    )
+
+    fun actualAccountGrants(): Map<String, Set<String>> = mapOf(
+        PAYMENT_RUNTIME_USER to grantsOf("'$PAYMENT_RUNTIME_USER'@'%'"),
+        PAYMENT_RUNTIME_ROLE to grantsOf("'$PAYMENT_RUNTIME_ROLE'@'%'"),
+        PAYMENT_MIGRATION_USER to grantsOf("'$PAYMENT_MIGRATION_USER'@'%'"),
+        PAYMENT_GRANTOR to grantsOf("'$PAYMENT_GRANTOR'@'localhost'"),
+        MASTER_RUNTIME_USER to grantsOf("'$MASTER_RUNTIME_USER'@'%'"),
+        MASTER_MIGRATION_USER to grantsOf("'$MASTER_MIGRATION_USER'@'%'"),
+    )
+
+    /** root로 단일 값 조회. */
+    fun rootScalar(sql: String, vararg args: Any?): Any? = db.withRoot { c -> with(db) { c.scalar(sql, *args) } }
+
+    /** role의 표 하나에 대한 runtime 권한(mysql.tables_priv 표기, 없으면 null). */
+    fun runtimeTablePrivilege(table: String): String? =
+        rootScalar(
+            "SELECT Table_priv FROM mysql.tables_priv WHERE User = ? AND Host = '%' AND Db = ? AND Table_name = ?",
+            PAYMENT_RUNTIME_ROLE, PaymentDbAccounts.PAYMENT_DATABASE, table,
+        )?.toString()
+
+    /** 문장 하나를 실행하고 MySQL vendor 오류 코드(성공이면 null)를 돌려준다(SELECT·CALL·USE·DDL 모두 execute로 보낸다). */
+    fun Connection.codeOf(sql: String): Int? =
+        try {
+            createStatement().use { it.execute(sql) }
+            null
+        } catch (e: SQLException) {
+            e.errorCode
+        }
+
+    /** 업무 경로로 종료 근거 1건(EXPIRED)과 incident hold 1건을 만든다(runtime 계정 pool). */
+    fun expiredPaymentWithHold(): Pair<OrderKey, PaymentId> {
+        val order = newOrder()
+        val created = createPayment.create(command(order)).shouldBeInstanceOf<CreatePaymentResult.Accepted>()
+        val paymentId = created.payment.paymentId
+        tx.executeWithoutResult {
+            val p = payments.lock(paymentId)!!
+            p.value.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
+            payments.update(p.value, p.version)
+        }
+        incidents.report(order, paymentId, t0)
+        return order to paymentId
+    }
+
+    Given("the application pool connects with the PAYMENT runtime account") {
+        Then("only the runtime role is active and the account has no database-level privileges") {
+            jdbcTemplate.queryForObject("SELECT CURRENT_USER()", String::class.java) shouldBe "$PAYMENT_RUNTIME_USER@%"
+            jdbcTemplate.queryForObject("SELECT CURRENT_ROLE()", String::class.java) shouldBe "`$PAYMENT_RUNTIME_ROLE`@`%`"
+            db.withRoot { c ->
+                with(db) {
+                    c.scalar("SELECT COUNT(*) FROM mysql.db WHERE User = ? AND Db = ?", PAYMENT_RUNTIME_USER, PaymentDbAccounts.PAYMENT_DATABASE)
+                }
+            }.let { (it as Number).toLong() } shouldBe 0
+        }
+
+        Then("the business path (CreatePayment, expiry with evidence, retry on generation 2, incident hold) succeeds within its privileges") {
+            val order = newOrder()
+            val first = createPayment.create(command(order)).shouldBeInstanceOf<CreatePaymentResult.Accepted>()
+            tx.executeWithoutResult {
+                val p = payments.lock(first.payment.paymentId)!!
+                p.value.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
+                payments.update(p.value, p.version)
+            }
+            val second = createPayment.create(command(order)).shouldBeInstanceOf<CreatePaymentResult.Accepted>()
+            second.outcome shouldBe CreatePaymentOutcome.CREATED
+            incidents.report(order, first.payment.paymentId, t0)
+
+            val mid = order.merchantAccountId.value
+            mapOf(
+                "payment" to db.count("SELECT COUNT(*) FROM payment WHERE merchant_account_id = ?", mid),
+                "evidence" to db.count(
+                    "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ?", first.payment.paymentId.value,
+                ),
+                "generation" to db.count("SELECT generation FROM order_payment_control WHERE merchant_account_id = ?", mid),
+                "idempotency" to db.count("SELECT COUNT(*) FROM idempotency_request WHERE merchant_account_id = ?", mid),
+                "outbox" to db.count("SELECT COUNT(*) FROM outbox_event WHERE payload->>'$.merchantAccountId' = ?", mid),
+                "hold" to db.count("SELECT COUNT(*) FROM incident_hold WHERE merchant_account_id = ?", mid),
+            ) shouldBe mapOf("payment" to 2L, "evidence" to 1L, "generation" to 2L, "idempotency" to 2L, "outbox" to 2L, "hold" to 1L)
+        }
+
+        Then("append-only confirmed-fact tables reject UPDATE and DELETE with 1142 and the rows stay unchanged") {
+            val (order, paymentId) = expiredPaymentWithHold()
+            val mid = order.merchantAccountId.value
+            db.withApp { c ->
+                mapOf(
+                    "evidence update" to c.codeOf(
+                        "UPDATE payment_termination_evidence SET evidence = 'TIMEOUT' WHERE payment_id = '${paymentId.value}'",
+                    ),
+                    "evidence delete" to c.codeOf("DELETE FROM payment_termination_evidence WHERE payment_id = '${paymentId.value}'"),
+                    "hold update" to c.codeOf("UPDATE incident_hold SET payment_id = 'other' WHERE merchant_account_id = '$mid'"),
+                    "hold delete" to c.codeOf("DELETE FROM incident_hold WHERE merchant_account_id = '$mid'"),
+                    "evidence lock" to c.codeOf("SELECT * FROM payment_termination_evidence WHERE payment_id = '${paymentId.value}' FOR UPDATE"),
+                )
+            } shouldBe mapOf(
+                "evidence update" to 1142, "evidence delete" to 1142, "hold update" to 1142, "hold delete" to 1142, "evidence lock" to 1142,
+            )
+            db.count(
+                "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ? AND evidence = 'NOT_TRANSMITTED_AND_SESSION_DISCARDED'",
+                paymentId.value,
+            ) shouldBe 1
+            db.count("SELECT COUNT(*) FROM incident_hold WHERE merchant_account_id = ? AND payment_id = ?", mid, paymentId.value) shouldBe 1
+        }
+
+        Then("no table can be deleted from (no DELETE path in the current code) and outbox events cannot be updated") {
+            db.withApp { c ->
+                mapOf(
+                    "payment delete" to c.codeOf("DELETE FROM payment WHERE payment_id = 'none'"),
+                    "control delete" to c.codeOf("DELETE FROM order_payment_control WHERE merchant_account_id = 'none'"),
+                    "idempotency delete" to c.codeOf("DELETE FROM idempotency_request WHERE merchant_account_id = 'none'"),
+                    "outbox delete" to c.codeOf("DELETE FROM outbox_event WHERE event_id = 'none'"),
+                    "outbox update" to c.codeOf("UPDATE outbox_event SET publish_status = 'PENDING' WHERE event_id = 'none'"),
+                )
+            } shouldBe mapOf(
+                "payment delete" to 1142, "control delete" to 1142, "idempotency delete" to 1142, "outbox delete" to 1142,
+                "outbox update" to 1142,
+            )
+        }
+
+        Then("it cannot change the schema, read the Flyway history or call the privilege procedure") {
+            db.withApp { c ->
+                mapOf(
+                    "create" to c.codeOf("CREATE TABLE sneaky (id INT PRIMARY KEY)"),
+                    "alter" to c.codeOf("ALTER TABLE payment ADD COLUMN sneaky INT"),
+                    "drop" to c.codeOf("DROP TABLE outbox_event"),
+                    "truncate" to c.codeOf("TRUNCATE TABLE idempotency_request"),
+                    "history" to c.codeOf("SELECT COUNT(*) FROM flyway_schema_history"),
+                    "procedure" to c.codeOf("CALL $privilegeProcedure('incident_hold', 'SELECT, INSERT, UPDATE, DELETE')"),
+                )
+            } shouldBe mapOf("create" to 1142, "alter" to 1142, "drop" to 1142, "truncate" to 1142, "history" to 1142, "procedure" to 1370)
+        }
+
+        Then("it cannot read other owned databases (no cross-DB access)") {
+            db.withApp { c ->
+                c.codeOf("SELECT COUNT(*) FROM $MASTER_DATABASE.flyway_schema_history")!! shouldBeIn setOf(1142, 1044)
+                c.codeOf("SELECT COUNT(*) FROM $FINANCIAL_DATABASE.flyway_schema_history")!! shouldBeIn setOf(1142, 1044)
             }
         }
     }
 
-    afterSpec {
-        db.withRoot { c ->
-            with(db) {
-                c.update("DROP USER IF EXISTS '$migrator'@'%', '$runtime'@'%'")
-                c.update("DROP DATABASE IF EXISTS $schema")
+    Given("the PAYMENT migration account (Flyway)") {
+        Then("Flyway installed every migration as the migration account in a +00:00 session although the server default is not UTC") {
+            db.withRoot { c ->
+                with(db) {
+                    mapOf(
+                        "global" to c.scalar("SELECT @@global.time_zone"),
+                        "system" to c.scalar("SELECT @@system_time_zone"),
+                        "installedBy" to c.rows("SELECT DISTINCT installed_by AS u FROM flyway_schema_history").map { it["u"] }.toSet(),
+                        "versions" to c.rows("SELECT version AS v FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank")
+                            .map { it["v"] },
+                        "probe" to c.rows("SELECT session_zone AS z, migration_user AS u FROM tech_flyway_session_probe").single(),
+                    )
+                }
+            } shouldBe mapOf(
+                "global" to "SYSTEM",
+                "system" to "KST",
+                "installedBy" to setOf(PAYMENT_MIGRATION_USER),
+                "versions" to listOf("1", "2", "950"),
+                "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
+            )
+        }
+
+        Then("it cannot grant privileges to any account directly, grant the runtime role, or create accounts") {
+            db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                mapOf(
+                    "to master runtime" to c.codeOf("GRANT SELECT ON payment TO '$MASTER_RUNTIME_USER'@'%'"),
+                    "to financial" to c.codeOf("GRANT SELECT ON payment_termination_evidence TO '$FINANCIAL_USER'@'%'"),
+                    "to payment runtime account" to c.codeOf("GRANT UPDATE, DELETE ON incident_hold TO '$PAYMENT_RUNTIME_USER'@'%'"),
+                    "to runtime role" to c.codeOf("GRANT DELETE ON payment_termination_evidence TO '$PAYMENT_RUNTIME_ROLE'@'%'"),
+                    "role to outside" to c.codeOf("GRANT '$PAYMENT_RUNTIME_ROLE'@'%' TO '$MASTER_RUNTIME_USER'@'%'"),
+                    "create user" to c.codeOf("CREATE USER 'paycore_outside'@'%' IDENTIFIED BY 'x'"),
+                )
+            } shouldBe mapOf(
+                "to master runtime" to 1142, "to financial" to 1142, "to payment runtime account" to 1142, "to runtime role" to 1142,
+                "role to outside" to 1227, "create user" to 1227,
+            )
+            db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                // DB 단위 GRANT도 거부된다(오류 코드는 DB 접근 거부 1044 또는 명령 거부 1142).
+                c.codeOf("GRANT SELECT ON ${PaymentDbAccounts.PAYMENT_DATABASE}.* TO '$MASTER_RUNTIME_USER'@'%'")!! shouldBeIn setOf(1044, 1142)
+            }
+            grantsOf("'$MASTER_RUNTIME_USER'@'%'") shouldBe setOf(
+                "GRANT USAGE ON *.* TO `$MASTER_RUNTIME_USER`@`%`",
+                "GRANT `paycore_master_runtime`@`%` TO `$MASTER_RUNTIME_USER`@`%`",
+            )
+        }
+
+        Then("the privilege procedure only accepts the allowed privilege sets on base tables of this database") {
+            val refused = db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                c.codeOf("CREATE VIEW tech_privilege_view AS SELECT payment_id FROM payment") shouldBe null
+                try {
+                    mapOf(
+                        "extra privilege" to c.codeOf("CALL $privilegeProcedure('payment', 'SELECT, INSERT, UPDATE, DELETE, DROP')"),
+                        "grantee injection" to c.codeOf(
+                            "CALL $privilegeProcedure('payment', 'SELECT ON *.* TO paycore_master; --')",
+                        ),
+                        "lower case" to c.codeOf("CALL $privilegeProcedure('payment', 'select')"),
+                        "flyway history" to c.codeOf("CALL $privilegeProcedure('flyway_schema_history', 'SELECT')"),
+                        "missing table" to c.codeOf("CALL $privilegeProcedure('no_such_table', 'SELECT')"),
+                        "view" to c.codeOf("CALL $privilegeProcedure('tech_privilege_view', 'SELECT')"),
+                        "quoted name" to c.codeOf("CALL $privilegeProcedure('payment` TO paycore_master; --', 'SELECT')"),
+                        "trailing newline" to c.codeOf("CALL $privilegeProcedure('payment\n', 'SELECT')"),
+                        "carriage return" to c.codeOf("CALL $privilegeProcedure('pay\rment', 'SELECT')"),
+                    )
+                } finally {
+                    c.codeOf("DROP VIEW tech_privilege_view") shouldBe null
+                }
+            }
+            refused shouldBe mapOf(
+                "extra privilege" to 1644, "grantee injection" to 1644, "lower case" to 1644, "flyway history" to 1644,
+                "missing table" to 1644, "view" to 1644, "quoted name" to 1644, "trailing newline" to 1644, "carriage return" to 1644,
+            )
+            // 거부된 호출은 권한을 바꾸지 않았다(아래 SHOW GRANTS 고정 시험과 함께).
+            grantsOf("'$MASTER_RUNTIME_USER'@'%'").none { it.contains("paycore_payment") } shouldBe true
+        }
+
+        Then("the privilege procedure replaces a table's runtime privileges with exactly the given set (narrowing and widening)") {
+            val table = "tech_privilege_probe"
+            db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                c.codeOf("CREATE TABLE $table (id INT PRIMARY KEY)") shouldBe null
+                try {
+                    val observed = listOf(
+                        "SELECT, INSERT, UPDATE, DELETE", "SELECT", "SELECT, INSERT, UPDATE", "SELECT, INSERT", "SELECT, INSERT, UPDATE, DELETE",
+                        "SELECT, INSERT",
+                    ).map { set ->
+                        c.codeOf("CALL $privilegeProcedure('$table', '$set')") shouldBe null
+                        set to runtimeTablePrivilege(table)
+                    }
+                    observed shouldBe listOf(
+                        "SELECT, INSERT, UPDATE, DELETE" to "Select,Insert,Update,Delete",
+                        "SELECT" to "Select",
+                        "SELECT, INSERT, UPDATE" to "Select,Insert,Update",
+                        "SELECT, INSERT" to "Select,Insert",
+                        "SELECT, INSERT, UPDATE, DELETE" to "Select,Insert,Update,Delete",
+                        "SELECT, INSERT" to "Select,Insert",
+                    )
+                } finally {
+                    // DROP TABLE은 표 단위 권한 행을 지우지 않는다(MySQL). 시험 표의 권한은 root가 지운다.
+                    db.withRoot { r -> r.codeOf("REVOKE IF EXISTS ALL PRIVILEGES ON paycore_payment.$table FROM '$PAYMENT_RUNTIME_ROLE'@'%'") }
+                    c.codeOf("DROP TABLE $table") shouldBe null
+                }
+            }
+            runtimeTablePrivilege(table) shouldBe null
+        }
+
+        Then("it cannot use other owned databases or their privilege procedures, nor change its own privilege procedure") {
+            db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                mapOf(
+                    "use master" to c.codeOf("USE $MASTER_DATABASE"),
+                    "use financial" to c.codeOf("USE $FINANCIAL_DATABASE"),
+                    "master procedure" to c.codeOf("CALL ${MASTER_DATABASE}_privilege.set_runtime_table_privileges('x', 'SELECT')"),
+                    "drop procedure" to c.codeOf("DROP PROCEDURE $privilegeProcedure"),
+                    "privilege schema table" to c.codeOf("CREATE TABLE ${PaymentDbAccounts.PAYMENT_DATABASE}_privilege.sneaky (id INT)"),
+                )
+            } shouldBe mapOf(
+                "use master" to 1044, "use financial" to 1044, "master procedure" to 1370, "drop procedure" to 1370,
+                "privilege schema table" to 1142,
+            )
+        }
+    }
+
+    Given("the resulting PAYMENT accounts and privileges") {
+        Then("SHOW GRANTS is exact: runtime account = role only, role = table-level grants, migration = DB ALL + procedure EXECUTE, grantor locked") {
+            actualAccountGrants() shouldBe expectedAccountGrants
+            db.withRoot { c ->
+                with(db) {
+                    c.rows(
+                        "SELECT User AS u, account_locked AS l FROM mysql.user WHERE User IN (?, ?, ?, ?) ORDER BY User",
+                        PAYMENT_RUNTIME_USER, PAYMENT_RUNTIME_ROLE, PAYMENT_MIGRATION_USER, PAYMENT_GRANTOR,
+                    ).associate { it["u"] to it["l"] }
+                }
+            } shouldBe mapOf(PAYMENT_RUNTIME_USER to "N", PAYMENT_GRANTOR to "Y", PAYMENT_MIGRATION_USER to "N", PAYMENT_RUNTIME_ROLE to "Y")
+        }
+
+        Then("every business table has an explicit runtime grant (a new table without a privilege migration fails here)") {
+            db.withRoot { c ->
+                with(db) {
+                    val tables = c.rows(
+                        "SELECT TABLE_NAME AS t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' " +
+                            "AND TABLE_NAME NOT IN ('flyway_schema_history', 'tech_flyway_session_probe')",
+                        PaymentDbAccounts.PAYMENT_DATABASE,
+                    ).map { it["t"] as String }.toSet()
+                    val granted = c.rows(
+                        "SELECT Table_name AS t, Table_priv AS p FROM mysql.tables_priv WHERE User = ? AND Host = '%' AND Db = ?",
+                        PAYMENT_RUNTIME_ROLE, PaymentDbAccounts.PAYMENT_DATABASE,
+                    ).associate { it["t"] as String to it["p"].toString() }
+                    tables shouldBe expectedRuntimeTablePrivileges.keys
+                    granted shouldBe expectedRuntimeTablePrivileges
+                }
+            }
+        }
+
+        Then("no triggers, routines, events or views exist in the owned databases (any future use needs a reviewed expectation change)") {
+            listOf(PaymentDbAccounts.PAYMENT_DATABASE, MASTER_DATABASE).associateWith { schema ->
+                mapOf(
+                    "triggers" to rootScalar("SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = ?", schema),
+                    "routines" to rootScalar("SELECT COUNT(*) FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ?", schema),
+                    "events" to rootScalar("SELECT COUNT(*) FROM information_schema.EVENTS WHERE EVENT_SCHEMA = ?", schema),
+                    "views" to rootScalar("SELECT COUNT(*) FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ?", schema),
+                ).mapValues { (it.value as Number).toLong() }
+            } shouldBe listOf(PaymentDbAccounts.PAYMENT_DATABASE, MASTER_DATABASE).associateWith {
+                mapOf("triggers" to 0L, "routines" to 0L, "events" to 0L, "views" to 0L)
             }
         }
     }
 
-    fun flyway(user: String, password: String): Flyway =
-        Flyway.configure().dataSource(db.urlFor(schema), user, password).locations("classpath:db/migration/payment").load()
-
-    Given("an owned PAYMENT schema with a migration account and a DML-only runtime account") {
-        Then("the runtime account cannot create the schema (Flyway as runtime fails), the migration account applies V1") {
-            shouldThrow<FlywayException> { flyway(runtime, runtimePassword).migrate() }
-            flyway(migrator, migratorPassword).migrate().migrationsExecuted shouldBe 1
-        }
-
-        Then("the runtime account runs DML on business tables") {
-            db.connect(schema, runtime, runtimePassword).use { c ->
-                with(db) {
-                    c.update(PaymentSchemaRows.INSERT_CONTROL, "TEST", "mid-sep", "order-1", "pay-1") shouldBe 1
-                    c.update("UPDATE order_payment_control SET generation = 2 WHERE merchant_account_id = 'mid-sep'") shouldBe 1
-                    (c.scalar("SELECT generation FROM order_payment_control WHERE merchant_account_id = 'mid-sep'") as Number).toLong() shouldBe 2
-                    c.update("DELETE FROM order_payment_control WHERE merchant_account_id = 'mid-sep'") shouldBe 1
+    Given("a volume created before MASTER-BOOT-001 (runtime account with ALL on its DB WITH GRANT OPTION) and then upgraded by re-running the init script") {
+        Then("the runtime accounts end with no database-level privilege, the migration accounts without GRANT OPTION, grantors locked, table grants kept") {
+            db.withRoot { r ->
+                for (owner in listOf(PaymentDbAccounts.PAYMENT_DATABASE, MASTER_DATABASE)) {
+                    r.codeOf("GRANT ALL PRIVILEGES ON $owner.* TO '$owner'@'%' WITH GRANT OPTION") shouldBe null
+                    r.codeOf("GRANT ALL PRIVILEGES ON $owner.* TO '${owner}_migration'@'%' WITH GRANT OPTION") shouldBe null
+                    r.codeOf("ALTER USER '${owner}_grantor'@'localhost' ACCOUNT UNLOCK") shouldBe null
                 }
             }
-        }
+            // 사전 상태가 실제로 위험한지(대조): runtime 계정이 DB 단위 ALL을 가진다.
+            (rootScalar("SELECT COUNT(*) FROM mysql.db WHERE User = ? AND Db = ?", PAYMENT_RUNTIME_USER, PaymentDbAccounts.PAYMENT_DATABASE) as Number)
+                .toLong() shouldBe 1
 
-        Then("the runtime account cannot change the schema (CREATE / ALTER / DROP / TRUNCATE denied)") {
-            db.connect(schema, runtime, runtimePassword).use { c ->
-                with(db) {
-                    c.errorCodeOf("CREATE TABLE sneaky (id INT PRIMARY KEY)") shouldBe 1142
-                    c.errorCodeOf("ALTER TABLE payment ADD COLUMN sneaky INT") shouldBe 1142
-                    c.errorCodeOf("DROP TABLE outbox_event") shouldBe 1142
-                    c.errorCodeOf("TRUNCATE TABLE idempotency_request") shouldBe 1142
-                }
-            }
-        }
+            val rerun = container.execInContainer("bash", "/docker-entrypoint-initdb.d/01-owned-databases.sh")
+            rerun.exitCode shouldBe 0
 
-        Then("the runtime account cannot read another owned database (no cross-DB access)") {
-            db.connect(schema, runtime, runtimePassword).use { c ->
-                val denied = shouldThrow<SQLException> { with(db) { c.rows("SELECT COUNT(*) FROM ${db.databaseName}.payment") } }
-                denied.errorCode shouldBeIn setOf(1142, 1044)
-            }
+            mapOf(
+                "runtime db rows" to rootScalar(
+                    "SELECT COUNT(*) FROM mysql.db WHERE User IN (?, ?)", PAYMENT_RUNTIME_USER, MASTER_RUNTIME_USER,
+                ).let { (it as Number).toLong() },
+                "grant option db rows" to rootScalar(
+                    "SELECT COUNT(*) FROM mysql.db WHERE User IN (?, ?, ?, ?) AND Grant_priv = 'Y'",
+                    PAYMENT_RUNTIME_USER, MASTER_RUNTIME_USER, PAYMENT_MIGRATION_USER, MASTER_MIGRATION_USER,
+                ).let { (it as Number).toLong() },
+                "unlocked grantors" to rootScalar(
+                    "SELECT COUNT(*) FROM mysql.user WHERE User IN ('paycore_payment_grantor', 'paycore_master_grantor') AND account_locked <> 'Y'",
+                ).let { (it as Number).toLong() },
+            ) shouldBe mapOf("runtime db rows" to 0L, "grant option db rows" to 0L, "unlocked grantors" to 0L)
+            actualAccountGrants() shouldBe expectedAccountGrants
+            // 업그레이드 뒤에도 append-only 표는 runtime이 지우지 못한다.
+            db.withApp { c ->
+                mapOf(
+                    "evidence delete" to c.codeOf("DELETE FROM payment_termination_evidence WHERE payment_id = 'none'"),
+                    "hold drop" to c.codeOf("DROP TABLE incident_hold"),
+                )
+            } shouldBe mapOf("evidence delete" to 1142, "hold drop" to 1142)
         }
     }
 })

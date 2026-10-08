@@ -13,14 +13,19 @@ import javax.sql.DataSource
  * migration 계정 / runtime 계정 분리(CP-DB-001 결정)를 로컬 개발 초기화 스크립트(docker/mysql/init/01-owned-databases.sh)와
  * master-api 설정에 적용한 결과를 실제 MySQL 8.4.11로 확인한다(MASTER-BOOT-001).
  *
- * - 앱 pool(runtime 계정 `paycore_master`)은 MASTER DB에서 DML만 된다. CREATE/ALTER/DROP/TRUNCATE는 1142(테이블 명령 권한 없음).
+ * - 앱 pool(runtime 계정 `paycore_master`)은 DB 단위 권한이 없고 기본 role `paycore_master_runtime`의 표 단위 권한만 가진다
+ *   (PAYMENT-DBACCOUNT-001). 시험 probe 표(V900)는 시험 전용 권한 migration(V901)이 procedure로 전체 DML을 준다.
+ *   CREATE/ALTER/DROP/TRUNCATE는 1142(테이블 명령 권한 없음).
  * - schema 변경은 Flyway가 migration 계정(`paycore_master_migration`)으로 한다(설치자 기록은 smoke spec).
  * - 두 계정 모두 다른 소유 DB(PAYMENT/FINANCIAL)에 접근하지 못한다(1044 DB 접근 거부 또는 1142).
- * - 스크립트가 만든 권한 전체(SHOW GRANTS): MASTER·PAYMENT는 계정 분리, FINANCIAL은 Batch metadata 위치·권한 미결(Q-BATCH-META)이라
- *   기존 단일 계정을 유지한다.
+ * - migration 계정은 GRANT OPTION이 없어 어떤 계정에도 권한을 직접 주지 못한다(1142). runtime 표 단위 권한은 초기화 스크립트의
+ *   procedure `<db>_privilege.set_runtime_table_privileges`(받는 쪽 = 이 DB runtime role 고정, DEFINER = 잠긴 grantor)로만 준다.
+ * - 스크립트가 만든 권한 전체(SHOW GRANTS): MASTER·PAYMENT는 migration 계정 / runtime 계정(role만) / runtime role / 잠긴 grantor,
+ *   FINANCIAL은 Batch metadata 위치·권한 미결(Q-BATCH-META)이라 기존 단일 계정을 유지한다.
  *
- * append-only 확정 사실 테이블의 표 단위 권한(UPDATE/DELETE 제외)은 MASTER에 아직 테이블이 없어 원칙만 기록했다
- * (docker/mysql/init 주석, MASTER-DOMAIN-001에서 해당 테이블과 함께 GRANT·시험 추가).
+ * 기대값 변경 기록(PAYMENT-DBACCOUNT-001, 정책을 따르는 의도된 변경): MASTER-BOOT-001의 runtime `SELECT, INSERT, UPDATE, DELETE ON <db>.*`
+ * 기대값을 'role만'으로 바꿨다. DB 단위 DML은 append-only 확정 사실 표의 UPDATE/DELETE를 DB 권한으로 막지 못하기 때문이다(D1).
+ * MASTER 업무 표의 권한(append-only 표는 SELECT, INSERT만)은 MASTER-DOMAIN-001이 첫 테이블과 함께 같은 방식으로 추가한다.
  */
 @MasterDbTest
 class MasterDatabaseAccountSpec(
@@ -29,8 +34,8 @@ class MasterDatabaseAccountSpec(
     private val container: MySQLContainer,
 ) : BehaviorSpec({
 
-    fun grantsOf(user: String): Set<String> = MasterDbAccounts.root(container).use { c ->
-        c.column("SHOW GRANTS FOR '$user'@'%'").filterNot { it.startsWith("GRANT USAGE ON *.*") }.toSet()
+    fun grantsOf(user: String, host: String = "%"): Set<String> = MasterDbAccounts.root(container).use { c ->
+        c.column("SHOW GRANTS FOR '$user'@'$host'").filterNot { it.startsWith("GRANT USAGE ON *.*") }.toSet()
     }
 
     Given("the application pool connects with the MASTER runtime account") {
@@ -77,22 +82,99 @@ class MasterDatabaseAccountSpec(
                 c.errorCodeOf("USE ${MasterDbAccounts.FINANCIAL_DATABASE}") shouldBe 1044
             }
         }
+
+        Then("it cannot grant privileges to any account directly (no GRANT OPTION), grant the runtime role, or create accounts") {
+            MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_MIGRATION_USER).use { c ->
+                mapOf(
+                    "to payment runtime" to c.errorCodeOf("GRANT SELECT ON tech_session_probe TO 'paycore_payment'@'%'"),
+                    "to master runtime role" to c.errorCodeOf("GRANT DELETE ON tech_session_probe TO 'paycore_master_runtime'@'%'"),
+                    "role to outside" to c.errorCodeOf("GRANT 'paycore_master_runtime'@'%' TO 'paycore_payment'@'%'"),
+                    "create user" to c.errorCodeOf("CREATE USER 'paycore_outside'@'%' IDENTIFIED BY 'x'"),
+                    "payment procedure" to c.errorCodeOf("CALL paycore_payment_privilege.set_runtime_table_privileges('x', 'SELECT')"),
+                )
+            } shouldBe mapOf(
+                "to payment runtime" to 1142, "to master runtime role" to 1142, "role to outside" to 1227, "create user" to 1227,
+                "payment procedure" to 1370,
+            )
+        }
+
+        Then("the privilege procedure refuses privilege sets outside the allowed list and the Flyway history table") {
+            MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_MIGRATION_USER).use { c ->
+                mapOf(
+                    "extra privilege" to
+                        c.errorCodeOf("CALL paycore_master_privilege.set_runtime_table_privileges('tech_session_probe', 'SELECT, INSERT, UPDATE, DELETE, DROP')"),
+                    "flyway history" to c.errorCodeOf("CALL paycore_master_privilege.set_runtime_table_privileges('flyway_schema_history', 'SELECT')"),
+                )
+            } shouldBe mapOf("extra privilege" to 1644, "flyway history" to 1644)
+        }
     }
 
     Given("the local init script (docker/mysql/init/01-owned-databases.sh)") {
-        Then("MASTER and PAYMENT have a migration account (ALL on its own DB) and a DML-only runtime account; FINANCIAL is unchanged") {
+        Then("MASTER and PAYMENT: migration account (DB ALL + procedure EXECUTE), role-only runtime account, runtime role, locked grantor; FINANCIAL unchanged") {
             mapOf(
                 MasterDbAccounts.MASTER_RUNTIME_USER to grantsOf(MasterDbAccounts.MASTER_RUNTIME_USER),
+                MasterDbAccounts.MASTER_RUNTIME_ROLE to grantsOf(MasterDbAccounts.MASTER_RUNTIME_ROLE),
                 MasterDbAccounts.MASTER_MIGRATION_USER to grantsOf(MasterDbAccounts.MASTER_MIGRATION_USER),
+                MasterDbAccounts.MASTER_GRANTOR to grantsOf(MasterDbAccounts.MASTER_GRANTOR, "localhost"),
                 MasterDbAccounts.PAYMENT_RUNTIME_USER to grantsOf(MasterDbAccounts.PAYMENT_RUNTIME_USER),
+                MasterDbAccounts.PAYMENT_RUNTIME_ROLE to grantsOf(MasterDbAccounts.PAYMENT_RUNTIME_ROLE),
                 MasterDbAccounts.PAYMENT_MIGRATION_USER to grantsOf(MasterDbAccounts.PAYMENT_MIGRATION_USER),
+                MasterDbAccounts.PAYMENT_GRANTOR to grantsOf(MasterDbAccounts.PAYMENT_GRANTOR, "localhost"),
                 MasterDbAccounts.FINANCIAL_USER to grantsOf(MasterDbAccounts.FINANCIAL_USER),
             ) shouldBe mapOf(
-                "paycore_master" to setOf("GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_master`.* TO `paycore_master`@`%`"),
-                "paycore_master_migration" to setOf("GRANT ALL PRIVILEGES ON `paycore_master`.* TO `paycore_master_migration`@`%`"),
-                "paycore_payment" to setOf("GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_payment`.* TO `paycore_payment`@`%`"),
-                "paycore_payment_migration" to setOf("GRANT ALL PRIVILEGES ON `paycore_payment`.* TO `paycore_payment_migration`@`%`"),
+                "paycore_master" to setOf("GRANT `paycore_master_runtime`@`%` TO `paycore_master`@`%`"),
+                // 시험 전용 probe 표(V901)만. MASTER 업무 표는 아직 없다.
+                "paycore_master_runtime" to setOf(
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_master`.`tech_session_probe` TO `paycore_master_runtime`@`%`",
+                ),
+                "paycore_master_migration" to setOf(
+                    "GRANT ALL PRIVILEGES ON `paycore_master`.* TO `paycore_master_migration`@`%`",
+                    "GRANT EXECUTE ON PROCEDURE `paycore_master_privilege`.`set_runtime_table_privileges` TO `paycore_master_migration`@`%`",
+                ),
+                "paycore_master_grantor" to setOf(
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_master`.* TO `paycore_master_grantor`@`localhost` WITH GRANT OPTION",
+                    "GRANT EXECUTE ON PROCEDURE `paycore_master_privilege`.`set_runtime_table_privileges` TO `paycore_master_grantor`@`localhost`",
+                ),
+                "paycore_payment" to setOf("GRANT `paycore_payment_runtime`@`%` TO `paycore_payment`@`%`"),
+                // 이 컨테이너에는 PAYMENT migration이 적용되지 않았다(PAYMENT 표 단위 권한은 payment-api DatabaseAccountSeparationSpec).
+                "paycore_payment_runtime" to emptySet(),
+                "paycore_payment_migration" to setOf(
+                    "GRANT ALL PRIVILEGES ON `paycore_payment`.* TO `paycore_payment_migration`@`%`",
+                    "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_migration`@`%`",
+                ),
+                "paycore_payment_grantor" to setOf(
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_payment`.* TO `paycore_payment_grantor`@`localhost` WITH GRANT OPTION",
+                    "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_grantor`@`localhost`",
+                ),
                 "paycore_financial" to setOf("GRANT ALL PRIVILEGES ON `paycore_financial`.* TO `paycore_financial`@`%`"),
+            )
+        }
+
+        Then("no triggers, routines, events or views exist in the MASTER database (any future use needs a reviewed expectation change)") {
+            MasterDbAccounts.root(container).use { c ->
+                listOf("TRIGGERS" to "TRIGGER_SCHEMA", "ROUTINES" to "ROUTINE_SCHEMA", "EVENTS" to "EVENT_SCHEMA", "VIEWS" to "TABLE_SCHEMA")
+                    .associate { (view, column) ->
+                        view to c.column("SELECT COUNT(*) FROM information_schema.$view WHERE $column = 'paycore_master'").single()
+                    }
+            } shouldBe mapOf("TRIGGERS" to "0", "ROUTINES" to "0", "EVENTS" to "0", "VIEWS" to "0")
+        }
+
+        Then("runtime accounts activate their runtime role by default; roles and grantors cannot log in (account locked)") {
+            MasterDbAccounts.root(container).use { c ->
+                mapOf(
+                    "default roles" to c.column(
+                        "SELECT CONCAT(USER, '->', DEFAULT_ROLE_USER) FROM mysql.default_roles WHERE USER LIKE 'paycore%' ORDER BY USER",
+                    ),
+                    "locked" to c.column(
+                        "SELECT CONCAT(User, '@', Host) FROM mysql.user WHERE User LIKE 'paycore%' AND account_locked = 'Y' ORDER BY User",
+                    ),
+                )
+            } shouldBe mapOf(
+                "default roles" to listOf("paycore_master->paycore_master_runtime", "paycore_payment->paycore_payment_runtime"),
+                "locked" to listOf(
+                    "paycore_master_grantor@localhost", "paycore_master_runtime@%", "paycore_payment_grantor@localhost",
+                    "paycore_payment_runtime@%",
+                ),
             )
         }
     }

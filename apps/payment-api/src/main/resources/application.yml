@@ -3,6 +3,8 @@ spring:
     name: payment-api
   # PAYMENT DB 접속 정보는 환경변수로만 주입한다. 기본값/비밀번호를 저장소에 두지 않는다.
   datasource:
+    # runtime 계정: DB 단위 권한 없이 role(paycore_payment_runtime)의 표 단위 권한만 가진다(DDL 불가, append-only 표는 SELECT·INSERT만).
+    # 계정·role·권한 부여 procedure: docker/mysql/init/01-owned-databases.sh, 표별 권한: db/runtime-privilege/payment (PAYMENT-DBACCOUNT-001)
     url: ${PAYCORE_PAYMENT_DB_URL}
     username: ${PAYCORE_PAYMENT_DB_USERNAME}
     password: ${PAYCORE_PAYMENT_DB_PASSWORD}
@@ -23,7 +25,14 @@ spring:
       # 시각 컬럼(DATETIME(3))은 UTC로 읽고 쓴다(JVM 기본 시간대와 무관하게 Instant가 같은 값으로 왕복). CP-DB-001.
       hibernate.jdbc.time_zone: UTC
   flyway:
-    locations: classpath:db/migration/payment
+    # 업무 schema(db/migration/payment)와 runtime 표 단위 권한(db/runtime-privilege/payment). 권한 migration을 별도 위치에 두는 이유:
+    # jOOQ 생성기는 업무 schema 위치만 적용하며 생성기 컨테이너에는 권한 부여 procedure가 없다(ARCHITECTURE-CONVENTIONS §9).
+    locations: classpath:db/migration/payment,classpath:db/runtime-privilege/payment
+    # migration 계정(PAYMENT DB ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다(URL은 datasource와 같다). master-api와 같은 변수 이름 규칙.
+    user: ${PAYCORE_PAYMENT_DB_MIGRATION_USERNAME}
+    password: ${PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD}
+    # 별도 연결에는 위 hikari driver 속성이 적용되지 않는다. migration 세션도 UTC로 맞춰 시각 기본값/변환이 앱과 같게 한다(D2).
+    init-sqls: "SET time_zone = '+00:00'"
   jooq:
     sql-dialect: MYSQL
 
