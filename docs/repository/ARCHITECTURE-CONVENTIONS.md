@@ -100,7 +100,7 @@ com.paycore.<app>.<module>
 
 - web adapter·eligibility Port 구현·ID 생성기·요청 fingerprint r1 계산·오류 HTTP 매핑(CP-API-001). 영속 Port·application TX는 §9(CP-DB-001).
 - Outbox Relay(lease·재발행·published 표시)·Inbox·Dispatcher(ADR-001 제안을 별도 작업에서 확정). Outbox append는 §9.
-- 소유 DB별 migration/runtime 계정 분리: 로컬 compose에는 MASTER/PAYMENT 적용됨(MASTER-BOOT-001). 남은 것 — payment-api Flyway 계정 바인딩·표 단위 권한(append-only 표 SELECT/INSERT만)은 PAYMENT-DBACCOUNT-001, FINANCIAL은 Q-BATCH-META 답변 후, 운영 Secret 주입은 운영 작업(권한 경계 결정·시험은 §9, CP-DB-001).
+- 소유 DB별 migration/runtime 계정 분리: 로컬 compose에는 MASTER/PAYMENT 적용됨(MASTER-BOOT-001). MASTER 업무 표의 runtime 표 단위 권한은 MASTER-DOMAIN-001(§10). 남은 것 — payment-api Flyway 계정 바인딩·표 단위 권한(append-only 표 SELECT/INSERT만)은 PAYMENT-DBACCOUNT-001, FINANCIAL은 Q-BATCH-META 답변 후, 운영 Secret 주입은 운영 작업(권한 경계 결정·시험은 §9, CP-DB-001).
 
 ## 7. payment-api 첫 업무 모듈 `payment` (CP-DOMAIN-001)
 
@@ -173,7 +173,7 @@ JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음)
 - **비관적 잠금 읽기(`@Lock(PESSIMISTIC_WRITE)`).** 역할: 판정에 쓰는 멱등 행·control·현재 Payment를 `SELECT … FOR UPDATE`로 읽는다. 예: 다른 키 8개가 같은 새 주문을 동시에 요청하면 7개가 control 행에서 기다렸다가 먼저 커밋된 Payment를 재사용한다. 이유: 낙관적 version만으로는 "활성 Payment 하나"를 지키지 못한다(서로 다른 Payment 행 사이의 경쟁). 주의: 잠금은 최소 행·고정 순서로만, 외부 호출 동안 쥐지 않는다. timeout(1205)은 문장만 되돌릴 수 있으므로 TX 전체를 rollback한다.
 - **연관 매핑·LAZY 미사용.** 역할: 종료 근거·incident hold는 `@OneToMany`가 아니라 별도 Entity로 adapter가 INSERT만 한다. 이유: cascade·orphanRemoval이 append-only 사실을 지우거나 LAZY 로딩이 N+1·직렬화 문제를 만드는 경로가 구조적으로 없다. 주의: 조회 화면용 목록은 jOOQ query adapter(조회 전용 규칙)에서 만든다. OSIV는 꺼져 있다.
 - **`@Transactional(MANDATORY)` Port.** 역할: Store는 application이 연 TX 안에서만 동작한다. 예: TX 없이 `lock()` 호출 → `IllegalTransactionStateException`. 이유: TX 경계·재시도·rollback 판단을 application이 소유한다. 주의: Use Case 자체는 이미 열린 TX 안에서 호출되면 거부한다(바깥 TX에 섞이지 않음).
-- **시각 매핑(UTC 저장, CP-DB-001 M-2).** 역할: `Instant` ↔ `DATETIME(3)`(시간대 없는 벽시계 값)을 항상 UTC 벽시계로 쓰고 읽는다. 서비스가 ms로 자른다(30일 CHECK와 Java 계산이 같은 값). 예: `2026-10-07T01:02:03.456Z`는 JVM이 Asia/Seoul이어도 `2026-10-07 01:02:03.456`으로 저장되고 멱등 `expires_at`은 `2026-11-06 01:02:03.456`(`UtcStorageSpec`, 원문은 별도 연결의 `CAST(... AS CHAR)`). 이유: 두 겹으로 고정한다 — (1) `hibernate.jdbc.time_zone=UTC`: Hibernate가 JPA·native query 파라미터를 UTC Calendar로 바인딩(이것만으로 JPA 경로는 처음부터 UTC였다), (2) Hikari driver 속성 `connectionTimeZone=UTC` + `forceConnectionTimeZoneToSession=true`: Hibernate를 거치지 않는 plain JDBC(jOOQ 조회·raw SQL)도 UTC로 변환하고 세션 `time_zone`을 `+00:00`으로 맞춘다. (2) 없이는 Asia/Seoul JVM에서 plain JDBC가 `10:02`로 쓰고 `01:02`을 전날 `16:02Z`로 읽었다(RED). URL이 아니라 driver 속성이라 시험(ServiceConnection URL)·운영(환경변수 URL) 모두 같은 값이 적용된다. 주의: 시간대 이름 테이블이 없는 MySQL에서도 동작하도록 driver가 offset(`+00:00`)으로 세션을 설정한다. DB 기본값 `CURRENT_TIMESTAMP`는 쓰지 않는다(시각은 서버 clock 값을 애플리케이션이 넣음). jOOQ 생성 코드의 `DATETIME`은 `LocalDateTime`(UTC 벽시계)이므로 `Instant`로 바꿀 때 `ZoneOffset.UTC`를 쓴다(시스템 시간대 금지).
+- **시각 매핑(UTC 저장, CP-DB-001 M-2).** 역할: `Instant` ↔ `DATETIME(3)`(시간대 없는 벽시계 값)을 항상 UTC 벽시계로 쓰고 읽는다. 서비스가 ms로 자른다(30일 CHECK와 Java 계산이 같은 값). 예: `2026-10-07T01:02:03.456Z`는 JVM이 Asia/Seoul이어도 `2026-10-07 01:02:03.456`으로 저장되고 멱등 `expires_at`은 `2026-11-06 01:02:03.456`(`UtcStorageSpec`, 원문은 별도 연결의 `CAST(... AS CHAR)`). 이유: 두 겹으로 고정한다 — (1) `hibernate.jdbc.time_zone=UTC`: Hibernate가 JPA·native query 파라미터를 UTC Calendar로 바인딩(이것만으로 JPA 경로는 처음부터 UTC였다), (2) Hikari driver 속성 `connectionTimeZone=UTC` + `forceConnectionTimeZoneToSession=true`: Hibernate를 거치지 않는 plain JDBC(jOOQ 조회·raw SQL)도 UTC로 변환하고 세션 `time_zone`을 `+00:00`으로 맞춘다. (2) 없이는 Asia/Seoul JVM에서 plain JDBC가 `10:02`로 쓰고 `01:02`을 전날 `16:02Z`로 읽었다(RED). URL이 아니라 driver 속성이라 시험(ServiceConnection URL)·운영(환경변수 URL) 모두 같은 값이 적용된다. 주의: 시간대 이름 테이블이 없는 MySQL에서도 동작하도록 driver가 offset(`+00:00`)으로 세션을 설정한다. DB 기본값 `CURRENT_TIMESTAMP`는 쓰지 않는다(시각은 서버 clock 값을 애플리케이션이 넣음). jOOQ 생성 코드의 `DATETIME` 필드(`LocalDateTime`)는 **UTC 벽시계가 아니다**: driver(`connectionTimeZone=UTC`)가 값을 UTC 순간으로 해석한 뒤 jOOQ가 **JVM 기본 시간대**로 `LocalDateTime`을 만든다(MASTER-DOMAIN-001에서 Asia/Seoul JVM이 02:00Z를 11:00으로 읽은 RED — `MerchantStructureQuerySpec`). 그래서 `ZoneOffset.UTC`로 바꾸면 9시간 어긋난다(이전 이 문단의 안내는 실행 검증 없이 쓴 것이라 정정한다). 조회 adapter는 시각 컬럼을 SQL `DATE_FORMAT(col, '%Y-%m-%dT%H:%i:%s.%fZ')` 문자열로 읽어 `Instant.parse`한다(저장 UTC 벽시계 그대로 — driver·JVM·세션 시간대 변환 없음, `java.sql` 타입 불필요). 시스템 시간대 의존 변환은 금지.
 
 ### 9.2 runtime 표 단위 권한 관례 (PAYMENT-DBACCOUNT-001 — MASTER-DOMAIN-001 이후 모든 소유 DB가 따른다)
 
@@ -209,3 +209,28 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 - **`@Lock(PESSIMISTIC_WRITE)` = `SELECT … FOR UPDATE`.** 역할: 판정 행 잠금 읽기. 예: `lockById`·`lockByScope`. 이유: MySQL은 잠금 읽기에 SELECT와 UPDATE(또는 DELETE·LOCK TABLES) 권한을 요구한다. 주의: append-only 표는 잠가 읽지 않는다(시험: 종료 근거 FOR UPDATE → 1142) — 직렬화는 부모(control·payment) 잠금이 한다.
 - **`persist`(IDENTITY)와 native IODKU.** 역할: 새 행은 persist(INSERT만), 최초 경쟁은 `INSERT … ON DUPLICATE KEY UPDATE`. 예: outbox는 INSERT만으로 충분, control·멱등 기록은 IODKU라 INSERT+UPDATE. 이유: MySQL 문서상 IODKU는 INSERT 권한과 함께 ON DUPLICATE KEY UPDATE가 갱신하는 열의 UPDATE 권한을 요구한다(이번에 권한을 줄여 따로 시험하지는 않았다). 주의: Spring Data `save`는 merge(SELECT 후 UPDATE)가 될 수 있어 append-only 표에 쓰면 1142가 날 수 있다 — 새 행은 `persist`만 쓴다는 기존 관례가 권한과도 맞는다.
 - **Kafka/Redis.** 이 권한 구조는 DB 안의 금융 사실 보호다. 브로커·캐시 도입(ADR-001, 미도입)은 이를 대체하지 않는다.
+
+## 10. master-api 첫 업무 모듈 `merchant` (MASTER-DOMAIN-001)
+
+가역적인 구현 관례다. 업무 규칙은 구조 확정본·초기 확정사항·D-MD-001~014이며 명세는 `docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md`.
+코드: `apps/master-api/src/main/resources/db/migration/master/V1__master_core.sql`, `db/runtime-privilege/master/V2__master_runtime_privileges.sql`,
+`com.paycore.master.merchant.{domain, application(provided/required), adapter.persistence, adapter.query}`.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 모듈 | `com.paycore.master.merchant` 하나(Business·Merchant·Site·Contract·MID·연결·개통). 정책 정의는 후속 `policy` 모듈 | 최초 Default 발급이 MID·Default·연결·계약 확인을 한 TX에서 한다(payment 모듈과 같은 이유, §7) |
+| 식별자 | `<prefix>_` + ULID 26자(Crockford 대문자): `biz_`·`mer_`·`site_`·`mid_`·`ctr_`·`csa_`·`asg_`·`act_`. domain 생성자와 DB CHECK가 형식 강제, 확장만 허용 | PAYMENT MID·Site 컬럼(VARCHAR(64) bin)과 값 객체에 맞음. 생성기 `RandomMasterIdGenerator`(application, JDK `SecureRandom`만) |
+| 관계 이중 방어 | 같은 Merchant(MID·Site·Default·연결)·당사자 Business(Scope·MID)·승인된 Revision만 발급 근거를 **복합 FK**로, 열린 PRIMARY·열린 MID–Site·활성 채널 유일성을 **생성 컬럼 UNIQUE**로 | domain 검사와 같은 규칙을 DB가 다시 지킨다(`MasterSchemaSpec`). 기간 배제 제약이 없어 닫힌 기간 중첩은 merchant 잠금 + domain |
+| 잠금 순서 | admin_request → business → merchant → contract → merchant_account. 소속 등 불변 값은 먼저 비잠금으로 읽어 순서를 지킨다 | 교착 방지. merchant 행이 Merchant 안 관계 변경의 직렬화 지점(다른 키 동시 최초 발급 → 1건) |
+| 잠금 읽기 | Store가 `find` 후 `EntityManager.refresh(row, PESSIMISTIC_WRITE)` | 같은 TX의 앞선 비잠금 읽기로 영속성 컨텍스트에 있던 Entity를 최신 커밋 값으로 덮는다(JPQL `@Lock` 조회는 이미 관리되는 Entity의 상태를 다시 읽지 않는다) |
+| 관리 명령 멱등 | 범위 UNIQUE(operation, key), 요청 fingerprint `m1:`(길이 접두 canonical + SHA-256), 같은 키·같은 내용 재생·다른 내용 IdempotencyKeyReused, 업무 거절도 저장·재생, **삭제 경로 없음(무기한)** | D-CPC-004(30일)는 CreatePayment 결정이라 자동 적용하지 않음(Coordinator 확인) |
+| 판정 후 쓰기 | 본문은 잠금·읽기 → domain 판정 → `beginWrites()` → 저장. 쓰기 시작 뒤 규칙 위반은 결함으로 전체 rollback | 업무 거절과 일부 쓰기가 함께 커밋되지 않게 |
+| 재시도 | 교착·낙관적 충돌·**업무 유일키 충돌**(등록번호·채널 등 동시 등록)만 새 TX로 재판정(최대 3회) | 다음 TX의 판정이 커밋된 행을 보고 업무 거절로 수렴(`FirstDefaultIssuanceAtomicitySpec` 등록번호 경합) |
+| entitlement_revision | merchant 행의 단조 값. 발급·Revision 승인·개통 등록 TX에서 +1 | MASTER-SNAPSHOT-001의 차단 버전 비교용(JPA version과 별개) |
+| Outbox·이력 | 모든 성공 명령이 같은 TX로 `master_change_history`(append-only, 등록번호는 마스킹만)와 `outbox_event`(PENDING, `INTEGRATION_MASTER_REFERENCE`, 등록번호 없음)를 남긴다. Relay는 MASTER-SNAPSHOT-001 | A02 TX 경계 1, D-MD-008 |
+| 개통 | `payment_method_activation`은 상태 컬럼 없는 등록 기록(Q-MD-09 미결) — 소비자는 개통 완료로 보지 않는다. UNIQUE(MID, 결제수단)·ACTIVATION_DUPLICATE는 **잠정**(Q-MD-09 답에 따라 새 버전 migration) | fail-closed |
+| 서버 시계 | application.required `MasterClock`(운영 `SystemMasterClock`). 명령 시각은 요청 필드가 아니라 Port에서 오며 ms로 자른다. 명령 기간 입력은 `EffectivePeriod.ofMillis` | 호출자가 시각을 넣어 적용 Revision(D-MD-011)·소급 금지(D-MD-005)를 우회하지 못하게. MySQL `DATETIME(3)`은 소수 초를 반올림하므로 ms 미만은 경계에서 버린다 |
+| 발급 근거 | 발급 시각에 적용되는 Revision(D-MD-011: 승인·기간 포함 중 번호 최대)만(D-MD-012), 적용 Revision이 없으면(효력 전) 자기 시작 시각에 적용될 승인 Revision만(선발급, D-MD-015), 계약 대상 Merchant = MID Merchant(D-MD-013, `contract.merchant_id` 복합 FK) | 시각 판정은 DB 제약으로 표현하지 않고 contract 행 잠금 아래 domain이 판정 |
+| 운영 로그 | `AdminCommandExecutor`가 결과 불명확·재시도 소진·서버 생성 ID 충돌을 WARN 구조화 로그(`operation`·`correlationId`·종류)로 남긴다. Hibernate JDBC 오류 원문 로그(`org.hibernate.orm.jdbc.error`·`SqlExceptionHelper`)는 OFF | MySQL 1062 원문에 키 값(등록번호·채널·ID)이 들어 있다(D-MD-008, review M-2 — 로그 수집 시험) |
+| 조회(CQRS) | jOOQ `JooqMerchantStructureReader`(adapter.query, required Port `MerchantStructureReader` 구현) — 업무 schema 위치만으로 codegen(권한 위치 제외). 한 구조 조회의 문장들은 `@Transactional(readOnly, REPEATABLE_READ)` 하나에서 실행(한 InnoDB 스냅샷), 시각 컬럼은 `DATE_FORMAT` 문자열로 읽는다(§9.1) | §4, AC, review m-1·m-2 |
+| 시험 | 모든 master DB 시험은 runtime 계정(`MasterDbTest`, 시험 전용 lock wait 8초·pool 16), 장애 주입 `MasterFaultInjectionConfig`, Named Fixture `MasterFixture`·`OnboardingFixture`, Fixture Monkey는 `RandomOnboardingFixture` 안에만 | Test Fixture Policy |

@@ -11,9 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.testcontainers.mysql.MySQLContainer
 
 /**
- * 기술 조합 smoke(MASTER-BOOT-001): Boot 4 컨텍스트가 실제 MySQL 8.4에 **MASTER DB(`paycore_master`)로만** 연결되고
- * Flyway·JPA·jOOQ가 기동하는지 확인한다. 업무 규칙은 없다(업무 테이블은 MASTER-DOMAIN-001).
- * 운영 migration 위치는 아직 비어 있어 적용된 것은 시험 전용 V900(기술 probe)과 그 runtime 표 단위 권한 V901뿐이다.
+ * 기술 조합 smoke(MASTER-BOOT-001, MASTER-DOMAIN-001 갱신): Boot 4 컨텍스트가 실제 MySQL 8.4에 **MASTER DB(`paycore_master`)로만** 연결되고
+ * Flyway(운영 V1 업무 schema·V2 runtime 표 권한 + 시험 전용 V900·V901)·JPA(MASTER Entity를 Flyway schema로 validate)·jOOQ가 기동하는지 확인한다.
  * runtime 계정은 표 단위 권한(role)만 가져 Flyway history·권한 없는 표를 볼 수 없으므로 schema 전체 관찰은 root 연결로 한다(PAYMENT-DBACCOUNT-001).
  */
 @MasterDbTest
@@ -40,32 +39,41 @@ class MasterApiContextSmokeSpec(
     }
 
     test("Flyway applies the MASTER migration locations with the migration account") {
-        flyway.configuration.locations.map { it.descriptor } shouldBe
-            listOf(MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.TEST_MIGRATIONS, MasterDbAccounts.TEST_PRIVILEGES)
+        flyway.configuration.locations.map { it.descriptor } shouldBe listOf(
+            MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES, MasterDbAccounts.TEST_MIGRATIONS, MasterDbAccounts.TEST_PRIVILEGES,
+        )
         flyway.info().pending().size shouldBe 0
-        // 운영 migration은 아직 없다. 시험 전용 V900(probe)·V901(probe runtime 권한)만 적용된다.
-        flyway.info().applied().map { it.version.version } shouldBe listOf("900", "901")
+        // 운영 V1(업무 schema)·V2(runtime 표 단위 권한, MASTER-DOMAIN-001) + 시험 전용 V900(probe)·V901(probe runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
 
-    test("no business tables exist in the MASTER schema yet (MASTER-DOMAIN-001 adds them); the runtime account sees only granted tables") {
-        rootStrings(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'paycore_master' ORDER BY table_name",
-        ) shouldBe listOf("flyway_schema_history", "tech_session_probe")
+    test("the runtime account sees exactly the granted tables (business tables + test probe, not the Flyway history)") {
+        val all = rootStrings("SELECT table_name FROM information_schema.tables WHERE table_schema = 'paycore_master' ORDER BY table_name")
         jdbcTemplate.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name",
             String::class.java,
-        ) shouldBe listOf("tech_session_probe")
+        ) shouldBe all - "flyway_schema_history"
     }
 
-    test("JPA EntityManagerFactory opens (ddl-auto=validate, no entities yet)") {
+    test("JPA EntityManagerFactory opens with the MASTER entities validated against the Flyway schema (ddl-auto=validate)") {
         entityManagerFactory.isOpen shouldBe true
-        entityManagerFactory.metamodel.entities.size shouldBe 0
+        entityManagerFactory.metamodel.entities.map { it.name }.toSet() shouldBe MASTER_ENTITIES
     }
 
     test("jOOQ DSLContext uses MySQL dialect and executes query") {
         dsl.dialect() shouldBe SQLDialect.MYSQL
         dsl.selectOne().fetchOne(0, Int::class.java) shouldBe 1
     }
-})
+}) {
+    companion object {
+        /** MASTER-DOMAIN-001 JPA Entity(adapter.persistence). 표마다 하나(생성 컬럼은 매핑하지 않는다). */
+        val MASTER_ENTITIES = setOf(
+            "JpaAdminRequestEntity", "JpaBusinessEntity", "JpaContractEntity", "JpaContractRevisionEntity", "JpaContractRevisionApprovalEntity",
+            "JpaContractRevisionScopeSiteEntity", "JpaContractServiceAgreementEntity", "JpaDefaultDesignationEntity",
+            "JpaMasterChangeHistoryEntity", "JpaMerchantEntity", "JpaMerchantAccountEntity", "JpaSiteAssignmentEntity", "JpaMerchantSiteEntity",
+            "JpaOutboxEventEntity", "JpaPaymentMethodActivationEntity",
+        )
+    }
+}

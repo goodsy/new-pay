@@ -1,5 +1,6 @@
 package com.paycore.master
 
+import com.paycore.master.merchant.application.MasterFaultInjectionConfig
 import com.paycore.testsupport.MySqlTestContainerConfig
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -46,16 +47,23 @@ class MasterDbTestConfig {
 }
 
 /**
- * master-api의 DB 시험(실제 MySQL 8.4.11). 운영 migration 위치에 더해 시험 전용 migration(db/testmigration/master: 기술 probe 테이블)을
- * 적용한다. 모든 DB spec이 같은 속성 조합을 써서 컨텍스트·컨테이너를 하나만 만든다(메모리 상한, MASTER-BOOT-001).
+ * master-api의 DB 시험(실제 MySQL 8.4.11). 운영 migration 위치(업무 schema + runtime 표 단위 권한)에 더해 시험 전용 migration
+ * (db/testmigration/master: 기술 probe 테이블)과 그 권한을 적용한다. 모든 DB spec이 같은 속성 조합을 써서 컨텍스트·컨테이너를 하나만
+ * 만든다(메모리 상한, MASTER-BOOT-001).
+ *
+ * - [MasterFaultInjectionConfig]: 장애 주입 hook이 달린 Port 대역(@Primary, hook이 없으면 실제 Store 그대로).
+ * - `innodb_lock_wait_timeout` 8초·pool 16은 경합 시험용 **시험 전용** 값이다(payment-api와 같은 이유). 운영 값이 아니다.
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 @SpringBootTest
-@Import(MasterDbTestConfig::class)
+@Import(MasterDbTestConfig::class, MasterFaultInjectionConfig::class)
 @TestPropertySource(
     properties = [
-        "spring.flyway.locations=${MasterDbAccounts.MAIN_MIGRATIONS},${MasterDbAccounts.TEST_MIGRATIONS},${MasterDbAccounts.TEST_PRIVILEGES}",
+        "spring.flyway.locations=${MasterDbAccounts.MAIN_MIGRATIONS},${MasterDbAccounts.RUNTIME_PRIVILEGES}," +
+            "${MasterDbAccounts.TEST_MIGRATIONS},${MasterDbAccounts.TEST_PRIVILEGES}",
+        "spring.datasource.hikari.connection-init-sql=SET SESSION innodb_lock_wait_timeout = 8",
+        "spring.datasource.hikari.maximum-pool-size=16",
     ],
 )
 annotation class MasterDbTest
@@ -76,6 +84,9 @@ object MasterDbAccounts {
     const val FINANCIAL_USER = "paycore_financial"
 
     const val MAIN_MIGRATIONS = "classpath:db/migration/master"
+
+    /** 운영 runtime 표 단위 권한 migration(업무 schema와 다른 위치 — jOOQ 생성기는 적용하지 않는다, §9.2). */
+    const val RUNTIME_PRIVILEGES = "classpath:db/runtime-privilege/master"
     const val TEST_MIGRATIONS = "classpath:db/testmigration/master"
 
     /** 시험 전용 표의 runtime 표 단위 권한 migration(schema migration과 다른 위치, PAYMENT-DBACCOUNT-001 §9.2 관례). */
@@ -144,6 +155,15 @@ fun Connection.update(sql: String, vararg args: Any?): Int =
 fun Connection.errorCodeOf(sql: String): Int? =
     try {
         createStatement().use { it.execute(sql) }
+        null
+    } catch (e: java.sql.SQLException) {
+        e.errorCode
+    }
+
+/** 매개변수 SQL을 실행하고 MySQL vendor 오류 코드(성공이면 null)를 돌려준다. */
+fun Connection.errorCodeOfUpdate(sql: String, vararg args: Any?): Int? =
+    try {
+        update(sql, *args)
         null
     } catch (e: java.sql.SQLException) {
         e.errorCode

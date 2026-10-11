@@ -14,8 +14,9 @@ class MainConfigurationSpec : FunSpec({
     val yaml = YamlPropertySourceLoader().load("application", ClassPathResource("application.yml")).single()
     fun value(name: String): String? = yaml.getProperty(name)?.toString()
 
-    test("Flyway uses only the MASTER migration location") {
-        value("spring.flyway.locations") shouldBe "classpath:db/migration/master"
+    test("Flyway uses only the MASTER business-schema and MASTER runtime-privilege locations (MASTER-DOMAIN-001)") {
+        // 권한 migration은 업무 schema와 다른 위치다: jOOQ 생성기는 업무 schema 위치만 적용한다(ARCHITECTURE-CONVENTIONS §9.2).
+        value("spring.flyway.locations") shouldBe "classpath:db/migration/master,classpath:db/runtime-privilege/master"
     }
 
     test("datasource binds only MASTER runtime-account variables; Flyway binds the MASTER migration-account variables") {
@@ -37,6 +38,11 @@ class MainConfigurationSpec : FunSpec({
     test("no other owned database is configured (PAYMENT / FINANCIAL)") {
         val text = ClassPathResource("application.yml").inputStream.use { String(it.readAllBytes()) }
         Regex("PAYCORE_(PAYMENT|FINANCIAL)_|paycore_(payment|financial)", RegexOption.IGNORE_CASE).containsMatchIn(text) shouldBe false
+    }
+
+    test("Hibernate JDBC error text (which carries duplicate key values such as registration numbers) is not logged (D-MD-008, review M-2)") {
+        value("logging.level.org.hibernate.orm.jdbc.error") shouldBe "OFF"
+        value("logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper") shouldBe "OFF"
     }
 
     test("schema is owned by Flyway; JPA does not open sessions per request") {

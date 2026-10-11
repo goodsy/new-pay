@@ -25,7 +25,8 @@ import javax.sql.DataSource
  *
  * 기대값 변경 기록(PAYMENT-DBACCOUNT-001, 정책을 따르는 의도된 변경): MASTER-BOOT-001의 runtime `SELECT, INSERT, UPDATE, DELETE ON <db>.*`
  * 기대값을 'role만'으로 바꿨다. DB 단위 DML은 append-only 확정 사실 표의 UPDATE/DELETE를 DB 권한으로 막지 못하기 때문이다(D1).
- * MASTER 업무 표의 권한(append-only 표는 SELECT, INSERT만)은 MASTER-DOMAIN-001이 첫 테이블과 함께 같은 방식으로 추가한다.
+ * MASTER 업무 표의 권한은 MASTER-DOMAIN-001이 V2__master_runtime_privileges.sql로 추가했다(현재 main 쓰기 경로만 — append-only·insert-only 표는
+ * SELECT, INSERT, 잠가 읽거나 갱신하는 표만 UPDATE, DELETE 없음). 기대값 [MASTER_RUNTIME_TABLE_PRIVILEGES].
  */
 @MasterDbTest
 class MasterDatabaseAccountSpec(
@@ -123,10 +124,10 @@ class MasterDatabaseAccountSpec(
                 MasterDbAccounts.FINANCIAL_USER to grantsOf(MasterDbAccounts.FINANCIAL_USER),
             ) shouldBe mapOf(
                 "paycore_master" to setOf("GRANT `paycore_master_runtime`@`%` TO `paycore_master`@`%`"),
-                // 시험 전용 probe 표(V901)만. MASTER 업무 표는 아직 없다.
-                "paycore_master_runtime" to setOf(
-                    "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_master`.`tech_session_probe` TO `paycore_master_runtime`@`%`",
-                ),
+                // 운영 업무 표(V2 — 현재 main 쓰기 경로만, append-only·insert-only 표는 SELECT, INSERT, DELETE 없음)와 시험 전용 probe 표(V901).
+                "paycore_master_runtime" to MASTER_RUNTIME_TABLE_PRIVILEGES.map { (table, privileges) ->
+                    "GRANT $privileges ON `paycore_master`.`$table` TO `paycore_master_runtime`@`%`"
+                }.toSet() + "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_master`.`tech_session_probe` TO `paycore_master_runtime`@`%`",
                 "paycore_master_migration" to setOf(
                     "GRANT ALL PRIVILEGES ON `paycore_master`.* TO `paycore_master_migration`@`%`",
                     "GRANT EXECUTE ON PROCEDURE `paycore_master_privilege`.`set_runtime_table_privileges` TO `paycore_master_migration`@`%`",
@@ -148,6 +149,19 @@ class MasterDatabaseAccountSpec(
                 ),
                 "paycore_financial" to setOf("GRANT ALL PRIVILEGES ON `paycore_financial`.* TO `paycore_financial`@`%`"),
             )
+        }
+
+        Then("every MASTER business table has a runtime privilege migration (a new table without one fails here)") {
+            MasterDbAccounts.root(container).use { c ->
+                val tables = c.column(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'paycore_master' AND table_type = 'BASE TABLE' " +
+                        "AND table_name NOT IN ('flyway_schema_history') ORDER BY table_name",
+                ).toSet()
+                val granted = c.column(
+                    "SELECT Table_name FROM mysql.tables_priv WHERE Db = 'paycore_master' AND User = 'paycore_master_runtime'",
+                ).toSet()
+                tables - granted
+            } shouldBe emptySet()
         }
 
         Then("no triggers, routines, events or views exist in the MASTER database (any future use needs a reviewed expectation change)") {
@@ -178,4 +192,28 @@ class MasterDatabaseAccountSpec(
             )
         }
     }
-})
+}) {
+    companion object {
+        /**
+         * MASTER runtime role의 표 단위 권한 기대값(V2__master_runtime_privileges.sql, MASTER-DOMAIN-001 main 코드 기준). 잠가 읽거나 갱신하는 표만
+         * UPDATE, 나머지는 SELECT, INSERT. 권한을 넓히는 변경은 이 기대값을 함께 바꾸는 검토된 변경이어야 한다.
+         */
+        val MASTER_RUNTIME_TABLE_PRIVILEGES: Map<String, String> = linkedMapOf(
+            "admin_request" to "SELECT, INSERT, UPDATE",
+            "business" to "SELECT, INSERT, UPDATE",
+            "contract" to "SELECT, INSERT, UPDATE",
+            "contract_revision" to "SELECT, INSERT",
+            "contract_revision_approval" to "SELECT, INSERT",
+            "contract_revision_scope_site" to "SELECT, INSERT",
+            "contract_service_agreement" to "SELECT, INSERT",
+            "default_designation" to "SELECT, INSERT",
+            "master_change_history" to "SELECT, INSERT",
+            "merchant" to "SELECT, INSERT, UPDATE",
+            "merchant_account" to "SELECT, INSERT, UPDATE",
+            "merchant_account_site_assignment" to "SELECT, INSERT",
+            "merchant_site" to "SELECT, INSERT",
+            "outbox_event" to "SELECT, INSERT",
+            "payment_method_activation" to "SELECT, INSERT",
+        )
+    }
+}

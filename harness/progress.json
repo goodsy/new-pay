@@ -2,14 +2,13 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:9642c6af26b987c4f86acceb33afddd8808633f3168b8a4e522d52b5c4db1304",
-  "lastSuccessfulStep": "PAYMENT-DBACCOUNT-001 DONE (VERIFY-GATE PASS 141619Z 625 tests, REVIEW_PASS round2) on sha256:9642c6af26b987c4f86acceb33afddd8808633f3168b8a4e522d52b5c4db1304",
+  "codeFingerprint": "sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809",
+  "lastSuccessfulStep": "MASTER-DOMAIN-001 DONE (VERIFY-GATE PASS 040957Z 757 tests, REVIEW_PASS round3) on sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
-    "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)",
-    "G-3 계약 용어 (MASTER-DOMAIN-001)"
+    "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "MASTER-DOMAIN-001(먼저 G-3 계약 용어 질문) → MASTER-SNAPSHOT-001 → CP-API-001 → AUTH. 주의: payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 로컬 paycore-mysql volume은 권한 갱신 필요(.env.example). 긴 gate는 WSL setsid nohup 분리 실행",
+  "nextResumeAction": "MASTER-LIFECYCLE-001(먼저 Q-MD-06·07·08·18 질문, 착수 시 MASTER-DOMAIN-001 명세 §3.3/§9.7 보강) 또는 MASTER-SNAPSHOT-001(먼저 Q-MD-08·09·10 질문) → CP-API-001 → AUTH. payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 긴 gate는 WSL setsid 분리 실행",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -139,6 +138,29 @@
       "taskId": "PAYMENT-DBACCOUNT-001",
       "event": "done",
       "detail": "review1 FAIL(MAJOR-1 옛 volume DDL 잔존 등) 수정 → VERIFY-GATE PASS 141619Z(625)·DEPS/CVE PASS·REVIEW_PASS round2, fingerprint 9642c6af…"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "PAYMENT-DBACCOUNT-001",
+      "event": "pushed",
+      "detail": "d5a0925..a123bab"
+    },
+    {
+      "at": "2026-10-08",
+      "taskId": "MASTER-DOMAIN-001",
+      "event": "claimed",
+      "detail": "G-3 답변: D-MD-001/002"
+    },
+    {
+      "at": "2026-10-09",
+      "taskId": "MASTER-DOMAIN-001",
+      "event": "questions_answered",
+      "detail": "Q-MD-01~05·11 → D-MD-003~008, Q-MD-06~10 PROPOSED, MASTER-LIFECYCLE-001 등록"
+    },
+    {
+      "at": "2026-10-11T04:30Z",
+      "taskId": "MASTER-DOMAIN-001",
+      "event": "DONE on sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809 (VERIFY-GATE PASS 757 tests, DEPS x4, CVE PASS, REVIEW_PASS round3)"
     }
   ]
 }

@@ -116,7 +116,10 @@
       "humanAnswer": null,
       "humanEvidence": null,
       "appliedSpec": null,
-      "origin": "TECH-001 Implementer 질문 후보"
+      "origin": "TECH-001 Implementer 질문 후보",
+      "notes": [
+        "(MASTER-DOMAIN-001 review m-9) 등록번호 중복 거절이 기존 businessId를 반환 — 관리자 신뢰 수준 결정 시 열거(enumeration) 위험 함께 판단"
+      ]
     },
     {
       "id": "Q-BATCH-META",
@@ -372,6 +375,325 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-06)",
       "appliedSpec": "D-CPC-009",
       "origin": "CP-CONTRACT-001 implementer question candidate"
+    },
+    {
+      "id": "G-3",
+      "status": "ANSWERED",
+      "question": "Contract / ServiceAgreement / ContractServiceAgreement 관계",
+      "recommended": "2단 구조: Contract 1:N ContractServiceAgreement, ServiceAgreement·Agreement는 ContractServiceAgreement 줄임말",
+      "alternative": "단일 Contract 개념 / ServiceAgreement만 최상위",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-SNAPSHOT-001",
+        "SETTLEMENT-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-08",
+      "humanAnswer": "2단 구조 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-08)",
+      "appliedSpec": "D-MD-001",
+      "origin": "DOMAIN-DEFINITION.md §6 G-3"
+    },
+    {
+      "id": "G-3-UNIT",
+      "status": "ANSWERED",
+      "question": "ContractServiceAgreement 1건의 단위",
+      "recommended": "서비스 종류별(예: 카드 PG 결제 서비스) — 결제수단 세부는 PaymentMethodActivation, 통화는 Assignment 범위(SA+MID+Currency)",
+      "alternative": "결제수단별 / 결제수단+통화별",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "SETTLEMENT-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-08",
+      "humanAnswer": "서비스 종류별 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-08)",
+      "appliedSpec": "D-MD-002",
+      "origin": "G-3 후속"
+    },
+    {
+      "id": "Q-MD-01",
+      "status": "ANSWERED",
+      "question": "MID와 TEST/LIVE 환경 관계",
+      "recommended": "MID 하나 + 환경은 축",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "MID 하나 + 환경은 축 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-003",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-02",
+      "status": "ANSWERED",
+      "question": "Contract 당사자·Revision·승인/효력·철회·갱신",
+      "recommended": "권장안 일괄",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "권장안 일괄 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-004",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-03",
+      "status": "ANSWERED",
+      "question": "SiteAssignment 기간·상태",
+      "recommended": "UTC 시각·소급 금지",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "UTC 시각·소급 금지 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-005",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-04",
+      "status": "ANSWERED",
+      "question": "Business·Merchant·Site·MID 중지/종료 표현",
+      "recommended": "생명주기+별도 차단 기록",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "생명주기+별도 차단 기록 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-006",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-05",
+      "status": "ANSWERED",
+      "question": "PRIMARY 동시 유효 수·교체",
+      "recommended": "최대 1개·자동승격 없음",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "최대 1개·자동승격 없음 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-007",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-11",
+      "status": "ANSWERED",
+      "question": "Business·Site 등록 중복 기준",
+      "recommended": "사업자번호 UNIQUE·Site 중복 거절",
+      "alternative": "명세 문서 해당 항목 참조",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "사업자번호 UNIQUE·Site 중복 거절 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-008",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보"
+    },
+    {
+      "id": "Q-MD-06",
+      "status": "PROPOSED",
+      "question": "추가 MID 발급 근거·승인(사유 코드, CSA당 복수 MID, 요청자≠승인자)",
+      "recommended": "명세 문서 §미결 권장안",
+      "alternative": "명세 문서 참조",
+      "dependentTasks": [
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-07",
+      "status": "PROPOSED",
+      "question": "Default 교체·종료(발급 전·종료 후 0개, 자동 승격 없음)",
+      "recommended": "명세 문서 §미결 권장안",
+      "alternative": "명세 문서 참조",
+      "dependentTasks": [
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-08",
+      "status": "PROPOSED",
+      "question": "ADDITIONAL 공유 증거·승인과 개통·Site 심사 적용 범위(구조 §12 MID 단위 개통 vs 추가 Site 비상속)",
+      "recommended": "명세 문서 §미결 권장안",
+      "alternative": "명세 문서 참조",
+      "dependentTasks": [
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-09",
+      "status": "PROPOSED",
+      "question": "PaymentMethodActivation 단위·상태((MID,결제수단) UNDER_REVIEW/ACTIVE/SUSPENDED/TERMINATED)",
+      "recommended": "명세 문서 §미결 권장안",
+      "alternative": "명세 문서 참조",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-10",
+      "status": "PROPOSED",
+      "question": "통화 활성화 기록 위치(별도 기록 vs CSA+MID+통화 정책 Assignment)",
+      "recommended": "명세 문서 §미결 권장안",
+      "alternative": "명세 문서 참조",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-12",
+      "status": "ANSWERED",
+      "question": "Site 채널 식별값 동일성",
+      "recommended": "소문자 정규형만 수용",
+      "alternative": "정규화 후 비교 / 서브도메인 묶음",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "소문자 정규형만 수용 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-009",
+      "origin": "MASTER-DOMAIN-001 2단계 구현자 질문 후보"
+    },
+    {
+      "id": "Q-MD-13",
+      "status": "ANSWERED",
+      "question": "SITES Scope 범위",
+      "recommended": "한 Scope = 한 Merchant",
+      "alternative": "Business 내 여러 Merchant 허용",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001"
+      ],
+      "askedAt": "2026-10-09",
+      "humanAnswer": "한 Scope = 한 Merchant (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-09)",
+      "appliedSpec": "D-MD-010",
+      "origin": "MASTER-DOMAIN-001 2단계 구현자 질문 후보"
+    },
+    {
+      "id": "Q-MD-14",
+      "status": "ANSWERED",
+      "question": "겹치는 승인 Revision 중 시각 t에 적용되는 Revision",
+      "recommended": "번호가 가장 큰 것",
+      "alternative": "질문 시 제시한 대안",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-10",
+      "humanAnswer": "번호가 가장 큰 것 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
+      "appliedSpec": "D-MD-011",
+      "origin": "MASTER-DOMAIN-001 review round1 QC"
+    },
+    {
+      "id": "Q-MD-15",
+      "status": "ANSWERED",
+      "question": "대체된 미종료 Revision을 MID 발급 근거로 쓸 수 있는가",
+      "recommended": "안 됨",
+      "alternative": "질문 시 제시한 대안",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-10",
+      "humanAnswer": "안 됨 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
+      "appliedSpec": "D-MD-012",
+      "origin": "MASTER-DOMAIN-001 review round1 QC"
+    },
+    {
+      "id": "Q-MD-16",
+      "status": "ANSWERED",
+      "question": "Revision 간 Scope Merchant 변경 허용",
+      "recommended": "안 됨",
+      "alternative": "질문 시 제시한 대안",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-10",
+      "humanAnswer": "안 됨 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
+      "appliedSpec": "D-MD-013",
+      "origin": "MASTER-DOMAIN-001 review round1 QC"
+    },
+    {
+      "id": "Q-MD-17",
+      "status": "ANSWERED",
+      "question": "종료된 Revision 승인 기록·WEB 채널 IP 허용",
+      "recommended": "둘 다 거절",
+      "alternative": "질문 시 제시한 대안",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001",
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-10",
+      "humanAnswer": "둘 다 거절 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
+      "appliedSpec": "D-MD-014",
+      "origin": "MASTER-DOMAIN-001 review round1 QC"
+    },
+    {
+      "id": "Q-MD-18",
+      "status": "PROPOSED",
+      "question": "다른 Merchant의 Site가 TERMINATED된 뒤 그 채널 식별값을 다른 Merchant가 등록할 수 있는가(권장: 예외 승인 없으면 거절, 재사용 위험)",
+      "recommended": "예외 승인 없으면 거절",
+      "alternative": "종료 후 재등록 허용",
+      "dependentTasks": [
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": null,
+      "origin": "MASTER-DOMAIN-001 review round1 QC QC-2 — MASTER-LIFECYCLE-001 착수 전 질문"
+    },
+    {
+      "id": "Q-MD-19",
+      "status": "ANSWERED",
+      "question": "D-MD-012와 '계약 승인 후 효력 시작 전 MID 선발급 가능'(구조 경계 §1) 충돌 — 선발급 근거",
+      "recommended": "자기 시작 시점에 적용될 Revision만",
+      "alternative": "선발급 금지 / 승인된 미래 Revision 아무거나",
+      "dependentTasks": [
+        "MASTER-DOMAIN-001",
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": "2026-10-10",
+      "humanAnswer": "자기 시작 시점에 적용될 Revision만 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
+      "appliedSpec": "D-MD-015",
+      "origin": "MASTER-DOMAIN-001 review round1 수정 중 구현자 질문 후보"
     }
   ]
 }

@@ -66,7 +66,7 @@ flowchart LR
 
 | 플랫폼 | 책임 | 원본 DB | 실행 단위(현재 저장소) |
 |---|---|---|---|
-| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | `apps/master-api` (`com.paycore.master`, MASTER-BOOT-001에서 생성 — D-CPC-006). 업무 모듈·테이블은 아직 없음(MASTER-DOMAIN-001) |
+| Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | `apps/master-api` (`com.paycore.master`, MASTER-BOOT-001에서 생성 — D-CPC-006). 첫 업무 모듈 `com.paycore.master.merchant`·MASTER V1 표(MASTER-DOMAIN-001, 관례 §10) |
 | Transaction | 주문 결제 통제, Payment, Authorization/Attempt, 취소·환불 거래 상태, 기관 거래 식별자, Routing 실행 결과 | PAYMENT | `apps/payment-api` (`com.paycore.payment`) |
 | Financial | Acquisition, Settlement, AgentSettlement, Payable, Payout, Adjustment, 대사 결과, Hold | FINANCIAL | `apps/financial-batch` (`com.paycore.financial`) |
 | (화면) | 내부 관리자 화면. 데이터는 소유 플랫폼 API에 위임 | 없음 | `apps/internal-admin` (인증 방식 미결: Q-ADMIN-AUTH) |
@@ -86,15 +86,17 @@ flowchart LR
 
 ### 3.1 Master — 가맹점·계약·MID·정책 원본
 
+> 상세 Aggregate·불변식·TX·질문(Q-MD-01~05·11~17·19 답변 = D-MD-003~015, Q-MD-06~10·18 미결): `docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md` (MASTER-DOMAIN-001 명세·구현 기록).
+
 | 개념 | 정의 | 핵심 규칙 | 상태 |
 |---|---|---|---|
-| Business | 법적 사업 주체. Merchant/Agent/Seller 역할을 가질 수 있다 | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다 | 확정(초기) |
+| Business | 법적 사업 주체. Merchant/Agent/Seller 역할을 가질 수 있다 | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다. 국내 사업자등록번호로 하나(10자리 숫자, 평문 로그·이벤트 금지·이력은 마스킹, D-MD-008). 계약 당사자(D-MD-004). 생명주기 ACTIVE/TERMINATED + 별도 신규 결제 차단 기록(D-MD-006) | 확정(초기, D-MD-004·006·008) |
 | Merchant | PG 서비스를 받는 가맹점 단위 | Merchant 1:N MerchantSite, 1:N MerchantAccount(MID) | 확정(구조 §13) |
-| MerchantSite | 결제가 일어나는 채널(웹·앱 등) | 같은 Merchant 소속 MID와만 연결 | 확정 |
-| MerchantAccount (MID) | 계약 단위 결제 계정. 발급 근거 계약 서비스 하나와 Revision을 명시한다 | 하나의 Merchant에만 속한다(다른 Merchant 간 공유 금지). BusinessId·카드사 가맹점번호·GID와 다른 개념 | 확정(초기·구조 §8) |
+| MerchantSite | 결제가 일어나는 채널(웹·앱 등) | 같은 Merchant 소속 MID와만 연결. 활성 채널 식별값은 같은 Merchant 안·다른 Merchant와 중복 거절(D-MD-008, 예외 승인 기록은 후속). 식별값은 소문자 정규형만(WEB = 도메인 host만, IP 리터럴 거절, 서브도메인은 다른 채널 — D-MD-009·014) | 확정 |
+| MerchantAccount (MID) | 계약 단위 결제 계정. 발급 근거 계약 서비스 하나와 Revision을 명시한다 | 하나의 Merchant에만 속한다(다른 Merchant 간 공유 금지). BusinessId·카드사 가맹점번호·GID와 다른 개념. MID 하나 = 계약 계정이고 TEST/LIVE는 Credential·요청 축, 발급 MID는 모두 Production MID(계약 승인 필수, D-MD-003). 생명주기 ACTIVE/TERMINATED(비가역) + 별도 차단 기록(D-MD-006) | 확정(초기·구조 §8, D-MD-003·006) |
 | Default MID | Merchant의 기본 계정 선택용 MID | 계약·권한·정산 조건을 자동 상속하지 않는다. 최초 Default 발급은 MID·Default 지정·최초 SiteAssignment·요청 결과·Outbox를 같은 MASTER TX로 저장. 교체·종료 규칙은 미결 | 확정 + 잔여 미결 |
-| MerchantAccountSiteAssignment | MID–Site 연결(N:M 수용) | 기본 1:1. 복수 Site 공유는 동일 Merchant·Agreement·개통 적용 가능·정산 정책·기관 심사 허용을 모두 만족할 때만. 역할 PRIMARY/ADDITIONAL, EffectivePeriod·이력 보존. Production MID는 최초 Site 연결 필수 | 확정(구조 §6–10) |
-| Contract / ContractServiceAgreement | 당사자·Scope·Revision과 서비스 권리 | 초기 Scope는 Merchant 또는 MerchantSite. GID 자동 상속 없음. 철회 시 신규 결제 차단, 재승인만으로 자동 재활성화 안 함 | 확정(초기) |
+| MerchantAccountSiteAssignment | MID–Site 연결(N:M 수용) | 기본 1:1. 복수 Site 공유는 동일 Merchant·Agreement·개통 적용 가능·정산 정책·기관 심사 허용을 모두 만족할 때만(증거·승인 방식은 Q-MD-08 미결). 역할 PRIMARY/ADDITIONAL, Production MID는 최초 Site 연결 필수. 기간 UTC [from, to)·같은 MID–Site 중첩 금지·소급 금지·미래 종료 예약 허용·상태 ACTIVE/SUSPENDED/ENDED(D-MD-005). MID당 유효 PRIMARY 하나·교체는 종료+시작 한 TX·자동 승격 없음·ADDITIONAL만 남으면 신규 결제 차단(D-MD-007) | 확정(구조 §6–10, D-MD-005·007) |
+| Contract / ContractServiceAgreement | 당사자·Scope·Revision과 서비스 권리 | Contract 1:N CSA(D-MD-001), CSA 1건 = 서비스 종류 1개(D-MD-002). 당사자 = Business, Scope MERCHANT 또는 SITES(≥1)·변경은 새 Revision, Revision 내용 불변·승인 사실 append-only·효력 [from, to), 철회 ≠ 종료·CSA 단위 철회, 재활성화 = 새 Revision 승인 + 명시 명령, 같은 CSA 갱신은 MID 유지(D-MD-004). 한 계약의 모든 Revision은 같은 Merchant(D-MD-013), SITES Scope는 한 Merchant의 Site만(D-MD-010). 시각 t에 적용되는 Revision = t를 포함하는 승인 Revision 중 번호 최대(D-MD-011), MID 발급 근거는 발급 시각의 적용 Revision만(D-MD-012), 효력 전에는 자기 시작 시각에 적용될 승인 Revision으로 선발급(D-MD-015), 끝난 Revision 승인 거절(D-MD-014). GID 자동 상속 없음 | 확정(초기, D-MD-001·002·004·010~015) |
 | PaymentMethodActivation (개통) | MID(향후 +Site)의 결제수단·카드사·Route 사용 승인 | 발급과 개통은 별개. Phase 1은 MID 단위, Site Scope로 확장 가능하게 | 확정(구조 §11–12) |
 | 정책 정의 | FeeSchedule/FeeRule, SettlementPolicy, AdvancePayoutPolicy, AutoCorrectionPolicy, BusinessCalendar와 각 Assignment | 원본은 MASTER, 적용 Snapshot·계산은 FINANCIAL, 승인 당시 근거 버전은 PAYMENT가 보존. 변경은 UPDATE가 아니라 새 Version | 확정(구조 기존결정 §3) |
 | 권리 Snapshot·lease | PAYMENT가 신규 승인 판정에 쓰는 로컬 권리 사본과 만료 있는 허용 기간 | 만료·누락·확인 불가 버전은 신규 승인 차단. 긴급 차단 우선 전파·ACK. 전파 지연·lease 수치는 미결 | 확정 + 수치 미결 |
@@ -264,12 +266,12 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 
 - **G-1 Master 실행 단위 없음 → 결정(D-CPC-006: Master 먼저 구현).** MASTER-BOOT-001 / MASTER-DOMAIN-001 / MASTER-SNAPSHOT-001을 등록했고, CP-API-001·AUTH-001은 MASTER-SNAPSHOT-001 이후로 둔다.
 - **G-2 PaymentTransaction 정의 없음.** "시도 §5"와 "정산 §16"에 나오지만, Authorization·Cancellation과의 관계와 금융 사실의 단위가 정의돼 있지 않다. Financial 이벤트 계약의 핵심 단위라 AUTH-CONTRACT-001에서 정의가 필요하다(금융 의미가 있어 사용자 확인 대상).
-- **G-3 계약 용어 변형.** Contract / ServiceAgreement / ContractServiceAgreement가 문서마다 섞여 쓰인다. 같은 개념인지, Contract 아래 ServiceAgreement가 있는 구조인지 Master 작업에서 확정해야 한다.
+- ~~G-3 계약 용어 변형.~~ **해결(D-MD-001·D-MD-002, 2026-10-08).** Contract 1:N ContractServiceAgreement 2단 구조, ServiceAgreement·Agreement는 ContractServiceAgreement 줄임말. ContractServiceAgreement 1건 = 서비스 종류 1개, 결제수단은 PaymentMethodActivation, 통화는 Assignment 범위.
 - **G-4 incident hold 해제와 자동 보상취소.** 늦은 성공에 대한 처리 정책이 없다(시도 §4에서 "별도 정책"으로 명시).
 - **G-5 Cancellation / Refund 상세.** 부분취소, 반환 가능 금액 불변식, 계좌환불 흐름의 상태 모델이 아직 없다.
 
 ## 7. 갱신 규칙
 
 - 새 사용자 결정(DECISIONS.md)이나 채택 문서가 바뀌면 같은 변경에서 이 문서의 해당 행을 고친다.
-- 코드에 Aggregate/모듈이 생기면 "코드/영문" 열에 실제 타입 이름을 맞춘다(CP-DOMAIN-001: OrderKey, Environment, OrderIntentFingerprint, PaymentId, Payment, PaymentStatus, TerminationEvidence, OrderPaymentControl, PaymentSlotDecision, BlockReason, IncidentHold).
+- 코드에 Aggregate/모듈이 생기면 "코드/영문" 열에 실제 타입 이름을 맞춘다(CP-DOMAIN-001: OrderKey, Environment, OrderIntentFingerprint, PaymentId, Payment, PaymentStatus, TerminationEvidence, OrderPaymentControl, PaymentSlotDecision, BlockReason, IncidentHold; MASTER-DOMAIN-001: Business, BusinessRegistrationNumber, Merchant, MerchantSite, SiteChannel, Contract, ContractRevision, ContractScope, ContractServiceAgreement, MerchantAccount, DefaultDesignation, SiteAssignment, SiteAssignmentRole/Status, PaymentMethodActivation, MerchantAccountIssuance).
 - 이 문서만 근거로 정책을 판단하지 않는다. 항상 근거 열의 원문을 확인한다.

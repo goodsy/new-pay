@@ -3,8 +3,8 @@ spring:
     name: master-api
   # MASTER DB 접속 정보는 환경변수로만 주입한다. 기본값/비밀번호를 저장소에 두지 않는다. 다른 소유 DB 접속 정보는 두지 않는다.
   datasource:
-    # runtime 계정: DB 단위 권한 없이 role(paycore_master_runtime)의 표 단위 권한만(DDL 불가). 계정·role·권한 부여 procedure:
-    # docker/mysql/init/01-owned-databases.sh. MASTER 표가 생기면 그 권한 migration이 procedure로 표 단위 권한을 준다(PAYMENT-DBACCOUNT-001 관례).
+    # runtime 계정: DB 단위 권한 없이 role(paycore_master_runtime)의 표 단위 권한만(DDL 불가, append-only·insert-only 표는 SELECT·INSERT만).
+    # 계정·role·권한 부여 procedure: docker/mysql/init/01-owned-databases.sh, 표별 권한: db/runtime-privilege/master(MASTER-DOMAIN-001, §9.2 관례).
     url: ${PAYCORE_MASTER_DB_URL}
     username: ${PAYCORE_MASTER_DB_USERNAME}
     password: ${PAYCORE_MASTER_DB_PASSWORD}
@@ -24,7 +24,9 @@ spring:
       # 시각 컬럼은 UTC로 읽고 쓴다(JVM 기본 시간대와 무관).
       hibernate.jdbc.time_zone: UTC
   flyway:
-    locations: classpath:db/migration/master
+    # 업무 schema(db/migration/master)와 runtime 표 단위 권한(db/runtime-privilege/master). 권한 migration을 별도 위치에 두는 이유:
+    # jOOQ 생성기는 업무 schema 위치만 적용하며 생성기 컨테이너에는 권한 부여 procedure가 없다(ARCHITECTURE-CONVENTIONS §9.2).
+    locations: classpath:db/migration/master,classpath:db/runtime-privilege/master
     # migration 계정(MASTER DB ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다(URL은 datasource와 같다).
     user: ${PAYCORE_MASTER_DB_MIGRATION_USERNAME}
     password: ${PAYCORE_MASTER_DB_MIGRATION_PASSWORD}
@@ -38,3 +40,11 @@ management:
     web:
       exposure:
         include: health
+
+logging:
+  level:
+    # 민감값 비노출(D-MD-008, review M-2): Hibernate는 JDBC 오류 원문을 로그로 남기는데 MySQL 1062 원문에는 키 값(사업자등록번호·채널 식별값·ID)이
+    # 그대로 들어 있다("Duplicate entry '<값>' for key …"). 저장 실패는 adapter가 PersistenceFailure(제약 이름만)로 분류하고 application이
+    # 구조화 로그(연산·상관 ID, 값 없음)를 남기므로 원문 로그는 끈다. Hibernate 7 범주(org.hibernate.orm.jdbc.error)와 이전 이름 모두.
+    org.hibernate.orm.jdbc.error: "OFF"
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
