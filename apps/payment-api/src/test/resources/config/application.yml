@@ -1,0 +1,15 @@
+# 시험 전용 설정(test classpath에만 있다 — 운영 jar에 들어가지 않는다). Spring Boot는 classpath:/config/application.yml을 운영
+# application.yml 위에 덧씌운다. 운영 application.yml에는 아래 값의 기본값이 없다(없으면 기동 실패 — MASTER-SNAPSHOT-001 명세 §8).
+#
+# clock-skew-margin은 **시험 fixture**다(운영값 아님 — 시계 오차 여유 운영 수치는 미확정, 허용 §4.2 마지막 문단).
+# 서명 키는 시험 전용 값이다(운영 키 아님 — D-MS-004). 두 번째 키는 교체 기간 동시 허용(2키) 시험용이다.
+paycore:
+  payment:
+    entitlement:
+      clock-skew-margin: PT0.1S
+      inbox:
+        signing-keys:
+          - key-id: test-k1
+            secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh
+          - key-id: test-k2
+            secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTIh

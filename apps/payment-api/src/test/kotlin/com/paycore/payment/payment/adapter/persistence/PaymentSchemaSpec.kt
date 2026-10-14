@@ -27,6 +27,8 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
 
     val businessTables = listOf(
         "payment", "payment_termination_evidence", "order_payment_control", "incident_hold", "idempotency_request", "outbox_event",
+        // MASTER-SNAPSHOT-001 V3
+        "inbox_event", "entitlement_head", "entitlement_snapshot", "entitlement_mid_owner",
     )
 
     /** D-CP-001: 업무 키·fingerprint 컬럼. 아래 "모든 문자열 컬럼" 검사가 빈 목록으로 통과하지 않게 대상을 명시한다. */

@@ -31,11 +31,13 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
 
     val businessTables = listOf(
         "admin_request", "business", "contract", "contract_revision", "contract_revision_approval", "contract_revision_scope_site",
-        "contract_service_agreement", "default_designation", "master_change_history", "merchant", "merchant_account",
-        "merchant_account_site_assignment", "merchant_site", "outbox_event", "payment_method_activation",
+        "contract_service_agreement", "currency_enablement", "currency_unit", "default_designation", "entitlement_snapshot_ack",
+        "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account", "merchant_account_site_assignment",
+        "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation", "payment_method_activation_event",
+        "site_activation_confirmation", "site_activation_confirmation_revocation",
     )
 
-    Given("the MASTER business schema (V1)") {
+    Given("the MASTER business schema (V1 + V3 MASTER-SNAPSHOT-001)") {
         Then("all business tables exist") {
             root { c ->
                 c.column(
@@ -280,10 +282,13 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
     }
 
     Given("append-only and no-delete tables under the runtime account (ARCHITECTURE-CONVENTIONS §9.2)") {
+        // MASTER-SNAPSHOT-001: payment_method_activation(상태 전이, D-MS-003)·outbox_event(Relay, AC m-7)는 V4가 UPDATE를 받아 목록에서 빠지고
+        // (MasterDatabaseAccountSpec 기대값), 새 append-only 표 6개가 들어온다.
         val insertOnly = listOf(
             "contract_revision", "contract_revision_scope_site", "contract_revision_approval", "contract_service_agreement",
-            "merchant_site", "default_designation", "merchant_account_site_assignment", "payment_method_activation",
-            "master_change_history", "outbox_event",
+            "merchant_site", "default_designation", "merchant_account_site_assignment", "master_change_history",
+            "payment_method_activation_event", "site_activation_confirmation", "site_activation_confirmation_revocation",
+            "merchant_site_review_decision", "entitlement_snapshot_issue", "entitlement_snapshot_ack",
         )
 
         Then("UPDATE and locking reads on insert-only tables are denied (1142)") {
@@ -295,6 +300,15 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
                     )
                 }
             } shouldBe insertOnly.associateWith { listOf(1142, 1142) }
+        }
+
+        Then("the currency unit reference table is read-only for the runtime account (INSERT/UPDATE denied 1142)") {
+            runtime { c ->
+                listOf(
+                    c.errorCodeOf("INSERT INTO currency_unit (currency_code, minor_unit) VALUES ('EUR', 2)"),
+                    c.errorCodeOf("UPDATE currency_unit SET minor_unit = 3 WHERE currency_code = 'KRW'"),
+                )
+            } shouldBe listOf(1142, 1142)
         }
 
         Then("DELETE is denied on every business table (1142)") {
@@ -326,9 +340,13 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "merchant_site" to "created_by",
             "default_designation" to "designated_by",
             "merchant_account_site_assignment" to "created_by",
-            "payment_method_activation" to "registered_by",
             "master_change_history" to "actor_ref",
-            "outbox_event" to "producer",
+            "payment_method_activation_event" to "actor_ref",
+            "site_activation_confirmation" to "confirmed_by",
+            "site_activation_confirmation_revocation" to "revoked_by",
+            "merchant_site_review_decision" to "decided_by",
+            "entitlement_snapshot_issue" to "priority",
+            "entitlement_snapshot_ack" to "consumer",
         )
 
         fun firstColumn(table: String): String = FIRST_COLUMNS.getValue(table)

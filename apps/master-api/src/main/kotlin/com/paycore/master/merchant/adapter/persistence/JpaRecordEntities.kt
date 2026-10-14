@@ -147,7 +147,10 @@ class JpaMasterChangeHistoryEntity protected constructor() {
     }
 }
 
-/** outbox_event 행(append, persist만). payload는 JSON 컬럼(adapter가 직렬화한 문자열). Relay는 MASTER-SNAPSHOT-001. */
+/**
+ * outbox_event 행. 이벤트 내용 컬럼은 append(persist)만 하고 updatable=false다. Relay(MASTER-SNAPSHOT-001 §4.7)는 전달 상태 컬럼
+ * (publish_status·published_at·claim·attempt·next_attempt_at·last_failure_code)만 잠가 읽은 Entity의 변경 감지로 갱신한다.
+ */
 @Entity
 @Table(name = "outbox_event")
 class JpaOutboxEventEntity protected constructor() {
@@ -212,15 +215,32 @@ class JpaOutboxEventEntity protected constructor() {
 
     @field:Column(name = "publish_status", nullable = false, length = 16)
     lateinit var publishStatus: String
-        protected set
 
     @field:Column(name = "published_at")
     var publishedAt: Instant? = null
-        protected set
 
     @field:Column(name = "created_at", nullable = false, updatable = false)
     lateinit var createdAt: Instant
         protected set
+
+    @field:Column(name = "priority", nullable = false, updatable = false)
+    var priority: Int = 0
+        protected set
+
+    @field:Column(name = "claim_owner", length = 64)
+    var claimOwner: String? = null
+
+    @field:Column(name = "claim_until")
+    var claimUntil: Instant? = null
+
+    @field:Column(name = "attempt_count", nullable = false)
+    var attemptCount: Int = 0
+
+    @field:Column(name = "next_attempt_at", nullable = false)
+    lateinit var nextAttemptAt: Instant
+
+    @field:Column(name = "last_failure_code", length = 48)
+    var lastFailureCode: String? = null
 
     override fun equals(other: Any?): Boolean =
         this === other || (other != null && Hibernate.getClass(this) == Hibernate.getClass(other) && eventId == (other as JpaOutboxEventEntity).eventId)
@@ -231,6 +251,8 @@ class JpaOutboxEventEntity protected constructor() {
 
     companion object {
         const val PENDING = "PENDING"
+        const val PUBLISHED = "PUBLISHED"
+        const val QUARANTINED = "QUARANTINED"
 
         @Suppress("LongParameterList")
         fun pending(
@@ -247,6 +269,7 @@ class JpaOutboxEventEntity protected constructor() {
             correlationId: String,
             causationId: String,
             payload: String,
+            priority: Int = 0,
         ): JpaOutboxEventEntity = JpaOutboxEventEntity().also {
             it.eventId = eventId
             it.effectKey = effectKey
@@ -263,6 +286,8 @@ class JpaOutboxEventEntity protected constructor() {
             it.payload = payload
             it.publishStatus = PENDING
             it.createdAt = occurredAt
+            it.priority = priority
+            it.nextAttemptAt = occurredAt
         }
     }
 }

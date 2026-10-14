@@ -19,6 +19,7 @@ import com.paycore.master.merchant.application.required.ContractStore
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
+import com.paycore.master.merchant.application.required.MasterOperationalMetrics
 import com.paycore.master.merchant.application.required.MerchantAccountStore
 import com.paycore.master.merchant.application.required.MerchantSiteStore
 import com.paycore.master.merchant.application.required.MerchantStore
@@ -69,9 +70,11 @@ class MerchantOnboardingService(
     private val accounts: MerchantAccountStore,
     private val activations: PaymentMethodActivationStore,
     clock: MasterClock,
+    metrics: MasterOperationalMetrics,
+    publisher: EntitlementSnapshotPublisher,
 ) : MerchantOnboardingUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)
 
     override fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult =
         executor.execute(
@@ -126,20 +129,27 @@ class MerchantOnboardingService(
             listOf(command.merchantId.value, command.channelType.name, command.channelIdentifier),
         ) { work ->
             val channel = SiteChannel(command.channelType, command.channelIdentifier)
-            val merchant = merchants.lock(command.merchantId)?.value ?: throw MasterRuleViolation(MasterRejection.MERCHANT_NOT_FOUND)
+            val locked = merchants.lock(command.merchantId) ?: throw MasterRuleViolation(MasterRejection.MERCHANT_NOT_FOUND)
+            val merchant = locked.value
             work.lockedNow()
             // D-MD-008: 활성 채널 식별값은 같은 Merchant 안에서도, 다른 Merchant와도 중복 불가(예외 승인 기록은 후속).
             sites.findActiveByChannel(channel)?.let { throw MasterRuleViolation(MasterRejection.SITE_CHANNEL_DUPLICATE, it.value) }
             val site = MerchantSite.register(MerchantSiteId(work.newId(MerchantSiteId.PREFIX)), merchant, channel, work.now, command.request.actor)
+            // review M-2: Site는 Snapshot `sites[]`·contractWindows에 실린다 — 권리 입력 변경이므로 같은 TX에서 revision +1·발행한다
+            // (아니면 다음 lease 갱신이 같은 revision·다른 내용이 되어 PAYMENT가 INTEGRITY_CONFLICT로 Merchant 전체를 막는다).
+            merchant.recordEntitlementChange()
             work.beginWrites()
             sites.insert(site)
+            merchants.update(merchant, locked.version)
             work.record(
                 AGG_SITE, site.id.value, 0, "MerchantSiteRegistered",
                 mapOf(
                     "merchantSiteId" to site.id.value, "merchantId" to merchant.id.value, "channelType" to channel.type.name,
                     "channelIdentifier" to channel.identifier, "lifecycle" to site.lifecycle.name,
+                    "entitlementRevision" to merchant.entitlementRevision,
                 ),
             )
+            work.publishEntitlement(merchant)
             site.id.value
         }
 
@@ -204,6 +214,7 @@ class MerchantOnboardingService(
                 AGG_CONTRACT, contract.id.value, version, "ContractRevisionApproved",
                 contractPayload(contract, command.revisionNo) + ("entitlementRevision" to merchant.value.entitlementRevision),
             )
+            work.publishEntitlement(merchant.value)
             "${contract.id.value}#${command.revisionNo}"
         }
 
@@ -280,6 +291,7 @@ class MerchantOnboardingService(
                     "entitlementRevision" to entitlement,
                 ),
             )
+            work.publishEntitlement(merchant.value)
             account.id.value
         }
 
@@ -293,26 +305,28 @@ class MerchantOnboardingService(
             val merchant = merchants.lock(merchantId) ?: error("account merchant must exist")
             val account = accounts.lock(command.merchantAccountId) ?: error("account must exist")
             work.lockedNow()
-            activations.find(account.id, command.paymentMethod)?.let {
-                throw MasterRuleViolation(MasterRejection.ACTIVATION_DUPLICATE, it.value)
+            // 같은 (MID, 수단)에 종료 아닌 개통은 하나(D-MS-003 — 재개통은 이전 행 TERMINATED 뒤 새 행). 경합은 생성 컬럼 UNIQUE → 재판정.
+            activations.findOpen(account.id, command.paymentMethod)?.let {
+                throw MasterRuleViolation(MasterRejection.ACTIVATION_DUPLICATE, it.value.id.value)
             }
-            val activation = PaymentMethodActivation.register(
+            val (activation, transition) = PaymentMethodActivation.register(
                 PaymentMethodActivationId(work.newId(PaymentMethodActivationId.PREFIX)), account, command.paymentMethod, work.now,
                 command.request.actor,
             )
             merchant.value.recordEntitlementChange()
             work.beginWrites()
-            activations.insert(activation)
+            activations.insert(activation, transition, work.requestRecordId)
             merchants.update(merchant.value, merchant.version)
             work.record(
                 AGG_ACTIVATION, activation.id.value, 0, "PaymentMethodActivationRegistered",
                 mapOf(
                     "activationId" to activation.id.value, "merchantAccountId" to account.id.value,
                     "paymentMethod" to activation.paymentMethod.name, "entitlementRevision" to merchant.value.entitlementRevision,
-                    // 상태 의미 미결(Q-MD-09): 소비자는 이 등록을 개통 완료로 보지 않는다.
-                    "activationState" to "REGISTERED_STATE_UNDECIDED",
+                    // D-MD-017: 등록 = UNDER_REVIEW(개통 아님). 소비자는 ACTIVE 전이 전까지 결제를 허용하지 않는다.
+                    "status" to activation.status.name,
                 ),
             )
+            work.publishEntitlement(merchant.value)
             activation.id.value
         }
 

@@ -20,7 +20,9 @@ import com.paycore.master.merchant.domain.ServiceKind
  * 멱등 기록 → 업무 변경 → 변경 이력 → Outbox를 함께 커밋한다(A02). 외부 호출 없음. 관리자 web/API는 Q-ADMIN-AUTH 결정 전이라 없고
  * (이 Port는 시험·향후 adapter가 부른다), [AdminRequest.actor]는 인증된 신원이 아니라 기록용 참조다.
  *
- * 생명주기 명령(중지·재개·종료, PRIMARY 교체, ADDITIONAL, Default 교체, 추가 MID, 통화 활성화, 개통 상태)은 MASTER-LIFECYCLE-001·미결 질문 범위다.
+ * 생명주기 명령(중지·재개·종료, PRIMARY 교체, ADDITIONAL, Default 교체, 추가 MID)은 MASTER-LIFECYCLE-001 범위다. 개통 상태 전이·Site 적용 확인·
+ * 통화 활성화·Site 심사는 [MerchantEntitlementUseCase](MASTER-SNAPSHOT-001). 권리 입력을 바꾸는 명령은 같은 TX에서 entitlement_revision +1과
+ * 권리 Snapshot 발행(Outbox)을 함께 커밋한다(MID가 있는 Merchant만 발행).
  */
 interface MerchantOnboardingUseCase {
     fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult
@@ -89,6 +91,17 @@ enum class AdminOperation(val code: String) {
     ADD_SERVICE_AGREEMENT("AddServiceAgreement"),
     ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT("IssueFirstDefaultMerchantAccount"),
     REGISTER_PAYMENT_METHOD_ACTIVATION("RegisterPaymentMethodActivation"),
+
+    // MASTER-SNAPSHOT-001(D-MD-016~018, D-MS-002·003)
+    APPROVE_PAYMENT_METHOD_ACTIVATION("ApprovePaymentMethodActivation"),
+    SUSPEND_PAYMENT_METHOD_ACTIVATION("SuspendPaymentMethodActivation"),
+    RESUME_PAYMENT_METHOD_ACTIVATION("ResumePaymentMethodActivation"),
+    TERMINATE_PAYMENT_METHOD_ACTIVATION("TerminatePaymentMethodActivation"),
+    CONFIRM_SITE_ACTIVATION("ConfirmSiteActivation"),
+    REVOKE_SITE_ACTIVATION_CONFIRMATION("RevokeSiteActivationConfirmation"),
+    ENABLE_CURRENCY("EnableCurrency"),
+    END_CURRENCY_ENABLEMENT("EndCurrencyEnablement"),
+    DECIDE_SITE_REVIEW("DecideSiteReview"),
     ;
 
     companion object {

@@ -6,7 +6,6 @@ import com.paycore.master.merchant.application.required.ContractStore
 import com.paycore.master.merchant.application.required.MerchantAccountStore
 import com.paycore.master.merchant.application.required.MerchantSiteStore
 import com.paycore.master.merchant.application.required.MerchantStore
-import com.paycore.master.merchant.application.required.PaymentMethodActivationStore
 import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.Business
@@ -21,9 +20,6 @@ import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSite
 import com.paycore.master.merchant.domain.MerchantSiteId
-import com.paycore.master.merchant.domain.PaymentMethod
-import com.paycore.master.merchant.domain.PaymentMethodActivation
-import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import com.paycore.master.merchant.domain.SiteAssignment
 import com.paycore.master.merchant.domain.SiteChannel
 import jakarta.persistence.EntityManager
@@ -41,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional
  *   Entity도 최신 커밋 값**으로 덮는다(같은 TX의 앞선 비잠금 읽기가 오래된 값을 남기지 않게 — 오래된 version으로 갱신하면 낙관적 충돌이 난다).
  */
 
-private fun <T : Any> EntityManager.lockRow(type: Class<T>, id: Any): T? {
+internal fun <T : Any> EntityManager.lockRow(type: Class<T>, id: Any): T? {
     val row = find(type, id) ?: return null
     refresh(row, LockModeType.PESSIMISTIC_WRITE)
     return row
@@ -62,6 +58,10 @@ class JpaBusinessStore(private val businesses: BusinessJpaRepository, private va
 
     override fun findIdByRegistrationNumber(number: BusinessRegistrationNumber): BusinessId? = translate(ENTITY) {
         businesses.findIdByRegistrationNumber(number.value)?.let(::BusinessId)
+    }
+
+    override fun find(id: BusinessId): Business? = translate(ENTITY) {
+        entityManager.find(JpaBusinessEntity::class.java, id.value)?.let(MasterPersistenceMapper::toBusiness)
     }
 
     private companion object {
@@ -119,6 +119,10 @@ class JpaMerchantSiteStore(private val sites: MerchantSiteJpaRepository, private
 
     override fun findActiveByChannel(channel: SiteChannel): MerchantSiteId? = translate(ENTITY) {
         sites.findActiveByChannel(channel.type.name, channel.identifier)?.let(::MerchantSiteId)
+    }
+
+    override fun listByMerchant(merchantId: MerchantId): List<MerchantSite> = translate(ENTITY) {
+        sites.findByMerchant(merchantId.value).map(MasterPersistenceMapper::toSite)
     }
 
     private companion object {
@@ -253,33 +257,11 @@ class JpaMerchantAccountStore(
         assignments.findByAccount(id.value).map(MasterPersistenceMapper::toAssignment)
     }
 
+    override fun listByMerchant(merchantId: MerchantId): List<MerchantAccount> = translate(ENTITY) {
+        accounts.findByMerchant(merchantId.value).map(MasterPersistenceMapper::toAccount)
+    }
+
     private companion object {
         const val ENTITY = "merchant_account"
-    }
-}
-
-@Component
-@Transactional(propagation = Propagation.MANDATORY)
-class JpaPaymentMethodActivationStore(
-    private val activations: PaymentMethodActivationJpaRepository,
-    private val entityManager: EntityManager,
-) : PaymentMethodActivationStore {
-
-    override fun find(accountId: MerchantAccountId, method: PaymentMethod): PaymentMethodActivationId? = translate(ENTITY) {
-        activations.findId(accountId.value, method.name)?.let(::PaymentMethodActivationId)
-    }
-
-    override fun insert(activation: PaymentMethodActivation): Unit = translate(ENTITY) {
-        entityManager.persist(
-            JpaPaymentMethodActivationEntity.newRow(
-                activation.id.value, activation.merchantAccountId.value, activation.paymentMethod.name, activation.registeredAt,
-                activation.registeredBy.value,
-            ),
-        )
-        entityManager.flush()
-    }
-
-    private companion object {
-        const val ENTITY = "payment_method_activation"
     }
 }

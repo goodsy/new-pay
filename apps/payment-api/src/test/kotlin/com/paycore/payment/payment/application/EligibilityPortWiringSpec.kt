@@ -8,7 +8,6 @@ import com.paycore.payment.payment.application.required.PaymentStore
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.mockk.mockk
@@ -18,18 +17,19 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.transaction.PlatformTransactionManager
 
 /**
- * CP-DB-001 M-1 bean 부재 처리 결정의 증거(DB 없음).
+ * eligibility Port 배선 증거(DB 없음).
  *
- * 결정: 운영 main에는 [PaymentEligibilityPort] 구현(bean)을 두지 않는다(구현은 MASTER-SNAPSHOT-001 → CP-API-001). "모두 Unavailable"
- * 같은 기본 구현도 만들지 않는다 — 운영 동작을 가진 대역이 운영 코드에 남는 것을 피한다. 대신 [CreatePaymentService]가 Port를 필수
- * 생성자 인자로 받으므로 Port bean이 없는 컨텍스트는 **기동 자체가 실패**한다(eligibility 검사 없이 결제가 생성되는 상태가 없다,
- * fail-closed). 시험 컨텍스트는 [EligibilityTestConfig]의 [RecordingEligibilityPort]를 등록한다.
+ * CP-DB-001 M-1 결정: "모두 Unavailable" 같은 기본 구현을 두지 않고, Port bean이 없으면 [CreatePaymentService]가 기동하지 못한다(fail-closed).
+ * MASTER-SNAPSHOT-001(CP-DB-001 review2 L-11): 운영 구현이 생겼으므로 "main 구현 0개" 기대를 **"main 구현 정확히 1개
+ * (`payment.adapter.integration.EntitlementEligibilityAdapter`)"**로 바꿨다. bean 부재 시 기동 실패 시험은 유지한다. 운영 구현으로 실제 MySQL에
+ * 기동하는 smoke는 PaymentApiContextSmokeSpec(EligibilityTestConfig 없음)이다.
  */
 class EligibilityPortWiringSpec : FunSpec({
 
-    test("main sources have no PaymentEligibilityPort implementation (no production bean until MASTER-SNAPSHOT-001)") {
+    test("main sources have exactly one PaymentEligibilityPort implementation: the entitlement adapter") {
         val main = ClassFileImporter().withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS).importPackages("com.paycore.payment")
-        main.filter { it.isAssignableTo(PaymentEligibilityPort::class.java) && !it.isInterface }.map { it.name }.shouldBeEmpty()
+        main.filter { it.isAssignableTo(PaymentEligibilityPort::class.java) && !it.isInterface }.map { it.name } shouldBe
+            listOf("com.paycore.payment.payment.adapter.integration.EntitlementEligibilityAdapter")
     }
 
     test("a context with CreatePaymentService but without a PaymentEligibilityPort bean fails to start") {

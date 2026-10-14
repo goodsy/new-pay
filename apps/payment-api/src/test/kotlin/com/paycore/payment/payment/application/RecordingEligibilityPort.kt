@@ -13,6 +13,7 @@ import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.PaymentMethod
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -29,7 +30,7 @@ data class EligibilityCall(
 )
 
 /**
- * **시험 전용** eligibility Port 대역(운영 구현 아님 — 운영 구현은 MASTER-SNAPSHOT-001/CP-API-001, 그 전까지 main에 bean 없음).
+ * **시험 전용** eligibility Port 대역(운영 구현 아님 — 운영 구현은 `payment.adapter.integration.EntitlementEligibilityAdapter`, MASTER-SNAPSHOT-001).
  * 모든 호출 인자를 기록하고, 기본으로 Demo Snapshot(`demo-snapshot-1`, 통화 단위 KRW 0·USD 2 — Demo fixture 값이며 운영 허용 통화
  * 목록이 아니다)에서 Eligible을 준다. 시험은 자기 MID(시험마다 고유)에 대해서만 [respondFor]로 응답을 바꾼다 — 같은 컨텍스트를 공유하는
  * 다른 시험·동시 요청과 섞이지 않는다.
@@ -77,9 +78,14 @@ class RecordingEligibilityPort : PaymentEligibilityPort {
     }
 }
 
-/** 시험 컨텍스트에 [RecordingEligibilityPort]를 등록한다(운영 main에는 PaymentEligibilityPort bean이 없다). */
+/**
+ * 시험 컨텍스트에 [RecordingEligibilityPort]를 등록한다. MASTER-SNAPSHOT-001부터 운영 main에 Port 구현(EntitlementEligibilityAdapter)이 있으므로
+ * 이 대역은 `@Primary`로 그것을 대신한다(CreatePayment 업무 시험이 권리 투영 준비 없이 응답을 정할 수 있게). 운영 구현으로 기동하는 smoke는
+ * 이 구성을 쓰지 않는다(PaymentApiContextSmokeSpec·EntitlementDbTest — L-11).
+ */
 @TestConfiguration(proxyBeanMethods = false)
 class EligibilityTestConfig {
     @Bean
+    @Primary
     fun recordingEligibilityPort(): RecordingEligibilityPort = RecordingEligibilityPort()
 }

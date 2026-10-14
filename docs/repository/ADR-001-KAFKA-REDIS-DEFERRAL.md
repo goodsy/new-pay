@@ -1,6 +1,6 @@
 # ADR-001 Kafka·Redis 초기 미도입과 도입 기준
 
-- 상태: **미도입은 채택**(사용자 결정 D-ENV-001, 2026-10-03: "Kafka/Redis는 초기 단계에 도입하지 않는다"). **§1의 relay 방식과 §3 trigger는 Coordinator 제안**이며 Outbox/Dispatcher 계약 작업에서 확정한다.
+- 상태: **미도입은 채택**(사용자 결정 D-ENV-001, 2026-10-03: "Kafka/Redis는 초기 단계에 도입하지 않는다" — 변경 없음). **§1 relay 방식은 MASTER-SNAPSHOT-001에서 push relay → 수신 플랫폼 내부 Inbox API로 결정**(Coordinator 관례 결정, 가역적, 2026-10-13). §3 trigger는 여전히 Coordinator 제안이다.
 - 범위: TECH-001. 이 ADR은 미도입 결정을 기록하고, 언제 무엇을 근거로 다시 판단할지 제안한다. 업무 정책을 새로 정하지 않는다.
 - 근거 문서: docs/TECHNOLOGY-AND-PRINCIPLES.md §5, docs/baseline/architecture/00, 01, 03
 
@@ -15,7 +15,7 @@
 | MASTER 설정 투영 | 버전 있는 설정 스냅샷 이벤트를 같은 Outbox/Inbox 계약으로 전달 | 거래 시점 정책 버전 보존 |
 | 조회 성능 | 소유 DB의 jOOQ 조회 adapter | 권위 상태와 같은 DB |
 
-제안: Dispatcher Port의 첫 adapter는 소유 DB의 Outbox를 폴링하는 relay다. relay가 수신측 Inbox로 무엇을 통해 전달할지(수신 플랫폼의 내부 API 호출 등)는 미정이며 Outbox/Dispatcher 계약 작업에서 정한다. 어떤 방식이든 같은 프로세스여도 다른 소유 DB를 직접 SQL/Entity로 읽거나 쓰지 않는다.
+결정(MASTER-SNAPSHOT-001, 2026-10-13, 관례·가역적): Dispatcher Port의 첫 adapter는 소유 DB의 Outbox를 폴링하는 **push relay**이며, 수신측 Inbox로 **수신 플랫폼의 내부 HTTP API**(MASTER→PAYMENT: `POST /internal/v1/entitlement-snapshots`)를 호출해 전달한다. 행별 상태(PENDING/PUBLISHED/QUARANTINED)·`FOR UPDATE SKIP LOCKED` claim·재시도 상한 없음, 수신측은 Inbox를 업무 반영과 같은 로컬 TX로 내구 커밋한 뒤에만 2xx(ACK)를 준다. 커서 기반 pull은 Outbox id가 커밋 순서가 아니라서 기각했다(A03). 채널 인증은 봉투 HMAC-SHA256 + 운영망 mTLS(D-MS-004 — 이번 구현은 시험 키 HMAC만, 운영 키·mTLS는 LIVE 허용 전 별도). 어떤 방식이든 같은 프로세스여도 다른 소유 DB를 직접 SQL/Entity로 읽거나 쓰지 않는다. Kafka를 나중에 도입해도 Outbox·Inbox·업무 키·로컬 TX는 그대로 필요하고 broker가 권리 정합성을 대체하지 않는다.
 
 ## 2. 이유
 

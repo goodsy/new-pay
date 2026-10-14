@@ -37,6 +37,9 @@ import java.util.concurrent.ConcurrentHashMap
 enum class MasterFaultPoint {
     ADMIN_RESERVE, ADMIN_COMPLETE, BUSINESS_INSERT, SITE_INSERT, MERCHANT_LOCK, MERCHANT_UPDATE, FIRST_DEFAULT_INSERT, CHANGE_LOG_APPEND,
     OUTBOX_APPEND,
+
+    // MASTER-SNAPSHOT-001
+    ACTIVATION_INSERT, ACTIVATION_UPDATE, CONFIRMATION_INSERT, CURRENCY_INSERT, REVIEW_APPEND, ISSUE_RECORD, RELAY_CLAIM, RELAY_MARK,
 }
 
 /**
@@ -119,6 +122,95 @@ class ScriptedIdGenerator(private val real: RandomMasterIdGenerator) : MasterIdG
 /** 실제 JPA Store를 감싸 hook을 거치게 하는 Port 대역(@Primary — MerchantOnboardingService가 이것을 주입받는다). */
 @TestConfiguration(proxyBeanMethods = false)
 class MasterFaultInjectionConfig {
+
+    /** 시험용 가짜 PAYMENT Inbox와 그 주소(운영 설정의 dispatch.endpoint를 시험 컨텍스트에서만 덮어쓴다). */
+    @Bean(destroyMethod = "close")
+    fun fakePaymentInbox(): FakePaymentInbox = FakePaymentInbox()
+
+    @Bean
+    fun fakePaymentInboxEndpoint(inbox: FakePaymentInbox): org.springframework.test.context.DynamicPropertyRegistrar =
+        org.springframework.test.context.DynamicPropertyRegistrar { registry ->
+            registry.add("paycore.master.entitlement.dispatch.endpoint") { inbox.endpoint }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingActivationStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaPaymentMethodActivationStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.PaymentMethodActivationStore =
+        object : com.paycore.master.merchant.application.required.PaymentMethodActivationStore by real {
+            override fun insert(
+                activation: com.paycore.master.merchant.domain.PaymentMethodActivation,
+                transition: com.paycore.master.merchant.domain.ActivationTransition,
+                requestRecordId: String,
+            ) = f.around(MasterFaultPoint.ACTIVATION_INSERT) { real.insert(activation, transition, requestRecordId) }
+
+            override fun update(
+                activation: com.paycore.master.merchant.domain.PaymentMethodActivation,
+                expectedVersion: Long,
+                transition: com.paycore.master.merchant.domain.ActivationTransition,
+                requestRecordId: String,
+            ) = f.around(MasterFaultPoint.ACTIVATION_UPDATE) { real.update(activation, expectedVersion, transition, requestRecordId) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingConfirmationStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaSiteActivationConfirmationStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.SiteActivationConfirmationStore =
+        object : com.paycore.master.merchant.application.required.SiteActivationConfirmationStore by real {
+            override fun insert(confirmation: com.paycore.master.merchant.domain.SiteActivationConfirmation, requestRecordId: String) =
+                f.around(MasterFaultPoint.CONFIRMATION_INSERT) { real.insert(confirmation, requestRecordId) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingCurrencyStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaCurrencyEnablementStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.CurrencyEnablementStore =
+        object : com.paycore.master.merchant.application.required.CurrencyEnablementStore by real {
+            override fun insert(enablement: com.paycore.master.merchant.domain.CurrencyEnablement, requestRecordId: String) =
+                f.around(MasterFaultPoint.CURRENCY_INSERT) { real.insert(enablement, requestRecordId) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingReviewStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaSiteReviewStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.SiteReviewStore =
+        object : com.paycore.master.merchant.application.required.SiteReviewStore by real {
+            override fun append(decision: com.paycore.master.merchant.domain.SiteReviewDecision, requestRecordId: String) =
+                f.around(MasterFaultPoint.REVIEW_APPEND) { real.append(decision, requestRecordId) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingIssueStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaEntitlementIssueStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.EntitlementIssueStore =
+        object : com.paycore.master.merchant.application.required.EntitlementIssueStore by real {
+            override fun record(publication: com.paycore.master.merchant.application.required.SnapshotPublication) =
+                f.around(MasterFaultPoint.ISSUE_RECORD) { real.record(publication) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingRelayStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaEntitlementRelayStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.EntitlementRelayStore =
+        object : com.paycore.master.merchant.application.required.EntitlementRelayStore by real {
+            override fun claim(owner: String, now: Instant, claimUntil: Instant, limit: Int) =
+                f.around(MasterFaultPoint.RELAY_CLAIM) { real.claim(owner, now, claimUntil, limit) }
+
+            override fun markPublished(eventId: String, owner: String, ack: com.paycore.master.merchant.application.required.SnapshotAck) =
+                f.around(MasterFaultPoint.RELAY_MARK) { real.markPublished(eventId, owner, ack) }
+        }
 
     @Bean
     fun masterFaultInjector(): MasterFaultInjector = MasterFaultInjector()

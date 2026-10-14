@@ -195,7 +195,7 @@ class MasterDatabaseAccountSpec(
 }) {
     companion object {
         /**
-         * MASTER runtime role의 표 단위 권한 기대값(V2__master_runtime_privileges.sql, MASTER-DOMAIN-001 main 코드 기준). 잠가 읽거나 갱신하는 표만
+         * MASTER runtime role의 표 단위 권한 기대값(V2__master_runtime_privileges.sql + V4__entitlement_runtime_privileges.sql, main 코드 기준). 잠가 읽거나 갱신하는 표만
          * UPDATE, 나머지는 SELECT, INSERT. 권한을 넓히는 변경은 이 기대값을 함께 바꾸는 검토된 변경이어야 한다.
          */
         val MASTER_RUNTIME_TABLE_PRIVILEGES: Map<String, String> = linkedMapOf(
@@ -206,14 +206,25 @@ class MasterDatabaseAccountSpec(
             "contract_revision_approval" to "SELECT, INSERT",
             "contract_revision_scope_site" to "SELECT, INSERT",
             "contract_service_agreement" to "SELECT, INSERT",
+            // MASTER-SNAPSHOT-001 V4: 통화 기록 종료(UPDATE), 기준정보 읽기만, 발행·ACK·이력·확인·철회·심사는 append-only.
+            "currency_enablement" to "SELECT, INSERT, UPDATE",
+            "currency_unit" to "SELECT",
             "default_designation" to "SELECT, INSERT",
+            "entitlement_snapshot_ack" to "SELECT, INSERT",
+            "entitlement_snapshot_issue" to "SELECT, INSERT",
             "master_change_history" to "SELECT, INSERT",
             "merchant" to "SELECT, INSERT, UPDATE",
             "merchant_account" to "SELECT, INSERT, UPDATE",
             "merchant_account_site_assignment" to "SELECT, INSERT",
             "merchant_site" to "SELECT, INSERT",
-            "outbox_event" to "SELECT, INSERT",
-            "payment_method_activation" to "SELECT, INSERT",
+            "merchant_site_review_decision" to "SELECT, INSERT",
+            // V4: Relay claim·PUBLISHED·QUARANTINED(AC m-7) — 이전 기대값 SELECT, INSERT에서 검토된 확대.
+            "outbox_event" to "SELECT, INSERT, UPDATE",
+            // V4: 개통 상태 전이(D-MS-003) — 이전 기대값 SELECT, INSERT에서 검토된 확대.
+            "payment_method_activation" to "SELECT, INSERT, UPDATE",
+            "payment_method_activation_event" to "SELECT, INSERT",
+            "site_activation_confirmation" to "SELECT, INSERT",
+            "site_activation_confirmation_revocation" to "SELECT, INSERT",
         )
     }
 }

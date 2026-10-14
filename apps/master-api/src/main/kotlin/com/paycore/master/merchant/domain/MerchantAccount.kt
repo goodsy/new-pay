@@ -145,20 +145,3 @@ object SiteAssignmentRules {
 
 /** 결제수단(초기 확정 범위: 국내 신용카드). 체크카드·할부 등은 Q-AUTH-SCOPE. */
 enum class PaymentMethod { CARD }
-
-/**
- * 개통 등록(최소 저장 — Q-MD-09 미결: 상태 집합·카드사 단위가 정해지지 않았다). MID 단위(구조 §12 Phase 1). 상태가 없으므로 이 기록은
- * **개통 완료가 아니다**: 결제 허용 판정은 개통 상태가 정해질 때까지 fail-closed로 미개통으로 본다(발급 ≠ 개통, 구조 §11).
- */
-data class PaymentMethodActivation(
-    val id: PaymentMethodActivationId,
-    val merchantAccountId: MerchantAccountId,
-    val paymentMethod: PaymentMethod,
-    val registeredAt: Instant,
-    val registeredBy: ActorRef,
-) {
-    companion object {
-        fun register(id: PaymentMethodActivationId, account: MerchantAccount, method: PaymentMethod, at: Instant, by: ActorRef) =
-            account.requireActive().let { PaymentMethodActivation(id, account.id, method, at, by) }
-    }
-}

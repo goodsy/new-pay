@@ -43,8 +43,9 @@ class MasterApiContextSmokeSpec(
             MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES, MasterDbAccounts.TEST_MIGRATIONS, MasterDbAccounts.TEST_PRIVILEGES,
         )
         flyway.info().pending().size shouldBe 0
-        // 운영 V1(업무 schema)·V2(runtime 표 단위 권한, MASTER-DOMAIN-001) + 시험 전용 V900(probe)·V901(probe runtime 권한).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "900", "901")
+        // 운영 V1(업무 schema)·V2(runtime 표 단위 권한, MASTER-DOMAIN-001)·V3(권리 Snapshot 표)·V4(그 권한, MASTER-SNAPSHOT-001)
+        // + 시험 전용 V900(probe)·V901(probe runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
@@ -74,6 +75,9 @@ class MasterApiContextSmokeSpec(
             "JpaContractRevisionScopeSiteEntity", "JpaContractServiceAgreementEntity", "JpaDefaultDesignationEntity",
             "JpaMasterChangeHistoryEntity", "JpaMerchantEntity", "JpaMerchantAccountEntity", "JpaSiteAssignmentEntity", "JpaMerchantSiteEntity",
             "JpaOutboxEventEntity", "JpaPaymentMethodActivationEntity",
+            // MASTER-SNAPSHOT-001
+            "JpaActivationEventEntity", "JpaSiteActivationConfirmationEntity", "JpaConfirmationRevocationEntity", "JpaCurrencyUnitEntity",
+            "JpaCurrencyEnablementEntity", "JpaSiteReviewDecisionEntity", "JpaSnapshotIssueEntity", "JpaSnapshotAckEntity",
         )
     }
 }

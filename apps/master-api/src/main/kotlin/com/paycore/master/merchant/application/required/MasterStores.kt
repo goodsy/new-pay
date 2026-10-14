@@ -17,6 +17,14 @@ import com.paycore.master.merchant.domain.PaymentMethodActivation
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import com.paycore.master.merchant.domain.SiteAssignment
 import com.paycore.master.merchant.domain.SiteChannel
+import com.paycore.master.merchant.domain.ActivationTransition
+import com.paycore.master.merchant.domain.CurrencyCode
+import com.paycore.master.merchant.domain.CurrencyEnablement
+import com.paycore.master.merchant.domain.CurrencyEnablementId
+import com.paycore.master.merchant.domain.CurrencyUnit
+import com.paycore.master.merchant.domain.SiteActivationConfirmation
+import com.paycore.master.merchant.domain.SiteActivationConfirmationId
+import com.paycore.master.merchant.domain.SiteReviewDecision
 
 /*
  * MASTER 저장 Port(application.required). 모든 메서드는 application이 연 MASTER 로컬 TX 안에서만 동작한다(구현은 TX 없으면 거부).
@@ -34,6 +42,9 @@ interface BusinessStore {
 
     /** 같은 등록번호의 기존 Business(D-MD-008 중복 판정). 잠금 없음 — 동시 등록 경합은 UNIQUE 충돌 → 재판정으로 수렴한다. */
     fun findIdByRegistrationNumber(number: BusinessRegistrationNumber): BusinessId?
+
+    /** 잠금 없는 읽기(Snapshot 조립 — Business 상태 변경 명령은 그 Business의 Merchant를 모두 잠근다, 명세 §3.2). */
+    fun find(id: BusinessId): Business?
 }
 
 interface MerchantStore {
@@ -55,6 +66,8 @@ interface MerchantSiteStore {
 
     /** 같은 채널 식별값의 활성 Site(어느 Merchant든, D-MD-008). 잠금 없음 — 경합은 UNIQUE 충돌 → 재판정. */
     fun findActiveByChannel(channel: SiteChannel): MerchantSiteId?
+
+    fun listByMerchant(merchantId: MerchantId): List<MerchantSite>
 }
 
 interface ContractStore {
@@ -83,10 +96,66 @@ interface MerchantAccountStore {
     fun lock(id: MerchantAccountId): MerchantAccount?
 
     fun assignmentsOf(id: MerchantAccountId): List<SiteAssignment>
+
+    fun listByMerchant(merchantId: MerchantId): List<MerchantAccount>
 }
 
+/**
+ * 개통(D-MD-017, D-MS-003). 현재 상태는 `payment_method_activation`(UPDATE, `@Version`), 전이 이력은 append-only `payment_method_activation_event`.
+ * 쓰기 메서드는 상태 변경과 이력 한 건을 같은 TX에 넣는다([requestRecordId] = 관리 명령 요청 기록 ID).
+ */
 interface PaymentMethodActivationStore {
-    fun find(accountId: MerchantAccountId, method: PaymentMethod): PaymentMethodActivationId?
+    /** 같은 (MID, 수단)의 TERMINATED가 아닌 행(하나 — DB 생성 컬럼 UNIQUE). */
+    fun findOpen(accountId: MerchantAccountId, method: PaymentMethod): Versioned<PaymentMethodActivation>?
 
-    fun insert(activation: PaymentMethodActivation)
+    /** 잠금 없는 읽기(소속 MID를 먼저 알아 잠금 순서를 지키는 데 쓴다). */
+    fun find(id: PaymentMethodActivationId): Versioned<PaymentMethodActivation>?
+
+    /** `SELECT … FOR UPDATE`로 최신 커밋 값을 다시 읽는다(merchant·merchant_account 잠금 뒤). */
+    fun lock(id: PaymentMethodActivationId): Versioned<PaymentMethodActivation>?
+
+    fun listByAccount(accountId: MerchantAccountId): List<PaymentMethodActivation>
+
+    /** 이 Activation 전이 이력에 남은 모든 기관 근거 참조(append-only 이력 기준 — 재개 "새 근거" 판정, review m-2). */
+    fun evidenceHistory(id: PaymentMethodActivationId): List<com.paycore.master.merchant.domain.EvidenceRef>
+
+    fun insert(activation: PaymentMethodActivation, transition: ActivationTransition, requestRecordId: String)
+
+    /** 상태 반영 + 이력 append. 기대 version이 다르면 [PersistenceFailure.OptimisticConflict]. */
+    fun update(activation: PaymentMethodActivation, expectedVersion: Long, transition: ActivationTransition, requestRecordId: String)
+}
+
+/** Site 적용 확인(append-only)과 철회(append-only, 확인당 하나). */
+interface SiteActivationConfirmationStore {
+    fun insert(confirmation: SiteActivationConfirmation, requestRecordId: String)
+
+    fun find(id: SiteActivationConfirmationId): SiteActivationConfirmation?
+
+    fun listByActivation(activationId: PaymentMethodActivationId): List<SiteActivationConfirmation>
+
+    fun listByAccount(accountId: MerchantAccountId): List<SiteActivationConfirmation>
+
+    fun insertRevocation(confirmation: SiteActivationConfirmation, requestRecordId: String)
+}
+
+/** 통화 단위 기준정보와 통화 활성화 기록. */
+interface CurrencyEnablementStore {
+    fun findUnit(code: CurrencyCode): CurrencyUnit?
+
+    fun find(id: CurrencyEnablementId): Versioned<CurrencyEnablement>?
+
+    fun lock(id: CurrencyEnablementId): Versioned<CurrencyEnablement>?
+
+    fun listByAccount(accountId: MerchantAccountId): List<CurrencyEnablement>
+
+    fun insert(enablement: CurrencyEnablement, requestRecordId: String)
+
+    fun update(enablement: CurrencyEnablement, expectedVersion: Long)
+}
+
+/** Site 심사 결정(append-only). */
+interface SiteReviewStore {
+    fun history(siteId: MerchantSiteId): List<SiteReviewDecision>
+
+    fun append(decision: SiteReviewDecision, requestRecordId: String)
 }

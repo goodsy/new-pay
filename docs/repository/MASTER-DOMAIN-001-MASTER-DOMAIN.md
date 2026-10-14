@@ -406,21 +406,21 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 
 ### 묶음 C — MASTER-SNAPSHOT-001(결제 허용 판정) 전에 필요
 
-**Q-MD-08 ADDITIONAL 공유의 증거·승인과 개통·Site 심사 적용 범위**
+**Q-MD-08 ADDITIONAL 공유의 증거·승인과 개통·Site 심사 적용 범위** — **답변: 권장안 채택(D-MD-016, 2026-10-13)** — 구현 MASTER-SNAPSHOT-001(Site 적용 확인·철회 기록, Site 심사 상태 D-MS-002). ADDITIONAL 생성 명령은 MASTER-LIFECYCLE-001
 - 질문: 구조 §12는 Phase 1 개통을 MID 단위로 두지만, 구조 경계 §1·초기 §v0.1은 "추가 Site는 개통을 자동 상속하지 않고 기관 승인 근거가 그 Site를 포함하는지 확인"을 요구한다. MID 단위 개통에서 ADDITIONAL Site의 결제 허용을 무엇으로 증명하는가? 다섯 공유 조건 중 "외부기관 심사 허용"·"동일 Activation 적용 가능"의 증거는 누가 기록하는가? "Site 심사"(구조 경계 §1)는 PG 자체 심사인가 기관 심사인가?
 - 권장안: 개통은 MID 단위 유지, 대신 **Site별 개통 적용 확인 기록**(MID, Site, 결제수단, 기관 근거 참조, 행위자) append-only를 두고 판정은 "Assignment 유효 ∧ Activation 유효 ∧ 해당 Site 적용 확인 있음". PRIMARY는 개통 승인 시 함께 기록, ADDITIONAL은 기록 전 결제 차단(fail-closed). ADDITIONAL 생성 명령은 다섯 조건 증거(같은 CSA·정산 정책 동일 여부·기관 근거 참조)를 받는다. Site 심사는 이 기록과 별개인 PG 심사 상태로 MerchantSite에 둔다.
 - 대안: (a) Site Scope 개통을 지금 도입(개통 키 = MID+수단+Site). (b) 1단계 운영은 ADDITIONAL 금지(Site별 전용 MID), 공유는 후속.
 - 영향: 개통·Assignment 표, METHOD_NOT_ENABLED 판정, 공유 명령.
 - 막히는 부분: ADDITIONAL 생성, Activation 판정.
 
-**Q-MD-09 PaymentMethodActivation 단위·상태**
+**Q-MD-09 PaymentMethodActivation 단위·상태** — **답변: 권장안 채택(D-MD-017, 2026-10-13)** — 구현 MASTER-SNAPSHOT-001(상태 4종, 전이 D-MS-003, 잠정 UNIQUE m-5는 V3에서 "종료 아닌 행 하나" 생성 컬럼 UNIQUE로 대체)
 - 질문: 개통 상태 집합(예: UNDER_REVIEW/ACTIVE/SUSPENDED/TERMINATED)과 "카드 일부 개통"(허용 §4.1-6)의 카드사 단위를 MASTER Activation에 둘지, AUTH의 Route 기준정보에 둘지?
 - 권장안: MASTER Activation = (MID, 결제수단) + 상태 4종 + 근거 참조. 카드사/Route별 사용 가능 목록은 기관 기준정보(MASTER, 후속 카드)로 두고 승인 시 판정(AUTH-CONTRACT-001). CreatePayment eligibility는 수단 단위만 본다.
 - 대안: Activation 키에 카드사 포함(MID+CARD+카드사).
 - 영향: Activation 표, METHOD_NOT_ENABLED, AUTH Route 판정.
 - 막히는 부분: Activation 상태 전이. Q-AUTH-SCOPE와 연결.
 
-**Q-MD-10 통화 활성화 기록 위치**
+**Q-MD-10 통화 활성화 기록 위치** — **답변: 권장안 채택(D-MD-018, 2026-10-13)** — 구현 MASTER-SNAPSHOT-001(`currency_unit`·`currency_enablement`). (CSA, MID, 통화) 정책 Assignment 요구는 AUTH-001
 - 질문: D-CP-002 "허용 통화는 MID·기관 계약별 기준정보로 활성화"와 D-MD-002 "통화는 Assignment 범위(CSA+MID+Currency)"를 합쳐, 통화 허용은 (a) 별도 통화 활성화 기록(MID, 통화, 기간, 근거)인가, (b) 해당 (CSA, MID, 통화)의 수수료·정산 정책 Assignment가 존재하면 허용인가?
 - 권장안: (a) 별도 명시 기록(신규 결제 허용 판단 CURRENCY_NOT_ENABLED의 근거) + 승인 시작에는 (CSA, MID, 통화) 정책 Assignment 존재도 요구(허용 §4.1-9). 둘 중 하나만으로 허용하지 않음.
 - 대안: (b) 정책 Assignment 존재로 갈음.

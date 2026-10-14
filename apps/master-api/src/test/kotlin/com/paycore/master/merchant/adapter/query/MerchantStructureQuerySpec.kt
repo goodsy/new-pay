@@ -98,7 +98,8 @@ class MerchantStructureQuerySpec(
 
             val view = query.find(ready.merchantId)!!
             view.businessId shouldBe ready.businessId.value
-            view.entitlementRevision shouldBe 3L // 계약 승인 1 + 발급 1 + 개통 등록 1
+            // Site 등록 2 + 계약 승인 1 + 발급 1 + 개통 등록 1(MASTER-SNAPSHOT-001 review M-2: Site 등록도 권리 입력 변경 — 이전 기대값 3에서 변경)
+            view.entitlementRevision shouldBe 5L
             view.sites.map { it.merchantSiteId }.toSet() shouldBe setOf(ready.siteId.value, ready.secondSiteId.value)
             val account = view.accounts.single()
             listOf(account.merchantAccountId, account.isDefault, account.issuingContractId, account.issuingAgreementId, account.issuingRevisionNo) shouldBe
@@ -128,7 +129,8 @@ class MerchantStructureQuerySpec(
                 view.sites.map { it.channelIdentifier }.toSet() shouldBe hosts.toSet()
                 view.sites.map { it.lifecycle }.toSet() shouldBe setOf("ACTIVE")
                 view.accounts shouldBe emptyList()
-                view.entitlementRevision shouldBe 0L
+                // Site 등록마다 +1(review M-2). MID가 없으니 Snapshot 발행은 없다.
+                view.entitlementRevision shouldBe shape.siteCount.toLong()
             }
         }
     }

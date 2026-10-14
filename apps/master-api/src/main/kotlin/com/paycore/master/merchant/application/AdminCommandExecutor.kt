@@ -11,12 +11,14 @@ import com.paycore.master.merchant.application.required.AdminReservationOutcome
 import com.paycore.master.merchant.application.required.ChangeRecord
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterIdGenerator
+import com.paycore.master.merchant.application.required.MasterOperationalMetrics
 import com.paycore.master.merchant.application.required.OutboxEvent
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.StoreConstraint
 import com.paycore.master.merchant.application.required.StoredAdminResult
 import com.paycore.master.merchant.domain.MasterRuleViolation
+import com.paycore.master.merchant.domain.Merchant
 import com.paycore.master.merchant.application.required.MasterClock
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.CannotCreateTransactionException
@@ -47,6 +49,10 @@ import java.util.HexFormat
  *
  * 운영 로그(review m-8, 구조화 key=value, 민감값 없음 — 등록번호·채널 식별값·멱등키 값·입력값을 넣지 않는다): 결과 불명확(OutcomeUnknown),
  * 재시도 소진, 서버 생성 ID 충돌을 WARN으로 남긴다. 필드: operation, correlationId, requestRecordId(있으면), failure 종류.
+ * 같은 사건을 [MasterOperationalMetrics] counter로도 센다(review m-7·m-8, MASTER-SNAPSHOT-001 — label은 연산 코드만).
+ *
+ * 권리 Snapshot(MASTER-SNAPSHOT-001 §4.6): 권리 입력을 바꾼 본문은 쓰기 단계에서 [Work.publishEntitlement]로 같은 TX에 Snapshot 발행
+ * (issue + Outbox)을 남긴다. 조립은 같은 TX의 JPA 읽기다(변경과 Snapshot이 원자적 — 두 번째 hop 없음).
  */
 internal class AdminCommandExecutor(
     transactionManager: PlatformTransactionManager,
@@ -55,6 +61,8 @@ internal class AdminCommandExecutor(
     private val outbox: OutboxStore,
     private val ids: MasterIdGenerator,
     private val clock: MasterClock,
+    private val metrics: MasterOperationalMetrics,
+    private val publisher: EntitlementSnapshotPublisher,
 ) {
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
     private val log = LoggerFactory.getLogger(AdminCommandExecutor::class.java)
@@ -67,6 +75,7 @@ internal class AdminCommandExecutor(
             throw e
         } catch (e: CommitOutcomeUnknownException) {
             log.warn("admin command outcome unknown operation={} correlationId={} failure=commit", operation.code, request.correlationId)
+            metrics.adminOutcomeUnknown(operation.code)
             throw AdminCommandFailure.OutcomeUnknown(e)
         } catch (e: CannotCreateTransactionException) {
             throw AdminCommandFailure.TemporarilyUnavailable(e)
@@ -84,6 +93,7 @@ internal class AdminCommandExecutor(
                 "admin command retries exhausted operation={} correlationId={} attempts={} failure={}",
                 operation.code, request.correlationId, MAX_ATTEMPTS, failureKind(e),
             )
+            metrics.adminRetriesExhausted(operation.code)
             return AdminCommandFailure.TemporarilyUnavailable(e)
         }
         if (e is PersistenceFailure.UniqueConflict && e.constraint in GENERATED_IDENTIFIERS) {
@@ -91,6 +101,7 @@ internal class AdminCommandExecutor(
                 "admin command generated identifier collision operation={} correlationId={} constraint={}",
                 operation.code, request.correlationId, e.constraint,
             )
+            metrics.adminIdentifierCollision(operation.code)
             return AdminCommandFailure.IdentifierCollision(e.constraint.name)
         }
         return AdminCommandFailure.TemporarilyUnavailable(e)
@@ -193,6 +204,15 @@ internal class AdminCommandExecutor(
                     payload = payload + ("occurredAt" to now),
                 ),
             )
+        }
+
+        /**
+         * 권리 입력 변경 뒤(같은 TX, 쓰기 단계) [merchant]의 현재 권리 Snapshot을 발행한다(revision은 본문이 이미 +1·저장했다). MID가 없는
+         * Merchant는 발행하지 않는다(PAYMENT가 물을 일이 없다 — 명세 §3.2).
+         */
+        fun publishEntitlement(merchant: Merchant) {
+            check(writing) { "the entitlement snapshot is published after the decision" }
+            publisher.publishChange(merchant, now, request.correlationId, requestRecordId)
         }
     }
 

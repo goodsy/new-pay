@@ -101,13 +101,14 @@ class SiteAssignmentRulesSpec : BehaviorSpec({
         }
     }
 
-    Given("a payment method activation registration (minimal storage, Q-MD-09 states undecided)") {
-        Then("it is recorded for an ACTIVE MID with the method and the actor") {
+    Given("a payment method activation registration (D-MD-017: registered = UNDER_REVIEW, not activated — MASTER-SNAPSHOT-001)") {
+        Then("it is recorded for an ACTIVE MID with the method and the actor, in UNDER_REVIEW") {
             val issued = MasterFixture.issued()
-            val activation = PaymentMethodActivation.register(
+            val (activation, _) = PaymentMethodActivation.register(
                 MasterFixture.activationId(), issued.issuance.account, PaymentMethod.CARD, t0, operator,
             )
-            (activation.merchantAccountId to activation.paymentMethod) shouldBe (issued.issuance.account.id to PaymentMethod.CARD)
+            Triple(activation.merchantAccountId, activation.paymentMethod, activation.status) shouldBe
+                Triple(issued.issuance.account.id, PaymentMethod.CARD, ActivationStatus.UNDER_REVIEW)
         }
     }
 })

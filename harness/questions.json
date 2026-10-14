@@ -534,7 +534,7 @@
     },
     {
       "id": "Q-MD-08",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "ADDITIONAL 공유 증거·승인과 개통·Site 심사 적용 범위(구조 §12 MID 단위 개통 vs 추가 Site 비상속)",
       "recommended": "명세 문서 §미결 권장안",
       "alternative": "명세 문서 참조",
@@ -542,32 +542,41 @@
         "MASTER-LIFECYCLE-001",
         "MASTER-SNAPSHOT-001"
       ],
-      "askedAt": null,
-      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+      "askedAt": "2026-10-13",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문",
+      "humanAnswer": "Site별 적용 확인 기록 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MD-016"
     },
     {
       "id": "Q-MD-09",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "PaymentMethodActivation 단위·상태((MID,결제수단) UNDER_REVIEW/ACTIVE/SUSPENDED/TERMINATED)",
       "recommended": "명세 문서 §미결 권장안",
       "alternative": "명세 문서 참조",
       "dependentTasks": [
         "MASTER-SNAPSHOT-001"
       ],
-      "askedAt": null,
-      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+      "askedAt": "2026-10-13",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문",
+      "humanAnswer": "(MID,수단)+상태 4종 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MD-017"
     },
     {
       "id": "Q-MD-10",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "통화 활성화 기록 위치(별도 기록 vs CSA+MID+통화 정책 Assignment)",
       "recommended": "명세 문서 §미결 권장안",
       "alternative": "명세 문서 참조",
       "dependentTasks": [
         "MASTER-SNAPSHOT-001"
       ],
-      "askedAt": null,
-      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문"
+      "askedAt": "2026-10-13",
+      "origin": "MASTER-DOMAIN-001 1단계 명세 docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md 질문 후보 — 해당 작업 착수 전 질문",
+      "humanAnswer": "별도 기록 + 정책 둘 다 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MD-018"
     },
     {
       "id": "Q-MD-12",
@@ -694,6 +703,100 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-10)",
       "appliedSpec": "D-MD-015",
       "origin": "MASTER-DOMAIN-001 review round1 수정 중 구현자 질문 후보"
+    },
+    {
+      "id": "Q-MD-20",
+      "status": "ANSWERED",
+      "question": "MID 운영 중지(허용 §4.1-3)일 때 CreatePayment 거절 사유 — CP계약 §13 NotEligible reason 고정 4종에 대응 값 없음",
+      "recommended": "MERCHANT_SUSPENDED로 매핑",
+      "alternative": "MID_SUSPENDED 신규 reason(계약 개정) / NotFoundOrForbidden 처리",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001",
+        "CP-API-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "MERCHANT_SUSPENDED로 매핑 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MD-019",
+      "origin": "MASTER-DOMAIN-001 명세 §7-2 공백 — MASTER-SNAPSHOT-001 착수 전 질문"
+    },
+    {
+      "id": "Q-MS-01",
+      "status": "ANSWERED",
+      "question": "TEST 환경 CreatePayment도 LIVE와 같은 허용 조건을 요구하는가",
+      "recommended": "LIVE와 같은 조건",
+      "alternative": "TEST는 MID ACTIVE+Assignment만 / 계약 승인까지만",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "LIVE와 같은 조건 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MS-001",
+      "origin": "MASTER-SNAPSHOT-001 1단계 명세 docs/repository/MASTER-SNAPSHOT-001-ENTITLEMENT-SNAPSHOT.md §9 질문 후보"
+    },
+    {
+      "id": "Q-MS-02",
+      "status": "ANSWERED",
+      "question": "Site 심사 상태 값·reason, 계약 Scope 밖 Site reason, MID TERMINATED reason",
+      "recommended": "(a) PENDING/APPROVED/REJECTED/SUSPENDED·미승인 METHOD_NOT_ENABLED (b) CONTRACT_NOT_EFFECTIVE (c) MERCHANT_SUSPENDED",
+      "alternative": "모두 NotFoundOrForbidden / SITE_NOT_APPROVED 계약 개정",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001",
+        "CP-API-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "권장안 (a)(b)(c) 모두 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MS-002",
+      "origin": "MASTER-SNAPSHOT-001 1단계 명세 docs/repository/MASTER-SNAPSHOT-001-ENTITLEMENT-SNAPSHOT.md §9 질문 후보"
+    },
+    {
+      "id": "Q-MS-03",
+      "status": "ANSWERED",
+      "question": "Activation 상태 전이·근거 요구와 Site 적용 확인 철회 표현",
+      "recommended": "명세 §9 Q-MS-03 권장안",
+      "alternative": "재개 근거 불요 / 확인 철회 없음",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001",
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "권장안 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MS-003",
+      "origin": "MASTER-SNAPSHOT-001 1단계 명세 docs/repository/MASTER-SNAPSHOT-001-ENTITLEMENT-SNAPSHOT.md §9 질문 후보"
+    },
+    {
+      "id": "Q-MS-04",
+      "status": "ANSWERED",
+      "question": "MASTER→PAYMENT 권리 채널 인증",
+      "recommended": "HMAC-SHA256 서명 + 운영 mTLS",
+      "alternative": "mTLS만 / OIDC client-credentials",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "HMAC 서명 + 운영 mTLS (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MS-004",
+      "origin": "MASTER-SNAPSHOT-001 1단계 명세 docs/repository/MASTER-SNAPSHOT-001-ENTITLEMENT-SNAPSHOT.md §9 질문 후보"
+    },
+    {
+      "id": "Q-MS-05",
+      "status": "ANSWERED",
+      "question": "Site 심사 REJECTED된 Site를 재심사·재승인할 수 있는가",
+      "recommended": "REJECTED 종료 상태(재신청은 새 Site)",
+      "alternative": "evidenceRef 있을 때만 REJECTED→APPROVED / 자유 재심사",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-001",
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": "2026-10-13",
+      "humanAnswer": "REJECTED 종료 상태 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
+      "appliedSpec": "D-MS-005",
+      "origin": "MASTER-SNAPSHOT-001 2단계 구현 중 구현자 질문 후보 — 현재 구현(재승인 금지)과 일치, 코드 변경 없음"
     }
   ]
 }

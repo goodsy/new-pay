@@ -107,15 +107,16 @@ class MerchantOnboardingServiceSpec(
             rowsOf(container, ready.merchantId).accounts shouldBe 1
         }
 
-        Then("registering the CARD activation records it once (state undecided — Q-MD-09) and a duplicate is rejected") {
+        Then("registering the CARD activation records it once as UNDER_REVIEW (D-MD-017) and a duplicate is rejected") {
             val ready = readyMerchant(service)
             val mid = MerchantAccountId(succeeded(service.issueFirstDefaultMerchantAccount(ready.issueCommand())))
             val activation = succeeded(service.registerPaymentMethodActivation(RegisterPaymentMethodActivationCommand(request(), mid, PaymentMethod.CARD)))
             service.registerPaymentMethodActivation(RegisterPaymentMethodActivationCommand(request(), mid, PaymentMethod.CARD)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.ACTIVATION_DUPLICATE, activation, replayed = false)
             scalar(
-                "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.activationState')) FROM outbox_event WHERE aggregate_id = ?", activation,
-            ) shouldBe "REGISTERED_STATE_UNDECIDED"
+                "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.status')) FROM outbox_event WHERE aggregate_id = ?", activation,
+            ) shouldBe "UNDER_REVIEW"
+            scalar("SELECT status FROM payment_method_activation WHERE activation_id = ?", activation) shouldBe "UNDER_REVIEW"
         }
     }
 

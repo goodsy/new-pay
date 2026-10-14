@@ -73,8 +73,8 @@ class ArchitectureSpec : FunSpec({
         const val GENERATED_JOOQ_PACKAGE = "com.paycore.master.jooq.generated"
 
         /**
-         * 규칙 이름 → allowEmptyShould 값. true(빈 대상)의 사유: Controller·adapter.web(관리자 화면/API는 Q-ADMIN-AUTH 미결이라 만들지 않음)과
-         * adapter.batch(계획 없음)가 없다. 그 밖은 merchant 모듈(MASTER-DOMAIN-001)로 대상이 있다.
+         * 규칙 이름 → allowEmptyShould 값. true(빈 대상)의 사유: Controller·adapter.web(관리자 화면/API는 Q-ADMIN-AUTH 미결이라 만들지 않음)이
+         * 없다. 그 밖은 merchant 모듈(MASTER-DOMAIN-001, adapter.batch·integration은 MASTER-SNAPSHOT-001)로 대상이 있다.
          */
         val ALLOW_EMPTY: Map<String, Boolean> = linkedMapOf(
             "classesResideInKnownLayers" to false,
@@ -92,7 +92,8 @@ class ArchitectureSpec : FunSpec({
             "queryAdapterDoesNotWriteWithJooq" to false,
             "integrationAdapterIsEncapsulated" to false,
             "webAdapterUsesOnlyApplication" to true,
-            "batchAdapterUsesOnlyApplication" to true,
+            // MASTER-SNAPSHOT-001: Relay·lease 갱신 주기 실행(adapter.batch, application.provided만 호출).
+            "batchAdapterUsesOnlyApplication" to false,
             "namedInterfacesOnlyOnProvidedPackages" to false,
             "modulesAreFreeOfCycles" to false,
         )

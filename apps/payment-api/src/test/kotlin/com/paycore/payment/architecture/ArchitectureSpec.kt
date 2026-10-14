@@ -32,6 +32,19 @@ class ArchitectureSpec : FunSpec({
         modules.getModuleByName("jooq").isPresent shouldBe false
         // CP-DOMAIN-001: 첫 업무 모듈(Order/Payment 활성 규칙). verify가 빈 모듈 목록에서 통과한 것이 아님을 보인다.
         modules.getModuleByName("payment").isPresent shouldBe true
+        // MASTER-SNAPSHOT-001: 권리 투영 모듈(payment는 entitlement.application.provided만 쓴다 — verify가 공개 범위를 강제).
+        modules.getModuleByName("entitlement").isPresent shouldBe true
+    }
+
+    test("the entitlement module uses no in-process cache (every evaluation reads the PAYMENT DB — inbox commit = all instances applied, spec §3.4-3)") {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().resideInAPackage("$BASE_PACKAGE.entitlement..")
+            // review n-2: CreatePayment의 운영 Port 구현도 캐시하지 않는다(판정마다 entitlement 판정 → PAYMENT DB).
+            .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementEligibilityAdapter")
+            .should().dependOnClassesThat().resideInAnyPackage("org.springframework.cache..", "com.github.benmanes.caffeine..", "javax.cache..")
+            .`as`("entitlement does not use Spring cache, Caffeine or JCache")
+            .check(classes)
+        classes.filter { it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName == "EntitlementEligibilityAdapter" }
+            .flatMap { c -> c.methods.filter { m -> m.annotations.any { it.rawType.packageName.startsWith("org.springframework.cache") } } } shouldBe emptyList()
     }
 
     test("GENERATED_JOOQ_PACKAGE matches the build's generateJooqMain package") {
@@ -99,8 +112,8 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("controllers only in adapter.web") {
-        // 빈 대상: Controller가 아직 없다(CP-API 범위).
-        rules.controllersOnlyInWebAdapter().allowEmptyShould(true).check(classes)
+        // 대상 있음(MASTER-SNAPSHOT-001): entitlement.adapter.web의 내부 Inbox Controller.
+        rules.controllersOnlyInWebAdapter().allowEmptyShould(false).check(classes)
     }
 
     test("jOOQ and generated jOOQ code only in adapter.query") {
@@ -108,8 +121,8 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("adapter.query does not write with jOOQ (DML only through application Port -> adapter.persistence)") {
-        // 빈 대상: adapter.query가 아직 없다(첫 조회 API 작업에서 대상이 생긴다). 규칙 자체의 동작은 libs/test-support meta-test.
-        rules.queryAdapterDoesNotWriteWithJooq().allowEmptyShould(true).check(classes)
+        // 대상 있음(MASTER-SNAPSHOT-001): entitlement.adapter.query 신선도 조회.
+        rules.queryAdapterDoesNotWriteWithJooq().allowEmptyShould(false).check(classes)
     }
 
     test("CP-DB-001 main jOOQ classes are generated from the PAYMENT migration but not used outside adapter.query") {
@@ -122,8 +135,8 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("web adapter does not use persistence/query/integration adapters or application.required") {
-        // 빈 대상: adapter.web이 아직 없다(CP-API 범위).
-        rules.webAdapterUsesOnlyApplication().allowEmptyShould(true).check(classes)
+        // 대상 있음(MASTER-SNAPSHOT-001): entitlement.adapter.web(application.provided만 호출).
+        rules.webAdapterUsesOnlyApplication().allowEmptyShould(false).check(classes)
     }
 
     test("batch adapter uses only application.provided (no adapters/required ports/Spring Data/JPA)") {

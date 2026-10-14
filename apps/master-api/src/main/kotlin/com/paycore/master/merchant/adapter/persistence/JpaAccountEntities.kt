@@ -208,7 +208,10 @@ class JpaSiteAssignmentEntity protected constructor() {
     }
 }
 
-/** payment_method_activation 행(최소 저장, 상태 없음 — Q-MD-09). */
+/**
+ * payment_method_activation 행(D-MD-017, D-MS-003). 상태 전이는 잠가 읽은 Entity의 status·evidence_ref·status_changed_at 변경을 flush 때
+ * `UPDATE … WHERE version = ?`로 반영한다(변경 감지 + `@Version`). 소속·수단·등록 컬럼은 updatable=false. 생성 컬럼 open_method_key는 매핑하지 않는다.
+ */
 @Entity
 @Table(name = "payment_method_activation")
 class JpaPaymentMethodActivationEntity protected constructor() {
@@ -233,21 +236,40 @@ class JpaPaymentMethodActivationEntity protected constructor() {
     lateinit var registeredBy: String
         protected set
 
+    @field:Column(name = "status", nullable = false, length = 16)
+    lateinit var status: String
+
+    @field:Column(name = "evidence_ref", length = 128)
+    var evidenceRef: String? = null
+
+    @field:Column(name = "status_changed_at", nullable = false)
+    lateinit var statusChangedAt: Instant
+
+    @field:Version
+    @field:Column(name = "version", nullable = false)
+    var version: Long? = null
+        protected set
+
     override fun equals(other: Any?): Boolean =
         this === other ||
             (other != null && Hibernate.getClass(this) == Hibernate.getClass(other) && activationId == (other as JpaPaymentMethodActivationEntity).activationId)
 
     override fun hashCode(): Int = activationId.hashCode()
 
-    override fun toString(): String = "JpaPaymentMethodActivationEntity(activationId=$activationId, paymentMethod=$paymentMethod)"
+    override fun toString(): String = "JpaPaymentMethodActivationEntity(activationId=$activationId, paymentMethod=$paymentMethod, status=$status)"
 
     companion object {
-        fun newRow(id: String, accountId: String, method: String, at: Instant, by: String) = JpaPaymentMethodActivationEntity().also {
-            it.activationId = id
-            it.merchantAccountId = accountId
-            it.paymentMethod = method
-            it.registeredAt = at
-            it.registeredBy = by
-        }
+        @Suppress("LongParameterList")
+        fun newRow(id: String, accountId: String, method: String, at: Instant, by: String, status: String, evidenceRef: String?) =
+            JpaPaymentMethodActivationEntity().also {
+                it.activationId = id
+                it.merchantAccountId = accountId
+                it.paymentMethod = method
+                it.registeredAt = at
+                it.registeredBy = by
+                it.status = status
+                it.evidenceRef = evidenceRef
+                it.statusChangedAt = at
+            }
     }
 }

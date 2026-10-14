@@ -71,6 +71,11 @@ class DatabaseAccountSeparationSpec(
         "incident_hold" to "Select,Insert",
         "idempotency_request" to "Select,Insert,Update",
         "outbox_event" to "Select,Insert",
+        // MASTER-SNAPSHOT-001 V4: Inbox·revision별 내용·MID 소속은 append-only, head는 IODKU·잠금 읽기·갱신.
+        "inbox_event" to "Select,Insert",
+        "entitlement_head" to "Select,Insert,Update",
+        "entitlement_snapshot" to "Select,Insert",
+        "entitlement_mid_owner" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -94,6 +99,10 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`payment_termination_evidence` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`inbox_event` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`entitlement_head` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_snapshot` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_mid_owner` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -270,7 +279,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "950"),
+                "versions" to listOf("1", "2", "3", "4", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

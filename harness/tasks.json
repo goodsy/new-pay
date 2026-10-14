@@ -3274,7 +3274,15 @@
         "착수 전 Q-MD-18 질문(종료된 Site 채널 식별값 재사용)",
         "(MASTER-DOMAIN-001 review2 n-3) MASTER 비업무 결과(TemporarilyUnavailable·LockTimeout·CannotCreateTransaction·UnexpectedRollback·RequestInProgress·미분류 결함) 구조화 로그 보강, 관리자 web 어댑터 추가 시 예외 메시지 원문 로그 금지",
         "(MASTER-DOMAIN-001 review3 minor-1) 착수 시 MASTER-DOMAIN-001 명세 §3.3에 판정·저장 시각은 마지막 잠금 뒤 Work.lockedNow() 규칙, §9.7에 n-1/n-2 수정 기록. 새 명령도 lockedNow 사용",
-        "(MASTER-DOMAIN-001 review3 nit-2) MasterSchemaSpec에 WEB CHECK 허용 사례(0x7f.example, shop.0xg) DB 삽입 시험"
+        "(MASTER-DOMAIN-001 review3 nit-2) MasterSchemaSpec에 WEB CHECK 허용 사례(0x7f.example, shop.0xg) DB 삽입 시험",
+        "(MASTER-SNAPSHOT-001 명세 §14-5) 권리 입력을 바꾸는 모든 명령 TX에서 merchant.entitlement_revision +1과 Snapshot 발행. PRIMARY 교체 시 새 PRIMARY Site 적용 확인 없으면 결제 차단됨을 명령/절차에 반영",
+        "(D-MS-003) Site 적용 확인 철회·Activation Suspend/Resume/Terminate 운영 명령 중 MASTER-SNAPSHOT-001에서 만들지 않은 것",
+        "(MASTER-SNAPSHOT-001 review M-2) Snapshot 내용을 바꾸는 모든 MASTER 명령이 revision을 올리는지 명령별 증가 매트릭스 시험으로 고정(조립 hash 변경 ⇒ revision 변경)",
+        "(MASTER-SNAPSHOT-001 review2 MINOR-1) EntitlementRevisionMatrixSpec 단계 집합을 AdminOperation.entries와 비교해 누락 시 실패, revision 미증가 명령은 명시 허용 목록",
+        "(MASTER-SNAPSHOT-001 review2 NIT-1/2/§3.5) 명세 §4.1 표·Activation.kt KDoc(resume 근거 = 이력 전체 비교)·V3 주석(confirmation_seq UNIQUE)·§15 번호 순서·§3.5 HeadBlock.INTEGRITY_CONFLICT 표현 정합",
+        "(MASTER-SNAPSHOT-001 review2 NIT-3) golden 봉투 v1 필드 순서·서명 대상 바이트 규칙을 명세에 고정, escape(제어문자·비ASCII) golden 사례 추가",
+        "(MASTER-SNAPSHOT-001 review2 NIT-4) 연속 예외 relay 행의 격리 또는 경보 기준(attempt 증가)",
+        "(MASTER-SNAPSHOT-001 review2 NIT-5, 선택) seq UNIQUE 충돌 → 재판정 → SITE_CONFIRMATION_DUPLICATE application 시험"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -3290,12 +3298,22 @@
       "id": "MASTER-SNAPSHOT-001",
       "title": "권리 Snapshot·lease·긴급 차단 발행 계약과 PAYMENT 수신",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "MASTER-DOMAIN-001",
         "CP-CONTRACT-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-MD-08",
+        "Q-MD-09",
+        "Q-MD-10",
+        "Q-MD-20",
+        "Q-MS-01",
+        "Q-MS-02",
+        "Q-MS-03",
+        "Q-MS-04",
+        "Q-MS-05"
+      ],
       "acceptanceCriteria": [
         "허용 확정본 §4.1–4.2: 버전 있는 권리 Snapshot·만료 lease·차단 우선 전파·ACK, 과거 허용 이벤트로 차단 되돌림 금지",
         "MASTER Outbox → PAYMENT Inbox 로컬 TX, 수치(lease·지연)는 Demo fixture 명시·운영값 미결",
@@ -3310,6 +3328,106 @@
         "(MASTER-DOMAIN-001 review m-7·m-8) MASTER Observability 지표·구조화 로그(OutcomeUnknown, 재시도 소진, 식별자 충돌)",
         "(MASTER-DOMAIN-001 review2 n-5) D-MD-011/015에 따라 적용 Revision은 명령 없이 시각 경계에서 바뀌므로 Snapshot은 entitlement_revision만이 아니라 시각 기반 적용 판정(유효 기간·validUntil)을 반영"
       ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/payment-api/**",
+        "libs/test-support/**",
+        "docker/mysql/init/**",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "gradle/libs.versions.toml"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator-main-session",
+      "attempts": 1,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": 10800,
+      "evidence": {
+        "fingerprint": "sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
+        "verifyGate": "build/harness-evidence/MASTER-SNAPSHOT-001-2026-10-14T022745Z.json",
+        "evidenceSha256": "68a8ecb42d8045f28be9e0002b5dcdf9414dca74179701a0743d2695dd0b88fc",
+        "verdict": "PASS",
+        "tests": {
+          "master-api": 269,
+          "payment-api": 466,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112,
+          "total": 902
+        },
+        "harnessSelftest": "Ran 69 OK (test_entitlement_golden 포함)",
+        "at": "2026-10-14T02:40:27Z",
+        "depsCve": "GRADLE-DEPS x4 exit 0(Boot 4.1.1, 의존성 트리 직전 회차와 동일, runtime classpath에 fixture-monkey/kotest/testcontainers·Kafka/Redis 없음), CVE-SCAN PASS 0건·canary 검출 02:41–02:44Z, build/harness-evidence/MASTER-SNAPSHOT-001-2026-10-14T024143Z-supplementary/",
+        "runMode": "WSL 내부 setsid nohup … & disown(스크립트 파일 경유)",
+        "priorGate": "070818Z(4f1bb87b…)는 review1 수정 전 tree — 증거 아님(1eeb4726…)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07"
+      },
+      "origin": "D-CPC-006 (G-1, 2026-10-06)",
+      "coordinatorDecisions": [
+        "2026-10-13 진행 방식: 1단계로 명세(docs/repository/MASTER-SNAPSHOT-001-*.md: 허용 확정본 §4.1–4.2·CP계약 §13·D-MD-016~019 → Snapshot 계약·lease·차단 전파·Outbox/Inbox·Eligibility 판정·schema 변경, 새 질문 후보)를 작성해 Coordinator에 반환. 질문 답변 후 2단계 TDD 구현",
+        "2026-10-13 1단계 명세(sha256 bb79f84c…, 487줄) 수령, Q-MS-01~04 답변 → D-MS-001~004. 해석 2건(통화 기록 소급 금지·미래 종료 예약은 D-MD-005 유추, 미전파 MID는 SNAPSHOT_MISSING)은 명세대로 채택(fail-closed 방향). 2단계 TDD 구현 착수",
+        "2026-10-13 2단계 구현 완료(구현자 보고 891 tests, 명세 §15 편차 6건), VERIFY-GATE PASS 4f1bb87b…. Q-MS-05 → 권장안(REJECTED 종료) = 현재 구현. Reviewer 착수",
+        "2026-10-13 review round1 REVIEW_FAIL 처리: M-1·M-2·m-1·m-3 수정. m-2는 fail-closed 관례로 좁힘(이 Activation의 과거 모든 근거와 다른 근거만 허용, 사용자 질문 불요). n-1~n-6 수정, n-3은 D-MS-005 반영. n-7(V3 이전 Merchant bootstrap 발행)은 LIVE 전 이월. golden 생성 절차를 저장소에 기록. 수정 후 VERIFY-GATE 재실행·review round2",
+        "2026-10-14 review round2 REVIEW_PASS(39fe05c7…). MINOR-1·NIT-1~5·§3.5 문서 정합은 fingerprint 변경·재검증이 필요해 MASTER-LIFECYCLE-001 착수 시 처리로 이월(MASTER-DOMAIN-001 round3 이월과 같은 방식). DONE은 같은 fingerprint VERIFY-GATE PASS 확인 후",
+        "2026-10-14 VERIFY-GATE PASS 022745Z + REVIEW_PASS round2 같은 fingerprint 39fe05c7… → DONE"
+      ],
+      "reviewRounds": [
+        {
+          "round": 1,
+          "fingerprint": "sha256:4f1bb87bef2c8e10c0603388fcfafb6129889f2ffaa4b4af17b1801d43075dc6",
+          "verdict": "REVIEW_FAIL",
+          "findings": [
+            "M-1 승인 시 PRIMARY Site 유효 확인 중복 → 철회 후에도 결제 허용",
+            "M-2 Site 등록이 revision 미증가 → lease 갱신 시 INTEGRITY_CONFLICT로 Merchant 전체 차단",
+            "m-1 CreatePayment 잠금 순서 실adapter 혼합 경쟁 증거 부족",
+            "m-2 Resume 새 근거를 현재 근거와만 비교",
+            "m-3 Inbox DUPLICATE 응답에 원 outcome 없음",
+            "n-1~n-7"
+          ]
+        },
+        {
+          "round": 2,
+          "fingerprint": "sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
+          "verdict": "REVIEW_PASS",
+          "findings": [
+            "round1 M-1·M-2·m-1~3·n-1~7 해소 확인",
+            "MINOR-1 RevisionMatrix가 AdminOperation 전체를 강제하지 않음 → MASTER-LIFECYCLE-001",
+            "NIT-1 명세 §4.1/Activation KDoc/V3:57 주석 m-2·M-1 이전 표현",
+            "NIT-2 명세 §15 번호 순서",
+            "NIT-3 golden 봉투 필드 순서 명세 미고정·escape 사례 없음",
+            "NIT-4 지속 예외 relay 행 무한 재시도(격리·경보 기준)",
+            "NIT-5 seq 충돌 재판정 application 시험 없음(선택)",
+            "참고 명세 §3.5 INTEGRITY_CONFLICT 표현"
+          ]
+        }
+      ],
+      "openItems": [
+        "n-7 V3 이전 MID 보유 Merchant bootstrap Snapshot 발행 명령(LIVE 전)",
+        "운영 키·mTLS(D-MS-004, LIVE 전), lease/renew/skew/backoff 운영값 미결",
+        "/internal 외부 노출 차단·503 Retry-After → CP-API-001",
+        "QUARANTINED 재처리 명령(Q-ADMIN-AUTH 이후), inbox/issue/snapshot 보존 정책, PAYMENT DB 복원 runbook lease 만료",
+        "round2 MINOR-1·NIT-1~5·§3.5 문서 → MASTER-LIFECYCLE-001"
+      ],
+      "lastSuccessfulStep": "DONE (VERIFY-GATE PASS 022745Z 902 tests, REVIEW_PASS round2) on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07"
+    },
+    {
+      "id": "MASTER-PAYOUT-ACCOUNT-001",
+      "title": "지급계좌 준비(허용 §4.1-10) — 보안·민감정보 계약 포함, LIVE 허용 전 필수",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "착수 전 계좌 보안·검증·변경 승인 정책 질문",
+        "MASTER-SNAPSHOT-001 명세 §13 이월 근거"
+      ],
       "allowedWritePaths": [],
       "pathsResolved": false,
       "owner": null,
@@ -3318,7 +3436,7 @@
       "taskTimeoutSeconds": null,
       "evidence": null,
       "review": null,
-      "origin": "D-CPC-006 (G-1, 2026-10-06)"
+      "origin": "MASTER-SNAPSHOT-001 1단계 명세 범위 밖 판단 (2026-10-13)"
     }
   ]
 }

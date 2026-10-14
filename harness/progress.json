@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809",
-  "lastSuccessfulStep": "MASTER-DOMAIN-001 DONE (VERIFY-GATE PASS 040957Z 757 tests, REVIEW_PASS round3) on sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809",
+  "codeFingerprint": "sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
+  "lastSuccessfulStep": "MASTER-SNAPSHOT-001 DONE (VERIFY-GATE PASS 022745Z 902 tests, REVIEW_PASS round2) on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "MASTER-LIFECYCLE-001(먼저 Q-MD-06·07·08·18 질문, 착수 시 MASTER-DOMAIN-001 명세 §3.3/§9.7 보강) 또는 MASTER-SNAPSHOT-001(먼저 Q-MD-08·09·10 질문) → CP-API-001 → AUTH. payment-api는 PaymentEligibilityPort 운영 구현 전까지 기동 불가(의도된 fail-closed). 긴 gate는 WSL setsid 분리 실행",
+  "nextResumeAction": "CP-API-001(CreatePayment Application/API 통합 — MASTER-SNAPSHOT-001 이월: /internal 외부 노출 차단·503 Retry-After, n-3·n-4) → AUTH-CONTRACT-001. MASTER-LIFECYCLE-001은 Q-MD-06·07·18 질문 + review2 이월. payment-api는 이제 운영 Eligibility 구현으로 기동(Entitlement 설정 값 필수). 긴 gate는 WSL setsid nohup … & disown(스크립트 파일 경유)",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -161,6 +161,43 @@
       "at": "2026-10-11T04:30Z",
       "taskId": "MASTER-DOMAIN-001",
       "event": "DONE on sha256:647b5d4f87ee85da4d1d4c53ecc6ae48657f4fc630dcf61be3f9493c1e40c809 (VERIFY-GATE PASS 757 tests, DEPS x4, CVE PASS, REVIEW_PASS round3)"
+    },
+    {
+      "at": "2026-10-13",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "questions_answered",
+      "detail": "Q-MD-08·09·10·20 → D-MD-016~019 (모두 권장안). 6e2a776 push 완료"
+    },
+    {
+      "at": "2026-10-13",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "claimed (RUNNING), 1단계 명세 착수"
+    },
+    {
+      "at": "2026-10-13",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "questions_answered",
+      "detail": "Q-MS-01~04 → D-MS-001~004 (모두 권장안). 2단계 구현 착수. MASTER-PAYOUT-ACCOUNT-001 BACKLOG 등록"
+    },
+    {
+      "at": "2026-10-13T07:25Z",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "VERIFY-GATE PASS 891 tests on sha256:4f1bb87b…; Q-MS-05 answered; REVIEW 착수"
+    },
+    {
+      "at": "2026-10-13",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "review round1 REVIEW_FAIL (M-1, M-2, m-1~3, n-1~7) → 수정 착수; D-MS-005 기록"
+    },
+    {
+      "at": "2026-10-14",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "review round2 REVIEW_PASS on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07; VERIFY-GATE 재실행 대기"
+    },
+    {
+      "at": "2026-10-14T02:45Z",
+      "taskId": "MASTER-SNAPSHOT-001",
+      "event": "DONE (VERIFY-GATE PASS 022745Z 902 tests, REVIEW_PASS round2) on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07 (VERIFY-GATE 902 tests, DEPS x4, CVE PASS)"
     }
   ]
 }

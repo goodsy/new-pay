@@ -1,0 +1,27 @@
+# 시험 전용 설정(test classpath에만 있다 — 운영 jar에 들어가지 않는다). Spring Boot는 classpath:/config/application.yml을 운영
+# application.yml 위에 덧씌운다. 운영 application.yml에는 아래 값의 기본값이 없다(없으면 기동 실패 — MASTER-SNAPSHOT-001 명세 §8).
+#
+# 아래 수치는 **시험 fixture**다(운영값 아님, 허용 §4.2 마지막 문단: 전파 지연·lease·시계 오차·갱신 주기·ACK timeout 운영 수치는 미확정).
+# 서명 키는 시험 전용 값이다(운영 키 아님 — D-MS-004: 운영 키는 비밀 저장소에서 주입, mTLS는 LIVE 허용 전 별도).
+paycore:
+  master:
+    entitlement:
+      lease-duration: PT2S
+      renew-before: PT1S
+      # 시험은 주기 실행을 끄고 use case를 직접 부른다. 주기 값은 placeholder 해석(기동 실패 방지)용 시험 값.
+      scheduling-enabled: false
+      renew-scan-interval: PT10S
+      relay:
+        poll-interval: PT0.5S
+        batch-size: 10
+        claim-lease: PT1S
+        backoff-initial: PT0.01S
+        backoff-max: PT0.01S
+        backoff-jitter-ratio: 0.0
+      dispatch:
+        # MasterDbTest는 시험용 가짜 PAYMENT Inbox(FakePaymentInbox, 임의 포트)로 덮어쓴다.
+        endpoint: http://127.0.0.1:9/internal/v1/entitlement-snapshots
+        connect-timeout: PT0.2S
+        read-timeout: PT0.5S
+        signing-key-id: test-k1
+        signing-key: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh
