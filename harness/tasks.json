@@ -3514,7 +3514,8 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "MASTER-DOMAIN-001"
+        "MASTER-DOMAIN-001",
+        "ADMIN-BOOT-001"
       ],
       "requiredQuestions": [
         "Q-MD-06",
@@ -3539,7 +3540,8 @@
         "(MASTER-SNAPSHOT-001 review2 NIT-1/2/§3.5) 명세 §4.1 표·Activation.kt KDoc(resume 근거 = 이력 전체 비교)·V3 주석(confirmation_seq UNIQUE)·§15 번호 순서·§3.5 HeadBlock.INTEGRITY_CONFLICT 표현 정합",
         "(MASTER-SNAPSHOT-001 review2 NIT-3) golden 봉투 v1 필드 순서·서명 대상 바이트 규칙을 명세에 고정, escape(제어문자·비ASCII) golden 사례 추가",
         "(MASTER-SNAPSHOT-001 review2 NIT-4) 연속 예외 relay 행의 격리 또는 경보 기준(attempt 증가)",
-        "(MASTER-SNAPSHOT-001 review2 NIT-5, 선택) seq UNIQUE 충돌 → 재판정 → SITE_CONFIRMATION_DUPLICATE application 시험"
+        "(MASTER-SNAPSHOT-001 review2 NIT-5, 선택) seq UNIQUE 충돌 → 재판정 → SITE_CONFIRMATION_DUPLICATE application 시험",
+        "(D-ADMIN-003/007) 2인 승인 대상 명령은 요청자·승인자·승인 ID·대상 버전을 받아 요청자≠승인자·버전 일치를 재검사하고 감사에 기록, 관리 화면은 ADMIN-BOOT-001 틀 위에"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -3702,16 +3704,19 @@
       "status": "BACKLOG",
       "dependsOn": [
         "MASTER-SNAPSHOT-001",
-        "CP-API-001"
+        "CP-API-001",
+        "ADMIN-BOOT-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-ADMIN-AUTH"
+      ],
       "acceptanceCriteria": [
         "(D-CPA-001) MASTER가 (MID, 환경)별 secret API key 발급: pc_test_sk_/pc_live_sk_ + keyId + 256bit 난수, 원문은 발급 응답에서 1회만 노출, keyId+SHA-256만 저장",
         "(D-CPA-001) 교체 중 (MID, 환경)당 활성 키 최대 2개, 폐기는 append-only 기록(사유·행위자)",
         "(D-CPA-001) 기존 서명 채널(D-MS-004)로 PAYMENT 인증 projection 전파, 폐기 우선 전파·lease 상한, 무기한 cache 금지",
         "(MASTER-SNAPSHOT-001 §13-3 이월) 인증 정보 긴급 차단",
-        "발급/폐기 관리자 명령의 권한은 Q-ADMIN-AUTH 답변 필요",
-        "LIVE 키 발급은 운영 키 저장소·mTLS 구성 후"
+        "LIVE 키 발급은 운영 키 저장소·mTLS 구성 후",
+        "(D-ADMIN-003/007) 2인 승인 대상 명령은 요청자·승인자·승인 ID·대상 버전을 받아 요청자≠승인자·버전 일치를 재검사하고 감사에 기록, 관리 화면은 ADMIN-BOOT-001 틀 위에"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -4123,6 +4128,91 @@
       "acceptanceCriteria": [
         "(MASTER-SNAPSHOT-002 review1 m-4) JooqEntitlementPropagationReader.overview(LEASE_UNTIL.gt(utc(now)))와 payment JooqEntitlementFreshnessReader의 LocalDateTime 바인딩을 JooqAuthorizationTermsCoverageReader와 같은 UTC 리터럴 방식 또는 공통 helper로 통일",
         "비UTC JVM 기본 시간대(Asia/Seoul)에서 실패하는 시험을 먼저 추가(RED) 후 수정"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "ADMIN-BOOT-001",
+      "title": "internal-admin 기반: ADMIN DB, 자체 계정 로그인·TOTP·잠금, 역할·감사 로그, 2인 승인 틀, 재인증, Thymeleaf 공통 레이아웃, 소유 서비스 내부 API 호출 경로",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-002"
+      ],
+      "requiredQuestions": [
+        "Q-ADMIN-AUTH",
+        "Q-ADMIN-STORE",
+        "Q-ADMIN-DBENGINE",
+        "Q-ADMIN-APPROVAL-ENFORCE",
+        "Q-ADMIN-SEC-VALUES"
+      ],
+      "acceptanceCriteria": [
+        "(D-ADMIN-005/006) internal-admin 소유 ADMIN DB(MySQL 8.4): 계정·역할·TOTP·세션·승인 요청·관리자 감사만, 업무 데이터·타 DB 직접 접근 없음, 표 단위 runtime 권한",
+        "(D-ADMIN-001, 우선순위 1) 비밀번호 해시(BCrypt/Argon2id), TOTP 시크릿 암호화 저장, 로그인 실패 잠금, 사내망 IP 허용 목록, 본인 재설정·재등록·잠금 해제 불가",
+        "(D-ADMIN-002/004, 우선순위 2) 고정 역할 4종, SECURITY_ADMIN만 역할 부여, 본인 권한 변경 불가, 불변 actor ID(재사용 금지)+표시명 스냅샷, append-only 관리자 감사 로그, 마스킹 해제 별도 권한+사유",
+        "(D-ADMIN-004) Spring Session JDBC, 동시 로그인 1개, 로그인 시 세션 ID 재발급, 쿠키 HttpOnly·Secure·SameSite, CSRF 동기화 토큰, 만료·잠금 값은 Demo(Q-ADMIN-SEC-VALUES 확정 전 운영값 아님)",
+        "(D-ADMIN-003/007, 우선순위 3) 2인 승인 틀: 요청자≠승인자, 승인자 APPROVER, 대상 버전 변경 시 무효, 소유 서비스로 요청자·승인자·승인 ID·대상 버전 전달(소유 서비스 재검사 계약), 안전 방향 명령은 1인 즉시",
+        "(D-ADMIN-004, 우선순위 4) 2인 승인·마스킹 해제 직전 TOTP 재입력",
+        "소유 서비스 내부 API 호출 경로와 서비스 간 인증(운영 mTLS는 LIVE Gate), 관리 조회 장애가 승인 경로로 전파되지 않음",
+        "Thymeleaf 공통 레이아웃·오류 화면(AUTHN-001 결제창 화면 관례와 정합)",
+        "Test Fixture Policy, 보안 시험(세션 고정·CSRF·잠금·권한 상승·자기 승인·IP 차단)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

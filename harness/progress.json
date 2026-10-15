@@ -7,7 +7,7 @@
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "다음 후보: AUTHN-001(결제창·인증 세션, AUTH-001 선행 마지막), CANCEL-CONTRACT-001, TZ-FIX-001(작음), MASTER-CREDENTIAL-001(Q-ADMIN-AUTH 부분 대기). AUTH-001은 AUTHN-001 뒤",
+  "nextResumeAction": "합의 순서(progress.agreedOrder) 첫 작업 AUTHN-001 착수(사용자 확인 후). 결제 흐름 우선, 관리자 묶음은 WEBHOOK-001 뒤",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -277,6 +277,29 @@
       "at": "2026-10-16",
       "taskId": "MASTER-SNAPSHOT-002",
       "event": "DONE (VERIFY-GATE PASS 152440Z 1220 tests, DEPS x4, CVE PASS, REVIEW_PASS round2) on sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "Q-ADMIN-AUTH",
+      "event": "Q-ADMIN-AUTH 답변 → D-ADMIN-001~007, ADMIN-BOOT-001 BACKLOG 등록, Q-ADMIN-SEC-VALUES·Q-ADMIN-APPROVER-STAFF PROPOSED"
     }
+  ],
+  "agreedOrder": [
+    "AUTHN-001",
+    "TZ-FIX-001",
+    "CANCEL-CONTRACT-001",
+    "AUTH-001",
+    "CP-QUERY-001",
+    "WEBHOOK-001",
+    "ADMIN-BOOT-001",
+    "MASTER-LIFECYCLE-001",
+    "MASTER-CREDENTIAL-001",
+    "ACQUIRING-001",
+    "SETTLEMENT-CONTRACT-001",
+    "MASTER-PAYOUT-ACCOUNT-001",
+    "SETTLEMENT-001",
+    "RECON-CONTRACT-001",
+    "RECON-001",
+    "LIVE 준비 Gate"
   ]
 }
