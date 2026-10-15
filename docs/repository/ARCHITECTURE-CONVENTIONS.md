@@ -98,7 +98,7 @@ com.paycore.<app>.<module>
 
 ## 6. 하지 않은 것
 
-- web adapter·eligibility Port 구현·ID 생성기·요청 fingerprint r1 계산·오류 HTTP 매핑(CP-API-001). 영속 Port·application TX는 §9(CP-DB-001).
+- (CP-API-001에서 구현 — §11) web adapter·ID 생성기·요청 fingerprint r1·오류 HTTP 매핑·가맹점 인증. eligibility Port는 MASTER-SNAPSHOT-001. GetPayment 조회는 CP-QUERY-001.
 - Outbox Relay(lease·재발행·published 표시)·Inbox·Dispatcher(ADR-001 제안을 별도 작업에서 확정). Outbox append는 §9.
 - 소유 DB별 migration/runtime 계정 분리: 로컬 compose에는 MASTER/PAYMENT 적용됨(MASTER-BOOT-001). MASTER 업무 표의 runtime 표 단위 권한은 MASTER-DOMAIN-001(§10). 남은 것 — payment-api Flyway 계정 바인딩·표 단위 권한(append-only 표 SELECT/INSERT만)은 PAYMENT-DBACCOUNT-001, FINANCIAL은 Q-BATCH-META 답변 후, 운영 Secret 주입은 운영 작업(권한 경계 결정·시험은 §9, CP-DB-001).
 
@@ -234,3 +234,36 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 | 운영 로그 | `AdminCommandExecutor`가 결과 불명확·재시도 소진·서버 생성 ID 충돌을 WARN 구조화 로그(`operation`·`correlationId`·종류)로 남긴다. Hibernate JDBC 오류 원문 로그(`org.hibernate.orm.jdbc.error`·`SqlExceptionHelper`)는 OFF | MySQL 1062 원문에 키 값(등록번호·채널·ID)이 들어 있다(D-MD-008, review M-2 — 로그 수집 시험) |
 | 조회(CQRS) | jOOQ `JooqMerchantStructureReader`(adapter.query, required Port `MerchantStructureReader` 구현) — 업무 schema 위치만으로 codegen(권한 위치 제외). 한 구조 조회의 문장들은 `@Transactional(readOnly, REPEATABLE_READ)` 하나에서 실행(한 InnoDB 스냅샷), 시각 컬럼은 `DATE_FORMAT` 문자열로 읽는다(§9.1) | §4, AC, review m-1·m-2 |
 | 시험 | 모든 master DB 시험은 runtime 계정(`MasterDbTest`, 시험 전용 lock wait 8초·pool 16), 장애 주입 `MasterFaultInjectionConfig`, Named Fixture `MasterFixture`·`OnboardingFixture`, Fixture Monkey는 `RandomOnboardingFixture` 안에만 | Test Fixture Policy |
+
+## 11. payment-api 공개 API·가맹점 인증 (CP-API-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-CP-001~003·D-CPC-001~009·D-CPA-001과 CP-CONTRACT-001 §3–§10이며 명세는 `docs/repository/CP-API-001-CREATE-PAYMENT-API.md`.
+코드: `payment.adapter.web`(Controller·엄격 파서·보안 체인·connector 격리), `payment.application`(facade·r1·생성기·인증 Use Case), `payment.adapter.persistence`
+(Credential 투영 읽기·세션 시간대 검사), `db/migration/payment/V5`·`db/runtime-privilege/payment/V6`.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 진입 facade | `SubmitCreatePaymentUseCase`가 서버 시계·생성 식별자·인증 주체(행위자)를 붙여 `CreatePaymentUseCase`(TX 소유)를 부른다. 생성 식별자 충돌은 새 식별자로 1회 재시도, 반복이면 503 | 계약 §9 CP-10(사용자 payload 충돌과 분리). facade는 TX를 열지 않는다 |
+| r1 계산 위치 | `CreatePaymentService`가 command 값으로 계산(`RequestFingerprints`) — 새 예약은 현재 버전(r1), 기존 기록은 **저장된 버전**으로. 지원 밖 버전(요청 `r2`·주문 고정 입력 `v2`)은 비교하지 않고 503 | 계약 §6.4·§7. command에 fingerprint를 넣지 않아 호출자가 다른 값을 끼울 수 없다 |
+| JSON 파서 | Spring 메시지 변환·바인딩 대신 본문 바이트 → 엄격 UTF-8 → Jackson 트리(중복 키·끝 뒤 토큰 거절) → 닫힌 7필드. `+`·선행 0 숫자는 문법 오류지만 계약대로 `INVALID_AMOUNT`로 분류 | 계약 §3.1·D-CPC-009. Boot 기본 Jackson 설정에 정확성을 맡기지 않는다 |
+| 응답 작성 | Controller가 `ResponseEntity<ByteArray>`(JSON 직접 직렬화)로 응답. 오류 본문은 code별 고정 문구 | Accept 협상으로 오류 응답이 406으로 바뀌지 않게, 입력 echo 금지(§9.1) |
+| 인증 | Spring Security stateless 체인 + `MerchantBearerAuthenticationFilter` → `AuthenticateMerchantUseCase` → `MerchantCredentialStore`(PAYMENT 투영, 비잠금 읽기 전용 TX, 캐시 없음). 401은 원인 비구분 + `WWW-Authenticate: Bearer realm="paycore"`. 사용자·비밀번호 인증은 거절 전용 `AuthenticationManager`로 끈다 | D-CPA-001. 투영 lease 만료면 거절(폐기 놓침 방지). 투영 저장소 일시 실패는 401이 아니라 503 |
+| Credential 투영 | `merchant_api_credential`(keyId PK, 검증값 SHA-256, 상태, 유효 기간, lease) — runtime SELECT만. 쓰기 경로는 MASTER-CREDENTIAL-001이 권한 migration과 함께 추가 | §9.2 "현재 main 코드의 실제 쓰기 경로만" |
+| 생성 행위자 | `payment.created_by_credential_id`(생성 시 불변). V5 이전 행만 NULL | Auditability — 멱등 기록은 30일 뒤 지워질 수 있어 Payment에 둔다 |
+| /internal 격리 | 내장 Tomcat 추가 connector(`paycore.payment.api.internal-port`) + 진입 필터가 connector별로 경로를 가른다(정규화된 servletPath 기준). 공개 포트 `/internal` 아래 → 404, 내부 포트 그 밖 → 404 | MS 이월. 경로 규칙 하나의 실수로 내부 endpoint가 열리는 단일 실패점 제거 |
+| 진단 로그(n-3) | 오류 처리는 Controller 안에서 하고 로그는 `operation·correlationId·merchantRequestId·result·failure(분류)·vendorCode·SQLState·constraint`만. 결함은 예외 클래스 이름 사슬과 첫 frame(`SafeThrowable`) — 메시지 원문 없음. 진단 값은 persistence가 `StoreDiagnostic`으로 채운다(web은 `java.sql`을 못 본다) | MASTER-DOMAIN-001 review2 n-3 |
+| Hibernate 오류 로거 | `org.hibernate.orm.jdbc.error`·`SqlExceptionHelper` OFF(master-api와 같다) | n-4 — 1062 원문에 키 값 |
+| 세션 시간대 | `PaymentDbSessionTimeZoneCheck`: URL 시간대 파라미터 거부 + `@@session.time_zone = +00:00` 기동 검사 + health | CP-DB-001 review2 L-10, TECH-BASELINE §8 |
+| eligibility 실패 분류 | entitlement provided `EntitlementEvaluationFailure` → adapter가 payment `PersistenceFailure`로 옮긴다(교착 재시도, head 대기 timeout 503) | CP-API-001 G-1 |
+| 승인 시작 | `OrderPaymentControl.startAuthorization(payment)` 하나만 공개, main 코드의 `Payment.startAuthorization` 직접 호출은 ArchUnit 금지(`paymentStartAuthorizationOnlyThroughControl`, 위반 fixture 포함) | CP-DOMAIN-001 review L-2 — Kotlin에 package-private가 없다 |
+| 시험 | HTTP 통합은 `@PaymentApiTest`(RANDOM_PORT 실서버 두 connector, 실제 MySQL runtime 계정, 운영 Credential 검증 경로, 시험 키는 root 연결로 투영에 넣음), 생명주기는 `ApiLifecycleSpec`(전용 컨테이너, 컨텍스트 재기동). Fixture Monkey는 `RandomCreatePaymentRequestFixture` 안에만 | Test Fixture Policy |
+
+### 11.1 JPA 선택 설명(이번 변경 기준: 역할 → 예 → 이유 → 주의)
+
+- **OSIV off + DTO 응답.** 역할: Controller는 use case가 commit 뒤 돌려준 값 객체(`CreatePaymentResult`)만 JSON으로 바꾼다. 예: 재생 응답의 Payment 값은 `present()`가 TX 안에서 생성 시 불변 컬럼을 읽어 값 객체로 복사한다. 이유: 요청 처리 중 영속성 컨텍스트가 열려 있지 않아 web에서 LAZY 로딩·Entity 직렬화가 구조적으로 불가능하다. 주의: 응답에 필드를 늘리려면 use case 결과에 넣는다(web → persistence 의존은 ArchUnit 금지).
+- **flush·commit·afterCommit.** 역할: Port의 flush가 제약 위반을 Port 안에서 드러내고 commit은 그 뒤 한 번이다. afterCommit 콜백 예외는 이미 커밋된 뒤라 rollback이 아니다. 예: `ApiFailureSpec` — afterCommit 예외 → 503(같은 키로 확인) → 같은 키 재요청 200 replayed, 행 1. 이유: "응답 실패 = 저장 실패"로 가정하면 새 키 재시도가 이중 시도를 만든다. 주의: commit 단계 예외는 모두 OutcomeUnknown이다.
+- **`PESSIMISTIC_READ`(FOR SHARE) 대기 timeout.** 역할: eligibility가 권리 head를 공유 잠금으로 읽는다. 예: Inbox가 head를 X로 쥔 동안 생성 요청 → 1205. 이유: 같은 키 경합이 아니므로 409 IN_PROGRESS가 아니라 503이다(G-1). 주의: 1205는 문장만 되돌리므로 TX 전체 rollback을 `LocalTransactions`가 보장한다(시험: 대기한 요청의 PENDING 예약이 남지 않음).
+- **읽기 전용 Entity(`JpaMerchantCredentialEntity`).** 역할: 투영 행을 조회만 한다. 예: 값 컬럼은 `insertable = false`·`updatable = false`라 변경 감지가 UPDATE SQL을 만들지 않고, runtime 권한도 SELECT뿐이라 이중으로 막힌다(시험: UPDATE·DELETE 1142). 이유: 쓰기 경로가 생기는 작업(MASTER-CREDENTIAL-001)이 권한 migration과 함께 바꾸게 한다. 주의: equals/hashCode는 keyId만, toString에 검증값 없음, 2차·쿼리 캐시 없음(폐기 즉시성).
+- **jOOQ(CQRS)**: 이 작업의 경로는 모두 Command(판정·쓰기)라 JPA + 잠금 읽기만 쓴다. 조회 API(GetPayment·거래 목록)는 CP-QUERY-001에서 `adapter.query` jOOQ DTO 조회로 만든다(MID·environment 범위 강제, 시각은 `DATE_FORMAT` 문자열 — §9.1).
+- **BOM**: 추가 의존성은 `spring-boot-starter-security`(+ 시험 `security-test`) — Boot 4.1.1 BOM 관리, 카탈로그 기존 항목. Kafka/Redis 없음 — 멱등·활성 하나·Outbox 원자성은 DB 제약·로컬 TX가 보장하며 브로커·캐시가 대체하지 않는다. rate limit이 필요해져도 캐시 장애 시 인증을 fail-open으로 완화하지 않는다.
+

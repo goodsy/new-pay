@@ -43,7 +43,7 @@ object RandomCreatePaymentFixture {
             while (points.hasNext() && count < MAX_ORDER_NAME) {
                 val cp = points.nextInt()
                 // codePoints()는 짝 없는 서로게이트를 D800..DFFF 값으로 그대로 내준다.
-                if (Character.isISOControl(cp) || cp in 0xD800..0xDFFF || !Character.isDefined(cp)) continue
+                if (Character.isISOControl(cp) || cp in 0xD800..0xDFFF || !Character.isDefined(cp) || cp in FORBIDDEN_FORMAT) continue
                 appendCodePoint(cp)
                 count++
             }
@@ -54,4 +54,7 @@ object RandomCreatePaymentFixture {
     /** Demo 금액 범위(운영 한도 아님, D-CPC-005: 한도는 기준정보). */
     private const val MAX_DEMO_AMOUNT = 1_000_000_000L
     private const val MAX_ORDER_NAME = 100
+
+    /** OrderNameRule(CP-API-001 §4.4)이 거절하는 줄 구분자·양방향 제어 문자. */
+    private val FORBIDDEN_FORMAT = setOf(0x2028, 0x2029) + (0x202A..0x202E) + (0x2066..0x2069)
 }

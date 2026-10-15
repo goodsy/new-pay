@@ -131,10 +131,22 @@ class OrderPaymentControl private constructor(
     }
 
     /**
-     * 현재 Payment의 승인 시작 전 검사(같은 슬롯에서 만료·종료와 직렬화한다 — 잠금은 CP-DB). REQUESTED가 아니면 Payment 전이 오류,
-     * incident hold·과거 승인 성공이면 [AuthorizationStartRejectedException].
+     * 현재 Payment의 승인을 시작한다(CP-DOMAIN-001 리뷰 L-2, CP-API-001): 슬롯 검사([checkAuthorizationStart])와 Payment 전이
+     * (`REQUESTED → AUTHORIZING`)를 **한 연산**으로 묶어 incident hold·과거 승인·오래된 슬롯 검사를 건너뛴 승인 시작을 막는다.
+     * 검사가 실패하면 Payment 상태는 바뀌지 않는다(전이 전에 예외). main 코드에서 `Payment.startAuthorization()`을 직접 부르는 것은
+     * ArchUnit 규칙(paymentStartAuthorizationOnlyThroughControl)이 금지한다 — Kotlin에는 package-private가 없어 언어로 막을 수 없다.
+     * 같은 슬롯의 만료·종료와의 직렬화(control 행 잠금)는 승인 시작 Use Case(AUTH-001)의 책임이다.
      */
-    fun checkAuthorizationStart(payment: Payment) {
+    fun startAuthorization(payment: Payment) {
+        checkAuthorizationStart(payment)
+        payment.startAuthorization()
+    }
+
+    /**
+     * 승인 시작 전 검사. REQUESTED가 아니면 Payment 전이 오류, incident hold·과거 승인 성공이면 [AuthorizationStartRejectedException],
+     * 현재 슬롯이 아니면 [StaleSlotException]. 단독 공개 연산이 아니다([startAuthorization]만 부른다).
+     */
+    private fun checkAuthorizationStart(payment: Payment) {
         ensureCurrent(payment)
         if (payment.status != REQUESTED) throw InvalidPaymentTransitionException(payment.id, payment.status, "startAuthorization")
         if (isOnIncidentHold()) throw AuthorizationStartRejectedException(payment.id, BlockReason.INCIDENT_HOLD)

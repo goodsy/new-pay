@@ -92,8 +92,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 declined.status shouldBe FAILED
                 declined.terminationEvidence shouldBe listOf(INSTITUTION_CONFIRMED_DECLINE)
 
-                s.control.checkAuthorizationStart(s.current)
-                s.current.startAuthorization()
+                s.control.startAuthorization(s.current)
                 s.current.markAuthorized()
                 s.control.recordAuthorized(s.current)
                 s.control.authorizedPaymentId shouldBe paymentId(2)
@@ -218,7 +217,8 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 val s = OrderPaymentControlFixture.openedWithRequestedPayment()
                 val sameIdOtherGeneration = PaymentFixture.requested(n = 1, slotGeneration = 2)
                 shouldThrow<StaleSlotException> { s.control.decide(originalIntent, sameIdOtherGeneration) }
-                shouldThrow<StaleSlotException> { s.control.checkAuthorizationStart(sameIdOtherGeneration) }
+                shouldThrow<StaleSlotException> { s.control.startAuthorization(sameIdOtherGeneration) }
+                sameIdOtherGeneration.status shouldBe REQUESTED
             }
         }
         When("the old payment is used as if it were the current one") {
@@ -226,7 +226,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 val s = OrderPaymentControlFixture.retriedAfterConfirmedDecline()
                 val declined = s.history.first()
                 shouldThrow<StaleSlotException> { s.control.decide(originalIntent, declined) }
-                shouldThrow<StaleSlotException> { s.control.checkAuthorizationStart(declined) }
+                shouldThrow<StaleSlotException> { s.control.startAuthorization(declined) }
                 shouldThrow<StaleSlotException> { s.control.recordAuthorized(declined) }
             }
         }
@@ -247,8 +247,10 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 val declined = s.history.first()
                 s.control.reportSuccessAfterTermination(declined)
                 s.control.incidentHolds shouldBe listOf(IncidentHold(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION))
-                val error = shouldThrow<AuthorizationStartRejectedException> { s.control.checkAuthorizationStart(s.current) }
+                val error = shouldThrow<AuthorizationStartRejectedException> { s.control.startAuthorization(s.current) }
                 error.reason shouldBe BlockReason.INCIDENT_HOLD
+                // L-2: 검사 실패는 전이 전이다 — 현재 Payment는 REQUESTED 그대로다.
+                s.current.status shouldBe REQUESTED
                 s.control.decide(originalIntent, s.current) shouldBe Blocked(BlockReason.INCIDENT_HOLD, paymentId(2))
                 s.control.currentPaymentId shouldBe paymentId(2)
             }
@@ -256,17 +258,20 @@ class OrderPaymentControlSpec : BehaviorSpec({
     }
 
     Given("authorization start is serialized through the order slot") {
-        Then("the current REQUESTED payment may start") {
+        Then("the current REQUESTED payment starts through the control (slot check and transition are one operation, L-2)") {
             val s = OrderPaymentControlFixture.openedWithRequestedPayment()
-            s.control.checkAuthorizationStart(s.current)
+            s.control.startAuthorization(s.current)
+            s.current.status shouldBe PaymentStatus.AUTHORIZING
         }
         Then("a payment that is no longer REQUESTED may not start again") {
             val s = OrderPaymentControlFixture.withCurrentPayment(PaymentStatus.AUTHORIZING)
-            shouldThrow<InvalidPaymentTransitionException> { s.control.checkAuthorizationStart(s.current) }
+            shouldThrow<InvalidPaymentTransitionException> { s.control.startAuthorization(s.current) }
+            s.current.status shouldBe PaymentStatus.AUTHORIZING
         }
         Then("an expired window may not start (stale screen)") {
             val s = OrderPaymentControlFixture.withCurrentPayment(PaymentStatus.EXPIRED, TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
-            shouldThrow<InvalidPaymentTransitionException> { s.control.checkAuthorizationStart(s.current) }
+            shouldThrow<InvalidPaymentTransitionException> { s.control.startAuthorization(s.current) }
+            s.current.status shouldBe PaymentStatus.EXPIRED
         }
     }
 

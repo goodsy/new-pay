@@ -42,7 +42,25 @@ class ReceiveFailure(message: String, cause: Throwable?) : RuntimeException(mess
  * 명세 §3.4-3). head는 `FOR SHARE`로 읽는다.
  */
 interface EntitlementEvaluationQuery {
+    /** @throws EntitlementEvaluationFailure 저장소 일시 실패(교착·잠금 대기 timeout·연결). 판정 결과가 아니다 — 호출자 TX는 rollback해야 한다. */
     fun evaluate(request: EligibilityRequest, evaluatedAt: Instant): EligibilityDecision
+}
+
+/**
+ * 판정 중 저장소 일시 실패(공개 타입, CP-API-001 G-1). 내부 `EntitlementPersistenceFailure`(application.required)는 다른 모듈이 볼 수 없어
+ * 호출자가 분류하지 못했다(→ 500). 호출자(payment의 eligibility adapter)는 이것을 자기 저장소 실패 분류로 옮긴다: 교착은 재시도, head `FOR SHARE`
+ * 잠금 대기 timeout은 같은 멱등키 경합이 아니므로 일시 불가(503). 메시지에 값을 넣지 않는다.
+ */
+sealed class EntitlementEvaluationFailure(message: String, cause: Throwable, val vendorCode: Int?, val sqlState: String?) :
+    RuntimeException(message, cause) {
+    class Deadlock(cause: Throwable, vendorCode: Int? = null, sqlState: String? = null) :
+        EntitlementEvaluationFailure("entitlement evaluation deadlock", cause, vendorCode, sqlState)
+
+    class LockTimeout(cause: Throwable, vendorCode: Int? = null, sqlState: String? = null) :
+        EntitlementEvaluationFailure("entitlement evaluation lock wait timeout", cause, vendorCode, sqlState)
+
+    class Unavailable(cause: Throwable, vendorCode: Int? = null, sqlState: String? = null) :
+        EntitlementEvaluationFailure("entitlement store unavailable", cause, vendorCode, sqlState)
 }
 
 /** 판정 입력(다른 모듈이 쓰는 공개 타입 — domain 타입을 노출하지 않는다). environment는 받지 않는다(D-MS-001). */

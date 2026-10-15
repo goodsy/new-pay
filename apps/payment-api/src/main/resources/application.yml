@@ -41,3 +41,18 @@ management:
     web:
       exposure:
         include: health
+  endpoint:
+    health:
+      # 공개 포트에도 health가 있으므로 세부(DB 상태·세션 시간대 등)를 내보내지 않는다(CP-API-001 명세 §8).
+      show-details: never
+
+logging:
+  level:
+    # MySQL 1062 등 JDBC 오류 원문에는 키 값(멱등키·주문 ID·paymentKey)이 들어 있다. 구조화 로그(operation·correlationId·분류·vendor code)를
+    # 남기므로 원문 로그는 끈다(MASTER-DOMAIN-001 review2 n-4 — master-api와 같다). Hibernate 7 범주와 이전 이름 모두.
+    org.hibernate.orm.jdbc.error: "OFF"
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
+# 가맹점 공개 API(CP-API-001). 운영 기본값 없음 — 배포 환경이 값을 주지 않으면 기동하지 않는다(명세 §7.4·§8).
+#   paycore.payment.api.internal-port: 내부 경로(/internal/**) 전용 connector 포트(공개 포트와 달라야 한다)
+#   paycore.payment.api.retry-after.{eligibility-unavailable,temporarily-unavailable,request-in-progress}: Retry-After 권고(1s..1h)

@@ -797,6 +797,22 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-13)",
       "appliedSpec": "D-MS-005",
       "origin": "MASTER-SNAPSHOT-001 2단계 구현 중 구현자 질문 후보 — 현재 구현(재승인 금지)과 일치, 코드 변경 없음"
+    },
+    {
+      "id": "Q-CPA-01",
+      "status": "ANSWERED",
+      "question": "가맹점 공개 API 인증 정보 방식(형식·전송·PAYMENT 검증 기준·폐기 전파)",
+      "recommended": "(MID, 환경)별 secret API key(pc_test_sk_/pc_live_sk_ + keyId + 256bit 난수) Authorization: Bearer, keyId+SHA-256만 저장, 교체 중 활성 2키, MASTER 발급·소유 → 기존 서명 채널(D-MS-004)로 PAYMENT projection 전파, PAYMENT 로컬 검증, 폐기 우선 전파(lease 상한)",
+      "alternative": "HMAC 요청 서명 / 가맹점별 mTLS / OAuth2 client-credentials / PAYMENT 자체 소유",
+      "dependentTasks": [
+        "CP-API-001",
+        "MASTER-CREDENTIAL-001"
+      ],
+      "askedAt": "2026-10-14",
+      "humanAnswer": "Bearer API Key (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-14)",
+      "appliedSpec": "D-CPA-001",
+      "origin": "CP-API-001 1단계 명세 질문 후보(docs/repository/CP-API-001-CREATE-PAYMENT-API.md (sha256 834cff2d…, 594줄) §5)"
     }
   ]
 }

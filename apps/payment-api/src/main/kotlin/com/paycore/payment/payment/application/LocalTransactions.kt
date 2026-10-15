@@ -19,8 +19,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * - **commit 중 실패**: [UnexpectedRollbackException](rollback 확정)을 빼고는 커밋 여부를 알 수 없다고 보고 [CommitOutcomeUnknownException]으로
  *   감싼다(연결이 commit 도중 끊기면 서버가 반영했는지 알 수 없다). 호출자는 새 키가 아니라 같은 키로 다시 확인해야 한다.
  * - [isRetryable]이 참인 commit 전 실패(DB가 rollback을 확정한 교착 등)만 **새 TX로 처음부터 같은 의도**로 다시 실행한다. 최대 [maxAttempts]회.
+ *
+ * [readOnly]: 읽기 전용 TX(인증 투영 읽기 등 — CP-API-001 review round2 m-1). 원 예외 보존·commit 실패 분류 규칙은 같다.
  */
-internal class LocalTransactions(private val transactionManager: PlatformTransactionManager, private val maxAttempts: Int) {
+internal class LocalTransactions(
+    private val transactionManager: PlatformTransactionManager,
+    private val maxAttempts: Int,
+    private val readOnly: Boolean = false,
+) {
     init {
         require(maxAttempts >= 1) { "maxAttempts must be positive" }
     }
@@ -28,6 +34,7 @@ internal class LocalTransactions(private val transactionManager: PlatformTransac
     private val definition = DefaultTransactionDefinition().apply {
         propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRED
         isolationLevel = TransactionDefinition.ISOLATION_READ_COMMITTED
+        isReadOnly = readOnly
     }
 
     fun <T> execute(isRetryable: (RuntimeException) -> Boolean, block: (TransactionStatus) -> T): T {

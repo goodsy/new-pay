@@ -76,6 +76,8 @@ class DatabaseAccountSeparationSpec(
         "entitlement_head" to "Select,Insert,Update",
         "entitlement_snapshot" to "Select,Insert",
         "entitlement_mid_owner" to "Select,Insert",
+        // CP-API-001 V6: Credential 투영은 읽기만(투영 적용 쓰기는 MASTER-CREDENTIAL-001이 그 경로와 함께 추가).
+        "merchant_api_credential" to "Select",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -103,6 +105,7 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`entitlement_head` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_snapshot` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_mid_owner` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT ON `paycore_payment`.`merchant_api_credential` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -279,7 +282,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

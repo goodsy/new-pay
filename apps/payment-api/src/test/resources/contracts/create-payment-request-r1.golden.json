@@ -1,0 +1,185 @@
+{
+  "description": "CP-API-001 request fingerprint r1 golden vectors, generated independently of the app from CP-CONTRACT-001 §7. Demo values.",
+  "vectors": [
+    {
+      "name": "A orderName present (ASCII)",
+      "fields": [
+        [
+          "merchantAccountId",
+          "mid_01HZY3K8Q4M2N6P8R0T2V4X6Z8"
+        ],
+        [
+          "merchantSiteId",
+          "site_01HZY3K8Q4M2N6P8R0T2V4X6Z9"
+        ],
+        [
+          "merchantOrderId",
+          "order-0001"
+        ],
+        [
+          "amount",
+          "10000"
+        ],
+        [
+          "currency",
+          "KRW"
+        ],
+        [
+          "paymentMethod",
+          "CARD"
+        ],
+        [
+          "orderName",
+          "Demo T-shirt"
+        ]
+      ],
+      "canonical": "30:paycore.create-payment-request1:117:merchantAccountId130:mid_01HZY3K8Q4M2N6P8R0T2V4X6Z814:merchantSiteId131:site_01HZY3K8Q4M2N6P8R0T2V4X6Z915:merchantOrderId110:order-00016:amount15:100008:currency13:KRW13:paymentMethod14:CARD9:orderName112:Demo T-shirt",
+      "canonicalUtf8Bytes": 256,
+      "fingerprint": "r1:cc6b69c4f397c03694e0e2e90e8f506be1ad2b616006a949ae6e9425f31b24fc"
+    },
+    {
+      "name": "B orderName absent",
+      "fields": [
+        [
+          "merchantAccountId",
+          "mid_01HZY3K8Q4M2N6P8R0T2V4X6Z8"
+        ],
+        [
+          "merchantSiteId",
+          "site_01HZY3K8Q4M2N6P8R0T2V4X6Z9"
+        ],
+        [
+          "merchantOrderId",
+          "order-0001"
+        ],
+        [
+          "amount",
+          "10000"
+        ],
+        [
+          "currency",
+          "KRW"
+        ],
+        [
+          "paymentMethod",
+          "CARD"
+        ],
+        [
+          "orderName",
+          null
+        ]
+      ],
+      "canonical": "30:paycore.create-payment-request1:117:merchantAccountId130:mid_01HZY3K8Q4M2N6P8R0T2V4X6Z814:merchantSiteId131:site_01HZY3K8Q4M2N6P8R0T2V4X6Z915:merchantOrderId110:order-00016:amount15:100008:currency13:KRW13:paymentMethod14:CARD9:orderName0",
+      "canonicalUtf8Bytes": 241,
+      "fingerprint": "r1:66a20aca332812e0bd433cbbfd8a3a81ef24da3e0e8b8bda21ab4dc3b7190a49"
+    },
+    {
+      "name": "C USD, non-ASCII orderName (Hangul + supplementary U+1F600)",
+      "fields": [
+        [
+          "merchantAccountId",
+          "mid_01HZY3K8Q4M2N6P8R0T2V4X6Z8"
+        ],
+        [
+          "merchantSiteId",
+          "site_01HZY3K8Q4M2N6P8R0T2V4X6Z9"
+        ],
+        [
+          "merchantOrderId",
+          "order-0001"
+        ],
+        [
+          "amount",
+          "1050"
+        ],
+        [
+          "currency",
+          "USD"
+        ],
+        [
+          "paymentMethod",
+          "CARD"
+        ],
+        [
+          "orderName",
+          "데모 상품 😀"
+        ]
+      ],
+      "canonical": "30:paycore.create-payment-request1:117:merchantAccountId130:mid_01HZY3K8Q4M2N6P8R0T2V4X6Z814:merchantSiteId131:site_01HZY3K8Q4M2N6P8R0T2V4X6Z915:merchantOrderId110:order-00016:amount14:10508:currency13:USD13:paymentMethod14:CARD9:orderName118:데모 상품 😀",
+      "canonicalUtf8Bytes": 261,
+      "fingerprint": "r1:efb1a382999bc6668f4bef43e953ff84207ede2f200272916bcd0adcc65d36be"
+    },
+    {
+      "name": "D same as A except one trailing space in orderName",
+      "fields": [
+        [
+          "merchantAccountId",
+          "mid_01HZY3K8Q4M2N6P8R0T2V4X6Z8"
+        ],
+        [
+          "merchantSiteId",
+          "site_01HZY3K8Q4M2N6P8R0T2V4X6Z9"
+        ],
+        [
+          "merchantOrderId",
+          "order-0001"
+        ],
+        [
+          "amount",
+          "10000"
+        ],
+        [
+          "currency",
+          "KRW"
+        ],
+        [
+          "paymentMethod",
+          "CARD"
+        ],
+        [
+          "orderName",
+          "Demo T-shirt "
+        ]
+      ],
+      "canonical": "30:paycore.create-payment-request1:117:merchantAccountId130:mid_01HZY3K8Q4M2N6P8R0T2V4X6Z814:merchantSiteId131:site_01HZY3K8Q4M2N6P8R0T2V4X6Z915:merchantOrderId110:order-00016:amount15:100008:currency13:KRW13:paymentMethod14:CARD9:orderName113:Demo T-shirt ",
+      "canonicalUtf8Bytes": 257,
+      "fingerprint": "r1:4e2241a4a773fbf929304cb866401d5c081f0ab764e21e13729c3918c4bcf254"
+    },
+    {
+      "name": "E amount = Long.MAX_VALUE",
+      "fields": [
+        [
+          "merchantAccountId",
+          "mid_01HZY3K8Q4M2N6P8R0T2V4X6Z8"
+        ],
+        [
+          "merchantSiteId",
+          "site_01HZY3K8Q4M2N6P8R0T2V4X6Z9"
+        ],
+        [
+          "merchantOrderId",
+          "order-0001"
+        ],
+        [
+          "amount",
+          "9223372036854775807"
+        ],
+        [
+          "currency",
+          "KRW"
+        ],
+        [
+          "paymentMethod",
+          "CARD"
+        ],
+        [
+          "orderName",
+          "x"
+        ]
+      ],
+      "canonical": "30:paycore.create-payment-request1:117:merchantAccountId130:mid_01HZY3K8Q4M2N6P8R0T2V4X6Z814:merchantSiteId131:site_01HZY3K8Q4M2N6P8R0T2V4X6Z915:merchantOrderId110:order-00016:amount119:92233720368547758078:currency13:KRW13:paymentMethod14:CARD9:orderName11:x",
+      "canonicalUtf8Bytes": 259,
+      "fingerprint": "r1:549bbee3a8f6e8f8ebfc69f32427a81da05d4bd8e2971f5cdd77cd2ebdf254d8"
+    }
+  ]
+}

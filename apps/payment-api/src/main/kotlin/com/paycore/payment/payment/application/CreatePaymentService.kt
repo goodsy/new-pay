@@ -92,7 +92,7 @@ class CreatePaymentService(
             command.orderKey.environment, command.orderKey.merchantAccountId, IdempotentOperation.CREATE_PAYMENT, command.idempotencyKey,
         )
         val reservation = IdempotencyReservation(
-            scope, command.newIdentifiers.idempotencyRecordId, command.requestFingerprint, now, now.plus(IDEMPOTENCY_RETENTION),
+            scope, command.newIdentifiers.idempotencyRecordId, RequestFingerprints.current(command), now, now.plus(IDEMPOTENCY_RETENTION),
         )
         val reserved = try {
             idempotency.reserveOrLock(reservation)
@@ -104,7 +104,9 @@ class CreatePaymentService(
             when {
                 // 보존 기간이 지난 기록은 삭제 전이라도 재생하지 않는다(D-CPC-004). 잠근 같은 행을 이 요청으로 갱신한다.
                 record.isExpiredAt(now) -> idempotency.renewExpired(reservation)
-                record.requestFingerprint != command.requestFingerprint -> return CreatePaymentResult.IdempotencyKeyReused
+                // 저장된 기록의 버전으로 다시 계산해 비교한다(계약 §6.4). 지원하지 않는 버전은 비교하지 않고 503(UnsupportedFingerprintVersion).
+                record.requestFingerprint != RequestFingerprints.compute(command, RequestFingerprints.versionOf(record.requestFingerprint)) ->
+                    return CreatePaymentResult.IdempotencyKeyReused
                 else -> return present(command, checkNotNull(record.result) { "committed idempotency record has no result" }, replayed = true)
             }
         }
@@ -186,6 +188,7 @@ class CreatePaymentService(
             orderName = command.orderName,
             eligibilitySnapshotVersion = snapshotVersion,
             createdAt = now,
+            createdByCredentialId = command.actor,
         )
         val version = payments.insertNew(payment, attributes)
         outbox.append(
@@ -229,10 +232,10 @@ class CreatePaymentService(
 
     /**
      * 요청 fingerprint는 저장된 control의 버전으로 계산해 비교한다(계약 §6.4). 지금은 v1만 있으므로 다른 버전이 저장돼 있으면 서로 다른 버전
-     * 값을 직접 비교해 오분류하지 않도록 판정을 멈춘다(fail-closed, 새 Payment 없음).
+     * 값을 직접 비교해 ORDER_INTENT_CONFLICT로 오분류하지 않도록 판정을 멈춘다(fail-closed, 새 Payment 없음 → 503, CP-API-001 명세 §6.4).
      */
     private fun requireComparableIntentVersion(stored: OrderIntentFingerprint, requested: OrderIntentFingerprint) {
-        check(stored.value.substringBefore(':') == requested.value.substringBefore(':')) { "unsupported order intent fingerprint version" }
+        if (stored.value.substringBefore(':') != requested.value.substringBefore(':')) throw UnsupportedFingerprintVersionException("order intent")
     }
 
     private fun rejectionOf(reason: BlockReason): CreatePaymentRejection = when (reason) {
@@ -257,7 +260,7 @@ class CreatePaymentService(
             else -> CreatePaymentFailure.TemporarilyUnavailable(e)
         }
         is PaymentIdReuseException -> CreatePaymentFailure.IdentifierCollision(GeneratedIdentifier.PAYMENT_ID)
-        is PersistenceFailure, is StaleSlotException -> CreatePaymentFailure.TemporarilyUnavailable(e)
+        is PersistenceFailure, is StaleSlotException, is UnsupportedFingerprintVersionException -> CreatePaymentFailure.TemporarilyUnavailable(e)
         else -> null
     }
 

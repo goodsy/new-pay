@@ -5,6 +5,13 @@
 # 서명 키는 시험 전용 값이다(운영 키 아님 — D-MS-004). 두 번째 키는 교체 기간 동시 허용(2키) 시험용이다.
 paycore:
   payment:
+    # CP-API-001 시험 값(운영값 아님). internal-port 0 = 시험마다 임의 포트(실제 포트는 InternalConnector.localPort).
+    api:
+      internal-port: 0
+      retry-after:
+        eligibility-unavailable: PT2S
+        temporarily-unavailable: PT1S
+        request-in-progress: PT1S
     entitlement:
       clock-skew-margin: PT0.1S
       inbox:

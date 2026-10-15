@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
-  "lastSuccessfulStep": "MASTER-SNAPSHOT-001 DONE (VERIFY-GATE PASS 022745Z 902 tests, REVIEW_PASS round2) on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07",
+  "codeFingerprint": "sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232",
+  "lastSuccessfulStep": "CP-API-001 DONE (VERIFY-GATE PASS 003032Z 1038 tests, DEPS x4·CVE PASS, REVIEW_PASS round3) on sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232",
   "pendingQuestionIds": [
     "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "CP-API-001(CreatePayment Application/API 통합 — MASTER-SNAPSHOT-001 이월: /internal 외부 노출 차단·503 Retry-After, n-3·n-4) → AUTH-CONTRACT-001. MASTER-LIFECYCLE-001은 Q-MD-06·07·18 질문 + review2 이월. payment-api는 이제 운영 Eligibility 구현으로 기동(Entitlement 설정 값 필수). 긴 gate는 WSL setsid nohup … & disown(스크립트 파일 경유)",
+  "nextResumeAction": "다음 후보: MASTER-CREDENTIAL-001(선행 DONE·필수 질문 없음, 착수 가능) 또는 AUTH-CONTRACT-001(Q-AUTH-SCOPE·Q-INCIDENT-HOLD 답변 필요). CP-API-001 이월: CP-QUERY-001, n-c/n-d/n-f/n-h(tasks.json openItems)",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -198,6 +198,36 @@
       "at": "2026-10-14T02:45Z",
       "taskId": "MASTER-SNAPSHOT-001",
       "event": "DONE (VERIFY-GATE PASS 022745Z 902 tests, REVIEW_PASS round2) on sha256:39fe05c7ce0e64e08df5f474c24506d56ac2784fa6c8f83c9960e0ef1fb92c07 (VERIFY-GATE 902 tests, DEPS x4, CVE PASS)"
+    },
+    {
+      "at": "2026-10-14",
+      "taskId": "CP-API-001",
+      "event": "착수(IN_PROGRESS) — 1단계 명세 작성"
+    },
+    {
+      "at": "2026-10-14",
+      "taskId": "CP-API-001",
+      "event": "1단계 명세 수령(834cff2d…), Q-CPA-01 답변 → D-CPA-001; MASTER-CREDENTIAL-001·CP-QUERY-001 BACKLOG 등록; 2단계 TDD 구현 착수"
+    },
+    {
+      "at": "2026-10-14",
+      "taskId": "CP-API-001",
+      "event": "review round1 REVIEW_FAIL (M-1, m-1~4, n-1~8) on sha256:151a7cf9072a4cdaac2228b186bd8fe0b837ea78876faca608eb6aff1e49d8b0 → 수정 착수"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "CP-API-001",
+      "event": "review1 수정 완료(payment-api 592 tests) → review round2 REVIEW_FAIL (m-1, m-2, n-a~n-e) on sha256:06fe02f3ac577d108595ec0360f8f30fdfa5aa3ac7553f6a6e5310a82c4e002c → 수정 시도 2/3 착수"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "CP-API-001",
+      "event": "review2 수정 완료 → review round3 REVIEW_PASS on sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232; VERIFY-GATE 실행 중(WSL detached, 로그 ~/gate-logs/cpapi-gate.log)"
+    },
+    {
+      "at": "2026-10-15T02:13Z",
+      "taskId": "CP-API-001",
+      "event": "DONE (VERIFY-GATE PASS 003032Z 1038 tests, DEPS x4, CVE PASS, REVIEW_PASS round3) on sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232"
     }
   ]
 }

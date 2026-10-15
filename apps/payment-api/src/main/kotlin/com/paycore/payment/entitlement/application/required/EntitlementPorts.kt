@@ -90,9 +90,13 @@ sealed class EntitlementPersistenceFailure(message: String, cause: Throwable?) :
 
     class OptimisticConflict(val entity: String) : EntitlementPersistenceFailure("concurrent modification of $entity", null)
 
-    class Deadlock(cause: Throwable) : EntitlementPersistenceFailure("deadlock (transaction rolled back by the database)", cause)
+    /** [vendorCode]·[sqlState]: 진단 값(MySQL 코드·SQLState만, 메시지 원문 없음 — CP-API-001 n-6). */
+    class Deadlock(cause: Throwable, val vendorCode: Int? = null, val sqlState: String? = null) :
+        EntitlementPersistenceFailure("deadlock (transaction rolled back by the database)", cause)
 
-    class LockTimeout(cause: Throwable) : EntitlementPersistenceFailure("lock wait timeout", cause)
+    class LockTimeout(cause: Throwable, val vendorCode: Int? = null, val sqlState: String? = null) :
+        EntitlementPersistenceFailure("lock wait timeout", cause)
 
-    class Unavailable(cause: Throwable) : EntitlementPersistenceFailure("database unavailable", cause)
+    class Unavailable(cause: Throwable, val vendorCode: Int? = null, val sqlState: String? = null) :
+        EntitlementPersistenceFailure("database unavailable", cause)
 }

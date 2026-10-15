@@ -4,6 +4,7 @@ import com.paycore.payment.entitlement.application.provided.EligibilityDecision
 import com.paycore.payment.entitlement.application.provided.EligibilityRefusalReason
 import com.paycore.payment.entitlement.application.provided.EligibilityRequest
 import com.paycore.payment.entitlement.application.provided.EligibilityUnavailableCause
+import com.paycore.payment.entitlement.application.provided.EntitlementEvaluationFailure
 import com.paycore.payment.entitlement.application.provided.EntitlementEvaluationQuery
 import com.paycore.payment.entitlement.application.provided.EntitlementFreshnessQuery
 import com.paycore.payment.entitlement.application.provided.FreshnessOverview
@@ -79,21 +80,21 @@ class EntitlementInboxService(
                 when (result.outcome) {
                     InboxOutcome.INTEGRITY_CONFLICT -> log.error(
                         "entitlement snapshot integrity conflict eventId={} merchantId={} revision={} (same revision, different content — head blocked)",
-                        s.eventId, s.merchantId, s.revision,
+                        EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId), s.revision,
                     )
                     InboxOutcome.UNSUPPORTED -> log.warn(
                         "entitlement snapshot schema unsupported eventId={} merchantId={} revision={} schemaVersion={} appliedRevision={}",
-                        s.eventId, s.merchantId, s.revision, s.schemaVersion, result.appliedRevision,
+                        EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId), s.revision, s.schemaVersion, result.appliedRevision,
                     )
                     else -> log.info(
                         "entitlement snapshot received eventId={} merchantId={} revision={} outcome={} appliedRevision={}",
-                        s.eventId, s.merchantId, s.revision, result.outcome, result.appliedRevision,
+                        EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId), s.revision, result.outcome, result.appliedRevision,
                     )
                 }
             }
             ReceiveResult.EventIdConflict -> {
                 metrics.inboxRejected("EVENT_ID_CONFLICT")
-                log.error("entitlement snapshot eventId reused with a different body eventId={} merchantId={}", s.eventId, s.merchantId)
+                log.error("entitlement snapshot eventId reused with a different body eventId={} merchantId={}", EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId))
             }
         }
         return result
@@ -154,7 +155,18 @@ class EntitlementEvaluationService(
     private val log = LoggerFactory.getLogger(EntitlementEvaluationService::class.java)
 
     @Transactional(propagation = Propagation.MANDATORY)
-    override fun evaluate(request: EligibilityRequest, evaluatedAt: Instant): EligibilityDecision {
+    override fun evaluate(request: EligibilityRequest, evaluatedAt: Instant): EligibilityDecision =
+        try {
+            evaluateLocally(request, evaluatedAt)
+        } catch (e: EntitlementPersistenceFailure.Deadlock) {
+            throw EntitlementEvaluationFailure.Deadlock(e, e.vendorCode, e.sqlState)
+        } catch (e: EntitlementPersistenceFailure.LockTimeout) {
+            throw EntitlementEvaluationFailure.LockTimeout(e, e.vendorCode, e.sqlState)
+        } catch (e: EntitlementPersistenceFailure.Unavailable) {
+            throw EntitlementEvaluationFailure.Unavailable(e, e.vendorCode, e.sqlState)
+        }
+
+    private fun evaluateLocally(request: EligibilityRequest, evaluatedAt: Instant): EligibilityDecision {
         val question = EligibilityQuestion(request.mid, request.siteId, request.paymentMethod, request.currency)
         val merchantId = store.findMidOwner(request.mid)
         val head = merchantId?.let { store.lockHeadForShare(it) }
@@ -171,14 +183,17 @@ class EntitlementEvaluationService(
         }
         is EntitlementDecision.NotFoundOrForbidden -> {
             metrics.eligibility("NOT_FOUND_OR_FORBIDDEN", null)
-            log.info("entitlement eligibility refused result=NOT_FOUND_OR_FORBIDDEN detail={} mid={} siteId={}", decision.detail, request.mid, request.siteId)
+            log.info(
+                "entitlement eligibility refused correlationId={} result=NOT_FOUND_OR_FORBIDDEN detail={} mid={} siteId={}",
+                EntitlementLogValues.correlationId(), decision.detail, EntitlementLogValues.safe(request.mid), EntitlementLogValues.safe(request.siteId),
+            )
             EligibilityDecision.NotFoundOrForbidden
         }
         is EntitlementDecision.Refused -> {
             metrics.eligibility("NOT_ELIGIBLE", decision.reason.name)
             log.info(
-                "entitlement eligibility refused result=NOT_ELIGIBLE reason={} detail={} suspendedScope={} mid={} siteId={}",
-                decision.reason, decision.detail, decision.suspendedScope, request.mid, request.siteId,
+                "entitlement eligibility refused correlationId={} result=NOT_ELIGIBLE reason={} detail={} suspendedScope={} mid={} siteId={}",
+                EntitlementLogValues.correlationId(), decision.reason, decision.detail, decision.suspendedScope, EntitlementLogValues.safe(request.mid), EntitlementLogValues.safe(request.siteId),
             )
             EligibilityDecision.Refused(
                 when (decision.reason) {
@@ -191,7 +206,7 @@ class EntitlementEvaluationService(
         }
         is EntitlementDecision.Unavailable -> {
             metrics.eligibility("UNAVAILABLE", decision.reason.name)
-            log.warn("entitlement eligibility unavailable reason={} mid={}", decision.reason, request.mid)
+            log.warn("entitlement eligibility unavailable correlationId={} reason={} mid={}", EntitlementLogValues.correlationId(), decision.reason, EntitlementLogValues.safe(request.mid))
             EligibilityDecision.Unavailable(
                 when (decision.reason) {
                     UnavailableReason.SNAPSHOT_MISSING -> EligibilityUnavailableCause.SNAPSHOT_MISSING

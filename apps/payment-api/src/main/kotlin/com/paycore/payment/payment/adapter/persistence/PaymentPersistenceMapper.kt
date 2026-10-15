@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.application.required.PaymentCreationRecord
@@ -57,6 +58,7 @@ internal object PaymentPersistenceMapper {
             status = payment.status.name,
             eligibilitySnapshotVersion = attributes.eligibilitySnapshotVersion.value,
             createdAt = attributes.createdAt,
+            createdByCredentialId = attributes.createdByCredentialId?.value,
         )
     }
 
@@ -86,6 +88,7 @@ internal object PaymentPersistenceMapper {
                 orderName = row.orderName,
                 eligibilitySnapshotVersion = EligibilitySnapshotVersion(row.eligibilitySnapshotVersion),
                 createdAt = row.createdAt,
+                createdByCredentialId = row.createdByCredentialId?.let(::CredentialKeyId),
             ),
         )
 

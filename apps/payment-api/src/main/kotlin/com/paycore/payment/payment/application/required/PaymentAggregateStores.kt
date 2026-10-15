@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application.required
 
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.domain.Money
 import com.paycore.payment.payment.domain.MerchantSiteId
@@ -54,6 +55,11 @@ data class PaymentCreationAttributes(
     val orderName: String?,
     val eligibilitySnapshotVersion: EligibilitySnapshotVersion,
     val createdAt: Instant,
+    /**
+     * 생성 행위자(요청한 Credential keyId, D-CPA-001·Auditability). 새 Payment는 항상 값이 있다. null은 V5 이전에 만들어진 행(행위자 컬럼
+     * 도입 전)뿐이다.
+     */
+    val createdByCredentialId: CredentialKeyId?,
 )
 
 /** Payment 생성 시 불변 값(재생 응답·이벤트 원천). 현재 상태는 넣지 않는다(D-CP-003). */

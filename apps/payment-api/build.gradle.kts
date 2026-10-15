@@ -11,6 +11,8 @@ dependencies {
     implementation(libs.spring.boot.starter.jooq)
     implementation(libs.spring.boot.starter.flyway)
     implementation(libs.spring.boot.starter.actuator)
+    // 가맹점 공개 API 인증(D-CPA-001 Bearer API 키). Boot 4.1.1 BOM 관리 버전(카탈로그 기존 항목 — internal-admin과 같다).
+    implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.modulith.api)
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)
@@ -26,6 +28,7 @@ dependencies {
     testImplementation(libs.kotest.extensions.spring)
     testImplementation(libs.mockk)
     testImplementation(libs.springmockk)
+    testImplementation(libs.spring.boot.starter.security.test)
     testImplementation(libs.archunit)
     // 자동 Fixture(테스트 전용, Test Fixture Policy). 프로젝트 Fixture(src/test) 뒤에만 쓴다. Instancio는 쓰지 않는다.
     // Fixture Monkey는 값 생성에 jqwik(1.7.3) 구현 클래스를 쓰므로 jqwik-engine 모듈은 classpath에 남긴다(빼면 NoClassDefFoundError —

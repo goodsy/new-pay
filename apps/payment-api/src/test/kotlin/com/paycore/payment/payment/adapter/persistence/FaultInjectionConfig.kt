@@ -1,7 +1,10 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.application.required.ControlAcquisition
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.required.IdempotencyRecordStore
+import com.paycore.payment.payment.application.required.MerchantCredentialStore
+import com.paycore.payment.payment.application.required.StoredMerchantCredential
 import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
@@ -29,6 +32,9 @@ enum class FaultPoint {
     CONTROL_OPEN, CONTROL_LOCK, CONTROL_UPDATE,
     PAYMENT_INSERT, PAYMENT_LOCK, PAYMENT_UPDATE, PAYMENT_FIND,
     OUTBOX_APPEND,
+
+    /** 인증 Credential 투영 읽기 직전(같은 읽기 TX 안 — 연결 끊김 주입용)과 직후. */
+    CREDENTIAL_BEFORE_FIND, CREDENTIAL_FIND,
 }
 
 /**
@@ -106,5 +112,15 @@ class FaultInjectionConfig {
     fun faultInjectingOutboxStore(real: JpaOutboxStore, f: FaultInjector): OutboxStore =
         object : OutboxStore {
             override fun append(event: OutboxEvent) = f.around(FaultPoint.OUTBOX_APPEND) { real.append(event) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingMerchantCredentialStore(real: JpaMerchantCredentialStore, f: FaultInjector): MerchantCredentialStore =
+        object : MerchantCredentialStore {
+            override fun find(keyId: CredentialKeyId): StoredMerchantCredential? {
+                f.around(FaultPoint.CREDENTIAL_BEFORE_FIND) { keyId }
+                return f.around(FaultPoint.CREDENTIAL_FIND) { real.find(keyId) }
+            }
         }
 }

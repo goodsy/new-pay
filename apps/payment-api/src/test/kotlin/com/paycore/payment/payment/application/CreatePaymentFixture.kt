@@ -7,16 +7,14 @@ import com.paycore.payment.payment.application.provided.CreatePaymentCommand
 import com.paycore.payment.payment.application.provided.EventId
 import com.paycore.payment.payment.application.provided.IdempotencyRecordId
 import com.paycore.payment.payment.application.provided.NewPaymentIdentifiers
-import com.paycore.payment.payment.application.provided.RequestFingerprint
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.domain.IdempotencyKey
 import com.paycore.payment.payment.domain.OrderIntent
 import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.PaymentId
 import com.paycore.payment.payment.domain.PaymentKey
 import com.paycore.payment.payment.domain.PaymentMethod
-import java.security.MessageDigest
 import java.time.Instant
-import java.util.HexFormat
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
@@ -24,9 +22,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * CreatePayment application 시험 Named Fixture(Demo 값). 요청 fingerprint는 **시험용 대역**이다: 내용이 같으면 같고 다르면 다른
- * `r1:<sha256>`을 만들 뿐 계약 §7 r1 정규 표현(CP-API-001 구현·golden vector)과 같다고 주장하지 않는다. 이 Use Case는 r1을 계산하지
- * 않고 저장·비교만 하므로 이 대역으로 충분하다.
+ * CreatePayment application 시험 Named Fixture(Demo 값). 요청 fingerprint r1은 CP-API-001부터 Use Case가 command 값으로 계산한다
+ * (`RequestFingerprints`, golden vector는 `RequestFingerprintV1Spec`). [demoActor]는 시험 전용 Credential keyId다(운영 키 아님).
  */
 object CreatePaymentFixture {
 
@@ -52,20 +49,14 @@ object CreatePaymentFixture {
         paymentMethod = PaymentMethod.CARD,
         orderName = orderName,
         idempotencyKey = key,
-        requestFingerprint = stubRequestFingerprint(order, intent, orderName),
         requestedAt = at,
         correlationId = "req-" + UUID.randomUUID(),
         newIdentifiers = ids,
+        actor = demoActor,
     )
 
-    private fun stubRequestFingerprint(order: OrderKey, intent: OrderIntent, orderName: String?): RequestFingerprint {
-        val content = listOf(
-            order.merchantAccountId.value, intent.merchantSiteId.value, order.merchantOrderId.value, intent.money.amountMinor.toString(),
-            intent.money.currency.value, PaymentMethod.CARD.name, orderName ?: "<absent>",
-        ).joinToString("\u0000")
-        val digest = MessageDigest.getInstance("SHA-256").digest(content.toByteArray(Charsets.UTF_8))
-        return RequestFingerprint("r1:" + HexFormat.of().formatHex(digest))
-    }
+    /** 시험 전용 Credential keyId(Demo — 운영 Credential 아님). */
+    val demoActor = CredentialKeyId("demoActor0001")
 
     /** 업무 테이블별 행 수(MID 범위). outbox는 payload의 MID로 센다(Payment 행이 없어도 고아 이벤트를 잡는다). */
     fun DbAccess.rowsOf(order: OrderKey): Map<String, Long> {

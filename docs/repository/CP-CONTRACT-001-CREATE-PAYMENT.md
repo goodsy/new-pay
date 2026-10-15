@@ -49,6 +49,7 @@ OrderKey = (environment[컨텍스트], merchantAccountId[=authenticatedMid], mer
 - amount는 JSON integer만 허용: 소수점·지수(`1e3`)·문자열·부호 `+`·선행 0·Long 초과는 400 `INVALID_AMOUNT`. 서버는 부동소수점으로 파싱하지 않는다(정확한 정수 파서). 주의: JavaScript Number는 2^53-1 초과 정수를 정확히 표현하지 못하므로 그 범위 금액은 가맹점이 정확한 정수 직렬화를 써야 한다(D-CPC-009 확정).
 - 문자열 정규화(trim, Unicode NFC, 대소문자 변환) 없음. 형식 밖이면 거절(D-CP-001).
 - **짝 없는 UTF-16 서로게이트는 400 `INVALID_REQUEST`**(관례, Reviewer L-3): JSON `\uD800` 같은 escape로 들어온 lone high/low surrogate, 순서가 뒤바뀐 쌍, 잘못된 UTF-8 bytes를 담은 모든 문자열 필드(merchantAccountId, merchantSiteId, orderName 포함)를 거절한다. 치환(`?`·U+FFFD)해서 받지 않는다. 이유: UTF-8 인코딩·JDBC 저장에서 `?`로 바뀌면 `"a\uD800"`과 `"a?"`가 같은 fingerprint·같은 DB 키가 된다. 올바른 서로게이트 쌍(보충 문자, 예: 이모지)은 정상 문자다. domain `MerchantAccountId`·`MerchantSiteId` 생성자도 같은 이유로 거부한다(최후 방어선, §3.3과 같은 관례). merchantOrderId·멱등키는 D-CPC-002 ASCII 제한으로 이미 거절된다(시험으로 확인). orderName 검사 구현은 CP-API-001.
+- **merchantAccountId·merchantSiteId·orderName의 거절 문자는 400 `INVALID_REQUEST`(field = 그 필드)**(관례, CP-API-001 review round2 m-2): 제어문자 Cc 전부(탭·개행 포함, U+0000–U+001F·U+007F–U+009F), 줄·문단 구분자 U+2028·U+2029, 양방향 embedding/override/isolate U+202A–U+202E·U+2066–U+2069. 이유: 이 값들은 운영 로그·판정 로그에 남으므로 로그 줄 분리·표시 위조를 입력 단계에서 막는다. 정규화·치환하지 않고 거절한다(D-CP-001). MASTER 발급 MID·Site 형식(`mid_`·`site_` + ULID)에는 이 문자가 없어 정상 요청에 영향이 없다. 로그를 쓰는 쪽도 외부 유래 식별자를 방어적으로 이스케이프한다(구현 CP-API-001).
 
 ### 3.2 검증 순서(관례)
 
@@ -166,9 +167,11 @@ amount는 10진 정수 문자열로 넣는다. JSON 원문 bytes·공백·필드
 | 통화·결제수단 미활성, 계약 효력 밖, MID 신규 결제 중지·차단 | eligibility `NOT_ELIGIBLE` | 422 | `PAYMENT_NOT_ELIGIBLE` | 0 | 저장 안 함 | 세부 사유는 고정 분류(`CURRENCY_NOT_ENABLED`·`METHOD_NOT_ENABLED`·`CONTRACT_NOT_EFFECTIVE`·`MERCHANT_SUSPENDED`)만, 내부 버전·정책값 미노출. 한도 사유 없음(v1은 생성 시 한도 사전 검사 안 함, §4 관례) |
 | Snapshot 누락·만료·확인 불가 버전 | eligibility `UNAVAILABLE` | 503 | `ELIGIBILITY_UNAVAILABLE` | 0 | 저장 안 함 | fail-closed. `Retry-After`. 같은 키로 재시도 |
 | 잠금 timeout·deadlock 재시도 소진·DB 일시 오류 | 로컬 일시 실패(rollback 확인) | 503 | `TEMPORARILY_UNAVAILABLE` | 0(rollback) | 저장 안 함 | 같은 키로 재시도. commit 불명확은 같은 키 재요청/조회로 확인(새 키 금지). MySQL lock wait timeout(문장 rollback만 될 수 있음)의 TX rollback 보장·분류는 CP-API-001(이월 L-4) |
-| 같은 키가 처리 중(앞 요청 미커밋, 대기 timeout) | 멱등 예약 경합 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 0 | — | retryable=true |
+| 같은 키가 처리 중(앞 요청 미커밋, 대기 timeout) | 멱등 예약 경합 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 0 | — | retryable=true, `Retry-After`. **멱등 예약 단계의 잠금 대기만** 이 code다: 같은 키의 미커밋 요청뿐 아니라 **인접 범위 갭 잠금 대기**(다른 키의 중복 경로 IODKU가 잡은 next-key 잠금 앞 갭)도 포함한다(CP-DB-001 review L-1, 시험 `ApiFailureSpec`). 결과·금융 의미는 같다(저장 없음, 같은 키 재시도). 예약 뒤 단계(권리 head·control·Payment)의 잠금 대기 timeout은 503 `TEMPORARILY_UNAVAILABLE`(L-4, TX 전체 rollback) |
 | StaleSlot·PaymentIdReuse 등 내부 경합 | domain 예외 | (내부 재판정 후 위 행) / 실패 시 503 | `TEMPORARILY_UNAVAILABLE` | 0 | 저장 안 함 | 사용자 payload 충돌로 오해되게 409 `*_CONFLICT`를 쓰지 않는다(초안 CP-10) |
 
+- `Retry-After`(delta-seconds, CP-API-001): 503 두 종류와 `IDEMPOTENCY_REQUEST_IN_PROGRESS`에만. 값은 운영 기본값 없는 필수 설정(`paycore.payment.api.retry-after.*`).
+- 표 밖 라우팅·결함 code(CP-API-001 구현 관례): 404 `NOT_FOUND`(없는 경로, 인증 뒤), 405 `METHOD_NOT_ALLOWED`, 500 `INTERNAL_ERROR`(rollback된 결함, retryable=false). commit 결과 불명확은 503 `TEMPORARILY_UNAVAILABLE`(문구: 같은 Idempotency-Key로 확인, 새 키 금지).
 - `retryable`: 503·`IDEMPOTENCY_REQUEST_IN_PROGRESS`만 true. 409 업무 거절은 같은 키 재시도로 결과가 바뀌지 않는다는 뜻이며 업무 거절도 그 키의 결과로 저장해 보존 기간 동안 같은 거절을 재현한다(D-CPC-007). CP-DB-001은 결과 종류 컬럼으로 성공·거절을 구분한다.
 - timeout 자체로 Payment 상태를 바꾸지 않는다.
 
@@ -243,6 +246,10 @@ EligibilityResult =
 - `OrderIntent.kt`: `MerchantSiteId`(짝 없는 서로게이트 거부, §3.1), `OrderIntent(merchantSiteId, money).fingerprint()` v1(§6).
 - `Utf8Text.kt`: Unicode 정합성 검사·엄격 UTF-8 인코딩(malformed REPORT, §6.2).
 시험: `MoneySpec`, `MerchantRequestIdFormatSpec`, `OrderIntentSpec`(서로게이트 시험 포함), `OrderKeySpec` 갱신, `OrderFixture`가 v1 fingerprint를 실제 계산. 멱등 요청 fingerprint(§7)·오류 매핑(§9)·Outbox(§10)·Port(§13)는 문서 계약이며 코드 없음.
+
+### 14.2 CP-API-001에서 구현한 코드(Verifier/Reviewer 판정 전)
+
+명세 `docs/repository/CP-API-001-CREATE-PAYMENT-API.md`. 요약: 공개 API `POST /v1/payments`(엄격 JSON 파서·필드 검증·응답 schema·`Idempotent-Replayed`·`PayCore-Request-Id`·§9 오류 매핑 전체·`Retry-After`), 요청 fingerprint r1(`RequestFingerprints`, 저장 버전으로 재계산 — 지원 밖 버전 503), orderName = code point 1..100(`OrderNameRule`), paymentId/paymentKey 생성기, 가맹점 Bearer API 키 검증(D-CPA-001, PAYMENT 로컬 Credential 투영 V5·권한 V6, 발급·전파는 MASTER-CREDENTIAL-001), Payment 생성 행위자 컬럼, `/internal` 별도 connector 격리, 세션 시간대 기동·health 검사, 승인 시작 단일 domain 연산(L-2). GetPayment는 CP-QUERY-001.
 
 ### 14.1 CP-DB-001에서 구현한 코드(영속·로컬 TX, Verifier/Reviewer 판정 전)
 

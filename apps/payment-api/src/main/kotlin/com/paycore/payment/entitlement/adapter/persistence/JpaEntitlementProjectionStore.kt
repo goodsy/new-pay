@@ -169,10 +169,10 @@ class JpaEntitlementProjectionStore(
         val sql = chain.filterIsInstance<SQLException>().firstOrNull() ?: return null
         return when {
             sql.errorCode == DUPLICATE_KEY -> EntitlementPersistenceFailure.UniqueConflict(KEY_NAME.find(sql.message ?: "")?.groupValues?.get(1) ?: "unknown")
-            sql.errorCode == DEADLOCK -> EntitlementPersistenceFailure.Deadlock(failure)
-            sql.errorCode == LOCK_WAIT_TIMEOUT -> EntitlementPersistenceFailure.LockTimeout(failure)
+            sql.errorCode == DEADLOCK -> EntitlementPersistenceFailure.Deadlock(failure, sql.errorCode, sql.sqlState)
+            sql.errorCode == LOCK_WAIT_TIMEOUT -> EntitlementPersistenceFailure.LockTimeout(failure, sql.errorCode, sql.sqlState)
             sql.sqlState?.startsWith("08") == true || sql is SQLTransientConnectionException || sql is SQLNonTransientConnectionException ||
-                sql is SQLRecoverableException || sql.errorCode in CONNECTION_LOST -> EntitlementPersistenceFailure.Unavailable(failure)
+                sql is SQLRecoverableException || sql.errorCode in CONNECTION_LOST -> EntitlementPersistenceFailure.Unavailable(failure, sql.errorCode, sql.sqlState)
             else -> null
         }
     }

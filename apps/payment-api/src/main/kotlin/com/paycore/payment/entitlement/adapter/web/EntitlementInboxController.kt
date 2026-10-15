@@ -131,7 +131,11 @@ class EntitlementInboxController(
                 ReceiveResult.EventIdConflict -> reject(HttpStatus.CONFLICT, "EVENT_ID_CONFLICT")
             }
         } catch (e: ReceiveFailure) {
-            log.warn("entitlement snapshot not stored eventId={} failure={}", envelope.snapshot.eventId, e.message)
+            // n-3: 예외 메시지 원문 대신 분류(예외 클래스 이름 사슬)만 남긴다.
+            log.warn(
+                "operation=ReceiveEntitlementSnapshot eventId={} result=TEMPORARILY_UNAVAILABLE failure={}",
+                envelope.snapshot.eventId, generateSequence<Throwable>(e) { it.cause }.take(MAX_CAUSE_DEPTH).joinToString(" <- ") { it.javaClass.simpleName },
+            )
             ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(mapOf("error" to "TEMPORARILY_UNAVAILABLE"))
         }
     }
@@ -184,6 +188,7 @@ class EntitlementInboxController(
         const val EVENT_TYPE = "EntitlementSnapshot"
         const val REJECTED = "paycore.payment.entitlement.inbox.rejected"
         private const val MAX_ID = 64
+        private const val MAX_CAUSE_DEPTH = 10
         private val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     }
 }

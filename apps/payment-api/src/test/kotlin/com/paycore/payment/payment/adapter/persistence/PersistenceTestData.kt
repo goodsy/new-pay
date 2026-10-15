@@ -1,6 +1,7 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.adapter.persistence.DbAccess.Companion.unique
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.domain.CurrencyCode
@@ -45,5 +46,8 @@ object PersistenceTestData {
         paymentKey: PaymentKey = PaymentKey(unique("pk")),
         orderName: String? = "Demo order",
         createdAt: Instant = t0,
-    ) = PaymentCreationAttributes(paymentKey, intent.merchantSiteId, intent.money, PaymentMethod.CARD, orderName, snapshot, createdAt)
+    ) = PaymentCreationAttributes(paymentKey, intent.merchantSiteId, intent.money, PaymentMethod.CARD, orderName, snapshot, createdAt, demoActor)
+
+    /** 시험 전용 생성 행위자 keyId(Demo). */
+    val demoActor = CredentialKeyId("demoActor0001")
 }

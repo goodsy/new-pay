@@ -90,6 +90,11 @@ class JpaPaymentEntity protected constructor() {
     lateinit var createdAt: Instant
         protected set
 
+    /** 생성 행위자 Credential keyId(V5, D-CPA-001). 생성 시 불변. V5 이전 행만 null. */
+    @field:Column(name = "created_by_credential_id", updatable = false, length = 32)
+    var createdByCredentialId: String? = null
+        protected set
+
     /** null이면 새 Entity(persist), INSERT 시 Hibernate가 0을 넣고 UPDATE마다 `WHERE version = ?`로 1씩 올린다. 직접 바꾸지 않는다. */
     @field:Version
     @field:Column(name = "version", nullable = false)
@@ -124,6 +129,7 @@ class JpaPaymentEntity protected constructor() {
             status: String,
             eligibilitySnapshotVersion: String,
             createdAt: Instant,
+            createdByCredentialId: String?,
         ): JpaPaymentEntity = JpaPaymentEntity().also {
             it.paymentId = paymentId
             it.paymentKey = paymentKey
@@ -140,6 +146,7 @@ class JpaPaymentEntity protected constructor() {
             it.status = status
             it.eligibilitySnapshotVersion = eligibilitySnapshotVersion
             it.createdAt = createdAt
+            it.createdByCredentialId = createdByCredentialId
         }
     }
 }

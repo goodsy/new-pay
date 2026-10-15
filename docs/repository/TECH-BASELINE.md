@@ -158,3 +158,16 @@ master-api의 JPA 설정(이번 변경과 연결):
 | 소요/결과 | 8m43s, BUILD SUCCESSFUL | 7m32s, BUILD SUCCESSFUL(395 tests) |
 
 남은 큰 항목은 payment-api의 Spring 테스트 컨텍스트별 MySQL 컨테이너(동시 3개)다. 컨텍스트 캐시 크기 제한(`spring.test.context.cache.maxSize`)은 컨텍스트 재생성·컨테이너 재기동 시간과 GRADLE-CHECK timeout(1200초) 영향을 측정한 뒤 결정한다(후속, 이번에는 적용하지 않음). 전체 check 측정 결과는 harness/tasks.json MASTER-BOOT-001 implementation에 기록한다.
+
+## 8. payment-api 배포 규칙 (CP-API-001, 2026-10-14)
+
+배포 환경이 지켜야 하는 규칙이다(운영 수치 결정이 아니다). 어기면 기동 단계에서 실패한다(fail-closed).
+
+| 규칙 | 내용 | 강제 |
+|---|---|---|
+| DB URL 시간대 파라미터 금지(L-10) | `PAYCORE_PAYMENT_DB_URL`에 `connectionTimeZone`·`serverTimezone`·`forceConnectionTimeZoneToSession`·`preserveInstants`·`sessionVariables`의 `time_zone`을 넣지 않는다. 세션 UTC(`+00:00`)는 `application.yml`의 Hikari driver 속성이 유일한 출처다(관례 §9.1) | `PaymentDbSessionTimeZoneCheck`: URL에 있으면 기동 실패, 풀 연결의 `@@session.time_zone`이 `+00:00`이 아니면 기동 실패, health `paymentDbSessionTimeZone` DOWN |
+| 내부 connector 포트 | `paycore.payment.api.internal-port`(필수, 기본값 없음)는 공개 포트와 다른 포트. `/internal` 아래 경로(권리 Snapshot Inbox)는 이 포트에서만 응답하고 공개 포트에서는 404. 운영망에서는 이 포트를 MASTER 망에만 열고 LB/프록시는 공개 포트만 외부에 노출한다(mTLS는 D-MS-004대로 LIVE 전 별도) | 필수 설정 누락 시 기동 실패, `ApiEntryFilter` |
+| Retry-After 설정 | `paycore.payment.api.retry-after.{eligibility-unavailable,temporarily-unavailable,request-in-progress}`(필수, 1s..1h). 재시도 권고값이며 lease·전파 시간을 약속하지 않는다 | 필수 설정 누락·범위 밖이면 기동 실패 |
+| 가맹점 Credential | 운영 Credential 투영(`merchant_api_credential`)은 MASTER-CREDENTIAL-001 전까지 비어 있다 — 모든 가맹점 요청이 401(D-CPA-001 fail-closed). 시험 키는 저장소에 없다(시험이 실행마다 생성) | 투영 runtime 권한 SELECT만(V6) |
+| Health | 공개 포트의 `/actuator/health`는 상태만(`show-details: never`) | `MainConfigurationSpec` |
+| binlog | `idempotency_request` IODKU는 statement binlog에서 unsafe — 운영 `binlog_format=ROW` 전제(CP-DB-001 review L-2) | 운영 작업 |

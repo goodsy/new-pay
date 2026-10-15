@@ -149,6 +149,33 @@ class ArchitectureSpec : FunSpec({
         rules.namedInterfacesOnlyOnProvidedPackages().allowEmptyShould(false).check(classes)
     }
 
+    test("authorization start is one domain operation: main code calls Payment.startAuthorization only from OrderPaymentControl (CP-DOMAIN-001 review L-2)") {
+        val rule = paymentStartAuthorizationOnlyThroughControl()
+        rule.check(classes)
+        // 실제 호출자가 있다(빈 대상 통과가 아님): OrderPaymentControl.startAuthorization.
+        classes.get("$BASE_PACKAGE.payment.domain.OrderPaymentControl").methodCallsFromSelf
+            .any { it.target.name == "startAuthorization" && it.target.owner.simpleName == "Payment" } shouldBe true
+        // 위반 fixture(시험 소스): 직접 호출, Kotlin 호출 가능 참조, Java 메서드 참조 모두 실패한다.
+        listOf(
+            com.paycore.archfixture.startauth.DirectStartAuthorization::class.java,
+            com.paycore.archfixture.startauth.KotlinReferenceStartAuthorization::class.java,
+            com.paycore.archfixture.startauth.JavaReferenceStartAuthorization::class.java,
+        ).forEach { fixture ->
+            val violation = ClassFileImporter().importPackages("com.paycore.archfixture.startauth")
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("fixture ${fixture.simpleName}") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    c.name == fixture.name || c.name.startsWith(fixture.name + "$")
+                })
+            shouldThrow<AssertionError> { rule.check(violation) }.message shouldContain fixture.simpleName
+        }
+    }
+
+    test("test-only fixture tooling (Fixture Monkey, Instancio) is not referenced from any production class (Test Fixture Policy)") {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+            .should().dependOnClassesThat().resideInAnyPackage("com.navercorp.fixturemonkey..", "org.instancio..")
+            .`as`("production code does not use Fixture Monkey or Instancio")
+            .check(classes)
+    }
+
     test("no cycles between modules") {
         // 대상 있음(CP-DOMAIN-001): 모듈 slice `payment`.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)
@@ -156,6 +183,21 @@ class ArchitectureSpec : FunSpec({
 }) {
     companion object {
         const val BASE_PACKAGE = "com.paycore.payment"
+
+        /**
+         * L-2 규칙: `Payment.startAuthorization`에 접근(호출 **및 메서드 참조** `Payment::startAuthorization` — review round1 m-2)하는 클래스는
+         * `OrderPaymentControl`뿐이다(검사·전이를 한 연산으로 묶는다). `callMethod`는 참조를 보지 않으므로 접근 대상 규칙으로 쓴다.
+         */
+        fun paymentStartAuthorizationOnlyThroughControl(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.domain.OrderPaymentControl")
+                .should().accessTargetWhere(
+                    object : com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<*>>("target is Payment.startAuthorization") {
+                        override fun test(access: com.tngtech.archunit.core.domain.JavaAccess<*>): Boolean =
+                            access.target.owner.fullName == "$BASE_PACKAGE.payment.domain.Payment" && access.target.name == "startAuthorization"
+                    },
+                )
+                .`as`("only OrderPaymentControl calls or references Payment.startAuthorization (slot checks and the transition are one operation)")
 
         /** build.gradle.kts의 mainJooqPackage(generateJooqMain)와 같은 값이어야 한다(위 테스트가 비교). */
         const val GENERATED_JOOQ_PACKAGE = "com.paycore.payment.jooq.generated"

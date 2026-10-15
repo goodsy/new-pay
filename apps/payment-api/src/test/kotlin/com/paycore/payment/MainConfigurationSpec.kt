@@ -37,4 +37,24 @@ class MainConfigurationSpec : FunSpec({
     test("the Flyway migration session (separate connection, no Hikari driver properties) is set to UTC") {
         value("spring.flyway.init-sqls") shouldBe "SET time_zone = '+00:00'"
     }
+
+    test("Hibernate JDBC error text (it carries duplicate key values: idempotency key, order ID, paymentKey) is not logged (n-4)") {
+        value("logging.level.org.hibernate.orm.jdbc.error") shouldBe "OFF"
+        value("logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper") shouldBe "OFF"
+    }
+
+    test("the session time zone comes only from the driver properties (L-10): UTC and forced to the session, the URL is a bare variable") {
+        value("spring.datasource.hikari.data-source-properties.connectionTimeZone") shouldBe "UTC"
+        value("spring.datasource.hikari.data-source-properties.forceConnectionTimeZoneToSession") shouldBe "true"
+    }
+
+    test("the public API has no operational defaults for the internal port and Retry-After (startup fails without them); health has no details") {
+        listOf(
+            "paycore.payment.api.internal-port",
+            "paycore.payment.api.retry-after.eligibility-unavailable",
+            "paycore.payment.api.retry-after.temporarily-unavailable",
+            "paycore.payment.api.retry-after.request-in-progress",
+        ).map(::value) shouldBe listOf(null, null, null, null)
+        value("management.endpoint.health.show-details") shouldBe "never"
+    }
 })

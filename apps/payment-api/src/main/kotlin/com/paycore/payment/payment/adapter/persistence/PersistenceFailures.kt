@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.application.provided.StoreDiagnostic
 import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.application.required.StoreConstraint
 import org.hibernate.StaleStateException
@@ -35,11 +36,13 @@ internal object PersistenceFailures {
             return PersistenceFailure.OptimisticConflict(entity)
         }
         val sql = chain.filterIsInstance<SQLException>().firstOrNull() ?: return null
+        // 진단 값(n-3): vendor 코드·SQLState만. 메시지 원문(키 값이 들어 있을 수 있다)은 담지 않는다.
+        val diagnostic = StoreDiagnostic(vendorCode = sql.errorCode, sqlState = sql.sqlState)
         return when {
             sql.errorCode == MYSQL_DUPLICATE_KEY -> PersistenceFailure.UniqueConflict(constraintOf(sql.message))
-            sql.errorCode == MYSQL_DEADLOCK -> PersistenceFailure.Deadlock(failure)
-            sql.errorCode == MYSQL_LOCK_WAIT_TIMEOUT -> PersistenceFailure.LockTimeout(failure)
-            isConnectionFailure(sql) -> PersistenceFailure.Unavailable(failure)
+            sql.errorCode == MYSQL_DEADLOCK -> PersistenceFailure.Deadlock(failure, diagnostic)
+            sql.errorCode == MYSQL_LOCK_WAIT_TIMEOUT -> PersistenceFailure.LockTimeout(failure, diagnostic)
+            isConnectionFailure(sql) -> PersistenceFailure.Unavailable(failure, diagnostic)
             else -> null
         }
     }

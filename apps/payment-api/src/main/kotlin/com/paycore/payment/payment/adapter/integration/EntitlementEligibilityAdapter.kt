@@ -4,12 +4,15 @@ import com.paycore.payment.entitlement.application.provided.EligibilityDecision
 import com.paycore.payment.entitlement.application.provided.EligibilityRefusalReason
 import com.paycore.payment.entitlement.application.provided.EligibilityRequest
 import com.paycore.payment.entitlement.application.provided.EligibilityUnavailableCause
+import com.paycore.payment.entitlement.application.provided.EntitlementEvaluationFailure
 import com.paycore.payment.entitlement.application.provided.EntitlementEvaluationQuery
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.application.provided.EligibilityUnavailableReason
 import com.paycore.payment.payment.application.provided.NotEligibleReason
+import com.paycore.payment.payment.application.provided.StoreDiagnostic
 import com.paycore.payment.payment.application.required.EligibilityResult
 import com.paycore.payment.payment.application.required.PaymentEligibilityPort
+import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.domain.CurrencyCode
 import com.paycore.payment.payment.domain.CurrencyUnit
 import com.paycore.payment.payment.domain.Environment
@@ -37,7 +40,7 @@ class EntitlementEligibilityAdapter(private val query: EntitlementEvaluationQuer
         paymentMethod: PaymentMethod,
         evaluatedAt: Instant,
     ): EligibilityResult =
-        when (val decision = query.evaluate(EligibilityRequest(authenticatedMid.value, merchantSiteId.value, paymentMethod.name, currency.value), evaluatedAt)) {
+        when (val decision = evaluateOrClassify(EligibilityRequest(authenticatedMid.value, merchantSiteId.value, paymentMethod.name, currency.value), evaluatedAt)) {
             is EligibilityDecision.Allowed -> EligibilityResult.Eligible(
                 EligibilitySnapshotVersion(decision.snapshotVersion), decision.validUntil, CurrencyUnit(CurrencyCode(decision.currency), decision.minorUnit),
             )
@@ -58,4 +61,24 @@ class EntitlementEligibilityAdapter(private val query: EntitlementEvaluationQuer
                 },
             )
         }
+
+    /**
+     * entitlement 저장소 일시 실패를 payment 저장소 실패 분류로 옮긴다(CP-API-001 G-1): 교착 → [PersistenceFailure.Deadlock](CreatePayment가
+     * 새 TX로 재시도), head 잠금 대기 timeout → [PersistenceFailure.LockTimeout](멱등 예약 뒤 단계라 503 TEMPORARILY_UNAVAILABLE), 연결 →
+     * [PersistenceFailure.Unavailable].
+     */
+    private fun evaluateOrClassify(request: EligibilityRequest, evaluatedAt: Instant): EligibilityDecision =
+        try {
+            query.evaluate(request, evaluatedAt)
+        } catch (e: EntitlementEvaluationFailure.Deadlock) {
+            throw PersistenceFailure.Deadlock(e, diagnosticOf(e))
+        } catch (e: EntitlementEvaluationFailure.LockTimeout) {
+            throw PersistenceFailure.LockTimeout(e, diagnosticOf(e))
+        } catch (e: EntitlementEvaluationFailure.Unavailable) {
+            throw PersistenceFailure.Unavailable(e, diagnosticOf(e))
+        }
+
+    /** 진단 값 전달(n-6): vendor 코드·SQLState만. */
+    private fun diagnosticOf(e: EntitlementEvaluationFailure): StoreDiagnostic? =
+        if (e.vendorCode == null && e.sqlState == null) null else StoreDiagnostic(vendorCode = e.vendorCode, sqlState = e.sqlState)
 }
