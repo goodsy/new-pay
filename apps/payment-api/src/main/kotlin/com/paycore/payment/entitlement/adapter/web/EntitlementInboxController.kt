@@ -7,7 +7,7 @@ import com.paycore.payment.entitlement.application.provided.ReceiveResult
 import com.paycore.payment.entitlement.domain.EntitlementContent
 import com.paycore.payment.entitlement.domain.IncomingSnapshot
 import com.paycore.payment.entitlement.domain.JsonValue
-import com.paycore.payment.entitlement.domain.SUPPORTED_SNAPSHOT_SCHEMA_VERSION
+import com.paycore.payment.entitlement.domain.isSupportedSnapshotSchema
 import com.paycore.payment.entitlement.domain.SnapshotContractViolation
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -161,11 +161,11 @@ class EntitlementInboxController(
         val revision = node.get("aggregateVersion")?.takeIf { it.isIntegralNumber && it.canConvertToLong() }?.longValue()?.takeIf { it >= 1 }
             ?: throw EnvelopeInvalid()
         val payload = node.get("payload")?.takeIf { it.isObject } ?: throw EnvelopeInvalid()
-        val snapshot = if (schemaVersion == SUPPORTED_SNAPSHOT_SCHEMA_VERSION) {
+        val snapshot = if (isSupportedSnapshotSchema(schemaVersion)) {
             val tree = WebJsonTree.toJsonValue(payload)
             IncomingSnapshot(
                 eventId = eventId, merchantId = merchantId, revision = revision, schemaVersion = schemaVersion,
-                content = EntitlementContent.fromJson(tree, allowLeaseFields = true),
+                content = EntitlementContent.fromJson(tree, schemaVersion, allowLeaseFields = true),
                 declaredContentHash = (tree.obj("snapshot").fields["contentHash"] as? JsonValue.JString)?.value
                     ?: throw SnapshotContractViolation("contentHash must be a string"),
                 lease = EntitlementContent.leaseFromJson(tree),

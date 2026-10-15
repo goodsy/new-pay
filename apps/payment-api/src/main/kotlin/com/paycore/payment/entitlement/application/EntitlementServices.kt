@@ -24,7 +24,7 @@ import com.paycore.payment.entitlement.domain.EntitlementDecision
 import com.paycore.payment.entitlement.domain.EntitlementEvaluator
 import com.paycore.payment.entitlement.domain.InboxOutcome
 import com.paycore.payment.entitlement.domain.RefusalReason
-import com.paycore.payment.entitlement.domain.SUPPORTED_SNAPSHOT_SCHEMA_VERSION
+import com.paycore.payment.entitlement.domain.isSupportedSnapshotSchema
 import com.paycore.payment.entitlement.domain.SnapshotApplicationRule
 import com.paycore.payment.entitlement.domain.UnavailableReason
 import org.slf4j.LoggerFactory
@@ -170,7 +170,7 @@ class EntitlementEvaluationService(
         val question = EligibilityQuestion(request.mid, request.siteId, request.paymentMethod, request.currency)
         val merchantId = store.findMidOwner(request.mid)
         val head = merchantId?.let { store.lockHeadForShare(it) }
-        val usable = head != null && !head.isEmpty && head.blocked == null && head.schemaVersion == SUPPORTED_SNAPSHOT_SCHEMA_VERSION
+        val usable = head != null && !head.isEmpty && head.blocked == null && isSupportedSnapshotSchema(head.schemaVersion)
         val content = if (usable) store.findSnapshot(checkNotNull(merchantId), checkNotNull(head).revision) else null
         val decision = EntitlementEvaluator.evaluate(head, content, question, evaluatedAt, clock.now(), timing.clockSkewMargin)
         return publish(decision, request)

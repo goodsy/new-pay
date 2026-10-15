@@ -43,6 +43,8 @@ data class SnapshotIssueRecord(
     val leaseUntil: Instant,
     val priority: SnapshotPriority,
     val eventId: String,
+    /** 이 발행의 Snapshot schemaVersion(MASTER-SNAPSHOT-002 §5.2 — 옛 버전 발행 뒤의 갱신은 같은 revision 재발행이 아니라 승격 발행). */
+    val schemaVersion: Int,
 )
 
 /** 발행 기록 + Outbox 이벤트(`ENTITLEMENT_SNAPSHOT`)를 같은 TX에 넣기 위한 재료. [wirePayload]는 정규 JSON 전송 payload. */
@@ -142,6 +144,9 @@ interface MasterOperationalMetrics {
 
     /** 같은 revision인데 다시 조립한 내용이 다르다(revision 증가 누락 결함 — PAYMENT는 INTEGRITY_CONFLICT로 막는다). */
     fun revisionHashDrift()
+
+    /** 옛 schemaVersion 발행 뒤 갱신 시점에 revision을 올려 현재 버전으로 다시 발행했다(MASTER-SNAPSHOT-002 §5.2). */
+    fun schemaPromotion()
 }
 
 /** 전파 조회(CQRS 조회 측, jOOQ adapter.query — 명세 §4.8). */

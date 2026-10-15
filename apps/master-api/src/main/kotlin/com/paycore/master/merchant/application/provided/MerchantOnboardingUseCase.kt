@@ -102,6 +102,20 @@ enum class AdminOperation(val code: String) {
     ENABLE_CURRENCY("EnableCurrency"),
     END_CURRENCY_ENABLEMENT("EndCurrencyEnablement"),
     DECIDE_SITE_REVIEW("DecideSiteReview"),
+
+    // MASTER-SNAPSHOT-002(D-AUTH-006, D-MD-017·018, D-MS2-001~005)
+    REGISTER_TRANSACTION_LIMIT_POLICY("RegisterTransactionLimitPolicy"),
+    END_TRANSACTION_LIMIT_POLICY("EndTransactionLimitPolicy"),
+    REPLACE_TRANSACTION_LIMIT_POLICY("ReplaceTransactionLimitPolicy"),
+    REGISTER_POLICY_VERSION("RegisterPolicyVersion"),
+    ASSIGN_POLICY("AssignPolicy"),
+    END_POLICY_ASSIGNMENT("EndPolicyAssignment"),
+    REPLACE_POLICY_ASSIGNMENT("ReplacePolicyAssignment"),
+    REGISTER_CARD_ROUTE_ACTIVATION("RegisterCardRouteActivation"),
+    APPROVE_CARD_ROUTE_ACTIVATION("ApproveCardRouteActivation"),
+    SUSPEND_CARD_ROUTE_ACTIVATION("SuspendCardRouteActivation"),
+    RESUME_CARD_ROUTE_ACTIVATION("ResumeCardRouteActivation"),
+    TERMINATE_CARD_ROUTE_ACTIVATION("TerminateCardRouteActivation"),
     ;
 
     companion object {

@@ -8,6 +8,7 @@ import com.paycore.payment.entitlement.domain.IncomingSnapshot
 import com.paycore.payment.entitlement.domain.JsonValue
 import com.paycore.payment.entitlement.domain.Lifecycle
 import com.paycore.payment.entitlement.domain.SiteReviewStatus
+import com.paycore.payment.entitlement.domain.SnapshotContractViolation
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.springframework.core.io.ClassPathResource
@@ -32,7 +33,7 @@ class EntitlementContractGoldenSpec : FunSpec({
 
     test("PAYMENT re-derives the golden canonical content and content hash from the golden payload") {
         val payload = WebJsonTree.toJsonValue(mapper.readTree(body).get("payload"))
-        val content = EntitlementContent.fromJson(payload, allowLeaseFields = true)
+        val content = EntitlementContent.fromJson(payload, 1, allowLeaseFields = true)
         listOf(content.canonical, content.contentHash, content.snapshotVersion) shouldBe
             listOf(g("contentCanonical"), g("contentHash"), "es1:${g("merchantId")}:7")
         val incoming = IncomingSnapshot(
@@ -41,5 +42,29 @@ class EntitlementContractGoldenSpec : FunSpec({
         incoming.lease!!.leaseUntil.toString() shouldBe "2026-10-09T02:01:05Z"
         content.sites.associate { it.siteId to (it.lifecycle to it.reviewStatus) }.values.toSet() shouldBe
             setOf(Lifecycle.ACTIVE to SiteReviewStatus.APPROVED, Lifecycle.ACTIVE to SiteReviewStatus.PENDING)
+    }
+
+    // MASTER-SNAPSHOT-002: schemaVersion 2 golden(MASTER 시험 자원과 같은 파일, harness 독립 생성). 값은 Demo.
+    val v2 = mapper.readTree(ClassPathResource("contracts/entitlement-snapshot-v2.golden.json").inputStream)
+    fun g2(name: String): String = v2.get(name).stringValue()
+    val body2 = g2("envelopeBody").toByteArray()
+
+    test("the v2 golden envelope verifies, declares schemaVersion 2, and PAYMENT re-derives its canonical content and hash including the terms") {
+        val settings = EntitlementInboxSettings(listOf(EntitlementInboxSettings.SigningKey(g2("signingKeyId"), g2("signingKeyBase64"))))
+        EntitlementSignature.verify(settings, g2("signatureHeader"), body2) shouldBe true
+        val envelope = mapper.readTree(body2)
+        envelope.get("schemaVersion").intValue() shouldBe 2
+        val payload = WebJsonTree.toJsonValue(envelope.get("payload"))
+        val content = EntitlementContent.fromJson(payload, 2, allowLeaseFields = true)
+        listOf(content.canonical, content.contentHash, content.schemaVersion) shouldBe listOf(g2("contentCanonical"), g2("contentHash"), 2)
+        val terms = content.accounts.single().terms!!
+        listOf(
+            terms.limitPolicies.map { it.policyId }.toSet(), terms.policyAssignments.map { it.assignmentId }.toSet(),
+            terms.cardRoutes.single().acquirerCode, terms.cardRoutes.single().routeRef,
+        ) shouldBe listOf(
+            setOf(g2("limitDefaultId"), g2("limitOverrideId")), setOf(g2("feeAssignmentId"), g2("settlementAssignmentId")), "SIMCARD01", "SIM-VAN-01",
+        )
+        // v1 해석기로는 v2 내용을 받지 않는다(모르는 필드 거절 — 배포 순서 §5.4의 근거).
+        runCatching { EntitlementContent.fromJson(payload, 1, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class
     }
 })

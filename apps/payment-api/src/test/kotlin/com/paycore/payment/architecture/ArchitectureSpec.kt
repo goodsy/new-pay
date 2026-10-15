@@ -40,11 +40,28 @@ class ArchitectureSpec : FunSpec({
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().resideInAPackage("$BASE_PACKAGE.entitlement..")
             // review n-2: CreatePayment의 운영 Port 구현도 캐시하지 않는다(판정마다 entitlement 판정 → PAYMENT DB).
             .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementEligibilityAdapter")
+            // MASTER-SNAPSHOT-002: 승인 시작 허용 판정 Port 구현도 캐시하지 않는다(판정마다 head FOR SHARE).
+            .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementAuthorizationAdmissionAdapter")
             .should().dependOnClassesThat().resideInAnyPackage("org.springframework.cache..", "com.github.benmanes.caffeine..", "javax.cache..")
             .`as`("entitlement does not use Spring cache, Caffeine or JCache")
             .check(classes)
-        classes.filter { it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName == "EntitlementEligibilityAdapter" }
+        classes.filter {
+            it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName in setOf("EntitlementEligibilityAdapter", "EntitlementAuthorizationAdmissionAdapter")
+        }
             .flatMap { c -> c.methods.filter { m -> m.annotations.any { it.rawType.packageName.startsWith("org.springframework.cache") } } } shouldBe emptyList()
+    }
+
+    test("authorization admission (MASTER-SNAPSHOT-002 §6.1) is implemented only in adapter.integration and reads only entitlement.application.provided") {
+        val port = "$BASE_PACKAGE.payment.application.required.AuthorizationAdmissionPort"
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().implement(port)
+            .should().resideInAPackage("$BASE_PACKAGE.payment.adapter.integration..")
+            .check(classes)
+        classes.filter { c -> c.interfaces.any { it.name == port } }.map { it.simpleName } shouldBe listOf("EntitlementAuthorizationAdmissionAdapter")
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().implement(port)
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.entitlement.domain..", "$BASE_PACKAGE.entitlement.application.required..", "$BASE_PACKAGE.entitlement.adapter..",
+            )
+            .check(classes)
     }
 
     test("GENERATED_JOOQ_PACKAGE matches the build's generateJooqMain package") {

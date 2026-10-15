@@ -30,11 +30,12 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
     fun <T> root(block: (Connection) -> T): T = MasterDbAccounts.root(container).use(block)
 
     val businessTables = listOf(
-        "admin_request", "business", "contract", "contract_revision", "contract_revision_approval", "contract_revision_scope_site",
-        "contract_service_agreement", "currency_enablement", "currency_unit", "default_designation", "entitlement_snapshot_ack",
-        "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account", "merchant_account_site_assignment",
-        "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation", "payment_method_activation_event",
-        "site_activation_confirmation", "site_activation_confirmation_revocation",
+        "admin_request", "business", "card_route_activation", "card_route_activation_event", "contract", "contract_revision",
+        "contract_revision_approval", "contract_revision_scope_site", "contract_service_agreement", "currency_enablement", "currency_unit",
+        "default_designation", "entitlement_snapshot_ack", "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account",
+        "merchant_account_site_assignment", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
+        "payment_method_activation_event", "policy_assignment", "policy_version", "site_activation_confirmation",
+        "site_activation_confirmation_revocation", "transaction_limit_policy",
     )
 
     Given("the MASTER business schema (V1 + V3 MASTER-SNAPSHOT-001)") {
@@ -289,6 +290,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "merchant_site", "default_designation", "merchant_account_site_assignment", "master_change_history",
             "payment_method_activation_event", "site_activation_confirmation", "site_activation_confirmation_revocation",
             "merchant_site_review_decision", "entitlement_snapshot_issue", "entitlement_snapshot_ack",
+            // MASTER-SNAPSHOT-002 V6: 정책 버전 등록부·카드사 개통 이력.
+            "policy_version", "card_route_activation_event",
         )
 
         Then("UPDATE and locking reads on insert-only tables are denied (1142)") {
@@ -347,6 +350,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "merchant_site_review_decision" to "decided_by",
             "entitlement_snapshot_issue" to "priority",
             "entitlement_snapshot_ack" to "consumer",
+            "policy_version" to "registered_by",
+            "card_route_activation_event" to "actor_ref",
         )
 
         fun firstColumn(table: String): String = FIRST_COLUMNS.getValue(table)

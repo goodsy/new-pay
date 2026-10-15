@@ -57,7 +57,7 @@
       "env": {},
       "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture, SBOM gradle argv의 --no-build-cache/--rerun-tasks, SBOM 미재생성); module-registry(settings.gradle.kts 모듈 ↔ GRADLE-CHECK expectedReports/outputMustMatch·TEST-SUMMARY 경로·하한 일치·GRADLE-DEPS-<APP>·cve-scan MODULES·이 하한 = harness 시험 수)",
       "expectedReports": [],
-      "minTests": 71,
+      "minTests": 72,
       "sideEffects": "임시 디렉터리만 사용. -B로 __pycache__ 미생성",
       "countRegex": "^Ran (\\d+) tests?",
       "outputMustMatch": [

@@ -201,6 +201,9 @@ class MasterDatabaseAccountSpec(
         val MASTER_RUNTIME_TABLE_PRIVILEGES: Map<String, String> = linkedMapOf(
             "admin_request" to "SELECT, INSERT, UPDATE",
             "business" to "SELECT, INSERT, UPDATE",
+            // MASTER-SNAPSHOT-002 V6: 카드사 개통 상태 전이(UPDATE, @Version)·이력(append-only).
+            "card_route_activation" to "SELECT, INSERT, UPDATE",
+            "card_route_activation_event" to "SELECT, INSERT",
             "contract" to "SELECT, INSERT, UPDATE",
             "contract_revision" to "SELECT, INSERT",
             "contract_revision_approval" to "SELECT, INSERT",
@@ -223,8 +226,13 @@ class MasterDatabaseAccountSpec(
             // V4: 개통 상태 전이(D-MS-003) — 이전 기대값 SELECT, INSERT에서 검토된 확대.
             "payment_method_activation" to "SELECT, INSERT, UPDATE",
             "payment_method_activation_event" to "SELECT, INSERT",
+            // MASTER-SNAPSHOT-002 V6: 정책 Assignment 종료(UPDATE), 정책 버전 등록부 append-only.
+            "policy_assignment" to "SELECT, INSERT, UPDATE",
+            "policy_version" to "SELECT, INSERT",
             "site_activation_confirmation" to "SELECT, INSERT",
             "site_activation_confirmation_revocation" to "SELECT, INSERT",
+            // MASTER-SNAPSHOT-002 V6: 한도 정책 종료(UPDATE, 값 컬럼은 updatable=false).
+            "transaction_limit_policy" to "SELECT, INSERT, UPDATE",
         )
     }
 }

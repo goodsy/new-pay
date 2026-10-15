@@ -988,6 +988,102 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
       "appliedSpec": "D-AUTH-013",
       "origin": "AUTH-CONTRACT-001 수정 시도 3/3 구현자 질문 후보"
+    },
+    {
+      "id": "Q-MS2-01",
+      "status": "ANSWERED",
+      "question": "CSA 기본 한도와 MID Override가 동시에 유효할 때 적용 정책",
+      "recommended": "Override 우선·전체 대체",
+      "alternative": "(a) 둘 다 유효하면 차단 (b) 필드별 병합 (c) 작은 값 자동",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "Override 우선·전체 대체 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-MS2-001",
+      "origin": "MASTER-SNAPSHOT-002 1단계 명세 질문 후보 (docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md)"
+    },
+    {
+      "id": "Q-MS2-02",
+      "status": "ANSWERED",
+      "question": "한도 정책 효력 시작/종료 시각 경계",
+      "recommended": "Asia/Seoul 자정만 허용",
+      "alternative": "(a) 임의 시각 허용·그날 전체 사용량에 새 일 한도 (b) 정책 버전별 사용량 분리",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "Seoul 자정만 허용 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-MS2-002",
+      "origin": "MASTER-SNAPSHOT-002 1단계 명세 질문 후보 (docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md)"
+    },
+    {
+      "id": "Q-MS2-03",
+      "status": "ANSWERED",
+      "question": "수수료·정산 정책 버전의 이번 범위",
+      "recommended": "식별 등록부만(종류·코드·버전·상태·내용 hash 자리), 내용 모델은 SETTLEMENT-CONTRACT-001, 내용 없는 버전은 TEST/Simulator 전용·LIVE Gate 차단",
+      "alternative": "(a) 내용 모델까지 지금 구현 (b) Assignment 요구 생략(D-MD-018 위반)",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "식별 등록부만 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-MS2-003",
+      "origin": "MASTER-SNAPSHOT-002 1단계 명세 질문 후보 (docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md)"
+    },
+    {
+      "id": "Q-MS2-04",
+      "status": "ANSWERED",
+      "question": "카드사 개통 판정 키와 Route 단위",
+      "recommended": "매입사(acquirer) 코드 키, (MID, CARD, 매입사)당 종료 아닌 개통 1개 = Route 1개, 발급사 지원은 기관 프로파일 allowlist, 상태 전이는 D-MS-003",
+      "alternative": "(a) 발급사 키 (b) 결제창 cardCompany 키 (c) 카드사당 Route 여러 개+우선순위",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "매입사 코드 키 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-MS2-004",
+      "origin": "MASTER-SNAPSHOT-002 1단계 명세 질문 후보 (docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md)"
+    },
+    {
+      "id": "Q-MS2-05",
+      "status": "ANSWERED",
+      "question": "(보안) 기관 계약계정(기관 가맹점번호)의 Snapshot 전달",
+      "recommended": "HMAC 서명 채널로 전달, 내부 식별자 등급(로그·지표·응답·예외 원문 금지, 관리 조회는 권한+마스킹), Credential은 Secret 저장소만",
+      "alternative": "(a) PAYMENT 로컬 프로파일 (b) Secret 등급·참조만 전달",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "서명 채널로 전달·내부식별자 등급 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-MS2-005",
+      "origin": "MASTER-SNAPSHOT-002 1단계 명세 질문 후보 (docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md)"
+    },
+    {
+      "id": "Q-MS2-06",
+      "status": "ANSWERED",
+      "question": "신규 MID 당일 승인: 한도 정책 Seoul 자정 시작(D-MS2-002)+소급 금지로 첫 정책은 다음 날 0시부터 효력, 그 전 승인 시작 차단",
+      "recommended": "현행 유지(fail-closed), 운영 절차로 개통 전날까지 한도 정책 등록",
+      "alternative": "첫 정책에 한해 당일 KST 0시 소급 시작 허용",
+      "dependentTasks": [
+        "MASTER-SNAPSHOT-002",
+        "MASTER-LIFECYCLE-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "현행 유지·전날 등록 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-MS2-006",
+      "origin": "MASTER-SNAPSHOT-002 review round1 질문 후보"
     }
   ]
 }

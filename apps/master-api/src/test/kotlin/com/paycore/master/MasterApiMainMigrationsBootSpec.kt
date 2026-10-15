@@ -26,9 +26,9 @@ class MasterApiMainMigrationsBootSpec(
     private val container: MySQLContainer,
 ) : FunSpec({
 
-    test("only the production Flyway locations are applied (V1·V3 business schema, V2·V4 runtime table privileges)") {
+    test("only the production Flyway locations are applied (V1·V3·V5 business schema, V2·V4·V6 runtime table privileges)") {
         flyway.configuration.locations.map { it.descriptor } shouldBe listOf(MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES)
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4")
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6")
     }
 
     test("the runtime account (role-only, no database-level privilege) connects to the MASTER database and reads business tables") {

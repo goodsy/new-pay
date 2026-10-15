@@ -35,6 +35,10 @@ class MicrometerMasterOperationalMetrics(private val registry: MeterRegistry) : 
         registry.counter(HASH_DRIFT).increment()
     }
 
+    override fun schemaPromotion() {
+        registry.counter(SCHEMA_PROMOTIONS).increment()
+    }
+
     private fun adminFailure(kind: String, operation: String) {
         registry.counter(ADMIN_FAILURES, "kind", kind, "operation", operation).increment()
     }
@@ -44,10 +48,30 @@ class MicrometerMasterOperationalMetrics(private val registry: MeterRegistry) : 
         const val SNAPSHOTS_ISSUED = "paycore.master.entitlement.snapshots.issued"
         const val RELAY_RESULTS = "paycore.master.entitlement.relay.results"
         const val HASH_DRIFT = "paycore.master.entitlement.revision.hash.drift"
+        const val SCHEMA_PROMOTIONS = "paycore.master.entitlement.schema.promotions"
         const val PENDING = "paycore.master.entitlement.outbox.pending"
         const val OLDEST_PENDING_AGE = "paycore.master.entitlement.outbox.oldest.pending.age"
         const val QUARANTINED = "paycore.master.entitlement.outbox.quarantined"
         const val UNCONFIRMED = "paycore.master.entitlement.effect.unconfirmed"
+        const val TERMS_MISSING = "paycore.master.authorization.terms.missing"
+    }
+}
+
+/**
+ * 승인 시작 조건 누락 gauge(MASTER-SNAPSHOT-002 명세 §9): 통화 활성화가 있는데 한도 정책·수수료·정산 Assignment가 없는 (MID, 통화) 수, ACTIVE 수단 개통이
+ * 있는데 ACTIVE 카드사 개통이 없는 수. label은 누락 종류만(`kind`) — MID·통화 식별자 금지. 값은 조회 시점마다 jOOQ 조회로 계산한다(프로세스 상태 없음).
+ */
+@Component
+class AuthorizationTermsCoverageGauges(registry: MeterRegistry, private val query: com.paycore.master.merchant.application.provided.AuthorizationTermsCoverageQuery) {
+    init {
+        Gauge.builder(MicrometerMasterOperationalMetrics.TERMS_MISSING) { query.overview().enabledCurrenciesWithoutLimitPolicy.toDouble() }
+            .tag("kind", "LIMIT_POLICY").register(registry)
+        Gauge.builder(MicrometerMasterOperationalMetrics.TERMS_MISSING) { query.overview().enabledCurrenciesWithoutFeeAssignment.toDouble() }
+            .tag("kind", "FEE_ASSIGNMENT").register(registry)
+        Gauge.builder(MicrometerMasterOperationalMetrics.TERMS_MISSING) { query.overview().enabledCurrenciesWithoutSettlementAssignment.toDouble() }
+            .tag("kind", "SETTLEMENT_ASSIGNMENT").register(registry)
+        Gauge.builder(MicrometerMasterOperationalMetrics.TERMS_MISSING) { query.overview().activeMethodsWithoutCardRoute.toDouble() }
+            .tag("kind", "CARD_ROUTE").register(registry)
     }
 }
 

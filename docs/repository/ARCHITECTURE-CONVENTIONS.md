@@ -288,3 +288,19 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 | 시험 | Named Fixture `AuthorizationFixture`(Payment 고정 입력에서 세션 바인딩·한도 점유가 나옴, Demo 값), Kotest BehaviorSpec. Fixture Monkey 미사용(핵심 규칙은 명시 Fixture) | Test Fixture Policy |
 
 JPA와의 연결(AUTH-001에서 할 일, 2단계 변경에는 JPA 코드 없음): **역할** — `PaymentAuthorization`의 Attempt·관찰·거래는 별도 Entity로 adapter가 INSERT하고 관찰은 `@Immutable` insert-only. **예** — 전송 게이트(TXd)의 `beginDispatch`와 회복의 `abandonBeforeDispatch(FENCED_BY_RECOVERY)`는 같은 Authorization 행의 `@Version` 조건부 갱신이라 동시에 이길 수 없다(먼저 커밋한 쪽만 성공, 진 전송자는 소켓을 열지 않음). **이유** — "전송 전 실패 확정"을 DB가 증명하고, cascade·orphanRemoval이 append-only 사실을 지우는 경로가 없다. **주의** — domain 객체는 JPA가 추적하지 않으므로 Mapper가 상태·목록(append-only)·version을 함께 옮기고, 일 한도 사용량 행은 `PESSIMISTIC_WRITE`로 잡아 합계 불변식을 지킨다(낙관적 version만으로는 서로 다른 Authorization 사이 합계를 못 지킨다). Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).
+
+## 13. 승인 시작 조건 전파 (MASTER-SNAPSHOT-002)
+
+가역적인 구현 관례다. 업무 규칙은 D-AUTH-006·007, D-MD-017·018, D-MS2-001~005이며 명세는 `docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md`.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 전파 방식 | 같은 Merchant 권리 Snapshot의 schemaVersion 2(별도 stream 없음). 스키마 승격은 갱신 재발행이 아니라 revision +1 승격 발행 | 부분 전파·INTEGRITY_CONFLICT 오탐 방지(명세 §4.2·§5.2) |
+| 배포 순서 | PAYMENT(v1·v2 해석) 먼저, MASTER(v2 조립) 나중 | 역순이면 v2 UNSUPPORTED로 head가 막힌다(명세 §5.4) |
+| MASTER 모듈 | 기존 `merchant` 모듈(같은 merchant 잠금·같은 조립 TX). 정책 버전 등록부만 전역(revision 없음) | 직렬화 지점 = Merchant 행 |
+| 판정 위치 | PAYMENT entitlement domain `AuthorizationTermsEvaluator`(A0~A4). payment 모듈은 `AuthorizationAdmissionPort`(required) → `EntitlementAuthorizationAdmissionAdapter`(integration) → entitlement provided만 | Modulith 공개 범위, 판정 규칙 한 곳 |
+| 근거 고정 | `pa1:fee=<pas>/<pv>;stl=<pas>/<pv>`, routeRef, 한도 정책 행 ID(= 버전), `es1:<merchant>:<revision>` | domain 타입 변경 없이 Authorization에 고정 |
+| 내부 식별자 | 기관 계약계정은 값 객체·Entry·Terms의 toString에서 가린다. 통합 이벤트 payload 제외, 감사 이력에만 | D-MS2-005 |
+| jOOQ 시각 바인딩 | 저장 UTC 벽시계와 비교할 때는 `CAST('yyyy-MM-dd HH:mm:ss.SSS' AS DATETIME(3))` 리터럴(LocalDateTime 바인딩은 JVM 기본 시간대 영향) | 실행 RED(명세 §16.2-8) |
+
+JPA와의 연결(이번 변경): **역할** — `TransactionLimitPolicy`·`PolicyAssignment`·`CardRouteActivation`·`PolicyVersion`은 순수 domain이고 `Jpa*Entity`·`AuthorizationTermsMapper`가 adapter.persistence에만 있다. **예** — 한도 정책 종료는 잠가 읽은(`lockRow` = `FOR UPDATE`) Entity의 `effectiveTo`·`endedAt`·`endedBy`만 바꾸면 flush 때 `UPDATE … WHERE version = ?`(변경 감지 + `@Version`)가 나가고, 범위·값 컬럼은 `updatable = false`라 SQL에 들어가지 않는다. 카드사 개통 전이도 같은 방식이며 이력은 `@Immutable` insert-only Entity로 persist만 한다. **이유** — 같은 수준 중첩·소급·자정 경계 같은 규칙을 Spring 없이 단위 시험하고, DB는 생성 컬럼 UNIQUE·CHECK·복합 FK로 이중 방어한다. **주의** — Mapper가 저장 version을 domain과 함께 옮겨(Versioned) stale 객체가 최신 행을 덮지 않게 하고, 명령은 merchant 잠금 뒤 `lockedNow()`로 판정한다. 조립은 같은 영속성 컨텍스트에서 JPQL(FlushMode AUTO)로 읽어 방금 쓴 행이 Snapshot에 실린다 — flush는 커밋이 아니므로 뒤 단계 실패 시 정책·issue·Outbox가 함께 rollback된다(장애 주입 시험). Kafka/Redis는 이 정합성을 대신하지 않는다(ADR-001).

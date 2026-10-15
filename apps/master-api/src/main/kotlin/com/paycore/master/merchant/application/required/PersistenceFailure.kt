@@ -36,6 +36,13 @@ enum class StoreConstraint(val businessKey: Boolean) {
     CONFIRMATION_REVOCATION(true),
     ENTITLEMENT_ISSUE(true),
     SITE_CONFIRMATION(true),
+
+    // MASTER-SNAPSHOT-002: 열린 정책·Assignment·카드사 개통 하나, 정책 버전 번호, 개통 이력 순번.
+    LIMIT_POLICY_OPEN(true),
+    POLICY_VERSION_NO(true),
+    POLICY_ASSIGNMENT_OPEN(true),
+    CARD_ROUTE_OPEN(true),
+    CARD_ROUTE_EVENT(true),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

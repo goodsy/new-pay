@@ -21,6 +21,24 @@ import com.paycore.master.merchant.application.provided.EnableCurrencyCommand
 import com.paycore.master.merchant.application.provided.EndCurrencyEnablementCommand
 import com.paycore.master.merchant.application.provided.EntitlementLeaseUseCase
 import com.paycore.master.merchant.application.provided.MerchantEntitlementUseCase
+import com.paycore.master.merchant.application.provided.ApproveCardRouteActivationCommand
+import com.paycore.master.merchant.application.provided.AssignPolicyCommand
+import com.paycore.master.merchant.application.provided.EndPolicyAssignmentCommand
+import com.paycore.master.merchant.application.provided.EndTransactionLimitPolicyCommand
+import com.paycore.master.merchant.application.provided.MerchantAuthorizationTermsUseCase
+import com.paycore.master.merchant.application.provided.RegisterPolicyVersionCommand
+import com.paycore.master.merchant.application.provided.ReplacePolicyAssignmentCommand
+import com.paycore.master.merchant.application.provided.ReplaceTransactionLimitPolicyCommand
+import com.paycore.master.merchant.application.provided.ResumeCardRouteActivationCommand
+import com.paycore.master.merchant.application.provided.SuspendCardRouteActivationCommand
+import com.paycore.master.merchant.application.provided.TerminateCardRouteActivationCommand
+import com.paycore.master.merchant.domain.CardRouteActivationId
+import com.paycore.master.merchant.domain.LimitValue
+import com.paycore.master.merchant.domain.PolicyAssignmentId
+import com.paycore.master.merchant.domain.PolicyContentStatus
+import com.paycore.master.merchant.domain.PolicyKind
+import com.paycore.master.merchant.domain.PolicyVersionId
+import com.paycore.master.merchant.domain.TransactionLimitPolicyId
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
@@ -59,6 +77,7 @@ import java.time.Duration
 class EntitlementRevisionMatrixSpec(
     private val onboarding: MerchantOnboardingUseCase,
     private val entitlement: MerchantEntitlementUseCase,
+    private val terms: MerchantAuthorizationTermsUseCase,
     private val leases: EntitlementLeaseUseCase,
     private val sources: EntitlementSourceStore,
     private val transactionManager: PlatformTransactionManager,
@@ -125,6 +144,47 @@ class EntitlementRevisionMatrixSpec(
             step("DecideSiteReview") {
                 entitlement.decideSiteReview(DecideSiteReviewCommand(request(), e.siteId, SiteReviewStatus.SUSPENDED, reason, null))
             }
+            // MASTER-SNAPSHOT-002: 승인 시작 조건 명령(정책 버전 등록은 Assignment가 가리키기 전에는 조립 내용에 영향이 없다 — 위반 판정이 그것을 본다).
+            var feeVersion: PolicyVersionId? = null
+            step("RegisterPolicyVersion") {
+                terms.registerPolicyVersion(RegisterPolicyVersionCommand(request(), PolicyKind.FEE_SCHEDULE, AuthorizationTermsCommandFixture.code("FEE"), PolicyContentStatus.DEMO, null, reason))
+                    .also { feeVersion = PolicyVersionId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            var assignment: PolicyAssignmentId? = null
+            step("AssignPolicy") {
+                terms.assignPolicy(AssignPolicyCommand(request(), e.mid, e.ready.agreementId, CurrencyCode("KRW"), checkNotNull(feeVersion), EffectivePeriod(OnboardingFixture.t0), reason))
+                    .also { assignment = PolicyAssignmentId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            var replacementVersion: PolicyVersionId? = null
+            step("RegisterPolicyVersion#2") {
+                terms.registerPolicyVersion(RegisterPolicyVersionCommand(request(), PolicyKind.FEE_SCHEDULE, AuthorizationTermsCommandFixture.code("FEE"), PolicyContentStatus.DEMO, null, reason))
+                    .also { replacementVersion = PolicyVersionId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            step("ReplacePolicyAssignment") {
+                terms.replacePolicyAssignment(ReplacePolicyAssignmentCommand(request(), checkNotNull(assignment), checkNotNull(replacementVersion), OnboardingFixture.t0.plusSeconds(60), reason))
+                    .also { assignment = PolicyAssignmentId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            step("EndPolicyAssignment") { terms.endPolicyAssignment(EndPolicyAssignmentCommand(request(), checkNotNull(assignment), OnboardingFixture.t0.plusSeconds(120))) }
+            var limit: TransactionLimitPolicyId? = null
+            step("RegisterTransactionLimitPolicy") {
+                terms.registerTransactionLimitPolicy(AuthorizationTermsCommandFixture.csaDefault(e)).also { limit = TransactionLimitPolicyId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            step("ReplaceTransactionLimitPolicy") {
+                terms.replaceTransactionLimitPolicy(
+                    ReplaceTransactionLimitPolicyCommand(request(), checkNotNull(limit), LimitValue.Unlimited, LimitValue.Unlimited, AuthorizationTermsCommandFixture.midnight2, reason),
+                ).also { limit = TransactionLimitPolicyId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            step("EndTransactionLimitPolicy") {
+                terms.endTransactionLimitPolicy(EndTransactionLimitPolicyCommand(request(), checkNotNull(limit), AuthorizationTermsCommandFixture.midnight2.plusSeconds(86_400)))
+            }
+            var route: CardRouteActivationId? = null
+            step("RegisterCardRouteActivation") {
+                terms.registerCardRouteActivation(AuthorizationTermsCommandFixture.route(e)).also { route = CardRouteActivationId((it as AdminCommandResult.Succeeded).reference) }
+            }
+            step("ApproveCardRouteActivation") { terms.approveCardRouteActivation(ApproveCardRouteActivationCommand(request(), checkNotNull(route), evidence)) }
+            step("SuspendCardRouteActivation") { terms.suspendCardRouteActivation(SuspendCardRouteActivationCommand(request(), checkNotNull(route), reason)) }
+            step("ResumeCardRouteActivation") { terms.resumeCardRouteActivation(ResumeCardRouteActivationCommand(request(), checkNotNull(route), newEvidence)) }
+            step("TerminateCardRouteActivation") { terms.terminateCardRouteActivation(TerminateCardRouteActivationCommand(request(), checkNotNull(route), reason)) }
             violations shouldBe emptyList()
         }
 

@@ -103,7 +103,7 @@ class JpaEntitlementProjectionStore(
 
     override fun findSnapshot(merchantId: String, revision: Long): EntitlementContent? = translate("entitlement_snapshot") {
         val row = entityManager.find(JpaEntitlementSnapshotEntity::class.java, SnapshotKey.of(merchantId, revision)) ?: return@translate null
-        val content = EntitlementContent.fromJson(JacksonTree.toJsonValue(mapper.readTree(row.payload)), allowLeaseFields = false)
+        val content = EntitlementContent.fromJson(JacksonTree.toJsonValue(mapper.readTree(row.payload)), row.schemaVersion, allowLeaseFields = false)
         check(content.merchantId == merchantId && content.revision == revision) { "stored snapshot must be the requested revision" }
         check(content.contentHash == row.contentHash) { "stored snapshot content does not match its content hash" }
         content

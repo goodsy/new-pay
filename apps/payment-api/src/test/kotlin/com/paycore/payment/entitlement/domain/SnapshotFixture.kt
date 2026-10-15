@@ -65,14 +65,68 @@ object SnapshotFixture {
     fun leaseAt(issuedAt: Instant = t0, seq: Long = 0, duration: Duration = lease) = Lease(issuedAt, seq, issuedAt.plus(duration))
 
     fun incoming(content: EntitlementContent, lease: Lease = leaseAt(), eventId: String = UUID.randomUUID().toString()) =
-        IncomingSnapshot(eventId, content.merchantId, content.revision, SUPPORTED_SNAPSHOT_SCHEMA_VERSION, content, content.contentHash, lease)
+        IncomingSnapshot(eventId, content.merchantId, content.revision, content.schemaVersion, content, content.contentHash, lease)
+
+    /** PAYMENT가 해석하지 않는 schemaVersion(지원 집합 {1, 2} 밖 — MASTER-SNAPSHOT-002 이후 첫 미지원 값은 3). */
+    const val UNSUPPORTED_SCHEMA_VERSION: Int = 3
 
     fun unsupported(merchantId: String, revision: Long, eventId: String = UUID.randomUUID().toString()) =
-        IncomingSnapshot(eventId, merchantId, revision, SUPPORTED_SNAPSHOT_SCHEMA_VERSION + 1, null, null, null)
+        IncomingSnapshot(eventId, merchantId, revision, UNSUPPORTED_SCHEMA_VERSION, null, null, null)
 
     /** [content]를 적용한 head(빈 head에 APPLIED). */
     fun headOf(content: EntitlementContent, lease: Lease = leaseAt()): EntitlementHead =
         checkNotNull(SnapshotApplicationRule.decide(EntitlementHead.empty(content.merchantId), incoming(content, lease)).newHead)
 
     fun question(ids: Ids, site: String = ids.siteId, method: String = "CARD", currency: String = "KRW") = EligibilityQuestion(ids.mid, site, method, currency)
+
+    // ── MASTER-SNAPSHOT-002 승인 시작 조건(schemaVersion 2). 값은 Demo — 운영값 아님. ─────────────────────────────
+
+    /** Seoul 자정 경계(UTC 15:00) — t0(2026-10-09T02:00Z = 11:00 KST) 다음 자정과 그다음 자정. */
+    val seoulMidnight1: Instant = Instant.parse("2026-10-09T15:00:00.000Z")
+    val seoulMidnight2: Instant = Instant.parse("2026-10-10T15:00:00.000Z")
+
+    const val ACQUIRER = "SIMCARD01"
+    const val ROUTE_REF = "SIM-VAN-01"
+    const val INSTITUTION_REF = "SIMMERCH0001"
+
+    data class TermsIds(val csaDefault: String, val feeAssignment: String, val settlementAssignment: String, val feeVersion: String, val settlementVersion: String, val route: String)
+
+    fun termsIds() = TermsIds("tlp_${ulid()}", "pas_${ulid()}", "pas_${ulid()}", "pv_${ulid()}", "pv_${ulid()}", "cra_${ulid()}")
+
+    /** Demo CSA 기본 한도(KRW 건당 1,000,000 / 일 5,000,000) — t0부터(시험 편의상 경계 규칙은 MASTER 등록이 강제, 여기서는 구간만). */
+    fun csaDefault(ids: Ids, policyId: String, from: Instant = t0, to: Instant? = null, perTx: LimitBoundEntry = LimitBoundEntry.Limited(1_000_000), daily: LimitBoundEntry = LimitBoundEntry.Limited(5_000_000)) =
+        LimitPolicyEntry(policyId, LimitScopeKind.CSA_DEFAULT, ids.agreementId, "KRW", perTx, daily, Interval(from, to))
+
+    fun midOverride(policyId: String, from: Instant, to: Instant? = null, perTx: LimitBoundEntry = LimitBoundEntry.Limited(300_000), daily: LimitBoundEntry = LimitBoundEntry.Unlimited) =
+        LimitPolicyEntry(policyId, LimitScopeKind.MID_OVERRIDE, null, "KRW", perTx, daily, Interval(from, to))
+
+    fun assignment(ids: Ids, assignmentId: String, kind: PolicyKind, versionId: String, from: Instant = t0, to: Instant? = null) = PolicyAssignmentEntry(
+        assignmentId, kind, ids.agreementId, "KRW", versionId, if (kind == PolicyKind.FEE_SCHEDULE) "FEE-DEMO" else "STL-DEMO", 1, PolicyContentStatus.DEMO, Interval(from, to),
+    )
+
+    fun route(activationId: String, status: ActivationStatus = ActivationStatus.ACTIVE, acquirer: String = ACQUIRER) =
+        CardRouteEntry(activationId, "CARD", acquirer, ROUTE_REF, INSTITUTION_REF, status)
+
+    /** 승인 시작 가능한 v2 내용: [entitled] + CSA 기본 한도 1개 + 수수료·정산 Assignment + ACTIVE 카드사 개통 1개. */
+    fun entitledWithTerms(ids: Ids = ids(), terms: TermsIds = termsIds(), revision: Long = 1, from: Instant = t0): EntitlementContent =
+        entitled(ids, revision, from).let { v1 ->
+            v1.copy(schemaVersion = TERMS_SNAPSHOT_SCHEMA_VERSION, accounts = v1.accounts.map { withTerms(it, ids, terms, from) })
+        }
+
+    private fun withTerms(account: AccountEntry, ids: Ids, terms: TermsIds, from: Instant) =
+            account.copy(
+                terms = AuthorizationTermsEntry(
+                    limitPolicies = listOf(csaDefault(ids, terms.csaDefault, from)),
+                    policyAssignments = listOf(
+                        assignment(ids, terms.feeAssignment, PolicyKind.FEE_SCHEDULE, terms.feeVersion, from),
+                        assignment(ids, terms.settlementAssignment, PolicyKind.SETTLEMENT_POLICY, terms.settlementVersion, from),
+                    ),
+                    cardRoutes = listOf(route(terms.route)),
+                ),
+            )
+
+    fun EntitlementContent.mapTerms(change: (AuthorizationTermsEntry) -> AuthorizationTermsEntry) =
+        mapAccount { it.copy(terms = change(checkNotNull(it.terms))) }
+
+    fun termsQuestion(ids: Ids, acquirer: String = ACQUIRER, currency: String = "KRW") = AuthorizationTermsQuestion(ids.mid, ids.siteId, "CARD", currency, acquirer)
 }

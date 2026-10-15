@@ -16,7 +16,7 @@ class EntitlementContentSpec : FunSpec({
 
     test("the canonical JSON re-parses to the same content and the same content hash (round trip)") {
         val content = entitled()
-        val parsed = EntitlementContent.fromJson(MiniJson.parse(content.canonical), allowLeaseFields = false)
+        val parsed = EntitlementContent.fromJson(MiniJson.parse(content.canonical), 1, allowLeaseFields = false)
         // 정규 JSON은 배열을 식별자 순으로 정렬한다 — 목록 순서가 아니라 정규 내용·hash로 비교한다.
         parsed.canonical shouldBe content.canonical
         parsed.contentHash shouldBe content.contentHash
@@ -29,7 +29,7 @@ class EntitlementContentSpec : FunSpec({
             canonical.replaceFirst("\"merchantId\"", "\"extra\":1,\"merchantId\""),
             canonical.replace(".000Z", "Z"),
             canonical.replaceFirst("\"APPROVED\"", "\"MAYBE\""),
-        ).forEach { variant -> shouldThrow<SnapshotContractViolation> { EntitlementContent.fromJson(MiniJson.parse(variant), allowLeaseFields = false) } }
+        ).forEach { variant -> shouldThrow<SnapshotContractViolation> { EntitlementContent.fromJson(MiniJson.parse(variant), 1, allowLeaseFields = false) } }
     }
 
     test("an incoming snapshot whose declared hash differs from the content, or whose aggregate differs, is rejected") {

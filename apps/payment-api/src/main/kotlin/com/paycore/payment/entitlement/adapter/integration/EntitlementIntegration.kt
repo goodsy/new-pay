@@ -51,10 +51,15 @@ class MicrometerEntitlementMetrics(private val registry: MeterRegistry) : Entitl
         registry.counter(ELIGIBILITY, "result", result, "reason", reason ?: "NONE").increment()
     }
 
+    override fun authorizationTerms(result: String, reason: String?) {
+        registry.counter(AUTHORIZATION_TERMS, "result", result, "reason", reason ?: "NONE").increment()
+    }
+
     companion object {
         const val INBOX_OUTCOMES = "paycore.payment.entitlement.inbox.outcomes"
         const val INBOX_REJECTED = "paycore.payment.entitlement.inbox.rejected"
         const val ELIGIBILITY = "paycore.payment.entitlement.eligibility"
+        const val AUTHORIZATION_TERMS = "paycore.payment.entitlement.authorization.terms"
         const val BLOCKED_HEADS = "paycore.payment.entitlement.heads.blocked"
         const val EXPIRED_HEADS = "paycore.payment.entitlement.heads.expired"
         const val MIN_LEASE_REMAINING = "paycore.payment.entitlement.lease.min.remaining"

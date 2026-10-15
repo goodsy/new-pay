@@ -21,6 +21,7 @@ import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.RelayEnvelope
 import com.paycore.master.merchant.application.required.RelayMarkResult
 import com.paycore.master.merchant.application.required.SnapshotAck
+import com.paycore.master.merchant.domain.ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION
 import com.paycore.master.merchant.domain.MerchantId
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -145,6 +146,7 @@ class EntitlementLeaseService(
     private val timing: EntitlementTiming,
     private val clock: MasterClock,
     private val ids: MasterIdGenerator,
+    private val metrics: MasterOperationalMetrics,
 ) : EntitlementLeaseUseCase {
 
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
@@ -169,11 +171,26 @@ class EntitlementLeaseService(
     }
 
     private fun renew(merchantId: MerchantId): Boolean {
-        val merchant = merchants.lock(merchantId)?.value ?: return false
+        val locked = merchants.lock(merchantId) ?: return false
+        val merchant = locked.value
         val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
         val latest = issues.latest(merchantId)
         if (latest != null && !latest.leaseUntil.isBefore(now.plus(timing.renewBefore))) return false
         val correlation = "lease-renewal-" + ids.newUuid()
+        if (latest != null && latest.schemaVersion < ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION) {
+            // MASTER-SNAPSHOT-002 §5.2 스키마 승격: 같은 revision을 새 버전 내용으로 다시 내면 PAYMENT가 같은 revision·다른 hash(INTEGRITY_CONFLICT)로
+            // 막는다. 그래서 같은 merchant 잠금 TX에서 revision을 올려 변경 발행(HIGH, leaseSeq 0)으로 낸다 — 정상 경로를 차단으로 만들지 않는다.
+            merchant.recordEntitlementChange()
+            merchants.update(merchant, locked.version)
+            val published = publisher.publishChange(merchant, now, correlation, correlation) != null
+            // 지표·로그는 발행 기록이 같은 TX에 써진 뒤에만(그 전 단계 실패는 rollback되고 승격으로 세지 않는다 — review round1 m-1).
+            metrics.schemaPromotion()
+            log.info(
+                "entitlement snapshot schema promotion merchantId={} fromSchema={} toSchema={} revision={}",
+                merchantId.value, latest.schemaVersion, ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION, merchant.entitlementRevision,
+            )
+            return published
+        }
         return publisher.publishRenewal(merchant, latest, now, correlation, correlation) != null
     }
 

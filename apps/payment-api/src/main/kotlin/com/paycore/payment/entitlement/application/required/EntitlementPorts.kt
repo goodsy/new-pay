@@ -74,6 +74,9 @@ interface EntitlementMetrics {
     fun inboxRejected(kind: String)
 
     fun eligibility(result: String, reason: String?)
+
+    /** 승인 시작 허용 판정 결과(MASTER-SNAPSHOT-002). label은 결과·reason 분류만. */
+    fun authorizationTerms(result: String, reason: String?)
 }
 
 /** 신선도 조회(jOOQ adapter.query). */

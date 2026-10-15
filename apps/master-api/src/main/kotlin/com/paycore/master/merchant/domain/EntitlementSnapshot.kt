@@ -10,15 +10,18 @@ import java.util.HexFormat
 
 /*
  * 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3). Merchant 하나의 **전체 권리 상태**를 버전(entitlement_revision)·lease와 함께 PAYMENT에 보낸다.
- * 통합 계약 schemaVersion 1이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
+ * 통합 계약 schemaVersion 2(1 + 승인 시작 조건, MASTER-SNAPSHOT-002)이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
  *
  * 내용(content)은 **MASTER 원본 상태만의 함수**다: 발행 시각으로 지난 구간을 걸러내지 않는다(명세 §3.1 "to > issuedAt만" 문구와의 편차 —
  * 걸러내면 같은 revision의 lease 갱신이 다른 내용·다른 contentHash가 되어 PAYMENT가 INTEGRITY_CONFLICT로 막는다). 시각 경계 변화(n-5)는
  * 절대 시각 구간을 그대로 싣고 PAYMENT가 판정 시각으로 계산한다.
  */
 
-/** Snapshot 통합 계약 버전(봉투 schemaVersion). PAYMENT는 이 값만 해석한다. */
-const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 1
+/**
+ * Snapshot 통합 계약 버전(봉투 schemaVersion). 2 = 1 + 승인 시작 조건(MASTER-SNAPSHOT-002 명세 §4: `accounts[].limitPolicies·policyAssignments·
+ * cardRoutes`). MASTER는 현재 버전만 조립한다. PAYMENT는 1·2를 해석한다(배포 순서: PAYMENT 먼저 — 명세 §5.4).
+ */
+const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 2
 
 /** 발행 우선순위(명세 §3.4-1): revision이 바뀐 발행(변경)은 HIGH, 같은 revision의 lease 갱신은 LOW. 값은 Outbox priority 컬럼(큰 값 먼저). */
 enum class SnapshotPriority(val value: Int) { LOW(0), HIGH(10) }
@@ -54,6 +57,47 @@ data class SiteConfirmationState(val siteId: MerchantSiteId, val paymentMethod: 
 
 data class CurrencyState(val currency: CurrencyCode, val minorUnit: Int, val from: Instant, val to: Instant?)
 
+/** 한도 정책 한 건(명세 §4.1). [agreementId]는 CSA_DEFAULT에만(= 발급 CSA), MID_OVERRIDE는 null. */
+data class LimitPolicyState(
+    val policyId: TransactionLimitPolicyId,
+    val scope: LimitScopeKind,
+    val agreementId: ContractServiceAgreementId?,
+    val currency: CurrencyCode,
+    val perTransaction: LimitValue,
+    val daily: LimitValue,
+    val from: Instant,
+    val to: Instant?,
+) {
+    init {
+        require((scope == LimitScopeKind.CSA_DEFAULT) == (agreementId != null)) { "only a CSA default carries its agreement" }
+        require(to == null || to.isAfter(from)) { "limit policy must end after it starts" }
+    }
+}
+
+/** 정책 Assignment 한 건(대상 정책 버전의 식별 정보 포함, 명세 §4.1). */
+data class PolicyAssignmentState(
+    val assignmentId: PolicyAssignmentId,
+    val kind: PolicyKind,
+    val agreementId: ContractServiceAgreementId,
+    val currency: CurrencyCode,
+    val policyVersionId: PolicyVersionId,
+    val policyCode: PolicyCode,
+    val versionNo: Int,
+    val contentStatus: PolicyContentStatus,
+    val from: Instant,
+    val to: Instant?,
+)
+
+/** 종료 아닌 카드사(매입사) 개통 한 건(명세 §4.1, D-MS2-004·005). */
+data class CardRouteState(
+    val activationId: CardRouteActivationId,
+    val paymentMethod: PaymentMethod,
+    val acquirerCode: AcquirerCode,
+    val routeRef: RouteRef,
+    val institutionMerchantRef: InstitutionMerchantRef,
+    val status: ActivationStatus,
+)
+
 data class AccountState(
     val mid: MerchantAccountId,
     val lifecycle: Lifecycle,
@@ -65,6 +109,9 @@ data class AccountState(
     val activations: List<ActivationState>,
     val siteConfirmations: List<SiteConfirmationState>,
     val currencies: List<CurrencyState>,
+    val limitPolicies: List<LimitPolicyState>,
+    val policyAssignments: List<PolicyAssignmentState>,
+    val cardRoutes: List<CardRouteState>,
 )
 
 /** 한 번의 Snapshot 발행. [revision] ≥ 1, lease는 `issuedAt < leaseUntil`. */
@@ -138,9 +185,33 @@ data class EntitlementSnapshot(
                 "currencies" to a.currencies.sortedWith(compareBy({ it.currency.value }, { it.from })).map {
                     mapOf("currency" to it.currency.value, "minorUnit" to it.minorUnit, "from" to it.from, "to" to it.to)
                 },
+                "limitPolicies" to a.limitPolicies.sortedBy { it.policyId.value }.map {
+                    mapOf(
+                        "policyId" to it.policyId.value, "scope" to it.scope.name, "agreementId" to it.agreementId?.value, "currency" to it.currency.value,
+                        "perTransaction" to limitMap(it.perTransaction), "daily" to limitMap(it.daily), "from" to it.from, "to" to it.to,
+                    )
+                },
+                "policyAssignments" to a.policyAssignments.sortedBy { it.assignmentId.value }.map {
+                    mapOf(
+                        "assignmentId" to it.assignmentId.value, "kind" to it.kind.name, "agreementId" to it.agreementId.value,
+                        "currency" to it.currency.value, "policyVersionId" to it.policyVersionId.value, "policyCode" to it.policyCode.value,
+                        "versionNo" to it.versionNo, "contentStatus" to it.contentStatus.name, "from" to it.from, "to" to it.to,
+                    )
+                },
+                "cardRoutes" to a.cardRoutes.sortedBy { it.activationId.value }.map {
+                    mapOf(
+                        "activationId" to it.activationId.value, "paymentMethod" to it.paymentMethod.name, "acquirerCode" to it.acquirerCode.value,
+                        "routeRef" to it.routeRef.value, "institutionMerchantRef" to it.institutionMerchantRef.value, "status" to it.status.name,
+                    )
+                },
             )
         },
     )
+
+    private fun limitMap(v: LimitValue): Map<String, Any?> = when (v) {
+        LimitValue.Unlimited -> mapOf("kind" to "UNLIMITED", "amountMinor" to null)
+        is LimitValue.Limited -> mapOf("kind" to "LIMITED", "amountMinor" to v.amountMinor)
+    }
 
     companion object {
         fun contentHashOf(canonicalContent: String): String {
@@ -240,6 +311,10 @@ data class EntitlementSource(
     val accounts: List<AccountSource>,
 )
 
+/**
+ * MID 하나의 조립 입력. 승인 시작 조건(MASTER-SNAPSHOT-002): [limitPolicies] = 그 Merchant의 한도 정책 전체(조립이 발급 CSA 기본 + 이 MID
+ * Override만 고른다), [policyAssignments] = 이 MID의 Assignment, [policyVersions] = 그 Assignment가 가리키는 버전, [cardRoutes] = 이 MID의 카드사 개통.
+ */
 data class AccountSource(
     val account: MerchantAccount,
     val issuingContract: Contract,
@@ -247,6 +322,10 @@ data class AccountSource(
     val activations: List<PaymentMethodActivation>,
     val confirmations: List<SiteActivationConfirmation>,
     val currencies: List<CurrencyEnablement>,
+    val limitPolicies: List<TransactionLimitPolicy> = emptyList(),
+    val policyAssignments: List<PolicyAssignment> = emptyList(),
+    val policyVersions: List<PolicyVersion> = emptyList(),
+    val cardRoutes: List<CardRouteActivation> = emptyList(),
 )
 
 /**
@@ -254,6 +333,8 @@ data class AccountSource(
  * - 개통: MID의 결제수단마다 TERMINATED가 아닌 Activation(하나 — DB UNIQUE). 없으면(전부 종료) 생략 → PAYMENT 미개통.
  * - Site 적용 확인: 그 현재 Activation에 묶이고 철회되지 않은 확인만(종료된 옛 Activation의 확인은 재개통에 이어지지 않는다).
  * - 차단 기록(D-MD-006)은 MASTER-LIFECYCLE-001 표가 생기기 전까지 false.
+ * - 한도 정책: 이 MID 발급 CSA의 CSA 기본 + 이 MID의 Override(지난 구간 포함 — 내용은 원본 상태만의 함수, MS1 §15-1). 해석(Override 우선)은 PAYMENT.
+ * - 카드사 개통: 종료 아닌 행만(종료 행은 판정에 쓸 일이 없다).
  */
 object EntitlementSnapshotAssembler {
     fun assemble(source: EntitlementSource, issuedAt: Instant, leaseSeq: Long, leaseDuration: Duration): EntitlementSnapshot {
@@ -296,6 +377,27 @@ object EntitlementSnapshotAssembler {
             siteConfirmations = a.confirmations.filter { it.isValid && it.activationId in currentIds }
                 .map { SiteConfirmationState(it.merchantSiteId, it.paymentMethod) }.distinct(),
             currencies = a.currencies.map { CurrencyState(it.unit.code, it.unit.minorUnit, it.period.from, it.period.to) },
+            limitPolicies = a.limitPolicies.filter {
+                when (val scope = it.scope) {
+                    is LimitScope.CsaDefault -> scope.agreementId == agreement.id
+                    is LimitScope.MidOverride -> scope.merchantAccountId == account.id
+                }
+            }.map {
+                LimitPolicyState(
+                    it.id, it.scope.kind, (it.scope as? LimitScope.CsaDefault)?.agreementId, it.currency, it.perTransaction, it.daily,
+                    it.period.from, it.period.to,
+                )
+            },
+            policyAssignments = a.policyAssignments.map { pa ->
+                require(pa.merchantAccountId == account.id && pa.agreementId == agreement.id) { "policy assignments must be of this MID and its issuing CSA" }
+                val version = checkNotNull(a.policyVersions.singleOrNull { it.id == pa.policyVersionId }) { "assigned policy version must be loaded" }
+                PolicyAssignmentState(
+                    pa.id, pa.kind, pa.agreementId, pa.currency, version.id, version.code, version.versionNo, version.contentStatus, pa.period.from, pa.period.to,
+                )
+            },
+            cardRoutes = a.cardRoutes.filter { it.merchantAccountId == account.id && !it.isTerminated }.map {
+                CardRouteState(it.id, it.paymentMethod, it.acquirerCode, it.routeRef, it.institutionMerchantRef, it.status)
+            },
         )
     }
 }

@@ -2060,7 +2060,8 @@
         "(AUTH-CONTRACT-001 review2 m-8·M-2 전제) hold 해제/승인 Use Case는 hold 대상 Payment에 Authorization이 있으면 반드시 함께 전달(시험 기준), 관찰 sourceResultId(같은 기관 결과의 식별자) 정의를 Adapter 계약으로 고정",
         "(AUTH-CONTRACT-001 review3 m-9, Outbox 구현 전 필수) AuthorizationIncidentDetected effect_key에 occurrence 포함, Authorized.incident 시 PaymentAuthorized + 사건 이벤트를 같은 TX에 append",
         "(AUTH-CONTRACT-001 review3 m-10·m-11, D-AUTH-013/010 문구 반영) REAL/DOUBLE 해제 뒤 같은 terms 재보고 NoChange, 해제 기록 중 REAL/DOUBLE 존재 시 FORCED→CONSUMED",
-        "(AUTH-CONTRACT-001 §19.9) incident_hold occurrence UNIQUE·해제 기록 표·FORCED/excess 컬럼·Store append-only 검사"
+        "(AUTH-CONTRACT-001 §19.9) incident_hold occurrence UNIQUE·해제 기록 표·FORCED/excess 컬럼·Store append-only 검사",
+        "(MASTER-SNAPSHOT-002 이관) Port evaluatedAt과 AuthorizationStart.at 같은 at 시험, Unavailable/Refused/LimitPolicyUnavailable HTTP 매핑, 전송 게이트 A0~A2 재판정, FORCED 재점유 초과 표시는 원 Authorization 고정 정책, Route 프로파일 등록부(모르는 routeRef fail-closed, Attempt에 institutionMerchantRef — D-MS2-005 마스킹)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -3797,74 +3798,176 @@
       "id": "MASTER-SNAPSHOT-002",
       "title": "권리 Snapshot에 승인 시작 조건 데이터(카드사/Route·정책 Assignment·수수료 정책 버전·TransactionLimitPolicy) 추가 전파",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "MASTER-SNAPSHOT-001",
         "AUTH-CONTRACT-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-MS2-01",
+        "Q-MS2-02",
+        "Q-MS2-03",
+        "Q-MS2-04",
+        "Q-MS2-05",
+        "Q-MS2-06"
+      ],
       "acceptanceCriteria": [
         "(D-AUTH-006) MASTER 버전 TransactionLimitPolicy(CSA 기본+MID Override, 효력 기간, 적용 1개) 원본·전파, 미전파/모호 시 승인 시작 fail-closed",
         "(AUTH-CONTRACT-001 §17-10) D-MD-017 Route, D-MD-018 정책 Assignment, 수수료 정책 버전 전파"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
-      "attempts": 0,
+      "allowedWritePaths": [
+        "docs/repository/**",
+        "apps/master-api/**",
+        "apps/payment-api/**",
+        "libs/**",
+        "harness/commands.json",
+        "harness/tests/**"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
+      "attempts": 1,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "fingerprint": "sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a",
+        "verifyGate": "build/harness-evidence/MASTER-SNAPSHOT-002-2026-10-15T152440Z.json",
+        "evidenceSha256": "a0a1c0386b939e5d8b1393ab8a110a9bc0a7af27eded3e5a577c2d840284eefe",
+        "verdict": "PASS",
+        "tests": {
+          "total": 1220,
+          "master-api": 314,
+          "payment-api": 739,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112
+        },
+        "harnessSelftest": "Ran 72 OK",
+        "at": "2026-10-15T15:37Z",
+        "specSha256": "b555e1fa4291345c613db54b7705d24062012948aa3879015ad07e0a89c7d458",
+        "depsCve": "GRADLE-DEPS x4 exit 0(4개 모듈 트리가 AUTH-CONTRACT-001 회차와 동일, 새 의존성 없음), CVE-SCAN PASS 0건·canary 검출 19:47–19:48Z, build/harness-evidence/MASTER-SNAPSHOT-002-2026-10-15T194656Z-supplementary/",
+        "runMode": "WSL 내부 setsid nohup … & disown(스크립트 파일 경유)",
+        "processDeviation": "test-first 아님(production 먼저 작성) → 변이 RED 8종(D-MS2-001·002, 승격, 수신 불변식, D-MS2-005, A0, A3, validUntil)으로 보완, 명세 §16.3",
+        "priorGate": "fd74b3fe… gate는 review1 보강 수정을 위해 중단(증거 미생성)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "한도 정책 불변 값·명시 무제한·minor 정수, Override 전체 대체(D-MS2-001), Seoul 자정 경계=D-AUTH-007 날짜(D-MS2-002, V5 CHECK), 승인 근거 버전 문자열 pa1 고정(AuthorizationTermsEvaluatorSpec·AuthorizationTermsSpec)"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "업무 행·이력·revision·issue(schema_version)·Outbox·요청 결과 단일 MASTER TX, 등록·Replace·카드사 개통·승격 분기 장애 주입 rollback 실 MySQL(MerchantAuthorizationTermsServiceSpec), PAYMENT 판정 MANDATORY TX"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "admin_request 같은 키 재요청, Inbox eventId v2 동시 8회 APPLIED 1·DUPLICATE 7(AuthorizationAdmissionSpec), 같은 revision 다른 hash INTEGRITY_CONFLICT"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "merchant FOR UPDATE 선잠금 + 열린 행 생성 컬럼 UNIQUE, 동시 승격 revision +1 한 번, Replace 동시 2, 개통 승인·정지 동시 6, 정책 버전 재시도 소진 TemporarilyUnavailable, head FOR SHARE ↔ Inbox FOR UPDATE 직렬화"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "v1 latest → lease 갱신 시 schemaVersion 2 승격 발행(revision +1 HIGH), 장애 뒤 다음 갱신 승격, 역순 배포 막힌 head는 같은 revision 재처리, 미전파·만료·v1 head는 TERMS_NOT_PROPAGATED fail-closed"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "jOOQ 누락 점검 조회(JooqAuthorizationTermsCoverageReader, 비권위)와 gauge, 차이 주입 시험(AuthorizationTermsCoverageQuerySpec)"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "master_change_history 이력·카드사 개통 event append-only, revision별 Snapshot 내용 보존, policy_version append-only @Immutable"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "schema.promotions·판정 counter(label 제한)·누락 gauge, D-MS2-005 기관 계약계정 로그/지표/응답/예외/통합 이벤트 비노출 로그 캡처 시험"
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-15 착수(사용자 '네'). 1단계: docs/repository/MASTER-SNAPSHOT-002-*.md 명세·질문 후보 → 사용자 결정 → 2단계 TDD",
+        "2026-10-15 1단계 명세 수신(cb35c66c9a95…, 477줄). Q-MS2-01~05 → D-MS2-001~005(모두 권장안). 도출 처리 확인: 기간 소급 금지(D-MD-005 유추), Assignment CSA=MID 발급 CSA, 전송 게이트는 카드사 개통만 재판정·한도/정책은 TX1 고정. 범위: schemaVersion 2 확장(별도 stream 기각), PAYMENT 새 migration 없음, MASTER V5/V6. harness/tests/** 허용 경로 추가(v2 golden). 검증 묶음 분할 제안은 단일 VERIFY-GATE로 유지",
+        "2026-10-16 review1 REVIEW_PASS(fd74b3fe…)이나 CLAUDE.md 실DB 경쟁·rollback 증거 요구로 m-1~m-3·n 보강 수정 시도 1/3 진행, 진행 중 VERIFY-GATE 중단(증거 미생성). test-first 아님 → 변이 RED 보완을 공정 편차로 수용. Q-MS2-06 → D-MS2-006(현행 유지). m-4 → 새 BACKLOG TZ-FIX-001",
+        "2026-10-16 DONE: VERIFY-GATE PASS 152440Z(1220 tests, SELFTEST 72) + GRADLE-DEPS x4·CVE-SCAN PASS on sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a, REVIEW_PASS round2 동일 fingerprint(수정 시도 1/3). nit n-a~n-c는 openItems 이월"
+      ],
+      "specification": {
+        "path": "docs/repository/MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md",
+        "sha256": "b555e1fa4291345c613db54b7705d24062012948aa3879015ad07e0a89c7d458",
+        "lines": 566
+      },
+      "reviewRounds": [
+        {
+          "round": 1,
+          "fingerprint": "sha256:fd74b3fee365edb549dbfed57279a29e5ed3ae8e70130c81d2cf835f882ebfc3",
+          "verdict": "REVIEW_PASS",
+          "findings": [
+            "m-1 승격 분기·카드사 개통·Replace rollback/동시 승격 시험 없음",
+            "m-2 v2 동시 재전송 8회·Replace 동시·개통 승인/정지 동시 시험 없음",
+            "m-3 정책 버전 등록 재시도 소진 동작 미시험(동시 4→2건 축소)",
+            "m-4 기존 JooqEntitlementPropagationReader·JooqEntitlementFreshnessReader LocalDateTime 바인딩 시간대 결함 후보(범위 밖 → TZ-FIX-001)",
+            "m-5 명세 hash 기록 낡음",
+            "n-1~n-7 KDoc 위치, 도달 불가 Ambiguous, 수신 자정 재검사, §3.5-3 문구, gauge 쿼리, 승격 지연 runbook, agreementId 편차",
+            "확인 요청: 기대값 변경은 완화 아님, 감사 이력 원문은 D-MS2-005 부합(관리 조회 마스킹 조건), 변이 RED는 보완 증거로 수용·공정 편차 기록"
+          ]
+        },
+        {
+          "round": 2,
+          "fingerprint": "sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a",
+          "verdict": "REVIEW_PASS",
+          "findings": [
+            "round1 m-1~m-3 해소(실 MySQL rollback 5·경쟁 4·재시도 소진 1), n-1·n-2·n-4·n-6·n-7 해소, 승격 지표 순서 변경 회귀 없음, D-MS2-006 코드 일치",
+            "m-5 명세 hash 갱신(DONE 시 b555e1fa… 566줄로 반영)",
+            "n-a 명세에 D-MS2-006 참조 없음, n-b 승격 지표가 커밋 전·published=false에도 증가, n-c §16.3 중복 문단, n-d 동시 시험 성공 수 1..2(타당)"
+          ]
+        }
+      ],
+      "openItems": [
+        "(review2 n-a) 명세 §3.1/§12.1에 D-MS2-006 참조 추가",
+        "(review2 n-b) 승격 지표: published=false 제외·커밋 뒤 기록 검토",
+        "(review2 n-c) 명세 §16.3 중복 문단 정리",
+        "(review1 n-3) PAYMENT 수신 시 Seoul 자정 경계 재검사(선택), (n-5) gauge scrape 쿼리 비용",
+        "(TZ-FIX-001) 기존 jOOQ reader 2곳 LocalDateTime 시간대 결함 후보",
+        "(MASTER-LIFECYCLE-001/internal-admin) 정책·한도·개통 관리 화면·2인 승인, 기관 계약계정 관리 조회 마스킹",
+        "(SETTLEMENT-CONTRACT-001) 정책 내용 모델·계산·FINANCIAL 전파",
+        "(LIVE Gate) 내용 없는 정책 버전·Simulator Route 차단, 환경별 Route 분리, 배포 순서 runbook(PAYMENT 먼저)·승격 지연, bootstrap 발행(MS1 n-7)",
+        "(운영) 같은 정책 코드 동시 대량 등록은 재시도 소진 시 TemporarilyUnavailable, 같은 키 재요청 안전(Coordinator 수용)"
+      ]
     },
     {
       "id": "WEBHOOK-001",
@@ -3948,6 +4051,78 @@
       "requiredQuestions": [],
       "acceptanceCriteria": [
         "(D-AUTH-003) 취소·부분취소는 각각 새 PaymentTransaction, 원승인 Snapshot 수수료/VAT, 취소 UNKNOWN 회복, 일 한도 미복원(D-AUTH-007)"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "TZ-FIX-001",
+      "title": "기존 jOOQ 조회의 LocalDateTime 바인딩 시간대 결함(JVM 기본 시간대 ≠ UTC) 수정",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-002"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "(MASTER-SNAPSHOT-002 review1 m-4) JooqEntitlementPropagationReader.overview(LEASE_UNTIL.gt(utc(now)))와 payment JooqEntitlementFreshnessReader의 LocalDateTime 바인딩을 JooqAuthorizationTermsCoverageReader와 같은 UTC 리터럴 방식 또는 공통 helper로 통일",
+        "비UTC JVM 기본 시간대(Asia/Seoul)에서 실패하는 시험을 먼저 추가(RED) 후 수정"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

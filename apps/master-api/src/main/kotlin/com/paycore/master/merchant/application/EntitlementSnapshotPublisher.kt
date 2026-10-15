@@ -67,6 +67,7 @@ class EntitlementSnapshotPublisher(
             leaseUntil = snapshot.leaseUntil,
             priority = priority,
             eventId = ids.newUuid(),
+            schemaVersion = ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION,
         )
         issues.record(
             SnapshotPublication(

@@ -44,8 +44,8 @@ class MasterApiContextSmokeSpec(
         )
         flyway.info().pending().size shouldBe 0
         // 운영 V1(업무 schema)·V2(runtime 표 단위 권한, MASTER-DOMAIN-001)·V3(권리 Snapshot 표)·V4(그 권한, MASTER-SNAPSHOT-001)
-        // + 시험 전용 V900(probe)·V901(probe runtime 권한).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "900", "901")
+        // + V5(승인 시작 조건 표)·V6(그 권한, MASTER-SNAPSHOT-002) + 시험 전용 V900(probe)·V901(probe runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
@@ -78,6 +78,8 @@ class MasterApiContextSmokeSpec(
             // MASTER-SNAPSHOT-001
             "JpaActivationEventEntity", "JpaSiteActivationConfirmationEntity", "JpaConfirmationRevocationEntity", "JpaCurrencyUnitEntity",
             "JpaCurrencyEnablementEntity", "JpaSiteReviewDecisionEntity", "JpaSnapshotIssueEntity", "JpaSnapshotAckEntity",
+            // MASTER-SNAPSHOT-002
+            "JpaTransactionLimitPolicyEntity", "JpaPolicyVersionEntity", "JpaPolicyAssignmentEntity", "JpaCardRouteActivationEntity", "JpaCardRouteEventEntity",
         )
     }
 }

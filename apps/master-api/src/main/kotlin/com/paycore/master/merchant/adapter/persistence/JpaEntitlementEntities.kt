@@ -504,6 +504,11 @@ class JpaSnapshotIssueEntity protected constructor() {
     lateinit var outboxEventId: String
         protected set
 
+    /** MASTER-SNAPSHOT-002 §5.2: 이 발행의 Snapshot schemaVersion. */
+    @field:Column(name = "schema_version", nullable = false, updatable = false)
+    var schemaVersion: Int = 0
+        protected set
+
     override fun equals(other: Any?): Boolean =
         this === other || (other != null && Hibernate.getClass(this) == Hibernate.getClass(other) && key == (other as JpaSnapshotIssueEntity).key)
 
@@ -513,7 +518,7 @@ class JpaSnapshotIssueEntity protected constructor() {
 
     companion object {
         @Suppress("LongParameterList")
-        fun newRow(key: SnapshotIssueKey, contentHash: String, issuedAt: Instant, leaseUntil: Instant, priority: String, eventId: String) =
+        fun newRow(key: SnapshotIssueKey, contentHash: String, issuedAt: Instant, leaseUntil: Instant, priority: String, eventId: String, schemaVersion: Int) =
             JpaSnapshotIssueEntity().also {
                 it.key = key
                 it.contentHash = contentHash
@@ -521,6 +526,7 @@ class JpaSnapshotIssueEntity protected constructor() {
                 it.leaseUntil = leaseUntil
                 it.priority = priority
                 it.outboxEventId = eventId
+                it.schemaVersion = schemaVersion
             }
     }
 }

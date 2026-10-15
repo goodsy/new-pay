@@ -138,8 +138,9 @@ class EntitlementInboxSpec(
             val ids = SnapshotFixture.ids()
             val r1 = SnapshotFixture.entitled(ids, revision = 1)
             ok(send(mvc, body(r1, SnapshotFixture.leaseAt(T0))))
-            val v2 = envelope(UUID.randomUUID().toString(), 2, ids.merchantId, 2, """{"futureField":true}""")
-            ok(send(mvc, v2, signature(v2))) shouldBe ("UNSUPPORTED" to 1L)
+            // MASTER-SNAPSHOT-002: 2는 이제 지원 버전이다 — 미지원(더 새) 버전의 대표 값은 지원 집합 밖 첫 값(3).
+            val future = envelope(UUID.randomUUID().toString(), SnapshotFixture.UNSUPPORTED_SCHEMA_VERSION, ids.merchantId, 2, """{"futureField":true}""")
+            ok(send(mvc, future, signature(future))) shouldBe ("UNSUPPORTED" to 1L)
             stored(ids.merchantId).blocked shouldBe "VERSION_UNSUPPORTED"
             db.withApp { c -> with(db) { c.scalar("SELECT JSON_EXTRACT(payload, '$.payload.futureField') FROM inbox_event WHERE aggregate_id = ? AND outcome = 'UNSUPPORTED'", ids.merchantId) } }
                 .toString() shouldBe "true"

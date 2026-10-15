@@ -60,7 +60,7 @@ object EntitlementEvaluator {
     ): EntitlementDecision {
         require(!skew.isNegative) { "clock skew margin must not be negative" }
         if (head == null || head.isEmpty) return EntitlementDecision.Unavailable(UnavailableReason.SNAPSHOT_MISSING)
-        if (head.blocked != null || head.schemaVersion != SUPPORTED_SNAPSHOT_SCHEMA_VERSION) {
+        if (head.blocked != null || !isSupportedSnapshotSchema(head.schemaVersion)) {
             return EntitlementDecision.Unavailable(UnavailableReason.VERSION_UNSUPPORTED)
         }
         val leaseLimit = checkNotNull(head.lease).leaseUntil.minus(skew)

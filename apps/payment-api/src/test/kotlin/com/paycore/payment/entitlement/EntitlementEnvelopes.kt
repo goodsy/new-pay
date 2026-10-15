@@ -32,7 +32,7 @@ object EntitlementEnvelopes {
             mapper.readValue(content.canonical, Map::class.java).entries.associate { (k, v) -> k as String to v } +
                 mapOf("contentHash" to contentHash, "issuedAt" to lease.issuedAt, "leaseSeq" to lease.leaseSeq, "leaseUntil" to lease.leaseUntil),
         )
-        return envelope(eventId, 1, content.merchantId, content.revision, payload)
+        return envelope(eventId, content.schemaVersion, content.merchantId, content.revision, payload)
     }
 
     fun envelope(eventId: String, schemaVersion: Int, merchantId: String, revision: Long, payloadJson: String): ByteArray =

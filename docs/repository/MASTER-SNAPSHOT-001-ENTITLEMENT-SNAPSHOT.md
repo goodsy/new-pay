@@ -470,7 +470,7 @@ Coordinator 채택(2026-10-13, 질문으로 승격하지 않음): §4.3 통화 �
 1. **지급계좌 준비(허용 §4.1-10)**: **별도 작업 등록 권장**(예: MASTER-PAYOUT-ACCOUNT-001). 이유 — 신규 승인 전송 조건(§4.1)이지 CreatePayment eligibility(CP계약 §13 고정 reason)에 없는 항목이고, 계좌 정보는 민감정보 보관·마스킹·검증 방식의 보안 계약이 필요하며, "계좌 오류가 신규 승인까지 막는지 지급만 보류하는지"는 허용 §4.1-10이 별도 운영 정책으로 남겼다(그 작업 착수 시 질문). LIVE 허용 전 완료가 필요하다.
 2. 신규 결제 차단 기록·종료·PRIMARY 교체·ADDITIONAL 생성(다섯 조건 증거)·계약/CSA 철회·재활성화 — MASTER-LIFECYCLE-001. **그 작업 AC에 "권리 입력 변경 TX마다 entitlement_revision +1과 Snapshot 발행(§4.6)" 추가 필요**, PRIMARY 교체 시 새 PRIMARY의 Site 적용 확인이 없으면 결제 차단(D-MD-016 — 확인 기록 명령은 이 작업의 `ConfirmSiteActivation`).
 3. Credential(API 키) 긴급 차단 전파(R5 "키") — Credential 작업(미등록). 같은 우선 전파·ACK 경로 재사용 권장.
-4. 승인 전송 게이트 drain/fencing, 정책 Assignment(수수료·정산, (CSA, MID, 통화)) Snapshot 확장, 카드사/Route 사용 가능 목록 — AUTH-001/AUTH-CONTRACT-001/정책 작업.
+4. 승인 전송 게이트 drain/fencing, 정책 Assignment(수수료·정산, (CSA, MID, 통화)) Snapshot 확장, 카드사/Route 사용 가능 목록 — AUTH-001/AUTH-CONTRACT-001/정책 작업. **(이관 표시 2026-10-15)** 정책 Assignment·카드사/Route·거래 한도 Snapshot 확장은 MASTER-SNAPSHOT-002(schemaVersion 2)가 구현했다 — `MASTER-SNAPSHOT-002-APPROVAL-CONDITION-SNAPSHOT.md`. 전송 게이트 drain/fencing은 AUTH-001에 남는다.
 5. 운영 화면(전파 상태·격리 재처리 명령) — Q-ADMIN-AUTH 후.
 6. PAYMENT DB 복원 시 복원 시점의 유효 lease로 옛 권리가 허용될 위험 — 복원 runbook에 "모든 head lease 만료 처리 명령" 추가 권장(A06 복원 절차, 후속 작업).
 7. inbox·revision별 snapshot·issue·ack 보존 기간과 삭제 Job — 보존 정책 결정 시(지금은 삭제 경로 없음).

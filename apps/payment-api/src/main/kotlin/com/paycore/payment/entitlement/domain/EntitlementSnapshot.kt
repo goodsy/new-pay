@@ -9,12 +9,20 @@ import java.time.format.DateTimeParseException
 import java.util.HexFormat
 
 /*
- * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1)을 PAYMENT 자체 타입으로 해석한다 —
+ * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1·2 — MASTER-SNAPSHOT-002)을 PAYMENT 자체 타입으로 해석한다 —
  * MASTER 코드에 의존하지 않는다(앱 간 직접 의존 금지, 계약 일치는 golden 시험 S7). PAYMENT는 이 투영을 원본으로 취급하지 않는다(판정 입력).
  */
 
-/** 해석하는 Snapshot 계약 버전. 다른 버전은 원문만 보존하고 판정에 쓰지 않는다(fail-closed, 명세 §3.5). */
-const val SUPPORTED_SNAPSHOT_SCHEMA_VERSION: Int = 1
+/**
+ * 해석하는 Snapshot 계약 버전. 1 = 권리(MASTER-SNAPSHOT-001), 2 = 1 + 승인 시작 조건(MASTER-SNAPSHOT-002 명세 §4). 다른 버전은 원문만 보존하고
+ * 판정에 쓰지 않는다(fail-closed, 명세 §3.5). v1 head로는 결제 생성 판정만 하고 승인 시작은 TERMS_NOT_PROPAGATED(fail-closed).
+ */
+val SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS: Set<Int> = setOf(1, 2)
+
+/** 승인 시작 조건을 싣는 첫 schemaVersion. */
+const val TERMS_SNAPSHOT_SCHEMA_VERSION: Int = 2
+
+fun isSupportedSnapshotSchema(schemaVersion: Int?): Boolean = schemaVersion in SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS
 
 /** 계약 위반(구조·값 형식·hash 불일치). 수신 adapter는 4xx로 거절하고 저장하지 않는다(MASTER는 격리). 메시지에 입력값을 넣지 않는다. */
 class SnapshotContractViolation(message: String) : RuntimeException(message, null, false, false)
@@ -36,6 +44,8 @@ data class Interval(val from: Instant, val to: Instant?) {
     }
 
     fun contains(at: Instant): Boolean = !at.isBefore(from) && (to == null || at.isBefore(to))
+
+    fun overlaps(other: Interval): Boolean = (other.to == null || from.isBefore(other.to)) && (to == null || other.from.isBefore(to))
 }
 
 data class AssignmentEntry(val assignmentId: String, val siteId: String, val role: AssignmentRole, val status: AssignmentStatus, val period: Interval)
@@ -57,6 +67,77 @@ data class CurrencyEntry(val currency: String, val minorUnit: Int, val period: I
     }
 }
 
+/** 한도 값(명시 무제한만 무제한, D-AUTH-006). */
+sealed interface LimitBoundEntry {
+    data object Unlimited : LimitBoundEntry
+
+    data class Limited(val amountMinor: Long) : LimitBoundEntry {
+        init {
+            if (amountMinor < 0) throw SnapshotContractViolation("limit amount must not be negative")
+        }
+    }
+}
+
+enum class LimitScopeKind { CSA_DEFAULT, MID_OVERRIDE }
+
+/** 한도 정책 한 건(MASTER 원본 행 = 버전). [agreementId]는 CSA_DEFAULT에만. */
+data class LimitPolicyEntry(
+    val policyId: String,
+    val scope: LimitScopeKind,
+    val agreementId: String?,
+    val currency: String,
+    val perTransaction: LimitBoundEntry,
+    val daily: LimitBoundEntry,
+    val period: Interval,
+) {
+    init {
+        if ((scope == LimitScopeKind.CSA_DEFAULT) != (agreementId != null)) throw SnapshotContractViolation("only a CSA default carries its agreement")
+    }
+}
+
+enum class PolicyKind { FEE_SCHEDULE, SETTLEMENT_POLICY }
+
+/** 정책 내용 상태(D-MS2-003). 둘 다 "내용 없는 버전"(TEST/Simulator 전용, LIVE Gate 차단 대상). */
+enum class PolicyContentStatus { UNDEFINED, DEMO }
+
+data class PolicyAssignmentEntry(
+    val assignmentId: String,
+    val kind: PolicyKind,
+    val agreementId: String,
+    val currency: String,
+    val policyVersionId: String,
+    val policyCode: String,
+    val versionNo: Long,
+    val contentStatus: PolicyContentStatus,
+    val period: Interval,
+) {
+    init {
+        if (versionNo < 1) throw SnapshotContractViolation("policy version numbers start at 1")
+    }
+}
+
+/**
+ * 카드사(매입사) 개통 한 건(D-MS2-004). [institutionMerchantRef]는 내부 식별자 등급(D-MS2-005) — [toString]에 원문을 넣지 않는다(로그·예외에 새지 않게).
+ */
+data class CardRouteEntry(
+    val activationId: String,
+    val paymentMethod: String,
+    val acquirerCode: String,
+    val routeRef: String,
+    val institutionMerchantRef: String,
+    val status: ActivationStatus,
+) {
+    override fun toString(): String =
+        "CardRouteEntry(activationId=$activationId, paymentMethod=$paymentMethod, acquirerCode=$acquirerCode, routeRef=$routeRef, status=$status)"
+}
+
+/** schemaVersion 2의 MID별 승인 시작 조건(MASTER-SNAPSHOT-002 §4.1). */
+data class AuthorizationTermsEntry(
+    val limitPolicies: List<LimitPolicyEntry>,
+    val policyAssignments: List<PolicyAssignmentEntry>,
+    val cardRoutes: List<CardRouteEntry>,
+)
+
 data class AccountEntry(
     val mid: String,
     val lifecycle: Lifecycle,
@@ -68,7 +149,43 @@ data class AccountEntry(
     val activations: List<ActivationEntry>,
     val siteConfirmations: List<SiteConfirmationEntry>,
     val currencies: List<CurrencyEntry>,
-)
+    /** schemaVersion 2에서만 있다(1이면 null — 승인 시작 조건 미전파). */
+    val terms: AuthorizationTermsEntry? = null,
+) {
+    init {
+        terms?.let { checkTerms(it) }
+    }
+
+    /**
+     * 수신 구조 불변식(명세 §4.1 — MASTER 결과를 믿지 않고 다시 확인, 위반은 4xx·저장 없음): 같은 (범위, 대상, 통화) 한도 구간 중첩 없음, CSA 기본의
+     * CSA = 발급 CSA, 같은 (종류, 통화) Assignment 중첩 없음·CSA = 발급 CSA, 같은 (수단, 매입사) 카드사 개통 하나, 식별자 유일.
+     */
+    private fun checkTerms(t: AuthorizationTermsEntry) {
+        if (t.limitPolicies.map { it.policyId }.toSet().size != t.limitPolicies.size) throw SnapshotContractViolation("limit policy ids are unique")
+        t.limitPolicies.forEach { p ->
+            if (p.scope == LimitScopeKind.CSA_DEFAULT && p.agreementId != issuingAgreementId) {
+                throw SnapshotContractViolation("a CSA default limit belongs to the issuing agreement")
+            }
+        }
+        t.limitPolicies.groupBy { it.scope to it.currency }.values.forEach { same ->
+            if (overlapping(same.map { it.period })) throw SnapshotContractViolation("limit policies of the same level overlap")
+        }
+        if (t.policyAssignments.map { it.assignmentId }.toSet().size != t.policyAssignments.size) throw SnapshotContractViolation("assignment ids are unique")
+        if (t.policyAssignments.any { it.agreementId != issuingAgreementId }) throw SnapshotContractViolation("policy assignments belong to the issuing agreement")
+        t.policyAssignments.groupBy { it.kind to it.currency }.values.forEach { same ->
+            if (overlapping(same.map { it.period })) throw SnapshotContractViolation("policy assignments of the same kind overlap")
+        }
+        if (t.cardRoutes.map { it.activationId }.toSet().size != t.cardRoutes.size) throw SnapshotContractViolation("card route ids are unique")
+        if (t.cardRoutes.map { it.paymentMethod to it.acquirerCode }.toSet().size != t.cardRoutes.size) {
+            throw SnapshotContractViolation("one card route per method and acquirer")
+        }
+        if (t.cardRoutes.any { it.status == ActivationStatus.TERMINATED }) throw SnapshotContractViolation("terminated card routes are not carried")
+    }
+
+    private fun overlapping(periods: List<Interval>): Boolean = periods.indices.any { i ->
+        (i + 1 until periods.size).any { j -> periods[i].overlaps(periods[j]) }
+    }
+}
 
 /** lease 필드(전송 payload에만 있고 정규 내용·contentHash에는 없다). */
 data class Lease(val issuedAt: Instant, val leaseSeq: Long, val leaseUntil: Instant) {
@@ -79,7 +196,7 @@ data class Lease(val issuedAt: Instant, val leaseSeq: Long, val leaseUntil: Inst
 }
 
 /**
- * 권리 내용(schemaVersion 1). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
+ * 권리 내용(schemaVersion 1·2, 2는 MID별 승인 시작 조건 [AccountEntry.terms] 포함). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
  * 구성 시 구조 불변식(revision ≥ 1, MID 1개 이상, 식별자 유일)을 검사한다.
  */
 data class EntitlementContent(
@@ -89,8 +206,14 @@ data class EntitlementContent(
     val party: Party,
     val sites: List<SiteEntry>,
     val accounts: List<AccountEntry>,
+    /** 이 내용의 계약 버전(1 또는 2). 2이면 모든 MID에 승인 시작 조건이 있고, 1이면 없다. */
+    val schemaVersion: Int = 1,
 ) {
     init {
+        if (!isSupportedSnapshotSchema(schemaVersion)) throw SnapshotContractViolation("unsupported snapshot schema version")
+        if (accounts.any { (it.terms != null) != (schemaVersion >= TERMS_SNAPSHOT_SCHEMA_VERSION) }) {
+            throw SnapshotContractViolation("authorization terms are carried exactly from schema version 2")
+        }
         if (merchantId.isEmpty() || businessId.isEmpty()) throw SnapshotContractViolation("identifiers must not be empty")
         if (revision < 1) throw SnapshotContractViolation("revision starts at 1")
         if (accounts.isEmpty()) throw SnapshotContractViolation("a snapshot carries at least one MID")
@@ -122,7 +245,7 @@ data class EntitlementContent(
         ),
         "sites" to sites.sortedBy { it.siteId }.map { mapOf("siteId" to it.siteId, "lifecycle" to it.lifecycle.name, "reviewStatus" to it.reviewStatus.name) },
         "accounts" to accounts.sortedBy { it.mid }.map { a ->
-            mapOf(
+            mapOf<String, Any?>(
                 "mid" to a.mid,
                 "lifecycle" to a.lifecycle.name,
                 "blocked" to a.blocked,
@@ -144,19 +267,48 @@ data class EntitlementContent(
                 "currencies" to a.currencies.sortedWith(compareBy({ it.currency }, { it.period.from })).map {
                     mapOf("currency" to it.currency, "minorUnit" to it.minorUnit, "from" to it.period.from, "to" to it.period.to)
                 },
+            ) + (a.terms?.let(::termsMap) ?: emptyMap())
+        },
+    )
+
+    private fun termsMap(t: AuthorizationTermsEntry): Map<String, Any?> = mapOf(
+        "limitPolicies" to t.limitPolicies.sortedBy { it.policyId }.map {
+            mapOf(
+                "policyId" to it.policyId, "scope" to it.scope.name, "agreementId" to it.agreementId, "currency" to it.currency,
+                "perTransaction" to boundMap(it.perTransaction), "daily" to boundMap(it.daily), "from" to it.period.from, "to" to it.period.to,
+            )
+        },
+        "policyAssignments" to t.policyAssignments.sortedBy { it.assignmentId }.map {
+            mapOf(
+                "assignmentId" to it.assignmentId, "kind" to it.kind.name, "agreementId" to it.agreementId, "currency" to it.currency,
+                "policyVersionId" to it.policyVersionId, "policyCode" to it.policyCode, "versionNo" to it.versionNo,
+                "contentStatus" to it.contentStatus.name, "from" to it.period.from, "to" to it.period.to,
+            )
+        },
+        "cardRoutes" to t.cardRoutes.sortedBy { it.activationId }.map {
+            mapOf(
+                "activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "acquirerCode" to it.acquirerCode, "routeRef" to it.routeRef,
+                "institutionMerchantRef" to it.institutionMerchantRef, "status" to it.status.name,
             )
         },
     )
+
+    private fun boundMap(b: LimitBoundEntry): Map<String, Any?> = when (b) {
+        LimitBoundEntry.Unlimited -> mapOf("kind" to "UNLIMITED", "amountMinor" to null)
+        is LimitBoundEntry.Limited -> mapOf("kind" to "LIMITED", "amountMinor" to b.amountMinor)
+    }
 
     companion object {
         fun contentHashOf(canonical: String): String =
             "ec1:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(StandardCharsets.UTF_8)))
 
         /**
-         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 schemaVersion 1 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
-         * [SnapshotContractViolation]. 추가 필드는 무시하지 않고 거절한다 — 내용 hash가 우리가 모르는 필드를 덮지 않게(fail-closed).
+         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 [schemaVersion](1·2) 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
+         * [SnapshotContractViolation]. 추가 필드는 무시하지 않고 거절한다 — 내용 hash가 우리가 모르는 필드를 덮지 않게(fail-closed). v1 내용에 v2
+         * 필드가 있거나 v2 내용에 v2 필드가 없어도 계약 위반이다.
          */
-        fun fromJson(node: JsonValue, allowLeaseFields: Boolean): EntitlementContent {
+        fun fromJson(node: JsonValue, schemaVersion: Int, allowLeaseFields: Boolean): EntitlementContent {
+            if (!isSupportedSnapshotSchema(schemaVersion)) throw SnapshotContractViolation("unsupported snapshot schema version")
             val o = node.obj("snapshot")
             val known = CONTENT_KEYS + if (allowLeaseFields) LEASE_KEYS else emptySet()
             o.requireOnly(known, "snapshot")
@@ -174,7 +326,8 @@ data class EntitlementContent(
                         SiteEntry(it.string("siteId"), it.enum("lifecycle"), it.enum("reviewStatus"))
                     }
                 },
-                accounts = o.array("accounts").map { account(it.obj("account")) },
+                accounts = o.array("accounts").map { account(it.obj("account"), schemaVersion) },
+                schemaVersion = schemaVersion,
             )
         }
 
@@ -183,12 +336,15 @@ data class EntitlementContent(
             return Lease(o.instant("issuedAt"), o.long("leaseSeq"), o.instant("leaseUntil"))
         }
 
-        private fun account(a: JsonValue.JObject): AccountEntry {
-            a.requireOnly(
-                setOf("mid", "lifecycle", "blocked", "issuingAgreementId", "serviceKind", "assignments", "contractWindows", "activations",
-                    "siteConfirmations", "currencies"),
-                "account",
-            )
+        private val ACCOUNT_KEYS_V1 = setOf(
+            "mid", "lifecycle", "blocked", "issuingAgreementId", "serviceKind", "assignments", "contractWindows", "activations", "siteConfirmations",
+            "currencies",
+        )
+        private val TERMS_KEYS = setOf("limitPolicies", "policyAssignments", "cardRoutes")
+
+        private fun account(a: JsonValue.JObject, schemaVersion: Int): AccountEntry {
+            val withTerms = schemaVersion >= TERMS_SNAPSHOT_SCHEMA_VERSION
+            a.requireOnly(if (withTerms) ACCOUNT_KEYS_V1 + TERMS_KEYS else ACCOUNT_KEYS_V1, "account")
             return AccountEntry(
                 mid = a.string("mid"),
                 lifecycle = a.enum("lifecycle"),
@@ -228,7 +384,56 @@ data class EntitlementContent(
                         CurrencyEntry(it.string("currency"), minor.toInt(), Interval(it.instant("from"), it.instantOrNull("to")))
                     }
                 },
+                terms = if (withTerms) terms(a) else null,
             )
+        }
+
+        private fun terms(a: JsonValue.JObject) = AuthorizationTermsEntry(
+            limitPolicies = a.array("limitPolicies").map { v ->
+                v.obj("limitPolicy").let {
+                    it.requireOnly(setOf("policyId", "scope", "agreementId", "currency", "perTransaction", "daily", "from", "to"), "limitPolicy")
+                    LimitPolicyEntry(
+                        it.string("policyId"), it.enum("scope"), it.stringOrNull("agreementId"), currencyCode(it.string("currency")),
+                        bound(it.field("perTransaction").obj("perTransaction")), bound(it.field("daily").obj("daily")),
+                        Interval(it.instant("from"), it.instantOrNull("to")),
+                    )
+                }
+            },
+            policyAssignments = a.array("policyAssignments").map { v ->
+                v.obj("policyAssignment").let {
+                    it.requireOnly(
+                        setOf("assignmentId", "kind", "agreementId", "currency", "policyVersionId", "policyCode", "versionNo", "contentStatus", "from", "to"),
+                        "policyAssignment",
+                    )
+                    PolicyAssignmentEntry(
+                        it.string("assignmentId"), it.enum("kind"), it.string("agreementId"), currencyCode(it.string("currency")), it.string("policyVersionId"),
+                        it.string("policyCode"), it.long("versionNo"), it.enum("contentStatus"), Interval(it.instant("from"), it.instantOrNull("to")),
+                    )
+                }
+            },
+            cardRoutes = a.array("cardRoutes").map { v ->
+                v.obj("cardRoute").let {
+                    it.requireOnly(setOf("activationId", "paymentMethod", "acquirerCode", "routeRef", "institutionMerchantRef", "status"), "cardRoute")
+                    CardRouteEntry(
+                        it.string("activationId"), it.string("paymentMethod"), it.string("acquirerCode"), it.string("routeRef"),
+                        it.string("institutionMerchantRef"), it.enum("status"),
+                    )
+                }
+            },
+        )
+
+        private fun bound(o: JsonValue.JObject): LimitBoundEntry {
+            o.requireOnly(setOf("kind", "amountMinor"), "limit")
+            return when (o.string("kind")) {
+                "UNLIMITED" -> if (o.field("amountMinor") == JsonValue.JNull) LimitBoundEntry.Unlimited else throw SnapshotContractViolation("unlimited has no amount")
+                "LIMITED" -> LimitBoundEntry.Limited(o.long("amountMinor"))
+                else -> throw SnapshotContractViolation("limit kind has an unknown value")
+            }
+        }
+
+        private fun currencyCode(value: String): String {
+            if (value.length != 3 || !value.all { it in 'A'..'Z' }) throw SnapshotContractViolation("currency must be 3 upper-case letters")
+            return value
         }
 
         private val CONTENT_KEYS = setOf("merchantId", "businessId", "revision", "party", "sites", "accounts")
@@ -248,12 +453,12 @@ data class IncomingSnapshot(
 ) {
     init {
         if (revision < 1) throw SnapshotContractViolation("revision starts at 1")
-        val supported = schemaVersion == SUPPORTED_SNAPSHOT_SCHEMA_VERSION
+        val supported = isSupportedSnapshotSchema(schemaVersion)
         if (supported && (content == null || lease == null || declaredContentHash == null)) {
             throw SnapshotContractViolation("a supported snapshot carries content, lease and content hash")
         }
         if (content != null) {
-            if (content.merchantId != merchantId || content.revision != revision) {
+            if (content.merchantId != merchantId || content.revision != revision || content.schemaVersion != schemaVersion) {
                 throw SnapshotContractViolation("envelope aggregate does not match the snapshot")
             }
             if (content.contentHash != declaredContentHash) throw SnapshotContractViolation("content hash does not match the content")
@@ -285,6 +490,12 @@ private fun JsonValue.JObject.requireOnly(known: Set<String>, what: String) {
 
 private fun JsonValue.JObject.string(name: String): String =
     (field(name) as? JsonValue.JString)?.value?.takeIf { it.isNotEmpty() } ?: throw SnapshotContractViolation("$name must be a non-empty string")
+
+private fun JsonValue.JObject.stringOrNull(name: String): String? = when (val v = field(name)) {
+    JsonValue.JNull -> null
+    is JsonValue.JString -> v.value.takeIf { it.isNotEmpty() } ?: throw SnapshotContractViolation("$name must be a non-empty string or null")
+    else -> throw SnapshotContractViolation("$name must be a string or null")
+}
 
 private fun JsonValue.JObject.long(name: String): Long = (field(name) as? JsonValue.JNumber)?.value ?: throw SnapshotContractViolation("$name must be an integer")
 

@@ -83,7 +83,7 @@ internal object EntitlementPersistenceMapper {
 
     fun toIssue(row: JpaSnapshotIssueEntity) = SnapshotIssueRecord(
         MerchantId(row.key.merchantId), row.key.revision, row.key.leaseSeq, row.contentHash, row.issuedAt, row.leaseUntil,
-        SnapshotPriority.valueOf(row.priority), row.outboxEventId,
+        SnapshotPriority.valueOf(row.priority), row.outboxEventId, row.schemaVersion,
     )
 }
 
@@ -307,6 +307,10 @@ class JpaEntitlementSourceStore(
     private val activations: JpaPaymentMethodActivationStore,
     private val confirmations: JpaSiteActivationConfirmationStore,
     private val currencies: JpaCurrencyEnablementStore,
+    private val limits: JpaTransactionLimitPolicyStore,
+    private val policyAssignments: JpaPolicyAssignmentStore,
+    private val policyVersions: JpaPolicyVersionStore,
+    private val routes: JpaCardRouteActivationStore,
     private val entityManager: EntityManager,
 ) : EntitlementSourceStore {
 
@@ -321,6 +325,7 @@ class JpaEntitlementSourceStore(
         )
         val assignmentsByAccount = assignments.findByMerchant(merchantId.value).map(MasterPersistenceMapper::toAssignment)
             .groupBy { it.merchantAccountId }
+        val merchantLimits = limits.listByMerchant(merchantId)
         val reviewStatus = reviews.findByMerchant(merchantId.value).map(EntitlementPersistenceMapper::toDecision)
             .groupBy { it.merchantSiteId }.mapValues { (_, history) -> SiteReviewRules.currentStatus(history) }
         EntitlementSource(
@@ -329,6 +334,7 @@ class JpaEntitlementSourceStore(
             sites = sites.findByMerchant(merchantId.value).map(MasterPersistenceMapper::toSite),
             siteReviews = reviewStatus,
             accounts = accountRows.map(MasterPersistenceMapper::toAccount).map { account ->
+                val assigned = policyAssignments.listByAccount(account.id)
                 AccountSource(
                     account = account,
                     issuingContract = checkNotNull(contracts.find(account.issuingBasis.contractId)) { "issuing contract must exist" },
@@ -336,6 +342,10 @@ class JpaEntitlementSourceStore(
                     activations = activations.listByAccount(account.id),
                     confirmations = confirmations.listByAccount(account.id),
                     currencies = currencies.listByAccount(account.id),
+                    limitPolicies = merchantLimits,
+                    policyAssignments = assigned,
+                    policyVersions = policyVersions.findAll(assigned.map { it.policyVersionId }),
+                    cardRoutes = routes.listByAccount(account.id),
                 )
             },
         )
@@ -357,6 +367,7 @@ class JpaEntitlementIssueStore(private val issues: SnapshotIssueJpaRepository, p
 
     override fun record(publication: SnapshotPublication): Unit = translate(ENTITY) {
         val issue = publication.issue
+        require(issue.schemaVersion == publication.schemaVersion) { "the issue record and the outbox event carry the same schema version" }
         entityManager.persist(
             JpaOutboxEventEntity.pending(
                 eventId = issue.eventId,
@@ -379,7 +390,7 @@ class JpaEntitlementIssueStore(private val issues: SnapshotIssueJpaRepository, p
         entityManager.persist(
             JpaSnapshotIssueEntity.newRow(
                 SnapshotIssueKey.of(issue.merchantId.value, issue.revision, issue.leaseSeq), issue.contentHash, issue.issuedAt, issue.leaseUntil,
-                issue.priority.name, issue.eventId,
+                issue.priority.name, issue.eventId, publication.schemaVersion,
             ),
         )
         entityManager.flush()

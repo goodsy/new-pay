@@ -112,8 +112,9 @@ class EntitlementSchemaSpec(private val container: MySQLContainer) : BehaviorSpe
             runtime { c ->
                 val g = MasterSchemaRows.graph(c)
                 val issue =
-                    "INSERT INTO entitlement_snapshot_issue (merchant_id, revision, lease_seq, content_hash, issued_at, lease_until, priority, outbox_event_id) " +
-                        "VALUES (?, ?, 0, ?, '2026-10-09 00:00:00.000', ?, 'HIGH', ?)"
+                    // MASTER-SNAPSHOT-002 V5: schema_version은 기본값 없이 명시한다(발행 기록이 자기 Snapshot 버전을 남긴다).
+                    "INSERT INTO entitlement_snapshot_issue (merchant_id, revision, lease_seq, content_hash, issued_at, lease_until, priority, outbox_event_id, schema_version) " +
+                        "VALUES (?, ?, 0, ?, '2026-10-09 00:00:00.000', ?, 'HIGH', ?, 2)"
                 val hash = "ec1:" + "a".repeat(64)
                 val event = java.util.UUID.randomUUID().toString()
                 mapOf(
