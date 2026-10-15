@@ -169,6 +169,65 @@ class ArchitectureSpec : FunSpec({
         }
     }
 
+    test("authorization start is one domain operation with its attempt, session binding and limit reservation: main code reaches them only through AuthorizationStart (AUTH-CONTRACT-001 L-2/L-3)") {
+        val rule = controlStartAuthorizationOnlyThroughAuthorizationStart()
+        rule.check(classes)
+        // 실제 호출자가 있다(빈 대상 통과가 아님): AuthorizationStart가 네 연산을 모두 부른다.
+        val calls = classes.get("$BASE_PACKAGE.payment.domain.AuthorizationStart").accessesFromSelf
+            .map { it.target.owner.simpleName to kotlinSourceName(it.target.name) }.toSet()
+        calls.containsAll(
+            listOf("OrderPaymentControl" to "startAuthorization", "Companion" to "open", "AuthenticationSession" to "bindTo", "DailyLimitUsage" to "reserve"),
+        ) shouldBe true
+        // review m-4: 대상마다 위반 fixture 하나 — 각 fixture는 정확히 자기 대상 하나로 실패한다.
+        mapOf(
+            com.paycore.archfixture.startauth.DirectControlStartAuthorization::class.java to "$DOMAIN.OrderPaymentControl.startAuthorization",
+            com.paycore.archfixture.startauth.DirectAuthorizationOpen::class.java to "$DOMAIN.PaymentAuthorization\$Companion.open",
+            com.paycore.archfixture.startauth.DirectSessionBinding::class.java to "$DOMAIN.AuthenticationSession.bindTo",
+            com.paycore.archfixture.startauth.DirectLimitReservation::class.java to "$DOMAIN.DailyLimitUsage.reserve",
+        ).forEach { (fixture, target) ->
+            violationsOf(rule, "com.paycore.archfixture.startauth", fixture).let { details ->
+                details.size shouldBe 1
+                details.single() shouldContain fixture.simpleName
+                details.single() shouldContain target
+            }
+        }
+    }
+
+    test("result transitions (Payment markAuthorized/markUnknown/fail/expire/addTerminationEvidence, control completion, limit consume/release) are called only inside the domain (AUTH-CONTRACT-001 §17-4·5)") {
+        val rule = domainTransitionsOnlyInsideDomain()
+        rule.check(classes)
+        classes.get("$BASE_PACKAGE.payment.domain.AuthorizationResolution").accessesFromSelf
+            .any { it.target.owner.simpleName == "OrderPaymentControl" && kotlinSourceName(it.target.name) == "completeAuthorization" } shouldBe true
+        kotlinSourceName("reserve-jHxBwU8") shouldBe "reserve"
+        kotlinSourceName("markUnknown\$payment_api") shouldBe "markUnknown"
+        // review m-4: 대상 소유자별 fixture, 대상 메서드마다 위반 한 건이 보고되는지 확인한다(internal·value class 이름 변형 포함).
+        mapOf(
+            com.paycore.archfixture.transition.DirectPaymentTransitions::class.java to
+                listOf("markUnknown", "markAuthorized", "fail", "expire", "addTerminationEvidence").map { "$DOMAIN.Payment.$it" },
+            com.paycore.archfixture.transition.DirectControlTransitions::class.java to
+                listOf("recordAuthorized", "completeAuthorization", "releaseIncidentHold").map { "$DOMAIN.OrderPaymentControl.$it" },
+            com.paycore.archfixture.transition.DirectLimitTransitions::class.java to
+                listOf("consume", "release", "reoccupyAfterLateApproval", "settleForced").map { "$DOMAIN.DailyLimitUsage.$it" },
+            com.paycore.archfixture.transition.DirectAuthorizationTransitions::class.java to
+                listOf("recordObservation", "markUnknown", "authorize", "fail").map { "$DOMAIN.PaymentAuthorization.$it" } +
+                listOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve").map { "$DOMAIN.AuthorizationAttempt.$it" },
+        ).forEach { (fixture, targets) ->
+            val details = violationsOf(rule, "com.paycore.archfixture.transition", fixture)
+            details.size shouldBe targets.size
+            targets.forEach { target -> details.count { it.contains(target) && targetNameEnds(it, target) } shouldBe 1 }
+        }
+    }
+
+    test("institution (TCP) adapters do not depend on mutable domain aggregates or domain services (AUTH-CONTRACT-001 AC 3)") {
+        val rule = institutionAdapterDoesNotMutateDomain()
+        // 빈 대상: adapter.institution(또는 adapter.integration.institution)은 AUTH-001에서 생긴다. 규칙이 실제로 평가됨은 위반 fixture로 본다.
+        rule.allowEmptyShould(true).check(classes)
+        val fixture = com.paycore.archfixture.adapter.institution.InstitutionAdapterMutatingPayment::class.java
+        shouldThrow<AssertionError> {
+            rule.allowEmptyShould(false).check(fixtureClasses("com.paycore.archfixture.adapter.institution", fixture))
+        }.message shouldContain fixture.simpleName
+    }
+
     test("test-only fixture tooling (Fixture Monkey, Instancio) is not referenced from any production class (Test Fixture Policy)") {
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
             .should().dependOnClassesThat().resideInAnyPackage("com.navercorp.fixturemonkey..", "org.instancio..")
@@ -198,6 +257,104 @@ class ArchitectureSpec : FunSpec({
                     },
                 )
                 .`as`("only OrderPaymentControl calls or references Payment.startAuthorization (slot checks and the transition are one operation)")
+
+        const val DOMAIN = "$BASE_PACKAGE.payment.domain"
+
+        private fun accessTo(description: String, targets: Map<String, Set<String>>) =
+            object : com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<*>>(description) {
+                override fun test(access: com.tngtech.archunit.core.domain.JavaAccess<*>): Boolean =
+                    targets[access.target.owner.fullName]?.contains(kotlinSourceName(access.target.name)) == true
+            }
+
+        /**
+         * JVM 메서드 이름 → Kotlin 소스 이름. value class 인자를 받는 함수는 `name-<hash>`, `internal` 멤버는 `name$<module>`으로 바뀐다
+         * (예: `DailyLimitUsage.reserve(AuthorizationId, …)` → `reserve-jHxBwU8`). 정확한 이름만 비교하면 규칙이 위반을 놓친다.
+         */
+        fun kotlinSourceName(jvmName: String): String = jvmName.substringBefore('-').substringBefore('$')
+
+        /** 위반 fixture 하나를 규칙으로 평가해 위반 상세 줄들을 돌려준다(위반이 없으면 빈 목록). */
+        fun violationsOf(rule: com.tngtech.archunit.lang.ArchRule, pkg: String, fixture: Class<*>): List<String> =
+            rule.evaluate(fixtureClasses(pkg, fixture)).failureReport.details
+
+        /**
+         * 상세 줄에서 [target] 바로 뒤가 소스 이름의 끝(`(`·`-`·`$`)인지 — `Payment.fail`이 `Payment.failSomething`에, `release`가
+         * `releaseIncidentHold`에 맞지 않게 한다.
+         */
+        fun targetNameEnds(detail: String, target: String): Boolean {
+            var i = detail.indexOf(target)
+            while (i >= 0) {
+                val next = detail.getOrNull(i + target.length)
+                if (next == '(' || next == '-' || next == '$') return true
+                i = detail.indexOf(target, i + 1)
+            }
+            return false
+        }
+
+        /** 시험 소스 위반 fixture 하나(와 그 내부 클래스)만 import한다. */
+        fun fixtureClasses(pkg: String, fixture: Class<*>): com.tngtech.archunit.core.domain.JavaClasses =
+            ClassFileImporter().importPackages(pkg)
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("fixture ${fixture.simpleName}") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    c.name == fixture.name || c.name.startsWith(fixture.name + "$")
+                })
+
+        /**
+         * L-3 규칙(AUTH-CONTRACT-001 §4.2): Payment AUTHORIZING 전이(control.startAuthorization), Authorization 생성(Attempt PREPARED 포함),
+         * 인증 근거 귀속, 일 한도 점유는 `AuthorizationStart`만 부른다 — 한 domain 연산이어야 "AUTHORIZING이면 Attempt가 있다"가 성립한다.
+         * 호출과 메서드 참조 모두 접근 대상 규칙으로 본다.
+         */
+        fun controlStartAuthorizationOnlyThroughAuthorizationStart(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$DOMAIN.AuthorizationStart")
+                .should().accessTargetWhere(
+                    accessTo(
+                        "target is an authorization-start step",
+                        mapOf(
+                            "$DOMAIN.OrderPaymentControl" to setOf("startAuthorization"),
+                            "$DOMAIN.PaymentAuthorization" to setOf("open"),
+                            "$DOMAIN.PaymentAuthorization\$Companion" to setOf("open"),
+                            "$DOMAIN.AuthenticationSession" to setOf("bindTo"),
+                            "$DOMAIN.DailyLimitUsage" to setOf("reserve"),
+                        ),
+                    ),
+                )
+                .`as`("only AuthorizationStart starts an authorization (AUTHORIZING + attempt + session binding + limit reservation are one operation)")
+
+        /**
+         * 결과 전이는 domain 서비스(AuthorizationResolution·RequestedPaymentExpiry)와 Aggregate 안에서만 한다(§17-4·5): main 코드의 domain 밖
+         * 클래스는 아래 메서드를 호출·참조하지 않는다. 시험 소스는 대상이 아니다(DO_NOT_INCLUDE_TESTS — 상태 준비용 시험은 계속 쓸 수 있다).
+         */
+        fun domainTransitionsOnlyInsideDomain(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideOutsideOfPackage("$DOMAIN..")
+                .should().accessTargetWhere(
+                    accessTo(
+                        "target is a domain result transition",
+                        mapOf(
+                            "$DOMAIN.Payment" to setOf("markUnknown", "markAuthorized", "fail", "expire", "addTerminationEvidence"),
+                            "$DOMAIN.OrderPaymentControl" to setOf("recordAuthorized", "completeAuthorization", "releaseIncidentHold"),
+                            "$DOMAIN.DailyLimitUsage" to setOf("consume", "release", "reoccupyAfterLateApproval", "settleForced"),
+                            "$DOMAIN.PaymentAuthorization" to setOf("recordObservation", "markUnknown", "authorize", "fail"),
+                            "$DOMAIN.AuthorizationAttempt" to setOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve"),
+                        ),
+                    ),
+                )
+                .`as`("result transitions are applied only by domain services (Payment + Authorization + control + limit together)")
+
+        /** 기관 Adapter(`..adapter..institution..`)는 상태를 가진 domain Aggregate·domain 서비스에 의존하지 않는다 — Port 결과만 돌려준다. */
+        fun institutionAdapterDoesNotMutateDomain(): com.tngtech.archunit.lang.ArchRule {
+            val mutable = listOf(
+                "Payment", "OrderPaymentControl", "PaymentAuthorization", "AuthorizationAttempt", "AuthenticationSession", "DailyLimitUsage",
+                "AuthorizationStart", "AuthorizationResolution", "RequestedPaymentExpiry",
+            ).map { "$DOMAIN.$it" }
+            return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideInAPackage("..adapter..institution..")
+                .should().dependOnClassesThat(
+                    com.tngtech.archunit.base.DescribedPredicate.describe("a mutable payment domain aggregate or domain service") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                        mutable.any { c.name == it || c.name.startsWith("$it$") }
+                    },
+                )
+                .`as`("institution adapters return port results and never change domain state")
+        }
 
         /** build.gradle.kts의 mainJooqPackage(generateJooqMain)와 같은 값이어야 한다(위 테스트가 비교). */
         const val GENERATED_JOOQ_PACKAGE = "com.paycore.payment.jooq.generated"

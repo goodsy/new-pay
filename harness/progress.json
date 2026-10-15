@@ -2,13 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232",
-  "lastSuccessfulStep": "CP-API-001 DONE (VERIFY-GATE PASS 003032Z 1038 tests, DEPS x4·CVE PASS, REVIEW_PASS round3) on sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232",
+  "codeFingerprint": "sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1",
+  "lastSuccessfulStep": "AUTH-CONTRACT-001 DONE (VERIFY-GATE PASS 100204Z 1142 tests, DEPS x4·CVE PASS, REVIEW_PASS round3) on sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1",
   "pendingQuestionIds": [
-    "Q-INCIDENT-HOLD (AUTH-CONTRACT-001)",
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "다음 후보: MASTER-CREDENTIAL-001(선행 DONE·필수 질문 없음, 착수 가능) 또는 AUTH-CONTRACT-001(Q-AUTH-SCOPE·Q-INCIDENT-HOLD 답변 필요). CP-API-001 이월: CP-QUERY-001, n-c/n-d/n-f/n-h(tasks.json openItems)",
+  "nextResumeAction": "다음 후보(선행 DONE): MASTER-SNAPSHOT-002(승인 조건·한도 정책 전파), AUTHN-001(결제창·인증 세션), CANCEL-CONTRACT-001, MASTER-CREDENTIAL-001(Q-ADMIN-AUTH 부분 대기). AUTH-001은 MASTER-SNAPSHOT-002·AUTHN-001 뒤",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -228,6 +227,36 @@
       "at": "2026-10-15T02:13Z",
       "taskId": "CP-API-001",
       "event": "DONE (VERIFY-GATE PASS 003032Z 1038 tests, DEPS x4, CVE PASS, REVIEW_PASS round3) on sha256:8e32478343d1cf8ea44d89e7adca2a83f3a79c13dbfa2e5d842feacabf984232"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "Q-AUTH-SCOPE→D-AUTH-001, Q-INCIDENT-HOLD→D-AUTH-002 답변 기록; 착수(IN_PROGRESS) — 1단계 명세 작성"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "1단계 명세 수령(bd5b04a5…), Q-AUTH-01~06 답변 → D-AUTH-003~008, Q-AUTH-07 → D-AUTH-009(규칙 적용); 신규 BACKLOG AUTHN-001·MASTER-SNAPSHOT-002·WEBHOOK-001·CANCEL-CONTRACT-001; 2단계 TDD 착수"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "2단계 구현(677 tests) → review round1 REVIEW_FAIL (M-1, m-1~5, n-1~7) on sha256:d0adde8175175ef965234670a9a74dc0b0a24290a037cd77d108861e8125524c; S7 AUTH-001 이관; Q-AUTH-08→D-AUTH-010, Q-AUTH-09→D-AUTH-011; 수정 시도 2/3 착수"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "review1 수정(694 tests) → review round2 REVIEW_FAIL (M-2, M-3, m-6~8) on sha256:3685fe1e104f9f36b5e7c79af8229f6c01aa67c910d92b15f945360b5b9cb774; Q-AUTH-10→D-AUTH-012; 수정 시도 3/3 착수"
+    },
+    {
+      "at": "2026-10-15",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "수정 시도 3/3 완료(705 tests); Q-AUTH-11→D-AUTH-013 반영 중 → VERIFY-GATE → review round3"
+    },
+    {
+      "at": "2026-10-15T10:17Z",
+      "taskId": "AUTH-CONTRACT-001",
+      "event": "DONE (VERIFY-GATE PASS 100204Z 1142 tests, DEPS x4, CVE PASS, REVIEW_PASS round3) on sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1"
     }
   ]
 }

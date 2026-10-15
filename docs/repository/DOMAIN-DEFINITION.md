@@ -20,7 +20,7 @@
 | 허용 | `docs/baseline/PayCore-결제허용-기관연동-권장안.md` (확정) |
 | 구조 | `docs/baseline/PayCore-v0.1-도메인구조-Seed-MID-Site-확정.md` (확정) |
 | 정산 | `docs/baseline/PayCore-Settlement-Control-Policy-v0.1.md` (확정) |
-| 범위 | `docs/baseline/PayCore-최초구현범위-권장안.md` (**채택 전**) |
+| 범위 | `docs/baseline/PayCore-최초구현범위-권장안.md` (§1~§3 **채택 — D-AUTH-001**, 2026-10-15) |
 | CP계약 | `docs/baseline/PAYCORE-CREATE-PAYMENT-IMPLEMENTATION-CONTRACT-v0.1.md` (초안) |
 | A00~A10 | `docs/baseline/architecture/00~10` (아키텍처 자료) |
 | 관례 | `docs/repository/ARCHITECTURE-CONVENTIONS.md` |
@@ -33,7 +33,7 @@ PayCore는 가맹점에 카드 결제를 직접 제공하는 **1차 PG**다(초�
 - 외부 기관(VAN·매입기관·은행·인증기관)은 실제 기관 대신 **별도 프로세스의 가상 기관(Simulator)** 으로 개발한다. 가상 기관 성공은 실서비스 인증이 아니다(허용 §5.6).
 - 결제 흐름: 가맹점 주문 → 결제 생성 → (고객 인증) → 기관 승인 → 매입 → 기관 입금 → 정산 → 가맹점 지급, 그리고 각 단계의 대사.
 - 통화: KRW + 일부 외화. 허용 통화는 MID·기관 계약별 기준정보로 활성화하고 초기 구현·검증은 KRW·USD(D-CP-002). 외화 거래의 정산 통화·환율은 미결(Q-SETTLE-CURRENCY).
-- 미결: 일시불/할부·체크카드·고객 인증 흐름(Q-AUTH-SCOPE). "범위" 문서의 체크카드·할부 안은 채택 전이다.
+- 확정(D-AUTH-001, 2026-10-15): KRW, 국내 발급 신용+체크카드(기관 프로파일 allowlist), 일시불 + 일반 유이자 할부(체크카드 할부 금지), 고객 인증은 PG 결제창 → 인증기관 → 가맹점 서버 confirm → PG 승인. 할부 개월·최소금액 등 운영 수치는 Demo(D-AUTH-009). 승인 계약은 `docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md`.
 
 ## 2. 컨텍스트 지도
 
@@ -112,12 +112,15 @@ flowchart LR
 | Authorization | Payment의 논리 승인. 초기에는 Payment당 하나 | 요청 전액 승인만. 부분 승인·다중 수단 분할 미지원 | 확정(시도 §1) |
 | AuthorizationAttempt | 승인 실행 시도(기관 요청 ID·Route·권리 버전·판정 입력 연결) | 여러 Attempt 가능, 동시 실행 중인 외부 승인은 하나. TX1에서 영속화 후 TX 밖에서 전송 | 확정(시도 §1·§5, 허용 §5.3) |
 | 안전한 종료 근거 (TerminationEvidence) | 같은 주문에 새 Payment를 허용하는 근거 | 상태–근거 짝이 표와 맞을 때만 인정하고 교차 조합은 불인정(D-CPD-003). FAILED: 기관 확정 거절 / 전송 전 실패 확정 / 기관 무효과 종결 확인. EXPIRED: (미전송 그리고 인증·세션 폐기) / 기관 무효과 종결 확인. timeout·조회 NOT_FOUND·lease 만료·근거 없음은 불충분 | 확정(D-CPD-002) |
-| Incident hold (IncidentHold) | 확정 거절/만료 뒤 늦은 성공 같은 계약 가정 위반 시 주문의 추가 승인 차단 | hold 중 같은 입력 재요청은 Blocked(INCIDENT_HOLD) + 기존 paymentId 참조(D-CPD-004). 자동 보상취소 여부·해제 규칙은 미결 | 확정 + 미결 |
+| Incident hold (IncidentHold) | 늦은 성공(SUCCESS_AFTER_TERMINATION)·기관 상충 결과(CONFLICTING_INSTITUTION_RESULT) 시 주문의 추가 승인 차단 | hold 중 같은 입력 재요청은 Blocked(INCIDENT_HOLD) + 기존 paymentId 참조(D-CPD-004). 자동 보상취소 없음, 해제는 2인 승인(요청자≠승인자) + 재대사 MATCH(`IncidentHoldRelease`, 기록 append-only), 실제 승인 확인 시 주문 승인 성공 이력(D-AUTH-002, AUTH-CONTRACT-001 §8) | 확정 |
 | IdempotencyRequest | API 요청 멱등 기록. 범위는 (environment, 인증된 MID, operation, key) + payload fingerprint | 같은 키·같은 내용은 저장된 최초 생성 결과만 반환하고 현재 상태는 조회 API로 제공(D-CP-003), 다른 내용은 충돌. 재조회에도 현재 권한 검사. 보존 30일(D-CPC-004), 409 업무 거절도 결과로 저장·재생(D-CPC-007) | 규칙 확정 / 물리 초안 |
 | Cancellation (승인취소) | 카드 승인 거래의 취소 | 신규 승인 권리와 분리된 반환 권한·원 경로로 처리(허용 §4.3). 부분취소 누적은 잠금/버전으로 보호(A02) | 방향 확정 / 상세 미결 |
 | Refund (환불) | 결제수단별 승인취소와 구분되는 반환(계좌환불 등). 거래 상태 원본은 PAYMENT, 실제 지급 실행 원본은 FINANCIAL | Refund 완료일은 외부 반환 사실의 업무시각 기준 | 방향 확정 / 상세 미결 |
-| PaymentTransaction | 승인·취소 등 PAYMENT 확정 금융 사실 기록으로 언급됨(시도 §5, 정산 §16) | **정의 문서 없음** — §6 갭 G-2 | 미결 |
-| AuthenticationSession | 고객 카드 인증 lifecycle(CREATED/IN_PROGRESS/VERIFIED/FAILED/EXPIRED). 인증 성공 ≠ 승인 성공 | "범위" 문서 안이며 **채택 전**(Q-AUTH-SCOPE) | 미결 |
+| PaymentTransaction | 기관이 확정한 금융 효과 1건(append-only). 승인 성공 = AUTHORIZATION 거래, 취소·부분취소는 각각 새 거래(CANCEL-CONTRACT-001) | 거절·무효과·UNKNOWN·중복 수신은 거래가 아니라 InstitutionObservation. PaymentAuthorized 1건 = 거래 1건, FINANCIAL 업무 키 = transactionId. 늦은/상충 승인은 hold 해제 판정 전 미생성 | 확정(D-AUTH-003) |
+| AuthenticationSession | 고객 카드 인증 lifecycle(CREATED/IN_PROGRESS/VERIFIED/FAILED/EXPIRED). 인증 성공 ≠ 승인 성공 | 인증 근거는 하나의 논리 승인 operation에만 귀속(한 번, 되돌리지 않음), 귀속 뒤 TTL 만료가 승인을 바꾸지 않음. 승인 시작 거절 시 미귀속(D-AUTH-005) | 확정(D-AUTH-001) |
+| PaymentAuthorization / AuthorizationAttempt | Payment의 논리 승인(1:1)과 기관 승인 실행 시도. Attempt dispatch 상태 PREPARED/DISPATCHING/ABANDONED_BEFORE_DISPATCH/OUTCOME_UNKNOWN/RESOLVED | Authorization당 dispatch Attempt 1개(초기), 전송 전 포기만 PRE_TRANSMISSION_FAILURE_CONFIRMED의 출처, 전송 뒤 실패는 UNKNOWN | 확정(시도 §1·§4, 허용 §5.3) / 이름 관례 |
+| PaymentPlan / CardType | 일시불(LumpSum)·일반 할부(Installment(months)) / CREDIT·CHECK | 체크카드 할부는 승인 시작에서 거절, 기관도 재검증. 허용 개월·최소금액은 버전 있는 정책(Demo) | 확정(D-AUTH-001) |
+| TransactionLimitPolicy / DailyLimitUsage | 거래 한도(건당·일)와 일 한도 사용량 | 범위 MID+통화, 사용량 환경별, 정책 없음/모호 차단, 무제한 명시 값만(D-AUTH-006). 날짜 = 승인 시작 Asia/Seoul, 취소 미복원(D-AUTH-007) | 확정 |
 | Route / 기관 프로파일 | 거래에 쓰는 기관·계정·operation별 Adapter·프로토콜 버전·Capability | 당시 기관/프로파일/버전을 Attempt에 보존. Simulator/REAL은 Route 축(D-CPD-001) | 확정(허용 §5.1) |
 
 ### 3.3 Financial — 매입·정산·지급·대사
@@ -265,13 +268,13 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 ### 6.2 이 정리에서 발견한 갭(질문 후보, 해당 작업 착수 시 확인)
 
 - **G-1 Master 실행 단위 없음 → 결정(D-CPC-006: Master 먼저 구현).** MASTER-BOOT-001 / MASTER-DOMAIN-001 / MASTER-SNAPSHOT-001을 등록했고, CP-API-001·AUTH-001은 MASTER-SNAPSHOT-001 이후로 둔다.
-- **G-2 PaymentTransaction 정의 없음.** "시도 §5"와 "정산 §16"에 나오지만, Authorization·Cancellation과의 관계와 금융 사실의 단위가 정의돼 있지 않다. Financial 이벤트 계약의 핵심 단위라 AUTH-CONTRACT-001에서 정의가 필요하다(금융 의미가 있어 사용자 확인 대상).
+- ~~G-2 PaymentTransaction 정의 없음.~~ **해결(D-AUTH-003, 2026-10-15).** 기관 확정 금융 효과 1건 = 거래 1건(append-only), 관찰과 분리.
 - ~~G-3 계약 용어 변형.~~ **해결(D-MD-001·D-MD-002, 2026-10-08).** Contract 1:N ContractServiceAgreement 2단 구조, ServiceAgreement·Agreement는 ContractServiceAgreement 줄임말. ContractServiceAgreement 1건 = 서비스 종류 1개, 결제수단은 PaymentMethodActivation, 통화는 Assignment 범위.
-- **G-4 incident hold 해제와 자동 보상취소.** 늦은 성공에 대한 처리 정책이 없다(시도 §4에서 "별도 정책"으로 명시).
+- ~~G-4 incident hold 해제와 자동 보상취소.~~ **해결(D-AUTH-002, 2026-10-15).** 자동 보상취소 없음, hold + 대사 Case(HIGH/CRITICAL) 수동 검토, 해제는 2인 승인 + 재대사 MATCH. 해제 실행 Use Case는 RECON-CONTRACT-001·Q-ADMIN-AUTH 이후.
 - **G-5 Cancellation / Refund 상세.** 부분취소, 반환 가능 금액 불변식, 계좌환불 흐름의 상태 모델이 아직 없다.
 
 ## 7. 갱신 규칙
 
 - 새 사용자 결정(DECISIONS.md)이나 채택 문서가 바뀌면 같은 변경에서 이 문서의 해당 행을 고친다.
-- 코드에 Aggregate/모듈이 생기면 "코드/영문" 열에 실제 타입 이름을 맞춘다(CP-DOMAIN-001: OrderKey, Environment, OrderIntentFingerprint, PaymentId, Payment, PaymentStatus, TerminationEvidence, OrderPaymentControl, PaymentSlotDecision, BlockReason, IncidentHold; MASTER-DOMAIN-001: Business, BusinessRegistrationNumber, Merchant, MerchantSite, SiteChannel, Contract, ContractRevision, ContractScope, ContractServiceAgreement, MerchantAccount, DefaultDesignation, SiteAssignment, SiteAssignmentRole/Status, PaymentMethodActivation, MerchantAccountIssuance).
+- 코드에 Aggregate/모듈이 생기면 "코드/영문" 열에 실제 타입 이름을 맞춘다(CP-DOMAIN-001: OrderKey, Environment, OrderIntentFingerprint, PaymentId, Payment, PaymentStatus, TerminationEvidence, OrderPaymentControl, PaymentSlotDecision, BlockReason, IncidentHold; MASTER-DOMAIN-001: Business, BusinessRegistrationNumber, Merchant, MerchantSite, SiteChannel, Contract, ContractRevision, ContractScope, ContractServiceAgreement, MerchantAccount, DefaultDesignation, SiteAssignment, SiteAssignmentRole/Status, PaymentMethodActivation, MerchantAccountIssuance; AUTH-CONTRACT-001: PaymentPlan, CardType, AuthenticationSession, AuthenticationStatus, PaymentAuthorization, AuthorizationAttempt, AttemptState, InstitutionObservation, PaymentTransaction, TransactionLimitPolicy, DailyLimitUsage, LimitReservation, IncidentHoldRelease, AuthorizationStart, AuthorizationResolution, RequestedPaymentExpiry).
 - 이 문서만 근거로 정책을 판단하지 않는다. 항상 근거 열의 원문을 확인한다.

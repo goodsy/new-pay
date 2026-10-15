@@ -63,17 +63,17 @@
     },
     {
       "id": "Q-AUTH-SCOPE",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "초기 할부·체크카드·고객 인증 범위",
       "recommended": "기존 최초구현범위 권장안을 다시 제시하고 필요한 항목만 채택",
       "alternative": "일시불 신용카드부터 시작 후 확대",
       "dependentTasks": [
         "AUTH-CONTRACT-001"
       ],
-      "askedAt": null,
-      "humanAnswer": null,
-      "humanEvidence": null,
-      "appliedSpec": null
+      "askedAt": "2026-10-15",
+      "humanAnswer": "권장안 채택 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-001"
     },
     {
       "id": "Q-CALENDAR",
@@ -227,7 +227,7 @@
     },
     {
       "id": "Q-INCIDENT-HOLD",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "incident hold(거절/만료 뒤 늦은 성공) 해제 규칙과 늦은 성공의 자동 보상취소 여부",
       "recommended": "자동 보상취소 없이 hold+대사 Case(HIGH/CRITICAL)로 수동 검토, 해제는 2인 승인·재대사 MATCH 후",
       "alternative": "정책 허용 범위에서 자동 보상취소",
@@ -235,10 +235,10 @@
         "AUTH-CONTRACT-001",
         "RECON-CONTRACT-001"
       ],
-      "askedAt": null,
-      "humanAnswer": null,
-      "humanEvidence": null,
-      "appliedSpec": null,
+      "askedAt": "2026-10-15",
+      "humanAnswer": "Hold+수동 검토 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-002",
       "origin": "DOMAIN-DEFINITION G-4, CP-DOMAIN-001 review"
     },
     {
@@ -813,6 +813,181 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-14)",
       "appliedSpec": "D-CPA-001",
       "origin": "CP-API-001 1단계 명세 질문 후보(docs/repository/CP-API-001-CREATE-PAYMENT-API.md (sha256 834cff2d…, 594줄) §5)"
+    },
+    {
+      "id": "Q-AUTH-01",
+      "status": "ANSWERED",
+      "question": "확정 금융 사실 단위(PaymentTransaction) 정의",
+      "recommended": "기관 확정 금융 효과 1건 = PaymentTransaction 1건(append-only), 거절·무효과·UNKNOWN은 Attempt 관찰",
+      "alternative": "Authorization 자체를 금융 사실 / 관찰마다 거래",
+      "dependentTasks": [
+        "AUTH-001",
+        "AUTH-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "기관 확정 1건=1거래로 변경 (Recommended) — 최초 응답 '관찰마다 거래'를 영향 설명 후 재확인에서 변경",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-003",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-02",
+      "status": "ANSWERED",
+      "question": "confirm 같은 키 재요청 응답 의미",
+      "recommended": "operation 현재 결과 반환(확정 후 불변, 미확정은 진행/확인 중, 시작 전 거절은 저장 재생)",
+      "alternative": "첫 응답 재생 + 조회 API",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "현재 승인 결과 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-004",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-03",
+      "status": "ANSWERED",
+      "question": "승인 시작 거절 시 Payment 상태",
+      "recommended": "REQUESTED 유지·세션 미귀속·거절 키 결과 저장/재생·결제창 만료 시 EXPIRED",
+      "alternative": "FAILED 종료 후 새 Payment",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "REQUESTED 유지 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-005",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-04",
+      "status": "ANSWERED",
+      "question": "거래 한도 정책 범위·출처·정책 없음 처리",
+      "recommended": "MID+통화, 사용량 환경별, MASTER 버전 TransactionLimitPolicy(CSA 기본+MID Override)→권리 Snapshot, 없음/모호 fail-closed, 무제한은 명시값만",
+      "alternative": "정책 없으면 무제한 / Merchant 총량 추가",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "AUTH-001",
+        "MASTER-SNAPSHOT-002"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "MID+통화, 없으면 차단 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-006",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-05",
+      "status": "ANSWERED",
+      "question": "일 한도 '일' 기준과 점유·해제",
+      "recommended": "승인 시작 Asia/Seoul 날짜 고정, AUTHORIZING·UNKNOWN·hold 동안 유지, 확정 거절·전송 전 실패·무효과 확정 시 해제, 승인 시 소비, 취소·환불 미복원",
+      "alternative": "취소 시 복원 / 승인 확정일 기준",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "시작일 고정·취소 미복원 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-007",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-06",
+      "status": "ANSWERED",
+      "question": "종결 전 상충 승인(금액·통화·Plan·cardType 불일치, 부분 승인) 처리",
+      "recommended": "UNKNOWN 유지 + hold(CONFLICTING_INSTITUTION_RESULT) + AuthorizationIncidentDetected(CRITICAL), AUTHORIZED·PaymentAuthorized 없음, 자동 취소 없음, 한도 점유 유지, 수동·2인·재대사 MATCH",
+      "alternative": "FAILED+hold",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "UNKNOWN 유지+hold (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-008",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 질문 후보(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16)"
+    },
+    {
+      "id": "Q-AUTH-07",
+      "status": "APPLIED",
+      "question": "시간·재시도 수치(confirm 대기, 세션 TTL, timeout, 조회 재시도 예산, 대사 이관 기준)",
+      "recommended": "버전 있는 설정, 코드에 운영 기본값 없음, Simulator·시험 Demo 값만, 운영값은 LIVE 준비 Gate에서 기관 규약 확인 후",
+      "alternative": "지금 운영 초기값 확정",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": null,
+      "humanAnswer": null,
+      "humanEvidence": "사용자 질문 없이 적용: 기존 확정 규칙(CLAUDE.md 'Demo 값은 운영값 아님', 무기본 구현 관례)에서 직접 도출, LIVE 준비만 막음",
+      "appliedSpec": "D-AUTH-009",
+      "origin": "AUTH-CONTRACT-001 1단계 명세 docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md (sha256 bd5b04a5…, 576줄) §16"
+    },
+    {
+      "id": "Q-AUTH-08",
+      "status": "ANSWERED",
+      "question": "확정 거절로 일 한도 점유 해제 후 늦은 승인(SUCCESS_AFTER_TERMINATION hold) 수신 시 일 한도 재점유 여부",
+      "recommended": "재점유(한도 초과여도 강제 기록·초과 표시), 해제 판정 NO_EFFECT면 재해제, REAL_APPROVAL이면 소비",
+      "alternative": "재점유 안 함(hold만)",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "다시 점유 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-010",
+      "origin": "AUTH-CONTRACT-001 2단계 구현자 질문 후보"
+    },
+    {
+      "id": "Q-AUTH-09",
+      "status": "ANSWERED",
+      "question": "이전 generation 늦은 승인 hold 중 현재 generation 승인 확정(이중 승인 가능성) 처리와 해제",
+      "recommended": "현재 generation 승인은 거래·PaymentAuthorized로 기록, 주문 hold 유지, 해제 판정에 '실제 이중 승인 확인 + 보정(취소) 참조' 추가, 보정 후 재대사 MATCH + 2인 승인으로 해제",
+      "alternative": "hold 중 현재 generation 정산 이벤트 보류(사건 이벤트만)",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "RECON-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "gen2 기록+보정 후 해제 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-011",
+      "origin": "AUTH-CONTRACT-001 review round1 질문 후보 Q-1"
+    },
+    {
+      "id": "Q-AUTH-10",
+      "status": "ANSWERED",
+      "question": "NO_EFFECT로 hold 해제 후 같은 Payment에 새 승인 증거 수신 시 처리",
+      "recommended": "새 사건으로 다시 hold(새 hold 기록) + 일 한도 FORCED 재점유, 주문 새 Payment 다시 차단, 해제는 2인+재대사 MATCH",
+      "alternative": "해제 판정 유지 + 관찰 기록·대사 Case만",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "RECON-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "다시 hold (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-012",
+      "origin": "AUTH-CONTRACT-001 review round2 질문 후보 Q-2"
+    },
+    {
+      "id": "Q-AUTH-11",
+      "status": "ANSWERED",
+      "question": "REAL_APPROVAL_CONFIRMED·DOUBLE_APPROVAL_CORRECTED 해제 뒤 같은 Payment에 새 관찰 키의 승인(다른 PTX)·반대 결과 수신 시 hold 재개 여부",
+      "recommended": "다시 hold(D-AUTH-012와 동일: 새 hold + FORCED 재점유 + 주문 차단, 해제는 2인+재대사 MATCH)",
+      "alternative": "새 hold 없이 관찰만 기록",
+      "dependentTasks": [
+        "AUTH-CONTRACT-001",
+        "RECON-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-15",
+      "humanAnswer": "다시 hold (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-15)",
+      "appliedSpec": "D-AUTH-013",
+      "origin": "AUTH-CONTRACT-001 수정 시도 3/3 구현자 질문 후보"
     }
   ]
 }

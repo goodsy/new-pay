@@ -1847,77 +1847,192 @@
       "id": "AUTH-CONTRACT-001",
       "title": "가상 승인/조회/UNKNOWN 회복 계약",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "CP-API-001"
       ],
       "requiredQuestions": [
-        "Q-AUTH-SCOPE"
+        "Q-AUTH-SCOPE",
+        "Q-INCIDENT-HOLD",
+        "Q-AUTH-01",
+        "Q-AUTH-02",
+        "Q-AUTH-03",
+        "Q-AUTH-04",
+        "Q-AUTH-05",
+        "Q-AUTH-06",
+        "Q-AUTH-08",
+        "Q-AUTH-09",
+        "Q-AUTH-10",
+        "Q-AUTH-11"
       ],
       "acceptanceCriteria": [
         "기관 금융 사실이 PG rollback과 독립적으로 존속",
         "타임아웃 후 조회·대사 및 중복 승인 차단",
         "TCP Adapter와 업무 상태 전이 분리",
-        "(D-CPC-008) 기준정보 거래 한도(건당·일)의 권위 판정은 승인 시작에서, 일 한도 점유 방식 정의"
+        "(D-CPC-008) 기준정보 거래 한도(건당·일)의 권위 판정은 승인 시작에서, 일 한도 점유 방식 정의",
+        "(D-AUTH-001) PaymentPlan(일시불/일반 할부)·cardType(CREDIT/CHECK)·체크 할부 거절을 계약에 포함, AuthenticationSession lifecycle(CREATED/IN_PROGRESS/VERIFIED/FAILED/EXPIRED)과 인증 근거 1 operation 귀속, 서버 confirm 방식",
+        "(D-AUTH-002) 거절/만료 뒤 늦은 성공·상충 결과 → incident hold + 대사 Case(HIGH/CRITICAL), 자동 보상취소 없음, 해제는 2인 승인+재대사 MATCH",
+        "(CP-DOMAIN-001 리뷰 L-2, CP-API-001 이월) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 함께 강제하는 application 시험 기준 정의",
+        "(D-AUTH-003~008) PaymentTransaction=기관 확정 효과 단위, confirm 재요청 현재 결과, 시작 거절 REQUESTED 유지, 한도 MID+통화 fail-closed, 일 한도 시작일 고정·취소 미복원, 종결 전 상충 → UNKNOWN+hold를 domain 타입·불변식·판정표 시험으로 고정",
+        "(1단계 §17) 기존 domain 결함 1·2·4·5·6 처리: 늦은 승인 이력 기록, IncidentReason 확장, PRE_TRANSMISSION_FAILURE_CONFIRMED↔Attempt 연결, markAuthorized/recordAuthorized 짝 강제, startAuthorization의 Attempt 필수. 결함 3(L-3, S7)·7·8은 AUTH-001로 이관(2026-10-15 Coordinator 결정)",
+        "(D-AUTH-010/011) 늦은 승인 시 해제된 일 한도 강제 재점유(초과 표시)·해제 판정별 재해제/소비, 이중 승인 해제 판정(실제 이중 승인 확인 + 보정 참조) domain 불변식"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
-      "attempts": 0,
+      "allowedWritePaths": [
+        "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/domain/**",
+        "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/domain/**",
+        "apps/payment-api/src/test/kotlin/com/paycore/payment/architecture/ArchitectureSpec.kt",
+        "apps/payment-api/src/test/kotlin/com/paycore/archfixture/**",
+        "docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md",
+        "docs/repository/DOMAIN-DEFINITION.md",
+        "docs/repository/ARCHITECTURE-CONVENTIONS.md",
+        "harness/commands.json"
+      ],
+      "pathsResolved": true,
+      "owner": "paycore-implementer",
+      "attempts": 3,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 10800,
+      "evidence": {
+        "fingerprint": "sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1",
+        "verifyGate": "build/harness-evidence/AUTH-CONTRACT-001-2026-10-15T100204Z.json",
+        "evidenceSha256": "e898a35aa71c537034cce2605c98e6f60819168e75e985deaa18b211043fb41d",
+        "verdict": "PASS",
+        "tests": {
+          "total": 1142,
+          "payment-api": 706,
+          "libs/test-support": 112
+        },
+        "harnessSelftest": "Ran 71 OK",
+        "at": "2026-10-15T10:13Z",
+        "depsCve": "GRADLE-DEPS x4 exit 0(4개 모듈 트리 hash가 CP-API-001 회차와 동일, 새 의존성 없음), CVE-SCAN PASS 0건·canary 검출 10:15–10:16Z, build/harness-evidence/AUTH-CONTRACT-001-2026-10-15T101403Z-supplementary/",
+        "runMode": "WSL 내부 setsid nohup … & disown(스크립트 파일 경유)",
+        "priorGate": "d0adde81…·3685fe1e… gate는 review 수정을 위해 중단(증거 미생성). 2단계는 domain 범위라 실DB 경쟁·rollback·응답 유실 증거는 AUTH-001"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 3,
+        "reviewedFingerprint": "sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "기관 확정 효과 1건=PaymentTransaction 1건(D-AUTH-003): 전액 일치 승인만 거래, AUTHORIZED⇔거래 존재, 같은 승인 판정은 PTX·승인번호·거래일 포함 전체 terms(M-1), 상충·늦은 승인은 거래 없음, 이중 승인은 gen2 거래+hold(D-AUTH-011), 한도 합계 overflow 예외(AuthorizationResolutionSpec·TransactionLimitSpec)"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "다중 Aggregate 연산(AuthorizationStart·AuthorizationResolution·IncidentHoldSettlement·RequestedPaymentExpiry)은 검사 선행 후 변경, 거절·결함 시 전 Aggregate 불변(shouldBeUntouched, 변이 M1). 실DB rollback 증거는 AUTH-001"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "세션 귀속 1회, 관찰 키 DUPLICATE(기관 정의 내용만 비교, 수신 메타데이터 제외 M-2), 같은 키 다른 내용 → KEY_CONFLICT hold, hold occurrence 재개 멱등, consume/release·FORCED 재점유 멱등"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "domain 범위: 경합 규칙(Attempt fencing 전이·일 한도 행 단위 합계·잠금 순서 ARCHITECTURE-CONVENTIONS §12)만 정의, 실DB 동시성 증거는 AUTH-001",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "timeout·NOT_FOUND·PENDING·lease 만료는 UNKNOWN 유지(변이 M2), PREPARED는 UNKNOWN 불가, 전송 전 포기만 PRE_TRANSMISSION 근거, 시작 거절 REQUESTED 유지(D-AUTH-005), 결제창 만료 EXPIRED"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "늦은·상충·이중 승인 → incident hold + Incident(D-AUTH-002/008/011), 해제는 2인+MATCH 참조(+보정 참조 DOUBLE), NO_EFFECT/REAL/DOUBLE 해제 뒤 모순 증거 재hold(D-AUTH-012/013), 판정별 주문 효과 시험(IncidentHoldReleaseSpec). Case 실행은 RECON-CONTRACT-001"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "관찰·hold·해제 append-only, 승인 근거 버전·판정 시각 고정, 해제 요청자≠승인자·사유·MATCH/보정 참조, 거래·관찰 출처 키, keyConflictingObservations 증거 보존. 행위자 컬럼은 AUTH-001"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "domain 범위: UnknownCause·LimitExcess 진단 분류만, 지표·로그는 AUTH-001",
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-15 착수. Q-AUTH-SCOPE→D-AUTH-001, Q-INCIDENT-HOLD→D-AUTH-002(사용자 답변). 진행 방식(CP-API-001과 동일): 1단계 명세(docs/repository/AUTH-CONTRACT-001-*.md)를 Coordinator에 반환, 새 질문 답변 후 2단계 TDD(domain 계약·시험). 가상 VAN/인증기관 Simulator 구현·TCP Adapter 실제 구현·DB migration은 AUTH-001 범위(명세에서 경계만 정의)",
+        "2026-10-15 1단계 명세 수령(docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md sha256 bd5b04a5…, 576줄). 질문 Q-AUTH-01~06 사용자 답변 → D-AUTH-003~008(Q-AUTH-01은 최초 비권장 응답을 영향 설명 후 재확인, 권장안으로 변경), Q-AUTH-07은 기존 규칙으로 D-AUTH-009 적용. 범위 결정(가역): B-2(L-3 REQUESTED 근거 출처 제한)·B-3(IncidentHoldRelease domain 불변식만, 실행은 RECON-CONTRACT-001·Q-ADMIN-AUTH 대기) 2단계 포함. allowedWritePaths를 명세 §14 제안(domain·ArchUnit·문서)으로 축소. 신규 BACKLOG: AUTHN-001, MASTER-SNAPSHOT-002, WEBHOOK-001, CANCEL-CONTRACT-001. AUTH-001은 MASTER-SNAPSHOT-002·AUTHN-001에 의존. 2단계 TDD 착수",
+        "2026-10-15 S7(L-3 REQUESTED 근거 출처 제한)·§17 결함 3은 허용 경로 밖 시험 6파일 재설계(legacy 행 복원) 필요로 AUTH-001로 이관(B-2 포함 결정 철회). review round1 REVIEW_FAIL(d0adde81…); 진행 중 VERIFY-GATE 중단(증거 미생성). Q-AUTH-08→D-AUTH-010, Q-AUTH-09→D-AUTH-011(사용자 답변). 수정 시도 2/3 범위: M-1, m-1, m-4, m-5(명세 §19.3), D-AUTH-010 재점유, D-AUTH-011 해제 판정 불변식, n-1(D-AUTH-010 반영), n-5, n-6. 이월: m-2·m-3 실행 → RECON-CONTRACT-001, n-2·n-3·n-4 → AUTH-001, n-7 수용",
+        "2026-10-15 review round2 REVIEW_FAIL(3685fe1e…); 진행 중 VERIFY-GATE 중단. Q-AUTH-10→D-AUTH-012(사용자 답변). 수정 시도 3/3(마지막) 범위: M-2(기관 정의 내용만 비교, 수신 메타데이터 제외), M-3 방식 (b) — completeAuthorization이 다른 성공 이력이 있으면 거래·AUTHORIZED 기록 + 이중 승인 CONFLICTING hold(D-AUTH-011과 동일 처리, 새 정책 아님), m-6(D-AUTH-012 재hold), m-7, n-8. 이월: m-8 → AUTH-001·RECON Use Case 시험 기준, sourceResultId 정의 → AUTH-001 Adapter 계약. 3/3 실패 시 원인·다음 동작 보고 후 중단",
+        "2026-10-15 수정 시도 3/3 완료(705 tests, RED 4). 구현자 질문 Q-AUTH-11 → D-AUTH-013(사용자 답변 '다시 hold'). openHold REAL/DOUBLE 분기 반영은 결함 수정이 아닌 사용자 결정 반영으로 3/3 범위 안에서 처리",
+        "2026-10-15 DONE: VERIFY-GATE PASS 100204Z(1142 tests, SELFTEST 71) + GRADLE-DEPS x4·CVE-SCAN PASS on sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1, REVIEW_PASS round3 동일 fingerprint(수정 시도 3/3). minor m-9~m-11·m-8은 fail-closed로 openItems·AUTH-001 AC에 이월"
+      ],
+      "reviewRounds": [
+        {
+          "round": 1,
+          "fingerprint": "sha256:d0adde8175175ef965234670a9a74dc0b0a24290a037cd77d108861e8125524c",
+          "verdict": "REVIEW_FAIL",
+          "findings": [
+            "M-1 AUTHORIZED 뒤 같은 승인 판정이 providerTransactionId·approvalNumber·거래일을 비교하지 않음 → 다른 기관 효과가 기존 거래에 흡수(D-AUTH-003 위반, 이중 승인 미탐지)",
+            "m-1 같은 ObservationKey·다른 내용 관찰을 조용히 버림",
+            "m-2 이전 generation hold 중 현재 generation 승인 확정 시 해제 dead-end(→ Q-AUTH-09/D-AUTH-011)",
+            "m-3 REAL_APPROVAL 해제가 control만 변경, 해제 뒤 거래 생성 경로 없음(→ RECON)",
+            "m-4 ArchUnit 위반 fixture가 클래스당 위반 2개·일부 대상 fixture 없음",
+            "m-5 AC 9·coordinatorDecisions·명세 §19.3에 S7 이관 미반영, 결함 7 AUTH-001 AC 미명시",
+            "n-1 Q-AUTH-08 미답 동작 고정 시험, n-2 LimitPolicyUnavailable 거절 vs 503, n-3 markOutcomeUnknown 확정 후 예외, n-4 releaseIncidentHold Store 미저장, n-5 recordAuthorized public, n-6 reconstitute 해제 대상 일관성 미검사, n-7 domain 내부 PRE_TRANSMISSION fail 허용(수용)"
+          ]
+        },
+        {
+          "round": 2,
+          "fingerprint": "sha256:3685fe1e104f9f36b5e7c79af8229f6c01aa67c910d92b15f945360b5b9cb774",
+          "verdict": "REVIEW_FAIL",
+          "findings": [
+            "round1 지적 전부 해소(m-2 실행·m-3은 RECON 이월)",
+            "M-2(회귀) 같은 키 재수신이 observedAt·evidenceHash 차이로 KEY_CONFLICT → 거짓 CONFLICTING hold/CRITICAL 사건",
+            "M-3 다른 generation 진행 중 REAL_APPROVAL 해제 뒤 그 generation 승인 시 completeAuthorization check 실패 → 실제 승인 미기록·TX2 반복 rollback(D-AUTH-003/011 위반)",
+            "m-6 NO_EFFECT 해제 뒤 새 승인 증거가 hold 없이 FORCED·Incident만 남김(→ Q-AUTH-10/D-AUTH-012)",
+            "m-7 FAILED 상태 KEY_CONFLICT APPROVED가 한도 재점유 안 함",
+            "m-8 IncidentHoldSettlement.release에 authorization·usage null 허용(→ AUTH-001/RECON Use Case 시험 기준)",
+            "n-8 LimitExcess 정책 기준 명세 기록, n-9 FORCED 멱등 확인"
+          ]
+        },
+        {
+          "round": 3,
+          "fingerprint": "sha256:ad2766f18784b3901e51fd619af992e67df78553199ece01b70dca8a187262b1",
+          "verdict": "REVIEW_PASS",
+          "findings": [
+            "round2 M-2·M-3·m-6·m-7·n-8 해소, D-AUTH-010~013 반영",
+            "m-9 AuthorizationIncidentDetected effect_key에 occurrence 없음(→ AUTH-001 Outbox 구현 전 필수)",
+            "m-10 REAL/DOUBLE 해제 뒤 같은 PTX 재보고에도 새 hold(D-AUTH-013 '다른 PTX' 조건 누락, fail-closed)",
+            "m-11 한 Payment에 판정이 엇갈린 hold 2개면 FORCED가 마지막 판정으로 정리(D-AUTH-010 REAL 소비 위반 가능, 드묾)",
+            "m-8 Settlement null 전달(이월 유지)"
+          ]
+        }
+      ],
+      "openItems": [
+        "(AUTH-001, review3 m-9 — Outbox 구현 전 필수) AuthorizationIncidentDetected effect_key = {paymentId}:{reason}:{occurrence}",
+        "(AUTH-001/RECON, review3 m-10) REAL/DOUBLE 해제 뒤 해제 판정이 확인한 승인과 같은 terms 재보고는 NoChange(D-AUTH-013 '다른 PTX' 문구)",
+        "(AUTH-001/RECON, review3 m-11) Payment의 해제 기록 중 REAL/DOUBLE이 하나라도 있으면 FORCED를 CONSUMED로 정리(D-AUTH-010)",
+        "(AUTH-001) incident_hold UNIQUE·Store append-only에 occurrence 반영, 해제 기록 표, FORCED/excess 컬럼, Authorized.incident 시 PaymentAuthorized+사건 이벤트 같은 TX append 시험",
+        "(AUTH-001 이관) S7/L-3 + 시험 6파일 재설계, §17 결함 7·8, review1 n-2·n-3·n-4, review2 m-8, sourceResultId Adapter 계약",
+        "(RECON-CONTRACT-001) REAL 해제 뒤 거래 생성(Adjustment), 이중 승인 보정 후 해제 실행, D-AUTH-012 운영 처리"
+      ]
     },
     {
       "id": "AUTH-001",
@@ -1926,7 +2041,9 @@
       "status": "BACKLOG",
       "dependsOn": [
         "AUTH-CONTRACT-001",
-        "MASTER-SNAPSHOT-001"
+        "MASTER-SNAPSHOT-001",
+        "MASTER-SNAPSHOT-002",
+        "AUTHN-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -1936,7 +2053,14 @@
         "(CP-DOMAIN-001 리뷰 L-2) 승인 시작은 OrderPaymentControl.checkAuthorizationStart와 Payment.startAuthorization을 하나의 domain 연산(또는 둘을 반드시 함께 호출함을 강제하는 application 시험)으로 묶어 incident hold·슬롯 검사 우회를 막는다",
         "(CP-DOMAIN-001 리뷰 L-3) 승인 Attempt 생성과 Payment AUTHORIZING 전이는 같은 TX1에서 커밋한다(REQUESTED = 미전송 불변식). 전송은 TX1 커밋 뒤 TX 밖",
         "(CP-DOMAIN-001 리뷰 L-3) REQUESTED 종료 근거의 출처를 제한하면(예: 미전송 Payment에 기관 확정 거절·timeout·조회 NOT_FOUND 근거 금지) PaymentFixture(failedWithOnlyTimeout·expiredWithOnlyInquiryNotFound 등 REQUESTED 경로 fixture)와 OrderPaymentDecisionTableSpec 판정표 행을 같은 변경에서 갱신한다",
-        "(CP-DB-001 review L-6) ReportSuccessAfterTerminationService 실패 분류(OutcomeUnknown·LockTimeout 등)와 호출 경로(Inbox) 확정"
+        "(CP-DB-001 review L-6) ReportSuccessAfterTerminationService 실패 분류(OutcomeUnknown·LockTimeout 등)와 호출 경로(Inbox) 확정",
+        "(AUTH-CONTRACT-001 이관 S7·§17-3) L-3: REQUESTED에서 DECLINE·NO_EFFECT·PRE_TRANSMISSION·TIMEOUT·INQUIRY_NOT_FOUND·LEASE_EXPIRED 근거 종료 거부 + 기존 시험 6파일(CreatePaymentServiceSpec·CreatePaymentRollbackSpec·CreatePaymentApiSpec·ApiFailureSpec·UtcStorageSpec·PaymentStoreAdapterSpec) 재설계, legacy 행 복원이 기대값 완화가 아님을 Reviewer 확인",
+        "(AUTH-CONTRACT-001 §17-7·8) idempotency result_code CHECK 확장, termination evidence 출처·시각·행위자 컬럼, ReportSuccessAfterTerminationService 호출 경로·분류 예외·사건 Outbox(L-6)",
+        "(AUTH-CONTRACT-001 review1 n-2·n-3·n-4) LimitPolicyUnavailable 응답(거절 vs 503) 통일, lease 회복·TX2 경합 시 markOutcomeUnknown 처리, 해제 표 도입 전 Store가 저장되지 않은 hold 해제 거부·reconstitute 기본값 제거",
+        "(AUTH-CONTRACT-001 review2 m-8·M-2 전제) hold 해제/승인 Use Case는 hold 대상 Payment에 Authorization이 있으면 반드시 함께 전달(시험 기준), 관찰 sourceResultId(같은 기관 결과의 식별자) 정의를 Adapter 계약으로 고정",
+        "(AUTH-CONTRACT-001 review3 m-9, Outbox 구현 전 필수) AuthorizationIncidentDetected effect_key에 occurrence 포함, Authorized.incident 시 PaymentAuthorized + 사건 이벤트를 같은 TX에 append",
+        "(AUTH-CONTRACT-001 review3 m-10·m-11, D-AUTH-013/010 문구 반영) REAL/DOUBLE 해제 뒤 같은 terms 재보고 NoChange, 해제 기록 중 REAL/DOUBLE 존재 시 FORCED→CONSUMED",
+        "(AUTH-CONTRACT-001 §19.9) incident_hold occurrence UNIQUE·해제 기록 표·FORCED/excess 컬럼·Store append-only 검사"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -2229,12 +2353,18 @@
         "SETTLEMENT-001"
       ],
       "requiredQuestions": [
-        "Q-CORRECTION"
+        "Q-CORRECTION",
+        "Q-INCIDENT-HOLD",
+        "Q-AUTH-09",
+        "Q-AUTH-10",
+        "Q-AUTH-11"
       ],
       "acceptanceCriteria": [
         "Recovery와 Adjustment 구별",
         "보정 후 재대사 MATCH 전 해결 금지",
-        "범위별 Hold/kill switch/한도/승인 검토"
+        "범위별 Hold/kill switch/한도/승인 검토",
+        "(D-AUTH-002/011, AUTH-CONTRACT-001 review1 m-2·m-3) hold 해제 Use Case: REAL_APPROVAL 해제 뒤 거래 생성·Payment/Authorization 처리(Adjustment 계열, 자동 Recovery와 구분), 이중 승인 주문의 보정(취소) 참조 후 재대사 MATCH + 2인 해제",
+        "(D-AUTH-012) NO_EFFECT 해제 뒤 모순 승인 증거 → 새 hold 사건의 운영 처리·Case 연결"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -3591,6 +3721,292 @@
       "evidence": null,
       "review": null,
       "origin": "CP-API-001 Q-CPA-01 답변(D-CPA-001) 2026-10-14"
+    },
+    {
+      "id": "AUTHN-001",
+      "title": "결제창(Thymeleaf)·AuthenticationSession endpoint·가상 인증기관 Simulator",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTH-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "(D-AUTH-001) 결제창 세션 토큰 바인딩(주문·Payment·MID·금액·통화·환경·만료), 인증 결과 서버 검증(state/nonce), AuthenticationSession 영속화, 가상 인증기관 성공/실패/취소/만료·중복 callback·재사용 시험, Simulator/REAL 격리, 카드정보 비노출"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "MASTER-SNAPSHOT-002",
+      "title": "권리 Snapshot에 승인 시작 조건 데이터(카드사/Route·정책 Assignment·수수료 정책 버전·TransactionLimitPolicy) 추가 전파",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-001",
+        "AUTH-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "(D-AUTH-006) MASTER 버전 TransactionLimitPolicy(CSA 기본+MID Override, 효력 기간, 적용 1개) 원본·전파, 미전파/모호 시 승인 시작 fail-closed",
+        "(AUTH-CONTRACT-001 §17-10) D-MD-017 Route, D-MD-018 정책 Assignment, 수수료 정책 버전 전파"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "WEBHOOK-001",
+      "title": "가맹점 서명 Webhook 전달(승인 결과 등)",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTH-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "서명·재시도·순서/중복 허용 계약, Outbox 기반 전달, 가맹점 조회와의 관계, 비밀·카드정보 비노출"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
+    },
+    {
+      "id": "CANCEL-CONTRACT-001",
+      "title": "전액/부분취소 계약(G-5)",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTH-CONTRACT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "(D-AUTH-003) 취소·부분취소는 각각 새 PaymentTransaction, 원승인 Snapshot 수수료/VAT, 취소 UNKNOWN 회복, 일 한도 미복원(D-AUTH-007)"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      }
     }
   ]
 }

@@ -38,6 +38,36 @@ class PaymentIdReuseException(
     val paymentId: PaymentId,
 ) : PaymentDomainException("payment id ${paymentId.value} is already used by this order")
 
+/** 현재 상태에서 허용되지 않는 인증 세션 전이(AUTH-CONTRACT-001 §5.3). */
+class InvalidAuthenticationTransitionException(
+    val sessionId: AuthenticationSessionId,
+    val status: AuthenticationStatus,
+    val action: String,
+) : PaymentDomainException("authentication session ${sessionId.value} in $status does not allow $action")
+
+/** 이미 VERIFIED인 세션에 다른 인증 증거가 왔다. 덮어쓰지 않는다(보안 사건으로 기록할 대상). */
+class AuthenticationEvidenceConflictException(
+    val sessionId: AuthenticationSessionId,
+) : PaymentDomainException("authentication session ${sessionId.value} already verified with different evidence")
+
+/** 현재 상태에서 허용되지 않는 승인·Attempt 전이(AUTH-CONTRACT-001 §5.2). */
+class InvalidAuthorizationTransitionException(
+    val authorizationId: AuthorizationId,
+    val state: String,
+    val action: String,
+) : PaymentDomainException("authorization ${authorizationId.value} in $state does not allow $action")
+
+/** 한도 점유가 정책을 넘는다(사전 판정 없이 점유하려 한 호출 결함 — 업무 거절은 [AuthorizationStartResult.Rejected]). */
+class LimitExceededException(
+    val reason: LimitRejection,
+) : PaymentDomainException("transaction limit exceeded: $reason")
+
+/** 사건 보류 해제를 받아들일 수 없다(없는 보류·이미 해제·다른 승인 성공 이력과 충돌). */
+class IncidentHoldReleaseRejectedException(
+    val hold: IncidentHold,
+    val why: String,
+) : PaymentDomainException("incident hold release for ${hold.paymentId.value}/${hold.reason} rejected: $why")
+
 /** 주문 차단(incident hold·과거 승인 성공) 때문에 승인을 시작할 수 없다. */
 class AuthorizationStartRejectedException(
     val paymentId: PaymentId,

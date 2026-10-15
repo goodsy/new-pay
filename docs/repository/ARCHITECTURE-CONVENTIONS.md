@@ -267,3 +267,24 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 - **jOOQ(CQRS)**: 이 작업의 경로는 모두 Command(판정·쓰기)라 JPA + 잠금 읽기만 쓴다. 조회 API(GetPayment·거래 목록)는 CP-QUERY-001에서 `adapter.query` jOOQ DTO 조회로 만든다(MID·environment 범위 강제, 시각은 `DATE_FORMAT` 문자열 — §9.1).
 - **BOM**: 추가 의존성은 `spring-boot-starter-security`(+ 시험 `security-test`) — Boot 4.1.1 BOM 관리, 카탈로그 기존 항목. Kafka/Redis 없음 — 멱등·활성 하나·Outbox 원자성은 DB 제약·로컬 TX가 보장하며 브로커·캐시가 대체하지 않는다. rate limit이 필요해져도 캐시 장애 시 인증을 fail-open으로 완화하지 않는다.
 
+
+## 12. 승인 계약 domain (AUTH-CONTRACT-001 2단계)
+
+가역적인 구현 관례다. 업무 규칙은 D-AUTH-001~009·D-CPD-002~004이며 명세는 `docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md`.
+코드: `payment.domain`(`PaymentPlan`·`AuthenticationSession`·`PaymentAuthorization`·`TransactionLimit`·`AuthorizationStart`·`AuthorizationResolution`·
+`RequestedPaymentExpiry`·`AuthorizationIds`, `OrderPaymentControl` 확장). JPA·migration·Use Case는 AUTH-001.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| Aggregate | `PaymentAuthorization`(Payment 1:1, Attempt·관찰·거래를 안에 둠), `AuthenticationSession`, `DailyLimitUsage`(범위·업무일)를 별도 Root로 둔다. Payment는 요약 상태만 | Payment·control 기존 계약 불변, 같은 PAYMENT TX에서 함께 저장(CA-01·02) |
+| 다중 Aggregate 연산 | 승인 시작은 `AuthorizationStart.start`, 결과 반영은 `AuthorizationResolution`, 결제창 만료는 `RequestedPaymentExpiry`, hold 해제(+ FORCED 한도 정리)는 `IncidentHoldSettlement`(round1, D-AUTH-010·011) — **모든 검사를 먼저 하고 통과할 때만 함께 바꾼다**(거절은 결과 값, 결함은 예외) | L-2·L-3·§17-5. 실패 시 어떤 Aggregate도 바뀌지 않음을 시험이 확인 |
+| 우회 차단 | ArchUnit `controlStartAuthorizationOnlyThroughAuthorizationStart`(control.startAuthorization·PaymentAuthorization.open·session.bindTo·usage.reserve는 AuthorizationStart만), `domainTransitionsOnlyInsideDomain`(Payment 결과 전이·control 완료·한도 소비/해제·Authorization/Attempt internal 전이는 domain 밖 main 코드 금지), `institutionAdapterDoesNotMutateDomain`(`..adapter..institution..`는 상태 있는 Aggregate·domain 서비스에 의존 금지) | Kotlin에 package-private 없음. 시험 소스는 대상 아님(상태 준비 허용) |
+| JVM 이름 | ArchUnit 접근 규칙은 `kotlinSourceName`(value class 인자 `name-<hash>`, internal `name$<module>`을 소스 이름으로)으로 비교한다 | 정확한 JVM 이름 비교는 `reserve-jHxBwU8` 같은 위반을 놓쳤다(실행 RED) |
+| 결과 값 | 업무 거절 `AuthorizationStartResult.Rejected(AuthorizationStartRejection)`, 반영 결과 `ResolutionOutcome`(Authorized/Failed/BecameUnknown/StillUnknown/NoChange/Incident). 슬롯 위반은 기존 domain 예외 | application이 Outbox·멱등 결과·HTTP를 고르는 입력 |
+| 한도 날짜 | `LimitBusinessDate.ZONE = Asia/Seoul`(D-AUTH-007 사용자 결정 값 — 운영 수치 아님) | 날짜는 점유 때 고정 |
+| 한도 값 | `LimitAmount.Unlimited`/`Limited(minor)`, 정책 해석 `TransactionLimitPolicies.resolve` → Resolved/Missing/Ambiguous | D-AUTH-006 무제한 명시·정확히 하나 |
+| 기관 Adapter 패키지 | `payment.adapter.integration.institution`(AUTH-001) | 계층 규칙의 알려진 adapter 하위 `integration` |
+| 영속 복원 | `AuthenticationSession.reconstitute`, `DailyLimitUsage.reconstitute`, `OrderPaymentControl.reconstitute(…, incidentHoldReleases = emptyList())`. `PaymentAuthorization` 복원 factory는 AUTH-001 Mapper와 함께 추가 | 해제 기록 표가 없는 동안 복원된 hold는 활성(fail-closed) |
+| 시험 | Named Fixture `AuthorizationFixture`(Payment 고정 입력에서 세션 바인딩·한도 점유가 나옴, Demo 값), Kotest BehaviorSpec. Fixture Monkey 미사용(핵심 규칙은 명시 Fixture) | Test Fixture Policy |
+
+JPA와의 연결(AUTH-001에서 할 일, 2단계 변경에는 JPA 코드 없음): **역할** — `PaymentAuthorization`의 Attempt·관찰·거래는 별도 Entity로 adapter가 INSERT하고 관찰은 `@Immutable` insert-only. **예** — 전송 게이트(TXd)의 `beginDispatch`와 회복의 `abandonBeforeDispatch(FENCED_BY_RECOVERY)`는 같은 Authorization 행의 `@Version` 조건부 갱신이라 동시에 이길 수 없다(먼저 커밋한 쪽만 성공, 진 전송자는 소켓을 열지 않음). **이유** — "전송 전 실패 확정"을 DB가 증명하고, cascade·orphanRemoval이 append-only 사실을 지우는 경로가 없다. **주의** — domain 객체는 JPA가 추적하지 않으므로 Mapper가 상태·목록(append-only)·version을 함께 옮기고, 일 한도 사용량 행은 `PESSIMISTIC_WRITE`로 잡아 합계 불변식을 지킨다(낙관적 version만으로는 서로 다른 Authorization 사이 합계를 못 지킨다). Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).
