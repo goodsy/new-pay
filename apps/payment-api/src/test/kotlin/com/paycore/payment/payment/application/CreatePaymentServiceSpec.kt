@@ -2,8 +2,8 @@ package com.paycore.payment.payment.application
 
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
-import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlStore
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.adapter.persistence.PaymentDbTest
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.USD
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.intent
@@ -47,8 +47,8 @@ import java.time.Duration
 class CreatePaymentServiceSpec(
     private val service: CreatePaymentUseCase,
     private val incidents: ReportSuccessAfterTerminationUseCase,
-    private val payments: JpaPaymentStore,
-    private val controls: JpaOrderPaymentControlStore,
+    private val payments: JpaPaymentRepository,
+    private val controls: JpaOrderPaymentControlRepository,
     private val transactionManager: PlatformTransactionManager,
     private val faults: FaultInjector,
     private val eligibility: RecordingEligibilityPort,

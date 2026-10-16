@@ -1,6 +1,6 @@
 package com.paycore.payment.payment.adapter.web
 
-import com.paycore.payment.payment.application.provided.AuthenticateMerchantUseCase
+import com.paycore.payment.payment.application.provided.MerchantAuthenticator
 import com.paycore.payment.payment.application.provided.AuthenticationFailureReason
 import com.paycore.payment.payment.application.provided.MerchantAuthenticationResult
 import com.paycore.payment.payment.application.provided.FailureKind
@@ -34,7 +34,7 @@ class ApiWebUnitSpec : BehaviorSpec({
     afterEach { SecurityContextHolder.clearContext() }
 
     /** [authenticate]로 필터를 한 번 실행한다. 결과: 응답, 다음 필터로 넘어갔는지. */
-    fun runFilter(authenticate: AuthenticateMerchantUseCase, vararg authorization: String): Pair<MockHttpServletResponse, Boolean> {
+    fun runFilter(authenticate: MerchantAuthenticator, vararg authorization: String): Pair<MockHttpServletResponse, Boolean> {
         val request = MockHttpServletRequest("POST", "/v1/payments").apply {
             servletPath = "/v1/payments"
             authorization.forEach { addHeader("Authorization", it) }
@@ -45,7 +45,7 @@ class ApiWebUnitSpec : BehaviorSpec({
         return response to passed
     }
 
-    fun auth(block: (String?) -> MerchantAuthenticationResult): AuthenticateMerchantUseCase = object : AuthenticateMerchantUseCase {
+    fun auth(block: (String?) -> MerchantAuthenticationResult): MerchantAuthenticator = object : MerchantAuthenticator {
         override fun authenticate(presentedKey: String?): MerchantAuthenticationResult = block(presentedKey)
     }
 

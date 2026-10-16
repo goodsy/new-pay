@@ -1,8 +1,8 @@
 package com.paycore.payment.payment.adapter.web
 
 import com.paycore.payment.payment.adapter.persistence.DbAccess
-import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlStore
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.application.EligibilityCall
 import com.paycore.payment.payment.application.RecordingEligibilityPort
 import com.paycore.payment.payment.application.provided.EligibilityUnavailableReason
@@ -33,8 +33,8 @@ class CreatePaymentApiSpec(
     env: SpringEnvironment,
     private val db: DbAccess,
     private val eligibility: RecordingEligibilityPort,
-    payments: JpaPaymentStore,
-    controls: JpaOrderPaymentControlStore,
+    payments: JpaPaymentRepository,
+    controls: JpaOrderPaymentControlRepository,
     transactionManager: PlatformTransactionManager,
 ) : BehaviorSpec({
 

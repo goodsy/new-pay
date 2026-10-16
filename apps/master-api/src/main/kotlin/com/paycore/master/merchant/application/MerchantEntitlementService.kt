@@ -13,17 +13,17 @@ import com.paycore.master.merchant.application.provided.RevokeSiteActivationConf
 import com.paycore.master.merchant.application.provided.SuspendPaymentMethodActivationCommand
 import com.paycore.master.merchant.application.provided.TerminatePaymentMethodActivationCommand
 import com.paycore.master.merchant.application.required.AdminRequestStore
-import com.paycore.master.merchant.application.required.CurrencyEnablementStore
+import com.paycore.master.merchant.application.required.CurrencyEnablementRepository
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
 import com.paycore.master.merchant.application.required.MasterOperationalMetrics
-import com.paycore.master.merchant.application.required.MerchantAccountStore
-import com.paycore.master.merchant.application.required.MerchantSiteStore
-import com.paycore.master.merchant.application.required.MerchantStore
+import com.paycore.master.merchant.application.required.MerchantAccountRepository
+import com.paycore.master.merchant.application.required.MerchantSiteRepository
+import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
-import com.paycore.master.merchant.application.required.PaymentMethodActivationStore
-import com.paycore.master.merchant.application.required.SiteActivationConfirmationStore
+import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
+import com.paycore.master.merchant.application.required.SiteActivationConfirmationRepository
 import com.paycore.master.merchant.application.required.SiteReviewStore
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.ActivationApproval
@@ -65,12 +65,12 @@ class MerchantEntitlementService(
     clock: MasterClock,
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
-    private val merchants: MerchantStore,
-    private val sites: MerchantSiteStore,
-    private val accounts: MerchantAccountStore,
-    private val activations: PaymentMethodActivationStore,
-    private val confirmations: SiteActivationConfirmationStore,
-    private val currencies: CurrencyEnablementStore,
+    private val merchants: MerchantRepository,
+    private val sites: MerchantSiteRepository,
+    private val accounts: MerchantAccountRepository,
+    private val activations: PaymentMethodActivationRepository,
+    private val confirmations: SiteActivationConfirmationRepository,
+    private val currencies: CurrencyEnablementRepository,
     private val reviews: SiteReviewStore,
 ) : MerchantEntitlementUseCase {
 

@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
-  "codeFingerprint": "sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a",
-  "lastSuccessfulStep": "MASTER-SNAPSHOT-002 DONE (VERIFY-GATE PASS 152440Z 1220 tests, DEPS x4·CVE PASS, REVIEW_PASS round2) on sha256:8dbc99b2cb98328b45df9f82dd166479d9ff895d7f1f161493d7e0ad503d995a",
+  "activeTaskId": "AUTHN-001",
+  "codeFingerprint": "sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a",
+  "lastSuccessfulStep": "ARCH-STRUCTURE-001 DONE (VERIFY-GATE PASS 001423Z, REVIEW_PASS round2)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "합의 순서(progress.agreedOrder) 첫 작업 AUTHN-001 착수(사용자 확인 후). 결제 흐름 우선, 관리자 묶음은 WEBHOOK-001 뒤",
+  "nextResumeAction": "AUTHN-001 착수: ① CONVENTIONS §14 Store 기준 보강(ARCH round2 m-1·n-1) ② 1단계 명세·질문 ③ TDD ④ VERIFY-GATE + review",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -282,9 +282,20 @@
       "at": "2026-10-16",
       "taskId": "Q-ADMIN-AUTH",
       "event": "Q-ADMIN-AUTH 답변 → D-ADMIN-001~007, ADMIN-BOOT-001 BACKLOG 등록, Q-ADMIN-SEC-VALUES·Q-ADMIN-APPROVER-STAFF PROPOSED"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "ARCH-STRUCTURE-001",
+      "event": "등록·착수(사용자 선택: AUTHN-001 전 구조 정비)"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "ARCH-STRUCTURE-001",
+      "event": "DONE (VERIFY-GATE PASS 001423Z 1220 tests·SELFTEST 72, REVIEW_PASS round2, DEPS/CVE 생략: 빌드 파일 diff 0) on sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a"
     }
   ],
   "agreedOrder": [
+    "ARCH-STRUCTURE-001",
     "AUTHN-001",
     "TZ-FIX-001",
     "CANCEL-CONTRACT-001",

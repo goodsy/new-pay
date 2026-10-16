@@ -1,0 +1,121 @@
+package com.paycore.master.merchant.application
+
+import com.paycore.master.merchant.application.provided.EntitlementRelayUseCase
+import com.paycore.master.merchant.application.provided.RelayReport
+import com.paycore.master.merchant.application.required.DispatchOutcome
+import com.paycore.master.merchant.application.required.EntitlementDispatcher
+import com.paycore.master.merchant.application.required.EntitlementRelayStore
+import com.paycore.master.merchant.application.required.EntitlementTiming
+import com.paycore.master.merchant.application.required.MasterClock
+import com.paycore.master.merchant.application.required.MasterIdGenerator
+import com.paycore.master.merchant.application.required.MasterOperationalMetrics
+import com.paycore.master.merchant.application.required.PersistenceFailure
+import com.paycore.master.merchant.application.required.RelayMarkResult
+import com.paycore.master.merchant.application.required.SnapshotAck
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
+import java.time.Duration
+import java.time.temporal.ChronoUnit
+import java.util.concurrent.ThreadLocalRandom
+
+/**
+ * Outbox Relay(MASTER-SNAPSHOT-001 명세 §4.7). 한 회차:
+ *
+ * ```
+ * TX1(claim, FOR UPDATE SKIP LOCKED): ENTITLEMENT_SNAPSHOT·PENDING·next_attempt_at ≤ now·claim 없음/만료 → priority DESC, id 순 → claim 표시 → COMMIT
+ * (TX 밖) Dispatcher(HTTP) — DB 잠금·TX 없음
+ * TX2(행마다): 2xx → PUBLISHED + ACK / 재시도 가능 → attempt+1, next_attempt_at = now + backoff, claim 해제 / 4xx → QUARANTINED
+ * ```
+ * 재시도 상한 없음(차단 Snapshot을 포기하지 않는다 — 대기 연령 지표로 경보). Relay crash 뒤에는 claim 만료 후 다른 인스턴스가 같은 eventId로
+ * 다시 보내고 PAYMENT는 DUPLICATE로 응답한다(at-least-once, Inbox가 멱등).
+ */
+@Service
+class EntitlementRelayService(
+    transactionManager: PlatformTransactionManager,
+    private val relay: EntitlementRelayStore,
+    private val dispatcher: EntitlementDispatcher,
+    private val timing: EntitlementTiming,
+    private val clock: MasterClock,
+    private val metrics: MasterOperationalMetrics,
+    ids: MasterIdGenerator,
+) : EntitlementRelayUseCase {
+
+    private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
+    private val log = LoggerFactory.getLogger(EntitlementRelayService::class.java)
+
+    /** 이 프로세스의 Relay 소유자 이름(claim_owner). 인스턴스마다 다르다. */
+    val owner: String = "relay-" + ids.newUuid()
+
+    override fun relayOnce(): RelayReport {
+        val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
+        val claimed = transactions.execute(::isRetryable) {
+            relay.claim(owner, now, now.plus(timing.claimLease), timing.relayBatchSize)
+        }
+        var acknowledged = 0
+        var retried = 0
+        var quarantined = 0
+        var lost = 0
+        var failed = 0
+        for (envelope in claimed) {
+            // review n-6: 한 행의 예상 밖 예외가 같은 배치의 나머지를 claim 만료까지 묶지 않게 행마다 격리한다(그 행은 claim 만료 뒤 다시 집힌다).
+            val outcome: DispatchOutcome
+            val mark: RelayMarkResult
+            try {
+                outcome = dispatcher.dispatch(envelope)
+                val at = clock.now().truncatedTo(ChronoUnit.MILLIS)
+                mark = transactions.execute(::isRetryable) {
+                when (outcome) {
+                    is DispatchOutcome.Acknowledged -> relay.markPublished(
+                        envelope.eventId, owner, SnapshotAck(outcome.consumer, outcome.outcome, outcome.appliedRevision, at, outcome.originalOutcome),
+                    )
+                    is DispatchOutcome.Retryable -> relay.markRetry(envelope.eventId, owner, at.plus(backoff(envelope.attemptCount)), outcome.code)
+                    is DispatchOutcome.Rejected -> relay.markQuarantined(envelope.eventId, owner, outcome.code)
+                }
+                }
+            } catch (e: RuntimeException) {
+                failed++
+                metrics.relayResult("FAILED")
+                log.error("entitlement snapshot relay row failed eventId={} failure={}", envelope.eventId, e::class.simpleName)
+                continue
+            }
+            val result = when {
+                mark == RelayMarkResult.CLAIM_LOST -> "CLAIM_LOST".also { lost++ }
+                outcome is DispatchOutcome.Acknowledged -> "ACKNOWLEDGED".also { acknowledged++ }
+                outcome is DispatchOutcome.Retryable -> "RETRY".also { retried++ }
+                else -> "QUARANTINED".also { quarantined++ }
+            }
+            metrics.relayResult(result)
+            when (outcome) {
+                is DispatchOutcome.Rejected -> log.error(
+                    "entitlement snapshot quarantined eventId={} aggregateId={} revision={} failure={}",
+                    envelope.eventId, envelope.aggregateId, envelope.aggregateVersion, outcome.code,
+                )
+                is DispatchOutcome.Retryable -> log.warn(
+                    "entitlement snapshot delivery retry eventId={} revision={} attempt={} failure={}",
+                    envelope.eventId, envelope.aggregateVersion, envelope.attemptCount + 1, outcome.code,
+                )
+                is DispatchOutcome.Acknowledged -> Unit
+            }
+        }
+        return RelayReport(claimed.size, acknowledged, retried, quarantined, lost, failed)
+    }
+
+    /** 지수 backoff(attempt 0 → initial, 이후 ×2, 상한 max) + 선택 jitter(설정 비율 이내). 업무 정책이 아니라 전달 기술 설정이다. */
+    internal fun backoff(attemptCount: Int): Duration {
+        val initial = timing.backoffInitial.toMillis()
+        val max = timing.backoffMax.toMillis()
+        val shift = attemptCount.coerceIn(0, MAX_SHIFT)
+        val base = (initial shl shift).coerceAtMost(max).coerceAtLeast(initial)
+        val ratio = timing.backoffJitterRatio
+        val jitter = if (ratio > 0.0) (base * ratio * ThreadLocalRandom.current().nextDouble()).toLong() else 0L
+        return Duration.ofMillis((base + jitter).coerceAtMost(max.coerceAtLeast(base)))
+    }
+
+    private fun isRetryable(e: RuntimeException): Boolean = e is PersistenceFailure.Deadlock || e is PersistenceFailure.OptimisticConflict
+
+    private companion object {
+        const val MAX_ATTEMPTS = 3
+        const val MAX_SHIFT = 20
+    }
+}

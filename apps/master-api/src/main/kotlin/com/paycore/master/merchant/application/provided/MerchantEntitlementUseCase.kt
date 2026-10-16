@@ -6,7 +6,6 @@ import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.MerchantAccountId
-import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethod
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
@@ -78,49 +77,4 @@ data class DecideSiteReviewCommand(
     val decision: SiteReviewStatus,
     val reason: DecisionReason,
     val evidenceRef: EvidenceRef?,
-)
-
-/** Outbox Relay 한 회차(명세 §4.7). 스케줄 adapter와 시험이 부른다. 외부 호출은 DB TX 밖. */
-interface EntitlementRelayUseCase {
-    fun relayOnce(): RelayReport
-}
-
-data class RelayReport(val claimed: Int, val acknowledged: Int, val retried: Int, val quarantined: Int, val claimLost: Int, val failed: Int = 0)
-
-/** lease 갱신 한 회차(명세 §3.3): 잔여가 renewBefore보다 짧은 Merchant마다 현재 상태로 재발행(같은 revision, leaseSeq+1, priority LOW). */
-interface EntitlementLeaseUseCase {
-    fun renewDueLeases(): RenewalReport
-}
-
-data class RenewalReport(val candidates: Int, val renewed: Int, val skipped: Int)
-
-/**
- * 전파·효력 확인 조회(CQRS, jOOQ — 명세 §3.4-5, §4.8). 발행(PUBLISHED)만으로 효력 확인을 표시하지 않는다: revision r의 전체 효력 확인 =
- * (a) appliedRevision ≥ r(또는 r 이상 revision의 UNSUPPORTED — PAYMENT fail-closed)인 ACK 시각, (b) r 미만 revision lease 최댓값 경과 중
- * 이른 쪽. 운영 화면은 Q-ADMIN-AUTH 이후.
- */
-interface EntitlementPropagationQuery {
-    fun merchant(merchantId: MerchantId): MerchantPropagationView?
-
-    fun overview(): PropagationOverview
-}
-
-enum class EffectBasis { ACK, LEASE_EXPIRY }
-
-data class MerchantPropagationView(
-    val merchantId: String,
-    val latestRevision: Long,
-    val latestRevisionIssuedAt: Instant,
-    val latestAckRevision: Long?,
-    val latestAckAt: Instant?,
-    val priorLeaseMaxUntil: Instant?,
-    val effectConfirmedAt: Instant?,
-    val effectBasis: EffectBasis?,
-)
-
-data class PropagationOverview(
-    val pendingSnapshots: Long,
-    val oldestPendingCreatedAt: Instant?,
-    val quarantinedSnapshots: Long,
-    val unconfirmedLatestRevisions: Long,
 )

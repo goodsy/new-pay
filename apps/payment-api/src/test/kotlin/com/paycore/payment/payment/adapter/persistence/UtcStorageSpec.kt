@@ -27,7 +27,7 @@ import javax.sql.DataSource
  * CP-DB-001 M-2: DB에 저장되는 DATETIME(3) 원문이 **JVM 기본 시간대와 무관하게 UTC**인지 실제 MySQL 8.4로 확인한다.
  *
  * - 쓰기 경로 두 가지를 모두 지난다: native `INSERT … ON DUPLICATE KEY UPDATE`(멱등 예약 created_at/expires_at, control created_at/updated_at,
- *   `PaymentJpaRepositories`)와 Entity 경로(Payment persist, 만료 갱신 `renewExpired`, 완료 `complete`, control update, Outbox, hold).
+ *   `*JpaRepository`)와 Entity 경로(Payment persist, 만료 갱신 `renewExpired`, 완료 `complete`, control update, Outbox, hold).
  * - 원문 확인은 애플리케이션 pool이 아닌 별도 연결에서 `CAST(col AS CHAR)`로 읽는다(드라이버 시각 변환을 거치지 않은 DB 저장 문자열).
  * - JVM 기본 시간대를 UTC가 아닌 값(Asia/Seoul, +09:00 — 차이가 커서 날짜까지 바뀐다)으로 바꾸고, 애플리케이션 pool 연결을 모두
  *   교체한 뒤 실행한다(Connector/J는 `connectionTimeZone=LOCAL`일 때 연결을 만들 때의 JVM 기본 시간대를 세션 시간대로 잡으므로,
@@ -43,8 +43,8 @@ import javax.sql.DataSource
 class UtcStorageSpec(
     private val service: CreatePaymentUseCase,
     private val incidents: ReportSuccessAfterTerminationUseCase,
-    private val payments: JpaPaymentStore,
-    private val controls: JpaOrderPaymentControlStore,
+    private val payments: JpaPaymentRepository,
+    private val controls: JpaOrderPaymentControlRepository,
     private val transactionManager: PlatformTransactionManager,
     private val dataSource: DataSource,
     private val db: DbAccess,

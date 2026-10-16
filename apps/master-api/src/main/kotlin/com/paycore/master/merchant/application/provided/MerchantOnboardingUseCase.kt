@@ -1,6 +1,5 @@
 package com.paycore.master.merchant.application.provided
 
-import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.ChannelType
@@ -8,7 +7,6 @@ import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
 import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EffectivePeriod
-import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
@@ -42,85 +40,6 @@ interface MerchantOnboardingUseCase {
     fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult
 
     fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult
-}
-
-/**
- * 관리 명령 멱등키(형식은 D-CPC-002와 같은 관례: 1~64자 `[A-Za-z0-9-_.:]`, 대소문자 구분, 입력 그대로 비교).
- * 오류 메시지에 입력값을 넣지 않는다.
- */
-@JvmInline
-value class AdminIdempotencyKey(val value: String) {
-    init {
-        require(value.length in 1..MAX_LENGTH && value.all(::isAllowed)) { "idempotency key must be 1..$MAX_LENGTH characters of [A-Za-z0-9-_.:]" }
-    }
-
-    private companion object {
-        const val MAX_LENGTH = 64
-
-        fun isAllowed(c: Char): Boolean =
-            c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '-' || c == '_' || c == '.' || c == ':'
-    }
-}
-
-/**
- * 관리 명령 공통 맥락. [correlationId]는 로그·이벤트 상관 ID(업무 키 아님). 명령 시각은 받지 않는다 — 서버 `MasterClock` Port가 정한다
- * (review m-3 결정: 시각은 fingerprint 대상이 아니므로 요청 필드로 둘 이유가 없다).
- */
-data class AdminRequest(
-    val idempotencyKey: AdminIdempotencyKey,
-    val actor: ActorRef,
-    val correlationId: String,
-) {
-    init {
-        require(correlationId.length in 1..MAX_CORRELATION && correlationId.all { it in '!'..'~' }) { "correlationId must be 1..128 printable ASCII" }
-    }
-
-    private companion object {
-        const val MAX_CORRELATION = 128
-    }
-}
-
-/** 멱등 범위의 연산 이름. [code]는 영속 값(admin_request.operation)이며 바꾸지 않는다. */
-enum class AdminOperation(val code: String) {
-    REGISTER_BUSINESS("RegisterBusiness"),
-    REGISTER_MERCHANT("RegisterMerchant"),
-    REGISTER_MERCHANT_SITE("RegisterMerchantSite"),
-    REGISTER_CONTRACT("RegisterContract"),
-    REGISTER_CONTRACT_REVISION("RegisterContractRevision"),
-    APPROVE_CONTRACT_REVISION("ApproveContractRevision"),
-    ADD_SERVICE_AGREEMENT("AddServiceAgreement"),
-    ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT("IssueFirstDefaultMerchantAccount"),
-    REGISTER_PAYMENT_METHOD_ACTIVATION("RegisterPaymentMethodActivation"),
-
-    // MASTER-SNAPSHOT-001(D-MD-016~018, D-MS-002·003)
-    APPROVE_PAYMENT_METHOD_ACTIVATION("ApprovePaymentMethodActivation"),
-    SUSPEND_PAYMENT_METHOD_ACTIVATION("SuspendPaymentMethodActivation"),
-    RESUME_PAYMENT_METHOD_ACTIVATION("ResumePaymentMethodActivation"),
-    TERMINATE_PAYMENT_METHOD_ACTIVATION("TerminatePaymentMethodActivation"),
-    CONFIRM_SITE_ACTIVATION("ConfirmSiteActivation"),
-    REVOKE_SITE_ACTIVATION_CONFIRMATION("RevokeSiteActivationConfirmation"),
-    ENABLE_CURRENCY("EnableCurrency"),
-    END_CURRENCY_ENABLEMENT("EndCurrencyEnablement"),
-    DECIDE_SITE_REVIEW("DecideSiteReview"),
-
-    // MASTER-SNAPSHOT-002(D-AUTH-006, D-MD-017·018, D-MS2-001~005)
-    REGISTER_TRANSACTION_LIMIT_POLICY("RegisterTransactionLimitPolicy"),
-    END_TRANSACTION_LIMIT_POLICY("EndTransactionLimitPolicy"),
-    REPLACE_TRANSACTION_LIMIT_POLICY("ReplaceTransactionLimitPolicy"),
-    REGISTER_POLICY_VERSION("RegisterPolicyVersion"),
-    ASSIGN_POLICY("AssignPolicy"),
-    END_POLICY_ASSIGNMENT("EndPolicyAssignment"),
-    REPLACE_POLICY_ASSIGNMENT("ReplacePolicyAssignment"),
-    REGISTER_CARD_ROUTE_ACTIVATION("RegisterCardRouteActivation"),
-    APPROVE_CARD_ROUTE_ACTIVATION("ApproveCardRouteActivation"),
-    SUSPEND_CARD_ROUTE_ACTIVATION("SuspendCardRouteActivation"),
-    RESUME_CARD_ROUTE_ACTIVATION("ResumeCardRouteActivation"),
-    TERMINATE_CARD_ROUTE_ACTIVATION("TerminateCardRouteActivation"),
-    ;
-
-    companion object {
-        fun ofCode(code: String): AdminOperation = entries.single { it.code == code }
-    }
 }
 
 data class RegisterBusinessCommand(
@@ -173,31 +92,3 @@ data class RegisterPaymentMethodActivationCommand(
     val merchantAccountId: MerchantAccountId,
     val paymentMethod: PaymentMethod,
 )
-
-/**
- * 관리 명령 결과. 같은 키·같은 내용 재요청은 저장된 최초 결과를 [replayed]=true로 돌려준다(성공·업무 거절 모두). 같은 키·다른 내용은
- * [IdempotencyKeyReused]이며 아무것도 저장하지 않는다.
- */
-sealed interface AdminCommandResult {
-    /** [reference] = 만든 대상 ID(등록·발급은 새 ID, 승인은 `contractId#revisionNo`). */
-    data class Succeeded(val reference: String, val replayed: Boolean) : AdminCommandResult
-
-    /** 업무 거절(저장·재생). [reference] = 판단 근거 대상(예: 이미 있는 Default MID·같은 등록번호의 Business). */
-    data class Rejected(val rejection: MasterRejection, val reference: String?, val replayed: Boolean) : AdminCommandResult
-
-    data object IdempotencyKeyReused : AdminCommandResult
-}
-
-/** 결과를 바꾸지 않는 기술 실패. 호출자는 같은 키로 다시 요청해 결과를 확인한다(새 키 금지 — 결과 불명확 시 중복 효과 위험). */
-sealed class AdminCommandFailure(message: String, cause: Throwable?) : RuntimeException(message, cause) {
-    /** 같은 키의 앞 요청이 아직 커밋하지 않았다(잠금 대기 timeout). */
-    class RequestInProgress(cause: Throwable) : AdminCommandFailure("an earlier request with the same key is still in progress", cause)
-
-    class TemporarilyUnavailable(cause: Throwable) : AdminCommandFailure("temporarily unavailable", cause)
-
-    /** commit 단계 실패: 커밋 여부를 알 수 없다. 같은 키로 다시 확인한다. */
-    class OutcomeUnknown(cause: Throwable) : AdminCommandFailure("commit outcome unknown", cause)
-
-    /** 서버 생성 ID([kind] = 어느 식별자 제약)가 기존 행과 충돌했다(사용자 입력 충돌이 아니다). 같은 키로 다시 요청하면 새 ID로 처리된다. */
-    class IdentifierCollision(val kind: String) : AdminCommandFailure("server-generated identifier collided: $kind", null)
-}

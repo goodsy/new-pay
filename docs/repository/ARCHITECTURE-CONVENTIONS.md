@@ -167,12 +167,12 @@ JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음)
 ### 9.1 JPA 선택 설명(이번 코드 기준: 역할 → 예 → 이유 → 주의)
 
 - **Entity와 순수 Domain 분리.** 역할: `JpaPaymentEntity`·`JpaOrderPaymentControlEntity` 등은 행 모양만 갖고 `PaymentPersistenceMapper`가 domain과 변환한다. 예: `amount_minor=1050, currency='USD'` → `Money(1050, CurrencyCode("USD"))`(생성자 재검증), 형식 밖 저장 키(`'bad order'`)는 복원 시 `IllegalArgumentException`. 이유: domain에 JPA annotation이 없어 순수성 규칙과 DB 제약이 같은 규칙을 이중으로 지킨다. 주의: Entity는 data class가 아니고 equals/hashCode는 바뀌지 않는 식별자(업무 ID·자연 키)만, toString은 식별자만. 필드는 `protected set`(Hibernate가 채우는 필드를 final로 두지 않음), 생성 불변 컬럼은 `updatable=false`.
-- **변경 감지(dirty checking).** 역할: 잠가 읽은 Entity는 영속성 컨텍스트가 관리하므로 `row.status = …`만으로 flush 때 UPDATE가 나간다(save 불필요). 예: `JpaPaymentStore.update`. 이유: 바뀐 컬럼만 UPDATE하고 `@Version` 조건을 자동으로 붙인다. 주의: domain 객체는 추적되지 않으므로 Store가 Mapper로 값을 옮겨야 하고, 옮기기 전에 기대 version을 비교한다. Spring Data `save`는 version이 있는 Entity에 merge(덮어쓰기)가 될 수 있어 새 행은 `persist`만 쓴다.
+- **변경 감지(dirty checking).** 역할: 잠가 읽은 Entity는 영속성 컨텍스트가 관리하므로 `row.status = …`만으로 flush 때 UPDATE가 나간다(save 불필요). 예: `JpaPaymentRepository.update`. 이유: 바뀐 컬럼만 UPDATE하고 `@Version` 조건을 자동으로 붙인다. 주의: domain 객체는 추적되지 않으므로 Port 구현(`Jpa*Repository`)이 Mapper로 값을 옮겨야 하고, 옮기기 전에 기대 version을 비교한다. Spring Data `save`는 version이 있는 Entity에 merge(덮어쓰기)가 될 수 있어 새 행은 `persist`만 쓴다.
 - **flush와 commit의 차이.** 역할: 각 쓰기 Port 끝의 `flush()`가 SQL을 이 TX 연결로 보내 제약 위반·잠금 충돌을 Port 안에서 드러낸다. 예: 중복 `payment_key` → Port 안에서 `UniqueConflict(PAYMENT_KEY)`. 이유: commit 시점 예외는 원인 분류가 어렵고 "커밋 불명확"과 섞인다. 주의: flush된 행도 commit 전에는 다른 TX에 보이지 않고 rollback되면 사라진다(`CreatePaymentRollbackSpec`이 각 Port flush 뒤 실패를 주입해 확인). flush 실패 뒤 그 TX는 rollback 전용이라 같은 TX에서 재시도하지 않는다.
 - **`@Version`(동시 수정 감지)과 generation(업무).** 역할: `version`은 JPA가 `UPDATE … WHERE version = ?`로 올리는 기술 값, `generation`/`slot_generation`은 몇 번째 시도가 슬롯을 점유했는지의 업무 값. 예: 새 Payment 점유 시 control generation 1 → 2(업무)와 version 0 → 1(기술)이 각각 바뀐다. 이유: generation 비교는 오래된 결과를 업무 규칙으로 거부하고, version·행 잠금·UNIQUE는 같은 판정을 동시에 내리는 경쟁을 DB에서 막는다. 주의: 이벤트 `aggregateVersion`은 JPA version 최초값 0이다(업무 generation이 아님).
 - **비관적 잠금 읽기(`@Lock(PESSIMISTIC_WRITE)`).** 역할: 판정에 쓰는 멱등 행·control·현재 Payment를 `SELECT … FOR UPDATE`로 읽는다. 예: 다른 키 8개가 같은 새 주문을 동시에 요청하면 7개가 control 행에서 기다렸다가 먼저 커밋된 Payment를 재사용한다. 이유: 낙관적 version만으로는 "활성 Payment 하나"를 지키지 못한다(서로 다른 Payment 행 사이의 경쟁). 주의: 잠금은 최소 행·고정 순서로만, 외부 호출 동안 쥐지 않는다. timeout(1205)은 문장만 되돌릴 수 있으므로 TX 전체를 rollback한다.
 - **연관 매핑·LAZY 미사용.** 역할: 종료 근거·incident hold는 `@OneToMany`가 아니라 별도 Entity로 adapter가 INSERT만 한다. 이유: cascade·orphanRemoval이 append-only 사실을 지우거나 LAZY 로딩이 N+1·직렬화 문제를 만드는 경로가 구조적으로 없다. 주의: 조회 화면용 목록은 jOOQ query adapter(조회 전용 규칙)에서 만든다. OSIV는 꺼져 있다.
-- **`@Transactional(MANDATORY)` Port.** 역할: Store는 application이 연 TX 안에서만 동작한다. 예: TX 없이 `lock()` 호출 → `IllegalTransactionStateException`. 이유: TX 경계·재시도·rollback 판단을 application이 소유한다. 주의: Use Case 자체는 이미 열린 TX 안에서 호출되면 거부한다(바깥 TX에 섞이지 않음).
+- **`@Transactional(MANDATORY)` Port.** 역할: Port 구현(`Jpa*Repository`·`Jpa*Store`)은 application이 연 TX 안에서만 동작한다. 예: TX 없이 `lock()` 호출 → `IllegalTransactionStateException`. 이유: TX 경계·재시도·rollback 판단을 application이 소유한다. 주의: Use Case 자체는 이미 열린 TX 안에서 호출되면 거부한다(바깥 TX에 섞이지 않음).
 - **시각 매핑(UTC 저장, CP-DB-001 M-2).** 역할: `Instant` ↔ `DATETIME(3)`(시간대 없는 벽시계 값)을 항상 UTC 벽시계로 쓰고 읽는다. 서비스가 ms로 자른다(30일 CHECK와 Java 계산이 같은 값). 예: `2026-10-07T01:02:03.456Z`는 JVM이 Asia/Seoul이어도 `2026-10-07 01:02:03.456`으로 저장되고 멱등 `expires_at`은 `2026-11-06 01:02:03.456`(`UtcStorageSpec`, 원문은 별도 연결의 `CAST(... AS CHAR)`). 이유: 두 겹으로 고정한다 — (1) `hibernate.jdbc.time_zone=UTC`: Hibernate가 JPA·native query 파라미터를 UTC Calendar로 바인딩(이것만으로 JPA 경로는 처음부터 UTC였다), (2) Hikari driver 속성 `connectionTimeZone=UTC` + `forceConnectionTimeZoneToSession=true`: Hibernate를 거치지 않는 plain JDBC(jOOQ 조회·raw SQL)도 UTC로 변환하고 세션 `time_zone`을 `+00:00`으로 맞춘다. (2) 없이는 Asia/Seoul JVM에서 plain JDBC가 `10:02`로 쓰고 `01:02`을 전날 `16:02Z`로 읽었다(RED). URL이 아니라 driver 속성이라 시험(ServiceConnection URL)·운영(환경변수 URL) 모두 같은 값이 적용된다. 주의: 시간대 이름 테이블이 없는 MySQL에서도 동작하도록 driver가 offset(`+00:00`)으로 세션을 설정한다. DB 기본값 `CURRENT_TIMESTAMP`는 쓰지 않는다(시각은 서버 clock 값을 애플리케이션이 넣음). jOOQ 생성 코드의 `DATETIME` 필드(`LocalDateTime`)는 **UTC 벽시계가 아니다**: driver(`connectionTimeZone=UTC`)가 값을 UTC 순간으로 해석한 뒤 jOOQ가 **JVM 기본 시간대**로 `LocalDateTime`을 만든다(MASTER-DOMAIN-001에서 Asia/Seoul JVM이 02:00Z를 11:00으로 읽은 RED — `MerchantStructureQuerySpec`). 그래서 `ZoneOffset.UTC`로 바꾸면 9시간 어긋난다(이전 이 문단의 안내는 실행 검증 없이 쓴 것이라 정정한다). 조회 adapter는 시각 컬럼을 SQL `DATE_FORMAT(col, '%Y-%m-%dT%H:%i:%s.%fZ')` 문자열로 읽어 `Instant.parse`한다(저장 UTC 벽시계 그대로 — driver·JVM·세션 시간대 변환 없음, `java.sql` 타입 불필요). 시스템 시간대 의존 변환은 금지.
 
 ### 9.2 runtime 표 단위 권한 관례 (PAYMENT-DBACCOUNT-001 — MASTER-DOMAIN-001 이후 모든 소유 DB가 따른다)
@@ -190,21 +190,21 @@ JPA와의 연결(CP-DB-001에서 할 일, 이번 변경에는 JPA 코드 없음)
 | 기존 환경·운영 설치 | 초기화 스크립트는 재실행 안전(IF NOT EXISTS, REVOKE IF EXISTS, grantor 잠금 재적용, procedure 재생성). 기존 compose volume: 재생성 또는 컨테이너에서 스크립트 1회 실행(.env.example). 운영은 DBA가 같은 SQL을 설치한다(REVOKE·ACCOUNT LOCK 포함) | 스크립트는 빈 데이터 디렉터리의 첫 기동에만 자동 실행된다 |
 | schema 객체 감시 | 소유 DB(`paycore_payment`, `paycore_master`)에는 trigger·routine·event·view가 없다(root로 information_schema 확인). 쓰려면 시험 기대값을 바꾸는 검토된 변경이 필요하다 | migration 계정은 `<db>.*` ALL이라 DEFINER가 자신인 trigger/view를 만들 수 있다 — runtime 경로에 숨은 권한 우회를 리뷰 없이 넣지 못하게 한다 |
 
-PAYMENT 표별 runtime 권한(V2__payment_runtime_privileges.sql, 2026-10-08 main 코드 기준):
+PAYMENT 표별 runtime 권한(V2__payment_runtime_privileges.sql, 2026-10-08 main 코드 기준). 타입 이름은 ARCH-STRUCTURE-001 이후 이름(옛 이름은 매핑 §1.1):
 
 | 표 | 성격 | runtime 권한 | 코드 경로(근거) | 없는 권한 |
 |---|---|---|---|---|
-| `payment` | Payment Aggregate root | SELECT, INSERT, UPDATE | INSERT `JpaPaymentStore.insertNew`(persist). UPDATE `JpaPaymentStore.update`(status, `@Version`, 근거만 늘 때 `PESSIMISTIC_FORCE_INCREMENT`), `PaymentJpaRepository.lockById`(`SELECT … FOR UPDATE`는 SELECT + UPDATE 권한 필요) | DELETE(경로 없음) |
-| `payment_termination_evidence` | **append-only 확정 사실**(D-CPD-002) | SELECT, INSERT | INSERT `JpaPaymentStore.update`의 새 근거 persist. 읽기 `findByPaymentIdOrdered`(잠금 없음) | UPDATE, DELETE, 잠금 읽기(1142) |
-| `order_payment_control` | 주문 슬롯(영구 보존) — 명시 검토 대상 | SELECT, INSERT, UPDATE | INSERT+UPDATE `insertIfAbsent`(`INSERT … ON DUPLICATE KEY UPDATE version = version`은 두 권한 필요). UPDATE `lockById`(FOR UPDATE), `JpaOrderPaymentControlStore.update`(current_payment_id·generation·authorized_payment_id·updated_at·version) | DELETE(슬롯 삭제 경로 없음, 영구 보존). 생성 불변 컬럼(fixed_intent_fingerprint, created_at)의 UPDATE는 표 단위라 DB가 막지 않는다 — Entity `updatable=false`·Store `check`가 막는다(열 단위 권한은 후속 후보) |
-| `incident_hold` | **append-only** 사건 보류 | SELECT, INSERT | INSERT `JpaOrderPaymentControlStore.update`의 새 hold persist. 읽기 `findByOrder`(잠금 없음) | UPDATE, DELETE(보류 해제 경로 없음 — 생기면 정책 질문) |
+| `payment` | Payment Aggregate root | SELECT, INSERT, UPDATE | INSERT `JpaPaymentRepository.insertNew`(persist). UPDATE `JpaPaymentRepository.update`(status, `@Version`, 근거만 늘 때 `PESSIMISTIC_FORCE_INCREMENT`), `PaymentJpaRepository.lockById`(`SELECT … FOR UPDATE`는 SELECT + UPDATE 권한 필요) | DELETE(경로 없음) |
+| `payment_termination_evidence` | **append-only 확정 사실**(D-CPD-002) | SELECT, INSERT | INSERT `JpaPaymentRepository.update`의 새 근거 persist. 읽기 `findByPaymentIdOrdered`(잠금 없음) | UPDATE, DELETE, 잠금 읽기(1142) |
+| `order_payment_control` | 주문 슬롯(영구 보존) — 명시 검토 대상 | SELECT, INSERT, UPDATE | INSERT+UPDATE `insertIfAbsent`(`INSERT … ON DUPLICATE KEY UPDATE version = version`은 두 권한 필요). UPDATE `lockById`(FOR UPDATE), `JpaOrderPaymentControlRepository.update`(current_payment_id·generation·authorized_payment_id·updated_at·version) | DELETE(슬롯 삭제 경로 없음, 영구 보존). 생성 불변 컬럼(fixed_intent_fingerprint, created_at)의 UPDATE는 표 단위라 DB가 막지 않는다 — Entity `updatable=false`·Port 구현(`JpaOrderPaymentControlRepository`)의 `check`가 막는다(열 단위 권한은 후속 후보) |
+| `incident_hold` | **append-only** 사건 보류 | SELECT, INSERT | INSERT `JpaOrderPaymentControlRepository.update`의 새 hold persist. 읽기 `findByOrder`(잠금 없음) | UPDATE, DELETE(보류 해제 경로 없음 — 생기면 정책 질문) |
 | `idempotency_request` | API 멱등 기록 | SELECT, INSERT, UPDATE | INSERT+UPDATE `insertPendingIfAbsent`(IODKU). UPDATE `lockByScope`(FOR UPDATE), `renewExpired`, `complete` | DELETE(30일 경과 삭제 Job은 후속 — 그 작업이 DELETE 권한 migration 추가) |
 | `outbox_event` | 통합 이벤트 Outbox | SELECT, INSERT | INSERT `JpaOutboxStore.append`(persist, IDENTITY 키는 generated keys로 받아 SELECT 불필요 — SELECT는 조회·시험용) | UPDATE(Relay published 표시는 Relay 작업이 추가), DELETE |
 | `flyway_schema_history` | Flyway 소유 | 없음 | 앱은 읽지 않는다(Flyway는 migration 계정) | 전부(1142) |
 
 JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 예 → 이유 → 주의):
 
-- **변경 감지 UPDATE.** 역할: managed Entity 필드 변경이 flush 때 `UPDATE … SET <updatable 컬럼> … WHERE id = ? AND version = ?`가 된다. 예: `JpaPaymentStore.update`가 `row.status`를 바꾸면 `payment`에 UPDATE 권한이 필요하다. 이유: 표 단위 UPDATE가 없으면 1142로 flush가 실패해 Port 안에서 드러난다. 주의: Hibernate는 기본으로 updatable 컬럼 전체를 SET에 넣으므로 열 단위 권한을 도입하려면 `updatable=false`가 아닌 모든 컬럼을 허용해야 한다(현재 미도입).
+- **변경 감지 UPDATE.** 역할: managed Entity 필드 변경이 flush 때 `UPDATE … SET <updatable 컬럼> … WHERE id = ? AND version = ?`가 된다. 예: `JpaPaymentRepository.update`가 `row.status`를 바꾸면 `payment`에 UPDATE 권한이 필요하다. 이유: 표 단위 UPDATE가 없으면 1142로 flush가 실패해 Port 안에서 드러난다. 주의: Hibernate는 기본으로 updatable 컬럼 전체를 SET에 넣으므로 열 단위 권한을 도입하려면 `updatable=false`가 아닌 모든 컬럼을 허용해야 한다(현재 미도입).
 - **`@Version`·`PESSIMISTIC_FORCE_INCREMENT`.** 역할: 자식 행(근거·hold)만 늘어도 부모의 version을 UPDATE한다. 예: 종료 근거 추가 → `payment.version` UPDATE + `payment_termination_evidence` INSERT. 이유: 동시에 근거를 덧붙이는 다른 TX가 version으로 충돌한다. 주의: 그래서 append-only 자식 표는 INSERT만이어도 부모 표에는 UPDATE가 필요하다.
 - **`@Lock(PESSIMISTIC_WRITE)` = `SELECT … FOR UPDATE`.** 역할: 판정 행 잠금 읽기. 예: `lockById`·`lockByScope`. 이유: MySQL은 잠금 읽기에 SELECT와 UPDATE(또는 DELETE·LOCK TABLES) 권한을 요구한다. 주의: append-only 표는 잠가 읽지 않는다(시험: 종료 근거 FOR UPDATE → 1142) — 직렬화는 부모(control·payment) 잠금이 한다.
 - **`persist`(IDENTITY)와 native IODKU.** 역할: 새 행은 persist(INSERT만), 최초 경쟁은 `INSERT … ON DUPLICATE KEY UPDATE`. 예: outbox는 INSERT만으로 충분, control·멱등 기록은 IODKU라 INSERT+UPDATE. 이유: MySQL 문서상 IODKU는 INSERT 권한과 함께 ON DUPLICATE KEY UPDATE가 갱신하는 열의 UPDATE 권한을 요구한다(이번에 권한을 줄여 따로 시험하지는 않았다). 주의: Spring Data `save`는 merge(SELECT 후 UPDATE)가 될 수 있어 append-only 표에 쓰면 1142가 날 수 있다 — 새 행은 `persist`만 쓴다는 기존 관례가 권한과도 맞는다.
@@ -222,7 +222,7 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 | 식별자 | `<prefix>_` + ULID 26자(Crockford 대문자): `biz_`·`mer_`·`site_`·`mid_`·`ctr_`·`csa_`·`asg_`·`act_`. domain 생성자와 DB CHECK가 형식 강제, 확장만 허용 | PAYMENT MID·Site 컬럼(VARCHAR(64) bin)과 값 객체에 맞음. 생성기 `RandomMasterIdGenerator`(application, JDK `SecureRandom`만) |
 | 관계 이중 방어 | 같은 Merchant(MID·Site·Default·연결)·당사자 Business(Scope·MID)·승인된 Revision만 발급 근거를 **복합 FK**로, 열린 PRIMARY·열린 MID–Site·활성 채널 유일성을 **생성 컬럼 UNIQUE**로 | domain 검사와 같은 규칙을 DB가 다시 지킨다(`MasterSchemaSpec`). 기간 배제 제약이 없어 닫힌 기간 중첩은 merchant 잠금 + domain |
 | 잠금 순서 | admin_request → business → merchant → contract → merchant_account → (MASTER-SNAPSHOT-001) payment_method_activation / currency_enablement 대상 행. 소속 등 불변 값은 먼저 비잠금으로 읽어 순서를 지킨다. Relay는 outbox_event만(`FOR UPDATE SKIP LOCKED` claim TX, 결과 TX는 행 `FOR UPDATE`), lease 갱신은 merchant 행만 | 교착 방지. merchant 행이 Merchant 안 관계·권리 입력 변경의 직렬화 지점(다른 키 동시 최초 발급 → 1건, 같은 Merchant 갱신 동시 → 1건) |
-| 잠금 읽기 | Store가 `find` 후 `EntityManager.refresh(row, PESSIMISTIC_WRITE)` | 같은 TX의 앞선 비잠금 읽기로 영속성 컨텍스트에 있던 Entity를 최신 커밋 값으로 덮는다(JPQL `@Lock` 조회는 이미 관리되는 Entity의 상태를 다시 읽지 않는다) |
+| 잠금 읽기 | Port 구현(`Jpa*Repository`·`Jpa*Store`)이 `find` 후 `EntityManager.refresh(row, PESSIMISTIC_WRITE)` | 같은 TX의 앞선 비잠금 읽기로 영속성 컨텍스트에 있던 Entity를 최신 커밋 값으로 덮는다(JPQL `@Lock` 조회는 이미 관리되는 Entity의 상태를 다시 읽지 않는다) |
 | 관리 명령 멱등 | 범위 UNIQUE(operation, key), 요청 fingerprint `m1:`(길이 접두 canonical + SHA-256), 같은 키·같은 내용 재생·다른 내용 IdempotencyKeyReused, 업무 거절도 저장·재생, **삭제 경로 없음(무기한)** | D-CPC-004(30일)는 CreatePayment 결정이라 자동 적용하지 않음(Coordinator 확인) |
 | 판정 후 쓰기 | 본문은 잠금·읽기 → domain 판정 → `beginWrites()` → 저장. 쓰기 시작 뒤 규칙 위반은 결함으로 전체 rollback | 업무 거절과 일부 쓰기가 함께 커밋되지 않게 |
 | 재시도 | 교착·낙관적 충돌·**업무 유일키 충돌**(등록번호·채널 등 동시 등록)만 새 TX로 재판정(최대 3회) | 다음 TX의 판정이 커밋된 행을 보고 업무 거절로 수렴(`FirstDefaultIssuanceAtomicitySpec` 등록번호 경합) |
@@ -247,7 +247,7 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 | r1 계산 위치 | `CreatePaymentService`가 command 값으로 계산(`RequestFingerprints`) — 새 예약은 현재 버전(r1), 기존 기록은 **저장된 버전**으로. 지원 밖 버전(요청 `r2`·주문 고정 입력 `v2`)은 비교하지 않고 503 | 계약 §6.4·§7. command에 fingerprint를 넣지 않아 호출자가 다른 값을 끼울 수 없다 |
 | JSON 파서 | Spring 메시지 변환·바인딩 대신 본문 바이트 → 엄격 UTF-8 → Jackson 트리(중복 키·끝 뒤 토큰 거절) → 닫힌 7필드. `+`·선행 0 숫자는 문법 오류지만 계약대로 `INVALID_AMOUNT`로 분류 | 계약 §3.1·D-CPC-009. Boot 기본 Jackson 설정에 정확성을 맡기지 않는다 |
 | 응답 작성 | Controller가 `ResponseEntity<ByteArray>`(JSON 직접 직렬화)로 응답. 오류 본문은 code별 고정 문구 | Accept 협상으로 오류 응답이 406으로 바뀌지 않게, 입력 echo 금지(§9.1) |
-| 인증 | Spring Security stateless 체인 + `MerchantBearerAuthenticationFilter` → `AuthenticateMerchantUseCase` → `MerchantCredentialStore`(PAYMENT 투영, 비잠금 읽기 전용 TX, 캐시 없음). 401은 원인 비구분 + `WWW-Authenticate: Bearer realm="paycore"`. 사용자·비밀번호 인증은 거절 전용 `AuthenticationManager`로 끈다 | D-CPA-001. 투영 lease 만료면 거절(폐기 놓침 방지). 투영 저장소 일시 실패는 401이 아니라 503 |
+| 인증 | Spring Security stateless 체인 + `MerchantBearerAuthenticationFilter` → `MerchantAuthenticator` → `MerchantCredentialStore`(PAYMENT 투영, 비잠금 읽기 전용 TX, 캐시 없음). 401은 원인 비구분 + `WWW-Authenticate: Bearer realm="paycore"`. 사용자·비밀번호 인증은 거절 전용 `AuthenticationManager`로 끈다 | D-CPA-001. 투영 lease 만료면 거절(폐기 놓침 방지). 투영 저장소 일시 실패는 401이 아니라 503 |
 | Credential 투영 | `merchant_api_credential`(keyId PK, 검증값 SHA-256, 상태, 유효 기간, lease) — runtime SELECT만. 쓰기 경로는 MASTER-CREDENTIAL-001이 권한 migration과 함께 추가 | §9.2 "현재 main 코드의 실제 쓰기 경로만" |
 | 생성 행위자 | `payment.created_by_credential_id`(생성 시 불변). V5 이전 행만 NULL | Auditability — 멱등 기록은 30일 뒤 지워질 수 있어 Payment에 둔다 |
 | /internal 격리 | 내장 Tomcat 추가 connector(`paycore.payment.api.internal-port`) + 진입 필터가 connector별로 경로를 가른다(정규화된 servletPath 기준). 공개 포트 `/internal` 아래 → 404, 내부 포트 그 밖 → 404 | MS 이월. 경로 규칙 하나의 실수로 내부 endpoint가 열리는 단일 실패점 제거 |
@@ -271,7 +271,7 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 ## 12. 승인 계약 domain (AUTH-CONTRACT-001 2단계)
 
 가역적인 구현 관례다. 업무 규칙은 D-AUTH-001~009·D-CPD-002~004이며 명세는 `docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md`.
-코드: `payment.domain`(`PaymentPlan`·`AuthenticationSession`·`PaymentAuthorization`·`TransactionLimit`·`AuthorizationStart`·`AuthorizationResolution`·
+코드: `payment.domain`(`PaymentPlan`·`AuthenticationSession`·`PaymentAuthorization`·`TransactionLimitPolicy`·`DailyLimitUsage`·`AuthorizationStart`·`AuthorizationResolution`·
 `RequestedPaymentExpiry`·`AuthorizationIds`, `OrderPaymentControl` 확장). JPA·migration·Use Case는 AUTH-001.
 
 | 관례 | 결정 | 근거 |
@@ -304,3 +304,27 @@ JPA와의 연결(AUTH-001에서 할 일, 2단계 변경에는 JPA 코드 없음)
 | jOOQ 시각 바인딩 | 저장 UTC 벽시계와 비교할 때는 `CAST('yyyy-MM-dd HH:mm:ss.SSS' AS DATETIME(3))` 리터럴(LocalDateTime 바인딩은 JVM 기본 시간대 영향) | 실행 RED(명세 §16.2-8) |
 
 JPA와의 연결(이번 변경): **역할** — `TransactionLimitPolicy`·`PolicyAssignment`·`CardRouteActivation`·`PolicyVersion`은 순수 domain이고 `Jpa*Entity`·`AuthorizationTermsMapper`가 adapter.persistence에만 있다. **예** — 한도 정책 종료는 잠가 읽은(`lockRow` = `FOR UPDATE`) Entity의 `effectiveTo`·`endedAt`·`endedBy`만 바꾸면 flush 때 `UPDATE … WHERE version = ?`(변경 감지 + `@Version`)가 나가고, 범위·값 컬럼은 `updatable = false`라 SQL에 들어가지 않는다. 카드사 개통 전이도 같은 방식이며 이력은 `@Immutable` insert-only Entity로 persist만 한다. **이유** — 같은 수준 중첩·소급·자정 경계 같은 규칙을 Spring 없이 단위 시험하고, DB는 생성 컬럼 UNIQUE·CHECK·복합 FK로 이중 방어한다. **주의** — Mapper가 저장 version을 domain과 함께 옮겨(Versioned) stale 객체가 최신 행을 덮지 않게 하고, 명령은 merchant 잠금 뒤 `lockedNow()`로 판정한다. 조립은 같은 영속성 컨텍스트에서 JPQL(FlushMode AUTO)로 읽어 방금 쓴 행이 Snapshot에 실린다 — flush는 커밋이 아니므로 뒤 단계 실패 시 정책·issue·Outbox가 함께 rollback된다(장애 주입 시험). Kafka/Redis는 이 정합성을 대신하지 않는다(ADR-001).
+
+## 14. 파일·타입 명명 표준 (ARCH-STRUCTURE-001)
+
+가역적인 구현 관례다. 패키지·모듈·공개 범위·금융 동작은 바꾸지 않았다. 변경 매핑과 근거는 `docs/repository/ARCH-STRUCTURE-001-MAPPING.md`,
+지시서는 `docs/CLAUDE-ARCHITECTURE-REFACTORING-GUIDE.md`. 이 절 이전의 코드 이름 중 바뀐 것(`JpaPaymentStore` → `JpaPaymentRepository`,
+`AuthenticateMerchantUseCase` → `MerchantAuthenticator`)은 현재 이름으로 고쳤다. 적용된 Flyway migration 주석과 과거 명세·검증 기록은 옛 이름 그대로다.
+
+| 관례 | 결정 | 이유 |
+|---|---|---|
+| 파일 | Aggregate Root·Application 서비스·Port·Spring Data 인터페이스·JPA Entity·Mapper·Port 구현은 주요 타입 하나당 파일 하나, 파일 이름 = 타입 이름. 그 타입만 쓰는 작은 enum·sealed 결과·command/result DTO·`@Embeddable` 키는 같은 파일 | 이름으로 파일을 찾게 한다. 줄 수만으로 나누지 않는다 |
+| private helper 공유 | 두 타입이 top-level `private` helper를 공유하면 helper를 `internal`로 넓히지 않고 같은 파일에 둔다(`InstitutionRefs.kt`, `CanonicalUuidIdentifiers.kt`, `AuthorizationIds.kt`) | provided 패키지의 `internal`은 bytecode상 public이라 Modulith named interface 표면이 넓어진다 |
+| 식별자·공통 값 | `MasterIdentifiers.kt` 같은 전역 묶음 파일을 만들지 않는다. 값 객체마다 `<Type>.kt` | 지시서 §4 |
+| Aggregate 저장 Port | 판정 기준: **Aggregate 식별자로 load/save하고, 변경 가능하면 `Versioned`(기대 version 갱신)를 쓰는 Port** → `<Aggregate>Repository`(application.required, Spring Data 상속 없음). 구현 `Jpa<Aggregate>Repository`(adapter.persistence). 예: `SiteActivationConfirmationRepository` — 확인은 자기 식별자(`SiteActivationConfirmationId`)로 `find`·`insert`되고 철회가 그 식별자에 붙는 생명주기를 가진다(append-only라 `Versioned`는 없음) | Splearn 역할 명사. Spring Data 인터페이스는 `<Entity>JpaRepository`(접미)로 구별 |
+| 프로토콜·작업 기록·투영 저장 Port | 판정 기준: **자기 Aggregate 식별자가 없는 결정 로그·프로토콜·투영 기록** → `…Store`(`IdempotencyRecordStore`·`OutboxStore`·`AdminRequestStore`·`EntitlementProjectionStore`·`MerchantCredentialStore` 등). 예: `SiteReviewStore` — `SiteReviewDecision`은 자기 식별자 없이 (Site, seq)로 쌓이는 결정 로그이고 Port는 `history(siteId)`·`append`뿐이며 상태는 로그에서 계산한다 | Aggregate Repository로 강제 개명하지 않는다. **AUTHN-001부터 새 저장 Port는 이 두 행의 기준으로 이름을 정한다** |
+| jOOQ 조회 Port | `…Reader`(required) → `Jooq…Reader`(adapter.query) | CQRS 조회 |
+| 제공 Port | 인증 = `<대상>Authenticator`(`MerchantAuthenticator`). 다명령 Port는 `…UseCase`, DTO·판정 조회 Port는 `…Query` 유지. facade(`SubmitCreatePaymentUseCase`)와 TX 소유(`CreatePaymentUseCase`)는 합치지 않으며 이름 체계는 후속(ARCH-NAMING-002 후보) | 매핑 §1.2 |
+| 서비스 구현 | `<업무><책임>Service`. 이름 때문에 TX 경계·책임을 옮기거나 합치지 않는다 | 지시서 §4 |
+| JPA Entity | `Jpa<Name>Entity` 유지(JPQL이 simple name 사용 — 이름 변경 시 JPQL·named query 함께 확인) | §9.1 |
+| 하위 패키지 | 이번에는 만들지 않았다. master domain은 그룹 간 순환이 없음을 확인했고, payment domain은 sealed 예외 계층·식별자 위치 때문에 순환이 있어 별도 설계가 필요하다(매핑 §7) | 타입 수·파일 길이만으로 경계를 만들지 않는다 |
+
+Splearn(`splearn-1-part2`)과의 의도적 차이: 계층 우선 단일 모듈(`domain/<aggregate>`, `application/<aggregate>/{provided,required}`) 대신 Modulith 업무 모듈
+(`<app>.<module>`) 안에 같은 계층을 둔다. Domain = JPA Entity 대신 순수 Domain + `Jpa*Entity` + Mapper. `webapi` 대신 `web`.
+`application.provided`는 `@NamedInterface` 공개 경계라 업무별 하위 패키지로 나누지 않는다. 다른 Aggregate 변경 호출 금지는 그대로 적용하지 않는다 —
+PayCore는 같은 TX의 domain 서비스(`AuthorizationStart` 등)·`OrderPaymentControl.startAuthorization(payment)`가 여러 Aggregate를 함께 바꾸고, 우회는 ArchUnit 접근 규칙이 막는다(§12).

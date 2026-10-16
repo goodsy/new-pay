@@ -8,45 +8,20 @@ import com.paycore.payment.entitlement.domain.EntitlementContent
 import com.paycore.payment.entitlement.domain.EntitlementHead
 import com.paycore.payment.entitlement.domain.HeadBlock
 import com.paycore.payment.entitlement.domain.InboxOutcome
-import com.paycore.payment.entitlement.domain.JsonValue
 import com.paycore.payment.entitlement.domain.Lease
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
 import org.hibernate.StaleStateException
 import org.springframework.dao.OptimisticLockingFailureException
-import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
-import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.sql.SQLException
 import java.sql.SQLNonTransientConnectionException
 import java.sql.SQLRecoverableException
 import java.sql.SQLTransientConnectionException
 import java.time.Instant
-
-interface InboxEventJpaRepository : JpaRepository<JpaInboxEventEntity, Long> {
-    @Query("select i from JpaInboxEventEntity i where i.consumer = :consumer and i.eventId = :eventId")
-    fun findByEvent(@Param("consumer") consumer: String, @Param("eventId") eventId: String): JpaInboxEventEntity?
-}
-
-interface EntitlementHeadJpaRepository : JpaRepository<JpaEntitlementHeadEntity, String> {
-    /** 빈 head 자리를 만든다(있으면 바꾸지 않고 그 행의 잠금을 기다린다 — 최초 경쟁을 PK로 직렬화, 관례 §9 IODKU). */
-    @Modifying
-    @Query(
-        nativeQuery = true,
-        value = "INSERT INTO entitlement_head (merchant_id, revision, version) VALUES (:merchantId, 0, 0) ON DUPLICATE KEY UPDATE version = version",
-    )
-    fun insertEmptyIfAbsent(@Param("merchantId") merchantId: String): Int
-}
-
-interface EntitlementSnapshotJpaRepository : JpaRepository<JpaEntitlementSnapshotEntity, SnapshotKey>
-
-interface MidOwnerJpaRepository : JpaRepository<JpaMidOwnerEntity, String>
 
 /**
  * 권리 투영 저장 Port 구현(JPA, payment 모듈 Store와 같은 관례: MANDATORY TX, 쓰기 끝 flush, append-only는 persist만).
@@ -184,18 +159,5 @@ class JpaEntitlementProjectionStore(
         const val LOCK_WAIT_TIMEOUT = 1205
         val CONNECTION_LOST = setOf(2006, 2013)
         val KEY_NAME = Regex("for key '([^']+)'\\s*$")
-    }
-}
-
-/** Jackson 노드 → domain [JsonValue](domain은 Jackson을 모른다). 정수가 아닌 숫자는 계약 밖이라 거절한다. */
-internal object JacksonTree {
-    fun toJsonValue(node: JsonNode): JsonValue = when {
-        node.isNull -> JsonValue.JNull
-        node.isObject -> JsonValue.JObject(node.properties().associate { (k, v) -> k to toJsonValue(v) })
-        node.isArray -> JsonValue.JArray((0 until node.size()).map { toJsonValue(node.get(it)) })
-        node.isString -> JsonValue.JString(node.stringValue())
-        node.isBoolean -> JsonValue.JBool(node.booleanValue())
-        node.isIntegralNumber && node.canConvertToLong() -> JsonValue.JNumber(node.longValue())
-        else -> throw com.paycore.payment.entitlement.domain.SnapshotContractViolation("unsupported JSON value")
     }
 }

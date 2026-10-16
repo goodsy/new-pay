@@ -3,7 +3,7 @@ package com.paycore.payment.payment.application
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.adapter.persistence.PaymentDbTest
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.newOrder
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.t0
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class IncidentHoldConvergenceSpec(
     private val createPayment: CreatePaymentUseCase,
     private val incidents: ReportSuccessAfterTerminationUseCase,
-    private val payments: JpaPaymentStore,
+    private val payments: JpaPaymentRepository,
     private val faults: FaultInjector,
     private val transactionManager: PlatformTransactionManager,
     private val db: DbAccess,

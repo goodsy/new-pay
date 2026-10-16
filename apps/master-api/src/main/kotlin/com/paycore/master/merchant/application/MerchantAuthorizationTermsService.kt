@@ -17,20 +17,20 @@ import com.paycore.master.merchant.application.provided.ResumeCardRouteActivatio
 import com.paycore.master.merchant.application.provided.SuspendCardRouteActivationCommand
 import com.paycore.master.merchant.application.provided.TerminateCardRouteActivationCommand
 import com.paycore.master.merchant.application.required.AdminRequestStore
-import com.paycore.master.merchant.application.required.CardRouteActivationStore
-import com.paycore.master.merchant.application.required.ContractStore
-import com.paycore.master.merchant.application.required.CurrencyEnablementStore
+import com.paycore.master.merchant.application.required.CardRouteActivationRepository
+import com.paycore.master.merchant.application.required.ContractRepository
+import com.paycore.master.merchant.application.required.CurrencyEnablementRepository
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
 import com.paycore.master.merchant.application.required.MasterOperationalMetrics
-import com.paycore.master.merchant.application.required.MerchantAccountStore
-import com.paycore.master.merchant.application.required.MerchantStore
+import com.paycore.master.merchant.application.required.MerchantAccountRepository
+import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
-import com.paycore.master.merchant.application.required.PaymentMethodActivationStore
-import com.paycore.master.merchant.application.required.PolicyAssignmentStore
-import com.paycore.master.merchant.application.required.PolicyVersionStore
-import com.paycore.master.merchant.application.required.TransactionLimitPolicyStore
+import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
+import com.paycore.master.merchant.application.required.PolicyAssignmentRepository
+import com.paycore.master.merchant.application.required.PolicyVersionRepository
+import com.paycore.master.merchant.application.required.TransactionLimitPolicyRepository
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.ActivationTransition
 import com.paycore.master.merchant.domain.CardRouteActivation
@@ -58,16 +58,6 @@ import org.springframework.transaction.PlatformTransactionManager
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-/** 승인 시작 조건 누락 점검(jOOQ 읽기 Port에 위임, 시각은 서버 clock). */
-@Service
-class AuthorizationTermsCoverageService(
-    private val reader: com.paycore.master.merchant.application.required.AuthorizationTermsCoverageReader,
-    private val clock: MasterClock,
-) : com.paycore.master.merchant.application.provided.AuthorizationTermsCoverageQuery {
-    override fun overview(): com.paycore.master.merchant.application.provided.TermsCoverageOverview =
-        reader.overview(clock.now().truncatedTo(ChronoUnit.MILLIS))
-}
-
 /**
  * 승인 시작 조건 관리 명령(MASTER-SNAPSHOT-002). [MerchantEntitlementService]와 같은 순서: 잠금(admin_request → merchant → merchant_account →
  * 대상 행) → [AdminCommandExecutor.Work.lockedNow] → domain 판정 → beginWrites → 업무 행·이력 → revision +1 → Snapshot 발행 → 요청 결과.
@@ -87,15 +77,15 @@ class MerchantAuthorizationTermsService(
     clock: MasterClock,
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
-    private val merchants: MerchantStore,
-    private val accounts: MerchantAccountStore,
-    private val contracts: ContractStore,
-    private val currencies: CurrencyEnablementStore,
-    private val activations: PaymentMethodActivationStore,
-    private val limits: TransactionLimitPolicyStore,
-    private val versions: PolicyVersionStore,
-    private val policyAssignments: PolicyAssignmentStore,
-    private val routes: CardRouteActivationStore,
+    private val merchants: MerchantRepository,
+    private val accounts: MerchantAccountRepository,
+    private val contracts: ContractRepository,
+    private val currencies: CurrencyEnablementRepository,
+    private val activations: PaymentMethodActivationRepository,
+    private val limits: TransactionLimitPolicyRepository,
+    private val versions: PolicyVersionRepository,
+    private val policyAssignments: PolicyAssignmentRepository,
+    private val routes: CardRouteActivationRepository,
 ) : MerchantAuthorizationTermsUseCase {
 
     private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)

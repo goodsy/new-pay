@@ -49,8 +49,8 @@ import java.util.UUID
  */
 @PaymentDbTest
 class PaymentStoreAdapterSpec(
-    private val payments: JpaPaymentStore,
-    private val controls: JpaOrderPaymentControlStore,
+    private val payments: JpaPaymentRepository,
+    private val controls: JpaOrderPaymentControlRepository,
     private val idempotency: JpaIdempotencyRecordStore,
     private val outbox: JpaOutboxStore,
     private val transactionManager: PlatformTransactionManager,

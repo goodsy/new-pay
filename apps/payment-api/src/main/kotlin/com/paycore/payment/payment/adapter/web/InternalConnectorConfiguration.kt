@@ -1,10 +1,6 @@
 package com.paycore.payment.payment.adapter.web
 
-import jakarta.servlet.FilterChain
-import jakarta.servlet.http.HttpServletRequest
-import jakarta.servlet.http.HttpServletResponse
 import org.apache.catalina.connector.Connector
-import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory
@@ -13,7 +9,6 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.Ordered
-import org.springframework.web.filter.OncePerRequestFilter
 
 /**
  * 내부 경로 격리(MASTER-SNAPSHOT-001 이월, CP-API-001 명세 §8). 내장 Tomcat에 내부 전용 connector([PaymentApiSettings.internalPort])를 더하고
@@ -58,40 +53,4 @@ class InternalConnectorConfiguration {
 class InternalConnector(val connector: Connector) {
     /** 실제 수신 포트. 서버가 시작되지 않았으면(MockMvc 등) -1. */
     val localPort: Int get() = connector.localPort
-}
-
-/**
- * 진입 필터: requestId 발급(`PayCore-Request-Id` — 401 등 모든 응답에, 로그 MDC `correlationId`) + connector별 경로 격리.
- */
-class ApiEntryFilter(private val internal: InternalConnector) : OncePerRequestFilter() {
-
-    override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
-        val requestId = ApiResponses.requestId(request)
-        response.setHeader(ApiResponses.REQUEST_ID_HEADER, requestId)
-        // 요청 스레드의 로그 상관 ID(review round2 n-e): 웹 밖(entitlement 판정 등) 로그가 같은 correlationId를 남긴다.
-        MDC.put(ApiResponses.CORRELATION_ID_MDC_KEY, requestId)
-        try {
-            val internalPath = isInternalPath(request)
-            val internalPort = internal.localPort
-            val viaInternalConnector = internalPort > 0 && request.localPort == internalPort
-            if (viaInternalConnector != internalPath) {
-                ApiResponses.write(response, ApiError(ApiErrorCode.NOT_FOUND), requestId)
-                return
-            }
-            chain.doFilter(request, response)
-        } finally {
-            MDC.remove(ApiResponses.CORRELATION_ID_MDC_KEY)
-        }
-    }
-
-    companion object {
-        /**
-         * 컨테이너가 정규화·복호화한 경로(servletPath + pathInfo — `..`·`;` 경로 파라미터·퍼센트 인코딩이 풀린 값)로 판단한다. 원문 requestURI로
-         * 판단하면 `/v1/..;/internal/…` 같은 표기로 판단과 실제 매핑이 어긋날 수 있다.
-         */
-        fun isInternalPath(request: HttpServletRequest): Boolean {
-            val path = request.servletPath + (request.pathInfo ?: "")
-            return path == "/internal" || path.startsWith("/internal/")
-        }
-    }
 }

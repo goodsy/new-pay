@@ -3,20 +3,6 @@ package com.paycore.master.merchant.domain
 import java.time.Instant
 
 /**
- * ISO 4217 통화 단위(기준정보 `currency_unit`). **허용 통화가 아니다** — 어떤 MID가 그 통화를 쓸 수 있는지는 [CurrencyEnablement]가 정한다
- * (D-MD-018, D-CP-002).
- */
-data class CurrencyUnit(val code: CurrencyCode, val minorUnit: Int) {
-    init {
-        require(minorUnit in 0..MAX_MINOR_UNIT) { "minorUnit must be within 0..$MAX_MINOR_UNIT" }
-    }
-
-    private companion object {
-        const val MAX_MINOR_UNIT = 4
-    }
-}
-
-/**
  * 통화 활성화 기록(D-MD-018): (MID, 통화, 기간 [from, to), 근거). CreatePayment CURRENCY_NOT_ENABLED 판정의 근거다(승인 시작의 (CSA, MID, 통화)
  * 정책 Assignment 요구는 AUTH-001). 기간 규칙(해석 — D-MD-005 "거래 당시 근거를 바꾸지 않는다" 유추, Coordinator 채택 2026-10-13):
  * 소급 시작·소급 종료 금지(from·to ≥ 명령 시각), 미래 종료 예약 허용, 같은 (MID, 통화) 기간 중첩 금지, 종료는 열린 기록에만 한 번.

@@ -1,10 +1,10 @@
 package com.paycore.payment.payment.application
 
 import com.paycore.payment.payment.application.required.IdempotencyRecordStore
-import com.paycore.payment.payment.application.required.OrderPaymentControlStore
+import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.OutboxStore
 import com.paycore.payment.payment.application.required.PaymentEligibilityPort
-import com.paycore.payment.payment.application.required.PaymentStore
+import com.paycore.payment.payment.application.required.PaymentRepository
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import io.kotest.core.spec.style.FunSpec
@@ -36,8 +36,8 @@ class EligibilityPortWiringSpec : FunSpec({
         ApplicationContextRunner()
             .withBean(PlatformTransactionManager::class.java, { mockk<PlatformTransactionManager>() })
             .withBean(IdempotencyRecordStore::class.java, { mockk<IdempotencyRecordStore>() })
-            .withBean(OrderPaymentControlStore::class.java, { mockk<OrderPaymentControlStore>() })
-            .withBean(PaymentStore::class.java, { mockk<PaymentStore>() })
+            .withBean(OrderPaymentControlRepository::class.java, { mockk<OrderPaymentControlRepository>() })
+            .withBean(PaymentRepository::class.java, { mockk<PaymentRepository>() })
             .withBean(OutboxStore::class.java, { mockk<OutboxStore>() })
             .withConfiguration(UserConfigurations.of(CreatePaymentService::class.java))
             .run { context ->

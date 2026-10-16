@@ -8,12 +8,12 @@ import com.paycore.payment.payment.application.required.StoredMerchantCredential
 import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
-import com.paycore.payment.payment.application.required.OrderPaymentControlStore
+import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.OutboxEvent
 import com.paycore.payment.payment.application.required.OutboxStore
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.application.required.PaymentCreationRecord
-import com.paycore.payment.payment.application.required.PaymentStore
+import com.paycore.payment.payment.application.required.PaymentRepository
 import com.paycore.payment.payment.application.required.StoredRequestResult
 import com.paycore.payment.payment.application.required.Versioned
 import com.paycore.payment.payment.domain.OrderKey
@@ -80,8 +80,8 @@ class FaultInjectionConfig {
 
     @Bean
     @Primary
-    fun faultInjectingOrderPaymentControlStore(real: JpaOrderPaymentControlStore, f: FaultInjector): OrderPaymentControlStore =
-        object : OrderPaymentControlStore {
+    fun faultInjectingOrderPaymentControlStore(real: JpaOrderPaymentControlRepository, f: FaultInjector): OrderPaymentControlRepository =
+        object : OrderPaymentControlRepository {
             override fun openOrLock(initial: OrderPaymentControl, at: Instant): ControlAcquisition =
                 f.around(FaultPoint.CONTROL_OPEN) { real.openOrLock(initial, at) }
 
@@ -93,8 +93,8 @@ class FaultInjectionConfig {
 
     @Bean
     @Primary
-    fun faultInjectingPaymentStore(real: JpaPaymentStore, f: FaultInjector): PaymentStore =
-        object : PaymentStore {
+    fun faultInjectingPaymentStore(real: JpaPaymentRepository, f: FaultInjector): PaymentRepository =
+        object : PaymentRepository {
             override fun insertNew(payment: Payment, attributes: PaymentCreationAttributes): Long =
                 f.around(FaultPoint.PAYMENT_INSERT) { real.insertNew(payment, attributes) }
 

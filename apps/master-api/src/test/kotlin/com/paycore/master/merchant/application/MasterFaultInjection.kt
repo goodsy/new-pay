@@ -1,17 +1,17 @@
 package com.paycore.master.merchant.application
 
 import com.paycore.master.merchant.adapter.persistence.JpaAdminRequestStore
-import com.paycore.master.merchant.adapter.persistence.JpaBusinessStore
-import com.paycore.master.merchant.adapter.persistence.JpaMerchantSiteStore
-import com.paycore.master.merchant.application.required.BusinessStore
+import com.paycore.master.merchant.adapter.persistence.JpaBusinessRepository
+import com.paycore.master.merchant.adapter.persistence.JpaMerchantSiteRepository
+import com.paycore.master.merchant.application.required.BusinessRepository
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
-import com.paycore.master.merchant.application.required.MerchantSiteStore
+import com.paycore.master.merchant.application.required.MerchantSiteRepository
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.MerchantSite
 import com.paycore.master.merchant.adapter.persistence.JpaMasterChangeLog
-import com.paycore.master.merchant.adapter.persistence.JpaMerchantAccountStore
-import com.paycore.master.merchant.adapter.persistence.JpaMerchantStore
+import com.paycore.master.merchant.adapter.persistence.JpaMerchantAccountRepository
+import com.paycore.master.merchant.adapter.persistence.JpaMerchantRepository
 import com.paycore.master.merchant.adapter.persistence.JpaOutboxStore
 import com.paycore.master.merchant.application.required.AdminRequestScope
 import com.paycore.master.merchant.application.required.AdminRequestStore
@@ -19,8 +19,8 @@ import com.paycore.master.merchant.application.required.AdminReservation
 import com.paycore.master.merchant.application.required.AdminReservationOutcome
 import com.paycore.master.merchant.application.required.ChangeRecord
 import com.paycore.master.merchant.application.required.MasterChangeLog
-import com.paycore.master.merchant.application.required.MerchantAccountStore
-import com.paycore.master.merchant.application.required.MerchantStore
+import com.paycore.master.merchant.application.required.MerchantAccountRepository
+import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxEvent
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.StoredAdminResult
@@ -136,10 +136,10 @@ class MasterFaultInjectionConfig {
     @Bean
     @Primary
     fun faultInjectingActivationStore(
-        real: com.paycore.master.merchant.adapter.persistence.JpaPaymentMethodActivationStore,
+        real: com.paycore.master.merchant.adapter.persistence.JpaPaymentMethodActivationRepository,
         f: MasterFaultInjector,
-    ): com.paycore.master.merchant.application.required.PaymentMethodActivationStore =
-        object : com.paycore.master.merchant.application.required.PaymentMethodActivationStore by real {
+    ): com.paycore.master.merchant.application.required.PaymentMethodActivationRepository =
+        object : com.paycore.master.merchant.application.required.PaymentMethodActivationRepository by real {
             override fun insert(
                 activation: com.paycore.master.merchant.domain.PaymentMethodActivation,
                 transition: com.paycore.master.merchant.domain.ActivationTransition,
@@ -157,10 +157,10 @@ class MasterFaultInjectionConfig {
     @Bean
     @Primary
     fun faultInjectingConfirmationStore(
-        real: com.paycore.master.merchant.adapter.persistence.JpaSiteActivationConfirmationStore,
+        real: com.paycore.master.merchant.adapter.persistence.JpaSiteActivationConfirmationRepository,
         f: MasterFaultInjector,
-    ): com.paycore.master.merchant.application.required.SiteActivationConfirmationStore =
-        object : com.paycore.master.merchant.application.required.SiteActivationConfirmationStore by real {
+    ): com.paycore.master.merchant.application.required.SiteActivationConfirmationRepository =
+        object : com.paycore.master.merchant.application.required.SiteActivationConfirmationRepository by real {
             override fun insert(confirmation: com.paycore.master.merchant.domain.SiteActivationConfirmation, requestRecordId: String) =
                 f.around(MasterFaultPoint.CONFIRMATION_INSERT) { real.insert(confirmation, requestRecordId) }
         }
@@ -168,10 +168,10 @@ class MasterFaultInjectionConfig {
     @Bean
     @Primary
     fun faultInjectingCurrencyStore(
-        real: com.paycore.master.merchant.adapter.persistence.JpaCurrencyEnablementStore,
+        real: com.paycore.master.merchant.adapter.persistence.JpaCurrencyEnablementRepository,
         f: MasterFaultInjector,
-    ): com.paycore.master.merchant.application.required.CurrencyEnablementStore =
-        object : com.paycore.master.merchant.application.required.CurrencyEnablementStore by real {
+    ): com.paycore.master.merchant.application.required.CurrencyEnablementRepository =
+        object : com.paycore.master.merchant.application.required.CurrencyEnablementRepository by real {
             override fun insert(enablement: com.paycore.master.merchant.domain.CurrencyEnablement, requestRecordId: String) =
                 f.around(MasterFaultPoint.CURRENCY_INSERT) { real.insert(enablement, requestRecordId) }
         }
@@ -233,14 +233,14 @@ class MasterFaultInjectionConfig {
 
     @Bean
     @Primary
-    fun faultInjectingBusinessStore(real: JpaBusinessStore, f: MasterFaultInjector): BusinessStore = object : BusinessStore by real {
+    fun faultInjectingBusinessStore(real: JpaBusinessRepository, f: MasterFaultInjector): BusinessRepository = object : BusinessRepository by real {
         override fun insert(business: Business) = f.around(MasterFaultPoint.BUSINESS_INSERT) { real.insert(business) }
     }
 
     @Bean
     @Primary
-    fun faultInjectingMerchantSiteStore(real: JpaMerchantSiteStore, f: MasterFaultInjector): MerchantSiteStore =
-        object : MerchantSiteStore by real {
+    fun faultInjectingMerchantSiteStore(real: JpaMerchantSiteRepository, f: MasterFaultInjector): MerchantSiteRepository =
+        object : MerchantSiteRepository by real {
             override fun insert(site: MerchantSite) = f.around(MasterFaultPoint.SITE_INSERT) { real.insert(site) }
         }
 
@@ -256,7 +256,7 @@ class MasterFaultInjectionConfig {
 
     @Bean
     @Primary
-    fun faultInjectingMerchantStore(real: JpaMerchantStore, f: MasterFaultInjector): MerchantStore = object : MerchantStore by real {
+    fun faultInjectingMerchantStore(real: JpaMerchantRepository, f: MasterFaultInjector): MerchantRepository = object : MerchantRepository by real {
         override fun lock(id: com.paycore.master.merchant.domain.MerchantId): Versioned<Merchant>? =
             f.around(MasterFaultPoint.MERCHANT_LOCK) { real.lock(id) }
 
@@ -266,8 +266,8 @@ class MasterFaultInjectionConfig {
 
     @Bean
     @Primary
-    fun faultInjectingMerchantAccountStore(real: JpaMerchantAccountStore, f: MasterFaultInjector): MerchantAccountStore =
-        object : MerchantAccountStore by real {
+    fun faultInjectingMerchantAccountStore(real: JpaMerchantAccountRepository, f: MasterFaultInjector): MerchantAccountRepository =
+        object : MerchantAccountRepository by real {
             override fun insertFirstDefault(issuance: FirstDefaultIssuance) =
                 f.around(MasterFaultPoint.FIRST_DEFAULT_INSERT) { real.insertFirstDefault(issuance) }
         }

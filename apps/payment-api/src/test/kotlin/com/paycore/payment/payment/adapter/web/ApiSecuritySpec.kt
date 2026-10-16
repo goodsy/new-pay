@@ -4,8 +4,8 @@ import com.paycore.payment.entitlement.EntitlementEnvelopes
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
-import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlStore
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.domain.Environment
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -30,8 +30,8 @@ class ApiSecuritySpec(
     private val registry: MeterRegistry,
     private val faults: FaultInjector,
     private val dataSource: DataSource,
-    payments: JpaPaymentStore,
-    controls: JpaOrderPaymentControlStore,
+    payments: JpaPaymentRepository,
+    controls: JpaOrderPaymentControlRepository,
     transactionManager: PlatformTransactionManager,
 ) : BehaviorSpec({
 

@@ -15,6 +15,8 @@
 
 `docs/TECHNOLOGY-AND-PRINCIPLES.md`를 읽고 적용한다. Financial Consistency, Transaction Safety, Idempotency, Concurrency Control, Recoverability, Reconciliation, Auditability, Observability를 기능별 완료 증거로 검사한다. Kotlin + 안정 GA Spring Boot/Batch, 도메인 영속화 JPA, 복잡한 CQRS 조회 jOOQ, Thymeleaf 우선/React 후속, DDD/헥사고날은 사용자 지정이다. 순수 Domain과 JPA Entity adapter를 분리한다. JPA 주요 선택은 이번 코드의 역할·예·이유·주의점을 쉽게 설명한다. 버전은 Boot BOM 기반 호환 조합을 확인·고정하고 Kafka/Redis는 서비스 필요와 금융 안전성 검토 후 도입한다.
 
+파일·타입 명명과 패키지 배치는 [ARCHITECTURE-CONVENTIONS §14](docs/repository/ARCHITECTURE-CONVENTIONS.md)와 [ARCH-STRUCTURE-001 매핑](docs/repository/ARCH-STRUCTURE-001-MAPPING.md)을 따른다. 주요 타입당 파일 하나, Aggregate 저장 Port `<Aggregate>Repository`(구현 `Jpa<Aggregate>Repository`), 프로토콜·기록 저장 Port `…Store`, jOOQ 조회 Port `…Reader`. 기존 `<app>.<module>` 패키지와 `@NamedInterface` 위치는 유지한다.
+
 ## 결정과 진행
 
 - 확정된 업무 규칙을 재질문하지 않는다. 메서드/Mapper/내부 패키지 같은 가역적인 구현 세부는 저장소 관례로 결정하고 기록한다.

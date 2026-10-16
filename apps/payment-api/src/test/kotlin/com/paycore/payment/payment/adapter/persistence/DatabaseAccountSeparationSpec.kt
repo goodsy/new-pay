@@ -50,7 +50,7 @@ import java.sql.SQLException
 class DatabaseAccountSeparationSpec(
     private val createPayment: CreatePaymentUseCase,
     private val incidents: ReportSuccessAfterTerminationUseCase,
-    private val payments: JpaPaymentStore,
+    private val payments: JpaPaymentRepository,
     private val transactionManager: PlatformTransactionManager,
     private val jdbcTemplate: JdbcTemplate,
     private val db: DbAccess,

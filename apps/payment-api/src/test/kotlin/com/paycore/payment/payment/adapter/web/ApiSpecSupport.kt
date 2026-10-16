@@ -1,8 +1,8 @@
 package com.paycore.payment.payment.adapter.web
 
 import com.paycore.payment.payment.adapter.persistence.DbAccess
-import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlStore
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.MerchantAccountId
 import com.paycore.payment.payment.domain.MerchantOrderId
@@ -20,8 +20,8 @@ import java.util.UUID
 /** API 시험 공통 도구(src/test 전용). */
 class ApiSpecSupport(
     private val db: DbAccess,
-    private val payments: JpaPaymentStore,
-    private val controls: JpaOrderPaymentControlStore,
+    private val payments: JpaPaymentRepository,
+    private val controls: JpaOrderPaymentControlRepository,
     transactionManager: PlatformTransactionManager,
 ) {
     private val tx = TransactionTemplate(transactionManager)

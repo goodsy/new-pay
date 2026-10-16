@@ -73,9 +73,3 @@ class SecureRandomPaymentIdentifierGenerator(private val clock: PaymentClock) : 
         const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
     }
 }
-
-/** 운영 서버 시계(UTC Instant). */
-@Component
-class SystemPaymentClock : PaymentClock {
-    override fun now(): Instant = Instant.now()
-}

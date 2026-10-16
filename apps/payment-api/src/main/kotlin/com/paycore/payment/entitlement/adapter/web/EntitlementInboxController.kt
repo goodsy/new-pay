@@ -11,9 +11,6 @@ import com.paycore.payment.entitlement.domain.isSupportedSnapshotSchema
 import com.paycore.payment.entitlement.domain.SnapshotContractViolation
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
-import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -27,66 +24,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.HexFormat
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
-
-/**
- * 내부 Inbox 수신 키(D-MS-004: 봉투 HMAC-SHA256, 환경별 키, 교체용 키 2개 동시 허용, 불일치·키 없음 거절). **운영 기본값이 없다** — 키가 없으면
- * 기동이 실패한다. 키는 비밀 저장소에서 주입하고 저장소·설정 파일에 운영 키를 두지 않는다. 운영망 mTLS는 LIVE 허용 전 별도 작업(D-MS-004).
- */
-@ConfigurationProperties(prefix = "paycore.payment.entitlement.inbox")
-class EntitlementInboxSettings(val signingKeys: List<SigningKey>) {
-    class SigningKey(val keyId: String, val secret: String) {
-        val bytes: ByteArray = try {
-            Base64.getDecoder().decode(secret)
-        } catch (e: IllegalArgumentException) {
-            throw IllegalArgumentException("signing key secret must be Base64", e)
-        }
-
-        override fun toString(): String = "SigningKey(keyId=$keyId, secret=****)"
-    }
-
-    init {
-        require(signingKeys.size in 1..MAX_KEYS) { "1..$MAX_KEYS signing keys are required (two only while rotating)" }
-        require(signingKeys.map { it.keyId }.toSet().size == signingKeys.size) { "signing key ids must be unique" }
-        signingKeys.forEach {
-            require(KEY_ID.matches(it.keyId)) { "signing key id must be 1..32 characters of [A-Za-z0-9._-]" }
-            require(it.bytes.size >= MIN_KEY_BYTES) { "signing key must decode to at least $MIN_KEY_BYTES bytes" }
-        }
-    }
-
-    fun key(keyId: String): ByteArray? = signingKeys.firstOrNull { it.keyId == keyId }?.bytes
-
-    override fun toString(): String = "EntitlementInboxSettings(keys=${signingKeys.map { it.keyId }})"
-
-    companion object {
-        const val MAX_KEYS = 2
-        const val MIN_KEY_BYTES = 32
-        val KEY_ID = Regex("^[A-Za-z0-9._-]{1,32}$")
-    }
-}
-
-@Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(EntitlementInboxSettings::class)
-class EntitlementInboxConfiguration
-
-/** 봉투 서명 검증(TX 밖, 명세 §5.1). 헤더 `PayCore-Signature: keyId=<id>,v1=<hex HMAC-SHA256(key, 본문 바이트)>`. 비교는 상수 시간. */
-object EntitlementSignature {
-    const val HEADER = "PayCore-Signature"
-    private val FORMAT = Regex("^keyId=([A-Za-z0-9._-]{1,32}),v1=([0-9a-f]{64})$")
-
-    fun verify(settings: EntitlementInboxSettings, header: String?, body: ByteArray): Boolean {
-        val match = header?.let { FORMAT.matchEntire(it) } ?: return false
-        val key = settings.key(match.groupValues[1]) ?: return false
-        val expected = hmac(key, body)
-        return MessageDigest.isEqual(expected, HexFormat.of().parseHex(match.groupValues[2]))
-    }
-
-    fun hmac(key: ByteArray, body: ByteArray): ByteArray =
-        Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(body)
-}
 
 /**
  * MASTER → PAYMENT 권리 Snapshot 내부 Inbox(push relay 수신, 명세 §7). 외부 공개 경로와 분리된 `/internal/v1/…`(외부 노출 차단 구성은 CP-API-001).

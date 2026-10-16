@@ -1,8 +1,8 @@
 package com.paycore.payment.payment.application
 
 import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
-import com.paycore.payment.payment.application.required.OrderPaymentControlStore
-import com.paycore.payment.payment.application.required.PaymentStore
+import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
+import com.paycore.payment.payment.application.required.PaymentRepository
 import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.application.required.StoreConstraint
 import com.paycore.payment.payment.domain.OrderKey
@@ -21,8 +21,8 @@ import java.time.temporal.ChronoUnit
 @Service
 class ReportSuccessAfterTerminationService(
     transactionManager: PlatformTransactionManager,
-    private val controls: OrderPaymentControlStore,
-    private val payments: PaymentStore,
+    private val controls: OrderPaymentControlRepository,
+    private val payments: PaymentRepository,
 ) : ReportSuccessAfterTerminationUseCase {
 
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)

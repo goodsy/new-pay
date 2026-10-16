@@ -1,6 +1,6 @@
 package com.paycore.payment.payment.application
 
-import com.paycore.payment.payment.application.provided.AuthenticateMerchantUseCase
+import com.paycore.payment.payment.application.provided.MerchantAuthenticator
 import com.paycore.payment.payment.application.provided.AuthenticationFailureReason
 import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.MerchantAuthentication
@@ -36,7 +36,7 @@ class MerchantAuthenticationService(
     private val credentials: MerchantCredentialStore,
     private val clock: PaymentClock,
     transactionManager: PlatformTransactionManager,
-) : AuthenticateMerchantUseCase {
+) : MerchantAuthenticator {
 
     /**
      * 읽기 전용 로컬 TX(CP-DB-001 관례 [LocalTransactions] — review round2 m-1). 선언적 `@Transactional`은 연결이 끊겨 rollback·commit이

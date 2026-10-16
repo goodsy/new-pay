@@ -3,8 +3,8 @@ package com.paycore.payment.payment.adapter.web
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
-import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlStore
-import com.paycore.payment.payment.adapter.persistence.JpaPaymentStore
+import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
+import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.application.required.ControlAcquisition
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.domain.PaymentId
@@ -38,8 +38,8 @@ class ApiFailureSpec(
     private val faults: FaultInjector,
     private val clock: MutablePaymentClock,
     private val identifiers: ScriptedIdentifierGenerator,
-    payments: JpaPaymentStore,
-    controls: JpaOrderPaymentControlStore,
+    payments: JpaPaymentRepository,
+    controls: JpaOrderPaymentControlRepository,
     transactionManager: PlatformTransactionManager,
 ) : BehaviorSpec({
 

@@ -3734,7 +3734,8 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "AUTH-CONTRACT-001"
+        "AUTH-CONTRACT-001",
+        "ARCH-STRUCTURE-001"
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
@@ -4272,6 +4273,460 @@
           "evidence": null
         }
       }
+    },
+    {
+      "id": "ARCH-STRUCTURE-001",
+      "title": "도메인 중심 파일 분리·역할별 명명 정비(기존 패키지 유지, 동작 불변)",
+      "phase": "FOUNDATION",
+      "status": "DONE",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-002"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "docs/CLAUDE-ARCHITECTURE-REFACTORING-GUIDE.md(사용자 작성 지시서) §2 범위·§3 패키지 기본형·§4 명명 표준·§6 절차·§7 검증·§8 보고 형식 준수",
+        "docs/repository/ARCH-STRUCTURE-001-MAPPING.md 매핑표(현재/도메인 의미/목표/이유/호출자/영향 검사·설정)",
+        "주요 타입 1파일 분리, 역할별 이름 통일(참조·테스트·ArchUnit 패턴·bean 이름·JPA entity name 점검), 테이블·컬럼·직렬화·HTTP·이벤트 계약 불변",
+        "금지: 금융 동작·DB schema/migration·API/JSON/오류 코드·이벤트·멱등 fingerprint·TX 경계·잠금 순서·Outbox/Inbox·Modulith 모듈/공개 범위(@NamedInterface 위치) 변경, 테스트 삭제·skip·하한 감소, 모듈 OPEN",
+        "ArchUnit 패턴 수정 시 같은 금지 동작을 잡는 위반 fixture로 확인",
+        "ARCHITECTURE-CONVENTIONS.md·용어사전 갱신, Splearn 대비 의도적 차이 기록, CLAUDE.md에는 규칙 문서 링크만 짧게 추가",
+        "하위 패키지·애그리거트 경계 정비안은 근거와 함께 후속 작업 후보로 기록(이번에 실행하지 않음), 발견한 기존 버그는 별도 기록",
+        "VERIFY-GATE PASS(새 fingerprint), 테스트 수 1220 이상·harness 72 이상 유지"
+      ],
+      "allowedWritePaths": [
+        "apps/**/src/**",
+        "libs/**/src/**",
+        "docs/repository/**",
+        "docs/CLAUDE-ARCHITECTURE-REFACTORING-GUIDE.md",
+        "CLAUDE.md",
+        "harness/commands.json"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
+      "attempts": 1,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": {
+        "fingerprint": "sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a",
+        "verifyGate": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json",
+        "evidenceSha256": "5ecc15cbf8f3e522574e9b5bc476389621e314880653e4bba318b1ba2bbb3ef2",
+        "verdict": "PASS",
+        "tests": {
+          "total": 1220,
+          "master-api": 314,
+          "payment-api": 739,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112
+        },
+        "harnessSelftest": "Ran 72 OK",
+        "at": "2026-10-16T00:24:55Z",
+        "depsCve": "SKIPPED: 빌드 파일(*.gradle.kts, gradle/, settings.gradle.kts, gradle.properties) HEAD 대비 diff 0건을 git으로 확인 → 의존성 트리·CVE 결과는 MASTER-SNAPSHOT-002 회차(194656Z-supplementary)와 동일 전제. LIVE 준비 Gate에서 재실행",
+        "runMode": "WSL 내부 setsid nohup … & disown(스크립트 파일 경유)",
+        "priorGate": "235322Z(fp 696e80de…) PASS였으나 review1 문서 보강 전 fingerprint라 무효(대체됨). MASTER-SNAPSHOT-002 라벨로 잘못 시작한 235251Z-logs 폴더(json 없음)는 판정 아님",
+        "structureChecks": "주요 파일 136→371(새 271·삭제 36), 이름 변경 29건(Aggregate 저장 Port …Store→…Repository 14쌍, AuthenticateMerchantUseCase→MerchantAuthenticator). 테스트 삭제·skip 없음, 개수 1220 유지, STUDY.md 무변경"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": 2,
+        "reviewedFingerprint": "sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a"
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Transaction Safety": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Idempotency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Concurrency Control": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Recoverability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Reconciliation": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Auditability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        },
+        "Observability": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "구조 전용 변경(파일 분리·타입 이름 변경). 금융 동작·TX 경계·잠금·멱등 fingerprint·Outbox/Inbox·schema·API 계약 불변. 기존 회귀 테스트 1220건 전량 PASS가 증거",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "build/harness-evidence/ARCH-STRUCTURE-001-2026-10-16T001423Z.json"
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-16 사용자 선택 'ARCH-STRUCTURE-001 먼저 (Recommended)': 지시서 §9 권장 시점(AUTHN-001 착수 전)에 실행. 단순 파일명 변경마다 확인 요청하지 않음(지시서 §9). 지시서 파일은 이 작업 커밋에 포함",
+        "2026-10-16 DONE 판정: gate·review 독립 수행. DEPS/CVE는 빌드 파일 diff 0건으로 생략(근거 evidence.depsCve)"
+      ],
+      "specification": {
+        "path": "docs/repository/ARCH-STRUCTURE-001-MAPPING.md",
+        "sha256": "1098092998133bf606bd4067f44de569b58cf2d2825f465eb46ffa6fbad1b00d",
+        "guide": "docs/CLAUDE-ARCHITECTURE-REFACTORING-GUIDE.md",
+        "guideSha256": "417948d8194aa67b4c4a53c6b6fae756cc430cc9fa0f94f59092bc4926cfef98"
+      },
+      "reviewRounds": [
+        {
+          "round": 1,
+          "verdict": "REVIEW_PASS(조건부)",
+          "fixes": "m-2 Repository/Store 판정 기준, m-3 패키지 트리 §0.1, n-1·n-2·n-3·n-6 문서, JpaPaymentRepository KDoc 1줄 → payment-api 739 재실행 PASS. AuthorizationTermsMapper·EntitlementPersistenceMapper·JacksonTree는 HEAD에서 이미 internal임을 coordinator가 git으로 확인"
+        },
+        {
+          "round": 2,
+          "verdict": "REVIEW_PASS(조건: gate PASS·테스트 1220/72 이상 보고서 확인 → 충족)",
+          "reviewedFingerprint": "sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a"
+        }
+      ],
+      "openItems": [
+        "round2 m-1 → AUTHN-001 첫 단계: CONVENTIONS §14 Store 기준에 '이 모듈이 소유하지 않는 원천의 projection(원천 id로 조회)과 id가 있는 비-Aggregate 프로토콜 기록(Outbox·멱등)은 Store', Repository는 '이 모듈이 소유한 Aggregate'로 명시. Credential Port 명명 전에 적용",
+        "round2 n-1: 매핑 §0 문구 다듬기(경미) → 위 m-1 수정과 함께",
+        "n-4·n-5: 시험 쪽 옛 이름(MasterFaultInjection faultInjecting…Store bean 메서드, PaymentStoreAdapterSpec 클래스명) → ARCH-NAMING-002",
+        "n-7: AuthorizationAdmissionPort 유지 근거 약함(ArchitectureSpec FQN 검사·Evaluator 이름 겹침) → ARCH-NAMING-002",
+        "후속 후보 BACKLOG 등록: ARCH-NAMING-002, ARCH-SUBPKG-MASTER, ARCH-SUBPKG-PAYMENT, DOC-ALIGN(매핑 §8). 실행 순서는 사용자 합의 전이라 agreedOrder에 넣지 않음"
+      ]
+    },
+    {
+      "id": "ARCH-NAMING-002",
+      "title": "facade/TX 소유 Port 이름 체계·반부패 Port 이름·시험 쪽 옛 이름 정비",
+      "phase": "FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ARCH-STRUCTURE-001",
+        "AUTH-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "매핑 §1.2·§8: CreatePayment·AUTH-001 공통 facade/TX 소유 Port 이름 체계, 다명령 provided Port 역할별 분할 여부, *Port 접미 반부패 Port(AuthorizationAdmissionPort 등, ArchitectureSpec FQN 검사 동반 수정)",
+        "시험 쪽 옛 이름: MasterFaultInjection faultInjecting…Store bean 메서드, PaymentStoreAdapterSpec 클래스명",
+        "동작·계약 불변, VERIFY-GATE PASS, 테스트 수 유지"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-16 ARCH-STRUCTURE-001 매핑 §8 후속 후보로 등록. 실행 시점은 사용자 합의 필요"
+      ]
+    },
+    {
+      "id": "ARCH-SUBPKG-MASTER",
+      "title": "master merchant.domain 하위 패키지 정비",
+      "phase": "FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ARCH-STRUCTURE-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "매핑 §7.1 정비안(순환 없음 확인) 실행, @NamedInterface 위치·Modulith 공개 범위 불변",
+        "VERIFY-GATE PASS, 테스트 수 유지"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-16 ARCH-STRUCTURE-001 매핑 §8 후속 후보로 등록. 실행 시점은 사용자 합의 필요"
+      ]
+    },
+    {
+      "id": "ARCH-SUBPKG-PAYMENT",
+      "title": "payment domain 예외 계층·식별자 정비 후 하위 패키지 정비",
+      "phase": "FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ARCH-STRUCTURE-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "매핑 §7.2: sealed PaymentDomainException·흩어진 식별자 먼저 정비해 순환(5개) 해소 후 하위 패키지",
+        "동작·오류 코드 불변, VERIFY-GATE PASS, 테스트 수 유지"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-16 ARCH-STRUCTURE-001 매핑 §8 후속 후보로 등록. 실행 시점은 사용자 합의 필요"
+      ]
+    },
+    {
+      "id": "DOC-ALIGN",
+      "title": "과거 명세 문서에 타입 이름 대응 머리말 한 줄 추가",
+      "phase": "FOUNDATION",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ARCH-STRUCTURE-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "옛 타입 이름이 나오는 과거 명세(CP-API-001·AUTH-CONTRACT-001 등)에 'ARCH-STRUCTURE-001 매핑 §1.1' 머리말 한 줄만 추가, 본문 치환 금지, 적용된 migration 주석 고정"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": null,
+      "review": null,
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-16 ARCH-STRUCTURE-001 매핑 §8 후속 후보로 등록. 실행 시점은 사용자 합의 필요"
+      ]
     }
   ]
 }

@@ -4,19 +4,6 @@ import java.security.MessageDigest
 import java.util.HexFormat
 
 /**
- * 가맹점 Site 식별자(MASTER가 발급). MID와 같은 구현 관례로 입력 그대로 비교하며 형식·길이는 MASTER 발급 규칙(MASTER-DOMAIN-001)이라
- * domain은 빈 값과 짝 없는 UTF-16 서로게이트(기술 불변식, CP-CONTRACT-001 §3.1 — UTF-8 `?` 치환으로 다른 Site와 같은
- * fingerprint가 되는 것을 막는다)만 거부한다. Site가 MID와 같은 Merchant 소속·유효 Assignment인지는 eligibility Port(§13)가 검사한다.
- */
-@JvmInline
-value class MerchantSiteId(val value: String) {
-    init {
-        require(value.isNotEmpty()) { "merchantSiteId must not be empty" }
-        Utf8Text.requireWellFormed(value, "merchantSiteId")
-    }
-}
-
-/**
  * 같은 OrderKey에서 바뀌면 안 되는 고정 주문 입력(D-CPC-001, 사용자 확정 2026-10-06) = merchantSiteId + amount + currency.
  * 결제수단·주문명 등 표시 정보는 넣지 않는다(최초 Payment 값으로 저장만). MID·environment는 OrderKey 자체라 넣지 않는다.
  *

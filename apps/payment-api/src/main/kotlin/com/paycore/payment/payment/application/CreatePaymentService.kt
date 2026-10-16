@@ -18,11 +18,11 @@ import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
 import com.paycore.payment.payment.application.required.IdempotentOperation
-import com.paycore.payment.payment.application.required.OrderPaymentControlStore
+import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.OutboxStore
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.application.required.PaymentEligibilityPort
-import com.paycore.payment.payment.application.required.PaymentStore
+import com.paycore.payment.payment.application.required.PaymentRepository
 import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.application.required.StoreConstraint
 import com.paycore.payment.payment.application.required.StoredRequestResult
@@ -60,8 +60,8 @@ import java.time.temporal.ChronoUnit
 class CreatePaymentService(
     transactionManager: PlatformTransactionManager,
     private val idempotency: IdempotencyRecordStore,
-    private val controls: OrderPaymentControlStore,
-    private val payments: PaymentStore,
+    private val controls: OrderPaymentControlRepository,
+    private val payments: PaymentRepository,
     private val outbox: OutboxStore,
     private val eligibility: PaymentEligibilityPort,
 ) : CreatePaymentUseCase {
