@@ -7,7 +7,7 @@
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "AUTHN-001 착수: ① CONVENTIONS §14 Store 기준 보강(ARCH round2 m-1·n-1) ② 1단계 명세·질문 ③ TDD ④ VERIFY-GATE + review",
+  "nextResumeAction": "AUTHN-001 2단계: 명세 review(병행) + TDD 구현 S0~S12(중간 review S4·S7·S10) → VERIFY-GATE + DEPS/CVE + 최종 review",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -292,6 +292,21 @@
       "at": "2026-10-16",
       "taskId": "ARCH-STRUCTURE-001",
       "event": "DONE (VERIFY-GATE PASS 001423Z 1220 tests·SELFTEST 72, REVIEW_PASS round2, DEPS/CVE 생략: 빌드 파일 diff 0) on sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "착수 전 선행: ARCH round2 m-1(CONVENTIONS §14 Store 기준 — '이 모듈이 소유한 Aggregate인가'로 판정, 원천 미소유 projection·행 id 있는 프로토콜 기록은 Store)·n-1(매핑 §0 보존 검사 차이 16줄 모두 KDoc, conserve_rev 24e6f68..273068a) 문서 반영(미커밋, AUTHN-001 커밋에 포함)"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "Q-AUTHN-01~04 답변(모두 권장안) → D-AUTHN-001~004, IN_PROGRESS·허용 경로 등록"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "1단계 명세 수령(facee0ca1961…, 추정 2.0~2.5×MS2), Q-AUTHN-05·06 답변(권장안) → D-AUTHN-005·006"
     }
   ],
   "agreedOrder": [

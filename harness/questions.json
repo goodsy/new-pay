@@ -1158,6 +1158,96 @@
       ],
       "askedAt": "2026-10-16",
       "origin": "사용자 Q-ADMIN-AUTH 답변의 '확인 필요' 항목"
+    },
+    {
+      "id": "Q-AUTHN-01",
+      "status": "ANSWERED",
+      "question": "고객 브라우저의 결제창 진입 방식(paymentKey는 자격 증명 아님)",
+      "recommended": "가맹점 서버가 MID 인증 API(POST /v1/payments/{paymentId}/checkout)로 짧은 만료 1회용 결제창 토큰 발급, 브라우저는 /checkout?token=… 진입. 256bit 난수·DB에는 hash만, 주문·Payment·MID·금액·통화·환경·만료 바인딩, 1회 교환 후 결제창 쿠키 세션(HttpOnly·Secure·SameSite, CSRF 토큰). 기존 결제 생성 API 불변",
+      "alternative": "결제 생성 응답에 토큰 포함 / 서명 토큰(JWT류)",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"1회용 토큰 발급 API (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-001",
+      "origin": "AUTHN-001 착수 조사(Coordinator)"
+    },
+    {
+      "id": "Q-AUTHN-02",
+      "status": "ANSWERED",
+      "question": "successUrl/failUrl 허용 목록 출처(보안 기준 05: return URL 허용 목록 제한)",
+      "recommended": "MASTER Site의 WEB host를 권리 Snapshot으로 PAYMENT에 전파, https이고 host가 그 결제의 Site host와 정확히 같을 때만 허용. 이번 작업에 master-api 전파 확장 포함(작업량 약 +0.3~0.5배)",
+      "alternative": "Demo 설정 허용 목록(TEST 전용), MASTER 전파는 별도 작업·LIVE Gate",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"MASTER Site host 전파 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-002",
+      "origin": "AUTHN-001 착수 조사(Coordinator)"
+    },
+    {
+      "id": "Q-AUTHN-03",
+      "status": "ANSWERED",
+      "question": "인증 결과의 서버 검증 방식",
+      "recommended": "서버 간 결과 조회: 브라우저는 1회용 opaque 결과 참조와 state만 가지고 돌아오고, PG 서버가 인증기관 API로 결과를 조회해 state(세션별 난수)·바인딩(paymentId·금액·통화·MID·환경·Plan·카드사)·유효기간 대조. 서명 키 불필요, 조회 실패면 VERIFIED 아님(fail-closed)",
+      "alternative": "서명된 증거 검증(공개키·nonce 1회) / 서명 + 조회 둘 다",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"서버 간 결과 조회 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-003",
+      "origin": "AUTHN-001 착수 조사(Coordinator)"
+    },
+    {
+      "id": "Q-AUTHN-04",
+      "status": "ANSWERED",
+      "question": "가상 인증기관 Simulator 실행 위치",
+      "recommended": "새 실행 단위 apps/institution-simulator(별도 프로세스·포트·저장소): 고객 인증 화면·결과 조회 API, AUTH-001 가상 VAN(TCP)도 이후 여기. payment-api는 HTTP Adapter로만 연결, REAL Adapter 없음, 환경 설정으로 격리",
+      "alternative": "payment-api 안 simulator profile",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"새 실행 단위 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-004",
+      "origin": "AUTHN-001 착수 조사(Coordinator)"
+    },
+    {
+      "id": "Q-AUTHN-05",
+      "status": "ANSWERED",
+      "question": "REQUESTED Payment의 결제창 만료(EXPIRED) 발동 기준과 이번 범위",
+      "recommended": "Payment 생성 시 '생성 시각 + 결제 유효기간(버전 있는 설정, Demo 값)'을 절대 만료 시각으로 고정 저장. AUTHN-001이 만료 Use Case(RequestedPaymentExpiry, 잠금 control → payment → 세션 → 결제창 세션 → 토큰)·주기 작업·복귀/교환 경합 시험(C7) 구현. 토큰·결제창 세션·인증 세션 만료는 Payment 만료 시각을 넘지 않게 자름. CreatePayment API·응답 불변(값만 저장). 만료 뒤 같은 주문 새 Payment(새 키) 허용(D-CPD-002)",
+      "alternative": "이번엔 자동 만료 없음(AUTH-001로) / 마지막 결제창 활동 기준 연장형",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"생성 시 절대 만료 시각 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-005",
+      "origin": "AUTHN-001 1단계 명세 §23(Q-AUTHN-05)·§22-1(기준 편차)"
+    },
+    {
+      "id": "Q-AUTHN-06",
+      "status": "ANSWERED",
+      "question": "결제창 화면 위치(기준 01은 DB 없는 별도 실행 단위 payment-window)",
+      "recommended": "기준 편차 승인: payment-api 안 결제창 전용 connector(포트)·별도 SecurityFilterChain. 화면 코드는 provided Use Case만 호출해 추출 가능성 유지, payment-window 실행 단위 분리는 후속 후보. 서비스 간 API·인증 신설 없음",
+      "alternative": "기준대로 apps/payment-window(DB 없음) + payment-api 내부 API(작업량 +0.4배)",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"payment-api 별도 포트 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-006",
+      "origin": "AUTHN-001 1단계 명세 §23(Q-AUTHN-05)·§22-1(기준 편차)"
     }
   ]
 }

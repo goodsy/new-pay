@@ -20,8 +20,11 @@
   (빈 줄·`import`·`package` 줄 제외, 줄 끝 공백 제거). 실행 위치는 저장소 루트 기준(도구가 `~/workspace/paycore`로 이동).
   - 단계 B 직후(개명 전): `python3 /tmp/arch/conserve.py` → `dirs checked 19 bad 0`.
   - 단계 C 이후(현재 상태): `python3 /tmp/arch/conserve.py --apply-renames`(HEAD 쪽에 `/tmp/arch/renames.json`의 29개 whole-word 개명을 먼저 적용,
-    sha256 `b3c8e85fdef40ec43d17a1ef9d5e583e86b6798eb5d60ef36a9586c20251ba2b`) → 남는 차이는 §5와 n-1의 **주석 줄뿐**이다(master persistence·required, payment persistence 디렉터리,
-    코드 줄 차이 0). 개명 정규화 없이 돌리면 개명된 식별자 줄이 차이로 나오는 것이 정상이다.
+    sha256 `b3c8e85fdef40ec43d17a1ef9d5e583e86b6798eb5d60ef36a9586c20251ba2b`) → `dirs checked 19 bad 3`. 개명 정규화 없이 돌리면 개명된 식별자 줄이 차이로 나오는 것이 정상이다.
+  - 도구는 주석 줄과 코드 줄을 구분하지 않는다. 남은 차이는 커밋 뒤 같은 비교를 커밋 사이로 옮긴 `/tmp/arch/conserve_rev.py 24e6f68 273068a --apply-renames`
+    (커밋 대상 아님)로 다시 셌다: `dirs checked 19 bad 3 diff lines 16`. 3개 디렉터리(master `adapter.persistence` 6줄, master `application.required` 4줄,
+    payment `adapter.persistence` 6줄)이고, 16줄 모두 KDoc 줄(`*`로 시작)이다. 바뀐 내용은 §5·n-1의 머리말 문구(공통 관례 참조 위치, `Jpa*Store` → `Jpa*Repository·Jpa*Store`)다.
+    "코드 줄 차이 0"은 이 출력에서 `*`로 시작하지 않는 차이 줄이 없다는 뜻이다(round2 n-1).
   - 도구 내용은 위 hash로 고정한다. 저장소에서 다시 확인하려면 같은 비교를 `git show HEAD:<옛 경로>`와 새 파일로 수행하면 된다.
 
 ## 0.1 변경 전후 패키지 트리
