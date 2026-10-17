@@ -73,3 +73,10 @@ class AuthorizationStartRejectedException(
     val paymentId: PaymentId,
     val reason: BlockReason,
 ) : PaymentDomainException("authorization start for ${paymentId.value} rejected: $reason")
+
+/** 현재 상태에서 허용되지 않는 취소·취소 Attempt 전이(CANCEL-CONTRACT-001 §4.6). */
+class InvalidCancellationTransitionException(
+    val cancellationId: CancellationId,
+    val state: String,
+    val action: String,
+) : PaymentDomainException("cancellation ${cancellationId.value} in $state does not allow $action")

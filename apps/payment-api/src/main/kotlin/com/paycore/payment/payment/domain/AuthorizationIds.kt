@@ -51,3 +51,30 @@ value class OperatorId(val value: String) {
         requireIdentifier(value, "operatorId")
     }
 }
+
+/** 논리 취소 operation(PaymentCancellation) 식별자(CANCEL-CONTRACT-001). Payment 1:N. */
+@JvmInline
+value class CancellationId(val value: String) {
+    init {
+        requireIdentifier(value, "cancellationId")
+    }
+}
+
+/** 기관 취소 실행 시도(CancelAttempt) 식별자. 기관 취소 요청 ID와 다르다(시도 §4와 같은 구분). */
+@JvmInline
+value class CancelAttemptId(val value: String) {
+    init {
+        requireIdentifier(value, "cancelAttemptId")
+    }
+}
+
+/**
+ * 운영자 보정 취소의 2인 승인 요청 ID(ADMIN 발급, D-ADMIN-007). 운영자 취소의 영구 업무 효과 키다 — UNIQUE(approvalId)(구현 결정 CC-12, review H-2):
+ * 같은 승인으로 두 번 반환하지 않는다.
+ */
+@JvmInline
+value class OperatorApprovalId(val value: String) {
+    init {
+        requireIdentifier(value, "operatorApprovalId")
+    }
+}

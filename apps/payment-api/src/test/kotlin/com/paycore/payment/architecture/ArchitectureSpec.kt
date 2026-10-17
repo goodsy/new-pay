@@ -230,11 +230,68 @@ class ArchitectureSpec : FunSpec({
             com.paycore.archfixture.transition.DirectAuthorizationTransitions::class.java to
                 listOf("recordObservation", "markUnknown", "authorize", "fail").map { "$DOMAIN.PaymentAuthorization.$it" } +
                 listOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve").map { "$DOMAIN.AuthorizationAttempt.$it" },
+            // CANCEL-CONTRACT-001 T6: 취소 내부 전이·반환 예약 전이·취소 사건 hold.
+            com.paycore.archfixture.transition.DirectCancellationTransitions::class.java to
+                listOf("recordObservation", "markUnknown", "complete", "fail", "recordIncident").map { "$DOMAIN.PaymentCancellation.$it" } +
+                listOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve").map { "$DOMAIN.CancelAttempt.$it" },
+            com.paycore.archfixture.transition.DirectReturnBalanceTransitions::class.java to
+                listOf("consume", "release", "reoccupyAfterLateCancel").map { "$DOMAIN.ReturnBalance.$it" },
+            com.paycore.archfixture.transition.DirectLateApprovalRecording::class.java to listOf("$DOMAIN.PaymentAuthorization.recordLateApprovalByReconciliation"),
         ).forEach { (fixture, targets) ->
             val details = violationsOf(rule, "com.paycore.archfixture.transition", fixture)
             details.size shouldBe targets.size
             targets.forEach { target -> details.count { it.contains(target) && targetNameEnds(it, target) } shouldBe 1 }
         }
+    }
+
+    test("a cancel start is one domain operation: main code opens a cancellation and reserves a return only through CancelStart (CANCEL-CONTRACT-001 T6)") {
+        val rule = cancelStartOnlyThroughCancelStart()
+        rule.check(classes)
+        // 실제 호출자가 있다(빈 대상 통과가 아님): CancelStart가 두 연산을 부른다.
+        val calls = classes.get("$BASE_PACKAGE.payment.domain.CancelStart").accessesFromSelf
+            .map { it.target.owner.simpleName to kotlinSourceName(it.target.name) }.toSet()
+        calls.containsAll(listOf("Companion" to "open", "ReturnBalance" to "reserve")) shouldBe true
+        calls.any { (owner, name) -> owner == "Companion" && name == "open" } shouldBe true
+        // 결과 반영 domain 서비스가 취소 전이를 실제로 부른다.
+        classes.get("$BASE_PACKAGE.payment.domain.CancellationResolution").accessesFromSelf
+            .any { it.target.owner.simpleName == "ReturnBalance" && kotlinSourceName(it.target.name) == "consume" } shouldBe true
+        mapOf(
+            com.paycore.archfixture.cancelstart.DirectCancellationOpen::class.java to "$DOMAIN.PaymentCancellation\$Companion.open",
+            com.paycore.archfixture.cancelstart.DirectReturnReservation::class.java to "$DOMAIN.ReturnBalance.reserve",
+            com.paycore.archfixture.cancelstart.DirectReturnBalanceOpen::class.java to "$DOMAIN.ReturnBalance\$Companion.open",
+        ).forEach { (fixture, target) ->
+            violationsOf(rule, "com.paycore.archfixture.cancelstart", fixture).let { details ->
+                details.size shouldBe 1
+                details.single() shouldContain fixture.simpleName
+                details.single() shouldContain target
+            }
+        }
+    }
+
+    test("the cancel-result hold is opened only by CancellationResolution, and a return balance is restored only by the persistence adapter (CANCEL-CONTRACT-001 T6)") {
+        val holdRule = cancelHoldOnlyThroughCancellationResolution()
+        holdRule.check(classes)
+        classes.get("$BASE_PACKAGE.payment.domain.CancellationResolution").accessesFromSelf
+            .any { it.target.owner.simpleName == "OrderPaymentControl" && kotlinSourceName(it.target.name) == "reportCancellationResultConflict" } shouldBe true
+        violationsOf(holdRule, "com.paycore.archfixture.cancelresolution", com.paycore.archfixture.cancelresolution.DirectCancelHoldReport::class.java).let { details ->
+            details.size shouldBe 1
+            details.single() shouldContain "$DOMAIN.OrderPaymentControl.reportCancellationResultConflict"
+        }
+        // 복원 Mapper는 CANCEL-001에서 생긴다 — 지금 main에는 호출자가 없어 규칙은 대상 없음으로 통과하고, 실제 평가는 위반 fixture가 확인한다.
+        val restoreRule = returnBalanceRestoredOnlyByPersistence()
+        restoreRule.check(classes)
+        violationsOf(restoreRule, "com.paycore.archfixture.cancelstart", com.paycore.archfixture.cancelstart.DirectReturnBalanceReconstitute::class.java).let { details ->
+            details.size shouldBe 1
+            details.single() shouldContain "$DOMAIN.ReturnBalance\$Companion.reconstitute"
+        }
+    }
+
+    test("a cancel start input does not depend on the daily limit, entitlement or authorization-admission types (K-3, D-AUTH-007, review deviation 3)") {
+        cancelStartIndependentOfLimitAndEntitlement(setOf("$DOMAIN.CancelStart", "$DOMAIN.CancelStartCommand")).check(classes)
+        val fixture = com.paycore.archfixture.cancelstart.CancelStartUsingLimit::class.java
+        val details = violationsOf(cancelStartIndependentOfLimitAndEntitlement(setOf(fixture.name)), "com.paycore.archfixture.cancelstart", fixture)
+        details.isNotEmpty() shouldBe true
+        details.all { it.contains("DailyLimitUsage") } shouldBe true
     }
 
     test("authentication sessions are created only through AuthenticationSessionStart, which supersedes earlier sessions first (AUTHN-001 §7.1·§17.3)") {
@@ -426,6 +483,55 @@ class ArchitectureSpec : FunSpec({
                 .`as`("only AuthorizationStart starts an authorization (AUTHORIZING + attempt + session binding + limit reservation are one operation)")
 
         /**
+         * CANCEL-CONTRACT-001 §4.4·T6: 취소 operation 생성(Attempt PREPARED 포함)과 반환 예약은 `CancelStart`만 부른다 — 한 domain 연산이어야
+         * "OPEN·UNKNOWN 취소 ⇔ RESERVED 예약"(INV-C3)과 진행 중 1건(D-CANCEL-003)·운영자 재검사(D-CANCEL-005)를 건너뛸 수 없다.
+         */
+        fun cancelStartOnlyThroughCancelStart(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$DOMAIN.CancelStart")
+                .should().accessTargetWhere(
+                    accessTo(
+                        "target is a cancel-start step",
+                        mapOf(
+                            "$DOMAIN.PaymentCancellation" to setOf("open"),
+                            "$DOMAIN.PaymentCancellation\$Companion" to setOf("open"),
+                            "$DOMAIN.ReturnBalance" to setOf("reserve"),
+                            "$DOMAIN.ReturnBalance\$Companion" to setOf("open"),
+                        ),
+                    ),
+                )
+                .`as`("only CancelStart starts a cancellation (cancellation + attempt + return reservation are one operation)")
+
+        /** 취소 사건 hold(D-CANCEL-006)는 취소 결과 반영 domain 서비스만 연다 — 관찰·예약 상태와 hold가 어긋나지 않게 한다. */
+        fun cancelHoldOnlyThroughCancellationResolution(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$DOMAIN.CancellationResolution")
+                .should().accessTargetWhere(accessTo("target opens a cancel-result hold", mapOf("$DOMAIN.OrderPaymentControl" to setOf("reportCancellationResultConflict"))))
+                .`as`("only CancellationResolution opens a CANCEL_RESULT_CONFLICT hold")
+
+        /** 반환 잔액 영속 복원은 persistence adapter(Mapper)만 — 시험 편의 생성 경로가 아니다. */
+        fun returnBalanceRestoredOnlyByPersistence(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideOutsideOfPackage("$BASE_PACKAGE.payment.adapter.persistence..")
+                .should().accessTargetWhere(accessTo("target restores a return balance", mapOf("$DOMAIN.ReturnBalance\$Companion" to setOf("reconstitute"))))
+                .allowEmptyShould(true)
+                .`as`("only the persistence adapter restores a ReturnBalance")
+
+        /** 취소 시작은 일 한도·신규 승인 권리(entitlement)·승인 시작 판정 근거에 의존하지 않는다(K-3, D-AUTH-007). */
+        fun cancelStartIndependentOfLimitAndEntitlement(names: Set<String>): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("cancel start types") { c: com.tngtech.archunit.core.domain.JavaClass -> c.name in names })
+                .should().dependOnClassesThat(
+                    com.tngtech.archunit.base.DescribedPredicate.describe("daily limit, entitlement or admission types") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                        c.name in setOf(
+                            "$DOMAIN.DailyLimitUsage", "$DOMAIN.LimitUsageKey", "$DOMAIN.LimitReservation", "$DOMAIN.TransactionLimitPolicy",
+                            "$DOMAIN.LimitPolicyResolution", "$DOMAIN.AuthorizationAdmission",
+                        ) || c.packageName.startsWith("$BASE_PACKAGE.entitlement")
+                    },
+                )
+                .`as`("cancel start does not depend on limits or new-approval entitlement")
+
+        /**
          * 결과 전이는 domain 서비스(AuthorizationResolution·RequestedPaymentExpiry)와 Aggregate 안에서만 한다(§17-4·5): main 코드의 domain 밖
          * 클래스는 아래 메서드를 호출·참조하지 않는다. 시험 소스는 대상이 아니다(DO_NOT_INCLUDE_TESTS — 상태 준비용 시험은 계속 쓸 수 있다).
          */
@@ -439,8 +545,11 @@ class ArchitectureSpec : FunSpec({
                             "$DOMAIN.Payment" to setOf("markUnknown", "markAuthorized", "fail", "expire", "addTerminationEvidence"),
                             "$DOMAIN.OrderPaymentControl" to setOf("recordAuthorized", "completeAuthorization", "releaseIncidentHold"),
                             "$DOMAIN.DailyLimitUsage" to setOf("consume", "release", "reoccupyAfterLateApproval", "settleForced"),
-                            "$DOMAIN.PaymentAuthorization" to setOf("recordObservation", "markUnknown", "authorize", "fail"),
+                            "$DOMAIN.PaymentAuthorization" to setOf("recordObservation", "markUnknown", "authorize", "fail", "recordLateApprovalByReconciliation"),
                             "$DOMAIN.AuthorizationAttempt" to setOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve"),
+                            "$DOMAIN.PaymentCancellation" to setOf("recordObservation", "markUnknown", "complete", "fail", "recordIncident"),
+                            "$DOMAIN.CancelAttempt" to setOf("beginDispatch", "abandon", "markOutcomeUnknown", "resolve"),
+                            "$DOMAIN.ReturnBalance" to setOf("consume", "release", "reoccupyAfterLateCancel"),
                         ),
                     ),
                 )

@@ -213,6 +213,19 @@ class OrderPaymentControl private constructor(
     }
 
     /**
+     * 이 주문의 확정 승인 거래가 있는 Payment(AUTHORIZED, 또는 D-CANCEL-011의 늦게 확정된 P1)에 취소 결과 사건이 보고됐다(D-CANCEL-006): 취소 결과 상충·늦은 취소 성공·같은 관찰 키 다른 내용. Payment·취소 상태는 바꾸지
+     * 않고 그 Payment를 사건 보류한다(추가 가맹점 취소 차단 — [CancelStart]). 멱등: (paymentId, reason) 활성 보류 하나(해제가 아직 없으므로 occurrence 1).
+     */
+    fun reportCancellationResultConflict(payment: Payment): Boolean {
+        require(payment.orderKey == orderKey) { "payment ${payment.id.value} belongs to another order" }
+        // D-CANCEL-011: 취소는 AUTHORIZED Payment 또는 RECON이 늦은 승인 거래를 기록한 FAILED/EXPIRED P1(운영자 보정)에만 있다.
+        require(payment.status == AUTHORIZED || payment.status == FAILED || payment.status == EXPIRED) {
+            "a cancel result conflict needs a payment that can hold a confirmed authorization transaction: ${payment.status}"
+        }
+        return openHold(payment.id, IncidentReason.CANCEL_RESULT_CONFLICT)
+    }
+
+    /**
      * 사건 보류를 해제한다(D-AUTH-002: 2인 승인 + 재대사 MATCH — [IncidentHoldRelease] 생성자가 강제). 해제 기록은 append-only이고 보류
      * 기록은 남는다. [HoldReleaseFinding.REAL_APPROVAL_CONFIRMED]이면 그 Payment를 주문 승인 성공 이력으로 남긴다 — 실제 기관 승인이
      * 있는 주문은 취소 여부와 무관하게 새 Payment를 만들지 않는다(시도 §2, AUTH-CONTRACT-001 §17-1).
@@ -222,6 +235,10 @@ class OrderPaymentControl private constructor(
     fun releaseIncidentHold(release: IncidentHoldRelease) {
         if (release.hold !in holds) throw IncidentHoldReleaseRejectedException(release.hold, "no such hold")
         if (releases.any { it.hold == release.hold }) throw IncidentHoldReleaseRejectedException(release.hold, "already released")
+        if (release.hold.reason == IncidentReason.CANCEL_RESULT_CONFLICT) {
+            // review m-1: 취소 사건의 해제 판정·FORCED 반환 출구는 RECON-CONTRACT-001이 정한다. 그 전까지 해제하지 않는다(fail-closed).
+            throw IncidentHoldReleaseRejectedException(release.hold, "cancel result conflict release is defined by RECON-CONTRACT-001")
+        }
         val existing = authorizedPaymentId
         when (release.finding) {
             HoldReleaseFinding.REAL_APPROVAL_CONFIRMED -> {

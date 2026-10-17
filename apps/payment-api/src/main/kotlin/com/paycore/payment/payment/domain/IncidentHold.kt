@@ -9,6 +9,13 @@ enum class IncidentReason {
      * 부분 승인), 승인 확정 뒤 반대·다른 금액 결과. 상태는 덮어쓰지 않는다.
      */
     CONFLICTING_INSTITUTION_RESULT,
+
+    /**
+     * 취소 결과가 요청 또는 확정한 취소 결과와 상충하거나, 확정 거절한 취소에 늦은 성공이 왔다(D-CANCEL-006, CANCEL-CONTRACT-001 §4.6). 그 Payment의 추가
+     * 가맹점 취소를 막는다(신규 승인 차단과 별개 의미). 해제 판정·FORCED 출구는 RECON-CONTRACT-001이 정하기 전까지 없다 — 해제 거절(fail-closed, review m-1).
+     * 영속 CHECK 확장은 CANCEL-001.
+     */
+    CANCEL_RESULT_CONFLICT,
 }
 
 /**

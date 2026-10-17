@@ -14,7 +14,7 @@ import java.time.Instant
 /** 결과 반영의 업무 효과(application이 Outbox·멱등 결과를 고른다 — 명세 §11). */
 sealed interface ResolutionOutcome {
     /** 승인 확정: 확정 금융 사실 1건(D-AUTH-003) → PaymentAuthorized. */
-    data class Authorized(val transaction: PaymentTransaction, val incident: IncidentReason? = null) : ResolutionOutcome
+    data class Authorized(val transaction: AuthorizationTransaction, val incident: IncidentReason? = null) : ResolutionOutcome
 
     /** 무효과 확정(기관 거절·전송 전 실패·무효과) → 한도 해제. */
     data class Failed(val evidence: TerminationEvidence) : ResolutionOutcome
@@ -155,9 +155,8 @@ object AuthorizationResolution {
                 // control 검사(현재 슬롯·상태)가 실패하면 아무것도 바뀌지 않도록 먼저 한다.
                 val doubleApprovalHold = control.completeAuthorization(payment)
                 attempt.resolve(authorization.id)
-                val transaction = PaymentTransaction(
+                val transaction = AuthorizationTransaction(
                     id = newTransactionId,
-                    type = PaymentTransactionType.AUTHORIZATION,
                     authorizationId = authorization.id,
                     paymentId = payment.id,
                     terms = terms,

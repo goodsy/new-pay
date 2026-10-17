@@ -329,3 +329,20 @@ Splearn(`splearn-1-part2`)과의 의도적 차이: 계층 우선 단일 모듈(`
 (`<app>.<module>`) 안에 같은 계층을 둔다. Domain = JPA Entity 대신 순수 Domain + `Jpa*Entity` + Mapper. `webapi` 대신 `web`.
 `application.provided`는 `@NamedInterface` 공개 경계라 업무별 하위 패키지로 나누지 않는다. 다른 Aggregate 변경 호출 금지는 그대로 적용하지 않는다 —
 PayCore는 같은 TX의 domain 서비스(`AuthorizationStart` 등)·`OrderPaymentControl.startAuthorization(payment)`가 여러 Aggregate를 함께 바꾸고, 우회는 ArchUnit 접근 규칙이 막는다(§12).
+
+## 15. 취소 계약 domain (CANCEL-CONTRACT-001 2단계)
+
+가역적인 구현 관례다. 업무 규칙은 D-AUTH-003·007, D-CANCEL-001~010이며 명세는 `docs/repository/CANCEL-CONTRACT-001-CANCELLATION-CONTRACT.md`. JPA·migration·Use Case·API는 CANCEL-001.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| Aggregate | `PaymentCancellation`(취소 요청 1건, Payment 1:N, Attempt·관찰·CANCEL 거래를 안에 둠), `ReturnBalance`(Payment 1:1, 반환 합계 통제 — 첫 취소 시작에서 지연 개설) | 무제한 컬렉션 회피, 승인 Aggregate 불변(명세 CC-01·02) |
+| 거래 표현 | `PaymentTransaction` sealed interface: `AuthorizationTransaction`·`CancelTransaction` | D-AUTH-003 한 개념 유지(CC-03) |
+| 다중 Aggregate 연산 | 취소 시작 `CancelStart`, 결과 반영 `CancellationResolution` — 모든 검사를 먼저 하고 통과할 때만 함께 바꾼다(거절은 결과 값, 결함은 예외) | §12와 같은 규칙 |
+| 우회 차단(ArchUnit) | `cancelStartOnlyThroughCancelStart`(PaymentCancellation.open·ReturnBalance.open/reserve), `domainTransitionsOnlyInsideDomain`에 취소·Attempt·반환 전이 추가, `cancelHoldOnlyThroughCancellationResolution`, `returnBalanceRestoredOnlyByPersistence`, `cancelStartIndependentOfLimitAndEntitlement` — 각 위반 fixture(`archfixture.cancelstart`·`cancelresolution`·`transition`) | Kotlin에 package-private 없음 |
+| 합계 | completed·reserved·forced를 따로 합산, 불변식 `completed + reserved ≤ authorized`, FORCED발 초과는 `excessMinor` 표시 | review H-1 |
+| 업무 키 | 가맹점 `MerchantCancelId`(D-CPC-002 형식), 운영자 `OperatorApprovalId`. `compareRequest(paymentId, key, money)`는 다른 Payment면 충돌 | D-CANCEL-002, CC-12, review m-B |
+| 운영자 승인 대상 | `OperatorCancelTarget.fingerprint()` = `oct1:` 길이 접두 SHA-256(paymentId·금액·통화·잔액 revision·approvalId·요청자·승인자·목적 종류·근거, 사유 제외) | D-ADMIN-007, CC-13 |
+| 시험 | Named Fixture `CancellationFixture`(완료·거절·늦은 성공은 `CancellationResolution` 경로), Kotest BehaviorSpec, Fixture Monkey 미사용 | Test Fixture Policy |
+
+JPA와의 연결(CANCEL-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaReturnBalanceEntity`는 completed/reserved/forced 금액 컬럼과 업무 `revision`, 예약 행은 별도 Entity, CANCEL 거래·관찰은 `@Immutable` insert-only. **예** — 같은 Payment에 두 취소가 동시에 오면 `return_balance` 행 `PESSIMISTIC_WRITE`에서 줄을 서고 두 번째는 진행 중 1건(D-CANCEL-003)으로 거절된다. **이유** — 서로 다른 취소 행 사이 합계는 행별 `@Version`으로 못 지킨다, CHECK(`completed + reserved ≤ authorized`)가 DB 이중 방어. **주의** — Mapper가 예약 목록·revision·version을 함께 옮겨 stale 객체가 최신 행을 덮지 않게 하고, TX2·회복은 control부터 잠근다. Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).

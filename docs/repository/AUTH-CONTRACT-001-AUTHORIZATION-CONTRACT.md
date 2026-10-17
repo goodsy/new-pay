@@ -297,6 +297,7 @@ PaymentPlan·카드사는 인증 세션·승인 요청·기관 결과·Route 근
 - 대상: (a) FAILED·EXPIRED Payment에 대한 APPROVED 관찰(`SUCCESS_AFTER_TERMINATION`, 기존), (b) AUTHORIZED Payment에 대한 반대·다른 금액 관찰, (c) 진행 중 승인의 조건 불일치 승인(D-AUTH-008) → `CONFLICTING_INSTITUTION_RESULT`(신규 reason).
 - 동작: Payment 상태를 덮어쓰지 않는다(확정 금융 사실 append-only). 관찰 append + control incident hold(멱등: (paymentId, reason)당 하나) + `AuthorizationIncidentDetected` Outbox를 **같은 TX2**. 자동 보상취소·자동 재승인 없음(확정 D-AUTH-002).
 - hold 효과(기존·확정): 새 Payment·승인 시작 차단, 같은 입력 재요청은 Blocked(INCIDENT_HOLD) + 기존 paymentId(D-CPD-004). hold 중 늦은 승인은 `PaymentAuthorized`(정산 대상 금융 사실 이벤트)로 내보내지 않는다 — FINANCIAL이 매입·정산 후보를 만들지 않게 한다(사건 이벤트로만 전달). 한도 점유는 유지.
+- **예외 교차 참조(2026-10-17)**: D-CANCEL-012가 위 "hold 중 PaymentAuthorized 없음"(그리고 D-AUTH-003 "해제 판정 전 거래 없음")의 **유일한 예외**다 — 이중 승인 보정을 위해 RECON이 hold 중 늦게 확정된 P1의 승인을 거래로 기록하는 TX. 상세는 `CANCEL-CONTRACT-001` §4.10·§14.1.
 - 대사 Case 위험 등급(HIGH/CRITICAL)의 최종 분류는 RECON 소유. PAYMENT 사건 이벤트는 사실(reason·관찰·원 Attempt)만 담고 권장 등급 힌트를 둘 수 있다(정산 §18 "Unexplained external success" = CRITICAL 예시). 둘 다 Hold + 수동 검토라 PAYMENT 동작은 같다.
 
 ### 8.2 해제 경계(PAYMENT ↔ RECON)
@@ -304,7 +305,7 @@ PaymentPlan·카드사는 인증 세션·승인 요청·기관 결과·Route 근
 | 단계 | 소유 | 내용 |
 |---|---|---|
 | Case 생성·위험 판정·수동 검토 | FINANCIAL/RECON(RECON-CONTRACT-001) | PAYMENT 사건 이벤트 Inbox → Case(안정 키 = 원 Attempt + reason) |
-| 보정(취소 요청·Adjustment 등) | 각 소유 도메인 Use Case | 자동 보상취소 없음. 운영자 명령 + 승인 규칙. 취소는 Cancellation 계약(G-5) |
+| 보정(취소 요청·Adjustment 등) | 각 소유 도메인 Use Case | 자동 보상취소 없음. 운영자 명령 + 승인 규칙. 취소는 Cancellation 계약(G-5 → `CANCEL-CONTRACT-001` 운영자 보정 취소, D-CANCEL-005·010: 늦게 확정된 P1을 취소하고 DOUBLE 해제가 그 취소를 참조) |
 | 재대사 MATCH 확인 | RECON | MATCH 증거 ID를 발행 |
 | 해제 승인 | 운영 도구 → PAYMENT Use Case | **2인 승인**(요청자 ≠ 승인자, 역할·Scope, 승인한 입력 버전 = 실행 입력, 정산 §24·마지막 절) + MATCH 증거 참조 필수 |
 | hold 해제 기록 | PAYMENT(control) | append-only `IncidentHoldRelease`(holdId, requestedBy, approvedBy, reconMatchRef, 사유, 시각). hold 행은 지우지 않는다. 여러 hold 중 하나 해제가 다른 hold를 없애지 않는다 |
@@ -560,7 +561,7 @@ Named Fixture(src/test만): `AuthenticationSessionFixture`(`verifiedUnboundSessi
 3. **MASTER Snapshot 확장** → **MASTER-SNAPSHOT-002 BACKLOG 등록됨**(승인 시작 조건 §17-10과 TransactionLimitPolicy 전파, D-AUTH-006). AUTH-001이 의존한다.
 4. **Webhook 전달** → **WEBHOOK-001 BACKLOG 등록됨**. 서명 방식은 그 작업의 보안 질문 후보.
 5. **B-3(hold 해제 domain)** → 2단계에 domain 불변식만 포함(§19-1 S8). 실행 Use Case는 RECON-CONTRACT-001·Q-ADMIN-AUTH 이후.
-6. **취소** → **CANCEL-CONTRACT-001 BACKLOG 등록됨**(부분취소·반환 가능 금액 G-5, CANCEL 거래 타입).
+6. **취소** → **CANCEL-CONTRACT-001**(2단계 domain 구현 — `PaymentTransaction`은 sealed: `AuthorizationTransaction`·`CancelTransaction`, D-CANCEL-001~012; 구현은 CANCEL-001)(부분취소·반환 가능 금액 G-5, CANCEL 거래 타입).
 7. 범위 밖: 매입·정산·대사 Case 구현(FINANCIAL), 운영자 인증(Q-ADMIN-AUTH), 지급계좌 변경의 신규 승인 차단 여부(허용 §4.1-10 별도 운영 정책), 실제 기관 전문·인증서·인증 시험(허용 §5.6), 외화 정산(Q-SETTLE-CURRENCY), 무이자·부분무이자·해외 카드(초기 제외).
 
 ---

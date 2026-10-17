@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:ca42caed38e6c27235c59c03228691f2561f35858103740d25081ae123118f95",
-  "lastSuccessfulStep": "TZ-FIX-001 DONE (VERIFY-GATE PASS 062053Z, REVIEW_PASS)",
+  "codeFingerprint": "sha256:8d96b5923bfef108a79b0523bde057f593132105ef4132d6f889a7b055b7a07f",
+  "lastSuccessfulStep": "CANCEL-CONTRACT-001 DONE (VERIFY-GATE PASS 222224Z, REVIEW_PASS)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "CANCEL-CONTRACT-001 착수(agreedOrder 다음) → AUTH-001 → CP-QUERY-001 → WEBHOOK-001, ADMIN-BOOT-001 착수 전 사용자에게 알림",
+  "nextResumeAction": "AUTH-001 착수(agreedOrder 다음) → CANCEL-001 순서 편입 여부 사용자 확인 → CP-QUERY-001 → WEBHOOK-001, ADMIN-BOOT-001 착수 전 사용자에게 알림",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -367,6 +367,36 @@
       "at": "2026-10-17",
       "taskId": "TZ-FIX-001",
       "event": "DONE: VERIFY-GATE PASS 062053Z(1485/0), REVIEW_PASS, DEPS/CVE 생략(빌드 파일 변경 없음)"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "IN_PROGRESS, 1단계 조사·명세·질문 후보 착수"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "1단계 명세 수령(95a61392980c…), Q-CANCEL-01~08 답변 → D-CANCEL-001~008, CANCEL-001 BACKLOG 등록(AUTH-001 이후 제안)"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "명세 review SPEC_PASS_WITH_FIXES(H-1·H-2 등) → rev 1.2 반영 보고, Q-CANCEL-09·10 → D-CANCEL-009·010, T4 체크포인트(미검증 1034/0)"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "T1~T4 중간 review REVIEW_PASS_WITH_FIXES(m-A~m-D), Q-CANCEL-11·12 → D-CANCEL-011·012"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "최종 review PASS_WITH_FIXES → m-1~m-4 수정(1069/0), Q-CANCEL-13 → D-CANCEL-013, minTests 1584→1586, VERIFY-GATE 재실행"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "CANCEL-CONTRACT-001",
+      "event": "DONE: VERIFY-GATE PASS 222224Z(1586/0), REVIEW_PASS, D-CANCEL-001~013"
     }
   ],
   "agreedOrder": [

@@ -32,7 +32,7 @@ data class AuthorizationAdmission(
  * - 요청 금액·PaymentPlan·인증 cardType·귀속 세션·판정 근거는 생성 시 고정한다(요청 전액 승인만, 시도 §1).
  * - 초기 계약은 Authorization당 dispatch Attempt 1개(CA-13). UNKNOWN에서 새 Attempt를 만들지 않는다.
  * - 관찰은 append-only이고 같은 [ObservationKey]는 한 번만 기록한다. AUTHORIZED·FAILED는 되돌리지 않는다.
- * - AUTHORIZED이면 [transaction](확정 금융 사실)이 정확히 하나다.
+ * - AUTHORIZED이면 [transaction](확정 금융 사실)이 정확히 하나다. FAILED에도 RECON이 기록한 늦은 승인 거래가 하나 있을 수 있다(D-CANCEL-011).
  * 상태 전이는 [AuthorizationResolution](Payment·control·한도와 함께)만 한다 — 이 클래스의 전이 메서드는 모듈 internal이다.
  */
 class PaymentAuthorization private constructor(
@@ -56,7 +56,7 @@ class PaymentAuthorization private constructor(
 
     private val observationList = mutableListOf<InstitutionObservation>()
 
-    var transaction: PaymentTransaction? = null
+    var transaction: AuthorizationTransaction? = null
         private set
 
     var failureEvidence: TerminationEvidence? = null
@@ -117,7 +117,7 @@ class PaymentAuthorization private constructor(
         status = AuthorizationStatus.UNKNOWN
     }
 
-    internal fun authorize(transaction: PaymentTransaction) {
+    internal fun authorize(transaction: AuthorizationTransaction) {
         if (status != AuthorizationStatus.OPEN && status != AuthorizationStatus.UNKNOWN) {
             throw InvalidAuthorizationTransitionException(id, status.name, "authorize")
         }
@@ -125,6 +125,24 @@ class PaymentAuthorization private constructor(
         require(matchesRequest(transaction.terms)) { "only a full approval matching the request becomes a transaction" }
         this.transaction = transaction
         status = AuthorizationStatus.AUTHORIZED
+    }
+
+    /**
+     * RECON 늦은 승인 거래 기록(D-CANCEL-010·011, 사용자 확정 2026-10-17 — **RECON-CONTRACT-001 인계**, 명세 §14.1): 이중 승인 hold가 유지되는 동안 확정 거절로 끝난
+     * 승인 operation(FAILED)에 기관이 확정한 늦은 승인을 거래로 기록한다. 상태는 FAILED 그대로(Payment도 종료 상태 유지), 거래만 생긴다 — 이 거래는 운영자 보정
+     * 취소의 원 거래가 된다. 같은 RECON TX에서 PaymentAuthorized를 내는 것은 D-CANCEL-012(AUTH §8.1의 유일한 예외)이며 RECON Use Case 몫이다.
+     * 지금 main 호출자는 없다(RECON domain 서비스가 생기면 그것만 부른다 — ArchUnit domainTransitionsOnlyInsideDomain).
+     */
+    internal fun recordLateApprovalByReconciliation(transaction: AuthorizationTransaction) {
+        if (status != AuthorizationStatus.FAILED || this.transaction != null) {
+            throw InvalidAuthorizationTransitionException(id, status.name, "recordLateApprovalByReconciliation")
+        }
+        require(transaction.authorizationId == id && transaction.paymentId == paymentId) { "transaction must belong to this authorization" }
+        require(matchesRequest(transaction.terms)) { "only a full approval matching the request becomes a transaction" }
+        require(observationList.any { it.key == transaction.sourceObservation && it.approved == transaction.terms }) {
+            "the late approval must be a recorded institution observation"
+        }
+        this.transaction = transaction
     }
 
     internal fun fail(evidence: TerminationEvidence) {

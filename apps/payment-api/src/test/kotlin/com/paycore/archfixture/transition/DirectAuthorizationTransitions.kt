@@ -2,9 +2,9 @@ package com.paycore.archfixture.transition
 
 import com.paycore.payment.payment.domain.AbandonCause
 import com.paycore.payment.payment.domain.AuthorizationAttempt
+import com.paycore.payment.payment.domain.AuthorizationTransaction
 import com.paycore.payment.payment.domain.InstitutionObservation
 import com.paycore.payment.payment.domain.PaymentAuthorization
-import com.paycore.payment.payment.domain.PaymentTransaction
 import com.paycore.payment.payment.domain.TerminationEvidence
 import com.paycore.payment.payment.domain.UnknownCause
 
@@ -14,7 +14,7 @@ import com.paycore.payment.payment.domain.UnknownCause
  * markOutcomeUnknown·resolve.
  */
 class DirectAuthorizationTransitions {
-    fun bypass(authorization: PaymentAuthorization, attempt: AuthorizationAttempt, observation: InstitutionObservation, transaction: PaymentTransaction) {
+    fun bypass(authorization: PaymentAuthorization, attempt: AuthorizationAttempt, observation: InstitutionObservation, transaction: AuthorizationTransaction) {
         authorization.recordObservation(observation)
         authorization.markUnknown()
         authorization.authorize(transaction)
