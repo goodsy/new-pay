@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: institution-simulator
+  # Simulator 전용 DB(paycore_simulator, AN-19) 접속 정보는 환경변수로만 주입한다. 기본값·비밀번호를 저장소에 두지 않는다. PayCore 소유 DB 접속 정보는 두지 않는다.
+  datasource:
+    # runtime 계정: paycore_simulator.* DML만(DDL 없음). 계정: docker/simulator-mysql/init/01-simulator-database.sh
+    url: ${PAYCORE_SIMULATOR_DB_URL}
+    username: ${PAYCORE_SIMULATOR_DB_USERNAME}
+    password: ${PAYCORE_SIMULATOR_DB_PASSWORD}
+    hikari:
+      data-source-properties:
+        connectionTimeZone: UTC
+        forceConnectionTimeZoneToSession: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    locations: classpath:db/migration/simulator
+    # migration 계정(paycore_simulator ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다.
+    user: ${PAYCORE_SIMULATOR_DB_MIGRATION_USERNAME}
+    password: ${PAYCORE_SIMULATOR_DB_MIGRATION_PASSWORD}
+    init-sqls: "SET time_zone = '+00:00'"
+
+# Simulator 설정(AUTHN-001 §13 — Demo 대역, 운영 기본값 없음: 값이 없으면 기동 실패). PG client 키는 SHA-256 digest만(원문은 PG 쪽 환경변수).
+paycore:
+  simulator:
+    customer-base-url: ${PAYCORE_SIMULATOR_CUSTOMER_BASE_URL}
+    transaction-ttl: ${PAYCORE_SIMULATOR_TRANSACTION_TTL}
+    result-validity: ${PAYCORE_SIMULATOR_RESULT_VALIDITY}
+    lookup-delay: ${PAYCORE_SIMULATOR_LOOKUP_DELAY}
+    clients:
+      - id: ${PAYCORE_SIMULATOR_CLIENT_ID}
+        key-sha256: ${PAYCORE_SIMULATOR_CLIENT_KEY_SHA256}
+        return-origin: ${PAYCORE_SIMULATOR_CLIENT_RETURN_ORIGIN}
+
+# 포트는 운영 기본값 없이 환경변수로만(D-AUTHN-004 별도 프로세스·포트). 없으면 기동 실패.
+server:
+  port: ${PAYCORE_SIMULATOR_PORT}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  level:
+    # 1062 등 JDBC 오류 원문에 키 값이 실린다 — 원문 로그를 끈다(PayCore 앱과 같은 관례).
+    org.hibernate.orm.jdbc.error: "OFF"
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"

@@ -115,7 +115,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
         When("the customer repurchases with a new merchant order ID") {
             Then("the new order key has no control, so a first payment can be created for it") {
                 OrderPaymentControl.decideForNewOrder() shouldBe PaymentSlotDecision.CreateNewPayment(1)
-                val repurchase = Payment.request(paymentId(9), newPurchaseOrder, originalIntent, 1)
+                val repurchase = Payment.request(paymentId(9), newPurchaseOrder, originalIntent, 1, PaymentFixture.demoWindow)
                 val control = OrderPaymentControl.open(repurchase)
                 control.orderKey shouldBe newPurchaseOrder
                 control.currentPaymentId shouldBe paymentId(9)
@@ -318,7 +318,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
     Given("a payment for a different order key (invalid input, explicit)") {
         Then("it cannot occupy this order's slot") {
             val s = OrderPaymentControlFixture.withCurrentPayment(FAILED, INSTITUTION_CONFIRMED_DECLINE)
-            val other = Payment.request(paymentId(2), newPurchaseOrder, originalIntent, 2)
+            val other = Payment.request(paymentId(2), newPurchaseOrder, originalIntent, 2, PaymentFixture.demoWindow)
             shouldThrow<IllegalArgumentException> { s.control.occupy(other, s.current) }
             s.control.currentPaymentId shouldBe paymentId(1)
         }

@@ -1,7 +1,9 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.PaymentMySqlContainerConfig
+import com.paycore.payment.payment.application.CardAuthenticationTestConfig
 import com.paycore.payment.payment.application.EligibilityTestConfig
+import com.paycore.payment.payment.application.SiteWebHostTestConfig
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.TestPropertySource
@@ -16,11 +18,15 @@ import org.springframework.test.context.TestPropertySource
  *   값이다(경합 관찰 hook이 대기자를 확인하는 동안 대기자가 먼저 timeout되지 않을 만큼은 길게). 운영 lock wait 값은 API timeout 예산과 함께 CP-API-001에서 정한다(CP-CONTRACT-001 §9 이월 L-4).
  * - 경합 시험이 동시에 여러 연결을 쓰므로 pool을 16으로 늘린다(시험 전용).
  * - [PaymentDbTestConfig]: 장애 주입 hook이 달린 Port 대역(@Primary)과 root 연결 probe.
+ * - [SiteWebHostTestConfig]: 결제창 반환 URL host Port 대역(AUTHN-001 — Demo host, 시험 MID별 응답 조정).
+ * - [CardAuthenticationTestConfig]: 카드 인증기관 Port 대역(AUTHN-001 — 등록·조회 응답을 시험이 정하고 호출 시 TX 여부를 기록).
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 @SpringBootTest
-@Import(PaymentMySqlContainerConfig::class, PaymentDbTestConfig::class, FaultInjectionConfig::class, EligibilityTestConfig::class)
+@Import(PaymentMySqlContainerConfig::class, PaymentDbTestConfig::class, FaultInjectionConfig::class, EligibilityTestConfig::class, SiteWebHostTestConfig::class,
+    CardAuthenticationTestConfig::class,
+)
 @TestPropertySource(
     properties = [
         "spring.datasource.hikari.connection-init-sql=SET SESSION innodb_lock_wait_timeout = 8",

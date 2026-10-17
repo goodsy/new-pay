@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>가상 인증기관(Simulator)</title>
+</head>
+<body>
+<!-- AUTHN-001 §13.4: 가상 카드 참조만 고른다(카드번호·CVC·비밀번호 입력 없음). TEST 전용 대역 화면. -->
+<h1>가상 인증기관</h1>
+<p>결제 금액: <span th:text="${view.amountMinor}">0</span> <span th:text="${view.currency}">KRW</span></p>
+<p>선택 카드사: <span th:text="${view.cardCompany}">-</span></p>
+<div th:if="${view.open}">
+  <form method="post" th:action="@{/sim/authenticate/{id}(id=${view.transactionId})}">
+    <input type="hidden" name="action" value="authenticate">
+    <select name="card">
+      <option th:each="c : ${view.cards}" th:value="${c}" th:text="${c}">VC</option>
+    </select>
+    <button type="submit">인증</button>
+  </form>
+  <form method="post" th:action="@{/sim/authenticate/{id}(id=${view.transactionId})}">
+    <input type="hidden" name="action" value="cancel">
+    <button type="submit">취소</button>
+  </form>
+</div>
+<p th:unless="${view.open}">이 인증 거래는 더 진행할 수 없습니다.</p>
+</body>
+</html>

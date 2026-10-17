@@ -12,6 +12,19 @@ paycore:
         eligibility-unavailable: PT2S
         temporarily-unavailable: PT1S
         request-in-progress: PT1S
+    # AUTHN-001 결제창 connector(AN-15) — 0 = 시험마다 임의 포트(실제 포트는 CheckoutConnector.localPort).
+    checkout:
+      port: 0
+    # AUTHN-001 결제 유효기간(D-AUTHN-005) — 시험 Demo 값(운영값 아님).
+    checkout-validity:
+      version: checkout-validity-demo-1
+      duration: PT30M
+    # AUTHN-001 결제창 만료 주기 작업(§7.5.4) — 시험에서는 끄고 Use Case를 직접 부른다(Demo 값, 운영값 아님).
+    checkout-expiry:
+      job:
+        enabled: false
+        fixed-delay: PT1M
+        batch-size: 100
     entitlement:
       clock-skew-margin: PT0.1S
       inbox:
@@ -20,3 +33,38 @@ paycore:
             secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh
           - key-id: test-k2
             secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTIh
+  # AUTHN-001 결제창(§5·§6·§12.1) — 시험 Demo 값(운영값 아님). origin은 설정에서만 만든다(m-9).
+  checkout:
+    public-base-url: https://checkout.example.test
+    policy-version: checkout-demo-1
+    token-ttl: PT10M
+    session-ttl: PT20M
+    authentication-ttl: PT10M
+  # AUTHN-001 인증 backend(§13.6) — 시험 Demo 값(운영값 아님). 서버 간 URL은 사용하지 않는 loopback 자리값이다(adapter 시험은 자체 stub 서버를 쓴다).
+  # client 키는 시험 전용 값이다(운영 키 아님).
+  authentication:
+    backends:
+      TEST:
+        type: SIMULATOR
+        profile: sim-auth-demo
+    profiles:
+      sim-auth-demo:
+        version: sim-auth-demo-1
+        card-companies:
+          - code: SIMISS-A
+            name: 가상카드A
+          - code: SIMISS-B
+            name: 가상카드B
+        plan-policy:
+          version: plan-demo-1
+          currency: KRW
+          installment-months: [2, 3, 6]
+          minimum-installment-amount: 50000
+    simulator:
+      base-url: http://127.0.0.1:1
+      # loopback http 서버 간 URL은 이 시험·로컬 표식이 있을 때만 허용(검토 #2 n-4 — 운영 설정에 두지 않는다).
+      allow-loopback-http: true
+      customer-base-url: https://sim.example.test
+      client-key: test-only-simulator-client-key-1
+      connect-timeout: PT0.5S
+      read-timeout: PT1S

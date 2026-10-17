@@ -10,6 +10,8 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 
 /**
@@ -35,7 +37,7 @@ class EntitlementSnapshotSpec : BehaviorSpec({
             ) shouldBe mapOf(
                 "version" to "es1:${source.merchant.id.value}:${source.merchant.entitlementRevision}",
                 "leaseUntil" to t0.plus(demoLease),
-                "site" to SiteState(source.sites.single().id, Lifecycle.ACTIVE, SiteReviewStatus.APPROVED),
+                "site" to SiteState(source.sites.single().id, Lifecycle.ACTIVE, SiteReviewStatus.APPROVED, source.sites.single().channel),
                 "assignment" to SiteAssignmentRole.PRIMARY,
                 "window" to ContractWindow(source.sites.single().id, t0, null),
                 "activation" to ActivationState(PaymentMethod.CARD, ActivationStatus.ACTIVE),
@@ -44,6 +46,27 @@ class EntitlementSnapshotSpec : BehaviorSpec({
                 "party" to PartyState(Lifecycle.ACTIVE, Lifecycle.ACTIVE, businessBlocked = false, merchantBlocked = false),
             )
             snapshot.snapshotVersion.length shouldBe snapshot.snapshotVersion.length.coerceAtMost(64)
+        }
+
+        Then("schemaVersion 3 carries each site's channel: a WEB site's lower-case host, an APP site's type only (D-AUTHN-002, AUTHN-001 §9.1)") {
+            val source = EntitlementFixture.source()
+            val snapshot = EntitlementSnapshotAssembler.assemble(source, t0, 0, demoLease)
+            val site = source.sites.single()
+            site.channel.type shouldBe ChannelType.WEB
+            snapshot.canonicalContent shouldContain "\"channel\":{\"host\":\"${site.channel.identifier}\",\"type\":\"WEB\"}"
+            val app = SiteState(site.id, Lifecycle.ACTIVE, SiteReviewStatus.APPROVED, SiteChannel(ChannelType.APP, "com.example.shop_app"))
+            val withApp = snapshot.copy(sites = listOf(app))
+            withApp.canonicalContent shouldContain "\"channel\":{\"type\":\"APP\"}"
+            withApp.canonicalContent shouldNotContain "com.example.shop_app"
+            ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 3
+        }
+
+        Then("a terminated site is still carried with its channel (content is a function of the source state only, MS1 §15-1)") {
+            val source = EntitlementFixture.source()
+            val snapshot = EntitlementSnapshotAssembler.assemble(source, t0, 0, demoLease)
+            val terminated = snapshot.sites.single().copy(lifecycle = Lifecycle.TERMINATED)
+            snapshot.copy(sites = listOf(terminated)).canonicalContent shouldContain "\"lifecycle\":\"TERMINATED\""
+            snapshot.copy(sites = listOf(terminated)).canonicalContent shouldContain "\"type\":\"WEB\""
         }
 
         Then("a site without review decisions is PENDING in the snapshot (payment blocked until APPROVED)") {

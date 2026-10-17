@@ -294,7 +294,11 @@ SELECT, INSERT, UPDATE / `policy_version`·`card_route_activation_event` → SEL
 
 ### 8.2 PAYMENT
 
-**새 migration 없음**(§5.3). AUTH-001이 V7 이후를 쓴다. 만약 2단계 구현 중 PAYMENT 표 변경이 필요해지면 V7/V8을 이 작업이 쓰고 AUTH-001에 번호를 알린다(범위 관찰 §14-3).
+**새 migration 없음**(§5.3). 만약 2단계 구현 중 PAYMENT 표 변경이 필요해지면 V7/V8을 이 작업이 쓰고 AUTH-001에 번호를 알린다(범위 관찰 §14-3).
+
+> **번호 갱신(AUTHN-001, 2026-10-17)**: 이 작업은 PAYMENT migration을 쓰지 않았다. 그 뒤 AUTHN-001이 **V7**(`db/migration/payment/V7__checkout_authentication.sql`),
+> **V8**(runtime 권한 `db/runtime-privilege/payment/V8__checkout_authentication_runtime_privileges.sql`), **V8_1**(`V8_1__payment_requested_checkout_window_check.sql`
+> — 기동 전략이 V8 뒤 채우기를 끝낸 다음 적용)을 썼다. 따라서 **AUTH-001은 V9부터** 쓴다(AUTHN-001 명세 §10.1·§22-10). 위 문단의 "AUTH-001이 V7 이후"는 이 갱신으로 대체한다.
 
 ### 8.3 Demo 데이터
 
@@ -478,7 +482,7 @@ Fixture(Test Fixture Policy): Named Fixture `TransactionLimitPolicyFixture`(`csa
 
 1. **계약 golden 생성 절차 경로**: MS1 S7 golden은 `harness/tests/test_entitlement_golden.py`가 독립 생성·비교한다. v2 golden을 같은 방식으로 하려면 `harness/tests/**`가 허용 경로에 필요하다(현재 allowedWritePaths: `docs/repository/**`, `apps/master-api/**`, `apps/payment-api/**`, `libs/**`, `harness/commands.json`). 추가하지 않으면 v2 golden은 두 앱 시험 자원 바이트 비교까지만 하고 독립 생성은 이월.
 2. **PAYMENT `payment` 모듈 변경**: §6.1 `AuthorizationAdmissionPort`(application.required)·adapter는 `apps/payment-api/**` 안이라 허용 경로 안. AUTH-CONTRACT-001이 고정한 domain 타입(`AuthorizationAdmission`·`TransactionLimitPolicy`)은 **바꾸지 않는다**(§6.3 정규 문자열).
-3. **PAYMENT migration 번호**: 이 작업은 PAYMENT migration 없음(§8.2). AUTH-001이 V7부터 쓴다고 보고, 2단계에서 필요해지면 Coordinator에 먼저 알린다.
+3. **PAYMENT migration 번호**: 이 작업은 PAYMENT migration 없음(§8.2). ~~AUTH-001이 V7부터 쓴다고 보고~~ — AUTHN-001이 V7·V8·V8_1을 써서 AUTH-001은 V9부터다(§8.2 번호 갱신). 2단계에서 필요해지면 Coordinator에 먼저 알린다.
 4. **배포 순서(§5.4)**는 운영 절차다. 현재 배포 파이프라인이 없으므로 시험으로만 고정하고 runbook 항목으로 남긴다. **runbook 초안(review round1 n-6)**:
    1. PAYMENT(v1·v2 해석)를 모든 인스턴스에 먼저 배포하고 `paycore.payment.entitlement.inbox.outcomes{outcome=UNSUPPORTED}`가 늘지 않는지 확인한다.
    2. 그 뒤 MASTER(v2 조립·승격 발행)를 배포한다. 역순이면 v2 변경 발행이 UNSUPPORTED로 head를 막아 CreatePayment까지 503이 된다(fail-closed, 가용성 사고).

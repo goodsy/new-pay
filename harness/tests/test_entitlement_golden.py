@@ -6,7 +6,10 @@ golden 값에는 제어문자가 없으므로 escape 규칙 차이(\\n 표기 �
 
 - v1(MASTER-SNAPSHOT-001 S7): PAYMENT만 — PAYMENT는 v1을 계속 해석한다(배포 전환 기간의 기존 head). MASTER는 v2만 조립하므로(MASTER-SNAPSHOT-002
   §5.1) MASTER 시험 자원의 v1 golden은 v2 golden으로 대체했다.
-- v2(MASTER-SNAPSHOT-002 §4.1): MASTER·PAYMENT 둘 다 — v1 내용 + accounts[].limitPolicies·policyAssignments·cardRoutes. 값은 Demo(운영값 아님).
+- v2(MASTER-SNAPSHOT-002 §4.1): v1 내용 + accounts[].limitPolicies·policyAssignments·cardRoutes. 값은 Demo(운영값 아님). AUTHN-001부터 MASTER는 v3만
+  조립하므로 MASTER 시험 자원의 v2 golden은 v3 golden으로 대체했다(PAYMENT는 v2를 계속 해석 — PAYMENT 시험 자원에 남는다, v1과 같은 선례).
+- v3(AUTHN-001 §9, D-AUTHN-002): MASTER·PAYMENT 둘 다 — v2 내용 + sites[].channel(WEB = {type, host}, APP = {type}만 — 앱 식별값은 싣지 않는다).
+  host는 Demo 값(운영 가맹점 도메인 아님).
 
 `python3 harness/tests/test_entitlement_golden.py --write`로 파일을 다시 쓸 수 있다(검토된 계약 변경일 때만).
 """
@@ -28,7 +31,8 @@ def resource(app, name):
 
 TARGETS = {
     1: [resource("payment-api", "entitlement-snapshot-v1.golden.json")],
-    2: [resource(app, "entitlement-snapshot-v2.golden.json") for app in ("master-api", "payment-api")],
+    2: [resource("payment-api", "entitlement-snapshot-v2.golden.json")],
+    3: [resource(app, "entitlement-snapshot-v3.golden.json") for app in ("master-api", "payment-api")],
 }
 KEY_ID = "test-k1"
 KEY_B64 = "dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh"
@@ -60,7 +64,7 @@ def golden_text(schema_version):
         "currencies": [{"currency": "KRW", "minorUnit": 0, "from": t0, "to": "2026-12-31T15:00:00.000Z"}],
     }
     ids = {}
-    if schema_version == 2:
+    if schema_version >= 2:
         ids = {"limitDefaultId": ulid("tlp", "D1"), "limitOverrideId": ulid("tlp", "D2"), "feeAssignmentId": ulid("pas", "F1"),
                "settlementAssignmentId": ulid("pas", "T1"), "feeVersionId": ulid("pv", "V1"), "settlementVersionId": ulid("pv", "V2"),
                "cardRouteId": ulid("cra", "R1")}
@@ -83,11 +87,15 @@ def golden_text(schema_version):
             {"activationId": ids["cardRouteId"], "paymentMethod": "CARD", "acquirerCode": "SIMCARD01", "routeRef": "SIM-VAN-01",
              "institutionMerchantRef": "SIMMERCH0001", "status": "ACTIVE"},
         ]
+    sites = [{"siteId": s1, "lifecycle": "ACTIVE", "reviewStatus": "APPROVED"},
+             {"siteId": s2, "lifecycle": "ACTIVE", "reviewStatus": "PENDING"}]
+    if schema_version >= 3:
+        sites[0]["channel"] = {"type": "WEB", "host": "shop.example.test"}
+        sites[1]["channel"] = {"type": "APP"}
     content = {
         "merchantId": m, "businessId": b, "revision": 7,
         "party": {"businessLifecycle": "ACTIVE", "merchantLifecycle": "ACTIVE", "businessBlocked": False, "merchantBlocked": False},
-        "sites": [{"siteId": s1, "lifecycle": "ACTIVE", "reviewStatus": "APPROVED"},
-                  {"siteId": s2, "lifecycle": "ACTIVE", "reviewStatus": "PENDING"}],
+        "sites": sites,
         "accounts": [account],
     }
     content_canonical = canon(content)
@@ -95,7 +103,7 @@ def golden_text(schema_version):
     wire = dict(content)
     wire.update({"contentHash": content_hash, "issuedAt": "2026-10-09T02:00:05.000Z", "leaseSeq": 0, "leaseUntil": "2026-10-09T02:01:05.000Z"})
     wire_canonical = canon(wire)
-    event_id = "0f1e2d3c-4b5a-4987-8a6b-5c4d3e2f1a0b" if schema_version == 1 else "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+    event_id = {1: "0f1e2d3c-4b5a-4987-8a6b-5c4d3e2f1a0b", 2: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", 3: "2b3c4d5e-6f70-4a81-9b2c-3d4e5f6a7b8c"}[schema_version]
     # 봉투 v1 필드 순서는 MASTER EntitlementEnvelope.body와 같다(본문 바이트가 서명 대상).
     body = ('{"envelopeVersion":1,"eventId":"%s","eventType":"EntitlementSnapshot","schemaVersion":%d,"producer":"master-api",'
             '"aggregateId":"%s","aggregateVersion":7,"occurredAt":"2026-10-09T02:00:05.000Z","payload":%s}') % (event_id, schema_version, m, wire_canonical)
@@ -103,6 +111,8 @@ def golden_text(schema_version):
     description = {
         1: "MASTER-SNAPSHOT-001 S7 contract golden (generated independently of both apps from spec §10 canonical rules). Test-only key.",
         2: "MASTER-SNAPSHOT-002 schemaVersion 2 contract golden (authorization terms; Demo values, not production). "
+           "Generated independently of both apps from spec §10 canonical rules. Test-only key.",
+        3: "AUTHN-001 schemaVersion 3 contract golden (v2 + sites[].channel WEB host / APP type; Demo values, not production). "
            "Generated independently of both apps from spec §10 canonical rules. Test-only key.",
     }[schema_version]
     golden = OrderedDict([
@@ -126,10 +136,25 @@ class EntitlementGoldenTest(unittest.TestCase):
                 self.assertEqual(f.read(), expected, path)
 
     def test_v2_golden_files_of_both_apps_equal_the_independent_generation(self):
+        # AUTHN-001: v2 golden은 PAYMENT에만 남는다(MASTER는 v3만 조립). 시험 이름은 하네스 시험 목록 안정성을 위해 유지한다.
         expected = golden_text(2)
         for path in TARGETS[2]:
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), expected, path)
+        self.assertFalse(os.path.exists(resource("master-api", "entitlement-snapshot-v2.golden.json")), "MASTER assembles v3 only")
+
+    def test_v3_golden_files_of_both_apps_equal_the_independent_generation(self):
+        expected = golden_text(3)
+        for path in TARGETS[3]:
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), expected, path)
+
+    def test_v3_differs_from_v2_only_by_site_channels(self):
+        v2 = json.loads(json.loads(golden_text(2))["contentCanonical"])
+        v3 = json.loads(json.loads(golden_text(3))["contentCanonical"])
+        for site in v3["sites"]:
+            site.pop("channel")
+        self.assertEqual(v2, v3)
 
 
 if __name__ == "__main__":

@@ -6,11 +6,13 @@ package com.paycore.payment.payment.adapter.persistence
  */
 object PaymentSchemaRows {
 
+    /** REQUESTED Payment 원시 행. AUTHN-001 V7·V8_1: REQUESTED는 결제창 시각(+ 설정 버전)을 반드시 가진다 — Demo 값(생성 + 30분). */
     const val INSERT_PAYMENT = """
         INSERT INTO payment (payment_id, payment_key, environment, merchant_account_id, merchant_order_id, merchant_site_id,
             amount_minor, currency, payment_method, order_name, order_intent_fingerprint, slot_generation, status,
-            eligibility_snapshot_version, created_at, version)
-        VALUES (?, ?, ?, ?, ?, 'demo-site-001', ?, ?, 'CARD', NULL, 'v1:fp', ?, 'REQUESTED', 'snap-1', '2026-10-07 00:00:00.000', 0)
+            eligibility_snapshot_version, created_at, version, checkout_expires_at, checkout_validity_version)
+        VALUES (?, ?, ?, ?, ?, 'demo-site-001', ?, ?, 'CARD', NULL, 'v1:fp', ?, 'REQUESTED', 'snap-1', '2026-10-07 00:00:00.000', 0,
+            '2026-10-07 00:30:00.000', 'checkout-validity-demo-1')
     """
 
     /** payment_id, payment_key, environment, mid, orderId, amount, currency, slotGeneration */

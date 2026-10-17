@@ -13,6 +13,8 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     // 가맹점 공개 API 인증(D-CPA-001 Bearer API 키). Boot 4.1.1 BOM 관리 버전(카탈로그 기존 항목 — internal-admin과 같다).
     implementation(libs.spring.boot.starter.security)
+    // 결제창 화면(AUTHN-001 §16, D-AUTHN-006 — Thymeleaf 우선). Boot 4.1.1 BOM 관리 버전(카탈로그 기존 항목 — internal-admin·institution-simulator와 같다).
+    implementation(libs.spring.boot.starter.thymeleaf)
     implementation(libs.spring.modulith.api)
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)

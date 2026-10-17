@@ -31,7 +31,24 @@ object PaymentFixture {
 
     /** 결제창이 열린, 아직 승인을 시작하지 않은 시도. */
     fun requested(n: Int = 1, slotGeneration: Long = 1, intent: OrderIntentFingerprint = originalIntent): Payment =
-        Payment.request(paymentId(n), demoOrder, intent, slotGeneration)
+        Payment.request(paymentId(n), demoOrder, intent, slotGeneration, demoWindow)
+
+    /** Demo 결제 유효기간 설정 버전(D-AUTHN-005 — 운영값 아님). */
+    const val CHECKOUT_VALIDITY_VERSION = "checkout-validity-demo-1"
+
+    /**
+     * 기본 결제창 시각(Demo): 승인 시험 시각(AuthorizationFixture.startedAt 2026-10-15T03:00Z)보다 30분 뒤라 기존 domain 시험의 판정 시각에서 경과하지 않는다.
+     * 결제창 만료를 보는 시험은 [requestedWithCheckoutWindow]로 시각을 명시한다.
+     */
+    val demoWindow = CheckoutWindow(java.time.Instant.parse("2026-10-15T03:30:00Z"), CHECKOUT_VALIDITY_VERSION)
+
+    /** V7 이전에 저장된 REQUESTED 행(결제창 시각 없음, D-AUTHN-007 채우기 대상) — 영속 복원 경로로만 존재한다. */
+    fun storedWithoutWindow(status: PaymentStatus = REQUESTED, n: Int = 1): Payment =
+        Payment.reconstitute(paymentId(n), demoOrder, originalIntent, 1, status, emptyList(), null)
+
+    /** 결제창 시각이 [expiresAt]으로 고정된 REQUESTED(AUTHN-001 §7.5 — 생성 시각 + Demo 유효기간을 application이 계산해 넘긴 값). */
+    fun requestedWithCheckoutWindow(expiresAt: java.time.Instant, n: Int = 1): Payment =
+        Payment.request(paymentId(n), demoOrder, originalIntent, 1, CheckoutWindow(expiresAt, CHECKOUT_VALIDITY_VERSION))
 
     /** 승인 Attempt를 점유한(전송했을 수 있는) 시도. */
     fun authorizing(n: Int = 1, slotGeneration: Long = 1): Payment = requested(n, slotGeneration).advance(AUTHORIZING)

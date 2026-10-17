@@ -66,10 +66,19 @@ object PaymentPlanRule {
     /** 허용되면 null, 아니면 거절 사유. 정책 통화와 금액 통화가 다르면 호출 결함이라 [IllegalArgumentException]. */
     fun check(plan: PaymentPlan, cardType: CardType, money: Money, policy: PaymentPlanPolicy): PlanRejection? {
         require(money.currency == policy.currency) { "plan policy currency does not match the payment currency" }
+        if (plan is PaymentPlan.Installment && cardType == CardType.CHECK) return PlanRejection.CHECK_CARD_INSTALLMENT
+        return precheck(plan, money, policy)
+    }
+
+    /**
+     * 결제창의 사전 판정(AUTHN-001 명세 §6.2·§7.1): cardType을 모르는 시점의 개월·최소금액만 본다. 체크카드 할부 거절은 cardType을 아는 승인 시작
+     * ([check])과 기관의 책임이다(AC1 §5.4). 허용되면 null.
+     */
+    fun precheck(plan: PaymentPlan, money: Money, policy: PaymentPlanPolicy): PlanRejection? {
+        require(money.currency == policy.currency) { "plan policy currency does not match the payment currency" }
         return when (plan) {
             PaymentPlan.LumpSum -> null
             is PaymentPlan.Installment -> when {
-                cardType == CardType.CHECK -> PlanRejection.CHECK_CARD_INSTALLMENT
                 plan.months !in policy.installmentMonths -> PlanRejection.INSTALLMENT_MONTHS_NOT_ALLOWED
                 policy.minimumInstallmentAmount != null && money.amountMinor < policy.minimumInstallmentAmount.amountMinor ->
                     PlanRejection.BELOW_MINIMUM_INSTALLMENT_AMOUNT

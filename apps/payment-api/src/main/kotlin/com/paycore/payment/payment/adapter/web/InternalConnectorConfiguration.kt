@@ -45,8 +45,8 @@ class InternalConnectorConfiguration {
 
     /** 가장 먼저 실행된다(Spring Security 필터 체인보다 앞). */
     @Bean
-    fun apiEntryFilter(internal: InternalConnector): FilterRegistrationBean<ApiEntryFilter> =
-        FilterRegistrationBean(ApiEntryFilter(internal)).apply { order = Ordered.HIGHEST_PRECEDENCE }
+    fun apiEntryFilter(internal: InternalConnector, checkout: CheckoutConnector): FilterRegistrationBean<ApiEntryFilter> =
+        FilterRegistrationBean(ApiEntryFilter(internal, checkout)).apply { order = Ordered.HIGHEST_PRECEDENCE }
 }
 
 /** 내부 connector 참조(기동 뒤 실제 포트를 알 수 있다 — 설정 0이면 임의 포트). */

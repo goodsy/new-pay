@@ -189,7 +189,8 @@ class CreatePaymentConcurrencySpec(
                     db.awaitLockWaiters(1) // 재시도한 새 TX가 이번에는 멱등 행에서 기다린다.
                     reverse.rollback()
                     val result = future.get(30, TimeUnit.SECONDS).shouldBeInstanceOf<CreatePaymentResult.Accepted>()
-                    result.outcome shouldBe CreatePaymentOutcome.EXISTING_ACTIVE_PAYMENT
+                    // AUTHN-001(D-AUTHN-005·U-3): 30일 된 REQUESTED는 결제창 시각이 지나 같은 TX에서 만료 → generation 2(이전 기대: EXISTING_ACTIVE_PAYMENT, §24.12).
+                    result.outcome shouldBe CreatePaymentOutcome.CREATED
                     result.replayed shouldBe false
                 } finally {
                     pool.shutdownNow()
@@ -198,7 +199,8 @@ class CreatePaymentConcurrencySpec(
             // 원 요청 1 + 교착으로 rollback된 TX 1 + 재시도 TX 1(재시도 TX마다 그 TX 안에서 다시 평가한다).
             eligibility.callsFor(order).size shouldBe 3
             (deadlocks() - before) shouldBeGreaterThanOrEqual 1L
-            db.rowsOf(order) shouldBe rows(payment = 1, control = 1, idempotency = 1, outbox = 1)
+            // 이전 기대: payment 1·outbox 1(§24.12). 재시도 TX만 커밋 — 만료 1회(PaymentExpired 1) + 새 Payment 1(PaymentRequested 1).
+            db.rowsOf(order) shouldBe rows(payment = 2, control = 1, idempotency = 1, outbox = 3)
             db.count(
                 "SELECT COUNT(*) FROM idempotency_request WHERE idempotency_key = ? AND request_record_id = ?",
                 cmd.idempotencyKey.value, cmd.newIdentifiers.idempotencyRecordId.value,

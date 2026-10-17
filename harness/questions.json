@@ -1248,6 +1248,36 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
       "appliedSpec": "D-AUTHN-006",
       "origin": "AUTHN-001 1단계 명세 §23(Q-AUTHN-05)·§22-1(기준 편차)"
+    },
+    {
+      "id": "Q-AUTHN-07",
+      "status": "ANSWERED",
+      "question": "V7(만료 시각 컬럼) 이전에 생성된 REQUESTED Payment의 만료 시각",
+      "recommended": "배포 시점에 유효한 설정 버전의 유효기간으로 created_at + 유효기간을 채운다. migration 상수가 아니라 애플리케이션 단계 또는 만료 작업이 값과 설정 버전을 기록(D-AUTH-009). 채운 뒤 CHECK(status <> 'REQUESTED' OR checkout_expires_at IS NOT NULL). 이미 지난 건은 다음 만료 작업에서 EXPIRED",
+      "alternative": "자동 만료 안 함(NULL 유지) / REQUESTED가 있으면 migration 실패",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"생성 시각 기준으로 만료 시각 채움 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-007",
+      "origin": "AUTHN-001 1단계 명세 review(U-1·U-2)"
+    },
+    {
+      "id": "Q-AUTHN-08",
+      "status": "ANSWERED",
+      "question": "REQUESTED → EXPIRED 통합 이벤트(Outbox) 여부",
+      "recommended": "PaymentExpired 이벤트를 만료와 같은 PAYMENT 로컬 TX에서 Outbox에 append(INTEGRATION_NON_FINANCIAL, effect_key PaymentExpired:{paymentId}). payload에 paymentKey·카드정보·Secret·개인정보 없음",
+      "alternative": "이벤트 없음(조회 API로만 확인)",
+      "dependentTasks": [
+        "AUTHN-001"
+      ],
+      "askedAt": "2026-10-16",
+      "humanAnswer": "\"PaymentExpired 이벤트 남김 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-16)",
+      "appliedSpec": "D-AUTHN-008",
+      "origin": "AUTHN-001 1단계 명세 review(U-1·U-2)"
     }
   ]
 }

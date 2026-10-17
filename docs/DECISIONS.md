@@ -81,6 +81,8 @@
 | D-AUTHN-004 | Q-AUTHN-04 | "새 실행 단위 (Recommended)". 새 실행 단위 apps/institution-simulator(별도 프로세스·포트·저장소): 고객 인증 화면·결과 조회 API, AUTH-001 가상 VAN(TCP)도 이후 여기. payment-api는 HTTP Adapter로만 연결, REAL Adapter 없음, 환경 설정으로 격리 | harness/questions.json | AUTHN-001 | 2026-10-16 |
 | D-AUTHN-005 | Q-AUTHN-05 | "생성 시 절대 만료 시각 (Recommended)". Payment 생성 시 '생성 시각 + 결제 유효기간(버전 있는 설정, Demo 값)'을 절대 만료 시각으로 고정 저장. AUTHN-001이 만료 Use Case(RequestedPaymentExpiry, 잠금 control → payment → 세션 → 결제창 세션 → 토큰)·주기 작업·복귀/교환 경합 시험(C7) 구현. 토큰·결제창 세션·인증 세션 만료는 Payment 만료 시각을 넘지 않게 자름. CreatePayment API·응답 불변(값만 저장). 만료 뒤 같은 주문 새 Payment(새 키) 허용(D-CPD-002) | harness/questions.json | AUTHN-001 | 2026-10-16 |
 | D-AUTHN-006 | Q-AUTHN-06 | "payment-api 별도 포트 (Recommended)". 기준 편차 승인: payment-api 안 결제창 전용 connector(포트)·별도 SecurityFilterChain. 화면 코드는 provided Use Case만 호출해 추출 가능성 유지, payment-window 실행 단위 분리는 후속 후보. 서비스 간 API·인증 신설 없음 | harness/questions.json | AUTHN-001 | 2026-10-16 |
+| D-AUTHN-007 | Q-AUTHN-07 | "생성 시각 기준으로 만료 시각 채움 (Recommended)". 배포 시점에 유효한 설정 버전의 유효기간으로 created_at + 유효기간을 채운다. migration 상수가 아니라 애플리케이션 단계 또는 만료 작업이 값과 설정 버전을 기록(D-AUTH-009). 채운 뒤 CHECK(status <> 'REQUESTED' OR checkout_expires_at IS NOT NULL). 이미 지난 건은 다음 만료 작업에서 EXPIRED | harness/questions.json | AUTHN-001 | 2026-10-16 |
+| D-AUTHN-008 | Q-AUTHN-08 | "PaymentExpired 이벤트 남김 (Recommended)". PaymentExpired 이벤트를 만료와 같은 PAYMENT 로컬 TX에서 Outbox에 append(INTEGRATION_NON_FINANCIAL, effect_key PaymentExpired:{paymentId}). payload에 paymentKey·카드정보·Secret·개인정보 없음 | harness/questions.json | AUTHN-001 | 2026-10-16 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

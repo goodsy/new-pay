@@ -67,8 +67,8 @@ object SnapshotFixture {
     fun incoming(content: EntitlementContent, lease: Lease = leaseAt(), eventId: String = UUID.randomUUID().toString()) =
         IncomingSnapshot(eventId, content.merchantId, content.revision, content.schemaVersion, content, content.contentHash, lease)
 
-    /** PAYMENT가 해석하지 않는 schemaVersion(지원 집합 {1, 2} 밖 — MASTER-SNAPSHOT-002 이후 첫 미지원 값은 3). */
-    const val UNSUPPORTED_SCHEMA_VERSION: Int = 3
+    /** PAYMENT가 해석하지 않는 schemaVersion(지원 집합 {1, 2, 3} 밖 — AUTHN-001이 3을 지원하므로 첫 미지원 값은 4). */
+    const val UNSUPPORTED_SCHEMA_VERSION: Int = 4
 
     fun unsupported(merchantId: String, revision: Long, eventId: String = UUID.randomUUID().toString()) =
         IncomingSnapshot(eventId, merchantId, revision, UNSUPPORTED_SCHEMA_VERSION, null, null, null)
@@ -129,4 +129,21 @@ object SnapshotFixture {
         mapAccount { it.copy(terms = change(checkNotNull(it.terms))) }
 
     fun termsQuestion(ids: Ids, acquirer: String = ACQUIRER, currency: String = "KRW") = AuthorizationTermsQuestion(ids.mid, ids.siteId, "CARD", currency, acquirer)
+
+    // ── AUTHN-001 schemaVersion 3(v2 + sites[].channel, D-AUTHN-002). host는 Demo 값 — 운영 가맹점 도메인 아님. ─────────────────────
+
+    const val WEB_HOST = "shop.example.test"
+
+    /** 결제창을 열 수 있는 v3 내용: [entitledWithTerms] + PRIMARY Site(siteId)는 WEB [webHost], 두 번째 Site는 APP. */
+    fun entitledWithChannels(ids: Ids = ids(), terms: TermsIds = termsIds(), revision: Long = 1, from: Instant = t0, webHost: String = WEB_HOST): EntitlementContent =
+        entitledWithTerms(ids, terms, revision, from).let { v2 ->
+            v2.copy(
+                schemaVersion = CHANNEL_SNAPSHOT_SCHEMA_VERSION,
+                sites = v2.sites.map { site ->
+                    site.copy(channel = if (site.siteId == ids.siteId) SiteChannelEntry.Web(webHost) else SiteChannelEntry.App)
+                },
+            )
+        }
+
+    fun EntitlementContent.mapSite(siteId: String, change: (SiteEntry) -> SiteEntry) = copy(sites = sites.map { if (it.siteId == siteId) change(it) else it })
 }

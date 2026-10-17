@@ -67,18 +67,42 @@ object AuthorizationFixture {
     fun binding(payment: Payment, plan: PaymentPlan = PaymentPlan.LumpSum, money: Money = intent.money) =
         AuthenticationBinding(payment.id, payment.orderKey, money, plan, "DEMO-CARD-CO")
 
-    fun evidence(binding: AuthenticationBinding, cardType: CardType = CardType.CREDIT, ref: String = "demo-authn-evidence-1") =
-        VerifiedAuthentication(ref, binding, cardType, "DEMO-ISSUER", "DEMO-ACQUIRER", "DEMO-AUTHN-PROVIDER")
+    /**
+     * 기관이 알려 준 인증 근거 유효기간(Demo). 세션 TTL(10분)보다 길게 둬 기존 승인 시험의 만료 경계(세션 expiresAt)를 바꾸지 않는다 —
+     * 근거 유효기간이 먼저 끝나는 경우는 AuthenticationSessionSpec이 따로 본다(AUTHN-001 §7.1).
+     */
+    val providerValidUntil: Instant = startedAt.plus(Duration.ofMinutes(30))
+
+    /** 기관 거래 참조(Simulator 거래 ID 모양의 Demo 값 — AUTHN-001 §7.1 `start(providerTransactionRef)`). */
+    const val PROVIDER_TRANSACTION_REF = "sat_demo0001"
+
+    /** 인증 세션 state 원문의 digest(원문은 시험 값 — 운영 비밀 아님). [n]마다 다른 세션의 state다. */
+    fun stateDigest(n: Int = 1): SecretDigest = SecretDigest.of(SecretKind.AUTHENTICATION_STATE, "demo-state-%04d".format(n))
+
+    fun correlation(n: Int = 1): AuthenticationCorrelation = AuthenticationCorrelation(stateDigest(n))
+
+    /** 브라우저가 가져온 1회용 결과 참조의 digest. */
+    fun resultRefDigest(n: Int = 1): SecretDigest = SecretDigest.of(SecretKind.RESULT_REFERENCE, "demo-result-ref-%04d".format(n))
+
+    /** 서버가 VERIFIED 때 만드는 인증 참조(`aref_` + base64url 128bit 모양의 Demo 값). */
+    val authenticationRef = AuthenticationRef("aref_" + "A".repeat(22))
+
+    fun evidence(
+        binding: AuthenticationBinding,
+        cardType: CardType = CardType.CREDIT,
+        ref: String = "demo-authn-evidence-1",
+        validUntil: Instant = providerValidUntil,
+    ) = VerifiedAuthentication(ref, binding, cardType, "DEMO-ISSUER", "DEMO-ACQUIRER", "DEMO-AUTHN-PROVIDER", validUntil)
 
     /** 결제창에서 인증 중인 세션(IN_PROGRESS). */
     fun inProgressSession(payment: Payment, plan: PaymentPlan = PaymentPlan.LumpSum, id: AuthenticationSessionId = sessionId): AuthenticationSession =
-        AuthenticationSession.create(id, payment, binding(payment, plan), startedAt.plus(sessionTtl), startedAt.minusSeconds(60), emptyList())
-            .also { it.start() }
+        AuthenticationSession.create(id, payment, binding(payment, plan), correlation(), startedAt.plus(sessionTtl), startedAt.minusSeconds(60), emptyList())
+            .also { it.start(PROVIDER_TRANSACTION_REF) }
 
     /** 서버 검증을 마친 미귀속 세션(VERIFIED). */
     fun verifiedSession(payment: Payment, plan: PaymentPlan = PaymentPlan.LumpSum, cardType: CardType = CardType.CREDIT): AuthenticationSession =
         inProgressSession(payment, plan).also { s ->
-            s.verify(evidence(s.binding, cardType), startedAt.minusSeconds(30)) shouldBeOutcome VerificationOutcome.VERIFIED
+            s.verify(evidence(s.binding, cardType), resultRefDigest(), authenticationRef, startedAt.minusSeconds(30)) shouldBeOutcome VerificationOutcome.VERIFIED
         }
 
     /** REQUESTED Payment + VERIFIED 세션 + 빈 일 한도 사용량. */
@@ -152,8 +176,9 @@ object AuthorizationFixture {
      */
     fun startedOn(order: OrderPaymentScenario, n: Int, usage: DailyLimitUsage): AuthorizationScenario {
         val session = AuthenticationSession.create(
-            AuthenticationSessionId("demo-authn-%04d".format(n)), order.current, binding(order.current), startedAt.plus(sessionTtl), startedAt.minusSeconds(60), emptyList(),
-        ).also { it.start(); it.verify(evidence(it.binding), startedAt.minusSeconds(30)) }
+            AuthenticationSessionId("demo-authn-%04d".format(n)), order.current, binding(order.current), correlation(n), startedAt.plus(sessionTtl),
+            startedAt.minusSeconds(60), emptyList(),
+        ).also { it.start(PROVIDER_TRANSACTION_REF); it.verify(evidence(it.binding), resultRefDigest(n), authenticationRef, startedAt.minusSeconds(30)) }
         val ready = StartReady(order.control, order.current, session, usage)
         val result = AuthorizationStart.start(
             command(ready).copy(

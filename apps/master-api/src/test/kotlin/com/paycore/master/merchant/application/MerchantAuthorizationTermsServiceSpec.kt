@@ -33,6 +33,7 @@ import com.paycore.master.merchant.application.provided.RegisterTransactionLimit
 import com.paycore.master.merchant.application.provided.ReplaceTransactionLimitPolicyCommand
 import com.paycore.master.merchant.application.provided.SuspendCardRouteActivationCommand
 import com.paycore.master.merchant.domain.CurrencyCode
+import com.paycore.master.merchant.domain.ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION
 import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.LimitValue
 import com.paycore.master.merchant.domain.MasterRejection
@@ -87,7 +88,7 @@ class MerchantAuthorizationTermsServiceSpec(
     fun rejected(result: AdminCommandResult): MasterRejection = result.shouldBeInstanceOf<AdminCommandResult.Rejected>().rejection
 
     Given("an entitled merchant") {
-        Then("each merchant-scoped terms command advances the revision by one and publishes one HIGH schemaVersion 2 snapshot; the policy version registry does not") {
+        Then("each merchant-scoped terms command advances the revision by one and publishes one HIGH current-schemaVersion snapshot; the policy version registry does not") {
             val e = EntitlementCommandFixture.entitled(onboarding, entitlement)
             val r0 = revisionOf(container, e.merchantId)
             val fee = AuthorizationTermsCommandFixture.registerVersion(terms, PolicyKind.FEE_SCHEDULE)
@@ -99,7 +100,8 @@ class MerchantAuthorizationTermsServiceSpec(
             AuthorizationTermsCommandFixture.activeRoute(terms, e)
             revisionOf(container, e.merchantId) shouldBe r0 + 5
             issuesOf(container, e.merchantId).takeLast(5).map { it.revision to it.priority } shouldBe (1L..5L).map { r0 + it to "HIGH" }
-            count("SELECT COUNT(*) FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision > ? AND schema_version = 2", e.merchantId.value, r0) shouldBe 5L
+            // AUTHN-001: 현재 schemaVersion은 3(v2 + sites[].channel). 기대값은 "현재 버전으로 발행"이라는 같은 의미다.
+            count("SELECT COUNT(*) FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision > ? AND schema_version = $ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION", e.merchantId.value, r0) shouldBe 5L
             val account = latestSnapshot(container, e.merchantId).get("accounts").single()
             listOf(
                 account.get("limitPolicies").single().get("policyId").stringValue(),
@@ -249,16 +251,19 @@ class MerchantAuthorizationTermsServiceSpec(
         }
     }
 
-    Given("a merchant whose latest issue is a schemaVersion 1 snapshot (issued before this upgrade)") {
-        Then("the lease renewal promotes it: revision +1, HIGH, schemaVersion 2 — never the same revision with v2 content (PAYMENT would see INTEGRITY_CONFLICT)") {
+    // AUTHN-001 §9.2: v1 발행 뒤(MS2 승격 경로)와 v2 발행 뒤(SchemaPromotionV3 — sites[].channel 추가) 모두 같은 승격 경로로 현재 버전(3)이 된다.
+    listOf(1, 2).forEach { oldVersion ->
+    Given("a merchant whose latest issue is a schemaVersion $oldVersion snapshot (issued before this upgrade)") {
+        Then("the lease renewal promotes it: revision +1, HIGH, the current schemaVersion — never the same revision with new content (PAYMENT would see INTEGRITY_CONFLICT)") {
             val e = EntitlementCommandFixture.entitled(onboarding, entitlement)
             val latest = issuesOf(container, e.merchantId).last()
             // 업그레이드 전 발행을 흉내 낸다(시험 fixture — 운영 계정은 이 표를 UPDATE할 수 없다, root로만).
             MasterDbAccounts.root(container).use { c ->
-                c.prepareStatement("UPDATE paycore_master.entitlement_snapshot_issue SET schema_version = 1 WHERE merchant_id = ? AND revision = ? AND lease_seq = ?").use { ps ->
-                    ps.setString(1, e.merchantId.value)
-                    ps.setLong(2, latest.revision)
-                    ps.setLong(3, latest.leaseSeq)
+                c.prepareStatement("UPDATE paycore_master.entitlement_snapshot_issue SET schema_version = ? WHERE merchant_id = ? AND revision = ? AND lease_seq = ?").use { ps ->
+                    ps.setInt(1, oldVersion)
+                    ps.setString(2, e.merchantId.value)
+                    ps.setLong(3, latest.revision)
+                    ps.setLong(4, latest.leaseSeq)
                     ps.executeUpdate() shouldBe 1
                 }
             }
@@ -268,12 +273,15 @@ class MerchantAuthorizationTermsServiceSpec(
             val promoted = issuesOf(container, e.merchantId).last()
             listOf(promoted.revision, promoted.leaseSeq, promoted.priority) shouldBe listOf(latest.revision + 1, 0L, "HIGH")
             revisionOf(container, e.merchantId) shouldBe latest.revision + 1
-            count("SELECT schema_version FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision = ?", e.merchantId.value, promoted.revision) shouldBe 2L
+            count("SELECT schema_version FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision = ?", e.merchantId.value, promoted.revision) shouldBe ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION.toLong()
             (registry.find(MicrometerMasterOperationalMetrics.SCHEMA_PROMOTIONS).counter()?.count() ?: 0.0) shouldBe promotions + 1
             clock.set(OnboardingFixture.t0.plusMillis(3000))
             leases.renewDueLeases()
             issuesOf(container, e.merchantId).last().let { listOf(it.revision, it.leaseSeq, it.priority) } shouldBe listOf(promoted.revision, 1L, "LOW")
+            // v3 내용(AUTHN-001 §9.1): 승격 발행의 Site마다 channel이 실린다.
+            latestSnapshot(container, e.merchantId).get("sites").all { it.has("channel") } shouldBe true
         }
+    }
     }
 
     // ── review round1 m-1·m-2·m-3: rollback·경쟁 시험 보강(실제 MySQL, 별도 연결) ─────────────────────────────────────────
@@ -292,8 +300,8 @@ class MerchantAuthorizationTermsServiceSpec(
         return latest
     }
 
-    fun schema2Issues(e: EntitlementCommandFixture.Entitled, revision: Long): Long =
-        count("SELECT COUNT(*) FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision = ? AND schema_version = 2", e.merchantId.value, revision)
+    fun currentSchemaIssues(e: EntitlementCommandFixture.Entitled, revision: Long): Long =
+        count("SELECT COUNT(*) FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision = ? AND schema_version = $ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION", e.merchantId.value, revision)
 
     Given("a schema promotion (renewal after a v1 issue) with a failure injected inside its transaction") {
         listOf(MasterFaultPoint.MERCHANT_UPDATE, MasterFaultPoint.ISSUE_RECORD).forEach { point ->
@@ -313,7 +321,7 @@ class MerchantAuthorizationTermsServiceSpec(
                 faults.reset()
                 leases.renewDueLeases()
                 revisionOf(container, e.merchantId) shouldBe latest.revision + 1
-                schema2Issues(e, latest.revision + 1) shouldBe 1L
+                currentSchemaIssues(e, latest.revision + 1) shouldBe 1L
             }
         }
     }
@@ -325,7 +333,7 @@ class MerchantAuthorizationTermsServiceSpec(
             clock.set(OnboardingFixture.t0.plusMillis(1500))
             OnboardingFixture.concurrently(2) { leases.renewDueLeases() }.forEach { it.getOrThrow() }
             revisionOf(container, e.merchantId) shouldBe latest.revision + 1
-            schema2Issues(e, latest.revision + 1) shouldBe 1L
+            currentSchemaIssues(e, latest.revision + 1) shouldBe 1L
             count("SELECT COUNT(*) FROM entitlement_snapshot_issue WHERE merchant_id = ? AND revision > ?", e.merchantId.value, latest.revision) shouldBe 1L
         }
     }

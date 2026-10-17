@@ -322,7 +322,9 @@ class ApiFailureSpec(
     }
 
     Given("the idempotency record expires after 30 days (D-CPC-004)") {
-        Then("one millisecond before expiry it replays; at expiry the same key is a new request that reuses the active payment (no second payment)") {
+        // AUTHN-001(D-AUTHN-005·판정 U-3) 기대값 갱신(§24.12): 30일 된 REQUESTED는 결제창 시각(Demo 30분)이 지나 갱신 요청의 주문 판정 TX에서 inline 만료된다 →
+        // generation 2(201). 이전 기대: 200 EXISTING_ACTIVE_PAYMENT·payment 1·outbox 1. 활성 시도 재사용은 AUTHORIZING·UNKNOWN 행(아래)이 그대로 본다.
+        Then("one millisecond before expiry it replays; at expiry the same key is a new request — the stale REQUESTED payment is expired inline and generation 2 is created") {
             val cred = TestCredentials.issue(db)
             val key = s.newKey()
             val body = CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId())
@@ -331,11 +333,12 @@ class ApiFailureSpec(
             post(cred, body, key).header("Idempotent-Replayed") shouldBe "true"
             clock.set(ApiTestTimes.T0.plus(Duration.ofDays(30)))
             val renewed = post(cred, body, key)
-            renewed.status shouldBe 200
+            renewed.status shouldBe 201
             renewed.header("Idempotent-Replayed") shouldBe "false"
-            s.json(renewed.body).get("outcome").stringValue() shouldBe "EXISTING_ACTIVE_PAYMENT"
-            s.json(renewed.body).get("paymentId").stringValue() shouldBe first
-            s.rows(cred.mid) shouldBe s.rows(payment = 1, control = 1, idempotency = 1, outbox = 1)
+            s.json(renewed.body).get("outcome").stringValue() shouldBe "CREATED"
+            s.json(renewed.body).get("paymentId").stringValue() shouldNotBe first
+            s.scalar("SELECT status FROM payment WHERE payment_id = ?", first) shouldBe "EXPIRED"
+            s.rows(cred.mid) shouldBe s.rows(payment = 2, control = 1, idempotency = 1, outbox = 3)
         }
         /** T0에 같은 키로 만든 주문을 [prepare] 상태로 바꾸고 T0+30일에 같은 키·같은 본문을 다시 보낸다(명세 §9.3 행). */
         fun afterExpiry(prepare: (com.paycore.payment.payment.domain.Payment, com.paycore.payment.payment.domain.OrderPaymentControl) -> Unit):
@@ -388,18 +391,21 @@ class ApiFailureSpec(
             post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId, orderName = "first"), key).status shouldBe 201
             post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId, orderName = "changed"), key).let { code(it) shouldBe "IDEMPOTENCY_KEY_REUSED" }
             clock.set(ApiTestTimes.T0.plus(Duration.ofDays(30)))
-            // 같은 주문·표시 정보만 다름 → 새 요청으로 판정되어 활성 시도 재사용(200), KEY_REUSED 아님.
+            // 같은 주문·표시 정보만 다름 → 새 요청으로 판정, KEY_REUSED 아님. AUTHN-001(U-3, §24.12): 30일 된 REQUESTED는 inline 만료 → generation 2(201).
+            // 이전 기대: 200 EXISTING_ACTIVE_PAYMENT.
             val sameOrder = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId, orderName = "changed"), key)
-            sameOrder.status shouldBe 200
-            s.json(sameOrder.body).get("outcome").stringValue() shouldBe "EXISTING_ACTIVE_PAYMENT"
+            sameOrder.status shouldBe 201
+            s.json(sameOrder.body).get("outcome").stringValue() shouldBe "CREATED"
             // 다시 30일 뒤 같은 키로 다른 주문 → 새 요청으로 새 주문 생성(201).
             clock.set(ApiTestTimes.T0.plus(Duration.ofDays(60)))
             val otherOrder = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId()), key)
             otherOrder.status shouldBe 201
             listOf(sameOrder, otherOrder).forEach { it.body shouldNotContain "IDEMPOTENCY_KEY_REUSED" }
-            s.rows(cred.mid) shouldBe s.rows(payment = 2, control = 2, idempotency = 1, outbox = 2)
+            // 이전 기대: payment 2·outbox 2. 이후: 첫 주문 generation 1(만료 — PaymentExpired) + 2, 둘째 주문 1 → payment 3·outbox 4.
+            s.rows(cred.mid) shouldBe s.rows(payment = 3, control = 2, idempotency = 1, outbox = 4)
         }
-        Then("eight concurrent requests with the same key at T0+30d: exactly one renewal, identical results, no extra payment") {
+        // AUTHN-001(U-3, §24.12): 갱신 1회가 inline 만료 + generation 2(201), 나머지 7은 그 결과 재생(200). 이전 기대: 전부 200·원 Payment·payment 1·outbox 1.
+        Then("eight concurrent requests with the same key at T0+30d: exactly one renewal (inline expiry + generation 2), the rest replay its identical result") {
             val cred = TestCredentials.issue(db)
             val key = s.newKey()
             val body = CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId())
@@ -414,16 +420,16 @@ class ApiFailureSpec(
             } finally {
                 pool.shutdownNow()
             }
-            responses.map { it.status }.toSet() shouldBe setOf(200)
+            responses.map { it.status }.sorted() shouldBe listOf(200, 200, 200, 200, 200, 200, 200, 201)
             responses.map { it.body }.toSet().size shouldBe 1
-            s.json(responses[0].body).get("paymentId").stringValue() shouldBe paymentId
+            s.json(responses[0].body).get("paymentId").stringValue() shouldNotBe paymentId
             responses.count { it.header("Idempotent-Replayed") == "false" } shouldBe 1
-            s.rows(cred.mid) shouldBe s.rows(payment = 1, control = 1, idempotency = 1, outbox = 1)
+            s.rows(cred.mid) shouldBe s.rows(payment = 2, control = 1, idempotency = 1, outbox = 3)
             val renewed = db.withApp { c ->
                 with(db) { c.rows("SELECT request_record_id r, result_code c, DATE_FORMAT(created_at, '%Y-%m-%d') d FROM idempotency_request WHERE merchant_account_id = ?", cred.mid) }
             }.single()
             (renewed["r"] != originalRecord) shouldBe true
-            renewed["c"] shouldBe "EXISTING_ACTIVE_PAYMENT"
+            renewed["c"] shouldBe "CREATED"
             renewed["d"] shouldBe "2026-11-13"
         }
     }

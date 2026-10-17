@@ -312,12 +312,13 @@ class CreatePaymentServiceSpec(
                 val renewed = created(service.create(atExpiry))
                 renewed.replayed shouldBe false
                 eligibility.callsFor(order).size shouldBe evaluated + 1
-                // 주문 통제는 영구: 활성 시도가 있으므로 재사용(동시 활성 Payment·이중 생성 없음).
-                renewed.outcome shouldBe CreatePaymentOutcome.EXISTING_ACTIVE_PAYMENT
-                renewed.payment.paymentId shouldBe first.payment.paymentId
-                db.rowsOf(order) shouldBe rows(payment = 1, control = 1, idempotency = 1, outbox = 1)
+                // 주문 통제는 영구: 갱신된 요청도 주문 판정을 거친다. AUTHN-001(D-AUTHN-005·판정 U-3)부터 30일 된 REQUESTED는 결제창 시각(30분)이 지나
+                // 같은 TX에서 만료(PaymentExpired)된 뒤 generation 2가 만들어진다(이전 기대: EXISTING_ACTIVE_PAYMENT·payment 1·outbox 1 — 규칙 변경, §24.12).
+                renewed.outcome shouldBe CreatePaymentOutcome.CREATED
+                renewed.payment.paymentId shouldBe atExpiry.newIdentifiers.paymentId
+                db.rowsOf(order) shouldBe rows(payment = 2, control = 1, idempotency = 1, outbox = 3)
                 db.count(
-                    "SELECT COUNT(*) FROM idempotency_request WHERE idempotency_key = ? AND request_record_id = ? AND result_code = 'EXISTING_ACTIVE_PAYMENT'",
+                    "SELECT COUNT(*) FROM idempotency_request WHERE idempotency_key = ? AND request_record_id = ? AND result_code = 'CREATED'",
                     cmd.idempotencyKey.value, atExpiry.newIdentifiers.idempotencyRecordId.value,
                 ) shouldBe 1
             }

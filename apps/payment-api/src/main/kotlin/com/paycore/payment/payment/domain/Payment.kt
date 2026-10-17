@@ -38,6 +38,16 @@ class Payment private constructor(
 
     private val evidence = mutableListOf<TerminationEvidence>()
 
+    /**
+     * 결제창 절대 만료 시각(D-AUTHN-005). 새 Payment는 생성 때 고정하고 바꾸지 않는다. null = V7 이전 저장 행(D-AUTHN-007 — 채우기는 payment-api 기동 migration
+     * 전략이 V8_1 전에 한다, AUTHN-001 §7.5.6 검토 #2 m-2. domain에는 채우기 연산이 없다).
+     */
+    var checkoutWindow: CheckoutWindow? = null
+        private set
+
+    /** 결제창 시각이 있고 `now ≥ expiresAt`이면 경과(AUTHN-001 §7.5). 시각이 없으면 경과로 보지 않는다(채우기 전 — 결함 방어는 [RequestedPaymentExpiry]). */
+    fun isCheckoutWindowElapsed(now: java.time.Instant): Boolean = checkoutWindow?.let { !now.isBefore(it.expiresAt) } ?: false
+
     /** 기록된 종료 근거(append-only, 읽기 전용 사본). */
     val terminationEvidence: List<TerminationEvidence>
         get() = evidence.toList()
@@ -98,10 +108,13 @@ class Payment private constructor(
     override fun toString(): String = "Payment(id=${id.value}, status=$status, slotGeneration=$slotGeneration)"
 
     companion object {
-        /** 새 고객 시도(REQUESTED). id는 서버가 생성해 넘긴다. slotGeneration은 주문 슬롯 점유 판정이 정한 값이다. */
-        fun request(id: PaymentId, orderKey: OrderKey, intent: OrderIntentFingerprint, slotGeneration: Long): Payment {
+        /**
+         * 새 고객 시도(REQUESTED). id는 서버가 생성해 넘긴다. slotGeneration은 주문 슬롯 점유 판정이 정한 값이다. [checkoutWindow]는 생성 시각 + 버전 있는
+         * 결제 유효기간 설정으로 application이 계산한 절대 만료 시각이다(D-AUTHN-005 — 재사용·재시도로 연장하지 않는다).
+         */
+        fun request(id: PaymentId, orderKey: OrderKey, intent: OrderIntentFingerprint, slotGeneration: Long, checkoutWindow: CheckoutWindow): Payment {
             require(slotGeneration >= 1) { "slotGeneration must be positive: $slotGeneration" }
-            return Payment(id, orderKey, intent, slotGeneration)
+            return Payment(id, orderKey, intent, slotGeneration).also { it.checkoutWindow = checkoutWindow }
         }
 
         /**
@@ -118,6 +131,7 @@ class Payment private constructor(
             slotGeneration: Long,
             status: PaymentStatus,
             terminationEvidence: List<TerminationEvidence>,
+            checkoutWindow: CheckoutWindow?,
         ): Payment {
             require(slotGeneration >= 1) { "slotGeneration must be positive: $slotGeneration" }
             require(terminationEvidence.isEmpty() || status == FAILED || status == EXPIRED) {
@@ -126,6 +140,7 @@ class Payment private constructor(
             return Payment(id, orderKey, intent, slotGeneration).also {
                 it.status = status
                 it.evidence += terminationEvidence
+                it.checkoutWindow = checkoutWindow
             }
         }
     }

@@ -26,7 +26,7 @@ object EntitlementSnapshotAssembler {
             leaseSeq = leaseSeq,
             leaseUntil = issuedAt.plus(leaseDuration),
             party = PartyState(source.business.lifecycle, merchant.lifecycle, businessBlocked = false, merchantBlocked = false),
-            sites = source.sites.map { SiteState(it.id, it.lifecycle, source.siteReviews[it.id] ?: SiteReviewStatus.PENDING) },
+            sites = source.sites.map { SiteState(it.id, it.lifecycle, source.siteReviews[it.id] ?: SiteReviewStatus.PENDING, it.channel) },
             accounts = source.accounts.map { accountState(it, source.sites) },
         )
     }

@@ -28,7 +28,7 @@ class ReconstitutionSpec : BehaviorSpec({
     Given("a stored payment row") {
         When("it is restored with its status and termination evidence") {
             Then("the state is kept and later transitions follow the normal rules") {
-                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 3, REQUESTED, emptyList())
+                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 3, REQUESTED, emptyList(), PaymentFixture.demoWindow)
                 restored.status shouldBe REQUESTED
                 restored.slotGeneration shouldBe 3
                 restored.startAuthorization()
@@ -36,7 +36,7 @@ class ReconstitutionSpec : BehaviorSpec({
             }
 
             Then("a restored FAILED payment keeps its evidence and its safe-termination judgement") {
-                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, FAILED, listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE))
+                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, FAILED, listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE), null)
                 restored.terminationEvidence shouldBe listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE)
                 restored.hasSafeTermination() shouldBe true
                 shouldThrow<InvalidPaymentTransitionException> { restored.startAuthorization() }
@@ -47,13 +47,13 @@ class ReconstitutionSpec : BehaviorSpec({
             Then("evidence on a non-terminated payment is rejected") {
                 listOf(REQUESTED, AUTHORIZING, UNKNOWN, AUTHORIZED).forEach { status ->
                     shouldThrow<IllegalArgumentException> {
-                        Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, status, listOf(INSTITUTION_CONFIRMED_DECLINE))
+                        Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, status, listOf(INSTITUTION_CONFIRMED_DECLINE), null)
                     }
                 }
             }
 
             Then("a non-positive slot generation is rejected") {
-                shouldThrow<IllegalArgumentException> { Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 0, EXPIRED, emptyList()) }
+                shouldThrow<IllegalArgumentException> { Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 0, EXPIRED, emptyList(), null) }
             }
         }
     }

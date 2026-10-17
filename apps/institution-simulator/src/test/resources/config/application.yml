@@ -1,0 +1,16 @@
+# 시험 전용 설정(test classpath에만 — 운영 jar에 없다). 값은 Demo(운영값 아님). client 키 원문은 시험 전용 값이다(운영 키 아님).
+paycore:
+  simulator:
+    customer-base-url: https://sim.example.test
+    transaction-ttl: PT10M
+    result-validity: PT5M
+    lookup-delay: PT2S
+    clients:
+      # 원문 "test-only-simulator-client-key-1"의 SHA-256
+      - id: pg-demo
+        key-sha256: cb4fe7379ab83d3750775b854d1002e97c87678b9728204e72dcbda9dce5bda2
+        return-origin: https://checkout.example.test
+      # 다른 client(존재 비노출 시험) — 원문 "test-only-simulator-client-key-2"
+      - id: pg-other
+        key-sha256: 72e1dc0de7f2d551cde1baf9ded43b2d51d0944baf3ee401b29acbb83a962abe
+        return-origin: https://checkout-other.example.test

@@ -21,6 +21,9 @@ include(":apps:payment-api")
 include(":apps:financial-batch")
 // DB 없음. 화면은 Application/API 위임만 한다.
 include(":apps:internal-admin")
+// 가상 인증기관(외부 기관 대역, D-AUTHN-004). PayCore DB를 쓰지 않고 Simulator 전용 MySQL(paycore_simulator)만 쓴다. PayCore 앱과 Gradle project
+// 의존이 없다(harness test_simulator_isolation). TEST 전용 — REAL 기관 연동 없음.
+include(":apps:institution-simulator")
 
 // 공유 테스트 지원(testImplementation 전용 라이브러리). 실행 단위가 아니며 운영 runtime에 들어가지 않는다.
 include(":libs:test-support")

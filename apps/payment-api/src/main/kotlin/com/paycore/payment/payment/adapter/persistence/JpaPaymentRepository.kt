@@ -41,7 +41,7 @@ class JpaPaymentRepository(
     }
 
     override fun lock(paymentId: PaymentId): Versioned<Payment>? = translate(ENTITY) {
-        payments.lockById(paymentId.value)?.let { row ->
+        entityManager.lockRow(JpaPaymentEntity::class.java, paymentId.value)?.let { row ->
             Versioned(PaymentPersistenceMapper.toPayment(row, evidence.findByPaymentIdOrdered(row.paymentId)), checkNotNull(row.version))
         }
     }
@@ -61,6 +61,7 @@ class JpaPaymentRepository(
         val statusChanged = row.status != payment.status.name
 
         row.status = payment.status.name
+        PaymentPersistenceMapper.requireSameCheckoutWindow(payment, row)
         appended.forEachIndexed { i, value ->
             entityManager.persist(JpaPaymentTerminationEvidenceEntity.newRow(row.paymentId, stored.size + i, value))
         }

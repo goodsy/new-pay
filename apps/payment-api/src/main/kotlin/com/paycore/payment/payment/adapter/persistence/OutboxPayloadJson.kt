@@ -1,6 +1,7 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.application.required.OutboxPayload
+import com.paycore.payment.payment.application.required.PaymentExpiredV1Payload
 import com.paycore.payment.payment.application.required.PaymentRequestedV1Payload
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
@@ -30,6 +31,24 @@ internal object OutboxPayloadJson {
                 "orderIntentFingerprint" to payload.orderIntentFingerprint,
                 "lifecycle" to payload.lifecycle,
                 "requestedAt" to format(payload.requestedAt),
+            ),
+        )
+        is PaymentExpiredV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name,
+                "merchantAccountId" to payload.merchantAccountId,
+                "merchantSiteId" to payload.merchantSiteId,
+                "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId,
+                "amount" to payload.amountMinor,
+                "currency" to payload.currency,
+                "paymentMethod" to payload.paymentMethod,
+                "slotGeneration" to payload.slotGeneration,
+                "lifecycle" to payload.lifecycle,
+                "terminationEvidence" to payload.terminationEvidence,
+                "checkoutExpiresAt" to format(payload.checkoutExpiresAt),
+                "checkoutValidityVersion" to payload.checkoutValidityVersion,
+                "expiredAt" to format(payload.expiredAt),
             ),
         )
     }

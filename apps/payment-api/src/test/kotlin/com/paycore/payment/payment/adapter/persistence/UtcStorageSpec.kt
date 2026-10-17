@@ -9,7 +9,7 @@ import com.paycore.payment.payment.application.provided.CreatePaymentResult
 import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
 import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
 import com.paycore.payment.payment.domain.OrderKey
-import com.paycore.payment.payment.domain.TerminationEvidence
+import com.paycore.payment.payment.domain.PaymentStatus
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -100,19 +100,20 @@ class UtcStorageSpec(
         val renewed = service.create(cmd.copy(requestedAt = t0.plus(Duration.ofDays(30)), newIdentifiers = newIdentifiers()))
             .shouldBeInstanceOf<CreatePaymentResult.Accepted>()
         renewed.replayed shouldBe false
-        renewed.outcome shouldBe CreatePaymentOutcome.EXISTING_ACTIVE_PAYMENT
+        // AUTHN-001(U-3, §24.12): 30일 된 REQUESTED는 inline 만료 → generation 2. 이전 기대: EXISTING_ACTIVE_PAYMENT. 만료 시각·PaymentExpired 시각도 UTC로 저장된다.
+        renewed.outcome shouldBe CreatePaymentOutcome.CREATED
 
         val afterRenewal = linkedMapOf(
             "renewed.idempotency.created_at" to raw("SELECT CAST(created_at AS CHAR) FROM idempotency_request WHERE idempotency_key = ?", key),
             "renewed.idempotency.expires_at" to raw("SELECT CAST(expires_at AS CHAR) FROM idempotency_request WHERE idempotency_key = ?", key),
+            "payment.checkout_expires_at" to raw("SELECT CAST(checkout_expires_at AS CHAR) FROM payment WHERE payment_id = ?", paymentId),
+            "expired.outbox.occurred_at" to raw("SELECT CAST(occurred_at AS CHAR) FROM outbox_event WHERE effect_key = ?", "PaymentExpired:$paymentId"),
+            "expired.outbox.payload.expiredAt" to raw("SELECT payload->>'$.expiredAt' FROM outbox_event WHERE effect_key = ?", "PaymentExpired:$paymentId"),
         )
 
-        // 종료(시험 준비) 뒤 늦은 성공 보고: control update(Entity dirty checking, updated_at)와 incident hold insert(Entity 경로).
-        tx.executeWithoutResult {
-            val payment = payments.lock(first.payment.paymentId)!!
-            payment.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
-            payments.update(payment.value, payment.version)
-        }
+        // 종료 뒤 늦은 성공 보고: control update(Entity dirty checking, updated_at)와 incident hold insert(Entity 경로). 첫 Payment는 위 갱신 요청의 inline 만료로
+        // 이미 EXPIRED다(이전: 시험이 직접 FAILED로 바꿨다 — AUTHN-001 U-3로 준비 단계가 필요 없어졌다, §24.12).
+        tx.executeWithoutResult { payments.lock(first.payment.paymentId)!!.value.status shouldBe PaymentStatus.EXPIRED }
         incidents.report(order, first.payment.paymentId, t0.plus(Duration.ofDays(2)))
         val later = linkedMapOf(
             "control.updated_at" to raw(
@@ -133,6 +134,9 @@ class UtcStorageSpec(
         "outbox.payload.requestedAt" to "2026-10-07T01:02:03.456Z",
         "renewed.idempotency.created_at" to "2026-11-06 01:02:03.456",
         "renewed.idempotency.expires_at" to "2026-12-06 01:02:03.456",
+        "payment.checkout_expires_at" to "2026-10-07 01:32:03.456",
+        "expired.outbox.occurred_at" to "2026-11-06 01:02:03.456",
+        "expired.outbox.payload.expiredAt" to "2026-11-06T01:02:03.456Z",
         "control.updated_at" to "2026-10-09 01:02:03.456",
         "hold.created_at" to "2026-10-09 01:02:03.456",
     )

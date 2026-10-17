@@ -1,6 +1,15 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.application.required.AuthenticationSessionAttributes
+import com.paycore.payment.payment.application.required.AuthenticationSessionEventRecord
+import com.paycore.payment.payment.application.required.AuthenticationSessionEventStore
+import com.paycore.payment.payment.application.required.AuthenticationSessionRepository
+import com.paycore.payment.payment.application.required.CheckoutSessionRecord
+import com.paycore.payment.payment.application.required.CheckoutSessionStore
+import com.paycore.payment.payment.application.required.CheckoutTokenRecord
+import com.paycore.payment.payment.application.required.CheckoutTokenStore
 import com.paycore.payment.payment.application.required.ControlAcquisition
+import com.paycore.payment.payment.application.required.EventAppendResult
 import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.required.IdempotencyRecordStore
 import com.paycore.payment.payment.application.required.MerchantCredentialStore
@@ -16,10 +25,16 @@ import com.paycore.payment.payment.application.required.PaymentCreationRecord
 import com.paycore.payment.payment.application.required.PaymentRepository
 import com.paycore.payment.payment.application.required.StoredRequestResult
 import com.paycore.payment.payment.application.required.Versioned
+import com.paycore.payment.payment.domain.AuthenticationSession
+import com.paycore.payment.payment.domain.AuthenticationSessionId
+import com.paycore.payment.payment.domain.CheckoutHandle
+import com.paycore.payment.payment.domain.CheckoutSessionId
+import com.paycore.payment.payment.domain.CheckoutTokenId
 import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.OrderPaymentControl
 import com.paycore.payment.payment.domain.Payment
 import com.paycore.payment.payment.domain.PaymentId
+import com.paycore.payment.payment.domain.SecretDigest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
@@ -35,6 +50,11 @@ enum class FaultPoint {
 
     /** 인증 Credential 투영 읽기 직전(같은 읽기 TX 안 — 연결 끊김 주입용)과 직후. */
     CREDENTIAL_BEFORE_FIND, CREDENTIAL_FIND,
+
+    /** AUTHN-001 결제창·인증 세션 Store(쓰기·잠금 직후 — rollback·경합 시험). */
+    TOKEN_INSERT, TOKEN_LOCK, TOKEN_UPDATE,
+    CHECKOUT_SESSION_INSERT, CHECKOUT_SESSION_LOCK, CHECKOUT_SESSION_UPDATE,
+    AUTH_SESSION_INSERT, AUTH_SESSION_LOCK, AUTH_SESSION_UPDATE, AUTH_EVENT_APPEND,
 }
 
 /**
@@ -112,6 +132,68 @@ class FaultInjectionConfig {
     fun faultInjectingOutboxStore(real: JpaOutboxStore, f: FaultInjector): OutboxStore =
         object : OutboxStore {
             override fun append(event: OutboxEvent) = f.around(FaultPoint.OUTBOX_APPEND) { real.append(event) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingCheckoutTokenStore(real: JpaCheckoutTokenStore, f: FaultInjector): CheckoutTokenStore =
+        object : CheckoutTokenStore {
+            override fun insert(token: CheckoutTokenRecord): Long = f.around(FaultPoint.TOKEN_INSERT) { real.insert(token) }
+
+            override fun findByDigest(digest: SecretDigest): CheckoutTokenRecord? = real.findByDigest(digest)
+
+            override fun lock(id: CheckoutTokenId): Versioned<CheckoutTokenRecord>? = f.around(FaultPoint.TOKEN_LOCK) { real.lock(id) }
+
+            override fun lockIssuedOfPayment(paymentId: PaymentId): Versioned<CheckoutTokenRecord>? =
+                f.around(FaultPoint.TOKEN_LOCK) { real.lockIssuedOfPayment(paymentId) }
+
+            override fun update(token: CheckoutTokenRecord, expectedVersion: Long): Long =
+                f.around(FaultPoint.TOKEN_UPDATE) { real.update(token, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingCheckoutSessionStore(real: JpaCheckoutSessionStore, f: FaultInjector): CheckoutSessionStore =
+        object : CheckoutSessionStore {
+            override fun insert(session: CheckoutSessionRecord): Long = f.around(FaultPoint.CHECKOUT_SESSION_INSERT) { real.insert(session) }
+
+            override fun findByHandle(handle: CheckoutHandle): CheckoutSessionRecord? = real.findByHandle(handle)
+
+            override fun lock(id: CheckoutSessionId): Versioned<CheckoutSessionRecord>? = f.around(FaultPoint.CHECKOUT_SESSION_LOCK) { real.lock(id) }
+
+            override fun lockActiveOfPayment(paymentId: PaymentId): Versioned<CheckoutSessionRecord>? =
+                f.around(FaultPoint.CHECKOUT_SESSION_LOCK) { real.lockActiveOfPayment(paymentId) }
+
+            override fun update(session: CheckoutSessionRecord, expectedVersion: Long): Long =
+                f.around(FaultPoint.CHECKOUT_SESSION_UPDATE) { real.update(session, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingAuthenticationSessionRepository(real: JpaAuthenticationSessionRepository, f: FaultInjector): AuthenticationSessionRepository =
+        object : AuthenticationSessionRepository {
+            override fun insertNew(session: AuthenticationSession, attributes: AuthenticationSessionAttributes): Long =
+                f.around(FaultPoint.AUTH_SESSION_INSERT) { real.insertNew(session, attributes) }
+
+            override fun lock(id: AuthenticationSessionId): Versioned<AuthenticationSession>? = f.around(FaultPoint.AUTH_SESSION_LOCK) { real.lock(id) }
+
+            override fun lockAllOfPayment(paymentId: PaymentId): List<Versioned<AuthenticationSession>> =
+                f.around(FaultPoint.AUTH_SESSION_LOCK) { real.lockAllOfPayment(paymentId) }
+
+            override fun findIdByState(checkoutSessionId: CheckoutSessionId, stateDigest: SecretDigest): AuthenticationSessionId? =
+                real.findIdByState(checkoutSessionId, stateDigest)
+
+            override fun update(session: AuthenticationSession, expectedVersion: Long): Long =
+                f.around(FaultPoint.AUTH_SESSION_UPDATE) { real.update(session, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingAuthenticationSessionEventStore(real: JpaAuthenticationSessionEventStore, f: FaultInjector): AuthenticationSessionEventStore =
+        object : AuthenticationSessionEventStore {
+            override fun append(event: AuthenticationSessionEventRecord): EventAppendResult = f.around(FaultPoint.AUTH_EVENT_APPEND) { real.append(event) }
+
+            override fun findBySession(sessionId: AuthenticationSessionId): List<AuthenticationSessionEventRecord> = real.findBySession(sessionId)
         }
 
     @Bean

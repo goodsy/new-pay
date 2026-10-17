@@ -7,6 +7,7 @@ import com.paycore.payment.entitlement.domain.EntitlementContent
 import com.paycore.payment.entitlement.domain.IncomingSnapshot
 import com.paycore.payment.entitlement.domain.JsonValue
 import com.paycore.payment.entitlement.domain.Lifecycle
+import com.paycore.payment.entitlement.domain.SiteChannelEntry
 import com.paycore.payment.entitlement.domain.SiteReviewStatus
 import com.paycore.payment.entitlement.domain.SnapshotContractViolation
 import io.kotest.core.spec.style.FunSpec
@@ -66,5 +67,24 @@ class EntitlementContractGoldenSpec : FunSpec({
         )
         // v1 해석기로는 v2 내용을 받지 않는다(모르는 필드 거절 — 배포 순서 §5.4의 근거).
         runCatching { EntitlementContent.fromJson(payload, 1, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class
+    }
+
+    // AUTHN-001: schemaVersion 3 golden(MASTER 시험 자원과 같은 파일, harness 독립 생성) — v2 + sites[].channel. 값은 Demo.
+    val v3 = mapper.readTree(ClassPathResource("contracts/entitlement-snapshot-v3.golden.json").inputStream)
+    fun g3(name: String): String = v3.get(name).stringValue()
+    val body3 = g3("envelopeBody").toByteArray()
+
+    test("the v3 golden envelope verifies, declares schemaVersion 3, and PAYMENT re-derives its canonical content and hash including the site channels") {
+        val settings = EntitlementInboxSettings(listOf(EntitlementInboxSettings.SigningKey(g3("signingKeyId"), g3("signingKeyBase64"))))
+        EntitlementSignature.verify(settings, g3("signatureHeader"), body3) shouldBe true
+        val envelope = mapper.readTree(body3)
+        envelope.get("schemaVersion").intValue() shouldBe 3
+        val payload = WebJsonTree.toJsonValue(envelope.get("payload"))
+        val content = EntitlementContent.fromJson(payload, 3, allowLeaseFields = true)
+        listOf(content.canonical, content.contentHash, content.schemaVersion) shouldBe listOf(g3("contentCanonical"), g3("contentHash"), 3)
+        val (s1, s2) = v3.get("siteIds").let { it.get(0).stringValue() to it.get(1).stringValue() }
+        content.sites.associate { it.siteId to it.channel } shouldBe mapOf(s1 to SiteChannelEntry.Web("shop.example.test"), s2 to SiteChannelEntry.App)
+        // v2 해석기로는 v3 내용을 받지 않는다(모르는 필드 거절 — 배포 순서: PAYMENT v3 해석 먼저, MS2 §5.4).
+        runCatching { EntitlementContent.fromJson(payload, 2, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class
     }
 })

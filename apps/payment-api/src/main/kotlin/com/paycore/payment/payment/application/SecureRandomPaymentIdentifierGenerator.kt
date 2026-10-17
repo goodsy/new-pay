@@ -3,6 +3,7 @@ package com.paycore.payment.payment.application
 import com.paycore.payment.payment.application.provided.EventId
 import com.paycore.payment.payment.application.provided.IdempotencyRecordId
 import com.paycore.payment.payment.application.provided.NewPaymentIdentifiers
+import com.paycore.payment.payment.application.required.IntegrationEventIdGenerator
 import com.paycore.payment.payment.application.required.PaymentClock
 import com.paycore.payment.payment.application.required.PaymentIdentifierGenerator
 import com.paycore.payment.payment.domain.PaymentId
@@ -24,7 +25,7 @@ import java.util.UUID
  * 출력은 구성상 ASCII `[A-Za-z0-9_-]`라 짝 없는 서로게이트가 생길 수 없다. 그래도 domain 값 객체의 서로게이트 검사는 유지한다(최후 방어선).
  */
 @Component
-class SecureRandomPaymentIdentifierGenerator(private val clock: PaymentClock) : PaymentIdentifierGenerator {
+class SecureRandomPaymentIdentifierGenerator(private val clock: PaymentClock) : PaymentIdentifierGenerator, IntegrationEventIdGenerator {
 
     private val random = SecureRandom()
 
@@ -34,6 +35,8 @@ class SecureRandomPaymentIdentifierGenerator(private val clock: PaymentClock) : 
         idempotencyRecordId = IdempotencyRecordId(UUID.randomUUID().toString()),
         eventId = EventId(UUID.randomUUID().toString()),
     )
+
+    override fun newEventId(): EventId = EventId(UUID.randomUUID().toString())
 
     private fun ulid(at: Instant): String {
         val millis = at.toEpochMilli()

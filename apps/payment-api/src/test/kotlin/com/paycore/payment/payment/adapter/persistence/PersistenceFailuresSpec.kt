@@ -3,10 +3,12 @@ package com.paycore.payment.payment.adapter.persistence
 import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.application.required.StoreConstraint
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import java.sql.SQLException
@@ -74,4 +76,25 @@ class PersistenceFailuresSpec : BehaviorSpec({
             PersistenceFailures.classify("x", IllegalStateException("bug")).shouldBeNull()
         }
     }
+
+    Given("every UNIQUE constraint declared by the production PAYMENT migrations (AUTHN-001 review #2 n-1)") {
+        Then("its duplicate-key error maps to a named business constraint, never OTHER") {
+            val resolver = PathMatchingResourcePatternResolver()
+            // payment 모듈 소유 표의 migration(V1 업무 핵심, V7 결제창). V3 entitlement·V5 Credential 투영 표는 entitlement 모듈 분류 규칙을 쓴다.
+            val owned = listOf("V1__payment_core.sql", "V7__checkout_authentication.sql")
+            val declared = owned.map { resolver.getResource("classpath:db/migration/payment/$it") }.flatMap { resource ->
+                var table: String? = null
+                resource.inputStream.bufferedReader(Charsets.UTF_8).readLines().mapNotNull { line ->
+                    CREATE_TABLE.find(line)?.let { table = it.groupValues[1] }
+                    UNIQUE_CONSTRAINT.find(line)?.let { "${checkNotNull(table)}.${it.groupValues[1]}" }
+                }
+            }
+            declared.size shouldBeGreaterThan 10
+            declared.filter { PersistenceFailures.constraintOf(duplicate(it).message) == StoreConstraint.OTHER } shouldBe emptyList()
+        }
+    }
 })
+
+private val CREATE_TABLE = Regex("^CREATE TABLE ([a-z_]+)")
+/** 저장소 관례: UNIQUE 제약 이름은 `uk_` 접두(제약 선언이 줄을 넘겨도 이름 줄로 센다). */
+private val UNIQUE_CONSTRAINT = Regex("CONSTRAINT (uk_[a-z_]+)")

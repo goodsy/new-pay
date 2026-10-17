@@ -56,3 +56,14 @@ logging:
 # 가맹점 공개 API(CP-API-001). 운영 기본값 없음 — 배포 환경이 값을 주지 않으면 기동하지 않는다(명세 §7.4·§8).
 #   paycore.payment.api.internal-port: 내부 경로(/internal/**) 전용 connector 포트(공개 포트와 달라야 한다)
 #   paycore.payment.api.retry-after.{eligibility-unavailable,temporarily-unavailable,request-in-progress}: Retry-After 권고(1s..1h)
+# 결제창(AUTHN-001 §5·§6·§12). 운영 기본값 없음 — 값이 없으면 기동 실패.
+#   paycore.payment.checkout.port: 결제창 전용 connector 포트(공개·내부 포트와 달라야 한다), paycore.payment.checkout.address(선택)
+#   paycore.checkout.{public-base-url(https origin),policy-version,token-ttl,session-ttl,authentication-ttl}
+# 결제 유효기간(AUTHN-001, D-AUTHN-005). 운영 기본값 없음 — 값이 없거나 duration ≤ 0이면 기동 실패.
+#   paycore.payment.checkout-validity.version: 설정 버전(Payment 행에 함께 저장, 1..64자)
+#   paycore.payment.checkout-validity.duration: 생성 시각부터 결제창 절대 만료까지(ISO-8601 기간, 양수)
+# 인증 backend(AUTHN-001 §13.6, D-AUTHN-004). 운영 기본값 없음 — 값이 없으면 기동 실패. 기동 검사: type은 SIMULATOR만, SIMULATOR는 TEST 환경만(LIVE·REAL 거부).
+#   paycore.authentication.backends.<TEST|LIVE>.{type,profile}, paycore.authentication.profiles.<id>.{version,card-companies,plan-policy}
+#   paycore.authentication.simulator.{base-url,customer-base-url,client-key(환경변수),connect-timeout,read-timeout}
+#   paycore.authentication.simulator.allow-loopback-http: 로컬 Demo·시험 전용(기본 false) — 켜야만 서버 간 URL에 http://127.0.0.1·localhost 허용
+

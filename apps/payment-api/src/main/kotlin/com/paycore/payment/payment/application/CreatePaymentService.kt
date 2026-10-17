@@ -13,6 +13,7 @@ import com.paycore.payment.payment.application.provided.EligibilityUnavailableRe
 import com.paycore.payment.payment.application.provided.GeneratedIdentifier
 import com.paycore.payment.payment.application.required.ControlAcquisition
 import com.paycore.payment.payment.application.required.EligibilityResult
+import com.paycore.payment.payment.application.required.CheckoutValidityPolicy
 import com.paycore.payment.payment.application.required.IdempotencyRecordStore
 import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
@@ -51,6 +52,7 @@ import java.time.temporal.ChronoUnit
  *    평가한다(로컬 Snapshot만, 원격 호출 없음). Eligible이 아니면 전체 rollback 후 [CreatePaymentResult.EligibilityRefused](저장 없음).
  * 3. control 확보(insert-first, 최초 insert 경쟁은 PK 대기로 직렬화). 없던 주문이면 첫 Payment(generation 1).
  * 4. 있던 주문이면 현재 Payment를 잠가 domain 판정(고정 입력 → hold → 과거 승인 → 상태·근거). 새 Payment면 control 점유(generation+1).
+ *    판정 전에 결제창 시각이 지난 REQUESTED Payment는 같은 TX에서 inline 만료한다([RequestedPaymentClosing], AUTHN-001 §7.5.3 U-3 — PaymentExpired 포함).
  * 5. 새 Payment(REQUESTED) + Outbox PaymentRequested v1(CREATED일 때만) + 멱등 결과(성공/업무 거절)를 같은 TX에 쓰고 commit.
  *
  * 외부 호출 없음. 응답은 commit 뒤에 만들어진다. 교착·내부 경합(오래된 판정)은 DB가 rollback한 것을 확인한 뒤 새 TX로 같은 의도를
@@ -64,6 +66,8 @@ class CreatePaymentService(
     private val payments: PaymentRepository,
     private val outbox: OutboxStore,
     private val eligibility: PaymentEligibilityPort,
+    private val checkoutValidity: CheckoutValidityPolicy,
+    private val closing: RequestedPaymentClosing,
 ) : CreatePaymentUseCase {
 
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
@@ -150,16 +154,23 @@ class CreatePaymentService(
 
     private fun decideAndApply(command: CreatePaymentCommand, now: Instant, snapshotVersion: EligibilitySnapshotVersion): StoredRequestResult {
         val intent = command.orderIntent.fingerprint()
-        val first = Payment.request(command.newIdentifiers.paymentId, command.orderKey, intent, 1)
+        // D-AUTHN-005: 새 Payment의 결제창 절대 만료 시각 = 생성 시각 + 결제 유효기간 설정(버전 함께 저장). 재사용(UseExistingPayment)은 연장하지 않는다.
+        val window = checkoutValidity.windowFor(now)
+        val first = Payment.request(command.newIdentifiers.paymentId, command.orderKey, intent, 1, window)
         return when (val acquired = controls.openOrLock(OrderPaymentControl.open(first), now)) {
             is ControlAcquisition.Opened -> createPayment(first, command, snapshotVersion, now)
             is ControlAcquisition.Existing -> {
                 val control = acquired.control.value
                 requireComparableIntentVersion(control.fixedIntent, intent)
                 val current = payments.lock(control.currentPaymentId) ?: error("order control references a missing payment")
+                // AUTHN-001 판정 U-3: 결제창 시각이 지난 REQUESTED는 같은 TX에서 만료(세션·결제창 기록 닫기·PaymentExpired)한 뒤 판정한다 → CreateNewPayment(generation + 1).
+                // 만료는 커밋되는 결과다(n-d). PaymentExpired(이전)가 PaymentRequested(새)보다 먼저 append된다(n-e).
+                closing.closeIfElapsed(
+                    acquired.control, current, now, ExpiryCausation(command.correlationId, command.newIdentifiers.idempotencyRecordId.value),
+                )
                 when (val decision = control.decide(intent, current.value)) {
                     is PaymentSlotDecision.CreateNewPayment -> {
-                        val next = Payment.request(command.newIdentifiers.paymentId, command.orderKey, intent, decision.nextSlotGeneration)
+                        val next = Payment.request(command.newIdentifiers.paymentId, command.orderKey, intent, decision.nextSlotGeneration, window)
                         control.occupy(next, current.value)
                         controls.update(control, acquired.control.version, now)
                         createPayment(next, command, snapshotVersion, now)

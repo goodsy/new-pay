@@ -7,7 +7,7 @@ import java.util.HexFormat
 
 /*
  * 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3). Merchant 하나의 **전체 권리 상태**를 버전(entitlement_revision)·lease와 함께 PAYMENT에 보낸다.
- * 통합 계약 schemaVersion 2(1 + 승인 시작 조건, MASTER-SNAPSHOT-002)이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
+ * 통합 계약 schemaVersion 3(2 + Site 채널, AUTHN-001 §9 — 2 = 1 + 승인 시작 조건, MASTER-SNAPSHOT-002)이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
  *
  * 내용(content)은 **MASTER 원본 상태만의 함수**다: 발행 시각으로 지난 구간을 걸러내지 않는다(명세 §3.1 "to > issuedAt만" 문구와의 편차 —
  * 걸러내면 같은 revision의 lease 갱신이 다른 내용·다른 contentHash가 되어 PAYMENT가 INTEGRITY_CONFLICT로 막는다). 시각 경계 변화(n-5)는
@@ -16,9 +16,10 @@ import java.util.HexFormat
 
 /**
  * Snapshot 통합 계약 버전(봉투 schemaVersion). 2 = 1 + 승인 시작 조건(MASTER-SNAPSHOT-002 명세 §4: `accounts[].limitPolicies·policyAssignments·
- * cardRoutes`). MASTER는 현재 버전만 조립한다. PAYMENT는 1·2를 해석한다(배포 순서: PAYMENT 먼저 — 명세 §5.4).
+ * cardRoutes`). 3 = 2 + `sites[].channel`(AUTHN-001 §9.1, D-AUTHN-002: WEB = 소문자 host, APP = type만 — 앱 식별값은 싣지 않는다). MASTER는 현재
+ * 버전만 조립한다. PAYMENT는 1·2·3을 해석한다(배포 순서: PAYMENT 먼저 — MS2 명세 §5.4). 옛 버전 발행은 lease 갱신 때 revision +1로 승격된다.
  */
-const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 2
+const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 3
 
 /** 발행 우선순위(명세 §3.4-1): revision이 바뀐 발행(변경)은 HIGH, 같은 revision의 lease 갱신은 LOW. 값은 Outbox priority 컬럼(큰 값 먼저). */
 enum class SnapshotPriority(val value: Int) { LOW(0), HIGH(10) }
@@ -30,7 +31,8 @@ data class PartyState(
     val merchantBlocked: Boolean,
 )
 
-data class SiteState(val siteId: MerchantSiteId, val lifecycle: Lifecycle, val reviewStatus: SiteReviewStatus)
+/** Site 상태와 채널(v3). 채널은 등록 뒤 불변이라(D-MD-008) 새 revision 증가 지점이 없다. 직렬화는 WEB host만 싣는다(APP 식별값 제외). */
+data class SiteState(val siteId: MerchantSiteId, val lifecycle: Lifecycle, val reviewStatus: SiteReviewStatus, val channel: SiteChannel)
 
 data class AssignmentState(
     val assignmentId: SiteAssignmentId,
@@ -155,7 +157,7 @@ data class EntitlementSnapshot(
             "merchantBlocked" to party.merchantBlocked,
         ),
         "sites" to sites.sortedBy { it.siteId.value }.map {
-            mapOf("siteId" to it.siteId.value, "lifecycle" to it.lifecycle.name, "reviewStatus" to it.reviewStatus.name)
+            mapOf("siteId" to it.siteId.value, "lifecycle" to it.lifecycle.name, "reviewStatus" to it.reviewStatus.name, "channel" to channelMap(it.channel))
         },
         "accounts" to accounts.sortedBy { it.mid.value }.map { a ->
             mapOf(
@@ -204,6 +206,11 @@ data class EntitlementSnapshot(
             )
         },
     )
+
+    private fun channelMap(c: SiteChannel): Map<String, Any?> = when (c.type) {
+        ChannelType.WEB -> mapOf("type" to c.type.name, "host" to c.identifier)
+        ChannelType.APP -> mapOf("type" to c.type.name)
+    }
 
     private fun limitMap(v: LimitValue): Map<String, Any?> = when (v) {
         LimitValue.Unlimited -> mapOf("kind" to "UNLIMITED", "amountMinor" to null)

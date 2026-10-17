@@ -1,10 +1,6 @@
 package com.paycore.payment.payment.adapter.persistence
 
-import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Lock
-import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.query.Param
 
 /*
  * Spring Data repository 공통(이 패키지의 *JpaRepository 전체, adapter.persistence 전용 — ArchUnit springDataRepositoriesOnlyInPersistenceAdapter). application은 이것을 모르고
@@ -15,8 +11,5 @@ import org.springframework.data.repository.query.Param
  * 이미 행이 있으면(다른 TX가 아직 커밋 전이어도) 그 행의 잠금을 기다리고, 없으면 새 행을 넣는다. 목록 SELECT 후 INSERT가 아니다.
  */
 
-interface PaymentJpaRepository : JpaRepository<JpaPaymentEntity, String> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from JpaPaymentEntity p where p.paymentId = :paymentId")
-    fun lockById(@Param("paymentId") paymentId: String): JpaPaymentEntity?
-}
+/** Payment 행 잠금은 [JpaPaymentRepository]가 `lockRow`(find + refresh PESSIMISTIC_WRITE)로 한다(AUTHN-001 검토 #2 m-1). */
+interface PaymentJpaRepository : JpaRepository<JpaPaymentEntity, String>

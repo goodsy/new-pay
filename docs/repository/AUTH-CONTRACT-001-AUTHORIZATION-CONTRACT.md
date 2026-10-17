@@ -392,6 +392,7 @@ Adapter(`adapter.institution` — 구현 결정 CA-17 패키지)는 TCP/전문/S
 |---|---|---|---|---|
 | `PaymentAuthorized` | `FINANCIAL_FACT` | TX2 AUTHORIZED | `PaymentAuthorized:{transactionId}` | FINANCIAL: 매입·정산 후보. payload = paymentId·authorizationId·MID·Site·주문 ID·금액·통화·PaymentPlan·cardType·issuer/acquirer 코드·승인번호·ProviderTransactionId·기관 거래일/업무일·승인 시각·정책 Assignment 버전·권리 revision(카드번호·Secret 없음). **effect_key·FINANCIAL 업무 키 = PaymentTransaction id(D-AUTH-003)** — 구현 시 `PaymentAuthorized:{transactionId}`로 둔다 |
 | `PaymentAuthorizationFailed` | `INTEGRATION_NON_FINANCIAL` | TX2 FAILED | `PaymentAuthorizationFailed:{authorizationId}` | 가맹점 통지·조회 projection. 금융 효과 없음 |
+| `PaymentExpired`(**AUTHN-001 추가**, D-AUTHN-008) | `INTEGRATION_NON_FINANCIAL` | REQUESTED → EXPIRED 만료 TX(결제창 시각 경과 — 주기 작업·CreatePayment/토큰 발급 inline·confirm TX1 inline) | `PaymentExpired:{paymentId}` | 가맹점 통지·조회 projection. 금융 효과 없음(미전송). payload·envelope은 AUTHN-001 명세 §7.5.7(paymentKey·카드정보·Secret·개인정보 없음) |
 | `AuthorizationOutcomeUnresolved` | `OPERATIONAL_RISK` | 회복 예산 소진·연령 초과(§7) | `AuthorizationOutcomeUnresolved:{attemptId}` | RECON: 대사 이관(Case 후보). 상태 변화 없음 |
 | `AuthorizationIncidentDetected` | `RISK_INCIDENT` | TX2 hold 생성 | `AuthorizationIncidentDetected:{paymentId}:{reason}` | RECON: Case(HIGH/CRITICAL). 관찰(금액·통화·승인번호 등) 포함. **정산 대상 아님** |
 | (없음) | — | TX1 승인 시작·인증 세션 전이·한도 점유 | — | 내부 상태. 필요 시 관측 로그 |

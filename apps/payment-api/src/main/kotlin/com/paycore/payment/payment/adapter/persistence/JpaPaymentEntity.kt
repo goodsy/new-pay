@@ -92,6 +92,19 @@ class JpaPaymentEntity protected constructor() {
     var createdByCredentialId: String? = null
         protected set
 
+    /**
+     * 결제창 절대 만료 시각(V7, D-AUTHN-005). 새 Payment는 INSERT 때 값이 있다. NULL은 V7 이전 행뿐이며 채우기는 기동 migration 전략(JDBC, EntityManagerFactory
+     * 전)이 한다(검토 #2 m-2) — JPA는 이 값을 갱신하지 않으므로 `updatable = false`(m-C의 "채우기 UPDATE가 빠짐" 우려는 채우기가 JPA 밖으로 옮겨 사라졌다 — 왕복은
+     * 옛 볼륨 시험이 전략 채우기 → JPA 재조회로 본다).
+     */
+    @field:Column(name = "checkout_expires_at", updatable = false)
+    var checkoutExpiresAt: Instant? = null
+        protected set
+
+    @field:Column(name = "checkout_validity_version", length = 64, updatable = false)
+    var checkoutValidityVersion: String? = null
+        protected set
+
     /** null이면 새 Entity(persist), INSERT 시 Hibernate가 0을 넣고 UPDATE마다 `WHERE version = ?`로 1씩 올린다. 직접 바꾸지 않는다. */
     @field:Version
     @field:Column(name = "version", nullable = false)
@@ -127,7 +140,11 @@ class JpaPaymentEntity protected constructor() {
             eligibilitySnapshotVersion: String,
             createdAt: Instant,
             createdByCredentialId: String?,
+            checkoutExpiresAt: Instant?,
+            checkoutValidityVersion: String?,
         ): JpaPaymentEntity = JpaPaymentEntity().also {
+            it.checkoutExpiresAt = checkoutExpiresAt
+            it.checkoutValidityVersion = checkoutValidityVersion
             it.paymentId = paymentId
             it.paymentKey = paymentKey
             it.environment = environment

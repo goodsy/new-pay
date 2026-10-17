@@ -42,11 +42,13 @@ class ArchitectureSpec : FunSpec({
             .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementEligibilityAdapter")
             // MASTER-SNAPSHOT-002: 승인 시작 허용 판정 Port 구현도 캐시하지 않는다(판정마다 head FOR SHARE).
             .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementAuthorizationAdmissionAdapter")
+            // AUTHN-001: 결제창 반환 URL host Port 구현도 캐시하지 않는다(판정마다 head FOR SHARE).
+            .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementSiteWebHostAdapter")
             .should().dependOnClassesThat().resideInAnyPackage("org.springframework.cache..", "com.github.benmanes.caffeine..", "javax.cache..")
             .`as`("entitlement does not use Spring cache, Caffeine or JCache")
             .check(classes)
         classes.filter {
-            it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName in setOf("EntitlementEligibilityAdapter", "EntitlementAuthorizationAdmissionAdapter")
+            it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName in setOf("EntitlementEligibilityAdapter", "EntitlementAuthorizationAdmissionAdapter", "EntitlementSiteWebHostAdapter")
         }
             .flatMap { c -> c.methods.filter { m -> m.annotations.any { it.rawType.packageName.startsWith("org.springframework.cache") } } } shouldBe emptyList()
     }
@@ -157,8 +159,8 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("batch adapter uses only application.provided (no adapters/required ports/Spring Data/JPA)") {
-        // 빈 대상: adapter.batch가 아직 없다(payment-api에 Batch 작업 계획 없음).
-        rules.batchAdapterUsesOnlyApplication().allowEmptyShould(true).check(classes)
+        // 대상 있음(AUTHN-001 S11): 결제창 만료 주기 작업 trigger `payment.adapter.batch.RequestedPaymentExpiryScheduler`(이전: 빈 대상 허용).
+        rules.batchAdapterUsesOnlyApplication().allowEmptyShould(false).check(classes)
     }
 
     test("@NamedInterface only on application.provided package-info") {
@@ -235,14 +237,101 @@ class ArchitectureSpec : FunSpec({
         }
     }
 
+    test("authentication sessions are created only through AuthenticationSessionStart, which supersedes earlier sessions first (AUTHN-001 §7.1·§17.3)") {
+        val rule = sessionCreateOnlyThroughAuthenticationSessionStart()
+        rule.check(classes)
+        // 실제 호출자가 있다(빈 대상 통과가 아님).
+        classes.get("$DOMAIN.AuthenticationSessionStart").accessesFromSelf
+            .any { it.target.owner.simpleName == "Companion" && kotlinSourceName(it.target.name) == "create" && it.target.owner.fullName.startsWith("$DOMAIN.AuthenticationSession") } shouldBe true
+        violationsOf(rule, "com.paycore.archfixture.session", com.paycore.archfixture.session.DirectSessionCreate::class.java).let { details ->
+            details.size shouldBe 1
+            details.single() shouldContain "DirectSessionCreate"
+            details.single() shouldContain "$DOMAIN.AuthenticationSession\$Companion.create"
+        }
+    }
+
+    test("authentication session transitions (start/verify/fail/expire) are called only from application or domain (AUTHN-001 §17.3)") {
+        val rule = authenticationTransitionsOnlyInApplicationOrDomain()
+        rule.check(classes)
+        val details = violationsOf(rule, "com.paycore.archfixture.session", com.paycore.archfixture.session.WebAdapterVerifiesSession::class.java)
+        val targets = listOf("start", "verify", "fail", "expire").map { "$DOMAIN.AuthenticationSession.$it" }
+        details.size shouldBe targets.size
+        targets.forEach { target -> details.count { it.contains(target) && targetNameEnds(it, target) } shouldBe 1 }
+    }
+
+    test("main code verifies an authentication session only through AuthenticationResultCheck (the R3·R6·R5·R7… order cannot be skipped — review n-3)") {
+        val rule = sessionVerifyOnlyThroughAuthenticationResultCheck()
+        rule.check(classes)
+        classes.get("$DOMAIN.AuthenticationResultCheck").accessesFromSelf
+            .any { it.target.owner.simpleName == "AuthenticationSession" && kotlinSourceName(it.target.name) == "verify" } shouldBe true
+        violationsOf(rule, "com.paycore.archfixture.session", com.paycore.archfixture.session.DirectSessionVerify::class.java).let { details ->
+            details.size shouldBe 1
+            details.single() shouldContain "DirectSessionVerify"
+            details.single() shouldContain "$DOMAIN.AuthenticationSession.verify"
+        }
+    }
+
+    test("CardAuthenticationPort is implemented only by the Simulator adapter in adapter.integration.institution — no REAL adapter (AUTHN-001 §13.6, D-AUTHN-004)") {
+        val rule = cardAuthenticationPortImplementedOnlyBySimulatorAdapter()
+        rule.check(classes)
+        classes.filter { c -> c.interfaces.any { it.name == CARD_AUTHENTICATION_PORT } }.map { it.simpleName } shouldBe listOf("SimulatorCardAuthenticationAdapter")
+        val fixture = com.paycore.archfixture.institution.RealCardAuthenticationAdapter::class.java
+        shouldThrow<AssertionError> { rule.check(fixtureClasses("com.paycore.archfixture.institution", fixture)) }.message shouldContain fixture.simpleName
+    }
+
     test("institution (TCP) adapters do not depend on mutable domain aggregates or domain services (AUTH-CONTRACT-001 AC 3)") {
         val rule = institutionAdapterDoesNotMutateDomain()
-        // 빈 대상: adapter.institution(또는 adapter.integration.institution)은 AUTH-001에서 생긴다. 규칙이 실제로 평가됨은 위반 fixture로 본다.
-        rule.allowEmptyShould(true).check(classes)
+        // AUTHN-001 S7: adapter.integration.institution(Simulator 인증 adapter·설정)이 생겨 대상이 있다. 위반 fixture로도 평가를 본다.
+        rule.allowEmptyShould(false).check(classes)
         val fixture = com.paycore.archfixture.adapter.institution.InstitutionAdapterMutatingPayment::class.java
         shouldThrow<AssertionError> {
             rule.allowEmptyShould(false).check(fixtureClasses("com.paycore.archfixture.adapter.institution", fixture))
         }.message shouldContain fixture.simpleName
+    }
+
+    test("checkout web classes depend only on provided Use Cases, their own package and the web stack (D-AUTHN-006, AUTHN-001 §17.3 m-2)") {
+        val rule = checkoutWebUsesOnlyProvidedUseCases("$BASE_PACKAGE.payment.adapter.web")
+        rule.allowEmptyShould(false).check(classes)
+        // 대상이 있다(빈 대상 통과가 아님): 토큰 발급 Controller·결제창 Controller.
+        classes.filter { it.packageName == "$BASE_PACKAGE.payment.adapter.web" && it.simpleName.startsWith("Checkout") }.map { it.simpleName }.let { names ->
+            names.contains("CheckoutTokenController") shouldBe true
+            names.contains("CheckoutPageController") shouldBe true
+        }
+        val fixtures = listOf(
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingDomain::class.java to "$DOMAIN.PaymentId",
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingRequiredPort::class.java to "$BASE_PACKAGE.payment.application.required.PaymentRepository",
+            // 검토 #3 m-A: Spring 전체가 아니라 web 스택만 — JDBC 직접 접근은 위반.
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingJdbc::class.java to "org.springframework.jdbc.core.JdbcTemplate",
+            // 검토 #3 m-A: 같은 adapter.web이어도 목록 밖 helper(domain을 쓰는 CreatePayment 파서)를 거쳐 domain에 닿지 못한다.
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingDomainHelper::class.java to "$BASE_PACKAGE.payment.adapter.web.CreatePaymentRequestParser",
+            // 검토 #4 n-1: JDK의 JDBC(`java.sql`)와 Boot 전체(예: `boot.jdbc`)는 허용하지 않는다.
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingSql::class.java to "java.sql.Connection",
+            com.paycore.archfixture.checkoutweb.CheckoutControllerUsingBootJdbc::class.java to "org.springframework.boot.jdbc.DataSourceBuilder",
+        )
+        fixtures.forEach { (fixture, target) ->
+            val details = violationsOf(checkoutWebUsesOnlyProvidedUseCases("com.paycore.archfixture.checkoutweb"), "com.paycore.archfixture.checkoutweb", fixture)
+            details.isNotEmpty() shouldBe true
+            details.any { it.contains(fixture.simpleName) && it.contains(target) } shouldBe true
+        }
+    }
+
+    test("review #3 m-A: only the checkout connector classes may use the Tomcat connector API; the shared web helpers checkout classes use do not depend on domain or ports") {
+        checkoutConnectorClassesUseOnlyWebStackAndTomcatConnector().allowEmptyShould(false).check(classes)
+        checkoutWebHelpersDoNotReachDomain().allowEmptyShould(false).check(classes)
+        // Tomcat connector 의존은 connector 구성 클래스 밖의 Checkout 클래스에 허용되지 않는다.
+        val fixture = com.paycore.archfixture.checkoutweb.CheckoutControllerUsingTomcat::class.java
+        violationsOf(checkoutWebUsesOnlyProvidedUseCases("com.paycore.archfixture.checkoutweb"), "com.paycore.archfixture.checkoutweb", fixture)
+            .any { it.contains(fixture.simpleName) && it.contains("org.apache.catalina.connector.Connector") } shouldBe true
+    }
+
+    test("Thymeleaf is used only by the web adapter (AUTHN-001 §17.3)") {
+        val rule = thymeleafOnlyInWebAdapter()
+        rule.check(classes)
+        val fixture = com.paycore.archfixture.web.DomainUsesThymeleaf::class.java
+        violationsOf(rule, "com.paycore.archfixture.web", fixture).let { details ->
+            details.isNotEmpty() shouldBe true
+            details.all { it.contains(fixture.simpleName) } shouldBe true
+        }
     }
 
     test("test-only fixture tooling (Fixture Monkey, Instancio) is not referenced from any production class (Test Fixture Policy)") {
@@ -357,11 +446,117 @@ class ArchitectureSpec : FunSpec({
                 )
                 .`as`("result transitions are applied only by domain services (Payment + Authorization + control + limit together)")
 
+        /**
+         * AUTHN-001 §7.1: main의 `AuthenticationSession.create` 호출·참조는 `AuthenticationSessionStart`만 — 새 세션 전에 같은 Payment의 미폐기·미귀속
+         * 세션 대체(AN-07)를 건너뛰지 못하게 한다.
+         */
+        fun sessionCreateOnlyThroughAuthenticationSessionStart(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$DOMAIN.AuthenticationSessionStart")
+                .and().doNotHaveFullyQualifiedName("$DOMAIN.AuthenticationSession")
+                .and().doNotHaveFullyQualifiedName("$DOMAIN.AuthenticationSession\$Companion")
+                .should().accessTargetWhere(accessTo("target is AuthenticationSession.create", mapOf("$DOMAIN.AuthenticationSession\$Companion" to setOf("create"))))
+                .`as`("only AuthenticationSessionStart creates authentication sessions (earlier sessions are superseded first)")
+
+        const val CARD_AUTHENTICATION_PORT = "$BASE_PACKAGE.payment.application.required.CardAuthenticationPort"
+
+        /** AUTHN-001 §13.6·§17.3: `CardAuthenticationPort` 구현은 `..adapter.integration.institution..`의 `Simulator*`만(REAL 인증 adapter 없음). */
+        fun cardAuthenticationPortImplementedOnlyBySimulatorAdapter(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().implement(CARD_AUTHENTICATION_PORT)
+                .should().resideInAPackage("$BASE_PACKAGE..adapter.integration.institution..").andShould().haveSimpleNameStartingWith("Simulator")
+                .`as`("only the Simulator adapter in adapter.integration.institution implements CardAuthenticationPort (no REAL adapter)")
+
+        /** AUTHN-001 검토 n-3: main의 `AuthenticationSession.verify` 호출·참조는 `AuthenticationResultCheck`만(판정 순서를 건너뛰지 못하게). */
+        fun sessionVerifyOnlyThroughAuthenticationResultCheck(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName("$DOMAIN.AuthenticationResultCheck")
+                .and().doNotHaveFullyQualifiedName("$DOMAIN.AuthenticationSession")
+                .should().accessTargetWhere(accessTo("target is AuthenticationSession.verify", mapOf("$DOMAIN.AuthenticationSession" to setOf("verify"))))
+                .`as`("only AuthenticationResultCheck verifies authentication sessions")
+
+        /**
+         * D-AUTHN-006(승인 편차 조건, 검토 m-2): 결제창 web 클래스(`adapter.web`의 `Checkout*`)는 provided Use Case·자기 패키지·JDK/Kotlin·Spring·Thymeleaf·Servlet·SLF4J에만
+         * 의존한다 — domain·required Port·persistence에 닿지 않아 실행 단위 분리(A01 `payment-window`) 때 provided를 API로 노출하면 된다. 명세 목록에 더한 것(§24.12):
+         * JSON 파서(`tools.jackson`, 토큰 발급 API 엄격 파서)·지표(`io.micrometer`)·Kotlin 컴파일러 annotation(`org.jetbrains.annotations`)·Tomcat connector
+         * (`org.apache.catalina.connector`, 결제창 전용 connector 구성) — 모두 domain·required가 아니다.
+         */
+        fun checkoutWebUsesOnlyProvidedUseCases(webPackage: String): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+                .that().resideInAPackage(webPackage).and().haveSimpleNameStartingWith("Checkout")
+                .and().haveSimpleNameNotStartingWith("CheckoutConnector")
+                .should().onlyDependOnClassesThat(checkoutWebAllowed(webPackage, tomcatConnector = false))
+                .`as`("checkout web classes use only provided Use Cases, checkout web classes, listed web helpers and the web stack (D-AUTHN-006, review #3 m-A)")
+
+        /** 검토 #3 m-A: Tomcat connector API는 결제창 connector 구성(`CheckoutConnector*`)만. */
+        fun checkoutConnectorClassesUseOnlyWebStackAndTomcatConnector(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+                .that().resideInAPackage(MAIN_WEB).and().haveSimpleNameStartingWith("CheckoutConnector")
+                .should().onlyDependOnClassesThat(checkoutWebAllowed(MAIN_WEB, tomcatConnector = true))
+                .`as`("checkout connector classes use only the web stack and the Tomcat connector API")
+
+        /** 검토 #3 m-A: 결제창 클래스가 쓰는 공용 web helper는 domain·required Port·persistence에 의존하지 않는다(위임으로 우회 불가). */
+        fun checkoutWebHelpersDoNotReachDomain(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("checkout web helpers") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    c.packageName == MAIN_WEB && topLevelName(c) in CHECKOUT_WEB_HELPERS
+                })
+                .should().dependOnClassesThat().resideInAnyPackage("$BASE_PACKAGE..domain..", "$BASE_PACKAGE..application.required..", "$BASE_PACKAGE..adapter.persistence..")
+                .`as`("web helpers shared with checkout classes do not depend on domain, required ports or persistence")
+
+        const val MAIN_WEB = "$BASE_PACKAGE.payment.adapter.web"
+
+        /** 결제창 클래스가 쓸 수 있는 같은 패키지의 공용 helper(고정 문구 오류·응답 작성·설정 — domain 없음, 위 규칙이 확인). */
+        val CHECKOUT_WEB_HELPERS = setOf("ApiResponses", "ApiError", "ApiErrorCode", "RequestRejected", "SafeThrowable", "PaymentApiSettings", "PaymentApiSettingsKt")
+
+        private val CHECKOUT_WEB_ALLOWED_PREFIXES = listOf(
+            "java.", "kotlin.", "org.thymeleaf.", "jakarta.servlet.", "org.slf4j.", "tools.jackson.", "io.micrometer.", "org.jetbrains.annotations.",
+        ) + listOf("web", "http", "stereotype", "context", "core", "beans", "security", "ui", "util", "validation").map { "org.springframework.$it." } +
+            // 검토 #4 n-1: Boot는 필요한 곳만(설정 바인딩·web server·자동 구성) — boot.jdbc 등은 허용하지 않는다.
+            listOf("context.properties", "web", "autoconfigure").map { "org.springframework.boot.$it." }
+
+        /** 검토 #4 n-1: JDK 안에서도 JDBC(`java.sql`·`javax.sql`)는 결제창 web 클래스에 허용하지 않는다. */
+        private val CHECKOUT_WEB_DENIED_PREFIXES = listOf("java.sql.", "javax.sql.")
+
+        private fun topLevelName(c: com.tngtech.archunit.core.domain.JavaClass): String = c.name.substringAfterLast('.').substringBefore('$')
+
+        private fun checkoutWebAllowed(webPackage: String, tomcatConnector: Boolean) =
+            com.tngtech.archunit.base.DescribedPredicate.describe(
+                "provided Use Cases, Checkout web classes, listed web helpers, JDK/Kotlin, the Spring web stack, Thymeleaf, Servlet, SLF4J, Jackson, Micrometer" +
+                    if (tomcatConnector) ", Tomcat connector" else "",
+            ) { target: com.tngtech.archunit.core.domain.JavaClass ->
+                val c = generateSequence(target) { if (it.isArray) it.componentType else null }.last()
+                val pkg = c.packageName + "."
+                c.isPrimitive ||
+                    pkg.startsWith("$BASE_PACKAGE.payment.application.provided.") ||
+                    (c.packageName == webPackage && topLevelName(c).startsWith("Checkout")) ||
+                    (c.packageName == MAIN_WEB && (topLevelName(c).startsWith("Checkout") || topLevelName(c) in CHECKOUT_WEB_HELPERS)) ||
+                    (CHECKOUT_WEB_ALLOWED_PREFIXES.any { pkg.startsWith(it) } && CHECKOUT_WEB_DENIED_PREFIXES.none { pkg.startsWith(it) }) ||
+                    (tomcatConnector && (pkg.startsWith("org.apache.catalina.connector.") || pkg.startsWith("org.springframework.boot.tomcat.")))
+            }
+
+        /** AUTHN-001 §17.3: Thymeleaf(`org.thymeleaf..`) 의존은 web adapter만. */
+        fun thymeleafOnlyInWebAdapter(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideOutsideOfPackage("..adapter.web..")
+                .should().dependOnClassesThat().resideInAPackage("org.thymeleaf..")
+                .`as`("only the web adapter depends on Thymeleaf")
+
+        /** AUTHN-001 §17.3: 인증 세션 상태 전이는 application·domain에서만 부른다(web·adapter가 세션을 직접 바꾸지 않는다). */
+        fun authenticationTransitionsOnlyInApplicationOrDomain(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideOutsideOfPackages("$BASE_PACKAGE..application..", "$BASE_PACKAGE..domain..")
+                .should().accessTargetWhere(
+                    accessTo("target is an authentication session transition", mapOf("$DOMAIN.AuthenticationSession" to setOf("start", "verify", "fail", "expire"))),
+                )
+                .`as`("authentication session transitions are applied only by application services or domain services")
+
         /** 기관 Adapter(`..adapter..institution..`)는 상태를 가진 domain Aggregate·domain 서비스에 의존하지 않는다 — Port 결과만 돌려준다. */
         fun institutionAdapterDoesNotMutateDomain(): com.tngtech.archunit.lang.ArchRule {
             val mutable = listOf(
                 "Payment", "OrderPaymentControl", "PaymentAuthorization", "AuthorizationAttempt", "AuthenticationSession", "DailyLimitUsage",
                 "AuthorizationStart", "AuthorizationResolution", "RequestedPaymentExpiry",
+                // AUTHN-001(검토 n-1): 인증 시작·결과 판정 domain 서비스도 기관 adapter가 부르지 않는다(Port 결과만 돌려준다).
+                "AuthenticationResultCheck", "AuthenticationSessionStart",
             ).map { "$DOMAIN.$it" }
             return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
                 .that().resideInAPackage("..adapter..institution..")

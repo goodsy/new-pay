@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": "AUTHN-001",
-  "codeFingerprint": "sha256:6f50f0ed24bd3c4f7606db7bee587e0b834abc86e63de5f184819c9c6e4a452a",
-  "lastSuccessfulStep": "ARCH-STRUCTURE-001 DONE (VERIFY-GATE PASS 001423Z, REVIEW_PASS round2)",
+  "activeTaskId": null,
+  "codeFingerprint": "sha256:bdb8be8fbd1cb4fb48a92b70f2e0b230fc861c564d7698e8e9a3d449121c618e",
+  "lastSuccessfulStep": "AUTHN-001 DONE (VERIFY-GATE PASS 032157Z, 최종 REVIEW_PASS_WITH_FIXES)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "AUTHN-001 2단계: 명세 review(병행) + TDD 구현 S0~S12(중간 review S4·S7·S10) → VERIFY-GATE + DEPS/CVE + 최종 review",
+  "nextResumeAction": "TZ-FIX-001 착수(agreedOrder 다음): jOOQ reader JVM 시간대 결함 전수 점검(payment JooqEntitlementFreshnessReader 확인, master JooqEntitlementPropagationReader:126) → 이후 CANCEL-CONTRACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -307,6 +307,56 @@
       "at": "2026-10-16",
       "taskId": "AUTHN-001",
       "event": "1단계 명세 수령(facee0ca1961…, 추정 2.0~2.5×MS2), Q-AUTHN-05·06 답변(권장안) → D-AUTHN-005·006"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "명세 review SPEC_FAIL → rev 1.1(f911c9f7…). Q-AUTHN-07·08 답변(권장안) → D-AUTHN-007·008"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "명세 재review rev1.2 SPEC_PASS_WITH_FIXES(HIGH 없음) → rev1.3 반영 후 S1·S4·S11 해제"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "S7 체크포인트 수령(S4·S6·S7·n-f·중간 review m-1~m-3·n-1~n-7 반영, 미검증 보고 payment 859·master 319·simulator 30·SELFTEST 81). S4~S7 중간 review 착수, 구현 S8~S10 계속"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "S4~S7 중간 review REVIEW_PASS_WITH_FIXES(HIGH 없음, MINOR 2: 잠금 조회 옛 상태·V8_1 보류 교착 → 전략 안 채움으로 판정). 구현 S8~S10에 반영"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "S10 체크포인트 수령(review #2 반영·S8~S10, 미검증 payment 932·master 319·simulator 30·SELFTEST 81, 새 의존성 spring-boot-starter-thymeleaf). review #3 착수, 구현 S11 계속"
+    },
+    {
+      "at": "2026-10-16",
+      "taskId": "AUTHN-001",
+      "event": "S8~S10 review #3 REVIEW_PASS_WITH_FIXES(HIGH 없음, 변경 기대값 6건 정당, MINOR m-A ArchUnit 범위·m-B 순차 배포 실패 이력). S11에 반영 지시"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "AUTHN-001",
+      "event": "S11 체크포인트 수령(미검증 payment 955·master 319·simulator 30·SELFTEST 81, jOOQ 시간대 결함 발견·수정). review #4(S11) 착수, 구현 S12 계속"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "AUTHN-001",
+      "event": "S11 review #4 REVIEW_PASS_WITH_FIXES(HIGH 없음, m-1 C7 만료 시 가맹점 복귀 링크 복원). n-2 범위 밖 시간대 결함은 TZ-FIX-001 AC로 이관"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "AUTHN-001",
+      "event": "S12 완료 보고(미검증 1480·DEPS/CVE PASS). 편차 13 수용, 인증 시작 경로 m-1 같은 규칙 적용 지시 → full check 재실행 후 VERIFY-GATE"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "AUTHN-001",
+      "event": "DONE: VERIFY-GATE PASS 032157Z(1482/0, SELFTEST 81, fingerprint bdb8be8f… 전·후 동일), DEPS x5·CVE PASS 053156Z(실제 취약점 0), 최종 review REVIEW_PASS_WITH_FIXES"
     }
   ],
   "agreedOrder": [

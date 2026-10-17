@@ -27,6 +27,15 @@ enum class ApiErrorCode(val status: HttpStatus, val retryable: Boolean, val mess
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, false, "An internal error occurred."),
     NOT_FOUND(HttpStatus.NOT_FOUND, false, "The resource was not found."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, false, "The method is not allowed."),
+
+    // AUTHN-001 결제창 토큰 발급(명세 §5.3, AN-05). 고정 문구 — URL·host·Snapshot 버전·내부 사유를 넣지 않는다.
+    INVALID_RETURN_URL(HttpStatus.BAD_REQUEST, false, "successUrl and failUrl must be absolute https URLs in the allowed form."),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, false, "The payment was not found."),
+    PAYMENT_TERMINATED(HttpStatus.CONFLICT, false, "The payment has ended. Create a new payment to continue."),
+    PAYMENT_AUTHORIZATION_STARTED(HttpStatus.CONFLICT, false, "Authorization of the payment has already started."),
+    RETURN_URL_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The return URL host is not allowed for this merchant site."),
+    CHECKOUT_NOT_SUPPORTED(HttpStatus.UNPROCESSABLE_CONTENT, false, "Checkout is not supported for this payment."),
+    CHECKOUT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, true, "Checkout is temporarily unavailable. Retry the request."),
     ;
 
     /** 응답 `code` 값. OUTCOME_UNCONFIRMED는 계약 §9 행대로 `TEMPORARILY_UNAVAILABLE` code를 쓴다(문구만 다름). */

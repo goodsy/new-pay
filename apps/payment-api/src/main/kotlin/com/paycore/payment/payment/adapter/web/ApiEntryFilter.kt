@@ -7,9 +7,10 @@ import org.slf4j.MDC
 import org.springframework.web.filter.OncePerRequestFilter
 
 /**
- * 진입 필터: requestId 발급(`PayCore-Request-Id` — 401 등 모든 응답에, 로그 MDC `correlationId`) + connector별 경로 격리.
+ * 진입 필터: requestId 발급(`PayCore-Request-Id` — 401 등 모든 응답에, 로그 MDC `correlationId`) + connector별 경로 격리(3 connector — AUTHN-001 AN-15):
+ * 내부 포트 ↔ `/internal` 아래, checkout 포트 ↔ `/checkout` 아래(어느 쪽이든 짝이 아니면 404). 공개 포트의 그 밖 경로 규칙은 기존과 같다(§24.12).
  */
-class ApiEntryFilter(private val internal: InternalConnector) : OncePerRequestFilter() {
+class ApiEntryFilter(private val internal: InternalConnector, private val checkout: CheckoutConnector) : OncePerRequestFilter() {
 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val requestId = ApiResponses.requestId(request)
@@ -20,7 +21,9 @@ class ApiEntryFilter(private val internal: InternalConnector) : OncePerRequestFi
             val internalPath = isInternalPath(request)
             val internalPort = internal.localPort
             val viaInternalConnector = internalPort > 0 && request.localPort == internalPort
-            if (viaInternalConnector != internalPath) {
+            val checkoutPort = checkout.localPort
+            val viaCheckoutConnector = checkoutPort > 0 && request.localPort == checkoutPort
+            if (viaInternalConnector != internalPath || viaCheckoutConnector != isCheckoutPath(request)) {
                 ApiResponses.write(response, ApiError(ApiErrorCode.NOT_FOUND), requestId)
                 return
             }
@@ -38,6 +41,12 @@ class ApiEntryFilter(private val internal: InternalConnector) : OncePerRequestFi
         fun isInternalPath(request: HttpServletRequest): Boolean {
             val path = request.servletPath + (request.pathInfo ?: "")
             return path == "/internal" || path.startsWith("/internal/")
+        }
+
+        /** 결제창 경로(정규화된 경로 — [isInternalPath]와 같은 이유). */
+        fun isCheckoutPath(request: HttpServletRequest): Boolean {
+            val path = request.servletPath + (request.pathInfo ?: "")
+            return path == "/checkout" || path.startsWith("/checkout/")
         }
     }
 }

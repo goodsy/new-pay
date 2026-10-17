@@ -1,0 +1,35 @@
+{
+  "description": "AUTHN-001 shared WEB host grammar vectors (SiteChannel WEB, Snapshot v3 receiver, MerchantReturnUrl host). Demo hosts.",
+  "accepted": [
+    "shop.example.test",
+    "a.b",
+    "xn--9n2bp8q.example.test",
+    "a-b.example.test",
+    "0a.example.test",
+    "shop.example.co.kr",
+    "shop.0xg",
+    "0x7f.example",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.test",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "rejected": [
+    "",
+    "Shop.example.test",
+    "shop.example.test.",
+    "localhost",
+    "-a.example.test",
+    "a-.example.test",
+    "a..example.test",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.test",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "127.0.0.1",
+    "2130706433",
+    "a.0x7f",
+    "a.0x",
+    "shop_example.test",
+    "샵.example.test",
+    "shop.example.test:443",
+    "user@shop.example.test",
+    "[::1]"
+  ]
+}

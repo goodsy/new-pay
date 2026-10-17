@@ -2063,7 +2063,10 @@
         "(AUTH-CONTRACT-001 §19.9) incident_hold occurrence UNIQUE·해제 기록 표·FORCED/excess 컬럼·Store append-only 검사",
         "(MASTER-SNAPSHOT-002 이관) Port evaluatedAt과 AuthorizationStart.at 같은 at 시험, Unavailable/Refused/LimitPolicyUnavailable HTTP 매핑, 전송 게이트 A0~A2 재판정, FORCED 재점유 초과 표시는 원 Authorization 고정 정책, Route 프로파일 등록부(모르는 routeRef fail-closed, Attempt에 institutionMerchantRef — D-MS2-005 마스킹)",
         "(AUTHN-001 인계) PAYMENT migration은 V9부터(V7·V8은 AUTHN-001). confirm은 authenticationRef로 세션 조회, bindingRejection(providerValidUntil 포함)·bindTo 사용, bound_authorization_id 쓰기 경로와 C8 경합 시험은 이 작업",
-        "(AUTHN-001 §22-5) 가상 VAN 원장(기관 금융 사실 원본)을 institution-simulator에 넣을 때 append-only 표 권한(§9.2식) 재검토"
+        "(AUTHN-001 §22-5) 가상 VAN 원장(기관 금융 사실 원본)을 institution-simulator에 넣을 때 append-only 표 권한(§9.2식) 재검토",
+        "(AUTHN-001 §22-8·§7.5.3, D-AUTHN-008) confirm TX1은 payment_authorization 잠금 전에 결제창 만료 시각을 먼저 확인하고, 지났으면 공용 RequestedPaymentClosing으로 인라인 만료(PaymentExpired 같은 TX) 후 PAYMENT_TERMINATED 거절",
+        "(AUTHN-001 §22-10·§22-11) PAYMENT V9 이후 migration도 CheckoutWindowCheckMigrationStrategy 순서(V8 → pin/채움 → 재확인 → 나머지) 유지, V7→V8_1 업그레이드 시 AUTHN-001 이전 payment-api 인스턴스 없음 배포 전제 유지",
+        "(AUTHN-001 최종 review m-1) C8 외에 confirm vs 만료 작업/인라인 만료 경합(control 잠금) 실제 MySQL 시험"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -3734,7 +3737,7 @@
       "id": "AUTHN-001",
       "title": "결제창(Thymeleaf)·AuthenticationSession endpoint·가상 인증기관 Simulator",
       "phase": "FEATURE",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "dependsOn": [
         "AUTH-CONTRACT-001",
         "ARCH-STRUCTURE-001"
@@ -3745,7 +3748,9 @@
         "Q-AUTHN-03",
         "Q-AUTHN-04",
         "Q-AUTHN-05",
-        "Q-AUTHN-06"
+        "Q-AUTHN-06",
+        "Q-AUTHN-07",
+        "Q-AUTHN-08"
       ],
       "acceptanceCriteria": [
         "(D-AUTH-001) 결제창 세션 토큰 바인딩(주문·Payment·MID·금액·통화·환경·만료), 인증 결과 서버 검증(state/nonce), AuthenticationSession 영속화, 가상 인증기관 성공/실패/취소/만료·중복 callback·재사용 시험, Simulator/REAL 격리, 카드정보 비노출",
@@ -3758,6 +3763,8 @@
         "명세 docs/repository/AUTHN-001-PAYMENT-WINDOW.md(1단계: 조사·흐름·계약·질문 후보 → 2단계: 구현 편차), TDD(테스트 먼저), Test Fixture Policy, 8대 원칙 증거, VERIFY-GATE PASS(새 fingerprint)·테스트 수 1220 이상·harness 72 이상(모듈 추가로 harness 시험이 늘면 그 하한), DEPS·CVE(새 의존성·새 모듈)",
         "(D-AUTHN-005) Payment 생성 시 절대 만료 시각 저장(payment.checkout_expires_at, 설정 Demo 값), 만료 Use Case·주기 작업·결제창 교환/복귀/토큰 발급과 만료 경합 시험(C7, 실제 MySQL), 토큰·세션 만료를 Payment 만료로 자름, CreatePayment API·응답 불변",
         "(D-AUTHN-006) 결제창은 payment-api 전용 connector·별도 SecurityFilterChain, 화면 코드는 provided Use Case만 호출(ArchUnit으로 강제), 기준 01 편차로 명세에 기록",
+        "(D-AUTHN-007) V7 이전 REQUESTED 행의 만료 시각을 배포 시점 설정 버전으로 created_at + 유효기간 채움(애플리케이션 단계·버전 기록, migration 상수 금지), 이후 CHECK(status <> 'REQUESTED' OR checkout_expires_at IS NOT NULL), 옛 볼륨 재실행 시험",
+        "(D-AUTHN-008) REQUESTED → EXPIRED 시 PaymentExpired(INTEGRATION_NON_FINANCIAL, effect_key PaymentExpired:{paymentId})를 만료와 같은 TX에서 Outbox append, 중복 만료 시 이벤트 1건, rollback 시 0건 시험",
         "범위 밖: confirm API·승인 시작·기관 전송(AUTH-001), Webhook(WEBHOOK-001), React 결제창, 실제 기관 연동"
       ],
       "allowedWritePaths": [
@@ -3773,68 +3780,110 @@
         "docs/repository/**",
         "harness/commands.json",
         "harness/scripts/cve-scan.py",
-        "harness/tests/**"
+        "harness/tests/**",
+        ".env.example"
       ],
       "pathsResolved": true,
       "owner": "coordinator+paycore-implementer",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "fingerprint": "sha256:bdb8be8fbd1cb4fb48a92b70f2e0b230fc861c564d7698e8e9a3d449121c618e",
+        "verifyGate": "build/harness-evidence/AUTHN-001-2026-10-17T032157Z.json",
+        "evidenceSha256": "995367545d5c80c645e15328393fba44d90cbe1550cb05d53f2395f534e12311",
+        "verdict": "PASS",
+        "tests": {
+          "total": 1482,
+          "payment-api": 966,
+          "master-api": 319,
+          "institution-simulator": 30,
+          "financial-batch": 26,
+          "internal-admin": 29,
+          "libs/test-support": 112
+        },
+        "harnessSelftest": "Ran 81 OK",
+        "at": "2026-10-17T03:37Z",
+        "specSha256": "319f440245d28749f27020c3c044176c2ae66ae267d402e28b4cacbf5b6463ef",
+        "fingerprintCheck": "gate 전·후·05:33:54Z 재계산 모두 동일",
+        "depsCve": "GRADLE-DEPS x5(master·payment·financial-batch·internal-admin·institution-simulator) exit 0, Thymeleaf는 Boot BOM 경유(starter 4.1.1, thymeleaf-spring6 3.1.5.RELEASE, 직접 버전 없음), CVE-SCAN PASS 실제 취약점 0·canary 5모듈 검출, 05:31:56–05:33:54Z, build/harness-evidence/AUTHN-001-2026-10-17T053156Z-supplementary/",
+        "runMode": "WSL 내부 setsid nohup … & disown(스크립트 파일 경유)",
+        "processDeviation": "S6 Simulator·S7 Adapter는 시험과 코드를 함께 작성(test-first RED-C 없음, mutation RED S6 4건/6실패·S7 4건/4실패), S8~S10 CheckoutSettings·S10 web endpoint는 같은 단계 안 시험보다 먼저 작성(mutation RED 검출). S11·S12·후속은 RED-C/RED-A 기록(명세 §24)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS_WITH_FIXES",
+        "round": "final",
+        "fingerprint": "sha256:bdb8be8fbd1cb4fb48a92b70f2e0b230fc861c564d7698e8e9a3d449121c618e",
+        "note": "코드 변경 불필요. m-1 AUTH-001 인계 3항목 → AUTH-001 AC 추가, n-1 CONVENTIONS AUTHN-001 절 → DOC-ALIGN, n-2 principleEvidence 기록, n-3 TDD 편차 사용자 보고. 중간 review #1~#4 모두 PASS_WITH_FIXES·HIGH 없음"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "인증 흐름은 Payment REQUESTED 유지·새 Outbox 없음(CardAuthenticationFlowSpec), 토큰·세션·기관 echo 금액/통화 바인딩 대조(R7), REQUESTED→EXPIRED는 NOT_TRANSMITTED_AND_SESSION_DISCARDED만, 만료 후에만 2세대(C14), 창 연장 없음(CreatePaymentInlineExpirySpec)"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "외부 호출 TX 밖(C10, inTransaction=false), TX-A·TX-C·TX-X·TX-I·인라인 만료·후보별 만료 TX 장애 주입 rollback 실 MySQL, Outbox 업무 TX 동일, migration 채움 실패 시 기동 거부(실패 이력 없음)"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "토큰 1회 교환(C1 1/7), 발급 수렴(C9), 중복 복귀 DUPLICATE(C4), 결과 참조 1회(UNIQUE/RESULT_REF_REUSED), 만료 1회·PaymentExpired:{id} UNIQUE(C13·C16), Simulator 등록 (client,state) 멱등, CreatePayment replay 불변(보존 중 같은 키·다른 내용 IDEMPOTENCY_KEY_REUSED)"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "C1·C3~C7·C9~C16 실 MySQL 경합(순서 강제·승자 집합 단언), PessimisticRowLock find+refresh(LockReadFreshnessSpec), 잠금 순서 명세 §10.3, use-case TX READ COMMITTED(TransactionIsolationSpec)"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "조회 실패 시 세션 IN_PROGRESS 유지 후 재조회 VERIFIED(R3), Simulator 재기동(SimulatorRestartDurabilitySpec), 옛 볼륨 V6→V8_1 한 번 기동(OldVolumeStartSpec), 실패 후보 다음 실행 재시도, 순차 배포 재확인·재채움 후 거부"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "인증·결제창 만료는 기관 금융효과 없음(REQUESTED = 미전송). 승인 대사는 AUTH-001·RECON-001",
           "verificationCommandIds": [],
-          "evidence": null
+          "evidence": "비권위 gauge(지난 REQUESTED·미해결 세션·미교환 토큰)만 제공"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "authentication_session_event append-only(UPDATE·DELETE·잠금 읽기 1142), 대체·만료된 VERIFIED 증거 보존, 토큰에 발급 자격·Site host·snapshot·정책 버전, Payment 창 설정 버전·pin 행 고정, PaymentExpired causation, 보안 이벤트 내부 id만"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "진입점별 카운터 starts/returns/registrations/cancels·조회 timer·gauge(라벨에 ID 없음, 명세 §15.1), 만료 작업 defect 라벨 ERROR, CheckoutObservabilitySpec·CheckoutLogRedactionSpec·CheckoutLoggingConfigurationSpec"
         }
       },
       "coordinatorDecisions": [
         "2026-10-16 착수: Q-AUTHN-01~04 사용자 답변(모두 권장안) → D-AUTHN-001~004. 선행으로 CONVENTIONS §14 Store 기준 보강(ARCH round2 m-1·n-1) 완료",
-        "2026-10-16 1단계 명세(sha256 facee0ca1961…) 수령. Q-AUTHN-05·06 답변(권장안) → D-AUTHN-005·006. §22 관찰 처리: (2) 'TEST 외 환경' = Payment environment 축 해석 승인(LIVE Payment 결제창·Simulator 거절, fail-closed); (3) AN-07(새 인증 시작 시 이전 미귀속 VERIFIED 세션 EXPIRED)은 인증 근거 단일 귀속(D-AUTH-001)을 더 보수적으로 지키는 구현 결정으로 유지; (4) PAYMENT V7/V8은 AUTHN-001 사용 → AUTH-001은 V9부터; (5)(6)(7) 아래 openItems·후속으로 기록"
+        "2026-10-16 1단계 명세(sha256 facee0ca1961…) 수령. Q-AUTHN-05·06 답변(권장안) → D-AUTHN-005·006. §22 관찰 처리: (2) 'TEST 외 환경' = Payment environment 축 해석 승인(LIVE Payment 결제창·Simulator 거절, fail-closed); (3) AN-07(새 인증 시작 시 이전 미귀속 VERIFIED 세션 EXPIRED)은 인증 근거 단일 귀속(D-AUTH-001)을 더 보수적으로 지키는 구현 결정으로 유지; (4) PAYMENT V7/V8은 AUTHN-001 사용 → AUTH-001은 V9부터; (5)(6)(7) 아래 openItems·후속으로 기록",
+        "2026-10-17 DONE 판정: VERIFY-GATE PASS(032157Z, sha256:bdb8be8fbd1c…, 1482/0, SELFTEST 81), DEPS x5·CVE PASS(053156Z), 최종 review REVIEW_PASS_WITH_FIXES(코드 변경 없음)"
       ],
       "specification": {
         "path": "docs/repository/AUTHN-001-PAYMENT-WINDOW.md",
@@ -3844,7 +3893,73 @@
       "openItems": [
         "보존·삭제: checkout_token·checkout_session·authentication_session_event 보존기간·삭제 Job은 범위 밖(DELETE 권한 없음) → 후속 BACKLOG 후보",
         "앱 전환(ISP/앱카드) 인증 복귀(쿠키 없는 컨텍스트)는 실제 기관 연동 때 재설계 → LIVE 준비 Gate 항목",
-        "payment-window 실행 단위 분리(기준 01)는 후속 후보(D-AUTHN-006)"
+        "payment-window 실행 단위 분리(기준 01)는 후속 후보(D-AUTHN-006)",
+        "과정 편차(사용자 보고): S6 Simulator·S7 Adapter는 시험과 코드를 함께 작성해 test-first(RED-C) 증거 없음, mutation RED(S6 4건/6실패, S7 4건/4실패)만 있음",
+        "과정 편차(사용자 보고): S8~S10 중 CheckoutSettings·S10 web endpoint는 같은 단계 안에서 시험보다 먼저 작성(mutation RED로 검출 확인)",
+        "공개 포트 허용 경로를 /v1·/actuator/health로 축소(기존 동작 변경이라 AUTHN-001 범위 밖) → 후속 후보",
+        "지표: 인증 세션 전이별 카운터(commit 후 기록)는 후속 후보 — 현재 진입점별 starts/returns/registrations",
+        "README 배포 전제(V7→V8_1 업그레이드 시 AUTHN-001 이전 payment-api 인스턴스 없음) 미기재 — HARNESS-VERIFICATION-CONTRACT §7·명세 R13·§22-11에 기록",
+        "ARCHITECTURE-CONVENTIONS AUTHN-001 절(명세 §22-9) → DOC-ALIGN",
+        "범위 밖 jOOQ 시간대 결함(payment JooqEntitlementFreshnessReader 확인, master JooqEntitlementPropagationReader:126 가능성) → TZ-FIX-001",
+        "선택 항목 미반영: 비-Unverifiable 503 Retry-After(review #3 n-6)"
+      ],
+      "reviewRounds": [
+        {
+          "round": "spec-1",
+          "verdict": "SPEC_FAIL",
+          "target": "stage1 facee0ca…",
+          "findings": "H-1~H-4, m-1~m-10, n-1~n-8, U-1~U-3",
+          "coordinatorRulings": "U-3 인라인 만료 채택(D-AUTHN-005+D-CPD-002 도출), m-1 경로 handle 방식, m-8 .env.example 허용 경로 추가, n-8 400 거절 유지(엄격 파서 관례), U-1·U-2 사용자 질문 → D-AUTHN-007·008"
+        },
+        {
+          "round": "spec-2",
+          "verdict": "SPEC_PASS_WITH_FIXES",
+          "target": "rev1.2 90db4ab4…",
+          "findings": "m-A~m-E, n-a~n-h, HIGH 없음, 사용자 결정 없음",
+          "coordinatorRulings": "m-A FlywayMigrationStrategy(대기 V8_1 + NULL REQUESTED면 V8까지만 + 신호) 채택, m-B 백필 버전 1회 고정 채택, m-D 완료 후 쿠키 잔여 수명 유지 채택, 나머지 지적 반영 → rev 1.3 후 S1·S4·S11 착수"
+        },
+        {
+          "round": "code-mid-1",
+          "scope": "S1·S2·S3·S5+harness",
+          "verdict": "REVIEW_PASS_WITH_FIXES",
+          "findings": "HIGH 없음. m-1 R6가 다른 거래 결과 참조 digest 저장(가용성), m-2 V8_1과 CreatePayment 순서(만료 시각 저장을 V7과 함께), m-3 compose 필수 변수, n-1~n-8",
+          "coordinatorRulings": "m-1 명세 §7.3 R5~R10에서 R6 제외로 명확화, n-3 verify 호출 제한 채택, n-5 SchemaRolloutOrderV3Spec 추가 우선, S2 기대값 변경은 약화 아님(리뷰 확인)"
+        },
+        {
+          "round": "checkpoint-S7",
+          "verdict": "REVIEW_PASS_WITH_FIXES",
+          "target": "spec b415197d…(rev 1.3 + §24.6~24.10, §7.3 R6 제외 정정)",
+          "findings": "1차 수정(m-1~m-3·n-1~n-7) 모두 해소, 변경 기대값 4곳·S3 순서 의존 시험 2건 약화 없음, 편차(closed_at 없음·3819 결함·m-C S11 이연·Simulator 폼 CSRF 잔여 위험·echo 조회 시 계산) 수용. MINOR m-1 잠금 조회가 영속성 컨텍스트의 옛 상태 반환(C1 패자가 OptimisticConflict/UniqueConflict로 실패), m-2 V8_1 보류가 이후 migration(V9+)까지 막아 옛 볼륨 기동 교착. NIT n-1 bound_authorization UNIQUE 매핑, n-2 pin 기동 시 기록·신호 소비자, n-3 유효기간 1초 이상 정수 ms, n-4 http localhost 허용을 local/test 플래그로, n-5 응답 크기 readNBytes·RestClientException 매핑, n-6 m-1과 같은 원인. 과정 편차: S6·S7 Adapter는 test-first(RED-C) 증거 없음(mutation RED만)",
+          "coordinatorRulings": "m-1 find+refresh(PESSIMISTIC_WRITE) 또는 id 조회로 고치고 패자 결과 고정 경합 시험. m-2 (c) 채택: migration 전략 안에서 V8까지 → pin 기록 → NULL REQUESTED 채움(runtime 계정, 행별 설정 버전) → 나머지 migrate, 한 번의 기동, 실패 시 기동 실패. 이전 '다음 기동에 V8_1' 판정 대체. S11 옛 볼륨 시험이 m-C 왕복 겸함. n-1~n-6 반영. S6·S7 TDD 편차는 기록·사용자 보고, S8부터 단계별 RED-C/RED-A 필수"
+        },
+        {
+          "round": "checkpoint-S10",
+          "verdict": "REVIEW_PASS_WITH_FIXES",
+          "target": "spec bd0a4705…(§24.11 review #2 반영, §24.12 S8~S10)",
+          "findings": "구현 보고(미검증): review #2 m-1(PessimisticRowLock find+refresh, LockReadFreshnessSpec, C1 1개 열림·7개 InvalidToken), m-2(전략 안 V8→pin→채움→나머지 migrate 한 번의 기동), n-1·n-3·n-4·n-5. S8 토큰 발급 API·RequestedPaymentClosing 인라인 만료·CreatePayment 만료 후 새 Payment, S9 결제창 connector·STATELESS 보안 체인·교환·화면, S10 인증 시작·복귀·취소·경합 C3~C6·C10. 테스트 payment-api 932/0, master-api 319/0, simulator 30/0, SELFTEST 81. 변경 기대값 6건(30일 지난 REQUESTED: 기존 활성 재사용 → 인라인 EXPIRED + 새 Payment, D-AUTHN-005·D-CPD-002·U-3 근거 주장) | review #3: HIGH 없음·사용자 결정 없음. 변경 기대값 6건 정당(30일 = 멱등 기록 보존 D-CPC-004, 보존 중 같은 키·다른 내용은 여전히 IDEMPOTENCY_KEY_REUSED, 보존 만료 키는 새 요청 — 기존 규칙). review #2 수정 모두 해소. MINOR m-A 결제창 web ArchUnit 허용 범위 과다(spring 전체·catalina 전 클래스·web helper 경유), m-B 순차 배포 중 옛 인스턴스가 채움~V8_1 사이 NULL 행 삽입 시 실패 이력 행. NIT n-1 S12 추적(로그 마스킹·오류 화면 누출·한 브라우저 두 결제창·접근 로그·DEPS/CVE), n-2 RedirectView 템플릿 확장 끄기, n-3 C4/C5 phase 1 장벽, n-4 READ COMMITTED 가정 확인, n-5 금액 표시 CurrencyUnit, n-6 Retry-After 선택, n-7 명세 본문 정렬",
+          "coordinatorRulings": "편차 #1 공개 포트 경로 미축소 수용(후속 후보), #5 잘못된 handle 400(§6.1)으로 §6.3 표 정정, #10 spring-boot-starter-thymeleaf 수용(§16 계획·BOM 관리, S12 DEPS/CVE 필수, 이후 의존성은 사전 질의), #11 main 미사용 Payment.assignMissingCheckoutWindow·JPA pin store 제거(S11), #12 소규모 TDD 편차 기록, 나머지(#2 catalina 허용 포함)는 review 판정. 변경 기대값 6건(특히 같은 키·다른 내용 30일 뒤 201)은 review #3에서 멱등 규칙 대조 | review #3 판정: m-A 허용 패키지 축소·catalina는 connector 설정 클래스만·web helper 규칙·JdbcTemplate 위반 fixture. m-B (a) 배포 전제 문서화 + (b) migrate 직전 재확인·재채움(유한 재시도) 후 실패면 V8_1 시도 없이 기동 거부. n-1~n-5·n-7 반영, n-6 선택 사항 기록(미반영)"
+        },
+        {
+          "round": "checkpoint-S11",
+          "verdict": "REVIEW_PASS_WITH_FIXES",
+          "target": "spec ea4ad65c…(§24.13)",
+          "findings": "구현 보고(미검증, green-s11 2026-10-17T01:12:12Z): payment-api 955/0, master-api 319/0, simulator 30/0, SELFTEST 81. 만료 작업(jOOQ keyset·후보별 TX·스케줄러), OldVolumeStartSpec(V6→8.1 한 번 기동·pin·m-C 왕복), C7·C11~C16 경합, rollback 0건, 미사용 코드 제거. 실제 결함 발견·수정: jOOQ reader가 JVM 시간대(Asia/Seoul)로 9시간 어긋남(만료 작업 후보 0건, 결제창 조회 경로) → UtcWallClock(CONVENTIONS §9.1). review #3 m-A·m-B·n-2~n-5·n-7 반영 | review #4: HIGH 없음·사용자 결정 없음. 만료 작업(잠금 순서·잠금 하 재확인·후보별 격리·keyset·1회성)·m-B·범위 내 시간대 수정·변경 기대값 정당, 편차 2(C15) 수용. MINOR m-1 편차 1(C7 401) 불수용 — §6.3 410 + failUrl(CHECKOUT_EXPIRED) 링크 필요. NIT n-1 java.sql·boot 전체 허용, n-2 범위 밖 JooqEntitlementFreshnessReader 같은 시간대 결함, n-3 결함 예외 ERROR, n-4 경합 순서 기록, n-5 배포 전제 문서",
+          "coordinatorRulings": "n-4 격리 수준 변경 없음(use-case TX READ COMMITTED, DataSource 기본 REPEATABLE READ, TransactionIsolationSpec 고정). 편차 C7 401 SessionExpired·C15 409/410 review 조건부 수용. 범위 밖 jOOQ 시간 처리는 TZ-FIX-001로. S11 review #4와 S12 병행 | review #4 판정: m-1 명세대로 복원(CheckoutClosed + fail redirect, 페이지 경로 포함), n-1·n-3·n-4·n-5 S12 반영, n-2는 TZ-FIX-001로 이관"
+        },
+        {
+          "round": "checkpoint-S12",
+          "verdict": "PENDING_GATE",
+          "target": "spec fd37cc40…(§24.14)",
+          "findings": "구현 보고(미검증): full check 1480(payment 964·master 319·simulator 30·batch 26·admin 29·test-support 112), SELFTEST 81, TEST-SUMMARY min 1480 PASS, GRADLE-DEPS 3모듈 exit 0(Thymeleaf 3.1.5 BOM 경유), CVE-SCAN PASS 실제 취약점 0. review #4 m-1(C7 410 + fail 링크 복원)·n-1·n-3·n-4·n-5 반영, n-2 TZ-FIX-001 이관. S12 로그 마스킹·오류 화면 누출·두 결제창·로깅 설정 시험(L1~L5 결함 주입으로 검출 확인)",
+          "coordinatorRulings": "편차 13(지표 이름: 진입점별 starts/returns/registrations 카운터) 수용 — §15 정정, 전이별 카운터는 후속 후보. m-1 후속: 인증 시작 경로도 같은 규칙(410/409 + fail 링크, 상태 변경·등록 호출 없음) 적용 지시. README 배포 전제 문구는 생략(HARNESS-VERIFICATION-CONTRACT §7·명세 R13·§22-11로 충분). 수정 후 full check 재실행 → VERIFY-GATE"
+        },
+        {
+          "round": "final",
+          "verdict": "REVIEW_PASS_WITH_FIXES",
+          "target": "codeFingerprint sha256:bdb8be8f…, spec 319f4402…",
+          "findings": "코드 변경 불필요. AC 1~7·9~13 MET, AC 8 PARTIAL(VERIFY-GATE 결과·TDD 편차 사용자 보고·principleEvidence 대기). 8대 원칙 7 APPLIED·Reconciliation NOT_APPLICABLE. m-1 AUTH-001 인계 3항목 누락, n-1 CONVENTIONS AUTHN-001 절 없음, n-2 principleEvidence UNASSESSED, n-3 TDD 편차 보고, n-4 선택 항목 기록됨",
+          "coordinatorRulings": "m-1 AUTH-001 AC 3줄 추가. n-1 gate 진행 중 문서 수정 시 fingerprint 변동 → DOC-ALIGN으로 이관. n-2 gate PASS 후 기록. n-3 최종 보고에 포함"
+        }
       ]
     },
     {
@@ -4175,7 +4290,9 @@
       "requiredQuestions": [],
       "acceptanceCriteria": [
         "(MASTER-SNAPSHOT-002 review1 m-4) JooqEntitlementPropagationReader.overview(LEASE_UNTIL.gt(utc(now)))와 payment JooqEntitlementFreshnessReader의 LocalDateTime 바인딩을 JooqAuthorizationTermsCoverageReader와 같은 UTC 리터럴 방식 또는 공통 helper로 통일",
-        "비UTC JVM 기본 시간대(Asia/Seoul)에서 실패하는 시험을 먼저 추가(RED) 후 수정"
+        "비UTC JVM 기본 시간대(Asia/Seoul)에서 실패하는 시험을 먼저 추가(RED) 후 수정",
+        "(AUTHN-001 review #4 n-2) payment-api entitlement/adapter/query/JooqEntitlementFreshnessReader.kt:26-34가 LocalDateTime을 jOOQ 비교(LEASE_UNTIL.le(at)·TIMESTAMPDIFF)에 그대로 바인딩 — JVM 시간대 결함(CONVENTIONS §13 위반, freshness gauge만 영향). UTC 처리 + 비UTC JVM 시험",
+        "(AUTHN-001 S11) payment checkout 경로 jOOQ 시간 처리는 adapter.query.UtcWallClock으로 수정됨(CONVENTIONS §9.1) — 다른 모듈 jOOQ reader 전수 점검 시 참고"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -4711,7 +4828,8 @@
       ],
       "requiredQuestions": [],
       "acceptanceCriteria": [
-        "옛 타입 이름이 나오는 과거 명세(CP-API-001·AUTH-CONTRACT-001 등)에 'ARCH-STRUCTURE-001 매핑 §1.1' 머리말 한 줄만 추가, 본문 치환 금지, 적용된 migration 주석 고정"
+        "옛 타입 이름이 나오는 과거 명세(CP-API-001·AUTH-CONTRACT-001 등)에 'ARCH-STRUCTURE-001 매핑 §1.1' 머리말 한 줄만 추가, 본문 치환 금지, 적용된 migration 주석 고정",
+        "(AUTHN-001 최종 review n-1) ARCHITECTURE-CONVENTIONS에 AUTHN-001 절 추가(명세 §22-9 약속): 결제창 connector·STATELESS 체인, token/session Store vs AuthenticationSession Repository, payment jOOQ reader UtcWallClock, FlywayMigrationStrategy 순서, 외부 redirect 규칙, 명세 §16 JPA 선택"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

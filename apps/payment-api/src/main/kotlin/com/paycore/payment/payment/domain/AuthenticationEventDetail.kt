@@ -1,0 +1,12 @@
+package com.paycore.payment.payment.domain
+
+/** 이벤트 상세 분류(고정 값 — 원문·기관 메시지를 싣지 않는다). */
+enum class AuthenticationEventDetail {
+    EVIDENCE_CONFLICT, SESSION_NOT_STARTED, RESULT_REF_REUSED,
+    PAYMENT_CLOSED, TTL_ELAPSED, SUPERSEDED,
+    TIMEOUT, CONNECTION, SERVER_ERROR, NOT_FOUND, MALFORMED,
+
+    /** 인증기관이 등록 요청을 거절(4xx) — REGISTRATION_FAILED 분류(AUTHN-001 §7.4.1). */
+    REJECTED,
+    STATE_MISMATCH, PROVIDER_EXPIRED, BINDING_MISMATCH, AUTHENTICATION_FAILED, USER_CANCELLED, UNSUPPORTED_CARD_TYPE,
+}

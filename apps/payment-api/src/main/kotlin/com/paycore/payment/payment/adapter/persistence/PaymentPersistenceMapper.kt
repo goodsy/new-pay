@@ -4,6 +4,7 @@ import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.application.required.PaymentCreationRecord
+import com.paycore.payment.payment.domain.CheckoutWindow
 import com.paycore.payment.payment.domain.CurrencyCode
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.IncidentHold
@@ -59,7 +60,17 @@ internal object PaymentPersistenceMapper {
             eligibilitySnapshotVersion = attributes.eligibilitySnapshotVersion.value,
             createdAt = attributes.createdAt,
             createdByCredentialId = attributes.createdByCredentialId?.value,
+            checkoutExpiresAt = checkNotNull(payment.checkoutWindow) { "a new payment carries its checkout window (D-AUTHN-005)" }.expiresAt,
+            checkoutValidityVersion = payment.checkoutWindow?.validityVersion,
         )
+    }
+
+    /** 결제창 시각은 JPA로 바꾸지 않는다(생성 INSERT·기동 전략 채우기만 — 검토 #2 m-2). 갱신 때 domain 값이 저장 값과 같은지만 확인한다(연장·변경 금지). */
+    fun requireSameCheckoutWindow(payment: Payment, row: JpaPaymentEntity) {
+        val window = payment.checkoutWindow
+        check(row.checkoutExpiresAt == window?.expiresAt && row.checkoutValidityVersion == window?.validityVersion) {
+            "the checkout window of ${row.paymentId} is fixed"
+        }
     }
 
     fun toPayment(row: JpaPaymentEntity, evidence: List<JpaPaymentTerminationEvidenceEntity>): Payment {
@@ -72,6 +83,7 @@ internal object PaymentPersistenceMapper {
             slotGeneration = row.slotGeneration,
             status = PaymentStatus.valueOf(row.status),
             terminationEvidence = ordered.map { TerminationEvidence.valueOf(it.evidence) },
+            checkoutWindow = row.checkoutExpiresAt?.let { CheckoutWindow(it, checkNotNull(row.checkoutValidityVersion)) },
         )
     }
 

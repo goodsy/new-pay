@@ -28,7 +28,7 @@ class PaymentSpec : BehaviorSpec({
 
     Given("a customer opens a payment window for an order") {
         When("the payment is requested through the domain factory") {
-            val p = Payment.request(paymentId(1), demoOrder, originalIntent, 1)
+            val p = Payment.request(paymentId(1), demoOrder, originalIntent, 1, PaymentFixture.demoWindow)
             Then("it is REQUESTED with no termination evidence and no safe termination") {
                 p.status shouldBe REQUESTED
                 p.id shouldBe paymentId(1)
@@ -41,7 +41,7 @@ class PaymentSpec : BehaviorSpec({
         }
         When("the slot generation is not positive (invalid input, explicit)") {
             Then("the factory rejects it") {
-                shouldThrow<IllegalArgumentException> { Payment.request(paymentId(1), demoOrder, originalIntent, 0) }
+                shouldThrow<IllegalArgumentException> { Payment.request(paymentId(1), demoOrder, originalIntent, 0, PaymentFixture.demoWindow) }
             }
         }
     }

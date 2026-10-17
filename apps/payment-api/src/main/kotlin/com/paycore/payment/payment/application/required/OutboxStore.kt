@@ -46,6 +46,27 @@ data class PaymentRequestedV1Payload(
     val requestedAt: Instant,
 ) : OutboxPayload
 
+/**
+ * PaymentExpired v1 payload(D-AUTHN-008, AUTHN-001 §7.5.7). PaymentRequested와 같은 기준: paymentKey·orderName·카드정보·Secret·개인정보, 결제창 토큰·세션·인증 세션 식별값은
+ * 넣지 않는다. lifecycle은 항상 EXPIRED, 종료 근거는 NOT_TRANSMITTED_AND_SESSION_DISCARDED. 금융 사실이 아니다(INTEGRATION_NON_FINANCIAL).
+ */
+data class PaymentExpiredV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantSiteId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val amountMinor: Long,
+    val currency: String,
+    val paymentMethod: String,
+    val slotGeneration: Long,
+    val lifecycle: String,
+    val terminationEvidence: String,
+    val checkoutExpiresAt: Instant,
+    val checkoutValidityVersion: String,
+    val expiredAt: Instant,
+) : OutboxPayload
+
 interface OutboxStore {
     /** event_id·effect_key 충돌은 [PersistenceFailure.UniqueConflict]. TX 없이 호출하면 거부한다. */
     fun append(event: OutboxEvent)

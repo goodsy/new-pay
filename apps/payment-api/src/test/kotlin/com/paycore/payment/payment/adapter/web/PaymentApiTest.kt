@@ -6,7 +6,9 @@ import com.paycore.payment.payment.adapter.persistence.FaultInjectionConfig
 import com.paycore.payment.payment.adapter.persistence.PAYMENT_DB_TEST_FLYWAY_LOCATIONS
 import com.paycore.payment.payment.adapter.persistence.PaymentDbTestConfig
 import com.paycore.payment.payment.application.EligibilityTestConfig
+import com.paycore.payment.payment.application.CardAuthenticationTestConfig
 import com.paycore.payment.payment.application.SecureRandomPaymentIdentifierGenerator
+import com.paycore.payment.payment.application.SiteWebHostTestConfig
 import com.paycore.payment.payment.application.provided.NewPaymentIdentifiers
 import com.paycore.payment.payment.application.required.PaymentClock
 import com.paycore.payment.payment.application.required.PaymentIdentifierGenerator
@@ -44,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(
     PaymentMySqlContainerConfig::class, PaymentDbTestConfig::class, FaultInjectionConfig::class, EligibilityTestConfig::class, ApiTestConfig::class,
+    SiteWebHostTestConfig::class, CardAuthenticationTestConfig::class,
 )
 @TestPropertySource(
     properties = [

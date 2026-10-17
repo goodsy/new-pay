@@ -9,7 +9,7 @@ import java.time.format.DateTimeParseException
 import java.util.HexFormat
 
 /*
- * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1·2 — MASTER-SNAPSHOT-002)을 PAYMENT 자체 타입으로 해석한다 —
+ * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1·2·3 — MASTER-SNAPSHOT-002, AUTHN-001)을 PAYMENT 자체 타입으로 해석한다 —
  * MASTER 코드에 의존하지 않는다(앱 간 직접 의존 금지, 계약 일치는 golden 시험 S7). PAYMENT는 이 투영을 원본으로 취급하지 않는다(판정 입력).
  */
 
@@ -25,7 +25,30 @@ enum class SiteReviewStatus { PENDING, APPROVED, REJECTED, SUSPENDED }
 
 data class Party(val businessLifecycle: Lifecycle, val merchantLifecycle: Lifecycle, val businessBlocked: Boolean, val merchantBlocked: Boolean)
 
-data class SiteEntry(val siteId: String, val lifecycle: Lifecycle, val reviewStatus: SiteReviewStatus)
+/**
+ * Site 채널(schemaVersion 3, AUTHN-001 §9.1). WEB은 MASTER `SiteChannel` WEB 문법의 host를 PAYMENT가 다시 확인한다(MASTER를 믿지 않는다 — MS2 §4.1 관례):
+ * 소문자 label 둘 이상, label 1~63(하이픈은 가운데만), 전체 253 이하, 마지막 label이 10진수·`0x` 16진이면 IP 리터럴로 거절(D-MD-014). APP은 type만.
+ */
+sealed interface SiteChannelEntry {
+    data class Web(val host: String) : SiteChannelEntry {
+        init {
+            if (host.length > MAX_HOST_LENGTH || !WEB_HOST.matches(host) || NUMERIC_LAST_LABEL.matches(host.substringAfterLast('.'))) {
+                throw SnapshotContractViolation("site WEB host violates the channel grammar")
+            }
+        }
+
+        private companion object {
+            const val MAX_HOST_LENGTH = 253
+            val WEB_HOST = Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+            val NUMERIC_LAST_LABEL = Regex("^([0-9]+|0x[0-9a-f]*)$")
+        }
+    }
+
+    data object App : SiteChannelEntry
+}
+
+/** [channel]은 schemaVersion 3부터 모든 Site에 있다(1·2이면 null). */
+data class SiteEntry(val siteId: String, val lifecycle: Lifecycle, val reviewStatus: SiteReviewStatus, val channel: SiteChannelEntry? = null)
 
 /** 시각 구간 [from, to). to가 없으면 끝이 없다. */
 data class Interval(val from: Instant, val to: Instant?) {
@@ -186,7 +209,7 @@ data class Lease(val issuedAt: Instant, val leaseSeq: Long, val leaseUntil: Inst
 }
 
 /**
- * 권리 내용(schemaVersion 1·2, 2는 MID별 승인 시작 조건 [AccountEntry.terms] 포함). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
+ * 권리 내용(schemaVersion 1·2·3 — 2부터 MID별 승인 시작 조건 [AccountEntry.terms], 3부터 Site 채널 [SiteEntry.channel]). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
  * 구성 시 구조 불변식(revision ≥ 1, MID 1개 이상, 식별자 유일)을 검사한다.
  */
 data class EntitlementContent(
@@ -196,13 +219,16 @@ data class EntitlementContent(
     val party: Party,
     val sites: List<SiteEntry>,
     val accounts: List<AccountEntry>,
-    /** 이 내용의 계약 버전(1 또는 2). 2이면 모든 MID에 승인 시작 조건이 있고, 1이면 없다. */
+    /** 이 내용의 계약 버전(1·2·3). 2 이상이면 모든 MID에 승인 시작 조건이, 3이면 모든 Site에 채널이 있다. */
     val schemaVersion: Int = 1,
 ) {
     init {
         if (!isSupportedSnapshotSchema(schemaVersion)) throw SnapshotContractViolation("unsupported snapshot schema version")
         if (accounts.any { (it.terms != null) != (schemaVersion >= TERMS_SNAPSHOT_SCHEMA_VERSION) }) {
             throw SnapshotContractViolation("authorization terms are carried exactly from schema version 2")
+        }
+        if (sites.any { (it.channel != null) != (schemaVersion >= CHANNEL_SNAPSHOT_SCHEMA_VERSION) }) {
+            throw SnapshotContractViolation("site channels are carried exactly from schema version 3")
         }
         if (merchantId.isEmpty() || businessId.isEmpty()) throw SnapshotContractViolation("identifiers must not be empty")
         if (revision < 1) throw SnapshotContractViolation("revision starts at 1")
@@ -233,7 +259,10 @@ data class EntitlementContent(
             "businessBlocked" to party.businessBlocked,
             "merchantBlocked" to party.merchantBlocked,
         ),
-        "sites" to sites.sortedBy { it.siteId }.map { mapOf("siteId" to it.siteId, "lifecycle" to it.lifecycle.name, "reviewStatus" to it.reviewStatus.name) },
+        "sites" to sites.sortedBy { it.siteId }.map { site ->
+            mapOf("siteId" to site.siteId, "lifecycle" to site.lifecycle.name, "reviewStatus" to site.reviewStatus.name) +
+                (site.channel?.let { mapOf("channel" to channelMap(it)) } ?: emptyMap())
+        },
         "accounts" to accounts.sortedBy { it.mid }.map { a ->
             mapOf<String, Any?>(
                 "mid" to a.mid,
@@ -288,12 +317,17 @@ data class EntitlementContent(
         is LimitBoundEntry.Limited -> mapOf("kind" to "LIMITED", "amountMinor" to b.amountMinor)
     }
 
+    private fun channelMap(c: SiteChannelEntry): Map<String, Any?> = when (c) {
+        is SiteChannelEntry.Web -> mapOf("type" to "WEB", "host" to c.host)
+        SiteChannelEntry.App -> mapOf("type" to "APP")
+    }
+
     companion object {
         fun contentHashOf(canonical: String): String =
             "ec1:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(StandardCharsets.UTF_8)))
 
         /**
-         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 [schemaVersion](1·2) 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
+         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 [schemaVersion](1·2·3) 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
          * [SnapshotContractViolation]. 추가 필드는 무시하지 않고 거절한다 — 내용 hash가 우리가 모르는 필드를 덮지 않게(fail-closed). v1 내용에 v2
          * 필드가 있거나 v2 내용에 v2 필드가 없어도 계약 위반이다.
          */
@@ -312,8 +346,9 @@ data class EntitlementContent(
                 },
                 sites = o.array("sites").map { s ->
                     s.obj("site").let {
-                        it.requireOnly(setOf("siteId", "lifecycle", "reviewStatus"), "site")
-                        SiteEntry(it.string("siteId"), it.enum("lifecycle"), it.enum("reviewStatus"))
+                        val withChannel = schemaVersion >= CHANNEL_SNAPSHOT_SCHEMA_VERSION
+                        it.requireOnly(if (withChannel) setOf("siteId", "lifecycle", "reviewStatus", "channel") else setOf("siteId", "lifecycle", "reviewStatus"), "site")
+                        SiteEntry(it.string("siteId"), it.enum("lifecycle"), it.enum("reviewStatus"), if (withChannel) channel(it.field("channel").obj("channel")) else null)
                     }
                 },
                 accounts = o.array("accounts").map { account(it.obj("account"), schemaVersion) },
@@ -331,6 +366,18 @@ data class EntitlementContent(
             "currencies",
         )
         private val TERMS_KEYS = setOf("limitPolicies", "policyAssignments", "cardRoutes")
+
+        private fun channel(c: JsonValue.JObject): SiteChannelEntry = when (c.string("type")) {
+            "WEB" -> {
+                c.requireOnly(setOf("type", "host"), "channel")
+                SiteChannelEntry.Web(c.string("host"))
+            }
+            "APP" -> {
+                c.requireOnly(setOf("type"), "channel")
+                SiteChannelEntry.App
+            }
+            else -> throw SnapshotContractViolation("channel type has an unknown value")
+        }
 
         private fun account(a: JsonValue.JObject, schemaVersion: Int): AccountEntry {
             val withTerms = schemaVersion >= TERMS_SNAPSHOT_SCHEMA_VERSION

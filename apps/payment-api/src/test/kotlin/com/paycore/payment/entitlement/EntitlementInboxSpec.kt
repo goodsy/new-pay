@@ -138,7 +138,7 @@ class EntitlementInboxSpec(
             val ids = SnapshotFixture.ids()
             val r1 = SnapshotFixture.entitled(ids, revision = 1)
             ok(send(mvc, body(r1, SnapshotFixture.leaseAt(T0))))
-            // MASTER-SNAPSHOT-002: 2는 이제 지원 버전이다 — 미지원(더 새) 버전의 대표 값은 지원 집합 밖 첫 값(3).
+            // MASTER-SNAPSHOT-002·AUTHN-001: 2·3은 지원 버전이다 — 미지원(더 새) 버전의 대표 값은 지원 집합 밖 첫 값(4, SnapshotFixture).
             val future = envelope(UUID.randomUUID().toString(), SnapshotFixture.UNSUPPORTED_SCHEMA_VERSION, ids.merchantId, 2, """{"futureField":true}""")
             ok(send(mvc, future, signature(future))) shouldBe ("UNSUPPORTED" to 1L)
             stored(ids.merchantId).blocked shouldBe "VERSION_UNSUPPORTED"

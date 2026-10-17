@@ -4,6 +4,7 @@ import com.paycore.payment.payment.adapter.persistence.DbAccess.Companion.unique
 import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.provided.EligibilitySnapshotVersion
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
+import com.paycore.payment.payment.domain.CheckoutWindow
 import com.paycore.payment.payment.domain.CurrencyCode
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.MerchantAccountId
@@ -39,7 +40,7 @@ object PersistenceTestData {
     fun newPaymentId(): PaymentId = PaymentId(unique("pay"))
 
     fun requested(order: OrderKey, intent: OrderIntent = intent(), slotGeneration: Long = 1, id: PaymentId = newPaymentId()): Payment =
-        Payment.request(id, order, intent.fingerprint(), slotGeneration)
+        Payment.request(id, order, intent.fingerprint(), slotGeneration, demoWindow)
 
     fun attributes(
         intent: OrderIntent = intent(),
@@ -47,6 +48,9 @@ object PersistenceTestData {
         orderName: String? = "Demo order",
         createdAt: Instant = t0,
     ) = PaymentCreationAttributes(paymentKey, intent.merchantSiteId, intent.money, PaymentMethod.CARD, orderName, snapshot, createdAt, demoActor)
+
+    /** 시험 Payment의 결제창 시각(Demo — t0 + 30분, 설정 버전 Demo). DB CHECK `checkout_expires_at > created_at`을 만족한다. */
+    val demoWindow = CheckoutWindow(t0.plusSeconds(1800), "checkout-validity-demo-1")
 
     /** 시험 전용 생성 행위자 keyId(Demo). */
     val demoActor = CredentialKeyId("demoActor0001")

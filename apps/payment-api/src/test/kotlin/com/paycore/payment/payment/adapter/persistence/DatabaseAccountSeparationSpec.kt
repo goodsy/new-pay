@@ -78,6 +78,12 @@ class DatabaseAccountSeparationSpec(
         "entitlement_mid_owner" to "Select,Insert",
         // CP-API-001 V6: Credential 투영은 읽기만(투영 적용 쓰기는 MASTER-CREDENTIAL-001이 그 경로와 함께 추가).
         "merchant_api_credential" to "Select",
+        // AUTHN-001 V8: 토큰·결제창 세션·인증 세션은 INSERT·UPDATE(삭제 Job 없음), 결정 로그와 채우기 기준 pin은 append-only.
+        "checkout_token" to "Select,Insert,Update",
+        "checkout_session" to "Select,Insert,Update",
+        "authentication_session" to "Select,Insert,Update",
+        "authentication_session_event" to "Select,Insert",
+        "payment_checkout_window_pin" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -106,6 +112,11 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_snapshot` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_mid_owner` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT ON `paycore_payment`.`merchant_api_credential` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`checkout_token` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`checkout_session` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authentication_session` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`authentication_session_event` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`payment_checkout_window_pin` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -218,9 +229,16 @@ class DatabaseAccountSeparationSpec(
                     "hold update" to c.codeOf("UPDATE incident_hold SET payment_id = 'other' WHERE merchant_account_id = '$mid'"),
                     "hold delete" to c.codeOf("DELETE FROM incident_hold WHERE merchant_account_id = '$mid'"),
                     "evidence lock" to c.codeOf("SELECT * FROM payment_termination_evidence WHERE payment_id = '${paymentId.value}' FOR UPDATE"),
+                    // AUTHN-001: 인증 세션 결정 로그·채우기 기준 pin도 append-only다.
+                    "auth event update" to c.codeOf("UPDATE authentication_session_event SET kind = 'CREATED' WHERE authentication_session_id = 'none'"),
+                    "auth event delete" to c.codeOf("DELETE FROM authentication_session_event WHERE authentication_session_id = 'none'"),
+                    "auth event lock" to c.codeOf("SELECT * FROM authentication_session_event WHERE authentication_session_id = 'none' FOR UPDATE"),
+                    "pin update" to c.codeOf("UPDATE payment_checkout_window_pin SET validity_version = 'x' WHERE pin_id = 1"),
+                    "pin delete" to c.codeOf("DELETE FROM payment_checkout_window_pin WHERE pin_id = 1"),
                 )
             } shouldBe mapOf(
                 "evidence update" to 1142, "evidence delete" to 1142, "hold update" to 1142, "hold delete" to 1142, "evidence lock" to 1142,
+                "auth event update" to 1142, "auth event delete" to 1142, "auth event lock" to 1142, "pin update" to 1142, "pin delete" to 1142,
             )
             db.count(
                 "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ? AND evidence = 'NOT_TRANSMITTED_AND_SESSION_DISCARDED'",
@@ -237,10 +255,13 @@ class DatabaseAccountSeparationSpec(
                     "idempotency delete" to c.codeOf("DELETE FROM idempotency_request WHERE merchant_account_id = 'none'"),
                     "outbox delete" to c.codeOf("DELETE FROM outbox_event WHERE event_id = 'none'"),
                     "outbox update" to c.codeOf("UPDATE outbox_event SET publish_status = 'PENDING' WHERE event_id = 'none'"),
+                    "token delete" to c.codeOf("DELETE FROM checkout_token WHERE checkout_token_id = 'none'"),
+                    "checkout session delete" to c.codeOf("DELETE FROM checkout_session WHERE checkout_session_id = 'none'"),
+                    "auth session delete" to c.codeOf("DELETE FROM authentication_session WHERE authentication_session_id = 'none'"),
                 )
             } shouldBe mapOf(
                 "payment delete" to 1142, "control delete" to 1142, "idempotency delete" to 1142, "outbox delete" to 1142,
-                "outbox update" to 1142,
+                "outbox update" to 1142, "token delete" to 1142, "checkout session delete" to 1142, "auth session delete" to 1142,
             )
         }
 
@@ -282,7 +303,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }
