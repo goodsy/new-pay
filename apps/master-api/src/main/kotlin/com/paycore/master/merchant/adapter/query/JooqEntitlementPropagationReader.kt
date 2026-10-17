@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * 권리 전파·효력 확인 조회(CQRS 조회 측, jOOQ — MASTER-SNAPSHOT-001 명세 §3.4-5, §4.8). 쓰기 없음(queryAdapterDoesNotWriteWithJooq), 한 읽기 전용
@@ -26,7 +27,9 @@ import java.time.ZoneOffset
  * revision r(가장 최근 변경 발행)의 **전체 효력 확인** = 다음 중 이른 시각:
  * - ACK: 그 Merchant 이벤트의 ACK 중 applied_revision ≥ r, 또는 r 이상 revision 이벤트의 UNSUPPORTED(PAYMENT가 fail-closed가 됨)인 첫 ACK 시각
  * - LEASE_EXPIRY: r 미만 revision으로 발행된 lease의 최댓값(없으면 r의 발행 시각 — 이전 권리가 없다)이 지금 이전이면 그 시각
- * 발행(PUBLISHED)만으로는 확인하지 않는다(R6). 시각은 저장 UTC 벽시계를 `DATE_FORMAT` 문자열로 읽는다(관례 §9.1), 비교 값은 UTC LocalDateTime으로 묶는다.
+ * 발행(PUBLISHED)만으로는 확인하지 않는다(R6). 시각은 저장 UTC 벽시계를 `DATE_FORMAT` 문자열로 읽고, 비교 값은 UTC 벽시계 문자열 리터럴
+ * `CAST('yyyy-MM-dd HH:mm:ss.SSS' AS DATETIME(3))`로 묶는다(관례 §9.1·§13 — `LocalDateTime` 바인딩은 Asia/Seoul JVM에서 9시간 앞선 시각과 비교해 끝난 lease를
+ * 열림으로 봤다, RED: TZ-FIX-001 `EntitlementPropagationQuerySpec`).
  */
 @Component
 class JooqEntitlementPropagationReader(private val dsl: DSLContext) : EntitlementPropagationReader {
@@ -101,7 +104,7 @@ class JooqEntitlementPropagationReader(private val dsl: DSLContext) : Entitlemen
                 .where(i2.MERCHANT_ID.eq(m).and(a.APPLIED_REVISION.ge(r).or(unsupported(a).and(i2.REVISION.ge(r))))),
         )
         val priorLeaseOpen = DSL.exists(
-            DSL.selectOne().from(i3).where(i3.MERCHANT_ID.eq(m).and(i3.REVISION.lt(r)).and(i3.LEASE_UNTIL.gt(utc(now)))),
+            DSL.selectOne().from(i3).where(i3.MERCHANT_ID.eq(m).and(i3.REVISION.lt(r)).and(i3.LEASE_UNTIL.gt(utcLiteral(now)))),
         )
         val unconfirmed = dsl.selectCount().from(latest).where(DSL.not(acked).and(priorLeaseOpen)).fetchSingle().value1()
 
@@ -123,7 +126,9 @@ class JooqEntitlementPropagationReader(private val dsl: DSLContext) : Entitlemen
     private fun unsupported(a: com.paycore.master.jooq.generated.tables.EntitlementSnapshotAck): Condition =
         a.OUTCOME.eq("UNSUPPORTED").or(a.ORIGINAL_OUTCOME.eq("UNSUPPORTED"))
 
-    private fun utc(at: Instant): LocalDateTime = LocalDateTime.ofInstant(at, ZoneOffset.UTC)
+    /** 비교용 UTC 벽시계 리터럴(JooqAuthorizationTermsCoverageReader와 같은 방식 — 바인딩하지 않아 시간대 변환 없음). */
+    private fun utcLiteral(at: Instant): Field<LocalDateTime?> =
+        DSL.field("CAST({0} AS DATETIME(3))", LocalDateTime::class.java, DSL.inline(UTC_WALL_CLOCK.format(at)))
 
     /** DATETIME(3) 컬럼(또는 집계)의 저장 UTC 벽시계를 ISO-8601 `…Z` 문자열로 읽는다(JooqMerchantStructureReader와 같은 이유). */
     private fun instant(field: Field<LocalDateTime?>): Field<String?> =
@@ -131,5 +136,6 @@ class JooqEntitlementPropagationReader(private val dsl: DSLContext) : Entitlemen
 
     private companion object {
         const val EVENT_CATEGORY = "ENTITLEMENT_SNAPSHOT"
+        val UTC_WALL_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS").withZone(ZoneOffset.UTC)
     }
 }

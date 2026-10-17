@@ -2289,7 +2289,8 @@
       "acceptanceCriteria": [
         "버전 정책과 재원/한도/Hold 분리",
         "승인/전송/매입 확정 단계 변경 시 중복 선지급 없음",
-        "지급 멱등성 및 장애 회복 검증"
+        "지급 멱등성 및 장애 회복 검증",
+        "(TZ-FIX-001 review n-1) financial-batch FINANCIAL datasource UTC 설정(connectionTimeZone=UTC·forceConnectionTimeZoneToSession·hibernate.jdbc.time_zone=UTC)과 세션 시간대 점검(PaymentDbSessionTimeZoneCheck 방식), Spring Batch JobRepository 시각 저장 확인, 비UTC JVM 시험"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -4283,7 +4284,7 @@
       "id": "TZ-FIX-001",
       "title": "기존 jOOQ 조회의 LocalDateTime 바인딩 시간대 결함(JVM 기본 시간대 ≠ UTC) 수정",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "MASTER-SNAPSHOT-002"
       ],
@@ -4292,66 +4293,120 @@
         "(MASTER-SNAPSHOT-002 review1 m-4) JooqEntitlementPropagationReader.overview(LEASE_UNTIL.gt(utc(now)))와 payment JooqEntitlementFreshnessReader의 LocalDateTime 바인딩을 JooqAuthorizationTermsCoverageReader와 같은 UTC 리터럴 방식 또는 공통 helper로 통일",
         "비UTC JVM 기본 시간대(Asia/Seoul)에서 실패하는 시험을 먼저 추가(RED) 후 수정",
         "(AUTHN-001 review #4 n-2) payment-api entitlement/adapter/query/JooqEntitlementFreshnessReader.kt:26-34가 LocalDateTime을 jOOQ 비교(LEASE_UNTIL.le(at)·TIMESTAMPDIFF)에 그대로 바인딩 — JVM 시간대 결함(CONVENTIONS §13 위반, freshness gauge만 영향). UTC 처리 + 비UTC JVM 시험",
-        "(AUTHN-001 S11) payment checkout 경로 jOOQ 시간 처리는 adapter.query.UtcWallClock으로 수정됨(CONVENTIONS §9.1) — 다른 모듈 jOOQ reader 전수 점검 시 참고"
+        "(AUTHN-001 S11) payment checkout 경로 jOOQ 시간 처리는 adapter.query.UtcWallClock으로 수정됨(CONVENTIONS §9.1) — 다른 모듈 jOOQ reader 전수 점검 시 참고",
+        "전수 점검: 모든 모듈 main 코드에서 jOOQ/JDBC로 DATETIME 컬럼을 읽거나 비교 값으로 묶는 곳(LocalDateTime 바인딩·LocalDateTime 필드 직접 읽기·java.sql.Timestamp)을 목록화하고 각각 안전/결함 판정(명세 §에 표로 기록)",
+        "결함 판정 건만 수정(관례 §9.1: DATE_FORMAT 문자열 읽기 + CAST(… AS DATETIME(3)) UTC 리터럴), 모듈 경계상 helper 공유가 불가하면 모듈별 동일 방식, 동작·API·스키마 변경 없음",
+        "범위 밖: JPA 경로(hibernate.jdbc.time_zone=UTC로 안전, 점검 표에 근거만 기록), 새 의존성, 정책 변경",
+        "VERIFY-GATE PASS(새 fingerprint)·테스트 수 1482 이상·SELFTEST 81 이상, 빌드 파일 변경 없으면 DEPS/CVE 생략 근거 기록"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/master-api/src/**",
+        "apps/payment-api/src/**",
+        "apps/financial-batch/src/**",
+        "apps/internal-admin/src/**",
+        "apps/institution-simulator/src/**",
+        "libs/**",
+        "docs/repository/**"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "fingerprint": "sha256:ca42caed38e6c27235c59c03228691f2561f35858103740d25081ae123118f95",
+        "verifyGate": "build/harness-evidence/TZ-FIX-001-2026-10-17T062053Z.json",
+        "evidenceSha256": "4b615441eb9dec7487a9f72769ab40b5ee18175e5443d79fc6f0edfa212b30cb",
+        "verdict": "PASS",
+        "tests": {
+          "apps/financial-batch": 26,
+          "apps/institution-simulator": 30,
+          "apps/internal-admin": 29,
+          "apps/master-api": 320,
+          "apps/payment-api": 968,
+          "libs/test-support": 112,
+          "total": 1485
+        },
+        "harnessSelftest": "Ran 81 tests in 14.363s",
+        "at": "2026-10-17T06:37Z",
+        "fingerprintCheck": "gate 전·후·DONE 기록 시 재계산 동일",
+        "depsCve": "SKIPPED — 빌드 파일 변경 없음(git diff HEAD gradle/settings/build-logic/*.gradle.kts: 0줄), 새 의존성 없음. 직전 AUTHN-001 053156Z DEPS x5·CVE PASS 유효",
+        "red": "2026-10-17T06:08:05Z Seoul JVM: master EntitlementPropagationQuerySpec:70 expected 0 was 1, payment EntitlementFreshnessQuerySpec:56 [1,1] vs [1,0]; GREEN 06:11Z",
+        "note": "구현자 full check는 호스트 메모리 부족으로 중단(환경) → VERIFY-GATE가 전체 시험 수행. 명세 §6.3의 '게이트 대기' 문구는 fingerprint 보존을 위해 미수정, 결과는 이 evidence가 원본"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "fingerprint": "sha256:ca42caed38e6c27235c59c03228691f2561f35858103740d25081ae123118f95",
+        "note": "HIGH·MINOR 없음. 점검 누락 없음(jOOQ reader 7개 전부), 수정·시험 정당, 금융 영향 없음(gauge만). nit n-1 financial-batch UTC 설정 부재 → 첫 FINANCIAL 배치 작업 이관, n-2~n-6 미반영(선택)"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "두 결함 모두 gauge 전용, 승인 판정은 JPA head FOR SHARE 경로(review 확인)",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "조회 전용 gauge 수정, 쓰기·TX·금액 경로 변경 없음",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "조회 전용 gauge 수정, 쓰기·TX·금액 경로 변경 없음",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "조회 전용 gauge 수정, 쓰기·TX·금액 경로 변경 없음",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "만료 lease 집계·잔여 시간이 정확해져 Snapshot 전파 지연 탐지·복구 판단 근거 정상화(EntitlementFreshnessQuerySpec)"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "MASTER 미확인 최신 revision 수(UNCONFIRMED gauge) 정확화 — 전파 대조 지표(EntitlementPropagationQuerySpec)"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
+          "applicability": "NOT_APPLICABLE",
+          "reason": "조회 전용 gauge 수정, 쓰기·TX·금액 경로 변경 없음",
           "verificationCommandIds": [],
           "evidence": null
         },
         "Observability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "Seoul JVM에서 gauge 9시간 오차 제거, RED/GREEN 시험 2건"
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-17 착수(사용자: '다음 순서 진행, 내부 관리자 시스템 진행 전에 알려줘'). 금융/정책 질문 없음 — 시간대 처리는 기존 관례 §9.1·§13 적용",
+        "2026-10-17 DONE 판정: VERIFY-GATE PASS 062053Z(1485/0, Ran 81 tests in 14.363s), REVIEW_PASS"
+      ],
+      "specification": {
+        "path": "docs/repository/TZ-FIX-001-JOOQ-UTC.md",
+        "sha256": "35f0a7aab5452567c39b187bd872f7f0bcb956a34d58b7404ea7bab82cb105aa"
+      },
+      "openItems": [
+        "(review n-1) financial-batch FINANCIAL datasource에 connectionTimeZone=UTC·forceConnectionTimeZoneToSession·hibernate.jdbc.time_zone·세션 점검 없음 → 첫 FINANCIAL 배치 작업(SETTLEMENT-001)에서 §9.1 적용",
+        "(review n-4·n-5) withJvmTimeZone 시험 helper 4곳 중복·UTC 리터럴 helper 모듈별 중복 → libs/test-support 공용화 후속 후보"
+      ]
     },
     {
       "id": "ADMIN-BOOT-001",

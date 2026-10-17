@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:bdb8be8fbd1cb4fb48a92b70f2e0b230fc861c564d7698e8e9a3d449121c618e",
-  "lastSuccessfulStep": "AUTHN-001 DONE (VERIFY-GATE PASS 032157Z, 최종 REVIEW_PASS_WITH_FIXES)",
+  "codeFingerprint": "sha256:ca42caed38e6c27235c59c03228691f2561f35858103740d25081ae123118f95",
+  "lastSuccessfulStep": "TZ-FIX-001 DONE (VERIFY-GATE PASS 062053Z, REVIEW_PASS)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "TZ-FIX-001 착수(agreedOrder 다음): jOOQ reader JVM 시간대 결함 전수 점검(payment JooqEntitlementFreshnessReader 확인, master JooqEntitlementPropagationReader:126) → 이후 CANCEL-CONTRACT-001",
+  "nextResumeAction": "CANCEL-CONTRACT-001 착수(agreedOrder 다음) → AUTH-001 → CP-QUERY-001 → WEBHOOK-001, ADMIN-BOOT-001 착수 전 사용자에게 알림",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -357,6 +357,16 @@
       "at": "2026-10-17",
       "taskId": "AUTHN-001",
       "event": "DONE: VERIFY-GATE PASS 032157Z(1482/0, SELFTEST 81, fingerprint bdb8be8f… 전·후 동일), DEPS x5·CVE PASS 053156Z(실제 취약점 0), 최종 review REVIEW_PASS_WITH_FIXES"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "TZ-FIX-001",
+      "event": "AUTHN-001 커밋 4e06ca7 push 완료. TZ-FIX-001 IN_PROGRESS(사용자: 다음 순서 진행, ADMIN-BOOT-001 전에 알림)"
+    },
+    {
+      "at": "2026-10-17",
+      "taskId": "TZ-FIX-001",
+      "event": "DONE: VERIFY-GATE PASS 062053Z(1485/0), REVIEW_PASS, DEPS/CVE 생략(빌드 파일 변경 없음)"
     }
   ],
   "agreedOrder": [
