@@ -1,9 +1,12 @@
 package com.paycore.payment.payment.application.required
 
+import com.paycore.payment.payment.application.provided.ConfirmOutcome
+import com.paycore.payment.payment.application.provided.ConfirmRejection
 import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
 import com.paycore.payment.payment.application.provided.CreatePaymentRejection
 import com.paycore.payment.payment.application.provided.IdempotencyRecordId
 import com.paycore.payment.payment.application.provided.RequestFingerprint
+import com.paycore.payment.payment.domain.AuthorizationId
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.IdempotencyKey
 import com.paycore.payment.payment.domain.MerchantAccountId
@@ -21,6 +24,9 @@ data class IdempotencyScope(
 /** 멱등 대상 연산. [code]는 영속 값(operation 컬럼)이며 바꾸지 않는다. */
 enum class IdempotentOperation(val code: String) {
     CREATE_PAYMENT("CreatePayment"),
+
+    /** AUTH-001 §4.8: confirm(승인 시작). 결과는 Authorization 참조(D-AUTH-004 — 재생 = 현재 결과) 또는 저장 거절. */
+    CONFIRM_PAYMENT("ConfirmPayment"),
 }
 
 /** 이 요청의 예약 내용. [expiresAt]은 [createdAt] + 보존 기간(D-CPC-004: 30일)이며 DB CHECK가 같은 규칙을 강제한다. */
@@ -37,6 +43,20 @@ sealed interface StoredRequestResult {
     data class Succeeded(val outcome: CreatePaymentOutcome, val paymentId: PaymentId) : StoredRequestResult
 
     data class Rejected(val rejection: CreatePaymentRejection, val referencePaymentId: PaymentId) : StoredRequestResult
+
+    /** confirm 성공(AUTH-001 §4.8): Authorization 참조 — 재생 응답은 그 승인의 **현재** 상태다. */
+    data class ConfirmAccepted(val outcome: ConfirmOutcome, val paymentId: PaymentId, val authorizationId: AuthorizationId) : StoredRequestResult
+
+    /** confirm 업무 거절(AUTH-001 §4.8): Payment 참조 + 고정 분류 상세(예: PAYMENT_NOT_ELIGIBLE의 reason). */
+    data class ConfirmRejected(val rejection: ConfirmRejection, val paymentId: PaymentId, val detail: String?) : StoredRequestResult {
+        init {
+            require(detail == null || DETAIL.matches(detail)) { "rejection detail must be a fixed upper-case classification" }
+        }
+
+        private companion object {
+            val DETAIL = Regex("^[A-Z_]{1,48}$")
+        }
+    }
 }
 
 /** 이미 있던 멱등 기록. [result]가 null이면 커밋된 예약(PENDING)이라는 뜻이며 정상 흐름에서는 생길 수 없다(같은 TX에서 결과를 쓴다). */

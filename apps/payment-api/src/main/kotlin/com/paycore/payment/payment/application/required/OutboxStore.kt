@@ -67,6 +67,87 @@ data class PaymentExpiredV1Payload(
     val expiredAt: Instant,
 ) : OutboxPayload
 
+/**
+ * PaymentAuthorized v1(AUTH-001 §4.10, AC1 §11 — FINANCIAL_FACT, effect_key `PaymentAuthorized:{transactionId}` = FINANCIAL 업무 키). 카드번호·Secret·인증 증거 원문·기관 계약계정
+ * (D-MS2-005) 없음. 금액은 minor 정수. 기관 영업일은 기관이 준 값 그대로(의미는 Q-CALENDAR).
+ */
+data class PaymentAuthorizedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantSiteId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val authorizationId: String,
+    val transactionId: String,
+    val amountMinor: Long,
+    val currency: String,
+    val planKind: String,
+    val installmentMonths: Int?,
+    val cardType: String,
+    val issuerCode: String,
+    val acquirerCode: String,
+    val approvalNumber: String,
+    val providerTransactionId: String,
+    val institutionTransactionDate: java.time.LocalDate,
+    val institutionBusinessDate: java.time.LocalDate?,
+    val approvedAt: Instant,
+    val policyAssignmentVersion: String,
+    val entitlementVersion: String,
+) : OutboxPayload
+
+/** PaymentAuthorizationFailed v1(AUTH-001 §4.10 — INTEGRATION_NON_FINANCIAL, 금융 효과 없음). [failureCategory]는 응답과 같은 고정 분류. */
+data class PaymentAuthorizationFailedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val authorizationId: String,
+    val failureEvidence: String,
+    val failureCategory: String,
+    val failedAt: Instant,
+) : OutboxPayload
+
+/**
+ * AuthorizationIncidentDetected v1(AUTH-001 §4.10 — RISK_INCIDENT, 새 hold가 append될 때만 — F-1·AU-17, effect_key에 occurrence — m-9). 여는 관찰의 금액·통화·승인번호를 담는다
+ * (정산 대상 아님 — RECON Case 입력).
+ */
+data class AuthorizationIncidentDetectedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val authorizationId: String,
+    val reason: String,
+    val occurrence: Int,
+    val observationSource: String?,
+    val observationResultId: String?,
+    val observedOutcome: String?,
+    val observedAmountMinor: Long?,
+    val observedCurrency: String?,
+    val observedApprovalNumber: String?,
+    val detectedAt: Instant,
+) : OutboxPayload
+
+/** AuthorizationOutcomeUnresolved v1(AUTH-001 §6.2 — OPERATIONAL_RISK, 회복 예산 소진·연령 초과 → 대사 이관, 상태 불변). */
+data class AuthorizationOutcomeUnresolvedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val authorizationId: String,
+    val attemptId: String,
+    val requestId: String,
+    val inquiryCount: Int,
+    val unknownSince: Instant,
+    val escalatedAt: Instant,
+    /** 이관 판단에 쓴 회복 설정 버전(검토 #3 m-4). */
+    val configVersion: String,
+    val escalationReason: EscalationReason,
+) : OutboxPayload
+
+/** 대사 이관 사유(검토 #3 m-4): 조회 예산 소진 또는 UNKNOWN 연령 상한(보존기간 도달 포함 — 기동 검사로 maxAge < 보존기간). */
+enum class EscalationReason { BUDGET, MAX_AGE }
+
 interface OutboxStore {
     /** event_id·effect_key 충돌은 [PersistenceFailure.UniqueConflict]. TX 없이 호출하면 거부한다. */
     fun append(event: OutboxEvent)

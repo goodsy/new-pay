@@ -29,7 +29,7 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
         val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
         first.control.occupy(second, first.payment)
         val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-        gen2.authorization.beginDispatch(gen2.attemptId)
+        gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
         apply(first, observation(InstitutionOutcome.APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
         apply(gen2, observation(InstitutionOutcome.APPROVED, attempt = gen2.attemptId), newTransactionId = PaymentTransactionId("demo-ptx-0002"))
         return first to gen2
@@ -42,7 +42,7 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
 
     Given("the release record itself") {
         Then("the requester must not approve, and a MATCH reference and a reason are required") {
-            val hold = IncidentHold(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION)
+            val hold = IncidentHold.reconstitute(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)
             shouldThrow<IllegalArgumentException> { release(hold, HoldReleaseFinding.NO_EFFECT_CONFIRMED, by = requester, approvedBy = requester) }
             shouldThrow<IllegalArgumentException> {
                 IncidentHoldRelease(hold, requester, approver, " ", HoldReleaseFinding.NO_EFFECT_CONFIRMED, "r", startedAt)
@@ -76,7 +76,7 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             val s = lateApprovalOnDeclined()
             val hold = s.control.activeIncidentHolds.single()
             shouldThrow<IncidentHoldReleaseRejectedException> {
-                s.control.releaseIncidentHold(release(IncidentHold(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT), HoldReleaseFinding.NO_EFFECT_CONFIRMED))
+                s.control.releaseIncidentHold(release(IncidentHold.reconstitute(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null), HoldReleaseFinding.NO_EFFECT_CONFIRMED))
             }
             s.control.isOnIncidentHold() shouldBe true
             s.control.releaseIncidentHold(release(hold, HoldReleaseFinding.NO_EFFECT_CONFIRMED))
@@ -90,15 +90,15 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             s.control.releaseIncidentHold(release(first, HoldReleaseFinding.NO_EFFECT_CONFIRMED))
             s.control.reportSuccessAfterTermination(s.payment) shouldBe true
             s.control.reportSuccessAfterTermination(s.payment) shouldBe true // 활성 hold가 있으면 멱등
-            s.control.incidentHolds shouldBe listOf(first, IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2))
+            s.control.incidentHolds shouldBe listOf(first, IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null))
             s.control.incidentHoldReleases.single().hold shouldBe first
             s.control.isOnIncidentHold() shouldBe true
             s.control.decide(OrderFixture.originalIntent, s.payment) shouldBe PaymentSlotDecision.Blocked(BlockReason.INCIDENT_HOLD, s.payment.id)
             // 새 hold도 2인 승인 + MATCH로만 해제한다.
             shouldThrow<IllegalArgumentException> {
-                release(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2), HoldReleaseFinding.NO_EFFECT_CONFIRMED, by = requester, approvedBy = requester)
+                release(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null), HoldReleaseFinding.NO_EFFECT_CONFIRMED, by = requester, approvedBy = requester)
             }
-            s.control.releaseIncidentHold(release(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2), HoldReleaseFinding.NO_EFFECT_CONFIRMED))
+            s.control.releaseIncidentHold(release(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null), HoldReleaseFinding.NO_EFFECT_CONFIRMED))
             s.control.isOnIncidentHold() shouldBe false
         }
         Then("after a REAL release a new success report also opens a NEW hold (occurrence 2) and blocks the order again (D-AUTH-013)") {
@@ -106,18 +106,18 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             val first = s.control.activeIncidentHolds.single()
             s.control.releaseIncidentHold(release(first, HoldReleaseFinding.REAL_APPROVAL_CONFIRMED))
             s.control.reportSuccessAfterTermination(s.payment) shouldBe true
-            s.control.activeIncidentHolds shouldBe listOf(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2))
+            s.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null))
             s.control.incidentHoldReleases.single().hold shouldBe first
             s.control.decide(OrderFixture.originalIntent, s.payment) shouldBe PaymentSlotDecision.Blocked(BlockReason.INCIDENT_HOLD, s.payment.id)
             shouldThrow<IllegalArgumentException> {
-                release(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2), HoldReleaseFinding.NO_EFFECT_CONFIRMED, by = approver, approvedBy = approver)
+                release(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null), HoldReleaseFinding.NO_EFFECT_CONFIRMED, by = approver, approvedBy = approver)
             }
         }
         Then("stored hold occurrences per (payment, reason) must be 1..n") {
             val c = OrderPaymentControlFixture.openedWithRequestedPayment().control
             shouldThrow<IllegalArgumentException> {
                 OrderPaymentControl.reconstitute(c.orderKey, c.fixedIntent, c.currentPaymentId, c.generation, null,
-                    listOf(IncidentHold(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 2)))
+                    listOf(IncidentHold.reconstitute(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null)), emptyList())
             }
         }
     }
@@ -130,17 +130,17 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             // 같은 주문의 다른 사건 이유(교차 검증용): 승인된 Payment에 대해 늦은 성공 hold는 생길 수 없으므로 복원으로 두 번째 hold를 둔다.
             val restored = OrderPaymentControl.reconstitute(
                 s.control.orderKey, s.control.fixedIntent, s.control.currentPaymentId, s.control.generation, s.control.authorizedPaymentId,
-                listOf(conflict, IncidentHold(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION)),
+                listOf(conflict, IncidentHold.reconstitute(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)), emptyList(),
             )
             restored.releaseIncidentHold(release(conflict, HoldReleaseFinding.REAL_APPROVAL_CONFIRMED))
-            restored.activeIncidentHolds shouldBe listOf(IncidentHold(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION))
+            restored.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
             restored.isOnIncidentHold() shouldBe true
         }
         Then("REAL_APPROVAL_CONFIRMED for a payment other than the recorded success is rejected without changes") {
             val s = AuthorizationFixture.authorized()
-            val other = IncidentHold(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION)
+            val other = IncidentHold.reconstitute(OrderFixture.paymentId(7), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)
             val restored = OrderPaymentControl.reconstitute(
-                s.control.orderKey, s.control.fixedIntent, s.control.currentPaymentId, s.control.generation, s.control.authorizedPaymentId, listOf(other),
+                s.control.orderKey, s.control.fixedIntent, s.control.currentPaymentId, s.control.generation, s.control.authorizedPaymentId, listOf(other), emptyList(),
             )
             shouldThrow<IncidentHoldReleaseRejectedException> { restored.releaseIncidentHold(release(other, HoldReleaseFinding.REAL_APPROVAL_CONFIRMED)) }
             restored.isOnIncidentHold() shouldBe true
@@ -167,7 +167,7 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
 
     Given("a double approval: earlier generation late approval on hold, current generation authorized (D-AUTH-011)") {
         Then("the correction reference is required exactly for DOUBLE_APPROVAL_CORRECTED (with MATCH and two people)") {
-            val hold = IncidentHold(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION)
+            val hold = IncidentHold.reconstitute(OrderFixture.paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)
             shouldThrow<IllegalArgumentException> {
                 IncidentHoldRelease(hold, requester, approver, "recon-match-demo-1", HoldReleaseFinding.DOUBLE_APPROVAL_CORRECTED, "r", startedAt)
             }
@@ -220,6 +220,20 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             real.usage.reservationOf(real.authorization.id)?.state shouldBe LimitReservationState.CONSUMED
             real.control.authorizedPaymentId shouldBe real.payment.id
         }
+        // AUTH-001 m-11(D-AUTH-010 "REAL이면 소비"): 같은 Payment의 해제 기록 중 실제 승인 판정이 하나라도 있으면 기관 승인이 있었으므로 FORCED는 CONSUMED.
+        Then("two holds of one payment released with different findings (REAL first, NO_EFFECT last): the forced limit is CONSUMED, not RELEASED (m-11)") {
+            val s = lateApprovalOnDeclined()
+            // 같은 늦은 승인 관찰 키로 다른 내용이 오면 KEY_CONFLICT → 같은 Payment에 CONFLICTING hold가 하나 더 생긴다.
+            apply(s, observation(InstitutionOutcome.APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late",
+                terms = AuthorizationFixture.approvedTerms().copy(approvalNumber = "A0002")))
+            s.control.activeIncidentHolds.size shouldBe 2
+            val success = s.control.activeIncidentHolds.single { it.reason == IncidentReason.SUCCESS_AFTER_TERMINATION }
+            IncidentHoldSettlement.release(s.control, release(success, HoldReleaseFinding.REAL_APPROVAL_CONFIRMED), s.authorization, s.usage)
+            s.usage.reservationOf(s.authorization.id)?.state shouldBe LimitReservationState.FORCED
+            IncidentHoldSettlement.release(s.control, release(s.control.activeIncidentHolds.single(), HoldReleaseFinding.NO_EFFECT_CONFIRMED), s.authorization, s.usage)
+            s.usage.reservationOf(s.authorization.id)?.state shouldBe LimitReservationState.CONSUMED
+            s.control.isOnIncidentHold() shouldBe false
+        }
         Then("an authorization of another payment, or only one of authorization/usage, is a caller defect and changes nothing") {
             val s = lateApprovalOnDeclined()
             val hold = s.control.activeIncidentHolds.single()
@@ -266,7 +280,7 @@ class IncidentHoldReleaseSpec : BehaviorSpec({
             val s = AuthorizationFixture.dispatching()
             s.control.reportConflictingResult(s.payment)
             s.control.reportConflictingResult(s.payment)
-            s.control.incidentHolds shouldBe listOf(IncidentHold(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT))
+            s.control.incidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null))
         }
     }
 })

@@ -7,7 +7,6 @@ import com.paycore.payment.payment.application.CreatePaymentFixture.newIdentifie
 import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
 import com.paycore.payment.payment.application.provided.CreatePaymentResult
 import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
-import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
 import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.PaymentStatus
 import com.zaxxer.hikari.HikariDataSource
@@ -42,7 +41,7 @@ import javax.sql.DataSource
 @PaymentDbTest
 class UtcStorageSpec(
     private val service: CreatePaymentUseCase,
-    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val incidents: IncidentReporter,
     private val payments: JpaPaymentRepository,
     private val controls: JpaOrderPaymentControlRepository,
     private val transactionManager: PlatformTransactionManager,

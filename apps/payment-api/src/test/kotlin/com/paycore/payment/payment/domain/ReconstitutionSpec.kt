@@ -28,7 +28,7 @@ class ReconstitutionSpec : BehaviorSpec({
     Given("a stored payment row") {
         When("it is restored with its status and termination evidence") {
             Then("the state is kept and later transitions follow the normal rules") {
-                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 3, REQUESTED, emptyList(), PaymentFixture.demoWindow)
+                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 3, REQUESTED, emptyList(), PaymentFixture.demoWindow, authorizationStarted = false)
                 restored.status shouldBe REQUESTED
                 restored.slotGeneration shouldBe 3
                 restored.startAuthorization()
@@ -36,7 +36,7 @@ class ReconstitutionSpec : BehaviorSpec({
             }
 
             Then("a restored FAILED payment keeps its evidence and its safe-termination judgement") {
-                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, FAILED, listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE), null)
+                val restored = Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, FAILED, listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE).map { TerminationEvidenceRecord(it, null) }, null, authorizationStarted = false)
                 restored.terminationEvidence shouldBe listOf(TIMEOUT, INSTITUTION_CONFIRMED_DECLINE)
                 restored.hasSafeTermination() shouldBe true
                 shouldThrow<InvalidPaymentTransitionException> { restored.startAuthorization() }
@@ -47,13 +47,33 @@ class ReconstitutionSpec : BehaviorSpec({
             Then("evidence on a non-terminated payment is rejected") {
                 listOf(REQUESTED, AUTHORIZING, UNKNOWN, AUTHORIZED).forEach { status ->
                     shouldThrow<IllegalArgumentException> {
-                        Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, status, listOf(INSTITUTION_CONFIRMED_DECLINE), null)
+                        Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, status, listOf(TerminationEvidenceRecord(INSTITUTION_CONFIRMED_DECLINE, null)), null, authorizationStarted = status != REQUESTED)
+                    }
+                }
+            }
+
+            // 검토 #1 m-1: 승인 시작 여부는 상태·근거 출처와 모순될 수 없다.
+            Then("an authorization-started flag contradicting the status or the evidence source is rejected") {
+                shouldThrow<IllegalArgumentException> {
+                    Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, REQUESTED, emptyList(), PaymentFixture.demoWindow, authorizationStarted = true)
+                }
+                listOf(AUTHORIZING, UNKNOWN, AUTHORIZED).forEach { status ->
+                    shouldThrow<IllegalArgumentException> {
+                        Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 1, status, emptyList(), PaymentFixture.demoWindow, authorizationStarted = false)
+                    }
+                }
+                listOf(INSTITUTION_CONFIRMED_DECLINE, TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED).forEach { evidence ->
+                    shouldThrow<IllegalArgumentException> {
+                        Payment.reconstitute(
+                            paymentId(1), demoOrder, originalIntent, 1, FAILED, listOf(TerminationEvidenceRecord(evidence, TestEvidenceSources.of(evidence))), null,
+                            authorizationStarted = false,
+                        )
                     }
                 }
             }
 
             Then("a non-positive slot generation is rejected") {
-                shouldThrow<IllegalArgumentException> { Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 0, EXPIRED, emptyList(), null) }
+                shouldThrow<IllegalArgumentException> { Payment.reconstitute(paymentId(1), demoOrder, originalIntent, 0, EXPIRED, emptyList(), null, authorizationStarted = false) }
             }
         }
     }
@@ -62,7 +82,7 @@ class ReconstitutionSpec : BehaviorSpec({
         val current = PaymentFixture.failedWithConfirmedDecline(n = 1, slotGeneration = 2)
 
         When("it is restored at generation 2 with its current payment") {
-            val control = OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 2, null, emptyList())
+            val control = OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 2, null, emptyList(), emptyList())
 
             Then("decisions use the restored generation and fixed intent") {
                 control.decide(originalIntent, current) shouldBe PaymentSlotDecision.CreateNewPayment(3)
@@ -72,8 +92,8 @@ class ReconstitutionSpec : BehaviorSpec({
         }
 
         When("it is restored with an incident hold and a past authorization") {
-            val hold = IncidentHold(paymentId(9), IncidentReason.SUCCESS_AFTER_TERMINATION)
-            val control = OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 2, paymentId(5), listOf(hold))
+            val hold = IncidentHold.reconstitute(paymentId(9), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)
+            val control = OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 2, paymentId(5), listOf(hold), emptyList())
 
             Then("the hold and the authorization history are kept") {
                 control.incidentHolds shouldBe listOf(hold)
@@ -85,11 +105,11 @@ class ReconstitutionSpec : BehaviorSpec({
         When("the stored state cannot exist in the domain") {
             Then("a non-positive generation or duplicated holds are rejected") {
                 shouldThrow<IllegalArgumentException> {
-                    OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 0, null, emptyList())
+                    OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 0, null, emptyList(), emptyList())
                 }
-                val hold = IncidentHold(paymentId(9), IncidentReason.SUCCESS_AFTER_TERMINATION)
+                val hold = IncidentHold.reconstitute(paymentId(9), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null)
                 shouldThrow<IllegalArgumentException> {
-                    OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 1, null, listOf(hold, hold))
+                    OrderPaymentControl.reconstitute(demoOrder, originalIntent, paymentId(1), 1, null, listOf(hold, hold), emptyList())
                 }
             }
         }

@@ -25,15 +25,24 @@ class AuthorizationResolutionSpec : BehaviorSpec({
     Given("Attempt dispatch states (TX1 PREPARED → TXd DISPATCHING → result)") {
         Then("PREPARED → DISPATCHING once; dispatching again is rejected") {
             val s = AuthorizationFixture.started()
-            s.authorization.beginDispatch(s.attemptId)
+            s.authorization.beginDispatch(s.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
             s.authorization.attempt(s.attemptId).state shouldBe AttemptState.DISPATCHING
             s.authorization.attempt(s.attemptId).mayHaveBeenSent() shouldBe true
-            shouldThrow<InvalidAuthorizationTransitionException> { s.authorization.beginDispatch(s.attemptId) }
+            shouldThrow<InvalidAuthorizationTransitionException> { s.authorization.beginDispatch(s.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION) }
+        }
+        // D-AUTH1-007(Q-S8-1 = A): 전송 게이트 통과 때 Route 프로파일(Capability) 버전을 Attempt에 고정한다 — 회복의 무효과 종결 요청 근거.
+        Then("TXd fixes the route profile version on the attempt; a PREPARED attempt has none; a blank version is refused without changing the attempt (D-AUTH1-007)") {
+            val s = AuthorizationFixture.started()
+            s.authorization.attempt(s.attemptId).routeProfileVersion shouldBe null
+            shouldThrow<IllegalArgumentException> { s.authorization.beginDispatch(s.attemptId, " ") }
+            s.authorization.attempt(s.attemptId).state shouldBe AttemptState.PREPARED
+            s.authorization.beginDispatch(s.attemptId, "sim-van-a-demo-1")
+            s.authorization.attempt(s.attemptId).routeProfileVersion shouldBe "sim-van-a-demo-1"
         }
         Then("gate refusal or recovery fencing abandons only a PREPARED attempt → FAILED(PRE_TRANSMISSION_FAILURE_CONFIRMED), limit released") {
             listOf(AbandonCause.GATE_REFUSED, AbandonCause.FENCED_BY_RECOVERY).forEach { cause ->
                 val s = AuthorizationFixture.started()
-                AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, cause) shouldBe
+                AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, cause, AuthorizationFixture.startedAt.plusSeconds(1)) shouldBe
                     ResolutionOutcome.Failed(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
                 s.payment.status shouldBe PaymentStatus.FAILED
                 s.payment.hasSafeTermination() shouldBe true
@@ -45,13 +54,13 @@ class AuthorizationResolutionSpec : BehaviorSpec({
         Then("a DISPATCHING attempt can be abandoned only for a proven connect failure; fencing it is rejected and changes nothing") {
             val fenced = AuthorizationFixture.dispatching()
             shouldThrow<InvalidAuthorizationTransitionException> {
-                AuthorizationResolution.abandonBeforeDispatch(fenced.payment, fenced.authorization, fenced.usage, fenced.attemptId, AbandonCause.FENCED_BY_RECOVERY)
+                AuthorizationResolution.abandonBeforeDispatch(fenced.payment, fenced.authorization, fenced.usage, fenced.attemptId, AbandonCause.FENCED_BY_RECOVERY, AuthorizationFixture.startedAt.plusSeconds(1))
             }
             fenced.payment.status shouldBe PaymentStatus.AUTHORIZING
             fenced.authorization.status shouldBe AuthorizationStatus.OPEN
             fenced.reservation() shouldBe LimitReservationState.RESERVED
             val connect = AuthorizationFixture.dispatching()
-            AuthorizationResolution.abandonBeforeDispatch(connect.payment, connect.authorization, connect.usage, connect.attemptId, AbandonCause.CONNECT_FAILED)
+            AuthorizationResolution.abandonBeforeDispatch(connect.payment, connect.authorization, connect.usage, connect.attemptId, AbandonCause.CONNECT_FAILED, AuthorizationFixture.startedAt.plusSeconds(1))
             connect.payment.status shouldBe PaymentStatus.FAILED
         }
         Then("a failure after dispatch (timeout) → UNKNOWN, not FAILED; the limit stays reserved; repeating is idempotent") {
@@ -69,6 +78,115 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             shouldThrow<InvalidAuthorizationTransitionException> {
                 AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.TIMEOUT)
             }
+        }
+        // AUTH-001 rev 0.3 m-2: 연결 실패 보고가 lease 회복(OUTCOME_UNKNOWN)·결과 확정보다 늦게 도착하면 전송 전 실패를 증명할 수 없다 → 효과 없음, UNKNOWN 유지.
+        Then("a connect failure reported after recovery already marked the attempt OUTCOME_UNKNOWN is NoChange: it stays UNKNOWN (m-2)") {
+            val s = AuthorizationFixture.dispatching()
+            AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.DISPATCH_LEASE_EXPIRED)
+            AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, AbandonCause.CONNECT_FAILED, AuthorizationFixture.startedAt.plusSeconds(1)) shouldBe ResolutionOutcome.NoChange
+            s.payment.status shouldBe PaymentStatus.UNKNOWN
+            s.authorization.attempt(s.attemptId).state shouldBe AttemptState.OUTCOME_UNKNOWN
+            s.reservation() shouldBe LimitReservationState.RESERVED
+        }
+        Then("a connect failure after the result was confirmed, or a second fencing of an abandoned attempt, is NoChange (m-2, n-6)") {
+            val authorized = AuthorizationFixture.authorized()
+            AuthorizationResolution.abandonBeforeDispatch(authorized.payment, authorized.authorization, authorized.usage, authorized.attemptId, AbandonCause.CONNECT_FAILED, AuthorizationFixture.startedAt.plusSeconds(1)) shouldBe
+                ResolutionOutcome.NoChange
+            authorized.payment.status shouldBe PaymentStatus.AUTHORIZED
+            val fenced = AuthorizationFixture.started()
+            AuthorizationResolution.abandonBeforeDispatch(fenced.payment, fenced.authorization, fenced.usage, fenced.attemptId, AbandonCause.FENCED_BY_RECOVERY, AuthorizationFixture.startedAt.plusSeconds(1))
+            AuthorizationResolution.abandonBeforeDispatch(fenced.payment, fenced.authorization, fenced.usage, fenced.attemptId, AbandonCause.FENCED_BY_RECOVERY, AuthorizationFixture.startedAt.plusSeconds(1)) shouldBe
+                ResolutionOutcome.NoChange
+            fenced.payment.terminationEvidence shouldBe listOf(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
+        }
+        Then("a connect failure for a PREPARED attempt is a defect (it was never dispatched): rejected") {
+            val s = AuthorizationFixture.started()
+            shouldThrow<InvalidAuthorizationTransitionException> {
+                AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, AbandonCause.CONNECT_FAILED, AuthorizationFixture.startedAt.plusSeconds(1))
+            }
+            s.payment.status shouldBe PaymentStatus.AUTHORIZING
+        }
+    }
+
+    // AUTH-001 rev 0.3 m-6: 종료 근거는 출처 기록(종류·참조·기록 시각·기록자)과 함께 남는다(Auditability). 출처가 관찰이면 관찰 키, 전송 전 포기면 Attempt.
+    Given("termination evidence recorded by the resolution carries its source (m-6)") {
+        Then("a confirmed decline records the observation as the source") {
+            val s = AuthorizationFixture.declined()
+            val record = s.payment.terminationEvidenceRecords.single()
+            record.evidence shouldBe TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE
+            record.source shouldBe TerminationEvidenceSource(
+                TerminationEvidenceSourceKind.OBSERVATION, "demo-att-0001/RESPONSE/sim-result-1", AuthorizationFixture.startedAt.plusSeconds(3), TerminationEvidenceSource.SYSTEM,
+            )
+        }
+        Then("an abandoned attempt records the attempt as the source") {
+            val s = AuthorizationFixture.started()
+            AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, AbandonCause.GATE_REFUSED, AuthorizationFixture.startedAt.plusSeconds(1))
+            s.payment.terminationEvidenceRecords.single().source shouldBe TerminationEvidenceSource(
+                TerminationEvidenceSourceKind.ATTEMPT_ABANDON, "demo-att-0001", AuthorizationFixture.startedAt.plusSeconds(1), TerminationEvidenceSource.SYSTEM,
+            )
+        }
+    }
+
+    // AUTH-001 rev 0.3 H-1: 해제 판정은 그 hold를 연 관찰만 설명한다. hold가 활성인 동안 흡수된 다른 승인(새 hold·사건 없음, AU-17)은 설명되지 않는다.
+    // rev 0.5 D-AUTH1-005(m-D): 그 hold는 재보고를 기다리지 않고 **해제 연산에서** 흡수된 관찰을 출처로 열린다. 이후 재보고는 그 활성 hold에 흡수된다.
+    Given("an approval absorbed while a hold was active, re-reported after that hold was released as REAL (H-1)") {
+        Then("the release opens a new hold from the absorbed approval (D-AUTH1-005); the re-report is absorbed by it") {
+            val s = AuthorizationFixture.declined()
+            apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
+            val hold = s.control.activeIncidentHolds.single()
+            hold.sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-late"), 0)
+            // 다른 승인 C(다른 PTX)가 hold 활성 중에 온다 — 새 hold 없음(같은 활성 hold).
+            val other = approvedTerms().copy(providerTransactionId = "PTX-SIM-0042", approvalNumber = "A0042")
+            apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-c", terms = other))
+            s.control.incidentHolds.size shouldBe 1
+            IncidentHoldSettlement.release(s.control, IncidentHoldRelease(hold, OperatorId("demo-operator-a"), OperatorId("demo-operator-b"),
+                "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)), s.authorization, s.usage)
+            s.control.activeIncidentHolds.single().occurrence shouldBe 2
+            s.control.activeIncidentHolds.single().sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.NOTIFICATION, "ntf-c"), 0)
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-c", terms = other)) shouldBe
+                ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
+            s.control.incidentHolds.size shouldBe 2
+            s.control.activeIncidentHolds.single().sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.NOTIFICATION, "ntf-c"), 0)
+        }
+    }
+
+    // AUTH-001 검토 #1 H-1(미완 — 상충 variant): 같은 관찰 키 K의 variant 0(조건 A)이 hold를 열고 variant 1(조건 B)이 활성 hold에 흡수됐다. REAL 해제는 A만 설명한다 —
+    // B가 다른 키로 재보고되면 새 사건이다(키만 비교하면 K가 설명 집합에 있어 B가 검사되지 않는다).
+    Given("a key-conflict variant absorbed while the hold opened by variant 0 was active, re-reported under a new key after a REAL release (review #1 H-1)") {
+        Then("the release opens a new hold from the absorbed variant 1 (D-AUTH1-005); a re-report of B is absorbed, a re-report of A stays explained") {
+            val s = AuthorizationFixture.authorized()
+            val termsA = approvedTerms().copy(providerTransactionId = "PTX-SIM-00A1", approvalNumber = "A00A1")
+            val termsB = approvedTerms().copy(providerTransactionId = "PTX-SIM-00B2", approvalNumber = "A00B2")
+            apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-k", terms = termsA)) shouldBe
+                ResolutionOutcome.Incident(IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+            val hold = s.control.activeIncidentHolds.single()
+            hold.sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-k"), 0)
+            apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-k", terms = termsB))
+            s.authorization.refOf(s.authorization.keyConflictingObservations.single()) shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-k"), 1)
+            s.authorization.keyConflictingObservations.single().approved shouldBe termsB
+            s.control.incidentHolds.size shouldBe 1
+            IncidentHoldSettlement.release(s.control, IncidentHoldRelease(hold, OperatorId("demo-operator-a"), OperatorId("demo-operator-b"),
+                "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)), s.authorization, s.usage)
+            s.control.activeIncidentHolds.single().occurrence shouldBe 2
+            s.control.activeIncidentHolds.single().sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-k"), 1)
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-b", terms = termsB)) shouldBe
+                ResolutionOutcome.Incident(IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+            s.control.activeIncidentHolds.single().occurrence shouldBe 2
+            // A 자체의 재보고(다른 키)는 해제 판정이 설명한 승인이다.
+            apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-a", terms = termsA))
+            s.control.incidentHolds.size shouldBe 2
+        }
+    }
+
+    // 검토 #2 m-C: 기관이 무효과 종결을 확정한 뒤 늦게 도착한 PENDING(종결과 동시에 만들어진 예약)은 종료 근거도 승인도 아니다 — 아무것도 바꾸지 않는다.
+    Given("a PENDING observation after FAILED(NO_EFFECT) (review #2 m-C)") {
+        Then("it is NoChange: no hold, the payment stays FAILED with its evidence") {
+            val s = AuthorizationFixture.unknownAfterTimeout()
+            apply(s, observation(NO_EFFECT_CONFIRMED, source = ObservationSource.INQUIRY, resultId = "vc-closure")) shouldBe ResolutionOutcome.Failed(TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT)
+            apply(s, observation(PENDING, source = ObservationSource.RESPONSE, resultId = "vp-pending")) shouldBe ResolutionOutcome.NoChange
+            s.control.incidentHolds shouldBe emptyList()
+            s.payment.status shouldBe PaymentStatus.FAILED
+            s.authorization.status shouldBe AuthorizationStatus.FAILED
         }
     }
 
@@ -126,7 +244,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
                 s.authorization.status shouldBe AuthorizationStatus.UNKNOWN
                 s.authorization.transaction shouldBe null
                 s.control.authorizedPaymentId shouldBe null
-                s.control.activeIncidentHolds shouldBe listOf(IncidentHold(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT))
+                s.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null))
                 s.reservation() shouldBe LimitReservationState.RESERVED
             }
         }
@@ -157,6 +275,9 @@ class AuthorizationResolutionSpec : BehaviorSpec({
                 approvedTerms().copy(providerTransactionId = "PTX-SIM-0002"),
                 approvedTerms().copy(approvalNumber = "A0002"),
                 approvedTerms().copy(institutionTransactionDate = java.time.LocalDate.of(2026, 10, 16)),
+                // 검토 #1 m-2: 기관 영업일도 기관 승인 조건이다(값의 시간대·출처 의미는 Q-CALENDAR — 여기서는 같음 비교만).
+                approvedTerms().copy(institutionBusinessDate = java.time.LocalDate.of(2026, 10, 16)),
+                approvedTerms().copy(institutionBusinessDate = null),
             ).forEach { terms ->
                 val s = AuthorizationFixture.authorized()
                 val first = s.authorization.transaction
@@ -240,7 +361,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
             first.control.occupy(second, first.payment)
             val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-            gen2.authorization.beginDispatch(gen2.attemptId)
+            gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
             AuthorizationResolution.markOutcomeUnknown(gen2.payment, gen2.authorization, gen2.attemptId, UnknownCause.TIMEOUT)
             apply(first, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
             IncidentHoldSettlement.release(
@@ -256,7 +377,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             gen2.authorization.transaction shouldBe outcome.transaction
             second.status shouldBe PaymentStatus.AUTHORIZED
             first.control.authorizedPaymentId shouldBe first.payment.id
-            first.control.activeIncidentHolds shouldBe listOf(IncidentHold(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT))
+            first.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null))
             first.control.decide(OrderFixture.originalIntent, second) shouldBe PaymentSlotDecision.Blocked(BlockReason.INCIDENT_HOLD, second.id)
             first.usage.reservationOf(gen2.authorization.id)?.state shouldBe LimitReservationState.CONSUMED
             // 이 hold는 DOUBLE_APPROVAL_CORRECTED로 해제한다(주문 이력 gen1 유지, 새 Payment 금지 유지).
@@ -288,7 +409,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             s.control.isOnIncidentHold() shouldBe false
             apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-late-2")) shouldBe
                 ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
-            s.control.activeIncidentHolds shouldBe listOf(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2))
+            s.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null))
             s.reservation() shouldBe LimitReservationState.FORCED
             s.control.decide(OrderFixture.originalIntent, s.payment) shouldBe PaymentSlotDecision.Blocked(BlockReason.INCIDENT_HOLD, s.payment.id)
         }
@@ -304,7 +425,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-late-2",
                 terms = approvedTerms().copy(providerTransactionId = "PTX-SIM-0009"))) shouldBe
                 ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
-            s.control.activeIncidentHolds shouldBe listOf(IncidentHold(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2))
+            s.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 2, null))
             s.reservation() shouldBe LimitReservationState.CONSUMED
             s.usage.forcedMinor shouldBe 0L
             s.control.decide(OrderFixture.originalIntent, s.payment) shouldBe PaymentSlotDecision.Blocked(BlockReason.INCIDENT_HOLD, s.payment.id)
@@ -315,7 +436,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
             first.control.occupy(second, first.payment)
             val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-            gen2.authorization.beginDispatch(gen2.attemptId)
+            gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
             apply(first, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
             IncidentHoldSettlement.release(first.control, IncidentHoldRelease(first.control.activeIncidentHolds.single(), OperatorId("demo-operator-a"),
                 OperatorId("demo-operator-b"), "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)),
@@ -328,9 +449,89 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             apply(gen2, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-gen2-2", attempt = gen2.attemptId,
                 terms = approvedTerms().copy(providerTransactionId = "PTX-SIM-0010"))) shouldBe
                 ResolutionOutcome.Incident(IncidentReason.CONFLICTING_INSTITUTION_RESULT)
-            first.control.activeIncidentHolds shouldBe listOf(IncidentHold(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 2))
+            first.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 2, null))
             first.usage.reservationOf(gen2.authorization.id)?.state shouldBe LimitReservationState.CONSUMED
             gen2.authorization.transaction?.id shouldBe PaymentTransactionId("demo-ptx-0002")
+        }
+        // AUTH-001 m-10(D-AUTH-013 "다른 기관 거래 식별자" 문구): REAL·DOUBLE 해제 판정은 그때 확인한 승인을 설명한다 — 같은 승인(terms 전체 일치)의 재보고는 새 사건이 아니다.
+        Then("after a REAL release a re-report of the same approval (same terms, new observation key) is NoChange: no new hold, limit stays CONSUMED (m-10)") {
+            val s = AuthorizationFixture.declined()
+            apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
+            IncidentHoldSettlement.release(
+                s.control,
+                IncidentHoldRelease(s.control.activeIncidentHolds.single(), OperatorId("demo-operator-a"), OperatorId("demo-operator-b"),
+                    "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)),
+                s.authorization, s.usage,
+            )
+            apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-late-2")) shouldBe ResolutionOutcome.NoChange
+            s.control.isOnIncidentHold() shouldBe false
+            s.control.incidentHolds.size shouldBe 1
+            s.reservation() shouldBe LimitReservationState.CONSUMED
+            s.authorization.observations.size shouldBe 3
+        }
+        Then("a REAL release (approval X) then a NO_EFFECT release (approval Y): Y again opens a new hold (D-AUTH-012), X re-reported stays explained (H-1)") {
+            val s = AuthorizationFixture.declined()
+            apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
+            IncidentHoldSettlement.release(s.control, IncidentHoldRelease(s.control.activeIncidentHolds.single(), OperatorId("demo-operator-a"),
+                OperatorId("demo-operator-b"), "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)),
+                s.authorization, s.usage)
+            apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-other",
+                terms = approvedTerms().copy(providerTransactionId = "PTX-SIM-0009"))) shouldBe ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
+            IncidentHoldSettlement.release(s.control, IncidentHoldRelease(s.control.activeIncidentHolds.single(), OperatorId("demo-operator-a"),
+                OperatorId("demo-operator-b"), "recon-match-demo-2", HoldReleaseFinding.NO_EFFECT_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(900)),
+                s.authorization, s.usage)
+            // X(첫 hold를 연 승인)는 REAL 판정이 설명한다 → 효과 없음.
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-1")) shouldBe ResolutionOutcome.NoChange
+            s.control.isOnIncidentHold() shouldBe false
+            // Y(NO_EFFECT로 해제된 hold를 연 승인)의 재보고는 판정과 모순 → 새 hold(occurrence 3).
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-2",
+                terms = approvedTerms().copy(providerTransactionId = "PTX-SIM-0009"))) shouldBe ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
+            s.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(s.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 3, null))
+        }
+        // CANCEL-CONTRACT-001 §14.1 nit 3: RECON이 거래를 기록한 FAILED 승인(D-CANCEL-011·013)에 그 거래와 같은 승인이 새 관찰 키로 오면 효과 없음.
+        Then("a FAILED authorization with a transaction recorded by reconciliation and a REAL release: the same approval re-reported is NoChange (nit 3)") {
+            val s = AuthorizationFixture.declined()
+            val late = observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late")
+            apply(s, late)
+            s.authorization.recordLateApprovalByReconciliation(
+                AuthorizationTransaction(PaymentTransactionId("demo-ptx-late"), s.authorization.id, s.payment.id, late.approved!!, late.key,
+                    AuthorizationFixture.startedAt.plusSeconds(300)),
+            )
+            IncidentHoldSettlement.release(s.control, IncidentHoldRelease(s.control.activeIncidentHolds.single(), OperatorId("demo-operator-a"),
+                OperatorId("demo-operator-b"), "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)),
+                s.authorization, s.usage)
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-2")) shouldBe ResolutionOutcome.NoChange
+            s.control.isOnIncidentHold() shouldBe false
+            apply(s, observation(APPROVED, source = ObservationSource.RECONCILIATION, resultId = "rcn-3",
+                terms = approvedTerms().copy(approvalNumber = "A0099"))) shouldBe ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
+        }
+    }
+
+    // AUTH-001 n-3(명세 §4.11-3): 회복 Worker의 lease 만료 표시와 TX2 결과 반영이 경합해 늦게 도착한 표시는 예외가 아니라 효과 없음이다.
+    Given("marking the outcome unknown after the attempt was already resolved or abandoned (n-3)") {
+        Then("an AUTHORIZED authorization (attempt RESOLVED): NoChange, nothing changes") {
+            val s = AuthorizationFixture.authorized()
+            AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.DISPATCH_LEASE_EXPIRED) shouldBe ResolutionOutcome.NoChange
+            s.authorization.status shouldBe AuthorizationStatus.AUTHORIZED
+            s.payment.status shouldBe PaymentStatus.AUTHORIZED
+        }
+        Then("a FAILED authorization after a confirmed decline: NoChange") {
+            val s = AuthorizationFixture.declined()
+            AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.DISPATCH_LEASE_EXPIRED) shouldBe ResolutionOutcome.NoChange
+            s.authorization.status shouldBe AuthorizationStatus.FAILED
+        }
+        Then("an attempt abandoned before dispatch (recovery fencing won): NoChange") {
+            val s = AuthorizationFixture.started()
+            AuthorizationResolution.abandonBeforeDispatch(s.payment, s.authorization, s.usage, s.attemptId, AbandonCause.FENCED_BY_RECOVERY, AuthorizationFixture.startedAt.plusSeconds(1))
+            AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.DISPATCH_LEASE_EXPIRED) shouldBe ResolutionOutcome.NoChange
+            s.authorization.attempt(s.attemptId).state shouldBe AttemptState.ABANDONED_BEFORE_DISPATCH
+        }
+        Then("a PREPARED attempt is still a defect (it was never sent): rejected") {
+            val s = AuthorizationFixture.started()
+            shouldThrow<InvalidAuthorizationTransitionException> {
+                AuthorizationResolution.markOutcomeUnknown(s.payment, s.authorization, s.attemptId, UnknownCause.DISPATCH_LEASE_EXPIRED)
+            }
+            s.authorization.status shouldBe AuthorizationStatus.OPEN
         }
     }
 
@@ -356,14 +557,14 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
             first.control.occupy(second, first.payment)
             val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-            gen2.authorization.beginDispatch(gen2.attemptId)
+            gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
             apply(first, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late")) shouldBe
                 ResolutionOutcome.Incident(IncidentReason.SUCCESS_AFTER_TERMINATION)
             val approved = apply(gen2, observation(APPROVED, attempt = gen2.attemptId), newTransactionId = PaymentTransactionId("demo-ptx-0002"))
             approved.shouldBeInstanceOf<ResolutionOutcome.Authorized>().transaction.paymentId shouldBe second.id
             second.status shouldBe PaymentStatus.AUTHORIZED
             first.control.authorizedPaymentId shouldBe second.id
-            first.control.activeIncidentHolds shouldBe listOf(IncidentHold(first.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION))
+            first.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(first.payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
             first.usage.reservationOf(gen2.authorization.id)?.state shouldBe LimitReservationState.CONSUMED
             first.usage.reservationOf(first.authorization.id)?.state shouldBe LimitReservationState.FORCED
         }

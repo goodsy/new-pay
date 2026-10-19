@@ -5,6 +5,7 @@ import com.paycore.payment.payment.application.required.AuthenticationSessionAtt
 import com.paycore.payment.payment.application.required.AuthenticationSessionRepository
 import com.paycore.payment.payment.application.required.PersistenceFailure
 import com.paycore.payment.payment.application.required.Versioned
+import com.paycore.payment.payment.domain.AuthenticationRef
 import com.paycore.payment.payment.domain.AuthenticationSession
 import com.paycore.payment.payment.domain.AuthenticationSessionId
 import com.paycore.payment.payment.domain.CheckoutSessionId
@@ -44,6 +45,10 @@ class JpaAuthenticationSessionRepository(
 
     override fun findIdByState(checkoutSessionId: CheckoutSessionId, stateDigest: SecretDigest): AuthenticationSessionId? = translate(ENTITY) {
         rows.findIdByCheckoutSessionAndState(checkoutSessionId.value, stateDigest.value)?.let(::AuthenticationSessionId)
+    }
+
+    override fun findIdByAuthenticationRef(authenticationRef: AuthenticationRef): AuthenticationSessionId? = translate(ENTITY) {
+        rows.findIdByAuthenticationRef(authenticationRef.value)?.let(::AuthenticationSessionId)
     }
 
     override fun update(session: AuthenticationSession, expectedVersion: Long): Long = translate(ENTITY) {

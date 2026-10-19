@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application.required
 
+import com.paycore.payment.payment.domain.AuthenticationRef
 import com.paycore.payment.payment.domain.AuthenticationSession
 import com.paycore.payment.payment.domain.AuthenticationSessionId
 import com.paycore.payment.payment.domain.CheckoutSessionId
@@ -33,6 +34,12 @@ interface AuthenticationSessionRepository {
 
     /** 복귀 세션 선택(§7.3): 그 결제창 세션의 세션 중 state digest가 같은 것(비잠금, UNIQUE). */
     fun findIdByState(checkoutSessionId: CheckoutSessionId, stateDigest: SecretDigest): AuthenticationSessionId?
+
+    /**
+     * confirm 세션 조회(AUTH-001 명세 §4.3-6, AUTHN-001 §22-8): 가맹점이 넘긴 인증 참조로 세션 id를 찾는다(비잠금 — UNIQUE, 대체·만료된 행도 찾힌다. 귀속 가능 여부는
+     * 잠근 뒤 `bindingRejection`이 판정한다).
+     */
+    fun findIdByAuthenticationRef(authenticationRef: AuthenticationRef): AuthenticationSessionId?
 
     /** 상태 전이를 반영한다. 생성 시 불변 값(바인딩·상관 값·만료 시각·속성)은 바꾸지 않는다. 새 version을 돌려준다. */
     fun update(session: AuthenticationSession, expectedVersion: Long): Long

@@ -1,5 +1,9 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.domain.fail
+import com.paycore.payment.payment.domain.expire
+import com.paycore.payment.payment.domain.addTerminationEvidence
+import com.paycore.payment.payment.domain.reportSuccessAfterTermination
 import com.paycore.payment.payment.adapter.persistence.DbAccess.Companion.unique
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.USD
 import com.paycore.payment.payment.adapter.persistence.PersistenceTestData.attributes
@@ -225,6 +229,7 @@ class PaymentStoreAdapterSpec(
                     payments.insertNew(first, attributes())
                     controls.openOrLock(OrderPaymentControl.open(first), t0)
                 }
+                first.startAuthorization()
                 first.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE)
                 val second = requested(order, slotGeneration = 2)
 
@@ -239,7 +244,7 @@ class PaymentStoreAdapterSpec(
                 val restored = inTx { controls.lock(order)!! }
                 restored.value.generation shouldBe 2L
                 restored.value.currentPaymentId shouldBe second.id
-                restored.value.incidentHolds shouldContainExactly listOf(IncidentHold(first.id, IncidentReason.SUCCESS_AFTER_TERMINATION))
+                restored.value.incidentHolds shouldContainExactly listOf(IncidentHold.reconstitute(first.id, IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
 
                 // 같은 늦은 성공 재보고: domain이 no-op, 저장도 그대로(행 1, version 불변).
                 inTx {

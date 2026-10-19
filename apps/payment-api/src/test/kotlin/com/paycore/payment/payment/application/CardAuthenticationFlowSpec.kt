@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
@@ -316,7 +317,7 @@ class CardAuthenticationFlowSpec(
 
         Then("a payment that is no longer REQUESTED closes the checkout session (PAYMENT_NOT_AVAILABLE) on start without changing the payment") {
             val c = checkout()
-            tx.executeWithoutResult { payments.lock(c.paymentId)!!.let { p -> p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
+            tx.executeWithoutResult { payments.lock(c.paymentId)!!.let { p -> p.value.startAuthorization(); p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
             val r = begin(c).shouldBeInstanceOf<StartCardAuthenticationResult.PaymentNotAvailable>()
             r.failRedirect shouldBe "$failUrl?paymentId=${c.paymentId.value}&code=PAYMENT_NOT_AVAILABLE"
             checkoutSessionOf(c).let { it["status"] shouldBe "COMPLETED"; it["close_reason"] shouldBe "PAYMENT_NOT_AVAILABLE" }

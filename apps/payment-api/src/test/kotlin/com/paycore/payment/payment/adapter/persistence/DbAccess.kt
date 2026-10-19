@@ -65,6 +65,24 @@ class DbAccess(private val container: MySQLContainer) {
 
     fun count(sql: String, vararg args: Any?): Long = withApp { (it.scalar(sql, *args) as Number).toLong() }
 
+    /**
+     * AUTH-001 L-3 legacy 행 준비: AUTH-001 이전 domain이 허용했던 "미전송 REQUESTED를 기관·전송 근거로 종료"한 저장 행을 만든다. 지금 domain 전이로는 만들 수 없는
+     * 상태라(시험 이름에 legacy) root 연결로 행을 직접 바꾼다 — 옛 볼륨에 남아 있을 수 있는 행이 계속 새 Payment를 막는지(기대값 불변) 보는 용도다.
+     */
+    fun terminateAsLegacy(paymentId: String, status: String, evidence: String?) {
+        require(status == "FAILED" || status == "EXPIRED") { "legacy rows are terminated rows: $status" }
+        withRoot { c ->
+            c.autoCommit = false
+            check(c.update("UPDATE $databaseName.payment SET status = ?, version = version + 1 WHERE payment_id = ? AND status = 'REQUESTED'", status, paymentId) == 1) {
+                "legacy termination starts from a stored REQUESTED payment"
+            }
+            if (evidence != null) {
+                c.update("INSERT INTO $databaseName.payment_termination_evidence (payment_id, seq, evidence) VALUES (?, 0, ?)", paymentId, evidence)
+            }
+            c.commit()
+        }
+    }
+
     /** 잠금 관찰 전용 root 연결(autocommit). 관찰마다 새로 접속하면 인증 비용으로 관찰이 늦어져 대기 TX가 먼저 timeout될 수 있다. */
     private val probe: Connection by lazy { root() }
 

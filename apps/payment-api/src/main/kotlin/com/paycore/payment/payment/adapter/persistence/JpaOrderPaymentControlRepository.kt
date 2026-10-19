@@ -20,6 +20,7 @@ import java.time.Instant
 class JpaOrderPaymentControlRepository(
     private val controls: OrderPaymentControlJpaRepository,
     private val holds: IncidentHoldJpaRepository,
+    private val releases: IncidentHoldReleaseJpaRepository,
     private val entityManager: EntityManager,
 ) : OrderPaymentControlRepository {
 
@@ -55,10 +56,17 @@ class JpaOrderPaymentControlRepository(
             "authorization history is never erased"
         }
 
-        val stored = holds.findByOrder(key.environment, key.merchantAccountId, key.merchantOrderId).map { it.paymentId to it.reason }
-        val current = control.incidentHolds.map { it.paymentId.value to it.reason.name }
-        check(current.size >= stored.size && current.subList(0, stored.size) == stored) { "incident holds are append-only" }
+        val storedRows = holds.findByOrder(key.environment, key.merchantAccountId, key.merchantOrderId)
+        val stored = storedRows.map(PaymentPersistenceMapper::toHold)
+        val current = control.incidentHolds
+        // hold 식별(paymentId, reason, occurrence)과 여는 관찰(H-1)이 저장된 그대로 앞부분에 있어야 한다(append-only).
+        check(current.size >= stored.size && current.subList(0, stored.size).zip(stored).all { (c, s) -> c == s && c.sourceObservation == s.sourceObservation }) {
+            "incident holds are append-only"
+        }
         val appended = current.drop(stored.size)
+        // AUTH-001 n-4: 해제 기록 쓰기 경로는 이 작업에 없다(RECON-CONTRACT-001이 권한과 함께 추가) — 저장 안 된 해제는 거부한다(fail-closed).
+        val storedReleases = if (storedRows.isEmpty()) 0 else releases.findByHoldIds(storedRows.mapNotNull { it.id }).size
+        check(control.incidentHoldReleases.size == storedReleases) { "incident hold releases are written only by the reconciliation release use case" }
 
         val rootChanged = row.currentPaymentId != control.currentPaymentId.value || row.generation != control.generation ||
             row.authorizedPaymentId != control.authorizedPaymentId?.value
@@ -68,7 +76,15 @@ class JpaOrderPaymentControlRepository(
             row.authorizedPaymentId = control.authorizedPaymentId?.value
             val timestampChanged = row.updatedAt != at
             row.updatedAt = at
-            appended.forEach { (paymentId, reason) -> entityManager.persist(JpaIncidentHoldEntity.newRow(key, paymentId, reason, at)) }
+            appended.forEach { h ->
+                val source = h.sourceObservation
+                entityManager.persist(
+                    JpaIncidentHoldEntity.newRow(
+                        key, h.paymentId.value, h.reason.name, h.occurrence, source?.key?.attemptId?.value, source?.key?.source?.name, source?.key?.sourceResultId,
+                        source?.variant, at,
+                    ),
+                )
+            }
             if (!rootChanged && !timestampChanged) entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)
         }
         entityManager.flush()
@@ -77,7 +93,9 @@ class JpaOrderPaymentControlRepository(
 
     private fun toDomain(row: JpaOrderPaymentControlEntity): OrderPaymentControl {
         val k = row.orderKey
-        return PaymentPersistenceMapper.toControl(row, holds.findByOrder(k.environment, k.merchantAccountId, k.merchantOrderId))
+        val holdRows = holds.findByOrder(k.environment, k.merchantAccountId, k.merchantOrderId)
+        val releaseRows = if (holdRows.isEmpty()) emptyList() else releases.findByHoldIds(holdRows.mapNotNull { it.id })
+        return PaymentPersistenceMapper.toControl(row, holdRows, releaseRows)
     }
 
     private companion object {

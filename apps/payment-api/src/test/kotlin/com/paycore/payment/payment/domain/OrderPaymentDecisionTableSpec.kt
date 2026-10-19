@@ -66,6 +66,16 @@ class OrderPaymentDecisionTableSpec : BehaviorSpec({
         }
     }
 
+    // 검토 #1 n-1: 공개 전이로 만들 수 있는 조합은 정상 경로, 아니면 legacy 저장 행을 명시한다(fixture가 조용히 바꾸지 않는다).
+    fun terminated(status: PaymentStatus, evidence: TerminationEvidence?): OrderPaymentScenario =
+        if (PaymentFixture.reachableTermination(status, evidence)) {
+            OrderPaymentControlFixture.withCurrentPayment(status, evidence)
+        } else {
+            OrderPaymentControlFixture.withCurrentLegacyPayment(status, evidence)
+        }
+
+    // AUTH-001 L-3: 불충분 근거·교차 조합 종료는 정상 전이로 만들 수 없어 fixture가 legacy 저장 행(Payment.reconstitute)으로 준비한다.
+    // 판정 기대값(차단/허용)은 그대로다 — 저장된 옛 행도 새 Payment를 열지 못한다(AC 8, Reviewer 확인 대상).
     for (status in listOf(FAILED, EXPIRED)) {
         for (evidence in TerminationEvidenceOracle.evidenceOrNone) {
             val label = TerminationEvidenceOracle.label(evidence)
@@ -84,19 +94,19 @@ class OrderPaymentDecisionTableSpec : BehaviorSpec({
                         else -> "a new payment is blocked until evidence is confirmed"
                     }
                     Then(outcome) {
-                        val s = OrderPaymentControlFixture.withCurrentPayment(status, evidence)
+                        val s = terminated(status, evidence)
                         s.control.decide(originalIntent, s.current) shouldBe expected
                     }
                 }
                 When("a different fixed order input is requested") {
                     Then("it conflicts (a changed order needs a new order ID)") {
-                        val s = OrderPaymentControlFixture.withCurrentPayment(status, evidence)
+                        val s = terminated(status, evidence)
                         s.control.decide(differentAmountIntent, s.current) shouldBe FixedIntentConflict(first)
                     }
                 }
                 When("a success is reported for it after termination (incident hold)") {
                     Then("a new payment is blocked by the incident hold with the existing payment as reference (D-CPD-004)") {
-                        val s = OrderPaymentControlFixture.withCurrentPayment(status, evidence)
+                        val s = terminated(status, evidence)
                         s.control.reportSuccessAfterTermination(s.current)
                         s.control.decide(originalIntent, s.current) shouldBe Blocked(BlockReason.INCIDENT_HOLD, first)
                     }

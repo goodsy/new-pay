@@ -733,3 +733,30 @@ occurrence 기본값 1로 복원)도 occurrence를 다뤄야 하며, hold 해제
 - **변이 RED(`/tmp/mut6.sh`)**: 이전 동작(REAL·DOUBLE 뒤 열지 않음) 분기를 되돌리면 대상 Spec 실패 — 결과는 아래 실행 결과 줄.
 
 - **실행 결과(구현자 실행, Verifier 판정 아님)**: 변이(REAL·DOUBLE 뒤 열지 않음 복원) → AuthorizationResolutionSpec+IncidentHoldReleaseSpec exit 1, 54건 중 3 실패, 원복 cmp 확인. ./gradlew --stop exit 0(2026-10-15 18:57:35 KST) → ./gradlew :apps:payment-api:test **exit 0**, 54파일 **706건, 실패 0·오류 0·skip 0**(705 → +1) → ./gradlew :apps:payment-api:check **exit 0**(verifyNoInstancio, verifyRuntimeHasNoTestTools 113 모듈), 종료 19:01:14. harness/commands.json 하한 1102 → **1103**(+1).
+
+### 19.10 AUTH-001 구현에서 이 계약과 달라진 점·확정된 점(2026-10-19, AUTH-001 S8 기록)
+
+AUTH-001(`docs/repository/AUTH-001-AUTHORIZATION.md` rev 0.8)이 이 계약을 구현하며 **명시적으로 바꾸거나 확정한 것만** 적는다. 근거·시험은 그 명세의 절. 새 업무 정책은 사용자 결정(D-AUTH1-xxx)으로만 들어왔다.
+
+| # | 이 계약 | AUTH-001 구현 | 성격·근거 |
+|---|---|---|---|
+| 1 | D-AUTH-001의 개방 순서(신용 일시불 먼저 → UNKNOWN·취소 검증 → 체크·할부) | 신용 일시불·체크 일시불·일반 할부를 **모두 AUTH-001에서 개방**, 체크카드 할부는 계속 거절(`PaymentPlanRule`). 결제창 Plan Demo 정책과 Route Capability 일치를 기동 검사(AU-31) | 사용자 결정 **D-AUTH1-003**(권장안 아님 — 재확인 후 유지). 체크·할부 승인의 취소 검증은 CANCEL-001 전까지 없음(가상 기관 TEST 한정) |
+| 2 | §4.3 "귀속 뒤 세션 TTL 만료는 시작·전송한 승인을 바꾸지 않는다" | 전송 게이트는 인증 증거 유효기간을 보지 않는다. 만료 증거는 기관(가상 VAN)이 재검증해 확정 거절 → FAILED(`INSTITUTION_CONFIRMED_DECLINE`). AUTH-001 rev 0.3이 검토한 AU-26(게이트가 TTL 확인 → PRE_TRANSMISSION)은 **미채택** | 사용자 결정 **D-AUTH1-004** — 이 계약 문언과 일치(편차가 아니라 확정) |
+| 3 | §10.1 "판정 불가(Snapshot·정책 없음) 503 저장 안 함" | 한도 정책 없음·모호(`LimitPolicyUnavailable`)도 503·저장 없음·REQUESTED 유지, 정책 등록 뒤 같은 키 재시도 성공. 승인은 KRW만 — 다른 통화는 422 `PAYMENT_NOT_ELIGIBLE` 저장·전송 없음 | 사용자 결정 **D-AUTH1-001·002**(review1 n-2 해소) |
+| 4 | §9.1 저장 Port `PaymentAuthorizationStore`·`AuthenticationSessionStore`·`DailyLimitUsageStore` | `PaymentAuthorizationRepository`·`AuthenticationSessionRepository`(기존)·`DailyLimitUsageRepository`(ARCH-STRUCTURE-001 §14 Aggregate 판정). 회복 bookkeeping은 Store ③ `AuthorizationRecoveryScheduleStore` | 가역 명명(AUTH-001 §7.3) |
+| 5 | §9.1 `AuthorizationPort` 결과 Approved/Declined/NoEffectConfirmed/NotSentConfirmed/OutcomeUnknown | `Approved/Declined/Pending/NotSentConfirmed/OutcomeUnknown` — 기관 PENDING(결정 보류)을 관찰로 받아 UNKNOWN(종료 근거 아님), 승인 응답 경로의 무효과 확정은 없음(가상 VAN `REQUEST_CONFLICT`·`REJECTED_CLOSED`는 OutcomeUnknown(CORRELATION) — 조회로 확인). 무효과 확정은 조회 `NoEffectConfirmed`(Capability 프로파일 A)만 | AUTH-001 rev 0.3 H-3·§5.7.2(보수 쪽) |
+| 6 | §7 회복 Worker "후보 선택은 jOOQ 조회(keyset, 비권위) → 건별 JPA 재판정" | 후보 선점은 회복 일정 행의 JPA native `FOR UPDATE SKIP LOCKED`(짧은 단독 TX, 다음 점검 시각을 미룸), Attempt 정보만 jOOQ `AuthorizationViewReader.findAttempt`(비권위). 판정은 그대로 건별 잠금 재판정 | 구현 편차 D-S7-1(query adapter 읽기 전용 ArchUnit) |
+| 7 | (dispatch lease 위치 미정) | dispatch lease 기한은 Attempt 열이 아니라 회복 일정 행(`dispatch_lease_until`, domain 밖), 일정은 TX1이 Attempt와 함께 만든다. lease 만료 표시는 그 TX에서 잠근 일정 기준(선점 사본 아님), TXd는 preparedAt + preparedDeadline 이후 통과하지 않는다 | 구현 편차 D-S6-1·D-S6-2, 검토 #3 m-1 |
+| 8 | §19.2-9 `OrderPaymentControl.reconstitute`의 `incidentHoldReleases` 기본값(빈 목록) | 기본값 제거 — Mapper가 `incident_hold_release`(V9)에서 명시 전달, Store는 저장되지 않은 해제 기록을 거부. 해제 쓰기 경로·INSERT 권한은 RECON | AUTH-001 n-4(AC 10) |
+| 9 | §19.2-10 `PaymentAuthorization.reconstitute` 미구현 | 구현(Mapper와 함께) — 존재할 수 없는 조합 거부, FAILED + RECON 기록 거래 수용(D-CANCEL-011) | AUTH-001 §4.11-5 |
+| 10 | §19.3 S7(L-3 REQUESTED 종료 근거 제한) 이관 | 구현: REQUESTED에서 기관·전송 근거 6종 거부, 영향 시험은 승인 시작 경유 또는 `legacy` 행 복원으로 재설계(기대값 불변 — Reviewer 확인) | AUTH-001 §4.11-1(AC 6·8) |
+| 11 | §17-8 / L-6 `ReportSuccessAfterTerminationService` | **삭제** — 늦은 성공은 관찰 키를 가진 `AuthorizationResolution` 경로로만(관찰 키 없는 보고가 D-AUTH-012 뒤 중복 hold를 만들기 때문) | AUTH-001 AU-18 |
+| 12 | §8 hold(D-AUTH-012·013) — hold 출처 없음 | `IncidentHold.sourceObservation`(`ObservationRef` = 관찰 키 + variant)과 영속 출처 4열(V11). 승인 관찰 경로의 hold 개설은 출처 필수, 해제 판정이 설명하는 승인 = 그 hold를 연 관찰 + 기록 거래 terms | AUTH-001 rev 0.3 H-1·검토 #1 H-1 |
+| 13 | §8.2 hold 해제의 control 반영 | 해제(판정 종류 무관) 때 설명되지 않은 흡수 승인이 남으면 같은 연산에서 hold occurrence + 1(fail-closed, 해제는 성공). 해제 Use Case(RECON)는 새로 append된 hold마다 `AuthorizationIncidentDetected`를 같은 TX에 발행해야 한다 | 사용자 결정 **D-AUTH1-005·006** |
+| 14 | §11 `AuthorizationIncidentDetected` | 새 hold가 append될 때만 발행(같은 활성 hold 재보고는 관찰만), effect_key에 occurrence | AUTH-001 F-1·AU-17·m-9 |
+| 15 | §13 JPA "`@Version` 조건부 갱신이라 동시에 이길 수 없다" | 실제 직렬화는 control → payment → payment_authorization `FOR UPDATE` 비관적 잠금이고 `@Version`은 오래된 객체 저장을 막는 두 번째 방어 | AUTH-001 §7.5 n-2(설명 정정, 동작 동일) |
+| 16 | §9 `ProviderRequestRef` | `toString`이 기관 계약계정(institutionMerchantRef)을 가린다 | AUTH-001 F-3·AU-27(D-MS2-005) |
+| 17 | §9 Route Snapshot(routeRef·profile version 고정) — 고정 시점·회복의 Capability 판정 기준 미정 | 전송 게이트(TXd)가 DISPATCHING과 같은 TX에서 Attempt `route_profile_version`(V14)에 그 전송의 Route 프로파일 버전을 고정한다. 회복은 고정 버전 = 현재 등록부 버전일 때만 무효과 종결(`closeIfAbsent`)을 요청하고, 다르거나 NULL(V14 이전 전송)이면 종결 요청 없이 조회·대사 이관만 한다(fail-closed). TX1 뒤 Route가 등록부에서 사라졌으면 TXd는 전송 전 거절(GATE_REFUSED) | 사용자 결정 **D-AUTH1-007**(Q-S8-1 = A) — AUTH-001 §5.8·§6.1 ③·§16.18 |
+
+남은 것(이 계약의 후속): hold 해제·늦은 승인 거래 기록 Use Case(RECON-CONTRACT-001), 통보(push) 채널, TLS·실제 기관 규약(LIVE Gate), 회복 backoff·jitter·회로차단(수용된 기술 편차 D-S7-2).
+Route profile version 고정은 사용자 결정 **D-AUTH1-007**(AUTH-001 §16.17 Q-S8-1 = A)로 구현됐다(위 17행, AUTH-001 rev 0.8 §16.18).

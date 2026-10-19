@@ -285,10 +285,10 @@ JPA 동작과 DB 권한의 연결(이번 변경에서 확인한 것: 역할 → 
 | 한도 날짜 | `LimitBusinessDate.ZONE = Asia/Seoul`(D-AUTH-007 사용자 결정 값 — 운영 수치 아님) | 날짜는 점유 때 고정 |
 | 한도 값 | `LimitAmount.Unlimited`/`Limited(minor)`, 정책 해석 `TransactionLimitPolicies.resolve` → Resolved/Missing/Ambiguous | D-AUTH-006 무제한 명시·정확히 하나 |
 | 기관 Adapter 패키지 | `payment.adapter.integration.institution`(AUTH-001) | 계층 규칙의 알려진 adapter 하위 `integration` |
-| 영속 복원 | `AuthenticationSession.reconstitute`, `DailyLimitUsage.reconstitute`, `OrderPaymentControl.reconstitute(…, incidentHoldReleases = emptyList())`. `PaymentAuthorization` 복원 factory는 AUTH-001 Mapper와 함께 추가 | 해제 기록 표가 없는 동안 복원된 hold는 활성(fail-closed) |
+| 영속 복원 | `AuthenticationSession.reconstitute`, `DailyLimitUsage.reconstitute`, `OrderPaymentControl.reconstitute(…, incidentHoldReleases = emptyList())`. `PaymentAuthorization` 복원 factory는 AUTH-001 Mapper와 함께 추가 — **AUTH-001에서 갱신(§16)**: 해제 기록 기본값 제거, `PaymentAuthorization.reconstitute` 추가 | 해제 기록 표가 없는 동안 복원된 hold는 활성(fail-closed) |
 | 시험 | Named Fixture `AuthorizationFixture`(Payment 고정 입력에서 세션 바인딩·한도 점유가 나옴, Demo 값), Kotest BehaviorSpec. Fixture Monkey 미사용(핵심 규칙은 명시 Fixture) | Test Fixture Policy |
 
-JPA와의 연결(AUTH-001에서 할 일, 2단계 변경에는 JPA 코드 없음): **역할** — `PaymentAuthorization`의 Attempt·관찰·거래는 별도 Entity로 adapter가 INSERT하고 관찰은 `@Immutable` insert-only. **예** — 전송 게이트(TXd)의 `beginDispatch`와 회복의 `abandonBeforeDispatch(FENCED_BY_RECOVERY)`는 같은 Authorization 행의 `@Version` 조건부 갱신이라 동시에 이길 수 없다(먼저 커밋한 쪽만 성공, 진 전송자는 소켓을 열지 않음). **이유** — "전송 전 실패 확정"을 DB가 증명하고, cascade·orphanRemoval이 append-only 사실을 지우는 경로가 없다. **주의** — domain 객체는 JPA가 추적하지 않으므로 Mapper가 상태·목록(append-only)·version을 함께 옮기고, 일 한도 사용량 행은 `PESSIMISTIC_WRITE`로 잡아 합계 불변식을 지킨다(낙관적 version만으로는 서로 다른 Authorization 사이 합계를 못 지킨다). Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).
+JPA와의 연결(AUTH-001에서 할 일, 2단계 변경에는 JPA 코드 없음 — 실제 구현과 정정은 §16): **역할** — `PaymentAuthorization`의 Attempt·관찰·거래는 별도 Entity로 adapter가 INSERT하고 관찰은 `@Immutable` insert-only. **예** — 전송 게이트(TXd)의 `beginDispatch`와 회복의 `abandonBeforeDispatch(FENCED_BY_RECOVERY)`는 같은 Authorization 행의 `@Version` 조건부 갱신이라 동시에 이길 수 없다(먼저 커밋한 쪽만 성공, 진 전송자는 소켓을 열지 않음). **이유** — "전송 전 실패 확정"을 DB가 증명하고, cascade·orphanRemoval이 append-only 사실을 지우는 경로가 없다. **주의** — domain 객체는 JPA가 추적하지 않으므로 Mapper가 상태·목록(append-only)·version을 함께 옮기고, 일 한도 사용량 행은 `PESSIMISTIC_WRITE`로 잡아 합계 불변식을 지킨다(낙관적 version만으로는 서로 다른 Authorization 사이 합계를 못 지킨다). Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).
 
 ## 13. 승인 시작 조건 전파 (MASTER-SNAPSHOT-002)
 
@@ -346,3 +346,41 @@ PayCore는 같은 TX의 domain 서비스(`AuthorizationStart` 등)·`OrderPaymen
 | 시험 | Named Fixture `CancellationFixture`(완료·거절·늦은 성공은 `CancellationResolution` 경로), Kotest BehaviorSpec, Fixture Monkey 미사용 | Test Fixture Policy |
 
 JPA와의 연결(CANCEL-001에서 할 일, 이번 변경에는 JPA 코드 없음): **역할** — `JpaReturnBalanceEntity`는 completed/reserved/forced 금액 컬럼과 업무 `revision`, 예약 행은 별도 Entity, CANCEL 거래·관찰은 `@Immutable` insert-only. **예** — 같은 Payment에 두 취소가 동시에 오면 `return_balance` 행 `PESSIMISTIC_WRITE`에서 줄을 서고 두 번째는 진행 중 1건(D-CANCEL-003)으로 거절된다. **이유** — 서로 다른 취소 행 사이 합계는 행별 `@Version`으로 못 지킨다, CHECK(`completed + reserved ≤ authorized`)가 DB 이중 방어. **주의** — Mapper가 예약 목록·revision·version을 함께 옮겨 stale 객체가 최신 행을 덮지 않게 하고, TX2·회복은 control부터 잠근다. Kafka/Redis는 이 불변식을 대신하지 않는다(ADR-001).
+
+## 16. 승인 실행·UNKNOWN 회복·가상 VAN (AUTH-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-AUTH-001~013·D-AUTH1-001~006·D-CPD-002이며 명세는 `docs/repository/AUTH-001-AUTHORIZATION.md`(구현 기록 §16, 배포 조건 §20).
+코드: payment-api `payment` 모듈(confirm·TX1/TXd/TX2·회복), `entitlement` provided 2개 추가, Simulator 새 모듈 `van`. 명명은 §14 판정 기준을 따랐다.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| Aggregate 저장 Port | `PaymentAuthorizationRepository` → `JpaPaymentAuthorizationRepository`(Attempt·관찰·거래는 Aggregate 안 — 별도 Port 없음, `lock`·`lockByPaymentId`·`insertNew`·`update`, `Versioned`), `DailyLimitUsageRepository` → `JpaDailyLimitUsageRepository`(예약 포함, `lockOrCreate`). AC1 §9.1의 `…Store` 이름은 §14 기준으로 바꿨다 | §14 Aggregate 판정 |
+| 기록 Store(③) | `AuthorizationRecoveryScheduleStore` → `JpaAuthorizationRecoveryScheduleStore`(값 `RecoverySchedule` — domain 밖 bookkeeping, 금융 판단 근거 아님, 삭제 연산 없음) | §14 Store ③, AU-16 |
+| jOOQ Reader | `AuthorizationViewReader` → `JooqAuthorizationViewReader`(`find` confirm 응답·재생, `findAttempt` 회복 후보 정보) — 비권위, 상태 변경은 JPA 잠금 재판정. 시각은 UTC 리터럴(§13). `AuthorizationBacklogReader` → `JooqAuthorizationBacklogReader`(UNKNOWN 수·최고 연령·이관 미종결·활성 hold 집계 — provided `AuthorizationBacklogQuery`/`AuthorizationBacklogService`를 거쳐 `adapter.integration.AuthorizationBacklogGauges`가 label 없는 gauge로 노출) | §14, CQRS |
+| 회복 후보 선점 | 별도 후보 Reader 없이 Store `claimDue`가 짧은 단독 TX에서 native `FOR UPDATE SKIP LOCKED`로 일정 행을 잡고 다음 점검 시각을 민다. query adapter는 읽기 전용(ArchUnit)이라 잠금이 필요한 선점은 persistence에 둔다 | AUTH-001 D-S7-1 |
+| 외부 기관 Port | required `AuthorizationPort`·`AuthorizationInquiryPort`(업무 예외 없음 — sealed 결과: 승인 `Approved/Declined/Pending/NotSentConfirmed/OutcomeUnknown(cause)`, 조회 `Found/NotFound/NoEffectConfirmed/Unavailable(reason)`), `InstitutionRouteResolver`(모르는 routeRef = null, fail-closed) | AC1 §9.1, H-3 |
+| 기관 Adapter 패키지 | `payment.adapter.integration.institution`: `SimulatorVanAuthorizationAdapter`(두 Port 구현)·`SimVanFrames`·`SimVanMessages`·`VanSocketConnector`, 설정 `ConfiguredInstitutionRouteRegistry`(`paycore.authorization`)·`AuthorizationTimingSettings`(`paycore.authorization.timing`), 기동 검사 `AuthorizationTimingConsistency`·`AuthorizationProfileConsistency`(`SmartInitializingSingleton`) | §12 CA-17, 운영 기본값 없음 |
+| 격리 ArchUnit | `authorizationPortsImplementedOnlyBySimulatorAdapter`(두 Port 구현은 `..adapter.integration.institution..`의 `Simulator*`만) + 위반 fixture `archfixture.institution.RealVanAuthorizationAdapter`. 기존 `institutionAdapterDoesNotMutateDomain` 대상에 새 Adapter 포함 | 허용 §5.5, AUTH-001 §5.6 |
+| 다른 모듈 접근 | payment → entitlement는 provided만: `EntitlementHeadLock`(head S 잠금 — m-9) ← `EntitlementHeadLockPort`/`EntitlementHeadLockAdapter`, `LimitPolicyLookup`(정책 ID로 고정 정책 값 — AU-29) ← `LimitPolicyHistoryPort`/`EntitlementLimitPolicyHistoryAdapter`(둘 다 `adapter.integration`) | Modulith 공개 범위(§13과 같은 방식) |
+| Use Case·서비스 | provided `ConfirmPaymentUseCase`(→ `ConfirmPaymentService` 조정자, TX 없음), `RecoverAuthorizationsUseCase`(→ `AuthorizationRecoveryService`). TX 단계 서비스 `ConfirmStartService`(TX1)·`AuthorizationDispatchService`(TXd + TX 밖 호출)·`AuthorizationResultService`(TX2·회복 공용 반영). 모든 TX는 `LocalTransactions` | §14 서비스 명명, 외부 호출 TX 밖 |
+| 회복 trigger | `payment.adapter.batch.AuthorizationRecoveryScheduler`(`@Scheduled`, Spring Batch 아님) + 자기 설정 `AuthorizationRecoveryJobSettings`(trigger 키만 — batch adapter는 required Port에 의존하지 않고 provided Use Case만 부른다). `enabled` = false면 무동작 | AN-28 관례, 계층 규칙 |
+| 식별자 생성 | `AuthorizationIdentifierGenerator`(required) → `SecureRandomAuthorizationIdentifierGenerator`(접두 `pau_`·`pat_`·`ar_`·`aq_`·`ptx_`, ULID) | AU-30, 기존 생성기 관례 |
+| Route 프로파일 버전(D-AUTH1-007) | TXd가 DISPATCHING과 같은 TX에서 `routes.resolve(routeRef).profileVersion`을 Attempt `route_profile_version`(V14)에 고정한다(TX1 뒤 Route가 등록부에서 사라졌으면 GATE_REFUSED + 진단 로그 `reason=ROUTE_NOT_REGISTERED`). 회복의 `closeIfAbsent`는 고정 버전 = 현재 등록부 버전일 때만, 다르거나 NULL이면 조회·이관만(fail-closed) | AUTH-001 §5.8·§6.1 ③·§16.18 |
+| 잠금 순서 | head(S) → control → payment → payment_authorization → (세션) → (사용량) → 회복 일정. TXd·TX2·회복은 이 정순서의 부분열 | AUTH-001 §4.7, AU-06 |
+| 시험 | Named Fixture `ConfirmFixture`·`AuthorizationFixture`·`TestEvidenceSources`, 시험 전용 TCP 대역 `StubVan`·`ProgrammableVan`(실제 소켓, golden 바이트), 장애 주입 `CommitFaultingTransactionManager`(시험 `BeanPostProcessor`가 `transactionManager`를 위임으로 감싸 무장 시 커밋 **뒤** 예외 — commit 불명확 재현)·`ObservedAuthorizationPort`(`@Primary` 위임, 전송자 예외 주입). Fixture Monkey 미사용(핵심 규칙은 명시 Fixture) | Test Fixture Policy, 시험 코드는 `src/test`만 |
+
+**Simulator `van` 모듈**(AN §13.1 관례): domain `VanAuthorization`·`VanInquiry`·`VanLedgerEntry`·`VanPendingDecision`·`VanProfile` 등(순수), provided `AuthorizeAtVanUseCase`·`InquireAtVanUseCase`,
+required `VanLedgerStore`(find·insert만 — append-only 원장)·`VanPendingDecisionStore`·`VanEvidenceUseStore`·`VanInquiryLogStore`·`VanClock`·`VanIdGenerator`, adapter `adapter.integration.VanTcpServer`(inbound TCP,
+virtual thread)·`VanFrameCodec`·`VanMessages`·`VanKeyRing`·`VanSettings`, `adapter.persistence.VanLedgerPrivilegeGuard`(기동 시 원장 UPDATE/DELETE가 1142가 아니면 기동 거부). `van` → `authentication`은 provided
+`AuthenticationEvidenceLookup`만(역방향 없음 — `SimulatorArchitectureSpec`). PG와 Simulator는 코드·Gradle 의존을 공유하지 않고 계약은 golden `van-contract-sim-van-1.golden.json`(harness 생성, 두 앱 시험 자원 바이트 동일)으로만 맞춘다.
+원장 Port를 Repository가 아니라 Store로 둔 것은 명세 §7.3 계획(`VanLedgerRepository`)과 다른 가역적 명명 편차다(명세 §7.3 S8 현행화 주석).
+
+JPA와의 연결(이번 변경): **역할** — `JpaPaymentAuthorizationEntity`·`JpaAuthorizationAttemptEntity`·`JpaInstitutionObservationEntity`·`JpaPaymentTransactionEntity`·`JpaDailyLimitUsageEntity`·`JpaLimitReservationEntity`·
+`JpaIncidentHoldReleaseEntity`·`JpaRecoveryScheduleEntity`는 행 모양만 갖고, `PaymentAuthorizationPersistenceMapper`가 `PaymentAuthorization.reconstitute`(존재할 수 없는 조합 거부)로 domain을 되돌린다. 관찰·거래·해제 기록은
+`@Immutable` insert-only이고 `@OneToMany(cascade)`가 없다. **예** — 같은 Authorization을 TXd(`beginDispatch`)와 회복 fencing(`abandonBeforeDispatch`)이 동시에 바꾸려 하면 둘 다 control → payment → payment_authorization을
+`FOR UPDATE`로 먼저 잡으므로 **실제 직렬화는 비관적 X 잠금**이 하고, 늦은 쪽은 최신 행을 읽어 업무 판정(전송 안 함·NoChange)을 내린다. `@Version`(`UPDATE … WHERE version = ?`)은 잠금 밖에서 읽은 오래된 객체를
+저장하는 결함을 막는 두 번째 방어다(§12 문단의 "`@Version` 조건부 갱신이라 동시에 이길 수 없다"를 이렇게 정정 — AUTH-001 §7.5 n-2). 루트 상태가 그대로이고 Attempt·관찰만 바뀌어도 루트 version을 올린다
+(`PESSIMISTIC_FORCE_INCREMENT`). 일 한도는 native `INSERT … ON DUPLICATE KEY UPDATE version = version` 뒤 행 잠금으로 같은 MID 동시 confirm이 줄을 선다. 생성 열 UNIQUE(`in_flight_authorization_id`·`authorization_txn_key`)는
+Entity에 매핑하지 않는다. **이유** — 전송 전 실패 확정·승인 거래 1건·한도 합계를 DB가 증명하고(cascade·orphanRemoval이 사실을 지우는 경로 없음), domain은 Spring 없이 시험한다. **주의** — 충돌 뒤 무조건 재시도하지 않고
+다시 잠가 재판정하며, flush 실패 뒤 TX는 rollback 전용, commit 단계 실패는 OutcomeUnknown(회복이 원 요청 ID 조회로 확인). JPQL `@Lock` 조회로 이미 잠근 행을 다시 읽지 않는다(§9). Kafka/Redis는 이 불변식과 회복 Worker 직렬화를
+대신하지 않는다(ADR-001 — 다중 인스턴스도 `SKIP LOCKED`).

@@ -13,6 +13,9 @@ interface AuthenticationTransactionRepository {
 
     fun findByResultRef(resultRef: ResultRef): AuthenticationTransaction?
 
+    /** 인증 증거 참조로 찾는다(AUTH-001 가상 VAN 재검증). 없거나 둘 이상이면 빈 목록이 아닌 실제 행 목록 — 판정은 호출자. */
+    fun findByEvidenceRef(evidenceRef: String): List<AuthenticationTransaction>
+
     fun find(id: TransactionId): AuthenticationTransaction?
 
     /** 잠가 읽는다(완료·취소 직렬화). */

@@ -1,6 +1,7 @@
 package com.paycore.archfixture.transition
 
 import com.paycore.payment.payment.domain.IncidentHoldRelease
+import com.paycore.payment.payment.domain.ObservationRef
 import com.paycore.payment.payment.domain.OrderPaymentControl
 import com.paycore.payment.payment.domain.Payment
 
@@ -9,9 +10,9 @@ import com.paycore.payment.payment.domain.Payment
  * 대상: OrderPaymentControl.recordAuthorized(internal), completeAuthorization, releaseIncidentHold.
  */
 class DirectControlTransitions {
-    fun bypass(control: OrderPaymentControl, payment: Payment, release: IncidentHoldRelease) {
+    fun bypass(control: OrderPaymentControl, payment: Payment, release: IncidentHoldRelease, source: ObservationRef) {
         control.recordAuthorized(payment)
-        control.completeAuthorization(payment)
+        control.completeAuthorization(payment, source)
         control.releaseIncidentHold(release)
     }
 }

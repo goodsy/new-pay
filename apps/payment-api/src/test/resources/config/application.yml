@@ -68,3 +68,100 @@ paycore:
       client-key: test-only-simulator-client-key-1
       connect-timeout: PT0.5S
       read-timeout: PT1S
+  # AUTH-001 가상 VAN Route 등록부(§5.8) — 시험 Demo 값(운영값 아님). host·port는 사용하지 않는 loopback 자리값이다(Adapter 시험은 자체 stub VAN을 쓴다).
+  # HMAC 키는 golden(van-contract-sim-van-1)의 시험 전용 키다(운영 키 아님). 할부 개월은 위 결제창 Plan Demo 정책과 같은 값(AU-31).
+  authorization:
+    # AUTH-001 승인 시간 설정(§4.4·§4.5·§6) — 시험 Demo 값(운영값 아님). 회복 Worker 주기 실행은 끄고 시험이 직접 부른다.
+    timing:
+      dispatch:
+        lease: PT30S
+        safety-margin: PT5S
+        prepared-deadline: PT1S
+        gate-retry-interval: PT0.2S
+      recovery:
+        enabled: false
+        fixed-delay: PT5S
+        batch-size: 50
+        inquiry-interval: PT10S
+        inquiry-budget: 3
+        max-age: PT1H
+        slow-inquiry-interval: PT10M
+        version: recovery-demo-1
+    backends:
+      TEST:
+        type: SIMULATOR
+    routes:
+      SIM-VAN-01:
+        environment: TEST
+        institution: SIMVAN
+        protocol-version: sim-van-1
+        profile-version: sim-van-a-demo-1
+        host: 127.0.0.1
+        port: 1
+        key-id: sim-van-test-1
+        key-base64: dGVzdC1vbmx5LXNpbS12YW4taG1hYy1rZXktMDAwMDE=
+        connect-timeout: PT0.5S
+        read-timeout: PT1S
+        total-deadline: PT2S
+        connect-retry-budget: 2
+        capabilities:
+          confirms-no-effect: true
+          closable-after: PT2M
+          inquiry-retention: P7D
+          same-id-resend-safe: true
+          authentication-evidence-reusable-for-resend: true
+          supported-currencies: [KRW]
+          supported-card-types: [CREDIT, CHECK]
+          installment-card-types: [CREDIT]
+          installment-months: [2, 3, 6]
+          installment-minimum-amount: 50000
+      # 프로파일 B(AUTH-001 §5.4 — 무효과 확정 Capability 없음: closeIfAbsent를 보내지 않고 NOT_FOUND는 예산 소진 시 대사 이관). 포트는 시험 stub(ProgrammableVanTestConfig).
+      SIM-VAN-B:
+        environment: TEST
+        institution: SIMVAN
+        protocol-version: sim-van-1
+        profile-version: sim-van-b-demo-1
+        host: 127.0.0.1
+        port: 1
+        key-id: sim-van-test-1
+        key-base64: dGVzdC1vbmx5LXNpbS12YW4taG1hYy1rZXktMDAwMDE=
+        connect-timeout: PT0.5S
+        read-timeout: PT1S
+        total-deadline: PT2S
+        connect-retry-budget: 2
+        capabilities:
+          confirms-no-effect: false
+          closable-after: PT2M
+          inquiry-retention: P7D
+          same-id-resend-safe: true
+          authentication-evidence-reusable-for-resend: true
+          supported-currencies: [KRW]
+          supported-card-types: [CREDIT, CHECK]
+          installment-card-types: [CREDIT]
+          installment-months: [2, 3, 6]
+          installment-minimum-amount: 50000
+      SIM-VAN-CLOSED:
+        environment: TEST
+        institution: SIMVAN
+        protocol-version: sim-van-1
+        profile-version: sim-van-a-demo-1
+        host: 127.0.0.1
+        # 연결 거부 Route(connect 단계 실패 → NotSentConfirmed 시험 — 열리지 않는 loopback 포트 1)
+        port: 1
+        key-id: sim-van-test-1
+        key-base64: dGVzdC1vbmx5LXNpbS12YW4taG1hYy1rZXktMDAwMDE=
+        connect-timeout: PT0.5S
+        read-timeout: PT1S
+        total-deadline: PT2S
+        connect-retry-budget: 2
+        capabilities:
+          confirms-no-effect: true
+          closable-after: PT2M
+          inquiry-retention: P7D
+          same-id-resend-safe: true
+          authentication-evidence-reusable-for-resend: true
+          supported-currencies: [KRW]
+          supported-card-types: [CREDIT, CHECK]
+          installment-card-types: [CREDIT]
+          installment-months: [2, 3, 6]
+          installment-minimum-amount: 50000

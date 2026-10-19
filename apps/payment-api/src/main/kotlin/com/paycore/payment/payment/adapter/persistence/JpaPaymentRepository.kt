@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional
 class JpaPaymentRepository(
     private val payments: PaymentJpaRepository,
     private val evidence: PaymentTerminationEvidenceJpaRepository,
+    private val authorizations: PaymentAuthorizationJpaRepository,
     private val entityManager: EntityManager,
 ) : PaymentRepository {
 
@@ -42,7 +43,8 @@ class JpaPaymentRepository(
 
     override fun lock(paymentId: PaymentId): Versioned<Payment>? = translate(ENTITY) {
         entityManager.lockRow(JpaPaymentEntity::class.java, paymentId.value)?.let { row ->
-            Versioned(PaymentPersistenceMapper.toPayment(row, evidence.findByPaymentIdOrdered(row.paymentId)), checkNotNull(row.version))
+            val hasAuthorization = authorizations.findIdByPaymentId(row.paymentId) != null
+            Versioned(PaymentPersistenceMapper.toPayment(row, evidence.findByPaymentIdOrdered(row.paymentId), hasAuthorization), checkNotNull(row.version))
         }
     }
 
@@ -52,8 +54,8 @@ class JpaPaymentRepository(
         if (row.version != expectedVersion) throw PersistenceFailure.OptimisticConflict(ENTITY)
         PaymentPersistenceMapper.requireSameIdentity(payment, row)
 
-        val stored = evidence.findByPaymentIdOrdered(row.paymentId).map { it.evidence }
-        val current = payment.terminationEvidence.map { it.name }
+        val stored = evidence.findByPaymentIdOrdered(row.paymentId).map(PaymentPersistenceMapper::toEvidenceRecord)
+        val current = payment.terminationEvidenceRecords
         check(current.size >= stored.size && current.subList(0, stored.size) == stored) {
             "termination evidence of ${row.paymentId} is append-only"
         }
@@ -62,8 +64,12 @@ class JpaPaymentRepository(
 
         row.status = payment.status.name
         PaymentPersistenceMapper.requireSameCheckoutWindow(payment, row)
-        appended.forEachIndexed { i, value ->
-            entityManager.persist(JpaPaymentTerminationEvidenceEntity.newRow(row.paymentId, stored.size + i, value))
+        appended.forEachIndexed { i, record ->
+            // AUTH-001 rev 0.3 m-6: 새 근거는 domain이 출처를 강제한다(출처 없는 근거는 복원된 legacy 행뿐이라 여기 오지 않는다).
+            val source = checkNotNull(record.source) { "new termination evidence of ${row.paymentId} has no source" }
+            entityManager.persist(
+                JpaPaymentTerminationEvidenceEntity.newRow(row.paymentId, stored.size + i, record.evidence.name, source.kind.name, source.ref, source.recordedAt, source.recordedBy),
+            )
         }
         // 자식 행만 늘어도 Aggregate version을 올린다(동시에 근거를 덧붙이는 다른 TX가 version으로 충돌하게).
         if (!statusChanged && appended.isNotEmpty()) entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)

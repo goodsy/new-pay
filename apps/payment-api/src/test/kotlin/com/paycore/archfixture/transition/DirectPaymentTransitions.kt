@@ -2,6 +2,7 @@ package com.paycore.archfixture.transition
 
 import com.paycore.payment.payment.domain.Payment
 import com.paycore.payment.payment.domain.TerminationEvidence
+import com.paycore.payment.payment.domain.TerminationEvidenceSource
 
 /**
  * ArchUnit 위반 fixture(시험 전용, 실행하지 않는다): domain 밖(application 자리)에서 Payment 결과 전이를 직접 부른다 — 거래·주문 성공 이력·
@@ -9,11 +10,11 @@ import com.paycore.payment.payment.domain.TerminationEvidence
  * addTerminationEvidence.
  */
 class DirectPaymentTransitions {
-    fun bypass(payment: Payment) {
+    fun bypass(payment: Payment, source: TerminationEvidenceSource) {
         payment.markUnknown()
         payment.markAuthorized()
-        payment.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
-        payment.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
-        payment.addTerminationEvidence(TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT)
+        payment.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED, source)
+        payment.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED, source)
+        payment.addTerminationEvidence(TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT, source)
     }
 }

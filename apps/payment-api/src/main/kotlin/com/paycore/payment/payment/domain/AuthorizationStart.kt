@@ -51,6 +51,17 @@ sealed interface AuthorizationStartResult {
  */
 object AuthorizationStart {
 
+    /**
+     * 읽기 전용 사전 검사(AUTH-001 명세 §4.11-7, AU-05). application이 승인 시작 허용 판정 Port(인증 증거의 매입사 코드가 필요)를 부르기 전에 거절 순서를 맞춘다:
+     * 슬롯 위반은 [start]와 같은 예외, 세션 없음·귀속 불가는 [AuthorizationStartRejection.AuthenticationNotVerified]. 어떤 Aggregate도 바꾸지 않으며 [start]는
+     * 모든 검사를 다시 한다(L-2 단일 연산 유지).
+     */
+    fun preflight(control: OrderPaymentControl, payment: Payment, session: AuthenticationSession?, money: Money, at: Instant): AuthorizationStartRejection? {
+        control.checkAuthorizationStart(payment)
+        if (session == null) return AuthorizationStartRejection.AuthenticationNotVerified(BindingRejection.NOT_VERIFIED)
+        return session.bindingRejection(payment.id, money, at)?.let { AuthorizationStartRejection.AuthenticationNotVerified(it) }
+    }
+
     fun start(command: AuthorizationStartCommand): AuthorizationStartResult = with(command) {
         control.checkAuthorizationStart(payment)
         require(intent.fingerprint() == payment.intent) { "intent must be the payment's fixed intent" }

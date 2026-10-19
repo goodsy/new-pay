@@ -41,6 +41,6 @@ object RequestedPaymentExpiry {
         require(sessionsOfPayment.all { it.binding.paymentId == payment.id }) { "sessions must belong to this payment" }
         check(sessionsOfPayment.none { it.isBound() }) { "a REQUESTED payment cannot have a bound authentication session" }
         sessionsOfPayment.filterNot { it.isDiscarded() }.forEach { it.expire(AuthenticationExpiryCause.PAYMENT_CLOSED, now) }
-        payment.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
+        payment.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED, TerminationEvidenceSource.checkoutExpiry(payment.id, now))
     }
 }

@@ -94,7 +94,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
 
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(flyway())
 
-        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1")
+        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14")
         history().all { it.second } shouldBe true // 실패한 migration 기록 없음
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
         // REQUESTED만 created_at + pin 유효기간·pin 버전(ms 보존), version + 1. 시각이 이미 지난 행도 채우기만 한다(만료는 이후 만료 작업).
@@ -108,7 +108,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
         // 다음 기동: 설정이 바뀌어도 pin은 그대로(배포 시점 버전), 적용할 것이 없다.
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-2", Duration.ofMinutes(10))).migrate(flyway())
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
-        history().size shouldBe 9
+        history().size shouldBe 15
 
         val denied = runCatching { root { c -> insertLegacy(c, "pay-new-without-window", "REQUESTED") } }.exceptionOrNull()
         (generateSequence(denied) { it.cause }.filterIsInstance<SQLException>().first()).errorCode shouldBe 3819
@@ -153,7 +153,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 }
             }
             strategy.migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st -> st.executeQuery("SELECT COUNT(*) FROM payment WHERE status = 'REQUESTED' AND checkout_expires_at IS NULL").use { rs -> rs.next(); rs.getInt(1) shouldBe 0 } }
@@ -202,6 +202,66 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                         rs.next()
                         (rs.getString(1) to rs.getBoolean(2)) shouldBe ("1,2,3,4,5,6,7,8" to true)
                     }
+                }
+            }
+        } finally {
+            other.stop()
+        }
+    }
+
+    // AUTH-001 rev 0.3 m-5: AUTHN-001 배포 상태(V8_1 적용됨)의 볼륨이 한 번의 기동에 AUTH-001 migration(V9~V11)까지 간다 — 전략의 "V8_1 이미 적용" 경로.
+    // 기존 incident_hold 행은 occurrence 1·여는 관찰 NULL(legacy), 기존 종료 근거는 출처 NULL(legacy), CreatePayment 멱등 행은 새 CHECK를 통과한다.
+    test("a volume at V8_1 (AUTHN-001 deployed) with orders, holds and evidence reaches V11 in one start; existing rows become legacy rows") {
+        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        try {
+            val config = Flyway.configure()
+                .dataSource(
+                    PaymentDbAccounts.urlFor(other, PaymentDbAccounts.PAYMENT_DATABASE), PaymentDbAccounts.PAYMENT_MIGRATION_USER,
+                    PaymentDbAccounts.password(PaymentDbAccounts.PAYMENT_MIGRATION_USER),
+                )
+                .locations("classpath:db/migration/payment", "classpath:db/runtime-privilege/payment")
+                .initSql("SET time_zone = '+00:00'")
+            config.target("8.1").load().migrate()
+            PaymentDbAccounts.root(other).use { c ->
+                c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
+                c.createStatement().use { st ->
+                    st.execute(
+                        """INSERT INTO payment (payment_id, payment_key, environment, merchant_account_id, merchant_order_id, merchant_site_id, amount_minor, currency,
+                           payment_method, order_name, order_intent_fingerprint, slot_generation, status, eligibility_snapshot_version, created_at, version)
+                           VALUES ('pay-v81-failed', 'key-v81', 'TEST', 'mid-v81', 'order-v81', 'demo-site-001', 10000, 'KRW', 'CARD', NULL, 'v1:fp', 1, 'FAILED', 'snap-1',
+                           '2026-10-07 00:00:00.000', 1)""",
+                    )
+                    st.execute("INSERT INTO payment_termination_evidence (payment_id, seq, evidence) VALUES ('pay-v81-failed', 0, 'INSTITUTION_CONFIRMED_DECLINE')")
+                    st.execute(
+                        """INSERT INTO order_payment_control (environment, merchant_account_id, merchant_order_id, fixed_intent_fingerprint, current_payment_id, generation,
+                           authorized_payment_id, created_at, updated_at, version) VALUES ('TEST', 'mid-v81', 'order-v81', 'v1:fp', 'pay-v81-failed', 1, NULL,
+                           '2026-10-07 00:00:00.000', '2026-10-07 00:00:00.000', 0)""",
+                    )
+                    st.execute(
+                        """INSERT INTO incident_hold (environment, merchant_account_id, merchant_order_id, payment_id, reason, created_at)
+                           VALUES ('TEST', 'mid-v81', 'order-v81', 'pay-v81-failed', 'SUCCESS_AFTER_TERMINATION', '2026-10-07 00:00:01.000')""",
+                    )
+                    st.execute(
+                        """INSERT INTO idempotency_request (environment, merchant_account_id, operation, idempotency_key, request_record_id, request_fingerprint, result_kind,
+                           result_code, result_payment_id, created_at, expires_at, updated_at, version) VALUES ('TEST', 'mid-v81', 'CreatePayment', 'k-v81', 'rr', 'r1:x',
+                           'SUCCESS', 'CREATED', 'pay-v81-failed', '2026-10-07 00:00:00.000', '2026-11-06 00:00:00.000', '2026-10-07 00:00:00.000', 0)""",
+                    )
+                }
+            }
+            val runtimeOther = DriverManagerDataSource(
+                PaymentDbAccounts.urlFor(other, PaymentDbAccounts.PAYMENT_DATABASE) + "&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true",
+                PaymentDbAccounts.PAYMENT_RUNTIME_USER, PaymentDbAccounts.password(PaymentDbAccounts.PAYMENT_RUNTIME_USER),
+            )
+            CheckoutWindowCheckMigrationStrategy(runtimeOther, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(config.target("latest").load())
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14" to true)
+            PaymentDbAccounts.root(other).use { c ->
+                c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
+                c.createStatement().use { st ->
+                    st.executeQuery("SELECT occurrence, source_attempt_id FROM incident_hold WHERE payment_id = 'pay-v81-failed'").use { rs ->
+                        rs.next(); rs.getInt(1) shouldBe 1; rs.getString(2) shouldBe null
+                    }
+                    st.executeQuery("SELECT source_kind FROM payment_termination_evidence WHERE payment_id = 'pay-v81-failed'").use { rs -> rs.next(); rs.getString(1) shouldBe null }
+                    st.executeQuery("SELECT COUNT(*) FROM idempotency_request WHERE idempotency_key = 'k-v81'").use { rs -> rs.next(); rs.getInt(1) shouldBe 1 }
                 }
             }
         } finally {

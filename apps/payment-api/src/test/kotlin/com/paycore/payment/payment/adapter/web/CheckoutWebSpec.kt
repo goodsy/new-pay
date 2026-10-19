@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.web
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
 import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
@@ -164,7 +165,7 @@ class CheckoutWebSpec(
             val (paymentId2, token2) = newToken(cred)
             val (handle2, cookie2) = opened(token2)
             s.change(cred, s.scalar("SELECT merchant_order_id FROM payment WHERE payment_id = ?", paymentId2).toString(), paymentId2) { p, _ ->
-                p.fail(com.paycore.payment.payment.domain.TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
+                p.startAuthorization(); p.fail(com.paycore.payment.payment.domain.TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED)
             }
             repeat(2) {
                 web.get("/checkout/s/$handle2", cookie2).let {

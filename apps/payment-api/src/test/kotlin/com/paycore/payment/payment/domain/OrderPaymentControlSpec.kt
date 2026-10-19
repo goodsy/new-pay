@@ -151,7 +151,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 s.control.reportSuccessAfterTermination(s.current)
                 s.current.status shouldBe FAILED
                 s.control.isOnIncidentHold() shouldBe true
-                s.control.incidentHolds shouldBe listOf(IncidentHold(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION))
+                s.control.incidentHolds shouldBe listOf(IncidentHold.reconstitute(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
                 shouldThrow<SlotOccupationRejectedException> {
                     s.control.occupy(PaymentFixture.requested(n = 2, slotGeneration = 2), s.current)
                 }
@@ -161,7 +161,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
             Then("the hold is recorded once per (payment, reason): duplicate reports are no-ops") {
                 val s = OrderPaymentControlFixture.withCurrentPayment(FAILED, INSTITUTION_CONFIRMED_DECLINE)
                 repeat(3) { s.control.reportSuccessAfterTermination(s.current) }
-                s.control.incidentHolds shouldBe listOf(IncidentHold(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION))
+                s.control.incidentHolds shouldBe listOf(IncidentHold.reconstitute(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
                 s.control.decide(originalIntent, s.current) shouldBe Blocked(BlockReason.INCIDENT_HOLD, paymentId(1))
             }
         }
@@ -174,8 +174,8 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 s.control.reportSuccessAfterTermination(s.current)
                 s.control.reportSuccessAfterTermination(s.history.first())
                 s.control.incidentHolds shouldBe listOf(
-                    IncidentHold(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION),
-                    IncidentHold(paymentId(2), IncidentReason.SUCCESS_AFTER_TERMINATION),
+                    IncidentHold.reconstitute(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null),
+                    IncidentHold.reconstitute(paymentId(2), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null),
                 )
             }
         }
@@ -246,7 +246,7 @@ class OrderPaymentControlSpec : BehaviorSpec({
                 val s = OrderPaymentControlFixture.retriedAfterConfirmedDecline()
                 val declined = s.history.first()
                 s.control.reportSuccessAfterTermination(declined)
-                s.control.incidentHolds shouldBe listOf(IncidentHold(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION))
+                s.control.incidentHolds shouldBe listOf(IncidentHold.reconstitute(paymentId(1), IncidentReason.SUCCESS_AFTER_TERMINATION, 1, null))
                 val error = shouldThrow<AuthorizationStartRejectedException> { s.control.startAuthorization(s.current) }
                 error.reason shouldBe BlockReason.INCIDENT_HOLD
                 // L-2: 검사 실패는 전이 전이다 — 현재 Payment는 REQUESTED 그대로다.

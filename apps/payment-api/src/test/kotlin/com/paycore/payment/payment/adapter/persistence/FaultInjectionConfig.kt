@@ -1,45 +1,56 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.adapter.query.JooqAuthorizationViewReader
+import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.required.AuthenticationSessionAttributes
 import com.paycore.payment.payment.application.required.AuthenticationSessionEventRecord
 import com.paycore.payment.payment.application.required.AuthenticationSessionEventStore
 import com.paycore.payment.payment.application.required.AuthenticationSessionRepository
+import com.paycore.payment.payment.application.required.AuthorizationAttemptViewRow
+import com.paycore.payment.payment.application.required.AuthorizationViewReader
+import com.paycore.payment.payment.application.required.AuthorizationViewRow
 import com.paycore.payment.payment.application.required.CheckoutSessionRecord
 import com.paycore.payment.payment.application.required.CheckoutSessionStore
 import com.paycore.payment.payment.application.required.CheckoutTokenRecord
 import com.paycore.payment.payment.application.required.CheckoutTokenStore
 import com.paycore.payment.payment.application.required.ControlAcquisition
+import com.paycore.payment.payment.application.required.DailyLimitUsageRepository
 import com.paycore.payment.payment.application.required.EventAppendResult
-import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.required.IdempotencyRecordStore
-import com.paycore.payment.payment.application.required.MerchantCredentialStore
-import com.paycore.payment.payment.application.required.StoredMerchantCredential
 import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
+import com.paycore.payment.payment.application.required.MerchantCredentialStore
 import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.OutboxEvent
 import com.paycore.payment.payment.application.required.OutboxStore
+import com.paycore.payment.payment.application.required.PaymentAuthorizationRepository
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
 import com.paycore.payment.payment.application.required.PaymentCreationRecord
 import com.paycore.payment.payment.application.required.PaymentRepository
+import com.paycore.payment.payment.application.required.StoredMerchantCredential
 import com.paycore.payment.payment.application.required.StoredRequestResult
 import com.paycore.payment.payment.application.required.Versioned
+import com.paycore.payment.payment.domain.AttemptId
 import com.paycore.payment.payment.domain.AuthenticationSession
 import com.paycore.payment.payment.domain.AuthenticationSessionId
+import com.paycore.payment.payment.domain.AuthorizationId
 import com.paycore.payment.payment.domain.CheckoutHandle
 import com.paycore.payment.payment.domain.CheckoutSessionId
 import com.paycore.payment.payment.domain.CheckoutTokenId
+import com.paycore.payment.payment.domain.DailyLimitUsage
+import com.paycore.payment.payment.domain.LimitUsageKey
 import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.OrderPaymentControl
 import com.paycore.payment.payment.domain.Payment
+import com.paycore.payment.payment.domain.PaymentAuthorization
 import com.paycore.payment.payment.domain.PaymentId
 import com.paycore.payment.payment.domain.SecretDigest
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 /** 장애 주입 지점(Port 호출 직후). */
 enum class FaultPoint {
@@ -55,6 +66,12 @@ enum class FaultPoint {
     TOKEN_INSERT, TOKEN_LOCK, TOKEN_UPDATE,
     CHECKOUT_SESSION_INSERT, CHECKOUT_SESSION_LOCK, CHECKOUT_SESSION_UPDATE,
     AUTH_SESSION_INSERT, AUTH_SESSION_LOCK, AUTH_SESSION_UPDATE, AUTH_EVENT_APPEND,
+
+    /** AUTH-001 승인·일 한도 Port(쓰기·잠금 직후 — TX1·TX2 rollback·경합 시험). */
+    AUTHORIZATION_INSERT, AUTHORIZATION_LOCK, AUTHORIZATION_UPDATE, LIMIT_USAGE_LOCK, LIMIT_USAGE_UPDATE,
+
+    /** AUTH-001 회복: 선점 커밋 뒤 Attempt 조회 **직전**(hook 인자 = AttemptId — 선점과 TXd 경합 재현, 검토 #3 m-1). */
+    RECOVERY_BEFORE_FIND_ATTEMPT,
 }
 
 /**
@@ -83,6 +100,18 @@ class FaultInjectionConfig {
 
     @Bean
     fun faultInjector(): FaultInjector = FaultInjector()
+
+    @Bean
+    @Primary
+    fun faultInjectingAuthorizationViewReader(real: JooqAuthorizationViewReader, f: FaultInjector): AuthorizationViewReader =
+        object : AuthorizationViewReader {
+            override fun find(authorizationId: AuthorizationId): AuthorizationViewRow? = real.find(authorizationId)
+
+            override fun findAttempt(attemptId: AttemptId): AuthorizationAttemptViewRow? {
+                f.around(FaultPoint.RECOVERY_BEFORE_FIND_ATTEMPT) { attemptId }
+                return real.findAttempt(attemptId)
+            }
+        }
 
     @Bean
     @Primary
@@ -183,8 +212,35 @@ class FaultInjectionConfig {
             override fun findIdByState(checkoutSessionId: CheckoutSessionId, stateDigest: SecretDigest): AuthenticationSessionId? =
                 real.findIdByState(checkoutSessionId, stateDigest)
 
+            override fun findIdByAuthenticationRef(authenticationRef: com.paycore.payment.payment.domain.AuthenticationRef): AuthenticationSessionId? =
+                real.findIdByAuthenticationRef(authenticationRef)
+
             override fun update(session: AuthenticationSession, expectedVersion: Long): Long =
                 f.around(FaultPoint.AUTH_SESSION_UPDATE) { real.update(session, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingPaymentAuthorizationRepository(real: JpaPaymentAuthorizationRepository, f: FaultInjector): PaymentAuthorizationRepository =
+        object : PaymentAuthorizationRepository {
+            override fun insertNew(authorization: PaymentAuthorization): Long = f.around(FaultPoint.AUTHORIZATION_INSERT) { real.insertNew(authorization) }
+
+            override fun lock(id: AuthorizationId): Versioned<PaymentAuthorization>? = f.around(FaultPoint.AUTHORIZATION_LOCK) { real.lock(id) }
+
+            override fun lockByPaymentId(paymentId: PaymentId): Versioned<PaymentAuthorization>? = f.around(FaultPoint.AUTHORIZATION_LOCK) { real.lockByPaymentId(paymentId) }
+
+            override fun update(authorization: PaymentAuthorization, expectedVersion: Long): Long =
+                f.around(FaultPoint.AUTHORIZATION_UPDATE) { real.update(authorization, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingDailyLimitUsageRepository(real: JpaDailyLimitUsageRepository, f: FaultInjector): DailyLimitUsageRepository =
+        object : DailyLimitUsageRepository {
+            override fun lockOrCreate(key: LimitUsageKey, at: java.time.Instant): Versioned<DailyLimitUsage> = f.around(FaultPoint.LIMIT_USAGE_LOCK) { real.lockOrCreate(key, at) }
+
+            override fun update(usage: DailyLimitUsage, expectedVersion: Long, at: java.time.Instant): Long =
+                f.around(FaultPoint.LIMIT_USAGE_UPDATE) { real.update(usage, expectedVersion, at) }
         }
 
     @Bean

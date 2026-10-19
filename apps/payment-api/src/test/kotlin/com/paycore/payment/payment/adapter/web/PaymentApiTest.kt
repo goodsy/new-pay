@@ -46,7 +46,8 @@ import java.util.concurrent.atomic.AtomicReference
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(
     PaymentMySqlContainerConfig::class, PaymentDbTestConfig::class, FaultInjectionConfig::class, EligibilityTestConfig::class, ApiTestConfig::class,
-    SiteWebHostTestConfig::class, CardAuthenticationTestConfig::class,
+    SiteWebHostTestConfig::class, CardAuthenticationTestConfig::class, com.paycore.payment.payment.application.AdmissionTestConfig::class,
+    com.paycore.payment.payment.application.ProgrammableVanTestConfig::class,
 )
 @TestPropertySource(
     properties = [

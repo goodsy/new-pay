@@ -77,10 +77,13 @@ class PaymentAuthorization private constructor(
     /** 기관 승인 조건이 요청과 같은가(금액·통화·Plan·cardType — 부분 승인은 금액 불일치). */
     fun matchesRequest(terms: ApprovedTerms): Boolean = terms.money == money && terms.plan == plan && terms.cardType == authenticatedCardType
 
-    /** 전송 게이트 통과(TXd): PREPARED → DISPATCHING. 이 커밋 뒤에만 기관에 연결한다. */
-    fun beginDispatch(attemptId: AttemptId) {
+    /**
+     * 전송 게이트 통과(TXd): PREPARED → DISPATCHING. 이 커밋 뒤에만 기관에 연결한다. 이번 전송의 Route 프로파일(Capability) 버전을 Attempt에 고정한다(D-AUTH1-007 —
+     * 회복은 이 버전이 현재 등록부 버전과 같을 때만 무효과 종결을 요청한다).
+     */
+    fun beginDispatch(attemptId: AttemptId, routeProfileVersion: String) {
         if (status != AuthorizationStatus.OPEN) throw InvalidAuthorizationTransitionException(id, status.name, "beginDispatch")
-        attempt(attemptId).beginDispatch(id)
+        attempt(attemptId).beginDispatch(id, routeProfileVersion)
     }
 
     /**
@@ -91,6 +94,21 @@ class PaymentAuthorization private constructor(
         get() = keyConflictList.toList()
 
     private val keyConflictList = mutableListOf<InstitutionObservation>()
+
+    /**
+     * 기록된 관찰 각각과 그 식별([ObservationRef], 검토 #1 H-1): 첫 관찰은 variant 0, 같은 키의 상충 증거는 그 키 안에서 기록 순서대로 1, 2, …(영속 variant와 같은 규칙).
+     */
+    val observationRefs: List<Pair<InstitutionObservation, ObservationRef>>
+        get() {
+            val counts = mutableMapOf<ObservationKey, Int>()
+            return observationList.map { it to ObservationRef(it.key, 0) } +
+                keyConflictList.map { o -> o to ObservationRef(o.key, counts.merge(o.key, 1, Int::plus)!!) }
+        }
+
+    /** 이미 기록된 관찰(같은 키·같은 기관 내용)의 식별. 기록되지 않은 관찰이면 예외. */
+    fun refOf(observation: InstitutionObservation): ObservationRef =
+        observationRefs.firstOrNull { (o, _) -> o.key == observation.key && o.sameInstitutionContent(observation) }?.second
+            ?: throw IllegalArgumentException("observation is not recorded on this authorization")
 
     /**
      * 관찰을 기록한다. 새 키면 append(NEW). 같은 키·같은 내용이면 효과 없음(DUPLICATE). 같은 키·다른 내용이면 상충 증거로 따로 append하고
@@ -183,6 +201,75 @@ class PaymentAuthorization private constructor(
                 id, payment.id, payment.orderKey, intent, plan, authenticatedCardType, authenticationSessionId, admission,
                 planPolicyVersion, limitPolicyVersion, limitKey, openedAt,
             ).also { it.attemptList += AuthorizationAttempt(attemptId, providerRequest, openedAt, PREPARED, null, null) }
+        }
+
+        /**
+         * 영속 복원(persistence Mapper 전용, AUTH-001 명세 §4.11-5). 시험 편의 생성 API가 아니다(Named Fixture는 [open]과 전이를 쓴다). 공식 전이로 만들 수 없는 조합은
+         * 거부한다(조용히 고치지 않는다): 상태와 거래·종료 근거의 짝(FAILED + RECON 기록 거래는 D-CANCEL-011로 허용), 거래의 출처 관찰·조건 일치, 관찰 키 유일·Attempt 소속,
+         * 키 상충 관찰의 첫 관찰 존재, 동시 실행 Attempt 1개(CA-13), 상태별 Attempt 상태.
+         */
+        fun reconstitute(
+            id: AuthorizationId,
+            paymentId: PaymentId,
+            orderKey: OrderKey,
+            intent: OrderIntent,
+            plan: PaymentPlan,
+            authenticatedCardType: CardType,
+            authenticationSessionId: AuthenticationSessionId,
+            admission: AuthorizationAdmission,
+            planPolicyVersion: String,
+            limitPolicyVersion: String,
+            limitKey: LimitUsageKey,
+            openedAt: Instant,
+            status: AuthorizationStatus,
+            attempts: List<AuthorizationAttempt>,
+            observations: List<InstitutionObservation>,
+            keyConflictingObservations: List<InstitutionObservation>,
+            transaction: AuthorizationTransaction?,
+            failureEvidence: TerminationEvidence?,
+        ): PaymentAuthorization {
+            require(planPolicyVersion.isNotEmpty() && limitPolicyVersion.isNotEmpty()) { "policy versions must not be empty" }
+            require(attempts.isNotEmpty()) { "an authorization has at least one attempt" }
+            require(attempts.map { it.id }.toSet().size == attempts.size) { "attempt ids are unique" }
+            val attemptIds = attempts.map { it.id }.toSet()
+            require(attempts.count { it.state == PREPARED || it.state == DISPATCHING || it.state == AttemptState.OUTCOME_UNKNOWN } <= 1) {
+                "at most one attempt is in flight"
+            }
+            require(observations.map { it.key }.toSet().size == observations.size) { "observation keys are unique" }
+            require((observations + keyConflictingObservations).all { it.attemptId in attemptIds }) { "observations belong to an attempt of this authorization" }
+            require(keyConflictingObservations.all { c -> observations.any { it.key == c.key && !it.sameInstitutionContent(c) } }) {
+                "a key-conflicting observation needs a different first observation with the same key"
+            }
+            when (status) {
+                AuthorizationStatus.OPEN -> require(attempts.all { it.state == PREPARED || it.state == DISPATCHING }) { "an OPEN authorization has only unsent or dispatching attempts" }
+                AuthorizationStatus.UNKNOWN -> require(attempts.none { it.state == PREPARED || it.state == DISPATCHING }) { "an UNKNOWN authorization has no unsent or dispatching attempt" }
+                AuthorizationStatus.AUTHORIZED -> require(attempts.any { it.state == AttemptState.RESOLVED }) { "an AUTHORIZED authorization has a resolved attempt" }
+                AuthorizationStatus.FAILED -> require(attempts.none { it.state == PREPARED || it.state == DISPATCHING }) { "a FAILED authorization has no attempt in flight" }
+            }
+            require(status != AuthorizationStatus.AUTHORIZED || transaction != null) { "an AUTHORIZED authorization has its transaction" }
+            require(transaction == null || status == AuthorizationStatus.AUTHORIZED || status == AuthorizationStatus.FAILED) {
+                "only AUTHORIZED (or a FAILED one recorded by reconciliation) has a transaction"
+            }
+            require((status == AuthorizationStatus.FAILED) == (failureEvidence != null)) { "failure evidence exists exactly for FAILED" }
+            require(failureEvidence == null || failureEvidence.isSufficientFor(PaymentStatus.FAILED)) { "failure evidence must be sufficient for FAILED" }
+            val restored = PaymentAuthorization(
+                id, paymentId, orderKey, intent, plan, authenticatedCardType, authenticationSessionId, admission, planPolicyVersion, limitPolicyVersion, limitKey, openedAt,
+            )
+            if (transaction != null) {
+                require(transaction.authorizationId == id && transaction.paymentId == paymentId) { "transaction must belong to this authorization" }
+                require(restored.matchesRequest(transaction.terms)) { "only a full approval matching the request is a transaction" }
+                require(observations.any { it.key == transaction.sourceObservation && it.approved == transaction.terms }) {
+                    "the transaction's source observation is recorded with the same terms"
+                }
+            }
+            return restored.also {
+                it.status = status
+                it.attemptList += attempts
+                it.observationList += observations
+                it.keyConflictList += keyConflictingObservations
+                it.transaction = transaction
+                it.failureEvidence = failureEvidence
+            }
         }
     }
 }

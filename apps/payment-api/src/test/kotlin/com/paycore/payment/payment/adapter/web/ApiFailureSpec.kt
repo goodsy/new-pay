@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.web
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
@@ -341,14 +342,17 @@ class ApiFailureSpec(
             s.rows(cred.mid) shouldBe s.rows(payment = 2, control = 1, idempotency = 1, outbox = 3)
         }
         /** T0에 같은 키로 만든 주문을 [prepare] 상태로 바꾸고 T0+30일에 같은 키·같은 본문을 다시 보낸다(명세 §9.3 행). */
-        fun afterExpiry(prepare: (com.paycore.payment.payment.domain.Payment, com.paycore.payment.payment.domain.OrderPaymentControl) -> Unit):
-            Triple<TestCredentials.Issued, String, ApiClient.Response> {
+        /** [legacy]가 있으면 domain 전이 대신 AUTH-001 이전 저장 행(L-3로 지금은 만들 수 없는 종료)으로 준비한다. */
+        fun afterExpiry(
+            legacy: Pair<String, TerminationEvidence>? = null,
+            prepare: (com.paycore.payment.payment.domain.Payment, com.paycore.payment.payment.domain.OrderPaymentControl) -> Unit,
+        ): Triple<TestCredentials.Issued, String, ApiClient.Response> {
             val cred = TestCredentials.issue(db)
             val key = s.newKey()
             val orderId = s.newOrderId()
             val body = CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId)
             val paymentId = s.json(post(cred, body, key).body).get("paymentId").stringValue()
-            s.change(cred, orderId, paymentId) { p, c -> prepare(p, c) }
+            if (legacy != null) db.terminateAsLegacy(paymentId, legacy.first, legacy.second.name) else s.change(cred, orderId, paymentId) { p, c -> prepare(p, c) }
             clock.set(ApiTestTimes.T0.plus(Duration.ofDays(30)))
             return Triple(cred, paymentId, post(cred, body, key))
         }
@@ -358,7 +362,7 @@ class ApiFailureSpec(
             "UNKNOWN" to { p, c -> c.startAuthorization(p); p.markUnknown() },
         ).forEach { (state, prepare) ->
             Then("at T0+30d with the original payment $state the same key reuses it: 200 EXISTING_ACTIVE_PAYMENT, no second payment (no double authorization path)") {
-                val (cred, paymentId, r) = afterExpiry(prepare)
+                val (cred, paymentId, r) = afterExpiry(prepare = prepare)
                 r.status shouldBe 200
                 r.header("Idempotent-Replayed") shouldBe "false"
                 s.json(r.body).get("outcome").stringValue() shouldBe "EXISTING_ACTIVE_PAYMENT"
@@ -372,14 +376,14 @@ class ApiFailureSpec(
             s.json(r.body).get("error").get("referencePaymentId").stringValue() shouldBe paymentId
             s.rows(cred.mid).getValue("payment") shouldBe 1L
         }
-        Then("at T0+30d a FAILED payment with insufficient evidence blocks: 409 ORDER_RESULT_UNCONFIRMED") {
-            val (cred, paymentId, r) = afterExpiry { p, _ -> p.fail(TerminationEvidence.TIMEOUT) }
+        Then("at T0+30d a FAILED payment with insufficient evidence (legacy row, AUTH-001 L-3) blocks: 409 ORDER_RESULT_UNCONFIRMED") {
+            val (cred, paymentId, r) = afterExpiry(legacy = "FAILED" to TerminationEvidence.TIMEOUT) { _, _ -> }
             code(r) shouldBe "ORDER_RESULT_UNCONFIRMED"
             s.json(r.body).get("error").get("referencePaymentId").stringValue() shouldBe paymentId
             s.rows(cred.mid).getValue("payment") shouldBe 1L
         }
         Then("at T0+30d a safely FAILED payment (sufficient evidence) lets the same key create generation 2 (201) — the legitimate second payment of contract §8") {
-            val (cred, paymentId, r) = afterExpiry { p, _ -> p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE) }
+            val (cred, paymentId, r) = afterExpiry { p, c -> c.startAuthorization(p); p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE) }
             r.status shouldBe 201
             s.json(r.body).get("paymentId").stringValue() shouldNotBe paymentId
             s.scalar("SELECT generation FROM order_payment_control WHERE merchant_account_id = ?", cred.mid).toString() shouldBe "2"

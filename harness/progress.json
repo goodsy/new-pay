@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:8d96b5923bfef108a79b0523bde057f593132105ef4132d6f889a7b055b7a07f",
-  "lastSuccessfulStep": "CANCEL-CONTRACT-001 DONE (VERIFY-GATE PASS 222224Z, REVIEW_PASS)",
+  "codeFingerprint": "sha256:baa077bac0aa1715c8aaa74be75820f4d4dd7e26ed668d218f3a20c1b177aa31",
+  "lastSuccessfulStep": "AUTH-001 DONE (VERIFY-GATE PASS 150655Z 1875/0, DEPS×5·CVE PASS 152244Z, REVIEW_PASS final-2)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "AUTH-001 착수(agreedOrder 다음) → CANCEL-001 순서 편입 여부 사용자 확인 → CP-QUERY-001 → WEBHOOK-001, ADMIN-BOOT-001 착수 전 사용자에게 알림",
+  "nextResumeAction": "CANCEL-001(agreedOrder AUTH-001 다음): 1단계 조사·명세·질문 후보부터. 이후 CP-QUERY-001 → WEBHOOK-001. ADMIN-BOOT-001 착수 전 사용자에게 알림",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -397,6 +397,56 @@
       "at": "2026-10-18",
       "taskId": "CANCEL-CONTRACT-001",
       "event": "DONE: VERIFY-GATE PASS 222224Z(1586/0), REVIEW_PASS, D-CANCEL-001~013"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "IN_PROGRESS, 1단계 조사·명세·질문 후보 착수"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "1단계 명세 수령, Q-AUTH1-01~03 → D-AUTH1-001~003, CANCEL-001을 agreedOrder AUTH-001 다음에 편입(사용자 선택)"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "명세 review SPEC_PASS_WITH_FIXES(H-1~H-3) → rev 0.3, Q-AUTH1-04 → D-AUTH1-004, S2 체크포인트(미검증 payment 1135/0)"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "S4 체크포인트(미검증 payment 1165/0, simulator 101/0, SELFTEST 86), 중간 review #2 착수 + S5~S7 병행"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "중간 review #2 PASS_WITH_FIXES(m-A~m-D, n-1~n-6), Q-AUTH1-05(P-1) 질문"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "Q-AUTH1-05 → D-AUTH1-005(보류 자동 재개)"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "S7 체크포인트(미검증 payment 1246/0, simulator 107/0), 중간 review #3 착수, Q-AUTH1-06 질문"
+    },
+    {
+      "at": "2026-10-18",
+      "taskId": "AUTH-001",
+      "event": "중간 review #3 PASS_WITH_FIXES(m-1~m-4, n-1~n-10), Q-AUTH1-06 → D-AUTH1-006, RECON-CONTRACT-001 인계 AC 2건"
+    },
+    {
+      "at": "2026-10-19",
+      "taskId": "AUTH-001",
+      "event": "S8 문서·gap(§9 지표·.env.example·할부 Demo), Q-S8-1 → D-AUTH1-007(V14)"
+    },
+    {
+      "at": "2026-10-19",
+      "taskId": "AUTH-001",
+      "event": "final review PASS_WITH_FIXES(m-1, n-1~n-7) → 수정 → REVIEW_PASS; VERIFY-GATE PASS 150655Z 1875/0; DEPS×5·CVE PASS; DONE"
     }
   ],
   "agreedOrder": [
@@ -405,6 +455,7 @@
     "TZ-FIX-001",
     "CANCEL-CONTRACT-001",
     "AUTH-001",
+    "CANCEL-001",
     "CP-QUERY-001",
     "WEBHOOK-001",
     "ADMIN-BOOT-001",

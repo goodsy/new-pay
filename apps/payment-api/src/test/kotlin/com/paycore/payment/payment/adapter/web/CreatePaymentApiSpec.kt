@@ -1,5 +1,9 @@
 package com.paycore.payment.payment.adapter.web
 
+import com.paycore.payment.payment.domain.fail
+import com.paycore.payment.payment.domain.expire
+import com.paycore.payment.payment.domain.addTerminationEvidence
+import com.paycore.payment.payment.domain.reportSuccessAfterTermination
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
 import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
@@ -177,7 +181,7 @@ class CreatePaymentApiSpec(
             val oldKey = s.newKey()
             val first = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), oldKey)
             val firstId = s.json(first.body).get("paymentId").stringValue()
-            s.change(cred, orderId, firstId) { p, _ -> p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE) }
+            s.change(cred, orderId, firstId) { p, _ -> p.startAuthorization(); p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE) }
 
             val second = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey())
             second.status shouldBe 201
@@ -191,7 +195,8 @@ class CreatePaymentApiSpec(
             val cred = TestCredentials.issue(db)
             val orderId = s.newOrderId()
             val paymentId = s.json(post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey()).body).get("paymentId").stringValue()
-            s.change(cred, orderId, paymentId) { p, _ -> p.fail(null) }
+            // 검토 #1 m-1: 승인을 시작하지 않은 종료는 결제창 만료 근거만 나중에 받을 수 있다 — 근거 없는 EXPIRED → 나중에 미전송·세션 폐기 근거(정상 경로).
+            s.change(cred, orderId, paymentId) { p, _ -> p.expire(null) }
             val key = s.newKey()
             val rejected = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
             rejected.status shouldBe 409
@@ -200,25 +205,30 @@ class CreatePaymentApiSpec(
             rejected.header("Idempotent-Replayed") shouldBe "false"
 
             // 그 사이 충분한 근거가 확인돼도 같은 키는 저장된 거절을 재생한다. 새 고객 시도는 새 키로만.
-            s.change(cred, orderId, paymentId) { p, _ -> p.addTerminationEvidence(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE) }
+            s.change(cred, orderId, paymentId) { p, _ -> p.addTerminationEvidence(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED) }
             val replay = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
             replayed(replay, "ORDER_RESULT_UNCONFIRMED", paymentId)
             post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey()).status shouldBe 201
         }
-        listOf<Triple<String, (com.paycore.payment.payment.domain.Payment) -> Unit, Boolean>>(
-            Triple("FAILED after timeout", { p -> p.fail(TerminationEvidence.TIMEOUT) }, false),
-            Triple("FAILED after inquiry NOT_FOUND", { p -> p.fail(TerminationEvidence.INQUIRY_NOT_FOUND) }, false),
-            Triple("FAILED after lease expiry", { p -> p.fail(TerminationEvidence.LEASE_EXPIRED) }, false),
-            Triple("EXPIRED after lease expiry", { p -> p.expire(TerminationEvidence.LEASE_EXPIRED) }, false),
-            Triple("EXPIRED without evidence", { p -> p.expire(null) }, false),
-            Triple("EXPIRED, not transmitted and session discarded", { p -> p.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED) }, true),
-            Triple("FAILED, pre-transmission failure confirmed", { p -> p.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }, true),
+        // AUTH-001 L-3: timeout·조회 NOT_FOUND·lease 만료 종료는 승인 시작 전 Payment에 생길 수 없다 — AUTH-001 이전 저장 행(legacy)으로 준비한다. 기대값(차단)은 그대로.
+        fun domain(change: (com.paycore.payment.payment.domain.Payment) -> Unit): (TestCredentials.Issued, String, String) -> Unit =
+            { cred, orderId, paymentId -> s.change(cred, orderId, paymentId) { p, _ -> change(p) } }
+        fun legacy(status: String, evidence: TerminationEvidence): (TestCredentials.Issued, String, String) -> Unit =
+            { _, _, paymentId -> db.terminateAsLegacy(paymentId, status, evidence.name) }
+        listOf<Triple<String, (TestCredentials.Issued, String, String) -> Unit, Boolean>>(
+            Triple("legacy row FAILED after timeout", legacy("FAILED", TerminationEvidence.TIMEOUT), false),
+            Triple("legacy row FAILED after inquiry NOT_FOUND", legacy("FAILED", TerminationEvidence.INQUIRY_NOT_FOUND), false),
+            Triple("legacy row FAILED after lease expiry", legacy("FAILED", TerminationEvidence.LEASE_EXPIRED), false),
+            Triple("legacy row EXPIRED after lease expiry", legacy("EXPIRED", TerminationEvidence.LEASE_EXPIRED), false),
+            Triple("EXPIRED without evidence", domain { p -> p.expire(null) }, false),
+            Triple("EXPIRED, not transmitted and session discarded", domain { p -> p.expire(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED) }, true),
+            Triple("FAILED, pre-transmission failure confirmed", domain { p -> p.startAuthorization(); p.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }, true),
         ).forEach { (case, prepare, safe) ->
             Then("$case: a new key ${if (safe) "creates generation 2 (201)" else "is blocked with 409 ORDER_RESULT_UNCONFIRMED (timeout, NOT_FOUND and lease expiry are no proof of no effect)"}") {
                 val cred = TestCredentials.issue(db)
                 val orderId = s.newOrderId()
                 val paymentId = s.json(post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey()).body).get("paymentId").stringValue()
-                s.change(cred, orderId, paymentId) { p, _ -> prepare(p) }
+                prepare(cred, orderId, paymentId)
                 val r = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey())
                 if (safe) {
                     r.status shouldBe 201
@@ -246,7 +256,7 @@ class CreatePaymentApiSpec(
             s.json(conflict.body).get("error").get("referencePaymentId").stringValue() shouldBe first
             replayed(post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId, amount = 9_999), conflictKey), "ORDER_INTENT_CONFLICT", first)
 
-            s.change(cred, orderId, first) { p, c -> p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE); c.reportSuccessAfterTermination(p) }
+            s.change(cred, orderId, first) { p, c -> p.startAuthorization(); p.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE); c.reportSuccessAfterTermination(p) }
             val holdKey = s.newKey()
             val hold = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), holdKey)
             hold.status shouldBe 409

@@ -14,3 +14,32 @@ paycore:
       - id: pg-other
         key-sha256: 72e1dc0de7f2d551cde1baf9ded43b2d51d0944baf3ee401b29acbb83a962abe
         return-origin: https://checkout-other.example.test
+    # 가상 VAN(AUTH-001 §5) 시험 값 — Demo, 운영값 아님. HMAC 키는 golden(van-contract-sim-van-1)의 시험 전용 키 "test-only-sim-van-hmac-key-00001".
+    van:
+      port: 0
+      late-response-delay: PT1.5S
+      fragment-delay: PT0.005S
+      idle-timeout: PT2S
+      keys:
+        - id: sim-van-test-1
+          client: pg-demo
+          key-base64: dGVzdC1vbmx5LXNpbS12YW4taG1hYy1rZXktMDAwMDE=
+      profiles:
+        # 신용 할부 개월: 결제창 Plan Demo·payment-api 시험 Route와 같은 [2, 3, 6](AUTH-001 §16.17 발견 2). domain 단위 시험(VanFixture)은 자기 프로파일을 따로 둔다.
+        A:
+          confirms-no-effect: true
+          closable-after: PT2M
+          inquiry-retention: P7D
+          credit-installment-months: 2,3,6
+          pending-delay: PT5S
+        B:
+          confirms-no-effect: false
+          closable-after: PT2M
+          inquiry-retention: P7D
+          credit-installment-months: 2,3,6
+          pending-delay: PT5S
+      accounts:
+        - account: SIMMERCH0001
+          profile: A
+        - account: SIMMERCH0002
+          profile: B

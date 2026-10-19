@@ -29,9 +29,18 @@ object OrderPaymentControlFixture {
      */
     fun withCurrentPayment(status: PaymentStatus, evidence: TerminationEvidence? = null): OrderPaymentScenario {
         val s = openedWithRequestedPayment()
-        s.current.advance(status, evidence)
-        if (status == AUTHORIZED) s.control.recordAuthorized(s.current)
-        return s
+        val current = s.current.advance(status, evidence)
+        if (status == AUTHORIZED) s.control.recordAuthorized(current)
+        return OrderPaymentScenario(s.control, current)
+    }
+
+    /**
+     * 첫 Payment로 연 주문의 현재 Payment가 AUTH-001 이전에 저장된 legacy 종료 행(같은 ID — 정상 전이로 만들 수 없는 불충분 근거·교차 조합, L-3)인 시나리오(검토 #1 n-1:
+     * 호출자가 명시한다).
+     */
+    fun withCurrentLegacyPayment(status: PaymentStatus, evidence: TerminationEvidence?): OrderPaymentScenario {
+        val s = openedWithRequestedPayment()
+        return OrderPaymentScenario(s.control, PaymentFixture.legacyStored(status, evidence, n = 1, slotGeneration = 1))
     }
 
     /** 승인 성공 주문(이후 취소/환불 여부와 무관하게 성공 이력이 남는다). */

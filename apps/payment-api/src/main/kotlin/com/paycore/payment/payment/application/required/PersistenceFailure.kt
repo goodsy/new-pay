@@ -76,5 +76,25 @@ enum class StoreConstraint {
     /** 승인 하나에 세션 하나(`bound_authorization_id` UNIQUE — AUTH-001 귀속, 검토 #2 n-1). */
     AUTHENTICATION_SESSION_BOUND_AUTHORIZATION,
     AUTHENTICATION_SESSION_EVENT,
+
+    // AUTH-001 V9(명세 §7.1): 승인·Attempt·관찰·거래·일 한도.
+    PAYMENT_AUTHORIZATION_ID,
+
+    /** Payment당 논리 승인 하나(`uk_payment_authorization_payment`). */
+    PAYMENT_AUTHORIZATION_PAYMENT,
+    AUTHORIZATION_ATTEMPT_ID,
+
+    /** 기관 요청 namespace(기관·환경·계약계정·operation·요청 ID) UNIQUE. */
+    AUTHORIZATION_ATTEMPT_NAMESPACE,
+
+    /** Authorization당 동시 실행 Attempt 하나(생성 열 UNIQUE). */
+    AUTHORIZATION_ATTEMPT_IN_FLIGHT,
+    INSTITUTION_OBSERVATION,
+    PAYMENT_TRANSACTION_ID,
+
+    /** Authorization당 승인 거래 하나(생성 열 UNIQUE). */
+    PAYMENT_TRANSACTION_AUTHORIZATION,
+    DAILY_LIMIT_USAGE,
+    LIMIT_RESERVATION,
     OTHER,
 }

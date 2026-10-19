@@ -22,8 +22,35 @@ enum class IncidentReason {
  * 주문 사건 보류 기록(append-only, D-AUTH-002). 자동 보상취소는 없다. 해제는 [IncidentHoldRelease](2인 승인 + 재대사 MATCH)로만 하고
  * 보류 기록 자체는 지우지 않는다.
  */
-data class IncidentHold(val paymentId: PaymentId, val reason: IncidentReason, val occurrence: Int = 1) {
+class IncidentHold private constructor(
+    val paymentId: PaymentId,
+    val reason: IncidentReason,
+    val occurrence: Int,
+    /**
+     * 이 hold를 연 기관 관찰(AUTH-001 rev 0.3 H-1, 검토 #1 H-1 — 관찰 키 + variant). 승인 관찰 경로(Resolution)가 여는 새 hold는 항상 값이 있다(domain 연산이 non-null
+     * 식별을 받는다). null은 출처 열 도입 전 저장된 legacy hold와 취소 사건 hold(CANCEL-001에서 연결)뿐이다. hold의 식별(같음)은 (paymentId, reason, occurrence)이며
+     * 출처는 속성이다(영속 UNIQUE와 같다).
+     */
+    val sourceObservation: ObservationRef?,
+) {
     init {
         require(occurrence >= 1) { "hold occurrence must be positive" }
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is IncidentHold && paymentId == other.paymentId && reason == other.reason && occurrence == other.occurrence
+
+    override fun hashCode(): Int = (paymentId.hashCode() * 31 + reason.hashCode()) * 31 + occurrence
+
+    override fun toString(): String = "IncidentHold(paymentId=${paymentId.value}, reason=$reason, occurrence=$occurrence)"
+
+    companion object {
+        /** 새 hold(검토 #1 n-6): [OrderPaymentControl]의 hold 열기만 부른다. occurrence·출처를 기본값 없이 받는다. */
+        internal fun opened(paymentId: PaymentId, reason: IncidentReason, occurrence: Int, sourceObservation: ObservationRef?): IncidentHold =
+            IncidentHold(paymentId, reason, occurrence, sourceObservation)
+
+        /** 영속 복원(Mapper 전용)·시험 기대값 비교. 시험 상태 준비는 domain 연산(hold 열기)을 쓴다. */
+        fun reconstitute(paymentId: PaymentId, reason: IncidentReason, occurrence: Int, sourceObservation: ObservationRef?): IncidentHold =
+            IncidentHold(paymentId, reason, occurrence, sourceObservation)
     }
 }

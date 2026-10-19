@@ -43,6 +43,8 @@ class JpaAuthenticationTransactionRepository(
 
     override fun findByResultRef(resultRef: ResultRef): AuthenticationTransaction? = rows.findByResultRef(resultRef.value)?.let(::toDomain)
 
+    override fun findByEvidenceRef(evidenceRef: String): List<AuthenticationTransaction> = rows.findAllByEvidenceRef(evidenceRef).map(::toDomain)
+
     override fun find(id: TransactionId): AuthenticationTransaction? = rows.findById(id.value).orElse(null)?.let(::toDomain)
 
     override fun lock(id: TransactionId): AuthenticationTransaction? = rows.lockById(id.value)?.let(::toDomain)

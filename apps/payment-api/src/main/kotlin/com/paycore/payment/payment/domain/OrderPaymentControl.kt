@@ -59,21 +59,34 @@ class OrderPaymentControl private constructor(
         activeIncidentHolds.any { it.paymentId == paymentId && it.reason == reason }
 
     /**
+     * [paymentId]의 hold 중 실제 승인 판정(REAL·DOUBLE)으로 해제된 hold를 **연** 관찰들(AUTH-001 rev 0.3 H-1, 검토 #1 H-1 — 키 + variant). 해제 판정은 그 관찰이 보고한 승인만 설명한다 —
+     * hold가 활성인 동안 흡수된 다른 승인은 여기 없다. 출처 없는 legacy hold는 아무것도 설명하지 않는다(fail-closed).
+     */
+    fun realApprovalReleasedHoldSources(paymentId: PaymentId): Set<ObservationRef> =
+        releases.filter {
+            it.hold.paymentId == paymentId &&
+                (it.finding == HoldReleaseFinding.REAL_APPROVAL_CONFIRMED || it.finding == HoldReleaseFinding.DOUBLE_APPROVAL_CORRECTED)
+        }.mapNotNull { r -> holds.first { it == r.hold }.sourceObservation }.toSet()
+
+    /** [paymentId] hold의 해제 기록 중 실제 승인 판정(REAL·DOUBLE)이 있는가(AUTH-001 m-11 — FORCED 정리 기준). */
+    fun hasRealApprovalRelease(paymentId: PaymentId): Boolean =
+        releases.any {
+            it.hold.paymentId == paymentId &&
+                (it.finding == HoldReleaseFinding.REAL_APPROVAL_CONFIRMED || it.finding == HoldReleaseFinding.DOUBLE_APPROVAL_CORRECTED)
+        }
+
+    /**
      * (paymentId, reason) 사건 보류를 연다. 이미 활성이면 효과 없음(멱등). 이전 보류가 모두 해제됐다면 해제 판정과 무관하게 **새 보류**
      * (occurrence + 1)를 기록하고 기존 보류는 다시 쓰지 않는다: NO_EFFECT 해제 뒤(D-AUTH-012), REAL_APPROVAL_CONFIRMED·DOUBLE_APPROVAL_CORRECTED
      * 해제 뒤(D-AUTH-013 — 해제 판정은 그때 확인한 승인만 설명하고 그 뒤 들어온 다른 승인·반대 결과는 설명하지 않는다). 사용자 확정 2026-10-15.
      * 호출자(Resolution)는 새 관찰 키의 증거에서만 부른다. 영속 UNIQUE(OrderKey, paymentId, reason)는 occurrence를 포함하도록 AUTH-001에서 바꾼다.
      * @return 호출 뒤 (paymentId, reason) 활성 보류가 있으면 true(항상 true — 호출자가 Incident·FORCED와 맞추는 데 쓴다).
      */
-    private fun openHold(paymentId: PaymentId, reason: IncidentReason): Boolean {
+    private fun openHold(paymentId: PaymentId, reason: IncidentReason, source: ObservationRef?): Boolean {
         if (hasActiveHold(paymentId, reason)) return true
         val previous = holds.filter { it.paymentId == paymentId && it.reason == reason }
-        if (previous.isEmpty()) {
-            holds += IncidentHold(paymentId, reason, 1)
-            return true
-        }
-        val last = previous.maxBy { it.occurrence }
-        holds += IncidentHold(paymentId, reason, last.occurrence + 1)
+        val occurrence = if (previous.isEmpty()) 1 else previous.maxOf { it.occurrence } + 1
+        holds += IncidentHold.opened(paymentId, reason, occurrence, source)
         return true
     }
 
@@ -152,7 +165,7 @@ class OrderPaymentControl private constructor(
      * 이중 승인 상충 hold를 열고 true를 돌려준다(review round2 M-3). main 코드에서
      * `Payment.markAuthorized`·[recordAuthorized]·이 연산은 domain 안에서만 부른다(ArchUnit domainTransitionsOnlyInsideDomain).
      */
-    fun completeAuthorization(payment: Payment): Boolean {
+    fun completeAuthorization(payment: Payment, source: ObservationRef): Boolean {
         ensureCurrent(payment)
         if (payment.status != AUTHORIZING && payment.status != UNKNOWN) {
             throw InvalidPaymentTransitionException(payment.id, payment.status, "completeAuthorization")
@@ -166,7 +179,7 @@ class OrderPaymentControl private constructor(
         // 주문에 다른 승인 성공 이력이 이미 있다(예: 이전 generation 늦은 승인을 REAL로 해제한 뒤 현재 generation 승인 — review round2 M-3).
         // 기관 확정 효과이므로 기록하고(D-AUTH-003), 주문 승인 이력은 기존 값을 유지하며 이중 승인 상충 hold를 연다(D-AUTH-011과 같은 처리).
         // 이 hold는 DOUBLE_APPROVAL_CORRECTED로 해제한다.
-        return openHold(payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+        return openHold(payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, source)
     }
 
     /**
@@ -189,13 +202,13 @@ class OrderPaymentControl private constructor(
      * 멱등: 같은 늦은 성공이 응답·통보·조회로 여러 번 보고돼도 (paymentId, reason)당 보류는 하나다(이미 있으면 no-op).
      * 영속 유일성은 CP-DB-001의 UNIQUE(orderKey, paymentId, reason)가 보장한다.
      */
-    fun reportSuccessAfterTermination(payment: Payment): Boolean {
+    fun reportSuccessAfterTermination(payment: Payment, source: ObservationRef): Boolean {
         require(payment.orderKey == orderKey) { "payment ${payment.id.value} belongs to another order" }
         require(payment.slotGeneration <= generation) { "payment ${payment.id.value} is from a future generation" }
         require(payment.status == FAILED || payment.status == EXPIRED) {
             "success after termination needs a FAILED/EXPIRED payment: ${payment.status}"
         }
-        return openHold(payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION)
+        return openHold(payment.id, IncidentReason.SUCCESS_AFTER_TERMINATION, source)
     }
 
     /**
@@ -203,13 +216,13 @@ class OrderPaymentControl private constructor(
      * 대상은 승인을 시작한 Payment(AUTHORIZING·UNKNOWN·AUTHORIZED, 그리고 같은 관찰 키로 내용이 다른 결과가 온 FAILED — review m-1)다.
      * 멱등: (paymentId, reason)당 보류 하나.
      */
-    fun reportConflictingResult(payment: Payment): Boolean {
+    fun reportConflictingResult(payment: Payment, source: ObservationRef): Boolean {
         require(payment.orderKey == orderKey) { "payment ${payment.id.value} belongs to another order" }
         require(payment.slotGeneration <= generation) { "payment ${payment.id.value} is from a future generation" }
         require(payment.status == AUTHORIZING || payment.status == UNKNOWN || payment.status == AUTHORIZED || payment.status == FAILED) {
             "a conflicting institution result needs a payment whose authorization started: ${payment.status}"
         }
-        return openHold(payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+        return openHold(payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, source)
     }
 
     /**
@@ -222,7 +235,8 @@ class OrderPaymentControl private constructor(
         require(payment.status == AUTHORIZED || payment.status == FAILED || payment.status == EXPIRED) {
             "a cancel result conflict needs a payment that can hold a confirmed authorization transaction: ${payment.status}"
         }
-        return openHold(payment.id, IncidentReason.CANCEL_RESULT_CONFLICT)
+        // 취소 관찰 키(CancelObservationKey)는 승인 관찰 키와 다른 타입이다 — 취소 사건 hold의 출처 연결은 CANCEL-001이 정한다(H-1은 승인 관찰 경로 hold).
+        return openHold(payment.id, IncidentReason.CANCEL_RESULT_CONFLICT, null)
     }
 
     /**
@@ -258,6 +272,15 @@ class OrderPaymentControl private constructor(
         releases += release
     }
 
+    /**
+     * D-AUTH1-005·006: 방금 해제한 [released]가 흡수했던, 해제가 설명하지 못하는 승인 관찰([source])에 대해 같은 (paymentId, reason)의 새 hold(occurrence + 1)를 연다(해제 판정 무관).
+     * [IncidentHoldSettlement]만 부른다(해제와 같은 연산). 해제되지 않은 hold에는 쓰지 않는다.
+     */
+    internal fun reopenForUnexplainedApproval(released: IncidentHold, source: ObservationRef) {
+        require(released in holds && releases.any { it.hold == released }) { "only a released hold is followed by a reopened hold" }
+        openHold(released.paymentId, released.reason, source)
+    }
+
     private fun knownPaymentIds(): Set<PaymentId> =
         buildSet {
             add(currentPaymentId)
@@ -290,8 +313,8 @@ class OrderPaymentControl private constructor(
          * 영속 복원(persistence Mapper 전용, CP-DB-001). 슬롯을 새로 열지 않고 저장된 control을 되돌린다. 시험 편의 생성 API가 아니다
          * (Named Test Fixture는 [open]·[occupy]를 쓴다). generation ≥ 1, 사건 보류는 (paymentId, reason)당 하나여야 한다 — 위반 행은
          * 조용히 고치지 않고 거부한다. 동시 수정 감지(JPA version)는 domain 값이 아니라 adapter가 따로 관리한다.
-         * [incidentHoldReleases]는 저장된 보류의 해제 기록(보류당 최대 하나)이다. 영속 표는 AUTH-001 이후라 기본값은 빈 목록이다 — 해제
-         * 기록이 저장되지 않은 동안 복원된 보류는 활성으로 남는다(fail-closed).
+         * [incidentHoldReleases]는 저장된 보류의 해제 기록(보류당 최대 하나, `incident_hold_release` 표 — AUTH-001)이다. 기본값이 없다(AUTH-001 n-4) —
+         * Mapper가 저장된 해제 기록을 반드시 명시해 넘긴다.
          */
         fun reconstitute(
             orderKey: OrderKey,
@@ -300,7 +323,7 @@ class OrderPaymentControl private constructor(
             generation: Long,
             authorizedPaymentId: PaymentId?,
             incidentHolds: List<IncidentHold>,
-            incidentHoldReleases: List<IncidentHoldRelease> = emptyList(),
+            incidentHoldReleases: List<IncidentHoldRelease>,
         ): OrderPaymentControl {
             require(generation >= 1) { "generation must be positive: $generation" }
             require(incidentHolds.toSet().size == incidentHolds.size) { "incident holds must be unique per (paymentId, reason, occurrence)" }

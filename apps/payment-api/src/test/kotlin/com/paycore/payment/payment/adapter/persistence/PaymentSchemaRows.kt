@@ -62,7 +62,7 @@ object PaymentSchemaRows {
     """
 
     const val INSERT_HOLD = """
-        INSERT INTO incident_hold (environment, merchant_account_id, merchant_order_id, payment_id, reason, created_at)
-        VALUES (?, ?, ?, ?, ?, '2026-10-07 00:00:00.000')
+        INSERT INTO incident_hold (environment, merchant_account_id, merchant_order_id, payment_id, reason, occurrence, created_at)
+        VALUES (?, ?, ?, ?, ?, 1, '2026-10-07 00:00:00.000')
     """
 }

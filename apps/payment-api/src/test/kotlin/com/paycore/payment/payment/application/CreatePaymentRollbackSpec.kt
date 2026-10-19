@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
@@ -60,6 +61,8 @@ class CreatePaymentRollbackSpec(
 
     fun terminate(paymentId: PaymentId) = tx.executeWithoutResult {
         val p = payments.lock(paymentId)!!
+        // AUTH-001 L-3: 기관 확정 거절은 승인을 시작한(AUTHORIZING) Payment에만 있다.
+        p.value.startAuthorization()
         p.value.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE)
         payments.update(p.value, p.version)
     }

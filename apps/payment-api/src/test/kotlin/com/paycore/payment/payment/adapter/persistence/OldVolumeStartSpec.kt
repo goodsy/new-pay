@@ -55,12 +55,12 @@ class OldVolumeStartSpec(
     }
 
     Given("a volume stopped at V6 with pre-V7 REQUESTED rows, started once") {
-        Then("the start applied V8, pinned the setting, back-filled REQUESTED rows only and then applied V8_1 — all in one start, no failed migration row") {
+        Then("the start applied V8, pinned the setting, back-filled REQUESTED rows only and then applied V8_1 and the AUTH-001 migrations (V9~V11) — all in one start, no failed migration row") {
             root { c ->
                 c.createStatement().use { st ->
                     st.executeQuery("SELECT GROUP_CONCAT(version ORDER BY installed_rank), MIN(success) FROM flyway_schema_history WHERE version IS NOT NULL").use { rs ->
                         rs.next()
-                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1"
+                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14"
                         rs.getBoolean(2) shouldBe true
                     }
                 }

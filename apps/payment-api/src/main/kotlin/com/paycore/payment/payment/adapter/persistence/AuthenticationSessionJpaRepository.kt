@@ -17,4 +17,7 @@ interface AuthenticationSessionJpaRepository : JpaRepository<JpaAuthenticationSe
             "where a.checkoutSessionId = :checkoutSessionId and a.stateDigest = :stateDigest",
     )
     fun findIdByCheckoutSessionAndState(@Param("checkoutSessionId") checkoutSessionId: String, @Param("stateDigest") stateDigest: String): String?
+
+    @Query("select a.authenticationSessionId from JpaAuthenticationSessionEntity a where a.authenticationRef = :authenticationRef")
+    fun findIdByAuthenticationRef(@Param("authenticationRef") authenticationRef: String): String?
 }

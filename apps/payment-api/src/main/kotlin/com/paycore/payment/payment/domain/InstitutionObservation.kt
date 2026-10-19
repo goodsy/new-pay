@@ -12,7 +12,11 @@ enum class ObservationSource { RESPONSE, INQUIRY, NOTIFICATION, RECONCILIATION }
  */
 enum class InstitutionOutcome { APPROVED, DECLINED, NO_EFFECT_CONFIRMED, PENDING, UNKNOWN, NOT_FOUND }
 
-/** 기관이 승인한 조건(승인 관찰에만). 승인번호는 전역 UNIQUE로 가정하지 않는다(허용 §5.2). */
+/**
+ * 기관이 승인한 조건(승인 관찰에만). 승인번호는 전역 UNIQUE로 가정하지 않는다(허용 §5.2).
+ * [institutionBusinessDate]는 기관이 알려 준 영업일(AUTH-001 검토 #1 m-2 — 기관이 주지 않으면 null). 값을 그대로 보존·비교할 뿐이며, 그 시간대·출처 의미와 정산 거래일
+ * 계산에 쓰는 규칙은 미결 Q-CALENDAR가 정한다(여기서 달력 규칙을 만들지 않는다).
+ */
 data class ApprovedTerms(
     val money: Money,
     val plan: PaymentPlan,
@@ -20,6 +24,7 @@ data class ApprovedTerms(
     val approvalNumber: String,
     val providerTransactionId: String,
     val institutionTransactionDate: LocalDate,
+    val institutionBusinessDate: LocalDate?,
 ) {
     init {
         require(approvalNumber.isNotEmpty() && providerTransactionId.isNotEmpty()) { "approval number and provider transaction id must not be empty" }
@@ -31,6 +36,17 @@ enum class ObservationRecord { NEW, DUPLICATE, KEY_CONFLICT }
 
 /** 관찰 유일 키(구현 결정 CA-15): 같은 출처의 같은 기관 결과는 한 번만 기록한다. */
 data class ObservationKey(val attemptId: AttemptId, val source: ObservationSource, val sourceResultId: String)
+
+/**
+ * 기록된 관찰 한 건의 식별(AUTH-001 검토 #1 H-1): 관찰 키 + [variant]. variant 0 = 그 키의 첫 관찰, n ≥ 1 = 같은 키·다른 내용의 n번째 상충 증거
+ * ([PaymentAuthorization.keyConflictingObservations] 기록 순서, 영속 `institution_observation.variant`와 같은 번호). hold를 연 관찰은 키만으로는 특정되지 않는다 —
+ * 같은 키의 다른 variant는 다른 기관 내용이다.
+ */
+data class ObservationRef(val key: ObservationKey, val variant: Int) {
+    init {
+        require(variant >= 0) { "observation variant must not be negative" }
+    }
+}
 
 /**
  * 기관 결과 한 건(append-only — AUTH-CONTRACT-001 §3·§6). 판정과 무관하게 기록한다. 원문 증거는 [evidenceHash] 참조만(카드번호·CVC·

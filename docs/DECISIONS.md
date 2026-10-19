@@ -96,6 +96,13 @@
 | D-CANCEL-011 | Q-CANCEL-11 | "종료 상태 유지 (Recommended)". P1 Payment는 FAILED/EXPIRED(종료) 유지, PaymentAuthorization에 늦은 승인 거래만 추가. 취소 시작 조건은 'AuthorizationTransaction 있음 + 운영자 보정 취소'로 확장(가맹점 취소는 AUTHORIZED만). 주문당 AUTHORIZED 1건·새 결제 제한 규칙 불변 | harness/questions.json | CANCEL-CONTRACT-001 | 2026-10-17 |
 | D-CANCEL-012 | Q-CANCEL-12 | "기록과 함께 보냄 (Recommended)". P1 승인 거래 기록과 같은 PAYMENT TX에서 PaymentAuthorized 발행 — FINANCIAL이 P1 승인과 뒤따르는 취소를 모두 받음. AUTH §8.1 '보류 중 이벤트 없음'·D-AUTH-003 '해제 판정 전 거래 없음'에 이 경우만 예외로 명시 | harness/questions.json | CANCEL-CONTRACT-001 | 2026-10-17 |
 | D-CANCEL-013 | Q-CANCEL-13 | "운영자 보정 취소만 (Recommended)". Payment는 FAILED 유지, 환불은 그 사고 건에 묶인 운영자 보정 취소(IncidentOrReconCorrection, 2인 승인)로만. 가맹점 취소 경로는 열지 않음(가맹점은 원래 '실패'를 통보받음). D-CANCEL-005·011과 같은 방식 | harness/questions.json | CANCEL-CONTRACT-001 | 2026-10-17 |
+| D-AUTH1-001 | Q-AUTH1-01 | "503 일시 장애 (Recommended)". 503 TEMPORARILY_UNAVAILABLE, 결과 미저장, Payment REQUESTED 유지 — 정책 등록 후 같은 키 재시도 성공(정책 Assignment 누락 Unavailable과 같은 방식) | harness/questions.json | AUTH-001 | 2026-10-18 |
+| D-AUTH1-002 | Q-AUTH1-02 | "KRW만 (Recommended)". KRW만: Demo 경로 capability supportedCurrencies=[KRW], 다른 통화는 422 PAYMENT_NOT_ELIGIBLE(저장, 전송 없음). Q-SETTLE-CURRENCY 미결 | harness/questions.json | AUTH-001 | 2026-10-18 |
+| D-AUTH1-003 | Q-AUTH1-03 | "세 가지 모두 지금 (재확인: 네, 모두 지금 열기)". 권장안: 신용 일시불만(설정으로 체크·할부 422). 사용자 선택: 세 가지 모두 AUTH-001에서 개방 — D-AUTH-001의 개방 순서(신용 일시불 → UNKNOWN/취소 검증 → 체크·할부)를 대체. CANCEL-001 전까지 체크·할부 승인의 취소 검증 불가(가상 기관 TEST 한정)임을 재확인 후 유지 | harness/questions.json | AUTH-001 | 2026-10-18 |
+| D-AUTH1-004 | Q-AUTH1-04 | "그대로 보내고 기관이 판단 (Recommended)". AUTH-CONTRACT-001 line 129대로 시작된 승인은 인증 증거 TTL 만료로 PG가 막지 않고 VAN에 전송, 기관이 validUntil 재검증 → 기관 확정 DECLINE. AU-26(게이트에서 FAILED(PRE_TRANSMISSION)) 채택 안 함 | harness/questions.json | AUTH-001 | 2026-10-18 |
+| D-AUTH1-005 | Q-AUTH1-05 | "보류 자동 재개 (Recommended)". CONFLICTING/SUCCESS_AFTER_TERMINATION hold를 REAL/DOUBLE로 해제할 때 해제 대상이 아닌 흡수 승인 관측이 남아 있으면 같은 해제 TX에서 hold occurrence+1을 자동 개설(fail-closed) | harness/questions.json | AUTH-001 | 2026-10-18 |
+| D-AUTH1-006 | Q-AUTH1-06 | "똑같이 자동 재개 (Recommended)". hold를 NO_EFFECT로 해제할 때도 해제 대상이 아닌 미해명 흡수 승인 관측이 남으면 같은 해제 TX에서 hold occurrence+1 자동 개설(D-AUTH1-005와 동일 규칙, 판정 종류 무관) | harness/questions.json | AUTH-001, RECON-CONTRACT-001 | 2026-10-18 |
+| D-AUTH1-007 | Q-S8-1 | "A". 승인 전송 시 Route 프로파일(Capability) 버전을 시도에 저장하고, UNKNOWN 회복 시 현재 버전이 다르면 조회·대사 이관만 하며 무효과 종결(closeIfAbsent) 요청은 하지 않는다(fail-closed) | harness/questions.json | AUTH-001 | 2026-10-19 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

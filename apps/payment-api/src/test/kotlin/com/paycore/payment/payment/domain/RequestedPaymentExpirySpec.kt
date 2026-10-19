@@ -23,6 +23,9 @@ class RequestedPaymentExpirySpec : BehaviorSpec({
             payment.status shouldBe PaymentStatus.EXPIRED
             payment.terminationEvidence shouldBe listOf(TerminationEvidence.NOT_TRANSMITTED_AND_SESSION_DISCARDED)
             payment.hasSafeTermination() shouldBe true
+            // AUTH-001 rev 0.3 m-6: 출처 = 결제창 만료(참조 = paymentId), 기록 시각 = 만료 시각.
+            payment.terminationEvidenceRecords.single().source shouldBe
+                TerminationEvidenceSource(TerminationEvidenceSourceKind.CHECKOUT_EXPIRY, payment.id.value, startedAt, TerminationEvidenceSource.SYSTEM)
         }
         Then("without any session it still expires (nothing to discard)") {
             val payment = PaymentFixture.requested()

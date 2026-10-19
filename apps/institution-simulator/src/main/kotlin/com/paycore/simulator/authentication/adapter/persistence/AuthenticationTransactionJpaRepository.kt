@@ -12,6 +12,8 @@ interface AuthenticationTransactionJpaRepository : JpaRepository<JpaAuthenticati
 
     fun findByResultRef(resultRef: String): JpaAuthenticationTransactionEntity?
 
+    fun findAllByEvidenceRef(evidenceRef: String): List<JpaAuthenticationTransactionEntity>
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from JpaAuthenticationTransactionEntity t where t.transactionId = :id")
     fun lockById(@Param("id") id: String): JpaAuthenticationTransactionEntity?

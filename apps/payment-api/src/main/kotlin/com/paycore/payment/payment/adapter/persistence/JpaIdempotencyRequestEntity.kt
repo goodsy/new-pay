@@ -51,6 +51,14 @@ class JpaIdempotencyRequestEntity protected constructor() {
     @field:Column(name = "result_payment_id", length = 64)
     var resultPaymentId: String? = null
 
+    /** AUTH-001 V11: confirm 성공의 Authorization 참조(재생 = 그 승인의 현재 상태, D-AUTH-004). CreatePayment 행은 NULL. */
+    @field:Column(name = "result_authorization_id", length = 64)
+    var resultAuthorizationId: String? = null
+
+    /** AUTH-001 V11: confirm 거절의 고정 분류 상세(예: PAYMENT_NOT_ELIGIBLE reason). */
+    @field:Column(name = "result_detail", length = 48)
+    var resultDetail: String? = null
+
     @field:Column(name = "created_at", nullable = false)
     lateinit var createdAt: Instant
 

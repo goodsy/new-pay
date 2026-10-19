@@ -128,4 +128,29 @@ class AuthorizationStartSpec : BehaviorSpec({
             ready.shouldBeUntouched()
         }
     }
+
+    // AUTH-001 명세 §4.11-7(AU-05): Admission 호출 전 읽기 전용 사전 검사 — 슬롯 위반은 start와 같은 예외, 인증 근거 무효는 결과 값. 상태를 바꾸지 않는다.
+    Given("the read-only preflight before the admission check") {
+        Then("a bindable VERIFIED session passes and nothing changes") {
+            val ready = readyToStart()
+            AuthorizationStart.preflight(ready.control, ready.payment, ready.session, AuthorizationFixture.intent.money, startedAt) shouldBe null
+            ready.shouldBeUntouched()
+        }
+        Then("no session found for the reference, or a session that cannot be bound, is AuthenticationNotVerified and nothing changes") {
+            val ready = readyToStart()
+            AuthorizationStart.preflight(ready.control, ready.payment, null, AuthorizationFixture.intent.money, startedAt) shouldBe
+                AuthorizationStartRejection.AuthenticationNotVerified(BindingRejection.NOT_VERIFIED)
+            AuthorizationStart.preflight(ready.control, ready.payment, ready.session, AuthorizationFixture.intent.money, startedAt.plusSeconds(86_400)) shouldBe
+                AuthorizationStartRejection.AuthenticationNotVerified(BindingRejection.EXPIRED)
+            ready.shouldBeUntouched()
+        }
+        Then("slot violations are reported first with the same exceptions as start") {
+            val order = OrderPaymentControlFixture.retriedAfterConfirmedDecline()
+            order.control.reportSuccessAfterTermination(order.history.first())
+            shouldThrow<AuthorizationStartRejectedException> {
+                AuthorizationStart.preflight(order.control, order.current, null, AuthorizationFixture.intent.money, startedAt)
+            }.reason shouldBe BlockReason.INCIDENT_HOLD
+            order.current.status shouldBe PaymentStatus.REQUESTED
+        }
+    }
 })

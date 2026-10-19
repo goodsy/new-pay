@@ -5,6 +5,7 @@ import com.paycore.simulator.authentication.application.required.SimulatorClock
 import com.paycore.simulator.authentication.application.required.SimulatorIdGenerator
 import com.paycore.simulator.authentication.domain.ResultRef
 import com.paycore.simulator.authentication.domain.TransactionId
+import com.paycore.simulator.van.application.required.VanClock
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
@@ -12,8 +13,8 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 
-/** 시험 시계(@Primary): 기본은 [default], 시험이 옮긴 뒤 [reset]. */
-class MutableSimulatorClock(private val default: Instant) : SimulatorClock {
+/** 시험 시계(@Primary): 기본은 [default], 시험이 옮긴 뒤 [reset]. 인증·가상 VAN이 같은 시각원을 쓴다(증거 유효기간 재검증 — AUTH-001 D-AUTH1-004). */
+class MutableSimulatorClock(private val default: Instant) : SimulatorClock, VanClock {
     private val now = AtomicReference(default)
 
     override fun now(): Instant = now.get()

@@ -24,7 +24,8 @@ services:
       timeout: 3s
       retries: 30
 
-  # 가상 인증기관 Simulator 전용 MySQL(AUTHN-001 §13.1, AN-19). PayCore DB 인스턴스와 분리 — 외부 기관 대역의 사실은 PG 재시작·rollback과 무관하게 남는다.
+  # 가상 인증기관·가상 VAN Simulator 전용 MySQL(AUTHN-001 §13.1, AUTH-001 §5.5). PayCore DB 인스턴스와 분리 — 외부 기관 대역의 사실은 PG 재시작·rollback과 무관하게 남는다.
+  # runtime 계정은 표 단위 권한만(AUTH-001 AU-20 — 가상 VAN 원장 SELECT·INSERT). 기존 볼륨은 초기화 스크립트를 한 번 다시 실행해 수렴시킨다(.env.example).
   # 같은 이미지(mysql:8.4.11)라 IMAGE-DIGESTS 변경 없음. 계정: docker/simulator-mysql/init/01-simulator-database.sh
   # profile "simulator"로만 기동한다(`docker compose --profile simulator up -d`) — 기존 .env에 아래 변수가 없어도 기본 `docker compose …`가 깨지지 않게
   # `${VAR:-}`로 둔다(검토 m-3). 값이 비면 MySQL 이미지·초기화 스크립트(01-simulator-database.sh)가 기동을 거부한다. 시험(Testcontainers)은 compose를 쓰지 않는다.

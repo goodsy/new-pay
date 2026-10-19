@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.domain.expire
 import com.paycore.payment.PaymentDbAccounts
 import com.paycore.payment.PaymentDbAccounts.FINANCIAL_DATABASE
 import com.paycore.payment.PaymentDbAccounts.FINANCIAL_USER
@@ -16,7 +17,6 @@ import com.paycore.payment.payment.application.CreatePaymentFixture.command
 import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
 import com.paycore.payment.payment.application.provided.CreatePaymentResult
 import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
-import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
 import com.paycore.payment.payment.domain.OrderKey
 import com.paycore.payment.payment.domain.PaymentId
 import com.paycore.payment.payment.domain.TerminationEvidence
@@ -49,7 +49,7 @@ import java.sql.SQLException
 @PaymentDbTest
 class DatabaseAccountSeparationSpec(
     private val createPayment: CreatePaymentUseCase,
-    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val incidents: IncidentReporter,
     private val payments: JpaPaymentRepository,
     private val transactionManager: PlatformTransactionManager,
     private val jdbcTemplate: JdbcTemplate,
@@ -84,6 +84,16 @@ class DatabaseAccountSeparationSpec(
         "authentication_session" to "Select,Insert,Update",
         "authentication_session_event" to "Select,Insert",
         "payment_checkout_window_pin" to "Select,Insert",
+        // AUTH-001 V10(명세 §7.2): 승인·Attempt·사용량·점유는 INSERT·UPDATE, 관찰·거래는 append-only, 해제 기록은 읽기만(쓰기 경로 없음 — RECON이 추가).
+        "payment_authorization" to "Select,Insert,Update",
+        "authorization_attempt" to "Select,Insert,Update",
+        "institution_observation" to "Select,Insert",
+        "payment_transaction" to "Select,Insert",
+        "daily_limit_usage" to "Select,Insert,Update",
+        "limit_reservation" to "Select,Insert,Update",
+        "incident_hold_release" to "Select",
+        // AUTH-001 V12·V13(§16.11 D-S6-1): 회복 일정은 bookkeeping — INSERT(TX1)·UPDATE(TXd·TX2·회복), 삭제 경로 없음(결론나면 closed_at).
+        "authorization_recovery_schedule" to "Select,Insert,Update",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -117,6 +127,14 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authentication_session` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`authentication_session_event` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`payment_checkout_window_pin` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment_authorization` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authorization_attempt` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`institution_observation` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`payment_transaction` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`daily_limit_usage` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`limit_reservation` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT ON `paycore_payment`.`incident_hold_release` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authorization_recovery_schedule` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -235,10 +253,22 @@ class DatabaseAccountSeparationSpec(
                     "auth event lock" to c.codeOf("SELECT * FROM authentication_session_event WHERE authentication_session_id = 'none' FOR UPDATE"),
                     "pin update" to c.codeOf("UPDATE payment_checkout_window_pin SET validity_version = 'x' WHERE pin_id = 1"),
                     "pin delete" to c.codeOf("DELETE FROM payment_checkout_window_pin WHERE pin_id = 1"),
+                    // AUTH-001: 기관 결과 관찰·확정 금융 사실(거래)은 append-only, 해제 기록은 이 작업에서 쓰지 않는다.
+                    "observation update" to c.codeOf("UPDATE institution_observation SET outcome = 'APPROVED' WHERE attempt_id = 'none'"),
+                    "observation delete" to c.codeOf("DELETE FROM institution_observation WHERE attempt_id = 'none'"),
+                    "observation lock" to c.codeOf("SELECT * FROM institution_observation WHERE attempt_id = 'none' FOR UPDATE"),
+                    "transaction update" to c.codeOf("UPDATE payment_transaction SET amount_minor = 1 WHERE transaction_id = 'none'"),
+                    "transaction delete" to c.codeOf("DELETE FROM payment_transaction WHERE transaction_id = 'none'"),
+                    "release insert" to c.codeOf(
+                        "INSERT INTO incident_hold_release (incident_hold_id, requested_by, approved_by, reconciliation_match_ref, finding, reason, released_at) " +
+                            "VALUES (0, 'a', 'b', 'm', 'NO_EFFECT_CONFIRMED', 'r', NOW(3))",
+                    ),
                 )
             } shouldBe mapOf(
                 "evidence update" to 1142, "evidence delete" to 1142, "hold update" to 1142, "hold delete" to 1142, "evidence lock" to 1142,
                 "auth event update" to 1142, "auth event delete" to 1142, "auth event lock" to 1142, "pin update" to 1142, "pin delete" to 1142,
+                "observation update" to 1142, "observation delete" to 1142, "observation lock" to 1142, "transaction update" to 1142, "transaction delete" to 1142,
+                "release insert" to 1142,
             )
             db.count(
                 "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ? AND evidence = 'NOT_TRANSMITTED_AND_SESSION_DISCARDED'",
@@ -258,10 +288,17 @@ class DatabaseAccountSeparationSpec(
                     "token delete" to c.codeOf("DELETE FROM checkout_token WHERE checkout_token_id = 'none'"),
                     "checkout session delete" to c.codeOf("DELETE FROM checkout_session WHERE checkout_session_id = 'none'"),
                     "auth session delete" to c.codeOf("DELETE FROM authentication_session WHERE authentication_session_id = 'none'"),
+                    "authorization delete" to c.codeOf("DELETE FROM payment_authorization WHERE authorization_id = 'none'"),
+                    "attempt delete" to c.codeOf("DELETE FROM authorization_attempt WHERE attempt_id = 'none'"),
+                    "usage delete" to c.codeOf("DELETE FROM daily_limit_usage WHERE merchant_account_id = 'none'"),
+                    "reservation delete" to c.codeOf("DELETE FROM limit_reservation WHERE authorization_id = 'none'"),
+                    "recovery schedule delete" to c.codeOf("DELETE FROM authorization_recovery_schedule WHERE attempt_id = 'none'"),
                 )
             } shouldBe mapOf(
                 "payment delete" to 1142, "control delete" to 1142, "idempotency delete" to 1142, "outbox delete" to 1142,
                 "outbox update" to 1142, "token delete" to 1142, "checkout session delete" to 1142, "auth session delete" to 1142,
+                "authorization delete" to 1142, "attempt delete" to 1142, "usage delete" to 1142, "reservation delete" to 1142,
+                "recovery schedule delete" to 1142,
             )
         }
 
@@ -303,7 +340,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

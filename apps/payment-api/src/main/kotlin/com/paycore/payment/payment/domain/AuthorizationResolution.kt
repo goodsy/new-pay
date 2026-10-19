@@ -68,9 +68,9 @@ object AuthorizationResolution {
             ObservationRecord.KEY_CONFLICT -> {
                 val attempt = authorization.attempt(observation.attemptId)
                 return if (authorization.status == OPEN || authorization.status == UNKNOWN) {
-                    conflict(control, payment, authorization, attempt)
+                    conflict(control, payment, authorization, attempt, authorization.refOf(observation))
                 } else {
-                    val held = control.reportConflictingResult(payment)
+                    val held = control.reportConflictingResult(payment, authorization.refOf(observation))
                     // review round2 m-7: FAILED 승인에 같은 키·다른 내용의 승인이 오면 기관 승인이 있을 수 있다 → 한도 재점유(D-AUTH-010).
                     if (held && authorization.status == FAILED && observation.outcome == APPROVED) {
                         usage.reoccupyAfterLateApproval(authorization.id, limitPolicy)
@@ -85,9 +85,11 @@ object AuthorizationResolution {
             OPEN, UNKNOWN -> applyToPending(control, payment, authorization, usage, attempt, observation, newTransactionId, at)
             AUTHORIZED -> applyToAuthorized(control, payment, authorization, observation)
             FAILED ->
-                if (observation.outcome == APPROVED) {
+                if (observation.outcome == APPROVED && explainedByRealRelease(control, payment, authorization, observation)) {
+                    ResolutionOutcome.NoChange
+                } else if (observation.outcome == APPROVED) {
                     // D-AUTH-012: NO_EFFECT로 해제한 뒤 새 승인 증거면 새 hold(occurrence + 1) + FORCED 재점유.
-                    val held = control.reportSuccessAfterTermination(payment)
+                    val held = control.reportSuccessAfterTermination(payment, authorization.refOf(observation))
                     if (held) usage.reoccupyAfterLateApproval(authorization.id, limitPolicy)
                     incidentIfHeld(held, IncidentReason.SUCCESS_AFTER_TERMINATION)
                 } else {
@@ -96,21 +98,29 @@ object AuthorizationResolution {
         }
     }
 
-    /** 전송 전 포기(Attempt ABANDONED_BEFORE_DISPATCH)를 Payment FAILED(PRE_TRANSMISSION_FAILURE_CONFIRMED)와 한도 해제에 반영한다. */
+    /**
+     * 전송 전 포기(Attempt ABANDONED_BEFORE_DISPATCH)를 Payment FAILED(PRE_TRANSMISSION_FAILURE_CONFIRMED, 출처 = 그 Attempt)와 한도 해제에 반영한다.
+     * 경합으로 늦게 도착한 포기는 효과 없음(AUTH-001 rev 0.3 m-2·n-6): connect 실패 보고인데 Attempt가 이미 DISPATCHING이 아니거나(lease 회복이 OUTCOME_UNKNOWN 표시 —
+     * 미송신을 증명할 수 없다), 이미 포기·결론난 Attempt를 다시 포기하면 NoChange. 보내지 않은(PREPARED) Attempt의 connect 실패나 전송이 이긴(DISPATCHING) Attempt의 fencing은 결함이다.
+     */
     fun abandonBeforeDispatch(
         payment: Payment,
         authorization: PaymentAuthorization,
         usage: DailyLimitUsage,
         attemptId: AttemptId,
         cause: AbandonCause,
-    ): ResolutionOutcome.Failed {
+        at: Instant,
+    ): ResolutionOutcome {
         requireSameOperation(null, payment, authorization, usage)
-        if (authorization.status != OPEN) throw InvalidAuthorizationTransitionException(authorization.id, authorization.status.name, "abandon")
+        val attempt = authorization.attempt(attemptId)
+        val settled = attempt.state == AttemptState.ABANDONED_BEFORE_DISPATCH || attempt.state == AttemptState.RESOLVED || authorization.status != OPEN
+        val connectLost = cause == AbandonCause.CONNECT_FAILED && attempt.state == AttemptState.OUTCOME_UNKNOWN
+        if (settled || connectLost) return ResolutionOutcome.NoChange
         if (payment.status != PaymentStatus.AUTHORIZING) throw InvalidPaymentTransitionException(payment.id, payment.status, "abandonBeforeDispatch")
         val evidence = TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED
-        authorization.attempt(attemptId).abandon(authorization.id, cause)
+        attempt.abandon(authorization.id, cause)
         authorization.fail(evidence)
-        payment.fail(evidence)
+        payment.fail(evidence, TerminationEvidenceSource.attemptAbandon(attemptId, at))
         usage.release(authorization.id)
         return ResolutionOutcome.Failed(evidence)
     }
@@ -125,6 +135,12 @@ object AuthorizationResolution {
         require(authorization.paymentId == payment.id) { "authorization must belong to the payment" }
         val attempt = authorization.attempt(attemptId)
         if (attempt.state == AttemptState.OUTCOME_UNKNOWN) return ResolutionOutcome.StillUnknown
+        // AUTH-001 n-3: lease 회복의 표시가 결과 확정(TX2)·전송 전 포기보다 늦게 도착했다 — 이미 결론난 Attempt는 바꾸지 않는다(예외 대신 효과 없음).
+        if (attempt.state == AttemptState.RESOLVED || attempt.state == AttemptState.ABANDONED_BEFORE_DISPATCH ||
+            authorization.status == AUTHORIZED || authorization.status == FAILED
+        ) {
+            return ResolutionOutcome.NoChange
+        }
         if (authorization.status != OPEN) throw InvalidAuthorizationTransitionException(authorization.id, authorization.status.name, "markOutcomeUnknown")
         attempt.markOutcomeUnknown(authorization.id, cause)
         becomeUnknown(payment, authorization)
@@ -146,14 +162,14 @@ object AuthorizationResolution {
         val definitive = observation.outcome == APPROVED || observation.outcome == DECLINED || observation.outcome == NO_EFFECT_CONFIRMED
         if (attempt.state == AttemptState.PREPARED) {
             // 보내지 않았다고 기록한 Attempt의 확정 결과는 계약 가정 위반이다.
-            return if (definitive) conflict(control, payment, authorization, attempt) else ResolutionOutcome.NoChange
+            return if (definitive) conflict(control, payment, authorization, attempt, authorization.refOf(observation)) else ResolutionOutcome.NoChange
         }
         return when (observation.outcome) {
             APPROVED -> {
                 val terms = checkNotNull(observation.approved)
-                if (!authorization.matchesRequest(terms)) return conflict(control, payment, authorization, attempt)
+                if (!authorization.matchesRequest(terms)) return conflict(control, payment, authorization, attempt, authorization.refOf(observation))
                 // control 검사(현재 슬롯·상태)가 실패하면 아무것도 바뀌지 않도록 먼저 한다.
-                val doubleApprovalHold = control.completeAuthorization(payment)
+                val doubleApprovalHold = control.completeAuthorization(payment, authorization.refOf(observation))
                 attempt.resolve(authorization.id)
                 val transaction = AuthorizationTransaction(
                     id = newTransactionId,
@@ -167,8 +183,8 @@ object AuthorizationResolution {
                 usage.consume(authorization.id)
                 ResolutionOutcome.Authorized(transaction, if (doubleApprovalHold) IncidentReason.CONFLICTING_INSTITUTION_RESULT else null)
             }
-            DECLINED -> terminate(payment, authorization, usage, attempt, TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE)
-            NO_EFFECT_CONFIRMED -> terminate(payment, authorization, usage, attempt, TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT)
+            DECLINED -> terminate(payment, authorization, usage, attempt, TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE, TerminationEvidenceSource.observation(observation.key, at))
+            NO_EFFECT_CONFIRMED -> terminate(payment, authorization, usage, attempt, TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT, TerminationEvidenceSource.observation(observation.key, at))
             PENDING, InstitutionOutcome.UNKNOWN, NOT_FOUND ->
                 if (authorization.status == OPEN) {
                     if (attempt.state == AttemptState.DISPATCHING) attempt.markOutcomeUnknown(authorization.id, UnknownCause.INSTITUTION_UNCONFIRMED)
@@ -191,7 +207,30 @@ object AuthorizationResolution {
         val sameApproval = observation.outcome == APPROVED && observation.approved == confirmed
         val informational = observation.outcome == PENDING || observation.outcome == InstitutionOutcome.UNKNOWN || observation.outcome == NOT_FOUND
         if (sameApproval || informational) return ResolutionOutcome.NoChange
-        return incidentIfHeld(control.reportConflictingResult(payment), IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+        if (observation.outcome == APPROVED && explainedByRealRelease(control, payment, authorization, observation)) return ResolutionOutcome.NoChange
+        return incidentIfHeld(control.reportConflictingResult(payment, authorization.refOf(observation)), IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+    }
+
+    /**
+     * AUTH-001 m-10·CANCEL-CONTRACT-001 nit 3(D-AUTH-013 "다른 기관 거래 식별자" 문구에서 도출), rev 0.3 H-1·검토 #1 H-1·n-2: 새 승인 관찰 [observation]이 이미 내려진 판정이
+     * 설명한 승인의 재보고면 true(새 사건 아님). 설명하는 경우는 둘뿐이다.
+     * 1. 승인 조건 전체(금액·통화·Plan·cardType·PTX·승인번호·기관 거래일·기관 영업일)가 이 승인의 확정 거래와 같다.
+     * 2. 실제 승인 판정(REAL_APPROVAL_CONFIRMED·DOUBLE_APPROVAL_CORRECTED)으로 해제된 이 Payment의 hold를 **연 관찰 그 한 건**(관찰 키 + variant)이 기록돼 있고, 새 관찰이
+     *    그 관찰 자신이 아니며, 승인 조건 전체가 그 관찰과 같다. hold가 활성인 동안 흡수된 다른 관찰(같은 키의 다른 variant 포함)과 출처 없는 legacy hold는 아무것도 설명하지 않는다.
+     * 모든 hold가 해제됐는지·마지막 해제 판정이 무엇인지는 여기서 보지 않는다: 활성 hold가 있으면 호출자의 hold 열기가 멱등으로 흡수하고, NO_EFFECT 해제는 설명 집합에
+     * 들어가지 않는다(D-AUTH-012).
+     */
+    private fun explainedByRealRelease(
+        control: OrderPaymentControl,
+        payment: Payment,
+        authorization: PaymentAuthorization,
+        observation: InstitutionObservation,
+    ): Boolean {
+        val terms = observation.approved ?: return false
+        if (authorization.transaction?.terms == terms) return true
+        val explained = control.realApprovalReleasedHoldSources(payment.id)
+        val self = authorization.refOf(observation)
+        return authorization.observationRefs.any { (o, ref) -> ref in explained && ref != self && o.approved == terms }
     }
 
     private fun terminate(
@@ -200,10 +239,11 @@ object AuthorizationResolution {
         usage: DailyLimitUsage,
         attempt: AuthorizationAttempt,
         evidence: TerminationEvidence,
+        source: TerminationEvidenceSource,
     ): ResolutionOutcome.Failed {
         attempt.resolve(authorization.id)
         authorization.fail(evidence)
-        payment.fail(evidence)
+        payment.fail(evidence, source)
         usage.release(authorization.id)
         return ResolutionOutcome.Failed(evidence)
     }
@@ -213,10 +253,11 @@ object AuthorizationResolution {
         payment: Payment,
         authorization: PaymentAuthorization,
         attempt: AuthorizationAttempt,
+        source: ObservationRef,
     ): ResolutionOutcome {
         if (attempt.state == AttemptState.DISPATCHING) attempt.markOutcomeUnknown(authorization.id, UnknownCause.INSTITUTION_UNCONFIRMED)
         if (authorization.status == OPEN) becomeUnknown(payment, authorization)
-        return incidentIfHeld(control.reportConflictingResult(payment), IncidentReason.CONFLICTING_INSTITUTION_RESULT)
+        return incidentIfHeld(control.reportConflictingResult(payment, source), IncidentReason.CONFLICTING_INSTITUTION_RESULT)
     }
 
     /** Incident는 활성 hold가 있을 때만 돌려준다 — 활성 hold·FORCED·Incident 반환이 항상 맞는다(review round2 m-6). */

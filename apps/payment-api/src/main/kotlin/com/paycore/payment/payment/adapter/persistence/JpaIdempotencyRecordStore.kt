@@ -1,6 +1,8 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.adapter.persistence.PersistenceFailures.translate
+import com.paycore.payment.payment.application.provided.ConfirmOutcome
+import com.paycore.payment.payment.application.provided.ConfirmRejection
 import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
 import com.paycore.payment.payment.application.provided.CreatePaymentRejection
 import com.paycore.payment.payment.application.provided.IdempotencyRecordId
@@ -9,8 +11,10 @@ import com.paycore.payment.payment.application.required.IdempotencyRecordStore
 import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
+import com.paycore.payment.payment.application.required.IdempotentOperation
 import com.paycore.payment.payment.application.required.StoredIdempotencyRecord
 import com.paycore.payment.payment.application.required.StoredRequestResult
+import com.paycore.payment.payment.domain.AuthorizationId
 import com.paycore.payment.payment.domain.PaymentId
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
@@ -48,6 +52,8 @@ class JpaIdempotencyRecordStore(
         row.resultKind = PENDING
         row.resultCode = null
         row.resultPaymentId = null
+        row.resultAuthorizationId = null
+        row.resultDetail = null
         row.createdAt = reservation.createdAt
         row.expiresAt = reservation.expiresAt
         row.updatedAt = reservation.createdAt
@@ -68,6 +74,20 @@ class JpaIdempotencyRecordStore(
                 row.resultCode = result.rejection.name
                 row.resultPaymentId = result.referencePaymentId.value
             }
+            is StoredRequestResult.ConfirmAccepted -> {
+                check(row.operation == IdempotentOperation.CONFIRM_PAYMENT.code) { "a confirm result belongs to a ConfirmPayment record" }
+                row.resultKind = SUCCESS
+                row.resultCode = result.outcome.name
+                row.resultPaymentId = result.paymentId.value
+                row.resultAuthorizationId = result.authorizationId.value
+            }
+            is StoredRequestResult.ConfirmRejected -> {
+                check(row.operation == IdempotentOperation.CONFIRM_PAYMENT.code) { "a confirm result belongs to a ConfirmPayment record" }
+                row.resultKind = REJECTED
+                row.resultCode = result.rejection.name
+                row.resultPaymentId = result.paymentId.value
+                row.resultDetail = result.detail
+            }
         }
         row.updatedAt = completedAt
         entityManager.flush()
@@ -82,10 +102,17 @@ class JpaIdempotencyRecordStore(
         StoredIdempotencyRecord(
             recordId = IdempotencyRecordId(row.requestRecordId),
             requestFingerprint = RequestFingerprint(row.requestFingerprint),
-            result = when (row.resultKind) {
-                PENDING -> null
-                SUCCESS -> StoredRequestResult.Succeeded(CreatePaymentOutcome.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
-                REJECTED -> StoredRequestResult.Rejected(CreatePaymentRejection.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
+            result = when {
+                row.resultKind == PENDING -> null
+                row.operation == IdempotentOperation.CONFIRM_PAYMENT.code -> when (row.resultKind) {
+                    SUCCESS -> StoredRequestResult.ConfirmAccepted(
+                        ConfirmOutcome.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)), AuthorizationId(checkNotNull(row.resultAuthorizationId)),
+                    )
+                    REJECTED -> StoredRequestResult.ConfirmRejected(ConfirmRejection.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)), row.resultDetail)
+                    else -> error("unknown idempotency result kind")
+                }
+                row.resultKind == SUCCESS -> StoredRequestResult.Succeeded(CreatePaymentOutcome.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
+                row.resultKind == REJECTED -> StoredRequestResult.Rejected(CreatePaymentRejection.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
                 else -> error("unknown idempotency result kind")
             },
             createdAt = row.createdAt,

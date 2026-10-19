@@ -1479,6 +1479,114 @@
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-17)",
       "appliedSpec": "D-CANCEL-013",
       "origin": "CANCEL-CONTRACT-001 최종 review U-4"
+    },
+    {
+      "id": "Q-AUTH1-01",
+      "status": "ANSWERED",
+      "question": "confirm 시 한도 정책 없음/모호(LimitPolicyUnavailable) 응답",
+      "recommended": "503 TEMPORARILY_UNAVAILABLE, 결과 미저장, Payment REQUESTED 유지 — 정책 등록 후 같은 키 재시도 성공(정책 Assignment 누락 Unavailable과 같은 방식)",
+      "alternative": "422 거절·30일 재생",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-18",
+      "humanAnswer": "\"503 일시 장애 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-001",
+      "origin": "AUTH-001 1단계 명세 질문 후보"
+    },
+    {
+      "id": "Q-AUTH1-02",
+      "status": "ANSWERED",
+      "question": "KRW 외 통화 Payment 승인",
+      "recommended": "KRW만: Demo 경로 capability supportedCurrencies=[KRW], 다른 통화는 422 PAYMENT_NOT_ELIGIBLE(저장, 전송 없음). Q-SETTLE-CURRENCY 미결",
+      "alternative": "TEST에서만 USD 허용",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-18",
+      "humanAnswer": "\"KRW만 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-002",
+      "origin": "AUTH-001 1단계 명세 질문 후보"
+    },
+    {
+      "id": "Q-AUTH1-03",
+      "status": "ANSWERED",
+      "question": "체크카드 일시불·일반 할부 승인 개방 시점",
+      "recommended": "권장안: 신용 일시불만(설정으로 체크·할부 422). 사용자 선택: 세 가지 모두 AUTH-001에서 개방 — D-AUTH-001의 개방 순서(신용 일시불 → UNKNOWN/취소 검증 → 체크·할부)를 대체. CANCEL-001 전까지 체크·할부 승인의 취소 검증 불가(가상 기관 TEST 한정)임을 재확인 후 유지",
+      "alternative": "신용 일시불만(권장)",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-18",
+      "humanAnswer": "\"세 가지 모두 지금 (재확인: 네, 모두 지금 열기)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-003",
+      "origin": "AUTH-001 1단계 명세 질문 후보"
+    },
+    {
+      "id": "Q-AUTH1-04",
+      "status": "ANSWERED",
+      "question": "시작됐지만 미전송 승인의 인증 증거 TTL 만료 시 dispatch 게이트 거절 여부(AU-26)",
+      "recommended": "AUTH-CONTRACT-001 line 129대로 시작된 승인은 인증 증거 TTL 만료로 PG가 막지 않고 VAN에 전송, 기관이 validUntil 재검증 → 기관 확정 DECLINE. AU-26(게이트에서 FAILED(PRE_TRANSMISSION)) 채택 안 함",
+      "alternative": "AU-26 채택: 게이트에서 FAILED(PRE_TRANSMISSION), 계약 line 129 수정",
+      "dependentTasks": [
+        "AUTH-001"
+      ],
+      "askedAt": "2026-10-18",
+      "humanAnswer": "\"그대로 보내고 기관이 판단 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-004",
+      "origin": "AUTH-001 명세 review H-2/U-1"
+    },
+    {
+      "id": "Q-AUTH1-05",
+      "status": "ANSWERED",
+      "question": "CONFLICTING/SUCCESS_AFTER_TERMINATION hold를 REAL/DOUBLE로 해제할 때, hold 활성 중 흡수됐지만 해제 대상이 아닌 다른 승인 관측의 처리",
+      "recommended": "해제 TX에서 hold occurrence+1 자동 개설(fail-closed)",
+      "alternative": "(b) 흡수 관측 전부를 해제에 명시할 때까지 해제 거부 (c) 현행 유지, 대사 MATCH에 의존",
+      "dependentTasks": [
+        "AUTH-001",
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-18",
+      "origin": "AUTH-001 중간 review #2 m-D/P-1",
+      "humanAnswer": "\"보류 자동 재개 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-005"
+    },
+    {
+      "id": "Q-AUTH1-06",
+      "status": "ANSWERED",
+      "question": "hold를 NO_EFFECT로 해제할 때 해제 대상이 아닌 흡수 승인 관측이 남아 있는 경우의 처리(D-AUTH1-005는 REAL/DOUBLE만)",
+      "recommended": "D-AUTH1-005와 같게 같은 해제 TX에서 hold occurrence+1 자동 개설",
+      "alternative": "현행: 재보고 시에만 hold 개설(D-AUTH-012), 그 전엔 대사 MATCH 의존",
+      "dependentTasks": [
+        "AUTH-001",
+        "RECON-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-18",
+      "origin": "AUTH-001 S7 체크포인트 구현자 질문 후보",
+      "humanAnswer": "\"똑같이 자동 재개 (Recommended)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-18)",
+      "appliedSpec": "D-AUTH1-006"
+    },
+    {
+      "id": "Q-S8-1",
+      "status": "ANSWERED",
+      "question": "UNKNOWN 회복이 closeIfAbsent(무효과 종결 → FAILED → 새 Payment 허용)와 이관을 전송 당시가 아닌 현재 Route Capability로 판단한다(V9에 Route 프로파일 버전 열 없음). 전송 뒤 설정 변경 시 처리",
+      "recommended": "A: 전송 시 Route 프로파일 버전 저장, 회복 시 버전이 다르면 조회·대사 이관만 하고 무효과 종결 요청 금지(fail-closed)",
+      "alternative": "B: 현행 유지 + 'UNKNOWN 시도가 남아 있는 동안 Route Capability 변경 금지' 배포 규칙(§20-6), LIVE 전 정식 해결 / C: 등록부가 버전별 프로파일 보관, 회복은 전송 당시 버전 사용",
+      "dependentTasks": [
+        "AUTH-001",
+        "LIVE 준비 Gate"
+      ],
+      "askedAt": "2026-10-19",
+      "origin": "AUTH-001 S8 문서 작업 구현자 질문 후보(명세 §5.8·§9 Route Snapshot 계획과 V9 불일치)",
+      "humanAnswer": "Q-S8-1 답은 A",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 (2026-10-19)",
+      "appliedSpec": "D-AUTH1-007"
     }
   ]
 }

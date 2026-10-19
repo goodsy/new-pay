@@ -336,6 +336,15 @@ class ArchitectureSpec : FunSpec({
         shouldThrow<AssertionError> { rule.check(fixtureClasses("com.paycore.archfixture.institution", fixture)) }.message shouldContain fixture.simpleName
     }
 
+    test("AuthorizationPort and AuthorizationInquiryPort are implemented only by the Simulator adapter in adapter.integration.institution — no REAL VAN adapter (AUTH-001 §5.6)") {
+        val rule = authorizationPortsImplementedOnlyBySimulatorAdapter()
+        rule.check(classes)
+        classes.filter { c -> c.interfaces.any { it.name == AUTHORIZATION_PORT || it.name == AUTHORIZATION_INQUIRY_PORT } }.map { it.simpleName } shouldBe
+            listOf("SimulatorVanAuthorizationAdapter")
+        val fixture = com.paycore.archfixture.institution.RealVanAuthorizationAdapter::class.java
+        shouldThrow<AssertionError> { rule.check(fixtureClasses("com.paycore.archfixture.institution", fixture)) }.message shouldContain fixture.simpleName
+    }
+
     test("institution (TCP) adapters do not depend on mutable domain aggregates or domain services (AUTH-CONTRACT-001 AC 3)") {
         val rule = institutionAdapterDoesNotMutateDomain()
         // AUTHN-001 S7: adapter.integration.institution(Simulator 인증 adapter·설정)이 생겨 대상이 있다. 위반 fixture로도 평가를 본다.
@@ -574,6 +583,15 @@ class ArchitectureSpec : FunSpec({
             com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().implement(CARD_AUTHENTICATION_PORT)
                 .should().resideInAPackage("$BASE_PACKAGE..adapter.integration.institution..").andShould().haveSimpleNameStartingWith("Simulator")
                 .`as`("only the Simulator adapter in adapter.integration.institution implements CardAuthenticationPort (no REAL adapter)")
+
+        const val AUTHORIZATION_PORT = "$BASE_PACKAGE.payment.application.required.AuthorizationPort"
+        const val AUTHORIZATION_INQUIRY_PORT = "$BASE_PACKAGE.payment.application.required.AuthorizationInquiryPort"
+
+        /** AUTH-001 §5.6 겹 1: 승인·조회 Port 구현은 `..adapter.integration.institution..`의 `Simulator*`만(REAL VAN adapter 없음). */
+        fun authorizationPortsImplementedOnlyBySimulatorAdapter(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().implement(AUTHORIZATION_PORT).or().implement(AUTHORIZATION_INQUIRY_PORT)
+                .should().resideInAPackage("$BASE_PACKAGE..adapter.integration.institution..").andShould().haveSimpleNameStartingWith("Simulator")
+                .`as`("only the Simulator adapter in adapter.integration.institution implements AuthorizationPort/AuthorizationInquiryPort (no REAL VAN adapter)")
 
         /** AUTHN-001 검토 n-3: main의 `AuthenticationSession.verify` 호출·참조는 `AuthenticationResultCheck`만(판정 순서를 건너뛰지 못하게). */
         fun sessionVerifyOnlyThroughAuthenticationResultCheck(): com.tngtech.archunit.lang.ArchRule =

@@ -65,6 +65,27 @@ class SimulatorArchitectureSpec : FunSpec({
         rules.webAdapterUsesOnlyApplication().allowEmptyShould(false).check(classes)
     }
 
+    // AUTH-001 §5.3-3·AU-13: 가상 VAN은 인증 근거를 인증 모듈 provided 조회로만 읽는다(같은 JVM·같은 DB여도 모듈 경계 유지). 인증 모듈은 VAN을 모른다.
+    test("the van module uses the authentication module only through authentication.application.provided") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.van..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.authentication.domain..", "$BASE_PACKAGE.authentication.application.required..", "$BASE_PACKAGE.authentication.adapter..",
+            )
+            .check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.van..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.authentication.application")
+            .check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.authentication..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.van..")
+            .check(classes)
+    }
+
+    test("the virtual VAN ledger has no update or delete path (append-only store, immutable entity)") {
+        val store = classes.get("$BASE_PACKAGE.van.application.required.VanLedgerStore")
+        store.methods.map { it.name }.toSet() shouldBe setOf("find", "insert")
+        classes.get("$BASE_PACKAGE.van.adapter.persistence.JpaVanLedgerEntryEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
+    }
+
     test("the simulator has no REAL institution client and no card-number field (virtual card references only)") {
         classes.filter { it.simpleName.startsWith("Real") }.map { it.name } shouldBe emptyList()
         classes.flatMap { c -> c.fields.map { it.name.lowercase() } }.filter { it.contains("cardnumber") || it == "pan" || it.contains("cvc") } shouldBe emptyList()

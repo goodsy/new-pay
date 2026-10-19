@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.expire
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
@@ -11,7 +12,7 @@ import com.paycore.payment.payment.application.CreatePaymentFixture.command
 import com.paycore.payment.payment.application.CreatePaymentFixture.concurrently
 import com.paycore.payment.payment.application.provided.CreatePaymentResult
 import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
-import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
+import com.paycore.payment.payment.adapter.persistence.IncidentReporter
 import com.paycore.payment.payment.domain.TerminationEvidence
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 @PaymentDbTest
 class IncidentHoldConvergenceSpec(
     private val createPayment: CreatePaymentUseCase,
-    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val incidents: IncidentReporter,
     private val payments: JpaPaymentRepository,
     private val faults: FaultInjector,
     private val transactionManager: PlatformTransactionManager,

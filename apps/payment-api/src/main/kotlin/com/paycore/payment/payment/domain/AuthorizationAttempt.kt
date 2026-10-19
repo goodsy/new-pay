@@ -22,6 +22,9 @@ data class ProviderRequestRef(
             "provider request namespace parts must not be empty"
         }
     }
+
+    /** 기관 계약계정([institutionAccount])은 내부 식별자 등급(D-MS2-005) — 문자열 표현·로그·예외에 원문을 싣지 않는다(AUTH-001 F-3). */
+    override fun toString(): String = "ProviderRequestRef(institution=$institution, environment=$environment, institutionAccount=***, operation=$operation, requestId=$requestId)"
 }
 
 /**
@@ -45,7 +48,11 @@ enum class AbandonCause {
 /** 결과 불명확 원인(진단용). 어느 것도 무효과 근거가 아니다. */
 enum class UnknownCause { TIMEOUT, CONNECTION_LOST, FRAMING, CORRELATION, INTEGRITY, DISPATCH_LEASE_EXPIRED, COMMIT_FAILURE_RECOVERY, INSTITUTION_UNCONFIRMED }
 
-/** 기관 승인 실행 시도(PaymentAuthorization 안의 Entity). 전이는 [PaymentAuthorization]·[AuthorizationResolution]을 거친다. */
+/**
+ * 기관 승인 실행 시도(PaymentAuthorization 안의 Entity). 전이는 [PaymentAuthorization]·[AuthorizationResolution]을 거친다.
+ * [routeProfileVersion](D-AUTH1-007): 전송 게이트 통과 때 고정한 Route 프로파일(Capability) 버전 — PREPARED에는 없고, 전송한 Attempt에 없으면(V14 이전 행) 회복은 현재 버전과
+ * 다르다고 본다(무효과 종결 요청 없음 — fail-closed).
+ */
 class AuthorizationAttempt internal constructor(
     val id: AttemptId,
     val providerRequest: ProviderRequestRef,
@@ -53,8 +60,17 @@ class AuthorizationAttempt internal constructor(
     state: AttemptState,
     abandonCause: AbandonCause?,
     unknownCause: UnknownCause?,
+    routeProfileVersion: String? = null,
 ) {
+    init {
+        require(state != PREPARED || routeProfileVersion == null) { "a PREPARED attempt has no route profile version yet" }
+        require(routeProfileVersion == null || isValidRouteProfileVersion(routeProfileVersion)) { "route profile version must be 1..64 printable ASCII" }
+    }
+
     var state: AttemptState = state
+        private set
+
+    var routeProfileVersion: String? = routeProfileVersion
         private set
 
     var abandonCause: AbandonCause? = abandonCause
@@ -66,9 +82,11 @@ class AuthorizationAttempt internal constructor(
     /** 전송했거나 전송 여부가 불명확하다. */
     fun mayHaveBeenSent(): Boolean = state == DISPATCHING || state == OUTCOME_UNKNOWN || state == RESOLVED
 
-    internal fun beginDispatch(owner: AuthorizationId) {
+    internal fun beginDispatch(owner: AuthorizationId, routeProfileVersion: String) {
+        require(isValidRouteProfileVersion(routeProfileVersion)) { "route profile version must be 1..64 printable ASCII" }
         if (state != PREPARED) throw InvalidAuthorizationTransitionException(owner, "attempt $state", "beginDispatch")
         state = DISPATCHING
+        this.routeProfileVersion = routeProfileVersion
     }
 
     internal fun abandon(owner: AuthorizationId, cause: AbandonCause) {
@@ -93,4 +111,10 @@ class AuthorizationAttempt internal constructor(
     }
 
     override fun toString(): String = "AuthorizationAttempt(id=${id.value}, state=$state)"
+
+    private companion object {
+        const val MAX_ROUTE_PROFILE_VERSION = 64
+
+        fun isValidRouteProfileVersion(v: String): Boolean = v.isNotEmpty() && v.length <= MAX_ROUTE_PROFILE_VERSION && v.all { it in '!'..'~' }
+    }
 }

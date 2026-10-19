@@ -19,7 +19,7 @@ class DirectAuthorizationTransitions {
         authorization.markUnknown()
         authorization.authorize(transaction)
         authorization.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE)
-        attempt.beginDispatch(authorization.id)
+        attempt.beginDispatch(authorization.id, "sim-van-a-demo-1")
         attempt.abandon(authorization.id, AbandonCause.GATE_REFUSED)
         attempt.markOutcomeUnknown(authorization.id, UnknownCause.TIMEOUT)
         attempt.resolve(authorization.id)

@@ -36,6 +36,12 @@ enum class ApiErrorCode(val status: HttpStatus, val retryable: Boolean, val mess
     RETURN_URL_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The return URL host is not allowed for this merchant site."),
     CHECKOUT_NOT_SUPPORTED(HttpStatus.UNPROCESSABLE_CONTENT, false, "Checkout is not supported for this payment."),
     CHECKOUT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, true, "Checkout is temporarily unavailable. Retry the request."),
+
+    // AUTH-001 confirm(§4.9). 고정 문구 — 한도값·세부 사유·내부 값을 넣지 않는다.
+    CONFIRM_CONTENT_CONFLICT(HttpStatus.CONFLICT, false, "The confirm request does not match the payment or the authorization already in progress."),
+    AUTHENTICATION_NOT_VERIFIED(HttpStatus.CONFLICT, false, "The card authentication is not verified for this payment."),
+    PAYMENT_PLAN_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The payment plan is not allowed for this card."),
+    LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The transaction limit would be exceeded."),
     ;
 
     /** 응답 `code` 값. OUTCOME_UNCONFIRMED는 계약 §9 행대로 `TEMPORARILY_UNAVAILABLE` code를 쓴다(문구만 다름). */

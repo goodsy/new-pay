@@ -287,7 +287,7 @@ class CancelStartSpec : BehaviorSpec({
             val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
             first.control.occupy(second, first.payment)
             val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-            gen2.authorization.beginDispatch(gen2.attemptId)
+            gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
             AuthorizationResolution.markOutcomeUnknown(gen2.payment, gen2.authorization, gen2.attemptId, UnknownCause.TIMEOUT)
             AuthorizationFixture.apply(first, AuthorizationFixture.observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
             IncidentHoldSettlement.release(
@@ -298,7 +298,7 @@ class CancelStartSpec : BehaviorSpec({
             )
             AuthorizationFixture.apply(gen2, AuthorizationFixture.observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-gen2", attempt = gen2.attemptId),
                 newTransactionId = PaymentTransactionId("demo-ptx-0002"))
-            first.control.activeIncidentHolds shouldBe listOf(IncidentHold(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT))
+            first.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null))
             gen2.authorization.transaction.shouldBeInstanceOf<AuthorizationTransaction>()
 
             rejected(CancelStart.start(command(gen2, null, 10_000L.won()))) shouldBe CancelStartRejection.ORDER_ON_HOLD

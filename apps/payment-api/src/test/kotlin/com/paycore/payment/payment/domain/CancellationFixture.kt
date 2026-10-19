@@ -172,7 +172,7 @@ object CancellationFixture {
         val second = PaymentFixture.requested(n = 2, slotGeneration = 2)
         first.control.occupy(second, first.payment)
         val gen2 = AuthorizationFixture.startedOn(OrderPaymentScenario(first.control, second, listOf(first.payment, second)), 2, first.usage)
-        gen2.authorization.beginDispatch(gen2.attemptId)
+        gen2.authorization.beginDispatch(gen2.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
         if (lateApprovalOnFirst) {
             AuthorizationFixture.apply(first, AuthorizationFixture.observation(InstitutionOutcome.APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
         }
@@ -208,7 +208,7 @@ object CancellationFixture {
     fun authorizedInstallment(): AuthorizationScenario {
         val plan = PaymentPlan.Installment(3)
         val s = AuthorizationFixture.started(plan, CardType.CREDIT, AuthorizationFixture.lowMinimumPlanPolicy)
-        s.authorization.beginDispatch(s.attemptId)
+        s.authorization.beginDispatch(s.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
         AuthorizationFixture.apply(s, AuthorizationFixture.observation(InstitutionOutcome.APPROVED, terms = AuthorizationFixture.approvedTerms(plan = plan)))
         return s
     }
@@ -233,7 +233,7 @@ object CancellationFixture {
         val result = AuthorizationStart.start(f.command(ready, limit = limit, plans = plans, intent = intent))
         check(result is AuthorizationStartResult.Started) { "fixture start must succeed: $result" }
         val s = AuthorizationScenario(control, payment, session, usage, result.authorization)
-        s.authorization.beginDispatch(s.attemptId)
+        s.authorization.beginDispatch(s.attemptId, AuthorizationFixture.ROUTE_PROFILE_VERSION)
         f.apply(s, f.observation(InstitutionOutcome.APPROVED, terms = f.approvedTerms(money = money)), policy = null)
         return s
     }

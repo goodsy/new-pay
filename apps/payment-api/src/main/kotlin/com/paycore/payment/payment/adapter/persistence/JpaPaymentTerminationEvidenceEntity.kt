@@ -36,7 +36,7 @@ class TerminationEvidenceKey protected constructor() : Serializable {
     }
 }
 
-/** 종료 근거 한 건(append-only 자식 행, INSERT만). */
+/** 종료 근거 한 건(append-only 자식 행, INSERT만). 출처 열(AUTH-001 V11, rev 0.3 m-6)은 넷 다 NULL이면 legacy 행이다. */
 @Entity
 @Table(name = "payment_termination_evidence")
 class JpaPaymentTerminationEvidenceEntity protected constructor() {
@@ -46,6 +46,22 @@ class JpaPaymentTerminationEvidenceEntity protected constructor() {
 
     @field:Column(name = "evidence", nullable = false, updatable = false, length = 48)
     lateinit var evidence: String
+        protected set
+
+    @field:Column(name = "source_kind", updatable = false, length = 16)
+    var sourceKind: String? = null
+        protected set
+
+    @field:Column(name = "source_ref", updatable = false, length = 200)
+    var sourceRef: String? = null
+        protected set
+
+    @field:Column(name = "recorded_at", updatable = false)
+    var recordedAt: java.time.Instant? = null
+        protected set
+
+    @field:Column(name = "recorded_by", updatable = false, length = 64)
+    var recordedBy: String? = null
         protected set
 
     override fun equals(other: Any?): Boolean {
@@ -59,10 +75,16 @@ class JpaPaymentTerminationEvidenceEntity protected constructor() {
     override fun toString(): String = "JpaPaymentTerminationEvidenceEntity($key)"
 
     companion object {
-        fun newRow(paymentId: String, seq: Int, evidence: String): JpaPaymentTerminationEvidenceEntity =
+        fun newRow(
+            paymentId: String, seq: Int, evidence: String, sourceKind: String?, sourceRef: String?, recordedAt: java.time.Instant?, recordedBy: String?,
+        ): JpaPaymentTerminationEvidenceEntity =
             JpaPaymentTerminationEvidenceEntity().also {
                 it.key = TerminationEvidenceKey.of(paymentId, seq)
                 it.evidence = evidence
+                it.sourceKind = sourceKind
+                it.sourceRef = sourceRef
+                it.recordedAt = recordedAt
+                it.recordedBy = recordedBy
             }
     }
 }

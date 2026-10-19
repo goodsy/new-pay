@@ -1,5 +1,7 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.fail
+import com.paycore.payment.payment.domain.expire
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
@@ -20,7 +22,7 @@ import com.paycore.payment.payment.application.provided.CreatePaymentRejection
 import com.paycore.payment.payment.application.provided.CreatePaymentResult
 import com.paycore.payment.payment.application.provided.CreatePaymentUseCase
 import com.paycore.payment.payment.application.provided.GeneratedIdentifier
-import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
+import com.paycore.payment.payment.adapter.persistence.IncidentReporter
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.IdempotencyKey
 import com.paycore.payment.payment.domain.MerchantAccountId
@@ -46,7 +48,7 @@ import java.time.Duration
 @PaymentDbTest
 class CreatePaymentServiceSpec(
     private val service: CreatePaymentUseCase,
-    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val incidents: IncidentReporter,
     private val payments: JpaPaymentRepository,
     private val controls: JpaOrderPaymentControlRepository,
     private val transactionManager: PlatformTransactionManager,
@@ -267,11 +269,11 @@ class CreatePaymentServiceSpec(
             }
         }
 
-        When("without sufficient evidence (timeout only, or none)") {
+        When("without sufficient evidence (legacy row: timeout only — AUTH-001 L-3)") {
             Then("a new key is TERMINATION_EVIDENCE_INSUFFICIENT and no payment is created") {
                 val order = newOrder()
                 val first = created(service.create(command(order)))
-                change(order, first.payment.paymentId) { p, _ -> p.fail(TerminationEvidence.TIMEOUT) }
+                db.terminateAsLegacy(first.payment.paymentId.value, "FAILED", TerminationEvidence.TIMEOUT.name)
                 val rejected = service.create(command(order)).shouldBeInstanceOf<CreatePaymentResult.Rejected>()
                 rejected.rejection shouldBe CreatePaymentRejection.TERMINATION_EVIDENCE_INSUFFICIENT
                 rejected.referencePaymentId shouldBe first.payment.paymentId
@@ -284,7 +286,7 @@ class CreatePaymentServiceSpec(
         Then("even while a newer attempt is active, a same-input request is INCIDENT_HOLD referencing the current payment") {
             val order = newOrder()
             val first = created(service.create(command(order)))
-            change(order, first.payment.paymentId) { p, _ -> p.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }
+            change(order, first.payment.paymentId) { p, _ -> p.startAuthorization(); p.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }
             val second = created(service.create(command(order)))
             second.outcome shouldBe CreatePaymentOutcome.CREATED
             // 첫 시도(FAILED)에 대해 늦은 승인 성공이 보고됐다 → 주문 사건 보류.

@@ -80,6 +80,7 @@ internal object PersistenceFailures {
         "payment_termination_evidence.PRIMARY" to StoreConstraint.TERMINATION_EVIDENCE,
         "order_payment_control.PRIMARY" to StoreConstraint.ORDER_CONTROL,
         "incident_hold.uk_incident_hold_order_payment_reason" to StoreConstraint.INCIDENT_HOLD,
+        "incident_hold.uk_incident_hold_order_payment_reason_occurrence" to StoreConstraint.INCIDENT_HOLD,
         "idempotency_request.uk_idempotency_request_scope" to StoreConstraint.IDEMPOTENCY_SCOPE,
         "outbox_event.uk_outbox_event_event_id" to StoreConstraint.OUTBOX_EVENT_ID,
         "outbox_event.uk_outbox_event_effect_key" to StoreConstraint.OUTBOX_EFFECT_KEY,
@@ -100,5 +101,15 @@ internal object PersistenceFailures {
         "authentication_session.uk_authentication_session_bound_authorization" to StoreConstraint.AUTHENTICATION_SESSION_BOUND_AUTHORIZATION,
         "authentication_session_event.PRIMARY" to StoreConstraint.AUTHENTICATION_SESSION_EVENT,
         "authentication_session_event.uk_authentication_session_event_repeat" to StoreConstraint.AUTHENTICATION_SESSION_EVENT,
+        "payment_authorization.PRIMARY" to StoreConstraint.PAYMENT_AUTHORIZATION_ID,
+        "payment_authorization.uk_payment_authorization_payment" to StoreConstraint.PAYMENT_AUTHORIZATION_PAYMENT,
+        "authorization_attempt.PRIMARY" to StoreConstraint.AUTHORIZATION_ATTEMPT_ID,
+        "authorization_attempt.uk_authorization_attempt_namespace" to StoreConstraint.AUTHORIZATION_ATTEMPT_NAMESPACE,
+        "authorization_attempt.uk_authorization_attempt_in_flight" to StoreConstraint.AUTHORIZATION_ATTEMPT_IN_FLIGHT,
+        "institution_observation.uk_institution_observation_key" to StoreConstraint.INSTITUTION_OBSERVATION,
+        "payment_transaction.PRIMARY" to StoreConstraint.PAYMENT_TRANSACTION_ID,
+        "payment_transaction.uk_payment_transaction_authorization" to StoreConstraint.PAYMENT_TRANSACTION_AUTHORIZATION,
+        "daily_limit_usage.PRIMARY" to StoreConstraint.DAILY_LIMIT_USAGE,
+        "limit_reservation.PRIMARY" to StoreConstraint.LIMIT_RESERVATION,
     )
 }

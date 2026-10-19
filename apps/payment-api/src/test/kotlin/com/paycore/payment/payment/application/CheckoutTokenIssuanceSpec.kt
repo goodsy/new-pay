@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.CheckoutPersistenceFixture
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
@@ -16,7 +17,7 @@ import com.paycore.payment.payment.application.provided.IssueCheckoutTokenComman
 import com.paycore.payment.payment.application.provided.IssueCheckoutTokenResult
 import com.paycore.payment.payment.application.provided.IssueCheckoutTokenUseCase
 import com.paycore.payment.payment.application.provided.MerchantAuthentication
-import com.paycore.payment.payment.application.provided.ReportSuccessAfterTerminationUseCase
+import com.paycore.payment.payment.adapter.persistence.IncidentReporter
 import com.paycore.payment.payment.application.required.CheckoutTokenStatus
 import com.paycore.payment.payment.application.required.CheckoutTokenStore
 import com.paycore.payment.payment.application.required.NoWebHostCause
@@ -53,7 +54,7 @@ import java.time.temporal.ChronoUnit
 class CheckoutTokenIssuanceSpec(
     private val issue: IssueCheckoutTokenUseCase,
     private val create: CreatePaymentUseCase,
-    private val incidents: ReportSuccessAfterTerminationUseCase,
+    private val incidents: IncidentReporter,
     private val payments: PaymentRepository,
     private val controls: OrderPaymentControlRepository,
     private val tokens: CheckoutTokenStore,
@@ -203,14 +204,14 @@ class CheckoutTokenIssuanceSpec(
             issue.issue(request(order, id.value)) shouldBe IssueCheckoutTokenResult.Rejected(CheckoutTokenRejection.PAYMENT_AUTHORIZATION_STARTED, null)
 
             val (order2, id2) = payment(age = Duration.ZERO)
-            tx.executeWithoutResult { payments.lock(id2)!!.let { p -> p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
+            tx.executeWithoutResult { payments.lock(id2)!!.let { p -> p.value.startAuthorization(); p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
             issue.issue(request(order2, id2.value)) shouldBe IssueCheckoutTokenResult.Rejected(CheckoutTokenRejection.PAYMENT_TERMINATED, null)
         }
 
         Then("an order on incident hold is ORDER_ON_HOLD") {
             val order = newOrder()
             val (_, first) = payment(age = Duration.ZERO, order = order)
-            tx.executeWithoutResult { payments.lock(first)!!.let { p -> p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
+            tx.executeWithoutResult { payments.lock(first)!!.let { p -> p.value.startAuthorization(); p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
             val (_, second) = payment(age = Duration.ZERO, order = order)
             incidents.report(order, first, now())
             issue.issue(request(order, second.value)) shouldBe IssueCheckoutTokenResult.Rejected(CheckoutTokenRejection.ORDER_ON_HOLD, null)

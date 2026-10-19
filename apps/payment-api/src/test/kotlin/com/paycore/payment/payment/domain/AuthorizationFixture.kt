@@ -141,7 +141,10 @@ object AuthorizationFixture {
     }
 
     /** 전송 게이트 통과(TXd) 뒤: Attempt DISPATCHING. */
-    fun dispatching(): AuthorizationScenario = started().also { it.authorization.beginDispatch(it.attemptId) }
+    fun dispatching(): AuthorizationScenario = started().also { it.authorization.beginDispatch(it.attemptId, ROUTE_PROFILE_VERSION) }
+
+    /** 전송 게이트 통과 때 Attempt에 고정하는 Route 프로파일 버전(Demo — 시험 yml `SIM-VAN-01.profile-version`과 같은 값, D-AUTH1-007). */
+    const val ROUTE_PROFILE_VERSION = "sim-van-a-demo-1"
 
     /** 전송 뒤 read timeout: Payment·Authorization UNKNOWN, Attempt OUTCOME_UNKNOWN. */
     fun unknownAfterTimeout(): AuthorizationScenario = dispatching().also {
@@ -150,7 +153,7 @@ object AuthorizationFixture {
 
     /** 요청과 같은 조건의 기관 승인 조건. */
     fun approvedTerms(money: Money = intent.money, plan: PaymentPlan = PaymentPlan.LumpSum, cardType: CardType = CardType.CREDIT) =
-        ApprovedTerms(money, plan, cardType, "A0001", "PTX-SIM-0001", LocalDate.of(2026, 10, 15))
+        ApprovedTerms(money, plan, cardType, "A0001", "PTX-SIM-0001", LocalDate.of(2026, 10, 15), institutionBusinessDate = LocalDate.of(2026, 10, 15))
 
     fun observation(
         outcome: InstitutionOutcome,

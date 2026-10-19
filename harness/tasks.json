@@ -2038,14 +2038,21 @@
       "id": "AUTH-001",
       "title": "가상 TCP 승인·취소·조회 구현",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "AUTH-CONTRACT-001",
         "MASTER-SNAPSHOT-001",
         "MASTER-SNAPSHOT-002",
         "AUTHN-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-AUTH1-01",
+        "Q-AUTH1-02",
+        "Q-AUTH1-03",
+        "Q-AUTH1-04",
+        "Q-AUTH1-05",
+        "Q-AUTH1-06"
+      ],
       "acceptanceCriteria": [
         "연결 단절·응답 유실·중복 요청·지연 결과 검증",
         "외부 호출은 로컬 TX 밖",
@@ -2066,66 +2073,188 @@
         "(AUTHN-001 §22-5) 가상 VAN 원장(기관 금융 사실 원본)을 institution-simulator에 넣을 때 append-only 표 권한(§9.2식) 재검토",
         "(AUTHN-001 §22-8·§7.5.3, D-AUTHN-008) confirm TX1은 payment_authorization 잠금 전에 결제창 만료 시각을 먼저 확인하고, 지났으면 공용 RequestedPaymentClosing으로 인라인 만료(PaymentExpired 같은 TX) 후 PAYMENT_TERMINATED 거절",
         "(AUTHN-001 §22-10·§22-11) PAYMENT V9 이후 migration도 CheckoutWindowCheckMigrationStrategy 순서(V8 → pin/채움 → 재확인 → 나머지) 유지, V7→V8_1 업그레이드 시 AUTHN-001 이전 payment-api 인스턴스 없음 배포 전제 유지",
-        "(AUTHN-001 최종 review m-1) C8 외에 confirm vs 만료 작업/인라인 만료 경합(control 잠금) 실제 MySQL 시험"
+        "(AUTHN-001 최종 review m-1) C8 외에 confirm vs 만료 작업/인라인 만료 경합(control 잠금) 실제 MySQL 시험",
+        "(D-AUTH1-001) LimitPolicyUnavailable → 503 TEMPORARILY_UNAVAILABLE, 미저장, REQUESTED 유지, 같은 키 재시도 성공 시험",
+        "(D-AUTH1-002) KRW만 승인(Demo supportedCurrencies=[KRW]), 비KRW 422 PAYMENT_NOT_ELIGIBLE 저장·전송 없음 시험",
+        "(D-AUTH1-003) 신용 일시불·체크 일시불·일반 할부 모두 개방(D-AUTH-001 개방 순서 대체), 체크 할부 거절 유지, 카드 종류·할부별 가상 기관 시나리오·한도·시험",
+        "(D-AUTH1-005) hold REAL/DOUBLE 해제 시 미해명 흡수 승인이 남으면 같은 TX에서 hold occurrence+1 자동 개설 시험",
+        "(D-AUTH1-006) hold NO_EFFECT 해제 시에도 미해명 흡수 승인이 남으면 hold occurrence+1 자동 개설 domain 시험",
+        "1단계 명세 docs/repository/AUTH-001-AUTHORIZATION.md: 기존 AC·인계 항목 전수 대조, 흐름·TX 경계·잠금 순서·가상 VAN(institution-simulator) 계약·UNKNOWN 회복·대사 연결·질문 후보 → Coordinator 사용자 질문 → 2단계 TDD"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/institution-simulator/**",
+        "libs/**",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/scripts/cve-scan.py",
+        "harness/tests/**",
+        "compose.yaml",
+        "docker/**",
+        ".env.example"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/AUTH-001-2026-10-19T150655Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:baa077bac0aa1715c8aaa74be75820f4d4dd7e26ed668d218f3a20c1b177aa31",
+        "headRevision": "481a9fa (dirty)",
+        "tests": "GRADLE-CHECK/TEST-SUMMARY 1875/0 failures/0 errors/0 skipped (payment-api 1281, master 320, simulator 107, test-support 112, batch 26, admin 29), HARNESS-SELFTEST 86 OK",
+        "minTests": "GRADLE-CHECK/TEST-SUMMARY 1586 -> 1875, HARNESS-SELFTEST 81 -> 86",
+        "supplementary": "build/harness-evidence/AUTH-001-2026-10-19T152244Z-supplementary/RUNS.txt (GRADLE-DEPS x5 exit 0, CVE-SCAN PASS vulnerabilities=0 all 5 modules, FINGERPRINT-after = same)",
+        "at": "2026-10-19T15:25:17Z"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": "final-2",
+        "target": "sha256:baa077bac0aa1715c8aaa74be75820f4d4dd7e26ed668d218f3a20c1b177aa31"
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: AuthorizationResolutionSpec, AuthorizationStartSpec, TransactionLimitSpec, IncidentHoldReleaseSpec, IncidentHoldUnexplainedApprovalSpec, ConfirmConcurrencySpec C22, ConfirmFlowSpec, AuthorizationResultConcurrencySpec C25 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: ConfirmFlowSpec AC2(호출 중 TX·잠금 없음), AuthorizationDispatchSafetySpec C29·n-1·n-2·m-1, AuthorizationPersistenceSpec, IncidentHoldConvergenceSpec (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: ConfirmFlowSpec 재생, ConfirmConcurrencySpec C21, ConfirmStartSpec, ConfirmPaymentApiSpec, AuthorizationResultConcurrencySpec C27, Simulator VanAuthorizationSpec·VanServerSpec (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: 실제 MySQL: ConfirmConcurrencySpec C8·C18·C19·C21·C22, AuthorizationRecoveryConcurrencySpec C23·C24·SKIP LOCKED, AuthorizationResultConcurrencySpec C25·C27, AuthorizationDispatchSafetySpec C26 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: AuthorizationRecoverySpec(fencing·lease·조회·종결/이관·D-AUTH1-007 fail-closed), AuthorizationRecoverySchedulerSpec, AuthorizationTimingSettingsSpec, Simulator SimulatorRestartDurabilitySpec·VanInquirySpec; Simulator 범위 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "PARTIAL",
+          "reason": "RECON 실행은 후속 작업 범위",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "PARTIAL: PAYMENT 측 이관 이벤트 AuthorizationOutcomeUnresolved(BUDGET/MAX_AGE, configVersion): AuthorizationRecoverySpec; 기관 원장 원본: Simulator VanAuthorizationSpec·SimulatorDatabaseAccountSpec. 대사 실행·MATCH·hold 해제 Use Case는 RECON-CONTRACT-001/RECON-001 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: AuthorizationPersistenceSpec(관찰·종료 근거 출처·V14), PaymentAuthorizationReconstitutionSpec, AuthorizationRecoverySpec 설정 버전, IncidentHoldUnexplainedApprovalSpec, DatabaseAccountSeparationSpec, SimulatorDatabaseAccountSpec, AuthorizationDispatchSafetySpec m-1 로그 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
+          "applicability": "APPLICABLE",
           "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY",
+            "HARNESS-SELFTEST"
+          ],
+          "evidence": "MET: AuthorizationObservabilitySpec, SimulatorVanAuthorizationAdapterSpec(SENDER_FAILED 포함), AuthorizationRecoverySpec 로그 비노출, AuthorizationRecoverySchedulerSpec. n-6 gauge 비용 후속 (build/harness-evidence/AUTH-001-2026-10-19T150655Z.json)"
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-18 착수(agreedOrder, CANCEL-CONTRACT-001 DONE 481a9fa 다음). 1단계 조사·명세·질문 후보부터",
+        "2026-10-18 1단계 명세(eea8ce17f093…, 추정 1.2~1.5×AUTHN-001) 수령. Q-AUTH1-01~03 → D-AUTH1-001~003(03은 비권장안 선택, 영향 설명 후 재확인). §14 판정: AU-20 simulator DB 표 단위 권한 채택, VAN push 알림 없음(후속), TLS는 LIVE Gate, 제목의 '취소'는 CANCEL-001, V11 배포 전제(옛 인스턴스 중지) 기록, MS2 n-3/n-5는 AUTH-001 범위 밖(후속 후보), AU-18 ReportSuccessAfterTerminationService 삭제 채택(늦은 성공은 TX2 해결 경로만)",
+        "2026-10-18 S4 체크포인트 수령(rev 0.4 915dd5949f55…). 편차 1·2·4·6 수용(가역 구현 세부·Q-CALENDAR 이월), 3·5는 review #2 확인 대상, 7은 guard 성격 기록, 8 이월 확인. NOT_TRANSMITTED 시작 Payment 금지 시도 철회(D-CPD-002 oracle 유지) 수용",
+        "2026-10-19 재개: S7 검토 #3 대응 코드 확인, precheck 1857/0. S8 문서(§20 배포 조건·§16.17·관례 §16·DOMAIN-DEFINITION·HVC §7·AC1 §19.10)",
+        "2026-10-19 Q-S8-1 → D-AUTH1-007(A: Route 프로파일 버전 고정, 불일치/NULL은 종결 요청 없음). V14 추가",
+        "2026-10-19 S8 gap: §9 지표(dispatch/inquiry counter·call timer·backlog gauge 4), .env.example 승인 설정 JSON, Simulator Demo 할부 2·3·6 정렬. 회복 counter 이름 변경은 기존 기대값 보존 위해 보류(수용)",
+        "2026-10-19 구현자 선택 수용: TXd Route 미등록 → GATE_REFUSED(전송 0, Reviewer 안전 판정), 로컬 Demo recovery.enabled=true",
+        "2026-10-19 DONE: VERIFY-GATE PASS 150655Z 1875/0, DEPS×5·CVE PASS 152244Z, REVIEW_PASS final-2"
+      ],
+      "specification": {
+        "path": "docs/repository/AUTH-001-AUTHORIZATION.md",
+        "stage1Sha256": "eea8ce17f09369863bd781877d077dadf4680d492b529cf58e753c70acf4dc11",
+        "stage1Base": "481a9fa"
+      },
+      "reviewRounds": [
+        {
+          "round": "spec-1",
+          "verdict": "SPEC_PASS_WITH_FIXES",
+          "target": "rev 0.2 f47a7e39…",
+          "findings": "H-1 m-10 NoChange 집합이 미검토 두 번째 승인 흡수, H-2 AU-26 계약 line 129 모순(U-1), H-3 VAN PENDING을 no-effect로 닫을 수 있음, m-1~m-9, n-1~n-9",
+          "coordinatorRulings": "전부 단계별 수정 지시(rev 0.3), U-1 → D-AUTH1-004(AU-26 미채택), U-2 AU-17 유지+H-1, AU-22 수용, 게이트 일시 Admission Unavailable은 preparedDeadline까지 TXd 재시도 후 GATE_REFUSED"
+        },
+        {
+          "round": "checkpoint-S2",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "rev 0.3 aef6591c…",
+          "findings": "구현 보고(미검증): S1 domain(L-3, H-1 hold 시작 관측, m-6 종료 근거 출처, m-2, reconstitute, preflight, 마스킹, RSAT 삭제), S2 V9~V11·repository. payment-api 1135/0. 변경 기대값 7묶음(L-3 레거시 행 등) | review #1: H-1 key-conflict variant로 연 hold가 두 번째 승인 과잉 설명, m-1 L-3 2단계 우회(close 후 addTerminationEvidence)·CreatePaymentApiSpec:198/207 미재설계, m-2 business date 미저장, n-1~n-6. 변경 기대값 1~7 약화 아님 확인",
+          "coordinatorRulings": "중간 review #1과 S3~S4 병행 | H-1 variant 포함 식별, m-1 승인 시작 여부 기록·미시작은 CHECKOUT_EXPIRY만, m-2 nullable institutionBusinessDate 추가(의미는 Q-CALENDAR), nit 반영. S4 체크포인트 전 수정"
+        },
+        {
+          "round": "checkpoint-S4",
+          "verdict": "PASS_WITH_FIXES (mid-review #2)",
+          "target": "rev 0.4 915dd594…",
+          "findings": "구현 보고(미검증): review #1 수정 H-1 ObservationRef(key,variant)+V11 source_variant, m-1 Payment.authorizationStarted(복원 시 유도, 미시작은 NOT_TRANSMITTED_AND_SESSION_DISCARDED만), m-2 nullable institutionBusinessDate(V9), n-1~n-6. S3 simulator van(H-3 PENDING 미종결, m-7 payload hash·DECLINED 원장 선기록, m-4 DB 권한·VanLedgerPrivilegeGuard, C30 경합 2건). S4 PG adapter(Port 3종, route registry fail-closed, 기한 분리, 쓰기 후 실패 OutcomeUnknown, profile B closeIfAbsent 미전송). payment-api 1165/0, simulator 101/0, HARNESS-SELFTEST 86(commands.json 최소 81→86). 변경 기대값 8묶음. 편차 1~8(type·merchantRef 계약 추가, 카드명 변경, ULID 시각으로 요청 나이 판단, van_evidence_use, PENDING·종결 동시 생성 2행, Asia/Seoul 영업일 Demo, ArchUnit 사후 작성, AU-34/AU-31/TX 밖 증명 이월)",
+          "coordinatorRulings": "m-A~m-C·n-1~n-5 S5~S7에 병행 수정 지시, m-D는 Q-AUTH1-05 응답 전 hold 해제 해당 동작 구현 보류",
+          "reviewFindings": "H 없음. review #1 H-1/m-1/m-2/n-1~6 수정 확인, 편차 3(ULID 나이)·5(PENDING+종결 2행) 안전(UNIQUE(namespace)+원장 우선 읽기), 1·4·7 수용, 변경 기대값 약화 없음, SELFTEST 86 정적 일치. m-A 응답 읽기 중 total deadline 미적용(slow drip), m-B adapter route 환경 미검사(LIVE 요청이 TEST route로 전송·UNKNOWN), m-C 편차 5 동시성 시험 없음, m-D 활성 hold 중 흡수된 승인이 다른 관측의 REAL/DOUBLE 해제 후 hold 없이 남음(P-1 사용자 결정), n-1~n-6"
+        },
+        {
+          "round": "checkpoint-S7",
+          "verdict": "PASS_WITH_FIXES (mid-review #3)",
+          "target": "rev 0.5 a4ea802f…",
+          "findings": "구현 보고(미검증): S5 confirm 흐름(영업일·통화·한도 정책 버전·inline 만료), S6 dispatch lease·TXd/TX2·TX 밖 호출 증명, S7 회복 스케줄러(SKIP LOCKED claim, 조회 예산·retention·escalation, AuthorizationOutcomeUnresolved), review #2 m-A~m-C·n-1~n-5, m-D D-AUTH1-005. payment-api 1246/0, simulator 107/0, SELFTEST 86. V12/V13 추가. 변경 기대값 C21 경합 결과 집합 확대 등. 편차 D-S6-1~3, D-S7-1~5. 미시험 C26/C28/C29 일부/실제 재시작",
+          "coordinatorRulings": "m-1~m-4·n-1~n-10 S8 전 수정. D-S7-1 SKIP LOCKED JPA native claim 수용, backoff/jitter 없음·Unavailable circuit breaker 없음 기술 편차 수용. Q-AUTH1-06 → D-AUTH1-006. RECON-CONTRACT-001 인계: release+occurrence+1 hold INSERT 한 TX 실제 MySQL 시험, reopen hold AuthorizationIncidentDetected 발행(F-1)",
+          "reviewFindings": "이중 전송·TX 밖 호출·자동 실패 금지 확인, 변경 기대값 약화 없음, D-S7-1 수용. m-1 lease 만료 표시가 claim 시점 스냅샷 기준(진행 중 dispatch를 UNKNOWN), m-2 PG 측 retention 이후 closeIfAbsent 차단 없음, m-3 C26·C29 commit-unknown 시험 필수, m-4 회복 설정 버전 기록 형태, n-1~n-10, m-A 생존 mutant는 '읽기 중복, 쓰기 차단 시험 불가'로 기록"
+        },
+        {
+          "round": "final-1",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "sha256:7c245013…",
+          "findings": "H 0. m-1 TXd Route 미등록 GATE_REFUSED 분기 시험·진단 로그 없음, n-1~n-4 문서(D-AUTH1-007·V14 미반영), n-5 Adapter 예외 경로 지표 누락, n-6 gauge scrape당 집계 쿼리, n-7 보존기간 이관 사유 MAX_AGE",
+          "coordinatorRulings": "m-1·n-1~n-5 수정(진행 중 gate 중단), n-6·n-7 후속 수용(§16.19)"
+        },
+        {
+          "round": "final-2",
+          "verdict": "REVIEW_PASS",
+          "target": "sha256:baa077bac0aa1715c8aaa74be75820f4d4dd7e26ed668d218f3a20c1b177aa31",
+          "findings": "m-1·n-1~n-5 해소, WithdrawableRouteResolver 기본 통과·spec 간 누수 없음, 기대값 완화 없음, 새 질문 없음"
+        }
+      ]
     },
     {
       "id": "CANCEL-001",
@@ -2452,7 +2581,9 @@
         "(CANCEL-CONTRACT-001 m-1) CANCEL_RESULT_CONFLICT hold 해제 판정과 FORCED 반환의 출구(CONSUMED/RELEASED) 정의 — 그 전까지 해제 거절(fail-closed)",
         "(D-CANCEL-011) P1은 FAILED/EXPIRED 유지, PaymentAuthorization에 늦은 승인 거래만 추가",
         "(D-CANCEL-012) 보류 중 P1 승인 거래 기록과 같은 TX에서 PaymentAuthorized 발행(AUTH §8.1 예외)",
-        "(D-CANCEL-013) 단독 늦은 승인을 REAL_APPROVAL_CONFIRMED로 해제한 뒤에도 Payment FAILED 유지, 환불은 사고 건에 묶인 운영자 보정 취소(2인 승인)로만 — 가맹점 취소 경로 없음"
+        "(D-CANCEL-013) 단독 늦은 승인을 REAL_APPROVAL_CONFIRMED로 해제한 뒤에도 Payment FAILED 유지, 환불은 사고 건에 묶인 운영자 보정 취소(2인 승인)로만 — 가맹점 취소 경로 없음",
+        "(AUTH-001 인계) hold 해제(REAL/DOUBLE/NO_EFFECT)와 D-AUTH1-005/006 occurrence+1 hold INSERT를 한 TX로 실제 MySQL에서 시험",
+        "(AUTH-001 인계 F-1) 해제로 재개된 hold의 AuthorizationIncidentDetected 발행"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

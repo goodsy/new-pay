@@ -150,7 +150,11 @@ class PaymentSchemaSpec(private val db: DbAccess) : BehaviorSpec({
                         c.errorCodeOf(INSERT_IDEMPOTENCY, *idempotencyArgs(mid, "key-1")) shouldBe null
                         c.errorCodeOf(INSERT_IDEMPOTENCY, *idempotencyArgs(mid, "Key-1 ")) shouldBe null
                         c.errorCodeOf(INSERT_IDEMPOTENCY, *idempotencyArgs(mid, "Key-1", recordId = "other")) shouldBe 1062
-                        c.errorCodeOf(INSERT_IDEMPOTENCY, *idempotencyArgs(mid, "Key-1", operation = "OtherOperation")) shouldBe null
+                        // AUTH-001 V11: operation은 CreatePayment·ConfirmPayment만(CHECK) — 다른 operation의 같은 키가 별도 범위임은 ConfirmPayment 예약 행으로 본다.
+                        c.errorCodeOf(
+                            INSERT_IDEMPOTENCY,
+                            *idempotencyArgs(mid, "Key-1", operation = "ConfirmPayment", resultKind = "PENDING", resultCode = null, resultPaymentId = null),
+                        ) shouldBe null
                         c.errorCodeOf(INSERT_IDEMPOTENCY, *idempotencyArgs(mid, "Key-1", environment = "LIVE")) shouldBe null
                     }
                 }

@@ -22,6 +22,16 @@ import com.paycore.payment.payment.domain.PaymentKey
 import com.paycore.payment.payment.domain.PaymentMethod
 import com.paycore.payment.payment.domain.PaymentStatus
 import com.paycore.payment.payment.domain.TerminationEvidence
+import com.paycore.payment.payment.domain.TerminationEvidenceRecord
+import com.paycore.payment.payment.domain.TerminationEvidenceSource
+import com.paycore.payment.payment.domain.TerminationEvidenceSourceKind
+import com.paycore.payment.payment.domain.AttemptId
+import com.paycore.payment.payment.domain.HoldReleaseFinding
+import com.paycore.payment.payment.domain.IncidentHoldRelease
+import com.paycore.payment.payment.domain.ObservationKey
+import com.paycore.payment.payment.domain.ObservationRef
+import com.paycore.payment.payment.domain.ObservationSource
+import com.paycore.payment.payment.domain.OperatorId
 
 /**
  * Domain ↔ JPA Entity 변환. domain 값 객체 생성자를 **다시 통과**시켜 복원한다(예: `amount_minor=1050, currency='USD'` →
@@ -73,17 +83,26 @@ internal object PaymentPersistenceMapper {
         }
     }
 
-    fun toPayment(row: JpaPaymentEntity, evidence: List<JpaPaymentTerminationEvidenceEntity>): Payment {
+    /**
+     * @param hasAuthorization 이 Payment의 payment_authorization 행이 있는가. 승인 시작 여부(검토 #1 m-1)는 저장 열 없이 상태·승인 행·근거 출처에서 도출한다
+     * ([Payment.authorizationStarted]). 잠금 읽기로 Payment 행을 잡은 뒤 READ COMMITTED로 읽으므로 최신 커밋을 본다(관례 격리 수준).
+     */
+    fun toPayment(row: JpaPaymentEntity, evidence: List<JpaPaymentTerminationEvidenceEntity>, hasAuthorization: Boolean): Payment {
         val ordered = evidence.sortedBy { it.key.seq }
         check(ordered.map { it.key.seq } == ordered.indices.toList()) { "termination evidence of ${row.paymentId} is not contiguous" }
+        val status = PaymentStatus.valueOf(row.status)
+        val records = ordered.map(::toEvidenceRecord)
+        val started = hasAuthorization || status == PaymentStatus.AUTHORIZING || status == PaymentStatus.UNKNOWN || status == PaymentStatus.AUTHORIZED ||
+            records.any { it.source?.kind in Payment.STARTED_SOURCES }
         return Payment.reconstitute(
             id = PaymentId(row.paymentId),
             orderKey = orderKeyOf(row.environment, row.merchantAccountId, row.merchantOrderId),
             intent = OrderIntentFingerprint(row.orderIntentFingerprint),
             slotGeneration = row.slotGeneration,
-            status = PaymentStatus.valueOf(row.status),
-            terminationEvidence = ordered.map { TerminationEvidence.valueOf(it.evidence) },
+            status = status,
+            terminationEvidence = records,
             checkoutWindow = row.checkoutExpiresAt?.let { CheckoutWindow(it, checkNotNull(row.checkoutValidityVersion)) },
+            authorizationStarted = started,
         )
     }
 
@@ -114,13 +133,48 @@ internal object PaymentPersistenceMapper {
         ) { "payment ${payment.id.value} does not match its stored identity" }
     }
 
-    fun toControl(row: JpaOrderPaymentControlEntity, holds: List<JpaIncidentHoldEntity>): OrderPaymentControl =
-        OrderPaymentControl.reconstitute(
+    /** 종료 근거 행 → domain 기록. 출처 열이 모두 NULL이면 legacy 행(출처 null)이다(V11 CHECK가 넷 다 NULL 또는 넷 다 NOT NULL을 강제). */
+    fun toEvidenceRecord(row: JpaPaymentTerminationEvidenceEntity): TerminationEvidenceRecord =
+        TerminationEvidenceRecord(
+            TerminationEvidence.valueOf(row.evidence),
+            row.sourceKind?.let { kind ->
+                TerminationEvidenceSource(TerminationEvidenceSourceKind.valueOf(kind), checkNotNull(row.sourceRef), checkNotNull(row.recordedAt), checkNotNull(row.recordedBy))
+            },
+        )
+
+    /** hold 행 → domain(occurrence, 여는 관찰 키 + variant — rev 0.3 H-1·검토 #1 H-1). 출처 열이 NULL이면 legacy·취소 사건 hold. */
+    fun toHold(row: JpaIncidentHoldEntity): IncidentHold =
+        IncidentHold.reconstitute(
+            PaymentId(row.paymentId), IncidentReason.valueOf(row.reason), row.occurrence,
+            row.sourceKind?.let {
+                ObservationRef(
+                    ObservationKey(AttemptId(checkNotNull(row.sourceAttemptId)), ObservationSource.valueOf(it), checkNotNull(row.sourceResultId)),
+                    checkNotNull(row.sourceVariant),
+                )
+            },
+        )
+
+    fun toControl(row: JpaOrderPaymentControlEntity, holds: List<JpaIncidentHoldEntity>, releases: List<JpaIncidentHoldReleaseEntity>): OrderPaymentControl {
+        val domainHolds = holds.associate { it.id to toHold(it) }
+        return OrderPaymentControl.reconstitute(
             orderKey = orderKeyOf(row.orderKey.environment, row.orderKey.merchantAccountId, row.orderKey.merchantOrderId),
             fixedIntent = OrderIntentFingerprint(row.fixedIntentFingerprint),
             currentPaymentId = PaymentId(row.currentPaymentId),
             generation = row.generation,
             authorizedPaymentId = row.authorizedPaymentId?.let(::PaymentId),
-            incidentHolds = holds.map { IncidentHold(PaymentId(it.paymentId), IncidentReason.valueOf(it.reason)) },
+            incidentHolds = holds.map(::toHold),
+            incidentHoldReleases = releases.map { r ->
+                IncidentHoldRelease(
+                    hold = checkNotNull(domainHolds[r.incidentHoldId]) { "a release refers to a hold of this order" },
+                    requestedBy = OperatorId(r.requestedBy),
+                    approvedBy = OperatorId(r.approvedBy),
+                    reconciliationMatchRef = r.reconciliationMatchRef,
+                    finding = HoldReleaseFinding.valueOf(r.finding),
+                    reason = r.reason,
+                    releasedAt = r.releasedAt,
+                    correctionRef = r.correctionRef,
+                )
+            },
         )
+    }
 }

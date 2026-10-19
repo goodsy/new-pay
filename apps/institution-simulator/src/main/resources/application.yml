@@ -3,7 +3,7 @@ spring:
     name: institution-simulator
   # Simulator 전용 DB(paycore_simulator, AN-19) 접속 정보는 환경변수로만 주입한다. 기본값·비밀번호를 저장소에 두지 않는다. PayCore 소유 DB 접속 정보는 두지 않는다.
   datasource:
-    # runtime 계정: paycore_simulator.* DML만(DDL 없음). 계정: docker/simulator-mysql/init/01-simulator-database.sh
+    # runtime 계정: role paycore_simulator_runtime의 표 단위 권한만(DDL·DB 단위 권한 없음, AUTH-001 AU-20). 계정: docker/simulator-mysql/init/01-simulator-database.sh
     url: ${PAYCORE_SIMULATOR_DB_URL}
     username: ${PAYCORE_SIMULATOR_DB_USERNAME}
     password: ${PAYCORE_SIMULATOR_DB_PASSWORD}
@@ -18,7 +18,8 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
   flyway:
-    locations: classpath:db/migration/simulator
+    # 업무 schema(db/migration/simulator)와 runtime 표 단위 권한(db/runtime-privilege/simulator — PayCore 관례 §9.2와 같은 분리).
+    locations: classpath:db/migration/simulator,classpath:db/runtime-privilege/simulator
     # migration 계정(paycore_simulator ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다.
     user: ${PAYCORE_SIMULATOR_DB_MIGRATION_USERNAME}
     password: ${PAYCORE_SIMULATOR_DB_MIGRATION_PASSWORD}
@@ -35,6 +36,36 @@ paycore:
       - id: ${PAYCORE_SIMULATOR_CLIENT_ID}
         key-sha256: ${PAYCORE_SIMULATOR_CLIENT_KEY_SHA256}
         return-origin: ${PAYCORE_SIMULATOR_CLIENT_RETURN_ORIGIN}
+    # 가상 VAN(AUTH-001 §5 — TCP, 계약 sim-van-1). Demo 값, 운영 기본값 없음(없으면 기동 실패). HMAC 키는 base64 원문을 환경변수로만(저장소에 키 없음).
+    # 프로파일 A = 무효과 확정 Capability 있음, B = 없음(AU-15). 기관 가맹점 계정 → 프로파일 연결. 신용 할부 개월은 결제창 Plan Demo 정책과 같은 값(AU-31 — Demo [2, 3, 6]).
+    # AU-31 기동 검사는 payment-api 안(결제창 ↔ Route)만 본다 — 별도 프로세스인 이 값과의 일치는 배포 확인 항목이다(AUTH-001 §20-6).
+    van:
+      port: ${PAYCORE_SIMULATOR_VAN_PORT}
+      late-response-delay: ${PAYCORE_SIMULATOR_VAN_LATE_RESPONSE_DELAY}
+      fragment-delay: ${PAYCORE_SIMULATOR_VAN_FRAGMENT_DELAY}
+      idle-timeout: ${PAYCORE_SIMULATOR_VAN_IDLE_TIMEOUT}
+      keys:
+        - id: ${PAYCORE_SIMULATOR_VAN_KEY_ID}
+          client: ${PAYCORE_SIMULATOR_CLIENT_ID}
+          key-base64: ${PAYCORE_SIMULATOR_VAN_HMAC_KEY_BASE64}
+      profiles:
+        A:
+          confirms-no-effect: true
+          closable-after: ${PAYCORE_SIMULATOR_VAN_CLOSABLE_AFTER}
+          inquiry-retention: ${PAYCORE_SIMULATOR_VAN_INQUIRY_RETENTION}
+          credit-installment-months: ${PAYCORE_SIMULATOR_VAN_CREDIT_INSTALLMENT_MONTHS}
+          pending-delay: ${PAYCORE_SIMULATOR_VAN_PENDING_DELAY}
+        B:
+          confirms-no-effect: false
+          closable-after: ${PAYCORE_SIMULATOR_VAN_CLOSABLE_AFTER}
+          inquiry-retention: ${PAYCORE_SIMULATOR_VAN_INQUIRY_RETENTION}
+          credit-installment-months: ${PAYCORE_SIMULATOR_VAN_CREDIT_INSTALLMENT_MONTHS}
+          pending-delay: ${PAYCORE_SIMULATOR_VAN_PENDING_DELAY}
+      accounts:
+        - account: ${PAYCORE_SIMULATOR_VAN_ACCOUNT_A}
+          profile: A
+        - account: ${PAYCORE_SIMULATOR_VAN_ACCOUNT_B}
+          profile: B
 
 # 포트는 운영 기본값 없이 환경변수로만(D-AUTHN-004 별도 프로세스·포트). 없으면 기동 실패.
 server:

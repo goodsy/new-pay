@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.application
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.FaultInjector
 import com.paycore.payment.payment.adapter.persistence.FaultPoint
@@ -150,7 +151,7 @@ class CheckoutExchangeSpec(
         Then("the token is CLOSED, no session is created, the payment is unchanged and the fail URL carries PAYMENT_NOT_AVAILABLE") {
             val (order, id) = payment(age = Duration.ZERO)
             val raw = token(order, id)
-            tx.executeWithoutResult { payments.lock(id)!!.let { p -> p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
+            tx.executeWithoutResult { payments.lock(id)!!.let { p -> p.value.startAuthorization(); p.value.fail(TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED); payments.update(p.value, p.version) } }
             val result = exchange(raw).shouldBeInstanceOf<OpenCheckoutSessionResult.NotAvailable>()
             result.code shouldBe CheckoutFailCode.PAYMENT_NOT_AVAILABLE
             result.failRedirect shouldBe "$failUrl&paymentId=${id.value}&code=PAYMENT_NOT_AVAILABLE"

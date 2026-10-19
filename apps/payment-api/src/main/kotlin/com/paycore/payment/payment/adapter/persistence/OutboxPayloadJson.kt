@@ -1,6 +1,10 @@
 package com.paycore.payment.payment.adapter.persistence
 
+import com.paycore.payment.payment.application.required.AuthorizationIncidentDetectedV1Payload
+import com.paycore.payment.payment.application.required.AuthorizationOutcomeUnresolvedV1Payload
 import com.paycore.payment.payment.application.required.OutboxPayload
+import com.paycore.payment.payment.application.required.PaymentAuthorizationFailedV1Payload
+import com.paycore.payment.payment.application.required.PaymentAuthorizedV1Payload
 import com.paycore.payment.payment.application.required.PaymentExpiredV1Payload
 import com.paycore.payment.payment.application.required.PaymentRequestedV1Payload
 import tools.jackson.databind.json.JsonMapper
@@ -51,7 +55,49 @@ internal object OutboxPayloadJson {
                 "expiredAt" to format(payload.expiredAt),
             ),
         )
+        is PaymentAuthorizedV1Payload, is PaymentAuthorizationFailedV1Payload, is AuthorizationIncidentDetectedV1Payload, is AuthorizationOutcomeUnresolvedV1Payload ->
+            authorization(payload)
     }
 
     private fun format(instant: Instant): String = TIMESTAMP.format(instant)
+
+    private fun authorization(payload: OutboxPayload): String = when (payload) {
+        is PaymentAuthorizedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantSiteId" to payload.merchantSiteId,
+                "merchantOrderId" to payload.merchantOrderId, "paymentId" to payload.paymentId, "authorizationId" to payload.authorizationId,
+                "transactionId" to payload.transactionId, "amount" to payload.amountMinor, "currency" to payload.currency,
+                "plan" to linkedMapOf<String, Any?>("kind" to payload.planKind).also { m -> payload.installmentMonths?.let { m["months"] = it } },
+                "cardType" to payload.cardType, "issuerCode" to payload.issuerCode, "acquirerCode" to payload.acquirerCode, "approvalNumber" to payload.approvalNumber,
+                "providerTransactionId" to payload.providerTransactionId, "institutionTransactionDate" to payload.institutionTransactionDate.toString(),
+                "institutionBusinessDate" to payload.institutionBusinessDate?.toString(), "approvedAt" to format(payload.approvedAt),
+                "policyAssignmentVersion" to payload.policyAssignmentVersion, "entitlementVersion" to payload.entitlementVersion,
+            ),
+        )
+        is PaymentAuthorizationFailedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "authorizationId" to payload.authorizationId, "failureEvidence" to payload.failureEvidence,
+                "failureCategory" to payload.failureCategory, "failedAt" to format(payload.failedAt),
+            ),
+        )
+        is AuthorizationIncidentDetectedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "authorizationId" to payload.authorizationId, "reason" to payload.reason, "occurrence" to payload.occurrence,
+                "observationSource" to payload.observationSource, "observationResultId" to payload.observationResultId, "observedOutcome" to payload.observedOutcome,
+                "observedAmount" to payload.observedAmountMinor, "observedCurrency" to payload.observedCurrency, "observedApprovalNumber" to payload.observedApprovalNumber,
+                "detectedAt" to format(payload.detectedAt),
+            ),
+        )
+        is AuthorizationOutcomeUnresolvedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "authorizationId" to payload.authorizationId, "attemptId" to payload.attemptId, "requestId" to payload.requestId,
+                "inquiryCount" to payload.inquiryCount, "unknownSince" to format(payload.unknownSince), "escalatedAt" to format(payload.escalatedAt),
+                "configVersion" to payload.configVersion, "escalationReason" to payload.escalationReason.name,
+            ),
+        )
+        else -> error("not an authorization payload")
+    }
 }

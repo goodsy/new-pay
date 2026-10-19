@@ -1,6 +1,8 @@
 package com.paycore.simulator
 
 import com.paycore.simulator.support.SimulatorDb
+import com.paycore.simulator.support.VanTestClient
+import com.paycore.simulator.van.adapter.integration.VanTcpServer
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.springframework.boot.builder.SpringApplicationBuilder
@@ -69,6 +71,53 @@ class SimulatorRestartDurabilitySpec : FunSpec({
             val after = lookup("http://127.0.0.1:${port(second)}")
             after.statusCode() shouldBe 200
             after.body() shouldBe before.body()
+        } finally {
+            second.close()
+        }
+    }
+
+    // AUTH-001 §5.5·§8(Simulator 재시작): 가상 VAN 원장은 기관 금융 사실 원본이다 — Simulator를 다시 띄워도 조회 결과(같은 decisionId·조건)가 같다.
+    test("a VAN decision is found with the same decision after the simulator restarts") {
+        val first = start()
+        val base1 = "http://127.0.0.1:${port(first)}"
+        val state = "s".repeat(43)
+        val register = http.send(
+            HttpRequest.newBuilder(URI("$base1/sim/v1/authentications")).header("Authorization", "Bearer $key").header("Content-Type", "application/json")
+                .POST(
+                    HttpRequest.BodyPublishers.ofString(
+                        """{"paymentId":"pay_van_restart","merchantRef":"mid-demo-0001","environment":"TEST","amountMinor":10000,"currency":"KRW",""" +
+                            """"plan":{"kind":"LUMP_SUM"},"cardCompany":"SIMISS-A","state":"$state",""" +
+                            """"returnUrl":"https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"}""",
+                    ),
+                ).build(),
+            HttpResponse.BodyHandlers.ofString(),
+        )
+        val txId = Regex("\"authenticationTransactionId\":\"(sat_[^\"]+)\"").find(register.body())!!.groupValues[1]
+        val redirect = http.send(
+            HttpRequest.newBuilder(URI("$base1/sim/authenticate/$txId")).header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("action=authenticate&card=VC-CREDIT-OK")).build(),
+            HttpResponse.BodyHandlers.ofString(),
+        )
+        val ref = redirect.headers().firstValue("Location").get().substringAfter("resultRef=").substringBefore('&')
+        val lookup = VanTestClient.MAPPER.readTree(
+            http.send(HttpRequest.newBuilder(URI("$base1/sim/v1/authentication-results/$ref")).header("Authorization", "Bearer $key").GET().build(), HttpResponse.BodyHandlers.ofString()).body(),
+        )
+        val evidence = VanTestClient.Evidence(
+            lookup.get("evidenceRef").stringValue(), lookup.get("providerCode").stringValue(), lookup.get("issuerCode").stringValue(), lookup.get("acquirerCode").stringValue(),
+            lookup.get("cardType").stringValue(), 10_000, null,
+        )
+        val rid = VanTestClient.requestId(java.time.Instant.now())
+        val approved = VanTestClient(first.getBean(VanTcpServer::class.java).localPort()).use { it.call(VanTestClient.authRequest(rid, evidence)) }
+        approved.get("outcome").stringValue() shouldBe "APPROVED"
+        first.close()
+
+        val second = start()
+        try {
+            val found = VanTestClient(second.getBean(VanTcpServer::class.java).localPort()).use { it.call(VanTestClient.inquiry(rid)) }
+            found.get("result").stringValue() shouldBe "FOUND"
+            listOf("decisionId", "approvalNumber", "providerTransactionId", "approvedAmountMinor", "cardType", "institutionTransactionDate").forEach { f ->
+                found.get(f) shouldBe approved.get(f)
+            }
         } finally {
             second.close()
         }

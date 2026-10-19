@@ -1,5 +1,6 @@
 package com.paycore.payment.payment.adapter.web
 
+import com.paycore.payment.payment.domain.fail
 import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
 import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
@@ -48,7 +49,7 @@ class CheckoutErrorPageLeakSpec(
                 unverifiable.substringAfter("resultRef=").substringBefore('&'), unverifiable.substringAfter("state="),
             )
             val other = b.opened()
-            s.change(other.cred, other.orderId, other.paymentId) { p, _ -> p.fail(com.paycore.payment.payment.domain.TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }
+            s.change(other.cred, other.orderId, other.paymentId) { p, _ -> p.startAuthorization(); p.fail(com.paycore.payment.payment.domain.TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) }
             pages["409 not available"] = b.web.get("/checkout/s/${other.handle}", other.cookie) to emptySet()
             pages.forEach { (name, entry) ->
                 val (r, allowed) = entry
