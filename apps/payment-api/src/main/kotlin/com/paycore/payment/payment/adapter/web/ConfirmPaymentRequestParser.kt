@@ -28,7 +28,6 @@ object ConfirmPaymentRequestParser {
     private val FIELDS = setOf("authenticationRef", "merchantOrderId", "amount", "currency")
     private val AUTHENTICATION_REF = Regex("^aref_[A-Za-z0-9_-]{22}$")
     private val ORDER_ID = Regex("^[A-Za-z0-9\\-_.:]{1,64}$")
-    private val PAYMENT_ID = Regex("^[!-~]{1,64}$")
 
     private val mapper: JsonMapper = JsonMapper.builder()
         .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
@@ -37,7 +36,7 @@ object ConfirmPaymentRequestParser {
         .build()
 
     /** 경로의 paymentId가 서버 식별자처럼 생겼는가(아니면 404 — 존재 비노출, AN-01과 같음). */
-    fun isPaymentIdLike(value: String): Boolean = PAYMENT_ID.matches(value)
+    fun isPaymentIdLike(value: String): Boolean = com.paycore.payment.payment.domain.PaymentId.isPresentable(value)
 
     fun parse(body: ByteArray): ParsedConfirmBody {
         if (body.isEmpty() || body.size > MAX_BODY_BYTES) throw invalid()

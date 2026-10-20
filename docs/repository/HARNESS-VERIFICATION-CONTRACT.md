@@ -20,7 +20,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 | 순서 | commandId | 성공 조건 |
 |---|---|---|
 | 1 | FINGERPRINT | exit 0. HEAD 확인 가능, 추적 파일 삭제 없음, source/harness 경로에 무시된 파일 없음 |
-| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ minTests(68) |
+| 2 | HARNESS-SELFTEST | exit 0, 출력이 정확히 `OK`(skip 없음), `Ran N tests` N ≥ `commands.json` HARNESS-SELFTEST minTests(값은 commands.json이 원본 — 이 표에 숫자를 두지 않는다, CP-QUERY-001 F-4) |
 | 3 | GRADLE-CHECK | exit 0, timeout 없음, `--console=plain` 출력에 `BUILD SUCCESSFUL`과 모든 실행 단위의 `> Task :apps:<module>:test`(결과 표시 없음=실제 실행) 존재, 출력에 `FROM-CACHE`/`:test UP-TO-DATE`/`:test NO-SOURCE`/`:test SKIPPED` 없음. `--no-build-cache --rerun-tasks` |
 | 4 | TEST-SUMMARY | exit 0. 보고서 존재, 테스트 수 ≥ minTests, failures/errors/skips = 0, 모든 보고서 timestamp ≥ GRADLE-CHECK 시작 UTC(자동 치환) |
 | 5 | IMAGE-DIGESTS | exit 0. 로컬 이미지 ID 기록(사용 증거 아님, §6) |
@@ -81,7 +81,11 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
     **CANCEL-001 이전 payment-api 인스턴스가 하나도 떠 있지 않아야 한다**(모두 내린 뒤 새 인스턴스 — rolling 혼재 금지). 이전 인스턴스는 등록부가 `sim-van-1`만 허용해 새 설정으로 기동하지 못하고, 이전 코드는
     `CancelPayment` 멱등 행·취소 참조 열을 모른다. 승인 Route profile-version 변경으로 배포 시점에 진행 중인 승인 UNKNOWN Attempt는 무효과 종결 경로를 잃고 조회·이관만 한다(D-AUTH1-007/D-CANCEL1-004 — fail-closed, Coordinator 수용).
     Simulator는 V5~V7(취소 원장 표·조회 로그 operation 열·권한) 뒤 같은 VAN 포트에서 두 계약을 받으므로 먼저 올려도 된다. 필수 설정 `paycore.cancellation.timing.*`(recovery.version 포함, 기본값 없음)과
-    취소 기동 검사는 CANCEL-001 §20. **LIVE Gate 조건(D-CANCEL1-003)**: 이관된 취소 UNKNOWN을 확정하는 RECON Use Case 전에는 LIVE 불가. 배포 파이프라인이 생기면 이 조건들을 그 절차의 검사로 옮긴다.
+    취소 기동 검사는 CANCEL-001 §20. **LIVE Gate 조건(D-CANCEL1-003)**: 이관된 취소 UNKNOWN을 확정하는 RECON Use Case 전에는 LIVE 불가.
+- CP-QUERY-001(2026-10-20 — 구현자 기록, Verifier 확인 대상): 새 실행 단위·새 의존성·migration 없음(빌드 파일 불변 → `GRADLE-DEPS-<MODULE>`·cve-scan `MODULES` 변화 없음). `VERIFY-GATE.timeoutSeconds` 1800 → 5400
+  (Coordinator 적용 — 내부 단계 최악 2760초 + 단계당 kill 대기 20초보다 커야 한다, F-3). 이 관계를 `test_module_registry.py`의 `test_verify_gate_timeout_covers_its_stages`(1800 대조)·
+  `test_verify_gate_timeout_boundary`(경계: 합 = 통과, 합 − 1 = 문제)가 고정한다 → harness 시험 91 → **93**(하한은 Coordinator가 실측으로 올린다). `GRADLE-CHECK`·`TEST-SUMMARY` 하한도 이 작업의
+  전체 check 실측(CP-QUERY-001 §18)으로 Coordinator가 올린다 — 구현자는 `commands.json`을 바꾸지 않았다. 배포 메모: schema 변경이 없고 새 endpoint(`GET /v1/payments/{paymentId}`)는 기존 공개 connector·Bearer 체인 그대로다(혼재 배포 제약 없음). 배포 파이프라인이 생기면 이 조건들을 그 절차의 검사로 옮긴다.
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.

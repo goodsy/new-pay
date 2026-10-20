@@ -41,6 +41,23 @@ def directory(project_path: str) -> str:
     return project_path.lstrip(":").replace(":", "/")
 
 
+gate_spec = importlib.util.spec_from_file_location("verify_gate_registry", ROOT / "harness/scripts/verify-gate.py")
+verify_gate = importlib.util.module_from_spec(gate_spec)
+gate_spec.loader.exec_module(verify_gate)
+
+
+def gate_timeout_problems(registry: dict) -> list[str]:
+    """VERIFY-GATE 바깥 timeout이 안쪽 단계 최악 시간보다 짧으면 문제(CP-QUERY-001 F-3).
+
+    안쪽 최악 = GATE 순서의 각 단계 timeoutSeconds 합 + 단계마다 SIGKILL 뒤 대기 두 번(communicate·wait, POST_KILL_WAIT_SECONDS).
+    바깥이 더 짧으면 GRADLE-CHECK가 자기 timeout 전에 잘려 판정(FAIL/환경)이 흐려진다.
+    """
+    timeouts = {c["id"]: c["timeoutSeconds"] for c in registry["commands"]}
+    inner = sum(timeouts[stage] + 2 * verify_gate.POST_KILL_WAIT_SECONDS for stage in verify_gate.GATE)
+    outer = timeouts["VERIFY-GATE"]
+    return [] if outer >= inner else [f"VERIFY-GATE timeoutSeconds {outer} < worst case of its stages {inner}"]
+
+
 APPS = [p for p in included_projects() if p.startswith(":apps:")]
 LIBS = [p for p in included_projects() if p.startswith(":libs:")]
 
@@ -91,6 +108,24 @@ class ModuleRegistry(unittest.TestCase):
         count = sum(len(re.findall(r"^    def test_", p.read_text(encoding="utf-8"), re.MULTILINE))
                     for p in (ROOT / "harness/tests").glob("test_*.py"))
         self.assertEqual(command("HARNESS-SELFTEST")["minTests"], count)
+
+    def test_verify_gate_timeout_covers_its_stages(self):
+        # 대조(CP-QUERY-001 F-3): 이전 값 1800초는 GRADLE-CHECK 2400초보다 짧아 문제로 잡혀야 한다.
+        shortened = json.loads(json.dumps(COMMANDS))
+        next(c for c in shortened["commands"] if c["id"] == "VERIFY-GATE")["timeoutSeconds"] = 1800
+        self.assertTrue(gate_timeout_problems(shortened))
+        # 단계 목록이 비어 검사가 헛도는 일을 막는다.
+        self.assertIn("GRADLE-CHECK", verify_gate.GATE)
+        self.assertEqual(gate_timeout_problems(COMMANDS), [])
+
+    def test_verify_gate_timeout_boundary(self):
+        # 검토 #1 n-8 경계 대조: 바깥 = 안쪽 최악 합이면 통과, 하나 모자라면(합 − 1) 문제. 합은 시험이 독립 계산한다(단계 timeout 합 + 단계마다 kill 뒤 대기 2회).
+        timeouts = {c["id"]: c["timeoutSeconds"] for c in COMMANDS["commands"]}
+        inner = sum(timeouts[s] for s in verify_gate.GATE) + len(verify_gate.GATE) * 2 * verify_gate.POST_KILL_WAIT_SECONDS
+        for outer, flagged in ((inner, False), (inner - 1, True)):
+            registry = json.loads(json.dumps(COMMANDS))
+            next(c for c in registry["commands"] if c["id"] == "VERIFY-GATE")["timeoutSeconds"] = outer
+            self.assertEqual(bool(gate_timeout_problems(registry)), flagged, outer)
 
 
 if __name__ == "__main__":

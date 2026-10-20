@@ -51,8 +51,11 @@ enum class ApiErrorCode(val status: HttpStatus, val retryable: Boolean, val mess
     CANCEL_AMOUNT_EXCEEDS_BALANCE(HttpStatus.UNPROCESSABLE_CONTENT, false, "The cancel amount exceeds the cancellable amount of the payment."),
     CURRENCY_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT, false, "The cancel currency differs from the payment currency."),
     PARTIAL_CANCEL_NOT_SUPPORTED(HttpStatus.UNPROCESSABLE_CONTENT, false, "A partial cancel is not supported for this payment."),
+
+    // CP-QUERY-001 GetPayment(§4.5, CQ-11). 조회에는 Idempotency-Key가 없으므로 문구만 다르고 wire code는 TEMPORARILY_UNAVAILABLE(계약 code 집합 불변).
+    QUERY_TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, true, "The payment status is temporarily unavailable. Retry the query later."),
     ;
 
-    /** 응답 `code` 값. OUTCOME_UNCONFIRMED는 계약 §9 행대로 `TEMPORARILY_UNAVAILABLE` code를 쓴다(문구만 다름). */
-    val wireCode: String get() = if (this == OUTCOME_UNCONFIRMED) TEMPORARILY_UNAVAILABLE.name else name
+    /** 응답 `code` 값. OUTCOME_UNCONFIRMED·QUERY_TEMPORARILY_UNAVAILABLE은 `TEMPORARILY_UNAVAILABLE` code를 쓴다(문구만 다름 — 계약 §9, CP-QUERY-001 CQ-11). */
+    val wireCode: String get() = if (this == OUTCOME_UNCONFIRMED || this == QUERY_TEMPORARILY_UNAVAILABLE) TEMPORARILY_UNAVAILABLE.name else name
 }

@@ -1822,26 +1822,166 @@
       "id": "CP-QUERY-001",
       "title": "GetPayment(결제 현재 상태 조회) API",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "CP-API-001",
-        "AUTH-CONTRACT-001"
+        "AUTH-CONTRACT-001",
+        "CANCEL-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-CPQ-01",
+        "Q-CPQ-02",
+        "Q-CPQ-03",
+        "Q-CPQ-04",
+        "Q-CPQ-05"
+      ],
       "acceptanceCriteria": [
         "(D-CP-003) 생성 응답과 분리된 현재 상태 조회, 인증 MID·환경 권한 확인, 존재 여부 비노출",
         "현재 상태 표현은 AUTH-CONTRACT-001 상태 계약을 따름",
-        "(MASTER-DOMAIN-001 review m-7) jOOQ 시각 조회 도입 시 ARCHITECTURE-CONVENTIONS §9.1 정정"
+        "(MASTER-DOMAIN-001 review m-7) jOOQ 시각 조회 도입 시 ARCHITECTURE-CONVENTIONS §9.1 정정",
+        "(CANCEL-001 §15-6 인계) 취소 이력·반환 요약 조회",
+        "(D-CPQ-001~004) onHold boolean만, 운영자 취소는 initiator=OPERATOR만·P1 숨김, paymentId 조회만, 기간 제한 없음"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/institution-simulator/**",
+        "libs/**",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/scripts/cve-scan.py",
+        "harness/tests/**",
+        "compose.yaml",
+        "docker/**",
+        ".env.example"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
-      "origin": "CP-API-001 1단계 명세 §19-2 (GetPayment 미포함) 2026-10-14"
+      "taskTimeoutSeconds": 5400,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:d174b6d222c5d225d93c59648a93c0409c0444d64c72da05b0c465cfb7133022",
+        "headRevision": "b82e5d1 (dirty)",
+        "tests": "GRADLE-CHECK/TEST-SUMMARY 2136/0 failures/0 errors/0 skipped (payment-api 1481), HARNESS-SELFTEST 93 OK (GRADLE-CHECK 09:01:04Z..09:18:28Z)",
+        "minTests": "GRADLE-CHECK/TEST-SUMMARY 2092 -> 2136, HARNESS-SELFTEST 91 -> 93; VERIFY-GATE timeoutSeconds 1800 -> 5400",
+        "supplementary": "build/harness-evidence/CP-QUERY-001-2026-10-20T092638Z-supplementary/RUNS.txt (GRADLE-DEPS x5 exit 0, hash = CANCEL-001 동일, CVE-SCAN PASS, FINGERPRINT-after 동일)",
+        "at": "2026-10-20T09:28:32Z",
+        "environmentNote": "gate 082xxxZ(최종 review m-1 수정으로 중단) 무효. 090047Z WSL setsid 분리 실행"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": "final-2",
+        "target": "sha256:d174b6d222c5d225d93c59648a93c0409c0444d64c72da05b0c465cfb7133022"
+      },
+      "origin": "CP-API-001 1단계 명세 §19-2 (GetPayment 미포함) 2026-10-14",
+      "coordinatorDecisions": [
+        "2026-10-20 착수(agreedOrder, CANCEL-001 DONE b82e5d1 push 후, 사용자 \"푸쉬해주고 다음 작업 진행해줘\"). 1단계 조사·명세·질문 후보부터. S0에서 commands.json VERIFY-GATE timeoutSeconds 정리",
+        "2026-10-20 1단계 명세(c04621b5…, 추정 0.15~0.25×AUTH-001) 수령. Q-CPQ-01~04 → D-CPQ-001~004(전부 권장안). UNKNOWN 표기는 기존 결정(scope §3-8·AUTH-CONTRACT-001 §10)으로 확정 — 질문 아님. §15 판정: 1 F-1 음수 취소 가능 금액은 이 작업에서 공용 함수로 수정(취소 시험 기대값 행 추가, 완화 아님), 2 AC3 = §9.1 교차 참조·m-7 종결 기록·Asia/Seoul JVM 시험, 3 취소 단건 GET 없음, 4 거래 목록·검색 API는 범위 밖 — 후속 후보 CP-QUERY-002(미등록), 5 취소 이력 전체 반환(상한 없음), 6 rate limit 범위 밖, 7 생성 응답 Location 없음, 8 timeout 모듈 30분·VERIFY-GATE 90분, dependsOn에 CANCEL-001 추가, 9 S0 timeout 합 자기 시험 포함(HARNESS-SELFTEST +1은 실측으로 Coordinator가 올림), 10 allowedWritePaths 유지, 11 F-7 declineCategory는 v1 응답에 넣지 않고 CANCEL-001 문서(CN-02·CC §18)를 코드에 맞게 정정. S0: commands.json VERIFY-GATE timeoutSeconds 1800→5400(Coordinator 적용, 실행 상한)",
+        "2026-10-20 DONE: VERIFY-GATE PASS 090047Z 2136/0, DEPS×5·CVE PASS 092638Z, REVIEW_PASS final-2. 후속 문서 메모: 명세 CQ-16 문구"
+      ],
+      "specification": {
+        "path": "docs/repository/CP-QUERY-001-PAYMENT-QUERY.md",
+        "stage1Sha256": "c04621b57bf95c1419ab7435c1f28a737e2113119e1bb32b0194811f52deaec5",
+        "stage1Base": "b82e5d1"
+      },
+      "reviewRounds": [
+        {
+          "round": "checkpoint-S2",
+          "verdict": "PASS_WITH_FIXES (mid-review #1)",
+          "target": "spec d9ae82a9…",
+          "findings": "구현 보고(미검증): S0 F-7 문서·timeout 합 자기 시험, S1 F-1 공용 max(0)·조회 view·CQ-07, S2 jOOQ 2문장 RR(D-S2-1)·실제 MySQL·ArchUnit. RED-A 14/14·9/9. | review: H 없음. m-1 이력 문장 WHERE에 환경·MID 없음, m-2 TX 시작·커밋 실패 500(→503), m-3 2문장 snapshot 결정적 증거 없음, m-4 명세 \"SELECT 1개\" 잔존, n-1~n-8, U-1 FORCED 역산",
+          "coordinatorRulings": "U-1 → D-CPQ-005(사용자 답변). m-1~m-4·n-1·n-4~n-8 S3 전 수정, n-2·n-3 RECON-CONTRACT-001 인계 기록. HARNESS-SELFTEST minTests 91→92"
+        },
+        {
+          "round": "final-1",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "sha256:82a9476e…",
+          "findings": "H 없음. m-1 명세·원칙 표의 결과별 로그가 코드에 없음, n-1 중복 단언 대상 오인, n-2 명세 문구, n-3 AUTH-001 명세 작업 트리 CRLF(내용 동일), n-4 MW3 주석, n-5 P1·IN_PROGRESS API 시험 RECON 이후",
+          "coordinatorRulings": "m-1 문서 하향 대신 결과별 INFO 로그 구현, n-1~n-5 반영, n-3 Coordinator가 LF 복원(diff 없음). 진행 중 gate 중단"
+        },
+        {
+          "round": "final-2",
+          "verdict": "REVIEW_PASS",
+          "target": "sha256:d174b6d222c5d225d93c59648a93c0409c0444d64c72da05b0c465cfb7133022",
+          "findings": "keyId 앞 6자 로그 안전(CredentialKeyId 비밀 아님, CP-API-001 관례), FOUND 외 줄에 제시 id 없음. 문서 메모: CQ-16 \"기존 관례 없음\" 문구 → CP-API-001 line 243 참조로 다음 문서 수정 때 정정"
+        }
+      ],
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 금액은 거래 행·반환 잔액에서, 취소 가능액은 domain 공용 max(0, …)(F-1, D-CPQ-005) — PaymentStatusViewsSpec·CancelFlowSpec (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Transaction Safety": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 읽기 전용 REPEATABLE READ 2문장·잠금 없음·쓰기 없음, SnapshotProbe 결정적 snapshot 증명, C-1 미커밋 비가시 — PaymentStatusReaderSpec (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Idempotency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "읽기 경로",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "NOT_APPLICABLE: 읽기 경로(쓰기 없음) (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Concurrency Control": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: C-2 N=50 동시 커밋 중 CQ-07 위반 없음, C-3 다른 연결 FOR UPDATE 중 2s 내 응답 — PaymentStatusReaderSpec (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Recoverability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: DB 장애 503+Retry-After(TX 시작 실패 포함), UNKNOWN 안내 — GetPaymentApiSpec E-1 (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Reconciliation": {
+          "applicability": "APPLICABLE",
+          "reason": "RECON 범위",
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "PARTIAL: 거래 ID·승인번호·합계 노출(간접). EXPIRED P1·근거 없는 FAILED 표현은 RECON-CONTRACT-001 (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Auditability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 결과별 INFO 로그(correlationId·keyIdPrefix·result, FOUND만 paymentId) — GetPaymentApiSpec (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        },
+        "Observability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: paycore.payment.query{result}·query.duration, CQ-07 rule= 로그 — GetPaymentApiSpec (build/harness-evidence/CP-QUERY-001-2026-10-20T090047Z.json)"
+        }
+      }
     },
     {
       "id": "AUTH-CONTRACT-001",
@@ -2709,7 +2849,8 @@
         "(AUTH-001 인계) hold 해제(REAL/DOUBLE/NO_EFFECT)와 D-AUTH1-005/006 occurrence+1 hold INSERT를 한 TX로 실제 MySQL에서 시험",
         "(AUTH-001 인계 F-1) 해제로 재개된 hold의 AuthorizationIncidentDetected 발행",
         "(CANCEL-001 인계) (a) 이관된 취소 UNKNOWN 정리 Use Case — D-CANCEL1-003에 따라 LIVE 전 필수, (b) 사건 기록된 진행 중 취소의 출구, (c) CANCEL_RESULT_CONFLICT 해제·FORCED 출구, (d) F-13 requireOriginalRoute single{RESOLVED} — 늦은 승인 기록 Use Case는 P1 승인 attempt를 RESOLVED로 유지(또는 domain 검사 변경), (e) CancellationIncidentDetected payload 계약(D-CANCEL1-002 순번)",
-        "(CANCEL-001 최종 review n-5) CancellationIncidentDetected riskHint는 이 취소 예약 EXCEEDED일 때만 CRITICAL, excessAmount는 Payment 누적 초과 — 다른 취소의 FORCED 초과로 HIGH+excess>0이 나올 수 있음(앞선 이벤트가 CRITICAL)"
+        "(CANCEL-001 최종 review n-5) CancellationIncidentDetected riskHint는 이 취소 예약 EXCEEDED일 때만 CRITICAL, excessAmount는 Payment 누적 초과 — 다른 취소의 FORCED 초과로 HIGH+excess>0이 나올 수 있음(앞선 이벤트가 CRITICAL)",
+        "(CP-QUERY-001 중간 review #1 n-2·n-3) EXPIRED P1(Authorization·잔액·취소 있음)과 증거 없는 REQUESTED→FAILED 레거시 행은 GetPayment에서 CQ-07 500(fail-closed) — RECON이 EXPIRED P1을 만들 때 조회 표현 규칙 정리"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

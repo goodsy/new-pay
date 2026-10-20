@@ -1715,6 +1715,84 @@
       "humanAnswer": "\"거절마다 한 행 (권장)\"",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
       "appliedSpec": "D-CANCEL1-008"
+    },
+    {
+      "id": "Q-CPQ-01",
+      "status": "ANSWERED",
+      "question": "결제 조회 응답의 사고 보류(hold) 노출",
+      "recommended": "onHold 참/거짓만(그 Payment 자신의 활성 hold), 사유·회차·FORCED/초과·대사 진행 비노출",
+      "alternative": "노출 안 함 / 사유 분류까지 / FORCED 금액까지",
+      "dependentTasks": [
+        "CP-QUERY-001",
+        "WEBHOOK-001"
+      ],
+      "askedAt": "2026-10-20",
+      "origin": "CP-QUERY-001 1단계 명세 질문 후보",
+      "humanAnswer": "\"onHold 참/거짓만 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
+      "appliedSpec": "D-CPQ-001"
+    },
+    {
+      "id": "Q-CPQ-02",
+      "status": "ANSWERED",
+      "question": "운영자 보정 취소·늦은 승인(P1)의 가맹점 조회 노출",
+      "recommended": "(i) AUTHORIZED의 운영자 취소는 이력에 initiator=OPERATOR만(신원·사유·승인ID·목적 비노출), (ii) 가맹점에 FAILED/EXPIRED로 보인 P1의 늦은 승인·그 운영자 취소는 숨기고 FAILED만",
+      "alternative": "전부 숨김 / 전부 표시(P1 포함) / initiator 없이 표시",
+      "dependentTasks": [
+        "CP-QUERY-001",
+        "WEBHOOK-001"
+      ],
+      "askedAt": "2026-10-20",
+      "origin": "CP-QUERY-001 1단계 명세 질문 후보",
+      "humanAnswer": "\"(i)만 표시, 내용 최소 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
+      "appliedSpec": "D-CPQ-002"
+    },
+    {
+      "id": "Q-CPQ-03",
+      "status": "ANSWERED",
+      "question": "merchantOrderId 조회 제공 여부",
+      "recommended": "v1은 paymentId 조회만",
+      "alternative": "주문의 전체 결제 이력 / 주문의 현재·승인 결제만",
+      "dependentTasks": [
+        "CP-QUERY-001"
+      ],
+      "askedAt": "2026-10-20",
+      "origin": "CP-QUERY-001 1단계 명세 질문 후보",
+      "humanAnswer": "\"paymentId만 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
+      "appliedSpec": "D-CPQ-003"
+    },
+    {
+      "id": "Q-CPQ-04",
+      "status": "ANSWERED",
+      "question": "조회 가능 기간·보관",
+      "recommended": "v1 기간 제한 없음, 보관·파기는 LIVE Gate 별도 정책, 삭제 경로 없음",
+      "alternative": "생성 후 N일만 / N일 뒤 요약만",
+      "dependentTasks": [
+        "CP-QUERY-001",
+        "LIVE 준비 Gate"
+      ],
+      "askedAt": "2026-10-20",
+      "origin": "CP-QUERY-001 1단계 명세 질문 후보",
+      "humanAnswer": "\"기간 제한 없음 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
+      "appliedSpec": "D-CPQ-004"
+    },
+    {
+      "id": "Q-CPQ-05",
+      "status": "ANSWERED",
+      "question": "조회 응답 cancellableAmount에서 FORCED 금액 역산 가능(중간 review #1 U-1)",
+      "recommended": "그대로 허용, 허용된 추론으로 기록, FORCED 잔액 내 시험 추가",
+      "alternative": "hold 중 cancellable null / FORCED 제외 표시(비권장)",
+      "dependentTasks": [
+        "CP-QUERY-001"
+      ],
+      "askedAt": "2026-10-20",
+      "origin": "CP-QUERY-001 중간 review #1 U-1",
+      "humanAnswer": "\"그대로 허용 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
+      "appliedSpec": "D-CPQ-005"
     }
   ]
 }

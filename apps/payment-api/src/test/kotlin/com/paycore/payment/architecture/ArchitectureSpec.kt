@@ -321,6 +321,21 @@ class ArchitectureSpec : FunSpec({
         violationsOf(operatorCorrectionCancelHasNoEntryPoint(), "com.paycore.archfixture.operatorcancel", fixture).isNotEmpty() shouldBe true
     }
 
+    // CP-QUERY-001 CQ-06: 결제 상태 조회 Port(비권위 — 한 읽기 스냅샷, 잠금 없음)는 조회 서비스만 쓴다. 명령 판정은 JPA 잠금 재판정이 한다(원칙 §4).
+    test("only PaymentStatusQueryService uses PaymentStatusReader (the non-authoritative view never drives a command — CQ-06)") {
+        classes.contain("$BASE_PACKAGE.payment.application.PaymentStatusQueryService") shouldBe true
+        paymentStatusReaderOnlyForQueries().check(classes)
+        val fixture = com.paycore.archfixture.statusreader.CommandServiceUsingStatusReader::class.java
+        violationsOf(paymentStatusReaderOnlyForQueries(), "com.paycore.archfixture.statusreader", fixture).isNotEmpty() shouldBe true
+    }
+
+    // CP-QUERY-001 검토 #1 n-5: 결제 상태 조회 Use Case는 공개 web adapter만 부른다.
+    test("only adapter.web calls PaymentStatusQuery (n-5)") {
+        paymentStatusQueryOnlyFromWeb().check(classes)
+        val fixture = com.paycore.archfixture.statusquery.SchedulerUsingStatusQuery::class.java
+        violationsOf(paymentStatusQueryOnlyFromWeb(), "com.paycore.archfixture.statusquery", fixture).isNotEmpty() shouldBe true
+    }
+
     test("authentication sessions are created only through AuthenticationSessionStart, which supersedes earlier sessions first (AUTHN-001 §7.1·§17.3)") {
         val rule = sessionCreateOnlyThroughAuthenticationSessionStart()
         rule.check(classes)
@@ -591,6 +606,31 @@ class ArchitectureSpec : FunSpec({
                 .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService\$Companion")
                 .should().dependOnClassesThat().haveFullyQualifiedName(useCase)
                 .`as`("OperatorCorrectionCancelUseCase has no caller in main (no entry point before ADMIN-BOOT-001)")
+        }
+
+        /**
+         * CP-QUERY-001 CQ-06: `PaymentStatusReader`(비권위 조회 Port)에 의존하는 main 클래스는 Port 자신·조회 서비스·jOOQ 구현뿐이다(명령 서비스·다른 adapter가 조회 view로 판정하지 못하게).
+         * 시험 소스는 대상이 아니다(classes는 DO_NOT_INCLUDE_TESTS).
+         */
+        fun paymentStatusReaderOnlyForQueries(): com.tngtech.archunit.lang.ArchRule {
+            val port = "$BASE_PACKAGE.payment.application.required.PaymentStatusReader"
+            return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName(port)
+                .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.PaymentStatusQueryService")
+                .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.query.JooqPaymentStatusReader")
+                .should().dependOnClassesThat().haveFullyQualifiedName(port)
+                .`as`("only PaymentStatusQueryService (and the jOOQ implementation) depends on PaymentStatusReader")
+        }
+
+        /** CP-QUERY-001 검토 #1 n-5: `PaymentStatusQuery`에 의존하는 main 클래스는 Use Case 자신·구현 서비스·`payment.adapter.web` 아래뿐(공개 조회 진입점 전용). */
+        fun paymentStatusQueryOnlyFromWeb(): com.tngtech.archunit.lang.ArchRule {
+            val query = "$BASE_PACKAGE.payment.application.provided.PaymentStatusQuery"
+            return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName(query)
+                .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.PaymentStatusQueryService")
+                .and().resideOutsideOfPackage("$BASE_PACKAGE.payment.adapter.web..")
+                .should().dependOnClassesThat().haveFullyQualifiedName(query)
+                .`as`("only payment.adapter.web calls PaymentStatusQuery")
         }
 
         /** 취소 시작은 일 한도·신규 승인 권리(entitlement)·승인 시작 판정 근거에 의존하지 않는다(K-3, D-AUTH-007). */

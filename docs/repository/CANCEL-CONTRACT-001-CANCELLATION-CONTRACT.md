@@ -964,4 +964,4 @@ CANCEL-001(`docs/repository/CANCEL-001-CANCELLATION.md`)이 이 계약을 실행
 | §6 계좌환불 | v1 범위 밖 — API·운영 안내 문구는 CANCEL-001 §4.11 | 구체화(안내) | D-CANCEL-007, rev 0.3 m-8 |
 | §4.7 회복 후보 선정(jOOQ keyset → JPA) | 회복 일정 행을 `FOR UPDATE SKIP LOCKED`로 선점(짧은 TX), 판정은 JPA 잠금 재판정 | 구현 방식(의미 불변) | CANCEL-001 CN-24(AUTH-001 D-S7-1 선례), 최종 review n-2 |
 | §9.1 회복은 control부터 잠금 | 이관·조회 중지 TX는 `payment_cancellation` → 일정만 잠근다(잠금 순서의 접미부). 이 TX는 control·hold·예약을 건드리지 않으므로 순서 역전 없음 | 구현 방식(안전) | 최종 review n-2 |
-| §8 응답 본문 | 가맹점 응답에 `declineCategory`(기관 거절 분류) 추가 | 추가 | CANCEL-001 CN-02, 최종 review n-2 |
+| §8 응답 본문 | ~~가맹점 응답에 `declineCategory`(기관 거절 분류) 추가~~ — **(CP-QUERY-001 F-7 정정, 2026-10-20 Coordinator 판정 11)** 실제 구현은 가맹점 응답에 `declineCategory`를 노출하지 않는다(v1). 고정 거절 분류는 기관 메시지·required Port 결과(`CancellationCallResult.Declined`·`CancelInquiryCallResult.Found`)까지만 있고 영속·조회·응답에는 없다. 응답 본문은 §8 그대로(FAILED 분류 DECLINED·NOT_SENT·NO_EFFECT) | 계약 그대로(추가 없음) | CANCEL-001 CN-02(정정), CP-QUERY-001 §3.2 F-7 |

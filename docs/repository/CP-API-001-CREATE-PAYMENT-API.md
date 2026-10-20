@@ -210,6 +210,9 @@ PayCore-Request-Id: 6f1c…
 
 ### 4.6 GetPayment 범위(구현 결정 + 범위 관찰 §19-2)
 
+> (2026-10-20 교차 참조) GetPayment는 CP-QUERY-001로 등록·구현됐다(`GET /v1/payments/{paymentId}` — `docs/repository/CP-QUERY-001-PAYMENT-QUERY.md`). 생성 응답은 바뀌지 않았고(`Location` 헤더도 추가하지 않음 —
+> CP-QUERY-001 §15 판정 7), 같은 키 생성 재생이 생성 당시 값을 그대로 돌려주는 것을 `GetPaymentApiSpec` T5가 다시 확인한다. §11.4의 m-7은 CP-QUERY-001 AC 3으로 종료(관례 §9.1 교차 참조).
+
 이 작업은 **GetPayment endpoint를 만들지 않는다.** AC 13의 "GetPayment 분리"는 "생성 응답에 현재 상태를 넣지 않고 현재 상태는 별도 조회 API로만"(D-CP-003)이라는 계약 경계로 해석하고, 이 작업에서는 생성 응답이 현재 상태를 담지 않음을 시험한다. 이유: 현재 상태 표현(특히 UNKNOWN·AUTHORIZING을 가맹점에 어떻게 보이는지, 재시도 안내)은 AUTH-CONTRACT-001의 상태 계약에 묶이고, 조회는 jOOQ CQRS 조회 adapter로 별도 설계한다. Coordinator가 별도 작업(예: PAYMENT-QUERY-001)이나 AUTH-001 범위로 등록할지 정한다.
 
 ---

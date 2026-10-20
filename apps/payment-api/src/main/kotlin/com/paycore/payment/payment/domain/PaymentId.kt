@@ -14,5 +14,13 @@ value class PaymentId(val value: String) {
 
     companion object {
         const val MAX_LENGTH = 64
+
+        private val PRESENTED = Regex("^[!-~]{1,64}$")
+
+        /**
+         * 밖에서 제시한 paymentId가 서버 식별자처럼 생겼는가(printable ASCII 1..64). 아니면 조회·명령 모두 존재 비노출 404로 끝낸다 — web 경로 판정과 조회 서비스가 같은 술어를 쓴다
+         * (CP-QUERY-001 검토 #1 n-1, 이전에는 `ConfirmPaymentRequestParser`의 정규식).
+         */
+        fun isPresentable(value: String): Boolean = PRESENTED.matches(value)
     }
 }

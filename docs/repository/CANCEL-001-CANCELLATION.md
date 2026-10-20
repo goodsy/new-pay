@@ -241,6 +241,8 @@ POST /v1/payments/{paymentId}/cancel          (공개 포트, Authorization: Bea
   202에는 "새 키·새 merchantCancelId로 재시도 금지 — 같은 키로 확인" 안내.
 - **구현 결정 CN-02**: FAILED(DECLINED)일 때 기관 거절 분류를 고정 enum으로만 노출(`declineCategory`: `CANCEL_PERIOD_EXPIRED`·`EXCEEDS_REMAINING`·`PARTIAL_NOT_SUPPORTED`·`ISSUER_DECLINED`·`OTHER`).
   기한 경과(D-CANCEL-004)를 가맹점이 알아야 계좌 환불 미지원 안내(D-CANCEL-007)를 따를 수 있다. 기관 원문 코드는 노출하지 않는다.
+  **(정정 — CP-QUERY-001 F-7, 2026-10-20 Coordinator 판정 11)**: 실제 구현(S4 D-S4-5)은 고정 분류를 기관 메시지·required Port 결과(`CancellationCallResult.Declined`·`CancelInquiryCallResult.Found`)까지만
+  싣고 **가맹점 응답에는 노출하지 않는다(v1, 영속도 하지 않음)**. 응답의 FAILED 분류는 `failureCategory`(DECLINED·NOT_SENT·NO_EFFECT)뿐이다. 노출이 필요해지면 영속 열과 함께 새 결정으로 추가한다.
 
 ### 4.2 단계와 TX 경계
 
@@ -736,7 +738,7 @@ UNKNOWN → 조회 확정, 상충(금액 불일치)} 대표 행. 각 행에서 �
 | ID | 결정 | 이유 |
 |---|---|---|
 | CN-01 | 요청 본문 닫힌 3필드, 가맹점 사유 문구 v1 미수용, 주문 ID 재진술 없음 | 표시 정보 비교 안 함(CC-06), 자유 문구 저장 경로 최소화 |
-| CN-02 | FAILED(DECLINED)에 고정 `declineCategory` 노출(원문 없음) | D-CANCEL-004·007 안내 가능 |
+| CN-02 | ~~FAILED(DECLINED)에 고정 `declineCategory` 노출(원문 없음)~~ → **정정(CP-QUERY-001 F-7)**: v1 가맹점 응답에 노출하지 않음 — 고정 분류는 Port 결과까지만(영속·응답 없음) | 구현과 일치(Coordinator 판정 2026-10-20) |
 | CN-03 | 202 안내: 같은 키로 확인, 새 키·새 merchantCancelId 재시도 금지 | 이중 반환 방지(D-CANCEL-002) |
 | CN-04 | 동기 대기(Demo) 후 202 | AU-21과 같다 |
 | CN-05 | 결과 재생 = 취소 현재 상태(CC-05), 멱등 행은 TX2가 건드리지 않음 | D-AUTH-004 선례 |

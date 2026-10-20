@@ -84,18 +84,14 @@ class ReturnBalance private constructor(
 
     /** 지금 새로 반환할 수 있는 금액(0 이상). */
     val cancellableMinor: Long
-        get() = maxOf(0L, authorized.amountMinor - totalMinor)
+        get() = cancellableMinor(authorized.amountMinor, completedMinor, reservedMinor, forcedMinor)
 
     /** 승인액을 넘은 반환 가능성(FORCED에서만 생긴다). 0이면 초과 없음. */
     val excessMinor: Long
         get() = maxOf(0L, totalMinor - authorized.amountMinor)
 
     val status: ReturnStatus
-        get() = when {
-            completedMinor == authorized.amountMinor -> ReturnStatus.FULLY_CANCELLED
-            completedMinor > 0 -> ReturnStatus.PARTIALLY_CANCELLED
-            else -> ReturnStatus.NONE
-        }
+        get() = returnStatus(authorized.amountMinor, completedMinor)
 
     /** 결과가 확정되지 않은 반환(RESERVED)이 있다(D-CANCEL-003). */
     fun hasInFlight(): Boolean = entries.values.any { it.state == ReturnReservationState.RESERVED }
@@ -167,6 +163,20 @@ class ReturnBalance private constructor(
     override fun toString(): String = "ReturnBalance(payment=${paymentId.value}, reservations=${entries.size}, revision=$revision)"
 
     companion object {
+        /**
+         * 반환 가능 금액 식(INV-C1): `max(0, authorized − completed − reserved − forced)`. 조회 view(취소 응답·GetPayment)도 저장 합계 열로 이 식만 쓴다
+         * (CP-QUERY-001 F-1 — FORCED 초과가 있어도 음수가 아니다). 합은 `Math.addExact`(overflow는 결함).
+         */
+        fun cancellableMinor(authorizedMinor: Long, completedMinor: Long, reservedMinor: Long, forcedMinor: Long): Long =
+            maxOf(0L, authorizedMinor - Math.addExact(Math.addExact(completedMinor, reservedMinor), forcedMinor))
+
+        /** 반환 상태 식(INV-C8): 완료 반환 = 승인액이면 FULLY_CANCELLED, 0보다 크면 PARTIALLY_CANCELLED, 아니면 NONE. */
+        fun returnStatus(authorizedMinor: Long, completedMinor: Long): ReturnStatus = when {
+            completedMinor == authorizedMinor -> ReturnStatus.FULLY_CANCELLED
+            completedMinor > 0 -> ReturnStatus.PARTIALLY_CANCELLED
+            else -> ReturnStatus.NONE
+        }
+
         /**
          * 확정 승인 거래가 있는 Authorization에서 연다(첫 취소 시작 — CC-02 지연 개설). revision 0. AUTHORIZED 또는 RECON이 늦은 승인 거래를 기록한 FAILED
          * (D-CANCEL-011 — 어느 개시자가 열 수 있는지는 [CancelStart]가 판정, main 호출자는 CancelStart만 — ArchUnit).

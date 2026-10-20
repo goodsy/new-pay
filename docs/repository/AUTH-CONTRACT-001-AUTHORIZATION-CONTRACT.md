@@ -381,6 +381,9 @@ Adapter(`adapter.institution` — 구현 결정 CA-17 패키지)는 TCP/전문/S
 
 ### 10.2 승인 결과 조회와 전달 경계
 
+> (2026-10-20 교차 참조) GetPayment는 CP-QUERY-001에서 구현됐다 — `GET /v1/payments/{paymentId}`, 상태 어휘는 이 계약 §5.1·§10.1 그대로(AUTHORIZING = `IN_PROGRESS`, UNKNOWN 그대로 + "확인 중" 안내).
+> 명세 `docs/repository/CP-QUERY-001-PAYMENT-QUERY.md`(D-CPQ-001~005).
+
 - 조회 API(GetPayment, jOOQ query adapter — CP-QUERY-001 범위)가 Payment·Authorization 현재 상태를 MID·환경 범위 강제로 제공. UNKNOWN은 "확인 중"으로 표시(범위 §3-8, A04).
 - 서명 Webhook: Outbox 통합 이벤트를 소비하는 별도 전달 작업(범위 관찰 §18-4). Webhook payload는 이 계약의 Outbox payload를 그대로 노출하지 않는 별도 공개 계약. 서명·재전송 방지·SSRF 방어는 그 작업에서(A05).
 - 가맹점은 승인 확정(AUTHORIZED) 뒤에만 주문 완료·상품 제공(범위 §3-8). 이 안내는 API 문서 규칙.

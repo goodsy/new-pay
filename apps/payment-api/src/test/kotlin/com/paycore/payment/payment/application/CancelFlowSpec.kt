@@ -281,7 +281,8 @@ class CancelFlowSpec(
             // 같은 Payment의 두 번째 경우: 다른 취소로 전액 반환이 끝난 뒤 거절된 취소의 늦은 성공 → 초과.
             val b = fixture.authorized()
             van.onCancel(b.mid.value) { van.declineCancel(it) }
-            val declinedB = accepted(cancel.cancel(b.command(money = Money(4_000, b.money.currency)))).view.cancellationId
+            val declinedBCommand = b.command(money = Money(4_000, b.money.currency))
+            val declinedB = accepted(cancel.cancel(declinedBCommand)).view.cancellationId
             van.onCancel(b.mid.value) { van.approveCancel(it) }
             accepted(cancel.cancel(b.command())).view.status shouldBe CancellationViewStatus.COMPLETED
             val late = com.paycore.payment.payment.domain.CancelObservation(
@@ -297,6 +298,12 @@ class CancelFlowSpec(
             q("SELECT CONCAT(state, '|', excess) FROM return_reservation WHERE cancellation_id = ?", declinedB.value) shouldBe "FORCED|EXCEEDED"
             payload("CancellationIncidentDetected", declinedB.value).get("riskHint").stringValue() shouldBe "CRITICAL"
             payload("CancellationIncidentDetected", declinedB.value).get("excessAmount").longValue() shouldBe 4_000
+            // CP-QUERY-001 F-1(추가 기대 행): 초과(FORCED)가 있어도 같은 키 재생 응답의 반환 가능액은 domain 식 max(0, …)대로 0이다(음수 아님).
+            val replayed = accepted(cancel.cancel(declinedBCommand))
+            replayed.replayed shouldBe true
+            replayed.view.cancellableAmountMinor shouldBe 0
+            // 검토 #1 n-7: 반환 상태는 완료 반환(10,000 = 승인액) 기준 FULLY_CANCELLED — FORCED는 반환 상태를 바꾸지 않는다.
+            replayed.view.returnStatus shouldBe ReturnStatus.FULLY_CANCELLED
         }
     }
 

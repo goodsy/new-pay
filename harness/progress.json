@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:4677affeb55a23e43ce9617e105fb99bdfac3b46a0cc937f4611a0ac6ad63ccd",
-  "lastSuccessfulStep": "CANCEL-001 DONE (VERIFY-GATE PASS 033423Z 2092/0, DEPS×5·CVE PASS 035156Z, REVIEW_PASS final-2)",
+  "codeFingerprint": "sha256:d174b6d222c5d225d93c59648a93c0409c0444d64c72da05b0c465cfb7133022",
+  "lastSuccessfulStep": "CP-QUERY-001 DONE (VERIFY-GATE PASS 090047Z 2136/0, DEPS×5·CVE PASS 092638Z, REVIEW_PASS final-2)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "CP-QUERY-001(agreedOrder CANCEL-001 다음): 1단계 조사·명세·질문 후보부터. S0에서 commands.json VERIFY-GATE timeoutSeconds 정리. 이후 WEBHOOK-001. ADMIN-BOOT-001 착수 전 사용자에게 알림. paycore-mysql 개발 컨테이너는 gate 메모리 때문에 중지 상태",
+  "nextResumeAction": "WEBHOOK-001(agreedOrder CP-QUERY-001 다음): 1단계 조사·명세·질문 후보부터. 그다음 ADMIN-BOOT-001 — 착수 전 사용자에게 알림. paycore-mysql 개발 컨테이너 중지 상태",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -482,6 +482,26 @@
       "at": "2026-10-20",
       "taskId": "CANCEL-001",
       "event": "final review PASS_WITH_FIXES → 문서 수정 → REVIEW_PASS; VERIFY-GATE PASS 033423Z 2092/0(메모리 부족 중단 2회 뒤 WSL 분리 실행); DEPS×5·CVE PASS; DONE"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CP-QUERY-001",
+      "event": "IN_PROGRESS, 1단계 착수 (CANCEL-001 b82e5d1 push 후)"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CP-QUERY-001",
+      "event": "1단계 명세 수령, Q-CPQ-01~04 → D-CPQ-001~004, §15 판정, VERIFY-GATE timeout 5400"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CP-QUERY-001",
+      "event": "S2 체크포인트, 중간 review #1 PASS_WITH_FIXES(m-1~m-4), U-1 → D-CPQ-005, SELFTEST 92"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CP-QUERY-001",
+      "event": "final review PASS_WITH_FIXES → 결과별 로그 구현 → REVIEW_PASS; VERIFY-GATE PASS 090047Z 2136/0; DEPS×5·CVE PASS; DONE"
     }
   ],
   "agreedOrder": [

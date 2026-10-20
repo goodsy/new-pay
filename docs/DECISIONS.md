@@ -111,6 +111,11 @@
 | D-CANCEL1-006 | Q-CANCEL1-06 | "PAYMENT DB에 거절 감사 행 (Recommended)". 운영자 보정 취소 명령을 PAYMENT가 거절하면(요청자=승인자, 대상 변경, 사유·근거 누락, 취소 진행 중 등) PAYMENT DB에 append-only 거절 감사 행(approvalId, 요청자·승인자 내부 ID, 거절 사유, 시각 — 개인정보 없음)을 남긴다(D-ADMIN-007 자체 감사) | harness/questions.json | CANCEL-001, ADMIN-BOOT-001 | 2026-10-20 |
 | D-CANCEL1-007 | Q-CANCEL1-07 | "새 사건으로 봄 (Recommended)". D-CANCEL1-005의 "같은 기관 결정"은 같은 attempt·같은 outcome·확정 조건(금액·원거래 PTX 등) 동일일 때만이다. PTX가 같아도 확정 조건이 다르면 새 사건(incident_count +1, CancellationIncidentDetected, 경로에 따라 hold) — fail-closed | harness/questions.json | CANCEL-001, RECON-CONTRACT-001 | 2026-10-20 |
 | D-CANCEL1-008 | Q-CANCEL1-08 | "거절마다 한 행 (Recommended)". 운영자 보정 취소 명령 거절은 반복되더라도 거절마다 append-only 감사 행(시각 포함)을 남긴다. 같은 승인ID·결제·사유 중복 UNIQUE를 두지 않는다 | harness/questions.json | CANCEL-001, ADMIN-BOOT-001 | 2026-10-20 |
+| D-CPQ-001 | Q-CPQ-01 | "onHold 참/거짓만 (Recommended)". GetPayment는 그 Payment 자신의 활성 사고 보류 여부만 boolean `onHold`로 노출한다. 사유·회차·관찰·FORCED/초과 금액·대사 진행은 노출하지 않는다 | harness/questions.json | CP-QUERY-001, WEBHOOK-001 | 2026-10-20 |
+| D-CPQ-002 | Q-CPQ-02 | "(i)만 표시, 내용 최소 (Recommended)". AUTHORIZED Payment의 운영자 보정 취소는 취소 이력에 `initiator: OPERATOR`로만 표시(운영자 신원·사유·approvalId·목적 비노출). 가맹점에 FAILED/EXPIRED로 알려진 P1의 늦은 승인 거래와 그 운영자 취소는 조회에서 숨기고 FAILED와 실패 분류만 보인다(D-CANCEL-013 연장) | harness/questions.json | CP-QUERY-001, WEBHOOK-001 | 2026-10-20 |
+| D-CPQ-003 | Q-CPQ-03 | "paymentId만 (Recommended)". v1 GetPayment는 paymentId 조회만 제공한다. merchantOrderId 조회는 후속 | harness/questions.json | CP-QUERY-001 | 2026-10-20 |
+| D-CPQ-004 | Q-CPQ-04 | "기간 제한 없음 (Recommended)". v1 GetPayment는 조회 기간 제한이 없다. 보관·파기 정책은 LIVE Gate의 별도 정책(법적 보관 요건 확인 포함)이며 삭제 경로를 만들지 않는다 | harness/questions.json | CP-QUERY-001, LIVE 준비 Gate | 2026-10-20 |
+| D-CPQ-005 | Q-CPQ-05 | "그대로 허용 (Recommended)". GetPayment·취소 응답의 cancellableAmount는 FORCED 예약을 뺀 권위 값(max(0, …))을 그대로 보인다. 승인액·취소액·진행액과의 차로 FORCED 금액을 역산할 수 있는 것은 허용된 추론으로 기록한다(D-CPQ-001의 FORCED 비노출은 별도 필드를 두지 않는다는 뜻) | harness/questions.json | CP-QUERY-001 | 2026-10-20 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

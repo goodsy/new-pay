@@ -120,6 +120,13 @@ class FaultInjectionConfig {
     @Bean
     fun faultInjector(): FaultInjector = FaultInjector()
 
+    /** CP-QUERY-001 검토 #1 m-3: 결정적 스냅샷 시험용 jOOQ listener(무장 전에는 무동작). Boot jOOQ 자동 구성이 ExecuteListenerProvider bean을 모은다. */
+    @Bean
+    fun snapshotProbe(dataSource: javax.sql.DataSource): SnapshotProbe = SnapshotProbe(dataSource)
+
+    @Bean
+    fun snapshotProbeListenerProvider(probe: SnapshotProbe): org.jooq.ExecuteListenerProvider = org.jooq.impl.DefaultExecuteListenerProvider(probe)
+
     @Bean
     @Primary
     fun faultInjectingAuthorizationViewReader(real: JooqAuthorizationViewReader, f: FaultInjector): AuthorizationViewReader =

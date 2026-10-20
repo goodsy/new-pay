@@ -260,7 +260,24 @@ object CommitFaults {
 
     fun arm() = armed.set(true)
 
-    fun reset() = armed.set(false)
+    fun reset() {
+        armed.set(false)
+        beginFailureFor.set(null)
+    }
+
+    /**
+     * CP-QUERY-001 검토 #1 m-2(E-1): 이름에 [definitionNameContains]가 든 TX 정의(Spring은 `클래스.메서드` 이름을 쓴다)의 **시작**(연결 획득 단계)을 한 번 실패시킨다 — 쿼리 중이 아니라 TX begin 실패.
+     */
+    fun armBeginFailure(definitionNameContains: String) = beginFailureFor.set(definitionNameContains)
+
+    private val beginFailureFor = java.util.concurrent.atomic.AtomicReference<String?>(null)
+
+    internal fun beforeBegin(definition: TransactionDefinition?) {
+        val marker = beginFailureFor.get() ?: return
+        if (definition?.name?.contains(marker) == true && beginFailureFor.compareAndSet(marker, null)) {
+            throw org.springframework.transaction.CannotCreateTransactionException("injected: could not acquire a connection at transaction begin")
+        }
+    }
 
     internal fun afterCommit(status: TransactionStatus) {
         val fresh = status.isNewTransaction && !status.isReadOnly
@@ -270,7 +287,10 @@ object CommitFaults {
 
 /** [CommitFaults]를 거치는 위임 TM(Bean 이름 `transactionManager` 유지). */
 class CommitFaultingTransactionManager(private val delegate: PlatformTransactionManager) : PlatformTransactionManager {
-    override fun getTransaction(definition: TransactionDefinition?): TransactionStatus = delegate.getTransaction(definition)
+    override fun getTransaction(definition: TransactionDefinition?): TransactionStatus {
+        CommitFaults.beforeBegin(definition)
+        return delegate.getTransaction(definition)
+    }
 
     override fun commit(status: TransactionStatus) {
         delegate.commit(status)
