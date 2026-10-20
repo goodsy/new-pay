@@ -1,13 +1,21 @@
 package com.paycore.simulator.van.adapter.integration
 
 import com.paycore.simulator.van.application.provided.AuthorizeAtVanUseCase
+import com.paycore.simulator.van.application.provided.CancelAtVanUseCase
+import com.paycore.simulator.van.application.provided.InquireCancelAtVanUseCase
 import com.paycore.simulator.van.application.provided.InquireAtVanUseCase
 import com.paycore.simulator.van.application.provided.VanAuthorizationResult
+import com.paycore.simulator.van.application.provided.VanCancelInquiryRequest
+import com.paycore.simulator.van.application.provided.VanCancelInquiryResult
+import com.paycore.simulator.van.application.provided.VanCancelResult
 import com.paycore.simulator.van.application.provided.VanInquiryRequest
 import com.paycore.simulator.van.application.provided.VanInquiryResult
 import com.paycore.simulator.van.application.required.VanClock
 import com.paycore.simulator.van.domain.VanApproval
 import com.paycore.simulator.van.domain.VanBehaviour
+import com.paycore.simulator.van.domain.VanCancelBehaviour
+import com.paycore.simulator.van.domain.VanCancelEntry
+import com.paycore.simulator.van.domain.VanCancelTerms
 import com.paycore.simulator.van.domain.VanDecisionOutcome
 import com.paycore.simulator.van.domain.VanLedgerEntry
 import org.slf4j.LoggerFactory
@@ -32,6 +40,8 @@ class VanTcpServer(
     private val settings: VanSettings,
     private val authorize: AuthorizeAtVanUseCase,
     private val inquire: InquireAtVanUseCase,
+    private val cancel: CancelAtVanUseCase,
+    private val inquireCancel: InquireCancelAtVanUseCase,
     private val clock: VanClock,
     private val environment: Environment,
 ) : SmartLifecycle {
@@ -113,6 +123,8 @@ class VanTcpServer(
                     when (message) {
                         is VanInbound.Auth -> handleAuth(frame, message, output)
                         is VanInbound.Inquiry -> handleInquiry(frame, message, output)
+                        is VanInbound.Cancel -> handleCancel(frame, message, output)
+                        is VanInbound.CancelInquiry -> handleCancelInquiry(frame, message, output)
                     }
                 } catch (e: IOException) {
                     false
@@ -160,6 +172,59 @@ class VanTcpServer(
         }
         return write(out, frame, payload)
     }
+
+    /** sim-van-2 취소(CANCEL-001 §6.3). 결정은 Use Case가 원장에 커밋한 뒤에만 응답한다. */
+    private fun handleCancel(frame: VanFrame, m: VanInbound.Cancel, out: OutputStream): Boolean {
+        val r = m.request
+        val result = cancel.cancel(frame.clientId, r)
+        val now = clock.now()
+        fun respond(outcome: VanMessages.AuthOutcome, entry: VanCancelEntry? = null) = VanMessages.cancelResponse(
+            inReplyTo = m.messageId, requestId = r.requestId, outcome = outcome, decisionId = entry?.entryId, pendingId = null,
+            terms = entry?.terms?.let(::cancelTerms), declineCategory = entry?.declineCategory?.name, respondedAt = now,
+        )
+        return when (result) {
+            is VanCancelResult.Decided -> {
+                val outcome = if (result.entry.outcome == VanDecisionOutcome.APPROVED) VanMessages.AuthOutcome.APPROVED else VanMessages.AuthOutcome.DECLINED
+                transport(frame, respond(outcome, result.entry), transportOf(result.behaviour), out)
+            }
+            VanCancelResult.Conflict -> write(out, frame, respond(VanMessages.AuthOutcome.REQUEST_CONFLICT))
+            VanCancelResult.RejectedClosed -> write(out, frame, respond(VanMessages.AuthOutcome.REJECTED_CLOSED))
+            VanCancelResult.CloseWithoutRecord -> false
+        }
+    }
+
+    private fun handleCancelInquiry(frame: VanFrame, m: VanInbound.CancelInquiry, out: OutputStream): Boolean {
+        val result = inquireCancel.inquire(
+            frame.clientId, VanCancelInquiryRequest(m.inquiryId, m.originalRequestId, m.institutionAccount, m.environment, m.closeIfAbsent),
+        )
+        val now = clock.now()
+        fun respond(r: VanMessages.InquiryResult, entry: VanCancelEntry? = null, closureId: String? = null) = VanMessages.cancelInquiryResponse(
+            inReplyTo = m.messageId, inquiryId = m.inquiryId, originalRequestId = m.originalRequestId, result = r, pendingId = null, decisionId = entry?.entryId,
+            outcome = entry?.outcome, terms = entry?.terms?.let(::cancelTerms), declineCategory = entry?.declineCategory?.name, closureId = closureId, respondedAt = now,
+        )
+        val payload = when (result) {
+            is VanCancelInquiryResult.Found -> respond(VanMessages.InquiryResult.FOUND, entry = result.entry)
+            is VanCancelInquiryResult.NoEffectConfirmed -> respond(VanMessages.InquiryResult.NO_EFFECT_CONFIRMED, closureId = result.closureId)
+            VanCancelInquiryResult.NotFound -> respond(VanMessages.InquiryResult.NOT_FOUND)
+            VanCancelInquiryResult.Unavailable -> respond(VanMessages.InquiryResult.UNAVAILABLE)
+            VanCancelInquiryResult.CloseWithoutRecord -> return false
+        }
+        return write(out, frame, payload)
+    }
+
+    /** 취소 카드 동작 → 첫 응답 전송 동작(같은 전송 코드 경로를 쓴다). 판정 동작(거절·부분·조회 UNAVAILABLE·기록 전 끊김)은 전송 동작이 아니다. */
+    private fun transportOf(b: VanCancelBehaviour): VanBehaviour = when (b) {
+        VanCancelBehaviour.LATE_RESPONSE -> VanBehaviour.LATE_RESPONSE
+        VanCancelBehaviour.DROP_AFTER -> VanBehaviour.DROP_AFTER_APPROVE
+        VanCancelBehaviour.BAD_MAC -> VanBehaviour.BAD_MAC
+        VanCancelBehaviour.FRAGMENTED -> VanBehaviour.FRAGMENTED
+        else -> VanBehaviour.NORMAL
+    }
+
+    private fun cancelTerms(t: VanCancelTerms) = VanMessages.CancelTerms(
+        t.cancelApprovalNumber, t.providerTransactionId, t.originalProviderTransactionId, t.cancelledAmountMinor, t.currency, t.institutionTransactionDate,
+        t.institutionBusinessDate,
+    )
 
     /** 새 결정의 첫 응답 전송 시나리오(AUTH-001 §5.3 Demo 표). 원장 커밋은 이미 끝났다. */
     private fun transport(frame: VanFrame, payload: ByteArray, behaviour: VanBehaviour, out: OutputStream): Boolean {

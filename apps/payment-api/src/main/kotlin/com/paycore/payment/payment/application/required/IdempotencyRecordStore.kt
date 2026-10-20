@@ -1,5 +1,7 @@
 package com.paycore.payment.payment.application.required
 
+import com.paycore.payment.payment.application.provided.CancelOutcome
+import com.paycore.payment.payment.application.provided.CancelRejection
 import com.paycore.payment.payment.application.provided.ConfirmOutcome
 import com.paycore.payment.payment.application.provided.ConfirmRejection
 import com.paycore.payment.payment.application.provided.CreatePaymentOutcome
@@ -7,6 +9,7 @@ import com.paycore.payment.payment.application.provided.CreatePaymentRejection
 import com.paycore.payment.payment.application.provided.IdempotencyRecordId
 import com.paycore.payment.payment.application.provided.RequestFingerprint
 import com.paycore.payment.payment.domain.AuthorizationId
+import com.paycore.payment.payment.domain.CancellationId
 import com.paycore.payment.payment.domain.Environment
 import com.paycore.payment.payment.domain.IdempotencyKey
 import com.paycore.payment.payment.domain.MerchantAccountId
@@ -27,6 +30,9 @@ enum class IdempotentOperation(val code: String) {
 
     /** AUTH-001 §4.8: confirm(승인 시작). 결과는 Authorization 참조(D-AUTH-004 — 재생 = 현재 결과) 또는 저장 거절. */
     CONFIRM_PAYMENT("ConfirmPayment"),
+
+    /** CANCEL-001 §4.8: 가맹점 취소. 결과는 취소 참조(재생 = 그 취소의 현재 상태 — CC-05) 또는 저장 거절(Payment 참조). */
+    CANCEL_PAYMENT("CancelPayment"),
 }
 
 /** 이 요청의 예약 내용. [expiresAt]은 [createdAt] + 보존 기간(D-CPC-004: 30일)이며 DB CHECK가 같은 규칙을 강제한다. */
@@ -58,6 +64,12 @@ sealed interface StoredRequestResult {
         }
     }
 }
+
+/** 취소 성공(CANCEL-001 §4.8): 새 시작(ACCEPTED) 또는 같은 merchantCancelId·같은 내용의 기존 취소(EXISTING_CANCELLATION) 참조. */
+data class StoredCancelAccepted(val outcome: CancelOutcome, val paymentId: PaymentId, val cancellationId: CancellationId) : StoredRequestResult
+
+/** 취소 업무 거절(CANCEL-001 §4.8·§4.9 — 저장·재생, Payment 참조). */
+data class StoredCancelRejected(val rejection: CancelRejection, val paymentId: PaymentId) : StoredRequestResult
 
 /** 이미 있던 멱등 기록. [result]가 null이면 커밋된 예약(PENDING)이라는 뜻이며 정상 흐름에서는 생길 수 없다(같은 TX에서 결과를 쓴다). */
 data class StoredIdempotencyRecord(

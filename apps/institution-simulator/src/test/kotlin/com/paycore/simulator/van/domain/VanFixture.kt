@@ -45,13 +45,22 @@ object VanFixture {
     )
 
     /** 프로파일 A(무효과 확정 Capability 있음 — Demo). */
-    val profileA = VanProfile(
-        name = "A", confirmsNoEffect = true, closableAfter = Duration.ofMinutes(2), inquiryRetention = Duration.ofDays(7),
-        creditInstallmentMonths = setOf(2, 3, 6, 12), pendingDelay = Duration.ofSeconds(5),
+    /** 프로파일 A 취소 Capability(CANCEL-001 §6.5 Demo): 무효과 확정 있음, 취소 기한 365일, 부분취소 = 신용·체크 일시불 + 신용 할부. */
+    val cancelA = VanCancelProfile(
+        confirmsNoEffect = true, closableAfter = Duration.ofMinutes(2), inquiryRetention = Duration.ofDays(7), window = Duration.ofDays(365),
+        partialLumpSumCardTypes = setOf("CREDIT", "CHECK"), partialInstallmentCardTypes = setOf("CREDIT"),
     )
 
-    /** 프로파일 B(무효과 확정 없음 — Demo). */
-    val profileB = profileA.copy(name = "B", confirmsNoEffect = false)
+    val profileA = VanProfile(
+        name = "A", confirmsNoEffect = true, closableAfter = Duration.ofMinutes(2), inquiryRetention = Duration.ofDays(7),
+        creditInstallmentMonths = setOf(2, 3, 6, 12), pendingDelay = Duration.ofSeconds(5), cancel = cancelA,
+    )
+
+    /** 프로파일 B(무효과 확정 없음 — Demo). 부분취소는 신용 일시불만(CX-08 할부 부분취소 미지원 행). */
+    val profileB = profileA.copy(
+        name = "B", confirmsNoEffect = false,
+        cancel = cancelA.copy(confirmsNoEffect = false, partialLumpSumCardTypes = setOf("CREDIT"), partialInstallmentCardTypes = emptySet()),
+    )
 
     val ids = VanDecisionIds(
         decisionId = "vd_" + VanUlid.format(now, 101), pendingId = "vp_" + VanUlid.format(now, 102), closureId = "vc_" + VanUlid.format(now, 103),

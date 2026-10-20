@@ -384,3 +384,40 @@ JPA와의 연결(이번 변경): **역할** — `JpaPaymentAuthorizationEntity`�
 Entity에 매핑하지 않는다. **이유** — 전송 전 실패 확정·승인 거래 1건·한도 합계를 DB가 증명하고(cascade·orphanRemoval이 사실을 지우는 경로 없음), domain은 Spring 없이 시험한다. **주의** — 충돌 뒤 무조건 재시도하지 않고
 다시 잠가 재판정하며, flush 실패 뒤 TX는 rollback 전용, commit 단계 실패는 OutcomeUnknown(회복이 원 요청 ID 조회로 확인). JPQL `@Lock` 조회로 이미 잠근 행을 다시 읽지 않는다(§9). Kafka/Redis는 이 불변식과 회복 Worker 직렬화를
 대신하지 않는다(ADR-001 — 다중 인스턴스도 `SKIP LOCKED`).
+
+## 17. 전액/부분취소 실행·취소 UNKNOWN 회복·가상 VAN 취소 (CANCEL-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-CANCEL-001~013·D-CANCEL1-001~008이며 명세는 `docs/repository/CANCEL-001-CANCELLATION.md`(구현 기록 §18, 배포 조건 §20), 권위 계약은
+`CANCEL-CONTRACT-001-CANCELLATION-CONTRACT.md`(구현 편차 §18). §15(취소 domain)·§16(승인 실행)의 관례를 그대로 따르고 다른 점만 적는다. 명명은 §14 판정 기준을 따랐다.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| Aggregate 저장 Port | `PaymentCancellationRepository` → `JpaPaymentCancellationRepository`(Attempt·관찰·CANCEL 거래는 Aggregate 안 — `lock`·비잠금 `find`·`insertNew`·`update`·업무 키 ID 조회 `findIdByMerchantKey`·`findIdByApprovalId`), `ReturnBalanceRepository` → `JpaReturnBalanceRepository`(예약 행 포함, `lockByPaymentId`) | §14 Aggregate 판정 |
+| 기록 Store(③) | `CancellationRecoveryScheduleStore`(취소 회복 일정 — 승인 일정과 별도 표, CN-24 선택 A), `OperatorCancelRejectionStore`(운영자 명령 거절 감사 — append-only `append`만, D-CANCEL1-006·008) | §14 Store ③ |
+| jOOQ Reader | `CancellationViewReader` → `JooqCancellationViewReader`(`find` 응답·재생, `findAttempt` 회복 후보, `findTarget` 운영자 승인 대상, `backlog` 지표) — 비권위, 상태 변경은 JPA 잠금 재판정 | §14, CQRS |
+| Use Case·서비스 | provided `CancelPaymentUseCase`(→ `CancelPaymentService` 조정자, TX 없음), `OperatorCorrectionCancelUseCase`(→ `OperatorCorrectionCancelService` — **inbound 진입점 없음**, D-CANCEL1-001, ArchUnit `operatorCorrectionCancelHasNoEntryPoint`), `OperatorCancelTargetQuery`, `RecoverCancellationsUseCase`(→ `CancellationRecoveryService`), `CancellationBacklogQuery`. TX 단계 서비스 `CancelStartService`(TX1)·`CancellationDispatchService`(TXd + TX 밖 호출)·`CancellationResultService`(TX2·회복 공용 반영). 모든 TX는 `LocalTransactions`(READ COMMITTED) | §16과 같음 |
+| 외부 기관 Port | required `CancellationPort`·`CancelInquiryPort`(sealed 결과 — 업무 예외 없음), 구현은 `adapter.integration.institution.SimulatorVanCancellationAdapter`만(격리 ArchUnit 확장). 계약 `sim-van-2`(= sim-van-1 메시지 바이트 동일 + 취소 4종, CN-20), golden `van-contract-sim-van-2.golden.json`(harness 생성, 두 앱 바이트 동일) | AUTH-001 §5.6, CN-20 |
+| Route·Capability | Route 설정에 `capabilities.cancel` 블록(version·부분취소 카드 종류·무효과 확정·closableAfter·보존기간 — CN-28). `sim-van-1` Route에 블록이 있으면 기동 거부(D-S4-1). 취소 시작은 원 승인 Route의 현재 프로파일로 Capability를 판정하고(없음·원 기관과 다름 → 503, 저장 없음), TXd는 `route_profile_version`을 Attempt에 고정한다(D-CANCEL1-004) | §16 Route 프로파일 버전 |
+| 시간 설정 | `paycore.cancellation.timing.*`(필수 version, 기본값 없음 — CN-29) → `CancellationTimingSettings`, 기동 검사 `CancellationTimingConsistency`(connect 예산 < lease − margin, cancel.closableAfter ≥ preparedDeadline + lease, 회복 maxAge < cancel.inquiryRetention — D-S4-2) | AU-34와 같은 방식 |
+| 회복 trigger | `payment.adapter.batch.CancellationRecoveryScheduler`(`@Scheduled`) + `CancellationRecoveryJobSettings`(`paycore.cancellation.timing.recovery.{enabled,fixed-delay,batch-size}`) — provided Use Case만 부른다 | §16 회복 trigger |
+| 식별자 생성 | `CancellationIdentifierGenerator`(required) → `SecureRandomCancellationIdentifierGenerator`(취소 `pcn_`·Attempt·기관 요청·조회·CANCEL 거래 `ptx_` — ULID) | §16 식별자 |
+| 잠금 순서 | control → payment → payment_authorization → return_balance → payment_cancellation → cancel_attempt → 취소 회복 일정(명세 §4.7). TXd·TX2·회복·운영자 경로는 이 정순서의 부분열. 운영자 같은 요청 판정은 비잠금 읽기(검토 #3 n-3) | CN-09 |
+| 멱등 | operation `CancelPayment`, fingerprint `x1:`(길이 접두 canonical SHA-256), 결과 참조 `result_cancellation_id`(V20), 재생 = 취소 **현재** 상태(CC-05). V20 CHECK는 결과가 있는 행마다 `result_code IS NOT NULL`(검토 #3 n-1) | CC-05·06 |
+| Outbox | `PaymentCancelled`(FINANCIAL_FACT, `PaymentCancelled:{transactionId}`), `PaymentCancelFailed`, `CancellationIncidentDetected`(사건마다 `:{cancellationId}:{incidentSeq}` — D-CANCEL1-002, 위험 힌트 CRITICAL = 초과 `ReturnExcess.EXCEEDED`일 때만 + `excessAmount`), `CancellationOutcomeUnresolved`(`:{attemptId}`). 같은 TX | CC §9.3 |
+| 운영자 거절 감사 | 거절 판정과 같은 로컬 TX에 감사 행 하나(형식이 아닌 paymentId는 자리표시 `MALFORMED`, 같은 approvalId의 다른 요청자·승인자는 `APPROVAL_IDENTITY_MISMATCH`) | D-CANCEL1-006·008, CN-32 |
+| ArchUnit | K-3 규칙(`cancelServicesIndependentOfAdmission`) 대상 = 취소 서비스 6개(시작·조정·운영자·전송·결과·회복), `paymentCancellationRestoredOnlyByPersistence`, 운영자 Use Case 진입점 없음 — 각 위반 fixture | K-3, F-1, D-CANCEL1-001 |
+| 시험 | Named Fixture `CancelFixture`(승인된 Payment — Route·카드 종류·Plan 지정)·`ConfirmFixture.prepared(previous = …)`(같은 주문 다음 Payment — 공식 `decide → occupy`), 시험 대역 `ProgrammableVan` 취소 원장·`ObservedCancellationPort`·`ObservedCancelInquiryPort`(@Primary 위임 — TX 밖 탐침)·`WithdrawableRouteResolver`, 장애 주입 `FaultPoint` 취소 지점·`CommitFaults`. 경합은 실제 MySQL 다중 연결. Fixture Monkey 미사용 | Test Fixture Policy |
+
+**Simulator `van` 모듈 취소**: domain `VanCancellation`·`VanCancelInquiry`·`VanCancelEntry`·`VanCancelProfile`·`VanCancelBehaviour`·`VanCancelJudgement` 등(순수), provided `CancelAtVanUseCase`·`InquireCancelAtVanUseCase`,
+required `VanCancelLedgerStore`(find·insert만 — 기관 취소 원장 `van_cancel_entry` append-only, 승인 반환 순번 UNIQUE로 기관 쪽 합계 직렬화 — CN-22, 원장 합계는 한 SELECT — rev 0.3 m-6). 취소 서비스 TX는
+REPEATABLE READ를 명시한다(검토 #2 n-3). 원장 권한 SELECT·INSERT만(V7, `VanLedgerPrivilegeGuard`가 기동 때 1142 확인).
+
+JPA와의 연결(이번 변경): **역할** — `JpaPaymentCancellationEntity`(루트 행: 상태·사건 수·개시자·업무 키), `JpaCancelAttemptEntity`(전송 상태·Route 프로파일 버전), `JpaCancelObservationEntity`(`@Immutable`),
+`JpaReturnBalanceEntity`·`JpaReturnReservationEntity`(합계 열·예약 순번), `JpaOperatorCancelRejectionEntity`(`@Immutable`), `JpaCancellationRecoveryScheduleEntity`는 행 모양만 갖고, `PaymentCancellationPersistenceMapper`가
+`PaymentCancellation.reconstitute`(존재할 수 없는 조합 거부)로 domain을 되돌린다. `@OneToMany(cascade)`가 없고 관찰·CANCEL 거래는 없던 행만 INSERT한다. **예** — 같은 Payment에 가맹점 취소 두 건이 동시에 오면 둘 다
+control → payment를 `FOR UPDATE`로 잡은 뒤 `return_balance`를 잠그므로 두 번째는 첫 번째가 커밋한 RESERVED 예약을 보고 `CANCEL_IN_PROGRESS`로 거절된다(생성 열 UNIQUE `in_flight_payment_id`가 DB 이중 방어 —
+K1). 회복 fencing과 TXd가 같은 Attempt를 바꾸려 해도 같은 잠금 순서로 직렬화되고, 늦은 쪽은 최신 행으로 NoChange를 판정한다. 운영자 같은 요청 판정은 바꾸지 않으므로 `find`(비잠금 `EntityManager.find`)로 읽는다.
+루트 상태가 그대로이고 Attempt·관찰만 바뀌어도 루트 version을 올린다(`PESSIMISTIC_FORCE_INCREMENT`). **이유** — 반환 합계(완료 + 진행 중 ≤ 승인액)는 서로 다른 취소 행의 `@Version`으로 못 지키므로 잔액 행 잠금 + DB CHECK가
+지키고, 기관 확정 사실은 append-only(`@Immutable` + runtime 권한 SELECT·INSERT, 1142 시험)라 cascade·orphanRemoval이 사실을 지우는 경로가 없다. **주의** — 생성 열(`in_flight_payment_id` 등)은 Entity에 매핑하지 않는다, flush 실패
+뒤 TX는 rollback 전용, commit 단계 실패는 OutcomeUnknown(회복이 원 취소 요청 ID로 조회), 잠근 행을 JPQL `@Lock` 조회로 다시 읽지 않는다(§9). Kafka/Redis는 반환 합계·진행 중 1건·회복 Worker 직렬화를 대신하지 않는다
+(ADR-001 — 다중 인스턴스도 `SKIP LOCKED`, 새 의존성 없음 — Boot 4.1.1 BOM 그대로).

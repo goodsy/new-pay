@@ -66,4 +66,66 @@ class ConfiguredInstitutionRouteRegistrySpec : BehaviorSpec({
             ).resolve("SIM-VAN-01")!!.routeRef shouldBe "SIM-VAN-01"
         }
     }
+
+    // CANCEL-001 §6.6 CN-28: 프로토콜 집합 {sim-van-1, sim-van-2}. 취소 Capability는 sim-van-2 Route에만(없으면 기동 실패), sim-van-1에 cancel 블록은 거부(fail-closed —
+    // 취소를 보낼 수 없는 Route에 취소 Capability가 있으면 시작 판정이 Capability를 믿게 된다).
+    Given("a sim-van-2 route with a cancel capability block") {
+        val registry = VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(9))
+        Then("the profile carries the cancel capability; cancel start resolves it with its version (D-CANCEL1-004)") {
+            val p = registry.resolve("SIM-VAN-01")!!
+            p.protocolVersion shouldBe "sim-van-2"
+            val c = p.capabilities.cancel!!
+            c.version shouldBe "cancel-a-demo-1"
+            c.confirmsNoEffect shouldBe true
+            c.closableAfter shouldBe Duration.ofMinutes(2)
+            c.inquiryRetention shouldBe Duration.ofDays(7)
+            p.cancelCapability() shouldBe com.paycore.payment.payment.domain.CancelCapabilityResolution.Resolved(
+                com.paycore.payment.payment.domain.CancelCapability("cancel-a-demo-1", setOf(CardType.CREDIT, CardType.CHECK), setOf(CardType.CREDIT)),
+            )
+        }
+        Then("a sim-van-1 route has no cancel capability (cancel start is Unavailable — §6.1)") {
+            VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.route(9)).resolve("SIM-VAN-01")!!.cancelCapability() shouldBe
+                com.paycore.payment.payment.domain.CancelCapabilityResolution.Unavailable
+            // 변이 Mp11(생존 → 시험 추가): 등록부 밖에서 만든 프로파일도 sim-van-1이면 취소 블록이 있어도 Unavailable(취소 메시지가 없는 계약 — 방어 겹).
+            val v2 = registry.resolve("SIM-VAN-01")!!
+            v2.copy(protocolVersion = "sim-van-1").cancelCapability() shouldBe com.paycore.payment.payment.domain.CancelCapabilityResolution.Unavailable
+        }
+        Then("m-4: the route serves an original only with the same institution and environment") {
+            val p = registry.resolve("SIM-VAN-01")!!
+            val original = com.paycore.payment.payment.domain.ProviderRequestRef(
+                "SIMVAN", com.paycore.payment.payment.domain.Environment.TEST, "SIMMERCH0001", "AUTHORIZE", "ar_01JA0000000000000000000001",
+            )
+            p.servesOriginal(original) shouldBe true
+            p.servesOriginal(original.copy(institution = "OTHERVAN")) shouldBe false
+            p.servesOriginal(original.copy(environment = com.paycore.payment.payment.domain.Environment.LIVE)) shouldBe false
+        }
+        Then("startup refuses an inconsistent cancel block or protocol") {
+            val c = VanRouteFixture.cancelCapabilities()
+            mapOf(
+                "sim-van-2 without cancel block" to { VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.route(9, protocolVersion = "sim-van-2")) },
+                "sim-van-1 with cancel block" to { VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.route(9, cancel = c)) },
+                "unknown protocol" to { VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.route(9, protocolVersion = "sim-van-3", cancel = c)) },
+                "blank cancel version" to { VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(version = " "))) },
+                "cancel version over 64" to {
+                    VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(version = "v".repeat(65))))
+                },
+                "closable after not before retention" to {
+                    VanRouteFixture.registry(
+                        "SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(closableAfter = Duration.ofDays(7), inquiryRetention = Duration.ofDays(7))),
+                    )
+                },
+                "zero closable after" to {
+                    VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(closableAfter = Duration.ZERO)))
+                },
+                "unknown partial card type" to {
+                    VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(partialLumpSumCardTypes = listOf("PREPAID"))))
+                },
+                "partial installment card type without installment support" to {
+                    VanRouteFixture.registry(
+                        "SIM-VAN-01" to VanRouteFixture.cancelRoute(9, VanRouteFixture.cancelCapabilities(partialInstallmentCardTypes = listOf("CHECK"))),
+                    )
+                },
+            ).forEach { (name, build) -> withClue(name) { shouldThrow<IllegalArgumentException> { build() } } }
+        }
+    }
 })

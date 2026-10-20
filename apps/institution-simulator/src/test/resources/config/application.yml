@@ -32,12 +32,27 @@ paycore:
           inquiry-retention: P7D
           credit-installment-months: 2,3,6
           pending-delay: PT5S
+          # 취소 Capability(CANCEL-001 §6.5 — Demo, 운영값 아님).
+          cancel:
+            confirms-no-effect: true
+            closable-after: PT2M
+            inquiry-retention: P7D
+            window: P365D
+            partial-lump-sum-card-types: CREDIT,CHECK
+            partial-installment-card-types: CREDIT
         B:
           confirms-no-effect: false
           closable-after: PT2M
           inquiry-retention: P7D
           credit-installment-months: 2,3,6
           pending-delay: PT5S
+          cancel:
+            confirms-no-effect: false
+            closable-after: PT2M
+            inquiry-retention: P7D
+            window: P365D
+            partial-lump-sum-card-types: CREDIT
+            partial-installment-card-types: ""
       accounts:
         - account: SIMMERCH0001
           profile: A

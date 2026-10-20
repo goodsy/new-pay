@@ -12,11 +12,22 @@ import java.util.concurrent.ConcurrentHashMap
 class WithdrawableRouteResolver(private val real: ConfiguredInstitutionRouteRegistry) : InstitutionRouteResolver {
     private val withdrawn = ConcurrentHashMap.newKeySet<String>()
 
-    override fun resolve(routeRef: String): InstitutionRouteProfile? = if (routeRef in withdrawn) null else real.resolve(routeRef)
+    private val replaced = ConcurrentHashMap<String, (InstitutionRouteProfile) -> InstitutionRouteProfile>()
+
+    override fun resolve(routeRef: String): InstitutionRouteProfile? =
+        if (routeRef in withdrawn) null else real.resolve(routeRef)?.let { p -> replaced[routeRef]?.invoke(p) ?: p }
+
+    /** CANCEL-001 m-4: 등록부의 Route 프로파일이 재기동 설정 변경으로 바뀐 경우(기관·환경 등)를 재현한다. */
+    fun replace(routeRef: String, change: (InstitutionRouteProfile) -> InstitutionRouteProfile) {
+        replaced[routeRef] = change
+    }
 
     fun withdraw(routeRef: String) {
         withdrawn += routeRef
     }
 
-    fun reset() = withdrawn.clear()
+    fun reset() {
+        withdrawn.clear()
+        replaced.clear()
+    }
 }

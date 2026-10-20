@@ -2,6 +2,9 @@ package com.paycore.simulator.van.adapter.persistence
 
 import com.paycore.simulator.van.application.required.DuplicateVanRecord
 import com.paycore.simulator.van.domain.VanApproval
+import com.paycore.simulator.van.domain.VanCancelDeclineCategory
+import com.paycore.simulator.van.domain.VanCancelEntry
+import com.paycore.simulator.van.domain.VanCancelTerms
 import com.paycore.simulator.van.domain.VanDecisionOutcome
 import com.paycore.simulator.van.domain.VanDeclineCategory
 import com.paycore.simulator.van.domain.VanEntryKind
@@ -43,6 +46,36 @@ internal object VanPersistence {
             approvalNumber = a?.approvalNumber, providerTransactionId = a?.providerTransactionId, approvedAmountMinor = a?.amountMinor, currency = a?.currency,
             planKind = a?.plan?.kind?.name, installmentMonths = a?.plan?.months, cardType = a?.cardType, institutionTransactionDate = a?.institutionTransactionDate,
             institutionBusinessDate = a?.institutionBusinessDate, declineCategory = e.declineCategory?.name, createdAt = e.createdAt,
+        )
+    }
+
+    fun toCancelEntry(row: JpaVanCancelEntryEntity): VanCancelEntry {
+        val namespace = VanNamespace(row.clientId, row.environment, row.institutionAccount, row.operation, row.requestId)
+        val terms = row.providerTransactionId?.let {
+            VanCancelTerms(
+                cancelApprovalNumber = row.cancelApprovalNumber, providerTransactionId = it,
+                originalProviderTransactionId = checkNotNull(row.originalProviderTransactionId), cancelledAmountMinor = checkNotNull(row.cancelledAmountMinor),
+                currency = checkNotNull(row.currency), institutionTransactionDate = checkNotNull(row.institutionTransactionDate),
+                institutionBusinessDate = checkNotNull(row.institutionBusinessDate),
+            )
+        }
+        return VanCancelEntry.reconstitute(
+            entryId = row.entryId, namespace = namespace, kind = VanEntryKind.valueOf(row.kind), payloadHash = row.payloadHash, originalRequestId = row.originalRequestId,
+            cardRef = row.cardRef, outcome = row.outcome?.let(VanDecisionOutcome::valueOf), terms = terms, approvedSequence = row.approvedSequence,
+            declineCategory = row.declineCategory?.let(VanCancelDeclineCategory::valueOf), createdAt = row.createdAt,
+        )
+    }
+
+    fun newCancelRow(e: VanCancelEntry): JpaVanCancelEntryEntity {
+        val n = e.namespace
+        val t = e.terms
+        return JpaVanCancelEntryEntity.newRow(
+            entryId = e.entryId, clientId = n.clientId, environment = n.environment, institutionAccount = n.institutionAccount, operation = n.operation,
+            requestId = n.requestId, kind = e.kind.name, payloadHash = e.payloadHash, originalRequestId = e.originalRequestId, cardRef = e.cardRef,
+            outcome = e.outcome?.name, cancelApprovalNumber = t?.cancelApprovalNumber, providerTransactionId = t?.providerTransactionId,
+            originalProviderTransactionId = t?.originalProviderTransactionId, cancelledAmountMinor = t?.cancelledAmountMinor, currency = t?.currency,
+            institutionTransactionDate = t?.institutionTransactionDate, institutionBusinessDate = t?.institutionBusinessDate, approvedSequence = e.approvedSequence,
+            declineCategory = e.declineCategory?.name, createdAt = e.createdAt,
         )
     }
 

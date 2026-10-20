@@ -118,18 +118,20 @@ internal object PaymentAuthorizationPersistenceMapper {
             observedAt = row.observedAt,
         )
 
-    fun toTransaction(row: JpaPaymentTransactionEntity): AuthorizationTransaction =
-        AuthorizationTransaction(
+    fun toTransaction(row: JpaPaymentTransactionEntity): AuthorizationTransaction {
+        check(row.type == "AUTHORIZATION") { "transaction ${row.transactionId} is not an authorization transaction" }
+        return AuthorizationTransaction(
             id = PaymentTransactionId(row.transactionId),
             authorizationId = AuthorizationId(row.authorizationId),
             paymentId = PaymentId(row.paymentId),
             terms = ApprovedTerms(
-                Money(row.amountMinor, CurrencyCode(row.currency)), PaymentPlanColumns.toPlan(row.planKind, row.installmentMonths), CardType.valueOf(row.cardType),
-                row.approvalNumber, row.providerTransactionId, row.institutionTransactionDate, row.institutionBusinessDate,
+                Money(row.amountMinor, CurrencyCode(row.currency)), PaymentPlanColumns.toPlan(checkNotNull(row.planKind), row.installmentMonths),
+                CardType.valueOf(checkNotNull(row.cardType)), checkNotNull(row.approvalNumber), row.providerTransactionId, row.institutionTransactionDate, row.institutionBusinessDate,
             ),
             sourceObservation = ObservationKey(AttemptId(row.sourceAttemptId), ObservationSource.valueOf(row.sourceKind), row.sourceResultId),
             confirmedAt = row.confirmedAt,
         )
+    }
 
     fun toAuthorization(
         row: JpaPaymentAuthorizationEntity,

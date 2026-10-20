@@ -44,6 +44,12 @@ enum class CancelStartRejection {
     OPERATOR_REASON_MISSING,
     OPERATOR_BASIS_MISSING,
 
+    /** 운영자 사유가 500자를 넘거나 깨진 UTF-16(mid-review #1 m-3·F-16 — DB 열과 같은 상한). */
+    OPERATOR_REASON_INVALID,
+
+    /** 목적 근거 참조가 200자를 넘거나 깨진 UTF-16. */
+    OPERATOR_BASIS_INVALID,
+
     /** 승인한 대상(Payment·Money·잔액 revision)이 실행 시점과 다르다. */
     OPERATOR_TARGET_STALE,
 }
@@ -124,6 +130,7 @@ object CancelStart {
             initiator = initiator,
             attemptId = attemptId,
             providerRequest = providerRequest,
+            capabilityVersion = cap.version,
             openedAt = at,
         )
         target.reserve(cancellation.id, money)

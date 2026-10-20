@@ -42,6 +42,15 @@ enum class ApiErrorCode(val status: HttpStatus, val retryable: Boolean, val mess
     AUTHENTICATION_NOT_VERIFIED(HttpStatus.CONFLICT, false, "The card authentication is not verified for this payment."),
     PAYMENT_PLAN_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The payment plan is not allowed for this card."),
     LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT, false, "The transaction limit would be exceeded."),
+
+    // CANCEL-001 취소(§4.9). 고정 문구 — 잔액·기관 사유·내부 값을 넣지 않는다.
+    CANCEL_REQUEST_CONFLICT(HttpStatus.CONFLICT, false, "The merchantCancelId was already used for a different cancel request of this payment."),
+    PAYMENT_NOT_CANCELLABLE(HttpStatus.CONFLICT, false, "The payment has no confirmed authorization to cancel."),
+    ALREADY_FULLY_CANCELLED(HttpStatus.CONFLICT, false, "The payment is already fully cancelled."),
+    CANCEL_IN_PROGRESS(HttpStatus.CONFLICT, false, "A cancel of this payment is in progress. Query it with its Idempotency-Key before cancelling again."),
+    CANCEL_AMOUNT_EXCEEDS_BALANCE(HttpStatus.UNPROCESSABLE_CONTENT, false, "The cancel amount exceeds the cancellable amount of the payment."),
+    CURRENCY_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT, false, "The cancel currency differs from the payment currency."),
+    PARTIAL_CANCEL_NOT_SUPPORTED(HttpStatus.UNPROCESSABLE_CONTENT, false, "A partial cancel is not supported for this payment."),
     ;
 
     /** 응답 `code` 값. OUTCOME_UNCONFIRMED는 계약 §9 행대로 `TEMPORARILY_UNAVAILABLE` code를 쓴다(문구만 다름). */

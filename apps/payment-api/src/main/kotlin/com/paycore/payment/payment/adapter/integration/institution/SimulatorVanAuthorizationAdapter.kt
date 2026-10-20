@@ -18,14 +18,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.time.Duration
 import java.time.Instant
-import java.util.HexFormat
 
 /**
  * 가상 VAN TCP Adapter(AUTH-001 §5.7 — sim-van-1). 요청당 연결 하나(AU-8). 시간은 connect / read / 전체 deadline으로 나눈다(Route 설정, Demo).
@@ -42,14 +35,17 @@ import java.util.HexFormat
 class SimulatorVanAuthorizationAdapter internal constructor(
     private val routes: ConfiguredInstitutionRouteRegistry,
     private val clock: PaymentClock,
-    private val connector: VanSocketConnector,
+    connector: VanSocketConnector,
     private val registry: MeterRegistry,
     private val messageIds: () -> String,
 ) : AuthorizationPort, AuthorizationInquiryPort {
 
     @Autowired
     constructor(routes: ConfiguredInstitutionRouteRegistry, clock: PaymentClock, registry: MeterRegistry) :
-        this(routes, clock, VanSocketConnector.PLAIN, registry, UlidMessageIds(clock)::next)
+        this(routes, clock, VanSocketConnector.PLAIN, registry, SimVanMessageIds(clock)::next)
+
+    /** 연결·교환(취소 Adapter와 공유 — CANCEL-001 §6.6, 동작은 AUTH-001 §5.7 그대로). */
+    private val transport = SimVanTransport(clock, connector)
 
     /** 승인 호출 1회: 호출 시간 timer + 결과 counter(§9 Observability — label은 닫힌 값 집합, ID 없음). */
     override fun authorize(call: AuthorizationCall): AuthorizationCallResult {
@@ -96,10 +92,10 @@ class SimulatorVanAuthorizationAdapter internal constructor(
             ?: return AuthorizationCallResult.NotSentConfirmed
         val messageId = messageIds()
         val payload = SimVanMessages.authRequest(call, messageId, clock.now())
-        val socket = connect(route, call.connectDeadline) ?: return AuthorizationCallResult.NotSentConfirmed
+        val socket = transport.connect(route, call.connectDeadline) ?: return AuthorizationCallResult.NotSentConfirmed
         return socket.use { s ->
             try {
-                val reply = exchange(s, route, payload, SimVanMessages::parseAuthReply)
+                val reply = transport.exchange(s, route, payload, SimVanMessages::parseAuthReply)
                 val parsed = reply.first
                 if (parsed.inReplyTo != messageId || parsed.requestId != call.providerRequest.requestId) throw SimVanProtocolException(UnknownCause.CORRELATION)
                 val hash = hash(reply.second)
@@ -130,10 +126,10 @@ class SimulatorVanAuthorizationAdapter internal constructor(
         val messageId = messageIds()
         val payload = SimVanMessages.inquiryRequest(call, messageId, call.closeIfAbsent && confirmsNoEffect)
         val deadline = clock.now().plus(route.totalDeadline)
-        val socket = connect(route, deadline) ?: return InquiryCallResult.Unavailable(InquiryUnavailableReason.CONNECTION)
+        val socket = transport.connect(route, deadline) ?: return InquiryCallResult.Unavailable(InquiryUnavailableReason.CONNECTION)
         return socket.use { s ->
             try {
-                val (parsed, raw) = exchange(s, route, payload, SimVanMessages::parseInquiryReply)
+                val (parsed, raw) = transport.exchange(s, route, payload, SimVanMessages::parseInquiryReply)
                 if (parsed.inReplyTo != messageId || parsed.inquiryId != call.inquiryId || parsed.originalRequestId != call.providerRequest.requestId) {
                     throw SimVanProtocolException(UnknownCause.CORRELATION)
                 }
@@ -159,77 +155,10 @@ class SimulatorVanAuthorizationAdapter internal constructor(
                     is SimVanMessages.InquiryReply.Unavailable -> InquiryCallResult.Unavailable(InquiryUnavailableReason.INSTITUTION_UNAVAILABLE)
                 }
             } catch (e: SimVanProtocolException) {
-                InquiryCallResult.Unavailable(
-                    when (e.unknownCause) {
-                        UnknownCause.TIMEOUT -> InquiryUnavailableReason.TIMEOUT
-                        UnknownCause.FRAMING -> InquiryUnavailableReason.FRAMING
-                        UnknownCause.INTEGRITY -> InquiryUnavailableReason.INTEGRITY
-                        UnknownCause.CORRELATION -> InquiryUnavailableReason.CORRELATION
-                        else -> InquiryUnavailableReason.CONNECTION
-                    },
-                )
+                InquiryCallResult.Unavailable(SimVanTransport.unavailableReason(e.unknownCause))
             } catch (e: RuntimeException) {
                 InquiryCallResult.Unavailable(InquiryUnavailableReason.CONNECTION)
             }
-        }
-    }
-
-    /** connect 단계: 첫 시도 + 재시도 예산. 시도마다 [deadline]을 먼저 본다(지났으면 연결하지 않는다). 연결 못 하면 null(아무것도 보내지 않았다). */
-    private fun connect(route: ConfiguredInstitutionRouteRegistry.Route, deadline: Instant): Socket? {
-        val address = InetSocketAddress(route.host, route.port)
-        repeat(route.connectRetryBudget + 1) {
-            val remaining = Duration.between(clock.now(), deadline)
-            if (remaining.isNegative || remaining.isZero) return null
-            val timeout = minOf(route.connectTimeout, remaining).toMillis().coerceAtLeast(1).toInt()
-            try {
-                return connector.connect(address, timeout)
-            } catch (e: IOException) {
-                // 연결 실패 — 바이트 미송신. 같은 요청 ID로 다시 연결한다.
-            }
-        }
-        return null
-    }
-
-    /**
-     * 요청 프레임을 쓰고 응답 프레임 하나를 읽는다. 전체 deadline(단조 시계)은 쓰기와 읽기 전체에 적용된다(검토 #2 m-A·n-4): 매 read() 전에 소켓 timeout을
-     * `min(readTimeout, 남은 deadline)`으로 다시 정하고, watchdog가 deadline에 소켓을 닫아 막힌 쓰기·읽기도 끝낸다. deadline 경과는 TIMEOUT, 그 밖의 끊김은 CONNECTION_LOST.
-     */
-    private fun <T> exchange(socket: Socket, route: ConfiguredInstitutionRouteRegistry.Route, payload: ByteArray, parse: (ByteArray) -> T): Pair<T, ByteArray> {
-        val deadline = System.nanoTime() + route.totalDeadline.toNanos()
-        fun remainingNanos() = deadline - System.nanoTime()
-        val watchdog = Thread.ofVirtual().name("van-call-deadline").start {
-            try {
-                Thread.sleep(Duration.ofNanos(remainingNanos().coerceAtLeast(0)))
-                runCatching { socket.close() }
-            } catch (e: InterruptedException) {
-                // 호출이 deadline 전에 끝났다.
-            }
-        }
-        try {
-            try {
-                socket.getOutputStream().write(SimVanFrames.encode(route.keyId, route.key, payload))
-                socket.getOutputStream().flush()
-            } catch (e: IOException) {
-                throw SimVanProtocolException(if (remainingNanos() <= 0) UnknownCause.TIMEOUT else UnknownCause.CONNECTION_LOST)
-            }
-            val raw = try {
-                SimVanFrames.read(socket.getInputStream(), route.keyId, route.key) {
-                    val remaining = remainingNanos()
-                    if (remaining <= 0) throw SimVanProtocolException(UnknownCause.TIMEOUT)
-                    try {
-                        socket.soTimeout = minOf(route.readTimeout.toNanos(), remaining).let { Duration.ofNanos(it).toMillis() }.coerceAtLeast(1).toInt()
-                    } catch (e: IOException) {
-                        throw SimVanProtocolException(if (remainingNanos() <= 0) UnknownCause.TIMEOUT else UnknownCause.CONNECTION_LOST)
-                    }
-                }
-            } catch (e: SimVanProtocolException) {
-                // watchdog가 닫은 소켓의 읽기 실패는 deadline 경과다.
-                if (e.unknownCause == UnknownCause.CONNECTION_LOST && remainingNanos() <= 0) throw SimVanProtocolException(UnknownCause.TIMEOUT)
-                throw e
-            }
-            return parse(raw) to raw
-        } finally {
-            watchdog.interrupt()
         }
     }
 
@@ -237,7 +166,7 @@ class SimulatorVanAuthorizationAdapter internal constructor(
         attemptId: AttemptId, source: ObservationSource, sourceResultId: String, outcome: InstitutionOutcome, terms: ApprovedTerms?, hash: String,
     ): InstitutionObservation = InstitutionObservation(attemptId, source, sourceResultId, outcome, terms, hash, clock.now())
 
-    private fun hash(payload: ByteArray): String = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(payload))
+    private fun hash(payload: ByteArray): String = SimVanTransport.evidenceHash(payload)
 
     private companion object {
         const val DISPATCH_METRIC = "paycore.authorization.dispatch"
@@ -246,29 +175,5 @@ class SimulatorVanAuthorizationAdapter internal constructor(
 
         /** 결과를 만들기 전에 Adapter 밖으로 예외가 나간 호출(닫힌 label 값 — 최종 검토 n-5). */
         const val SENDER_FAILED = "SENDER_FAILED"
-    }
-
-    /** 메시지 ID(송신자 생성 ULID — 시각 48bit + 난수 80bit, Crockford base32). */
-    private class UlidMessageIds(private val clock: PaymentClock) {
-        private val random = SecureRandom()
-
-        fun next(): String {
-            val out = CharArray(LENGTH)
-            var t = clock.now().toEpochMilli()
-            for (i in TIME_CHARS - 1 downTo 0) {
-                out[i] = ALPHABET[(t and MASK).toInt()]
-                t = t ushr BITS
-            }
-            for (i in TIME_CHARS until LENGTH) out[i] = ALPHABET[random.nextInt(ALPHABET.length)]
-            return String(out)
-        }
-
-        private companion object {
-            const val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-            const val LENGTH = 26
-            const val TIME_CHARS = 10
-            const val BITS = 5
-            const val MASK = 0x1FL
-        }
     }
 }

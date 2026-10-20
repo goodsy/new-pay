@@ -1,6 +1,7 @@
 package com.paycore.simulator.van.adapter.integration
 
 import com.paycore.simulator.van.application.required.VanProfiles
+import com.paycore.simulator.van.domain.VanCancelProfile
 import com.paycore.simulator.van.domain.VanProfile
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -36,6 +37,17 @@ class VanSettings(
         val inquiryRetention: Duration,
         val creditInstallmentMonths: Set<Int>,
         val pendingDelay: Duration,
+        /** 취소 Capability(CANCEL-001 §6.5 — Demo, 운영 기본값 없음: 블록이 없으면 기동 실패). */
+        val cancel: CancelProfile,
+    )
+
+    class CancelProfile(
+        val confirmsNoEffect: Boolean,
+        val closableAfter: Duration,
+        val inquiryRetention: Duration,
+        val window: Duration,
+        val partialLumpSumCardTypes: Set<String>,
+        val partialInstallmentCardTypes: Set<String>,
     )
 
     class Account(val account: String, val profile: String)
@@ -51,7 +63,11 @@ class VanSettings(
         require(keys.all { CLIENT.matches(it.client) }) { "van key client must be a client id" }
         keyRing = VanKeyRing(keys.associate { it.id to VanKeyRing.Key(it.client, it.secret) })
         val built = profiles.mapValues { (name, p) ->
-            VanProfile(name, p.confirmsNoEffect, p.closableAfter, p.inquiryRetention, p.creditInstallmentMonths, p.pendingDelay)
+            val c = p.cancel
+            VanProfile(
+                name, p.confirmsNoEffect, p.closableAfter, p.inquiryRetention, p.creditInstallmentMonths, p.pendingDelay,
+                VanCancelProfile(c.confirmsNoEffect, c.closableAfter, c.inquiryRetention, c.window, c.partialLumpSumCardTypes, c.partialInstallmentCardTypes),
+            )
         }
         require(accounts.isNotEmpty() && accounts.map { it.account }.toSet().size == accounts.size) { "van accounts must be non-empty and unique" }
         require(accounts.all { ACCOUNT.matches(it.account) && it.profile in built }) { "every van account names a configured profile" }

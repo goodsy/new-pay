@@ -77,7 +77,8 @@ class SimulatorRestartDurabilitySpec : FunSpec({
     }
 
     // AUTH-001 §5.5·§8(Simulator 재시작): 가상 VAN 원장은 기관 금융 사실 원본이다 — Simulator를 다시 띄워도 조회 결과(같은 decisionId·조건)가 같다.
-    test("a VAN decision is found with the same decision after the simulator restarts") {
+    test("a VAN decision and a VAN cancel decision are found with the same decision after the simulator restarts") {
+        var cancelPort: Pair<String, tools.jackson.databind.JsonNode>? = null
         val first = start()
         val base1 = "http://127.0.0.1:${port(first)}"
         val state = "s".repeat(43)
@@ -118,8 +119,24 @@ class SimulatorRestartDurabilitySpec : FunSpec({
             listOf("decisionId", "approvalNumber", "providerTransactionId", "approvedAmountMinor", "cardType", "institutionTransactionDate").forEach { f ->
                 found.get(f) shouldBe approved.get(f)
             }
+            // CANCEL-001 §6.5: 취소 원장도 재시작 뒤 같은 결정으로 조회된다.
+            val cr = VanTestClient.cancelRequestId(java.time.Instant.now())
+            val cancelled = VanTestClient(second.getBean(VanTcpServer::class.java).localPort()).use { it.call(VanTestClient.cancelRequest(cr, rid, approved, 10_000, "FULL")) }
+            cancelled.get("outcome").stringValue() shouldBe "APPROVED"
+            cancelPort = cr to cancelled
         } finally {
             second.close()
+        }
+        val (cr, cancelled) = checkNotNull(cancelPort)
+        val third = start()
+        try {
+            val found = VanTestClient(third.getBean(VanTcpServer::class.java).localPort()).use { it.call(VanTestClient.cancelInquiry(cr)) }
+            found.get("result").stringValue() shouldBe "FOUND"
+            listOf("decisionId", "cancelApprovalNumber", "providerTransactionId", "originalProviderTransactionId", "cancelledAmountMinor", "institutionBusinessDate").forEach { f ->
+                found.get(f) shouldBe cancelled.get(f)
+            }
+        } finally {
+            third.close()
         }
     }
 })

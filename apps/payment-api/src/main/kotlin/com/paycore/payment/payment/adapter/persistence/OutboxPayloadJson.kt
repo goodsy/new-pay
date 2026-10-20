@@ -2,6 +2,10 @@ package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.application.required.AuthorizationIncidentDetectedV1Payload
 import com.paycore.payment.payment.application.required.AuthorizationOutcomeUnresolvedV1Payload
+import com.paycore.payment.payment.application.required.CancellationIncidentDetectedV1Payload
+import com.paycore.payment.payment.application.required.CancellationOutcomeUnresolvedV1Payload
+import com.paycore.payment.payment.application.required.PaymentCancelFailedV1Payload
+import com.paycore.payment.payment.application.required.PaymentCancelledV1Payload
 import com.paycore.payment.payment.application.required.OutboxPayload
 import com.paycore.payment.payment.application.required.PaymentAuthorizationFailedV1Payload
 import com.paycore.payment.payment.application.required.PaymentAuthorizedV1Payload
@@ -57,6 +61,52 @@ internal object OutboxPayloadJson {
         )
         is PaymentAuthorizedV1Payload, is PaymentAuthorizationFailedV1Payload, is AuthorizationIncidentDetectedV1Payload, is AuthorizationOutcomeUnresolvedV1Payload ->
             authorization(payload)
+        is PaymentCancelledV1Payload, is PaymentCancelFailedV1Payload, is CancellationIncidentDetectedV1Payload, is CancellationOutcomeUnresolvedV1Payload -> cancellation(payload)
+    }
+
+    /** CANCEL-001 §4.10 취소 이벤트 v1. */
+    private fun cancellation(payload: OutboxPayload): String = when (payload) {
+        is PaymentCancelledV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantSiteId" to payload.merchantSiteId,
+                "merchantOrderId" to payload.merchantOrderId, "paymentId" to payload.paymentId, "authorizationId" to payload.authorizationId,
+                "originalTransactionId" to payload.originalTransactionId, "cancellationId" to payload.cancellationId, "transactionId" to payload.transactionId,
+                "amount" to payload.amountMinor, "currency" to payload.currency, "scope" to payload.scope, "authorizedAmount" to payload.authorizedAmountMinor,
+                "returnSequence" to payload.returnSequence, "cumulativeReturnedAmount" to payload.cumulativeReturnedMinor, "returnStatusAfter" to payload.returnStatusAfter,
+                "cancelApprovalNumber" to payload.cancelApprovalNumber, "providerTransactionId" to payload.providerTransactionId,
+                "originalProviderTransactionId" to payload.originalProviderTransactionId, "institutionTransactionDate" to payload.institutionTransactionDate.toString(),
+                "institutionBusinessDate" to payload.institutionBusinessDate?.toString(), "cancelledAt" to format(payload.cancelledAt),
+                "policyAssignmentVersion" to payload.policyAssignmentVersion, "entitlementVersion" to payload.entitlementVersion, "initiatorKind" to payload.initiatorKind,
+                "originalPlan" to linkedMapOf<String, Any?>("kind" to payload.originalPlanKind).also { m -> payload.originalInstallmentMonths?.let { m["months"] = it } },
+                "originalCardType" to payload.originalCardType,
+            ),
+        )
+        is PaymentCancelFailedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "cancellationId" to payload.cancellationId, "amount" to payload.amountMinor, "currency" to payload.currency,
+                "failureEvidence" to payload.failureEvidence, "failureCategory" to payload.failureCategory, "failedAt" to format(payload.failedAt),
+            ),
+        )
+        is CancellationIncidentDetectedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "cancellationId" to payload.cancellationId, "incidentSeq" to payload.incidentSeq, "reason" to payload.reason,
+                "riskHint" to payload.riskHint, "excessAmount" to payload.excessAmountMinor, "holdOpened" to payload.holdOpened, "holdOccurrence" to payload.holdOccurrence,
+                "observationSource" to payload.observationSource, "observationResultId" to payload.observationResultId, "observedOutcome" to payload.observedOutcome,
+                "observedAmount" to payload.observedAmountMinor, "observedCurrency" to payload.observedCurrency,
+                "observedProviderTransactionId" to payload.observedProviderTransactionId, "detectedAt" to format(payload.detectedAt),
+            ),
+        )
+        is CancellationOutcomeUnresolvedV1Payload -> mapper.writeValueAsString(
+            linkedMapOf(
+                "environment" to payload.environment.name, "merchantAccountId" to payload.merchantAccountId, "merchantOrderId" to payload.merchantOrderId,
+                "paymentId" to payload.paymentId, "cancellationId" to payload.cancellationId, "attemptId" to payload.attemptId, "requestId" to payload.requestId,
+                "inquiryCount" to payload.inquiryCount, "unknownSince" to format(payload.unknownSince), "escalatedAt" to format(payload.escalatedAt),
+                "configVersion" to payload.configVersion, "escalationReason" to payload.escalationReason.name,
+            ),
+        )
+        else -> error("not a cancellation payload")
     }
 
     private fun format(instant: Instant): String = TIMESTAMP.format(instant)

@@ -60,7 +60,7 @@ class OldVolumeStartSpec(
                 c.createStatement().use { st ->
                     st.executeQuery("SELECT GROUP_CONCAT(version ORDER BY installed_rank), MIN(success) FROM flyway_schema_history WHERE version IS NOT NULL").use { rs ->
                         rs.next()
-                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14"
+                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20"
                         rs.getBoolean(2) shouldBe true
                     }
                 }

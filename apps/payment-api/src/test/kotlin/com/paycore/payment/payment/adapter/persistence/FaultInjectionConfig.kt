@@ -1,6 +1,18 @@
 package com.paycore.payment.payment.adapter.persistence
 
 import com.paycore.payment.payment.adapter.query.JooqAuthorizationViewReader
+import com.paycore.payment.payment.application.required.CancellationRecoverySchedule
+import com.paycore.payment.payment.application.required.CancellationRecoveryScheduleStore
+import com.paycore.payment.payment.application.required.OperatorCancelRejection
+import com.paycore.payment.payment.application.required.OperatorCancelRejectionStore
+import com.paycore.payment.payment.application.required.PaymentCancellationRepository
+import com.paycore.payment.payment.application.required.ReturnBalanceRepository
+import com.paycore.payment.payment.domain.CancelAttemptId
+import com.paycore.payment.payment.domain.CancellationId
+import com.paycore.payment.payment.domain.MerchantCancelId
+import com.paycore.payment.payment.domain.OperatorApprovalId
+import com.paycore.payment.payment.domain.PaymentCancellation
+import com.paycore.payment.payment.domain.ReturnBalance
 import com.paycore.payment.payment.application.provided.CredentialKeyId
 import com.paycore.payment.payment.application.required.AuthenticationSessionAttributes
 import com.paycore.payment.payment.application.required.AuthenticationSessionEventRecord
@@ -72,6 +84,13 @@ enum class FaultPoint {
 
     /** AUTH-001 회복: 선점 커밋 뒤 Attempt 조회 **직전**(hook 인자 = AttemptId — 선점과 TXd 경합 재현, 검토 #3 m-1). */
     RECOVERY_BEFORE_FIND_ATTEMPT,
+
+    /** CANCEL-001 취소 Port(쓰기·잠금 직후 — TX1·TXd·TX2 rollback·경합 시험). */
+    CANCELLATION_INSERT, CANCELLATION_LOCK, CANCELLATION_UPDATE, RETURN_BALANCE_INSERT, RETURN_BALANCE_LOCK, RETURN_BALANCE_UPDATE,
+    CANCEL_SCHEDULE_INSERT, CANCEL_SCHEDULE_UPDATE, OPERATOR_REJECTION_APPEND,
+
+    /** CANCEL-001 S7: 취소 비권위 조회 직후(회복 판정과 잠금 사이의 경합 재현 — hook 인자 = 조회 행). */
+    CANCEL_VIEW_FIND,
 }
 
 /**
@@ -250,6 +269,71 @@ class FaultInjectionConfig {
             override fun append(event: AuthenticationSessionEventRecord): EventAppendResult = f.around(FaultPoint.AUTH_EVENT_APPEND) { real.append(event) }
 
             override fun findBySession(sessionId: AuthenticationSessionId): List<AuthenticationSessionEventRecord> = real.findBySession(sessionId)
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingCancellationViewReader(real: com.paycore.payment.payment.adapter.query.JooqCancellationViewReader, f: FaultInjector):
+        com.paycore.payment.payment.application.required.CancellationViewReader = object : com.paycore.payment.payment.application.required.CancellationViewReader {
+            override fun find(cancellationId: CancellationId) = f.around(FaultPoint.CANCEL_VIEW_FIND) { real.find(cancellationId) }
+
+            override fun findTarget(paymentId: PaymentId) = real.findTarget(paymentId)
+
+            override fun findAttempt(attemptId: CancelAttemptId) = real.findAttempt(attemptId)
+
+            override fun backlog() = real.backlog()
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingPaymentCancellationRepository(real: JpaPaymentCancellationRepository, f: FaultInjector): PaymentCancellationRepository =
+        object : PaymentCancellationRepository {
+            override fun insertNew(cancellation: PaymentCancellation): Long = f.around(FaultPoint.CANCELLATION_INSERT) { real.insertNew(cancellation) }
+
+            override fun lock(id: CancellationId): Versioned<PaymentCancellation>? = f.around(FaultPoint.CANCELLATION_LOCK) { real.lock(id) }
+
+            override fun find(id: CancellationId): PaymentCancellation? = real.find(id)
+
+            override fun findIdByMerchantKey(paymentId: PaymentId, merchantCancelId: MerchantCancelId): CancellationId? = real.findIdByMerchantKey(paymentId, merchantCancelId)
+
+            override fun findIdByApprovalId(approvalId: OperatorApprovalId): CancellationId? = real.findIdByApprovalId(approvalId)
+
+            override fun update(cancellation: PaymentCancellation, expectedVersion: Long): Long =
+                f.around(FaultPoint.CANCELLATION_UPDATE) { real.update(cancellation, expectedVersion) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingReturnBalanceRepository(real: JpaReturnBalanceRepository, f: FaultInjector): ReturnBalanceRepository =
+        object : ReturnBalanceRepository {
+            override fun insertNew(balance: ReturnBalance, at: java.time.Instant): Long = f.around(FaultPoint.RETURN_BALANCE_INSERT) { real.insertNew(balance, at) }
+
+            override fun lockByPaymentId(paymentId: PaymentId): Versioned<ReturnBalance>? = f.around(FaultPoint.RETURN_BALANCE_LOCK) { real.lockByPaymentId(paymentId) }
+
+            override fun update(balance: ReturnBalance, expectedVersion: Long, at: java.time.Instant): Long =
+                f.around(FaultPoint.RETURN_BALANCE_UPDATE) { real.update(balance, expectedVersion, at) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingCancellationRecoveryScheduleStore(real: JpaCancellationRecoveryScheduleStore, f: FaultInjector): CancellationRecoveryScheduleStore =
+        object : CancellationRecoveryScheduleStore {
+            override fun insert(schedule: CancellationRecoverySchedule, at: java.time.Instant) = f.around(FaultPoint.CANCEL_SCHEDULE_INSERT) { real.insert(schedule, at) }
+
+            override fun lock(attemptId: CancelAttemptId): CancellationRecoverySchedule? = real.lock(attemptId)
+
+            override fun update(schedule: CancellationRecoverySchedule, at: java.time.Instant) = f.around(FaultPoint.CANCEL_SCHEDULE_UPDATE) { real.update(schedule, at) }
+
+            override fun claimDue(now: java.time.Instant, limit: Int): List<CancellationRecoverySchedule> = real.claimDue(now, limit)
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingOperatorCancelRejectionStore(real: JpaOperatorCancelRejectionStore, f: FaultInjector): OperatorCancelRejectionStore =
+        object : OperatorCancelRejectionStore {
+            override fun append(rejection: OperatorCancelRejection) = f.around(FaultPoint.OPERATOR_REJECTION_APPEND) { real.append(rejection) }
+
+            override fun findByApproval(approvalId: OperatorApprovalId): List<OperatorCancelRejection> = real.findByApproval(approvalId)
         }
 
     @Bean

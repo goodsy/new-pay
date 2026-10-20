@@ -94,6 +94,15 @@ class DatabaseAccountSeparationSpec(
         "incident_hold_release" to "Select",
         // AUTH-001 V12·V13(§16.11 D-S6-1): 회복 일정은 bookkeeping — INSERT(TX1)·UPDATE(TXd·TX2·회복), 삭제 경로 없음(결론나면 closed_at).
         "authorization_recovery_schedule" to "Select,Insert,Update",
+        // CANCEL-001 V16·V19(명세 §8.2): 취소·Attempt·반환 잔액·예약은 INSERT·UPDATE, 취소 관찰은 append-only, 취소 회복 일정은 bookkeeping(삭제 경로 없음).
+        "payment_cancellation" to "Select,Insert,Update",
+        "cancel_attempt" to "Select,Insert,Update",
+        "cancel_observation" to "Select,Insert",
+        "return_balance" to "Select,Insert,Update",
+        "return_reservation" to "Select,Insert,Update",
+        "cancellation_recovery_schedule" to "Select,Insert,Update",
+        // D-CANCEL1-006: 운영자 명령 거절 감사는 append-only.
+        "operator_cancel_rejection" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -135,6 +144,13 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`limit_reservation` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT ON `paycore_payment`.`incident_hold_release` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authorization_recovery_schedule` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment_cancellation` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`cancel_attempt` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`cancel_observation` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`return_balance` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`return_reservation` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`cancellation_recovery_schedule` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`operator_cancel_rejection` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -340,7 +356,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

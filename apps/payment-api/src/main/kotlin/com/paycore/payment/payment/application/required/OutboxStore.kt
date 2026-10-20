@@ -145,6 +145,97 @@ data class AuthorizationOutcomeUnresolvedV1Payload(
     val escalationReason: EscalationReason,
 ) : OutboxPayload
 
+/**
+ * PaymentCancelled v1(CANCEL-001 §4.10 — FINANCIAL_FACT, effect_key `PaymentCancelled:{transactionId}` CN-13). CC §9.3 목록 + 원 승인 Plan·cardType(§9.3 — 원 Authorization에서). 카드번호·Secret·
+ * 운영자 개인정보·기관 계약계정 없음. 정책·권리 버전은 원 Authorization 고정값(INV-C6 — 현재 정책을 넣을 경로가 없다).
+ */
+data class PaymentCancelledV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantSiteId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val authorizationId: String,
+    val originalTransactionId: String,
+    val cancellationId: String,
+    val transactionId: String,
+    val amountMinor: Long,
+    val currency: String,
+    val scope: String,
+    val authorizedAmountMinor: Long,
+    val returnSequence: Int,
+    val cumulativeReturnedMinor: Long,
+    val returnStatusAfter: String,
+    val cancelApprovalNumber: String?,
+    val providerTransactionId: String,
+    val originalProviderTransactionId: String,
+    val institutionTransactionDate: java.time.LocalDate,
+    val institutionBusinessDate: java.time.LocalDate?,
+    val cancelledAt: Instant,
+    val policyAssignmentVersion: String,
+    val entitlementVersion: String,
+    val initiatorKind: String,
+    val originalPlanKind: String,
+    val originalInstallmentMonths: Int?,
+    val originalCardType: String,
+) : OutboxPayload
+
+/** PaymentCancelFailed v1(CANCEL-001 §4.10 — INTEGRATION_NON_FINANCIAL, 금융 효과 없음, effect_key `PaymentCancelFailed:{cancellationId}`). */
+data class PaymentCancelFailedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val cancellationId: String,
+    val amountMinor: Long,
+    val currency: String,
+    val failureEvidence: String,
+    val failureCategory: String,
+    val failedAt: Instant,
+) : OutboxPayload
+
+/**
+ * CancellationIncidentDetected v1(CANCEL-001 §4.10 — RISK_INCIDENT, **사건마다** D-CANCEL1-002, effect_key `{cancellationId}:{incidentSeq}`). 위험 힌트 HIGH, 잔액 초과(FORCED excess)면
+ * CRITICAL(D-CANCEL-006). 새 hold 여부와 사건을 연 관찰 키·조건을 담는다(RECON Case 입력 — 정산 대상 아님).
+ */
+data class CancellationIncidentDetectedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val cancellationId: String,
+    val incidentSeq: Int,
+    val reason: String,
+    val riskHint: String,
+    /** 승인액을 넘은 반환 가능 금액(이 Payment 누적, 초과가 아니면 0 — 검토 #3 n-4). 통화는 원승인 통화. */
+    val excessAmountMinor: Long,
+    val holdOpened: Boolean,
+    val holdOccurrence: Int?,
+    val observationSource: String?,
+    val observationResultId: String?,
+    val observedOutcome: String?,
+    val observedAmountMinor: Long?,
+    val observedCurrency: String?,
+    val observedProviderTransactionId: String?,
+    val detectedAt: Instant,
+) : OutboxPayload
+
+/** CancellationOutcomeUnresolved v1(CANCEL-001 §4.10·§7 — OPERATIONAL_RISK, 회복 예산 소진·연령 초과 → 대사 이관, 취소 UNKNOWN·예약 RESERVED 유지 — D-CANCEL1-003 임시 출구 없음). */
+data class CancellationOutcomeUnresolvedV1Payload(
+    val environment: Environment,
+    val merchantAccountId: String,
+    val merchantOrderId: String,
+    val paymentId: String,
+    val cancellationId: String,
+    val attemptId: String,
+    val requestId: String,
+    val inquiryCount: Int,
+    val unknownSince: Instant,
+    val escalatedAt: Instant,
+    val configVersion: String,
+    val escalationReason: EscalationReason,
+) : OutboxPayload
+
 /** 대사 이관 사유(검토 #3 m-4): 조회 예산 소진 또는 UNKNOWN 연령 상한(보존기간 도달 포함 — 기동 검사로 maxAge < 보존기간). */
 enum class EscalationReason { BUDGET, MAX_AGE }
 

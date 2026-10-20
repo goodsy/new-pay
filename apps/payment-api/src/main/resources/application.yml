@@ -68,6 +68,8 @@ logging:
 #   paycore.authentication.simulator.allow-loopback-http: 로컬 Demo·시험 전용(기본 false) — 켜야만 서버 간 URL에 http://127.0.0.1·localhost 허용
 #   paycore.authorization.timing.dispatch.{lease,safety-margin,prepared-deadline,gate-retry-interval}, paycore.authorization.timing.recovery.{enabled,fixed-delay,batch-size,
 #     inquiry-interval,inquiry-budget,max-age,slow-inquiry-interval,version} — AUTH-001 §4.4·§6, Demo 값(조회 예산·연령은 D-AUTH-009 버전 있는 설정, version은 일정 행·이관 이벤트에 기록 — 검토 #3 m-4)
+#   paycore.cancellation.timing.dispatch.{lease,safety-margin,prepared-deadline,gate-retry-interval}, paycore.cancellation.timing.recovery.{enabled,fixed-delay,batch-size,
+#     inquiry-interval,inquiry-budget,max-age,slow-inquiry-interval,version} — CANCEL-001 CN-29, Demo 값(승인 설정과 같은 모양·따로 버전 관리, 운영 기본값 없음)
 #   paycore.authorization.backends.<TEST>.type(SIMULATOR만 — REAL·LIVE SIMULATOR는 기동 거부, AUTH-001 §5.6), paycore.authorization.allowed-hosts(loopback 밖 Simulator host 허용 목록)
 #   paycore.authorization.routes.<routeRef>.{environment,institution,protocol-version(sim-van-1),profile-version,host,port,key-id,key-base64(환경변수 — 32바이트 이상),
 #     connect-timeout,read-timeout,total-deadline,connect-retry-budget,capabilities.{confirms-no-effect,closable-after,inquiry-retention,same-id-resend-safe,

@@ -86,6 +86,13 @@ class SimulatorArchitectureSpec : FunSpec({
         classes.get("$BASE_PACKAGE.van.adapter.persistence.JpaVanLedgerEntryEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
     }
 
+    // CANCEL-001 §6.5: 취소 원장도 append-only — 읽기(find·승인 합계 한 스냅샷)와 INSERT만.
+    test("the virtual VAN cancel ledger has no update or delete path (append-only store, immutable entity)") {
+        val store = classes.get("$BASE_PACKAGE.van.application.required.VanCancelLedgerStore")
+        store.methods.map { it.name }.toSet() shouldBe setOf("find", "insert", "approvedTotals")
+        classes.get("$BASE_PACKAGE.van.adapter.persistence.JpaVanCancelEntryEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
+    }
+
     test("the simulator has no REAL institution client and no card-number field (virtual card references only)") {
         classes.filter { it.simpleName.startsWith("Real") }.map { it.name } shouldBe emptyList()
         classes.flatMap { c -> c.fields.map { it.name.lowercase() } }.filter { it.contains("cardnumber") || it == "pan" || it.contains("cvc") } shouldBe emptyList()

@@ -6,7 +6,8 @@ import java.time.LocalDate
 /**
  * 기관이 확정한 취소 조건(취소 성공 관찰에만, CANCEL-CONTRACT-001 §4.1). [originalProviderTransactionId]는 취소한 원 승인 거래의 기관 거래 식별자,
  * [providerTransactionId]는 취소 자체의 기관 거래 식별자다. 취소 승인번호는 기관이 주지 않을 수 있다(null, 빈 문자열은 거부). [institutionTransactionDate]는
- * 기관 취소 거래일 — 정산 거래일(취소 완료일)의 근거이며 PG 수신 시각과 구분한다(K-8·K-9, 시간대 규약은 Q-CALENDAR).
+ * 기관 취소 거래일 — 정산 거래일(취소 완료일)의 근거이며 PG 수신 시각과 구분한다(K-8·K-9, 시간대 규약은 Q-CALENDAR). [institutionBusinessDate]는 기관이 주면 보존만
+ * 한다(CANCEL-001 F-12 — 승인 `ApprovedTerms`와 같은 모양, 의미·정산 적용은 Q-CALENDAR).
  */
 data class CancelConfirmedTerms(
     val money: Money,
@@ -14,6 +15,7 @@ data class CancelConfirmedTerms(
     val providerTransactionId: String,
     val cancelApprovalNumber: String?,
     val institutionTransactionDate: LocalDate,
+    val institutionBusinessDate: LocalDate? = null,
 ) {
     init {
         require(originalProviderTransactionId.isNotEmpty() && providerTransactionId.isNotEmpty()) {

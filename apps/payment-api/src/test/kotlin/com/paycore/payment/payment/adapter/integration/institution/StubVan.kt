@@ -103,6 +103,19 @@ class StubVan(private val handler: (JsonNode) -> Action) : Closeable {
 
         fun golden(name: String): ObjectNode = GOLDEN.get("messages").get(name).deepCopy() as ObjectNode
 
+        /** sim-van-2 golden(CANCEL-001 §6.1 — sim-van-1 전부 + 취소 4종, 같은 시험 키). */
+        val GOLDEN_V2: JsonNode = MAPPER.readTree(ClassPathResource("contracts/van-contract-sim-van-2.golden.json").inputStream)
+
+        fun goldenV2(name: String): ObjectNode = GOLDEN_V2.get("messages").get(name).deepCopy() as ObjectNode
+
+        /** 취소 요청에 맞춘 sim-van-2 golden 응답(inReplyTo·requestId/inquiryId·originalRequestId echo). */
+        fun replyV2(name: String, request: JsonNode): ObjectNode = goldenV2(name).also { r ->
+            r.put("inReplyTo", request.get("messageId").stringValue())
+            if (r.has("requestId")) r.put("requestId", request.get("requestId").stringValue())
+            if (r.has("inquiryId")) r.put("inquiryId", request.get("inquiryId").stringValue())
+            if (r.has("originalRequestId")) r.put("originalRequestId", request.get("originalRequestId").stringValue())
+        }
+
         fun bytes(node: JsonNode): ByteArray = MAPPER.writeValueAsBytes(node)
 
         fun frame(keyId: String, key: ByteArray, payload: ByteArray, brokenMac: Boolean = false): ByteArray {

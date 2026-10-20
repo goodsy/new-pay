@@ -53,6 +53,9 @@ class VanLedgerPrivilegeGuard(private val dataSource: DataSource) : SmartInitial
             "DELETE FROM van_pending_decision WHERE 1 = 0",
             "UPDATE lookup_log SET looked_up_at = looked_up_at WHERE 1 = 0",
             "DELETE FROM lookup_log WHERE 1 = 0",
+            // CANCEL-001 §6.5: 취소 원장도 append-only 기관 금융 사실 원본.
+            "UPDATE van_cancel_entry SET created_at = created_at WHERE 1 = 0",
+            "DELETE FROM van_cancel_entry WHERE 1 = 0",
         )
     }
 }

@@ -284,6 +284,13 @@ class ArchitectureSpec : FunSpec({
             details.size shouldBe 1
             details.single() shouldContain "$DOMAIN.ReturnBalance\$Companion.reconstitute"
         }
+        // CANCEL-001 F-1: 취소 operation 복원도 persistence adapter만(복원 Mapper는 S2).
+        val cancellationRestoreRule = paymentCancellationRestoredOnlyByPersistence()
+        cancellationRestoreRule.check(classes)
+        violationsOf(cancellationRestoreRule, "com.paycore.archfixture.cancelstart", com.paycore.archfixture.cancelstart.DirectCancellationReconstitute::class.java).let { details ->
+            details.size shouldBe 1
+            details.single() shouldContain "$DOMAIN.PaymentCancellation\$Companion.reconstitute"
+        }
     }
 
     test("a cancel start input does not depend on the daily limit, entitlement or authorization-admission types (K-3, D-AUTH-007, review deviation 3)") {
@@ -292,6 +299,26 @@ class ArchitectureSpec : FunSpec({
         val details = violationsOf(cancelStartIndependentOfLimitAndEntitlement(setOf(fixture.name)), "com.paycore.archfixture.cancelstart", fixture)
         details.isNotEmpty() shouldBe true
         details.all { it.contains("DailyLimitUsage") } shouldBe true
+    }
+
+    // CANCEL-001 §4.2 K-3(application 쪽): 취소 단계 서비스는 신규 승인 권리·허용 판정·일 한도 Port에 의존하지 않는다.
+    test("the cancel services do not depend on admission, entitlement head, eligibility or daily limit ports (K-3)") {
+        val names = setOf(
+            "$BASE_PACKAGE.payment.application.CancelStartService", "$BASE_PACKAGE.payment.application.CancelPaymentService", "$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService",
+            // 검토 #3 n-2: 전송·결과 반영·회복 서비스도.
+            "$BASE_PACKAGE.payment.application.CancellationDispatchService", "$BASE_PACKAGE.payment.application.CancellationResultService",
+            "$BASE_PACKAGE.payment.application.CancellationRecoveryService",
+        )
+        names.forEach { classes.contain(it) shouldBe true }
+        cancelServicesIndependentOfAdmission(names).check(classes)
+    }
+
+    // rev 0.3 m-5(D-CANCEL1-001): 운영자 보정 취소 Use Case는 진입점이 없다 — 서비스 구현·Use Case 자신 밖의 어떤 main 클래스(adapter·다른 모듈)도 부르지 않는다. ADMIN-BOOT-001이 진입점을 열 때 이
+    // 규칙을 그 adapter 허용으로 바꾼다.
+    test("nothing in main calls OperatorCorrectionCancelUseCase except its service (no entry point — D-CANCEL1-001, m-5)") {
+        operatorCorrectionCancelHasNoEntryPoint().check(classes)
+        val fixture = com.paycore.archfixture.operatorcancel.OperatorCancelEntryPoint::class.java
+        violationsOf(operatorCorrectionCancelHasNoEntryPoint(), "com.paycore.archfixture.operatorcancel", fixture).isNotEmpty() shouldBe true
     }
 
     test("authentication sessions are created only through AuthenticationSessionStart, which supersedes earlier sessions first (AUTHN-001 §7.1·§17.3)") {
@@ -342,6 +369,16 @@ class ArchitectureSpec : FunSpec({
         classes.filter { c -> c.interfaces.any { it.name == AUTHORIZATION_PORT || it.name == AUTHORIZATION_INQUIRY_PORT } }.map { it.simpleName } shouldBe
             listOf("SimulatorVanAuthorizationAdapter")
         val fixture = com.paycore.archfixture.institution.RealVanAuthorizationAdapter::class.java
+        shouldThrow<AssertionError> { rule.check(fixtureClasses("com.paycore.archfixture.institution", fixture)) }.message shouldContain fixture.simpleName
+    }
+
+    // CANCEL-001 §6.6: 취소·취소 조회 Port도 Simulator adapter만 구현한다(REAL 없음).
+    test("CancellationPort and CancelInquiryPort are implemented only by the Simulator adapter in adapter.integration.institution — no REAL VAN adapter (CANCEL-001 §6.6)") {
+        val rule = cancellationPortsImplementedOnlyBySimulatorAdapter()
+        rule.check(classes)
+        classes.filter { c -> c.interfaces.any { it.name == CANCELLATION_PORT || it.name == CANCEL_INQUIRY_PORT } }.map { it.simpleName } shouldBe
+            listOf("SimulatorVanCancellationAdapter")
+        val fixture = com.paycore.archfixture.institution.RealVanCancellationAdapter::class.java
         shouldThrow<AssertionError> { rule.check(fixtureClasses("com.paycore.archfixture.institution", fixture)) }.message shouldContain fixture.simpleName
     }
 
@@ -526,6 +563,36 @@ class ArchitectureSpec : FunSpec({
                 .allowEmptyShould(true)
                 .`as`("only the persistence adapter restores a ReturnBalance")
 
+        /** 취소 operation 영속 복원은 persistence adapter(Mapper)만(CANCEL-001 F-1). */
+        fun paymentCancellationRestoredOnlyByPersistence(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().resideOutsideOfPackage("$BASE_PACKAGE.payment.adapter.persistence..")
+                .should().accessTargetWhere(accessTo("target restores a cancellation", mapOf("$DOMAIN.PaymentCancellation\$Companion" to setOf("reconstitute"))))
+                .allowEmptyShould(true)
+                .`as`("only the persistence adapter restores a PaymentCancellation")
+
+        fun cancelServicesIndependentOfAdmission(names: Set<String>): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("cancel services") { c: com.tngtech.archunit.core.domain.JavaClass -> c.name in names })
+                .should().dependOnClassesThat(
+                    com.tngtech.archunit.base.DescribedPredicate.describe("admission, entitlement head, eligibility or daily limit ports") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                        c.name in setOf(
+                            "$BASE_PACKAGE.payment.application.required.AuthorizationAdmissionPort", "$BASE_PACKAGE.payment.application.required.EntitlementHeadLockPort",
+                            "$BASE_PACKAGE.payment.application.required.PaymentEligibilityPort", "$BASE_PACKAGE.payment.application.required.DailyLimitUsageRepository",
+                        ) || c.packageName.startsWith("$BASE_PACKAGE.entitlement")
+                    },
+                )
+                .`as`("cancel services never evaluate new-payment rights or daily limits (K-3)")
+
+        fun operatorCorrectionCancelHasNoEntryPoint(): com.tngtech.archunit.lang.ArchRule {
+            val useCase = "$BASE_PACKAGE.payment.application.provided.OperatorCorrectionCancelUseCase"
+            return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().doNotHaveFullyQualifiedName(useCase).and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService")
+                .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService\$Companion")
+                .should().dependOnClassesThat().haveFullyQualifiedName(useCase)
+                .`as`("OperatorCorrectionCancelUseCase has no caller in main (no entry point before ADMIN-BOOT-001)")
+        }
+
         /** 취소 시작은 일 한도·신규 승인 권리(entitlement)·승인 시작 판정 근거에 의존하지 않는다(K-3, D-AUTH-007). */
         fun cancelStartIndependentOfLimitAndEntitlement(names: Set<String>): com.tngtech.archunit.lang.ArchRule =
             com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
@@ -586,6 +653,13 @@ class ArchitectureSpec : FunSpec({
 
         const val AUTHORIZATION_PORT = "$BASE_PACKAGE.payment.application.required.AuthorizationPort"
         const val AUTHORIZATION_INQUIRY_PORT = "$BASE_PACKAGE.payment.application.required.AuthorizationInquiryPort"
+        const val CANCELLATION_PORT = "$BASE_PACKAGE.payment.application.required.CancellationPort"
+        const val CANCEL_INQUIRY_PORT = "$BASE_PACKAGE.payment.application.required.CancelInquiryPort"
+
+        fun cancellationPortsImplementedOnlyBySimulatorAdapter(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().implement(CANCELLATION_PORT).or().implement(CANCEL_INQUIRY_PORT)
+                .should().resideInAPackage("$BASE_PACKAGE..adapter.integration.institution..").andShould().haveSimpleNameStartingWith("Simulator")
+                .`as`("only the Simulator adapter in adapter.integration.institution implements CancellationPort/CancelInquiryPort (no REAL VAN adapter)")
 
         /** AUTH-001 §5.6 겹 1: 승인·조회 Port 구현은 `..adapter.integration.institution..`의 `Simulator*`만(REAL VAN adapter 없음). */
         fun authorizationPortsImplementedOnlyBySimulatorAdapter(): com.tngtech.archunit.lang.ArchRule =
@@ -684,6 +758,8 @@ class ArchitectureSpec : FunSpec({
                 "AuthorizationStart", "AuthorizationResolution", "RequestedPaymentExpiry",
                 // AUTHN-001(검토 n-1): 인증 시작·결과 판정 domain 서비스도 기관 adapter가 부르지 않는다(Port 결과만 돌려준다).
                 "AuthenticationResultCheck", "AuthenticationSessionStart",
+                // CANCEL-001 §6.6: 취소 Aggregate·전이 domain 서비스도 기관 adapter가 부르지 않는다(관찰만 돌려준다).
+                "PaymentCancellation", "CancelAttempt", "ReturnBalance", "CancelStart", "CancellationResolution",
             ).map { "$DOMAIN.$it" }
             return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
                 .that().resideInAPackage("..adapter..institution..")

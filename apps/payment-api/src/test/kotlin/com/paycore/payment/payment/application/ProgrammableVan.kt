@@ -2,6 +2,10 @@ package com.paycore.payment.payment.application
 
 import com.paycore.payment.payment.adapter.integration.institution.ConfiguredInstitutionRouteRegistry
 import com.paycore.payment.payment.adapter.integration.institution.SimulatorVanAuthorizationAdapter
+import com.paycore.payment.payment.adapter.integration.institution.SimulatorVanCancellationAdapter
+import com.paycore.payment.payment.application.required.CancellationCall
+import com.paycore.payment.payment.application.required.CancellationCallResult
+import com.paycore.payment.payment.application.required.CancellationPort
 import com.paycore.payment.payment.adapter.integration.institution.StubVan
 import com.paycore.payment.payment.adapter.integration.institution.StubVan.Action
 import com.paycore.payment.payment.application.required.AuthorizationCall
@@ -42,12 +46,60 @@ class ProgrammableVan : AutoCloseable {
     private val inquiryScripts = ConcurrentHashMap<String, (JsonNode) -> Action?>() // requestId → 조회 대본(null = 원장 의미)
     private val seq = AtomicInteger()
 
+    // CANCEL-001 S6: sim-van-2 취소 원장(취소 요청 ID별 결정 한 번 — 재전송은 같은 결정), 취소 무효과 종결 표지, MID별 취소 대본.
+    val cancelRequests = CopyOnWriteArrayList<JsonNode>()
+    val cancelInquiries = CopyOnWriteArrayList<JsonNode>()
+    private val cancelLedger = ConcurrentHashMap<String, ObjectNode>() // cancel requestId → CANCEL_RESPONSE(결정)
+    private val cancelClosures = ConcurrentHashMap<String, String>()
+    private val cancelScripts = ConcurrentHashMap<String, (JsonNode) -> Script>()
+    private val cancelInquiryScripts = ConcurrentHashMap<String, (JsonNode) -> Action?>()
+
     private val stub = StubVan { request -> handle(request) }
     val port: Int get() = stub.port
 
     fun onAuth(mid: String, script: (JsonNode) -> Script) {
         scripts[mid] = script
     }
+
+    fun onCancel(mid: String, script: (JsonNode) -> Script) {
+        cancelScripts[mid] = script
+    }
+
+    fun onCancelInquiry(cancelRequestId: String, script: (JsonNode) -> Action?) {
+        cancelInquiryScripts[cancelRequestId] = script
+    }
+
+    /** 취소 원장에 결정을 직접 넣는다(대사·통보를 흉내 내는 시험 절차). */
+    fun recordCancel(cancelRequestId: String, decision: ObjectNode) {
+        cancelLedger.putIfAbsent(cancelRequestId, decision)
+    }
+
+    fun cancelRequestsFor(mid: String): List<JsonNode> = cancelRequests.filter { it.get("merchantRef").stringValue() == mid }
+
+    fun cancelDecided(cancelRequestId: String): ObjectNode? = cancelLedger[cancelRequestId]
+
+    fun cancelInquiriesFor(cancelRequestId: String): List<JsonNode> = cancelInquiries.filter { it.get("originalRequestId").stringValue() == cancelRequestId }
+
+    fun cancelClosureFor(cancelRequestId: String): String? = cancelClosures[cancelRequestId]
+
+    /** 취소 승인(요청 금액·통화·원 PTX echo, 시험마다 새 decisionId·취소 승인번호·취소 PTX). [mutate]로 조건 불일치 승인을 만든다. */
+    fun cancelApproved(request: JsonNode, mutate: (ObjectNode) -> Unit = {}): ObjectNode = StubVan.replyV2("cancelResponseApproved", request).also { r ->
+        val n = seq.incrementAndGet()
+        r.put("decisionId", "vd_" + ulid())
+        r.put("cancelApprovalNumber", "4" + "%07d".format(n))
+        r.put("providerTransactionId", "SIMPTX-C" + UUID.randomUUID().toString().replace("-", "").take(15))
+        r.put("originalProviderTransactionId", request.get("originalProviderTransactionId").stringValue())
+        r.put("cancelledAmountMinor", request.get("cancelAmountMinor").longValue())
+        r.put("currency", request.get("currency").stringValue())
+        mutate(r)
+    }
+
+    fun approveCancel(request: JsonNode): Script = Script(cancelApproved(request))
+
+    fun declineCancel(request: JsonNode, category: String = "ISSUER_DECLINED"): Script =
+        Script(StubVan.replyV2("cancelResponseDeclined", request).put("decisionId", "vd_" + ulid()).put("declineCategory", category))
+
+    fun pendingCancel(request: JsonNode): Script = Script(StubVan.replyV2("cancelResponsePending", request).put("pendingId", "vp_" + ulid()))
 
     fun onInquiry(requestId: String, script: (JsonNode) -> Action?) {
         inquiryScripts[requestId] = script
@@ -91,6 +143,25 @@ class ProgrammableVan : AutoCloseable {
                 }
             }
         }
+        "CANCEL_REQUEST" -> {
+            cancelRequests.add(request)
+            val rid = request.get("requestId").stringValue()
+            val existing = cancelLedger[rid]
+            when {
+                cancelClosures.containsKey(rid) -> Action.Respond(StubVan.bytes(StubVan.replyV2("cancelResponseRejectedClosed", request)))
+                existing != null -> Action.Respond(StubVan.bytes(existing.deepCopy().put("inReplyTo", request.get("messageId").stringValue())))
+                else -> {
+                    val script = (cancelScripts[request.get("merchantRef").stringValue()] ?: ::approveCancel)(request)
+                    script.decision?.let { cancelLedger.putIfAbsent(rid, it) }
+                    script.transport ?: Action.Respond(StubVan.bytes(checkNotNull(script.decision) { "no decision and no transport" }))
+                }
+            }
+        }
+        "CANCEL_INQUIRY_REQUEST" -> {
+            cancelInquiries.add(request)
+            val rid = request.get("originalRequestId").stringValue()
+            cancelInquiryScripts[rid]?.invoke(request) ?: cancelInquiryReply(request, rid)
+        }
         else -> {
             inquiries.add(request)
             val rid = request.get("originalRequestId").stringValue()
@@ -111,6 +182,36 @@ class ProgrammableVan : AutoCloseable {
                 StubVan.reply("inquiryResponseNoEffectConfirmed", request).put("closureId", closureId)
             }
             else -> StubVan.reply("inquiryResponseNotFound", request)
+        }
+        return Action.Respond(StubVan.bytes(reply))
+    }
+
+    private fun cancelInquiryReply(request: JsonNode, rid: String): Action {
+        val decision = cancelLedger[rid]
+        val reply: ObjectNode = when {
+            decision != null && decision.get("outcome").stringValue() == "PENDING" ->
+                StubVan.replyV2("cancelInquiryResponsePending", request).put("pendingId", decision.get("pendingId").stringValue())
+            decision != null -> {
+                val base = if (decision.get("outcome").stringValue() == "APPROVED") StubVan.goldenV2("cancelInquiryResponseFound") else StubVan.goldenV2("cancelInquiryResponseFoundDeclined")
+                val out = StubVan.MAPPER.createObjectNode()
+                // 결정 필드는 기록된 결정에서(없는 선택 필드 — 취소 승인번호 등 — 는 생략), 봉투는 조회 요청에서.
+                base.properties().forEach { (k, v) ->
+                    when {
+                        k in setOf("type", "inReplyTo", "inquiryId", "originalRequestId", "result", "respondedAt") -> out.set(k, v)
+                        decision.has(k) -> out.set(k, decision.get(k))
+                    }
+                }
+                decision.properties().forEach { (k, v) -> if (k == "cancelApprovalNumber" && !out.has(k)) out.set(k, v) }
+                out.put("inReplyTo", request.get("messageId").stringValue()).put("inquiryId", request.get("inquiryId").stringValue())
+                    .put("originalRequestId", request.get("originalRequestId").stringValue())
+            }
+            cancelClosures.containsKey(rid) -> StubVan.replyV2("cancelInquiryResponseNoEffectConfirmed", request).put("closureId", cancelClosures.getValue(rid))
+            request.get("closeIfAbsent").booleanValue() -> {
+                val closureId = "vc_" + ulid()
+                cancelClosures[rid] = closureId
+                StubVan.replyV2("cancelInquiryResponseNoEffectConfirmed", request).put("closureId", closureId)
+            }
+            else -> StubVan.replyV2("cancelInquiryResponseNotFound", request)
         }
         return Action.Respond(StubVan.bytes(reply))
     }
@@ -196,8 +297,43 @@ class ObservedAuthorizationPort(private val real: SimulatorVanAuthorizationAdapt
     }
 }
 
+/**
+ * 운영 [SimulatorVanCancellationAdapter]를 감싼 취소 Port(@Primary, 시험 전용 — CANCEL-001 S6): 호출마다 호출 스레드에 실제 DB TX가 있었는지 기록하고(K-13 — 외부 호출은 TX 밖),
+ * [throwOnCall]이면 연결 전에 예외를 던진다(검토 #2 n-4 — 전송자 결함은 OutcomeUnknown으로 반영돼야 한다).
+ */
+class ObservedCancellationPort(private val real: SimulatorVanCancellationAdapter) : CancellationPort {
+    val transactionActiveAtCall = CopyOnWriteArrayList<Boolean>()
+
+    @Volatile
+    var throwOnCall: Boolean = false
+
+    override fun cancel(call: CancellationCall): CancellationCallResult {
+        transactionActiveAtCall.add(TransactionSynchronizationManager.isActualTransactionActive())
+        if (throwOnCall) throw IllegalStateException("injected sender defect")
+        return real.cancel(call)
+    }
+}
+
+/** 운영 [SimulatorVanCancellationAdapter]를 감싼 취소 조회 Port(@Primary, 시험 전용 — 검토 #3 n-4): 호출 스레드에 DB TX가 있었는지 기록한다(회복 조회는 TX 밖). */
+class ObservedCancelInquiryPort(private val real: SimulatorVanCancellationAdapter) : com.paycore.payment.payment.application.required.CancelInquiryPort {
+    val transactionActiveAtCall = CopyOnWriteArrayList<Boolean>()
+
+    override fun inquire(call: com.paycore.payment.payment.application.required.CancelInquiryCall): com.paycore.payment.payment.application.required.CancelInquiryCallResult {
+        transactionActiveAtCall.add(TransactionSynchronizationManager.isActualTransactionActive())
+        return real.inquire(call)
+    }
+}
+
 @TestConfiguration(proxyBeanMethods = false)
 class ProgrammableVanTestConfig {
+    @Bean
+    @Primary
+    fun observedCancelInquiryPort(real: SimulatorVanCancellationAdapter): ObservedCancelInquiryPort = ObservedCancelInquiryPort(real)
+
+    @Bean
+    @Primary
+    fun observedCancellationPort(real: SimulatorVanCancellationAdapter): ObservedCancellationPort = ObservedCancellationPort(real)
+
     @Bean
     @Primary
     fun observedAuthorizationPort(real: SimulatorVanAuthorizationAdapter): ObservedAuthorizationPort = ObservedAuthorizationPort(real)
@@ -219,10 +355,12 @@ class ProgrammableVanTestConfig {
     @Bean(destroyMethod = "close")
     fun programmableVan(): ProgrammableVan = ProgrammableVan()
 
-    /** 시험 Route `SIM-VAN-01`(프로파일 A)·`SIM-VAN-B`(프로파일 B — 무효과 확정 없음)가 이 stub의 포트를 가리키게 한다(운영 설정에는 포트 기본값 없음). */
+    /** 시험 Route(CANCEL-001: `SIM-VAN-C`·`SIM-VAN-CB` sim-van-2 포함) `SIM-VAN-01`(프로파일 A)·`SIM-VAN-B`(프로파일 B — 무효과 확정 없음)가 이 stub의 포트를 가리키게 한다(운영 설정에는 포트 기본값 없음). */
     @Bean
     fun programmableVanRoute(van: ProgrammableVan): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->
         registry.add("paycore.authorization.routes.SIM-VAN-01.port") { van.port }
         registry.add("paycore.authorization.routes.SIM-VAN-B.port") { van.port }
+        registry.add("paycore.authorization.routes.SIM-VAN-C.port") { van.port }
+        registry.add("paycore.authorization.routes.SIM-VAN-CB.port") { van.port }
     }
 }

@@ -14,6 +14,6 @@ import java.time.Instant
 /** ArchUnit 위반 fixture(시험 전용, 실행하지 않는다): 취소 시작 밖에서 취소 operation을 연다(반환 예약 없이). 대상 = PaymentCancellation.Companion.open. */
 class DirectCancellationOpen {
     fun bypass(payment: Payment, authorization: PaymentAuthorization, money: Money, initiator: CancelInitiator, request: ProviderRequestRef, at: Instant) {
-        PaymentCancellation.open(CancellationId("x"), payment, authorization, money, CancelScope.PARTIAL, initiator, CancelAttemptId("x"), request, at)
+        PaymentCancellation.open(CancellationId("x"), payment, authorization, money, CancelScope.PARTIAL, initiator, CancelAttemptId("x"), request, "v", at)
     }
 }

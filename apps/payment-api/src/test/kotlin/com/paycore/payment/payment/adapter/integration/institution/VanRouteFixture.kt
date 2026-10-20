@@ -8,6 +8,7 @@ object VanRouteFixture {
         confirmsNoEffect: Boolean = true,
         closableAfter: Duration = Duration.ofMinutes(2),
         inquiryRetention: Duration = Duration.ofDays(7),
+        cancel: ConfiguredInstitutionRouteRegistry.CancelCapabilities? = null,
     ) = ConfiguredInstitutionRouteRegistry.Capabilities(
         confirmsNoEffect = confirmsNoEffect,
         closableAfter = closableAfter,
@@ -19,6 +20,20 @@ object VanRouteFixture {
         installmentCardTypes = listOf("CREDIT"),
         installmentMonths = listOf(2, 3, 6),
         installmentMinimumAmount = 50_000,
+        cancel = cancel,
+    )
+
+    /** 취소 Capability(CANCEL-001 §6.6 CN-28 — Demo): 부분취소 = 신용·체크 일시불 + 신용 할부(프로파일 A 모양). */
+    fun cancelCapabilities(
+        version: String = "cancel-a-demo-1",
+        confirmsNoEffect: Boolean = true,
+        closableAfter: Duration = Duration.ofMinutes(2),
+        inquiryRetention: Duration = Duration.ofDays(7),
+        partialLumpSumCardTypes: List<String> = listOf("CREDIT", "CHECK"),
+        partialInstallmentCardTypes: List<String> = listOf("CREDIT"),
+    ) = ConfiguredInstitutionRouteRegistry.CancelCapabilities(
+        version = version, partialLumpSumCardTypes = partialLumpSumCardTypes, partialInstallmentCardTypes = partialInstallmentCardTypes,
+        confirmsNoEffect = confirmsNoEffect, closableAfter = closableAfter, inquiryRetention = inquiryRetention,
     )
 
     fun route(
@@ -35,10 +50,26 @@ object VanRouteFixture {
         closableAfter: Duration = Duration.ofMinutes(2),
         inquiryRetention: Duration = Duration.ofDays(7),
         profileVersion: String = "sim-van-a-demo-1",
+        cancel: ConfiguredInstitutionRouteRegistry.CancelCapabilities? = null,
+        institution: String = "SIMVAN",
     ) = ConfiguredInstitutionRouteRegistry.Route(
-        environment = environment, institution = "SIMVAN", protocolVersion = protocolVersion, profileVersion = profileVersion, host = host, port = port,
+        environment = environment, institution = institution, protocolVersion = protocolVersion, profileVersion = profileVersion, host = host, port = port,
         keyId = StubVan.KEY_ID, keyBase64 = keyBase64, connectTimeout = connectTimeout, readTimeout = readTimeout, totalDeadline = totalDeadline,
-        connectRetryBudget = connectRetryBudget, capabilities = capabilities(confirmsNoEffect, closableAfter, inquiryRetention),
+        connectRetryBudget = connectRetryBudget, capabilities = capabilities(confirmsNoEffect, closableAfter, inquiryRetention, cancel),
+    )
+
+    /** sim-van-2 Route(취소 Capability 블록 포함 — CN-28). */
+    fun cancelRoute(
+        port: Int,
+        cancel: ConfiguredInstitutionRouteRegistry.CancelCapabilities = cancelCapabilities(),
+        environment: String = "TEST",
+        institution: String = "SIMVAN",
+        readTimeout: Duration = Duration.ofMillis(800),
+        totalDeadline: Duration = Duration.ofSeconds(2),
+        connectRetryBudget: Int = 2,
+    ) = route(
+        port, protocolVersion = "sim-van-2", profileVersion = "sim-van-a-demo-2", cancel = cancel, environment = environment, institution = institution,
+        readTimeout = readTimeout, totalDeadline = totalDeadline, connectRetryBudget = connectRetryBudget,
     )
 
     fun registry(vararg routes: Pair<String, ConfiguredInstitutionRouteRegistry.Route>, backendType: String = "SIMULATOR", backendEnvironment: String = "TEST") =

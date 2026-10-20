@@ -111,5 +111,20 @@ internal object PersistenceFailures {
         "payment_transaction.uk_payment_transaction_authorization" to StoreConstraint.PAYMENT_TRANSACTION_AUTHORIZATION,
         "daily_limit_usage.PRIMARY" to StoreConstraint.DAILY_LIMIT_USAGE,
         "limit_reservation.PRIMARY" to StoreConstraint.LIMIT_RESERVATION,
-    )
+        "payment_cancellation.PRIMARY" to StoreConstraint.PAYMENT_CANCELLATION_ID,
+        "payment_cancellation.uk_payment_cancellation_merchant_key" to StoreConstraint.PAYMENT_CANCELLATION_MERCHANT_KEY,
+        "payment_cancellation.uk_payment_cancellation_approval" to StoreConstraint.PAYMENT_CANCELLATION_APPROVAL,
+        "payment_cancellation.uk_payment_cancellation_in_flight" to StoreConstraint.PAYMENT_CANCELLATION_IN_FLIGHT,
+        "cancel_attempt.PRIMARY" to StoreConstraint.CANCEL_ATTEMPT_ID,
+        "cancel_attempt.uk_cancel_attempt_cancellation" to StoreConstraint.CANCEL_ATTEMPT_CANCELLATION,
+        "cancel_attempt.uk_cancel_attempt_namespace" to StoreConstraint.CANCEL_ATTEMPT_NAMESPACE,
+        "cancel_observation.uk_cancel_observation_key" to StoreConstraint.CANCEL_OBSERVATION,
+        "return_balance.PRIMARY" to StoreConstraint.RETURN_BALANCE,
+        "return_balance.uk_return_balance_authorization" to StoreConstraint.RETURN_BALANCE,
+        "return_reservation.PRIMARY" to StoreConstraint.RETURN_RESERVATION,
+        "return_reservation.uk_return_reservation_seq" to StoreConstraint.RETURN_RESERVATION,
+        "return_reservation.uk_return_reservation_in_flight" to StoreConstraint.RETURN_RESERVATION_IN_FLIGHT,
+        "return_reservation.uk_return_reservation_completion" to StoreConstraint.RETURN_RESERVATION_SEQUENCE,
+        "payment_transaction.uk_payment_transaction_cancellation" to StoreConstraint.PAYMENT_TRANSACTION_CANCELLATION,
+        "cancellation_recovery_schedule.PRIMARY" to StoreConstraint.CANCELLATION_RECOVERY_SCHEDULE,    )
 }

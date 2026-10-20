@@ -48,6 +48,11 @@ class JpaVanInquiryLogEntity protected constructor() {
     lateinit var result: String
         protected set
 
+    /** 조회 operation(CANCEL-001 V6 — NULL = V6 이전 승인 조회 행). */
+    @field:Column(name = "operation", updatable = false, length = 16)
+    var operation: String? = null
+        protected set
+
     @field:Column(name = "created_at", nullable = false, updatable = false)
     lateinit var createdAt: Instant
         protected set
@@ -62,7 +67,7 @@ class JpaVanInquiryLogEntity protected constructor() {
         @Suppress("LongParameterList")
         fun newRow(
             clientId: String, environment: String, institutionAccount: String, originalRequestId: String, inquiryId: String, requestKind: String, result: String,
-            createdAt: Instant,
+            operation: String, createdAt: Instant,
         ) = JpaVanInquiryLogEntity().also {
             it.clientId = clientId
             it.environment = environment
@@ -71,6 +76,7 @@ class JpaVanInquiryLogEntity protected constructor() {
             it.inquiryId = inquiryId
             it.requestKind = requestKind
             it.result = result
+            it.operation = operation
             it.createdAt = createdAt
         }
     }

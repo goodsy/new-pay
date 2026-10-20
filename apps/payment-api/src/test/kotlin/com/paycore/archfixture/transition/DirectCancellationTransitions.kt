@@ -19,7 +19,7 @@ class DirectCancellationTransitions {
         cancellation.complete(transaction)
         cancellation.fail(TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE)
         cancellation.recordIncident()
-        attempt.beginDispatch(cancellation.id)
+        attempt.beginDispatch(cancellation.id, "v")
         attempt.abandon(cancellation.id, AbandonCause.GATE_REFUSED)
         attempt.markOutcomeUnknown(cancellation.id, UnknownCause.TIMEOUT)
         attempt.resolve(cancellation.id)

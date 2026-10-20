@@ -14,6 +14,11 @@ data class VanNamespace(
     companion object {
         const val AUTHORIZE = "AUTHORIZE"
 
+        /** 취소 namespace(CANCEL-001 §6.3-1 — 취소 원장 `van_cancel_entry`의 UNIQUE). */
+        const val CANCEL = "CANCEL"
+
         fun of(clientId: String, request: VanAuthRequest) = VanNamespace(clientId, request.environment, request.institutionAccount, AUTHORIZE, request.requestId)
+
+        fun of(clientId: String, request: VanCancelRequest) = VanNamespace(clientId, request.environment, request.institutionAccount, CANCEL, request.requestId)
     }
 }

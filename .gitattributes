@@ -5,3 +5,7 @@ gradlew text eol=lf
 *.py text eol=lf
 *.bat text eol=crlf
 *.jar binary
+
+# CANCEL-001 검토 #2 m-1: 바이트 비교 계약 자료(golden·vector)는 줄끝 변환 없이 저장소 바이트 그대로(LF) — Windows 쪽 도구가 CRLF로 바꾸면 golden 바이트 비교가 깨진다.
+*.golden.json -text
+apps/*/src/test/resources/contracts/** -text

@@ -46,7 +46,7 @@ class SimulatorDatabaseAccountSpec : FunSpec({
         withClueExit(r.exitCode, r.stderr)
     }
 
-    // 첫 기동이 migration(V1~V4: 업무 표 + 표 단위 권한)을 적용한다.
+    // 첫 기동이 migration(V1~V7: 업무 표 + 표 단위 권한, CANCEL-001 V5~V7 포함)을 적용한다.
     start().close()
 
     test("the runtime account holds only the runtime role; the role holds exactly the table privileges of the write paths") {
@@ -63,6 +63,8 @@ class SimulatorDatabaseAccountSpec : FunSpec({
                 "GRANT SELECT, INSERT ON `paycore_simulator`.`van_inquiry_log` TO `paycore_simulator_runtime`@`%`",
                 "GRANT SELECT, INSERT ON `paycore_simulator`.`van_evidence_use` TO `paycore_simulator_runtime`@`%`",
                 "GRANT SELECT, INSERT, UPDATE ON `paycore_simulator`.`van_pending_decision` TO `paycore_simulator_runtime`@`%`",
+                // CANCEL-001 §6.5(V7): 취소 원장도 append-only 기관 금융 사실 원본.
+                "GRANT SELECT, INSERT ON `paycore_simulator`.`van_cancel_entry` TO `paycore_simulator_runtime`@`%`",
             )
         }
     }
@@ -78,6 +80,8 @@ class SimulatorDatabaseAccountSpec : FunSpec({
                 "DELETE FROM van_pending_decision WHERE 1 = 0",
                 "DELETE FROM authentication_transaction WHERE 1 = 0",
                 "DROP TABLE van_ledger_entry",
+                "UPDATE van_cancel_entry SET outcome = 'APPROVED' WHERE 1 = 0",
+                "DELETE FROM van_cancel_entry WHERE 1 = 0",
             ).forEach { sql ->
                 val e = shouldThrow<SQLException> { c.createStatement().use { it.executeUpdate(sql) } }
                 e.errorCode shouldBe 1142
@@ -88,7 +92,11 @@ class SimulatorDatabaseAccountSpec : FunSpec({
 
     // 검토 #2 n-1: 기동 검사는 lookup_log UPDATE/DELETE와 van_pending_decision DELETE도 본다.
     test("a table-level UPDATE on lookup_log or DELETE on van_pending_decision is refused at startup (review #2 n-1)") {
-        listOf("UPDATE ON paycore_simulator.lookup_log", "DELETE ON paycore_simulator.van_pending_decision").forEach { grant ->
+        listOf(
+            "UPDATE ON paycore_simulator.lookup_log", "DELETE ON paycore_simulator.van_pending_decision",
+            // CANCEL-001 §6.5: 취소 원장 UPDATE/DELETE도 기동 거부.
+            "UPDATE ON paycore_simulator.van_cancel_entry", "DELETE ON paycore_simulator.van_cancel_entry",
+        ).forEach { grant ->
             root().use { c -> c.createStatement().use { it.execute("GRANT $grant TO 'paycore_simulator_runtime'@'%'") } }
             shouldThrow<Exception> { start().close() }
             root().use { c -> c.createStatement().use { it.execute("REVOKE $grant FROM 'paycore_simulator_runtime'@'%'") } }

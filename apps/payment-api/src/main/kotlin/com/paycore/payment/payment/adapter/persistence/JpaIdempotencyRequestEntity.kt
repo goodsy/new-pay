@@ -55,6 +55,10 @@ class JpaIdempotencyRequestEntity protected constructor() {
     @field:Column(name = "result_authorization_id", length = 64)
     var resultAuthorizationId: String? = null
 
+    /** CANCEL-001 V20: 취소 성공의 취소 참조(재생 = 그 취소의 현재 상태, CC-05). 다른 operation 행은 NULL. */
+    @field:Column(name = "result_cancellation_id", length = 64)
+    var resultCancellationId: String? = null
+
     /** AUTH-001 V11: confirm 거절의 고정 분류 상세(예: PAYMENT_NOT_ELIGIBLE reason). */
     @field:Column(name = "result_detail", length = 48)
     var resultDetail: String? = null

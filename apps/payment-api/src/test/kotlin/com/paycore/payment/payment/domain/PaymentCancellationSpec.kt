@@ -42,10 +42,10 @@ class PaymentCancellationSpec : BehaviorSpec({
     Given("cancel attempt dispatch states") {
         Then("PREPARED → DISPATCHING once; dispatching again is rejected") {
             val c = started()
-            c.cancellation.beginDispatch(c.attemptId)
+            c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             c.cancellation.attempt(c.attemptId).state shouldBe AttemptState.DISPATCHING
             c.cancellation.attempt(c.attemptId).mayHaveBeenSent() shouldBe true
-            shouldThrow<InvalidCancellationTransitionException> { c.cancellation.beginDispatch(c.attemptId) }
+            shouldThrow<InvalidCancellationTransitionException> { c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION) }
         }
         Then("gate refusal / recovery fencing abandons only PREPARED; connect failure only DISPATCHING") {
             val a = started()
@@ -53,7 +53,7 @@ class PaymentCancellationSpec : BehaviorSpec({
             a.cancellation.attempt(a.attemptId).state shouldBe AttemptState.ABANDONED_BEFORE_DISPATCH
             val b = started()
             shouldThrow<InvalidCancellationTransitionException> { b.cancellation.attempt(b.attemptId).abandon(b.cancellation.id, AbandonCause.CONNECT_FAILED) }
-            b.cancellation.beginDispatch(b.attemptId)
+            b.cancellation.beginDispatch(b.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             shouldThrow<InvalidCancellationTransitionException> { b.cancellation.attempt(b.attemptId).abandon(b.cancellation.id, AbandonCause.FENCED_BY_RECOVERY) }
             b.cancellation.attempt(b.attemptId).abandon(b.cancellation.id, AbandonCause.CONNECT_FAILED)
             b.cancellation.attempt(b.attemptId).abandonCause shouldBe AbandonCause.CONNECT_FAILED
@@ -61,12 +61,25 @@ class PaymentCancellationSpec : BehaviorSpec({
         Then("an outcome becomes unknown only after dispatch; an unknown attempt has no new attempt") {
             val c = started()
             shouldThrow<InvalidCancellationTransitionException> { c.cancellation.attempt(c.attemptId).markOutcomeUnknown(c.cancellation.id, UnknownCause.TIMEOUT) }
-            c.cancellation.beginDispatch(c.attemptId)
+            c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             c.cancellation.attempt(c.attemptId).markOutcomeUnknown(c.cancellation.id, UnknownCause.TIMEOUT)
             c.cancellation.markUnknown()
             c.cancellation.status shouldBe CancellationStatus.UNKNOWN
             c.cancellation.isInFlight() shouldBe true
             c.cancellation.attempts.size shouldBe 1
+        }
+        Then("the dispatch gate pins the route profile version on the attempt; a PREPARED attempt has none (D-CANCEL1-004)") {
+            val c = started()
+            c.cancellation.attempt(c.attemptId).routeProfileVersion shouldBe null
+            listOf("", "has space", "v".repeat(65), "한글").forEach { bad ->
+                shouldThrow<IllegalArgumentException> { c.cancellation.beginDispatch(c.attemptId, bad) }
+            }
+            c.cancellation.attempt(c.attemptId).state shouldBe AttemptState.PREPARED
+            c.cancellation.beginDispatch(c.attemptId, "demo-route-v7")
+            c.cancellation.attempt(c.attemptId).routeProfileVersion shouldBe "demo-route-v7"
+        }
+        Then("the cancel capability version judged at start is recorded on the cancellation (Auditability)") {
+            started().cancellation.capabilityVersion shouldBe CancellationFixture.capability.version
         }
         Then("an unknown attempt id is a defect") {
             val c = started()
@@ -77,7 +90,7 @@ class PaymentCancellationSpec : BehaviorSpec({
     Given("institution cancel observations (append-only)") {
         Then("a new key is appended; the same key with the same institution content is a duplicate even if receipt time and hash differ") {
             val c = started()
-            c.cancellation.beginDispatch(c.attemptId)
+            c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             val first = cancelObservation(c, InstitutionOutcome.APPROVED)
             c.cancellation.recordObservation(first) shouldBe ObservationRecord.NEW
             c.cancellation.recordObservation(first.copy(observedAt = first.observedAt.plusSeconds(5), evidenceHash = "sha256:other")) shouldBe
@@ -86,7 +99,7 @@ class PaymentCancellationSpec : BehaviorSpec({
         }
         Then("the same key with different content keeps the first and records the conflicting one as evidence") {
             val c = started()
-            c.cancellation.beginDispatch(c.attemptId)
+            c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             val first = cancelObservation(c, InstitutionOutcome.APPROVED)
             c.cancellation.recordObservation(first)
             val conflicting = cancelObservation(c, InstitutionOutcome.DECLINED)
@@ -99,6 +112,15 @@ class PaymentCancellationSpec : BehaviorSpec({
             val c = started()
             shouldThrow<IllegalArgumentException> { cancelObservation(c, InstitutionOutcome.DECLINED, terms = CancellationFixture.confirmedTerms(3_000L.won())) }
             shouldThrow<IllegalArgumentException> { cancelObservation(c, InstitutionOutcome.APPROVED, terms = null) }
+        }
+        Then("the institution business date is preserved when given (nullable — CANCEL-001 F-12, meaning per Q-CALENDAR) and is part of the institution content") {
+            val c = started()
+            val terms = CancellationFixture.confirmedTerms(3_000L.won())
+            terms.institutionBusinessDate shouldBe null
+            val withBusinessDate = terms.copy(institutionBusinessDate = java.time.LocalDate.of(2026, 10, 19))
+            withBusinessDate.institutionBusinessDate shouldBe java.time.LocalDate.of(2026, 10, 19)
+            cancelObservation(c, InstitutionOutcome.APPROVED, terms = terms).sameInstitutionContent(cancelObservation(c, InstitutionOutcome.APPROVED, terms = withBusinessDate)) shouldBe false
+            c.cancellation.matchesRequest(withBusinessDate) shouldBe true
         }
         Then("only the requested money on the original transaction matches the request") {
             val c = started()
@@ -202,7 +224,7 @@ class PaymentCancellationSpec : BehaviorSpec({
             shouldThrow<IllegalArgumentException> {
                 PaymentCancellation.open(
                     CancellationFixture.cancellationId(), s.payment, s.authorization, 3_000L.won(), CancelScope.PARTIAL, bad,
-                    CancellationFixture.cancelAttemptId(), CancellationFixture.cancelRequest(), CancellationFixture.at,
+                    CancellationFixture.cancelAttemptId(), CancellationFixture.cancelRequest(), CancellationFixture.capability.version, CancellationFixture.at,
                 )
             }
         }

@@ -96,5 +96,31 @@ enum class StoreConstraint {
     PAYMENT_TRANSACTION_AUTHORIZATION,
     DAILY_LIMIT_USAGE,
     LIMIT_RESERVATION,
+
+    // CANCEL-001 V15·V17(명세 §8.1): 취소·Attempt·관찰·반환 잔액·예약·CANCEL 거래·회복 일정.
+    PAYMENT_CANCELLATION_ID,
+
+    /** 가맹점 취소 업무 키 (payment_id, merchant_cancel_id) — 영구(D-CANCEL-002). */
+    PAYMENT_CANCELLATION_MERCHANT_KEY,
+
+    /** 운영자 2인 승인 ID — 전역 영구 키(CC-12). application은 새 TX에서 재판정해 CONFLICTING_CONTENT로 돌려준다(rev 0.3 m-3). */
+    PAYMENT_CANCELLATION_APPROVAL,
+
+    /** Payment당 진행 중(OPEN·UNKNOWN) 취소 하나(생성 열 UNIQUE — D-CANCEL-003). */
+    PAYMENT_CANCELLATION_IN_FLIGHT,
+    CANCEL_ATTEMPT_ID,
+    CANCEL_ATTEMPT_CANCELLATION,
+    CANCEL_ATTEMPT_NAMESPACE,
+    CANCEL_OBSERVATION,
+    RETURN_BALANCE,
+    RETURN_RESERVATION,
+
+    /** Payment당 진행 중(RESERVED) 반환 예약 하나(생성 열 UNIQUE). */
+    RETURN_RESERVATION_IN_FLIGHT,
+    RETURN_RESERVATION_SEQUENCE,
+
+    /** 취소당 CANCEL 거래 하나(생성 열 UNIQUE). */
+    PAYMENT_TRANSACTION_CANCELLATION,
+    CANCELLATION_RECOVERY_SCHEDULE,
     OTHER,
 }

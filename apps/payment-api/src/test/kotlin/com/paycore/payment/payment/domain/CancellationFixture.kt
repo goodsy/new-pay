@@ -38,6 +38,9 @@ object CancellationFixture {
 
     fun cancelTransactionId(n: Int = 1) = PaymentTransactionId("demo-ctx-%04d".format(n))
 
+    /** 전송 게이트가 취소 Attempt에 고정하는 Route 프로파일 버전(D-CANCEL1-004, Demo). */
+    const val ROUTE_PROFILE_VERSION = "demo-route-v1"
+
     /** 원 경로(승인 Attempt의 기관·환경·기관 계정)로 보내는 취소 요청 ID(CC-09 `cr_` 모양 Demo 값). */
     fun cancelRequest(n: Int = 1, original: ProviderRequestRef = AuthorizationFixture.providerRequest) =
         original.copy(operation = "CANCEL", requestId = "cr_demo%04d".format(n))
@@ -112,6 +115,14 @@ object CancellationFixture {
     fun confirmedTerms(money: Money, n: Int = 1, original: ApprovedTerms = AuthorizationFixture.approvedTerms()) =
         CancelConfirmedTerms(money, original.providerTransactionId, "PTX-SIM-C%03d".format(n), "C%04d".format(n), LocalDate.of(2026, 10, 16))
 
+    /**
+     * 같은 기관 거래 식별자(PTX)인데 조건이 다른 확정 취소 조건(D-CANCEL1-007 상충 의도 Fixture): [base]의 PTX를 그대로 두고 금액이나 원 승인 PTX만 바꾼다. 같은 결정이 아니다(새 사건).
+     */
+    fun samePtxDifferentTerms(base: CancelConfirmedTerms, money: Money = base.money, originalProviderTransactionId: String = base.originalProviderTransactionId) =
+        base.copy(money = money, originalProviderTransactionId = originalProviderTransactionId).also {
+            check(it != base && it.providerTransactionId == base.providerTransactionId) { "fixture must keep the PTX and change the terms" }
+        }
+
     fun cancelObservation(
         c: CancelScenario,
         outcome: InstitutionOutcome,
@@ -128,7 +139,7 @@ object CancellationFixture {
 
     /** 완료된 취소: 전송 게이트 통과 → 기관 확정 성공 → COMPLETED(CANCEL 거래) + 예약 CONSUMED. */
     fun completed(c: CancelScenario, n: Int = 1): CancelScenario {
-        c.cancellation.beginDispatch(c.attemptId)
+        c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
         val out = applyCancel(c, cancelObservation(c, InstitutionOutcome.APPROVED), n)
         check(out is CancelResolutionOutcome.Completed) { "fixture cancel must complete: $out" }
         return c
@@ -136,7 +147,7 @@ object CancellationFixture {
 
     /** 확정 거절된 취소: 전송 게이트 통과 → 기관 확정 거절 → FAILED + 예약 RELEASED. */
     fun declined(c: CancelScenario): CancelScenario {
-        c.cancellation.beginDispatch(c.attemptId)
+        c.cancellation.beginDispatch(c.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
         val out = applyCancel(c, cancelObservation(c, InstitutionOutcome.DECLINED))
         check(out is CancelResolutionOutcome.Failed) { "fixture cancel must be declined: $out" }
         return c
@@ -156,7 +167,7 @@ object CancellationFixture {
         val first = declined(started(AuthorizationFixture.authorized(), null, declinedAmount))
         if (thenCompleted != null) completed(started(first.auth, first.balance, thenCompleted, n = 2), n = 2)
         val out = applyCancel(first, cancelObservation(first, InstitutionOutcome.APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-late"))
-        check(out == CancelResolutionOutcome.Incident(IncidentReason.CANCEL_RESULT_CONFLICT)) { "fixture late success must open a hold: $out" }
+        check(out is CancelResolutionOutcome.Incident && out.holdOpened) { "fixture late success must open a hold: $out" }
         return first
     }
 

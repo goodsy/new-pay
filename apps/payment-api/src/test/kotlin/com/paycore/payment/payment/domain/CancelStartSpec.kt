@@ -111,7 +111,7 @@ class CancelStartSpec : BehaviorSpec({
                 CancelStartRejection.CANCEL_IN_PROGRESS
 
             val unknown = CancellationFixture.paymentWithReservedReturn(3_000L.won())
-            unknown.cancellation.beginDispatch(unknown.attemptId)
+            unknown.cancellation.beginDispatch(unknown.attemptId, CancellationFixture.ROUTE_PROFILE_VERSION)
             unknown.cancellation.attempt(unknown.attemptId).markOutcomeUnknown(unknown.cancellation.id, UnknownCause.TIMEOUT)
             unknown.cancellation.markUnknown()
             rejected(CancelStart.start(command(unknown.auth, unknown.balance, 1_000L.won(), n = 2))) shouldBe CancelStartRejection.CANCEL_IN_PROGRESS
@@ -193,6 +193,35 @@ class CancelStartSpec : BehaviorSpec({
             rejected(
                 CancelStart.start(command(s, null, m, initiator = CancellationFixture.operator(s, m, null, purpose = OperatorCancelPurpose.IncidentOrReconCorrection("")))),
             ) shouldBe CancelStartRejection.OPERATOR_BASIS_MISSING
+        }
+        // mid-review #1 m-3·F-16: 사유 ≤ 500자·근거 참조 ≤ 200자(DB 열과 같은 상한), 깨진 UTF-16(짝 없는 서로게이트)은 업무 거절이다 — 저장 단계 1406·1366 결함이 아니다.
+        // 경계 값(500·200)은 시작된다. S5 Use Case는 이 거절을 D-CANCEL1-008 감사 행으로 남긴다.
+        Then("an over-long or malformed reason or basis reference is a business rejection; the limits themselves are accepted") {
+            val s = AuthorizationFixture.authorized()
+            val m = 3_000L.won()
+            rejected(CancelStart.start(command(s, null, m, initiator = CancellationFixture.operator(s, m, null, reason = "가".repeat(501))))) shouldBe
+                CancelStartRejection.OPERATOR_REASON_INVALID
+            // 깨진 문구는 Fixture의 승인 지문 계산(UTF-8 인코딩)부터 막히므로 지문은 임의 값으로 둔다 — 형식 검사가 대상 대조보다 먼저다.
+            fun malformed(reason: String, purpose: OperatorCancelPurpose) = CancelInitiator.Operator(
+                OperatorId("demo-op-requester"), OperatorId("demo-op-approver"), CancellationFixture.approvalId(), reason, purpose, "oct1:unused",
+            )
+            rejected(CancelStart.start(command(s, null, m, initiator = malformed("bad\uD800", CancellationFixture.correctionPurpose)))) shouldBe
+                CancelStartRejection.OPERATOR_REASON_INVALID
+            rejected(
+                CancelStart.start(command(s, null, m, initiator = CancellationFixture.operator(s, m, null, purpose = OperatorCancelPurpose.IncidentOrReconCorrection("c".repeat(201))))),
+            ) shouldBe CancelStartRejection.OPERATOR_BASIS_INVALID
+            rejected(CancelStart.start(command(s, null, m, initiator = malformed("사유", OperatorCancelPurpose.MerchantTerminatedObligation("t\uDC00"))))) shouldBe
+                CancelStartRejection.OPERATOR_BASIS_INVALID
+            CancelStart.start(
+                command(s, null, m, initiator = CancellationFixture.operator(s, m, null, reason = "가".repeat(500), purpose = OperatorCancelPurpose.IncidentOrReconCorrection("c".repeat(200)))),
+            ).shouldBeInstanceOf<CancelStartResult.Started>()
+        }
+        Then("operator and approval identifiers and the payment id are bounded value types (≤ 64, well-formed) — never reaching a 64-character column overflow") {
+            listOf<() -> Any>(
+                { OperatorId("o".repeat(65)) }, { OperatorApprovalId("a".repeat(65)) }, { PaymentId("p".repeat(65)) },
+                { OperatorId("bad\uD800") }, { OperatorApprovalId("") }, { PaymentId("x\uDC00") },
+            ).forEach { make -> shouldThrow<IllegalArgumentException> { make() } }
+            PaymentId("p".repeat(64)).value.length shouldBe 64
         }
         Then("an approval for another amount or for an older balance revision is stale") {
             val s = AuthorizationFixture.authorized()
@@ -324,7 +353,7 @@ class CancelStartSpec : BehaviorSpec({
             p1.payment.status shouldBe PaymentStatus.FAILED
             p1.control.authorizedPaymentId shouldBe p2.payment.id
 
-            r.cancellation.beginDispatch(r.cancellation.attempts.single().id)
+            r.cancellation.beginDispatch(r.cancellation.attempts.single().id, CancellationFixture.ROUTE_PROFILE_VERSION)
             val c = CancelScenario(p1, r.balance, r.cancellation)
             CancellationFixture.applyCancel(c, CancellationFixture.cancelObservation(c, InstitutionOutcome.APPROVED), n = 3)
                 .shouldBeInstanceOf<CancelResolutionOutcome.Completed>().statusAfter shouldBe ReturnStatus.FULLY_CANCELLED

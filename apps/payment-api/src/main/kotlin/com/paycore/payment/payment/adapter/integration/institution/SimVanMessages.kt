@@ -2,7 +2,10 @@ package com.paycore.payment.payment.adapter.integration.institution
 
 import com.paycore.payment.payment.application.required.AuthorizationCall
 import com.paycore.payment.payment.application.required.AuthorizationInquiryCall
+import com.paycore.payment.payment.application.required.CancelInquiryCall
+import com.paycore.payment.payment.application.required.CancellationCall
 import com.paycore.payment.payment.domain.ApprovedTerms
+import com.paycore.payment.payment.domain.CancelConfirmedTerms
 import com.paycore.payment.payment.domain.CardType
 import com.paycore.payment.payment.domain.CurrencyCode
 import com.paycore.payment.payment.domain.Money
@@ -19,7 +22,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * PG 쪽 sim-van-1 메시지(AUTH-001 §5.2, golden `van-contract-sim-van-1.golden.json`). 요청은 계약 필드 순서의 compact JSON으로 쓴다(golden 프레임과 바이트 비교).
+ * PG 쪽 sim-van-1·sim-van-2 메시지(AUTH-001 §5.2, golden `van-contract-sim-van-1.golden.json`; CANCEL-001 §6.2 취소 4종, golden `van-contract-sim-van-2.golden.json`). 요청은 계약 필드 순서의 compact JSON으로 쓴다(golden 프레임과 바이트 비교).
  * 응답은 엄격 파싱한다: outcome·result별 닫힌 필드 집합, 모르는 필드·null·타입·문법·식별자 형식 위반·중복 키 → FRAMING. 할부 표현은 의미 필드(plan.kind·months)다.
  */
 internal object SimVanMessages {
@@ -45,6 +48,15 @@ internal object SimVanMessages {
     private val APPROVAL = setOf("approvalNumber", "providerTransactionId", "approvedAmountMinor", "currency", "plan", "cardType", "institutionTransactionDate")
     private const val BUSINESS_DATE = "institutionBusinessDate"
 
+    // sim-van-2 취소(CANCEL-001 §6.2): 거절 분류는 고정 집합, 취소 승인번호는 없으면 필드 생략(null 금지 — n-5), 업무일은 기관이 주면 보존(CN-19).
+    private val CANCEL_DECLINES = setOf(
+        "ORIGINAL_NOT_FOUND", "ORIGINAL_NOT_APPROVED", "ORIGINAL_MISMATCH", "CANCEL_PERIOD_EXPIRED", "PARTIAL_NOT_SUPPORTED", "EXCEEDS_REMAINING", "ISSUER_DECLINED",
+    )
+    private val CANCEL_BASE = setOf("type", "inReplyTo", "requestId", "outcome", "respondedAt")
+    private val CANCEL_INQUIRY_BASE = setOf("type", "inReplyTo", "inquiryId", "originalRequestId", "result", "respondedAt")
+    private val CANCEL_TERMS = setOf("providerTransactionId", "originalProviderTransactionId", "cancelledAmountMinor", "currency", "institutionTransactionDate")
+    private const val CANCEL_APPROVAL_NUMBER = "cancelApprovalNumber"
+
     fun authRequest(call: AuthorizationCall, messageId: String, requestedAt: Instant): ByteArray {
         val r = call.providerRequest
         val o = mapper.createObjectNode()
@@ -68,6 +80,139 @@ internal object SimVanMessages {
         o.put("type", "INQUIRY_REQUEST").put("messageId", messageId).put("inquiryId", call.inquiryId).put("originalRequestId", r.requestId)
             .put("institutionAccount", r.institutionAccount).put("environment", r.environment.name).put("closeIfAbsent", closeIfAbsent)
         return mapper.writeValueAsBytes(o)
+    }
+
+    /** sim-van-2 CANCEL_REQUEST(golden 필드 순서 — 전송 필드 messageId·requestedAt 포함). */
+    fun cancelRequest(call: CancellationCall, messageId: String, requestedAt: Instant): ByteArray {
+        val r = call.providerRequest
+        val o = mapper.createObjectNode()
+        o.put("type", "CANCEL_REQUEST").put("messageId", messageId).put("requestId", r.requestId).put("institutionAccount", r.institutionAccount)
+            .put("merchantRef", call.merchantRef).put("environment", r.environment.name).put("routeRef", call.routeRef)
+            .put("originalRequestId", call.original.providerRequest.requestId).put("originalProviderTransactionId", call.original.providerTransactionId)
+            .put("originalApprovalNumber", call.original.approvalNumber).put("originalTransactionDate", call.original.transactionDate.toString())
+            .put("cancelAmountMinor", call.money.amountMinor).put("currency", call.money.currency.value).put("scope", call.scope.name)
+            .put("requestedAt", TIMESTAMP.format(requestedAt))
+        return mapper.writeValueAsBytes(o)
+    }
+
+    fun cancelInquiryRequest(call: CancelInquiryCall, messageId: String, closeIfAbsent: Boolean): ByteArray {
+        val r = call.providerRequest
+        val o = mapper.createObjectNode()
+        o.put("type", "CANCEL_INQUIRY_REQUEST").put("messageId", messageId).put("inquiryId", call.inquiryId).put("originalRequestId", r.requestId)
+            .put("institutionAccount", r.institutionAccount).put("environment", r.environment.name).put("closeIfAbsent", closeIfAbsent)
+        return mapper.writeValueAsBytes(o)
+    }
+
+    /** 취소 응답(스키마 검사 뒤). 상관관계(inReplyTo·requestId·원 승인 PTX echo)는 호출자가 본다. */
+    sealed interface CancelReply {
+        val inReplyTo: String
+        val requestId: String
+
+        data class Approved(override val inReplyTo: String, override val requestId: String, val decisionId: String, val terms: CancelConfirmedTerms) : CancelReply
+        data class Declined(override val inReplyTo: String, override val requestId: String, val decisionId: String, val declineCategory: String) : CancelReply
+        data class Pending(override val inReplyTo: String, override val requestId: String, val pendingId: String) : CancelReply
+        data class Refused(override val inReplyTo: String, override val requestId: String) : CancelReply
+    }
+
+    /** 취소 조회 응답(스키마 검사 뒤). */
+    sealed interface CancelInquiryReply {
+        val inReplyTo: String
+        val inquiryId: String
+        val originalRequestId: String
+
+        data class FoundApproved(
+            override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String, val decisionId: String, val terms: CancelConfirmedTerms,
+        ) : CancelInquiryReply
+        data class FoundDeclined(
+            override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String, val decisionId: String, val declineCategory: String,
+        ) : CancelInquiryReply
+        data class Pending(override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String, val pendingId: String) :
+            CancelInquiryReply
+        data class NotFound(override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String) : CancelInquiryReply
+        data class NoEffect(override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String, val closureId: String) :
+            CancelInquiryReply
+        data class Unavailable(override val inReplyTo: String, override val inquiryId: String, override val originalRequestId: String) : CancelInquiryReply
+    }
+
+    fun parseCancelReply(payload: ByteArray): CancelReply = guarded {
+        val root = tree(payload)
+        if (text(root, "type") != "CANCEL_RESPONSE") throw framing()
+        text(root, "respondedAt", TIMESTAMP_TEXT)
+        val inReplyTo = text(root, "inReplyTo")
+        val requestId = text(root, "requestId")
+        when (text(root, "outcome")) {
+            "APPROVED" -> {
+                fields(root, CANCEL_BASE + "decisionId" + CANCEL_TERMS, optional = setOf(CANCEL_APPROVAL_NUMBER, BUSINESS_DATE))
+                CancelReply.Approved(inReplyTo, requestId, text(root, "decisionId", DECISION_ID), cancelTerms(root))
+            }
+            "DECLINED" -> {
+                fields(root, CANCEL_BASE + "decisionId" + "declineCategory")
+                CancelReply.Declined(inReplyTo, requestId, text(root, "decisionId", DECISION_ID), cancelDecline(root))
+            }
+            "PENDING" -> {
+                fields(root, CANCEL_BASE + "pendingId")
+                CancelReply.Pending(inReplyTo, requestId, text(root, "pendingId", PENDING_ID))
+            }
+            "REQUEST_CONFLICT", "REJECTED_CLOSED" -> {
+                fields(root, CANCEL_BASE)
+                CancelReply.Refused(inReplyTo, requestId)
+            }
+            else -> throw framing()
+        }
+    }
+
+    fun parseCancelInquiryReply(payload: ByteArray): CancelInquiryReply = guarded {
+        val root = tree(payload)
+        if (text(root, "type") != "CANCEL_INQUIRY_RESPONSE") throw framing()
+        text(root, "respondedAt", TIMESTAMP_TEXT)
+        val inReplyTo = text(root, "inReplyTo")
+        val inquiryId = text(root, "inquiryId")
+        val original = text(root, "originalRequestId")
+        when (text(root, "result")) {
+            "FOUND" -> when (text(root, "outcome")) {
+                "APPROVED" -> {
+                    fields(root, CANCEL_INQUIRY_BASE + "decisionId" + "outcome" + CANCEL_TERMS, optional = setOf(CANCEL_APPROVAL_NUMBER, BUSINESS_DATE))
+                    CancelInquiryReply.FoundApproved(inReplyTo, inquiryId, original, text(root, "decisionId", DECISION_ID), cancelTerms(root))
+                }
+                "DECLINED" -> {
+                    fields(root, CANCEL_INQUIRY_BASE + "decisionId" + "outcome" + "declineCategory")
+                    CancelInquiryReply.FoundDeclined(inReplyTo, inquiryId, original, text(root, "decisionId", DECISION_ID), cancelDecline(root))
+                }
+                else -> throw framing()
+            }
+            "PENDING" -> {
+                fields(root, CANCEL_INQUIRY_BASE + "pendingId")
+                CancelInquiryReply.Pending(inReplyTo, inquiryId, original, text(root, "pendingId", PENDING_ID))
+            }
+            "NOT_FOUND" -> {
+                fields(root, CANCEL_INQUIRY_BASE)
+                CancelInquiryReply.NotFound(inReplyTo, inquiryId, original)
+            }
+            "NO_EFFECT_CONFIRMED" -> {
+                fields(root, CANCEL_INQUIRY_BASE + "closureId")
+                CancelInquiryReply.NoEffect(inReplyTo, inquiryId, original, text(root, "closureId", CLOSURE_ID))
+            }
+            "UNAVAILABLE" -> {
+                fields(root, CANCEL_INQUIRY_BASE)
+                CancelInquiryReply.Unavailable(inReplyTo, inquiryId, original)
+            }
+            else -> throw framing()
+        }
+    }
+
+    private fun cancelDecline(root: JsonNode): String = text(root, "declineCategory").also { if (it !in CANCEL_DECLINES) throw framing() }
+
+    private fun cancelTerms(root: JsonNode): CancelConfirmedTerms {
+        val amount = root.get("cancelledAmountMinor")
+        if (!amount.isIntegralNumber || !amount.canConvertToLong() || amount.longValue() < 1) throw framing()
+        return CancelConfirmedTerms(
+            money = Money(amount.longValue(), CurrencyCode(text(root, "currency", CURRENCY))),
+            originalProviderTransactionId = text(root, "originalProviderTransactionId", PTX),
+            providerTransactionId = text(root, "providerTransactionId", PTX),
+            cancelApprovalNumber = root.get(CANCEL_APPROVAL_NUMBER)?.let { text(root, CANCEL_APPROVAL_NUMBER, APPROVAL_NUMBER) },
+            institutionTransactionDate = LocalDate.parse(text(root, "institutionTransactionDate", DATE_TEXT)),
+            institutionBusinessDate = root.get(BUSINESS_DATE)?.let { LocalDate.parse(text(root, BUSINESS_DATE, DATE_TEXT)) },
+        )
     }
 
     /** 승인 응답(스키마 검사 뒤). 상관관계(inReplyTo·requestId echo)는 호출자가 본다. */

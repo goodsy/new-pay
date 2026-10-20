@@ -96,6 +96,34 @@ class VanTestClient(port: Int, private val readTimeoutMillis: Int = 5_000) : Clo
             put("type", "INQUIRY_REQUEST"); put("messageId", messageId()); put("inquiryId", inquiryId()); put("originalRequestId", originalRequestId)
             put("institutionAccount", account); put("environment", "TEST"); put("closeIfAbsent", closeIfAbsent)
         }
+
+        /** sim-van-2 취소 요청 ID(ULID 시각 = [at] — VAN은 이 시각으로 취소 요청 연령을 본다, CANCEL-001 §6.5). */
+        fun cancelRequestId(at: Instant): String = "cr_" + VanUlid.format(at, seq.incrementAndGet())
+
+        fun cancelInquiryId(): String = "cq_" + VanUlid.format(Instant.now(), seq.incrementAndGet())
+
+        /** sim-van-2 CANCEL_REQUEST(golden 필드 순서). 원 승인 echo는 [original]의 AUTH_RESPONSE 값. */
+        @Suppress("LongParameterList")
+        fun cancelRequest(
+            requestId: String,
+            originalRequestId: String,
+            original: JsonNode,
+            amountMinor: Long,
+            scope: String,
+            account: String = "SIMMERCH0001",
+            requestedAt: String = "2026-10-16T01:00:31.000Z",
+        ): ObjectNode = MAPPER.createObjectNode().apply {
+            put("type", "CANCEL_REQUEST"); put("messageId", messageId()); put("requestId", requestId); put("institutionAccount", account)
+            put("merchantRef", "mid-demo-0001"); put("environment", "TEST"); put("routeRef", "SIM-VAN-01"); put("originalRequestId", originalRequestId)
+            put("originalProviderTransactionId", original.get("providerTransactionId").stringValue()); put("originalApprovalNumber", original.get("approvalNumber").stringValue())
+            put("originalTransactionDate", original.get("institutionTransactionDate").stringValue()); put("cancelAmountMinor", amountMinor); put("currency", "KRW")
+            put("scope", scope); put("requestedAt", requestedAt)
+        }
+
+        fun cancelInquiry(originalRequestId: String, closeIfAbsent: Boolean = false, account: String = "SIMMERCH0001"): ObjectNode = MAPPER.createObjectNode().apply {
+            put("type", "CANCEL_INQUIRY_REQUEST"); put("messageId", messageId()); put("inquiryId", cancelInquiryId()); put("originalRequestId", originalRequestId)
+            put("institutionAccount", account); put("environment", "TEST"); put("closeIfAbsent", closeIfAbsent)
+        }
     }
 
     /** 가상 인증기관에서 받은 인증 증거(결과 조회 본문에서). */

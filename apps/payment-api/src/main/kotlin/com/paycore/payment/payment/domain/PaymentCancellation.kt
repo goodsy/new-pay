@@ -62,12 +62,25 @@ sealed interface CancelInitiator {
         override val requestKey: CancelRequestKey
             get() = CancelRequestKey.Operator(approvalId)
 
-        /** 소유 서비스가 다시 검사하는 2인 승인 입력(대상 버전 제외). 통과하면 null. */
+        /**
+         * 소유 서비스가 다시 검사하는 2인 승인 입력(대상 버전 제외). 통과하면 null. 사유 ≤ [MAX_REASON]자·근거 참조 ≤ [MAX_BASIS]자(영속 열과 같은 상한)·올바른 UTF-16 —
+         * 넘거나 깨지면 업무 거절이다(mid-review #1 m-3·F-16 — 저장 단계 1406·1366 결함으로 가지 않는다).
+         */
         internal fun approvalDefect(): CancelStartRejection? = when {
             requestedBy == approvedBy -> CancelStartRejection.OPERATOR_SAME_PERSON
             reason.isBlank() -> CancelStartRejection.OPERATOR_REASON_MISSING
+            reason.length > MAX_REASON || !Utf8Text.isWellFormed(reason) -> CancelStartRejection.OPERATOR_REASON_INVALID
             purpose.reference.isBlank() -> CancelStartRejection.OPERATOR_BASIS_MISSING
+            purpose.reference.length > MAX_BASIS || !Utf8Text.isWellFormed(purpose.reference) -> CancelStartRejection.OPERATOR_BASIS_INVALID
             else -> null
+        }
+
+        companion object {
+            /** 운영자 사유 상한(`payment_cancellation.operator_reason` VARCHAR(500)과 같다 — UTF-16 단위라 열보다 엄격하거나 같다). */
+            const val MAX_REASON = 500
+
+            /** 목적 근거 참조 상한(`purpose_ref` VARCHAR(200)). */
+            const val MAX_BASIS = 200
         }
     }
 }
@@ -107,8 +120,14 @@ class PaymentCancellation private constructor(
     val originalProviderTransactionId: String,
     val policyAssignmentVersion: String,
     val entitlementVersion: String,
+    /** 취소 시작 때 판정한 원 경로 취소 Capability 버전(Auditability — CANCEL-001 F-2). */
+    val capabilityVersion: String,
     val openedAt: Instant,
 ) {
+    init {
+        require(capabilityVersion.isNotEmpty()) { "cancel capability version must not be empty" }
+    }
+
     var status: CancellationStatus = CancellationStatus.OPEN
         private set
 
@@ -125,11 +144,15 @@ class PaymentCancellation private constructor(
         private set
 
     /**
-     * 이 취소에 사건(상충·늦은 성공, D-CANCEL-006)이 기록됐다. 그 뒤 들어온 결과로 자동 확정·종료하지 않는다(해소는 수동·2인·재대사). 한 번 켜지면 끄지 않는다
-     * (해제 판정은 RECON-CONTRACT-001).
+     * 이 취소에 기록된 사건(상충·늦은 성공, D-CANCEL-006) 수. 사건마다 1씩 오르며 사건 이벤트 effect_key의 순번이다(D-CANCEL1-002 — 영속 `incident_count`).
+     * 같은 관찰 재반영(DUPLICATE)은 사건이 아니라 오르지 않는다. 줄지 않는다(해제 판정은 RECON-CONTRACT-001).
      */
-    var incidentRecorded: Boolean = false
+    var incidentCount: Int = 0
         private set
+
+    /** 사건이 하나라도 기록됐다 — 그 뒤 들어온 결과로 자동 확정·종료하지 않는다(해소는 수동·2인·재대사, CC-16). */
+    val incidentRecorded: Boolean
+        get() = incidentCount > 0
 
     val attempts: List<CancelAttempt>
         get() = attemptList.toList()
@@ -163,11 +186,26 @@ class PaymentCancellation private constructor(
         else -> CancelRequestMatch.CONFLICTING_CONTENT
     }
 
-    /** 전송 게이트 통과(TXd): PREPARED → DISPATCHING. 이 커밋 뒤에만 기관에 연결한다. */
-    fun beginDispatch(attemptId: CancelAttemptId) {
+    /**
+     * 전송 게이트 통과(TXd): PREPARED → DISPATCHING + Route 프로파일 버전 고정(D-CANCEL1-004). 이 커밋 뒤에만 기관에 연결한다.
+     */
+    fun beginDispatch(attemptId: CancelAttemptId, routeProfileVersion: String) {
         if (status != CancellationStatus.OPEN) throw InvalidCancellationTransitionException(id, status.name, "beginDispatch")
-        attempt(attemptId).beginDispatch(id)
+        attempt(attemptId).beginDispatch(id, routeProfileVersion)
     }
+
+    /**
+     * [observation]이 이미 기록된 관찰(첫 관찰·상충 증거)과 **같은 기관 결정**인가(D-CANCEL1-005·007 사건 동일성): 같은 Attempt ∧ 같은 결과 ∧ 같은 확정 조건(금액·통화·원 승인 PTX·
+     * PTX·취소 승인번호·기관 거래일·업무일 — 무시하는 필드 없음, CN-31) ∧ (같은 결정 ID(sourceResultId) ∨ 둘 다 승인이고 같은 PTX). PTX만 같고 조건이 다르면 새 사건이다(fail-closed,
+     * CC §4.6). 같은 관찰 키·같은 내용(완전 중복)은 [recordObservation]의 DUPLICATE가 따로 거른다. 기록 전에 부른다.
+     */
+    internal fun repeatsRecordedDecision(observation: CancelObservation): Boolean =
+        (observationList + keyConflictList).any { recorded ->
+            recorded.attemptId == observation.attemptId && recorded.outcome == observation.outcome && recorded.confirmed == observation.confirmed && (
+                recorded.sourceResultId == observation.sourceResultId ||
+                    (observation.outcome == InstitutionOutcome.APPROVED && recorded.confirmed?.providerTransactionId == observation.confirmed?.providerTransactionId)
+                )
+        }
 
     /** 관찰 기록: 새 키 NEW, 같은 키·같은 기관 내용 DUPLICATE, 같은 키·다른 내용 KEY_CONFLICT(상충 증거로 append). */
     internal fun recordObservation(observation: CancelObservation): ObservationRecord {
@@ -209,8 +247,10 @@ class PaymentCancellation private constructor(
         status = CancellationStatus.FAILED
     }
 
-    internal fun recordIncident() {
-        incidentRecorded = true
+    /** 사건 1건을 기록하고 그 순번(1부터)을 돌려준다(D-CANCEL1-002). */
+    internal fun recordIncident(): Int {
+        incidentCount = Math.addExact(incidentCount, 1)
+        return incidentCount
     }
 
     override fun toString(): String = "PaymentCancellation(id=${id.value}, payment=${paymentId.value}, status=$status, scope=$scope)"
@@ -232,6 +272,7 @@ class PaymentCancellation private constructor(
             initiator: CancelInitiator,
             attemptId: CancelAttemptId,
             providerRequest: ProviderRequestRef,
+            capabilityVersion: String,
             openedAt: Instant,
         ): PaymentCancellation {
             val original = checkNotNull(authorization.transaction) { "only a confirmed authorization transaction can be cancelled" }
@@ -242,8 +283,109 @@ class PaymentCancellation private constructor(
             requireOriginalRoute(authorization, providerRequest)
             return PaymentCancellation(
                 id, payment.id, authorization.id, original.id, payment.orderKey, money, scope, initiator,
-                original.terms.providerTransactionId, authorization.admission.policyAssignmentVersion, authorization.admission.entitlementVersion, openedAt,
+                original.terms.providerTransactionId, authorization.admission.policyAssignmentVersion, authorization.admission.entitlementVersion, capabilityVersion, openedAt,
             ).also { it.attemptList += CancelAttempt(attemptId, providerRequest, openedAt, AttemptState.PREPARED, null, null) }
+        }
+
+        /**
+         * 영속 복원(persistence Mapper 전용 — ArchUnit, CANCEL-001 F-1·CC §14.1 nit 4). 시험 편의 생성 API가 아니다(Named Fixture는 [open]과 공식 전이를 쓴다).
+         * 공식 전이로 만들 수 없는 조합은 거부한다(조용히 고치지 않는다):
+         * - Attempt 정확히 1개(CC-11). 상태별 Attempt: OPEN = PREPARED·DISPATCHING(사건 없음), UNKNOWN = OUTCOME_UNKNOWN 또는 (사건이 있는 보내지 않은 PREPARED),
+         *   COMPLETED = RESOLVED, FAILED = 전송 전 실패 근거면 ABANDONED, 기관 거절·무효과면 RESOLVED.
+         * - Attempt 원인·버전 짝: ABANDONED ⇔ 포기 원인, OUTCOME_UNKNOWN ⇒ 불명확 원인(그 원인은 OUTCOME_UNKNOWN·RESOLVED에만), 보낸 Attempt(DISPATCHING·OUTCOME_UNKNOWN·RESOLVED,
+         *   connect 실패 포기)에는 Route 프로파일 버전, 보내지 않은 Attempt에는 없음(D-CANCEL1-004).
+         * - COMPLETED ⇔ CANCEL 거래(이 취소·원 거래·범위·요청 Money 일치, 출처 관찰이 같은 조건으로 기록됨), FAILED ⇔ 충분한 종료 근거.
+         * - 관찰 키 유일·Attempt 소속, 키 상충 관찰은 같은 키의 다른 첫 관찰이 있어야 한다. 사건 수 ≥ 0. 운영자 행은 2인 승인 입력이 유효하다.
+         */
+        fun reconstitute(
+            id: CancellationId,
+            paymentId: PaymentId,
+            authorizationId: AuthorizationId,
+            originalTransactionId: PaymentTransactionId,
+            orderKey: OrderKey,
+            money: Money,
+            scope: CancelScope,
+            initiator: CancelInitiator,
+            originalProviderTransactionId: String,
+            policyAssignmentVersion: String,
+            entitlementVersion: String,
+            capabilityVersion: String,
+            openedAt: Instant,
+            status: CancellationStatus,
+            attempts: List<CancelAttempt>,
+            observations: List<CancelObservation>,
+            keyConflictingObservations: List<CancelObservation>,
+            transaction: CancelTransaction?,
+            failureEvidence: TerminationEvidence?,
+            incidentCount: Int,
+        ): PaymentCancellation {
+            require(attempts.size == 1) { "a cancellation has exactly one attempt" }
+            val attempt = attempts.single()
+            require(incidentCount >= 0) { "incident count cannot be negative" }
+            require(initiator !is CancelInitiator.Operator || initiator.approvalDefect() == null) { "an operator cancel row needs a valid two-person approval" }
+            require((attempt.state == AttemptState.ABANDONED_BEFORE_DISPATCH) == (attempt.abandonCause != null)) { "an abandon cause exists exactly for an abandoned attempt" }
+            require(attempt.state != AttemptState.OUTCOME_UNKNOWN || attempt.unknownCause != null) { "an unknown attempt records its cause" }
+            require(attempt.unknownCause == null || attempt.state == AttemptState.OUTCOME_UNKNOWN || attempt.state == AttemptState.RESOLVED) {
+                "an unknown cause belongs to an attempt that became unknown"
+            }
+            val sent = attempt.state == AttemptState.DISPATCHING || attempt.state == AttemptState.OUTCOME_UNKNOWN || attempt.state == AttemptState.RESOLVED ||
+                attempt.abandonCause == AbandonCause.CONNECT_FAILED
+            require(sent == (attempt.routeProfileVersion != null)) { "a route profile version exists exactly for a dispatched attempt" }
+            when (status) {
+                CancellationStatus.OPEN -> require(
+                    (attempt.state == AttemptState.PREPARED || attempt.state == AttemptState.DISPATCHING) && incidentCount == 0,
+                ) { "an OPEN cancellation has an unsent or dispatching attempt and no incident" }
+                CancellationStatus.UNKNOWN -> require(
+                    attempt.state == AttemptState.OUTCOME_UNKNOWN || (attempt.state == AttemptState.PREPARED && incidentCount > 0),
+                ) { "an UNKNOWN cancellation has an unknown attempt (or a never-sent one with an incident)" }
+                CancellationStatus.COMPLETED -> require(attempt.state == AttemptState.RESOLVED) { "a COMPLETED cancellation has a resolved attempt" }
+                CancellationStatus.FAILED -> require(
+                    if (failureEvidence == TerminationEvidence.PRE_TRANSMISSION_FAILURE_CONFIRMED) {
+                        attempt.state == AttemptState.ABANDONED_BEFORE_DISPATCH
+                    } else {
+                        attempt.state == AttemptState.RESOLVED
+                    },
+                ) { "a FAILED cancellation's attempt matches its evidence" }
+            }
+            require((status == CancellationStatus.FAILED) == (failureEvidence != null)) { "failure evidence exists exactly for FAILED" }
+            require(failureEvidence == null || failureEvidence.isSufficientFor(PaymentStatus.FAILED)) { "failure evidence must be sufficient for FAILED" }
+            // mid-review #1 n-2: 기관 거절·무효과 근거는 그것을 말한 관찰(첫 관찰)이 있어야 한다.
+            when (failureEvidence) {
+                TerminationEvidence.INSTITUTION_CONFIRMED_DECLINE ->
+                    require(observations.any { it.outcome == InstitutionOutcome.DECLINED }) { "a declined cancellation has its DECLINED observation" }
+                TerminationEvidence.INSTITUTION_CONFIRMED_NO_EFFECT ->
+                    require(observations.any { it.outcome == InstitutionOutcome.NO_EFFECT_CONFIRMED }) { "a no-effect cancellation has its NO_EFFECT_CONFIRMED observation" }
+                else -> Unit
+            }
+            require((status == CancellationStatus.COMPLETED) == (transaction != null)) { "a cancel transaction exists exactly for COMPLETED" }
+            require(observations.map { it.key }.toSet().size == observations.size) { "observation keys are unique" }
+            require((observations + keyConflictingObservations).all { it.attemptId == attempt.id }) { "observations belong to the attempt of this cancellation" }
+            require(keyConflictingObservations.all { c -> observations.any { it.key == c.key && !it.sameInstitutionContent(c) } }) {
+                "a key-conflicting observation needs a different first observation with the same key"
+            }
+            val restored = PaymentCancellation(
+                id, paymentId, authorizationId, originalTransactionId, orderKey, money, scope, initiator,
+                originalProviderTransactionId, policyAssignmentVersion, entitlementVersion, capabilityVersion, openedAt,
+            )
+            if (transaction != null) {
+                require(transaction.cancellationId == id && transaction.paymentId == paymentId && transaction.authorizationId == authorizationId) {
+                    "transaction must belong to this cancellation"
+                }
+                require(transaction.originalTransactionId == originalTransactionId && transaction.scope == scope) { "transaction must keep the original reference and scope" }
+                require(restored.matchesRequest(transaction.terms)) { "only an institution cancel matching the request is a transaction" }
+                require(observations.any { it.key == transaction.sourceObservation && it.outcome == InstitutionOutcome.APPROVED && it.confirmed == transaction.terms }) {
+                    "the transaction's source observation is recorded with the same terms"
+                }
+            }
+            return restored.also {
+                it.status = status
+                it.attemptList += attempt
+                it.observationList += observations
+                it.keyConflictList += keyConflictingObservations
+                it.transaction = transaction
+                it.failureEvidence = failureEvidence
+                it.incidentCount = incidentCount
+            }
         }
 
         /** 원 경로 = 확정 결과를 받은(RESOLVED) 승인 Attempt의 기관·환경·기관 계약계정(K-3). */

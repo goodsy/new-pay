@@ -240,7 +240,8 @@ class CreatePaymentService(
             }
             is StoredRequestResult.Rejected -> CreatePaymentResult.Rejected(result.rejection, result.referencePaymentId, replayed)
             // 멱등 범위에 operation이 있어 CreatePayment 기록에는 confirm 결과가 없다(있으면 저장 결함).
-            is StoredRequestResult.ConfirmAccepted, is StoredRequestResult.ConfirmRejected -> error("a CreatePayment record holds a create result")
+            is StoredRequestResult.ConfirmAccepted, is StoredRequestResult.ConfirmRejected, is com.paycore.payment.payment.application.required.StoredCancelAccepted,
+            is com.paycore.payment.payment.application.required.StoredCancelRejected -> error("a CreatePayment record holds a create result")
         }
 
     /**

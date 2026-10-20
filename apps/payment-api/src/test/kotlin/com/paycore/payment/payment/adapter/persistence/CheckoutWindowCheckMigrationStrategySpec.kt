@@ -94,7 +94,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
 
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(flyway())
 
-        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14")
+        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")
         history().all { it.second } shouldBe true // 실패한 migration 기록 없음
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
         // REQUESTED만 created_at + pin 유효기간·pin 버전(ms 보존), version + 1. 시각이 이미 지난 행도 채우기만 한다(만료는 이후 만료 작업).
@@ -108,7 +108,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
         // 다음 기동: 설정이 바뀌어도 pin은 그대로(배포 시점 버전), 적용할 것이 없다.
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-2", Duration.ofMinutes(10))).migrate(flyway())
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
-        history().size shouldBe 15
+        history().size shouldBe 21
 
         val denied = runCatching { root { c -> insertLegacy(c, "pay-new-without-window", "REQUESTED") } }.exceptionOrNull()
         (generateSequence(denied) { it.cause }.filterIsInstance<SQLException>().first()).errorCode shouldBe 3819
@@ -153,7 +153,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 }
             }
             strategy.migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st -> st.executeQuery("SELECT COUNT(*) FROM payment WHERE status = 'REQUESTED' AND checkout_expires_at IS NULL").use { rs -> rs.next(); rs.getInt(1) shouldBe 0 } }
@@ -209,6 +209,51 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
         }
     }
 
+    // CANCEL-001 §8.6: AUTH-001 배포 상태(V14 적용됨)의 볼륨에 승인 거래 행이 있어도 한 번의 기동에 V15~V19까지 간다 — V17이 승인 열을 NULL 허용으로 바꾸고 type별 CHECK를
+    // 새로 걸어도 기존 AUTHORIZATION 행은 그대로 통과한다(취소 열 NULL, 생성 열 cancel_txn_key NULL). 거래 행만 보려고 FK 검사를 끈 root 세션으로 넣는다(시험 준비 — 다른 표 행 없음).
+    test("a volume at V14 (AUTH-001 deployed) with an authorization transaction reaches the latest version (V20) in one start; the existing row passes the V17 checks unchanged") {
+        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        try {
+            val config = Flyway.configure()
+                .dataSource(
+                    PaymentDbAccounts.urlFor(other, PaymentDbAccounts.PAYMENT_DATABASE), PaymentDbAccounts.PAYMENT_MIGRATION_USER,
+                    PaymentDbAccounts.password(PaymentDbAccounts.PAYMENT_MIGRATION_USER),
+                )
+                .locations("classpath:db/migration/payment", "classpath:db/runtime-privilege/payment")
+                .initSql("SET time_zone = '+00:00'")
+            config.target("14").load().migrate()
+            PaymentDbAccounts.root(other).use { c ->
+                c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
+                c.createStatement().use { st ->
+                    st.execute("SET FOREIGN_KEY_CHECKS = 0")
+                    st.execute(
+                        """INSERT INTO payment_transaction (transaction_id, type, payment_id, authorization_id, amount_minor, currency, plan_kind, installment_months, card_type,
+                           approval_number, provider_transaction_id, institution_transaction_date, institution_business_date, source_attempt_id, source_kind, source_result_id,
+                           recorded_by, confirmed_at) VALUES ('ptx-v14', 'AUTHORIZATION', 'pay-v14', 'auth-v14', 10000, 'KRW', 'INSTALLMENT', 3, 'CREDIT', 'A0001', 'PTX-V14',
+                           '2026-10-07', NULL, 'att-v14', 'RESPONSE', 'dec-1', 'RESOLUTION', '2026-10-07 00:00:01.000')""",
+                    )
+                }
+            }
+            CheckoutWindowCheckMigrationStrategy(runtimeOf(other), policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(config.target("latest").load())
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
+            PaymentDbAccounts.root(other).use { c ->
+                c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
+                c.createStatement().use { st ->
+                    st.executeQuery(
+                        "SELECT CONCAT_WS('/', type, plan_kind, installment_months, card_type, approval_number), cancellation_id, cancel_scope, cancel_txn_key " +
+                            "FROM payment_transaction WHERE transaction_id = 'ptx-v14'",
+                    ).use { rs ->
+                        rs.next()
+                        rs.getString(1) shouldBe "AUTHORIZATION/INSTALLMENT/3/CREDIT/A0001"
+                        listOf(rs.getString(2), rs.getString(3), rs.getString(4)) shouldBe listOf(null, null, null)
+                    }
+                }
+            }
+        } finally {
+            other.stop()
+        }
+    }
+
     // AUTH-001 rev 0.3 m-5: AUTHN-001 배포 상태(V8_1 적용됨)의 볼륨이 한 번의 기동에 AUTH-001 migration(V9~V11)까지 간다 — 전략의 "V8_1 이미 적용" 경로.
     // 기존 incident_hold 행은 occurrence 1·여는 관찰 NULL(legacy), 기존 종료 근거는 출처 NULL(legacy), CreatePayment 멱등 행은 새 CHECK를 통과한다.
     test("a volume at V8_1 (AUTHN-001 deployed) with orders, holds and evidence reaches V11 in one start; existing rows become legacy rows") {
@@ -253,7 +298,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 PaymentDbAccounts.PAYMENT_RUNTIME_USER, PaymentDbAccounts.password(PaymentDbAccounts.PAYMENT_RUNTIME_USER),
             )
             CheckoutWindowCheckMigrationStrategy(runtimeOther, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st ->

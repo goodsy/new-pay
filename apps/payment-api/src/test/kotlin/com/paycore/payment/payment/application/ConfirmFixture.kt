@@ -32,6 +32,7 @@ import com.paycore.payment.payment.domain.PaymentId
 import com.paycore.payment.payment.domain.PaymentKey
 import com.paycore.payment.payment.domain.PaymentMethod
 import com.paycore.payment.payment.domain.PaymentPlan
+import com.paycore.payment.payment.domain.PaymentSlotDecision
 import com.paycore.payment.payment.domain.SecretDigest
 import com.paycore.payment.payment.domain.SecretKind
 import com.paycore.payment.payment.domain.VerificationOutcome
@@ -98,21 +99,41 @@ class ConfirmFixture(
         order: OrderKey = PersistenceTestData.newOrder(),
         /** 시각 기준(기본 T0) — 모든 준비 시각이 이 값에서 상대적으로 정해진다(업무일 경계 시험용). */
         base: Instant = T0,
+        /** CANCEL-001 K17: 같은 주문의 다음 Payment(앞 Payment가 안전하게 종료된 뒤 — 공식 `decide`·`occupy` 전이). null이면 새 주문의 첫 Payment. */
+        previous: Prepared? = null,
     ): Prepared {
         val shift = Duration.between(T0, base)
         val windowEndAt = windowEnd ?: T0.plus(Duration.ofMinutes(30)).plus(shift)
         val validUntil = providerValidUntil ?: T0.plus(Duration.ofMinutes(20)).plus(shift)
         val intent = OrderIntent(PersistenceTestData.demoSite, Money(amount, currency))
-        val payment = Payment.request(PaymentId(DbAccess.unique("pay")), order, intent.fingerprint(), 1, CheckoutWindow(windowEndAt, "checkout-validity-demo-1"))
+        require(previous == null || previous.order == order) { "the next payment belongs to the previous payment's order" }
+        val window = CheckoutWindow(windowEndAt, "checkout-validity-demo-1")
+        val firstPayment = if (previous == null) Payment.request(PaymentId(DbAccess.unique("pay")), order, intent.fingerprint(), 1, window) else null
         val ref = AuthenticationRef("aref_" + UUID.randomUUID().toString().replace("-", "").take(22))
         val cookieSecret = "cks-secret-" + UUID.randomUUID().toString().replace("-", "")
         val handle = CheckoutPersistenceFixture.newHandle()
+        val attributes = PaymentCreationAttributes(
+            PaymentKey(DbAccess.unique("pk")), intent.merchantSiteId, intent.money, PaymentMethod.CARD, "Demo order", PersistenceTestData.snapshot, (T0.minusSeconds(120)).plus(shift), ACTOR,
+        )
+        val created = tx.execute {
+            if (firstPayment != null) {
+                payments.insertNew(firstPayment, attributes)
+                controls.openOrLock(OrderPaymentControl.open(firstPayment), (T0.minusSeconds(120)).plus(shift))
+                firstPayment
+            } else {
+                // 같은 주문의 다음 generation: control·앞 Payment를 잠그고 공식 판정(decide → CreateNewPayment)으로 슬롯을 점유한다.
+                val control = checkNotNull(controls.lock(order))
+                val current = checkNotNull(payments.lock(checkNotNull(previous).paymentId))
+                val decision = control.value.decide(intent.fingerprint(), current.value) as PaymentSlotDecision.CreateNewPayment
+                val next = Payment.request(PaymentId(DbAccess.unique("pay")), order, intent.fingerprint(), decision.nextSlotGeneration, window)
+                control.value.occupy(next, current.value)
+                controls.update(control.value, control.version, (T0.minusSeconds(120)).plus(shift))
+                payments.insertNew(next, attributes)
+                next
+            }
+        }
         tx.executeWithoutResult {
-            payments.insertNew(
-                payment,
-                PaymentCreationAttributes(PaymentKey(DbAccess.unique("pk")), intent.merchantSiteId, intent.money, PaymentMethod.CARD, "Demo order", PersistenceTestData.snapshot, (T0.minusSeconds(120)).plus(shift), ACTOR),
-            )
-            controls.openOrLock(OrderPaymentControl.open(payment), (T0.minusSeconds(120)).plus(shift))
+            val payment = created
             val token = CheckoutPersistenceFixture.token(payment).copy(money = intent.money, issuedAt = (T0.minusSeconds(110)).plus(shift), expiresAt = (T0.plusSeconds(190)).plus(shift))
             tokens.insert(token)
             val cs = CheckoutPersistenceFixture.session(token, handle = handle)
@@ -132,7 +153,7 @@ class ConfirmFixture(
                 sessions.update(session, version)
             }
         }
-        return Prepared(order, payment.id, ref, intent.money, plan, handle.value, cookieSecret)
+        return Prepared(order, created.id, ref, intent.money, plan, handle.value, cookieSecret)
     }
 
     fun scalar(sql: String, vararg args: Any?): Any? = db.withApp { c -> with(db) { c.scalar(sql, *args) } }
@@ -162,6 +183,16 @@ class ConfirmFixture(
 
     fun idempotencyRows(p: Prepared): List<Map<String, Any?>> = db.withApp { c ->
         with(db) { c.rows("SELECT result_kind, result_code, result_payment_id, result_authorization_id, result_detail FROM idempotency_request WHERE merchant_account_id = ? AND operation = 'ConfirmPayment' ORDER BY id", p.order.merchantAccountId.value) }
+    }
+
+    /** CANCEL-001: 이 MID의 CancelPayment 멱등 기록(기록 순서). */
+    fun cancelIdempotencyRows(mid: MerchantAccountId): List<Map<String, Any?>> = db.withApp { c ->
+        with(db) {
+            c.rows(
+                "SELECT result_kind, result_code, result_payment_id, result_cancellation_id FROM idempotency_request WHERE merchant_account_id = ? AND operation = 'CancelPayment' ORDER BY id",
+                mid.value,
+            )
+        }
     }
 
     companion object {

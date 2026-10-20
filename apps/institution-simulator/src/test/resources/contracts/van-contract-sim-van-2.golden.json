@@ -1,0 +1,565 @@
+{
+  "description": "CANCEL-001 virtual VAN TCP contract sim-van-2 = every sim-van-1 message, hash and frame unchanged + cancel and cancel inquiry (generated independently of both apps; Demo values and a test-only HMAC key, not production).",
+  "contractVersion": "sim-van-2",
+  "frameVersion": 1,
+  "maxFrameLength": 16384,
+  "hmac": {
+    "keyId": "sim-van-test-1",
+    "keyBase64": "dGVzdC1vbmx5LXNpbS12YW4taG1hYy1rZXktMDAwMDE="
+  },
+  "messages": {
+    "authRequest": {
+      "type": "AUTH_REQUEST",
+      "messageId": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "amountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "authentication": {
+        "evidenceRef": "sim-ev-A",
+        "providerCode": "SIMAUTH-1",
+        "issuerCode": "SIMISS-A",
+        "acquirerCode": "SIMACQ-A"
+      },
+      "requestedAt": "2026-10-16T01:00:31.000Z"
+    },
+    "authRequestResent": {
+      "type": "AUTH_REQUEST",
+      "messageId": "01JA0000000000000000000020",
+      "requestId": "ar_01JA0000000000000000000001",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "amountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "authentication": {
+        "evidenceRef": "sim-ev-A",
+        "providerCode": "SIMAUTH-1",
+        "issuerCode": "SIMISS-A",
+        "acquirerCode": "SIMACQ-A"
+      },
+      "requestedAt": "2026-10-16T01:00:33.000Z"
+    },
+    "authRequestInstallment": {
+      "type": "AUTH_REQUEST",
+      "messageId": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "amountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "INSTALLMENT",
+        "months": 3
+      },
+      "authentication": {
+        "evidenceRef": "sim-ev-A",
+        "providerCode": "SIMAUTH-1",
+        "issuerCode": "SIMISS-A",
+        "acquirerCode": "SIMACQ-A"
+      },
+      "requestedAt": "2026-10-16T01:00:31.000Z"
+    },
+    "authResponseApproved": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "authResponseDeclined": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "DECLINED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "declineCategory": "ISSUER_DECLINED",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "authResponsePending": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "PENDING",
+      "pendingId": "vp_01JA0000000000000000000005",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "authResponseRequestConflict": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "REQUEST_CONFLICT",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "authResponseRejectedClosed": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "REJECTED_CLOSED",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "inquiryRequest": {
+      "type": "INQUIRY_REQUEST",
+      "messageId": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "institutionAccount": "SIMMERCH0001",
+      "environment": "TEST",
+      "closeIfAbsent": false
+    },
+    "inquiryRequestClose": {
+      "type": "INQUIRY_REQUEST",
+      "messageId": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "institutionAccount": "SIMMERCH0001",
+      "environment": "TEST",
+      "closeIfAbsent": true
+    },
+    "inquiryResponseFound": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "FOUND",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "outcome": "APPROVED",
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "inquiryResponseFoundDeclined": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "FOUND",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "outcome": "DECLINED",
+      "declineCategory": "AUTHENTICATION_INVALID",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "inquiryResponsePending": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "PENDING",
+      "pendingId": "vp_01JA0000000000000000000005",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "inquiryResponseNotFound": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "NOT_FOUND",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "inquiryResponseNoEffectConfirmed": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "NO_EFFECT_CONFIRMED",
+      "closureId": "vc_01JA0000000000000000000004",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "inquiryResponseUnavailable": {
+      "type": "INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000011",
+      "inquiryId": "aq_01JA0000000000000000000002",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "result": "UNAVAILABLE",
+      "respondedAt": "2026-10-16T01:05:00.000Z"
+    },
+    "cancelRequest": {
+      "type": "CANCEL_REQUEST",
+      "messageId": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "originalApprovalNumber": "30000001",
+      "originalTransactionDate": "2026-10-16",
+      "cancelAmountMinor": 3000,
+      "currency": "KRW",
+      "scope": "PARTIAL",
+      "requestedAt": "2026-10-17T02:00:00.000Z"
+    },
+    "cancelRequestResent": {
+      "type": "CANCEL_REQUEST",
+      "messageId": "01JA0000000000000000000040",
+      "requestId": "cr_01JA0000000000000000000021",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "originalApprovalNumber": "30000001",
+      "originalTransactionDate": "2026-10-16",
+      "cancelAmountMinor": 3000,
+      "currency": "KRW",
+      "scope": "PARTIAL",
+      "requestedAt": "2026-10-17T02:00:03.000Z"
+    },
+    "cancelRequestFull": {
+      "type": "CANCEL_REQUEST",
+      "messageId": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "institutionAccount": "SIMMERCH0001",
+      "merchantRef": "mid-demo-0001",
+      "environment": "TEST",
+      "routeRef": "SIM-VAN-01",
+      "originalRequestId": "ar_01JA0000000000000000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "originalApprovalNumber": "30000001",
+      "originalTransactionDate": "2026-10-16",
+      "cancelAmountMinor": 10000,
+      "currency": "KRW",
+      "scope": "FULL",
+      "requestedAt": "2026-10-17T02:00:00.000Z"
+    },
+    "cancelResponseApproved": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "cancelApprovalNumber": "40000001",
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelResponseApprovedWithoutApprovalNumber": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelResponseDeclined": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "DECLINED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "declineCategory": "EXCEEDS_REMAINING",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelResponsePending": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "PENDING",
+      "pendingId": "vp_01JA0000000000000000000025",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelResponseRequestConflict": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "REQUEST_CONFLICT",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelResponseRejectedClosed": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "REJECTED_CLOSED",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "cancelInquiryRequest": {
+      "type": "CANCEL_INQUIRY_REQUEST",
+      "messageId": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "institutionAccount": "SIMMERCH0001",
+      "environment": "TEST",
+      "closeIfAbsent": false
+    },
+    "cancelInquiryRequestClose": {
+      "type": "CANCEL_INQUIRY_REQUEST",
+      "messageId": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "institutionAccount": "SIMMERCH0001",
+      "environment": "TEST",
+      "closeIfAbsent": true
+    },
+    "cancelInquiryResponseFound": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "FOUND",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "outcome": "APPROVED",
+      "cancelApprovalNumber": "40000001",
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    },
+    "cancelInquiryResponseFoundDeclined": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "FOUND",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "outcome": "DECLINED",
+      "declineCategory": "CANCEL_PERIOD_EXPIRED",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    },
+    "cancelInquiryResponsePending": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "PENDING",
+      "pendingId": "vp_01JA0000000000000000000025",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    },
+    "cancelInquiryResponseNotFound": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "NOT_FOUND",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    },
+    "cancelInquiryResponseNoEffectConfirmed": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "NO_EFFECT_CONFIRMED",
+      "closureId": "vc_01JA0000000000000000000024",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    },
+    "cancelInquiryResponseUnavailable": {
+      "type": "CANCEL_INQUIRY_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000031",
+      "inquiryId": "cq_01JA0000000000000000000022",
+      "originalRequestId": "cr_01JA0000000000000000000021",
+      "result": "UNAVAILABLE",
+      "respondedAt": "2026-10-17T02:05:00.000Z"
+    }
+  },
+  "payloadHashes": {
+    "authRequest": "3b8c487e4ea3e74e2e48d3dd1773d98d52954eaf494dae6a2af2138d5bf4942a",
+    "authRequestResent": "3b8c487e4ea3e74e2e48d3dd1773d98d52954eaf494dae6a2af2138d5bf4942a",
+    "authRequestInstallment": "64e7bcf925c99c180de904d2f3da2a39fa41ba7e28aad219fd1a863310abbed6",
+    "cancelRequest": "e4e3273d9c7524acce2f795a30c37ec35a755fe189cb4c528d8b7805f60d426e",
+    "cancelRequestResent": "e4e3273d9c7524acce2f795a30c37ec35a755fe189cb4c528d8b7805f60d426e",
+    "cancelRequestFull": "c07f821e7cd2361b31ed80f50b64f8cc2607a46f9ed9dfdc1311875710b6ee6c"
+  },
+  "frames": {
+    "authRequest": "000001ed010e73696d2d76616e2d746573742d31684b023ad31755919a86ee9d750faed766e0b164201a7d05cead0bc83b6914337b2274797065223a22415554485f52455155455354222c226d6573736167654964223a2230314a4130303030303030303030303030303030303030303130222c22726571756573744964223a2261725f30314a4130303030303030303030303030303030303030303031222c22696e737469747574696f6e4163636f756e74223a2253494d4d4552434830303031222c226d65726368616e74526566223a226d69642d64656d6f2d30303031222c22656e7669726f6e6d656e74223a2254455354222c22726f757465526566223a2253494d2d56414e2d3031222c22616d6f756e744d696e6f72223a31303030302c2263757272656e6379223a224b5257222c22706c616e223a7b226b696e64223a224c554d505f53554d227d2c2261757468656e7469636174696f6e223a7b2265766964656e6365526566223a2273696d2d65762d41222c2270726f7669646572436f6465223a2253494d415554482d31222c22697373756572436f6465223a2253494d4953532d41222c226163717569726572436f6465223a2253494d4143512d41227d2c227265717565737465644174223a22323032362d31302d31365430313a30303a33312e3030305a227d",
+    "authResponseApproved": "000001fd010e73696d2d76616e2d746573742d31365ed6b1d46390fa3dd7212a6a0acddb9290585a06eb4698ff8482b98a5c8ef87b2274797065223a22415554485f524553504f4e5345222c22696e5265706c79546f223a2230314a4130303030303030303030303030303030303030303130222c22726571756573744964223a2261725f30314a4130303030303030303030303030303030303030303031222c226f7574636f6d65223a22415050524f564544222c226465636973696f6e4964223a2276645f30314a4130303030303030303030303030303030303030303033222c22617070726f76616c4e756d626572223a223330303030303031222c2270726f76696465725472616e73616374696f6e4964223a2253494d5054582d30303030303030303031222c22617070726f766564416d6f756e744d696e6f72223a31303030302c2263757272656e6379223a224b5257222c22706c616e223a7b226b696e64223a224c554d505f53554d227d2c226361726454797065223a22435245444954222c22696e737469747574696f6e5472616e73616374696f6e44617465223a22323032362d31302d3136222c22696e737469747574696f6e427573696e65737344617465223a22323032362d31302d3136222c22726573706f6e6465644174223a22323032362d31302d31365430313a30303a33312e3132305a227d",
+    "authResponseApprovedWrongKey": "000001fd010e73696d2d76616e2d746573742d31d489e01c09f3658f3a658c0ecdba11e0089b6edc1795a591a06ed85b898a9f2c7b2274797065223a22415554485f524553504f4e5345222c22696e5265706c79546f223a2230314a4130303030303030303030303030303030303030303130222c22726571756573744964223a2261725f30314a4130303030303030303030303030303030303030303031222c226f7574636f6d65223a22415050524f564544222c226465636973696f6e4964223a2276645f30314a4130303030303030303030303030303030303030303033222c22617070726f76616c4e756d626572223a223330303030303031222c2270726f76696465725472616e73616374696f6e4964223a2253494d5054582d30303030303030303031222c22617070726f766564416d6f756e744d696e6f72223a31303030302c2263757272656e6379223a224b5257222c22706c616e223a7b226b696e64223a224c554d505f53554d227d2c226361726454797065223a22435245444954222c22696e737469747574696f6e5472616e73616374696f6e44617465223a22323032362d31302d3136222c22696e737469747574696f6e427573696e65737344617465223a22323032362d31302d3136222c22726573706f6e6465644174223a22323032362d31302d31365430313a30303a33312e3132305a227d",
+    "cancelRequest": "00000225010e73696d2d76616e2d746573742d315e86302e22acd0042537e7f6e0cf22e529bfa5855655d75bbdc468ce43def2e57b2274797065223a2243414e43454c5f52455155455354222c226d6573736167654964223a2230314a4130303030303030303030303030303030303030303330222c22726571756573744964223a2263725f30314a4130303030303030303030303030303030303030303231222c22696e737469747574696f6e4163636f756e74223a2253494d4d4552434830303031222c226d65726368616e74526566223a226d69642d64656d6f2d30303031222c22656e7669726f6e6d656e74223a2254455354222c22726f757465526566223a2253494d2d56414e2d3031222c226f726967696e616c526571756573744964223a2261725f30314a4130303030303030303030303030303030303030303031222c226f726967696e616c50726f76696465725472616e73616374696f6e4964223a2253494d5054582d30303030303030303031222c226f726967696e616c417070726f76616c4e756d626572223a223330303030303031222c226f726967696e616c5472616e73616374696f6e44617465223a22323032362d31302d3136222c2263616e63656c416d6f756e744d696e6f72223a333030302c2263757272656e6379223a224b5257222c2273636f7065223a225041525449414c222c227265717565737465644174223a22323032362d31302d31375430323a30303a30302e3030305a227d",
+    "cancelResponseApproved": "0000020a010e73696d2d76616e2d746573742d31ab3390d57caded15622d5038095bc5f8685925b0b95316235cf0f0f88c5c8ad67b2274797065223a2243414e43454c5f524553504f4e5345222c22696e5265706c79546f223a2230314a4130303030303030303030303030303030303030303330222c22726571756573744964223a2263725f30314a4130303030303030303030303030303030303030303231222c226f7574636f6d65223a22415050524f564544222c226465636973696f6e4964223a2276645f30314a4130303030303030303030303030303030303030303233222c2263616e63656c417070726f76616c4e756d626572223a223430303030303031222c2270726f76696465725472616e73616374696f6e4964223a2253494d5054582d43303030303030303031222c226f726967696e616c50726f76696465725472616e73616374696f6e4964223a2253494d5054582d30303030303030303031222c2263616e63656c6c6564416d6f756e744d696e6f72223a333030302c2263757272656e6379223a224b5257222c22696e737469747574696f6e5472616e73616374696f6e44617465223a22323032362d31302d3137222c22696e737469747574696f6e427573696e65737344617465223a22323032362d31302d3137222c22726573706f6e6465644174223a22323032362d31302d31375430323a30303a30302e3135305a227d"
+  },
+  "malformedAuthResponses": {
+    "unknownField": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:00:31.120Z",
+      "extra": true
+    },
+    "nullDecisionId": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": null,
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "amountAsString": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": "10000",
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    },
+    "missingRespondedAt": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "approvalNumber": "30000001",
+      "providerTransactionId": "SIMPTX-0000000001",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16"
+    },
+    "approvedWithoutTerms": {
+      "type": "AUTH_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000010",
+      "requestId": "ar_01JA0000000000000000000001",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000003",
+      "approvedAmountMinor": 10000,
+      "currency": "KRW",
+      "plan": {
+        "kind": "LUMP_SUM"
+      },
+      "cardType": "CREDIT",
+      "institutionTransactionDate": "2026-10-16",
+      "institutionBusinessDate": "2026-10-16",
+      "respondedAt": "2026-10-16T01:00:31.120Z"
+    }
+  },
+  "malformedCancelResponses": {
+    "unknownField": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "cancelApprovalNumber": "40000001",
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z",
+      "extra": true
+    },
+    "nullCancelApprovalNumber": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "cancelApprovalNumber": null,
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "amountAsString": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "cancelApprovalNumber": "40000001",
+      "providerTransactionId": "SIMPTX-C000000001",
+      "originalProviderTransactionId": "SIMPTX-0000000001",
+      "cancelledAmountMinor": "3000",
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    },
+    "approvedWithoutTerms": {
+      "type": "CANCEL_RESPONSE",
+      "inReplyTo": "01JA0000000000000000000030",
+      "requestId": "cr_01JA0000000000000000000021",
+      "outcome": "APPROVED",
+      "decisionId": "vd_01JA0000000000000000000023",
+      "cancelApprovalNumber": "40000001",
+      "cancelledAmountMinor": 3000,
+      "currency": "KRW",
+      "institutionTransactionDate": "2026-10-17",
+      "institutionBusinessDate": "2026-10-17",
+      "respondedAt": "2026-10-17T02:00:00.150Z"
+    }
+  }
+}

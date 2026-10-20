@@ -11,7 +11,7 @@ value class RequestFingerprint(val value: String) {
     }
 
     private companion object {
-        /** `r<n>:` = CreatePayment(CP-CONTRACT-001 §7), `c<n>:` = confirm(AUTH-001 AU-03). 멱등 범위에 operation이 있어 두 계열은 섞이지 않는다. */
-        val PATTERN = Regex("^[rc][1-9][0-9]{0,2}:[0-9a-f]{64}$")
+        /** `r<n>:` = CreatePayment(CP-CONTRACT-001 §7), `c<n>:` = confirm(AUTH-001 AU-03), `x<n>:` = cancel(CANCEL-001 §4.8). 멱등 범위에 operation이 있어 계열은 섞이지 않는다. */
+        val PATTERN = Regex("^[rcx][1-9][0-9]{0,2}:[0-9a-f]{64}$")
     }
 }

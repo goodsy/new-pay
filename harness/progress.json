@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:baa077bac0aa1715c8aaa74be75820f4d4dd7e26ed668d218f3a20c1b177aa31",
-  "lastSuccessfulStep": "AUTH-001 DONE (VERIFY-GATE PASS 150655Z 1875/0, DEPS×5·CVE PASS 152244Z, REVIEW_PASS final-2)",
+  "codeFingerprint": "sha256:4677affeb55a23e43ce9617e105fb99bdfac3b46a0cc937f4611a0ac6ad63ccd",
+  "lastSuccessfulStep": "CANCEL-001 DONE (VERIFY-GATE PASS 033423Z 2092/0, DEPS×5·CVE PASS 035156Z, REVIEW_PASS final-2)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "CANCEL-001(agreedOrder AUTH-001 다음): 1단계 조사·명세·질문 후보부터. 이후 CP-QUERY-001 → WEBHOOK-001. ADMIN-BOOT-001 착수 전 사용자에게 알림",
+  "nextResumeAction": "CP-QUERY-001(agreedOrder CANCEL-001 다음): 1단계 조사·명세·질문 후보부터. S0에서 commands.json VERIFY-GATE timeoutSeconds 정리. 이후 WEBHOOK-001. ADMIN-BOOT-001 착수 전 사용자에게 알림. paycore-mysql 개발 컨테이너는 gate 메모리 때문에 중지 상태",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -447,6 +447,41 @@
       "at": "2026-10-19",
       "taskId": "AUTH-001",
       "event": "final review PASS_WITH_FIXES(m-1, n-1~n-7) → 수정 → REVIEW_PASS; VERIFY-GATE PASS 150655Z 1875/0; DEPS×5·CVE PASS; DONE"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "IN_PROGRESS, 1단계 조사·명세·질문 후보 착수 (AUTH-001 e2fdf35 push 후)"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "1단계 명세 수령, Q-CANCEL1-01~04 → D-CANCEL1-001~004(전부 권장안), §15 판정 기록, ADMIN-BOOT-001·RECON-CONTRACT-001 인계 AC 추가"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "명세 review CHANGES_REQUIRED(H-1, m-1~m-10, n-1~n-9), U-1/U-2 → D-CANCEL1-006/005, rev 0.3 지시, S1~S2 병행"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "S2 체크포인트(payment-api 1314/0), 중간 review #1 CHANGES_REQUIRED, U-3/U-4 → D-CANCEL1-007/008, 수정 지시"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "S4 체크포인트, 중간 review #2 PASS_WITH_FIXES(m-1 golden 줄바꿈, n-1~n-5), S5~S7 지시"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "S7 체크포인트(payment-api 1431/0, Simulator 168/0), 중간 review #3 PASS_WITH_FIXES(m-1~m-3, n-1~n-6), 수정 후 S8 지시"
+    },
+    {
+      "at": "2026-10-20",
+      "taskId": "CANCEL-001",
+      "event": "final review PASS_WITH_FIXES → 문서 수정 → REVIEW_PASS; VERIFY-GATE PASS 033423Z 2092/0(메모리 부족 중단 2회 뒤 WSL 분리 실행); DEPS×5·CVE PASS; DONE"
     }
   ],
   "agreedOrder": [

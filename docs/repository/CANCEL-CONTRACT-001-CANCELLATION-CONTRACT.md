@@ -940,3 +940,28 @@ test 수정 `CancellationFixture`(완료·거절·늦은 성공을 `Cancellation
 - **m-3·m-4·nit 3·nit 4**: §14.1 인계 항목. **nit 1**: §2.2·§4.10·§14 문구를 "hold 유지 중 거래 기록"으로. **nit 2**: AUTH-CONTRACT §18-6 "D-CANCEL-001~012". **nit 5**: §15 최종 증거표.
 - **D-1(D-CANCEL-013, 2026-10-18)**: 문서만 변경 — §4.8·§4.10에 D-CANCEL-013, §14.1 호출자 요건을 이중 승인 경로(D-CANCEL-010·011·012)와 단일 REAL 경로(D-CANCEL-013)로 나눔.
   코드·시험 변경 없음(재실행하지 않음 — 게이트가 확인).
+
+## 18. CANCEL-001 구현 편차 표시(2026-10-20 — 구현자 기록, Reviewer 확인 대상)
+
+CANCEL-001(`docs/repository/CANCEL-001-CANCELLATION.md`)이 이 계약을 실행 구조로 구현하면서 계약 문장과 다르게 하거나 보탠 곳이다. 업무 규칙(D-CANCEL-001~013)은 바꾸지 않았다. 사용자 결정으로 계약을
+구체화한 곳(D-CANCEL1-001~008)은 결정이 우선하며 아래에 위치만 표시한다. 표의 "방향"은 fail-closed(더 보수적)·추가(기존 의미 불변)·구체화(결정 반영)·미구현(허용된 예외를 쓰지 않음) 중 하나다.
+
+| 계약 위치 | 구현 | 방향 | 근거 |
+|---|---|---|---|
+| §9.3 `CancellationIncidentDetected` effect_key `:{occurrence}` | `:{cancellationId}:{incidentSeq}` — 사건마다 이벤트 하나(새 hold가 없어도), `incident_count` 영속 | 구체화 | D-CANCEL1-002 |
+| §9.3 같은 표 RECON Case 힌트("승인액 초과 가능 시 CRITICAL") | payload `riskHint` = 이 취소의 반환 예약이 `ReturnExcess.EXCEEDED`일 때만 CRITICAL, 아니면 HIGH. payload에 `excessAmount`(정수 minor, 이 Payment의 누적 초과 — 초과가 아니면 0) **필드 추가** | 추가(필드)·구체화 | CANCEL-001 검토 #3 n-4, 소비자 없음 |
+| §4.6·CR 표 사건 동일성 | 사건이 이미 있는 진행 중 취소의 새 상충 확정 관찰도 사건 +1, 같은 기관 결정(조건까지 같음)의 다른 출처 재수신은 같은 사건 | 구체화 | D-CANCEL1-005·007, CN-31 |
+| §4.7 K-14 같은 ID 재전송 예외 | 구현하지 않음 — 회복은 원 취소 요청 ID 조회만 | 미구현(보수) | CANCEL-001 CN-27, D-CANCEL1-003 |
+| §4.7 이관 뒤 | 이관된 취소 UNKNOWN에 임시 출구 없음(상태·예약 유지, 이관 뒤 느린 조회 → 보존기간 경과 또는 Route 없음·최대 연령 경과 시 조회 중지). 확정은 RECON | 구체화 | D-CANCEL1-003(LIVE Gate 조건), 검토 #3 n-6 |
+| §4.7 무효과 종결 | 전송 때 Attempt에 고정한 Route 프로파일 버전 = 현재 등록부 버전일 때만 종결 요청, 다르거나 NULL(보내지 않은 Attempt 포함)이면 조회·이관만 | 구체화 | D-CANCEL1-004, 검토 #3 m-1 |
+| §4.11·CC-12 운영자 업무 키(같은 승인 = 기존 operation) | 같은 approvalId·같은 Payment·같은 금액이어도 **요청자·승인자가 다르면** 같은 요청이 아니다 → `APPROVAL_IDENTITY_MISMATCH` 거절 + 감사 행(기존 결과를 돌려주지 않음). 판정은 비잠금 읽기 | fail-closed | CANCEL-001 CN-32(검토 #3 n-3) — Reviewer 확인 요청 |
+| §4.11 운영자 명령 거절 | 거절 판정과 같은 로컬 TX에 append-only 감사 행(`operator_cancel_rejection`), 거절 한 번 = 행 하나. 형식이 아닌 paymentId는 자리표시 `MALFORMED`·사유 `PAYMENT_ID_MALFORMED` | 구체화 | D-CANCEL1-006·008, 검토 #3 m-3 |
+| §4.11 운영자 보정 진입점 | provided Use Case만, inbound 진입점 없음(ArchUnit) — ADMIN 승인 상태 동기 조회 없음 | 구체화 | D-CANCEL1-001 |
+| §7 기관 Port 상관관계 | 원 승인 PTX echo가 다른 취소 승인 응답은 Adapter가 OutcomeUnknown(CORRELATION) — 결정은 원 취소 요청 ID 조회가 가져와 domain이 상충 판정 | fail-closed | CANCEL-001 D-S6-1 |
+| §7 가상 기관 원 거래 echo(CANCEL-001 §6.3) | 원 거래일(`originalTransactionDate`) 불일치도 ORIGINAL_MISMATCH | fail-closed | CANCEL-001 D-S3-1 |
+| §7 가상 기관 PENDING | 취소 PENDING 시나리오 없음(응답 작성기는 golden 대조용) — PG 판정은 PENDING = UNKNOWN 유지 | 미구현(Demo) | CANCEL-001 CN-23·D-S3-6 |
+| §4.5·§8 멱등 저장 | CancelPayment 결과 CHECK·취소 참조 열은 V20(쓰기 경로가 생기는 단계)에, 결과가 있는 행마다 `result_code IS NOT NULL` | 구체화 | CANCEL-001 D-S2-1, 검토 #3 n-1 |
+| §6 계좌환불 | v1 범위 밖 — API·운영 안내 문구는 CANCEL-001 §4.11 | 구체화(안내) | D-CANCEL-007, rev 0.3 m-8 |
+| §4.7 회복 후보 선정(jOOQ keyset → JPA) | 회복 일정 행을 `FOR UPDATE SKIP LOCKED`로 선점(짧은 TX), 판정은 JPA 잠금 재판정 | 구현 방식(의미 불변) | CANCEL-001 CN-24(AUTH-001 D-S7-1 선례), 최종 review n-2 |
+| §9.1 회복은 control부터 잠금 | 이관·조회 중지 TX는 `payment_cancellation` → 일정만 잠근다(잠금 순서의 접미부). 이 TX는 control·hold·예약을 건드리지 않으므로 순서 역전 없음 | 구현 방식(안전) | 최종 review n-2 |
+| §8 응답 본문 | 가맹점 응답에 `declineCategory`(기관 거절 분류) 추가 | 추가 | CANCEL-001 CN-02, 최종 review n-2 |

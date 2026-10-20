@@ -14,6 +14,8 @@ data class VanProfile(
     val inquiryRetention: Duration,
     val creditInstallmentMonths: Set<Int>,
     val pendingDelay: Duration,
+    /** 취소 Capability(CANCEL-001 §6.5 — Demo). 승인 Capability와 따로 둔다(취소 무효과 확정·보존기간은 기관 규약상 별개일 수 있다). */
+    val cancel: VanCancelProfile,
 ) {
     init {
         require(name.isNotEmpty()) { "profile name must not be empty" }
