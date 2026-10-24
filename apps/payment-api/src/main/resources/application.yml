@@ -52,6 +52,9 @@ logging:
     # 남기므로 원문 로그는 끈다(MASTER-DOMAIN-001 review2 n-4 — master-api와 같다). Hibernate 7 범주와 이전 이름 모두.
     org.hibernate.orm.jdbc.error: "OFF"
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    # WEBHOOK-001 검토 #2 n-5: HttpClient wire/header 로그에는 서명 header·본문이 그대로 찍힌다. 기본을 WARN으로 고정한다(T-N1). 외부 설정이 덮어쓸 수 있으므로 배포에서 DEBUG로 올리지 않는다(§20.1).
+    org.apache.hc.client5.http.wire: "WARN"
+    org.apache.hc.client5.http.headers: "WARN"
 
 # 가맹점 공개 API(CP-API-001). 운영 기본값 없음 — 배포 환경이 값을 주지 않으면 기동하지 않는다(명세 §7.4·§8).
 #   paycore.payment.api.internal-port: 내부 경로(/internal/**) 전용 connector 포트(공개 포트와 달라야 한다)
@@ -75,4 +78,9 @@ logging:
 #     connect-timeout,read-timeout,total-deadline,connect-retry-budget,capabilities.{confirms-no-effect,closable-after,inquiry-retention,same-id-resend-safe,
 #     authentication-evidence-reusable-for-resend,supported-currencies,supported-card-types,installment-card-types,installment-months,installment-minimum-amount}} — AUTH-001 §5.8, Demo 값
 #     (installment-months·installment-minimum-amount는 같은 환경 결제창 Plan Demo 정책과 같아야 한다 — 기동 검사 AU-31. 로컬 Demo 예시: .env.example PAYCORE_PAYMENT_AUTHORIZATION_JSON)
-
+# 가맹점 Webhook(WEBHOOK-001 §5.0·§21, D-WH-004·006). 운영 기본값 없음 — 값이 없으면 기동 실패.
+#   paycore.webhook.test-endpoints[].{merchant-account-id,endpoint-ref,url(https)} — TEST 환경 Demo endpoint만(빈 목록은 명시 값, LIVE는 원천 없음 — fail-closed, 등록은 WEBHOOK-ENDPOINT-001)
+#   paycore.webhook.fanout.{enabled,fixed-delay,batch-size,failed-retry-interval} — Outbox → 가맹점 이벤트 fan-out 주기(Demo 5s·100·1m)
+#   paycore.webhook.test-signing-keys[].{merchant-account-id,key-id,secret(whsec_…, 환경변수)} — TEST 시험 키만(MID당 최대 2, D-WH-005 — 발급은 WEBHOOK-ENDPOINT-001)
+#   paycore.webhook.transport.{connect-timeout,response-timeout,request-deadline,dns-timeout,max-response-bytes,test-allowlist[],test-trust-pem(선택)} — D-WH-007(Demo 3s·10s·15s·2s·4KiB)
+#   paycore.webhook.delivery.{claim-lease,schedule.{version,initial,max,jitter-ratio,max-attempts,max-age},job.{enabled,fixed-delay,batch-size}} — D-WH-006(Demo 60s·10s~1h·0.2·10회·24h)

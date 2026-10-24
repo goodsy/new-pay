@@ -1793,6 +1793,150 @@
       "humanAnswer": "\"그대로 허용 (권장)\"",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-20)",
       "appliedSpec": "D-CPQ-005"
+    },
+    {
+      "id": "Q-WH-01",
+      "status": "ANSWERED",
+      "question": "AUTHORIZED 결제의 운영자 보정 취소 Webhook 알림",
+      "recommended": "알림, initiator=OPERATOR만",
+      "alternative": "조회만 / initiator 없이 / 별도 이벤트",
+      "dependentTasks": [
+        "WEBHOOK-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"알림, initiator만 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-001"
+    },
+    {
+      "id": "Q-WH-02",
+      "status": "ANSWERED",
+      "question": "사고 보류(hold) Webhook 알림",
+      "recommended": "v1 없음, RECON 해제 Use Case와 재결정",
+      "alternative": "hold_changed 이벤트 / 결과 이벤트에 onHold",
+      "dependentTasks": [
+        "WEBHOOK-001",
+        "RECON-CONTRACT-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"v1에는 없음 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-002"
+    },
+    {
+      "id": "Q-WH-03",
+      "status": "ANSWERED",
+      "question": "Webhook 서명 방식",
+      "recommended": "HMAC-SHA256 (MID,환경)별 공유 비밀, \"{t}.{body}\", PayCore-Signature t·kid·v1, 교체 중 두 서명, 시각 창 Demo 300s",
+      "alternative": "Ed25519 / mTLS / 둘 다",
+      "dependentTasks": [
+        "WEBHOOK-001",
+        "WEBHOOK-ENDPOINT-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"HMAC-SHA256 가맹점별 비밀 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-003"
+    },
+    {
+      "id": "Q-WH-04",
+      "status": "ANSWERED",
+      "question": "Webhook 수신 endpoint 소유·등록 경로",
+      "recommended": "MASTER 소유 (MID,환경)당 1개, ADMIN 등록, LIVE 등록·변경 2인 승인, 서명 snapshot 전파, ADMIN 전 TEST Demo 설정만·LIVE fail-closed",
+      "alternative": "가맹점 셀프 API / PAYMENT 소유 / Site별",
+      "dependentTasks": [
+        "WEBHOOK-ENDPOINT-001",
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"MASTER 소유·ADMIN 등록 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-004"
+    },
+    {
+      "id": "Q-WH-05",
+      "status": "ANSWERED",
+      "question": "서명 비밀 발급·보관·교체·폐기",
+      "recommended": "PAYMENT 발급 whsec_, 환경별 관리 키 봉투 암호화, 원문 1회 표시, 활성 최대 2, 폐기 append-only, LIVE는 운영 키 저장소 후, ADMIN 전 TEST 키 설정만",
+      "alternative": "MASTER 발급·동기 조회 / 운영자 직접 secret manager",
+      "dependentTasks": [
+        "WEBHOOK-ENDPOINT-001",
+        "LIVE 준비 Gate"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"PAYMENT 발급·봉투 암호화 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-005"
+    },
+    {
+      "id": "Q-WH-06",
+      "status": "ANSWERED",
+      "question": "Webhook 재시도·포기",
+      "recommended": "지수 backoff+jitter, 횟수·기간 상한, GAVE_UP(완료 아님)+경보, 4xx도 재시도, 자동 비활성 없음, 수동 재전송은 ADMIN 후, Demo 10s~1h·10회·24h",
+      "alternative": "무한 재시도 / N회 실패 자동 중지 / 4xx 즉시 포기",
+      "dependentTasks": [
+        "WEBHOOK-001",
+        "WEBHOOK-ENDPOINT-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"유한 재시도 후 GAVE_UP (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-006"
+    },
+    {
+      "id": "Q-WH-07",
+      "status": "ANSWERED",
+      "question": "Webhook 목적지(SSRF) 정책",
+      "recommended": "https·443만, IP 리터럴·userinfo 금지, 해석 주소 전부 공인 unicast, 검사한 IP로만 연결, redirect 불따름, TLS 검증, 응답 크기·timeout 제한, proxy 무시, TEST는 정확한 host:port 허용 목록",
+      "alternative": "https+사설 차단만 / egress proxy / 고정 egress IP",
+      "dependentTasks": [
+        "WEBHOOK-001",
+        "WEBHOOK-ENDPOINT-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"엄격(https 443·공인IP만) (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-007"
+    },
+    {
+      "id": "Q-WH-08",
+      "status": "ANSWERED",
+      "question": "WEBHOOK-001 작업 분할(endpoint·비밀 등록 원본 부재)",
+      "recommended": "전달 핵심(WEBHOOK-001, TEST Demo endpoint, LIVE fail-closed) + WEBHOOK-ENDPOINT-001 후속(ADMIN-BOOT-001 이후), LIVE Gate 조건, agreedOrder 유지",
+      "alternative": "WEBHOOK-001 전체를 ADMIN 뒤로",
+      "dependentTasks": [
+        "WEBHOOK-001",
+        "WEBHOOK-ENDPOINT-001",
+        "ADMIN-BOOT-001",
+        "LIVE 준비 Gate"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 1단계 명세 질문 후보(Q-WH-08은 §18-1 분할)",
+      "humanAnswer": "\"전달 핵심만 + 등록 후속 (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-008"
+    },
+    {
+      "id": "Q-WH-09",
+      "status": "ANSWERED",
+      "question": "Webhook fan-out의 outbox_event 표시를 위한 runtime UPDATE 권한(append-only 보호, 구현자 B-1)",
+      "recommended": "알림 두 열만 열 단위 UPDATE",
+      "alternative": "별도 insert-only 표시 표 / 표 단위 UPDATE(비권장)",
+      "dependentTasks": [
+        "WEBHOOK-001"
+      ],
+      "askedAt": "2026-10-21",
+      "origin": "WEBHOOK-001 S2 구현자 B-1",
+      "humanAnswer": "\"알림 열만 열 단위 UPDATE (권장)\"",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
+      "appliedSpec": "D-WH-009"
     }
   ]
 }

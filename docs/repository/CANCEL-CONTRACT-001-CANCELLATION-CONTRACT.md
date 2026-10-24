@@ -765,6 +765,8 @@ Coordinator 판정: N-2 도출 채택, N-1·N-3~N-7 기술대로. 아래 원문�
 4. **매입 전/후 취소 처리** → ACQUIRING-001(원 SALE 불명확 시 취소 매입 HOLD는 확정).
 5. **늦은 승인 거래 기록(hold 유지 중, D-CANCEL-010·011)**과 보정 취소 참조 → RECON-CONTRACT-001 AC(Coordinator 기록됨): 보정 취소는 CANCEL-CONTRACT-001 경로, DOUBLE 해제가 그 취소를 참조.
 6. **조회·Webhook**: CP-QUERY-001(GetPayment에 반환 요약·취소 이력), WEBHOOK-001(`PaymentCancelled`·`PaymentCancelFailed` 공개 계약).
+   (2026-10-22 교차 참조) WEBHOOK-001 구현: `payment.cancelled`(`cancelTransactionId` = PayCore transactionId, 운영자 취소는 `initiator: OPERATOR`만 — D-WH-001)·`payment.cancel_failed`,
+   P1 Payment의 운영자 취소·취소 실패는 보내지 않음(D-CPQ-002 (ii)). 명세 `docs/repository/WEBHOOK-001-MERCHANT-WEBHOOK.md` §4.
 7. **운영자 취소 화면**: ADMIN-BOOT-001(D-CANCEL-005 — 2인 승인 요청 ID·승인 대상 fingerprint 발급, 양쪽 검사).
 8. **REQUESTED Payment의 가맹점 중단 요청**: 카드 취소가 아니며(금융 효과 없음) 이 계약 밖. 필요하면 결제창 만료와 같은 RequestedPaymentClosing 계열 별도 작업.
 9. **DOMAIN-DEFINITION G-5**: 2단계 T7에서 Cancellation 행을 "규칙 확정(이 계약, D-CANCEL-001~008)"로, Refund 행을 D-CANCEL-007(v1 범위 밖)에 맞춰 갱신.

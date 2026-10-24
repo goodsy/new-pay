@@ -19,6 +19,8 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.flyway.mysql)
+    // 가맹점 Webhook 전송(WEBHOOK-001 §7.2 — 해석 주소 고정·TLS hostname 검증·redirect 금지). Boot 4.1.1 BOM 관리 버전.
+    implementation(libs.apache.httpclient5)
     runtimeOnly(libs.mysql.connector.j)
 
     testImplementation(project(":libs:test-support"))

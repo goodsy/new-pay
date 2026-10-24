@@ -86,6 +86,18 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
   (Coordinator 적용 — 내부 단계 최악 2760초 + 단계당 kill 대기 20초보다 커야 한다, F-3). 이 관계를 `test_module_registry.py`의 `test_verify_gate_timeout_covers_its_stages`(1800 대조)·
   `test_verify_gate_timeout_boundary`(경계: 합 = 통과, 합 − 1 = 문제)가 고정한다 → harness 시험 91 → **93**(하한은 Coordinator가 실측으로 올린다). `GRADLE-CHECK`·`TEST-SUMMARY` 하한도 이 작업의
   전체 check 실측(CP-QUERY-001 §18)으로 Coordinator가 올린다 — 구현자는 `commands.json`을 바꾸지 않았다. 배포 메모: schema 변경이 없고 새 endpoint(`GET /v1/payments/{paymentId}`)는 기존 공개 connector·Bearer 체인 그대로다(혼재 배포 제약 없음). 배포 파이프라인이 생기면 이 조건들을 그 절차의 검사로 옮긴다.
+- WEBHOOK-001(2026-10-21 — 구현자 기록, Verifier 확인 대상): 새 실행 단위·Gradle 모듈 없음. S2까지 빌드 파일 불변(HttpClient 5는 S3에서 BOM 관리 버전으로 추가 예정 → 그때 GRADLE-DEPS×5·CVE-SCAN).
+  - **배포 메모(WEBHOOK-001 명세 §20.1 — D-WH-009)**: PAYMENT V21~V24 배포 전에 **기존 MySQL 볼륨에서 초기화 스크립트를 한 번 다시 실행**한다(`docker compose exec mysql bash /docker-entrypoint-initdb.d/01-owned-databases.sh` —
+    새 열 단위 helper `paycore_payment_privilege.grant_runtime_column_update`, 재실행 안전). 실행하지 않으면 V24가 실패해 payment-api가 기동하지 않는다(fail-closed). **이전 payment-api 인스턴스를 모두 내린 뒤** 적용한다
+    (V23의 DEFAULT 전환 사이 INSERT는 SKIPPED가 된다). 배포 전 Outbox 행은 SKIPPED_PRE_DEPLOY. 필수 설정 `paycore.webhook.*`(기본값 없음). 배포 파이프라인이 생기면 이 조건을 그 절차의 검사로 옮긴다.
+  - S3~S5 추가(2026-10-22): payment-api 빌드에 `org.apache.httpcomponents.client5:httpclient5`(Boot 4.1.1 BOM 관리 버전 5.6.4 — override 없음) → GRADLE-DEPS×5·CVE-SCAN 재실행 대상. PAYMENT V25·V26(시도 원장),
+    Simulator V8·V9(`merchant_webhook_receipt` — 기존 Simulator 볼륨은 init 재실행 불필요: 기존 procedure로 표 권한만 준다). 새 harness 시험 `test_webhook_signature_golden.py` 4건(하한은 Coordinator가 실측으로 올린다 —
+    구현자는 `commands.json`을 바꾸지 않았다). 배포 메모 추가: 이전 payment-api 인스턴스를 모두 내린 뒤 V25~V26 적용(시도 원장 없는 이전 delivery 코드와 혼재 금지 — 이전 코드에는 delivery가 없다),
+    `paycore.webhook.{transport,delivery}`·`delivery.job` 필수(기본값 없음, claim-lease > dns-timeout + request-deadline + 5s 기동 검사), HttpClient wire·header 로거를 DEBUG로 올리지 않는다(서명 헤더·본문 노출 — 기본 WARN 고정),
+    Simulator 가상 가맹점 수신기는 기본 0개(`paycore.simulator.merchant.receivers` 미설정 = 모든 수신 404)이며 로컬 E2E에서만 켠다.
+    payment-api 인스턴스 시계는 NTP로 동기화한다 — claim lease는 인스턴스 시각으로 쓰고 비교하므로 시계 차이가 5s 여유를 넘으면 다른 인스턴스가 이르게 다시 claim할 수 있다(중복 전송 — at-least-once 범위 안, 가맹점은 eventId로 중복 제거).
+    처리량: 한 claim은 min(batch, floor(claim-lease / 한 시도 예산))개라 Demo 값(lease 60s·예산 22s)에서는 회차당 최대 2건이다(job batch 50은 사실상 미적용) — 인스턴스당 처리량은 lease/예산과 fixed-delay가 정하며,
+    운영값(lease·batch·fixed-delay·인스턴스 수)은 LIVE Gate에서 처리량 실측과 함께 정한다(WEBHOOK-001 §20.1 7항).
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.

@@ -1,0 +1,193 @@
+{
+  "description": "WEBHOOK-001 merchant webhook signature contract v1 (generated independently of both apps with Python hmac; Demo secrets, not production). HMAC-SHA256 key = UTF-8 bytes of the whole secret string; signed bytes = ASCII t + '.' + body bytes.",
+  "headerName": "PayCore-Signature",
+  "windowSeconds": 300,
+  "now": 1792500300,
+  "keys": [
+    {
+      "keyId": "whk_t_golden_1",
+      "secret": "whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx"
+    },
+    {
+      "keyId": "whk_t_golden_2",
+      "secret": "whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAy"
+    }
+  ],
+  "signing": [
+    {
+      "name": "single-key",
+      "t": 1792500000,
+      "keyIds": [
+        "whk_t_golden_1"
+      ],
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "header": "t=1792500000,kid=whk_t_golden_1,v1=f236c184432c7d48480482758e380fbb3492c351e28ef9aab539ec6912c1b0aa"
+    },
+    {
+      "name": "rotation-two-keys-utf8-body",
+      "t": 1792500001,
+      "keyIds": [
+        "whk_t_golden_1",
+        "whk_t_golden_2"
+      ],
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000002\",\"type\":\"payment.failed\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:01.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0002\",\"merchantOrderId\":\"주문-0002\",\"amount\":5000,\"currency\":\"KRW\",\"status\":\"FAILED\",\"failureCategory\":\"DECLINED\"}}",
+      "header": "t=1792500001,kid=whk_t_golden_1,v1=375a658fc990792d3a276aa03b4e07e5cc9dd46f65b994253ec59b30a1edf043,kid=whk_t_golden_2,v1=3e4e1a546be088581f665bbc9ac8c2717abab468c0c6af4b67f982f2df56fa8c"
+    }
+  ],
+  "verification": [
+    {
+      "name": "window-minus-300-accepted",
+      "header": "t=1792500000,kid=whk_t_golden_1,v1=f236c184432c7d48480482758e380fbb3492c351e28ef9aab539ec6912c1b0aa",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "ACCEPTED"
+    },
+    {
+      "name": "window-plus-300-accepted",
+      "header": "t=1792500600,kid=whk_t_golden_1,v1=90af406dc365a7c38b129076af6e50b5e16a8f3e4645ecfa0ef01ad2f02fd763",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "ACCEPTED"
+    },
+    {
+      "name": "window-minus-301-stale",
+      "header": "t=1792499999,kid=whk_t_golden_1,v1=00507d39ca3299e28fdd8f46406de122a7b8c4adcd5867d572cce88b2a9b5854",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "STALE"
+    },
+    {
+      "name": "window-plus-301-stale",
+      "header": "t=1792500601,kid=whk_t_golden_1,v1=682f82bc25276a4cf158f631c5666cca3f24256041618f6d08be2eef52923cd9",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "STALE"
+    },
+    {
+      "name": "body-one-byte-changed",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10001,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "SIGNATURE"
+    },
+    {
+      "name": "unknown-key-id-only",
+      "header": "t=1792500300,kid=whk_t_golden_2,v1=53a6f94bf051823d4ed68aff59432fe46854316388f6979342948eae9158b381",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "SIGNATURE"
+    },
+    {
+      "name": "rotation-retired-first-key-known-second",
+      "header": "t=1792500300,kid=whk_t_golden_2,v1=53a6f94bf051823d4ed68aff59432fe46854316388f6979342948eae9158b381,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "ACCEPTED"
+    },
+    {
+      "name": "rotation-both-known-utf8-body",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=cd982572113e88cce830e9ed26816f420dcadad63d27d7c2dc6b32a76680cb18,kid=whk_t_golden_2,v1=a35fe2c11ece317213f0a6a9fd1136f9c67d161654384390f7c7b59069cbdd23",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000002\",\"type\":\"payment.failed\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:01.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0002\",\"merchantOrderId\":\"주문-0002\",\"amount\":5000,\"currency\":\"KRW\",\"status\":\"FAILED\",\"failureCategory\":\"DECLINED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1",
+        "whk_t_golden_2"
+      ],
+      "expected": "ACCEPTED"
+    },
+    {
+      "name": "unknown-parameter-ignored",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b,v0=ignored",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "ACCEPTED"
+    },
+    {
+      "name": "upper-case-hex",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78EFFB71F18A7F8F18CEF60F7235E184DF366B175C0E04F425E93AC483F41B5B",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "two-timestamps",
+      "header": "t=1792500300,t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "missing-timestamp",
+      "header": "kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "three-pairs",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b,kid=whk_t_golden_2,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b,kid=whk_t_golden_3,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "signature-without-key-id",
+      "header": "t=1792500300,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "space-after-comma",
+      "header": "t=1792500300, kid=whk_t_golden_1, v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "token-without-equals",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b,garbage",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "MALFORMED"
+    },
+    {
+      "name": "current-accepted",
+      "header": "t=1792500300,kid=whk_t_golden_1,v1=78effb71f18a7f8f18cef60f7235e184df366b175c0e04f425e93ac483f41b5b",
+      "body": "{\"eventId\":\"whe_01JB0000000000000000000001\",\"type\":\"payment.expired\",\"schemaVersion\":1,\"environment\":\"TEST\",\"merchantAccountId\":\"mid_demo_0001\",\"createdAt\":\"2026-10-22T00:00:00.000Z\",\"sequence\":1,\"payment\":{\"paymentId\":\"pay_demo_0001\",\"merchantOrderId\":\"order-0001\",\"amount\":10000,\"currency\":\"KRW\",\"status\":\"EXPIRED\"}}",
+      "receiverKeyIds": [
+        "whk_t_golden_1"
+      ],
+      "expected": "ACCEPTED"
+    }
+  ]
+}

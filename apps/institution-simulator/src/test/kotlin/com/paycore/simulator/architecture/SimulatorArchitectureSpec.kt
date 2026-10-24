@@ -93,6 +93,28 @@ class SimulatorArchitectureSpec : FunSpec({
         classes.get("$BASE_PACKAGE.van.adapter.persistence.JpaVanCancelEntryEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
     }
 
+    // WEBHOOK-001 §9: 가상 가맹점 수신기(merchant)는 인증 모듈을 client 인증 provided로만 쓰고, VAN과는 서로 모른다.
+    test("the merchant receiver module uses the authentication module only through authentication.application.provided and is independent of van") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.merchant..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.authentication.domain..", "$BASE_PACKAGE.authentication.application.required..", "$BASE_PACKAGE.authentication.adapter..",
+                "$BASE_PACKAGE.van..",
+            )
+            .check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.merchant..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.authentication.application")
+            .check(classes)
+        noClasses().that().resideInAnyPackage("$BASE_PACKAGE.authentication..", "$BASE_PACKAGE.van..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.merchant..")
+            .check(classes)
+    }
+
+    test("the merchant receipt ledger has no update or delete path (append-only store, immutable entity)") {
+        val store = classes.get("$BASE_PACKAGE.merchant.application.required.MerchantWebhookReceiptStore")
+        store.methods.map { it.name }.toSet() shouldBe setOf("append", "countVerified", "hasAccepted", "list")
+        classes.get("$BASE_PACKAGE.merchant.adapter.persistence.JpaMerchantWebhookReceiptEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
+    }
+
     test("the simulator has no REAL institution client and no card-number field (virtual card references only)") {
         classes.filter { it.simpleName.startsWith("Real") }.map { it.name } shouldBe emptyList()
         classes.flatMap { c -> c.fields.map { it.name.lowercase() } }.filter { it.contains("cardnumber") || it == "pan" || it.contains("cvc") } shouldBe emptyList()

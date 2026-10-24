@@ -82,6 +82,9 @@ paycore:
           profile: A
         - account: ${PAYCORE_SIMULATOR_VAN_ACCOUNT_B}
           profile: B
+    # 가상 가맹점 수신기(WEBHOOK-001 §9 — Demo, 운영값 아님). 기본 = 수신기 0개(모든 수신 404 — fail-closed). 로컬 E2E에서만 배포 설정으로 켠다:
+    #   paycore.simulator.merchant.signature-window(D-WH-003 Demo PT5M), receivers[]{id, client(위 PG client id), keys[]{key-id, secret(whsec_… — PG 시험 서명 키와 같은 값)},
+    #   scenario(OK | FAIL_THEN_OK + failures | DELAYED + delay | REDIRECT | LARGE_BODY + body-bytes)}. 비밀은 환경변수로만(저장소에 비밀 없음).
 
 # 포트는 운영 기본값 없이 환경변수로만(D-AUTHN-004 별도 프로세스·포트). 없으면 기동 실패.
 server:

@@ -94,7 +94,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
 
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(flyway())
 
-        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")
+        history().map { it.first } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26")
         history().all { it.second } shouldBe true // 실패한 migration 기록 없음
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
         // REQUESTED만 created_at + pin 유효기간·pin 버전(ms 보존), version + 1. 시각이 이미 지난 행도 채우기만 한다(만료는 이후 만료 작업).
@@ -108,7 +108,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
         // 다음 기동: 설정이 바뀌어도 pin은 그대로(배포 시점 버전), 적용할 것이 없다.
         CheckoutWindowCheckMigrationStrategy(runtime, policy("checkout-validity-demo-2", Duration.ofMinutes(10))).migrate(flyway())
         pin() shouldBe ("checkout-validity-demo-1" to 1_800_000L)
-        history().size shouldBe 21
+        history().size shouldBe 27
 
         val denied = runCatching { root { c -> insertLegacy(c, "pay-new-without-window", "REQUESTED") } }.exceptionOrNull()
         (generateSequence(denied) { it.cause }.filterIsInstance<SQLException>().first()).errorCode shouldBe 3819
@@ -153,7 +153,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 }
             }
             strategy.migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st -> st.executeQuery("SELECT COUNT(*) FROM payment WHERE status = 'REQUESTED' AND checkout_expires_at IS NULL").use { rs -> rs.next(); rs.getInt(1) shouldBe 0 } }
@@ -235,7 +235,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 }
             }
             CheckoutWindowCheckMigrationStrategy(runtimeOf(other), policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st ->
@@ -298,7 +298,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
                 PaymentDbAccounts.PAYMENT_RUNTIME_USER, PaymentDbAccounts.password(PaymentDbAccounts.PAYMENT_RUNTIME_USER),
             )
             CheckoutWindowCheckMigrationStrategy(runtimeOther, policy("checkout-validity-demo-1", Duration.ofMinutes(30))).migrate(config.target("latest").load())
-            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20" to true)
+            historyOf(other) shouldBe ("1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26" to true)
             PaymentDbAccounts.root(other).use { c ->
                 c.catalog = PaymentDbAccounts.PAYMENT_DATABASE
                 c.createStatement().use { st ->

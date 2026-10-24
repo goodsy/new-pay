@@ -112,6 +112,55 @@ GRANT EXECUTE ON PROCEDURE ${db}_privilege.set_runtime_table_privileges TO '${db
 SQL
 }
 
+# WEBHOOK-001 D-WH-009: 열 단위 UPDATE 부여 procedure <db>_privilege.grant_runtime_column_update(table, columns). 지금은 PAYMENT에만 설치한다
+# (outbox_event의 가맹점 알림 표시 두 열 — 나머지 열 UPDATE는 1143으로 계속 거부, DELETE는 1142). set_runtime_table_privileges와 같은 방어:
+# DEFINER = 잠긴 grantor, 받는 쪽 = <db>_runtime role 고정, 표는 <db>의 base table만(flyway_schema_history 거부), 열 목록은 소문자 이름을 ", "로 이은 1~8개이고
+# 모두 그 표에 실제로 있어야 한다(아니면 SIGNAL 1644). 부여만 한다(같은 열 재부여는 그대로 — 재실행 안전). 열 권한 회수는 DBA 절차다.
+# 주의(측정): 같은 표에 set_runtime_table_privileges를 나중에 부르면 여집합 REVOKE UPDATE가 열 단위 UPDATE도 회수하고, 'SELECT, INSERT, UPDATE'는 모든 열로 넓힌다 —
+# 열 권한이 있는 표에는 표 단위 helper를 다시 쓰지 않는다(V24 주석).
+runtime_column_privilege_sql() {
+    local db="$1"
+    cat <<SQL
+DROP PROCEDURE IF EXISTS ${db}_privilege.grant_runtime_column_update;
+DELIMITER //
+CREATE DEFINER = '${db}_grantor'@'localhost' PROCEDURE ${db}_privilege.grant_runtime_column_update(
+    IN p_table VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin,
+    IN p_columns VARCHAR(600) CHARACTER SET ascii COLLATE ascii_bin)
+    MODIFIES SQL DATA
+    SQL SECURITY DEFINER
+    COMMENT 'WEBHOOK-001 D-WH-009: grant column-level UPDATE on existing columns of one ${db} base table to the ${db} runtime role'
+BEGIN
+    IF p_table IS NULL
+        OR NOT REGEXP_LIKE(p_table, '^[a-z][a-z0-9_]{0,63}\$', 'c')
+        OR LOCATE(CHAR(10 USING ascii), p_table) > 0
+        OR LOCATE(CHAR(13 USING ascii), p_table) > 0
+        OR p_table = 'flyway_schema_history'
+        OR NOT EXISTS (SELECT 1 FROM information_schema.TABLES
+                       WHERE TABLE_SCHEMA = '${db}' AND TABLE_NAME = p_table AND TABLE_TYPE = 'BASE TABLE') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'column privileges can be granted only on a base table of the owned database';
+    END IF;
+    IF p_columns IS NULL
+        OR NOT REGEXP_LIKE(p_columns, '^[a-z][a-z0-9_]{0,63}(, [a-z][a-z0-9_]{0,63}){0,7}\$', 'c')
+        OR LOCATE(CHAR(10 USING ascii), p_columns) > 0
+        OR LOCATE(CHAR(13 USING ascii), p_columns) > 0
+        OR (SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = '${db}' AND TABLE_NAME = p_table AND FIND_IN_SET(COLUMN_NAME, REPLACE(p_columns, ', ', ',')) > 0)
+           <> (CHAR_LENGTH(p_columns) - CHAR_LENGTH(REPLACE(p_columns, ',', '')) + 1) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'column privileges need existing lower-case column names of that table';
+    END IF;
+    SET @paycore_runtime_column_sql =
+        CONCAT('GRANT UPDATE (', p_columns, ') ON \`${db}\`.\`', p_table, '\` TO \'${db}_runtime\'@\'%\'');
+    PREPARE paycore_runtime_column_stmt FROM @paycore_runtime_column_sql;
+    EXECUTE paycore_runtime_column_stmt;
+    DEALLOCATE PREPARE paycore_runtime_column_stmt;
+    SET @paycore_runtime_column_sql = NULL;
+END //
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE ${db}_privilege.grant_runtime_column_update TO '${db}_grantor'@'localhost';
+GRANT EXECUTE ON PROCEDURE ${db}_privilege.grant_runtime_column_update TO '${db}_migration'@'%';
+SQL
+}
+
 {
 cat <<SQL
 CREATE DATABASE IF NOT EXISTS paycore_master;
@@ -130,4 +179,5 @@ GRANT ALL PRIVILEGES ON paycore_financial.* TO 'paycore_financial'@'%';
 SQL
 runtime_privilege_sql paycore_master
 runtime_privilege_sql paycore_payment
+runtime_column_privilege_sql paycore_payment
 } | mysql -uroot -p"${MYSQL_ROOT_PASSWORD}"

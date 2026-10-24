@@ -58,3 +58,46 @@ paycore:
           profile: A
         - account: SIMMERCH0002
           profile: B
+    # 가상 가맹점 수신기(WEBHOOK-001 §9) 시험 값 — Demo, 운영값 아님. 서명 비밀은 golden(webhook-signature-v1)의 시험 전용 키 whk_t_golden_1(운영 비밀 아님).
+    merchant:
+      signature-window: PT5M
+      receivers:
+        - id: shop-ok
+          client: pg-demo
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: OK
+        - id: shop-flaky
+          client: pg-demo
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: FAIL_THEN_OK
+          failures: 2
+        - id: shop-slow
+          client: pg-demo
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: DELAYED
+          delay: PT1S
+        - id: shop-redirect
+          client: pg-demo
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: REDIRECT
+        - id: shop-large
+          client: pg-demo
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: LARGE_BODY
+          body-bytes: 65536
+        - id: shop-other
+          client: pg-other
+          keys:
+            - key-id: whk_t_golden_1
+              secret: whsec_dGVzdC1vbmx5LXdlYmhvb2stZ29sZGVuLWtleS0wMDAx
+          scenario: OK

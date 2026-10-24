@@ -71,6 +71,38 @@ paycore:
   # AUTH-001 가상 VAN Route 등록부(§5.8) — 시험 Demo 값(운영값 아님). host·port는 사용하지 않는 loopback 자리값이다(Adapter 시험은 자체 stub VAN을 쓴다).
   # HMAC 키는 golden(van-contract-sim-van-1)의 시험 전용 키다(운영 키 아님). 할부 개월은 위 결제창 Plan Demo 정책과 같은 값(AU-31).
   # CANCEL-001 취소 전송·회복 시간 설정(CN-29 — 시험 Demo 값, 운영값 아님). 회복 Worker 주기 실행은 끄고 시험이 직접 부른다.
+  # WEBHOOK-001 가맹점 Webhook(§5.0·§21 — 시험 Demo 값, 운영값 아님). 시험 endpoint는 spec이 대역 directory로 MID별로 준다(설정 목록은 비움 — LIVE는 원천 없음, D-WH-004).
+  # fan-out 주기 실행은 끄고 시험이 Use Case를 직접 부른다.
+  webhook:
+    test-endpoints: []
+    test-signing-keys: []
+    # 전송(D-WH-007 — 시험 Demo 값). allowlist·추가 trust는 시험이 adapter를 직접 만들 때 준다(컨텍스트에는 없음).
+    transport:
+      connect-timeout: PT3S
+      response-timeout: PT10S
+      request-deadline: PT15S
+      dns-timeout: PT2S
+      max-response-bytes: 4096
+      test-allowlist: []
+    # delivery(D-WH-006 Demo 값 — 운영값 아님). 주기 실행은 끄고 시험이 Use Case를 직접 부른다.
+    delivery:
+      claim-lease: PT60S
+      schedule:
+        version: webhook-retry-demo-1
+        initial: PT10S
+        max: PT1H
+        jitter-ratio: 0.2
+        max-attempts: 10
+        max-age: PT24H
+      job:
+        enabled: false
+        fixed-delay: PT2S
+        batch-size: 50
+    fanout:
+      enabled: false
+      fixed-delay: PT5S
+      batch-size: 100
+      failed-retry-interval: PT1M
   cancellation:
     timing:
       dispatch:

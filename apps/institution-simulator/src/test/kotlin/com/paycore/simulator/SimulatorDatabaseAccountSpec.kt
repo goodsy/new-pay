@@ -65,6 +65,8 @@ class SimulatorDatabaseAccountSpec : FunSpec({
                 "GRANT SELECT, INSERT, UPDATE ON `paycore_simulator`.`van_pending_decision` TO `paycore_simulator_runtime`@`%`",
                 // CANCEL-001 §6.5(V7): 취소 원장도 append-only 기관 금융 사실 원본.
                 "GRANT SELECT, INSERT ON `paycore_simulator`.`van_cancel_entry` TO `paycore_simulator_runtime`@`%`",
+                // WEBHOOK-001 §9(V9): 가상 가맹점 수신 원장 append-only.
+                "GRANT SELECT, INSERT ON `paycore_simulator`.`merchant_webhook_receipt` TO `paycore_simulator_runtime`@`%`",
             )
         }
     }
@@ -82,6 +84,8 @@ class SimulatorDatabaseAccountSpec : FunSpec({
                 "DROP TABLE van_ledger_entry",
                 "UPDATE van_cancel_entry SET outcome = 'APPROVED' WHERE 1 = 0",
                 "DELETE FROM van_cancel_entry WHERE 1 = 0",
+                "UPDATE merchant_webhook_receipt SET outcome = 'ACCEPTED' WHERE 1 = 0",
+                "DELETE FROM merchant_webhook_receipt WHERE 1 = 0",
             ).forEach { sql ->
                 val e = shouldThrow<SQLException> { c.createStatement().use { it.executeUpdate(sql) } }
                 e.errorCode shouldBe 1142
@@ -96,6 +100,8 @@ class SimulatorDatabaseAccountSpec : FunSpec({
             "UPDATE ON paycore_simulator.lookup_log", "DELETE ON paycore_simulator.van_pending_decision",
             // CANCEL-001 §6.5: 취소 원장 UPDATE/DELETE도 기동 거부.
             "UPDATE ON paycore_simulator.van_cancel_entry", "DELETE ON paycore_simulator.van_cancel_entry",
+            // WEBHOOK-001 §9: 가상 가맹점 수신 원장 UPDATE/DELETE도 기동 거부.
+            "UPDATE ON paycore_simulator.merchant_webhook_receipt", "DELETE ON paycore_simulator.merchant_webhook_receipt",
         ).forEach { grant ->
             root().use { c -> c.createStatement().use { it.execute("GRANT $grant TO 'paycore_simulator_runtime'@'%'") } }
             shouldThrow<Exception> { start().close() }

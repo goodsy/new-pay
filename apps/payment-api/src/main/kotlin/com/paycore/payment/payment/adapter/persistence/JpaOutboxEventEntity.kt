@@ -7,12 +7,19 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.Hibernate
+import org.hibernate.annotations.Immutable
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import java.time.Instant
 
-/** outbox_event 행(append, JPA persist). payload는 JSON 컬럼(adapter가 직렬화한 문자열). */
+/**
+ * outbox_event 행(append, JPA persist). payload는 JSON 컬럼(adapter가 직렬화한 문자열).
+ *
+ * WEBHOOK-001 m-7: `@Immutable` — JPA가 이 행을 UPDATE하는 경로는 없다(변경 감지·merge 모두 무시). 가맹점 알림 표시 두 열(`merchant_notification_*`, V23)은 이 Entity에
+ * 매핑하지 않으며 fan-out Store가 native PK UPDATE로만 바꾼다(D-WH-009 — DB 권한도 그 두 열만 열 단위 UPDATE, 나머지 열 1143). INSERT는 매핑한 열만 보내므로 새 열은 DEFAULT('PENDING')다.
+ */
 @Entity
+@Immutable
 @Table(name = "outbox_event")
 class JpaOutboxEventEntity protected constructor() {
     /** DB 부여 순서 키. 저장 전 null이므로 equals/hashCode는 eventId(삽입 전 확정)로 한다. 커밋 순서를 뜻하지 않는다. */

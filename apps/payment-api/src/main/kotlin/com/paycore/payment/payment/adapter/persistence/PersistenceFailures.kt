@@ -126,5 +126,12 @@ internal object PersistenceFailures {
         "return_reservation.uk_return_reservation_in_flight" to StoreConstraint.RETURN_RESERVATION_IN_FLIGHT,
         "return_reservation.uk_return_reservation_completion" to StoreConstraint.RETURN_RESERVATION_SEQUENCE,
         "payment_transaction.uk_payment_transaction_cancellation" to StoreConstraint.PAYMENT_TRANSACTION_CANCELLATION,
-        "cancellation_recovery_schedule.PRIMARY" to StoreConstraint.CANCELLATION_RECOVERY_SCHEDULE,    )
+        "cancellation_recovery_schedule.PRIMARY" to StoreConstraint.CANCELLATION_RECOVERY_SCHEDULE,
+        "merchant_webhook_event.PRIMARY" to StoreConstraint.MERCHANT_WEBHOOK_EVENT_ID,
+        "merchant_webhook_event.uk_merchant_webhook_event_source" to StoreConstraint.MERCHANT_WEBHOOK_EVENT_SOURCE,
+        "merchant_webhook_event.uk_merchant_webhook_event_sequence" to StoreConstraint.MERCHANT_WEBHOOK_EVENT_SEQUENCE,
+        "merchant_webhook_delivery.PRIMARY" to StoreConstraint.MERCHANT_WEBHOOK_DELIVERY_ID,
+        "merchant_webhook_delivery.uk_merchant_webhook_delivery_event" to StoreConstraint.MERCHANT_WEBHOOK_DELIVERY_EVENT,
+        "merchant_webhook_attempt.uk_merchant_webhook_attempt_no" to StoreConstraint.MERCHANT_WEBHOOK_ATTEMPT,
+    )
 }

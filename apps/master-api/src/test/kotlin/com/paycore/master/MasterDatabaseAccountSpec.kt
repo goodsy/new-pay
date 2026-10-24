@@ -142,10 +142,14 @@ class MasterDatabaseAccountSpec(
                 "paycore_payment_migration" to setOf(
                     "GRANT ALL PRIVILEGES ON `paycore_payment`.* TO `paycore_payment_migration`@`%`",
                     "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_migration`@`%`",
+                    // WEBHOOK-001 D-WH-009: PAYMENT 전용 열 단위 UPDATE helper(추가만 — MASTER·FINANCIAL 불변).
+                    "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`grant_runtime_column_update` TO `paycore_payment_migration`@`%`",
                 ),
                 "paycore_payment_grantor" to setOf(
                     "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_payment`.* TO `paycore_payment_grantor`@`localhost` WITH GRANT OPTION",
                     "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_grantor`@`localhost`",
+                    // WEBHOOK-001 D-WH-009: PAYMENT 전용 열 단위 UPDATE helper(추가만 — MASTER·FINANCIAL 불변).
+                    "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`grant_runtime_column_update` TO `paycore_payment_grantor`@`localhost`",
                 ),
                 "paycore_financial" to setOf("GRANT ALL PRIVILEGES ON `paycore_financial`.* TO `paycore_financial`@`%`"),
             )

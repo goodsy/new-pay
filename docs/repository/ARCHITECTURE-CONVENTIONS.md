@@ -443,3 +443,36 @@ JPA와의 연결(이번 변경): **역할** — 조회는 JPA Entity·영속성 
 함께 커밋한 행을 읽는 쪽에서도 원자적으로 본다. **예** — 취소 TX2가 `flush()`로 CANCEL 거래·잔액 갱신을 보낸 뒤 commit 전이면 조회는 이전 상태(IN_PROGRESS·예약 3,000) 전체를, commit 뒤에는 새 상태 전체를 본다(flush ≠ commit —
 `PaymentStatusReaderSpec` C-1). **이유** — OSIV off·Controller는 DTO만, LAZY·N+1·Entity 직렬화가 조회 경로에 없다. **주의** — JPA `@Version`·업무 revision은 조회 계약(ETag 등)에 쓰지 않는다. JPA와 jOOQ는 같은 TX라고
 가정하지 않는다(조회 서비스는 명령 TX 안에서 호출되지 않는다). 새 열·인덱스·migration 없음(실행 계획 시험 P-1). Kafka/Redis 미도입 — 조회 일관성은 소유 DB 스냅샷이 보장하며 캐시·projection이 대신하지 않는다(ADR-001).
+
+## 19. 가맹점 Webhook 통지·전달 (WEBHOOK-001)
+
+가역적인 구현 관례다. 업무 규칙은 D-WH-001~009이며 명세는 `docs/repository/WEBHOOK-001-MERCHANT-WEBHOOK.md`(실행 기록 §21, 배포 조건 §20.1). §9(로컬 TX)·§9.2(표 단위 권한)·§14(명명)를 그대로 따르고
+다른 점만 적는다. Webhook은 금융 사실이 아니며 어떤 금융 표도 바꾸지 않는다(T-V2) — 조회(GET)가 권위다.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 단계 분리 | **fan-out**(Outbox 행 → 가맹점 이벤트·전달 행, 행마다 로컬 TX — guard 행 `FOR UPDATE`로 같은 Payment 순번 직렬화) / **delivery**(claim TX `FOR UPDATE SKIP LOCKED` + 시도 번호 예약 → TX 밖 HTTP → 결과 TX). 외부 호출은 DB TX 밖 | 핵심 규칙 "외부 호출은 DB TX 밖" |
+| Aggregate 저장 Port | `MerchantWebhookDeliveryRepository` → `JpaMerchantWebhookDeliveryRepository`(`insertNew`·`claimDue`·`releaseClaim`·`recordResult` — 성공 단조, 실패는 소유자 + 최신 예약 번호일 때만) | §14 Aggregate |
+| 기록 Store | `MerchantNotificationFanoutStore`(Outbox 후보·표지 — PK native UPDATE, 열 단위 권한 D-WH-009), `MerchantWebhookEventStore`(본문 바이트 고정 MEDIUMBLOB + SHA-256), `MerchantWebhookAttemptStore`(시도 append-only) | §14 Store |
+| jOOQ Reader | `MerchantNotificationBacklogReader` → `JooqMerchantNotificationBacklogReader`(fan-out 실패·적체, 전달 적체·포기 수 — gauge 전용, 판정에 쓰지 않음) | §14, CQRS |
+| 외부 전송 | required `MerchantWebhookSender`·`MerchantWebhookSigner` → `adapter.integration`(`HttpMerchantWebhookSender` — HttpClient 5 BOM 버전, 공인 IP 판정 `DnsResolver` + 연결 고정, 원 host SNI·hostname 검증, redirect·재시도·쿠키·시스템 속성 없음(ArchUnit), 전체 기한 예약 abort, 상태 확정 뒤 본문을 읽지 않고 abort, 해석 스레드 상한). HMAC·JCE·`java.net`은 application에 없다 | D-WH-003·007 |
+| 시간 설정 | `paycore.webhook.{transport,delivery}` 기본값 없음 → `ConfiguredMerchantWebhookDeliveryTimings`(일정·lease + 한 시도 예산 = DNS + 전체 기한 + 5s). 기동 검사 lease > 예산. 한 claim은 min(batch, floor(lease / 예산))개(최종 검토 n-2), 보내기 직전마다 `now + 예산 ≤ claimUntil`, 아니면 보내지 않고 claim·예약 번호를 되돌린다(검토 #2 H-1) | D-WH-006 |
+| 설정 비밀 | TEST 시험 키만(`paycore.webhook.test-signing-keys` — 운영 키 아님). toString 마스킹, 기동 실패 보고·예외 사슬에 비밀 없음(T-N1 — Boot 생성자 검증 실패 보고에는 Value 줄이 없다), HttpClient wire·header 로거 WARN 고정 | D-WH-005, §11 |
+| 지표 | counter `paycore.webhook.{fanout,delivery}{result}`·timer `paycore.webhook.delivery.duration`(batch adapter가 회차 결과로 기록 — application은 Micrometer를 모른다, label은 result 하나), gauge `paycore.webhook.fanout.{failed,pending}`(+ 최고 연령), `paycore.webhook.delivery.{pending,pending.oldest_due_age_seconds,gave_up}` — label 없음. 임계값은 운영값 | §11 |
+| 권한 | 새 표 SELECT·INSERT(+ 전달 행 UPDATE), `outbox_event`는 열 단위 UPDATE(`merchant_notification_status`·`merchant_notified_at`)만 — helper `grant_runtime_column_update` | D-WH-009 |
+| ArchUnit | 업무 서비스(승인·취소 등)는 Webhook 타입을 모른다(이름 접두 목록 — 하위 패키지 분류는 ARCH-SUBPKG 후속, 검토 #2 n-8), `useSystemProperties()` 금지 — 각 위반 fixture | F-1, D-WH-007 |
+| 시험 | 실 MySQL·실 HTTP(loopback `ProgrammableMerchantReceiver` — 지연·응답 유실·slow-drip, TLS 시험 CA는 실행 때 keytool 생성), 운영 confirm/cancel/만료 경로로 사실 생성, P1·이상 조합만 Invalid Fixture. Fixture Monkey 미사용 | Test Fixture Policy |
+
+**Simulator `merchant` 모듈(가상 가맹점 수신기 — Demo)**: domain `WebhookSignatureCheck`(문법 → ±창 → 서명, 주입 대조 함수 — 순수), `ReceiverScenario`(OK·n회 503 후 200·지연·302·큰 본문), provided
+`ReceiveMerchantWebhookUseCase`·`MerchantWebhookReceiptQuery`, required `MerchantWebhookReceiptStore`(append·countVerified·hasAccepted·list — 수정·삭제 없음), `WebhookSignatureMatcher`(adapter JCE + `MessageDigest.isEqual`).
+수신 원장 `merchant_webhook_receipt`(V8·권한 V9 SELECT·INSERT, `MerchantReceiptPrivilegeGuard` — 가장 이른 lifecycle phase에서 1142 확인). 인증 모듈은 client 인증 provided로만 쓰고 VAN과 서로 모른다(ArchUnit).
+서명 계약은 golden `webhook-signature-v1.golden.json`(harness `test_webhook_signature_golden.py`가 Python `hmac`으로 독립 생성, 두 앱 바이트 동일).
+
+JPA와의 연결(이번 변경): **역할** — `JpaMerchantWebhookDeliveryEntity`는 전달 행 모양(상태·시도 수·다음 시각·claim 열)만 갖고 domain `MerchantWebhookDelivery.reconstitute`가 존재할 수 없는 조합을 거부한다.
+`JpaMerchantWebhookEventEntity`·`JpaMerchantWebhookAttemptEntity`·Simulator `JpaMerchantWebhookReceiptEntity`와 `JpaOutboxEventEntity`는 `@Immutable`(변경 감지 UPDATE 없음 — Outbox 표지는 열 하나를 PK native UPDATE로만 바꾼다).
+**예** — 두 worker가 같은 시각에 `claimDue`를 부르면 `FOR UPDATE SKIP LOCKED`가 서로 다른 행을 주고, 한 worker가 lease를 잃은 뒤 늦게 보낸 실패 결과는 `lockRow`로 다시 잠근 행의 소유자·최신 예약 번호가 달라
+CLAIM_LOST로 끝난다(상태 무변경). 회차 중 남은 lease가 한 시도 예산보다 짧아지면 `releaseClaim`이 같은 잠금 아래 예약 번호를 되돌린다(시도 수 = 실제 보낸 수). **이유** — 중복 전송은 at-least-once로 허용하되(가맹점은 eventId로
+중복 제거) 시도 기록·상태가 실제 전송과 어긋나지 않게 행 잠금 + 소유자·번호 fencing으로 지키며, 본문은 바이트로 고정해 재전송이 같은 바이트다. **주의** — 잠근 행을 JPQL `@Lock` 조회로 다시 읽지 않는다(§9),
+flush 실패 뒤 TX는 rollback 전용, 결과 TX 실패 시 행은 lease 만료 뒤 다시 잡힌다(중복 전송 가능 — 기록). Webhook 표에서 업무 표로 FK를 두지 않는다(부모 행 S-lock 회피 — WH-23).
+Kafka/Redis는 도입하지 않는다 — 전달 순서·중복 방지·lease는 소유 DB 행 잠금과 Outbox가 지키며 broker·캐시가 금융 안전성(조회 권위·무효과)을 대신하지 않는다(ADR-001). 새 의존성은 Boot 4.1.1 BOM 관리
+`httpclient5`(버전 override 없음)뿐이다.

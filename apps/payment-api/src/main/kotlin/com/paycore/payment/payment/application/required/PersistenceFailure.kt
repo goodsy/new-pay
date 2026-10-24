@@ -122,5 +122,19 @@ enum class StoreConstraint {
     /** 취소당 CANCEL 거래 하나(생성 열 UNIQUE). */
     PAYMENT_TRANSACTION_CANCELLATION,
     CANCELLATION_RECOVERY_SCHEDULE,
+
+    // WEBHOOK-001 V21: 가맹점 이벤트(Outbox 이벤트당 하나·Payment 안 순번)·전달(이벤트당 하나).
+    MERCHANT_WEBHOOK_EVENT_ID,
+
+    /** 같은 Outbox 이벤트의 두 번째 가맹점 이벤트(fan-out 재실행 수렴 — `uk_merchant_webhook_event_source`). */
+    MERCHANT_WEBHOOK_EVENT_SOURCE,
+
+    /** 같은 Payment·같은 sequence(`uk_merchant_webhook_event_sequence`). */
+    MERCHANT_WEBHOOK_EVENT_SEQUENCE,
+    MERCHANT_WEBHOOK_DELIVERY_ID,
+    MERCHANT_WEBHOOK_DELIVERY_EVENT,
+
+    /** 같은 전달·같은 시도 번호(V25 `uk_merchant_webhook_attempt_no` — 예약 번호는 claim TX마다 다르다, m-2). */
+    MERCHANT_WEBHOOK_ATTEMPT,
     OTHER,
 }

@@ -103,6 +103,15 @@ class DatabaseAccountSeparationSpec(
         "cancellation_recovery_schedule" to "Select,Insert,Update",
         // D-CANCEL1-006: 운영자 명령 거절 감사는 append-only.
         "operator_cancel_rejection" to "Select,Insert",
+        // WEBHOOK-001 V22: guard는 fan-out FOR UPDATE 직렬화(잠금 읽기에 UPDATE 필요), 순번은 IODKU, 가맹점 이벤트는 insert-only, 전달은 INSERT·UPDATE(삭제 경로 없음).
+        "merchant_webhook_fanout_guard" to "Select,Insert,Update",
+        "merchant_webhook_stream" to "Select,Insert,Update",
+        "merchant_webhook_event" to "Select,Insert",
+        "merchant_webhook_delivery" to "Select,Insert,Update",
+        // WEBHOOK-001 V24: fan-out 비종결 실패 기록(IODKU, 삭제 경로 없음).
+        "merchant_notification_failure" to "Select,Insert,Update",
+        // WEBHOOK-001 V26: 전송 시도 기록은 append-only.
+        "merchant_webhook_attempt" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -123,7 +132,8 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`idempotency_request` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`incident_hold` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`order_payment_control` TO `paycore_payment_runtime`@`%`",
-            "GRANT SELECT, INSERT ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
+            // D-WH-009(WEBHOOK-001 V24): 알림 표시 두 열만 열 단위 UPDATE. 나머지 열 UPDATE는 1143, DELETE는 1142(아래 시험).
+            "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`payment_termination_evidence` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`inbox_event` TO `paycore_payment_runtime`@`%`",
@@ -151,16 +161,24 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`return_reservation` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`cancellation_recovery_schedule` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`operator_cancel_rejection` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_webhook_fanout_guard` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_webhook_stream` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_webhook_event` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_webhook_delivery` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_notification_failure` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_webhook_attempt` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
             "GRANT ALL PRIVILEGES ON `paycore_payment`.* TO `paycore_payment_migration`@`%`",
             "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_migration`@`%`",
+            "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`grant_runtime_column_update` TO `paycore_payment_migration`@`%`",
         ),
         PAYMENT_GRANTOR to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_grantor`@`localhost`",
             "GRANT SELECT, INSERT, UPDATE, DELETE ON `paycore_payment`.* TO `paycore_payment_grantor`@`localhost` WITH GRANT OPTION",
             "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`set_runtime_table_privileges` TO `paycore_payment_grantor`@`localhost`",
+            "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`grant_runtime_column_update` TO `paycore_payment_grantor`@`localhost`",
         ),
         MASTER_RUNTIME_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_master`@`%`",
@@ -312,9 +330,57 @@ class DatabaseAccountSeparationSpec(
                 )
             } shouldBe mapOf(
                 "payment delete" to 1142, "control delete" to 1142, "idempotency delete" to 1142, "outbox delete" to 1142,
-                "outbox update" to 1142, "token delete" to 1142, "checkout session delete" to 1142, "auth session delete" to 1142,
+                "outbox update" to 1143, "token delete" to 1142, "checkout session delete" to 1142, "auth session delete" to 1142,
                 "authorization delete" to 1142, "attempt delete" to 1142, "usage delete" to 1142, "reservation delete" to 1142,
                 "recovery schedule delete" to 1142,
+            )
+        }
+
+        Then("D-WH-009: on outbox_event only the two merchant notification columns are updatable; every other column is 1143, DELETE stays 1142") {
+            val columns = db.withRoot { c ->
+                with(db) {
+                    c.rows("SELECT COLUMN_NAME AS col FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'outbox_event'", PaymentDbAccounts.PAYMENT_DATABASE)
+                }
+            }.map { it["col"] as String }
+            val notification = setOf("merchant_notification_status", "merchant_notified_at")
+            columns.containsAll(notification + setOf("publish_status", "payload", "event_id", "aggregate_id")) shouldBe true
+            val codes = db.withApp { c ->
+                columns.associateWith { col -> c.codeOf("UPDATE outbox_event SET `$col` = `$col` WHERE id = -1") }
+            }
+            // 알림 열 두 개만 허용(행 없음 — 0행 UPDATE 성공), 나머지 전부(publish_status·payload·집계 열 포함) 열 접근 거부.
+            codes.filterKeys { it in notification } shouldBe notification.associateWith { null }
+            codes.filterKeys { it !in notification }.values.toSet() shouldBe setOf(1143)
+            codes.size shouldBe columns.size
+            db.withApp { c ->
+                mapOf(
+                    "delete" to c.codeOf("DELETE FROM outbox_event WHERE id = -1"),
+                    // 수용한 부수 효과(D-WH-009): 열 UPDATE 권한이 잠금 읽기를 연다. 현재 코드에 Outbox 잠금 읽기 경로는 없다(fan-out은 guard 직렬화 + PK UPDATE).
+                    "lock read" to c.codeOf("SELECT id FROM outbox_event WHERE id = -1 FOR UPDATE"),
+                )
+            } shouldBe mapOf("delete" to 1142, "lock read" to null)
+        }
+
+        Then("the column privilege helper grants UPDATE only on existing columns of a base table, with validated names") {
+            val helper = "${PaymentDbAccounts.PAYMENT_DATABASE}_privilege.grant_runtime_column_update"
+            val refused = db.connectAs(PAYMENT_MIGRATION_USER).use { c ->
+                mapOf(
+                    "missing column" to c.codeOf("CALL $helper('outbox_event', 'no_such_column')"),
+                    "one missing of two" to c.codeOf("CALL $helper('outbox_event', 'merchant_notified_at, no_such_column')"),
+                    "injection" to c.codeOf("CALL $helper('outbox_event', 'payload) ON *.* TO paycore_master; --')"),
+                    "missing table" to c.codeOf("CALL $helper('no_such_table', 'id')"),
+                    "flyway history" to c.codeOf("CALL $helper('flyway_schema_history', 'version')"),
+                    "upper case" to c.codeOf("CALL $helper('outbox_event', 'PAYLOAD')"),
+                    "empty" to c.codeOf("CALL $helper('outbox_event', '')"),
+                )
+            }
+            refused.values.toSet() shouldBe setOf(1644)
+            db.withApp { c -> c.codeOf("CALL $helper('outbox_event', 'payload')") } shouldBe 1370
+            // 거부된 호출은 권한을 넓히지 않았다.
+            db.withApp { c -> c.codeOf("UPDATE outbox_event SET payload = payload WHERE id = -1") } shouldBe 1143
+            // 재실행 안전(멱등): 같은 열을 다시 주어도 권한 줄은 그대로다.
+            db.connectAs(PAYMENT_MIGRATION_USER).use { c -> c.codeOf("CALL $helper('outbox_event', 'merchant_notification_status, merchant_notified_at')") } shouldBe null
+            grantsOf("'$PAYMENT_RUNTIME_ROLE'@'%'").filter { it.contains("`outbox_event`") } shouldBe listOf(
+                "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
             )
         }
 
@@ -356,7 +422,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

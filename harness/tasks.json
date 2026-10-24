@@ -4621,13 +4621,219 @@
       "id": "WEBHOOK-001",
       "title": "가맹점 서명 Webhook 전달(승인 결과 등)",
       "phase": "FEATURE",
+      "status": "DONE",
+      "dependsOn": [
+        "AUTH-001",
+        "CANCEL-001",
+        "CP-QUERY-001"
+      ],
+      "requiredQuestions": [
+        "Q-WH-01",
+        "Q-WH-02",
+        "Q-WH-03",
+        "Q-WH-04",
+        "Q-WH-05",
+        "Q-WH-06",
+        "Q-WH-07",
+        "Q-WH-08",
+        "Q-WH-09"
+      ],
+      "acceptanceCriteria": [
+        "서명·재시도·순서/중복 허용 계약, Outbox 기반 전달, 가맹점 조회와의 관계, 비밀·카드정보 비노출",
+        "(D-WH-001~008) 5개 이벤트 타입(운영자 취소 initiator만, hold 없음, P1 숨김), HMAC-SHA256 서명, 유한 재시도 GAVE_UP, 엄격 목적지 검사, TEST Demo endpoint·키만, LIVE fail-closed(NO_ENDPOINT)"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/institution-simulator/**",
+        "libs/**",
+        "docs/repository/**",
+        "harness/commands.json",
+        "harness/scripts/cve-scan.py",
+        "harness/tests/**",
+        "compose.yaml",
+        "docker/**",
+        ".env.example",
+        "apps/master-api/src/test/kotlin/com/paycore/master/MasterDatabaseAccountSpec.kt"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": 5400,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:1312016fcc3529f5c88af6deb8113def6e7082ec76b1ddd653d7e0bcc92a0aac",
+        "headRevision": "df6174d (dirty)",
+        "tests": "GRADLE-CHECK/TEST-SUMMARY 2463/0 failures/0 errors/0 skipped, HARNESS-SELFTEST 97 OK (GRADLE-CHECK 07:10:09Z..07:29:14Z)",
+        "minTests": "GRADLE-CHECK/TEST-SUMMARY 2450 유지(실측 2463 — 하한 상향은 다음 작업 S0, gate 뒤 commands.json 변경 시 fingerprint 무효화 회피), HARNESS-SELFTEST 97",
+        "supplementary": "build/harness-evidence/WEBHOOK-001-2026-10-24T073019Z-supplementary/RUNS.txt (GRADLE-DEPS x5 exit 0 — payment-api만 hash 변경(httpclient5 5.6.4·httpcore5 5.4.3 BOM 관리), 나머지 4개 CP-QUERY-001과 동일, CVE-SCAN PASS 취약점 0, FINGERPRINT-after 동일)",
+        "at": "2026-10-24T07:32:19Z",
+        "environmentNote": "gate 103213Z(작업 중 compileTestKotlin 실패)·224630Z(GRADLE-CHECK 2400s timeout — 환경 지연, 이번 실행은 19분)·070xxxZ 직전 58d47366… 실행(final-3 수정으로 중단) 무효. 070950Z WSL setsid 분리 실행"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": "final-4",
+        "target": "sha256:1312016fcc3529f5c88af6deb8113def6e7082ec76b1ddd653d7e0bcc92a0aac"
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 본문 금액·통화·승인/취소 값은 불변 거래·payload 그대로(T-C2), Webhook이 금융 상태 불변(T-V2 — GET 바이트·return_balance·Outbox 불변), 업무 TX 무변경 — MerchantWebhookConsistencySpec·OutboxNotificationPayloadsSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Transaction Safety": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: fan-out 한 로컬 TX 원자성(T-F1), HTTP는 TX 밖, 결과 TX 행마다, 업무 TX에 webhook 쓰기 없음 — MerchantNotificationFanoutDbSpec·MerchantWebhookDeliveryDbSpec·ArchitectureSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Idempotency": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: source_event_id UNIQUE fan-out 수렴, 같은 eventId·같은 본문 재전송, sequence UNIQUE, 2xx 단조 — MerchantNotificationFanoutDbSpec·MerchantWebhookDeliveryDbSpec·MerchantWebhookPersistenceSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Concurrency Control": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: guard 직렬화(C-F1), SKIP LOCKED claim·소유자 fencing·claim 상한·releaseClaim 실 MySQL — MerchantNotificationFanoutDbSpec·MerchantWebhookDeliveryDbSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Recoverability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 재시작 재개(T-R1), lease 만료 재전송, 되돌림(releaseClaim), GAVE_UP 상태 보존 — MerchantWebhookDeliveryDbSpec·MerchantWebhookDeliveryServiceSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Reconciliation": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 간접: Outbox↔가맹점 이벤트 대응(source_event_id·적체 gauge), 시도 append-only 원장, Webhook 본문 ⊆ GET(T-V1). 금융 대사 대상 아님 — MerchantWebhookConsistencySpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Auditability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: 시도 기록 append-only(시각·결과·키 ID·endpointRef), 억제·보류 사유 Outbox 상태 — MerchantWebhookPersistenceSpec·MerchantWebhookDeliveryDbSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        },
+        "Observability": {
+          "applicability": "APPLICABLE",
+          "reason": null,
+          "verificationCommandIds": [
+            "GRADLE-CHECK",
+            "TEST-SUMMARY"
+          ],
+          "evidence": "APPLICABLE: counter paycore.webhook.{fanout,delivery}{result}·timer delivery.duration·gauge(적체·최고 연령·포기), 구조화 로그 비노출(T-N1) — MerchantWebhookSchedulersSpec·MerchantWebhookConsistencySpec·MerchantWebhookStartupDisclosureSpec (build/harness-evidence/WEBHOOK-001-2026-10-24T070950Z.json)"
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-10-21 착수(agreedOrder, CP-QUERY-001 DONE df6174d push 후, 사용자 \"네\"). 1단계 조사·명세·질문 후보부터",
+        "2026-10-21 1단계 명세(23022699…, 추정 0.6~0.8×AUTH-001) 수령. Q-WH-01~08 → D-WH-001~008(전부 권장안). §17.9(전달 실패 금융 효과 없음, 5개 타입, P1 숨김, GET 필드 부분집합, at-least-once·무순서+sequence) 도출로 확정. §18 판정: 1 분할 D-WH-008 — WEBHOOK-ENDPOINT-001 BACKLOG 등록, ADMIN-BOOT-001 AC 추가, 2 dependsOn CANCEL-001·CP-QUERY-001 추가, 3 outbox_event UPDATE는 표 단위 GRANT + 바뀌는 열을 merchant_notification_*로 고정하는 시험(열 단위 GRANT 가능하면 우선), 4 배포 시 기존 Outbox 행 SKIPPED_PRE_DEPLOY 표시(TEST 데이터), 5 payment 모듈 안 배치, 6 수동 재전송은 상태 모델만, 7 Apache HttpClient 5는 Boot BOM 관리 시에만 — 아니면 S0에서 Coordinator 재판정, 8 allowedWritePaths 충분, 9 timeout 5400·모듈 30분, 10 하한은 실측으로 Coordinator, 11 D-AUTH-011 gen2 승인 payment.authorized 발송 해석 수용, 12 ADMIN-BOOT-001 착수 전 사용자 알림 유지",
+        "2026-10-21 S0: httpclient5 5.6.4/httpcore5 5.4.3 Boot 4.1.1 BOM 관리 확인(아직 미추가, S3에서 보고 후). B-1 → D-WH-009. 구현자 판단 수용: 불가능 조합은 비완료 FANOUT_FAILED(H-3·m-3 — Reviewer 확인), 2xx 단조(GAVE_UP 뒤 성공도 DELIVERED, 시도 이력 보존)",
+        "2026-10-22 MasterDatabaseAccountSpec 1파일을 allowedWritePaths에 추가(Coordinator 지시로 D-WH-009 helper EXECUTE 2줄 기대값 추가만, MASTER·FINANCIAL 불변). S2 체크포인트 전체 check 071413Z exit 0(payment-api 1610, master 320 실행; 나머지 UP-TO-DATE). httpclient5 BOM 5.6.4 추가(버전 미고정) — DEPS×5·CVE 필요",
+        "2026-10-22 minTests 2136→2450, HARNESS-SELFTEST 93→97(실측). final-1 m-1 구현 판정",
+        "2026-10-24 재개: VERIFY-GATE 224630Z는 GRADLE-CHECK 2400s timeout(exit -9, payment-api:test 진행 중) — 환경 지연 의심(simulator·master 단계가 CP-QUERY gate보다 크게 느림), 코드 판정 아님. fingerprint 58d47366… 불변 확인. final-3 재검토와 VERIFY-GATE 재실행을 같은 fingerprint에서 병행",
+        "2026-10-24 DONE: VERIFY-GATE PASS 070950Z 2463/0, DEPS×5·CVE PASS 073019Z, REVIEW_PASS final-4. 후속: final-4 n-1 되돌림 false 로그 result 이름(RELEASE_CLAIM_LOST 검토), minTests 2450→2463 상향(다음 작업 S0), final-1 n-1 max-response-bytes 미사용 설정 제거 판단, WEBHOOK-ENDPOINT-001(BACKLOG)"
+      ],
+      "specification": {
+        "path": "docs/repository/WEBHOOK-001-MERCHANT-WEBHOOK.md",
+        "stage1Sha256": "23022699092a0f41bc6b1d9583021721c437ed79aa0daf57a73cf4366f87f8d3",
+        "stage1Base": "df6174d"
+      },
+      "reviewRounds": [
+        {
+          "round": "spec-1",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "rev 0.1 23022699…",
+          "findings": "H-1 HELD_DECISION이 D-WH-001과 어긋남, H-2 PaymentCancelFailed initiator 출처 없음·P1 운영자 취소 실패 누출, H-3 fan-out 격리·잠금 미정(업무 TX Outbox INSERT 대기·낡은 snapshot), m-1 본문이 GET 부분집합 아님, m-2 시도 번호 충돌, m-3 독성 행이 전체 정지, m-4 전체 요청 기한·DNS 예산, m-5 TLS·hostname 미시험, m-6 SSRF 대역·allowlist 환경 범위, m-7 열 GRANT·JPA 갱신 경로, m-8 서명 헤더 문법·키 바이트, m-9 배포 전 행 migration 순서, n-1~n-8",
+          "coordinatorRulings": "전부 rev 0.2·해당 단계 반영 지시. m-1은 Coordinator 판정: Webhook 본문은 GET의 엄격한 부분집합 — GET에 없는 failedAt·expiredAt·(FAILED의 authorizationId)는 제외, 필드 집합 대조 시험. 새 사용자 질문 없음"
+        },
+        {
+          "round": "checkpoint-S2",
+          "verdict": "CHANGES_REQUIRED (mid-review #1)",
+          "target": "rev 0.2 + S0~S2 작업 트리",
+          "findings": "구현 보고(미검증): S1 domain·fan-out 137/0(RED는 변이만), S2 V21~V24·열 단위 helper·@Immutable Outbox·fan-out store·scheduler, FanoutDbSpec 11. 전체 check 055242Z master-api MasterDatabaseAccountSpec 1/320 실패(init 스크립트 기대값). | review: H-1 다중 인스턴스 FANOUT_FAILED 뒤 행 미차단 → sequence 인과 역전, m-1 MS3 판별(C-F1 failed=0), m-2 C-F2 붙잡는 지점(mark 뒤), n-1~n-7",
+          "coordinatorRulings": "H-1 processRow guard 뒤 앞선 비종결 행 DEFERRED + 결정적 시험·변이, m-1 guard 유지, m-2 mark 뒤 지점 추가, n-1~n-7 반영(T-F2 전용 시험 없이 대응 기록, S1 TDD 편차 수용). master 실패는 D-WH-009 helper 추가로 인한 기대값이면 추가로만 갱신, 다음 전체 check --continue"
+        },
+        {
+          "round": "checkpoint-S3",
+          "verdict": "CHANGES_REQUIRED (mid-review #2)",
+          "target": "S3 작업 트리",
+          "findings": "검토 #1 해소. H-1 batch claim 단일 lease로 뒤 행 lease 만료(중복 전송·이른 GAVE_UP), m-1 응답 상한 후 close가 잔여 본문을 읽어 2xx→TIMEOUT, n-1~n-8(DNS rebinding 구조적 방어 수용)",
+          "coordinatorRulings": "전부 수정 지시. S3 전체 check 074438Z exit 0(2379/0)"
+        },
+        {
+          "round": "final-1",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "sha256:8b6ff8fd…",
+          "findings": "H 없음. m-1 §11 counter(fanout·delivery result)·timer 미구현, n-1 max-response-bytes 미사용 설정, n-2 claim 수 min(batch, lease/예산)·NTP 전제, n-3 MR1b 구성 변경 완화 아님, n-4 ORCHIDv2 차단 수용, n-5 logger WARN 유효, n-6 기록",
+          "coordinatorRulings": "m-1 구현(AUTH-001 선례, counter 2·timer 1, result label만, 변이 RED). n-1 KDoc·§21.0b \"미사용·호환 유지\" 기록, n-2 claim 수 제한 구현 + HVC §7 NTP 한 줄. 진행 중 gate 중단"
+        },
+        {
+          "round": "final-2",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "final-1 대응 작업 트리",
+          "findings": "m-1 claim 상한 뒤 H-1 DB 시험이 releaseClaim 되돌림 경로에 닿지 않음(실 DB 증거 없음). MR1b(DB 수준 lease 검사 제거 변이) 생존은 동등 변이로 수용",
+          "coordinatorRulings": "releaseClaim 실 MySQL 결정적 시험 3개 + 변이 MRC1~3 지시. 대응 완료(명세 '최종 검토 #2 대응' 절), 전체 check 10:16:53Z→10:31:02Z exit 0 2460/0. 최종 fingerprint sha256:58d47366…"
+        },
+        {
+          "round": "final-3",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "sha256:58d47366…",
+          "findings": "H 없음. m-1 §20.1 7항 'batch는 lease와 독립' 문구가 claim 상한과 모순·처리량 영향 미기록(Demo 회차당 2건), n-1 releaseClaim false도 released로 세고 예외는 미집계, n-2 timer 범위 문서(준비 단계 포함)",
+          "coordinatorRulings": "m-1 문서 수정 + 운영값은 LIVE Gate 처리량 실측과 함께(HVC §7 한 줄), n-1 false→claim_lost·예외→record_failed(TDD·변이), n-2 문서만 수정. 문서도 fingerprint 대상이라 진행 중 gate(58d47366…) 중단 후 수정·재실행"
+        },
+        {
+          "round": "final-4",
+          "verdict": "REVIEW_PASS",
+          "target": "sha256:1312016fcc3529f5c88af6deb8113def6e7082ec76b1ddd653d7e0bcc92a0aac",
+          "findings": "final-3 m-1·n-1·n-2 반영 확인. H·m 없음. n-1(선택) 되돌림 false 경로 로그 result가 RELEASED_LEASE_SHORT released=false — counter는 claim_lost(관측 이름만 다름)",
+          "coordinatorRulings": "n-1 선택 사항은 후속 정리로 기록(코드 미변경, 재검증 회피). 구현 final-3 대응: RED 07:03:34Z 2/17 → GREEN 07:04:43Z 17/17, 변이 MN1~3 3/3, 영향 시험 80/0"
+        }
+      ]
+    },
+    {
+      "id": "WEBHOOK-ENDPOINT-001",
+      "title": "가맹점 Webhook endpoint 등록·서명 비밀 발급/교체/폐기·수동 재전송",
+      "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "AUTH-001"
+        "WEBHOOK-001",
+        "ADMIN-BOOT-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-WH-04",
+        "Q-WH-05"
+      ],
       "acceptanceCriteria": [
-        "서명·재시도·순서/중복 허용 계약, Outbox 기반 전달, 가맹점 조회와의 관계, 비밀·카드정보 비노출"
+        "(D-WH-004) MASTER endpoint 원본((MID,환경)당 1, URL·상태·버전)·ADMIN 등록·LIVE 등록/변경 2인 승인·서명 snapshot 전파·D-WH-007 등록 시 검증",
+        "(D-WH-005) PAYMENT 비밀 발급 whsec_·봉투 암호화·원문 1회 표시·활성 최대 2·폐기 append-only·TEST/LIVE 분리",
+        "(D-WH-006) GAVE_UP 수동 재전송 Use Case·감사",
+        "MASTER-CREDENTIAL-001과의 병합·순서 검토"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -4686,7 +4892,11 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-21 D-WH-008로 WEBHOOK-001에서 분리 등록(BACKLOG, agreedOrder 미편입 — 사용자와 순서 확인)"
+      ],
+      "specification": null
     },
     {
       "id": "CANCEL-CONTRACT-001",
@@ -5019,7 +5229,8 @@
         "Test Fixture Policy, 보안 시험(세션 고정·CSRF·잠금·권한 상승·자기 승인·IP 차단)",
         "(CANCEL-001 D-CANCEL1-001 인계) 운영자 보정 취소 진입점을 서비스 간 인증과 함께 개설, 내부 대상 조회 OperatorCancelTargetQuery, oct1: golden 바이트 대조(ADMIN 측), 대상 revision 변경 시 승인 무효, APPROVER 역할·TOTP 재입력. Q-ADMIN-APPROVER-STAFF가 운영자 취소 실행 가능 여부에 영향",
         "(CANCEL-001 명세 review m-5) OperatorCorrectionCancelUseCase 호출 금지 ArchUnit 규칙을 인증된 ADMIN 진입 adapter에 한해서만 완화",
-        "(CANCEL-001 중간 review #3 m-3) 진입점에서 타입 생성 단계에 거절되는 형식 오류 OperatorId·approvalId도 감사 기록(D-CANCEL1-006/008 정신)"
+        "(CANCEL-001 중간 review #3 m-3) 진입점에서 타입 생성 단계에 거절되는 형식 오류 OperatorId·approvalId도 감사 기록(D-CANCEL1-006/008 정신)",
+        "(WEBHOOK-001 D-WH-004/006/008) Webhook GAVE_UP 조회 화면·수동 재전송 진입점, LIVE endpoint 등록·변경 2인 승인 대상(D-ADMIN-003 목록 추가) — 상세는 WEBHOOK-ENDPOINT-001"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:d174b6d222c5d225d93c59648a93c0409c0444d64c72da05b0c465cfb7133022",
-  "lastSuccessfulStep": "CP-QUERY-001 DONE (VERIFY-GATE PASS 090047Z 2136/0, DEPS×5·CVE PASS 092638Z, REVIEW_PASS final-2)",
+  "codeFingerprint": "sha256:1312016fcc3529f5c88af6deb8113def6e7082ec76b1ddd653d7e0bcc92a0aac",
+  "lastSuccessfulStep": "WEBHOOK-001 DONE (VERIFY-GATE PASS 070950Z 2463/0, DEPS×5·CVE PASS 073019Z, REVIEW_PASS final-4)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "WEBHOOK-001(agreedOrder CP-QUERY-001 다음): 1단계 조사·명세·질문 후보부터. 그다음 ADMIN-BOOT-001 — 착수 전 사용자에게 알림. paycore-mysql 개발 컨테이너 중지 상태",
+  "nextResumeAction": "ADMIN-BOOT-001 — 착수 전 사용자에게 알림·확인(2026-10-24 WEBHOOK-001 DONE 보고 때 알림). 미결 Q-ADMIN-SEC-VALUES / Q-ADMIN-APPROVER-STAFF 확인. S0에서 minTests 2463 상향",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -502,6 +502,26 @@
       "at": "2026-10-20",
       "taskId": "CP-QUERY-001",
       "event": "final review PASS_WITH_FIXES → 결과별 로그 구현 → REVIEW_PASS; VERIFY-GATE PASS 090047Z 2136/0; DEPS×5·CVE PASS; DONE"
+    },
+    {
+      "at": "2026-10-21",
+      "taskId": "WEBHOOK-001",
+      "event": "IN_PROGRESS, 1단계 착수 (CP-QUERY-001 df6174d push 후)"
+    },
+    {
+      "at": "2026-10-21",
+      "taskId": "WEBHOOK-001",
+      "event": "1단계 명세 수령, Q-WH-01~08 → D-WH-001~008(전부 권장안), WEBHOOK-ENDPOINT-001 BACKLOG 등록, ADMIN-BOOT-001 AC 추가"
+    },
+    {
+      "at": "2026-10-21",
+      "taskId": "WEBHOOK-001",
+      "event": "명세 rev 0.2, S1 완료, S2 부분(webhook 표 V21/V22), B-1 → D-WH-009"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "WEBHOOK-001",
+      "event": "final-1~4 review(final-4 REVIEW_PASS), gate 224630Z timeout(환경) 뒤 재실행 VERIFY-GATE PASS 070950Z 2463/0; DEPS×5·CVE PASS; DONE"
     }
   ],
   "agreedOrder": [

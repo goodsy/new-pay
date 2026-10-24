@@ -336,6 +336,21 @@ class ArchitectureSpec : FunSpec({
         violationsOf(paymentStatusQueryOnlyFromWeb(), "com.paycore.archfixture.statusquery", fixture).isNotEmpty() shouldBe true
     }
 
+    // WEBHOOK-001 WH-02·검토 #1 n-6: 업무 Use Case(생성·confirm·취소·만료·회복…)는 가맹점 Webhook Port·타입에 의존하지 않는다 — Webhook은 Outbox를 읽는 별도 fan-out TX뿐(업무 TX 무영향, T-F2의 구조 증거).
+    test("business application services do not depend on merchant webhook ports or types (WEBHOOK-001 WH-02, n-6)") {
+        classes.contain("$BASE_PACKAGE.payment.application.MerchantNotificationFanoutService") shouldBe true
+        businessServicesIndependentOfMerchantWebhook().check(classes)
+        val fixture = com.paycore.archfixture.webhook.CancelServiceTouchingWebhook::class.java
+        violationsOf(businessServicesIndependentOfMerchantWebhook(), "com.paycore.archfixture.webhook", fixture).isNotEmpty() shouldBe true
+    }
+
+    // WEBHOOK-001 검토 m-5: 전송 HttpClient는 시스템 속성(프록시·JVM 전역 trustStore)을 읽지 않는다 — `useSystemProperties()` 호출 금지.
+    test("no HttpClient is built with useSystemProperties() (WEBHOOK-001 m-5)") {
+        httpClientWithoutSystemProperties().check(classes)
+        val fixture = com.paycore.archfixture.webhooktransport.SystemPropertiesHttpClient::class.java
+        violationsOf(httpClientWithoutSystemProperties(), "com.paycore.archfixture.webhooktransport", fixture).isNotEmpty() shouldBe true
+    }
+
     test("authentication sessions are created only through AuthenticationSessionStart, which supersedes earlier sessions first (AUTHN-001 §7.1·§17.3)") {
         val rule = sessionCreateOnlyThroughAuthenticationSessionStart()
         rule.check(classes)
@@ -621,6 +636,36 @@ class ArchitectureSpec : FunSpec({
                 .should().dependOnClassesThat().haveFullyQualifiedName(port)
                 .`as`("only PaymentStatusQueryService (and the jOOQ implementation) depends on PaymentStatusReader")
         }
+
+        /** WEBHOOK-001 m-5: Apache HttpClient의 `useSystemProperties()`를 부르는 클래스가 없다. */
+        fun httpClientWithoutSystemProperties(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .should().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe("HttpClient useSystemProperties()") { call: com.tngtech.archunit.core.domain.JavaMethodCall ->
+                    call.target.name == "useSystemProperties" && call.target.owner.name.startsWith("org.apache.hc.")
+                })
+                .`as`("no HttpClient reads JVM system properties (proxy, trust store)")
+
+        /** 가맹점 Webhook 타입(이름 접두로 식별 — 같은 payment 모듈 안). */
+        private val WEBHOOK_TYPE_PREFIXES = listOf(
+            "MerchantNotification", "MerchantWebhook", "FanOutMerchantNotifications", "OutboxNotification", "NotificationSubject", "NotifiedPayment",
+            "PendingOutboxNotification", "UnreadableNotificationSource", "SecureRandomMerchantWebhook", "WebhookRetrySchedule",
+            // S3 delivery 타입(Webhook 경로 내부 — 업무 서비스가 의존하면 안 된다).
+            "ClaimedDelivery", "DeliveryAttemptResult", "DeliveryRecordOutcome", "StoredMerchantWebhookEvent", "WebhookSigningKey", "DeliverMerchantWebhooks", "WebhookAddress",
+        )
+
+        private fun isWebhookType(c: com.tngtech.archunit.core.domain.JavaClass): Boolean {
+            val top = c.name.substringAfterLast('.').substringBefore('$')
+            return WEBHOOK_TYPE_PREFIXES.any { top.startsWith(it) }
+        }
+
+        /** WEBHOOK-001 WH-02·n-6: application(업무 서비스)의 Webhook 밖 클래스는 Webhook 타입에 의존하지 않는다(시험 fixture 패키지도 같은 규칙으로 검사). */
+        fun businessServicesIndependentOfMerchantWebhook(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("non-webhook application or fixture classes") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    (c.packageName.startsWith("$BASE_PACKAGE.payment.application") || c.packageName.startsWith("com.paycore.archfixture.webhook")) && !isWebhookType(c)
+                })
+                .should().dependOnClassesThat(com.tngtech.archunit.base.DescribedPredicate.describe("merchant webhook types") { c: com.tngtech.archunit.core.domain.JavaClass -> isWebhookType(c) })
+                .`as`("business application services do not depend on merchant webhook ports or types")
 
         /** CP-QUERY-001 검토 #1 n-5: `PaymentStatusQuery`에 의존하는 main 클래스는 Use Case 자신·구현 서비스·`payment.adapter.web` 아래뿐(공개 조회 진입점 전용). */
         fun paymentStatusQueryOnlyFromWeb(): com.tngtech.archunit.lang.ArchRule {

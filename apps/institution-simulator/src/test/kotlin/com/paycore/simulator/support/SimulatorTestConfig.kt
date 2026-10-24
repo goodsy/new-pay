@@ -5,6 +5,7 @@ import com.paycore.simulator.authentication.application.required.SimulatorClock
 import com.paycore.simulator.authentication.application.required.SimulatorIdGenerator
 import com.paycore.simulator.authentication.domain.ResultRef
 import com.paycore.simulator.authentication.domain.TransactionId
+import com.paycore.simulator.merchant.application.required.MerchantReceiverClock
 import com.paycore.simulator.van.application.required.VanClock
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
@@ -13,8 +14,11 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 
-/** 시험 시계(@Primary): 기본은 [default], 시험이 옮긴 뒤 [reset]. 인증·가상 VAN이 같은 시각원을 쓴다(증거 유효기간 재검증 — AUTH-001 D-AUTH1-004). */
-class MutableSimulatorClock(private val default: Instant) : SimulatorClock, VanClock {
+/**
+ * 시험 시계(@Primary): 기본은 [default], 시험이 옮긴 뒤 [reset]. 인증·가상 VAN이 같은 시각원을 쓴다(증거 유효기간 재검증 — AUTH-001 D-AUTH1-004).
+ * 가상 가맹점 수신기(WEBHOOK-001 §9)도 같은 시계로 서명 재전송 창을 판정한다.
+ */
+class MutableSimulatorClock(private val default: Instant) : SimulatorClock, VanClock, MerchantReceiverClock {
     private val now = AtomicReference(default)
 
     override fun now(): Instant = now.get()
