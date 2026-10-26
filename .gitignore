@@ -34,3 +34,6 @@ __pycache__/
 
 # Kotlin compiler session/error files (Kotlin 2.x)
 .kotlin/
+
+# Frontend dependencies (installed by Gradle frontendInstall = npm ci from package-lock.json). Node 배포판·npm cache는 <module>/.gradle/ 아래
+node_modules/

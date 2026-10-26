@@ -12,4 +12,6 @@ dependencies {
     implementation(pluginMarker(libs.plugins.kotlin.spring))
     implementation(pluginMarker(libs.plugins.kotlin.jpa))
     implementation(pluginMarker(libs.plugins.spring.boot))
+    // paycore.frontend(ADMIN-BOOT-001): 고정 Node 배포판 내려받기·압축 해제만 이 plugin에 맡긴다(npm 실행은 격리 환경의 Exec task).
+    implementation(pluginMarker(libs.plugins.node.gradle))
 }

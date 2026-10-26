@@ -1,6 +1,7 @@
 package com.paycore.admin.security
 
 import com.paycore.admin.InternalAdminApplication
+import com.paycore.admin.support.AdminDbAccounts
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.assertions.withClue
@@ -34,18 +35,20 @@ class NoGeneratedDefaultUserSpec : FunSpec({
             }
         }
 
+        // ADMIN DB 소유(ADMIN-BOOT-001 S2): 앱은 ADMIN DB 없이 기동하지 않으므로 같은 초기화 스크립트를 넣은 일회용 컨테이너를 붙인다.
+        val database = AdminDbAccounts.newContainer().apply { start() }
         System.setOut(PrintStream(tee, true, Charsets.UTF_8))
         val context = try {
             SpringApplicationBuilder(InternalAdminApplication::class.java)
                 // 기본값은 호출 stack에서 main class를 추정해 GradleWorkerMain이 된다.
                 .main(InternalAdminApplication::class.java)
-                .properties("server.port=0")
+                .properties(mapOf<String, Any>("server.port" to "0") + AdminDbAccounts.applicationProperties(database))
                 .run()
         } finally {
             System.setOut(original)
         }
 
-        context.use {
+        database.use { _ -> context.use {
             val output = captured.toString(Charsets.UTF_8)
             // 캡처가 실제로 동작함을 먼저 확인한다(아니면 아래 부정 검사가 무의미하다).
             // 실패 시 로그 전체(생성 비밀번호 포함 가능)가 보고서에 복사되지 않도록 boolean으로만 검사한다.
@@ -56,7 +59,7 @@ class NoGeneratedDefaultUserSpec : FunSpec({
                 output.contains(GENERATED_PASSWORD_LOG) shouldBe false
             }
             it.getBeanNamesForType(UserDetailsService::class.java).toList().shouldBeEmpty()
-        }
+        } }
     }
 }) {
     private companion object {

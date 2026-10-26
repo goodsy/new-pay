@@ -1,0 +1,25 @@
+# 시험 전용 설정(test classpath에만 — 운영 jar에 들어가지 않는다). classpath:/config/application.yml은 운영 application.yml 위에 덧씌운다.
+# 아래 키는 **시험 전용 값**이다(운영 키 아님 — 운영 키는 비밀 저장소에서 주입, LIVE 가드는 S4). BCrypt cost 4는 시험 속도용이다:
+# 운영·Demo 값(12)은 application.yml에 있고, cost가 해시에 반영되는지는 AccountCryptoAdaptersSpec이 adapter를 직접 만들어 확인한다.
+# management 포트(D-15): 시험은 임의 포트(실제 서버를 띄우는 RANDOM_PORT 시험만 자식 컨텍스트가 생긴다 — MOCK 시험에는 management 서버가 없다).
+management:
+  server:
+    port: 0
+
+paycore:
+  admin:
+    deployment-mode: DEMO
+    approval:
+      expiry-job:
+        # 시험은 job을 끄고 Use Case(expireDue)를 직접 부른다(경합 시험에 끼어들지 않게).
+        enabled: false
+    network:
+      # MockMvc 기본 remoteAddr(127.0.0.1)와 IpAllowlistSpec의 CIDR 시험 값.
+      ip-allowlist: 127.0.0.1,10.20.0.0/16
+    security:
+      bcrypt-cost: 4
+      totp-cipher:
+        current-key-version: 1
+        keys:
+          "1": "dGVzdC1vbmx5LXRvdHAtY2lwaGVyLWtleS0zMmJ5dGU="
+      login-name-hmac-key: "dGVzdC1vbmx5LWxvZ2luLW5hbWUtaG1hYy1rZXktMzI="

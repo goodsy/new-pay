@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:1312016fcc3529f5c88af6deb8113def6e7082ec76b1ddd653d7e0bcc92a0aac",
-  "lastSuccessfulStep": "WEBHOOK-001 DONE (VERIFY-GATE PASS 070950Z 2463/0, DEPS×5·CVE PASS 073019Z, REVIEW_PASS final-4)",
+  "codeFingerprint": "sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
+  "lastSuccessfulStep": "ADMIN-BOOT-001 DONE (VERIFY-GATE PASS 095548Z 2818/0·Vitest 40, DEPS×5+CVE 102808Z, REVIEW_PASS final) sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ADMIN-BOOT-001 — 착수 전 사용자에게 알림·확인(2026-10-24 WEBHOOK-001 DONE 보고 때 알림). 미결 Q-ADMIN-SEC-VALUES / Q-ADMIN-APPROVER-STAFF 확인. S0에서 minTests 2463 상향",
+  "nextResumeAction": "ADMIN-BOOT-001 커밋(미push 시 사용자 확인 후 push) → TEST-ASSERT-001 1단계(Kotest 동작 고정 meta 시험·전수 검색, payment-api CreatePaymentEligibilitySpec 우선) → ADMIN-PAYMENT-OPS-001 → CHECKOUT-REACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -522,6 +522,91 @@
       "at": "2026-10-24",
       "taskId": "WEBHOOK-001",
       "event": "final-1~4 review(final-4 REVIEW_PASS), gate 224630Z timeout(환경) 뒤 재실행 VERIFY-GATE PASS 070950Z 2463/0; DEPS×5·CVE PASS; DONE"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "IN_PROGRESS, 1단계 착수. Q-FRONTEND-REACT → D-ADMIN-008·D-FE-001, CHECKOUT-REACT-001 BACKLOG 등록"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "CHECKOUT-REACT-001",
+      "event": "사용자 '어드민 다음으로' → agreedOrder ADMIN-BOOT-001 다음에 추가"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "1단계 명세 rev 0.1 수령, Q-ADMIN1-01~08 → D-ADMIN1-001~008(전부 권장안), 분할: ADMIN-PAYMENT-OPS-001 신규·AC13 → WEBHOOK-ENDPOINT-001"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "명세 review spec-1 CHANGES_REQUIRED(H-1~H-4, m-1~m-12, n-1~n-10), Q-ADMIN1-09/10 → D-ADMIN1-009/010, rev 0.2 지시"
+    },
+    {
+      "at": "2026-10-24",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "spec-2 CHANGES_REQUIRED(H-A·H-B 등) → rev 0.3(질문 없음), spec-3 review·2단계 S0 병행"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S5 체크포인트 수령(2747/0, 변이 21/21), Q-S5-1 질문, S5 checkpoint review 착수"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "Q-S5-1 답변 A(권장안) → D-ADMIN1-013"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S5 checkpoint review PASS_WITH_FIXES, Q-S5-2/3 → D-ADMIN1-014/015, S5 수정 지시"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S5 리뷰 반영 수령(2756/0), Q-S5-4 → D-ADMIN1-016, S5 re-review 착수"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S5 re-review PASS_WITH_FIXES(High 없음), 수정+S6 지시"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S6 체크포인트 수령(2780/0, 변이 18/18), S6 checkpoint review 착수"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S6 checkpoint review PASS_WITH_FIXES(M-1 TOCTOU, M-2 회차 미종료, M-3 ROLE_REACTIVATE 경로) → 수정+S7 지시"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S7 체크포인트 수령(2791/0, Vitest 35), S7 checkpoint review 착수"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S7 checkpoint review PASS_WITH_FIXES, Q-S7-3 → D-ADMIN1-017, 수정+S8 지시"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "S8 체크포인트 review PASS_WITH_FIXES, Q-S8-A~D → D-ADMIN1-018~021, Kotest 비교 함정 High(작업 간 공통) 사용자 보고, s8-gate 실행 중"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "TEST-ASSERT-001",
+      "event": "등록, 사용자 'ADMIN-BOOT-001 직후' → agreedOrder 추가"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "DONE — VERIFY-GATE PASS, 보조 PASS, final REVIEW_PASS"
     }
   ],
   "agreedOrder": [
@@ -534,6 +619,9 @@
     "CP-QUERY-001",
     "WEBHOOK-001",
     "ADMIN-BOOT-001",
+    "TEST-ASSERT-001",
+    "ADMIN-PAYMENT-OPS-001",
+    "CHECKOUT-REACT-001",
     "MASTER-LIFECYCLE-001",
     "MASTER-CREDENTIAL-001",
     "ACQUIRING-001",

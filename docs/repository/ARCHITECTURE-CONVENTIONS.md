@@ -9,7 +9,7 @@
 | apps/master-api | `com.paycore.master` | MASTER | Business·Merchant·Site·Contract·MID·개통·정책 정의 원본(MASTER-BOOT-001에서 실행 단위·DB 기초만 생성, 업무 모듈은 MASTER-DOMAIN-001부터) |
 | apps/payment-api | `com.paycore.payment` | PAYMENT | 승인·취소·환불 요청, 주문 결제 통제 |
 | apps/financial-batch | `com.paycore.financial` | FINANCIAL | 매입·정산·대사·지급 Job |
-| apps/internal-admin | `com.paycore.admin` | 없음 | 화면은 소유 플랫폼 API에 위임 |
+| apps/internal-admin | `com.paycore.admin` | ADMIN(`paycore_admin` — D-ADMIN-005) | 관리자 계정·역할·2인 승인·관리자 감사·관리자 세션만 소유(ADMIN-BOOT-001 — §20). 결제·가맹점 업무 화면은 소유 플랫폼 API에 위임(후속 ADMIN-PAYMENT-OPS-001) |
 
 다른 소유 DB를 직접 SQL/Entity로 읽거나 쓰지 않는다. 같은 프로세스여도 마찬가지다. 플랫폼 간 데이터는 Outbox/Inbox 이벤트·버전 있는 스냅샷으로만 가져온다.
 
@@ -476,3 +476,33 @@ CLAIM_LOST로 끝난다(상태 무변경). 회차 중 남은 lease가 한 시도
 flush 실패 뒤 TX는 rollback 전용, 결과 TX 실패 시 행은 lease 만료 뒤 다시 잡힌다(중복 전송 가능 — 기록). Webhook 표에서 업무 표로 FK를 두지 않는다(부모 행 S-lock 회피 — WH-23).
 Kafka/Redis는 도입하지 않는다 — 전달 순서·중복 방지·lease는 소유 DB 행 잠금과 Outbox가 지키며 broker·캐시가 금융 안전성(조회 권위·무효과)을 대신하지 않는다(ADR-001). 새 의존성은 Boot 4.1.1 BOM 관리
 `httpclient5`(버전 override 없음)뿐이다.
+
+## 20. 내부 관리자 기반 (ADMIN-BOOT-001)
+
+가역적인 구현 관례다. 업무·보안 규칙은 D-ADMIN-001~009·D-ADMIN1-001~017이며 명세는 `docs/repository/ADMIN-BOOT-001-ADMIN-FOUNDATION.md`(설계 §4, 실행 기록 §17~§25).
+§9(로컬 TX)·§9.2(표·열 단위 권한)·§14(명명)를 따르고 다른 점만 적는다. 관리자 기반은 금융 사실을 만들지 않는다 — 관리자 권한·승인·감사의 안전성이 대상이다.
+
+| 관례 | 결정 | 근거 |
+|---|---|---|
+| 모듈 | `account`(계정·역할·로그인·등록·1회성 명령)·`approval`(2인 승인)·`audit`(관리자 감사)·`console`(SPA 서빙·오류 JSON) + 교차 관심사 `security`(`security.session`만 Spring Session 타입). `account`는 `approval`을 모른다(approval이 account provided `AdminOwnedCommandExecutor`로 실행 — ArchUnit) | Modulith, D-ADMIN1-006 |
+| Aggregate 저장 Port | `AdminAccountRepository` → `JpaAdminAccountRepository`, `ApprovalRequestRepository` → `JpaApprovalRequestRepository`. 잠금 읽기는 `find` + `refresh(PESSIMISTIC_WRITE)`, `update(current, next)`는 잠근 version과 다르면 `OptimisticConflict` | §14 Aggregate |
+| 기록 Store | `AdminRoleEventStore`(append-only)·`EnrollmentCodeStore`(해시만, 원자 소비 UPDATE)·`RecoveryEpisodeStore`(열린 회차 UNIQUE 생성 열 + 조건부 닫기 native UPDATE)·`BootstrapStore`(고정 행 PK)·`AdminAuditStore`(append-only) | §14 Store |
+| jOOQ Reader | `AdminAccountListReader`(D-ADMIN1-017 — login_name은 SECURITY_ADMIN 조회만 SELECT)·`AdminCredentialReader`(D-81 예외: 로그인 (a) 비잠금 읽기)·`AdminSessionReader`·`AdminRoleEventReader`(S8 — `ROLE_REACTIVATE` 원인 후보)·`ApprovalRequestListReader`·`AdminAuditReader` → `Jooq…`. Reader는 조회 서비스만 쓴다(ArchUnit) | §14, CQRS |
+| 로컬 TX | 모듈마다 `LocalTransactions`(READ COMMITTED, 이미 TX면 거부, commit 중 예외 = `CommitOutcomeUnknownException` → 500 — 재시도·성공 주장 없음, 다시 읽어 수렴). 승인은 `maxAttempts = 1`(TOTP 입력을 다시 쓰지 않는다). 전역 잠금 순서는 명세 §4.13 | 핵심 규칙(로컬 TX), §9 |
+| 1회성 명령 | 비웹 inbound는 `account.adapter.batch`(부트스트랩·복구 — 명령 모드 가드: 웹 컨텍스트·스케줄러면 DB 전에 거부). 코드 출력은 TTY 또는 `CREATE_NEW` 0600 파일만(file key 확인 뒤에만 삭제) | D-ADMIN1-002·010 |
+| 세션·CSRF | Spring Session JDBC(`admin_session`, Redis 없음 — D-ADMIN-004), 세션 속성은 문자열만, `SecurityContext`는 세션에 두지 않고 요청마다 계정 현재 행으로. 쿠키 `__Host-PCADMIN`, CSRF는 세션 저장 동기화 토큰 | D-10, D-40 |
+| 웹 체인 | Security 체인 3개: management 포트(`@Order(0)` — `GET /actuator/health`만, D-15) → `/assets/**`(장기 캐시) → 앱(SPA 문서 허용 목록 + `/api/**`). IP 허용 목록 filter가 가장 앞(Spring Session보다 먼저). HSTS는 모든 응답(프록시 TLS 종료 — 평문 응답의 HSTS는 무시됨) | §4.8.1, D-15 |
+| 화면 | React SPA를 같은 출처 정적 번들(`frontend/` → `static/`)로 서빙(D-ADMIN-008·D-FE-001). 라우터·브라우저 저장소 없음, 오류는 서버 고정 code를 상태와 함께 신뢰할 때만(`errors/errorCodes.ts`), 권한 판정은 서버. Simulator 화면만 Thymeleaf | D-ADMIN-008 |
+| 지표 | Port `AdminAccountMetrics`(account)·`ApprovalMetrics`(approval) → `Micrometer…Metrics`(`adapter.integration` — application은 Micrometer를 모른다). 로컬 TX가 끝난 뒤 커밋된 결과로 1회(409 `RETRY_LATER`, 500 `ERROR`, commit 불명 `COMMIT_UNKNOWN`). 이름: `paycore.admin.{login{step,result}, lockout{step}, authentication_failure.not_recorded{step,failure}, enrollment{operation,result}, oneshot{command,result}, approval{operation,kind,result}, approval.retry_later{operation}, approval.integrity_violation{check}, ip_denied{area}}`. label은 고정 분류값만(ID·login_name·IP 금지). 경보 대상: `integrity_violation`·`authentication_failure.not_recorded`(1건 이상) | §6, D-ADMIN1-016 |
+| 비노출 | 비밀 값 타입의 `toString` 마스킹, 로그는 분류·예외 클래스 이름만, `AdminNonDisclosureSpec`(로그·저장 행·응답). 운영에서 `org.springframework.web`·`org.springframework.security`를 DEBUG로 올리지 않는다(요청 단편이 남을 수 있다) | §6 |
+| 시험 | 실 MySQL 8.4.11 경합은 `RowLockHolder`(세 번째 연결 + `performance_schema.data_lock_waits` 대기 확인 — 대기자에게 막힌 대기자는 `blockedByHolder = false`), commit 단계 예외는 `JpaTransactionManager` 상속 대역(무장한 스레드의 다음 commit 1회), 시계는 위임 + offset 대역. **Kotest 6.2.5 주의**: `(a to b) shouldBe (x to <data object>)`는 data class 필드 비교라 항상 통과한다 — data object 결과는 직접 비교한다 | Test Fixture Policy |
+
+JPA와의 연결(이번 작업): **역할** — `JpaAdminAccountEntity`·`JpaApprovalRequestEntity`는 행 모양만 갖고 domain(`AdminAccount`·`ApprovalRequest`)은 Spring/JPA를 모른다(`AdminAccountPersistenceMapper`가
+재구성 — 존재할 수 없는 조합은 domain이 거부). 생성 불변 열은 `updatable = false`(runtime 계정의 열 단위 UPDATE 권한과 일치 — Hibernate는 updatable 열 전체를 SET에 넣는다). **예** — 승인 TX는 승인 행을
+`refresh(PESSIMISTIC_WRITE)`로 잠근 뒤 참여자 계정 행을 actor ID 오름차순으로 잠그고, 그 사이 다른 TX가 바꾼 version이면 `OptimisticConflict` → 409 `RETRY_LATER`로 전체 rollback한다. 복구 회차 닫기는
+`UPDATE … WHERE episode_no = ? AND closed_at IS NULL` 한 문장(영향 0행이면 경합 패배 — 다시 읽은 열린 회차가 다르면 LOST)이고, 열린 회차의 비잠금 읽기는 생성 열 UNIQUE 보조 인덱스가 아니라
+`closed_at IS NULL`(클러스터 행)로 한다 — 같은 키로 미커밋 INSERT가 있으면 보조 인덱스 경유 일관 읽기가 이전 버전을 놓친다(S6 m-1 실측). **이유** — 관리자 권한 변경은 "역할 없는 승인자"·이중 실행이
+없어야 하므로 행 잠금 + version으로 직렬화하고, 1회 표시 값(등록·재설정 코드)은 해시만 저장해 원자 소비 UPDATE로 한 번만 쓴다. **주의** — 잠근 행을 JPQL `@Lock`으로 다시 읽지 않는다(§9), flush 실패 뒤 TX는
+rollback 전용, Spring Data Repository는 쓰지 않는다(`EntityManager` 직접 — D-71). commit 단계 `TransactionException`은 `rollbackOnCommitFailure = false`(기본)면 관리자가 rollback하지 않는다(S8 실측 — 명세 §25).
+Kafka/Redis는 도입하지 않는다 — 세션은 Spring Session JDBC, 승인·잠금 직렬화는 ADMIN DB 행 잠금이 지키며 broker·캐시가 권한·감사 안전성을 대신하지 않는다(ADR-001). 새 의존성은 모두 Boot 4.1.1 BOM 관리
+(`spring-boot-starter-{security,session-jdbc,actuator,jooq,flyway}` — 버전 override 없음)이고 프론트 도구는 TECH-BASELINE §9.

@@ -1,0 +1,29 @@
+/* inline style 없이 파일로만 둔다(CSP style-src 'self'). */
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+body {
+  margin: 0;
+}
+
+.app-header {
+  padding: 12px 24px;
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.app-main {
+  padding: 24px;
+}
+
+.error-screen button {
+  margin-right: 8px;
+}

@@ -9,6 +9,20 @@ dependencyResolutionManagement {
     repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
     repositories {
         mavenCentral()
+        // 프론트 빌드용 Node 배포판(ADMIN-BOOT-001 F-8). node-gradle plugin이 project 저장소를 추가하면 FAIL_ON_PROJECT_REPOS에 걸리므로
+        // plugin의 distBaseUrl을 비우고 여기서만 선언한다. 이 저장소는 org.nodejs:node만, org.nodejs:node는 이 저장소에서만 해석한다.
+        // 압축 SHA-256은 paycore.frontend의 frontendNodeVerify가 catalog 값과 대조한다(F-9 — Gradle dependency verification 미사용).
+        exclusiveContent {
+            forRepository {
+                ivy {
+                    name = "nodejs-dist"
+                    setUrl("https://nodejs.org/dist/")
+                    patternLayout { artifact("v[revision]/[artifact](-v[revision]-[classifier]).[ext]") }
+                    metadataSources { artifact() }
+                }
+            }
+            filter { includeModule("org.nodejs", "node") }
+        }
     }
 }
 

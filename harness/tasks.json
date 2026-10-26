@@ -4822,8 +4822,9 @@
       "phase": "FEATURE",
       "status": "BACKLOG",
       "dependsOn": [
-        "WEBHOOK-001",
-        "ADMIN-BOOT-001"
+        "ADMIN-BOOT-001",
+        "ADMIN-PAYMENT-OPS-001",
+        "WEBHOOK-001"
       ],
       "requiredQuestions": [
         "Q-WH-04",
@@ -4833,7 +4834,8 @@
         "(D-WH-004) MASTER endpoint 원본((MID,환경)당 1, URL·상태·버전)·ADMIN 등록·LIVE 등록/변경 2인 승인·서명 snapshot 전파·D-WH-007 등록 시 검증",
         "(D-WH-005) PAYMENT 비밀 발급 whsec_·봉투 암호화·원문 1회 표시·활성 최대 2·폐기 append-only·TEST/LIVE 분리",
         "(D-WH-006) GAVE_UP 수동 재전송 Use Case·감사",
-        "MASTER-CREDENTIAL-001과의 병합·순서 검토"
+        "MASTER-CREDENTIAL-001과의 병합·순서 검토",
+        "(WEBHOOK-001 D-WH-004/006/008) Webhook GAVE_UP 조회 화면·수동 재전송 진입점, LIVE endpoint 등록·변경 2인 승인 대상(D-ADMIN-003 목록 추가) — 상세는 WEBHOOK-ENDPOINT-001 (2026-10-24 ADMIN-BOOT-001에서 이관)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,
@@ -5204,9 +5206,9 @@
     },
     {
       "id": "ADMIN-BOOT-001",
-      "title": "internal-admin 기반: ADMIN DB, 자체 계정 로그인·TOTP·잠금, 역할·감사 로그, 2인 승인 틀, 재인증, Thymeleaf 공통 레이아웃, 소유 서비스 내부 API 호출 경로",
+      "title": "internal-admin 기반: ADMIN DB, 자체 계정 로그인·TOTP·잠금, 역할·감사 로그, 2인 승인 틀(ADMIN 소유 명령), 재인증, React(같은 출처 정적 번들) 골격·프론트 빌드/CVE 경로",
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "MASTER-SNAPSHOT-002"
       ],
@@ -5215,7 +5217,29 @@
         "Q-ADMIN-STORE",
         "Q-ADMIN-DBENGINE",
         "Q-ADMIN-APPROVAL-ENFORCE",
-        "Q-ADMIN-SEC-VALUES"
+        "Q-ADMIN-SEC-VALUES",
+        "Q-FRONTEND-REACT",
+        "Q-ADMIN1-01",
+        "Q-ADMIN1-02",
+        "Q-ADMIN1-03",
+        "Q-ADMIN1-04",
+        "Q-ADMIN1-05",
+        "Q-ADMIN1-06",
+        "Q-ADMIN1-07",
+        "Q-ADMIN1-08",
+        "Q-ADMIN1-09",
+        "Q-ADMIN1-10",
+        "Q-ADMIN1-11",
+        "Q-ADMIN1-12",
+        "Q-S5-1",
+        "Q-S5-2",
+        "Q-S5-3",
+        "Q-S5-4",
+        "Q-S7-3",
+        "Q-S8-A",
+        "Q-S8-B",
+        "Q-S8-C",
+        "Q-S8-D"
       ],
       "acceptanceCriteria": [
         "(D-ADMIN-005/006) internal-admin 소유 ADMIN DB(MySQL 8.4): 계정·역할·TOTP·세션·승인 요청·관리자 감사만, 업무 데이터·타 DB 직접 접근 없음, 표 단위 runtime 권한",
@@ -5224,22 +5248,57 @@
         "(D-ADMIN-004) Spring Session JDBC, 동시 로그인 1개, 로그인 시 세션 ID 재발급, 쿠키 HttpOnly·Secure·SameSite, CSRF 동기화 토큰, 만료·잠금 값은 Demo(Q-ADMIN-SEC-VALUES 확정 전 운영값 아님)",
         "(D-ADMIN-003/007, 우선순위 3) 2인 승인 틀: 요청자≠승인자, 승인자 APPROVER, 대상 버전 변경 시 무효, 소유 서비스로 요청자·승인자·승인 ID·대상 버전 전달(소유 서비스 재검사 계약), 안전 방향 명령은 1인 즉시",
         "(D-ADMIN-004, 우선순위 4) 2인 승인·마스킹 해제 직전 TOTP 재입력",
-        "소유 서비스 내부 API 호출 경로와 서비스 간 인증(운영 mTLS는 LIVE Gate), 관리 조회 장애가 승인 경로로 전파되지 않음",
-        "Thymeleaf 공통 레이아웃·오류 화면(AUTHN-001 결제창 화면 관례와 정합)",
+        "(D-ADMIN-008) React(Vite+TypeScript) SPA 공통 레이아웃·오류 화면, internal-admin이 같은 출처로 정적 번들 서빙(CORS 없음), JSON API adapter, CSRF 쿠키→헤더 토큰, 프론트 빌드·시험을 Gradle check에 포함, 버전 고정(lockfile)과 npm 의존성 CVE 검사 경로",
         "Test Fixture Policy, 보안 시험(세션 고정·CSRF·잠금·권한 상승·자기 승인·IP 차단)",
-        "(CANCEL-001 D-CANCEL1-001 인계) 운영자 보정 취소 진입점을 서비스 간 인증과 함께 개설, 내부 대상 조회 OperatorCancelTargetQuery, oct1: golden 바이트 대조(ADMIN 측), 대상 revision 변경 시 승인 무효, APPROVER 역할·TOTP 재입력. Q-ADMIN-APPROVER-STAFF가 운영자 취소 실행 가능 여부에 영향",
-        "(CANCEL-001 명세 review m-5) OperatorCorrectionCancelUseCase 호출 금지 ArchUnit 규칙을 인증된 ADMIN 진입 adapter에 한해서만 완화",
-        "(CANCEL-001 중간 review #3 m-3) 진입점에서 타입 생성 단계에 거절되는 형식 오류 OperatorId·approvalId도 감사 기록(D-CANCEL1-006/008 정신)",
-        "(WEBHOOK-001 D-WH-004/006/008) Webhook GAVE_UP 조회 화면·수동 재전송 진입점, LIVE endpoint 등록·변경 2인 승인 대상(D-ADMIN-003 목록 추가) — 상세는 WEBHOOK-ENDPOINT-001"
+        "(D-ADMIN1-001~008) 동시 로그인 새 로그인 우선, 1회용 부트스트랩, 계정 생성·정지 1인·등록 코드, 겸직 허용·요청 단위 분리·회수 1인, 실패 합산·자동 해제 없음·비구별 응답, 승인=실행, npm dependencies·devDependencies CVE FAIL, 감사 조회 SEC_ADMIN·APPROVER 전체/그 외 자기 기록",
+        "ADMIN 소유 2인 승인 명령 4종(역할 부여·잠금 해제·TOTP 재등록·비밀번호 재설정, 정지 해제 포함)으로 2인 승인 틀을 실증. 마스킹 해제는 틀까지(첫 적용은 후속)",
+        "(D-ADMIN1-009/010) 역할 보유 계정 재설정·재등록 시 역할 정지 → 별도 2인 승인 재활성(재설정 요청자 배제), 코드는 승인자에게 1회 표시; 활성 SECURITY_ADMIN·APPROVER 0명일 때만 동작하는 오프라인 복구 명령(1회성 DB 강제, SYSTEM_RECOVERY); (D-ADMIN1-011/012) 재설정·재등록은 등록 코드만으로, 복구 대상 기존 계정은 재등록 완료 시 복구 시점 SECURITY_ADMIN·APPROVER만 SYSTEM_RECOVERY 재활성"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
-      "owner": null,
+      "allowedWritePaths": [
+        "apps/internal-admin/**",
+        "build-logic/**",
+        "gradle/libs.versions.toml",
+        "settings.gradle.kts",
+        "docker/mysql/init/01-owned-databases.sh",
+        "compose.yaml",
+        ".env.example",
+        ".gitignore",
+        ".gitattributes",
+        "libs/test-support/**",
+        "harness/scripts/fingerprint.sh",
+        "harness/scripts/cve-scan.py",
+        "harness/scripts/verify-gate.py",
+        "harness/tests/**",
+        "harness/fixtures/cve-control-vulnerable-npm/**",
+        "docs/repository/**",
+        "harness/scripts/test-summary.py"
+      ],
+      "pathsResolved": true,
+      "owner": "coordinator+paycore-implementer",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "taskTimeoutSeconds": 5400,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/ADMIN-BOOT-001-2026-10-26T095548Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
+        "headRevision": "e53ee4b",
+        "tests": {
+          "kotlin": 2818,
+          "vitest": 40,
+          "failures": 0,
+          "skipped": 0
+        },
+        "harnessSelftest": 139,
+        "supplementary": "build/harness-evidence/ADMIN-BOOT-001-2026-10-26T102808Z-supplementary (GRADLE-DEPS x5 exit 0, CVE-SCAN PASS runtime 0 vuln·npm 147 0 vuln, fingerprint 전후 동일)",
+        "specSha256Prefix": "ce2dc2c2"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "round": "final",
+        "target": "sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
+        "nits": "nit-1 D-ADMIN1-020 SA도 스냅샷 미저장(더 엄격, 사용자 보고), nit-2 management denyAll 근거 주석 → TEST-ASSERT-001에 이월(fingerprint 보존), nit-3 TEST-ASSERT-001 입력에 사용자 data class⊃data object 꼴 명시, nit-4 gate 확인 완료"
+      },
       "principleEvidence": {
         "Financial Consistency": {
           "applicability": "UNASSESSED",
@@ -5289,7 +5348,201 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-10-24 착수(WEBHOOK-001 DONE e53ee4b push 후, 사용자 '응 진행해줘'). 사용자 요청 React 전환 → Q-FRONTEND-REACT → D-ADMIN-008(같은 출처 정적 번들)·D-FE-001(결제창도 React, CHECKOUT-REACT-001 BACKLOG). 1단계 조사·명세·질문 후보부터(허용 경로 docs/repository/** — 2단계에서 확장)",
+        "2026-10-24 1단계 명세 rev 0.1(f1e89e60…, 추정 1.0~1.3×WEBHOOK-001) 수령. Q-ADMIN1-01~08 → D-ADMIN1-001~008(전부 권장안). §13 판정: 1 분할 권장안 채택(사용자 확인) — AC7·10·11·12 → ADMIN-PAYMENT-OPS-001 신규, AC13 → WEBHOOK-ENDPOINT-001(dependsOn ADMIN-PAYMENT-OPS-001), agreedOrder BOOT → PAYMENT-OPS → CHECKOUT-REACT; 4 F-1~F-3 기존 시험 기대 변경 승인(D-ADMIN-005/008이 전제를 바꿈: internal-admin DB 접근 ArchUnit 규칙, TestInfrastructureSpec Testcontainers 반전, TECH-001 Thymeleaf smoke → 같은 보안 주장의 SPA/JSON 시험으로 대체) — 시험 하한은 낮추지 않음, 각 변경을 명세에 기존 기대·새 기대·근거로 기록; 6 Q-ADMIN-SEC-VALUES 대상 목록 확장(TOTP 창·대기, BCrypt cost, 비밀번호 규칙, 등록 코드·승인 요청 유효 기간, 서명 창) — Demo 값, LIVE Gate 차단; D-13 security_version은 구현 결정 유지(승인 무효 범위가 넓어지는 쪽 = fail-closed면 질문 불필요, 좁히는 쪽이면 질문으로 승격); 마스킹 해제 틀까지; commands.json 갱신은 Coordinator",
+        "2026-10-24 명세 rev 0.2(4ff3a41e…, 추정 1.1~1.5×WEBHOOK-001) 수령. Q-ADMIN1-11/12 → D-ADMIN1-011/012(권장안). spec-2 review 후 2단계 착수",
+        "2026-10-24 spec-2 판정: H-A·m-B3 fail-closed 구현 결정(사용자 보고), 나머지 반영 — rev 0.3 지시",
+        "2026-10-24 명세 rev 0.3(bad9b834…, 추정 1.2~1.6×WEBHOOK-001, 질문 없음) 수령. spec-3 확인 review와 2단계 S0 병행 착수. allowedWritePaths 확정(구현자 제안 그대로; commands.json·tasks/questions/progress·CLAUDE.md·DECISIONS 제외, apps/payment-api 제외). 하네스 스크립트 변경(fingerprint 가드·cve-scan npm·verify-gate)은 harness/tests 자기 시험과 함께, 각 변경을 명세에 기록",
+        "2026-10-24 명세 rev 0.5(9a58cf31…) 수령 — spec-4 PASS_WITH_FIXES 반영, 명세 단계 종료. S0 병행 중, 명세 파일 수정권 S0 구현자에게 이관",
+        "2026-10-24 S0 체크포인트(명세 §17, ff293023…; HARNESS-SELFTEST 97 OK, internal-admin 29/0 — 코드 변경 없음 기준선). m-4 열 단위 UPDATE로 FOR UPDATE 가능(4표, 1205 대기 확인) → 권한 확장 불필요. n-D 추가 타입 불필요(속성 표 이름 customizer 필요). Q-S0-1 → B: Node 24.22.1(High CVE 수정, 14일 미달) TECH-BASELINE §1.1 선례의 보안 patch 예외(같은 24.x LTS 라인, 빌드 도구), SHA-256·GPG 기록, 제거 조건 = 14일 경과 후 재평가. Q-S0-2 → A: undici 8.12.2 override 보안 patch 예외(dev 전이 의존, jsdom 경유) — 8.11.x patch 수정본이 있으면 그것을 우선, 2단계 lockfile 절차 기록, 제거 조건 = jsdom이 수정본을 직접 요구. Q-S0-3 → A: test-summary.py 파서가 루트 <testsuites>면 자식 suite별 timestamp·counts를 읽도록 확장(판정 기준 불변, test_test_summary.py RED 먼저) — 허용 경로에 harness/scripts/test-summary.py 추가. npm 실행 환경 격리(env 제거·빈 userconfig·--ignore-scripts·strict-ssl=true), 14일 규칙은 전이 의존까지 --before로 적용. commands.json 갱신은 S1 실측 후 Coordinator",
+        "2026-10-24 S1 체크포인트 수령(구현자 보고, 자기 판정 아님): 전체 --continue check 19m45s BUILD FAILED 1건 = institution-simulator SimulatorApiContractSpec \"responses never echo card numbers\" 무작위 state 값에 4111 우연 포함(기존 확률적 결함, 허용 경로 밖, 모듈 재실행 210/210 PASS) — 별도 후속 작업으로 기록. 합계 2487/0(internal-admin 40, Vitest 13). HARNESS-SELFTEST 127 중 2 실패는 commands.json 미반영(제안 diff 복사본 검증 OK). FINGERPRINT exit 1은 삭제 3건 미stage(설계된 감지, 커밋 때 git rm). CVE-SCAN PASS(npm 147 스캔, canary 6, 취약점 0). harness/scripts 실행 비트 손실 발견·755 복원. 프론트 보고서 별도 하한(§18.5) 판정 → (a) fail-closed: 별도 TEST-SUMMARY-FRONTEND 단계(하한 = 실측 Vitest 수)를 두어 합계가 백엔드 증가로 프론트 시험 소실을 가리지 못하게 함. S1 checkpoint review 후 구현자에게 verify-gate·module-registry 시험 RED→GREEN과 함께 지시, commands.json은 Coordinator가 반영",
+        "2026-10-24 S1 리뷰 반영 체크포인트(명세 6f5be934…): M1 실행으로 재현(익명 POST / 가 JSESSIONID 생성) → SessionBoundCsrfTokenRepository + assets 체인 csrf disable, 익명 PUT /assets 403→401 단일 코드 고정(거부 주장 불변, 기준 완화 아님). m3 허용 목록 방식 SpaDocumentRequestMatcher(원문 URI, api·assets·error·actuator 제외). m4 발견: Boot 4 server.error.* 폐기 → spring.web.error.*로 이전(include-path 기본 always → never). 전체 --continue check 18m57s BUILD SUCCESSFUL Kotlin 2477 + Vitest 14, CVE-SCAN PASS. Coordinator가 commands.json 반영(211a63f6… → 0b8b5ec8…): HARNESS-SELFTEST 97→136, GRADLE-CHECK 2460→2477(Kotlin만)·frontend 보고서/출력 규칙(frontendNodeVerify·Install·LockfileCheck·Typecheck·Test)·UP-TO-DATE/SKIPPED 금지, TEST-SUMMARY 2477, 새 TEST-SUMMARY-FRONTEND 하한 14(디렉터리 비중복). 반영 후 HARNESS-SELFTEST 136 OK. 후속: 온라인 registry time 14일 검사. S2 착수",
+        "2026-10-24 S2 체크포인트 수령(구현자 보고): 전체 --continue check 20m42s BUILD SUCCESSFUL Kotlin 2514(internal-admin 80) + Vitest 14, HARNESS-SELFTEST 136 OK, CVE-SCAN PASS(internal-admin runtime 106 구성요소, 취약점 0), 변이 D1~D12 12/12 RED. commands.json GRADLE-CHECK·TEST-SUMMARY 2477→2514 반영(반영 후 SELFTEST 136 OK). D-55(init ADMIN 블록은 두 비밀번호 변수가 모두 있을 때만, 하나만이면 exit 1, 둘 다 없으면 건너뜀) — 잠정 수용: compose.yaml이 :?로 두 변수를 강제하고 ADMIN DB 없이는 internal-admin이 기동하지 않아 권한 확장 없음, master/payment DB 시험(허용 경로 밖) 보존. S2 checkpoint review 결과로 확정. R-12(Entity updatable ↔ 열 권한)는 S3",
+        "2026-10-25 S2 수정 + S3 체크포인트 수령(명세 38073c2d…): M-1 교착 실측 재현([1213]) 후 FK 제거로 GREEN, 변이 S2수정 6/6·S3 14/14 RED(서비스 DB 시험은 RED 실행 기록 없이 변이로 증명 — 리뷰 확인 대상). 전체 --continue check 22m14s BUILD SUCCESSFUL Kotlin 2630(internal-admin 196) + Vitest 14, CVE-SCAN PASS. commands.json 반영: HARNESS-SELFTEST 136→139, GRADLE-CHECK·TEST-SUMMARY 2514→2630(반영 후 SELFTEST 139 OK). D-63(역할 준비 부트스트랩 경로)·D-67(등록 실패 감사 없음) 리뷰 판단 대기",
+        "2026-10-25 S3 수정 + S4 체크포인트 수령(명세 ec477133…): 변이 S3수정 10/10·S4 16/16 RED, 전체 --continue check 24m25s BUILD SUCCESSFUL Kotlin 2670(internal-admin 236) + Vitest 14, SELFTEST 139 OK, CVE-SCAN PASS(runtime 111), GRADLE-DEPS spring-session 4.1.1 runtime·testcontainers 0. commands.json GRADLE-CHECK·TEST-SUMMARY 2630→2670 반영. D-79 수용: LIVE BCrypt cost 하한 12(잠정, Demo 값과 동일)·Demo 보안 수치 잔존 시 LIVE 기동 거부 → Q-ADMIN-SEC-VALUES 답변 전 LIVE 기동 불가(LIVE Gate 차단 유지, fail-closed). retryLater 실제 1213/1205→409는 S5 ApprovalLockOrderSpec로 이월",
+        "2026-10-26 S5 체크포인트 수령(명세 6fc6ed16…): 재개 시 internal-admin 299/0, 추가 시험 +14, RED 4건(22:20:37Z) → GREEN, 변이 21/21 RED, 전체 --continue check 28m02s BUILD SUCCESSFUL Kotlin 2747(internal-admin 313) + Vitest 14, SELFTEST 139 OK, CVE-SCAN PASS(runtime 111), GRADLE-DEPS exit 0. D-85~D-95 리뷰 판단 대기. 이전 세션 작성 코드의 시험-먼저 순서는 기록 없음 → 변이로 증명(리뷰 확인 대상). commands.json GRADLE-CHECK·TEST-SUMMARY 2670→2747 반영. Q-S5-1(연속 재설정 H-A 배제 범위, 2인 승인 우회 가능성) 사용자 질문 — 답변 전 해당 경로 구현 보류, DONE 전 확정 필요",
+        "2026-10-26 S5 checkpoint review PASS_WITH_FIXES 판정 기록(reviewRounds S5-checkpoint). Q-S5-1/2/3 → D-ADMIN1-013/014/015(전부 권장안). D-85~D-94 수용, D-95 증거 범위 변경 수용. 재개 전 코드의 TDD 순서는 변이로 RED 대체 수용. S5 수정 지시 후 S6",
+        "2026-10-26 S5 리뷰 반영 체크포인트 수령(명세 19bfc520…): D-ADMIN1-013~015 구현(CredentialBasis 3열, 판정 3지점 CREDENTIAL_ISSUER), RED 5건 00:01:30Z → GREEN, 변이 11/11 + 재확인 2 RED, 전체 --continue check 26m53s BUILD SUCCESSFUL Kotlin 2756(internal-admin 322) + Vitest 14, SELFTEST 139, CVE PASS. commands.json 2747→2756 반영. D-98(1인 ENROLL 재발급 수행자도 배제) 수용 — 014 '코드 수령자 포함' 취지·015와 같은 방향, 배제 확대 = fail-closed라 질문 불필요. D-96·D-97·D-99 수용. Q-S5-4 → D-ADMIN1-016(현재 유지 + S8 지표). 건너뜀: m-2 시계 제어 진짜 승인 vs 만료 경합(시계 대역 없음) — S5 re-review 판단",
+        "2026-10-26 S5 re-review PASS_WITH_FIXES 판정. 수정은 internal-admin 모듈 시험으로 확인 후 S6 진행, 전체 check는 S6 체크포인트에서 1회",
+        "2026-10-26 S5 re-review 수정 + S6 체크포인트 수령(명세 06bd233f…): S5rr RED 01:06:05Z → GREEN 324, 변이 5/5; S6 컴파일 RED 01:36:16Z → GREEN 346, 변이 18/18 RED, 전체 --continue check 30m04s BUILD SUCCESSFUL Kotlin 2780(internal-admin 346) + Vitest 14, SELFTEST 139, CVE PASS, DEPS exit 0. commands.json 2756→2780 반영. 판정: EnrollmentFlowSpec 'RECOVERY before S6 → NOT_APPLICABLE' 기대 교체 승인 — D-64가 S6까지의 임시 fail-closed로 명시한 행이고 같은 보호 의도를 완료 TX 판정으로 고정(완화 아님). Q-S6-1(D-103 SUSPENDED 대상 복구 작업 A 거부) 수용 — 거부 쪽 fail-closed·작업 B 대안 존재, 질문 불요. Q-S6-0(재발급 이월 발급자 상한 32, 초과 거절) 수용 — fail-closed. Q-S6-2 → 복구 회차 유효를 LIVE 가드 Demo 값 목록에 추가(fail-closed, D-79와 동류, 시험 전체 목록 확장은 기준 강화) + Q-ADMIN-SEC-VALUES 대상에 추가. Q-S5-4는 이미 D-ADMIN1-016. D-100~D-108 리뷰 판단 대기",
+        "2026-10-26 S6 checkpoint review PASS_WITH_FIXES 판정. 수정은 internal-admin 모듈 시험으로 확인 후 S7(React 화면) 진행, 전체 check는 S7 체크포인트에서 1회",
+        "2026-10-26 S6 리뷰 수정 + S7 체크포인트 수령(명세 36111273…): S6수정 RED 6 → GREEN 354, 변이 7/8(F-m1 비결정 — 잠금 부여 순서), S7 서버 RED 04:02:09Z·프론트 RED 04:06:54Z → GREEN, 변이 10/11(FE-M6 동등 주장), 전체 --continue check 30m26s BUILD SUCCESSFUL Kotlin 2791(internal-admin 357) + Vitest 35, SELFTEST 139, CVE PASS(lockfile 불변), DEPS exit 0. commands.json GRADLE-CHECK·TEST-SUMMARY 2780→2791, TEST-SUMMARY-FRONTEND 14→35 반영. 판정: S7 서버 API 추가(등록·계정 HTTP)는 AC·허용 경로 안 — 리뷰 대상. F-m1은 시험 대역 저장 Port 고리로 UPDATE 직전 정지해 0행 분기를 결정적으로 고정(S7 리뷰 수정과 함께). Q-S7-1 QR → Demo는 설정 키 문자열 유지(1회 표시 비밀 동일), LIVE 전 QR 라이브러리 검토를 후속 기록(가역 UI 결정, 질문 불요). Q-S7-2 → ROLE_REACTIVATE 원인 후보 조회 API + 화면을 S8에 포함(재설정·복구 뒤 역할 복원이 화면에서 막히지 않도록). 변이 실행기 build cache 문제 기록(첫 실행 유효). Q-S6-0/1은 이미 수용",
+        "2026-10-26 S7 checkpoint review PASS_WITH_FIXES 판정, Q-S7-3 → D-ADMIN1-017. 수정은 모듈 시험(+Vitest) 확인 후 S8 진행, 전체 check는 S8 체크포인트에서 1회",
+        "2026-10-26 S8 체크포인트 전체 검증(Coordinator가 WSL 분리 재실행 — 첫 시도는 Claude Code 메모리 부족으로 중단, 환경 사유): check 31m43s BUILD SUCCESSFUL, TEST-SUMMARY 2811/0 PASS(internal-admin 377), FRONTEND 39 PASS, SELFTEST 139 OK, CVE-SCAN PASS(runtime 111·프론트 147, lockfile 15a4ed3e… 불변), DEPS exit 0·testcontainers 0. commands.json GRADLE-CHECK·TEST-SUMMARY 2791→2811, TEST-SUMMARY-FRONTEND 35→39 반영",
+        "2026-10-26 S8 리뷰 반영 수령(명세 ce2dc2c2…). 검증은 구현자 실행이 호스트 메모리 부족으로 2회 중단(환경) → Coordinator가 WSL 분리 실행: internal-admin 384/0, Vitest 40/0, 변이 s9 8/9 RED(M9-4 management denyAll 제거 생존 — 동치 주장, final review 판단). KotestEqualityProbeSpec 실측: Pair 안 data object 기대값만 공허, 직접·List·같은 속성 이름 sealed 하위형(직접·Pair)·Pair shouldBeIn은 엄격 → TEST-ASSERT-001 입력. 삭제 3건 git rm --cached 후 FINGERPRINT sha256:30325436… → 최종 VERIFY-GATE(WSL 분리)와 final review 병행 착수",
+        "2026-10-26 DONE: VERIFY-GATE PASS 095548Z(2818/0, Vitest 40), 보조 DEPS×5·CVE PASS 102808Z, final REVIEW_PASS. 이월: TEST-ASSERT-001(+management denyAll 근거 주석, CreatePaymentEligibilitySpec 우선), gauge 지표·session.invalidated·audit.write_failed, 마스킹 해제 공급자·PAN 재검토, payment/master rollbackOnCommitFailure 판단, QR. LIVE Gate 항목 §26.4. Q-ADMIN-SEC-VALUES·Q-ADMIN-APPROVER-STAFF 미결(LIVE 차단)"
+      ],
+      "specification": {
+        "path": "docs/repository/ADMIN-BOOT-001-ADMIN-FOUNDATION.md",
+        "stage1Sha256": "f1e89e606d3df512e0af7536a4fb5ef467edee63cde7cf29ce999320adc842f9",
+        "stage1Base": "e53ee4b",
+        "rev02Sha256": "4ff3a41e66a7be56ff28310719d4e4058b5ff26c7bc2428c6bb7ad98e063fd10",
+        "rev03Sha256": "bad9b8340702fd496ba2ba820148b8f3270decaf5e87481f42612971c784decc",
+        "rev04Sha256": "111dbb3ebf55e12d1a4d6c77396ec7862c66a15183190575722b04e0288d6d20",
+        "rev05Sha256": "9a58cf311757b92e9c93e30cdc2d5c29c976c9a7fc1bdb2dfe553e81d39e5d60"
+      },
+      "reviewRounds": [
+        {
+          "round": "spec-1",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "rev 0.1 f1e89e60…",
+          "findings": "H-1 ADMIN 소유 명령 승인=실행 TX 경계 미정(2-TX 해석 공존·모듈 순환), H-2 부트스트랩 1회성 경쟁(DB 강제 없음)·표준 출력 비노출, H-3 역할 보유 계정 재설정 코드 수령자로 2인 승인 우회, H-4 결정·분할·AC 번호 미반영, m-1 진행 중 요청 권한 회수 경쟁, m-2 잠금 순서·deadlock, m-3 TOTP 실패 계수 TX 분리·재사용 경쟁, m-4 로그인 판정 순서·경로 동등성, m-5 등록 코드 엔트로피·원자 소비, m-6 UPDATE 권한 이력 변조, m-7 security_version 증가 집합 열거, m-8 frontend fingerprint 가드, m-9 Vitest only/passWithNoTests, m-10 npm canary dep·devDep, m-11 감사 조회 감사 위치·자기 기록 SQL, m-12 F-1 ArchUnit 허용 범위, n-1~n-10",
+          "coordinatorRulings": "QC-1 → Q-ADMIN1-09 → D-ADMIN1-009, QC-2 → Q-ADMIN1-10 → D-ADMIN1-010(전부 권장안). H-1 ADMIN 소유 명령 단일 로컬 TX·EXECUTING 불가·DB 승인 행 잠금 재독·orchestrator 하나(approval 모듈 application이 account provided 호출, 역방향 금지)·실행자=승인자, 2-TX는 PAYMENT-OPS만. H-2 admin_bootstrap 고정 PK·BootstrapConcurrencySpec·출력은 TTY 또는 0600 파일(logger 금지)·web 프로필 동시 기동 거부(복구 명령도 같은 방식, 별도 고정 행). H-4 rev 0.2 전면 반영(ACCOUNT_REACTIVATE 종류 추가). m-1~m-12·n-1~n-9 반영. m-8 fingerprint 가드 확장은 하네스 변경으로 S0에서 Coordinator 승인 하에 구현(harness/scripts/fingerprint.sh·harness/tests). n-10은 ADMIN-PAYMENT-OPS-001 AC에 추가"
+        },
+        {
+          "round": "spec-2",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "rev 0.2 4ff3a41e…",
+          "findings": "spec-1 H-1/H-2/H-4·m 대부분 해소. H-A 재설정 승인자(코드 수령자)가 같은 계정 ROLE_REACTIVATE 승인 가능 → 1인 2인 승인 우회, H-B 정지 계정이 남은 등록 코드로 활성화(정지 해제 2인 승인 우회), m-A 등록 진행 중 대기 비밀번호 해시·TOTP 시크릿 보관(세션 평문·계정 행 덮어쓰기), m-B 복구 자동 재활성 근거 고정·회차 종료 경쟁·복구 뒤 활성 관리자 생긴 경우, m-C 승인 행 없는 TX 잠금 순서, m-D 경합 시험 보강, n-A~n-H",
+          "coordinatorRulings": "H-A fail-closed 구현 결정(D-ADMIN1-009 취지 — 코드 수령자 배제): ROLE_REACTIVATE 요청자·승인자는 원인 재설정의 요청자와 승인자 모두와 달라야 함(인원 영향은 Q-ADMIN-APPROVER-STAFF에 기록, 사용자에게 보고). H-B 정지 TX가 미사용 코드 revoke + 완료 TX 계정 FOR UPDATE·상태·목적·발급 근거 일치 확인 + 경합 시험. m-A 대기 값은 암호화해 세션(AAD 진행 ID), 계정 행은 완료 TX에서만, 목적별 흐름(D-ADMIN1-011). m-B 1·2·4·5 반영, 3은 fail-closed 판정: 역할별로 완료 TX에서 회차 행 잠금 아래 해당 역할 활성 수가 여전히 0이고 회차가 열려 있고 만료 전일 때만 SYSTEM_RECOVERY 재활성, 아니면 일반 ROLE_REACTIVATE 2인 승인. m-C 전역 잠금 순서 회차 → 승인 행 → 계정 행(오름차순) → 코드 행. m-D·n-A~n-H 반영"
+        },
+        {
+          "round": "spec-3",
+          "verdict": "CHANGES_REQUIRED",
+          "target": "rev 0.3 bad9b834…",
+          "findings": "spec-2 대부분 해소. H-1 역할 보유 ENROLL 계정(부트스트랩·복구 B) 코드를 SECURITY_ADMIN 1인이 재발급 → 2인 승인 우회(rev 0.2부터 존재, spec-2 누락), m-1 재설정으로 이미 정지된 역할이 복구 작업 A로 복원 안 됨(D-ADMIN1-012 불일치), m-2 대기 근거 갱신 전이 공백, m-3 §4.7.3 ↔ §4.13 잠금 순서 모순, m-4 열 단위 UPDATE만으로 FOR UPDATE 가능 여부 근거 없음[S0], n-1~n-4",
+          "coordinatorRulings": "H-1 1인 재발급은 대상에 활성·정지 역할 0개일 때만(D-ADMIN1-003 문언), m-1 작업 A가 기록 역할 전부에 원인=회차 SUSPEND 재기록, m-2·m-3·n-1~n-4 반영(n-2 순서 변경 권장), m-4 S0 실측 후 Coordinator 판단. rev 0.4 지시(S0 병행 유지, 명세 파일은 rev 0.4 작성자만 수정)"
+        },
+        {
+          "round": "spec-4",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "rev 0.4 111dbb3e…",
+          "findings": "spec-3 H-1·m-1·m-3·n-1~n-4 해소, m-2 부분. 새 m-1 등록 전 역할 보유 계정 2인 재발급 시 목적이 PASSWORD_RESET/TOTP_REENROLL이라 한 요소만 설정, n-1 0/1단계 불변 열 불일치 처리, n-2 SUSPEND 재append 재생 규칙, n-3 근거 (3) 문구 과장, n-4 거부 감사 별도 TX. S1 차단 없음, S2 이후는 m-4 실측 의존",
+          "coordinatorRulings": "전부 리뷰 권장안으로 rev 0.5 지시(m-1: 확정 자격 없는 요소가 있으면 ENROLL로 두 요소 설정). 명세 단계 종료 — 이후 리뷰는 구현 체크포인트에서. m-4 실측 결과로 S2 착수 판단"
+        },
+        {
+          "round": "S1-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S1 작업 트리(미커밋, fingerprint 미계산 — 리뷰어 쉘 없음)",
+          "findings": "High 없음. M1 익명 상태 변경 요청이 HttpSessionCsrfTokenRepository.saveToken으로 세션 생성(assets 체인 csrf 기본 켜짐) — S4 JDBC 세션 행 증가 경로, M2 프론트 시험 수가 합계 하한으로만 보호(test-summary·verify-gate가 디렉터리별 존재 미검사), m1 .npmrc 필수 줄만 검사(뒤 줄 덮어쓰기), m2 14일 before 미강제·override 해석 미대조, m3 익명 GET /** 허용이 향후 actuator 공개, m4 오류 JSON path echo 가능, m5 frontendNodeVerify·frontendInstall 실행 증거 규칙 없음, m6 익명 POST 401/403 둘 다 허용·fallback 경로 조작 시험 없음, n1~n5",
+          "coordinatorRulings": "전부 S1 안에서 반영: M1 세션 없으면 저장 안 하는 CsrfTokenRepository 래퍼 + assets 체인 csrf disable + 익명 POST/PUT/DELETE Set-Cookie 0 시험(RED 먼저), M2 (a) TEST-SUMMARY-FRONTEND 단계(verify-gate GATE + test_verify_gate·test_module_registry RED 먼저), m1 .npmrc 정확 키 허용 목록·중복 거부, m2 override 해석 대조 추가 + before 오프라인 한계 명세 기록(온라인 time 검사는 후속), m3 SPA 문서 경로 허용 목록 또는 /actuator/** 선차단, m4 include-path never + 단언, m5 outputMustMatch 제안에 추가, m6 기대 코드 고정·fallback 조작 시험, n1 testcase 직접 집계 대조, n2 주석, n3 public 가드, n4 purpose 문구 제안, n5 상태 코드 대조"
+        },
+        {
+          "round": "S2-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S2 작업 트리(미커밋, fingerprint 미계산 — 리뷰어 쉘 없음; 첫 리뷰 세션 정지 후 재개)",
+          "findings": "High 없음. M-1 승인 표 대상 FK가 INSERT 시 부모 계정 S 잠금 → §4.13 생성 순서(INSERT → 계정 FOR UPDATE)에서 같은 대상·다른 종류 동시 생성 1213(PLAUSIBLE), m-1 상태 CHECK가 ADMIN 종류에 금지 상태(APPROVED·EXECUTING·EXECUTION_UNKNOWN) 허용, m-2 D-55 스크립트 단독 수렴 실행에서 변수 누락 시 ADMIN 조용히 건너뜀, m-3 건너뜀 시험이 문자열 포함만 확인, m-4 승인 FK 시험 없음, m-5 R-12 S3 진입 조건화, n-1 basis 길이, n-2 목적별 정합 CHECK, n-3 낡은 주석, n-4 열 helper 거부 목록",
+          "coordinatorRulings": "M-1 → (a): 승인 표 대상 FK 제거(계정 행은 runtime DELETE 권한 없음, D-58 요청자 FK 미설정과 일관), 대상 존재는 생성 TX 계정 FOR UPDATE 아래 검사, D-58 갱신, S5에 같은 대상·다른 종류 동시 생성 1213 0회 시험 추가 의무. 먼저 S2에서 현 FK로 교착 재현 시험 시도(재현되면 RED 증거). m-1 상태 CHECK에서 세 값 제거(OPS migration이 종류와 함께 확장, D-59 원칙). m-2 허용 경로 밖 변경 없이: 변수 둘 다 없음 + paycore_admin schema 또는 ADMIN 계정이 이미 존재하면 exit 1(수렴 실행 누락 fail-closed), 새 컨테이너만 건너뜀 + .env.example 수렴 절차 문구. m-3 정확 문구 + 전후 권한 동일 단언, m-5 S3 첫 Entity와 같은 단계에 R-12 대조 시험(S3 진입 조건), n-1 S3 형식 고정 시 길이 확인, n-2 CHECK 추가, n-3 주석 수정, n-4 후속(PAYMENT 공용 helper). spring-session-jdbc BOM 관리 여부 구현자 확인"
+        },
+        {
+          "round": "S3-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S2 수정 + S3 작업 트리(미커밋, 명세 38073c2d…, fingerprint 미계산 — 리뷰어 쉘 없음)",
+          "findings": "High 없음. M-1 1인 재발급 정지 역할만 보유 분기 시험·변이 없음(D-ADMIN1-003 우회 경로 미고정), M-2 역할 준비 Fixture가 부트스트랩이 만들 수 없는 역할 조합을 SYSTEM_BOOTSTRAP으로 생성(§7.4·D-63 불일치), M-3 등록 경합 시험이 TX 내 교차를 강제하지 않음·분기 관측 미기록, lockAll 정렬·비잠금 판정 변이 없음, m-1 D-67 NOT_APPLICABLE 보안 신호, m-2 D-66 폐기 발급분 추적 불가, m-3 canViewAll 호출자 신뢰, m-4 LOCKED 정지 시 locked_at 소실, m-5 BCrypt cost 하한, nit 4",
+          "coordinatorRulings": "M-1 서비스·domain 시험(ROLE_BEARING_ACCOUNT·불변·REJECTED 감사 1행) + suspended 조건 제거 변이. M-2 (a)+(b)+(c) 전부: bootstrapped는 SA 또는 APPROVER 단일 역할만, 그 밖은 rolesGrantedBypassingApproval_untilS5 이름 분리·핵심 규칙 시험 사용처 S5 withRoleViaApproval 교체 명시. M-3 세 번째 연결 FOR UPDATE 장벽으로 경합 강제(대기 확인 후 해제), 정지 대 완료 양 분기 각각 강제, lockAll 정렬 제거·비잠금 판정 변이 추가(못 잡으면 S5 ApprovalLockOrderSpec에 명시). m-1 대상 확정 NOT_APPLICABLE은 별도 TX 감사 ENROLLMENT_COMPLETED:REJECTED(Auditability fail-closed, 가역 보안 감사 범위라 사용자 질문 불요), CODE_INVALID는 지표만 유지. m-2 비밀 아닌 발급 근거 detail 추가. m-3·m-5 S4(세션 actor 현재 행 단일 경로·HTTP VIEWER 시험, LIVE 가드 cost 하한). m-4 S5 기록. nit: AdminClock 주입, 길이 기준 문서화, SUSPENDED ⇔ status_before_suspend CHECK 추가"
+        },
+        {
+          "round": "S4-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S3 수정 + S4 작업 트리(미커밋, 명세 ec477133…, fingerprint 미계산)",
+          "findings": "High 없음. M-1 D-80 감사 조회 ArchUnit 규칙이 FQN·패키지 식별자 오류로 아무것도 검사하지 않음, m-1 로그아웃 감사 실패 시 세션 잔존, m-2 입력 오류 500, m-3 72바이트 초과 비밀번호 경로 동등성 밖(PLAUSIBLE), m-4 비밀번호 단계 한도 도달 선판정 없음, m-5 LIVE 가드 TOTP 창·세션 timeout 미검사(DEMO 모드 우회는 구조 한계), m-6 IP 거부 감사 동기 쓰기 범람, m-7 F2 교착 검출 확률적, m-8 idle 만료·IP filter 순서·forward-headers·filter 예외 /error 시험 공백, m-9 LIVE 가드 시험 원인 미구분, nit 다수",
+          "coordinatorRulings": "M-1 FQN·BASE_PACKAGE 수정 + allowEmptyShould(false) + 위반 fixture shouldThrow + 변이. m-1 로그아웃은 안전 방향 행위(D-78 동류): 세션 폐기를 finally에서 항상, 감사 실패는 로그 분류·500 응답(세션은 이미 폐기) — 결정 기록. m-2 400 BAD_REQUEST 매핑(AccessDeniedException 500 흡수 금지). m-3 passwordMaxBytes 초과도 더미 비교 1회·감사 1행·INVALID_CREDENTIALS + 73바이트 probe. m-4 failedAttempts>=max면 계수 없는 거절. m-5 TOTP 창·spring.session.timeout Demo 검사 추가, D-79에 실효 최소 cost 13 명기, LIVE에서 0.0.0.0/0·::/0 허용 목록 거부, DEMO 모드 운영 기동은 구조 한계로 기록(LIVE Gate 체크 항목). m-7 data_locks로 대기 TX가 다른 계정 행 잠금 미보유 단언(1회 결정적), S5 의무 갱신. m-8 idle 만료 시험·변이, 밖 IP 미인증 /api/audit 403 IP_DENIED 순서 시험, forward-headers-strategy 설정 단언, filter 예외→JSON 500 실제 HTTP 시험 1건. m-9 원인 구분·Demo 값 전체 단언. m-6 S8 이월(위험 기록). nit: XsrfCookieFilter KDoc, securityVersion 세션 비교 추가, verifyTotp 거절 감사, CharArray 지우기, RowLockHolder trx 한정, IpAllowlist 정규식·indexOf"
+        },
+        {
+          "round": "S5-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S5 작업 트리(미커밋, 명세 6fc6ed16…, fingerprint 미계산)",
+          "findings": "High-1 정지 역할 회수 → ROLE_GRANT로 H-A 배제 무력화(정책 공백), M-1 1213·1205 주입이 TOTP 단계 소비 전이라 단계 불변 단언이 공허, m-1 코드 비노출 목록 시험이 빈 목록 검사·감사 검사 범위 좁음, m-2 승인 vs 만료 경합이 만료 vs 만료·결과 미단언, m-3 재개 전 코드 변이 없는 분기(요청 시 H-A 요청자, 거절 승인자 재검사, 철회 세대, DUPLICATE_PENDING 별도 TX 감사), m-4 D-95 로그인 1213 미시험·요청 생성 TX 1213 경계 미시험, nit-1 만료 판정이 권한 확인보다 먼저, nit-2 별도 TX 계수 실패 동작, nit-3 KDoc·정적 secondResult·SecurityVersionEventsSpec 주체. 관찰: 마스킹 해제 사유 원문 저장(S8)",
+          "coordinatorRulings": "High-1 → Q-S5-2 → D-ADMIN1-014(자격 발급 근거에 묶기), Q-S5-3 → D-ADMIN1-015(1인 계정 생성에도 적용), D-ADMIN1-013(Q-S5-1 A 최신 재설정 기준 정지 append) 유지 — '미사용 코드 동안' 조항은 D-014로 대체. 시험: 연속 재설정, 회수 후 재부여 거부, 코드 사용 후 부여·재활성 거부, 생성 SA 부여 요청·승인 거부, 다음 재설정 후 해제, 변이. M-1 TOTP 소비 뒤(revokeUnused 등 코드 행) 1205·1213 주입 + 단계 불변·PENDING·감사 무변경·같은 코드 재승인 Executed. m-1 요청자 조회 + approvalId 존재 선단언, 감사 전체 스캔. m-2 결과 집합·EXPIRED 감사 1행·역할 없음 단언, 가능하면 진짜 승인 vs 만료(만료 직전 시각 제어) 경합. m-3 변이 4건 추가; 재개 전 코드는 변이로 RED 대체를 Coordinator 수용(기록). m-4 D-95 증거 범위 변경 수용(로그인 TX는 1205로), 요청 생성 TX 1213 경계 시험 추가. nit-1 문서 한 줄, nit-2 문서 기록, nit-3 수정. 마스킹 사유 원문은 S8 비노출 검토 항목"
+        },
+        {
+          "round": "S5-rereview",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S5 리뷰 반영 작업 트리(명세 19bfc520…, fingerprint 미계산)",
+          "findings": "High 없음, High-1 닫힘. m-1 ROLE_REACTIVATE 요청 시 근거 판정 제거 변이는 동등 아님(code만 다름: CREDENTIAL_ISSUER vs NOTHING_TO_REACTIVATE/NOT_ELIGIBLE), m-2 D-98 재발급이 이전 생성자 배제를 풀어 015 문언보다 완화·서비스 시험 없음, m-3 자기 자격 발급자 불변식 DB CHECK 없음, m-4 근거 참여자의 ACCOUNT_UNLOCK·ACCOUNT_REACTIVATE(관찰, 014 범위 밖), nit-1 m-2 skip 수용 가능·S8 이월 명시, nit-2 S6 의무(부트스트랩·복구 근거 system, 복구 작업 A SUSPEND 재기록 시험, 호스트 운영자 신뢰 경계), nit-3 V1 제자리 수정 volume 재생성 절차",
+          "coordinatorRulings": "m-1 시험 행 추가·변이 실행·문구 수정. m-2 → (b): 대상 등록 완료(자격 변경) 전까지 이전 발급자∪새 발급자 배제 — 015 문언 '자격이 바뀔 때까지' 그대로(fail-closed, 질문 불요), 서비스 시험(재발급 수행자·이전 생성자 ROLE_GRANT 요청 409·승인 403, 등록 완료 뒤 이전 생성자 해제). m-3 CHECK 2개 + AdminSchemaSpec 행. m-4 검토 경로로 기록(정지·잠금 해제는 독립 부여 역할의 복원이고 새 권한 생성 아님, 사용자 결정 014 범위 일치) — 사용자에게 보고, 확장 원하면 질문. nit-1 S8 이월(시계 대역 + 승인 대기 중 만료 도래). nit-2 S6 의무. nit-3 문서 한 줄"
+        },
+        {
+          "round": "S6-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S5rr 수정 + S6 작업 트리(명세 06bd233f…, fingerprint 미계산)",
+          "findings": "High 없음. M-1 CodeOutput 커밋 뒤 경로 재열기가 symlink를 따라가는 TOCTOU(코드 유출), M-2 회차 코드 전부 폐기 시 회차 미종료 → 재복구가 만료까지 EPISODE_OPEN, M-3 복원 안 된 역할의 ROLE_REACTIVATE 경로 없음(원인 apr_ 형식 강제) — 명세·D-ADMIN1-012 불일치, m-1 만료 회차 동시 복구 패자가 LOST 아닌 EPISODE_OPEN, m-2 causeApprovalId 형식 오류 500, m-3 복구 시험 withRoles 의도 표기·apr_FIXTURE 형식, m-4 복구 경로 코드 비노출 단언 없음, nit-1 main 인자 계산 미시험·웹 프로세스 명령 env 로그, nit-2 쓰기 도중 실패 안내 문구, nit-3 빈 DB 부트스트랩∥복구 B 둘 다 성공(관리자 증가 방향, 수용). 동등 변이 주장 동의, §23.4 교체 동의",
+          "coordinatorRulings": "M-1 생성 시 연 채널을 커밋 뒤까지 유지해 같은 fd에 쓰기 + 상위 디렉터리 group/other 쓰기 가능 거부 + 링크 교체 시험(쓰지 않음·exit 7·대상 불변). M-2 복구 TX가 열린 회차의 사용 가능 코드 0이면 조건부 UPDATE로 닫고 진행(잠금 순서 유지) + 폐기 후 재복구 성공 시험. M-3 → (a): D-ADMIN1-012 원문 '나머지 역할은 일반 ROLE_REACTIVATE 2인 승인'이 이미 정한 규칙 — 회차 원인 인용 허용(원인 형식 episode 근거, 일반 2인 규칙·대상 본인 배제, 시스템 근거라 014 관리자 배제 없음), 사용자 질문 불요. 시험: 작업 A 대상 OPERATOR·조건 미충족 SA 재활성 성공, 잘못된 회차·닫히지 않은 정지 원인 거부, 변이. m-1 LOST 분류 + 장벽 시험. m-2 INVALID_INPUT 400 + HTTP 시험. m-3 이름·KDoc·형식 맞는 고정 ID. m-4 감사 전체 스캔. nit-1 순수 함수 분리 시험 + 운영 로그 1줄. nit-2 안내 문구. nit-3 수용 기록(n-3·n-H). 추가: Q-S6-2 복구 회차 유효를 LIVE 가드 Demo 목록에 반영"
+        },
+        {
+          "round": "S7-checkpoint",
+          "verdict": "PASS_WITH_FIXES",
+          "target": "S6 수정 + S7 작업 트리(명세 36111273…, fingerprint 미계산)",
+          "findings": "High·M 없음, S6 지적 전부 닫힘(m-1 결정성만 남음 — 장벽 방식 제안). m-1 표에 없는 409 업무 code가 RETRY_LATER 안내, m-2 계정 목록 login_name 전 역할 노출(합산 잠금 공격), m-3 등록 화면이 서버 진행 상태 삭제 뒤 같은 단계 유지, m-4 등록 HTTP 보안 계약 시험 공백(a~e), m-5 등록 경로 IP 거부 미감사, nit-1 잔여 문장, nit-2 권한 불일치 삭제 file key 미확인, nit-3 등록 start·totp 호출 비용 반복, nit-4 1인 명령 세션 세대 미전달(안전, 기록). FE-M6 동등 동의, S7 서버 API 추가 수용 가능",
+          "coordinatorRulings": "S6 m-1: 리뷰어 장벽 방식(세 번째 연결 대상 행 잠금 → TX1 E1 닫기·E2 INSERT 후 대기 → TX2 E1 UPDATE 대기 확인 → 해제)으로 결정적 시험, F-m1 재실행 RED — 훅 지시 대체. m-1 본문 code 미등록이면 REQUEST_REJECTED, 본문 없음만 상태 기본값 + Vitest 2행. m-2 → Q-S7-3 → D-ADMIN1-017(login_name은 SECURITY_ADMIN만, 그 밖은 표시명·actorId·상태·역할) + HTTP 시험·변이. m-3 단계 초기화·설정 키 지우기 + Vitest. m-4 (a)~(e) 시험 추가. m-5 /api/enroll/ IP 거부 감사(path=ENROLL). nit-1·nit-2 수정, nit-3 S8 범람 항목에 기록, nit-4 기록. S7 서버 API 추가·Reader 선작성(K-M4로 RED 대체) 수용"
+        },
+        {
+          "round": "S8-checkpoint",
+          "verdict": "PASS_WITH_FIXES (전체 검증 INSUFFICIENT_EVIDENCE — s8-gate 진행 중)",
+          "target": "S7 수정 + S8 작업 트리(명세 509f7f0c…)",
+          "findings": "High(작업 간 공통) Kotest 중첩 data class 비교에서 기대 쪽 data object/같은 속성 이름 sealed 하위 타입이면 공허 통과 가능 — payment-api CreatePaymentEligibilitySpec:75,98 등 DONE 작업 영향 가능, (b)(c) 꼴 미확인. M-1 승인 targetSnapshot loginName 비SA 노출(D-017 우회). m-1 commit 실패 경로 rollback 없음·시험 없음. m-2 D-119 커밋 후 계수 변이·management denyAll 변이·loopback 단언 없음. nit-1 401+모르는 code 세션 종료 미처리, nit-2 client.test 403·401 본문 없음 행, nit-3 도달 불가 401 분기 주석, nit-4 HSTS includeSubDomains LIVE Gate, nit-5 목록 500건 잘림 표시, nit-6 BootstrapCommandSpec 빈 목록 all 공허. client.test 기대 변경·m-4(b) 403 타당",
+          "coordinatorRulings": "M-1 → D-ADMIN1-020. m-1 → D-ADMIN1-021. Q-S8-A/B → D-ADMIN1-018/019. m-2 변이 2건 + 단언. nit-1 401은 항상 세션 종료 분류, nit-2·3·5·6 수정, nit-4 LIVE Gate 항목 기록. Kotest High: internal-admin 범위는 이 작업에서 meta probe(ApprovalRaceSpec:172 shouldBeIn 포함)로 확인·교체, 저장소 전체 점검은 사용자 확인 후 별도 작업. 수정은 s8-gate 종료 뒤 착수(gate 중 소스 수정 금지)"
+        },
+        {
+          "round": "final",
+          "verdict": "REVIEW_PASS",
+          "target": "sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
+          "findings": "High·M 없음, AC 11개 충족, D-ADMIN1-001~021 문언 대조(009·020은 더 엄격), 커밋 묶음·비밀·잔여물 이상 없음, 약화된 기대값 없음. M9-4 동치 수용",
+          "coordinatorRulings": "VERIFY-GATE PASS 095548Z(fingerprint 전후 일치, Kotlin 2818·Vitest 40·skip 0) + 보조 102808Z PASS 확인 → DONE"
+        }
+      ]
+    },
+    {
+      "id": "ADMIN-PAYMENT-OPS-001",
+      "title": "관리자 → payment 소유 서비스 호출 경로·서비스 간 인증·운영자 보정 취소 진입점",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ADMIN-BOOT-001",
+        "CANCEL-001"
+      ],
+      "requiredQuestions": [
+        "Q-ADMIN-AUTH",
+        "Q-ADMIN-APPROVAL-ENFORCE",
+        "Q-ADMIN-APPROVER-STAFF"
+      ],
+      "acceptanceCriteria": [
+        "소유 서비스 내부 API 호출 경로와 서비스 간 인증(운영 mTLS는 LIVE Gate), 관리 조회 장애가 승인 경로로 전파되지 않음",
+        "(CANCEL-001 D-CANCEL1-001 인계) 운영자 보정 취소 진입점을 서비스 간 인증과 함께 개설, 내부 대상 조회 OperatorCancelTargetQuery, oct1: golden 바이트 대조(ADMIN 측), 대상 revision 변경 시 승인 무효, APPROVER 역할·TOTP 재입력. Q-ADMIN-APPROVER-STAFF가 운영자 취소 실행 가능 여부에 영향",
+        "(CANCEL-001 명세 review m-5) OperatorCorrectionCancelUseCase 호출 금지 ArchUnit 규칙을 인증된 ADMIN 진입 adapter에 한해서만 완화",
+        "(CANCEL-001 중간 review #3 m-3) 진입점에서 타입 생성 단계에 거절되는 형식 오류 OperatorId·approvalId도 감사 기록(D-CANCEL1-006/008 정신)",
+        "(ADMIN-BOOT-001 명세 F-4) oct1: golden을 harness 독립 생성 + PAYMENT 바이트 대조 시험으로 선행 추가, F-5 요청 시 대상 스냅샷 고정·승인 시 지문 계산·balanceRevision 재비교, F-10 ADMIN 호출 서명(method·path·시각·본문 hash, ADMIN 전용 키 공간)",
+        "(ADMIN-BOOT-001 spec-1 n-10) 같은 Payment에 미해결 실행이 있으면 새 승인 요청 거부·EXECUTION_UNKNOWN 회복 job, 승인 전 PAYMENT 재조회는 DB TX 밖"
+      ],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "coordinatorDecisions": [
+        "2026-10-24 ADMIN-BOOT-001에서 분할(사용자 확인 'BOOT → PAYMENT-OPS → 결제창')"
+      ]
+    },
+    {
+      "id": "CHECKOUT-REACT-001",
+      "title": "결제창 화면 React 전환(D-FE-001)",
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "AUTHN-001",
+        "ADMIN-BOOT-001"
+      ],
+      "requiredQuestions": [
+        "Q-FRONTEND-REACT"
+      ],
+      "acceptanceCriteria": [
+        "(D-FE-001) AUTHN-001 Thymeleaf 결제창 page/error를 React 같은 출처 정적 번들로 전환, ADMIN-BOOT-001의 프론트 빌드·시험·CVE 경로 재사용",
+        "결제창 1회용 토큰 교환·쿠키 세션·CSRF·CSP·Site host 검사·카드정보/비밀 비노출 시험을 React 경로에서 재검증, 기존 계약·Domain/금융 TX 불변",
+        "전환 완료 시 payment-api Thymeleaf 의존성 제거 여부 판단(Simulator는 Thymeleaf 유지)"
+      ],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "coordinatorDecisions": [
+        "2026-10-24 등록: 사용자 'React로 하려해' → Q-FRONTEND-REACT 답변 '관리자+결제창 React'. agreedOrder 위치는 사용자 확인 필요",
+        "2026-10-24 사용자 확인: agreedOrder에서 ADMIN-BOOT-001 바로 다음"
+      ]
     },
     {
       "id": "ARCH-STRUCTURE-001",
@@ -5744,6 +5997,34 @@
       },
       "coordinatorDecisions": [
         "2026-10-16 ARCH-STRUCTURE-001 매핑 §8 후속 후보로 등록. 실행 시점은 사용자 합의 필요"
+      ]
+    },
+    {
+      "id": "TEST-ASSERT-001",
+      "title": "Kotest 중첩 비교 함정 전수 점검: data class/Pair 안 data object·같은 속성 이름 sealed 하위 타입 shouldBe 공허 통과 고정·교체",
+      "phase": "QUALITY",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ADMIN-BOOT-001"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "libs/test-support에 Kotest 6.2.5 동작 고정 meta 시험: Pair(1,Refused(\"X\")) shouldBe Pair(1,Lost), W(Refused(\"X\")) shouldBe W(Rejected(\"X\")), listOf(...), 직접 비교, shouldBeIn, Map 값 — 각각 실패해야 함을 단언(실측 결과 기록)",
+        "공허 통과 꼴이 확인된 패턴 전부를 apps/*·libs/* src/test에서 equals 기반 단언으로 교체(기대값 불변), 교체 줄마다 다른 하위 타입 기대 변이 RED",
+        "후보: payment-api CreatePaymentEligibilitySpec:75,98, EntitlementContractGoldenSpec:86, internal-admin ApprovalRaceSpec:172 + 전수 검색 결과",
+        "재발 방지: ArchUnit/detekt 또는 test-support 규칙으로 금지 꼴 검출 검토",
+        "DONE 작업 증거 영향 보고(교체로 실제 RED가 드러난 시험은 별도 결함으로 등록)",
+        "ADMIN-BOOT-001 final nit: internal-admin SecurityConfig management 체인 anyRequest().denyAll()에 '프레임워크 기본 거부와 동치, 방어 심층' 근거 주석; 사용자 data class가 data object를 감싸는 꼴(CreatePaymentEligibilitySpec:75,98) probe 명시"
+      ],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "coordinatorDecisions": [
+        "2026-10-26 등록: ADMIN-BOOT-001 S8 checkpoint review High(작업 간 공통). 사용자 'ADMIN-BOOT-001 직후 (Recommended)' → agreedOrder ADMIN-BOOT-001 다음. ADMIN-BOOT-001 안에서는 internal-admin 범위만 처리",
+        "2026-10-26 internal-admin 실측(KotestEqualityProbeSpec): 공허 꼴 = data class/Pair 필드의 기대값이 data object일 때. 같은 속성 이름 sealed 하위형·List·직접·shouldBeIn은 엄격. 우선 후보 payment-api CreatePaymentEligibilitySpec:75,98"
       ]
     }
   ]

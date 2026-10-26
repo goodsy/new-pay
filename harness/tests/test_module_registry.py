@@ -103,6 +103,44 @@ class ModuleRegistry(unittest.TestCase):
     def test_cve_scan_covers_every_app(self):
         self.assertEqual(sorted(cve_scan.MODULES), sorted(p.split(":")[-1] for p in APPS))
 
+    def test_cve_scan_covers_every_frontend_lockfile(self):
+        # ADMIN-BOOT-001 m-10: package-lock.json이 있는 apps/*/frontend는 모두 npm CVE 검사 대상이어야 한다.
+        on_disk = sorted(str(p.parent.relative_to(ROOT)) for p in (ROOT / "apps").glob("*/frontend/package-lock.json"))
+        self.assertEqual(sorted(cve_scan.FRONTENDS), on_disk)
+
+    def test_frontend_test_reports_are_registered(self):
+        # 프론트 Vitest 보고서가 GRADLE-CHECK 출력 규칙·보관·TEST-SUMMARY-FRONTEND 집계에서 빠지지 않게 한다(m-9, 리뷰 M2(a)).
+        frontends = [p.parent.parent.name for p in (ROOT / "apps").glob("*/frontend/package-lock.json")]
+        self.assertGreaterEqual(len(frontends), 1)
+        check = command("GRADLE-CHECK")
+        frontend_argv = command("TEST-SUMMARY-FRONTEND")["argv"]
+        for app in frontends:
+            for task in ("frontendNodeVerify", "frontendInstall", "frontendLockfileCheck", "frontendTypecheck", "frontendTest"):
+                self.assertIn(f"^> Task :apps:{app}:{task}$", check["outputMustMatch"], f"{app}:{task}")
+            self.assertIn(f"apps/{app}/build/test-results/frontend/TEST-*.xml", check["expectedReports"], app)
+            self.assertIn(f"apps/{app}/build/test-results/frontend", frontend_argv, app)
+        self.assertIn("apps/*/build/test-results/frontend/TEST-*.xml", check["archiveGlobs"])
+
+    def test_frontend_summary_is_a_gate_stage_with_its_own_minimum(self):
+        # 리뷰 M2(a): Vitest 보고서는 별도 하한으로 판정한다(합계에 묻히면 프론트 시험이 줄어도 드러나지 않는다).
+        frontend = command("TEST-SUMMARY-FRONTEND")
+        argv = frontend["argv"]
+        self.assertEqual(argv[:4], ["python3", "harness/scripts/test-summary.py", "--not-before", "NOT_BEFORE_UTC"])
+        minimum = int(argv[4])
+        self.assertGreaterEqual(minimum, 1)
+        self.assertEqual(minimum, frontend["minTests"])
+        self.assertTrue(argv[5:])
+        self.assertTrue(all(d.endswith("/build/test-results/frontend") for d in argv[5:]), argv[5:])
+        gate = verify_gate.GATE
+        self.assertEqual(gate.index("TEST-SUMMARY-FRONTEND"), gate.index("TEST-SUMMARY") + 1)
+
+    def test_no_report_directory_is_counted_by_two_summaries(self):
+        # 이중 계산 방지: 같은 보고서 디렉터리가 두 하한에 동시에 들어가면 한쪽 시험이 줄어도 다른 쪽 하한이 가린다.
+        backend = set(command("TEST-SUMMARY")["argv"][5:])
+        frontend = set(command("TEST-SUMMARY-FRONTEND")["argv"][5:])
+        self.assertEqual(backend & frontend, set())
+        self.assertFalse([d for d in backend if d.endswith("/frontend")], backend)
+
     def test_selftest_minimum_equals_number_of_harness_tests(self):
         # 시험을 추가하면 하한도 올린다(내리는 변경은 시험 삭제와 함께만 드러난다 — §7).
         count = sum(len(re.findall(r"^    def test_", p.read_text(encoding="utf-8"), re.MULTILINE))

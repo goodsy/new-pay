@@ -106,6 +106,42 @@ class FingerprintGate(unittest.TestCase):
             target.write_text("x\n", encoding="utf-8")
         self.assertEqual(self.fingerprint()[0], 0)
 
+    def test_ignored_frontend_source_fails(self):
+        # ADMIN-BOOT-001 m-8: 프론트는 apps/*/src 밖(apps/*/frontend)에 있으므로 기존 가드가 보지 않는다.
+        # 무시 패턴에 걸린 프론트 소스·설정(빌드 입력)은 fingerprint에서 빠지므로 거부해야 한다.
+        frontend = self.repo / "apps/demo/frontend"
+        ignored = ["src/main.local.tsx", "settings.local.json", "vite.local.ts", "index.html", ".npmrc",
+                   "public/robots.local.txt"]
+        with (self.repo / ".gitignore").open("a", encoding="utf-8") as fh:
+            fh.write("".join(f"apps/demo/frontend/{name}\n" for name in ignored))
+        for name in ignored:
+            target = frontend / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n", encoding="utf-8")
+            code, _ = self.fingerprint()
+            self.assertEqual(code, 1, name)
+            target.unlink()
+
+    def test_frontend_node_modules_and_build_outputs_are_not_flagged(self):
+        # 의존성 설치물·빌드 출력은 빌드 입력이 아니다(lockfile·소스가 입력). 하위 패키지의 src·json·ts에 걸리면 안 된다.
+        with (self.repo / ".gitignore").open("a", encoding="utf-8") as fh:
+            fh.write("node_modules/\n")
+        for path in ("apps/demo/frontend/node_modules/pkg/src/index.ts", "apps/demo/frontend/node_modules/pkg/package.json",
+                     "apps/demo/frontend/node_modules/.package-lock.json", "apps/demo/frontend/build/dist/index.html",
+                     "apps/demo/frontend/node_modules/pkg/public/logo.svg"):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n", encoding="utf-8")
+        self.assertEqual(self.fingerprint()[0], 0)
+
+    def test_tracked_frontend_source_change_is_detected(self):
+        source = self.repo / "apps/demo/frontend/src/App.tsx"
+        source.parent.mkdir(parents=True)
+        source.write_text("export const A = 1\n", encoding="utf-8")
+        _, before = self.fingerprint()
+        source.write_text("export const A = 2\n", encoding="utf-8")
+        self.assertNotEqual(before, self.fingerprint()[1])
+
     def test_pycache_under_harness_is_allowed(self):
         cache = self.repo / "harness/scripts/__pycache__/m.pyc"
         cache.parent.mkdir()

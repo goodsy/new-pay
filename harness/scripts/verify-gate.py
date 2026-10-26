@@ -3,7 +3,8 @@
 
 사용: verify-gate.py <TASK_ID> --expect-fingerprint sha256:<64 hex>   (기대 fingerprint 필수)
 commands.json에 등록된 gate 순서를 shell 없이 argv로 실행하고 증거를 남긴다.
-  FINGERPRINT → HARNESS-SELFTEST → GRADLE-CHECK → TEST-SUMMARY(--not-before 자동) → IMAGE-DIGESTS → FINGERPRINT
+  FINGERPRINT → HARNESS-SELFTEST → GRADLE-CHECK → TEST-SUMMARY(--not-before 자동) → TEST-SUMMARY-FRONTEND(같은 not-before,
+  프론트 Vitest 보고서 별도 하한 — ADMIN-BOOT-001 S1 리뷰 M2(a)) → IMAGE-DIGESTS → FINGERPRINT
 바뀌는 값은 TASK_ID(증거 파일명)와 NOT_BEFORE_UTC(스크립트가 생성)뿐이다. 모델/사용자 문자열을 argv에 넣지 않는다.
 
 verdict:
@@ -24,7 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-GATE = ["FINGERPRINT", "HARNESS-SELFTEST", "GRADLE-CHECK", "TEST-SUMMARY", "IMAGE-DIGESTS", "FINGERPRINT"]
+GATE = ["FINGERPRINT", "HARNESS-SELFTEST", "GRADLE-CHECK", "TEST-SUMMARY", "TEST-SUMMARY-FRONTEND", "IMAGE-DIGESTS",
+        "FINGERPRINT"]
 TASK_ID = re.compile(r"^[A-Z][A-Z0-9-]{1,40}$")
 FINGERPRINT_VALUE = re.compile(r"^sha256:[0-9a-f]{64}$")
 POST_KILL_WAIT_SECONDS = 10
@@ -32,7 +34,10 @@ POST_KILL_WAIT_SECONDS = 10
 ENV_INPUTS = ["JAVA_HOME", "GRADLE_OPTS", "JAVA_OPTS", "JAVA_TOOL_OPTIONS", "GRADLE_USER_HOME", "DOCKER_HOST"]
 ENV_PREFIXES = ["TESTCONTAINERS_", "ORG_GRADLE_PROJECT_"]
 GRADLE_USER_FILES = ["gradle.properties", "init.gradle", "init.gradle.kts", "init.d"]
-HOME_USER_FILES = ["~/.testcontainers.properties"]
+HOME_USER_FILES = ["~/.testcontainers.properties", "~/.npmrc"]
+# npm 설정 환경변수(대소문자 무관, ADMIN-BOOT-001 S0 §17.7). 값은 registry 토큰일 수 있어 hash도 남기지 않고 이름만 기록한다.
+# 프론트 Gradle task는 이 변수들을 제거한 환경으로 npm을 실행한다 — 기록은 그 격리가 필요했던 입력의 흔적이다.
+NAME_ONLY_ENV_PREFIX = "npm_config_"
 
 
 def utc_now() -> str:
@@ -62,7 +67,8 @@ def environment_snapshot() -> dict:
             files[label] = {f.name: file_digest(f) for f in sorted(path.iterdir()) if f.is_file()}
         elif path.is_file():
             files[label] = file_digest(path)
-    return {"envSha256": {n: sha256_text(os.environ[n]) for n in names}, "userFiles": files}
+    npm_names = sorted(n for n in os.environ if n.lower().startswith(NAME_ONLY_ENV_PREFIX))
+    return {"envSha256": {n: sha256_text(os.environ[n]) for n in names}, "npmEnvNames": npm_names, "userFiles": files}
 
 
 def archive(command: dict, log_dir: Path, index: int) -> list[dict]:

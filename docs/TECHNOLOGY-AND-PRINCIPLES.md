@@ -19,7 +19,7 @@ Coordinator는 각 카드에 위 8개 항목의 적용 여부·검증 ID를 기�
 
 ## 2. 기술과 버전
 
-사용자 지정: Kotlin, Spring Boot/Batch, JPA, 복잡한 CQRS 조회는 jOOQ, Thymeleaf 우선/React 후속, DDD/헥사고날.
+사용자 지정: Kotlin, Spring Boot/Batch, JPA, 복잡한 CQRS 조회는 jOOQ, React 화면(관리자·결제창 — 2026-10-24 사용자 변경, D-ADMIN-008/D-FE-001; Simulator 화면은 Thymeleaf 유지), DDD/헥사고날.
 
 테스트 기술 추가 지정(2026-10-06): Kotest BehaviorSpec·MockK·Testcontainers·ArchUnit과 기존 테스트 계층을 유지하며, 기본 자동 Fixture 도구는 **Fixture Monkey**를 사용한다. Instancio는 별도로 추가하지 않는다. [Test Fixture Policy](baseline/architecture/08-testing-verification-architecture.md#test-fixture-policy)에 따라 핵심 Domain Rule은 명시적 Fixture/Factory로 검증하고, 정상 자동 Fixture도 Domain Invariant를 만족해야 한다. Fixture 관련 코드는 `src/test`에만 두며 Fixture Monkey 타입·API·annotation은 Domain/Application을 포함한 production 코드에 유입하지 않는다. 이 지정은 문서 정책이며 라이브러리 의존성 추가나 Fixture 구현 완료를 의미하지 않는다.
 
@@ -56,7 +56,7 @@ Command는 JPA 기반 Aggregate 저장, Query는 jOOQ 기반 DTO 조회로 분�
 
 Batch는 소유 DB/권한을 유지한 Adapter에서 Application use case를 호출한다. JobRepository·식별 JobParameters·ExecutionContext/checkpoint·동일 업무효과 key를 설계한다. Job 재시작 성공이 외부 지급 exactly-once라는 뜻은 아니다. 파일/기관 요청에는 원 ID 조회와 재처리 규칙이 별도 필요하다. chunk TX와 처리 중 변경·중복/누락을 시험하고 안정적인 keyset/처리대상 Snapshot을 사용한다.
 
-Thymeleaf는 inbound web adapter, Spring Security/CSRF와 서버 검증 적용. React용 JSON API와 같은 Application use case를 호출하게 해 업무 규칙을 템플릿/JS로 옮기지 않는다. 추후 React 전환 때 API·인증/CORS/CSRF 방식을 별도 검토하되 Domain/금융 TX는 재작성하지 않는다.
+React 화면(2026-10-24 사용자 변경 — D-ADMIN-008/D-FE-001)은 Vite+TypeScript로 빌드한 정적 번들을 소유 Spring Boot 앱이 같은 출처로 서빙한다(CORS 없음). 서버는 JSON inbound web adapter이며 Spring Security·쿠키 세션·CSRF(쿠키→헤더 토큰)와 서버 검증을 적용하고, 업무 규칙을 JS로 옮기지 않고 같은 Application use case를 호출한다. 화면 전환 때 Domain/금융 TX는 재작성하지 않는다. Simulator 화면과 결제창 React 전환 전까지의 결제창은 Thymeleaf(inbound web adapter, CSRF·서버 검증)를 유지한다.
 
 ## 5. Kafka·Redis 적합성 판단
 

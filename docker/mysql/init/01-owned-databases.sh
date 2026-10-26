@@ -25,6 +25,12 @@
 #   - 시험: apps/master-api MasterDatabaseAccountSpec과 apps/payment-api DatabaseAccountSeparationSpec이 이 파일을 그대로 MySQL 8.4.11 컨테이너에
 #     넣어 SHOW GRANTS 전체, runtime의 DDL·append-only 표 UPDATE/DELETE 거부(1142), migration 계정의 외부 계정 GRANT 거부를 확인한다.
 #   - FINANCIAL은 Batch metadata 위치·권한(Q-BATCH-META) 답변 전이라 기존 단일 계정(ALL)을 유지한다.
+#   - ADMIN(ADMIN-BOOT-001 §4.2.1, D-ADMIN-005 — internal-admin의 소유 DB): MASTER·PAYMENT와 같은 계정·role·grantor·procedure에 더해 열 단위 UPDATE
+#     helper(grant_runtime_column_update)도 설치한다(승인 요청·등록 코드·계정·복구 회차의 생성 불변 열은 UPDATE 1143). 시험: apps/internal-admin AdminDatabaseAccountSpec.
+#     ADMIN 블록은 PAYCORE_ADMIN_DB_PASSWORD·PAYCORE_ADMIN_DB_MIGRATION_PASSWORD가 **둘 다** 있을 때만 실행한다. 하나만 있으면 실패(반쪽 계정 금지),
+#     둘 다 없으면 **ADMIN이 전혀 없는 새 인스턴스일 때만** ADMIN을 건너뛰고, schema·ADMIN 계정이 이미 있으면 실패한다(기존 volume 수렴 실행에서 변수 누락 방지).
+#     compose.yaml은 두 변수를 `:?`로 요구하므로(fail-closed) 건너뛰기는 compose 밖(다른 모듈의 시험 컨테이너)에서만 생긴다.
+#     ADMIN DB가 없으면 internal-admin은 기동하지 않는다(fail-closed). (명세 ADMIN-BOOT-001 §19 D-55)
 #   - 이 스크립트는 데이터 디렉터리가 빈 첫 기동에 entrypoint가 실행한다. 기존 compose volume에는 다시 실행되지 않으므로 volume을 재생성하거나
 #     실행 중인 컨테이너에서 이 스크립트를 한 번 직접 실행한다(재실행 안전: IF NOT EXISTS, runtime 계정의 DB 단위 ALL·GRANT OPTION과
 #     migration 계정의 DB 단위 GRANT OPTION REVOKE IF EXISTS, grantor ACCOUNT LOCK 재적용, procedure 재생성 — 이미 준 표 단위 권한은 유지된다).
@@ -44,6 +50,30 @@ for required in MYSQL_ROOT_PASSWORD \
         exit 1
     fi
 done
+
+admin_enabled=0
+if [ -n "${PAYCORE_ADMIN_DB_PASSWORD}" ] && [ -n "${PAYCORE_ADMIN_DB_MIGRATION_PASSWORD}" ]; then
+    admin_enabled=1
+elif [ -n "${PAYCORE_ADMIN_DB_PASSWORD}${PAYCORE_ADMIN_DB_MIGRATION_PASSWORD}" ]; then
+    for required in PAYCORE_ADMIN_DB_PASSWORD PAYCORE_ADMIN_DB_MIGRATION_PASSWORD; do
+        if [ -z "${!required}" ]; then
+            echo "01-owned-databases.sh: ${required} is not set (ADMIN passwords must be set together)" >&2
+        fi
+    done
+    exit 1
+else
+    # 건너뛰기는 ADMIN이 전혀 없는 새 인스턴스에서만(S2 리뷰 m-2). schema 또는 ADMIN 계정이 하나라도 있으면 기존 volume 수렴 실행에서 변수를
+    # 빠뜨린 것이므로 실패한다. 조회 실패도 실패로 본다(fail-closed).
+    admin_existing="$(mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -N -B -e "SELECT
+        (SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME IN ('paycore_admin', 'paycore_admin_privilege'))
+      + (SELECT COUNT(*) FROM mysql.user WHERE User IN ('paycore_admin', 'paycore_admin_migration', 'paycore_admin_grantor', 'paycore_admin_runtime'))" 2>/dev/null)" \
+        || admin_existing="unknown"
+    if [ "${admin_existing}" != "0" ]; then
+        echo "01-owned-databases.sh: ADMIN passwords not set but paycore_admin already exists (or could not be checked) — set PAYCORE_ADMIN_DB_PASSWORD and PAYCORE_ADMIN_DB_MIGRATION_PASSWORD" >&2
+        exit 1
+    fi
+    echo "01-owned-databases.sh: ADMIN passwords not set — skipping paycore_admin (compose.yaml requires them)" >&2
+fi
 
 # 소유 DB 하나(<db>)의 runtime role·grantor·권한 부여 procedure. migration·runtime 계정은 먼저 만들어져 있어야 한다.
 runtime_privilege_sql() {
@@ -180,4 +210,14 @@ SQL
 runtime_privilege_sql paycore_master
 runtime_privilege_sql paycore_payment
 runtime_column_privilege_sql paycore_payment
+if [ "${admin_enabled}" = 1 ]; then
+cat <<SQL
+CREATE DATABASE IF NOT EXISTS paycore_admin;
+CREATE USER IF NOT EXISTS 'paycore_admin_migration'@'%' IDENTIFIED BY '${PAYCORE_ADMIN_DB_MIGRATION_PASSWORD}';
+CREATE USER IF NOT EXISTS 'paycore_admin'@'%'           IDENTIFIED BY '${PAYCORE_ADMIN_DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON paycore_admin.* TO 'paycore_admin_migration'@'%';
+SQL
+runtime_privilege_sql paycore_admin
+runtime_column_privilege_sql paycore_admin
+fi
 } | mysql -uroot -p"${MYSQL_ROOT_PASSWORD}"

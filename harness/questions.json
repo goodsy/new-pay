@@ -1145,7 +1145,10 @@
         "LIVE 준비 Gate"
       ],
       "askedAt": "2026-10-16",
-      "origin": "사용자 Q-ADMIN-AUTH 답변의 '확인 필요' 항목"
+      "origin": "사용자 Q-ADMIN-AUTH 답변의 '확인 필요' 항목",
+      "notes": [
+        "2026-10-26 ADMIN-BOOT-001 S6: 복구 회차 유효 기간(Demo 24h, paycore.admin.recovery.episode-validity)도 대상 — LIVE 가드가 Demo 값 거부"
+      ]
     },
     {
       "id": "Q-ADMIN-APPROVER-STAFF",
@@ -1157,7 +1160,10 @@
         "LIVE 준비 Gate"
       ],
       "askedAt": "2026-10-16",
-      "origin": "사용자 Q-ADMIN-AUTH 답변의 '확인 필요' 항목"
+      "origin": "사용자 Q-ADMIN-AUTH 답변의 '확인 필요' 항목",
+      "notes": [
+        "2026-10-24 ADMIN-BOOT-001 spec-2 H-A: 역할 보유 계정 재설정 → 재활성까지 서로 다른 계정 최대 4개(재설정 요청자·승인자, 재활성 요청자·승인자; 겸직 시 감소) 필요 — LIVE 인원 확인 범위에 포함"
+      ]
     },
     {
       "id": "Q-AUTHN-01",
@@ -1937,6 +1943,340 @@
       "humanAnswer": "\"알림 열만 열 단위 UPDATE (권장)\"",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-21)",
       "appliedSpec": "D-WH-009"
+    },
+    {
+      "id": "Q-FRONTEND-REACT",
+      "status": "ANSWERED",
+      "question": "사용자 요청: 프론트엔드를 Thymeleaf 대신 React로. 전환 범위·배포/인증 구조·지침 문구 수정",
+      "recommended": "관리자만 React, 같은 출처 정적 번들, 지침 수정·커밋 포함",
+      "alternative": "관리자+결제창 / 전부 React; 별도 프론트 서버+프록시; 별도 출처+CORS",
+      "answer": "관리자+결제창 React, 같은 출처 정적 번들, 지침 수정·커밋 포함",
+      "decisions": [
+        "D-ADMIN-008",
+        "D-FE-001"
+      ],
+      "dependentTasks": [
+        "ADMIN-BOOT-001",
+        "CHECKOUT-REACT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24"
+    },
+    {
+      "id": "Q-ADMIN1-01",
+      "status": "ANSWERED",
+      "question": "동시 로그인 충돌 처리",
+      "recommended": "새 로그인이 기존 끊음",
+      "answer": "새 로그인이 기존 끊음 (Recommended)",
+      "decision": "D-ADMIN1-001",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-02",
+      "status": "ANSWERED",
+      "question": "최초 관리자 계정 부트스트랩",
+      "recommended": "1회용 부트스트랩 명령",
+      "answer": "1회용 부트스트랩 명령 (Recommended)",
+      "decision": "D-ADMIN1-002",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-03",
+      "status": "ANSWERED",
+      "question": "계정 생성·초기 자격 전달·계정 정지",
+      "recommended": "생성·정지 1인, 등록코드",
+      "answer": "생성·정지 1인, 등록코드 (Recommended)",
+      "decision": "D-ADMIN1-003",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-04",
+      "status": "ANSWERED",
+      "question": "역할 겸직·직무 분리·역할 회수",
+      "recommended": "겸직 허용, 요청 단위 분리",
+      "answer": "겸직 허용, 요청 단위 분리 (Recommended)",
+      "decision": "D-ADMIN1-004",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-05",
+      "status": "ANSWERED",
+      "question": "로그인 실패 계산 규칙과 응답",
+      "recommended": "합산·자동해제 없음",
+      "answer": "합산·자동해제 없음 (Recommended)",
+      "decision": "D-ADMIN1-005",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-06",
+      "status": "ANSWERED",
+      "question": "2인 승인 후 실행 시점",
+      "recommended": "승인이 곧 실행",
+      "answer": "승인이 곧 실행 (Recommended)",
+      "decision": "D-ADMIN1-006",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-07",
+      "status": "ANSWERED",
+      "question": "npm devDependencies CVE 관문 범위",
+      "recommended": "둘 다 실패 처리",
+      "answer": "둘 다 실패 처리 (Recommended)",
+      "decision": "D-ADMIN1-007",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-08",
+      "status": "ANSWERED",
+      "question": "관리자 감사 로그 조회 권한",
+      "recommended": "SEC_ADMIN·APPROVER는 전체",
+      "answer": "SEC_ADMIN·APPROVER는 전체 (Recommended)",
+      "decision": "D-ADMIN1-008",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.1 §12 (f1e89e60…)"
+    },
+    {
+      "id": "Q-ADMIN1-09",
+      "status": "ANSWERED",
+      "question": "역할 보유 계정의 비밀번호 재설정·TOTP 재등록 시 등록 코드 수령자와 역할 상태",
+      "recommended": "역할 정지 → 재활성 승인",
+      "answer": "역할 정지 → 재활성 승인 (Recommended)",
+      "decision": "D-ADMIN1-009",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 review spec-1 (H-3 / QC-2)"
+    },
+    {
+      "id": "Q-ADMIN1-10",
+      "status": "ANSWERED",
+      "question": "관리자 전원 사용 불가 시 복구(break-glass)",
+      "recommended": "오프라인 복구 명령",
+      "answer": "오프라인 복구 명령 (Recommended)",
+      "decision": "D-ADMIN1-010",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 review spec-1 (H-3 / QC-2)"
+    },
+    {
+      "id": "Q-ADMIN1-11",
+      "status": "ANSWERED",
+      "question": "재설정·재등록 완료 시 바뀌지 않는 다른 인증 요소 확인 여부",
+      "recommended": "등록 코드만으로 재설정",
+      "answer": "등록 코드만으로 재설정 (Recommended)",
+      "decision": "D-ADMIN1-011",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.2 §12.2 (4ff3a41e…)"
+    },
+    {
+      "id": "Q-ADMIN1-12",
+      "status": "ANSWERED",
+      "question": "복구 명령으로 기존 계정에 코드 발급 시 역할 처리",
+      "recommended": "핵심 역할만 자동 복구",
+      "answer": "핵심 역할만 자동 복구 (Recommended)",
+      "decision": "D-ADMIN1-012",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-24",
+      "answeredAt": "2026-10-24",
+      "origin": "ADMIN-BOOT-001 명세 rev 0.2 §12.2 (4ff3a41e…)"
+    },
+    {
+      "id": "Q-S5-1",
+      "status": "ANSWERED",
+      "question": "연속 재설정(재설정1 뒤 재설정2) 시 ROLE_REACTIVATE·권한 상승 승인의 H-A 배제 범위",
+      "recommended": "A: 재설정마다 이미 정지된 역할에도 원인=새 재설정 SUSPEND를 append(배제 대상이 최신 재설정의 요청자·승인자로 갱신) + 미사용 재설정 코드가 있는 동안 그 발급 승인의 요청자·승인자는 대상의 권한 상승 종류 요청·승인 불가",
+      "alternatives": [
+        "B: 재활성 배제 = 원인 이후 그 대상에 실행된 모든 코드 발급 승인의 요청자·승인자 합집합",
+        "C: 대기 계정 2차 재설정 금지(rev 0.4 m-2와 충돌, 비권장)"
+      ],
+      "impact": "현재 구현은 R2·P2 두 명만으로 역할 복원 가능 → 코드 수령자가 2인 승인을 사실상 1인으로 우회",
+      "blockedWork": "ADMIN-BOOT-001 DONE 판정(다른 S6~S8 작업은 진행 가능)",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §22.9 (6fc6ed16…)",
+      "answer": "A: 최신 재설정 기준 (Recommended)",
+      "decision": "D-ADMIN1-013",
+      "answeredAt": "2026-10-26"
+    },
+    {
+      "id": "Q-S5-2",
+      "status": "ANSWERED",
+      "question": "정지 역할 회수 후 ROLE_GRANT·코드 사용 후 등록으로 H-A 배제가 풀리는 우회 — 배제를 무엇에 묶을지",
+      "recommended": "자격 발급 근거에 묶기",
+      "answer": "자격 발급 근거에 묶기 (Recommended)",
+      "decision": "D-ADMIN1-014",
+      "alternatives": [
+        "정지 역할 1인 회수 금지만",
+        "Q-S5-1 A만"
+      ],
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 S5-checkpoint review High-1"
+    },
+    {
+      "id": "Q-S5-3",
+      "status": "ANSWERED",
+      "question": "같은 배제를 1인 계정 생성(생성 SA가 등록 코드 수령)에도 적용할지",
+      "recommended": "적용",
+      "answer": "적용 (Recommended)",
+      "decision": "D-ADMIN1-015",
+      "alternatives": [
+        "적용 안 함"
+      ],
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 S5-checkpoint review Q-S5-1 의견 3"
+    },
+    {
+      "id": "Q-S5-4",
+      "status": "ANSWERED",
+      "question": "재인증 실패 계수 별도 TX가 3회 연속 1205/1213으로 실패할 때 동작",
+      "recommended": "현재 유지 + 지표 관측",
+      "answer": "현재 유지 + 지표 관측 (Recommended)",
+      "decision": "D-ADMIN1-016",
+      "alternatives": [
+        "409로 응답",
+        "fail-closed 잠금"
+      ],
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §22.11 (19bfc520…)"
+    },
+    {
+      "id": "Q-S7-3",
+      "status": "ANSWERED",
+      "question": "관리자 계정 목록의 login_name 노출 범위",
+      "recommended": "SECURITY_ADMIN만",
+      "answer": "SECURITY_ADMIN만 (Recommended)",
+      "decision": "D-ADMIN1-017",
+      "alternatives": [
+        "마스킹해서 전원",
+        "현재 유지"
+      ],
+      "impact": "VIEWER가 전원 login_name으로 합산 잠금 유발 → 관리 불능",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 S7-checkpoint review m-2"
+    },
+    {
+      "id": "Q-S8-A",
+      "status": "ANSWERED",
+      "question": "IP·등록 경로 거부 감사 범람 대응",
+      "recommended": "감사 1행 유지 + 지표 경보",
+      "answer": "감사 1행 유지 + 지표 경보 (Recommended)",
+      "decision": "D-ADMIN1-018",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §25.6 (509f7f0c…)"
+    },
+    {
+      "id": "Q-S8-B",
+      "status": "ANSWERED",
+      "question": "마스킹 해제 사유 자유 문구에 PAN 등 포함 시",
+      "recommended": "원문 유지 + 후속 재검토",
+      "answer": "원문 유지 + 후속 재검토 (Recommended)",
+      "decision": "D-ADMIN1-019",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §25.6 (509f7f0c…)"
+    },
+    {
+      "id": "Q-S8-C",
+      "status": "ANSWERED",
+      "question": "승인 targetSnapshot의 loginName에 D-ADMIN1-017 적용",
+      "recommended": "적용",
+      "answer": "적용 (Recommended)",
+      "decision": "D-ADMIN1-020",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §25.6 (509f7f0c…)"
+    },
+    {
+      "id": "Q-S8-D",
+      "status": "ANSWERED",
+      "question": "commit 단계 TransactionException 시 rollbackOnCommitFailure",
+      "recommended": "이번 작업에서 true로 바꾸고 검증",
+      "answer": "이번 작업에서 true로 바꾸고 검증 (Recommended)",
+      "decision": "D-ADMIN1-021",
+      "dependentTasks": [
+        "ADMIN-BOOT-001"
+      ],
+      "askedAt": "2026-10-26",
+      "answeredAt": "2026-10-26",
+      "origin": "ADMIN-BOOT-001 명세 §25.6 (509f7f0c…)"
     }
   ]
 }

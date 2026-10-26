@@ -1,0 +1,45 @@
+{
+  "source": "RFC 6238 Appendix B (SHA1 column); code6 = last 6 digits (RFC 4226 dynamic truncation mod 10^6)",
+  "algorithm": "SHA1",
+  "periodSeconds": 30,
+  "secretAscii": "12345678901234567890",
+  "secretBase32": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+  "vectors": [
+    {
+      "unixTime": 59,
+      "step": 1,
+      "code8": "94287082",
+      "code6": "287082"
+    },
+    {
+      "unixTime": 1111111109,
+      "step": 37037036,
+      "code8": "07081804",
+      "code6": "081804"
+    },
+    {
+      "unixTime": 1111111111,
+      "step": 37037037,
+      "code8": "14050471",
+      "code6": "050471"
+    },
+    {
+      "unixTime": 1234567890,
+      "step": 41152263,
+      "code8": "89005924",
+      "code6": "005924"
+    },
+    {
+      "unixTime": 2000000000,
+      "step": 66666666,
+      "code8": "69279037",
+      "code6": "279037"
+    },
+    {
+      "unixTime": 20000000000,
+      "step": 666666666,
+      "code8": "65353130",
+      "code6": "353130"
+    }
+  ]
+}

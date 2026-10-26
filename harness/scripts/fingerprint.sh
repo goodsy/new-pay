@@ -9,8 +9,12 @@ cd "$(dirname "$0")/../.."
 head="$(git rev-parse --verify HEAD)" || { echo "FAIL: git HEAD not resolvable" >&2; exit 1; }
 
 # 무시 패턴에 걸려 fingerprint에서 빠지지만 빌드/테스트 결과에 영향을 줄 수 있는 위치의 파일은 거부한다.
+# 프론트(apps/*/frontend, ADMIN-BOOT-001 m-8)는 소스(src/**)·정적 입력(public/**)과 루트의 빌드 입력(*.json·*.ts·index.html·.npmrc)만 본다.
+# 루트 패턴의 `*`는 '/'를 넘지 않으므로 node_modules/·build/ 아래 파일은 걸리지 않는다.
 guarded_ignored="$(git ls-files --others --ignored --exclude-standard -- \
-  ':(glob)apps/*/src/**' ':(glob)libs/*/src/**' ':(glob)build-logic/src/**' ':(glob)build-logic/*.kts' 'harness/scripts' 'harness/tests' 'harness/fixtures' 'docker' 'gradle' | grep -v '/__pycache__/' || true)"
+  ':(glob)apps/*/src/**' ':(glob)libs/*/src/**' ':(glob)build-logic/src/**' ':(glob)build-logic/*.kts' 'harness/scripts' 'harness/tests' 'harness/fixtures' 'docker' 'gradle' \
+  ':(glob)apps/*/frontend/src/**' ':(glob)apps/*/frontend/*.json' ':(glob)apps/*/frontend/*.ts' ':(glob)apps/*/frontend/index.html' ':(glob)apps/*/frontend/.npmrc' ':(glob)apps/*/frontend/public/**' \
+  | grep -v '/__pycache__/' || true)"
 if [[ -n "$guarded_ignored" ]]; then
   echo "FAIL: ignored files under source/harness paths are not fingerprinted:" >&2
   printf '%s\n' "$guarded_ignored" >&2

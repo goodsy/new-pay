@@ -98,6 +98,13 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
     payment-api 인스턴스 시계는 NTP로 동기화한다 — claim lease는 인스턴스 시각으로 쓰고 비교하므로 시계 차이가 5s 여유를 넘으면 다른 인스턴스가 이르게 다시 claim할 수 있다(중복 전송 — at-least-once 범위 안, 가맹점은 eventId로 중복 제거).
     처리량: 한 claim은 min(batch, floor(claim-lease / 한 시도 예산))개라 Demo 값(lease 60s·예산 22s)에서는 회차당 최대 2건이다(job batch 50은 사실상 미적용) — 인스턴스당 처리량은 lease/예산과 fixed-delay가 정하며,
     운영값(lease·batch·fixed-delay·인스턴스 수)은 LIVE Gate에서 처리량 실측과 함께 정한다(WEBHOOK-001 §20.1 7항).
+- ADMIN-BOOT-001(2026-10-24~26 — 구현자 기록, Verifier 확인 대상): 새 실행 단위 없음(`apps/internal-admin`은 기존 등록 그대로). 새 판정 명령 `TEST-SUMMARY-FRONTEND`(S1 — Vitest JUnit
+  `apps/internal-admin/build/test-results/frontend`, `--not-before` 신선도)와 프론트 공급망 검사(lockfile 규칙·npm CVE canary — TECH-BASELINE §9)를 추가했다. internal-admin 빌드 의존성은 S1~S5에서
+  Boot 4.1.1 BOM 관리 starter(security·session-jdbc·actuator·data-jpa·jooq·flyway)만 늘었고 S6~S8은 변화 없음 → `GRADLE-DEPS-INTERNAL-ADMIN`·cve-scan `MODULES` 변경 없음(등록은 이미 있음).
+  새 컨테이너 이미지 없음(MySQL 8.4.11 그대로 — `IMAGE-DIGESTS` 변화 없음). S8 체크포인트 실측(명세 §25.9): 전체 미측정(전체 check 중단 — 명세 §25.9)(internal-admin 미측정), Vitest 39, HARNESS-SELFTEST 139.
+  하한 제안(구현자는 `commands.json`을 바꾸지 않았다 — Coordinator가 실측으로 올린다): `GRADLE-CHECK.minTests`·`TEST-SUMMARY` → 미측정(전체 check 중단 — 명세 §25.9), `TEST-SUMMARY-FRONTEND` → 39.
+  - **배포 메모(ADMIN-BOOT-001 §25 — D-15)**: internal-admin의 actuator는 별도 management 포트(`PAYCORE_ADMIN_MANAGEMENT_PORT`, 기본 바인딩 127.0.0.1 — 변수가 없으면 HTTP actuator 없음, **빈 값 금지**)에서
+    `GET /actuator/health`만 익명으로 답한다. 웹 포트에는 actuator가 없다. 운영에서 `org.springframework.web`·`org.springframework.security` 로거를 DEBUG로 올리지 않는다(요청 단편이 로그에 남을 수 있다).
 - `minTests`는 현재 실행되는 테스트 수 이하의 하한으로 두고, 테스트를 추가하면 올린다. 테스트를 지우거나 skip해서 하한을 낮추는 변경은 사용자 정책 변경 없이 하지 않는다.
 - 새 컨테이너 이미지를 쓰면 `IMAGE-DIGESTS` argv에 추가한다.
 - 명령/하한/출력 규칙 변경은 fingerprint에 반영되므로 해당 작업의 Reviewer가 diff로 확인한다.

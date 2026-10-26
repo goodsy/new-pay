@@ -1,6 +1,124 @@
 spring:
   application:
     name: internal-admin
-  thymeleaf:
-    # 템플릿 폴더가 아직 main에 없다(화면은 해당 기능 작업에서 추가). 경고 대신 조용히 넘어간다.
-    check-template-location: false
+  # ADMIN DB(paycore_admin, D-ADMIN-005) 접속 정보는 환경변수로만 주입한다. 기본값/비밀번호를 저장소에 두지 않는다. 다른 소유 DB 접속 정보는 두지 않는다.
+  datasource:
+    # runtime 계정: DB 단위 권한 없이 role(paycore_admin_runtime)의 표 단위 SELECT·INSERT + 열 단위 UPDATE만(DDL·DELETE 불가 — 세션 표만 전체 DML).
+    # 계정·role·procedure: docker/mysql/init/01-owned-databases.sh, 표·열 권한: db/runtime-privilege/admin(ARCHITECTURE-CONVENTIONS §9.2).
+    url: ${PAYCORE_ADMIN_DB_URL}
+    username: ${PAYCORE_ADMIN_DB_USERNAME}
+    password: ${PAYCORE_ADMIN_DB_PASSWORD}
+    hikari:
+      # 모든 JDBC 경로(JPA 밖의 jOOQ·raw SQL 포함)에서 DATETIME ↔ Instant를 UTC로 변환하고 세션 time_zone도 UTC로 맞춘다(master-api·payment-api 관례).
+      data-source-properties:
+        connectionTimeZone: UTC
+        forceConnectionTimeZoneToSession: true
+  jpa:
+    # 화면/API에는 DTO만 전달한다. 요청 전체에 영속성 컨텍스트를 열어 두지 않는다.
+    open-in-view: false
+    hibernate:
+      # schema 기준은 Flyway migration. Hibernate는 DDL을 만들지 않고 일치 여부만 검사한다(runtime 계정은 DDL 권한도 없다).
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    # 업무 schema(db/migration/admin)와 runtime 표·열 단위 권한(db/runtime-privilege/admin). 권한 위치를 분리하는 이유: jOOQ 생성기는 업무 schema만
+    # 적용하며 생성기 컨테이너에는 권한 부여 procedure가 없다(§9.2).
+    locations: classpath:db/migration/admin,classpath:db/runtime-privilege/admin
+    # migration 계정(ADMIN DB ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다(URL은 datasource와 같다).
+    user: ${PAYCORE_ADMIN_DB_MIGRATION_USERNAME}
+    password: ${PAYCORE_ADMIN_DB_MIGRATION_PASSWORD}
+    # 별도 연결에는 위 hikari driver 속성이 적용되지 않는다. migration 세션도 UTC로 맞춘다.
+    init-sqls: "SET time_zone = '+00:00'"
+  jooq:
+    sql-dialect: MYSQL
+  # D-ADMIN1-021(Q-S8-D): commit 단계 TransactionException이어도 관리자가 rollback을 시도한다(기본 false면 rollback 없이 연결을 돌려준다 — S8 실측).
+  # internal-admin만(payment-api·master-api는 별도 판단). 결과는 여전히 "commit 결과 불명"(CommitOutcomeUnknownException → 500, 다시 읽어 수렴).
+  transaction:
+    rollback-on-commit-failure: true
+  # 관리자 세션 = Spring Session JDBC(D-ADMIN-004 — Redis 없음). 표는 Flyway V3(initialize-schema never), 속성 표 소문자 이름·문자열 값 변환은
+  # security.session.AdminSessionConfiguration. save-mode는 기본 ON_SET_ATTRIBUTE를 명시(§17.5 — ON_GET·ALWAYS 금지), 만료 정리는 1분마다.
+  session:
+    timeout: 10m
+    jdbc:
+      table-name: admin_session
+      initialize-schema: never
+      save-mode: on-set-attribute
+      flush-mode: on-save
+      cleanup-cron: "0 * * * * *"
+  web:
+    error:
+      # 오류 응답에 Whitelabel HTML·stack·메시지·경로를 내지 않는다(§4.10, S1 리뷰 m4).
+      # Boot 4.0부터 server.error.*는 폐기 키(level=error, 적용 안 됨) → spring.web.error.*(spring-boot-autoconfigure 4.1.1 메타데이터 확인).
+      # 기본값: include-path=always(그래서 명시), include-message/stacktrace/binding-errors=never, include-exception=false, whitelabel=true.
+      whitelabel:
+        enabled: false
+      include-path: never
+      include-stacktrace: never
+      include-message: never
+      include-binding-errors: never
+      include-exception: false
+
+server:
+  # 원격 주소는 remoteAddr만(프록시 헤더 불신 — §4.8.1). 세션 쿠키 속성은 AdminSessionConfiguration의 CookieSerializer가 고정한다(__Host-PCADMIN).
+  forward-headers-strategy: none
+
+management:
+  server:
+    # D-15(S8): actuator는 별도 management 포트에만. 포트 변수가 없으면 -1 = HTTP actuator 없음(노출 없는 쪽으로 실패 — 기동은 한다).
+    # 기본 바인딩은 loopback(외부 수집기는 배치 환경이 주소를 명시). 그 포트의 보안 체인은 SecurityConfig.managementSecurityFilterChain(health만).
+    port: ${PAYCORE_ADMIN_MANAGEMENT_PORT:-1}
+    address: ${PAYCORE_ADMIN_MANAGEMENT_ADDRESS:127.0.0.1}
+  endpoints:
+    web:
+      exposure:
+        # health만. 웹 포트에는 actuator가 없다(그 경로는 SecurityConfig 허용 목록 밖이라 익명 401·인증 403).
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    # 민감값 비노출(master-api와 같은 이유): MySQL 1062 원문에는 키 값(login_name 등)이 들어 있다. 저장 실패 분류는 adapter가 제약 이름으로 한다.
+    org.hibernate.orm.jdbc.error: "OFF"
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
+paycore:
+  admin:
+    # 배치 모드(§4.8.2 — 기본값 없음, DEMO|LIVE). LIVE는 Demo 키·Demo 보안 수치·BCrypt cost 하한 미달이면 기동 실패(LiveModeStartupGuard).
+    deployment-mode: ${PAYCORE_ADMIN_DEPLOYMENT_MODE}
+    # 2인 승인(D-SV Demo — 운영값 아님): 요청 유효 24시간, 만료 정리 job(화면용 — 권위 판정은 승인 TX) 1분마다.
+    approval:
+      validity: 24h
+      expiry-job:
+        enabled: true
+        fixed-delay: 1m
+    # 오프라인 복구(§4.9.2 — D-SV Demo, 운영값 아님): 회차 유효 24시간(작업 A·B 코드 만료 = 회차 만료).
+    recovery:
+      episode-validity: 24h
+    network:
+      # IP 허용 목록(§4.8.1 — 필수, 빈 목록 기동 실패). 쉼표로 구분한 IP 또는 CIDR. 저장소에 운영 값 없음.
+      ip-allowlist: ${PAYCORE_ADMIN_IP_ALLOWLIST}
+    # 계정 보안 수치(D-SV — **Demo 값, 운영값 아님**, Q-ADMIN-SEC-VALUES·LIVE Gate). 코드 기본값 없음: 키가 빠지면 기동 실패.
+    security:
+      login-max-failures: 5
+      totp-window-steps: 1
+      enrollment-code-validity: 24h
+      enrollment-step-validity: 10m
+      password-min-length: 12
+      password-max-bytes: 72
+      bcrypt-cost: 12
+      totp-issuer: "PayCore Admin (Demo)"
+      # 키는 base64 256비트를 환경변수로만 주입한다(저장소에 키 없음). LIVE에서 Demo 키·키 없음 기동 거부는 S4(n-4).
+      totp-cipher:
+        current-key-version: 1
+        keys:
+          "1": ${PAYCORE_ADMIN_TOTP_CIPHER_KEY_V1}
+      login-name-hmac-key: ${PAYCORE_ADMIN_LOGIN_NAME_HMAC_KEY}
+      # 세션 한도(D-SV Demo): 익명·등록 진행 idle 10분, 비밀번호 단계(TOTP 대기) 5분, 로그인 idle 15분, 로그인 절대 8시간.
+      session:
+        anonymous-idle: 10m
+        password-step-idle: 5m
+        authenticated-idle: 15m
+        absolute: 8h

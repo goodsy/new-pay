@@ -171,3 +171,43 @@ master-api의 JPA 설정(이번 변경과 연결):
 | 가맹점 Credential | 운영 Credential 투영(`merchant_api_credential`)은 MASTER-CREDENTIAL-001 전까지 비어 있다 — 모든 가맹점 요청이 401(D-CPA-001 fail-closed). 시험 키는 저장소에 없다(시험이 실행마다 생성) | 투영 runtime 권한 SELECT만(V6) |
 | Health | 공개 포트의 `/actuator/health`는 상태만(`show-details: never`) | `MainConfigurationSpec` |
 | binlog | `idempotency_request` IODKU는 statement binlog에서 unsafe — 운영 `binlog_format=ROW` 전제(CP-DB-001 review L-2) | 운영 작업 |
+
+## 9. 프론트 빌드 도구 (ADMIN-BOOT-001 S1, 2026-10-24)
+
+Boot BOM 밖·**빌드 전용**이다(앱 runtime·runtime SBOM에 들어가지 않는다). 선택 근거·실측은 `docs/repository/ADMIN-BOOT-001-ADMIN-FOUNDATION.md` §17.
+기본 규칙: 게시 14일 이상 안정판(선택일 2026-10-24 → cutoff 2026-10-10), 직접·전이 의존 모두(`--before`). 예외는 아래 §9.1 보안 patch뿐이다.
+
+| 구분 | 버전 | 근거 |
+|---|---|---|
+| node-gradle plugin `com.github.node-gradle.node` | 7.1.0 | 2024-09-27 최신 GA. Gradle 9.8.0에서 deprecation 경고 0건 실측. Node 배포판 내려받기·압축 해제만 맡긴다(npm 실행은 격리 Exec task) |
+| Node.js | 24.22.1 (Krypton LTS) | §9.1 보안 patch 예외. `node-v24.22.1-linux-x64.tar.gz` SHA-256 `eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c`(SHASUMS256.txt — GPG Good signature, 키 `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`, nodejs/release-keys). 동봉 npm 11.19.1 |
+| react / react-dom | 19.3.0 | 2026-09-09 |
+| vite | 8.3.4 | 2026-10-08 (번들러 rolldown — 네이티브 binding은 optionalDependencies, `--ignore-scripts`로 동작) |
+| vitest | 5.0.3 | 2026-09-30 |
+| typescript | 7.0.2 | 2026-07-08 (네이티브 컴파일러) |
+| @vitejs/plugin-react | 6.1.2 | 2026-10-05 |
+| @types/react / @types/react-dom | 19.3.0 | 2026-09-09 |
+| jsdom | 30.1.2 | 2026-10-04 |
+| @testing-library/react / jest-dom / user-event | 16.3.3 / 7.0.1 / 14.6.7 | 2026-08-27 / 2026-08-09 / 2026-09-02 |
+
+- 출처: `https://nodejs.org/dist/index.json`·`SHASUMS256.txt(.asc)`, `https://registry.npmjs.org/<pkg>`의 `time`, plugins.gradle.org `maven-metadata.xml`·GitHub releases(모두 2026-10-24 조회).
+- 저장 위치: catalog(`node-gradle`·`node`·`node-sha256-linux-x64`), 루트 settings `nodejs-dist` ivy 저장소(`exclusiveContent` — FAIL_ON_PROJECT_REPOS), `apps/internal-admin/frontend/package.json`(정확 버전)·`package-lock.json`(v3, registry 고정·sha512)·`lockfile-policy.json`(cutoff·보안 override 근거)·`.npmrc`.
+- 실행 경로: `paycore.frontend` convention plugin — `frontendNodeVerify`(압축 SHA-256) → `nodeSetup` → `frontendLockfileCheck`(오프라인 공급망 규칙) → `frontendInstall`(`npm ci --ignore-scripts`, 격리 환경: 상속 환경 버림·`npm_config_userconfig` 빈 파일·고정 PATH/HOME — S0 §17.7) → `frontendTypecheck`·`frontendTest`(Vitest JUnit)·`frontendBuild`(static/). lockfile 재생성은 `frontendLockfileRegenerate`(2단계, 네트워크, check 밖).
+- CVE: `cve-scan.py`가 프론트 lockfile을 npm canary(dependencies lodash 4.17.20 + devDependencies minimist 1.2.5)와 한 번의 osv 호출로 검사(D-ADMIN1-007 — dev 의존 취약점도 FAIL).
+
+- 화면 runtime 의존성은 `react`·`react-dom`뿐이다(라우터·상태 관리·HTTP 클라이언트·QR 라이브러리 없음 — §9.2).
+
+### 9.1 보안 patch 예외 (14일 규칙 예외 — Coordinator 판정 2026-10-24)
+
+| 구성요소 | 규칙상 버전 | 적용 버전(게시일) | 해소 권고 | 판정 | 제거 조건 |
+|---|---|---|---|---|---|
+| Node.js | 24.21.0 (2026-09-07) | **24.22.1** (2026-10-20) | CVE-2026-106069·CVE-2026-106072(tls 비정규 IP), CVE-2026-105482(dns null byte), CVE-2026-105483(tls IP 정규화 회귀), CVE-2026-111497(brotli) — High, 그 밖 Medium 2·Low 1(`https://nodejs.org/en/blog/release/v24.22.1`) | Q-S0-1 B(같은 24.x LTS 라인, 빌드 도구) | 게시 14일 경과(2026-11-03) 뒤 재평가 — 그 시점의 규칙상 최신 24.x로 대체하고 이 행 삭제 |
+| undici (jsdom 30.1.2 경유 devDependency) | 8.11.2 (`--before` 해석) | **8.12.2** (2026-10-15) — `package.json` `overrides` | GHSA-xjj6-f33q-929c(7.5), GHSA-4qv8-2p9j-2685(5.9), GHSA-f72v-6w45-q472(5.9) — 8.11.x patch 없음 | Q-S0-2 A | jsdom이 undici ≥ 8.12.2를 직접 요구하거나, cutoff `--before`가 override 없이 ≥ 8.12.2를 해석하면 override와 `lockfile-policy.json` 항목 삭제 |
+
+### 9.2 화면 runtime 관례·변경 기록 (ADMIN-BOOT-001 S7·S8, 2026-10-26)
+
+- 의존성: S1 이후 npm 의존성 변화 없음 — `package-lock.json` SHA-256 `15a4ed3e42e8ac259bd534967817ee7f95c67d5e2651df7ab6526d506cb60b23`(S8 CVE-SCAN 재확인, S7과 같음). 화면(S7·S8)은 react 19.3.0 표준 API만 쓴다.
+- 서빙: 같은 출처 정적 번들(`static/` — CSP `'self'`, 인라인 script·style 없음 `SpaServingSpec`), 브라우저 저장소 미사용(Vitest `storageIsEmpty`), 오류는 서버 고정 code를 HTTP 상태와 함께 신뢰할 때만.
+- 시험: Vitest 39(`TEST-SUMMARY-FRONTEND`, JUnit 보고서 신선도 `--not-before`).
+- **LIVE 전 검토(후속 — Q-S7-1)**: TOTP 등록 QR. 현재는 설정 키 수동 입력만이며, QR 라이브러리를 넣으면 이 표의 14일 규칙·CVE(dev 포함)·lockfile·라이선스 검토를 거친다(자체 인코더는 시험 부담 — 대안).
+- actuator(Boot BOM, S2): management 포트 분리(D-15 — ADMIN-BOOT-001 §25), health 응답은 상세 없이 probe 그룹 이름만(Boot 4.1.1 실측 `{"groups":["liveness","readiness"],"status":"UP"}`).

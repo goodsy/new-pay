@@ -1,0 +1,14 @@
+{
+  "before": "2026-10-10T23:59:59Z",
+  "procedure": "./gradlew :apps:internal-admin:frontendLockfileRegenerate (1: npm install --package-lock-only --ignore-scripts --before=<before> without overrides, 2: npm install --package-lock-only --ignore-scripts with overrides). Direct and transitive packages are resolved from versions published at least 14 days before the selection date; overrides are security patch exceptions only.",
+  "securityOverrides": {
+    "undici": {
+      "version": "8.12.2",
+      "via": "jsdom 30.1.2 (devDependency, requires undici ^8.11.2)",
+      "advisories": ["GHSA-xjj6-f33q-929c", "GHSA-4qv8-2p9j-2685", "GHSA-f72v-6w45-q472"],
+      "fixedIn": "8.12.2 (published 2026-10-15; no 8.11.x patch release exists)",
+      "approvedBy": "Coordinator decision Q-S0-2 option A (2026-10-24)",
+      "removeWhen": "jsdom directly requires undici >= 8.12.2, or the before cutoff resolves undici >= 8.12.2 without this override"
+    }
+  }
+}
