@@ -30,4 +30,8 @@ class TestInfrastructureSpec : FunSpec({
         // 없다는 쪽은 paycore.kotlin-app의 verifyRuntimeHasNoTestTools(org.testcontainers 금지)가 check에서 강제한다.
         Class.forName("org.testcontainers.mysql.MySQLContainer").name shouldBe "org.testcontainers.mysql.MySQLContainer"
     }
+
+    test("TEST-ASSERT-001 guard: the loaded ProjectConfig makes shouldBe equals-only (show-data-class-diffs=false), without constructing it here") {
+        System.getProperty("kotest.assertions.show-data-class-diffs") shouldBe "false"
+    }
 })

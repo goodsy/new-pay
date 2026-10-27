@@ -25,6 +25,7 @@ import com.paycore.payment.payment.domain.MerchantSiteId
 import com.paycore.payment.payment.domain.PaymentMethod
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.Duration
@@ -72,7 +73,7 @@ class CreatePaymentEligibilitySpec(
             eligibility.respondFor(order, ::ownSiteOnly)
             val foreign = command(order, intent(site = otherMerchantSite))
 
-            service.create(foreign) shouldBe CreatePaymentResult.EligibilityRefused(EligibilityRefusal.NotFoundOrForbidden)
+            service.create(foreign) shouldBeEqual CreatePaymentResult.EligibilityRefused(EligibilityRefusal.NotFoundOrForbidden)
             eligibility.callsFor(order).single().merchantSiteId shouldBe otherMerchantSite
             db.rowsOf(order) shouldBe rows(payment = 0, control = 0, idempotency = 0, outbox = 0)
 
@@ -95,7 +96,7 @@ class CreatePaymentEligibilitySpec(
                 eligibility.respondFor(order) { answer }
                 val cmd = command(order)
 
-                service.create(cmd) shouldBe CreatePaymentResult.EligibilityRefused(refusal)
+                service.create(cmd) shouldBeEqual CreatePaymentResult.EligibilityRefused(refusal)
                 db.rowsOf(order) shouldBe rows(payment = 0, control = 0, idempotency = 0, outbox = 0)
 
                 eligibility.respondFor(order) { RecordingEligibilityPort.eligible(it) }

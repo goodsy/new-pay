@@ -12,9 +12,12 @@ import com.paycore.payment.payment.domain.AuthorizationFixture.sessionTtl
 import com.paycore.payment.payment.domain.AuthorizationFixture.startedAt
 import com.paycore.payment.payment.domain.AuthorizationFixture.verifiedSession
 import com.paycore.payment.payment.domain.MoneyFixture.won
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.time.Instant
 
@@ -93,7 +96,7 @@ class AuthenticationSessionSpec : BehaviorSpec({
             val ev = evidence(s.binding)
             s.verify(ev, resultRefDigest(), authenticationRef, startedAt) shouldBe VerificationOutcome.VERIFIED
             s.status shouldBe AuthenticationStatus.VERIFIED
-            s.verified shouldBe ev
+            s.verified shouldBeEqualNullable ev
             s.verify(ev, resultRefDigest(), authenticationRef, startedAt.plusSeconds(1)) shouldBe VerificationOutcome.DUPLICATE
         }
         Then("different evidence after VERIFIED is rejected and never overwrites the first evidence") {
@@ -101,7 +104,7 @@ class AuthenticationSessionSpec : BehaviorSpec({
             val ev = evidence(s.binding)
             s.verify(ev, resultRefDigest(), authenticationRef, startedAt)
             shouldThrow<AuthenticationEvidenceConflictException> { s.verify(evidence(s.binding, ref = "demo-authn-evidence-2"), resultRefDigest(), authenticationRef, startedAt) }
-            s.verified shouldBe ev
+            s.verified shouldBeEqualNullable ev
         }
         Then("evidence for different conditions (amount) fails the session with BINDING_MISMATCH") {
             val payment = PaymentFixture.requested()
@@ -288,7 +291,7 @@ class AuthenticationSessionSpec : BehaviorSpec({
             stored(
                 b, AuthenticationStatus.EXPIRED, verified = evidence(b), expiryCause = AuthenticationExpiryCause.SUPERSEDED,
                 resultRef = resultRefDigest(), aref = authenticationRef, verifiedAt = startedAt,
-            ).verified shouldBe evidence(b)
+            ).verified.shouldNotBeNull() shouldBeEqual evidence(b)
         }
         Then("reconstitute rejects evidence outside VERIFIED/EXPIRED and a result reference on EXPIRED without evidence (one-way rules, n-h)") {
             listOf<() -> Unit>(
@@ -302,7 +305,7 @@ class AuthenticationSessionSpec : BehaviorSpec({
             val payment = PaymentFixture.requested()
             val v = AuthorizationFixture.verifiedSession(payment)
             v.expire(AuthenticationExpiryCause.SUPERSEDED, startedAt)
-            v.verified shouldBe evidence(v.binding)
+            v.verified.shouldNotBeNull() shouldBeEqual evidence(v.binding)
             v.authenticationRef shouldBe authenticationRef
             v.bindingRejection(payment.id, AuthorizationFixture.intent.money, startedAt) shouldBe BindingRejection.NOT_VERIFIED
             val late = inProgressSession(payment)

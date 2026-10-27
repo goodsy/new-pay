@@ -8,6 +8,8 @@ import com.paycore.payment.payment.domain.AuthorizationFixture.verifiedSession
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.time.Instant
 
@@ -178,7 +180,7 @@ class AuthenticationResultCheckSpec : BehaviorSpec({
                 after(s, payment, found(ProviderResultFixture.authenticatedMatching(s, cardType = token))) shouldBe
                     decision(ResultVerdict.VERIFIED, AuthenticationEventKind.VERIFIED, null)
                 s.status shouldBe AuthenticationStatus.VERIFIED
-                s.verified shouldBe VerifiedAuthentication(
+                s.verified.shouldNotBeNull() shouldBeEqual VerifiedAuthentication(
                     "demo-authn-evidence-1", s.binding, type, s.binding.cardCompany, "DEMO-ACQUIRER", "DEMO-AUTHN-PROVIDER", AuthorizationFixture.providerValidUntil,
                 )
                 s.authenticationRef shouldBe newRef

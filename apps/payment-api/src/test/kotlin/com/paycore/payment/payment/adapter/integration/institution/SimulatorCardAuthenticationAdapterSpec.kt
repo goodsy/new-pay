@@ -28,6 +28,7 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.springframework.core.io.ClassPathResource
@@ -122,7 +123,7 @@ class SimulatorCardAuthenticationAdapterSpec : FunSpec({
         val ref = lookup.get("resultRef").stringValue()
         routes["/sim/v1/authentication-results/$ref"] = Triple(200, lookup.toString(), 0)
         val req = s.get("registerRequest")
-        adapter.lookup(ref) shouldBe ProviderResultLookup.Found(
+        adapter.lookup(ref) shouldBeEqual ProviderResultLookup.Found(
             ProviderAuthenticationResult(
                 providerTransactionRef = lookup.get("authenticationTransactionId").stringValue(),
                 outcome = ProviderOutcome.AUTHENTICATED,

@@ -24,7 +24,9 @@ import com.paycore.payment.payment.domain.UnknownCause
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.longs.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.MeterRegistry
@@ -105,7 +107,7 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
                 o.source shouldBe ObservationSource.RESPONSE
                 o.sourceResultId shouldBe "vd_01JA0000000000000000000003"
                 o.outcome shouldBe InstitutionOutcome.APPROVED
-                o.approved shouldBe ApprovedTerms(
+                o.approved.shouldNotBeNull() shouldBeEqual ApprovedTerms(
                     Money(10_000, CurrencyCode("KRW")), PaymentPlan.LumpSum, CardType.CREDIT, "30000001", "SIMPTX-0000000001", LocalDate.of(2026, 10, 16),
                     institutionBusinessDate = LocalDate.of(2026, 10, 16),
                 )

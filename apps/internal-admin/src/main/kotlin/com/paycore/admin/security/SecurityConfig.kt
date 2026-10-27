@@ -81,6 +81,8 @@ class SecurityConfig {
             .securityMatcher(ManagementServerRequestMatcher)
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                    // 프레임워크 기본 거부와 동치(authorizeHttpRequests는 어떤 규칙에도 맞지 않는 요청을 거부한다 — 그래서 이 줄을 지우는 변이 M9-4는
+                    // 행동 차이가 없다). 기본값이 바뀌거나 규칙이 추가돼도 health 외 전부 거부가 이 체인에 명시되도록 방어 심층으로 둔다.
                     .anyRequest().denyAll()
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }

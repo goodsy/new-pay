@@ -13,6 +13,7 @@ import com.paycore.payment.payment.application.provided.ReturnSummaryView
 import com.paycore.payment.payment.domain.CancellationStatus
 import com.paycore.payment.payment.domain.ReturnStatus
 import com.paycore.payment.payment.domain.TerminationEvidence
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -65,7 +66,7 @@ class PaymentStatusViewsSpec : BehaviorSpec({
             val v = PaymentStatusViews.of(PaymentStatusRowFixture.authorized())
             v.status shouldBe PaymentViewStatus.AUTHORIZED
             v.authorization?.status shouldBe AuthorizationViewStatus.AUTHORIZED
-            v.authorization?.approved shouldBe TERMS
+            v.authorization?.approved shouldBeEqualNullable TERMS
             v.authorization?.approvedAt shouldBe APPROVED_AT
             v.failureCategory shouldBe null
             v.returnSummary shouldBe ReturnSummaryView(authorizedMinor = 10_000, cancelledMinor = 0, inProgressMinor = 0, cancellableMinor = 10_000, returnStatus = ReturnStatus.NONE)

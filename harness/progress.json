@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
-  "lastSuccessfulStep": "ADMIN-BOOT-001 DONE (VERIFY-GATE PASS 095548Z 2818/0·Vitest 40, DEPS×5+CVE 102808Z, REVIEW_PASS final) sha256:30325436f69517dd2827f95604243e5a03406fc891307650db868cf492cc70c8",
+  "codeFingerprint": "sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7",
+  "lastSuccessfulStep": "TEST-ASSERT-001 DONE (VERIFY-GATE PASS 2026-10-27T011019Z 2848/0·Vitest 40, DEPS×5+CVE 032551Z, REVIEW_PASS round2) sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ADMIN-BOOT-001 커밋(미push 시 사용자 확인 후 push) → TEST-ASSERT-001 1단계(Kotest 동작 고정 meta 시험·전수 검색, payment-api CreatePaymentEligibilitySpec 우선) → ADMIN-PAYMENT-OPS-001 → CHECKOUT-REACT-001",
+  "nextResumeAction": "TEST-ASSERT-001 커밋(push는 사용자 확인) → ADMIN-PAYMENT-OPS-001 S0 명세(Q-OPS-01~04 답변 반영, DECISIONS 기록) → S1 oct1 golden … → 완료 후 관리자 화면 Demo 시연 → CHECKOUT-REACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -607,6 +607,41 @@
       "at": "2026-10-26",
       "taskId": "ADMIN-BOOT-001",
       "event": "DONE — VERIFY-GATE PASS, 보조 PASS, final REVIEW_PASS"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "ADMIN-BOOT-001",
+      "event": "pushed",
+      "detail": "e53ee4b..514a747"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "TEST-ASSERT-001",
+      "event": "claimed"
+    },
+    {
+      "at": "2026-10-26",
+      "taskId": "TEST-ASSERT-001",
+      "event": "review_round1_fail_fixed",
+      "detail": "CHANGES_REQUIRED M-1/L-1/L-2/N-1 → 15곳 추가 교체·가드 고정 시험"
+    },
+    {
+      "at": "2026-10-26T13:44Z",
+      "taskId": "TEST-ASSERT-001",
+      "event": "gate_env_timeout",
+      "detail": "GRADLE-CHECK timeout 2400s under concurrent load (환경), 재실행"
+    },
+    {
+      "at": "2026-10-27",
+      "taskId": "TEST-ASSERT-001",
+      "event": "done",
+      "detail": "VERIFY-GATE PASS 011019Z 2848/0, Vitest 40, DEPS×5·CVE PASS 032551Z, REVIEW_PASS round2 — sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7"
+    },
+    {
+      "at": "2026-10-27",
+      "taskId": "ADMIN-PAYMENT-OPS-001",
+      "event": "questions_answered",
+      "detail": "Q-OPS-01~04 권장안 채택"
     }
   ],
   "agreedOrder": [

@@ -23,6 +23,7 @@ import com.paycore.payment.payment.domain.PaymentMethod
 import com.paycore.payment.payment.domain.TransactionLimitPolicy
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.sql.SQLException
@@ -56,7 +57,7 @@ class EntitlementAuthorizationAdmissionAdapterSpec : FunSpec({
         val result = evaluate(query).shouldBeInstanceOf<AdmissionResult.Admitted>()
         listOf(result.policyAssignmentVersion, result.policyContentStatus, result.route.routeRef, result.validUntil) shouldBe
             listOf("pa1:fee=pas_FEE/pv_FEE;stl=pas_STL/pv_STL", setOf("DEMO", "UNDEFINED"), "SIM-VAN-01", at.plusSeconds(30))
-        result.limitPolicy shouldBe LimitPolicyResolution.Resolved(
+        result.limitPolicy shouldBeEqual LimitPolicyResolution.Resolved(
             TransactionLimitPolicy("tlp_1", mid, CurrencyCode("KRW"), LimitAmount.Limited(300_000), LimitAmount.Unlimited),
         )
         query.asked shouldBe AuthorizationTermsRequest(mid.value, "site_1", "CARD", "KRW", "SIMCARD01")

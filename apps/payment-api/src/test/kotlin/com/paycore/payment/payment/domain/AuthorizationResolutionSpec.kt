@@ -9,8 +9,10 @@ import com.paycore.payment.payment.domain.InstitutionOutcome.NOT_FOUND
 import com.paycore.payment.payment.domain.InstitutionOutcome.NO_EFFECT_CONFIRMED
 import com.paycore.payment.payment.domain.InstitutionOutcome.PENDING
 import com.paycore.payment.payment.domain.MoneyFixture.won
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
@@ -163,7 +165,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             hold.sourceObservation shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-k"), 0)
             apply(s, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-k", terms = termsB))
             s.authorization.refOf(s.authorization.keyConflictingObservations.single()) shouldBe ObservationRef(ObservationKey(s.attemptId, ObservationSource.INQUIRY, "inq-k"), 1)
-            s.authorization.keyConflictingObservations.single().approved shouldBe termsB
+            s.authorization.keyConflictingObservations.single().approved shouldBeEqualNullable termsB
             s.control.incidentHolds.size shouldBe 1
             IncidentHoldSettlement.release(s.control, IncidentHoldRelease(hold, OperatorId("demo-operator-a"), OperatorId("demo-operator-b"),
                 "recon-match-demo-1", HoldReleaseFinding.REAL_APPROVAL_CONFIRMED, "demo", AuthorizationFixture.startedAt.plusSeconds(600)), s.authorization, s.usage)
@@ -195,9 +197,9 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             listOf(AuthorizationFixture.dispatching(), AuthorizationFixture.unknownAfterTimeout()).forEach { s ->
                 val outcome = apply(s, observation(APPROVED, source = ObservationSource.INQUIRY)).shouldBeInstanceOf<ResolutionOutcome.Authorized>()
                 outcome.transaction.type shouldBe PaymentTransactionType.AUTHORIZATION
-                outcome.transaction.terms shouldBe approvedTerms()
+                outcome.transaction.terms shouldBeEqual approvedTerms()
                 outcome.transaction.id shouldBe AuthorizationFixture.transactionId
-                s.authorization.transaction shouldBe outcome.transaction
+                s.authorization.transaction shouldBeEqualNullable outcome.transaction
                 s.authorization.status shouldBe AuthorizationStatus.AUTHORIZED
                 s.payment.status shouldBe PaymentStatus.AUTHORIZED
                 s.control.authorizedPaymentId shouldBe s.payment.id
@@ -284,7 +286,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
                 apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-1", terms = terms),
                     newTransactionId = PaymentTransactionId("demo-ptx-0002")) shouldBe
                     ResolutionOutcome.Incident(IncidentReason.CONFLICTING_INSTITUTION_RESULT)
-                s.authorization.transaction shouldBe first
+                s.authorization.transaction shouldBeEqualNullable first
                 s.payment.status shouldBe PaymentStatus.AUTHORIZED
                 s.control.hasActiveHold(s.payment.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT) shouldBe true
             }
@@ -374,7 +376,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             val outcome = apply(gen2, observation(APPROVED, source = ObservationSource.INQUIRY, resultId = "inq-gen2", attempt = gen2.attemptId),
                 newTransactionId = PaymentTransactionId("demo-ptx-0002")).shouldBeInstanceOf<ResolutionOutcome.Authorized>()
             outcome.incident shouldBe IncidentReason.CONFLICTING_INSTITUTION_RESULT
-            gen2.authorization.transaction shouldBe outcome.transaction
+            gen2.authorization.transaction shouldBeEqualNullable outcome.transaction
             second.status shouldBe PaymentStatus.AUTHORIZED
             first.control.authorizedPaymentId shouldBe first.payment.id
             first.control.activeIncidentHolds shouldBe listOf(IncidentHold.reconstitute(second.id, IncidentReason.CONFLICTING_INSTITUTION_RESULT, 1, null))
@@ -576,7 +578,7 @@ class AuthorizationResolutionSpec : BehaviorSpec({
             val first = s.authorization.transaction
             apply(s, observation(APPROVED, source = ObservationSource.NOTIFICATION, resultId = "ntf-1")) shouldBe ResolutionOutcome.NoChange
             apply(s, observation(NOT_FOUND, source = ObservationSource.INQUIRY, resultId = "inq-1")) shouldBe ResolutionOutcome.NoChange
-            s.authorization.transaction shouldBe first
+            s.authorization.transaction shouldBeEqualNullable first
             s.control.isOnIncidentHold() shouldBe false
         }
         Then("a contradicting result (decline, other amount) keeps AUTHORIZED and opens a CONFLICTING hold; nothing is auto-cancelled") {

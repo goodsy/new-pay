@@ -6003,7 +6003,7 @@
       "id": "TEST-ASSERT-001",
       "title": "Kotest 중첩 비교 함정 전수 점검: data class/Pair 안 data object·같은 속성 이름 sealed 하위 타입 shouldBe 공허 통과 고정·교체",
       "phase": "QUALITY",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "ADMIN-BOOT-001"
       ],
@@ -6016,15 +6016,37 @@
         "DONE 작업 증거 영향 보고(교체로 실제 RED가 드러난 시험은 별도 결함으로 등록)",
         "ADMIN-BOOT-001 final nit: internal-admin SecurityConfig management 체인 anyRequest().denyAll()에 '프레임워크 기본 거부와 동치, 방어 심층' 근거 주석; 사용자 data class가 data object를 감싸는 꼴(CreatePaymentEligibilitySpec:75,98) probe 명시"
       ],
-      "allowedWritePaths": [],
-      "owner": null,
-      "attempts": 0,
+      "allowedWritePaths": [
+        "libs/test-support/**",
+        "apps/*/src/test/**",
+        "libs/*/src/test/**",
+        "apps/internal-admin/src/main/kotlin/**/SecurityConfig.kt",
+        "docs/repository/TEST-ASSERT-001*.md",
+        "harness/commands.json"
+      ],
+      "owner": "paycore-implementer",
+      "attempts": 1,
       "maxRepairAttempts": 3,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/TEST-ASSERT-001-2026-10-27T011019Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7",
+        "tests": "Kotlin 2848/0 failures/0 skipped, Vitest 40/0",
+        "supplementary": "build/harness-evidence/TEST-ASSERT-001-2026-10-27T032551Z-supplementary (GRADLE-DEPS x5 exit 0, CVE-SCAN PASS 0 vulnerabilities, fingerprint same)",
+        "mutation": "doc §6: round1 9 sites, round2 15 sites — old form passes, new form fails (guard off); guard row RED when guard off",
+        "notes": "gate 134428Z GRADLE-CHECK timeout(2400s) under concurrent load = 환경 문제, 같은 fingerprint로 재실행 PASS"
+      },
+      "review": {
+        "round1": "CHANGES_REQUIRED (M-1 guard evidence self-fulfilling, L-1 variable-expected sites guard-only, L-2 concurrency warning, N-1 minTests doc)",
+        "round2": "REVIEW_PASS on sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7 (nits n-1 helper not clue-aware, n-2 both-null passes as before)"
+      },
       "coordinatorDecisions": [
         "2026-10-26 등록: ADMIN-BOOT-001 S8 checkpoint review High(작업 간 공통). 사용자 'ADMIN-BOOT-001 직후 (Recommended)' → agreedOrder ADMIN-BOOT-001 다음. ADMIN-BOOT-001 안에서는 internal-admin 범위만 처리",
-        "2026-10-26 internal-admin 실측(KotestEqualityProbeSpec): 공허 꼴 = data class/Pair 필드의 기대값이 data object일 때. 같은 속성 이름 sealed 하위형·List·직접·shouldBeIn은 엄격. 우선 후보 payment-api CreatePaymentEligibilitySpec:75,98"
+        "2026-10-26 internal-admin 실측(KotestEqualityProbeSpec): 공허 꼴 = data class/Pair 필드의 기대값이 data object일 때. 같은 속성 이름 sealed 하위형·List·직접·shouldBeIn은 엄격. 우선 후보 payment-api CreatePaymentEligibilitySpec:75,98",
+        "2026-10-26 claimed: 사용자 push 후 '그다음 진행' 지시. 이어서 ADMIN-PAYMENT-OPS-001, 그 뒤 관리자 화면 시연 요청",
+        "2026-10-26 project-wide guard 채택: libs/test-support ProjectConfig에서 kotest.assertions.show-data-class-diffs=false (판정을 더 엄격하게만 함; 필드별 diff 메시지 상실 수용). 모든 app TestInfrastructureSpec이 가드 활성 고정",
+        "2026-10-26 minTests 2811→2848 (GRADLE-CHECK, TEST-SUMMARY argv)",
+        "2026-10-27 DONE. 실제 결함 없음(교체 24곳 모두 값 일치). DONE 작업 증거 약화만 보고: CP-DB-001, MASTER-SNAPSHOT-002, AUTH-001, AUTHN-001, AUTH-CONTRACT-001, CANCEL-001, CP-QUERY-001 — 상태 재판정 불필요(값 일치, 이제 엄격 비교로 고정)"
       ]
     }
   ]

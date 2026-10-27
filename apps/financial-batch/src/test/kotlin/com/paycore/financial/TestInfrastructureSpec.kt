@@ -2,6 +2,7 @@ package com.paycore.financial
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.provided.ProjectConfig
@@ -21,5 +22,9 @@ class TestInfrastructureSpec : FunSpec({
 
     test("Mockito is excluded from the test classpath") {
         shouldThrow<ClassNotFoundException> { Class.forName("org.mockito.Mockito") }
+    }
+
+    test("TEST-ASSERT-001 guard: the loaded ProjectConfig makes shouldBe equals-only (show-data-class-diffs=false), without constructing it here") {
+        System.getProperty("kotest.assertions.show-data-class-diffs") shouldBe "false"
     }
 })

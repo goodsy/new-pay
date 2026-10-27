@@ -3,8 +3,10 @@ package com.paycore.payment.payment.domain
 import com.paycore.payment.payment.domain.AuthorizationFixture.apply
 import com.paycore.payment.payment.domain.AuthorizationFixture.observation
 import com.paycore.payment.payment.domain.AuthorizationFixture.startedAt
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 
@@ -34,9 +36,9 @@ class PaymentAuthorizationReconstitutionSpec : BehaviorSpec({
         restored.attempts.map { Triple(it.id, it.state, it.providerRequest) } shouldBe original.attempts.map { Triple(it.id, it.state, it.providerRequest) }
         restored.attempts.map { it.abandonCause to it.unknownCause } shouldBe original.attempts.map { it.abandonCause to it.unknownCause }
         restored.attempts.map { it.routeProfileVersion } shouldBe original.attempts.map { it.routeProfileVersion }
-        restored.observations shouldBe original.observations
-        restored.keyConflictingObservations shouldBe original.keyConflictingObservations
-        restored.transaction shouldBe original.transaction
+        restored.observations shouldBeEqual original.observations
+        restored.keyConflictingObservations shouldBeEqual original.keyConflictingObservations
+        restored.transaction shouldBeEqualNullable original.transaction
         restored.failureEvidence shouldBe original.failureEvidence
     }
 

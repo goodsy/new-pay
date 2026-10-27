@@ -34,6 +34,7 @@ import com.paycore.payment.payment.domain.ProviderOutcome
 import com.paycore.payment.payment.domain.ProviderResultLookup
 import com.paycore.payment.payment.domain.ResultVerdict
 import com.paycore.payment.payment.domain.SecretKind
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -141,7 +142,7 @@ class CheckoutPersistenceSpec(
             inTx { sessions.update(loaded.value, loaded.version) }
 
             val verified = inTx { sessions.lock(s.id) }!!
-            verified.value.verified shouldBe loaded.value.verified
+            verified.value.verified shouldBeEqualNullable loaded.value.verified
             listOf(verified.value.authenticationRef, verified.value.resultRefDigest, verified.value.verifiedAt) shouldBe listOf(aref, rrd, issuedAt.plusSeconds(30))
             verified.value.expire(AuthenticationExpiryCause.SUPERSEDED, issuedAt.plusSeconds(40))
             inTx { sessions.update(verified.value, verified.version) }

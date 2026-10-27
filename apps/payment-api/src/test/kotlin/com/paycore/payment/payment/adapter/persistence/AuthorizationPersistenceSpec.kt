@@ -64,6 +64,7 @@ import com.paycore.payment.payment.domain.VerificationOutcome
 import com.paycore.payment.payment.domain.VerifiedAuthentication
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.equals.shouldBeEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.springframework.transaction.PlatformTransactionManager
@@ -244,7 +245,7 @@ class AuthorizationPersistenceSpec(
             val after = inTx { authorizations.lockByPaymentId(p.id) }!!
             after.value.status shouldBe AuthorizationStatus.AUTHORIZED
             after.value.observations.map { it.outcome } shouldBe listOf(InstitutionOutcome.NOT_FOUND, InstitutionOutcome.APPROVED)
-            after.value.transaction!!.terms shouldBe terms(p)
+            after.value.transaction!!.terms shouldBeEqual terms(p)
             after.value.attempts.single().state shouldBe AttemptState.RESOLVED
             (after.version > before.version) shouldBe true
             inTx { payments.lock(p.id) }!!.value.status shouldBe PaymentStatus.AUTHORIZED

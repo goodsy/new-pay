@@ -81,6 +81,7 @@ import com.paycore.payment.payment.domain.TransactionLimitPolicy
 import com.paycore.payment.payment.domain.UnknownCause
 import com.paycore.payment.payment.domain.VerificationOutcome
 import com.paycore.payment.payment.domain.VerifiedAuthentication
+import com.paycore.testsupport.kotest.shouldBeEqualNullable
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -333,9 +334,9 @@ class CancellationPersistenceSpec(
             dispatchCancel(p)
             applyCancel(p, 1, cancelObservation(p, 1, InstitutionOutcome.APPROVED, terms = cancelTerms(p, krw(10_000)))).shouldBeInstanceOf<CancelResolutionOutcome.Completed>()
             val authAfter = inTx { authorizations.lockByPaymentId(p.id) }!!.value
-            authAfter.transaction shouldBe authBefore.transaction
+            authAfter.transaction shouldBeEqualNullable authBefore.transaction
             authAfter.status shouldBe AuthorizationStatus.AUTHORIZED
-            views.find(authorizationIdOf(p)) shouldBe viewBefore
+            views.find(authorizationIdOf(p)) shouldBeEqualNullable viewBefore
             inTx { balances.lockByPaymentId(p.id) }!!.value.status shouldBe ReturnStatus.FULLY_CANCELLED
         }
         Then("a decline, the late success (FORCED) and a key-conflicting result persist with the incident count and the cancel-result hold (no hold source)") {
