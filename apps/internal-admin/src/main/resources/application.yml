@@ -91,9 +91,42 @@ paycore:
     # 2인 승인(D-SV Demo — 운영값 아님): 요청 유효 24시간, 만료 정리 job(화면용 — 권위 판정은 승인 TX) 1분마다.
     approval:
       validity: 24h
+      # 근거·사유 권한 조회의 조회자별 분당 상한(D-OPS-010·I-131 — Demo 값, 운영값 아님): 거부 감사 대량 생성 억제.
+      justification-per-minute: 20
       expiry-job:
         enabled: true
         fixed-delay: 1m
+    # PAYMENT 운영 호출(ADMIN-PAYMENT-OPS-001 §4.2·§4.7·§4.16 — **Demo 값, 운영값 아님**, I-24 LIVE Gate). 연결·키는 환경변수로만(저장소에 키 없음, LIVE에서 Demo 키면 기동 실패).
+    # 기동 검사: stale(connect + read + 30s) < backoff-max < execution-window ≤ payment-max-execution-window(PAYMENT max-execution-window 거울 값), context path 금지.
+    payment-ops:
+      base-url: ${PAYCORE_ADMIN_PAYMENT_OPS_BASE_URL}
+      key-id: ${PAYCORE_ADMIN_PAYMENT_OPS_KEY_ID}
+      signing-key: ${PAYCORE_ADMIN_PAYMENT_OPS_SIGNING_KEY}
+      connect-timeout: 2s
+      read-timeout: 30s
+      permits:
+        approval: 4
+        lookup: 4
+        execution: 4
+      lookup-per-minute: 30
+      execution-window: 24h
+      # I-113: backoff-initial > connect + read(2s + 30s) — Demo 값(운영값 아님, LIVE Gate).
+      backoff-initial: 40s
+      backoff-max: 10m
+      payment-max-execution-window: 24h
+      # 회복 job(§4.16 — Demo): 기한 확인 시작 여유(I-34), 1회 선점 상한, 주기. 재전송 시도 상한 없음(D-OPS-003).
+      deadline-skew: 5m
+      recovery-batch-size: 50
+      # 대사(§4.17 — Demo): PAYMENT 안정 지연 거울 값, 실행당 증분 페이지 상한, 전체 스캔 주기(watermark 불변 — 최종 안전망).
+      decision-stable-delay: 2m
+      reconciliation-max-pages: 10
+      reconciliation-full-scan-interval: 1d
+      reconciliation:
+        enabled: true
+        fixed-delay: 5m
+      recovery:
+        enabled: true
+        fixed-delay: 30s
     # 오프라인 복구(§4.9.2 — D-SV Demo, 운영값 아님): 회차 유효 24시간(작업 A·B 코드 만료 = 회차 만료).
     recovery:
       episode-validity: 24h

@@ -73,6 +73,9 @@ class CancelFixture(
             fingerprintRevision: Long = 0,
             fingerprintMoney: Money = money,
             paymentId: String = this.paymentId.value,
+            // ADMIN-PAYMENT-OPS-001 D-OPS-002: 승인 시각은 시험 서버 시각 1분 전, 기한은 그 24시간 뒤(Demo 상한 안).
+            approvedAt: java.time.Instant = ConfirmFixture.T0.truncatedTo(ChronoUnit.MILLIS).minusSeconds(60),
+            executeBefore: java.time.Instant = approvedAt.plus(java.time.Duration.ofHours(24)),
         ) = OperatorCorrectionCancelCommand(
             paymentId = paymentId,
             money = money,
@@ -84,6 +87,8 @@ class CancelFixture(
             approvedTargetFingerprint = OperatorCancelTarget(
                 PaymentId(paymentId), fingerprintMoney, fingerprintRevision, OperatorApprovalId(approvalId), OperatorId(requestedBy), OperatorId(approvedBy), purpose,
             ).fingerprint(),
+            approvedAt = approvedAt,
+            executeBefore = executeBefore,
             correlationId = "req-operator-$approvalId",
         )
     }
@@ -95,8 +100,9 @@ class CancelFixture(
         plan: PaymentPlan = PaymentPlan.LumpSum,
         routeRef: String = ROUTE_C,
         order: com.paycore.payment.payment.domain.OrderKey = com.paycore.payment.payment.adapter.persistence.PersistenceTestData.newOrder(),
+        paymentIdValue: String? = null,
     ): Authorized {
-        val p = confirmFixture.prepared(amount = amount, cardType = cardType, plan = plan, order = order)
+        val p = confirmFixture.prepared(amount = amount, cardType = cardType, plan = plan, order = order, paymentIdValue = paymentIdValue)
         admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = routeRef) }
         if (cardType != CardType.CREDIT) {
             val stub = checkNotNull(van) { "a non-credit fixture needs the stub VAN to echo the card type" }

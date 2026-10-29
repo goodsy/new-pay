@@ -7,6 +7,10 @@ import com.paycore.admin.approval.application.provided.ApprovalQuery
 import com.paycore.admin.approval.application.provided.ApprovalUseCase
 import com.paycore.admin.approval.application.provided.ApprovalView
 import com.paycore.admin.approval.application.provided.DecideApproval
+import com.paycore.admin.approval.application.provided.JustificationResult
+import com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery
+import com.paycore.admin.approval.application.provided.OwnerServiceApprovalUseCase
+import com.paycore.admin.approval.application.provided.RequestOperatorCancel
 import com.paycore.admin.approval.application.provided.RequestApproval
 import com.paycore.admin.approval.application.provided.WithdrawApproval
 import jakarta.servlet.http.HttpServletRequest
@@ -29,7 +33,12 @@ import java.util.UUID
  */
 @RestController
 @RequestMapping("/api/approvals")
-class ApprovalController(private val approvals: ApprovalUseCase, private val query: ApprovalQuery) {
+class ApprovalController(
+    private val approvals: ApprovalUseCase,
+    private val owners: OwnerServiceApprovalUseCase,
+    private val query: ApprovalQuery,
+    private val justifications: OperatorCancelJustificationQuery,
+) {
 
     @PostMapping
     fun request(@RequestBody body: CreateRequest, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
@@ -40,10 +49,28 @@ class ApprovalController(private val approvals: ApprovalUseCase, private val que
         return respond(outcome, request)
     }
 
+    /** 운영자 보정 취소 요청(ADMIN-PAYMENT-OPS-001 §4.12 — OPERATOR). 금액은 JSON 정수(minor). 앞뒤 공백은 서버가 자르지 않고 거부한다(화면이 정리 — §4.18). */
+    @PostMapping("/operator-correction-cancel")
+    fun requestOperatorCancel(@RequestBody body: OperatorCancelBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = owners.requestOperatorCancel(
+            RequestOperatorCancel(
+                authentication.name, generation, body.paymentId.orEmpty(), body.amountMinor ?: 0, body.purposeKind.orEmpty(), body.purposeReference.orEmpty(),
+                body.reason.orEmpty(), context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * 승인(§4.10 M-6 0단계 분기): 승인 행 종류를 비잠금으로 읽어 소유 서비스면 2-TX 서비스로, ADMIN 소유면 기존 단일 TX로 보낸다. 분기는 비권위 —
+     * 기존 경로는 잠근 행이 소유 서비스면 fail-closed(500 INTERNAL_INTEGRITY), 2-TX 경로는 ADMIN 소유 행을 거부한다.
+     */
     @PostMapping("/{approvalId}/approve")
     fun approve(@PathVariable approvalId: String, @RequestBody body: TotpBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
         val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
-        return respond(approvals.approve(DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), context(request))), request)
+        val command = DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), context(request))
+        return respond(if (query.isOwnerService(approvalId) == true) owners.approve(command) else approvals.approve(command), request)
     }
 
     @PostMapping("/{approvalId}/reject")
@@ -70,13 +97,33 @@ class ApprovalController(private val approvals: ApprovalUseCase, private val que
         return ok(json(row))
     }
 
+    /**
+     * 근거·사유 별도 권한 조회(D-OPS-010 — APPROVER 역할과 요청자 본인만, 서버가 계정 현재 행으로 판정): 200 문구 / 403 / 404 / 503 `AUDIT_UNAVAILABLE`(감사를 남기지 못하면
+     * 보이지 않는다). 시도마다 감사 1행(문구 없음). 목록·상세(I-98)에는 계속 문구가 없다.
+     */
+    @GetMapping("/{approvalId}/justification")
+    fun justification(@PathVariable approvalId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        when (val result = justifications.view(authentication.name, approvalId, context(request))) {
+            is JustificationResult.Found -> ok(linkedMapOf("approvalId" to result.approvalId, "purposeReference" to result.purposeReference, "reason" to result.reason))
+            JustificationResult.Forbidden -> status(HttpStatus.FORBIDDEN, "FORBIDDEN")
+            JustificationResult.NotFound -> status(HttpStatus.NOT_FOUND, "NOT_FOUND")
+            JustificationResult.AuditUnavailable -> status(HttpStatus.SERVICE_UNAVAILABLE, "AUDIT_UNAVAILABLE")
+            JustificationResult.RateLimited -> status(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED")
+        }
+
     private fun respond(outcome: ApprovalOutcome, request: HttpServletRequest): ResponseEntity<out Any> = when (outcome) {
         is ApprovalOutcome.Created -> ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(mapOf("approvalId" to outcome.approvalId))
         is ApprovalOutcome.Executed -> ok(linkedMapOf("approvalId" to outcome.approvalId, "status" to "EXECUTED").also { m -> outcome.enrollmentCode?.let { m["enrollmentCode"] = it } })
         is ApprovalOutcome.Closed -> ok(mapOf("status" to outcome.status))
         is ApprovalOutcome.Invalidated -> status(HttpStatus.CONFLICT, "INVALIDATED", outcome.code)
         is ApprovalOutcome.OwnerRejected -> status(HttpStatus.CONFLICT, "OWNER_REJECTED", outcome.code)
-        is ApprovalOutcome.Rejected -> if (outcome.code == INVALID_INPUT) status(HttpStatus.BAD_REQUEST, INVALID_INPUT) else status(HttpStatus.CONFLICT, outcome.code)
+        is ApprovalOutcome.Rejected -> when {
+            outcome.field != null && outcome.reason != null ->
+                ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(CacheControl.noStore())
+                    .body(linkedMapOf("error" to outcome.code, "field" to outcome.field, "reason" to outcome.reason))
+            outcome.code in BAD_REQUEST_CODES -> status(HttpStatus.BAD_REQUEST, outcome.code)
+            else -> status(HttpStatus.CONFLICT, outcome.code)
+        }
         is ApprovalOutcome.Refused -> status(HttpStatus.FORBIDDEN, outcome.code)
         ApprovalOutcome.AlreadyDecided -> status(HttpStatus.CONFLICT, "ALREADY_DECIDED")
         ApprovalOutcome.Expired -> status(HttpStatus.CONFLICT, "EXPIRED")
@@ -89,6 +136,8 @@ class ApprovalController(private val approvals: ApprovalUseCase, private val que
         ApprovalOutcome.NotFound -> status(HttpStatus.NOT_FOUND, "NOT_FOUND")
         ApprovalOutcome.RetryLater -> status(HttpStatus.CONFLICT, "RETRY_LATER")
         ApprovalOutcome.IntegrityViolation -> status(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_INTEGRITY")
+        is ApprovalOutcome.Unavailable -> status(HttpStatus.SERVICE_UNAVAILABLE, outcome.code)
+        is ApprovalOutcome.Executing -> ok(mapOf("approvalId" to outcome.approvalId, "status" to outcome.status))
     }
 
     private fun generation(request: HttpServletRequest): Long? =
@@ -96,12 +145,25 @@ class ApprovalController(private val approvals: ApprovalUseCase, private val que
 
     private fun context(request: HttpServletRequest) = AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(45))
 
-    private fun json(v: ApprovalView) = linkedMapOf(
-        "approvalId" to v.approvalId, "kind" to v.kind, "targetActorId" to v.targetActorId, "targetSnapshot" to v.targetSnapshot, "grantedRole" to v.grantedRole,
+    private fun json(v: ApprovalView): MutableMap<String, Any?> = linkedMapOf<String, Any?>(
+        "approvalId" to v.approvalId, "kind" to v.kind, "targetKind" to v.targetKind, "targetActorId" to v.targetActorId, "targetRef" to v.targetRef, "targetSnapshot" to v.targetSnapshot, "grantedRole" to v.grantedRole,
         "causeApprovalId" to v.causeApprovalId, "requestedBy" to v.requestedBy, "requestedByDisplayName" to v.requestedByDisplayName,
         "requestedAt" to v.requestedAt.toString(), "expiresAt" to v.expiresAt.toString(), "status" to v.status, "decidedBy" to v.decidedBy,
         "decidedByDisplayName" to v.decidedByDisplayName, "decidedAt" to v.decidedAt?.toString(), "resultCode" to v.resultCode,
-    )
+    ).also { m ->
+        // S8 화면용 소유 서비스 상세(I-98 — 사유·근거 문구 없음). 고정 대상은 JSON 객체로 내보낸다.
+        v.owner?.let { o ->
+            m["owner"] = linkedMapOf(
+                "amountMinor" to o.amountMinor, "currency" to o.currency, "purposeKind" to o.purposeKind, "pinnedTarget" to pinnedJson.readTree(o.pinnedTarget),
+                "approvedAt" to o.approvedAt?.toString(), "executeBefore" to o.executeBefore?.toString(), "attemptCount" to o.attemptCount,
+                "nextAttemptAt" to o.nextAttemptAt?.toString(), "lastResponseAt" to o.lastResponseAt?.toString(), "lastFailure" to o.lastFailure,
+                "integrityFlag" to o.integrityFlag, "resendHaltedReason" to o.resendHaltedReason, "ownerResultCode" to o.ownerResultCode,
+                "ownerReference" to o.ownerReference,
+            )
+        }
+    }
+
+    private val pinnedJson = tools.jackson.databind.json.JsonMapper.builder().build()
 
     private fun <T : Any> ok(body: T): ResponseEntity<T> = ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body)
 
@@ -111,9 +173,16 @@ class ApprovalController(private val approvals: ApprovalUseCase, private val que
     private companion object {
         /** 입력 형식 오류(Use Case가 TX 전에 판정 — S6 리뷰 m-2): 400. 업무 거절은 409. */
         const val INVALID_INPUT = "INVALID_INPUT"
+
+        /** 400 code: 입력 형식, 종류 해석 단계의 실행 모델 거부(ADMIN-PAYMENT-OPS-001 §4.10 1행 — 소유 서비스 종류는 새 endpoint만), Payment 없음(§4.12 2). */
+        val BAD_REQUEST_CODES = setOf(INVALID_INPUT, "WRONG_EXECUTION_MODEL", "PAYMENT_NOT_FOUND")
     }
 
     class CreateRequest(val kind: String?, val targetActorId: String?, val grantedRole: String?, val causeApprovalId: String?)
+
+    class OperatorCancelBody(val paymentId: String?, val amountMinor: Long?, val purposeKind: String?, val purposeReference: String?, val reason: String?) {
+        override fun toString(): String = "OperatorCancelBody(paymentId=$paymentId, amountMinor=$amountMinor)"
+    }
 
     class TotpBody(val totpCode: String?) {
         override fun toString(): String = "TotpBody(***)"

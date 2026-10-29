@@ -29,6 +29,16 @@ describe('errorCodeFrom (S7 — every fixed code of the JSON API)', () => {
     expect(errorCodeFrom(403, {})).toBe('FORBIDDEN')
   })
 
+  it('S8: operator correction cancel codes keep their statuses (payment lookup, PAYMENT unavailable, rate limit, unresolved, busy target)', () => {
+    expect(errorCodeFrom(404, { error: 'PAYMENT_NOT_FOUND' })).toBe('PAYMENT_NOT_FOUND')
+    expect(errorCodeFrom(400, { error: 'PAYMENT_NOT_FOUND' })).toBe('PAYMENT_NOT_FOUND')
+    expect(errorCodeFrom(503, { error: 'PAYMENT_UNAVAILABLE' })).toBe('PAYMENT_UNAVAILABLE')
+    expect(errorCodeFrom(429, { error: 'RATE_LIMITED' })).toBe('RATE_LIMITED')
+    expect(errorCodeFrom(409, { error: 'DUPLICATE_UNRESOLVED' })).toBe('DUPLICATE_UNRESOLVED')
+    expect(errorCodeFrom(409, { error: 'TARGET_BUSY' })).toBe('TARGET_BUSY')
+    expect(errorCodeFrom(200, { error: 'PAYMENT_UNAVAILABLE' })).toBe('REQUEST_REJECTED')
+  })
+
   it('distrusts a business code arriving with the wrong status', () => {
     expect(errorCodeFrom(500, { error: 'IP_DENIED' })).toBe('SERVER_ERROR')
     expect(errorCodeFrom(200, { error: 'ALREADY_DECIDED' })).toBe('REQUEST_REJECTED')

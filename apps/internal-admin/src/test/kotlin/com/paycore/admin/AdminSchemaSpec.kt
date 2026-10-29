@@ -38,11 +38,33 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
     )
 
     fun Connection.insertApproval(approvalId: String, kind: String, target: String, status: String = "PENDING"): Int? = errorCodeOf(
-        "INSERT INTO admin_approval_request (approval_id, kind, target_actor_id, target_security_version, target_snapshot, requested_by, " +
+        "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_actor_id, target_security_version, target_snapshot, requested_by, " +
             "requested_by_display_name, requested_at, expires_at, status, version) " +
-            "VALUES (?, ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, ?, 0)",
+            "VALUES (?, ?, 'ADMIN_ACCOUNT', ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, ?, 0)",
         approvalId, kind, target, status,
     )
+
+    /**
+     * 승인 행을 열 조합 그대로 넣는다(V5 CHECK 시험용 Invalid Fixture — 대상 종류·계정·참조를 시험이 명시한다, null 대상 종류는 열 생략).
+     * 결정 열은 상태가 PENDING이 아니면 승인자로 채운다.
+     */
+    fun Connection.insertTargeted(approvalId: String, kind: String, targetKind: String?, actor: String?, ref: String?, status: String = "PENDING"): Int? {
+        val decided = status != "PENDING"
+        val columns = listOfNotNull("approval_id", "kind", if (targetKind != null) "target_kind" else null, "target_actor_id", "target_ref")
+        val values = listOf<Any?>(approvalId, kind) + (if (targetKind != null) listOf(targetKind) else emptyList()) + listOf(actor, ref)
+        return errorCodeOf(
+            "INSERT INTO admin_approval_request (${columns.joinToString()}, target_security_version, target_snapshot, requested_by, requested_by_display_name, " +
+                "requested_at, expires_at, status, decided_by, decided_by_display_name, decided_at, version) " +
+                "VALUES (${columns.joinToString { "?" }}, 3, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, ?, " +
+                (if (decided) "'adm_approver', 'Approver', UTC_TIMESTAMP(3)" else "NULL, NULL, NULL") + ", 0)",
+            *(values + status).toTypedArray(),
+        )
+    }
+
+    fun Connection.insertPaymentApproval(approvalId: String, paymentId: String, status: String = "PENDING"): Int? =
+        insertTargeted(approvalId, "OPERATOR_CORRECTION_CANCEL", "PAYMENT", null, paymentId, status)
+
+    fun paymentId(): String = "pay_" + UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
 
     Given("the ADMIN schema after the Flyway migrations") {
         Then("it has exactly the ADMIN tables and the Flyway history") {
@@ -53,6 +75,7 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
                 )
             } shouldBe listOf(
                 "admin_account", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_enrollment_code",
+                "admin_operator_cancel_command", "admin_ops_reconciliation_checkpoint", "admin_ops_reconciliation_finding", "admin_owner_execution",
                 "admin_recovery_episode", "admin_role_event", "admin_session", "admin_session_attributes", "flyway_schema_history",
             )
         }
@@ -108,12 +131,199 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
             )
         }
 
-        Then("owner-service approval states are not storable yet (APPROVED / EXECUTING / EXECUTION_UNKNOWN — 3819, widened with their kinds later)") {
+        Then("V5 (§4.11 ck_owner_states): EXECUTING / EXECUTION_UNKNOWN only for the owner-service kind; APPROVED for no kind (I-20) — 3819") {
             runtime().use { c ->
                 val target = id("adm_")
                 c.insertAccount(target)
-                listOf("APPROVED", "EXECUTING", "EXECUTION_UNKNOWN").associateWith { c.insertApproval(id("apr_"), "ROLE_GRANT", target, status = it) }
-            } shouldBe mapOf("APPROVED" to 3819, "EXECUTING" to 3819, "EXECUTION_UNKNOWN" to 3819)
+                mapOf(
+                    "ROLE_GRANT APPROVED" to c.insertApproval(id("apr_"), "ROLE_GRANT", target, status = "APPROVED"),
+                    "ROLE_GRANT EXECUTING" to c.insertApproval(id("apr_"), "ROLE_GRANT", target, status = "EXECUTING"),
+                    "ROLE_GRANT EXECUTION_UNKNOWN" to c.insertApproval(id("apr_"), "ROLE_GRANT", target, status = "EXECUTION_UNKNOWN"),
+                    "ACCOUNT_UNLOCK EXECUTING" to c.insertApproval(id("apr_"), "ACCOUNT_UNLOCK", target, status = "EXECUTING"),
+                    "OPERATOR APPROVED" to c.insertPaymentApproval(id("apr_"), paymentId(), status = "APPROVED"),
+                    "OPERATOR EXECUTING" to c.insertPaymentApproval(id("apr_"), paymentId(), status = "EXECUTING"),
+                    "OPERATOR EXECUTION_UNKNOWN" to c.insertPaymentApproval(id("apr_"), paymentId(), status = "EXECUTION_UNKNOWN"),
+                )
+            } shouldBe mapOf(
+                "ROLE_GRANT APPROVED" to 3819, "ROLE_GRANT EXECUTING" to 3819, "ROLE_GRANT EXECUTION_UNKNOWN" to 3819, "ACCOUNT_UNLOCK EXECUTING" to 3819,
+                "OPERATOR APPROVED" to 3819, "OPERATOR EXECUTING" to null, "OPERATOR EXECUTION_UNKNOWN" to null,
+            )
+        }
+
+        Then("V5 (§4.11 ck_target): target columns match the target kind and the target kind matches the approval kind (3819); target_kind has no default (1364)") {
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                val pay = paymentId()
+                mapOf(
+                    "account ok" to c.insertTargeted(id("apr_"), "ACCOUNT_UNLOCK", "ADMIN_ACCOUNT", actor, null),
+                    "account with ref" to c.insertTargeted(id("apr_"), "ACCOUNT_REACTIVATE", "ADMIN_ACCOUNT", actor, pay),
+                    "account without actor" to c.insertTargeted(id("apr_"), "TOTP_REENROLL", "ADMIN_ACCOUNT", null, null),
+                    "account kind on PAYMENT" to c.insertTargeted(id("apr_"), "PASSWORD_RESET", "PAYMENT", null, pay),
+                    "payment ok" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "PAYMENT", null, pay),
+                    "payment with actor" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "PAYMENT", actor, paymentId()),
+                    "payment without ref" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "PAYMENT", null, null),
+                    "operator kind on ADMIN_ACCOUNT" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "ADMIN_ACCOUNT", actor, null),
+                    "unknown target kind" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "MERCHANT", null, paymentId()),
+                    "no target kind" to c.insertTargeted(id("apr_"), "ACCOUNT_UNLOCK", null, actor, null, status = "EXECUTED"),
+                )
+            } shouldBe mapOf(
+                "account ok" to null, "account with ref" to 3819, "account without actor" to 3819, "account kind on PAYMENT" to 3819, "payment ok" to null,
+                "payment with actor" to 3819, "payment without ref" to 3819, "operator kind on ADMIN_ACCOUNT" to 3819, "unknown target kind" to 3819,
+                "no target kind" to 1364,
+            )
+        }
+
+        Then("V5 (§4.11 unresolved_key, I-14): one unresolved (PENDING / EXECUTING / EXECUTION_UNKNOWN) approval per Payment — 1062; terminal states free the Payment") {
+            val terminalStatuses = listOf("EXECUTED", "OWNER_REJECTED", "REJECTED", "WITHDRAWN", "EXPIRED", "INVALIDATED")
+            val result = runtime().use { c ->
+                val unresolved = listOf("PENDING", "EXECUTING", "EXECUTION_UNKNOWN").associateWith { status ->
+                    val pay = paymentId()
+                    listOf(c.insertPaymentApproval(id("apr_"), pay, status), c.insertPaymentApproval(id("apr_"), pay, "PENDING"))
+                }
+                val terminal = terminalStatuses.associateWith { status ->
+                    val pay = paymentId()
+                    listOf(c.insertPaymentApproval(id("apr_"), pay, status), c.insertPaymentApproval(id("apr_"), pay, status), c.insertPaymentApproval(id("apr_"), pay, "PENDING"))
+                }
+                unresolved to terminal
+            }
+            result shouldBe (
+                mapOf("PENDING" to listOf(null, 1062), "EXECUTING" to listOf(null, 1062), "EXECUTION_UNKNOWN" to listOf(null, 1062)) to
+                    terminalStatuses.associateWith { listOf<Int?>(null, null, null) }
+                )
+        }
+
+        Then("V5: the unresolved key is the Payment reference while unresolved and is released when the approval ends (runtime UPDATE of status)") {
+            val pay = paymentId()
+            runtime().use { c ->
+                val approval = id("apr_")
+                c.insertPaymentApproval(approval, pay, "EXECUTING")
+                fun key() = c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", approval)
+                val executing = key()
+                c.update("UPDATE admin_approval_request SET status = 'EXECUTION_UNKNOWN' WHERE approval_id = ?", approval)
+                val unknown = key()
+                c.update("UPDATE admin_approval_request SET status = 'EXECUTED' WHERE approval_id = ?", approval)
+                listOf(executing, unknown, key(), c.insertPaymentApproval(id("apr_"), pay))
+            } shouldBe listOf("PAYMENT:$pay", "PAYMENT:$pay", null, null)
+        }
+
+        Then("V5: unresolved_key and pending_key are STORED generated columns; account rows never take an unresolved key") {
+            root().use { c ->
+                c.column(
+                    "SELECT CONCAT(column_name, ':', extra) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'admin_approval_request' " +
+                        "AND column_name IN ('pending_key', 'unresolved_key') ORDER BY column_name",
+                    ADMIN_DATABASE,
+                )
+            } shouldBe listOf("pending_key:STORED GENERATED", "unresolved_key:STORED GENERATED")
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                val approval = id("apr_")
+                c.insertApproval(approval, "ACCOUNT_UNLOCK", actor)
+                c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", approval)
+            } shouldBe null
+        }
+
+        Then("V5 command (INSERT-only, §4.11): amount > 0, known purpose kinds, an existing approval (FK 1452); one command per approval (1062)") {
+            runtime().use { c ->
+                fun command(approval: String, amount: Long = 7000, purpose: String = "INCIDENT_OR_RECON_CORRECTION") = c.errorCodeOf(
+                    "INSERT INTO admin_operator_cancel_command (approval_id, payment_id, amount_minor, currency, purpose_kind, purpose_ref, reason, pinned_target, created_at) " +
+                        "VALUES (?, 'pay_01JC0000000000000000000001', ?, 'KRW', ?, 'RECON-1', 'reason', '{}', UTC_TIMESTAMP(3))",
+                    approval, amount, purpose,
+                )
+                val approval = id("apr_")
+                c.insertPaymentApproval(approval, paymentId())
+                mapOf(
+                    "zero amount" to command(approval, amount = 0), "unknown purpose" to command(approval, purpose = "WHIM"), "no approval" to command(id("apr_")),
+                    "ok" to command(approval), "second" to command(approval),
+                )
+            } shouldBe mapOf("zero amount" to 3819, "unknown purpose" to 3819, "no approval" to 1452, "ok" to null, "second" to 1062)
+        }
+
+        Then("V5 execution: attempt ≥ 1, oct1 fingerprint format, deadline after approval, an existing approval (FK 1452)") {
+            runtime().use { c ->
+                fun execution(approval: String, attempts: Int = 1, fingerprint: String = "oct1:" + "a".repeat(64), windowSeconds: Int = 60) = c.errorCodeOf(
+                    "INSERT INTO admin_owner_execution (approval_id, request_body, fingerprint, approved_at, execute_before, executor_actor_id, attempt_count, " +
+                        "next_attempt_at, version) VALUES (?, x'7b7d', ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL ? SECOND, 'adm_approver', ?, UTC_TIMESTAMP(3), 0)",
+                    approval, fingerprint, windowSeconds, attempts,
+                )
+                val approval = id("apr_")
+                c.insertPaymentApproval(approval, paymentId(), "EXECUTING")
+                mapOf(
+                    "zero attempts" to execution(approval, attempts = 0), "upper-case hex" to execution(approval, fingerprint = "oct1:" + "A".repeat(64)),
+                    "other version" to execution(approval, fingerprint = "oct2:" + "a".repeat(64)), "deadline not after approval" to execution(approval, windowSeconds = 0),
+                    "no approval" to execution(id("apr_")), "ok" to execution(approval),
+                )
+            } shouldBe mapOf(
+                "zero attempts" to 3819, "upper-case hex" to 3819, "other version" to 3819, "deadline not after approval" to 3819, "no approval" to 1452, "ok" to null,
+            )
+        }
+
+        Then("V5 reconciliation: the checkpoint is the single row id = 1 created by the migration (watermark 0); findings take only the 6 kinds, once per (kind, approval)") {
+            root().use { c ->
+                listOf(
+                    c.column("SELECT CONCAT(id, ':', watermark) FROM admin_ops_reconciliation_checkpoint").joinToString(),
+                    c.errorCodeOf("INSERT INTO admin_ops_reconciliation_checkpoint (id, watermark, version) VALUES (2, 0, 0)").toString(),
+                    c.errorCodeOf("UPDATE admin_ops_reconciliation_checkpoint SET watermark = -1 WHERE id = 1").toString(),
+                )
+            } shouldBe listOf("1:0", "3819", "3819")
+            runtime().use { c ->
+                val approval = id("apr_")
+                fun finding(kind: String) = c.errorCodeOf(
+                    "INSERT INTO admin_ops_reconciliation_finding (kind, approval_id, payment_ref, detail_code, found_at) VALUES (?, ?, 'pay_x', 'CONTENT_MATCH', UTC_TIMESTAMP(3))",
+                    kind, approval,
+                )
+                listOf(
+                    "ORPHAN_DECISION", "FINGERPRINT_MISMATCH", "STATE_DIVERGENCE", "MISSING_DECISION", "UNRESOLVED_WITH_DECISION", "DECISION_FOR_UNAPPROVED", "GUESS",
+                    "ORPHAN_DECISION",
+                ).map(::finding)
+            } shouldBe listOf(null, null, null, null, null, null, 3819, 1062)
+        }
+
+        Then("V5 upgrade: approval rows that existed before V5 become ADMIN_ACCOUNT targets without a Payment reference (fill, then no default)") {
+            val schema = "paycore_admin_v5_upgrade"
+            root().use { c ->
+                c.update("DROP DATABASE IF EXISTS $schema")
+                c.update("CREATE DATABASE $schema DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin")
+            }
+            fun flyway(target: String) = org.flywaydb.core.Flyway.configure()
+                .dataSource(AdminDbAccounts.urlFor(container, schema), "root", container.password)
+                .locations(AdminDbAccounts.MAIN_MIGRATIONS).target(target).load().migrate()
+            // 업무 schema 위치(db/migration/admin)에는 V1·V3만 있다(V2·V4는 runtime 권한 위치) — V5 직전 = V3.
+            flyway("3")
+            AdminDbAccounts.root(container, schema).use { c ->
+                c.update(
+                    "INSERT INTO admin_approval_request (approval_id, kind, target_actor_id, target_security_version, target_snapshot, requested_by, " +
+                        "requested_by_display_name, requested_at, expires_at, status, version) " +
+                        "VALUES ('apr_00000000000000000000000001', 'ROLE_GRANT', 'adm_target', 4, '{}', 'adm_requester', 'R', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), 'PENDING', 0)",
+                )
+            }
+            flyway("5")
+            val upgraded = AdminDbAccounts.root(container, schema).use { c ->
+                listOf(
+                    c.column(
+                        "SELECT CONCAT(target_kind, ':', target_actor_id, ':', COALESCE(target_ref, '-'), ':', COALESCE(unresolved_key, '-'), ':', pending_key) " +
+                            "FROM admin_approval_request",
+                    ).joinToString(),
+                    c.column(
+                        "SELECT COALESCE(column_default, 'NONE') FROM information_schema.columns WHERE table_schema = ? AND table_name = 'admin_approval_request' " +
+                            "AND column_name = 'target_kind'",
+                        schema,
+                    ).joinToString(),
+                )
+            }
+            root().use { it.update("DROP DATABASE $schema") }
+            upgraded shouldBe listOf("ADMIN_ACCOUNT:adm_target:-:-:ROLE_GRANT:adm_target", "NONE")
+        }
+
+        Then("V5: the audit table has a nullable target_ref (Payment target of the new kind's audit rows — §4.10)") {
+            root().use { c ->
+                c.column(
+                    "SELECT CONCAT(column_type, ':', is_nullable) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'admin_audit_event' " +
+                        "AND column_name = 'target_ref'",
+                    ADMIN_DATABASE,
+                )
+            } shouldBe listOf("varchar(64):YES")
         }
 
         Then("cross-column rules: RECOVERY codes need an episode and the recorded roles, recorded roles only on RECOVERY codes, a pending purpose needs its basis and PENDING_ENROLLMENT (3819)") {

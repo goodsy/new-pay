@@ -112,6 +112,8 @@ class DatabaseAccountSeparationSpec(
         "merchant_notification_failure" to "Select,Insert,Update",
         // WEBHOOK-001 V26: 전송 시도 기록은 append-only.
         "merchant_webhook_attempt" to "Select,Insert",
+        // ADMIN-PAYMENT-OPS-001 V28: approvalId별 최초 확정 결정은 INSERT 전용(D-OPS-005).
+        "operator_approval_decision" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -167,6 +169,7 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_webhook_delivery` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_notification_failure` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_webhook_attempt` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`operator_approval_decision` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -297,12 +300,16 @@ class DatabaseAccountSeparationSpec(
                         "INSERT INTO incident_hold_release (incident_hold_id, requested_by, approved_by, reconciliation_match_ref, finding, reason, released_at) " +
                             "VALUES (0, 'a', 'b', 'm', 'NO_EFFECT_CONFIRMED', 'r', NOW(3))",
                     ),
+                    // ADMIN-PAYMENT-OPS-001 V28(review n-2): approvalId별 결정 기록은 INSERT 전용.
+                    "decision update" to c.codeOf("UPDATE operator_approval_decision SET decision = 'REJECTED' WHERE approval_id = 'none'"),
+                    "decision delete" to c.codeOf("DELETE FROM operator_approval_decision WHERE approval_id = 'none'"),
+                    "decision lock" to c.codeOf("SELECT * FROM operator_approval_decision WHERE approval_id = 'none' FOR UPDATE"),
                 )
             } shouldBe mapOf(
                 "evidence update" to 1142, "evidence delete" to 1142, "hold update" to 1142, "hold delete" to 1142, "evidence lock" to 1142,
                 "auth event update" to 1142, "auth event delete" to 1142, "auth event lock" to 1142, "pin update" to 1142, "pin delete" to 1142,
                 "observation update" to 1142, "observation delete" to 1142, "observation lock" to 1142, "transaction update" to 1142, "transaction delete" to 1142,
-                "release insert" to 1142,
+                "release insert" to 1142, "decision update" to 1142, "decision delete" to 1142, "decision lock" to 1142,
             )
             db.count(
                 "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ? AND evidence = 'NOT_TRANSMITTED_AND_SESSION_DISCARDED'",
@@ -422,7 +429,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

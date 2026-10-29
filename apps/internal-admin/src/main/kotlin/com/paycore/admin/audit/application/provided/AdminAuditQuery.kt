@@ -29,6 +29,8 @@ data class AuditEntry(
     val correlationId: String,
     val detail: String?,
     val reason: String? = null,
+    /** 계정이 아닌 대상(Payment — ADMIN-PAYMENT-OPS-001 §4.10). */
+    val targetRef: String? = null,
 )
 
 class AuditUnavailable(cause: Throwable) : RuntimeException("audit view could not be recorded; results are withheld", cause)

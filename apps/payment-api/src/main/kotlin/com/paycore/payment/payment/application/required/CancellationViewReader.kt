@@ -29,7 +29,11 @@ data class CancellationViewRow(
     val forcedMinor: Long,
 )
 
-/** 운영자 승인 대상 재료(비권위). [authorizedMoney]는 확정 승인 거래(없으면 null), 잔액이 아직 없으면 [hasBalance] false. */
+/**
+ * 운영자 승인 대상 재료(비권위). `payment`에서 시작한다(ADMIN-PAYMENT-OPS-001 F-2 — 승인 없는 Payment도 행이 있다). [authorizedMoney]는 확정 승인 거래(없으면 null), 잔액이 아직 없으면
+ * [hasBalance] false. [paymentStatus]는 Payment 상태 이름, [onHold]는 풀리지 않은 사건 hold가 있는가(운영자 경로를 막지 않음 — 표시용), [inFlightCancel]은 진행 중(OPEN·UNKNOWN) 취소가
+ * 있는가(F-3).
+ */
 data class OperatorCancelTargetRow(
     val paymentId: PaymentId,
     val authorizedMoney: Money?,
@@ -38,6 +42,9 @@ data class OperatorCancelTargetRow(
     val reservedMinor: Long,
     val forcedMinor: Long,
     val balanceRevision: Long,
+    val paymentStatus: String = "AUTHORIZED",
+    val onHold: Boolean = false,
+    val inFlightCancel: Boolean = false,
 ) {
     val currency: CurrencyCode? get() = authorizedMoney?.currency
 }
@@ -60,6 +67,7 @@ data class CancellationBacklogCounts(val unknownCancellations: Long, val oldestU
 interface CancellationViewReader {
     fun find(cancellationId: CancellationId): CancellationViewRow?
 
+    /** 관리 조회(§4.7): 질의 시간 상한을 넘으면 [QueryTimedOut]. */
     fun findTarget(paymentId: PaymentId): OperatorCancelTargetRow?
 
     fun findAttempt(attemptId: CancelAttemptId): CancelAttemptViewRow?

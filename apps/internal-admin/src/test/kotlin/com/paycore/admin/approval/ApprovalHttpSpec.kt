@@ -109,6 +109,20 @@ class ApprovalHttpSpec(
         }
     }
 
+    Given("ADMIN-PAYMENT-OPS-001 M-1 (§4.10 1행): the owner-service kind on the single-TX request endpoint") {
+        Then("it is 400 WRONG_EXECUTION_MODEL at kind resolution (no approval row, no audit row) — only the new endpoint creates it") {
+            val requester = ready.bootstrapped(AdminRole.SECURITY_ADMIN)
+            val target = storage.save(AdminAccountFixture.enrolledActive())
+            loggedIn(requester).perform(
+                post("/api/approvals").contentType(MediaType.APPLICATION_JSON).content(json("kind" to "OPERATOR_CORRECTION_CANCEL", "targetActorId" to target.id.value)),
+            ).let { it.status to it.contentAsString } shouldBe (400 to """{"error":"WRONG_EXECUTION_MODEL"}""")
+            AdminDbAccounts.root(container).use {
+                it.column("SELECT approval_id FROM admin_approval_request WHERE target_actor_id = ?", target.id.value) +
+                    it.column("SELECT action FROM admin_audit_event WHERE target_actor_id = ?", target.id.value)
+            } shouldBe emptyList()
+        }
+    }
+
     Given("reject, withdraw and list over HTTP") {
         Then("APPROVER rejects with TOTP (200 REJECTED), the requester withdraws (200 WITHDRAWN), later decisions are 409 ALREADY_DECIDED; a role-less account cannot list (403)") {
             val requester = ready.bootstrapped(AdminRole.SECURITY_ADMIN)

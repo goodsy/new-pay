@@ -21,8 +21,11 @@ data class AdminAuditEvent(
     val loginNameHmac: ByteArray?,
     val detail: String?,
     val reason: String? = null,
+    /** 계정이 아닌 대상 식별자(ADMIN-PAYMENT-OPS-001 §4.10 — Payment 대상 승인의 paymentId, 형식 고정). 계정 대상과 동시에 두지 않는다. */
+    val targetRef: String? = null,
 ) {
     init {
+        require(targetRef == null || (targetActorId == null && TARGET_REF.matches(targetRef))) { "a target reference is a fixed-format id and excludes an account target" }
         require(CODE.matches(action) && CODE.matches(resultCode)) { "audit action and result are fixed upper-case codes" }
         require(correlationId.isNotBlank() && correlationId.length <= 64) { "correlation id must be 1-64 characters" }
         require((actorKind == AuditActorKind.ADMIN) == (actorId != null)) { "an ADMIN audit row has an actor id, other kinds do not" }
@@ -36,13 +39,15 @@ data class AdminAuditEvent(
 
     override fun equals(other: Any?): Boolean =
         other is AdminAuditEvent && occurredAt == other.occurredAt && actorKind == other.actorKind && actorId == other.actorId && action == other.action &&
-            resultCode == other.resultCode && correlationId == other.correlationId && targetActorId == other.targetActorId && detail == other.detail &&
+            resultCode == other.resultCode && correlationId == other.correlationId && targetActorId == other.targetActorId && targetRef == other.targetRef &&
+            detail == other.detail &&
             (loginNameHmac?.contentEquals(other.loginNameHmac ?: ByteArray(0)) ?: (other.loginNameHmac == null))
 
     override fun hashCode(): Int = listOf(occurredAt, actorKind, actorId, action, resultCode, correlationId).hashCode()
 
     private companion object {
         val CODE = Regex("^[A-Z][A-Z0-9_]{0,47}$")
+        val TARGET_REF = Regex("^[a-z]{3}_[0-9A-HJKMNP-TV-Z]{26}$")
         val DETAIL = Regex("^[a-z][a-zA-Z0-9]*=[A-Za-z0-9_:.,*-]*(;[a-z][a-zA-Z0-9]*=[A-Za-z0-9_:.,*-]*)*$")
         const val HMAC_BYTES = 32
         const val DETAIL_MAX = 500

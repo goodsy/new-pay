@@ -23,6 +23,29 @@ describe('App (session, role menu, error mapping)', () => {
     expect(screen.queryByRole('button', { name: '내 요청' })).toBeNull()
   })
 
+  it('S8: OPERATOR sees the correction cancel and "my requests" menus (no findings); SECURITY_ADMIN and APPROVER see the findings menu', async () => {
+    const operator = fakeApi({
+      me: vi.fn(async () => ({ actorId: 'adm_O', displayName: '운영자', roles: ['OPERATOR'] })),
+      approvals: vi.fn(async () => ({ approvals: [] })),
+    })
+    const { unmount } = render(<App api={operator} />)
+    expect(await screen.findByRole('button', { name: '결제 보정 취소' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '내 요청' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '대사 발견' })).toBeNull()
+    unmount()
+    for (const role of ['SECURITY_ADMIN', 'APPROVER']) {
+      const api = fakeApi({
+        me: vi.fn(async () => ({ actorId: 'adm_S', displayName: role, roles: [role] })),
+        approvals: vi.fn(async () => ({ approvals: [] })),
+        audit: vi.fn(async () => ({ entries: [] })),
+      })
+      const view = render(<App api={api} />)
+      expect(await screen.findByRole('button', { name: '대사 발견' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '결제 보정 취소' })).not.toBeNull()
+      view.unmount()
+    }
+  })
+
   it('a SESSION_REPLACED answer during work returns to login with the explanation', async () => {
     const api = fakeApi({
       me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '승인자', roles: ['APPROVER'] })),

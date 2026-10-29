@@ -31,6 +31,7 @@ class AdminAuditRecorderService(private val store: AdminAuditStore) : AdminAudit
                 loginNameHmac = record.loginNameHmac,
                 detail = record.detail,
                 reason = record.reason,
+                targetRef = record.targetRef,
             ),
         )
     }

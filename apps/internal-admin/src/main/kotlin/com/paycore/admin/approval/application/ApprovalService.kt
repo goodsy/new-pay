@@ -20,12 +20,15 @@ import com.paycore.admin.approval.application.required.ApprovalPersistenceFailur
 import com.paycore.admin.approval.application.required.ApprovalRequestRepository
 import com.paycore.admin.approval.domain.ApprovalCause
 import com.paycore.admin.approval.domain.ApprovalDecision
+import com.paycore.admin.approval.domain.ApprovalExecutionModel
 import com.paycore.admin.approval.domain.ApprovalKind
 import com.paycore.admin.approval.domain.ApprovalParticipants
 import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
+import com.paycore.admin.approval.domain.ApprovalTarget
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionStatus
@@ -58,6 +61,8 @@ class ApprovalService(
 
     private fun requestStep(command: RequestApproval): ApprovalOutcome {
         val kind = ApprovalKind.entries.firstOrNull { it.name == command.kind } ?: return INVALID
+        // ADMIN-PAYMENT-OPS-001 M-6: 소유 서비스 종류는 이 단일 TX 요청 경로로 만들 수 없다(새 endpoint만 — 종류 해석 단계 400, 감사 없음).
+        if (kind.executionModel != ApprovalExecutionModel.ADMIN_OWNED) return ApprovalOutcome.Rejected(WRONG_EXECUTION_MODEL)
         if (kind.needsGrantedRole != (command.grantedRole != null) || kind.needsCause != (command.causeApprovalId != null)) return INVALID
         if (command.grantedRole != null && command.grantedRole !in ROLES) return INVALID
         // S6 리뷰 m-2: 원인 형식(승인 ID 또는 복구 회차)은 TX 전에 검사한다 — 형식 오류는 400 INVALID_INPUT(감사·TX 없음, D-65).
@@ -76,15 +81,15 @@ class ApprovalService(
                 try {
                     repository.insert(request)
                 } catch (_: ApprovalPersistenceFailure.DuplicatePending) {
-                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_PENDING), DUPLICATE_PENDING, command.targetActorId)
+                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_PENDING), DUPLICATE_PENDING, account(command.targetActorId))
                 }
                 val participants = executor.lockParticipants(listOf(command.requesterActorId, command.targetActorId))
                 val requester = participants[command.requesterActorId]
-                if (requester == null || !requester.holds(ApprovalParticipants.REQUESTER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "REQUESTER_NOT_ELIGIBLE", command.targetActorId)
+                if (requester == null || !requester.holds(ApprovalParticipants.REQUESTER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "REQUESTER_NOT_ELIGIBLE", account(command.targetActorId))
                 if (requester.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
-                val target = participants[command.targetActorId] ?: throw Refusal(ApprovalOutcome.Rejected(TARGET_NOT_FOUND), TARGET_NOT_FOUND, command.targetActorId)
+                val target = participants[command.targetActorId] ?: throw Refusal(ApprovalOutcome.Rejected(TARGET_NOT_FOUND), TARGET_NOT_FOUND, account(command.targetActorId))
                 if (target.securityVersion != targetSnapshot.securityVersion) throw Refusal(ApprovalOutcome.RetryLater, null, null)
-                eligibility(kind, command, target, requester)?.let { throw Refusal(ApprovalOutcome.Rejected(it), it, command.targetActorId) }
+                eligibility(kind, command, target, requester)?.let { throw Refusal(ApprovalOutcome.Rejected(it), it, account(command.targetActorId)) }
                 audit(now, requester, "APPROVAL_REQUESTED", "SUCCESS", command.context, request, null)
                 ApprovalOutcome.Created(request.id)
             }
@@ -104,6 +109,7 @@ class ApprovalService(
         ApprovalKind.ROLE_REACTIVATE -> reactivationRefusal(command.causeApprovalId!!, command.targetActorId, requester.actorId, null)
             ?: ApprovalParticipants.credentialIssuerConflict(kind, requester.actorId, target.credentialIssuers)
             ?: if (target.status != "ACTIVE") NOT_ELIGIBLE else if (executor.rolesSuspendedBy(command.targetActorId, command.causeApprovalId).isEmpty()) "NOTHING_TO_REACTIVATE" else null
+        ApprovalKind.OPERATOR_CORRECTION_CANCEL -> error("owner-service kinds are refused before the transaction (M-6)")
     }
 
     /** `ROLE_REACTIVATE` 원인 검사: 원인은 같은 대상의 실행된 재설정 승인이고, 요청자·승인자는 원인의 요청자·승인자 모두와 달라야 한다(H-A). */
@@ -132,12 +138,19 @@ class ApprovalService(
         // 0단계: 불변 열(종류·대상·부여 역할)만 비잠금 읽기 → SA·APPROVER를 활성화할 수 있는 종류면 열린 복구 회차를 먼저 잠근다(§4.13).
         val before = repository.immutableColumns(command.approvalId) ?: return ApprovalOutcome.NotFound
         kind.value = ApprovalKind.entries.firstOrNull { it.name == before.kind }?.name ?: UNKNOWN
-        val beforeKind = ApprovalKind.entries.firstOrNull { it.name == before.kind } ?: throw IntegrityViolation("kind")
+        // S5 리뷰 M-2: 무결성 위반 감사 행에 승인 ID와 0단계에서 읽은 대상(종류·식별자)을 남긴다.
+        val beforeTarget = auditTarget(before.targetKind, before.targetRef)
+        fun violation(column: String) = IntegrityViolation(column, command.approvalId, beforeTarget)
+        val beforeKind = ApprovalKind.entries.firstOrNull { it.name == before.kind } ?: throw violation("kind")
+        // ADMIN-PAYMENT-OPS-001 M-6: 소유 서비스 종류는 이 단일 TX 경로로 실행하지 않는다(컨트롤러가 0단계에서 2-TX 서비스로 보낸다 — 여기 오면 결함). TOTP 전에 끊는다.
+        if (beforeKind.executionModel != ApprovalExecutionModel.ADMIN_OWNED) throw violation(EXECUTION_MODEL)
         if (beforeKind.mayActivatePrivilegedRole(before.grantedRole)) executor.lockOpenRecoveryEpisode()
         // 1단계: 승인 행 잠금 재독 — 불변 열이 0단계와 다르면 무결성 위반(rev 0.5 n-1).
         val current = repository.lock(command.approvalId) ?: return ApprovalOutcome.NotFound
         val request = current.value
-        integrityMismatch(before.kind, before.targetActorId, before.grantedRole, request)?.let { throw IntegrityViolation(it) }
+        integrityMismatch(before.kind, before.targetKind, before.targetRef, before.grantedRole, request)?.let { throw violation(it) }
+        // 잠근 행 기준 재확인(0단계 뒤 root가 종류를 바꾼 경우 포함 — fail-closed, 계정 명령 실행기로 절대 가지 않는다).
+        if (request.kind.executionModel != ApprovalExecutionModel.ADMIN_OWNED) throw violation(EXECUTION_MODEL)
         val now = now()
         // 2단계: 판정표 — PENDING·만료 전(TX 시각)·승인자 ≠ 요청자·승인자 ≠ 대상.
         when (val decision = request.decideApproval(approverId, now)) {
@@ -157,17 +170,17 @@ class ApprovalService(
         val participants = executor.lockParticipants(listOf(request.requestedBy, approverId, request.targetActorId))
         // 4단계: 승인자 재검사 — 실패면 상태 변경 없이 rollback(403·401).
         val approver = participants[approverId]
-        if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", request.targetActorId, request.id)
+        if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", request.target, request.id)
         if (approver.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
         if (request.kind == ApprovalKind.ROLE_REACTIVATE) {
             reactivationRefusal(request.causeApprovalId!!, request.targetActorId, null, approverId)?.let {
-                throw Refusal(ApprovalOutcome.Refused(it), it, request.targetActorId, request.id)
+                throw Refusal(ApprovalOutcome.Refused(it), it, request.target, request.id)
             }
         }
         // D-ADMIN1-014·015: 대상 자격 발급 근거의 참여자(코드 수령자 포함)는 권한 상승을 승인할 수 없다 — TOTP 전, 상태 불변(403).
         participants[request.targetActorId]?.let { target ->
             ApprovalParticipants.credentialIssuerConflict(request.kind, approverId, target.credentialIssuers)?.let {
-                throw Refusal(ApprovalOutcome.Refused(it), it, request.targetActorId, request.id)
+                throw Refusal(ApprovalOutcome.Refused(it), it, request.target, request.id)
             }
         }
         // 5단계: 재인증 TOTP 검증·단계 소비(같은 TX). 실패면 전체 rollback → 별도 TX 계수(afterDecision).
@@ -239,7 +252,7 @@ class ApprovalService(
                 val participants = executor.lockParticipants(listOf(request.requestedBy, command.approverActorId))
                 val approver = participants[command.approverActorId]
                 if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) {
-                    throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", request.targetActorId, request.id)
+                    throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", request.target, request.id)
                 }
                 if (approver.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
                 if (executor.consumeStepUpTotp(command.approverActorId, command.totpCode) == StepUpResult.FAILED) {
@@ -279,7 +292,13 @@ class ApprovalService(
                 ApprovalDecision.Proceed -> Unit
             }
             val requester = executor.lockParticipants(listOf(command.requesterActorId))[command.requesterActorId]
-            if (requester == null || !requester.isActive) throw Refusal(ApprovalOutcome.Denied, "REQUESTER_NOT_ELIGIBLE", request.targetActorId, request.id)
+            // ADMIN 소유 종류는 기존대로 ACTIVE면 철회 가능(ADMIN-BOOT §4.7.8). 소유 서비스 종류는 종류의 요청자 역할(OPERATOR)까지 다시 본다(§4.10 — S4 리뷰 6).
+            val eligible = requester != null && if (request.kind.executionModel == ApprovalExecutionModel.OWNER_SERVICE) {
+                requester.holds(ApprovalParticipants.requesterRole(request.kind))
+            } else {
+                requester.isActive
+            }
+            if (!eligible) throw Refusal(ApprovalOutcome.Denied, "REQUESTER_NOT_ELIGIBLE", request.target, request.id)
             if (requester.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
             repository.update(current, request.withdrawn(command.requesterActorId, requester.displayName, now))
             audit(now, requester, "APPROVAL_WITHDRAWN", "WITHDRAWN", command.context, request, null)
@@ -301,8 +320,8 @@ class ApprovalService(
                         recorder.record(
                             AuditRecord(
                                 occurredAt = now, actorKind = "SYSTEM_JOB", actorId = null, actorDisplayName = null, action = "APPROVAL_EXPIRED",
-                                resultCode = "EXPIRED", correlationId = "job-expiry-$id", targetActorId = current.value.targetActorId,
-                                approvalId = id, detail = "kind=${current.value.kind.name}",
+                                resultCode = "EXPIRED", correlationId = "job-expiry-$id", targetActorId = actorOf(current.value.target),
+                                approvalId = id, detail = "kind=${current.value.kind.name}", targetRef = refOf(current.value.target),
                             ),
                         )
                         current.value.kind.name
@@ -310,6 +329,12 @@ class ApprovalService(
                 }
             } catch (_: AdminRetryLaterException) {
                 metrics.retryLater(EXPIRE_JOB)
+                null
+            } catch (e: RuntimeException) {
+                // S4 리뷰 1(High): 한 행의 실패(감사·저장·재구성)가 job 전체를 영구 정지시키지 않게 그 행만 건너뛴다(TX는 rollback — 다음 실행에서 다시).
+                // 경보는 지표 `paycore.admin.approval{operation=EXPIRE_JOB,result=ERROR}`(1건이라도 조사), 로그는 분류만(승인 ID — 본문·사유 없음).
+                metrics.decision(EXPIRE_JOB, UNKNOWN, "ERROR")
+                log.warn("operation=approval-expiry result=error approvalId={} failure={}", id, e.javaClass.simpleName)
                 null
             }
             if (changed != null) {
@@ -341,7 +366,7 @@ class ApprovalService(
         refusal.outcome
     } catch (violation: IntegrityViolation) {
         metrics.integrityViolation(violation.column)
-        separateAudit(context, actorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", null, null, "column=${violation.column}")
+        separateAudit(context, actorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", violation.target, violation.approvalId, "column=${violation.column}")
         ApprovalOutcome.IntegrityViolation
     } catch (_: AdminRetryLaterException) {
         ApprovalOutcome.RetryLater
@@ -364,14 +389,14 @@ class ApprovalService(
         throw AdminRetryLaterException(e)
     }
 
-    private fun separateAudit(context: AdminRequestContext, actorId: String, action: String, result: String, target: String?, approvalId: String?, detail: String) {
+    private fun separateAudit(context: AdminRequestContext, actorId: String, action: String, result: String, target: ApprovalTarget?, approvalId: String?, detail: String) {
         transactions.execute({ false }) {
             val actor = executor.snapshot(actorId)
             recorder.record(
                 AuditRecord(
                     occurredAt = now(), actorKind = if (actor != null) "ADMIN" else "ANONYMOUS", actorId = actor?.actorId, actorDisplayName = actor?.displayName,
-                    action = action, resultCode = result, correlationId = context.correlationId, targetActorId = target, approvalId = approvalId,
-                    remoteIp = context.remoteIp, detail = detail,
+                    action = action, resultCode = result, correlationId = context.correlationId, targetActorId = actorOf(target), approvalId = approvalId,
+                    remoteIp = context.remoteIp, detail = detail, targetRef = refOf(target),
                 ),
             )
         }
@@ -393,18 +418,27 @@ class ApprovalService(
         recorder.record(
             AuditRecord(
                 occurredAt = now, actorKind = "ADMIN", actorId = actorId, actorDisplayName = actor?.displayName, action = action, resultCode = result,
-                correlationId = context.correlationId, targetActorId = request.targetActorId, executorActorId = executor, approvalId = request.id,
-                remoteIp = context.remoteIp, detail = listOfNotNull(kindDetail, reasonDetail).joinToString(";"),
+                correlationId = context.correlationId, targetActorId = actorOf(request.target), executorActorId = executor, approvalId = request.id,
+                remoteIp = context.remoteIp, detail = listOfNotNull(kindDetail, reasonDetail).joinToString(";"), targetRef = refOf(request.target),
             ),
         )
     }
 
-    private fun integrityMismatch(kind: String, target: String, grantedRole: String?, locked: ApprovalRequest): String? = when {
+    /** 0단계 ↔ 1단계 불변 열 비교(대상은 종류 + 식별자 — 계정이면 target_actor_id, Payment면 target_ref). */
+    private fun integrityMismatch(kind: String, targetKind: String, targetRef: String, grantedRole: String?, locked: ApprovalRequest): String? = when {
         locked.kind.name != kind -> "kind"
-        locked.targetActorId != target -> "target_actor_id"
+        locked.target.kind.name != targetKind -> "target_kind"
+        locked.target.ref != targetRef -> if (locked.target is ApprovalTarget.Payment) "target_ref" else "target_actor_id"
         locked.grantedRole != grantedRole -> "granted_role"
         else -> null
     }
+
+    /** 감사 대상 열: 계정이면 target_actor_id, Payment면 target_ref(§4.10 — 모든 행). */
+    private fun actorOf(target: ApprovalTarget?): String? = (target as? ApprovalTarget.AdminAccount)?.actorId
+
+    private fun refOf(target: ApprovalTarget?): String? = (target as? ApprovalTarget.Payment)?.paymentId
+
+    private fun account(actorId: String): ApprovalTarget = ApprovalTarget.AdminAccount(actorId, 0)
 
     /**
      * 대상 스냅샷(요청 시점 표시용 — 판정은 실행 시 account가 다시 한다). D-ADMIN1-020(Q-S8-C): login_name은 **저장하지 않는다** — 승인 조회는 VIEWER·OPERATOR·APPROVER도 하므로
@@ -430,9 +464,14 @@ class ApprovalService(
     private fun now(): Instant = environment.now().truncatedTo(ChronoUnit.MILLIS)
 
     /** rollback할 거절(주 TX 변경을 버리고, [auditReason]이 있으면 별도 TX 감사). */
-    private class Refusal(val outcome: ApprovalOutcome, val auditReason: String?, val target: String?, val approvalId: String? = null) : RuntimeException(null, null, false, false)
+    private class Refusal(val outcome: ApprovalOutcome, val auditReason: String?, val target: ApprovalTarget?, val approvalId: String? = null) : RuntimeException(null, null, false, false)
 
-    private class IntegrityViolation(val column: String) : RuntimeException(null, null, false, false)
+    private class IntegrityViolation(val column: String, val approvalId: String? = null, val target: ApprovalTarget? = null) : RuntimeException(null, null, false, false)
+
+    /** 0단계 비잠금 값의 대상(감사 열 선택용 — 형식이 맞지 않는 값도 감사는 남겨야 하므로 실패하면 null). */
+    private fun auditTarget(targetKind: String, targetRef: String): ApprovalTarget? = runCatching {
+        if (targetKind == "PAYMENT") ApprovalTarget.Payment(targetRef, 0) else ApprovalTarget.AdminAccount(targetRef, 0)
+    }.getOrNull()
 
     /** 한 호출의 지표 종류 label(TX 안에서 읽은 승인 종류 — 읽기 전 실패면 `UNKNOWN`). */
     private class KindLabel(var value: String = UNKNOWN)
@@ -471,12 +510,17 @@ class ApprovalService(
         ApprovalOutcome.NotFound -> "NOT_FOUND"
         ApprovalOutcome.RetryLater -> "RETRY_LATER"
         ApprovalOutcome.IntegrityViolation -> "INTEGRITY_VIOLATION"
+        is ApprovalOutcome.Unavailable -> "UNAVAILABLE"
+        is ApprovalOutcome.Executing -> outcome.status
     }
 
     private companion object {
         const val DUPLICATE_PENDING = "DUPLICATE_PENDING"
         const val TARGET_NOT_FOUND = "TARGET_NOT_FOUND"
         const val NOT_ELIGIBLE = "NOT_ELIGIBLE"
+        const val WRONG_EXECUTION_MODEL = "WRONG_EXECUTION_MODEL"
+        const val EXECUTION_MODEL = "execution_model"
+        val log = LoggerFactory.getLogger(ApprovalService::class.java)
         const val EXPIRY_BATCH = 100
         const val REQUEST = "REQUEST"
         const val APPROVE = "APPROVE"

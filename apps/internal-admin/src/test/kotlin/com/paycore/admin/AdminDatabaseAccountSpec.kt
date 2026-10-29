@@ -197,6 +197,30 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             } shouldBe IMMUTABLE_COLUMNS.flatMap { (table, columns) -> columns.map { "$table.$it" to 1143 } }.toMap()
         }
 
+        Then("V6: the reconciliation checkpoint takes no INSERT or DELETE from the runtime (single row created by V5 — 1142), only its column UPDATE") {
+            runtime().use { c ->
+                listOf(
+                    c.errorCodeOf("INSERT INTO admin_ops_reconciliation_checkpoint (id, watermark, version) VALUES (1, 0, 0)"),
+                    c.errorCodeOf("DELETE FROM admin_ops_reconciliation_checkpoint"),
+                    c.errorCodeOf("UPDATE admin_ops_reconciliation_checkpoint SET watermark = watermark, last_run_at = last_run_at WHERE id = 1"),
+                )
+            } shouldBe listOf(1142, 1142, null)
+        }
+
+        Then("V6: the stored execution body and the command's pinned values cannot be rewritten by the runtime (1143 / 1142 — I-16)") {
+            runtime().use { c ->
+                mapOf(
+                    "execution request_body" to c.errorCodeOf("UPDATE admin_owner_execution SET request_body = request_body"),
+                    "execution fingerprint" to c.errorCodeOf("UPDATE admin_owner_execution SET fingerprint = fingerprint"),
+                    "command pinned_target" to c.errorCodeOf("UPDATE admin_operator_cancel_command SET pinned_target = pinned_target"),
+                    "command amount" to c.errorCodeOf("UPDATE admin_operator_cancel_command SET amount_minor = amount_minor"),
+                    "approval target_ref" to c.errorCodeOf("UPDATE admin_approval_request SET target_ref = target_ref"),
+                )
+            } shouldBe mapOf(
+                "execution request_body" to 1143, "execution fingerprint" to 1143, "command pinned_target" to 1142, "command amount" to 1142, "approval target_ref" to 1143,
+            )
+        }
+
         Then("mutable columns can be updated") {
             runtime().use { c ->
                 ADMIN_RUNTIME_COLUMN_UPDATES.mapValues { (table, columns) -> c.errorCodeOf("UPDATE $table SET ${columns.first()} = ${columns.first()}") }
@@ -305,6 +329,11 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_audit_event" to "SELECT, INSERT",
             "admin_bootstrap" to "SELECT, INSERT",
             "admin_enrollment_code" to "SELECT, INSERT",
+            // ADMIN-PAYMENT-OPS-001 V6(§4.11): 명령·대사 발견 INSERT-only, 실행 행 SELECT, INSERT + 열 UPDATE, checkpoint는 SELECT + 열 UPDATE(행은 V5가 만든다).
+            "admin_operator_cancel_command" to "SELECT, INSERT",
+            "admin_ops_reconciliation_checkpoint" to "SELECT",
+            "admin_ops_reconciliation_finding" to "SELECT, INSERT",
+            "admin_owner_execution" to "SELECT, INSERT",
             "admin_recovery_episode" to "SELECT, INSERT",
             "admin_role_event" to "SELECT, INSERT",
             "admin_session" to "SELECT, INSERT, UPDATE, DELETE",
@@ -323,9 +352,15 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_approval_request" to listOf("status", "decided_by", "decided_by_display_name", "decided_at", "result_code", "version"),
             "admin_enrollment_code" to listOf("used_at", "revoked_at"),
             "admin_recovery_episode" to listOf("closed_at"),
+            // V6: 실행 행의 변경 열(= JpaOwnerExecutionEntity updatable 열). 저장 본문·지문·승인 시각·기한·실행자는 불변(1143).
+            "admin_owner_execution" to listOf(
+                "attempt_count", "next_attempt_at", "last_attempt_at", "last_response_at", "last_failure", "integrity_flag", "resend_halted_reason",
+                "owner_result_code", "owner_reference", "version",
+            ),
+            "admin_ops_reconciliation_checkpoint" to listOf("watermark", "last_run_at", "last_full_scan_at", "version"),
         )
 
-        val APPEND_ONLY_TABLES = listOf("admin_audit_event", "admin_bootstrap", "admin_role_event")
+        val APPEND_ONLY_TABLES = listOf("admin_audit_event", "admin_bootstrap", "admin_role_event", "admin_operator_cancel_command", "admin_ops_reconciliation_finding")
 
         /** 초기화 스크립트의 ADMIN 건너뜀 안내(정확한 문구 — .env.example 수렴 절차가 "이 줄이 없어야 한다"로 참조). */
         const val ADMIN_SKIP_MESSAGE = "01-owned-databases.sh: ADMIN passwords not set — skipping paycore_admin (compose.yaml requires them)"
@@ -334,12 +369,19 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
         /** 대표 생성 불변 열(UPDATE 1143). */
         val IMMUTABLE_COLUMNS: Map<String, List<String>> = linkedMapOf(
             "admin_account" to listOf("actor_id", "login_name", "created_at"),
-            "admin_approval_request" to listOf("approval_id", "kind", "target_actor_id", "target_security_version", "requested_by", "requested_at", "expires_at"),
+            "admin_approval_request" to listOf(
+                "approval_id", "kind", "target_kind", "target_actor_id", "target_ref", "target_security_version", "target_snapshot", "requested_by", "requested_at", "expires_at",
+            ),
+            "admin_owner_execution" to listOf("approval_id", "request_body", "fingerprint", "approved_at", "execute_before", "executor_actor_id"),
+            "admin_ops_reconciliation_checkpoint" to listOf("id"),
             "admin_enrollment_code" to listOf("code_hash", "target_actor_id", "purpose", "basis", "expires_at"),
             "admin_recovery_episode" to listOf("episode_no", "opened_at", "expires_at"),
         )
 
-        private val FIRST_COLUMN = mapOf("admin_audit_event" to "event_id", "admin_bootstrap" to "id", "admin_role_event" to "event_id")
+        private val FIRST_COLUMN = mapOf(
+            "admin_audit_event" to "event_id", "admin_bootstrap" to "id", "admin_role_event" to "event_id", "admin_operator_cancel_command" to "approval_id",
+            "admin_ops_reconciliation_finding" to "finding_id",
+        )
         fun firstColumn(table: String): String = FIRST_COLUMN.getValue(table)
     }
 }

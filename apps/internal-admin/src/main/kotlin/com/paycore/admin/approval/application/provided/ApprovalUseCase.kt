@@ -57,8 +57,10 @@ sealed interface ApprovalOutcome {
 
     data class OwnerRejected(val code: String) : ApprovalOutcome
 
-    /** 업무 거절(상태 변경 없음 — 예: DUPLICATE_PENDING, TARGET_NOT_FOUND, NOT_ELIGIBLE, INVALID_INPUT). */
-    data class Rejected(val code: String) : ApprovalOutcome
+    /**
+     * 업무 거절(상태 변경 없음 — 예: DUPLICATE_PENDING, TARGET_NOT_FOUND, NOT_ELIGIBLE, INVALID_INPUT). 입력 형식 거절은 [field]·[reason]에 고정 분류(I-111 — 값 원문 없음).
+     */
+    data class Rejected(val code: String, val field: String? = null, val reason: String? = null) : ApprovalOutcome
 
     /** 2인 규칙 위반(예: SELF_APPROVAL, APPROVER_IS_TARGET, NOT_REQUESTER, CAUSE_PARTICIPANT) — 상태 변경 없음. */
     data class Refused(val code: String) : ApprovalOutcome
@@ -82,4 +84,10 @@ sealed interface ApprovalOutcome {
 
     /** 0단계·1단계 불변 열 불일치(정상 경로로 생길 수 없음 — rev 0.5 n-1): 전체 rollback, 별도 TX 감사, 500. */
     data object IntegrityViolation : ApprovalOutcome
+
+    /** 소유 서비스(PAYMENT) 호출 불가 — 저장·상태 변경·TOTP 소비 없음(ADMIN-PAYMENT-OPS-001 §4.12 2·§4.13 A). 웹 503. */
+    data class Unavailable(val code: String) : ApprovalOutcome
+
+    /** 소유 서비스 승인이 승인되어 실행 중(`EXECUTING`) 또는 결과 불명확(`EXECUTION_UNKNOWN`) — 회복 job이 이어받는다(§4.13 D·§4.16). 웹 200. */
+    data class Executing(val approvalId: String, val status: String) : ApprovalOutcome
 }

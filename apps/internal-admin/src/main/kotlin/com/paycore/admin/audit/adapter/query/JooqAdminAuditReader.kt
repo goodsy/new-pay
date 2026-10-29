@@ -35,7 +35,7 @@ class JooqAdminAuditReader(private val dsl: DSLContext) : AdminAuditReader {
         val occurredAt = DSL.field("DATE_FORMAT({0}, '%Y-%m-%dT%H:%i:%s.%fZ')", String::class.java, t.OCCURRED_AT)
         return dsl.select(
             t.EVENT_ID, occurredAt, t.ACTOR_KIND, t.ACTOR_ID, t.ACTOR_DISPLAY_NAME, t.EXECUTOR_ACTOR_ID, t.ACTION, t.TARGET_ACTOR_ID, t.RESULT_CODE,
-            t.APPROVAL_ID, t.CORRELATION_ID, t.DETAIL, t.REASON,
+            t.APPROVAL_ID, t.CORRELATION_ID, t.DETAIL, t.REASON, t.TARGET_REF,
         ).from(t).where(conditions).orderBy(t.EVENT_ID.desc()).limit(filter.limit).fetch { r ->
             AuditEntry(
                 eventId = r.get(t.EVENT_ID)!!,
@@ -51,6 +51,7 @@ class JooqAdminAuditReader(private val dsl: DSLContext) : AdminAuditReader {
                 correlationId = r.get(t.CORRELATION_ID)!!,
                 detail = r.get(t.DETAIL),
                 reason = r.get(t.REASON),
+                targetRef = r.get(t.TARGET_REF),
             )
         }
     }

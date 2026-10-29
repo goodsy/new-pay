@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class CancelFlowSpec(
     private val cancel: CancelPaymentUseCase,
     private val operator: OperatorCorrectionCancelUseCase,
+    private val targets: com.paycore.payment.payment.application.provided.OperatorCancelTargetQuery,
     private val van: ProgrammableVan,
     private val port: ObservedCancellationPort,
     private val admission: ScriptedAdmissionPort,
@@ -304,6 +305,8 @@ class CancelFlowSpec(
             replayed.view.cancellableAmountMinor shouldBe 0
             // 검토 #1 n-7: 반환 상태는 완료 반환(10,000 = 승인액) 기준 FULLY_CANCELLED — FORCED는 반환 상태를 바꾸지 않는다.
             replayed.view.returnStatus shouldBe ReturnStatus.FULLY_CANCELLED
+            // ADMIN-PAYMENT-OPS-001 checkpoint n-7: 실제 jOOQ 대상 조회·실제 행(FORCED|EXCEEDED)에서도 운영자 승인 대상 반환 가능액은 0(음수 아님, F-1).
+            targets.find(b.paymentId.value)!!.cancellableMinor shouldBe 0
         }
     }
 

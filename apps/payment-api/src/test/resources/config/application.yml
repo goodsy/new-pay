@@ -8,6 +8,9 @@ paycore:
     # CP-API-001 시험 값(운영값 아님). internal-port 0 = 시험마다 임의 포트(실제 포트는 InternalConnector.localPort).
     api:
       internal-port: 0
+      # ADMIN-PAYMENT-OPS-001 §4.7 내부 connector 상한(Demo 값 — 운영값 아님).
+      internal-max-threads: 16
+      internal-accept-count: 16
       retry-after:
         eligibility-unavailable: PT2S
         temporarily-unavailable: PT1S
@@ -33,6 +36,22 @@ paycore:
             secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh
           - key-id: test-k2
             secret: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTIh
+    # ADMIN-PAYMENT-OPS-001 §4.2 ADMIN → PAYMENT 내부 호출 서명(D-OPS-001) — 시험 Demo 값(운영값 아님). 키는 golden ②(admin-call-signature-v1.golden.json)의
+    # 시험 전용 키 두 개(교체 중 2키 시험)이고 위 entitlement 키와 다르다(키 공간 분리 기동 검사). 시각 창 300초는 Demo(운영값 LIVE Gate).
+    admin-channel:
+      clock-window: PT300S
+      signing-keys:
+        - key-id: adm-golden-k1
+          secret: dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAx
+        - key-id: adm-golden-k2
+          secret: dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAy
+    # ADMIN-PAYMENT-OPS-001 §4.4.3·§4.7·§4.17 업무 설정 — 시험 Demo 값(운영값 아님, LIVE Gate). 안정 지연 2초는 시험값(Demo 2분). 풀 16(PaymentApiTest) − 공개 예약 4 ≥ 4 + 2.
+    admin-ops:
+      max-execution-window: PT24H
+      decision-stable-delay: PT2S
+      read-permits: 4
+      command-permits: 2
+      public-pool-reserve: 4
   # AUTHN-001 결제창(§5·§6·§12.1) — 시험 Demo 값(운영값 아님). origin은 설정에서만 만든다(m-9).
   checkout:
     public-base-url: https://checkout.example.test

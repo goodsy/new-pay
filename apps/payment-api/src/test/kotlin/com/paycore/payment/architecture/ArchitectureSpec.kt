@@ -5,6 +5,7 @@ import com.paycore.testsupport.architecture.PayCoreArchitectureRules
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -313,12 +314,60 @@ class ArchitectureSpec : FunSpec({
         cancelServicesIndependentOfAdmission(names).check(classes)
     }
 
-    // rev 0.3 m-5(D-CANCEL1-001): 운영자 보정 취소 Use Case는 진입점이 없다 — 서비스 구현·Use Case 자신 밖의 어떤 main 클래스(adapter·다른 모듈)도 부르지 않는다. ADMIN-BOOT-001이 진입점을 열 때 이
-    // 규칙을 그 adapter 허용으로 바꾼다.
-    test("nothing in main calls OperatorCorrectionCancelUseCase except its service (no entry point — D-CANCEL1-001, m-5)") {
-        operatorCorrectionCancelHasNoEntryPoint().check(classes)
-        val fixture = com.paycore.archfixture.operatorcancel.OperatorCancelEntryPoint::class.java
-        violationsOf(operatorCorrectionCancelHasNoEntryPoint(), "com.paycore.archfixture.operatorcancel", fixture).isNotEmpty() shouldBe true
+    // ADMIN-PAYMENT-OPS-001 §4.8(AC3, CANCEL-001 m-5 완화): 운영자 보정 취소 진입은 인증된 ADMIN 채널 adapter의 **정확 FQN**만. 기대값 변경 기록: 이전 시험 "nothing in main calls … (no entry
+    // point)" → "only the authenticated admin entry adapter calls …" — 허용은 정확 FQN 1개씩만 늘었다(Kotlin 합성 중첩 클래스 `<FQN>$…`는 같은 허용). 규칙 11개 + 서명 비교 규칙(checkpoint L-4).
+    test("only the authenticated admin entry adapter calls the operator cancel ports; each fixture violates exactly its own rule (ADMIN-PAYMENT-OPS-001 §4.8)") {
+        val rules = operatorEntryRules()
+        rules.values.forEach { it.check(classes) }
+        // 실제 진입 adapter가 있다(빈 대상 통과가 아님).
+        ADMIN_ENTRY_CONTROLLERS.forEach { classes.contain(it) shouldBe true }
+        val fx = "com.paycore.archfixture.operatorcancel"
+        val fixtures = mapOf(
+            "operatorCorrectionCancelOnlyFromAdminEntry" to listOf(
+                com.paycore.archfixture.operatorcancel.OperatorCancelEntryPoint::class.java,
+                com.paycore.archfixture.operatorcancel.web.admin.AdminOperatorCancellationController::class.java,
+            ),
+            "operatorCancelTargetQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.TargetQueryCaller::class.java),
+            "operatorDecisionQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.DecisionQueryCaller::class.java),
+            "operatorCancelMalformedRecorderOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.RecorderCaller::class.java),
+            "deadlineConfirmationOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.DeadlineConfirmationCaller::class.java),
+            "startOperatorOnlyFromOperatorService" to listOf(com.paycore.archfixture.operatorcancel.DirectStartOperatorCaller::class.java),
+            "operatorServiceConcreteOnlyFromSpringConfig" to listOf(com.paycore.archfixture.operatorcancel.ConcreteServiceCaller::class.java),
+            "operatorCommandConstructedOnlyAtEntry" to listOf(
+                com.paycore.archfixture.operatorcancel.OperatorCommandFactory::class.java, com.paycore.archfixture.operatorcancel.OperatorCommandCopier::class.java,
+            ),
+            "adminEntryControllersNotReferenced" to listOf(com.paycore.archfixture.operatorcancel.ControllerReferrer::class.java),
+        )
+        fixtures.forEach { (name, list) ->
+            list.forEach { fixture ->
+                rules.forEach { (other, rule) ->
+                    val pkg = fixture.packageName
+                    withClue("$other on ${fixture.simpleName}") { violationsOf(rule, pkg, fixture).isNotEmpty() shouldBe (other == name) }
+                }
+            }
+        }
+        // L-2: 대상 FQN을 fixture로 바꾼 변형 규칙(같은 FQN이 아니므로).
+        val starting = com.paycore.archfixture.operatorcancel.DeadlineConfirmationStartingCancel::class.java
+        violationsOf(deadlineConfirmationNeverStartsCancel(starting.name), fx, starting).let { details ->
+            details.any { "PaymentCancellationRepository.lock" in it } shouldBe true
+            details.any { "CancelStartService" in it } shouldBe true
+        }
+        val locking = com.paycore.archfixture.operatorcancel.DeadlineConfirmationLockingTarget::class.java
+        violationsOf(deadlineConfirmationNeverStartsCancel(locking.name), fx, locking).any { "OrderPaymentControlRepository" in it } shouldBe true
+        deadlineConfirmationNeverStartsCancel("$BASE_PACKAGE.payment.application.OperatorDeadlineConfirmationService").check(classes)
+        classes.contain("$BASE_PACKAGE.payment.application.OperatorDeadlineConfirmationService") shouldBe true
+        // 경로 규칙: 4개 진입 컨트롤러는 @RestController + 클래스 @RequestMapping이 /internal/v1/admin/로 시작. fixture(/v1/…)는 위반.
+        adminEntryMappingDefects(ADMIN_ENTRY_CONTROLLERS.map { classes.get(it) }) shouldBe emptyList()
+        adminEntryMappingDefects(listOf(fixtureClasses(fx, com.paycore.archfixture.operatorcancel.PublicPathOperatorCancelController::class.java).single())).size shouldBe 1
+    }
+
+    // checkpoint L-4: 서명 비교는 상수 시간 MessageDigest.isEqual이고 문자열·배열 동등 비교(String.equals·contentEquals·Arrays.equals·Kotlin ==)를 쓰지 않는다.
+    test("AdminCallSignature compares with MessageDigest.isEqual and never with String/array equality (checkpoint L-4)") {
+        val target = "$BASE_PACKAGE.payment.adapter.web.admin.AdminCallSignature"
+        adminSignatureConstantTimeCompare(target).check(classes)
+        classes.get(target).methodCallsFromSelf.any { it.target.owner.fullName == "java.security.MessageDigest" && it.target.name == "isEqual" } shouldBe true
+        val fixture = com.paycore.archfixture.operatorcancel.StringCompareSignature::class.java
+        violationsOf(adminSignatureConstantTimeCompare(fixture.name), "com.paycore.archfixture.operatorcancel", fixture).isNotEmpty() shouldBe true
     }
 
     // CP-QUERY-001 CQ-06: 결제 상태 조회 Port(비권위 — 한 읽기 스냅샷, 잠금 없음)는 조회 서비스만 쓴다. 명령 판정은 JPA 잠금 재판정이 한다(원칙 §4).
@@ -614,14 +663,152 @@ class ArchitectureSpec : FunSpec({
                 )
                 .`as`("cancel services never evaluate new-payment rights or daily limits (K-3)")
 
-        fun operatorCorrectionCancelHasNoEntryPoint(): com.tngtech.archunit.lang.ArchRule {
-            val useCase = "$BASE_PACKAGE.payment.application.provided.OperatorCorrectionCancelUseCase"
+        private const val APP = "$BASE_PACKAGE.payment.application"
+        private const val ADMIN_WEB = "$BASE_PACKAGE.payment.adapter.web.admin"
+
+        /** ADMIN-PAYMENT-OPS-001 §4.8: 인증된 ADMIN 진입 컨트롤러 4개(정확 FQN). */
+        val ADMIN_ENTRY_CONTROLLERS = listOf(
+            "$ADMIN_WEB.OperatorCancelTargetController", "$ADMIN_WEB.AdminOperatorCancellationController", "$ADMIN_WEB.OperatorDecisionController",
+            "$ADMIN_WEB.OperatorDeadlineConfirmationController",
+        )
+
+        /** 정확 FQN 또는 그 Kotlin 합성 중첩 클래스(`<FQN>$…` — Companion·WhenMappings·람다)인가. */
+        private fun exactly(c: com.tngtech.archunit.core.domain.JavaClass, names: Collection<String>) = names.any { c.name == it || c.name.startsWith("$it\$") }
+
+        /** [target]에 의존하는 클래스는 [allowed](정확 FQN + 합성 중첩)뿐. */
+        private fun onlyFrom(target: String, allowed: List<String>, description: String): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("classes other than ${allowed.map { it.substringAfterLast('.') }}") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    !exactly(c, allowed + target)
+                })
+                .should().dependOnClassesThat().haveFullyQualifiedName(target)
+                .allowEmptyShould(true)
+                .`as`(description)
+
+        /**
+         * §4.8 규칙 11개 중 의존 제한 9개(이름 → 규칙). 경로 규칙([adminEntryMappingDefects])과 기한 확인 미시작 규칙([deadlineConfirmationNeverStartsCancel] — 대상 FQN 인자)은 따로.
+         * `operatorCommandConstructedOnlyAtEntry`의 허용에 명세 목록 외 정확 FQN 2개(엄격 본문 해석기·기한 확인 컨트롤러)를 더했다(I-57 — 명령을 만드는 곳이 해석기이고 기한 확인도 같은 명령을 쓴다).
+         */
+        fun operatorEntryRules(): Map<String, com.tngtech.archunit.lang.ArchRule> = linkedMapOf(
+            "operatorCorrectionCancelOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.OperatorCorrectionCancelUseCase", listOf("$APP.OperatorCorrectionCancelService", "$ADMIN_WEB.AdminOperatorCancellationController"),
+                "only the authenticated admin entry adapter calls OperatorCorrectionCancelUseCase",
+            ),
+            "operatorCancelTargetQueryOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.OperatorCancelTargetQuery", listOf("$APP.OperatorCorrectionCancelService", "$ADMIN_WEB.OperatorCancelTargetController"),
+                "only the authenticated admin entry adapter calls OperatorCancelTargetQuery",
+            ),
+            "operatorDecisionQueryOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.OperatorDecisionQuery", listOf("$APP.OperatorDecisionQueryService", "$ADMIN_WEB.OperatorDecisionController"),
+                "only the authenticated admin entry adapter calls OperatorDecisionQuery",
+            ),
+            "operatorCancelMalformedRecorderOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.OperatorCancelMalformedRecorder",
+                listOf("$APP.OperatorCancelMalformedAuditService", "$ADMIN_WEB.AdminOperatorCancellationController", "$ADMIN_WEB.OperatorDeadlineConfirmationController"),
+                "only the authenticated admin entry adapters record malformed operator commands",
+            ),
+            "deadlineConfirmationOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.ConfirmOperatorApprovalDeadlineUseCase", listOf("$APP.OperatorDeadlineConfirmationService", "$ADMIN_WEB.OperatorDeadlineConfirmationController"),
+                "only the authenticated admin entry adapter calls ConfirmOperatorApprovalDeadlineUseCase (rev 0.4 L-1)",
+            ),
+            "startOperatorOnlyFromOperatorService" to com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("classes other than the operator service") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    !exactly(c, listOf("$APP.OperatorCorrectionCancelService", "$APP.CancelStartService"))
+                })
+                .should().accessTargetWhere(accessTo("CancelStartService.startOperator", mapOf("$APP.CancelStartService" to setOf("startOperator"))))
+                .allowEmptyShould(true).`as`("only OperatorCorrectionCancelService calls CancelStartService.startOperator"),
+            "operatorServiceConcreteOnlyFromSpringConfig" to com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("classes other than the services and Spring configuration") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    !exactly(c, listOf("$APP.OperatorCorrectionCancelService", "$APP.OperatorCancelMalformedAuditService")) &&
+                        !c.isAnnotatedWith("org.springframework.context.annotation.Configuration")
+                })
+                .should().dependOnClassesThat().haveFullyQualifiedName("$APP.OperatorCorrectionCancelService")
+                .orShould().dependOnClassesThat().haveFullyQualifiedName("$APP.OperatorCancelMalformedAuditService")
+                .allowEmptyShould(true).`as`("only the services themselves and Spring configuration depend on the concrete operator services"),
+            "operatorCommandConstructedOnlyAtEntry" to operatorCommandConstructedOnlyAtEntry(),
+            "adminEntryControllersNotReferenced" to com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("classes other than the entry controllers") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    !exactly(c, ADMIN_ENTRY_CONTROLLERS)
+                })
+                .should().dependOnClassesThat().haveNameMatching(ADMIN_ENTRY_CONTROLLERS.joinToString("|", "^(", ")(\\$.*)?$") { java.util.regex.Pattern.quote(it) })
+                .allowEmptyShould(true).`as`("no main class references the admin entry controllers"),
+        )
+
+        /**
+         * 명령·운영자 개시자를 **만드는 모든 호출**(생성자, data class `copy`·`copy$default`, 그 타입을 반환하는 메서드 — rev 0.3 L-c)은 진입 경로·조정 서비스·두 타입 자신·domain·persistence
+         * Mapper뿐.
+         */
+        fun operatorCommandConstructedOnlyAtEntry(): com.tngtech.archunit.lang.ArchRule {
+            val types = setOf("$APP.provided.OperatorCorrectionCancelCommand", "$DOMAIN.CancelInitiator\$Operator")
+            val allowed = listOf(
+                "$ADMIN_WEB.AdminOperatorCancellationController", "$ADMIN_WEB.AdminOperatorCancellationRequestParser", "$ADMIN_WEB.OperatorDeadlineConfirmationController",
+                "$APP.OperatorCorrectionCancelService", "$APP.CancelStartService",
+            ) + types
+            val creates = com.tngtech.archunit.base.DescribedPredicate.describe("creates an operator command or initiator") { call: com.tngtech.archunit.core.domain.JavaCall<*> ->
+                val t = call.target
+                val owner = t.owner.fullName
+                val returns = t.rawReturnType.fullName
+                (owner in types && (t.name == "<init>" || kotlinSourceName(t.name) == "copy")) || returns in types
+            }
             return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
-                .that().doNotHaveFullyQualifiedName(useCase).and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService")
-                .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.payment.application.OperatorCorrectionCancelService\$Companion")
-                .should().dependOnClassesThat().haveFullyQualifiedName(useCase)
-                .`as`("OperatorCorrectionCancelUseCase has no caller in main (no entry point before ADMIN-BOOT-001)")
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("classes outside the entry, services, domain and persistence") { c: com.tngtech.archunit.core.domain.JavaClass ->
+                    !exactly(c, allowed) && !c.packageName.startsWith(DOMAIN) && !c.packageName.startsWith("$BASE_PACKAGE.payment.adapter.persistence")
+                })
+                .should().callCodeUnitWhere(creates)
+                .allowEmptyShould(true).`as`("only the admin entry, the operator services, the two types, the domain and persistence mappers create operator commands")
         }
+
+        /**
+         * rev 0.4 L-2: [target](+ 합성 중첩)은 취소를 시작·잠금·예약하지 않는다 — 쓰기·잠금 계열 메서드 호출과 시작 단계 클래스 의존 금지(조회 `findIdByApprovalId`·`find`는 허용).
+         */
+        fun deadlineConfirmationNeverStartsCancel(target: String): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("the deadline confirmation service") { c: com.tngtech.archunit.core.domain.JavaClass -> exactly(c, listOf(target)) })
+                .should().accessTargetWhere(
+                    accessTo(
+                        "cancel writes, locks or starts",
+                        mapOf(
+                            "$APP.required.PaymentCancellationRepository" to setOf("insertNew", "lock", "update"),
+                            "$APP.required.ReturnBalanceRepository" to setOf("insertNew", "update", "lockByPaymentId"),
+                            "$APP.required.CancellationRecoveryScheduleStore" to setOf("insert"),
+                            "$DOMAIN.PaymentCancellation\$Companion" to setOf("open"), "$DOMAIN.PaymentCancellation" to setOf("open"),
+                            "$DOMAIN.ReturnBalance\$Companion" to setOf("open"), "$DOMAIN.ReturnBalance" to setOf("reserve", "open"),
+                        ),
+                    ),
+                )
+                .orShould().dependOnClassesThat().haveNameMatching(
+                    listOf(
+                        "$DOMAIN.CancelStart", "$APP.CancelStartService", "$APP.CancellationDispatchService",
+                        // review L-1: 대상 잠금·Payment·승인 저장소 자체에 의존하지 않는다(취소를 시작할 재료를 쥘 수 없다).
+                        "$APP.required.OrderPaymentControlRepository", "$APP.required.PaymentRepository", "$APP.required.PaymentAuthorizationRepository",
+                    ).joinToString("|", "^(", ")(\\$.*)?$") { java.util.regex.Pattern.quote(it) },
+                )
+                .allowEmptyShould(true).`as`("the deadline confirmation never starts, locks or reserves a cancellation (rev 0.4 L-2)")
+
+        /** §4.8 `adminEntryMappedUnderAdminPath`: 결함 목록(빈 목록 = 통과) — @RestController가 아니거나 클래스 @RequestMapping이 `/internal/v1/admin/`로 시작하지 않음. */
+        fun adminEntryMappingDefects(controllers: List<com.tngtech.archunit.core.domain.JavaClass>): List<String> = controllers.mapNotNull { c ->
+            val rest = c.isAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+            val paths = c.tryGetAnnotationOfType(org.springframework.web.bind.annotation.RequestMapping::class.java).orElse(null)
+                ?.let { (it.value.toList() + it.path.toList()) }.orEmpty()
+            if (rest && paths.isNotEmpty() && paths.all { it.startsWith("/internal/v1/admin/") }) null else c.name
+        }
+
+        /** checkpoint L-4: [target](+ 합성 중첩)은 String·배열 동등 비교(Kotlin `==` 포함)를 호출하지 않는다. */
+        fun adminSignatureConstantTimeCompare(target: String): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that(com.tngtech.archunit.base.DescribedPredicate.describe("the admin call signature") { c: com.tngtech.archunit.core.domain.JavaClass -> exactly(c, listOf(target)) })
+                .should().callMethodWhere(
+                    com.tngtech.archunit.base.DescribedPredicate.describe("String/array equality") { call: com.tngtech.archunit.core.domain.JavaMethodCall ->
+                        val owner = call.target.owner.fullName
+                        val name = kotlinSourceName(call.target.name)
+                        (owner == "java.lang.String" && name in setOf("equals", "contentEquals", "equalsIgnoreCase")) ||
+                            (owner == "java.util.Arrays" && name == "equals") ||
+                            (owner == "kotlin.jvm.internal.Intrinsics" && name == "areEqual") ||
+                            (owner.startsWith("kotlin.text.StringsKt") && name in setOf("equals", "contentEquals")) ||
+                            (owner.startsWith("kotlin.collections.ArraysKt") && name in setOf("contentEquals"))
+                    },
+                )
+                .allowEmptyShould(true).`as`("the admin call signature compares only with MessageDigest.isEqual")
 
         /**
          * CP-QUERY-001 CQ-06: `PaymentStatusReader`(비권위 조회 Port)에 의존하는 main 클래스는 Port 자신·조회 서비스·jOOQ 구현뿐이다(명령 서비스·다른 adapter가 조회 view로 판정하지 못하게).

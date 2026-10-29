@@ -174,12 +174,47 @@ class OperatorCorrectionCancelSpec(
             operator.cancel(c).shouldBeInstanceOf<OperatorCorrectionCancelResult.Rejected>().code shouldBe OperatorCancelRejectionCode.CANCEL_IN_PROGRESS
             rejections(c.approvalId.value) shouldBe 1
         }
+        Then("I-59 (S9): a rejection is a new decision the first time and a replayed decision afterwards (the decision metric label)") {
+            val a = fixture.authorized()
+            start.start(a.command()).shouldBeInstanceOf<CancelStartOutcome.Accepted>()
+            val c = a.operatorCommand()
+            (1..2).map { operator.cancel(c).shouldBeInstanceOf<OperatorCorrectionCancelResult.Rejected>().replayed } shouldBe listOf(false, true)
+        }
         Then("the audit row and the rejection share the TX: a failure after the audit append leaves no row and the command fails") {
             val a = fixture.authorized()
             val c = a.operatorCommand(requestedBy = "opr-same-0003", approvedBy = "opr-same-0003")
             faults.after(FaultPoint.OPERATOR_REJECTION_APPEND) { throw IllegalStateException("injected after the audit append") }
             shouldThrow<RuntimeException> { operator.cancel(c) }
             rejections(c.approvalId.value) shouldBe 0
+        }
+    }
+
+    // ADMIN-PAYMENT-OPS-001 F-1(D-CPQ-005): 승인 대상 조회의 반환 가능액은 domain 식 max(0, 승인액 − 완료 − 예약 − FORCED)다. FORCED 초과(전액 반환 뒤 거절된 취소의
+    // 늦은 성공)에서 음수가 되면 안 된다. 조회 행은 시험 대역 Reader가 그 모양 그대로 준다(쓰기 경로가 남기는 값 — CancelFlowSpec FORCED|EXCEEDED 시나리오와 같은 금액).
+    Given("a FORCED excess after a full return (ADMIN-PAYMENT-OPS-001 F-1, D-CPQ-005)") {
+        val paymentId = com.paycore.payment.payment.domain.PaymentId("pay_01JC0000000000000000000009")
+        fun query(row: com.paycore.payment.payment.application.required.OperatorCancelTargetRow): OperatorCancelTargetQuery {
+            val views = io.mockk.mockk<com.paycore.payment.payment.application.required.CancellationViewReader>()
+            io.mockk.every { views.findTarget(paymentId) } returns row
+            return OperatorCorrectionCancelService(start, io.mockk.mockk(), views)
+        }
+        Then("the cancellable amount is 0, never negative (authorized 10,000, completed 10,000, FORCED 4,000)") {
+            val t = query(
+                com.paycore.payment.payment.application.required.OperatorCancelTargetRow(
+                    paymentId, Money(10_000, com.paycore.payment.payment.domain.CurrencyCode("KRW")), hasBalance = true,
+                    completedMinor = 10_000, reservedMinor = 0, forcedMinor = 4_000, balanceRevision = 5,
+                ),
+            ).find(paymentId.value)!!
+            t.cancellableMinor shouldBe 0
+            t.balanceRevision shouldBe 5
+        }
+        Then("a FORCED return within the balance keeps the authoritative remainder (10,000 − 4,000 = 6,000)") {
+            query(
+                com.paycore.payment.payment.application.required.OperatorCancelTargetRow(
+                    paymentId, Money(10_000, com.paycore.payment.payment.domain.CurrencyCode("KRW")), hasBalance = true,
+                    completedMinor = 0, reservedMinor = 0, forcedMinor = 4_000, balanceRevision = 2,
+                ),
+            ).find(paymentId.value)!!.cancellableMinor shouldBe 6_000
         }
     }
 })

@@ -10,9 +10,41 @@ paycore:
   admin:
     deployment-mode: DEMO
     approval:
+      # I-131: 근거·사유 조회 속도 제한(시험 값).
+      justification-per-minute: 5
       expiry-job:
         # 시험은 job을 끄고 Use Case(expireDue)를 직접 부른다(경합 시험에 끼어들지 않게).
         enabled: false
+    # PAYMENT 운영 호출(시험): 대역 서버 StubPaymentOpsServer(고정 포트 — 새 Spring 컨텍스트를 만들지 않게), 키 = 계약 golden ② 시험 키 adm-golden-k1(공개 값 — 운영 키 아님).
+    # 시험 timeout은 짧게(timeout → EXECUTION_UNKNOWN 시험), 순서 검사는 운영과 같다: stale(1s + 2s + 30s) < backoff-max(1m) < window(24h) ≤ PAYMENT 거울(24h).
+    payment-ops:
+      base-url: http://127.0.0.1:18493
+      key-id: adm-golden-k1
+      signing-key: "dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAx"
+      connect-timeout: 1s
+      read-timeout: 2s
+      permits:
+        approval: 4
+        lookup: 4
+        execution: 4
+      lookup-per-minute: 5
+      execution-window: 24h
+      backoff-initial: 30s
+      backoff-max: 1m
+      payment-max-execution-window: 24h
+      deadline-skew: 5m
+      recovery-batch-size: 50
+      # 대사(§4.17 — Demo): PAYMENT 안정 지연 거울 값, 실행당 증분 페이지 상한, 전체 스캔 주기(watermark 불변 — 최종 안전망).
+      decision-stable-delay: 2m
+      reconciliation-max-pages: 10
+      reconciliation-full-scan-interval: 1d
+      reconciliation:
+        enabled: false
+        fixed-delay: 5m
+      recovery:
+        # 시험은 job을 끄고 Use Case(recoverDue)를 직접 부른다.
+        enabled: false
+        fixed-delay: 30s
     network:
       # MockMvc 기본 remoteAddr(127.0.0.1)와 IpAllowlistSpec의 CIDR 시험 값.
       ip-allowlist: 127.0.0.1,10.20.0.0/16

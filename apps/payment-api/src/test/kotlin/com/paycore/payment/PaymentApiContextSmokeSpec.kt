@@ -41,7 +41,7 @@ class PaymentApiContextSmokeSpec(
         flyway.configuration.locations.map { it.descriptor } shouldBe
             listOf("classpath:db/migration/payment", "classpath:db/runtime-privilege/payment")
         flyway.info().pending().size shouldBe 0
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26")
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28")
         flyway.info().applied().map { it.installedBy }.toSet() shouldBe setOf(PaymentDbAccounts.PAYMENT_MIGRATION_USER)
     }
 

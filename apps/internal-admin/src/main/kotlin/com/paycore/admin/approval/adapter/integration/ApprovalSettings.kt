@@ -10,11 +10,14 @@ import java.time.Instant
  * 승인 설정(`paycore.admin.approval` — D-SV **Demo 값, 운영값 아님**: 요청 유효 24시간, 만료 정리 주기). 기본값 없음. 승인 ID는 `apr_` + ULID(48비트 ms + 80비트 SecureRandom).
  */
 @ConfigurationProperties(prefix = "paycore.admin.approval")
-class ApprovalSettings(override val validity: Duration, val expiryJob: ExpiryJob) : ApprovalEnvironment {
+class ApprovalSettings(override val validity: Duration, val expiryJob: ExpiryJob, justificationPerMinute: Int? = null) : ApprovalEnvironment {
     private val random = SecureRandom()
+
+    override val justificationPerMinute: Int = requireNotNull(justificationPerMinute) { "paycore.admin.approval.justification-per-minute is required" }
 
     init {
         require(!validity.isNegative && !validity.isZero) { "paycore.admin.approval.validity must be positive" }
+        require(this.justificationPerMinute in 1..MAX_RATE) { "paycore.admin.approval.justification-per-minute 1..$MAX_RATE" }
     }
 
     class ExpiryJob(val enabled: Boolean, val fixedDelay: Duration)
@@ -49,5 +52,6 @@ class ApprovalSettings(override val validity: Duration, val expiryJob: ExpiryJob
         const val ULID_LENGTH = 26
         const val TIME_CHARS = 10
         const val RANDOM_BYTES = 10
+        const val MAX_RATE = 10_000
     }
 }

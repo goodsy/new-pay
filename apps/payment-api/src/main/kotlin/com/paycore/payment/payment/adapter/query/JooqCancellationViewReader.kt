@@ -1,6 +1,9 @@
 package com.paycore.payment.payment.adapter.query
 
 import com.paycore.payment.jooq.generated.Tables.CANCELLATION_RECOVERY_SCHEDULE
+import com.paycore.payment.jooq.generated.Tables.INCIDENT_HOLD
+import com.paycore.payment.jooq.generated.Tables.INCIDENT_HOLD_RELEASE
+import com.paycore.payment.jooq.generated.Tables.PAYMENT
 import com.paycore.payment.jooq.generated.Tables.CANCEL_ATTEMPT
 import com.paycore.payment.jooq.generated.Tables.PAYMENT_AUTHORIZATION
 import com.paycore.payment.jooq.generated.Tables.PAYMENT_CANCELLATION
@@ -121,29 +124,42 @@ class JooqCancellationViewReader(private val dsl: DSLContext) : CancellationView
         throw PersistenceFailure.Unavailable(e)
     }
 
+    /**
+     * ADMIN-PAYMENT-OPS-001 F-2·F-3: `payment`에서 시작한다(승인 없는 Payment도 행 — cancellable=false). 상태·풀리지 않은 hold·진행 중 취소(생성 열 `in_flight_payment_id`)를 함께 읽는다.
+     * 관리 조회라 질의 시간 상한 hint(`MAX_EXECUTION_TIME`, §4.7 — 서버 강제, 초과 3024 → [QueryTimedOut])를 붙인다.
+     */
     @Transactional(readOnly = true)
-    override fun findTarget(paymentId: PaymentId): OperatorCancelTargetRow? = try {
+    override fun findTarget(paymentId: PaymentId): OperatorCancelTargetRow? = AdminReadLimits.guard {
+        val p = PAYMENT
         val a = PAYMENT_AUTHORIZATION
         val t = PAYMENT_TRANSACTION
         val b = RETURN_BALANCE
-        dsl.select(a.PAYMENT_ID, t.AMOUNT_MINOR, t.CURRENCY, b.PAYMENT_ID, b.COMPLETED_MINOR, b.RESERVED_MINOR, b.FORCED_MINOR, b.REVISION)
-            .from(a)
+        val h = INCIDENT_HOLD
+        val r = INCIDENT_HOLD_RELEASE
+        val c = PAYMENT_CANCELLATION
+        val onHold = DSL.field(DSL.exists(DSL.selectOne().from(h).where(h.PAYMENT_ID.eq(p.PAYMENT_ID)).andNotExists(DSL.selectOne().from(r).where(r.INCIDENT_HOLD_ID.eq(h.ID)))))
+        val inFlight = DSL.field(DSL.exists(DSL.selectOne().from(c).where(c.IN_FLIGHT_PAYMENT_ID.eq(p.PAYMENT_ID))))
+        dsl.select(p.PAYMENT_ID, p.STATUS, t.AMOUNT_MINOR, t.CURRENCY, b.PAYMENT_ID, b.COMPLETED_MINOR, b.RESERVED_MINOR, b.FORCED_MINOR, b.REVISION, onHold, inFlight)
+            .hint(AdminReadLimits.HINT)
+            .from(p)
+            .leftJoin(a).on(a.PAYMENT_ID.eq(p.PAYMENT_ID))
             .leftJoin(t).on(t.AUTHORIZATION_ID.eq(a.AUTHORIZATION_ID).and(t.TYPE.eq("AUTHORIZATION")))
-            .leftJoin(b).on(b.PAYMENT_ID.eq(a.PAYMENT_ID))
-            .where(a.PAYMENT_ID.eq(paymentId.value))
-            .fetchOne { r ->
-                val hasBalance = r.get(b.PAYMENT_ID) != null
+            .leftJoin(b).on(b.PAYMENT_ID.eq(p.PAYMENT_ID))
+            .where(p.PAYMENT_ID.eq(paymentId.value))
+            .fetchOne { row ->
+                val hasBalance = row.get(b.PAYMENT_ID) != null
                 OperatorCancelTargetRow(
-                    paymentId = PaymentId(r.get(a.PAYMENT_ID)),
-                    authorizedMoney = r.get(t.AMOUNT_MINOR)?.let { Money(it, CurrencyCode(r.get(t.CURRENCY))) },
+                    paymentId = PaymentId(row.get(p.PAYMENT_ID)),
+                    authorizedMoney = row.get(t.AMOUNT_MINOR)?.let { Money(it, CurrencyCode(row.get(t.CURRENCY))) },
                     hasBalance = hasBalance,
-                    completedMinor = if (hasBalance) r.get(b.COMPLETED_MINOR) else 0,
-                    reservedMinor = if (hasBalance) r.get(b.RESERVED_MINOR) else 0,
-                    forcedMinor = if (hasBalance) r.get(b.FORCED_MINOR) else 0,
-                    balanceRevision = if (hasBalance) r.get(b.REVISION) else 0,
+                    completedMinor = if (hasBalance) row.get(b.COMPLETED_MINOR) else 0,
+                    reservedMinor = if (hasBalance) row.get(b.RESERVED_MINOR) else 0,
+                    forcedMinor = if (hasBalance) row.get(b.FORCED_MINOR) else 0,
+                    balanceRevision = if (hasBalance) row.get(b.REVISION) else 0,
+                    paymentStatus = row.get(p.STATUS),
+                    onHold = row.get(onHold) == true,
+                    inFlightCancel = row.get(inFlight) == true,
                 )
             }
-    } catch (e: DataAccessException) {
-        throw PersistenceFailure.Unavailable(e)
     }
 }

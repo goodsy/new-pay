@@ -89,6 +89,12 @@ enum class FaultPoint {
     CANCELLATION_INSERT, CANCELLATION_LOCK, CANCELLATION_UPDATE, RETURN_BALANCE_INSERT, RETURN_BALANCE_LOCK, RETURN_BALANCE_UPDATE,
     CANCEL_SCHEDULE_INSERT, CANCEL_SCHEDULE_UPDATE, OPERATOR_REJECTION_APPEND,
 
+    /** ADMIN-PAYMENT-OPS-001: 결정 조회 직후(hook 인자 = 조회 결과 — 경합 장벽)·결정 INSERT 직후(1062 주입 — TX 전체 rollback 확인). */
+    OPERATOR_DECISION_FIND, OPERATOR_DECISION_APPEND,
+
+    /** ADMIN-PAYMENT-OPS-001 §4.7: 관리 대상 조회 직후(격리 시험 — hook이 실제 DB 연결로 SLEEP해 permit·연결 점유를 만든다). */
+    OPERATOR_TARGET_FIND,
+
     /** CANCEL-001 S7: 취소 비권위 조회 직후(회복 판정과 잠금 사이의 경합 재현 — hook 인자 = 조회 행). */
     CANCEL_VIEW_FIND,
 }
@@ -126,6 +132,13 @@ class FaultInjectionConfig {
 
     @Bean
     fun snapshotProbeListenerProvider(probe: SnapshotProbe): org.jooq.ExecuteListenerProvider = org.jooq.impl.DefaultExecuteListenerProvider(probe)
+
+    /** ADMIN-PAYMENT-OPS-001 review M-2: 운영 jOOQ Reader가 실제로 실행한 SQL 캡처(무장 전에는 무동작). */
+    @Bean
+    fun sqlCapture(): SqlCapture = SqlCapture()
+
+    @Bean
+    fun sqlCaptureListenerProvider(capture: SqlCapture): org.jooq.ExecuteListenerProvider = org.jooq.impl.DefaultExecuteListenerProvider(capture)
 
     @Bean
     @Primary
@@ -284,7 +297,7 @@ class FaultInjectionConfig {
         com.paycore.payment.payment.application.required.CancellationViewReader = object : com.paycore.payment.payment.application.required.CancellationViewReader {
             override fun find(cancellationId: CancellationId) = f.around(FaultPoint.CANCEL_VIEW_FIND) { real.find(cancellationId) }
 
-            override fun findTarget(paymentId: PaymentId) = real.findTarget(paymentId)
+            override fun findTarget(paymentId: PaymentId) = f.around(FaultPoint.OPERATOR_TARGET_FIND) { real.findTarget(paymentId) }
 
             override fun findAttempt(attemptId: CancelAttemptId) = real.findAttempt(attemptId)
 
@@ -341,6 +354,19 @@ class FaultInjectionConfig {
             override fun append(rejection: OperatorCancelRejection) = f.around(FaultPoint.OPERATOR_REJECTION_APPEND) { real.append(rejection) }
 
             override fun findByApproval(approvalId: OperatorApprovalId): List<OperatorCancelRejection> = real.findByApproval(approvalId)
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingOperatorApprovalDecisionStore(
+        real: JpaOperatorApprovalDecisionStore,
+        f: FaultInjector,
+    ): com.paycore.payment.payment.application.required.OperatorApprovalDecisionStore =
+        object : com.paycore.payment.payment.application.required.OperatorApprovalDecisionStore {
+            override fun find(approvalId: OperatorApprovalId) = f.around(FaultPoint.OPERATOR_DECISION_FIND) { real.find(approvalId) }
+
+            override fun append(decision: com.paycore.payment.payment.application.required.OperatorApprovalDecision) =
+                f.around(FaultPoint.OPERATOR_DECISION_APPEND) { real.append(decision) }
         }
 
     @Bean

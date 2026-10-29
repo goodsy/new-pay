@@ -101,6 +101,8 @@ class ConfirmFixture(
         base: Instant = T0,
         /** CANCEL-001 K17: 같은 주문의 다음 Payment(앞 Payment가 안전하게 종료된 뒤 — 공식 `decide`·`occupy` 전이). null이면 새 주문의 첫 Payment. */
         previous: Prepared? = null,
+        /** ADMIN-PAYMENT-OPS-001: ADMIN 채널 계약 형식(`pay_` + ULID)의 paymentId가 필요한 시험만 넘긴다(기본은 기존 시험 ID). */
+        paymentIdValue: String? = null,
     ): Prepared {
         val shift = Duration.between(T0, base)
         val windowEndAt = windowEnd ?: T0.plus(Duration.ofMinutes(30)).plus(shift)
@@ -108,7 +110,7 @@ class ConfirmFixture(
         val intent = OrderIntent(PersistenceTestData.demoSite, Money(amount, currency))
         require(previous == null || previous.order == order) { "the next payment belongs to the previous payment's order" }
         val window = CheckoutWindow(windowEndAt, "checkout-validity-demo-1")
-        val firstPayment = if (previous == null) Payment.request(PaymentId(DbAccess.unique("pay")), order, intent.fingerprint(), 1, window) else null
+        val firstPayment = if (previous == null) Payment.request(PaymentId(paymentIdValue ?: DbAccess.unique("pay")), order, intent.fingerprint(), 1, window) else null
         val ref = AuthenticationRef("aref_" + UUID.randomUUID().toString().replace("-", "").take(22))
         val cookieSecret = "cks-secret-" + UUID.randomUUID().toString().replace("-", "")
         val handle = CheckoutPersistenceFixture.newHandle()

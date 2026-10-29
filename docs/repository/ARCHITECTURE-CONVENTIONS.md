@@ -506,3 +506,15 @@ JPA와의 연결(이번 작업): **역할** — `JpaAdminAccountEntity`·`JpaApp
 rollback 전용, Spring Data Repository는 쓰지 않는다(`EntityManager` 직접 — D-71). commit 단계 `TransactionException`은 `rollbackOnCommitFailure = false`(기본)면 관리자가 rollback하지 않는다(S8 실측 — 명세 §25).
 Kafka/Redis는 도입하지 않는다 — 세션은 Spring Session JDBC, 승인·잠금 직렬화는 ADMIN DB 행 잠금이 지키며 broker·캐시가 권한·감사 안전성을 대신하지 않는다(ADR-001). 새 의존성은 모두 Boot 4.1.1 BOM 관리
 (`spring-boot-starter-{security,session-jdbc,actuator,jooq,flyway}` — 버전 override 없음)이고 프론트 도구는 TECH-BASELINE §9.
+
+## 21. 소유 서비스 승인·ADMIN→PAYMENT 운영 호출 (ADMIN-PAYMENT-OPS-001)
+
+ADMIN 승인으로 **다른 서비스가 소유한 금융 효과**를 일으킬 때의 구조 규칙. 세부 결정은 ADMIN-PAYMENT-OPS-001 명세 I-번호, 운영 절차는 그 명세 부록 R.
+
+- **2-TX 승인 패턴(ADMIN)**: TX1(승인 행 잠금 → 계정 행 오름차순 → TOTP 단계 소비 → 실행 행 INSERT: 저장 본문 **바이트**·지문·실행 기한 → 승인 `EXECUTING`) → **TX 밖** 소유 서비스 호출(저장 바이트 그대로) → TX2(승인 행 → 실행 행 잠금, 결과 반영). 외부 호출 중에는 어떤 잠금도 쥐지 않고, gateway가 TX 안 호출을 즉시 거부한다. 응답 분류: 200 → `EXECUTED`, 커밋 결정이 뒷받침하는 409·404·400 → `OWNER_REJECTED(code)`, 파생 409(APPROVAL_CONFLICT·IDENTITY_MISMATCH) → `EXECUTION_UNKNOWN` + 무결성 플래그, 그 밖(timeout·5xx·401·응답 해석 불가) → `EXECUTION_UNKNOWN`. 확정 응답만 종료한다. 실행 행의 다음 시도 시각은 앞으로만 움직인다. 수동 종료 없음.
+- **ADMIN 호출 서명**: `PayCore-Admin-Signature: t=<epoch>,kid=<id>,v1=<hex HMAC-SHA256>`, canonical = `paycore.admin-call.v1 LF METHOD LF 경로 LF t LF sha256(본문)`(경로 = 컨테이너 정규화 servletPath + pathInfo, context path 금지). query 문자열 금지(서명 전 400), 본문 상한 16 KiB(서명 전), 시각 창(Demo ±300초), ADMIN 전용 키 공간(다른 서비스 키와 분리), 교체 중에만 키 2개. 거절은 원인 비구별 401 + 지표 reason. 계약은 golden ②(harness 독립 생성)로 양쪽이 대조한다.
+- **결정 기록 불변식(소유 서비스)**: approvalId당 첫 확정 결정(STARTED·REJECTED)을 UNIQUE 결정 행에 시작·감사와 같은 TX로 남기고, 같은 approvalId·같은 내용이면 그 결정을 재생, 다른 내용이면 파생 거절(결정 행 불변). HTTP: **409·404는 커밋된 결정 행이 뒷받침할 때만**, **400은 같은 바이트면 항상 같은 형식 판정일 때만**(+감사), 그 밖(일시 실패·commit 불명확·busy·본문 읽기 I/O 실패 등 재시도로 결과가 바뀔 수 있는 것)은 **503**. 500을 내보내지 않는다.
+- **회복 job 선점**: 처리 직전에 한 행만 `FOR UPDATE SKIP LOCKED LIMIT 1` 짧은 TX로 선점(시도 +1, 다음 시도 = 선점 시각 + backoff) → 커밋 → TX 밖 처리. 순서: 기록 결정 조회 → 기한 경과면 기한 확인 전용 호출(실행 명령 아님) → 참여자 재검사(자격 상실이면 재전송 중단, 재개 없음) → 무결성 플래그면 POST 없음 → 같은 저장 바이트 재전송. 시도 상한 없음. 한 행의 실패는 그 행만 건너뛰고 지표·감사로 보인다.
+- **대사 job watermark**: checkpoint 단일 행(갱신 때만 짧게 잠그고 `max`로만 전진). 증분은 소유 서비스가 DB 시각으로 정한 **안정 watermark**(`nextWatermark` — 반환한 최대 seq 아님)까지, 항목 판정 오류가 있으면 그 직전 seq까지만. 전체 스캔은 watermark를 저장하지 않고(페이지 기준 = 읽은 최대 seq) 항목 오류 0일 때만 완료 표시. "결정 없음" 판정은 마지막 응답이 `스캔 시작 − (안정 지연 + 시각 여유)` 이전인 종료 건만. 발견 UNIQUE 1062는 정상(이미 기록됨). **대사는 상태를 바꾸지 않는다**(ArchUnit — 대사 클래스는 명령 호출 금지).
+- **비노출·관측**: 사유·근거·서명·키·본문은 로그·지표·발견·오류 응답에 없다(지표 label은 고정 분류만, paymentId·approvalId 금지). 근거·사유는 별도 권한 조회(역할·요청자 본인, 시도마다 감사, 속도 제한)로만. 지표 이름·label은 계약 시험으로 고정한다.
+

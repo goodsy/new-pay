@@ -1,0 +1,507 @@
+{
+  "description": "ADMIN-PAYMENT-OPS-001 ADMIN -> PAYMENT operator correction cancel API contract v1 (generated independently of both apps; Demo identifiers).",
+  "placeholders": {
+    "CANCELLATION_ID": "^pcn_[0-9A-HJKMNP-TV-Z]{26}$",
+    "TIMESTAMP": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    "SEQ": "^[1-9][0-9]*$",
+    "WATERMARK": "^(0|[1-9][0-9]*)$",
+    "CONTENT_HASH": "^opd1:[0-9a-f]{64}$"
+  },
+  "requestExamples": [
+    {
+      "name": "normal",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}"
+    },
+    {
+      "name": "hangul-and-supplementary-reason",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"중복 승인 보정\\n두 번째 줄 𠀀\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"대사-2026 #7\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}"
+    },
+    {
+      "name": "partial-amount-terminated-merchant",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":1,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"MERCHANT_TERMINATED_OBLIGATION\",\"reference\":\"TERM-2026-0007\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}"
+    }
+  ],
+  "strictRejections": [
+    {
+      "name": "duplicate-key",
+      "body": "{\"amountMinor\":1,\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "trailing-token",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"} {}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "string-amount",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":\"7000\",\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "decimal-amount",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000.0,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "null-amount",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":null,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "unknown-field",
+      "body": "{\"extra\":1,\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "missing-field",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "reference-leading-space",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\" RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    },
+    {
+      "name": "timestamp-without-millis",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "httpStatus": 400,
+      "error": "REQUEST_MALFORMED"
+    }
+  ],
+  "responseCases": [
+    {
+      "name": "accepted-new",
+      "httpStatus": 200,
+      "body": {
+        "cancellationId": {
+          "$placeholder": "CANCELLATION_ID"
+        },
+        "status": "IN_PROGRESS",
+        "existing": false
+      },
+      "expectedAdminState": "EXECUTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "accepted-replay",
+      "httpStatus": 200,
+      "body": {
+        "cancellationId": {
+          "$placeholder": "CANCELLATION_ID"
+        },
+        "status": "COMPLETED",
+        "existing": true
+      },
+      "expectedAdminState": "EXECUTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_target_stale",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_TARGET_STALE"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-cancel_in_progress",
+      "httpStatus": 409,
+      "body": {
+        "error": "CANCEL_IN_PROGRESS"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-currency_mismatch",
+      "httpStatus": 409,
+      "body": {
+        "error": "CURRENCY_MISMATCH"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-already_fully_cancelled",
+      "httpStatus": 409,
+      "body": {
+        "error": "ALREADY_FULLY_CANCELLED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-amount_exceeds_balance",
+      "httpStatus": 409,
+      "body": {
+        "error": "AMOUNT_EXCEEDS_BALANCE"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-partial_cancel_not_supported",
+      "httpStatus": 409,
+      "body": {
+        "error": "PARTIAL_CANCEL_NOT_SUPPORTED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-payment_not_cancellable",
+      "httpStatus": 409,
+      "body": {
+        "error": "PAYMENT_NOT_CANCELLABLE"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_same_person",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_SAME_PERSON"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_reason_missing",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_REASON_MISSING"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_reason_invalid",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_REASON_INVALID"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_basis_missing",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_BASIS_MISSING"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-operator_basis_invalid",
+      "httpStatus": 409,
+      "body": {
+        "error": "OPERATOR_BASIS_INVALID"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-approval_execution_expired",
+      "httpStatus": 409,
+      "body": {
+        "error": "APPROVAL_EXECUTION_EXPIRED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "rejected-approval_window_invalid",
+      "httpStatus": 409,
+      "body": {
+        "error": "APPROVAL_WINDOW_INVALID"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "derived-approval_conflict",
+      "httpStatus": 409,
+      "body": {
+        "error": "APPROVAL_CONFLICT"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "derived-approval_identity_mismatch",
+      "httpStatus": 409,
+      "body": {
+        "error": "APPROVAL_IDENTITY_MISMATCH"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "not-found",
+      "httpStatus": 404,
+      "body": {
+        "error": "PAYMENT_NOT_FOUND"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "malformed-request_malformed",
+      "httpStatus": 400,
+      "body": {
+        "error": "REQUEST_MALFORMED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "malformed-approval_id_malformed",
+      "httpStatus": 400,
+      "body": {
+        "error": "APPROVAL_ID_MALFORMED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "malformed-payment_id_malformed",
+      "httpStatus": 400,
+      "body": {
+        "error": "PAYMENT_ID_MALFORMED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "malformed-operator_id_malformed",
+      "httpStatus": 400,
+      "body": {
+        "error": "OPERATOR_ID_MALFORMED"
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "expectedIntegrityAlert": true
+    },
+    {
+      "name": "unauthenticated",
+      "httpStatus": 401,
+      "body": {
+        "error": "UNAUTHENTICATED"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "unavailable-temporarily_unavailable",
+      "httpStatus": 503,
+      "body": {
+        "error": "TEMPORARILY_UNAVAILABLE"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "unavailable-outcome_unknown",
+      "httpStatus": 503,
+      "body": {
+        "error": "OUTCOME_UNKNOWN"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": false
+    },
+    {
+      "name": "unavailable-admin_command_busy",
+      "httpStatus": 503,
+      "body": {
+        "error": "ADMIN_COMMAND_BUSY"
+      },
+      "expectedAdminState": "EXECUTION_UNKNOWN",
+      "expectedIntegrityAlert": false
+    }
+  ],
+  "decisionResponses": [
+    {
+      "name": "started",
+      "httpStatus": 200,
+      "body": {
+        "decision": "STARTED",
+        "cancellationId": {
+          "$placeholder": "CANCELLATION_ID"
+        },
+        "cancellationStatus": "COMPLETED",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "legacy": false
+      },
+      "expectedAdminState": "EXECUTED"
+    },
+    {
+      "name": "rejected",
+      "httpStatus": 200,
+      "body": {
+        "decision": "REJECTED",
+        "code": "OPERATOR_TARGET_STALE",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "legacy": false
+      },
+      "expectedAdminState": "OWNER_REJECTED"
+    },
+    {
+      "name": "none",
+      "httpStatus": 200,
+      "body": {
+        "decision": "NONE"
+      },
+      "expectedAdminState": "UNCHANGED"
+    }
+  ],
+  "deadlineResponses": [
+    {
+      "name": "expired-confirmed",
+      "body": {
+        "decision": "REJECTED",
+        "code": "APPROVAL_EXECUTION_EXPIRED",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "legacy": false,
+        "confirmed": true
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "releasesPaymentBlock": true
+    },
+    {
+      "name": "none-before-deadline",
+      "body": {
+        "decision": "NONE",
+        "confirmed": false
+      },
+      "expectedAdminState": "UNCHANGED",
+      "releasesPaymentBlock": false
+    },
+    {
+      "name": "existing-started",
+      "body": {
+        "decision": "STARTED",
+        "cancellationId": {
+          "$placeholder": "CANCELLATION_ID"
+        },
+        "cancellationStatus": "COMPLETED",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "legacy": false,
+        "confirmed": false
+      },
+      "expectedAdminState": "EXECUTED",
+      "releasesPaymentBlock": true
+    },
+    {
+      "name": "existing-rejected",
+      "body": {
+        "decision": "REJECTED",
+        "code": "OPERATOR_TARGET_STALE",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "legacy": false,
+        "confirmed": false
+      },
+      "expectedAdminState": "OWNER_REJECTED",
+      "releasesPaymentBlock": true
+    }
+  ],
+  "listPage": {
+    "items": [
+      {
+        "seq": {
+          "$placeholder": "SEQ"
+        },
+        "approvalId": "apr_01JC0000000000000000000001",
+        "paymentId": "pay_01JC0000000000000000000001",
+        "decision": "REJECTED",
+        "code": "PAYMENT_NOT_FOUND",
+        "amountMinor": 7000,
+        "currency": "KRW",
+        "requestedBy": "adm_01JC00000000000000000000R1",
+        "approvedBy": "adm_01JC00000000000000000000A1",
+        "approvedTargetFingerprint": "oct1:0000000000000000000000000000000000000000000000000000000000000000",
+        "contentHash": {
+          "$placeholder": "CONTENT_HASH"
+        },
+        "decidedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "recordedAt": {
+          "$placeholder": "TIMESTAMP"
+        },
+        "origin": "EXECUTION_COMMAND"
+      }
+    ],
+    "nextWatermark": {
+      "$placeholder": "WATERMARK"
+    },
+    "serverTime": {
+      "$placeholder": "TIMESTAMP"
+    }
+  }
+}

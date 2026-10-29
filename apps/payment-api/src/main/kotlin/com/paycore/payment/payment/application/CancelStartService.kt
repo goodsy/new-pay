@@ -17,8 +17,13 @@ import com.paycore.payment.payment.application.required.IdempotencyReservationOu
 import com.paycore.payment.payment.application.required.IdempotencyScope
 import com.paycore.payment.payment.application.required.IdempotentOperation
 import com.paycore.payment.payment.application.required.InstitutionRouteResolver
+import com.paycore.payment.payment.application.required.OperatorApprovalDecision
+import com.paycore.payment.payment.application.required.OperatorApprovalDecisionStore
+import com.paycore.payment.payment.application.required.OperatorApprovalWindow
 import com.paycore.payment.payment.application.required.OperatorCancelRejection
 import com.paycore.payment.payment.application.required.OperatorCancelRejectionStore
+import com.paycore.payment.payment.application.required.OperatorDecisionKind
+import com.paycore.payment.payment.application.required.OperatorDecisionOrigin
 import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.PaymentAuthorizationRepository
 import com.paycore.payment.payment.application.required.PaymentCancellationRepository
@@ -68,7 +73,15 @@ sealed interface CancelStartOutcome {
 sealed interface OperatorCancelStartOutcome {
     data class Started(val cancellationId: CancellationId, val existing: Boolean) : OperatorCancelStartOutcome
 
-    data class Rejected(val code: OperatorCancelRejectionCode) : OperatorCancelStartOutcome
+    data class Rejected(val code: OperatorCancelRejectionCode) : OperatorCancelStartOutcome {
+        /** 기록 결정 재생인지(I-59 지표용 — 동등성 밖). */
+        var replayed: Boolean = false
+            private set
+
+        constructor(code: OperatorCancelRejectionCode, replayed: Boolean) : this(code) {
+            this.replayed = replayed
+        }
+    }
 
     data object NotFound : OperatorCancelStartOutcome
 }
@@ -79,8 +92,10 @@ sealed interface OperatorCancelStartOutcome {
  *
  * - 저장 없는 결과(404·503)는 TX를 rollback한다(취소·예약·일정·멱등 예약 어느 것도 남지 않는다). 503: 원 경로 Route가 없음·환경/기관이 원 승인과 다름(rev 0.3 m-4)·취소 Capability 없음
  *   (sim-van-1 Route) — 값으로 넘겨 `CancelStart`가 앞 검사 뒤에 판정한다(§4.3-6·8).
- * - 운영자 명령은 멱등 기록 대신 approvalId 업무 키로 재요청을 판정하고(CN-10), 업무 거절은 같은 TX에 감사 행 하나를 남긴다(D-CANCEL1-006·008 — 개인정보·사유 문구 없음).
- * - 교착·version 충돌·UNIQUE 충돌(같은 approvalId가 다른 Payment에서 동시에 — rev 0.3 m-3)은 새 TX로 같은 의도를 최대 [MAX_ATTEMPTS]회 다시 판정한다.
+ * - 운영자 명령은 멱등 기록 대신 **approvalId별 결정 기록**으로 재요청을 판정하고(ADMIN-PAYMENT-OPS-001 D-OPS-005 — 시작·업무 거절 모두 같은 TX에 결정 행, 같은 approvalId에는 같은
+ *   결정), 업무 거절은 같은 TX에 감사 행 하나를 남긴다(D-CANCEL1-006·008 — 개인정보·사유 문구 없음).
+ * - 교착·version 충돌·UNIQUE 충돌(같은 approvalId가 다른 Payment에서 동시에 — 결정 UNIQUE 포함)은 새 TX로 같은 의도를 최대 [MAX_ATTEMPTS]회 다시 판정한다(재시도의 결정 조회가 커밋된
+ *   결정을 재생한다).
  */
 @Service
 class CancelStartService(
@@ -93,6 +108,8 @@ class CancelStartService(
     private val cancellations: PaymentCancellationRepository,
     private val schedules: CancellationRecoveryScheduleStore,
     private val rejections: OperatorCancelRejectionStore,
+    private val decisions: OperatorApprovalDecisionStore,
+    private val window: OperatorApprovalWindow,
     private val routes: InstitutionRouteResolver,
     private val ids: CancellationIdentifierGenerator,
     private val recordIds: AuthorizationIdentifierGenerator,
@@ -194,40 +211,121 @@ class CancelStartService(
 
     // --- 운영자 보정 ---------------------------------------------------------------------------------------------------------------------------------
 
+    /**
+     * ADMIN-PAYMENT-OPS-001 §4.4.3 판정 순서(D-OPS-005 결정 기록): 형식 → **결정 조회**(비잠금 빠른 경로) → Payment 존재(없으면 PAYMENT_NOT_FOUND 결정) → `lockTarget` → **결정 재조회**(잠금 뒤 —
+     * 같은 Payment 경쟁 TX의 커밋이 보인다) → 옛 취소 행(결정 행 없는 데이터 호환, I-29) → **기한**(D-OPS-002) → `startCancel` → 시작·거절 모두 같은 TX에 결정 행 INSERT.
+     * 권위는 UNIQUE(approval_id) + 재시도다: 결정 INSERT의 1062는 잡지 않고 TX 전체를 rollback해 새 TX의 결정 조회에서 커밋된 결정을 재생한다(InnoDB 1062는 문장만 되돌린다 —
+     * 잡고 커밋하면 결정 없는 취소가 남는다, rev 0.4 주의).
+     */
     private fun operatorTx(command: OperatorCorrectionCancelCommand): OperatorCancelStartOutcome {
         val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
-        // 검토 #3 m-3(D-CANCEL1-006·008): 형식이 아닌 paymentId도 감사 행 하나(자리표시 payment_id — 원문은 저장하지 않는다)를 남기고 NotFound.
+        // 검토 #3 m-3(D-CANCEL1-006·008): 형식이 아닌 paymentId도 감사 행 하나(자리표시 payment_id — 원문은 저장하지 않는다)를 남기고 NotFound. Use Case 직접 호출 호환 — HTTP는 adapter가
+        // 먼저 400으로 거른다(§4.4.1, 결정 행 없음).
         val paymentId = runCatching { PaymentId(command.paymentId) }.getOrNull() ?: run {
             audit(command, MALFORMED_PAYMENT_ID, OperatorCancelRejectionCode.PAYMENT_ID_MALFORMED, now)
             return OperatorCancelStartOutcome.NotFound
         }
+        val contentHash = command.contentHash()
+        decisions.find(command.approvalId)?.let { return replay(command, paymentId, it, contentHash, now) }
+        val creation = payments.findCreationRecord(paymentId)
+            ?: return recordRejection(command, paymentId, OperatorCancelRejectionCode.PAYMENT_NOT_FOUND, contentHash, now)
+        val target = lockTarget(creation.orderKey, paymentId)
+        decisions.find(command.approvalId)?.let { return replay(command, paymentId, it, contentHash, now) }
+        legacyCancellation(command, paymentId, now)?.let { return it }
+        windowDefect(command, now)?.let { return recordRejection(command, paymentId, it, contentHash, now) }
         val initiator = CancelInitiator.Operator(
             command.requestedBy, command.approvedBy, command.approvalId, command.reason, command.purpose, command.approvedTargetFingerprint,
         )
-        val creation = payments.findCreationRecord(paymentId) ?: run {
-            audit(command, paymentId, OperatorCancelRejectionCode.PAYMENT_NOT_FOUND, now)
-            return OperatorCancelStartOutcome.NotFound
+        return when (val started = startCancel(target, command.money, initiator, now, command.correlationId)) {
+            is StartDecision.Started -> {
+                decisions.append(decision(command, paymentId, OperatorDecisionKind.STARTED, null, started.cancellationId, contentHash, now))
+                OperatorCancelStartOutcome.Started(started.cancellationId, existing = false)
+            }
+            is StartDecision.Rejected ->
+                recordRejection(command, paymentId, OperatorCancelRejectionCode.valueOf(operatorCode(started.reason)), contentHash, now)
         }
-        val target = lockTarget(creation.orderKey, paymentId)
-        // CN-10·CC-12: approvalId는 전역 영구 업무 키 — 같은 Payment·같은 금액이면 기존 취소, 다르면 충돌.
-        // 검토 #3 n-3: 비교만 하므로 비잠금 읽기. 같은 approvalId·Payment·금액이어도 요청자·승인자가 다르면 같은 요청이 아니다(CN-32 — 충돌·감사, fail-closed).
-        cancellations.findIdByApprovalId(command.approvalId)?.let { existingId ->
-            val existing = checkNotNull(cancellations.find(existingId)) { "a found cancellation is stored" }
-            return when (existing.compareRequest(paymentId, CancelRequestKey.Operator(command.approvalId), command.money)) {
-                CancelRequestMatch.SAME_REQUEST -> {
-                    val stored = existing.initiator as? CancelInitiator.Operator ?: error("an approvalId belongs to an operator cancellation")
-                    if (stored.requestedBy == command.requestedBy && stored.approvedBy == command.approvedBy) {
-                        OperatorCancelStartOutcome.Started(existingId, existing = true)
-                    } else {
-                        rejectOperator(command, paymentId, OperatorCancelRejectionCode.APPROVAL_IDENTITY_MISMATCH, now)
-                    }
-                }
-                else -> rejectOperator(command, paymentId, OperatorCancelRejectionCode.APPROVAL_CONFLICT, now)
+    }
+
+    /**
+     * 기록 결정 재생(§4.4.1·§4.4.2): 내용 hash가 같으면 같은 결정(STARTED → 기존 취소, REJECTED → 같은 code + 감사 1행), 다르면 파생 결과(APPROVAL_IDENTITY_MISMATCH — paymentId·금액·통화가
+     * 같고 요청자·승인자가 다름, 그 밖 APPROVAL_CONFLICT) + 감사 1행. 결정 행은 바꾸지 않는다. 모르는 hash 버전은 fail-closed 503.
+     */
+    private fun replay(
+        command: OperatorCorrectionCancelCommand,
+        paymentId: PaymentId,
+        stored: OperatorApprovalDecision,
+        contentHash: String,
+        now: Instant,
+    ): OperatorCancelStartOutcome {
+        if (!stored.contentHash.startsWith(OperatorCorrectionCancelCommand.CONTENT_HASH_PREFIX)) throw RolledBack(null, "UNSUPPORTED_DECISION_HASH_VERSION")
+        if (stored.contentHash != contentHash) {
+            val sameTarget = stored.paymentId == paymentId && stored.amountMinor == command.money.amountMinor && stored.currency == command.money.currency
+            val sameParticipants = stored.requestedBy == command.requestedBy && stored.approvedBy == command.approvedBy
+            val code = if (sameTarget && !sameParticipants) OperatorCancelRejectionCode.APPROVAL_IDENTITY_MISMATCH else OperatorCancelRejectionCode.APPROVAL_CONFLICT
+            return rejectOperator(command, paymentId, code, now)
+        }
+        return when (stored.kind) {
+            OperatorDecisionKind.STARTED -> OperatorCancelStartOutcome.Started(checkNotNull(stored.cancellationId), existing = true)
+            OperatorDecisionKind.REJECTED -> {
+                val code = OperatorCancelRejectionCode.valueOf(checkNotNull(stored.rejectionCode))
+                audit(command, paymentId, code, now)
+                if (code == OperatorCancelRejectionCode.PAYMENT_NOT_FOUND) OperatorCancelStartOutcome.NotFound else OperatorCancelStartOutcome.Rejected(code, replayed = true)
             }
         }
-        return when (val started = startCancel(target, command.money, initiator, now, command.correlationId)) {
-            is StartDecision.Started -> OperatorCancelStartOutcome.Started(started.cancellationId, existing = false)
-            is StartDecision.Rejected -> rejectOperator(command, paymentId, OperatorCancelRejectionCode.valueOf(operatorCode(started.reason)), now)
+    }
+
+    /** 업무 거절 결정: 감사 행 + REJECTED 결정 행(같은 TX). PAYMENT_NOT_FOUND도 결정이다(§4.4.1 — paymentId는 PAYMENT가 발급한 값이라 나중에 생기지 않는다). */
+    private fun recordRejection(
+        command: OperatorCorrectionCancelCommand,
+        paymentId: PaymentId,
+        code: OperatorCancelRejectionCode,
+        contentHash: String,
+        now: Instant,
+    ): OperatorCancelStartOutcome {
+        audit(command, paymentId, code, now)
+        decisions.append(decision(command, paymentId, OperatorDecisionKind.REJECTED, code.name, null, contentHash, now))
+        return if (code == OperatorCancelRejectionCode.PAYMENT_NOT_FOUND) OperatorCancelStartOutcome.NotFound else OperatorCancelStartOutcome.Rejected(code)
+    }
+
+    private fun decision(
+        command: OperatorCorrectionCancelCommand,
+        paymentId: PaymentId,
+        kind: OperatorDecisionKind,
+        code: String?,
+        cancellationId: CancellationId?,
+        contentHash: String,
+        now: Instant,
+    ) = OperatorApprovalDecision(
+        command.approvalId, paymentId, kind, code, cancellationId, contentHash, command.money.amountMinor, command.money.currency, command.requestedBy, command.approvedBy,
+        command.approvedTargetFingerprint, command.approvedAt, command.executeBefore, now, OperatorDecisionOrigin.EXECUTION_COMMAND,
+    )
+
+    /** D-OPS-002(§4.4.3-7): 기간 상한·0 이하·미래 approvedAt → WINDOW_INVALID, PAYMENT 시각 `now ≥ executeBefore` → EXECUTION_EXPIRED. */
+    private fun windowDefect(command: OperatorCorrectionCancelCommand, now: Instant): OperatorCancelRejectionCode? = when {
+        !command.executeBefore.isAfter(command.approvedAt) ||
+            Duration.between(command.approvedAt, command.executeBefore) > window.maxExecutionWindow ||
+            command.approvedAt.isAfter(now.plus(window.approvedAtSkew)) -> OperatorCancelRejectionCode.APPROVAL_WINDOW_INVALID
+        !now.isBefore(command.executeBefore) -> OperatorCancelRejectionCode.APPROVAL_EXECUTION_EXPIRED
+        else -> null
+    }
+
+    /**
+     * 결정 행 없는 옛 운영자 취소 행(I-29 — 이 작업 전 시험 데이터 호환): 기존 `compareRequest` 규칙으로 판정하고 결정 행을 보충하지 않는다.
+     * CN-10·CC-12: 같은 Payment·같은 금액이면 기존 취소, 다르면 충돌. 검토 #3 n-3: 비교만 하므로 비잠금 읽기. 요청자·승인자가 다르면 같은 요청이 아니다(CN-32).
+     */
+    private fun legacyCancellation(command: OperatorCorrectionCancelCommand, paymentId: PaymentId, now: Instant): OperatorCancelStartOutcome? {
+        val existingId = cancellations.findIdByApprovalId(command.approvalId) ?: return null
+        val existing = checkNotNull(cancellations.find(existingId)) { "a found cancellation is stored" }
+        return when (existing.compareRequest(paymentId, CancelRequestKey.Operator(command.approvalId), command.money)) {
+            CancelRequestMatch.SAME_REQUEST -> {
+                val stored = existing.initiator as? CancelInitiator.Operator ?: error("an approvalId belongs to an operator cancellation")
+                if (stored.requestedBy == command.requestedBy && stored.approvedBy == command.approvedBy) {
+                    OperatorCancelStartOutcome.Started(existingId, existing = true)
+                } else {
+                    rejectOperator(command, paymentId, OperatorCancelRejectionCode.APPROVAL_IDENTITY_MISMATCH, now)
+                }
+            }
+            else -> rejectOperator(command, paymentId, OperatorCancelRejectionCode.APPROVAL_CONFLICT, now)
         }
     }
 

@@ -7,21 +7,29 @@ import { ApprovalsScreen } from './screens/ApprovalsScreen'
 import { AuditScreen } from './screens/AuditScreen'
 import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
+import { ReconciliationScreen } from './screens/ReconciliationScreen'
 
-type Page = 'approvals' | 'mine' | 'accounts' | 'audit'
+type Page = 'approvals' | 'mine' | 'paymentOps' | 'accounts' | 'reconciliation' | 'audit'
+
+const VIEW_ROLES = ['VIEWER', 'OPERATOR', 'APPROVER', 'SECURITY_ADMIN']
 
 /** 역할 → 보이는 메뉴(표시만 — 서버가 매 요청 계정 현재 행으로 판정한다, §4.5.1). */
 function pagesFor(roles: string[]): Page[] {
   const has = (role: string) => roles.includes(role)
   const pages: Page[] = []
   if (has('APPROVER')) pages.push('approvals')
-  if (has('SECURITY_ADMIN')) pages.push('mine')
+  if (has('SECURITY_ADMIN') || has('OPERATOR')) pages.push('mine')
+  if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   if (roles.some((r) => r !== 'UNMASK')) pages.push('accounts')
+  if (has('SECURITY_ADMIN') || has('APPROVER')) pages.push('reconciliation')
   pages.push('audit')
   return pages
 }
 
-const LABELS: Record<Page, string> = { approvals: '승인함', mine: '내 요청', accounts: '계정', audit: '감사' }
+const LABELS: Record<Page, string> = {
+  approvals: '승인함', mine: '내 요청', paymentOps: '결제 보정 취소', accounts: '계정', reconciliation: '대사 발견', audit: '감사',
+}
 
 /**
  * 관리자 콘솔(S7 — 같은 출처 정적 번들, 라우터·저장소 없음: 화면 상태는 메모리에만, URL에 비밀·코드 없음).
@@ -93,8 +101,10 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
         </nav>
       }
     >
-      {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide onSessionEnded={sessionEnded} />}
-      {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} onSessionEnded={sessionEnded} />}
+      {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
+      {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
+      {page === 'paymentOps' && <PaymentOpsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
+      {page === 'reconciliation' && <ReconciliationScreen api={api} onSessionEnded={sessionEnded} />}
       {page === 'accounts' && <AccountsScreen api={api} canManage={me.roles.includes('SECURITY_ADMIN')} onSessionEnded={sessionEnded} />}
       {page === 'audit' && <AuditScreen api={api} onSessionEnded={sessionEnded} />}
     </AppLayout>

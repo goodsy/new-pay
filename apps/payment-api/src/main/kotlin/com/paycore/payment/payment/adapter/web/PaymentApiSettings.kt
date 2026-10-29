@@ -12,7 +12,15 @@ import java.time.Duration
  * @param internalAddress 내부 connector가 바인딩할 주소(선택, review round1 n-4). 없으면 모든 주소. 운영에서는 내부망 주소로 좁힐 수 있다.
  */
 @ConfigurationProperties(prefix = "paycore.payment.api")
-class PaymentApiSettings(val internalPort: Int, val retryAfter: RetryAfter, val internalAddress: String? = null) {
+class PaymentApiSettings(
+    val internalPort: Int,
+    val retryAfter: RetryAfter,
+    val internalAddress: String? = null,
+    /** 내부 connector 작업 스레드 상한(ADMIN-PAYMENT-OPS-001 §4.7 F-8 — Demo 16, 관리 permit 합보다 커야 Entitlement Inbox를 굶기지 않는다). 기본값 없음. */
+    val internalMaxThreads: Int,
+    /** 내부 connector 연결 대기열 상한(Demo 16). 기본값 없음. */
+    val internalAcceptCount: Int,
+) {
 
     class RetryAfter(val eligibilityUnavailable: Duration, val temporarilyUnavailable: Duration, val requestInProgress: Duration) {
         init {
@@ -28,14 +36,18 @@ class PaymentApiSettings(val internalPort: Int, val retryAfter: RetryAfter, val 
     init {
         require(internalPort in 0..MAX_PORT) { "internal-port must be within 0..$MAX_PORT" }
         require(internalAddress == null || internalAddress.isNotBlank()) { "internal-address must not be blank when set" }
+        require(internalMaxThreads in 1..MAX_THREADS && internalAcceptCount in 1..MAX_THREADS) { "internal-max-threads and internal-accept-count must be within 1..$MAX_THREADS" }
     }
 
-    override fun toString(): String = "PaymentApiSettings(internalPort=$internalPort, internalAddress=$internalAddress, retryAfter=$retryAfter)"
+    override fun toString(): String =
+        "PaymentApiSettings(internalPort=$internalPort, internalAddress=$internalAddress, internalMaxThreads=$internalMaxThreads, internalAcceptCount=$internalAcceptCount, " +
+            "retryAfter=$retryAfter)"
 
     private companion object {
         val MIN: Duration = Duration.ofSeconds(1)
         val MAX: Duration = Duration.ofHours(1)
         const val MAX_PORT = 65_535
+        const val MAX_THREADS = 1_000
     }
 }
 

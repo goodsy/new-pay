@@ -35,6 +35,9 @@ class InternalConnectorConfiguration {
             Connector().apply {
                 port = settings.internalPort
                 settings.internalAddress?.let { setProperty("address", it) }
+                // ADMIN-PAYMENT-OPS-001 §4.7 F-8: 추가 connector에는 server.tomcat.threads 설정이 적용되지 않으므로 직접 상한을 둔다(관리 permit 합 < maxThreads).
+                setProperty("maxThreads", settings.internalMaxThreads.toString())
+                setProperty("acceptCount", settings.internalAcceptCount.toString())
             },
         )
     }

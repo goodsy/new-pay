@@ -401,6 +401,8 @@ D-CANCEL-007("1차 범위 밖. 카드 반환은 카드 취소로만, API·운영
 
 ## 5. 운영자 보정 취소 — Use Case 경계(AC 2)
 
+> **현행화 주석(2026-10-29, ADMIN-PAYMENT-OPS-001 — 본문은 CANCEL-001 당시 기준 그대로 둔다)**: 아래 §5.2·§5.3의 "진입점 없음·서비스 간 인증 없음(D-CANCEL1-001)"은 ADMIN-PAYMENT-OPS-001에서 열렸다. PAYMENT `POST /internal/v1/admin/operator-cancellations`(ADMIN 서명 채널 — HMAC, 운영 mTLS는 LIVE Gate) → `OperatorCorrectionCancelUseCase`, approvalId별 결정 기록·재생(D-OPS-005 — CN-10의 approvalId 업무 키를 결정 행 UNIQUE로 강화), 실행 기한(D-OPS-002), 기한 확인 전용 호출(D-OPS-009), 대상 조회 `GET /internal/v1/admin/payments/{id}/operator-cancel-target`(`OperatorCancelTargetQuery`), 결정 목록(대사). ADMIN 쪽은 2-TX 승인·회복·대사(ARCHITECTURE-CONVENTIONS §21). §5.3의 ArchUnit "adapter.web이 Use Case를 부르지 않음" 규칙은 정확한 진입점 FQN 허용으로 바뀌었다.
+
 ### 5.1 확정된 것
 
 - **확정 D-CANCEL-005**: 목적은 사고·대사 보정(`IncidentOrReconCorrection(caseRef)`)과 가맹점 종료 뒤 취소 의무(`MerchantTerminatedObligation(terminationRef)`)만. 사유·행위자 기록, 2인 승인(D-ADMIN-003

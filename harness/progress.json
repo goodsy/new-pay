@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7",
-  "lastSuccessfulStep": "TEST-ASSERT-001 DONE (VERIFY-GATE PASS 2026-10-27T011019Z 2848/0·Vitest 40, DEPS×5+CVE 032551Z, REVIEW_PASS round2) sha256:79609bb2af06f9aca4f4970e92f5a106058f4b35dbe3bd95c23ef121ec9e3ff7",
+  "codeFingerprint": "sha256:a9d679c1479b277ef3e6ee4ead0871eb77592afd63e725f66eb5405360c43327",
+  "lastSuccessfulStep": "ADMIN-PAYMENT-OPS-001 DONE (VERIFY-GATE PASS 2026-10-29T034221Z 3197/0·Vitest 66·SELFTEST 154, DEPS×5+CVE 033956Z, FINAL REVIEW_PASS) sha256:a9d679c1479b277ef3e6ee4ead0871eb77592afd63e725f66eb5405360c43327",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "TEST-ASSERT-001 커밋(push는 사용자 확인) → ADMIN-PAYMENT-OPS-001 S0 명세(Q-OPS-01~04 답변 반영, DECISIONS 기록) → S1 oct1 golden … → 완료 후 관리자 화면 Demo 시연 → CHECKOUT-REACT-001",
+  "nextResumeAction": "ADMIN-PAYMENT-OPS-001 커밋(push는 사용자 확인) → 관리자 화면 Demo 시연 캡처(명세 부록 D) → CHECKOUT-REACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -642,6 +642,18 @@
       "taskId": "ADMIN-PAYMENT-OPS-001",
       "event": "questions_answered",
       "detail": "Q-OPS-01~04 권장안 채택"
+    },
+    {
+      "at": "2026-10-27",
+      "taskId": "ADMIN-PAYMENT-OPS-001",
+      "event": "claimed",
+      "detail": "S0 spec"
+    },
+    {
+      "at": "2026-10-29",
+      "taskId": "ADMIN-PAYMENT-OPS-001",
+      "event": "done",
+      "detail": "VERIFY-GATE PASS 034221Z sha256:a9d679c1479b277ef3e6ee4ead0871eb77592afd63e725f66eb5405360c43327"
     }
   ],
   "agreedOrder": [

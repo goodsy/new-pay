@@ -1,4 +1,5 @@
 import { type ConsoleErrorCode, errorCodeFrom } from '../errors/errorCodes'
+import { parseInputProblem } from '../errors/inputProblems'
 
 /** 서버가 세션 저장 CSRF 토큰을 전달하는 쿠키(HttpOnly 아님)와, 상태 변경 요청에서 돌려보내는 헤더(D-10). */
 export const XSRF_COOKIE = '__Host-PCADMIN-XSRF'
@@ -6,15 +7,23 @@ export const XSRF_HEADER = 'X-XSRF-TOKEN'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD'])
 
+/** I-111: 입력 거절의 필드·이유 code(값 원문 없음). */
+export interface InputProblem {
+  field: string
+  reason: string
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly code: ConsoleErrorCode
+  readonly detail?: InputProblem
 
-  constructor(status: number, code: ConsoleErrorCode) {
+  constructor(status: number, code: ConsoleErrorCode, detail?: InputProblem) {
     super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    if (detail) this.detail = detail
   }
 }
 
@@ -69,5 +78,6 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}, deps: 
     return (response.status === 204 ? undefined : await response.json()) as T
   }
   const body: unknown = await response.json().catch(() => null)
-  throw new ApiError(response.status, errorCodeFrom(response.status, body))
+  const code = errorCodeFrom(response.status, body)
+  throw new ApiError(response.status, code, code === 'INVALID_INPUT' ? parseInputProblem(body) : undefined)
 }

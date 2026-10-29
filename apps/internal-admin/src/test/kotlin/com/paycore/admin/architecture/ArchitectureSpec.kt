@@ -5,6 +5,9 @@ import com.paycore.admin.archfixture.adapter.batch.JdbcTemplateInBatchRunnerFixt
 import com.paycore.admin.archfixture.adapter.web.AuditQueryInWebAdapterFixture
 import com.paycore.admin.archfixture.adapter.web.EntityManagerInWebAdapterFixture
 import com.paycore.admin.archfixture.application.ReaderInCommandServiceFixture
+import com.paycore.admin.archfixture.application.DecisionReconciliationResendFixture
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.lang.ArchCondition
 import com.tngtech.archunit.lang.ConditionEvents
@@ -75,6 +78,22 @@ class ArchitectureSpec : FunSpec({
                 }
             },
         )
+
+    val paymentOpsClientOnlyFromAllowedServices = noClasses().that().resideInAPackage("$BASE_PACKAGE..")
+        .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.approval.application.") + "(OwnerServiceApprovalService|OwnerExecutionRecoveryService)(\\$.*)?$")
+        .and().resideOutsideOfPackage("$BASE_PACKAGE.paymentops.application..")
+        .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.paymentops.application.provided.PaymentOpsClient")
+        .`as`("PaymentOpsClient is used only by approval.application OwnerServiceApprovalService / OwnerExecutionRecoveryService and paymentops.application")
+
+    // S7 리뷰 L-2: 대사(이름에 Reconciliation이 든 클래스)는 결정 목록 조회 전용 Port만 쓰고 PAYMENT에 명령(실행 POST·기한 확인)을 보내지 않는다 — 대사는 상태를 바꾸지 않는다(§4.17).
+    val reconciliationNeverCommandsPayment = noClasses().that().resideInAPackage("$BASE_PACKAGE..").and().haveSimpleNameContaining("Reconciliation")
+        .should().callMethodWhere(
+            object : DescribedPredicate<JavaMethodCall>("PaymentOpsClient.execute or PaymentOpsClient.confirmDeadline") {
+                override fun test(call: JavaMethodCall): Boolean =
+                    call.targetOwner.name == "$BASE_PACKAGE.paymentops.application.provided.PaymentOpsClient" && call.name in setOf("execute", "confirmDeadline")
+            },
+        )
+        .`as`("reconciliation never sends a PAYMENT command (execute / confirmDeadline)")
 
     test("Spring Modulith module structure is valid") {
         ApplicationModules.of(InternalAdminApplication::class.java, rules.generatedCode()).verify()
@@ -232,6 +251,41 @@ class ArchitectureSpec : FunSpec({
     test("account never depends on approval (dependency direction approval → account·audit — §4.1)") {
         noClasses().that().resideInAPackage("$BASE_PACKAGE.account..")
             .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.approval..")
+            .allowEmptyShould(false).check(classes)
+    }
+
+    test("ADMIN-PAYMENT-OPS-001 §4.19 ①: oct1 is computed by ADMIN's own paymentops.domain — no PAYMENT code is on the classpath or referenced") {
+        runCatching { Class.forName("com.paycore.payment.payment.domain.OperatorCancelTarget") }.isFailure shouldBe true
+        noClasses().that().resideInAPackage("$BASE_PACKAGE..")
+            .should().dependOnClassesThat().resideInAPackage("com.paycore.payment..")
+            .allowEmptyShould(false).check(classes)
+        classes.filter { it.packageName == "$BASE_PACKAGE.paymentops.domain" }.map { it.simpleName }.toSet() shouldContainAll setOf("OperatorCancelTargetFingerprint")
+    }
+
+    test("ADMIN-PAYMENT-OPS-001 §5: the new owner-service domain and JPA adapter types are in place (domain purity itself is the 'domain is pure Kotlin' rule)") {
+        val persistence = classes.filter { it.packageName == "$BASE_PACKAGE.approval.adapter.persistence" }.map { it.simpleName }.toSet()
+        persistence shouldContainAll setOf("JpaOperatorCancelCommandEntity", "JpaOwnerExecutionEntity", "JpaOwnerExecutionRepository", "JpaOperatorCancelCommandStore")
+        val domain = classes.filter { it.packageName == "$BASE_PACKAGE.approval.domain" }.map { it.simpleName }.toSet()
+        domain shouldContainAll setOf("ApprovalTarget", "OwnerExecution", "OperatorCancelRequestSnapshot", "PinnedPaymentTarget", "ApprovalExecutionModel", "ApprovalTargetKind")
+    }
+
+    test("ADMIN-PAYMENT-OPS-001 §4.7: the PAYMENT client port is used only by OwnerServiceApprovalService, OwnerExecutionRecoveryService (S6) and paymentops.application") {
+        // S7 리뷰 L-2: 대사 서비스는 PaymentOpsClient가 아니라 결정 목록 조회 전용 Port(PaymentDecisionListQuery)만 의존한다.
+        paymentOpsClientOnlyFromAllowedServices.allowEmptyShould(false).check(classes)
+        classes.single { it.simpleName == "OperatorDecisionReconciliationService" }.directDependenciesFromSelf.map { it.targetClass.simpleName }.toSet() shouldContainAll
+            setOf("PaymentDecisionListQuery")
+    }
+
+    test("S7 review L-2: reconciliation never calls PaymentOpsClient.execute / confirmDeadline; the violation fixture fails the rule") {
+        reconciliationNeverCommandsPayment.allowEmptyShould(false).check(classes)
+        shouldThrow<AssertionError> {
+            reconciliationNeverCommandsPayment.check(ClassFileImporter().importClasses(DecisionReconciliationResendFixture::class.java))
+        }.message shouldContain "DecisionReconciliationResendFixture"
+    }
+
+    test("ADMIN-PAYMENT-OPS-001 S4 review L-1: approval never reaches into paymentops internals (domain, adapters) — only paymentops.application.provided") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.approval..")
+            .should().dependOnClassesThat().resideInAnyPackage("$BASE_PACKAGE.paymentops.domain..", "$BASE_PACKAGE.paymentops.adapter..", "$BASE_PACKAGE.paymentops.application.required..")
             .allowEmptyShould(false).check(classes)
     }
 

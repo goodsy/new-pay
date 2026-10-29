@@ -10,7 +10,8 @@ import java.time.Instant
 
 /**
  * admin_approval_request 행(행 모양만 — 규칙은 domain `ApprovalRequest`). 생성 불변 열은 `updatable = false`(열 권한: 결정 열·version만 UPDATE — R-12 대조 시험).
- * 생성 열 `pending_key`는 매핑하지 않는다(DB가 상태로 계산, UNIQUE로 중복 PENDING 차단).
+ * 생성 열 `pending_key`·`unresolved_key`(V5)는 매핑하지 않는다(DB가 상태로 계산, UNIQUE로 중복 PENDING·같은 Payment 미해결 승인 차단).
+ * 대상(V5 — ADMIN-PAYMENT-OPS-001 §4.11): `target_kind` + 계정이면 `target_actor_id`, Payment면 `target_ref`(다른 쪽은 NULL — `ck_…_target`).
  */
 @Entity
 @Table(name = "admin_approval_request")
@@ -24,8 +25,16 @@ class JpaApprovalRequestEntity protected constructor() {
     lateinit var kind: String
         protected set
 
-    @field:Column(name = "target_actor_id", nullable = false, updatable = false, length = 30)
-    lateinit var targetActorId: String
+    @field:Column(name = "target_kind", nullable = false, updatable = false, length = 16)
+    lateinit var targetKind: String
+        protected set
+
+    @field:Column(name = "target_actor_id", updatable = false, length = 30)
+    var targetActorId: String? = null
+        protected set
+
+    @field:Column(name = "target_ref", updatable = false, length = 64)
+    var targetRef: String? = null
         protected set
 
     @field:Column(name = "target_security_version", nullable = false, updatable = false)
@@ -90,12 +99,14 @@ class JpaApprovalRequestEntity protected constructor() {
     companion object {
         @Suppress("LongParameterList")
         fun newRow(
-            approvalId: String, kind: String, targetActorId: String, targetSecurityVersion: Long, targetSnapshot: String, grantedRole: String?,
-            causeApprovalId: String?, requestedBy: String, requestedByDisplayName: String, requestedAt: Instant, expiresAt: Instant,
+            approvalId: String, kind: String, targetKind: String, targetActorId: String?, targetRef: String?, targetSecurityVersion: Long, targetSnapshot: String,
+            grantedRole: String?, causeApprovalId: String?, requestedBy: String, requestedByDisplayName: String, requestedAt: Instant, expiresAt: Instant,
         ) = JpaApprovalRequestEntity().also {
             it.approvalId = approvalId
             it.kind = kind
+            it.targetKind = targetKind
             it.targetActorId = targetActorId
+            it.targetRef = targetRef
             it.targetSecurityVersion = targetSecurityVersion
             it.targetSnapshot = targetSnapshot
             it.grantedRole = grantedRole

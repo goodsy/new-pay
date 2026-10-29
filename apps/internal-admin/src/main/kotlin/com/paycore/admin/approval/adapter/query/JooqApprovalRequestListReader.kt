@@ -3,6 +3,9 @@ package com.paycore.admin.approval.adapter.query
 import com.paycore.admin.approval.application.required.ApprovalListFilter
 import com.paycore.admin.approval.application.required.ApprovalRequestListReader
 import com.paycore.admin.approval.application.required.ApprovalRow
+import com.paycore.admin.approval.application.required.OwnerDetailRow
+import com.paycore.admin.jooq.generated.Tables.ADMIN_OPERATOR_CANCEL_COMMAND
+import com.paycore.admin.jooq.generated.Tables.ADMIN_OWNER_EXECUTION
 import com.paycore.admin.jooq.generated.Tables.ADMIN_APPROVAL_REQUEST
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -25,10 +28,31 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
         return select().where(conditions).orderBy(t.REQUESTED_AT.desc(), t.APPROVAL_ID.desc()).limit(filter.limit).fetch(::row)
     }
 
-    override fun detail(approvalId: String): ApprovalRow? = select().where(t.APPROVAL_ID.eq(approvalId)).fetchOne(::row)
+    /** 상세: 소유 서비스 승인이면 명령·실행 행을 LEFT JOIN(같은 비권위 조회 — 명령 판정에 쓰지 않는다). 사유·근거 열은 고르지 않는다(I-98). */
+    override fun detail(approvalId: String): ApprovalRow? {
+        val base = select().where(t.APPROVAL_ID.eq(approvalId)).fetchOne(::row) ?: return null
+        val c = ADMIN_OPERATOR_CANCEL_COMMAND
+        val e = ADMIN_OWNER_EXECUTION
+        val owner = dsl.select(
+            c.AMOUNT_MINOR, c.CURRENCY, c.PURPOSE_KIND, DSL.field("CAST({0} AS CHAR)", String::class.java, c.PINNED_TARGET).`as`(PINNED),
+            time(e.APPROVED_AT, APPROVED_AT), time(e.EXECUTE_BEFORE, EXECUTE_BEFORE), e.ATTEMPT_COUNT, time(e.NEXT_ATTEMPT_AT, NEXT_ATTEMPT_AT),
+            time(e.LAST_RESPONSE_AT, LAST_RESPONSE_AT), e.LAST_FAILURE, e.INTEGRITY_FLAG, e.RESEND_HALTED_REASON, e.OWNER_RESULT_CODE, e.OWNER_REFERENCE,
+        ).from(c).leftJoin(e).on(e.APPROVAL_ID.eq(c.APPROVAL_ID)).where(c.APPROVAL_ID.eq(approvalId)).fetchOne { r ->
+            OwnerDetailRow(
+                amountMinor = r.get(c.AMOUNT_MINOR)!!, currency = r.get(c.CURRENCY)!!, purposeKind = r.get(c.PURPOSE_KIND)!!, pinnedTarget = r.get(PINNED, String::class.java)!!,
+                approvedAt = instant(r, APPROVED_AT), executeBefore = instant(r, EXECUTE_BEFORE), attemptCount = r.get(e.ATTEMPT_COUNT),
+                nextAttemptAt = instant(r, NEXT_ATTEMPT_AT), lastResponseAt = instant(r, LAST_RESPONSE_AT), lastFailure = r.get(e.LAST_FAILURE),
+                integrityFlag = r.get(e.INTEGRITY_FLAG), resendHaltedReason = r.get(e.RESEND_HALTED_REASON), ownerResultCode = r.get(e.OWNER_RESULT_CODE),
+                ownerReference = r.get(e.OWNER_REFERENCE),
+            )
+        }
+        return if (owner == null) base else base.copy(owner = owner)
+    }
+
+    private fun instant(r: Record, alias: String): Instant? = r.get(alias, String::class.java)?.let(Instant::parse)
 
     private fun select() = dsl.select(
-        t.APPROVAL_ID, t.KIND, t.TARGET_ACTOR_ID, DSL.field("CAST({0} AS CHAR)", String::class.java, t.TARGET_SNAPSHOT).`as`(SNAPSHOT), t.GRANTED_ROLE,
+        t.APPROVAL_ID, t.KIND, t.TARGET_KIND, t.TARGET_ACTOR_ID, t.TARGET_REF, DSL.field("CAST({0} AS CHAR)", String::class.java, t.TARGET_SNAPSHOT).`as`(SNAPSHOT), t.GRANTED_ROLE,
         t.CAUSE_APPROVAL_ID, t.REQUESTED_BY, t.REQUESTED_BY_DISPLAY_NAME, time(t.REQUESTED_AT, REQUESTED_AT), time(t.EXPIRES_AT, EXPIRES_AT), t.STATUS,
         t.DECIDED_BY, t.DECIDED_BY_DISPLAY_NAME, time(t.DECIDED_AT, DECIDED_AT), t.RESULT_CODE,
     ).from(t)
@@ -36,7 +60,9 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
     private fun time(field: org.jooq.Field<*>, alias: String) = DSL.field("DATE_FORMAT({0}, '%Y-%m-%dT%H:%i:%s.%fZ')", String::class.java, field).`as`(alias)
 
     private fun row(r: Record) = ApprovalRow(
-        approvalId = r.get(t.APPROVAL_ID)!!, kind = r.get(t.KIND)!!, targetActorId = r.get(t.TARGET_ACTOR_ID)!!, targetSnapshot = r.get(SNAPSHOT, String::class.java)!!,
+        approvalId = r.get(t.APPROVAL_ID)!!, kind = r.get(t.KIND)!!, targetKind = r.get(t.TARGET_KIND)!!,
+        // 계정 대상만 target_actor_id, Payment 대상은 target_ref(V5 ck_…_target) — 한쪽은 NULL이다(S4 리뷰 4: non-null 단언이 목록 전체를 500으로 만들던 결함).
+        targetActorId = r.get(t.TARGET_ACTOR_ID), targetRef = r.get(t.TARGET_REF), targetSnapshot = r.get(SNAPSHOT, String::class.java)!!,
         grantedRole = r.get(t.GRANTED_ROLE), causeApprovalId = r.get(t.CAUSE_APPROVAL_ID), requestedBy = r.get(t.REQUESTED_BY)!!,
         requestedByDisplayName = r.get(t.REQUESTED_BY_DISPLAY_NAME)!!, requestedAt = Instant.parse(r.get(REQUESTED_AT, String::class.java)),
         expiresAt = Instant.parse(r.get(EXPIRES_AT, String::class.java)), status = r.get(t.STATUS)!!, decidedBy = r.get(t.DECIDED_BY),
@@ -49,5 +75,10 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
         const val REQUESTED_AT = "requested_at_text"
         const val EXPIRES_AT = "expires_at_text"
         const val DECIDED_AT = "decided_at_text"
+        const val PINNED = "pinned_target_text"
+        const val APPROVED_AT = "approved_at_text"
+        const val EXECUTE_BEFORE = "execute_before_text"
+        const val NEXT_ATTEMPT_AT = "next_attempt_at_text"
+        const val LAST_RESPONSE_AT = "last_response_at_text"
     }
 }

@@ -22,6 +22,19 @@ interface ApprovalRequestRepository {
     fun immutableColumns(id: String): ImmutableApprovalColumns?
 
     fun dueForExpiry(now: Instant, limit: Int): List<String>
+
+    /** 미해결 소유 서비스 승인 수(상태별 — EXECUTING·EXECUTION_UNKNOWN, 지표 `paycore.admin.ops.unresolved{status}`). 비잠금. */
+    fun unresolvedCounts(): Map<String, Long>
+
+    /** 가장 오래된 EXECUTION_UNKNOWN 승인의 결정(승인) 시각 — 없으면 null(지표 `unknown.oldest_age_seconds`). 비잠금. */
+    fun oldestUnknownDecidedAt(): Instant?
+
+    /**
+     * 종료(EXECUTED·OWNER_REJECTED)된 소유 서비스 승인 중 실행 행의 **마지막 응답 시각**(`last_response_at` — 종료를 기록한 응답, decided_at 아님 I-69)이
+     * [respondedBefore]보다 이른 것(대사 전체 스캔의 `MISSING_DECISION` 후보 — S7 리뷰 M-1(a), Demo 규모 전제, 운영 규모는 LIVE Gate). 실행 행이 없는 승인은 PAYMENT에 명령을
+     * 보낸 적이 없으므로 제외. 비잠금.
+     */
+    fun terminalOwnerApprovals(respondedBefore: Instant): List<ApprovalRequest>
 }
 
 data class VersionedApproval(val value: ApprovalRequest, val version: Long)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AdminApi, ApprovalView } from '../api/adminApi'
 import { OneTimeCode } from '../components/OneTimeCode'
+import { OwnerApprovalDetail } from '../components/OwnerApprovalDetail'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 
@@ -11,17 +12,21 @@ interface Props {
   view: 'pending' | 'mine'
   /** 승인·거절 버튼 표시(APPROVER — 표시만, 권한 판정은 서버). */
   canDecide: boolean
+  /** 조회자(근거·사유 버튼 표시 판단용 — 표시만, 권한 판정은 서버). */
+  viewer?: { actorId: string; roles: string[] }
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }
 
-function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw }: {
+function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw, onDetail }: {
   item: ApprovalView
   canDecide: boolean
   mine: boolean
   onApprove: (id: string, totp: string) => Promise<void>
   onReject: (id: string, totp: string) => Promise<void>
   onWithdraw: (id: string) => Promise<void>
+  onDetail: (id: string) => Promise<void>
 }) {
+  const target = item.targetActorId ?? item.targetRef ?? ''
   const [totp, setTotp] = useState('')
   const valid = TOTP.test(totp)
   const decide = async (action: (id: string, totp: string) => Promise<void>) => {
@@ -30,10 +35,10 @@ function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw }: {
     await action(item.approvalId, code)
   }
   return (
-    <tr aria-label={`${item.kind} ${item.targetActorId} ${item.status}`}>
+    <tr aria-label={`${item.kind} ${target} ${item.status}`}>
       <td>{item.kind}</td>
       <td>{item.grantedRole ?? item.causeApprovalId ?? ''}</td>
-      <td>{item.targetActorId}</td>
+      <td>{target}</td>
       <td>{item.requestedByDisplayName}</td>
       <td>{item.status}</td>
       <td>
@@ -56,14 +61,20 @@ function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw }: {
             철회
           </button>
         )}
+        {item.targetKind === 'PAYMENT' && (
+          <button type="button" onClick={() => onDetail(item.approvalId)}>
+            상세
+          </button>
+        )}
       </td>
     </tr>
   )
 }
 
 /** 승인함(PENDING — 승인·거절 + 직전 TOTP)과 내 요청(철회). 재설정 승인 응답의 코드는 [OneTimeCode]로 1회만 보이고 닫으면 상태에서 지운다. */
-export function ApprovalsScreen({ api, view, canDecide, onSessionEnded }: Props) {
+export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }: Props) {
   const [items, setItems] = useState<ApprovalView[]>([])
+  const [detail, setDetail] = useState<ApprovalView | null>(null)
   const [error, setError] = useState<ConsoleErrorCode | null>(null)
   const [oneTimeCode, setOneTimeCode] = useState<string | null>(null)
 
@@ -122,10 +133,19 @@ export function ApprovalsScreen({ api, view, canDecide, onSessionEnded }: Props)
               onApprove={(id, totp) => act(() => api.approve(id, totp))}
               onReject={(id, totp) => act(() => api.reject(id, totp))}
               onWithdraw={(id) => act(() => api.withdraw(id))}
+              onDetail={async (id) => {
+                setError(null)
+                try {
+                  setDetail(await api.approvalDetail(id))
+                } catch (e) {
+                  fail(e)
+                }
+              }}
             />
           ))}
         </tbody>
       </table>
+      {detail && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
     </section>
   )
 }

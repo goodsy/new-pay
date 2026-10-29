@@ -28,6 +28,11 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     reject: notStubbed('reject'),
     withdraw: notStubbed('withdraw'),
     audit: notStubbed('audit'),
+    paymentTarget: notStubbed('paymentTarget'),
+    requestOperatorCancel: notStubbed('requestOperatorCancel'),
+    approvalDetail: notStubbed('approvalDetail'),
+    justification: notStubbed('justification'),
+    reconciliation: notStubbed('reconciliation'),
   } as AdminApi
   return { ...base, ...overrides }
 }

@@ -59,6 +59,13 @@ logging:
 # 가맹점 공개 API(CP-API-001). 운영 기본값 없음 — 배포 환경이 값을 주지 않으면 기동하지 않는다(명세 §7.4·§8).
 #   paycore.payment.api.internal-port: 내부 경로(/internal/**) 전용 connector 포트(공개 포트와 달라야 한다)
 #   paycore.payment.api.retry-after.{eligibility-unavailable,temporarily-unavailable,request-in-progress}: Retry-After 권고(1s..1h)
+# ADMIN → PAYMENT 내부 호출 서명(ADMIN-PAYMENT-OPS-001 §4.2, D-OPS-001). 운영 기본값 없음 — 값이 없으면 기동 실패. 기동 검사: 권리 채널(entitlement inbox) 키와 바이트·kid가
+#   같으면 거부(ADMIN 전용 키 공간), server.servlet.context-path가 비어 있지 않으면 거부(서명 경로 = 요청 경로).
+#   paycore.payment.admin-channel.signing-keys[].{key-id([A-Za-z0-9._-]{1,32}),secret(Base64 ≥ 32바이트, 환경변수)} — 1..2개(교체 중에만 2개)
+#   paycore.payment.admin-channel.clock-window: 서명 시각 창(1s..10m, 정수 초, Demo PT300S — 운영값 LIVE Gate)
+#   paycore.payment.admin-ops.{max-execution-window(Demo PT24H),decision-stable-delay(Demo PT2M),read-permits(4),command-permits(2),public-pool-reserve(4)}
+#     — 운영자 보정 취소 기한(D-OPS-002)·결정 목록 안정 지연(D-OPS-008)·관리 bulkhead(§4.7). 기동 검사: read + command ≤ Hikari 풀 − reserve
+#   paycore.payment.api.{internal-max-threads,internal-accept-count}: 내부 connector 상한(Demo 16·16 — 관리 permit 합보다 커야 한다)
 # 결제창(AUTHN-001 §5·§6·§12). 운영 기본값 없음 — 값이 없으면 기동 실패.
 #   paycore.payment.checkout.port: 결제창 전용 connector 포트(공개·내부 포트와 달라야 한다), paycore.payment.checkout.address(선택)
 #   paycore.checkout.{public-base-url(https origin),policy-version,token-ttl,session-ttl,authentication-ttl}

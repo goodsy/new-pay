@@ -2326,6 +2326,86 @@
         "ADMIN-PAYMENT-OPS-001",
         "LIVE 준비 Gate"
       ]
+    },
+    {
+      "id": "Q-OPS-05",
+      "status": "ANSWERED",
+      "question": "PAYMENT의 운영자 보정 취소 거절을 그 approvalId에 대해 확정할지(nonce 없음 → 시각 창 안 재전송이 일시 거절 뒤 실행으로 바뀌어 ADMIN OWNER_REJECTED와 불일치 가능)",
+      "recommended": "A: PAYMENT가 approvalId별 첫 확정 결정(실행/거절)을 INSERT 전용 UNIQUE(approval_id)로 기록하고 이후 같은 approvalId에는 같은 결정 반환; 감사 행은 요청마다 1행 유지(D-CANCEL1-008); 일시 거절도 승인 소진",
+      "alternative": "B: 현재 유지+ADMIN 기한까지 상태 조회·불일치 경보 C: nonce 저장소(D-OPS-001 변경, 비권장)",
+      "answer": "A 채택(첫 확정 결정 고정)",
+      "answeredAt": "2026-10-27",
+      "origin": "ADMIN-PAYMENT-OPS-001 S0 명세 C-4",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001"
+      ]
+    },
+    {
+      "id": "Q-OPS-06",
+      "status": "ANSWERED",
+      "question": "EXECUTING 이후 PAYMENT 확정 응답 전 승인자/요청자 계정 정지·역할 회수(침해 의심 포함) 시 자동 재전송",
+      "recommended": "재전송 중단, EXECUTION_UNKNOWN 유지+경보, 상태 조회는 계속(이미 실행 여부 확인), 수동 미실행 확정 없음; PAYMENT에 도달하지 않은 명령은 기한 경과로 실행 불가",
+      "alternative": "기한까지 계속 재전송",
+      "answer": "권장안 채택(재전송 멈추고 불명 유지)",
+      "answeredAt": "2026-10-27",
+      "origin": "ADMIN-PAYMENT-OPS-001 S0 명세 리뷰",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001"
+      ]
+    },
+    {
+      "id": "Q-OPS-07",
+      "status": "ANSWERED",
+      "question": "APPROVAL_CONFLICT/APPROVAL_IDENTITY_MISMATCH 응답을 D-OPS-003 확정 응답으로 볼지",
+      "recommended": "비종료 무결성 상태: EXECUTION_UNKNOWN 유지+무결성 경보, 상태 조회로 PAYMENT 기록 결정을 확인해 반영",
+      "alternative": "확정 거절(OWNER_REJECTED)로 종료",
+      "answer": "권장안 채택(비종료 무결성 상태+경보)",
+      "answeredAt": "2026-10-27",
+      "origin": "ADMIN-PAYMENT-OPS-001 S0 명세 리뷰",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001"
+      ]
+    },
+    {
+      "id": "Q-OPS-08",
+      "status": "ANSWERED",
+      "question": "PAYMENT 운영자 결정 ↔ ADMIN 승인 대사 작업 범위",
+      "recommended": "이번 작업에 포함: PAYMENT 운영자 결정 목록(서명 GET, watermark)과 ADMIN 승인을 주기 대조, 지문 일치 승인 없는 실행·상태 불일치 경보",
+      "alternative": "후속 작업·LIVE Gate로",
+      "answer": "권장안 채택(이번 작업에 포함)",
+      "answeredAt": "2026-10-27",
+      "origin": "ADMIN-PAYMENT-OPS-001 S0 명세 리뷰",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001"
+      ]
+    },
+    {
+      "id": "Q-OPS-09",
+      "status": "ANSWERED",
+      "question": "D-OPS-006으로 재전송 중단된 승인이 PAYMENT 미도달(결정 NONE) 상태로 실행 기한을 넘기면 EXECUTION_UNKNOWN 영구 체류 + 해당 Payment 새 보정 요청 영구 차단(unresolved_key)",
+      "recommended": "기한 확인 전용 서명 호출: PAYMENT 시각 기준 now ≥ executeBefore이고 결정이 없을 때만 REJECTED(APPROVAL_EXECUTION_EXPIRED) 결정 기록, 시작 기능 없음; ADMIN은 반영해 OWNER_REJECTED 종료",
+      "alternative": "(1) 영구 차단 수용 (3) 기한 지난 중단 UNKNOWN을 unresolved_key에서 제외",
+      "answer": "권장안 채택(기한 확인 전용 호출)",
+      "answeredAt": "2026-10-28",
+      "origin": "ADMIN-PAYMENT-OPS-001 S0 명세 리뷰 2차 M-b",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001"
+      ]
+    },
+    {
+      "id": "Q-OPS-10",
+      "status": "ANSWERED",
+      "question": "운영자 보정 취소 승인 화면에서 승인자가 요청자가 쓴 근거 참조(purposeReference)·사유 문구를 볼 수 있는가 (근거는 승인 지문 oct1 재료, 사유는 PAYMENT 실행 본문으로 전송됨 — D-ADMIN-007 '승인한 입력 = 실행 입력')",
+      "recommended": "근거·사유를 승인 상세에서 APPROVER와 요청자 본인에게만 보이고(별도 권한 조회, 조회 감사), 목록·VIEWER·기타 역할에는 숨김",
+      "alternative": "모든 조회 역할에 상세에서 표시 / 지금처럼 숨기고 목적 종류·금액·대상만으로 승인",
+      "impact": "2인 승인의 실질 검토 범위와 자유 입력 문구의 노출 범위",
+      "dependentTasks": [
+        "ADMIN-PAYMENT-OPS-001 S8"
+      ],
+      "askedAt": "2026-10-28",
+      "humanAnswer": "승인자·요청자만 보기 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-29)",
+      "appliedSpec": "D-OPS-010"
     }
   ]
 }

@@ -2,6 +2,10 @@ package com.paycore.admin.account.adapter.persistence
 
 import com.paycore.admin.AdminDatabaseAccountSpec
 import com.paycore.admin.approval.adapter.persistence.JpaApprovalRequestEntity
+import com.paycore.admin.approval.adapter.persistence.JpaOperatorCancelCommandEntity
+import com.paycore.admin.approval.adapter.persistence.JpaOwnerExecutionEntity
+import com.paycore.admin.approval.adapter.persistence.JpaReconciliationCheckpointEntity
+import com.paycore.admin.approval.adapter.persistence.JpaReconciliationFindingEntity
 import com.paycore.admin.audit.adapter.persistence.JpaAdminAuditEventEntity
 import com.paycore.admin.support.AdminDbAccounts
 import com.paycore.admin.support.AdminDbTest
@@ -58,21 +62,49 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
         selectables(JpaApprovalRequestEntity::class.java).first shouldBe AdminDatabaseAccountSpec.ADMIN_RUNTIME_COLUMN_UPDATES.getValue("admin_approval_request").toSet()
     }
 
+    test("admin_owner_execution (ADMIN-PAYMENT-OPS-001 V6): Entity updatable columns are exactly the column-level UPDATE privileges (stored body/fingerprint/deadline immutable)") {
+        selectables(JpaOwnerExecutionEntity::class.java).first shouldBe AdminDatabaseAccountSpec.ADMIN_RUNTIME_COLUMN_UPDATES.getValue("admin_owner_execution").toSet()
+    }
+
+    test("S7 (I-76): reconciliation checkpoint Entity updatable columns are exactly its column-level UPDATE privileges; findings are an immutable entity") {
+        selectables(JpaReconciliationCheckpointEntity::class.java).first shouldBe
+            AdminDatabaseAccountSpec.ADMIN_RUNTIME_COLUMN_UPDATES.getValue("admin_ops_reconciliation_checkpoint").toSet()
+        persister(JpaReconciliationFindingEntity::class.java).isMutable shouldBe false
+    }
+
     test("every mapped table: Entity insertable columns are exactly the stored (non-generated) table columns") {
         mapOf(
             "admin_account" to JpaAdminAccountEntity::class.java, "admin_enrollment_code" to JpaEnrollmentCodeEntity::class.java,
             "admin_role_event" to JpaAdminRoleEventEntity::class.java, "admin_audit_event" to JpaAdminAuditEventEntity::class.java,
-            "admin_approval_request" to JpaApprovalRequestEntity::class.java,
+            "admin_approval_request" to JpaApprovalRequestEntity::class.java, "admin_operator_cancel_command" to JpaOperatorCancelCommandEntity::class.java,
+            "admin_owner_execution" to JpaOwnerExecutionEntity::class.java, "admin_ops_reconciliation_checkpoint" to JpaReconciliationCheckpointEntity::class.java,
+            "admin_ops_reconciliation_finding" to JpaReconciliationFindingEntity::class.java,
         ).forEach { (table, type) ->
             val (_, insertable, ids) = selectables(type)
-            val autoIncrement = if (table in setOf("admin_role_event", "admin_audit_event")) setOf("event_id") else emptySet()
-            (insertable - autoIncrement + (ids - autoIncrement)) shouldBe (tableColumns(table, generated = false) - autoIncrement)
+            val autoIncrement = when (table) {
+                "admin_role_event", "admin_audit_event" -> setOf("event_id")
+                "admin_ops_reconciliation_finding" -> setOf("finding_id")
+                else -> emptySet()
+            }
+            (insertable - autoIncrement + (ids - autoIncrement)) shouldBe (tableColumns(table, generated = false) - autoIncrement - NOT_YET_MAPPED[table].orEmpty())
         }
     }
 
+    test("I-77 resolved (S5): admin_audit_event.target_ref is mapped by the audit Entity; no stored column is left unmapped") {
+        NOT_YET_MAPPED shouldBe emptyMap()
+        val (_, insertable, _) = selectables(JpaAdminAuditEventEntity::class.java)
+        ("target_ref" in insertable) shouldBe true
+    }
+
     test("append-only tables are mapped as immutable entities (Hibernate never issues UPDATE — runtime has no UPDATE: 1142)") {
-        listOf(JpaAdminRoleEventEntity::class.java, JpaAdminAuditEventEntity::class.java).associateWith { persister(it).isMutable } shouldBe
-            mapOf(JpaAdminRoleEventEntity::class.java to false, JpaAdminAuditEventEntity::class.java to false)
+        listOf(JpaAdminRoleEventEntity::class.java, JpaAdminAuditEventEntity::class.java, JpaOperatorCancelCommandEntity::class.java).associateWith { persister(it).isMutable } shouldBe
+            mapOf(JpaAdminRoleEventEntity::class.java to false, JpaAdminAuditEventEntity::class.java to false, JpaOperatorCancelCommandEntity::class.java to false)
+    }
+
+    test("generated columns (pending_key, unresolved_key) are not mapped — the database computes them from status") {
+        tableColumns("admin_approval_request", generated = true) shouldBe setOf("pending_key", "unresolved_key")
+        val (updatable, insertable, _) = selectables(JpaApprovalRequestEntity::class.java)
+        ((updatable + insertable) intersect setOf("pending_key", "unresolved_key")) shouldBe emptySet()
     }
 
     test("§4.7.5: every admin_account column is classified for security_version (a new unclassified column fails here)") {
@@ -80,6 +112,9 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
     }
 }) {
     companion object {
+        /** 표에 있으나 아직 Entity가 쓰지 않는 열(위 시험이 정확히 고정 — S5에서 비운다). */
+        val NOT_YET_MAPPED: Map<String, Set<String>> = emptyMap()
+
         /**
          * admin_account 열 → security_version 분류(§4.7.5). INCREMENTS: 이 열이 바뀌는 사건은 +1(상태·역할·자격·대기 사유/근거·표시명).
          * EXCLUDED: 인증 활동(실패 계수·마지막 TOTP 단계·세대 단독) — 승인을 무효로 만들지 않는다. IMMUTABLE/TECHNICAL: 바뀌지 않거나 기술 값.

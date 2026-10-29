@@ -23,10 +23,31 @@ export interface AccountView {
   pendingPurpose: string | null
 }
 
+/** 소유 서비스 승인 상세(I-98 — 사유·근거 문구 없음). [attemptCount]는 "명령 시도 기회 수"(I-105). */
+export interface OwnerDetail {
+  amountMinor: number
+  currency: string
+  purposeKind: string
+  pinnedTarget: unknown
+  approvedAt: string | null
+  executeBefore: string | null
+  attemptCount: number | null
+  nextAttemptAt: string | null
+  lastResponseAt: string | null
+  lastFailure: string | null
+  integrityFlag: string | null
+  resendHaltedReason: string | null
+  ownerResultCode: string | null
+  ownerReference: string | null
+}
+
 export interface ApprovalView {
   approvalId: string
   kind: string
-  targetActorId: string
+  /** ADMIN_ACCOUNT·PAYMENT(없으면 계정 대상). */
+  targetKind?: string
+  targetActorId: string | null
+  targetRef?: string | null
   targetSnapshot: string
   grantedRole: string | null
   causeApprovalId: string | null
@@ -39,6 +60,55 @@ export interface ApprovalView {
   decidedByDisplayName: string | null
   decidedAt: string | null
   resultCode: string | null
+  owner?: OwnerDetail
+}
+
+/** 화면 대상 조회(§4.3 — 비권위 표시값). 금액은 최소 단위 정수. */
+export interface PaymentTargetView {
+  paymentId: string
+  paymentStatus: string
+  cancellable: boolean
+  currency: string | null
+  authorizedMinor: number | null
+  cancellableMinor: number
+  balanceRevision: number
+  onHold: boolean
+  inFlightCancel: boolean
+}
+
+export interface OperatorCancelInput {
+  paymentId: string
+  amountMinor: number
+  purposeKind: string
+  purposeReference: string
+  reason: string
+}
+
+/** 근거·사유(D-OPS-010 — APPROVER·요청자 본인만 서버가 허용, 조회마다 감사). 화면 상태에만 잠깐 둔다. */
+export interface Justification {
+  approvalId: string
+  purposeReference: string
+  reason: string
+}
+
+export interface ReconciliationFinding {
+  findingId: number
+  kind: string
+  approvalId: string
+  paymentRef: string | null
+  /** 열 이름·code만(문구 없음). */
+  detailCode: string | null
+  foundAt: string
+}
+
+export interface ReconciliationOverview {
+  openCounts: Record<string, number>
+  openTotal: number
+  findings: ReconciliationFinding[]
+  truncated: boolean
+  lastRunAt: string | null
+  lastFullScanAt: string | null
+  lastResult: string | null
 }
 
 /** `ROLE_REACTIVATE` 원인 후보(Q-S7-2 — 서버가 역할 이벤트로 정한다). 화면은 이 목록에서만 고른다(자유 입력 없음). */
@@ -103,6 +173,12 @@ export interface AdminApi {
   reject(approvalId: string, totpCode: string): Promise<{ status: string }>
   withdraw(approvalId: string): Promise<{ status: string }>
   audit(filter: AuditFilterInput): Promise<{ entries: AuditEntry[] }>
+  /** S8(§4.20): 대상 조회(모든 조회 역할), 보정 취소 요청(OPERATOR), 승인 상세, 근거·사유 권한 조회(D-OPS-010), 대사 발견(SECURITY_ADMIN·APPROVER). */
+  paymentTarget(paymentId: string): Promise<PaymentTargetView>
+  requestOperatorCancel(input: OperatorCancelInput): Promise<{ approvalId: string }>
+  approvalDetail(approvalId: string): Promise<ApprovalView>
+  justification(approvalId: string): Promise<Justification>
+  reconciliation(): Promise<ReconciliationOverview>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -139,5 +215,10 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     reject: (approvalId, totpCode) => call(`/api/approvals/${segment(approvalId)}/reject`, 'POST', { totpCode }),
     withdraw: (approvalId) => call(`/api/approvals/${segment(approvalId)}/withdraw`, 'POST'),
     audit: (filter) => call(`/api/audit${auditQuery(filter)}`),
+    paymentTarget: (paymentId) => call(`/api/payment-ops/payments/${segment(paymentId)}/target`),
+    requestOperatorCancel: (input) => call('/api/approvals/operator-correction-cancel', 'POST', input),
+    approvalDetail: (approvalId) => call(`/api/approvals/${segment(approvalId)}`),
+    justification: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
+    reconciliation: () => call('/api/reconciliation/findings'),
   }
 }

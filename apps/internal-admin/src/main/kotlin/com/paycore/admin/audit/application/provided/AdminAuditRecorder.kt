@@ -30,10 +30,12 @@ data class AuditRecord(
     val detail: String? = null,
     /** 마스킹 해제 사유(UNMASK 행만 — 사용자 입력 원문, 감사 조회로 확인). */
     val reason: String? = null,
+    /** 계정이 아닌 대상(ADMIN-PAYMENT-OPS-001 §4.10 — 소유 서비스 승인의 paymentId). [targetActorId]와 함께 쓰지 않는다. */
+    val targetRef: String? = null,
 ) {
     override fun equals(other: Any?): Boolean = other is AuditRecord && toString() == other.toString()
 
     override fun hashCode(): Int = toString().hashCode()
 
-    override fun toString(): String = "AuditRecord(action=$action, result=$resultCode, actor=$actorId, target=$targetActorId, at=$occurredAt, correlation=$correlationId)"
+    override fun toString(): String = "AuditRecord(action=$action, result=$resultCode, actor=$actorId, target=${targetActorId ?: targetRef}, at=$occurredAt, correlation=$correlationId)"
 }

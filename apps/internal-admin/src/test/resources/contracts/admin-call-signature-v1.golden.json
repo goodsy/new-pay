@@ -1,0 +1,617 @@
+{
+  "description": "ADMIN-PAYMENT-OPS-001 ADMIN -> PAYMENT internal call signature v1 (generated independently of both apps with Python hmac/hashlib; Demo keys and identifiers, not production values).",
+  "header": "PayCore-Admin-Signature",
+  "headerPattern": "^t=([0-9]{1,10}),kid=([A-Za-z0-9._-]{1,32}),v1=([0-9a-f]{64})$",
+  "canonicalTag": "paycore.admin-call.v1",
+  "canonical": "tag LF METHOD LF normalizedPath LF t LF lowercase-hex(sha256(body)); UTF-8; no trailing LF; GET body is empty",
+  "hmacKey": "base64-decoded secret bytes",
+  "windowSeconds": 300,
+  "checkOrder": [
+    "QUERY_NOT_ALLOWED",
+    "MALFORMED",
+    "STALE",
+    "UNKNOWN_KID",
+    "SIGNATURE"
+  ],
+  "keys": [
+    {
+      "kid": "adm-golden-k1",
+      "secretBase64": "dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAx"
+    },
+    {
+      "kid": "adm-golden-k2",
+      "secretBase64": "dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAy"
+    }
+  ],
+  "signVectors": [
+    {
+      "name": "target-get",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "paycore.admin-call.v1\nGET\n/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target\n1792500300\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "v1": "b83e93e4c8b0695b81bcf637e2fce0a9e5e878adf19d041d6a86b2fead2f9922",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=b83e93e4c8b0695b81bcf637e2fce0a9e5e878adf19d041d6a86b2fead2f9922"
+    },
+    {
+      "name": "execute-post",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "bodySha256": "81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "canonical": "paycore.admin-call.v1\nPOST\n/internal/v1/admin/operator-cancellations\n1792500300\n81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "v1": "5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6"
+    },
+    {
+      "name": "execute-post-hangul-reason",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"중복 승인 보정 𠀀\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "bodySha256": "69dcb90a4661caa9265596246491b56c7341caa54097a16f43c285ed6fb932e7",
+      "canonical": "paycore.admin-call.v1\nPOST\n/internal/v1/admin/operator-cancellations\n1792500300\n69dcb90a4661caa9265596246491b56c7341caa54097a16f43c285ed6fb932e7",
+      "v1": "2552d49b9cc2acd19a74a4e9f7cfe969b05e2976800a7acce85b6d8d796b72d8",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=2552d49b9cc2acd19a74a4e9f7cfe969b05e2976800a7acce85b6d8d796b72d8"
+    },
+    {
+      "name": "decision-get",
+      "method": "GET",
+      "path": "/internal/v1/admin/operator-cancellations/apr_01JC0000000000000000000001",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "paycore.admin-call.v1\nGET\n/internal/v1/admin/operator-cancellations/apr_01JC0000000000000000000001\n1792500300\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "v1": "fb0743367349c1010afcfec3a0b1d23732c481c8735b98980f9c2d70ba2f0af9",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=fb0743367349c1010afcfec3a0b1d23732c481c8735b98980f9c2d70ba2f0af9"
+    },
+    {
+      "name": "decision-list-get",
+      "method": "GET",
+      "path": "/internal/v1/admin/operator-decisions/after/0",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "paycore.admin-call.v1\nGET\n/internal/v1/admin/operator-decisions/after/0\n1792500300\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "v1": "217241b9f2fb562c672b328196a9ab3b608219f911b5f4be408c0bdbffbf83c2",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=217241b9f2fb562c672b328196a9ab3b608219f911b5f4be408c0bdbffbf83c2"
+    },
+    {
+      "name": "deadline-confirmation-post",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations/apr_01JC0000000000000000000001/deadline-confirmation",
+      "t": 1792500300,
+      "kid": "adm-golden-k1",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "bodySha256": "81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "canonical": "paycore.admin-call.v1\nPOST\n/internal/v1/admin/operator-cancellations/apr_01JC0000000000000000000001/deadline-confirmation\n1792500300\n81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "v1": "4f59c28f58e127d8927538529406eb1569f33bb1b06f9e089747920f27c8dc83",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=4f59c28f58e127d8927538529406eb1569f33bb1b06f9e089747920f27c8dc83"
+    },
+    {
+      "name": "execute-post-second-key",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "t": 1792500300,
+      "kid": "adm-golden-k2",
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "bodySha256": "81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "canonical": "paycore.admin-call.v1\nPOST\n/internal/v1/admin/operator-cancellations\n1792500300\n81d582d0fd1a89a70d2c6bd986ca8dd9f90651cbd18a26a5675af15bca2f8133",
+      "v1": "5517908c8fa6f5cf5643cae7596a52987366093834d05adab0e563e222d10cb3",
+      "header": "t=1792500300,kid=adm-golden-k2,v1=5517908c8fa6f5cf5643cae7596a52987366093834d05adab0e563e222d10cb3"
+    }
+  ],
+  "verifyCases": [
+    {
+      "name": "accept-execute-post",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "accept-target-get",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "query": null,
+      "body": "",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=b83e93e4c8b0695b81bcf637e2fce0a9e5e878adf19d041d6a86b2fead2f9922",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "accept-window-minus-300",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500600,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "accept-window-plus-300",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500000,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "reject-window-minus-301",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500601,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "STALE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-window-plus-301",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792499999,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "STALE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "accept-second-key-while-rotating",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k2,v1=5517908c8fa6f5cf5643cae7596a52987366093834d05adab0e563e222d10cb3",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "reject-retired-second-key",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k2,v1=5517908c8fa6f5cf5643cae7596a52987366093834d05adab0e563e222d10cb3",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "UNKNOWN_KID",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-unknown-kid",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-unknown,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "UNKNOWN_KID",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-kid-swapped-to-other-known-key",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k2,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-body-changed",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7001,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-path-changed",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellationsx",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-method-changed",
+      "method": "PUT",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-t-changed",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500301,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-execute-signature-on-deadline-path",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations/apr_01JC0000000000000000000001/deadline-confirmation",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-deadline-signature-on-execute-path",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=4f59c28f58e127d8927538529406eb1569f33bb1b06f9e089747920f27c8dc83",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-query-string-even-if-signed",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "query": "x=1",
+      "body": "",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=b83e93e4c8b0695b81bcf637e2fce0a9e5e878adf19d041d6a86b2fead2f9922",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "QUERY_NOT_ALLOWED",
+        "httpStatus": 400
+      }
+    },
+    {
+      "name": "reject-query-string-unsigned",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "query": "watermark=0",
+      "body": "",
+      "header": null,
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "QUERY_NOT_ALLOWED",
+        "httpStatus": 400
+      }
+    },
+    {
+      "name": "reject-missing-header",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "query": null,
+      "body": "",
+      "header": null,
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-empty-header",
+      "method": "GET",
+      "path": "/internal/v1/admin/payments/pay_01JC0000000000000000000001/operator-cancel-target",
+      "query": null,
+      "body": "",
+      "header": "",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-uppercase-hex",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5B145566262A1527C29DC5B62593B335F794299FB2FC517B65724BA0DE7107D6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-spaces",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300, kid=adm-golden-k1, v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-field-order",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "kid=adm-golden-k1,t=1792500300,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-extra-field",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6,v2=abc",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-short-v1",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-t-eleven-digits",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=01792500300,kid=adm-golden-k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-kid-too-long",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-kid-bad-character",
+      "method": "POST",
+      "path": "/internal/v1/admin/operator-cancellations",
+      "query": null,
+      "body": "{\"approvalId\":\"apr_01JC0000000000000000000001\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"amountMinor\":7000,\"currency\":\"KRW\",\"requestedBy\":\"adm_01JC00000000000000000000R1\",\"approvedBy\":\"adm_01JC00000000000000000000A1\",\"reason\":\"duplicate charge correction\",\"purpose\":{\"kind\":\"INCIDENT_OR_RECON_CORRECTION\",\"reference\":\"RECON-2026-0001\"},\"approvedTargetFingerprint\":\"oct1:0000000000000000000000000000000000000000000000000000000000000000\",\"approvedAt\":\"2026-10-27T01:02:03.456Z\",\"executeBefore\":\"2026-10-28T01:02:03.456Z\",\"correlationId\":\"corr-0001\"}",
+      "header": "t=1792500300,kid=adm/k1,v1=5b145566262a1527c29dc5b62593b335f794299fb2fc517b65724ba0de7107d6",
+      "now": 1792500300,
+      "knownKids": [
+        "adm-golden-k1",
+        "adm-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    }
+  ]
+}

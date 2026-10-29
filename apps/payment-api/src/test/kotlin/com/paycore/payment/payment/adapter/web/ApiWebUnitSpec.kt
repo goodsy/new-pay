@@ -28,6 +28,8 @@ class ApiWebUnitSpec : BehaviorSpec({
     val settings = PaymentApiSettings(
         internalPort = 0,
         retryAfter = PaymentApiSettings.RetryAfter(Duration.ofSeconds(2), Duration.ofSeconds(3), Duration.ofSeconds(1)),
+        internalMaxThreads = 16,
+        internalAcceptCount = 16,
     )
     val mapper = JsonMapper.builder().build()
 

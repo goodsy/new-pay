@@ -15,6 +15,19 @@ function headersOf(fetch: ReturnType<typeof vi.fn>): Headers {
   return new Headers(init.headers)
 }
 
+describe('apiFetch — I-111 input refusal detail (S8)', () => {
+  it('keeps a known field and reason code of a 400 INVALID_INPUT (never the input value); unknown names are dropped', async () => {
+    const card = deps(jsonResponse(400, { error: 'INVALID_INPUT', field: 'purposeReference', reason: 'CARD_NUMBER_PATTERN' }), `${XSRF_COOKIE}=t`)
+    await expect(apiFetch('/api/approvals/operator-correction-cancel', { method: 'POST', body: {} }, card)).rejects.toMatchObject({
+      code: 'INVALID_INPUT', detail: { field: 'purposeReference', reason: 'CARD_NUMBER_PATTERN' },
+    })
+    const odd = deps(jsonResponse(400, { error: 'INVALID_INPUT', field: '<script>', reason: 'whatever' }), `${XSRF_COOKIE}=t`)
+    const error = await apiFetch('/api/approvals/operator-correction-cancel', { method: 'POST', body: {} }, odd).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).detail).toBeUndefined()
+  })
+})
+
 describe('apiFetch', () => {
   it('sends GET same-origin without a CSRF header', async () => {
     const d = deps(jsonResponse(200, { ok: true }), `${XSRF_COOKIE}=tok-1`)

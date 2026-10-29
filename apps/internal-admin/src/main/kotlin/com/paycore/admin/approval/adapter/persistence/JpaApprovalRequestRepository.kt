@@ -7,18 +7,18 @@ import com.paycore.admin.approval.application.required.VersionedApproval
 import com.paycore.admin.approval.domain.ApprovalKind
 import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
+import com.paycore.admin.approval.domain.ApprovalTarget
+import com.paycore.admin.approval.domain.ApprovalTargetKind
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
-import org.hibernate.StaleStateException
-import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.sql.SQLException
 import java.time.Instant
 
 /**
- * [ApprovalRequestRepository] JPA 구현(account와 같은 관례): 새 행은 persist + flush(1062 `pending_key` → DuplicatePending), 잠금은 `find` + `refresh(PESSIMISTIC_WRITE)`,
+ * [ApprovalRequestRepository] JPA 구현(account와 같은 관례): 새 행은 persist + flush(1062 `pending_key` → DuplicatePending, `unresolved_key` → DuplicateUnresolved — V5),
+ * 잠금은 `find` + `refresh(PESSIMISTIC_WRITE)`,
  * 갱신은 잠근 managed Entity의 결정 열만(dirty checking, `@Version` 조건) + flush. MySQL 1213·1205·version 충돌은 Port 안에서 분류한다.
  */
 @Component
@@ -26,9 +26,11 @@ import java.time.Instant
 class JpaApprovalRequestRepository(private val entityManager: EntityManager) : ApprovalRequestRepository {
 
     override fun insert(request: ApprovalRequest): VersionedApproval = translate {
+        val target = request.target
         val row = JpaApprovalRequestEntity.newRow(
-            request.id, request.kind.name, request.targetActorId, request.targetSecurityVersion, request.targetSnapshot, request.grantedRole,
-            request.causeApprovalId, request.requestedBy, request.requestedByDisplayName, request.requestedAt, request.expiresAt,
+            request.id, request.kind.name, target.kind.name, (target as? ApprovalTarget.AdminAccount)?.actorId, (target as? ApprovalTarget.Payment)?.paymentId,
+            target.version, request.targetSnapshot, request.grantedRole, request.causeApprovalId, request.requestedBy, request.requestedByDisplayName,
+            request.requestedAt, request.expiresAt,
         )
         copyDecision(request, row)
         entityManager.persist(row)
@@ -56,14 +58,40 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
     override fun immutableColumns(id: String): ImmutableApprovalColumns? = translate {
         // 스칼라 JPQL — Entity를 영속성 컨텍스트에 올리지 않으므로 뒤의 lock(find + refresh FOR UPDATE)이 최신 커밋 값을 다시 읽는다(0단계 ↔ 1단계 대조가 의미 있게).
         entityManager.createQuery(
-            "SELECT r.kind, r.targetActorId, r.grantedRole FROM JpaApprovalRequestEntity r WHERE r.approvalId = :id", Array<Any?>::class.java,
-        ).setParameter("id", id).resultList.firstOrNull()?.let { ImmutableApprovalColumns(it[0] as String, it[1] as String, it[2] as String?) }
+            "SELECT r.kind, r.targetKind, r.targetActorId, r.targetRef, r.grantedRole FROM JpaApprovalRequestEntity r WHERE r.approvalId = :id", Array<Any?>::class.java,
+        ).setParameter("id", id).resultList.firstOrNull()?.let {
+            ImmutableApprovalColumns(it[0] as String, it[1] as String, requireNotNull((it[2] ?: it[3]) as String?) { "target reference" }, it[4] as String?)
+        }
     }
 
     override fun dueForExpiry(now: Instant, limit: Int): List<String> = translate {
         entityManager.createQuery(
             "SELECT r.approvalId FROM JpaApprovalRequestEntity r WHERE r.status = :pending AND r.expiresAt <= :now ORDER BY r.expiresAt, r.approvalId", String::class.java,
         ).setParameter("pending", ApprovalStatus.PENDING.name).setParameter("now", now).setMaxResults(limit).resultList
+    }
+
+    override fun unresolvedCounts(): Map<String, Long> = translate {
+        val counts = entityManager.createQuery(
+            "SELECT r.status, COUNT(r) FROM JpaApprovalRequestEntity r WHERE r.status IN :statuses GROUP BY r.status", Array<Any?>::class.java,
+        ).setParameter("statuses", UNRESOLVED_OWNER).resultList.associate { it[0] as String to (it[1] as Number).toLong() }
+        UNRESOLVED_OWNER.associateWith { counts[it] ?: 0L }
+    }
+
+    override fun oldestUnknownDecidedAt(): Instant? = translate {
+        entityManager.createQuery("SELECT MIN(r.decidedAt) FROM JpaApprovalRequestEntity r WHERE r.status = :unknown", Instant::class.java)
+            .setParameter("unknown", ApprovalStatus.EXECUTION_UNKNOWN.name).singleResult
+    }
+
+    override fun terminalOwnerApprovals(respondedBefore: Instant): List<ApprovalRequest> = translate {
+        entityManager.createQuery(
+            "SELECT r FROM JpaApprovalRequestEntity r, JpaOwnerExecutionEntity e WHERE e.approvalId = r.approvalId AND r.kind = :kind AND r.status IN :statuses " +
+                "AND e.lastResponseAt < :respondedBefore",
+            JpaApprovalRequestEntity::class.java,
+        )
+            .setParameter("kind", ApprovalKind.OPERATOR_CORRECTION_CANCEL.name)
+            .setParameter("respondedBefore", respondedBefore)
+            .setParameter("statuses", listOf(ApprovalStatus.EXECUTED.name, ApprovalStatus.OWNER_REJECTED.name))
+            .resultList.map(::toDomain)
     }
 
     private fun copyDecision(request: ApprovalRequest, row: JpaApprovalRequestEntity) {
@@ -76,32 +104,21 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
 
     private fun versioned(row: JpaApprovalRequestEntity) = VersionedApproval(toDomain(row), requireNotNull(row.version))
 
+    /** Mapper: 대상 종류별 열 → sealed 대상. 재구성 불변식(ADMIN 소유 종류인데 EXECUTING 등)은 domain이 거부한다(§5). */
     private fun toDomain(r: JpaApprovalRequestEntity) = ApprovalRequest.reconstitute(
-        r.approvalId, ApprovalKind.valueOf(r.kind), r.targetActorId, r.targetSecurityVersion, r.targetSnapshot, r.grantedRole, r.causeApprovalId,
+        r.approvalId, ApprovalKind.valueOf(r.kind), target(r), r.targetSnapshot, r.grantedRole, r.causeApprovalId,
         r.requestedBy, r.requestedByDisplayName, r.requestedAt, r.expiresAt, ApprovalStatus.valueOf(r.status), r.decidedBy, r.decidedByDisplayName,
         r.decidedAt, r.resultCode,
     )
 
-    private fun <T> translate(block: () -> T): T = try {
-        block()
-    } catch (e: ApprovalPersistenceFailure) {
-        throw e
-    } catch (e: RuntimeException) {
-        val chain = generateSequence<Throwable>(e) { t -> t.cause?.takeIf { it !== t } }.take(MAX_CAUSE_DEPTH).toList()
-        if (chain.any { it is OptimisticLockingFailureException || it is jakarta.persistence.OptimisticLockException || it is StaleStateException }) {
-            throw ApprovalPersistenceFailure.OptimisticConflict()
-        }
-        val sql = chain.filterIsInstance<SQLException>().firstOrNull() ?: throw e
-        throw when (sql.errorCode) {
-            // 키 값은 쓰지 않는다 — 제약 이름만 본다(`pending_key` UNIQUE = 같은 종류·대상 PENDING).
-            1062 -> if (sql.message.orEmpty().contains("uk_admin_approval_request_pending")) ApprovalPersistenceFailure.DuplicatePending() else e
-            1213 -> ApprovalPersistenceFailure.Deadlock(e)
-            1205 -> ApprovalPersistenceFailure.LockTimeout(e)
-            else -> if (sql.sqlState?.startsWith("08") == true) ApprovalPersistenceFailure.Unavailable(e) else e
-        }
+    private fun target(r: JpaApprovalRequestEntity): ApprovalTarget = when (ApprovalTargetKind.valueOf(r.targetKind)) {
+        ApprovalTargetKind.ADMIN_ACCOUNT -> ApprovalTarget.AdminAccount(requireNotNull(r.targetActorId) { "account target" }, r.targetSecurityVersion)
+        ApprovalTargetKind.PAYMENT -> ApprovalTarget.Payment(requireNotNull(r.targetRef) { "payment target" }, r.targetSecurityVersion)
     }
 
+    private fun <T> translate(block: () -> T): T = ApprovalPersistenceTranslation.translate(block)
+
     private companion object {
-        const val MAX_CAUSE_DEPTH = 20
+        val UNRESOLVED_OWNER = listOf(ApprovalStatus.EXECUTING.name, ApprovalStatus.EXECUTION_UNKNOWN.name)
     }
 }

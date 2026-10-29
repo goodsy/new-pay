@@ -48,6 +48,11 @@ class JpaAdminAuditEventEntity protected constructor() {
     var targetActorId: String? = null
         protected set
 
+    /** V5(ADMIN-PAYMENT-OPS-001 §4.10): 계정이 아닌 대상(Payment) — target_actor_id와 함께 쓰지 않는다. */
+    @field:Column(name = "target_ref", updatable = false, length = 64)
+    var targetRef: String? = null
+        protected set
+
     @field:Column(name = "result_code", nullable = false, updatable = false, length = 48)
     lateinit var resultCode: String
         protected set
@@ -87,7 +92,9 @@ class JpaAdminAuditEventEntity protected constructor() {
         fun newRow(
             occurredAt: Instant, actorKind: String, actorId: String?, actorDisplayName: String?, executorActorId: String?, action: String,
             targetActorId: String?, resultCode: String, approvalId: String?, correlationId: String, remoteIp: String?, loginNameHmac: ByteArray?, detail: String?, reason: String? = null,
+            targetRef: String? = null,
         ) = JpaAdminAuditEventEntity().also {
+            it.targetRef = targetRef
             it.occurredAt = occurredAt
             it.actorKind = actorKind
             it.actorId = actorId

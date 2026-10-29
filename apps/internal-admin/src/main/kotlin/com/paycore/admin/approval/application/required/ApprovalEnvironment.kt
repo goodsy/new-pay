@@ -11,4 +11,7 @@ interface ApprovalEnvironment {
     fun newApprovalId(): String
 
     val validity: Duration
+
+    /** 근거·사유 권한 조회의 조회자별 분당 상한(D-OPS-010 — Demo 값, I-131). 초과는 429·감사 없음. */
+    val justificationPerMinute: Int
 }
