@@ -2406,6 +2406,53 @@
       "humanAnswer": "승인자·요청자만 보기 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-29)",
       "appliedSpec": "D-OPS-010"
+    },
+    {
+      "id": "Q-ADMIN-BOOT-ROLE",
+      "status": "ANSWERED",
+      "question": "bootstrap 직후(SECURITY_ADMIN 1명·APPROVER 1명) 새 계정에 역할을 줄 수 없는 교착: 계정 생성과 ROLE_GRANT 요청은 SECURITY_ADMIN만 가능한데, 계정을 만든 SA는 D-ADMIN1-014/015로 그 계정의 ROLE_GRANT 요청·승인에서 배제됨. 2026-10-29 Demo에서 409 CREDENTIAL_ISSUER로 재현",
+      "recommended": "bootstrap이 SECURITY_ADMIN 2명 + APPROVER 1명을 만든다(SA-A가 계정 생성, SA-B가 ROLE_GRANT 요청, APPROVER 승인 — D-ADMIN1-015 유지)",
+      "alternative": "bootstrap이 초기 OPERATOR 계정도 함께 생성 / D-ADMIN1-015를 ROLE_GRANT 요청에 한해 완화(승인자 분리만 유지)",
+      "impact": "관리자 계정 운영 가능 여부(운영에서도 동일 교착), 권한 상승 분리 원칙",
+      "dependentTasks": [
+        "ADMIN-BOOT-001 후속",
+        "Demo 시연"
+      ],
+      "askedAt": "2026-10-29",
+      "humanAnswer": "bootstrap에 SA 2명 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-30)",
+      "appliedSpec": "D-ADMIN1-022"
+    },
+    {
+      "id": "Q-DEMO-MERCHANT",
+      "status": "ANSWERED",
+      "question": "Demo에서 승인된 Payment를 만들 공식 경로가 없음: 결제 생성은 merchant_api_credential을 요구하지만 이를 채우는 MASTER-CREDENTIAL-001이 BACKLOG이고 master-api에 HTTP 경로가 없음. 운영자 보정 취소 화면 시연을 어떻게 할지",
+      "recommended": "DEMO 배포 모드에서만 동작하는 Demo 가맹점 seed 명령(명시 Demo fixture, LIVE 기동 거부, 공식 Port 경유, 감사 기록)을 작은 작업으로 추가",
+      "alternative": "agreedOrder대로 MASTER-LIFECYCLE-001·MASTER-CREDENTIAL-001을 먼저 구현한 뒤 시연 / 결제 흐름 시연은 미루고 현재 캡처로 마무리",
+      "impact": "시연 시점, Demo 전용 코드 경로 추가 여부",
+      "dependentTasks": [
+        "Demo 시연",
+        "CHECKOUT-REACT-001"
+      ],
+      "askedAt": "2026-10-29",
+      "humanAnswer": "Demo 전용 seed 명령 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-30)",
+      "appliedSpec": "D-DEMO-001"
+    },
+    {
+      "id": "Q-ADMIN-SA-FLOOR",
+      "status": "ANSWERED",
+      "question": "활성 SA가 1명만 남으면 그 SA가 만든 계정에 역할을 줄 수 없고, 복구 명령은 활성 SA 0명일 때만 동작해 이 상황을 풀지 못함",
+      "recommended": "복구 조건 유지 + LIVE Gate 운영 하한(활성 SA ≥2, APPROVER ≥2)과 지표·경보",
+      "alternative": "복구 작업 B도 SA 2명 생성 / 복구 조건을 활성 SA ≤1로 확대(D-ADMIN1-010 변경)",
+      "dependentTasks": [
+        "ADMIN-BOOT-002",
+        "LIVE 준비 Gate"
+      ],
+      "askedAt": "2026-10-30",
+      "humanAnswer": "운영 하한+경보 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-30)",
+      "appliedSpec": "D-ADMIN1-023"
     }
   ]
 }

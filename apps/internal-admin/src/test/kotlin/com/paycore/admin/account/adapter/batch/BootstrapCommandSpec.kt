@@ -50,25 +50,32 @@ class BootstrapCommandSpec(
         it.column("SELECT CONCAT(actor_kind, ':', action, ':', result_code, ':', COALESCE(detail, '-')) FROM admin_audit_event ORDER BY event_id")
     }
     fun options(output: String) = mapOf(
-        "output" to output, "security-admin-login" to "boot-sa", "security-admin-name" to "보안 관리자", "approver-login" to "boot-apr", "approver-name" to "승인자",
+        "output" to output, "security-admin-login" to "boot-sa", "security-admin-name" to "보안 관리자",
+        "second-security-admin-login" to "boot-sa2", "second-security-admin-name" to "보안 관리자 2", "approver-login" to "boot-apr", "approver-name" to "승인자",
     )
     fun line(terminal: Boolean = false) = OneShotSupport.FakeConsole(terminal).let { it to OneShotCommandLine(oneShot, it) }
 
     Given("an empty ADMIN DB") {
-        Then("bootstrap creates exactly one SECURITY_ADMIN and one APPROVER (system basis, PENDING_ENROLLMENT), the fixed row, two ENROLL codes written only to a new 0600 file") {
+        // ADMIN-BOOT-002(D-ADMIN1-022): 결과 자체가 SA 2 + APPROVER 1로 바뀌었다 — 수량 기대값 2→3·감사 5→7(검사 항목은 유지·추가).
+        Then("bootstrap creates exactly two SECURITY_ADMINs and one APPROVER (system basis, PENDING_ENROLLMENT), the fixed row, three ENROLL codes written only to a new 0600 file") {
             val file = OneShotSupport.outputFile()
             val (_, cli) = line()
             cli.run("bootstrap", options("file:$file")) shouldBe OneShotExit.SUCCESS.code
             PosixFilePermissions.toString(Files.getPosixFilePermissions(file)) shouldBe "rw-------"
             val codes = OneShotSupport.codesIn(Files.readString(file))
-            codes.keys shouldBe setOf("boot-sa", "boot-apr")
-            listOf(count("admin_account"), count("admin_bootstrap"), count("admin_enrollment_code")) shouldBe listOf(2, 1, 2)
+            codes.keys shouldBe setOf("boot-sa", "boot-sa2", "boot-apr")
+            listOf(count("admin_account"), count("admin_bootstrap"), count("admin_enrollment_code")) shouldBe listOf(3, 1, 3)
             val ids = AdminDbAccounts.root(container).use { it.column("SELECT actor_id FROM admin_account ORDER BY login_name") }
-            val (approver, admin) = ids.map { storage.load(AdminActorId(it)) }
-            listOf(admin.activeRoles, approver.activeRoles, admin.status, admin.credentialBasis.issuers) shouldBe
-                listOf(setOf(AdminRole.SECURITY_ADMIN), setOf(AdminRole.APPROVER), AccountStatus.PENDING_ENROLLMENT, emptySet<AdminActorId>())
-            // S8 리뷰 nit-6: 빈 목록의 all{}은 참이므로 행 수를 먼저 고정한다(계정 생성 2·코드 발급 2·부트스트랩 1).
-            audits().size shouldBe 5
+            val (approver, admin, second) = ids.map { storage.load(AdminActorId(it)) }
+            listOf(admin.activeRoles, second.activeRoles, approver.activeRoles, admin.status, second.status, admin.credentialBasis.issuers, second.credentialBasis.issuers) shouldBe
+                listOf(
+                    setOf(AdminRole.SECURITY_ADMIN), setOf(AdminRole.SECURITY_ADMIN), setOf(AdminRole.APPROVER), AccountStatus.PENDING_ENROLLMENT, AccountStatus.PENDING_ENROLLMENT,
+                    emptySet<AdminActorId>(), emptySet<AdminActorId>(),
+                )
+            // S8 리뷰 nit-6: 빈 목록의 all{}은 참이므로 행 수를 먼저 고정한다(계정 생성 3·코드 발급 3·부트스트랩 1).
+            audits().size shouldBe 7
+            audits().count { it == "SYSTEM_BOOTSTRAP:BOOTSTRAP:SUCCESS:accounts=3" } shouldBe 1
+            audits().count { it == "SYSTEM_BOOTSTRAP:ACCOUNT_CREATED:SUCCESS:role=SECURITY_ADMIN" } shouldBe 2
             audits().all { it.startsWith("SYSTEM_BOOTSTRAP:") } shouldBe true
             audits().none { row -> codes.values.any { row.contains(it) } } shouldBe true
             OneShotSupport.enroll(enrollment, admin.id.value, codes.getValue("boot-sa"))
@@ -104,7 +111,7 @@ class BootstrapCommandSpec(
             OneShotCommandLine(swapping, OneShotSupport.FakeConsole(false)).run("bootstrap", options("file:$file")) shouldBe OneShotExit.OUTPUT_FAILED.code
             Files.readString(target) shouldBe "victim"
             Files.isSymbolicLink(file) shouldBe true
-            count("admin_account") shouldBe 2 // 코드는 커밋됐다 — 재발급 경로(복구 명령)로 간다.
+            count("admin_account") shouldBe 3 // 코드는 커밋됐다 — 재발급 경로(복구 명령)로 간다.
         }
         Then("S6 review M-1: an output directory writable by group/others is refused before any DB change") {
             val shared = Files.createTempDirectory("paycore-shared-").also { Files.setPosixFilePermissions(it, PosixFilePermissions.fromString("rwxrwxrwx")) }
@@ -116,7 +123,7 @@ class BootstrapCommandSpec(
         Then("a TTY (terminal present) receives the codes") {
             val (console, cli) = line(terminal = true)
             cli.run("bootstrap", options("tty")) shouldBe OneShotExit.SUCCESS.code
-            OneShotSupport.codesIn(console.written.toString()).keys shouldBe setOf("boot-sa", "boot-apr")
+            OneShotSupport.codesIn(console.written.toString()).keys shouldBe setOf("boot-sa", "boot-sa2", "boot-apr")
         }
     }
 
@@ -130,10 +137,12 @@ class BootstrapCommandSpec(
     }
 
     Given("two bootstraps at once (BootstrapConcurrency — both proven to wait on the fixed row)") {
-        Then("exactly one pair of accounts, one fixed row, the loser gets LOST with its own audit row") {
+        Then("exactly one bootstrap set of accounts (two SECURITY_ADMINs + one APPROVER), one fixed row, the loser gets LOST with its own audit row") {
             val pool = Executors.newFixedThreadPool(2)
             val command = { suffix: String ->
-                BootstrapCommand(NewAdminAccount("sa-$suffix", "보안 $suffix"), NewAdminAccount("apr-$suffix", "승인 $suffix"), "corr-boot-$suffix")
+                BootstrapCommand(
+                    NewAdminAccount("sa-$suffix", "보안 $suffix"), NewAdminAccount("sa2-$suffix", "보안2 $suffix"), NewAdminAccount("apr-$suffix", "승인 $suffix"), "corr-boot-$suffix",
+                )
             }
             val results = RowLockHolder.open(container).use { holder ->
                 // 세 번째 연결이 첫 부트스트랩의 SECURITY_ADMIN login_name으로 계정 행을 미커밋 INSERT → 첫 TX는 고정 행을 쥔 채 그 UNIQUE에서 멈춘다.
@@ -154,9 +163,9 @@ class BootstrapCommandSpec(
             pool.shutdown()
             results.count { it is OneShotResult.Done } shouldBe 1
             results.count { it == OneShotResult.Lost } shouldBe 1
-            listOf(count("admin_account"), count("admin_bootstrap"), count("admin_enrollment_code")) shouldBe listOf(2, 1, 2)
+            listOf(count("admin_account"), count("admin_bootstrap"), count("admin_enrollment_code")) shouldBe listOf(3, 1, 3)
             audits().count { it == "SYSTEM_BOOTSTRAP:BOOTSTRAP:LOST:reason=ALREADY_BOOTSTRAPPED" } shouldBe 1
-            results.first { it is OneShotResult.Done }.shouldBeInstanceOf<OneShotResult.Done>().codes.size shouldBe 2
+            results.first { it is OneShotResult.Done }.shouldBeInstanceOf<OneShotResult.Done>().codes.size shouldBe 3
         }
     }
 })

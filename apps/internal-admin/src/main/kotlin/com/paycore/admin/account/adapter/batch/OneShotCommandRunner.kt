@@ -15,6 +15,8 @@ import org.springframework.web.context.WebApplicationContext
  * 1회성 명령 모드(§4.9 — `--paycore.admin.command=bootstrap|recovery`가 있을 때만 등록). **모드 가드**: 웹 애플리케이션 컨텍스트(웹 서버 구성)거나 스케줄러
  * (승인 만료 job)가 켜져 있으면 DB에 닿기 전에 거부한다 — 웹 프로필로 기동한 프로세스는 명령 인자를 거부하고, 명령 모드는 비웹·스케줄러 없이만 돈다.
  * 진입점(`main`)은 명령 모드에서 `spring.main.web-application-type=none`·스케줄러 끔을 앞에 덧붙이고 이 runner의 종료 코드로 끝낸다.
+ * (ADMIN-BOOT-002 I-12) 명령 속성이 웹 컨텍스트에 닿으면 [OneShotModePeriodicJobGuard]가 빈 정의 단계에서 기동을 실패시키므로 아래 `web-context` 거부는
+ * 그 앞 단계가 무력화됐을 때만 닿는 중복 방어다.
  */
 @Component
 @ConditionalOnProperty(prefix = "paycore.admin", name = ["command"])

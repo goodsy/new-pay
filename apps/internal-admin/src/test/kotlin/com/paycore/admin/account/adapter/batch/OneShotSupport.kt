@@ -42,11 +42,13 @@ object OneShotSupport {
     fun codesIn(text: String): Map<String, String> =
         text.lines().filter { it.isNotBlank() && !it.startsWith("#") }.associate { line -> line.split('\t').let { it[0] to it[2] } }
 
-    /** 코드로 등록 완료(비밀번호 + TOTP — ENROLL·RECOVERY). */
-    fun enroll(enrollment: EnrollmentUseCase, actorId: String, code: String) {
+    /** 코드로 등록 완료(비밀번호 + TOTP — ENROLL·RECOVERY). 등록한 TOTP 비밀(시험 승인용)을 돌려준다. */
+    fun enroll(enrollment: EnrollmentUseCase, actorId: String, code: String): ByteArray {
         var draft = enrollment.begin(code).shouldBeInstanceOf<EnrollmentResult.InProgress>().draft
         draft = enrollment.providePassword(draft, "one-shot-password-1".toCharArray()).shouldBeInstanceOf<EnrollmentResult.InProgress>().draft
         val provisioning = enrollment.startTotp(draft).shouldBeInstanceOf<EnrollmentResult.TotpProvisioning>()
-        enrollment.complete(provisioning.draft, TestTotp.code(TestTotp.secretOf(provisioning.otpauthUri)), context()) shouldBe EnrollmentResult.Completed(actorId)
+        val secret = TestTotp.secretOf(provisioning.otpauthUri)
+        enrollment.complete(provisioning.draft, TestTotp.code(secret), context()) shouldBe EnrollmentResult.Completed(actorId)
+        return secret
     }
 }

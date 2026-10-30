@@ -45,6 +45,10 @@ paycore:
         # 시험은 job을 끄고 Use Case(recoverDue)를 직접 부른다.
         enabled: false
         fixed-delay: 30s
+    accounts:
+      active-role-gauge:
+        # D-ADMIN1-023 활성 역할 gauge job: 시험은 끄고 Use Case(refresh)를 직접 부른다(값 단언에 끼어들지 않게). 켠 배선은 ActiveRoleHolderGaugeSchedulerSpec.
+        enabled: false
     network:
       # MockMvc 기본 remoteAddr(127.0.0.1)와 IpAllowlistSpec의 CIDR 시험 값.
       ip-allowlist: 127.0.0.1,10.20.0.0/16

@@ -403,6 +403,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 - 종료 코드: 성공 0, 조건 불충족·경합 패배·출력 거부 비영(서로 다른 값), 감사는 성공·패배·거부 모두 기록(패배·거부 감사는 별도 TX).
 
 #### 4.9.1 부트스트랩
+- (현행화 2026-10-30 — [ADMIN-BOOT-002](ADMIN-BOOT-002-BOOTSTRAP-SECOND-SA.md), D-ADMIN1-022) 아래 "SECURITY_ADMIN 1 + APPROVER 1"은 **SECURITY_ADMIN 2 + APPROVER 1**(인자 `--second-security-admin-login/-name` 추가·필수, 세 login·표시명 모두 다름, 코드 3개, 고정 행 열은 SA-A·APPROVER 그대로)로 바뀌었다. 1회성·출력·감사 규칙과 복구 조건(§4.9.2)은 그대로다.
 - 같은 TX: `admin_account` 비어 있음 확인(비잠금 — 판정 보조일 뿐) → `admin_bootstrap(id=1)` INSERT → SECURITY_ADMIN 1 + APPROVER 1 계정(서로 다른 login_name·표시명 인자 — 같은 사람 금지는 운영 절차, 시스템은 서로 다른 계정만 강제) + 역할 GRANT 이벤트(actor `SYSTEM_BOOTSTRAP`) + 등록 코드 2개 + 감사 → 커밋 → 코드 출력.
 - 동시 실행 패자는 `admin_bootstrap` PK 1062로 TX 전체 rollback → 패배 감사(별도 TX)·비영 exit. 빈 표 `COUNT … FOR UPDATE`에 의존하지 않는다(InnoDB 빈 범위 잠금은 경합 패자를 막지 못하거나 교착을 만든다).
 - `BootstrapConcurrencySpec`: 실제 MySQL 두 연결에서 동시 실행 → 계정 정확히 2개(한 쌍)·`admin_bootstrap` 1행·패자 감사 1행·패자 비영 exit. `BootstrapSpec`: 계정이 있으면 거부, TTY 없고 file 미지정이면 DB 무변경 거부, 파일 권한 0600.
@@ -1731,6 +1732,8 @@ TEST-ASSERT-001(Kotest 동등 비교 함정 저장소 전체 감사 — 입력: 
 마스킹 해제 실제 대상 공급자 + PAN 패턴 거부 재검토(D-ADMIN1-019), 원인 후보 화면의 원인 상세, ADMIN-PAYMENT-OPS-001·WEBHOOK-ENDPOINT-001(§4.12 이관), payment-api·master-api의 `rollbackOnCommitFailure` 판단(D-ADMIN1-021은 internal-admin만).
 
 ### 26.4 LIVE Gate 누적 항목
+
+- (현행화 2026-10-30 — [ADMIN-BOOT-002 §11·§12](ADMIN-BOOT-002-BOOTSTRAP-SECOND-SA.md), D-ADMIN1-023) 운영 하한 활성 SECURITY_ADMIN ≥ 2·APPROVER ≥ 2와 `paycore.admin.accounts.active{role}` < 2 경보가 아래 표에 더해진다(bootstrap 직후 APPROVER 1명 — 운영 개시 전 보충).
 
 | 항목 | 내용 |
 |---|---|

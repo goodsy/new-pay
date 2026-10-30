@@ -6174,6 +6174,89 @@
         "2026-10-26 minTests 2811→2848 (GRADLE-CHECK, TEST-SUMMARY argv)",
         "2026-10-27 DONE. 실제 결함 없음(교체 24곳 모두 값 일치). DONE 작업 증거 약화만 보고: CP-DB-001, MASTER-SNAPSHOT-002, AUTH-001, AUTHN-001, AUTH-CONTRACT-001, CANCEL-001, CP-QUERY-001 — 상태 재판정 불필요(값 일치, 이제 엄격 비교로 고정)"
       ]
+    },
+    {
+      "phase": "FEATURE",
+      "status": "DONE",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/ADMIN-BOOT-002-2026-10-30T080012Z.json",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:51e6f205e952b28db893828c53c538f899de65af6f1a0d46a2e56b856a10fd4d",
+        "tests": {
+          "kotlinTotal": 3212,
+          "internalAdmin": 590,
+          "vitest": 66
+        },
+        "supplementary": "build/harness-evidence/ADMIN-BOOT-002-2026-10-30T083949Z-supplementary (DEPS x5 + CVE PASS, 0 vulnerabilities)",
+        "mutations": "W1(web fail-closed check 삭제)->OneShotModeWebSpec 3/3 RED, R1(readOnly 제거)->Minor-1 RED, R2(FAILURE counter 삭제)->Minor-2 RED; 모두 sha/cmp 원복"
+      },
+      "review": "REVIEW_PASS 2026-10-30 (round 3; Nit N1 reactive context 미분류(webflux 없음, 미반영), N2 대역 TX 관리자(I-13 일치), N3 낡은 주석(반영), N4 env 경로 주입 시험(수용))",
+      "owner": "paycore-implementer",
+      "allowedWritePaths": [
+        "docs/repository/ADMIN-BOOT-002-BOOTSTRAP-SECOND-SA.md",
+        "docs/repository/ADMIN-PAYMENT-OPS-001-PAYMENT-OPS.md",
+        "docs/repository/ADMIN-BOOT-001-ADMIN-FOUNDATION.md",
+        "apps/internal-admin/src/main/kotlin/com/paycore/admin/account/**",
+        "apps/internal-admin/src/main/resources/application.yml",
+        "apps/internal-admin/src/test/**",
+        ".env.example",
+        "apps/internal-admin/src/main/kotlin/com/paycore/admin/InternalAdminApplication.kt"
+      ],
+      "id": "ADMIN-BOOT-002",
+      "title": "bootstrap SECURITY_ADMIN 2명 + APPROVER 1명(역할 부여 교착 해소)",
+      "dependsOn": [
+        "ADMIN-BOOT-001"
+      ],
+      "requiredQuestions": [
+        "Q-ADMIN-BOOT-ROLE",
+        "Q-ADMIN-SA-FLOOR"
+      ],
+      "acceptanceCriteria": [
+        "D-ADMIN1-022: bootstrap이 SA 2명 + APPROVER 1명을 1회성으로 만든다(기존 고정 행 UNIQUE·출력 비노출 유지)",
+        "SA-A 생성 계정에 SA-B 요청 + APPROVER 승인으로 ROLE_GRANT OPERATOR 성공, SA-A 요청은 계속 409 CREDENTIAL_ISSUER(D-ADMIN1-015 유지) — 실제 MySQL 시험",
+        "복구 명령(D-ADMIN1-010) 조건·문서와의 정합 확인, 명세 부록 D 4항 정정",
+        "D-ADMIN1-023: 활성 SECURITY_ADMIN·APPROVER 수 지표(하한 2 미만 경보 기준 명세화), LIVE Gate 운영 하한 기록"
+      ],
+      "coordinatorDecisions": [
+        "2026-10-30 등록: ADMIN-PAYMENT-OPS-001 Demo 시연 중 교착 발견(409 CREDENTIAL_ISSUER), 사용자 D-ADMIN1-022 선택",
+        "2026-10-30 구현 1차: internal-admin 580/0 (22:30~22:42Z). Q-2(SA-B actor 고정 행 열) 추가 안 함 — 감사·역할 이벤트로 추적(가역, migration 회피). Minor-1·2 + D-ADMIN1-023 지표 반영 지시",
+        "2026-10-30 2차: gauge(D-ADMIN1-023)·Minor-1/2 GREEN 18, 변이 N1~N6 RED(N3 Coordinator가 결과·원복 확인). 구현자 관찰: 1회성 명령 모드가 approval.expiry-job만 끄고 payment-ops recovery·reconciliation 스케줄러는 등록될 수 있음 → 이 작업에서 수정(InternalAdminApplication 허용)",
+        "2026-10-30 Major-1 Coordinator 결정: fail-closed — 웹 컨텍스트인데 paycore.admin.command 속성이 있으면 기동 실패(조용한 job 제거·조용한 MODE_REFUSED 경고 대신), 가드는 비웹 명령 컨텍스트에서만 동작. 가드는 D-ADMIN1-023이 아니라 ADMIN-BOOT-001 §4.9(명령 모드는 스케줄러 없음) 보완",
+        "2026-10-30 Major-1 fail-closed(웹 컨텍스트 + 명령 속성 → ONE_SHOT_COMMAND_IN_WEB_CONTEXT 기동 실패). minTests 3206→3212(internal-admin 575→590 실측). DONE"
+      ],
+      "reviewRounds": [
+        "2026-10-30 REVIEW_PASS (Minor-1 HTTP 409 직접 시험 없음, Minor-2 출력 순서·줄 수 단언 없음, Nit-1 D-ADMIN1-002 갱신 표시(Coordinator 반영), Q-1 → D-ADMIN1-023, Q-2 SA-B 고정 행 열 미추가 Coordinator 채택)",
+        "2026-10-30 round2 CHANGES_REQUIRED on sha256:b1aa7427… (Major-1 OneShotModePeriodicJobGuard가 PAYCORE_ADMIN_COMMAND 등 속성만 있는 웹 기동에서 만료·회복·대사·gauge job을 모두 제거 — Recoverability/Reconciliation 회귀; Minor-1 gauge TX readOnly 아님, Minor-2 갱신 정체 시 오래된 값·경보 누락; Nit 가드 한계·위치·결정 근거 기록). 진행 중 gate boot2gate 중지"
+      ]
+    },
+    {
+      "phase": "FEATURE",
+      "status": "BACKLOG",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "owner": null,
+      "allowedWritePaths": [],
+      "id": "DEMO-SEED-001",
+      "title": "DEMO 모드 전용 Demo 가맹점 seed 명령(Simulator 결제 시연용)",
+      "dependsOn": [
+        "ADMIN-PAYMENT-OPS-001"
+      ],
+      "requiredQuestions": [
+        "Q-DEMO-MERCHANT"
+      ],
+      "acceptanceCriteria": [
+        "D-DEMO-001: DEMO 배포 모드에서만 동작, LIVE·비DEMO에서는 명령 거부(기동 검사 시험)",
+        "공식 Port 경유로 Demo 가맹점·MID·API 자격·권리 Snapshot을 만든다(cross-DB 직접 SQL·공유 Entity 금지, 소유 DB별 로컬 TX), 1회성/멱등, 감사·기록",
+        "Demo 값은 운영값 아님 명시, 비밀은 출력 파일 0600·로그 비노출",
+        "이 명령으로 Simulator 결제 → 운영자 보정 취소 시연 절차(부록 D) 재현 가능"
+      ],
+      "coordinatorDecisions": [
+        "2026-10-30 등록: 사용자 D-DEMO-001 선택. 운영 자격 발급은 MASTER-CREDENTIAL-001 유지"
+      ]
     }
   ]
 }

@@ -90,7 +90,7 @@
         "libs/test-support/build/test-results/test/TEST-*.xml",
         "apps/internal-admin/build/test-results/frontend/TEST-*.xml"
       ],
-      "minTests": 3197,
+      "minTests": 3212,
       "followWith": "TEST-SUMMARY",
       "sideEffects": "build/ 산출물 생성. jOOQ codegen과 테스트가 Docker에 mysql:8.4.11 및 testcontainers/ryuk 컨테이너를 일시 기동 후 제거. 운영 DB/endpoint 접근 없음",
       "outputMustMatch": [
@@ -128,7 +128,7 @@
         "harness/scripts/test-summary.py",
         "--not-before",
         "NOT_BEFORE_UTC",
-        "3197",
+        "3212",
         "apps/master-api/build/test-results/test",
         "apps/payment-api/build/test-results/test",
         "apps/financial-batch/build/test-results/test",

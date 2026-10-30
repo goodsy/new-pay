@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:a9d679c1479b277ef3e6ee4ead0871eb77592afd63e725f66eb5405360c43327",
-  "lastSuccessfulStep": "ADMIN-PAYMENT-OPS-001 DONE (VERIFY-GATE PASS 2026-10-29T034221Z 3197/0·Vitest 66·SELFTEST 154, DEPS×5+CVE 033956Z, FINAL REVIEW_PASS) sha256:a9d679c1479b277ef3e6ee4ead0871eb77592afd63e725f66eb5405360c43327",
+  "codeFingerprint": "sha256:51e6f205e952b28db893828c53c538f899de65af6f1a0d46a2e56b856a10fd4d",
+  "lastSuccessfulStep": "ADMIN-BOOT-002 DONE (VERIFY-GATE PASS 2026-10-30T080012Z 3212/0·Vitest 66, DEPS×5+CVE 083949Z, REVIEW_PASS) sha256:51e6f205e952b28db893828c53c538f899de65af6f1a0d46a2e56b856a10fd4d",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ADMIN-PAYMENT-OPS-001 커밋(push는 사용자 확인) → 관리자 화면 Demo 시연 캡처(명세 부록 D) → CHECKOUT-REACT-001",
+  "nextResumeAction": "ADMIN-BOOT-002 커밋(사용자 확인) → DEMO-SEED-001(D-DEMO-001) → 운영자 보정 취소 Demo 시연 재개(캡처 2~5·7) → CHECKOUT-REACT-001. push(17289a5 이후)는 사용자 확인",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -668,6 +668,8 @@
     "ADMIN-BOOT-001",
     "TEST-ASSERT-001",
     "ADMIN-PAYMENT-OPS-001",
+    "ADMIN-BOOT-002",
+    "DEMO-SEED-001",
     "CHECKOUT-REACT-001",
     "MASTER-LIFECYCLE-001",
     "MASTER-CREDENTIAL-001",

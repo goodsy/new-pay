@@ -20,8 +20,11 @@ enum class OneShotCommand { BOOTSTRAP, RECOVERY }
 /** 새 관리자 계정 입력(로그인 이름·표시명 — 형식 검사는 Use Case). */
 data class NewAdminAccount(val loginName: String, val displayName: String)
 
-/** 부트스트랩: SECURITY_ADMIN 1 + APPROVER 1(서로 다른 계정 — 같은 사람 금지는 운영 절차). */
-data class BootstrapCommand(val securityAdmin: NewAdminAccount, val approver: NewAdminAccount, val correlationId: String)
+/**
+ * 부트스트랩(D-ADMIN1-022 — ADMIN-BOOT-002): SECURITY_ADMIN 2([securityAdmin] = SA-A, [secondSecurityAdmin] = SA-B) + APPROVER 1. 세 계정의 login·표시명은 모두 달라야 한다
+ * (같은 사람 금지는 운영 절차). SA 둘 다 시스템 근거라, 한 SA가 만든 계정의 `ROLE_GRANT`는 다른 SA가 요청한다(D-ADMIN1-015 유지).
+ */
+data class BootstrapCommand(val securityAdmin: NewAdminAccount, val secondSecurityAdmin: NewAdminAccount, val approver: NewAdminAccount, val correlationId: String)
 
 /** 복구: 작업 A(기존 계정 [reissueLoginNames]에 복구 코드)와/또는 작업 B(새 SECURITY_ADMIN·APPROVER 쌍 [newPair]). 둘 다 비면 입력 오류. */
 data class RecoveryCommand(val reissueLoginNames: List<String>, val newPair: Pair<NewAdminAccount, NewAdminAccount>?, val correlationId: String)

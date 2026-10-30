@@ -83,19 +83,22 @@ class OneShotCommandService(
     }
 
     private fun bootstrapStep(command: BootstrapCommand): OneShotResult {
-        val pair = parsePair(command.securityAdmin to command.approver) ?: return OneShotResult.Invalid(INVALID_INPUT)
+        // ADMIN-BOOT-002(D-ADMIN1-022): SA-A·SA-B·APPROVER — login·표시명 모두 서로 달라야 한다(I-3).
+        val (saA, saB, approver) = parseDistinct(listOf(command.securityAdmin, command.secondSecurityAdmin, command.approver)) ?: return OneShotResult.Invalid(INVALID_INPUT)
         return guarded(OneShotCommand.BOOTSTRAP, command.correlationId, ALREADY_BOOTSTRAPPED, StoreConstraint.BOOTSTRAP) {
             transactions.execute({ false }) {
                 val now = now()
                 if (accounts.anyExists()) throw Refusal(ACCOUNTS_EXIST)
-                val (saId, apId) = ids.newActorId() to ids.newActorId()
+                val (saId, saBId, apId) = Triple(ids.newActorId(), ids.newActorId(), ids.newActorId())
+                // 고정 행 열은 SA-A·APPROVER 그대로(migration 없음 — I-4). SA-B는 같은 TX의 감사 ACCOUNT_CREATED·역할 이벤트(SYSTEM_BOOTSTRAP)로 추적한다.
                 bootstrapStore.markExecuted(now, saId, apId)
                 val expiresAt = now.plus(settings.enrollmentCodeValidity)
                 val lines = listOf(
-                    createPrivileged(saId, pair.first, AdminRole.SECURITY_ADMIN, RoleEventActor.SystemBootstrap, null, expiresAt, now, command.correlationId),
-                    createPrivileged(apId, pair.second, AdminRole.APPROVER, RoleEventActor.SystemBootstrap, null, expiresAt, now, command.correlationId),
+                    createPrivileged(saId, saA, AdminRole.SECURITY_ADMIN, RoleEventActor.SystemBootstrap, null, expiresAt, now, command.correlationId),
+                    createPrivileged(saBId, saB, AdminRole.SECURITY_ADMIN, RoleEventActor.SystemBootstrap, null, expiresAt, now, command.correlationId),
+                    createPrivileged(apId, approver, AdminRole.APPROVER, RoleEventActor.SystemBootstrap, null, expiresAt, now, command.correlationId),
                 )
-                audit(now, BOOTSTRAP_KIND, BOOTSTRAP, SUCCESS, command.correlationId, null, "accounts=2")
+                audit(now, BOOTSTRAP_KIND, BOOTSTRAP, SUCCESS, command.correlationId, null, "accounts=${lines.size}")
                 OneShotResult.Done(null, lines)
             }
         }
@@ -220,6 +223,13 @@ class OneShotCommandService(
             runCatching { LoginName(input.loginName) to DisplayName(input.displayName) }.getOrNull() ?: return null
         }
         return if (a.first == b.first) null else a to b
+    }
+
+    /** 부트스트랩 입력: 형식 + login 모두 다름 + 표시명 모두 다름(SA 두 명을 감사·승인 화면 스냅샷에서 구별 — I-3). 하나라도 어기면 null. */
+    private fun parseDistinct(inputs: List<NewAdminAccount>): List<Pair<LoginName, DisplayName>>? {
+        val parsed = inputs.map { input -> runCatching { LoginName(input.loginName) to DisplayName(input.displayName) }.getOrNull() ?: return null }
+        val distinct = parsed.map { it.first }.toSet().size == parsed.size && parsed.map { it.second }.toSet().size == parsed.size
+        return if (distinct) parsed else null
     }
 
     private fun kindOf(command: OneShotCommand) = if (command == OneShotCommand.BOOTSTRAP) BOOTSTRAP_KIND else RECOVERY_KIND

@@ -14,7 +14,8 @@ import java.util.UUID
  * 1회성 명령 인자 해석·출력(§4.9 — 명시 argv만). 순서: 인자 검사 → **출력 준비(DB 변경 전 — TTY 없음·파일 있음·권한 불일치면 거부, 거부 감사)** → Use Case(1 TX)
  * → 성공이면 출력 쓰기(실패면 재발급 경로 안내 비영 exit — 코드는 이미 커밋됨), 실패면 준비한 빈 파일을 지운다. 코드 원문은 출력 대상에만 쓴다(logger 없음).
  *
- * 인자: `bootstrap --output=tty|file:<path> --security-admin-login --security-admin-name --approver-login --approver-name`,
+ * 인자: `bootstrap --output=tty|file:<path> --security-admin-login --security-admin-name --second-security-admin-login --second-security-admin-name
+ * --approver-login --approver-name`(ADMIN-BOOT-002 — 모두 필수),
  * `recovery --output=… [--reissue=<login>[,<login>…]] [--new-security-admin-login --new-security-admin-name --new-approver-login --new-approver-name]`.
  */
 @Component
@@ -62,9 +63,11 @@ class OneShotCommandLine(private val oneShot: OneShotCommandUseCase, private val
 
     private fun parse(kind: OneShotCommand, o: Map<String, String>, correlationId: String): (() -> OneShotResult)? = when (kind) {
         OneShotCommand.BOOTSTRAP -> {
+            // ADMIN-BOOT-002: 여섯 인자 모두 필수 — 구 4인자 형식(SA 1명)은 역할 부여 교착을 다시 만들므로 USAGE.
             val sa = account(o, "security-admin")
+            val sa2 = account(o, "second-security-admin")
             val ap = account(o, "approver")
-            if (sa == null || ap == null) null else BootstrapCommand(sa, ap, correlationId).let { c -> { oneShot.bootstrap(c) } }
+            if (sa == null || sa2 == null || ap == null) null else BootstrapCommand(sa, sa2, ap, correlationId).let { c -> { oneShot.bootstrap(c) } }
         }
         OneShotCommand.RECOVERY -> {
             val reissue = o["reissue"]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()

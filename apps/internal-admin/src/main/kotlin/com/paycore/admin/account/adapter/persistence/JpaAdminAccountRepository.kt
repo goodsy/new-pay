@@ -60,7 +60,7 @@ class JpaAdminAccountRepository(private val entityManager: EntityManager) : Admi
     }
 
     override fun countActiveHolders(role: AdminRole): Int = translate(ENTITY) {
-        // 역할 집합은 MySQL SET — FIND_IN_SET로 판정(복구 조건·자동 재활성 — 호출자가 회차 행 잠금 아래에서 부른다).
+        // 역할 집합은 MySQL SET — FIND_IN_SET로 판정(복구 조건·자동 재활성은 회차 행 잠금 아래에서 부르고, 활성 역할 gauge는 잠금 없는 읽기 전용 근사로 부른다).
         (entityManager.createNativeQuery("SELECT COUNT(*) FROM admin_account WHERE status = 'ACTIVE' AND FIND_IN_SET(?1, active_roles) > 0")
             .setParameter(1, role.name).singleResult as Number).toInt()
     }

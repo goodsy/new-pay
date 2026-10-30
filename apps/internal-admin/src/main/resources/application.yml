@@ -127,6 +127,12 @@ paycore:
       recovery:
         enabled: true
         fixed-delay: 30s
+    # 활성 역할 보유자 gauge(D-ADMIN1-023 — `paycore.admin.accounts.active{role}`, 경보 기준 2 미만은 운영 설정). 주기 Demo 1분(운영값 LIVE Gate).
+    # 1회성 명령 모드에서는 켜져 있어도 등록되지 않는다(ActiveRoleHolderGaugeScheduler 조건).
+    accounts:
+      active-role-gauge:
+        enabled: true
+        fixed-delay: 1m
     # 오프라인 복구(§4.9.2 — D-SV Demo, 운영값 아님): 회차 유효 24시간(작업 A·B 코드 만료 = 회차 만료).
     recovery:
       episode-validity: 24h

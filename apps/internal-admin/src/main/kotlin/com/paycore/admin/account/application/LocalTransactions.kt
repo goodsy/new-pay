@@ -10,8 +10,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * account 모듈 로컬 TX 실행기(master-api·audit와 같은 관례 — 모듈 내부 구현이라 모듈마다 둔다: Modulith는 다른 모듈 internal 공유를 막는다).
  * 이미 TX 안이면 거부, READ COMMITTED, commit 전 실패는 원래 예외 보존, commit 중 실패는 [CommitOutcomeUnknownException].
+ * [readOnly]면 읽기 전용 TX 정의(JPA flush 없음·JDBC 연결 읽기 전용 힌트 — 쓰기 없는 집계용, ADMIN-BOOT-002 리뷰 Minor-1). 기본값은 기존 호출과 같다.
  */
-internal class LocalTransactions(private val transactionManager: PlatformTransactionManager, private val maxAttempts: Int) {
+internal class LocalTransactions(private val transactionManager: PlatformTransactionManager, private val maxAttempts: Int, readOnly: Boolean = false) {
     init {
         require(maxAttempts >= 1) { "maxAttempts must be positive" }
     }
@@ -19,6 +20,7 @@ internal class LocalTransactions(private val transactionManager: PlatformTransac
     private val definition = DefaultTransactionDefinition().apply {
         propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRED
         isolationLevel = TransactionDefinition.ISOLATION_READ_COMMITTED
+        isReadOnly = readOnly
     }
 
     fun <T> execute(isRetryable: (RuntimeException) -> Boolean, block: (TransactionStatus) -> T): T {
