@@ -15,7 +15,7 @@ import org.testcontainers.mysql.MySQLContainer
 class AdminDbTestConfig {
 
     @Bean
-    fun adminMySqlContainer(): MySQLContainer = AdminDbAccounts.newContainer()
+    fun adminMySqlContainer(): MySQLContainer = AdminDbAccounts.startedContainer()
 
     @Bean
     fun adminDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->

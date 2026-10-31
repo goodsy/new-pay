@@ -19,7 +19,7 @@ import java.sql.SQLException
  */
 class SimulatorDatabaseAccountSpec : FunSpec({
 
-    val container = SimulatorDb.newContainer().also { it.start() }
+    val container = SimulatorDb.startedContainer()
     afterSpec { container.stop() }
 
     fun connect(user: String, password: String): Connection = DriverManager.getConnection(SimulatorDb.url(container), user, password)

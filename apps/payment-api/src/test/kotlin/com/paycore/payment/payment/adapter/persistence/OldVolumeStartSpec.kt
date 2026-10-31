@@ -100,8 +100,7 @@ class OldVolumeStartSpec(
     class OldVolumeConfig {
         /** 이 시험 전용 컨테이너: 운영 초기화 스크립트 계정 → Flyway target 6(migration 계정) → V7 이전 행(root) — 그 뒤 컨텍스트가 기동한다. */
         @Bean
-        fun oldVolumeContainer(): MySQLContainer = PaymentDbAccounts.newContainer().also { container ->
-            container.start()
+        fun oldVolumeContainer(): MySQLContainer = PaymentDbAccounts.startedContainer().also { container ->
             Flyway.configure()
                 .dataSource(
                     PaymentDbAccounts.urlFor(container, PaymentDbAccounts.PAYMENT_DATABASE), PaymentDbAccounts.PAYMENT_MIGRATION_USER,

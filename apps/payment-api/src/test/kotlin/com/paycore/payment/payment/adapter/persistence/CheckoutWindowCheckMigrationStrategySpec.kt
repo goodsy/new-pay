@@ -23,7 +23,7 @@ import java.time.LocalDateTime
  */
 class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
 
-    val container = PaymentDbAccounts.newContainer().also { it.start() }
+    val container = PaymentDbAccounts.startedContainer()
     afterSpec { container.stop() }
 
     fun flyway(target: String? = null): Flyway = Flyway.configure()
@@ -116,7 +116,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
 
     /** 이 시험 전용 새 볼륨(V6 + 옛 REQUESTED 1행). */
     fun freshOldVolume(): Pair<org.testcontainers.mysql.MySQLContainer, org.flywaydb.core.api.configuration.FluentConfiguration> {
-        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        val other = PaymentDbAccounts.startedContainer()
         val config = Flyway.configure()
             .dataSource(
                 PaymentDbAccounts.urlFor(other, PaymentDbAccounts.PAYMENT_DATABASE), PaymentDbAccounts.PAYMENT_MIGRATION_USER,
@@ -180,7 +180,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
     }
 
     test("if the backfill cannot run, start-up fails before V8_1 and no failed migration row is recorded (fail-closed)") {
-        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        val other = PaymentDbAccounts.startedContainer()
         try {
             val otherFlyway = Flyway.configure()
                 .dataSource(
@@ -212,7 +212,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
     // CANCEL-001 §8.6: AUTH-001 배포 상태(V14 적용됨)의 볼륨에 승인 거래 행이 있어도 한 번의 기동에 V15~V19까지 간다 — V17이 승인 열을 NULL 허용으로 바꾸고 type별 CHECK를
     // 새로 걸어도 기존 AUTHORIZATION 행은 그대로 통과한다(취소 열 NULL, 생성 열 cancel_txn_key NULL). 거래 행만 보려고 FK 검사를 끈 root 세션으로 넣는다(시험 준비 — 다른 표 행 없음).
     test("a volume at V14 (AUTH-001 deployed) with an authorization transaction reaches the latest version (V20) in one start; the existing row passes the V17 checks unchanged") {
-        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        val other = PaymentDbAccounts.startedContainer()
         try {
             val config = Flyway.configure()
                 .dataSource(
@@ -257,7 +257,7 @@ class CheckoutWindowCheckMigrationStrategySpec : FunSpec({
     // AUTH-001 rev 0.3 m-5: AUTHN-001 배포 상태(V8_1 적용됨)의 볼륨이 한 번의 기동에 AUTH-001 migration(V9~V11)까지 간다 — 전략의 "V8_1 이미 적용" 경로.
     // 기존 incident_hold 행은 occurrence 1·여는 관찰 NULL(legacy), 기존 종료 근거는 출처 NULL(legacy), CreatePayment 멱등 행은 새 CHECK를 통과한다.
     test("a volume at V8_1 (AUTHN-001 deployed) with orders, holds and evidence reaches V11 in one start; existing rows become legacy rows") {
-        val other = PaymentDbAccounts.newContainer().also { it.start() }
+        val other = PaymentDbAccounts.startedContainer()
         try {
             val config = Flyway.configure()
                 .dataSource(

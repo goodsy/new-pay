@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Import
 import org.springframework.test.context.DynamicPropertyRegistrar
 import org.springframework.test.context.TestPropertySource
 import org.testcontainers.mysql.MySQLContainer
-import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.io.File
 import java.sql.Connection
@@ -104,7 +103,7 @@ object MasterDbAccounts {
         val initScript = File(requireNotNull(System.getProperty("paycore.mysqlInitDir")) { "paycore.mysqlInitDir not set" })
             .resolve("01-owned-databases.sh")
         require(initScript.isFile) { "init script not found: $initScript" }
-        return MySQLContainer(DockerImageName.parse(MySqlTestContainerConfig.MYSQL_IMAGE))
+        return MySqlTestContainerConfig.newTestMySqlContainer()
             .withEnv("TZ", CONTAINER_TIME_ZONE)
             .withEnv("PAYCORE_MASTER_DB_PASSWORD", passwords.getValue(MASTER_RUNTIME_USER))
             .withEnv("PAYCORE_MASTER_DB_MIGRATION_PASSWORD", passwords.getValue(MASTER_MIGRATION_USER))

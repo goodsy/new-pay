@@ -18,6 +18,8 @@ dependencies {
     compileOnly(libs.testcontainers.mysql)
 
     testImplementation(libs.kotest.assertions.core)
+    // TEST-PERF-001: 시험 MySQL 컨테이너 설정(MySqlTestContainerConfigSpec — 시작하지 않고 설정만 확인, Docker 불필요).
+    testImplementation(libs.testcontainers.mysql)
     // 아키텍처 규칙 meta-test fixture 컴파일용(위반/준수 예제 클래스가 실제 JPA/Spring web/jOOQ 타입을 참조해야 한다).
     testImplementation(libs.jakarta.persistence.api)
     testImplementation(libs.spring.context)

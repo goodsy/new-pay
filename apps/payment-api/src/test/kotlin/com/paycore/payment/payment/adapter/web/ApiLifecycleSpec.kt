@@ -25,7 +25,7 @@ import java.time.temporal.ChronoUnit
  */
 class ApiLifecycleSpec : BehaviorSpec({
 
-    val container = PaymentDbAccounts.newContainer().also { it.start() }
+    val container = PaymentDbAccounts.startedContainer()
     val db = DbAccess(container)
 
     afterSpec { container.stop() }

@@ -143,8 +143,8 @@ master-api의 JPA 설정(이번 변경과 연결):
 | Kotlin 컴파일 실행 방식 | `gradle.properties`, `build-logic/gradle.properties` | `kotlin.compiler.execution.strategy=in-process` | 이전에는 Kotlin compile daemon이 두 개(build-logic Kotlin DSL용 2.4.x, 앱용 2.3.21) 떠서 각각 RSS 약 1.0GB·1.2GB(`-Xmx2g`)를 쓰고, `--no-daemon` 빌드가 끝난 뒤에도 2시간 idle 동안 남았다(고아 프로세스의 원인). in-process는 Gradle daemon heap(-Xmx2g) 안에서 컴파일한다 |
 | test JVM heap | `build-logic` `paycore.kotlin-base`(모든 Test task) | `maxHeapSize = "1g"` | 기본값은 JVM 기본(물리 메모리의 1/4 ≈ 1.9GB). payment-api 395 시험이 1g에서 통과 |
 | test fork 수 | 같은 곳 | `maxParallelForks = 1`(기본값 명시) | DB 시험은 Spring 컨텍스트마다 MySQL 컨테이너를 띄운다. fork를 늘리면 컨테이너·JVM이 같이 늘어난다 |
-| Gradle daemon heap | `gradle.properties` | `-Xmx2g` 유지 | in-process 컴파일을 담는다. 낮추는 것은 측정 없이 하지 않는다 |
-| `org.gradle.parallel`/`workers.max` | — | 기본값 유지(parallel 꺼짐) | 모듈 간 test task가 동시에 돌지 않는다. 바꿀 필요 없음 |
+| Gradle daemon heap | `gradle.properties` | `-Xmx2g` 유지 | in-process 컴파일을 담는다. 낮추는 것은 측정 없이 하지 않는다. TEST-PERF-001에서 상한은 그대로 두고 G1 주기 GC·여유 비율만 추가(§7.3) |
+| `org.gradle.parallel`/`workers.max` | `gradle.properties` | ~~기본값 유지(parallel 꺼짐)~~ → TEST-PERF-001: `parallel=true`, `workers.max=4` | §7.3. test JVM과 in-process Kotlin 컴파일은 여전히 각각 한 번에 하나(`ExclusiveSlots`) — 모듈 간 test task는 여전히 동시에 돌지 않는다 |
 | Testcontainers 재사용 | — | 쓰지 않음(`withReuse` 없음) | 매 실행 새 컨테이너가 판정 기준이다 |
 
 측정(같은 명령 `./gradlew --no-daemon --console=plain --no-build-cache --rerun-tasks :apps:payment-api:test`, 가장 무거운 모듈, WSL 7.8GB, 2초 간격 `/proc/meminfo` MemAvailable·java RSS 합·컨테이너 수 표본, 사용자 개발 MySQL 컨테이너 1개가 계속 떠 있음):
@@ -157,7 +157,31 @@ master-api의 JPA 설정(이번 변경과 연결):
 | 빌드 후 남은 Kotlin daemon | 2개(약 2.2GB, 수동 종료) | 0 |
 | 소요/결과 | 8m43s, BUILD SUCCESSFUL | 7m32s, BUILD SUCCESSFUL(395 tests) |
 
-남은 큰 항목은 payment-api의 Spring 테스트 컨텍스트별 MySQL 컨테이너(동시 3개)다. 컨텍스트 캐시 크기 제한(`spring.test.context.cache.maxSize`)은 컨텍스트 재생성·컨테이너 재기동 시간과 GRADLE-CHECK timeout(1200초) 영향을 측정한 뒤 결정한다(후속, 이번에는 적용하지 않음). 전체 check 측정 결과는 harness/tasks.json MASTER-BOOT-001 implementation에 기록한다.
+남은 큰 항목은 payment-api의 Spring 테스트 컨텍스트별 MySQL 컨테이너(동시 3개)다. 컨텍스트 캐시 크기 제한(`spring.test.context.cache.maxSize`)은 컨텍스트 재생성·컨테이너 재기동 시간과 GRADLE-CHECK timeout(1200초) 영향을 측정한 뒤 결정한다(후속, 이번에는 적용하지 않음). 전체 check 측정 결과는 harness/tasks.json MASTER-BOOT-001 implementation에 기록한다. (후속: TEST-PERF-001 §7.3 — 캐시 크기는 그대로 두고 컨테이너 기동 시점·옵션으로 대응)
+
+### 7.3 GRADLE-CHECK 소요 시간 단축 (TEST-PERF-001, 2026-11-01)
+
+GRADLE-CHECK가 timeout 2400초에 걸려(같은 기계 기준 측정 42m59s) 판정 명령·timeout·시험은 그대로 두고 스케줄과 시험 컨테이너 기동만 바꿨다.
+상세·실행별 수치: [TEST-PERF-001-GATE-DURATION.md](TEST-PERF-001-GATE-DURATION.md). 가역 관례다.
+
+| 설정 | 위치 | 값 | 이유 |
+|---|---|---|---|
+| 모듈 병렬 실행 | `gradle.properties` | `org.gradle.parallel=true`, `org.gradle.workers.max=4` | 컴파일·jOOQ codegen·프론트(직렬 약 6분)가 시험과 겹친다 |
+| DB test JVM 동시 수 | `build-logic` `paycore.kotlin-app` + `ExclusiveSlots` | 1 | test JVM 2개 + 그 MySQL 컨테이너를 겹치면 가용 메모리가 바닥난다(기준 최저 324MB). 직렬 순서만 유지. DB 없는 libs 시험은 제외 |
+| in-process Kotlin 컴파일 동시 수 | `build-logic` `paycore.kotlin-base` + `ExclusiveSlots` | 1 | daemon heap(-Xmx2g) 하나를 나눠 쓴다 |
+| Gradle daemon GC | `gradle.properties` `org.gradle.jvmargs` | `-XX:+UseG1GC -XX:G1PeriodicGCInterval=30000 -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30` | 컴파일 뒤 쓰지 않는 heap을 OS에 돌려준다(상한 -Xmx2g 그대로) |
+| 시험 MySQL 기동 옵션 | `libs/test-support` `MySqlTestContainerConfig.newTestMySqlContainer()` | `MYSQL_INITDB_SKIP_TZINFO=1`, `--innodb-flush-log-at-trx-commit=2 --sync-binlog=0 --innodb-doublewrite=OFF`(binlog는 켬) | 기동 16~20초 → 8~13초. crash 복구에만 관계(원자성·잠금·격리 동일). Coordinator 확인 대상 |
+| 시험 MySQL 미리 시작 | `libs/test-support` `PrefetchedStarts` — payment·admin·simulator `startedContainer()` | 예비 1개 | 앞 컨텍스트 시험 중 다음 **새** 컨테이너를 기동(재사용 아님, `withReuse` 없음). 예비 MySQL 약 0.4GB |
+
+측정(전체 GRADLE-CHECK, 같은 기계, 5초 간격 MemAvailable·java RSS 합·컨테이너 수 표본):
+
+| | 변경 전 | 변경 후(최종) |
+|---|---|---|
+| 소요 | 42m59s | 34m13s(같은 구성 3회 32m37s–34m13s) |
+| MemAvailable 최저 | 324MB | 792MB |
+| java RSS 합 최대 | 5,159MB | 4,190MB |
+| 동시 컨테이너 최대(ryuk·codegen 포함) | 6 | 9 |
+| 시험 수(Kotlin/Vitest) | 3,212 / 66 | 3,220 / 66 |
 
 ## 8. payment-api 배포 규칙 (CP-API-001, 2026-10-14)
 

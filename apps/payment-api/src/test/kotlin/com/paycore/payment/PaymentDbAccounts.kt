@@ -1,11 +1,11 @@
 package com.paycore.payment
 
 import com.paycore.testsupport.MySqlTestContainerConfig
+import com.paycore.testsupport.containers.PrefetchedStarts
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.test.context.DynamicPropertyRegistrar
 import org.testcontainers.mysql.MySQLContainer
-import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.io.File
 import java.sql.Connection
@@ -28,7 +28,7 @@ import java.util.UUID
 class PaymentMySqlContainerConfig {
 
     @Bean
-    fun paymentMySqlContainer(): MySQLContainer = PaymentDbAccounts.newContainer()
+    fun paymentMySqlContainer(): MySQLContainer = PaymentDbAccounts.startedContainer()
 
     @Bean
     fun paymentDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->
@@ -67,7 +67,7 @@ object PaymentDbAccounts {
         val initScript = File(requireNotNull(System.getProperty("paycore.mysqlInitDir")) { "paycore.mysqlInitDir not set" })
             .resolve("01-owned-databases.sh")
         require(initScript.isFile) { "init script not found: $initScript" }
-        return MySQLContainer(DockerImageName.parse(MySqlTestContainerConfig.MYSQL_IMAGE))
+        return MySqlTestContainerConfig.newTestMySqlContainer()
             .withEnv("TZ", CONTAINER_TIME_ZONE)
             .withEnv("PAYCORE_MASTER_DB_PASSWORD", password(MASTER_RUNTIME_USER))
             .withEnv("PAYCORE_MASTER_DB_MIGRATION_PASSWORD", password(MASTER_MIGRATION_USER))
@@ -78,6 +78,22 @@ object PaymentDbAccounts {
                 MountableFile.forHostPath(initScript.absolutePath, 0b111_101_101),
                 "/docker-entrypoint-initdb.d/01-owned-databases.sh",
             )
+    }
+
+    /**
+     * [newContainer]와 같은 설정의 **새** 컨테이너를 시작된 상태로 돌려준다(TEST-PERF-001). 다음 컨테이너는 앞 시험이 도는 동안 백그라운드에서
+     * 미리 시작해 둔다 — 재사용이 아니고 시작 시점만 앞당긴다(PrefetchedStarts). 시작된 뒤에는 설정을 바꿀 수 없으므로 설정을 바꿔야 하는
+     * 시험은 [newContainer]를 직접 쓴다.
+     */
+    fun startedContainer(): MySQLContainer = prefetched.take()
+
+    private val prefetched: PrefetchedStarts<MySQLContainer> by lazy {
+        PrefetchedStarts.closingAtExit(
+            PrefetchedStarts(
+                name = "payment-mysql", create = { newContainer() }, start = { it.start() }, stop = { it.stop() },
+                describe = { "${it.dockerImageName} ${it.containerId}" },
+            ),
+        )
     }
 
     /** 컨테이너 JDBC URL의 DB 이름만 바꾼다. 새 계정(caching_sha2_password)이 비SSL로 접속할 수 있게 공개키 조회를 허용한다. */

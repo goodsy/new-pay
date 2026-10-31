@@ -127,6 +127,10 @@ val frontendTest = tasks.register<Exec>("frontendTest") {
     runNode("node_modules/vitest/vitest.mjs", "run")
     inputs.files(frontendSources)
     outputs.dir(reports)
+    // 모듈 병렬 실행(TEST-PERF-001, docs/repository/TECH-BASELINE.md §7.3)에서 Vitest가 Kotlin 컴파일·DB test JVM과 CPU를 나눠 쓰면 시험별 timeout
+    // (기본 5초)에 걸렸다(실측 1건). 시험 timeout은 바꾸지 않고, 이 둘과 겹치지 않게만 한다(같은 이름의 ExclusiveSlots — kotlin-base·kotlin-app).
+    usesService(gradle.sharedServices.registerIfAbsent("paycoreKotlinCompileSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
+    usesService(gradle.sharedServices.registerIfAbsent("paycoreDbTestJvmSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
 }
 
 val frontendBuild = tasks.register<Exec>("frontendBuild") {

@@ -13,7 +13,7 @@ import java.sql.SQLException
  */
 class OutboxNotificationMigrationSpec : FunSpec({
 
-    val container = PaymentDbAccounts.newContainer().also { it.start() }
+    val container = PaymentDbAccounts.startedContainer()
     afterSpec { container.stop() }
 
     fun flyway(target: String? = null): Flyway = Flyway.configure()

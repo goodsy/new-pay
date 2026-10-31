@@ -1,11 +1,11 @@
 package com.paycore.simulator.support
 
 import com.paycore.testsupport.MySqlTestContainerConfig
+import com.paycore.testsupport.containers.PrefetchedStarts
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.test.context.DynamicPropertyRegistrar
 import org.testcontainers.mysql.MySQLContainer
-import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.io.File
 import java.util.UUID
@@ -18,7 +18,7 @@ import java.util.UUID
 class SimulatorMySqlContainerConfig {
 
     @Bean
-    fun simulatorMySqlContainer(): MySQLContainer = SimulatorDb.newContainer()
+    fun simulatorMySqlContainer(): MySQLContainer = SimulatorDb.startedContainer()
 
     @Bean
     fun simulatorDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->
@@ -45,9 +45,24 @@ object SimulatorDb {
         val initScript = File(requireNotNull(System.getProperty("paycore.simulatorMysqlInitDir")) { "paycore.simulatorMysqlInitDir not set" })
             .resolve("01-simulator-database.sh")
         require(initScript.isFile) { "init script not found: $initScript" }
-        return MySQLContainer(DockerImageName.parse(MySqlTestContainerConfig.MYSQL_IMAGE))
+        return MySqlTestContainerConfig.newTestMySqlContainer()
             .withEnv("PAYCORE_SIMULATOR_DB_PASSWORD", password(RUNTIME_USER))
             .withEnv("PAYCORE_SIMULATOR_DB_MIGRATION_PASSWORD", password(MIGRATION_USER))
             .withCopyFileToContainer(MountableFile.forHostPath(initScript.absolutePath, 0b111_101_101), "/docker-entrypoint-initdb.d/01-simulator-database.sh")
+    }
+
+    /**
+     * [newContainer]와 같은 설정의 **새** 컨테이너를 시작된 상태로 돌려준다(TEST-PERF-001). 다음 컨테이너는 앞 시험이 도는 동안 백그라운드에서
+     * 미리 시작해 둔다 — 재사용이 아니고 시작 시점만 앞당긴다(PrefetchedStarts).
+     */
+    fun startedContainer(): MySQLContainer = prefetched.take()
+
+    private val prefetched: PrefetchedStarts<MySQLContainer> by lazy {
+        PrefetchedStarts.closingAtExit(
+            PrefetchedStarts(
+                name = "simulator-mysql", create = { newContainer() }, start = { it.start() }, stop = { it.stop() },
+                describe = { "${it.dockerImageName} ${it.containerId}" },
+            ),
+        )
     }
 }

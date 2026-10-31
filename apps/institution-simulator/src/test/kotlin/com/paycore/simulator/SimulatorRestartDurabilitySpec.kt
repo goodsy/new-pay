@@ -18,7 +18,7 @@ import java.net.http.HttpResponse
  */
 class SimulatorRestartDurabilitySpec : FunSpec({
 
-    val container = SimulatorDb.newContainer().also { it.start() }
+    val container = SimulatorDb.startedContainer()
     afterSpec { container.stop() }
     val http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build()
     val key = "test-only-simulator-client-key-1"

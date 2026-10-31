@@ -36,7 +36,7 @@ class NoGeneratedDefaultUserSpec : FunSpec({
         }
 
         // ADMIN DB 소유(ADMIN-BOOT-001 S2): 앱은 ADMIN DB 없이 기동하지 않으므로 같은 초기화 스크립트를 넣은 일회용 컨테이너를 붙인다.
-        val database = AdminDbAccounts.newContainer().apply { start() }
+        val database = AdminDbAccounts.startedContainer()
         System.setOut(PrintStream(tee, true, Charsets.UTF_8))
         val context = try {
             SpringApplicationBuilder(InternalAdminApplication::class.java)

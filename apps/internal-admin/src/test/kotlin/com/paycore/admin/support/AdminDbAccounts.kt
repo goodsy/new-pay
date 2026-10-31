@@ -1,8 +1,8 @@
 package com.paycore.admin.support
 
 import com.paycore.testsupport.MySqlTestContainerConfig
+import com.paycore.testsupport.containers.PrefetchedStarts
 import org.testcontainers.mysql.MySQLContainer
-import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.io.File
 import java.sql.Connection
@@ -60,9 +60,25 @@ object AdminDbAccounts {
 
     /** ADMIN 비밀번호를 넘기지 않으면 다른 모듈(master-api·payment-api)의 시험 컨테이너와 같은 조건이 된다(D-55 — ADMIN 건너뜀). */
     fun newContainer(withAdmin: Boolean = true): MySQLContainer {
-        val container = MySQLContainer(DockerImageName.parse(MySqlTestContainerConfig.MYSQL_IMAGE)).withEnv("TZ", CONTAINER_TIME_ZONE)
+        val container = MySqlTestContainerConfig.newTestMySqlContainer().withEnv("TZ", CONTAINER_TIME_ZONE)
         initEnvironment.filterKeys { withAdmin || !it.startsWith("PAYCORE_ADMIN_") }.forEach { (name, value) -> container.withEnv(name, value) }
         return container.withCopyFileToContainer(MountableFile.forHostPath(initScript().absolutePath), INIT_SCRIPT_IN_CONTAINER)
+    }
+
+    /**
+     * [newContainer]`()`(기본 설정)와 같은 설정의 **새** 컨테이너를 시작된 상태로 돌려준다(TEST-PERF-001). 다음 컨테이너는 앞 시험이 도는 동안
+     * 백그라운드에서 미리 시작해 둔다 — 재사용이 아니고 시작 시점만 앞당긴다(PrefetchedStarts). 시작된 뒤에는 설정을 바꿀 수 없으므로
+     * 설정을 바꾸는 시험(예: withAdmin = false)은 [newContainer]를 직접 쓴다.
+     */
+    fun startedContainer(): MySQLContainer = prefetched.take()
+
+    private val prefetched: PrefetchedStarts<MySQLContainer> by lazy {
+        PrefetchedStarts.closingAtExit(
+            PrefetchedStarts(
+                name = "admin-mysql", create = { newContainer() }, start = { it.start() }, stop = { it.stop() },
+                describe = { "${it.dockerImageName} ${it.containerId}" },
+            ),
+        )
     }
 
     /** application.yml이 읽는 운영과 같은 환경변수 이름(PAYCORE_ADMIN_DB_*). */

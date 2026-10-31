@@ -21,6 +21,14 @@ dependencies {
     "testImplementation"(catalog.findLibrary("spring-boot-starter-test").get())
 }
 
+// 실행 단위의 Test task(test JVM + Spring 컨텍스트별 MySQL 컨테이너)는 모듈 병렬 실행(org.gradle.parallel) 중에도 한 번에 하나만 돈다
+// (TEST-PERF-001, 측정 근거: docs/repository/TECH-BASELINE.md §7.3 — 두 개를 겹치면 WSL 7.8GB에서 가용 메모리가 바닥난다). 순서만 정할 뿐
+// 실행되는 시험·판정 기준은 같다.
+val dbTestJvmSlots = gradle.sharedServices.registerIfAbsent("paycoreDbTestJvmSlots", com.paycore.buildlogic.ExclusiveSlots::class) {
+    maxParallelUsages = 1
+}
+tasks.withType<Test>().configureEach { usesService(dbTestJvmSlots) }
+
 // ---------------------------------------------------------------------------------------------
 // 실행 단위 runtime에 테스트 전용 도구가 새지 않는다(Test Fixture Policy: Fixture Monkey는 테스트 전용, CP-DB-001).
 // runtimeClasspath(배포물·SBOM 대상)에 아래 group이 있으면 check가 실패한다. 테스트 classpath는 대상이 아니다.
