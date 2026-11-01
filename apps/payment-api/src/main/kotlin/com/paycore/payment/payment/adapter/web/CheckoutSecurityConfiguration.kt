@@ -2,6 +2,7 @@ package com.paycore.payment.payment.adapter.web
 
 import com.paycore.payment.payment.application.provided.CheckoutPageQuery
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.Ordered
@@ -20,7 +21,10 @@ import java.nio.charset.StandardCharsets
  * [CheckoutResponseHeadersFilter]가 체인 맨 앞에서 쓴다(Spring 기본 헤더 writer는 끈다 — 값이 다르다). CSRF 거절은 403 고정 문구 화면이며 상태를 바꾸지 않는다.
  * API 체인(`PaymentApiSecurityConfiguration`)은 그대로 — 이 체인은 `/v1` 아래에 걸리지 않고 쿠키로 `/v1` 아래을 인증할 수 없다.
  */
+/* DEMO-SEED-001(Coordinator 결정 2026-11-01): 서블릿 웹 컨텍스트에서만 구성한다 — 비웹 1회성 명령 프로세스에는 `HttpSecurity`가 없고 HTTP를 받지 않는다.
+ * 가드가 filter chain을 지우는 방식(분류 오류 시 fail-open)은 쓰지 않는다. */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class CheckoutSecurityConfiguration {
 
     @Bean

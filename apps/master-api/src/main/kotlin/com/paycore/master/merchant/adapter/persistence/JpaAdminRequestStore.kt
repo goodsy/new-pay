@@ -31,20 +31,20 @@ class JpaAdminRequestStore(
         if (row.requestRecordId == reservation.requestRecordId && row.resultKind == PENDING) {
             AdminReservationOutcome.Reserved
         } else {
-            AdminReservationOutcome.Existing(
-                StoredAdminRequest(
-                    row.requestRecordId,
-                    row.requestFingerprint,
-                    when (row.resultKind) {
-                        PENDING -> null
-                        SUCCESS -> StoredAdminResult.Succeeded(checkNotNull(row.resultReference))
-                        REJECTED -> StoredAdminResult.Rejected(MasterRejection.valueOf(checkNotNull(row.resultCode)), row.resultReference)
-                        else -> error("unknown admin request result kind")
-                    },
-                ),
-            )
+            AdminReservationOutcome.Existing(stored(row))
         }
     }
+
+    private fun stored(row: JpaAdminRequestEntity) = StoredAdminRequest(
+        row.requestRecordId,
+        row.requestFingerprint,
+        when (row.resultKind) {
+            PENDING -> null
+            SUCCESS -> StoredAdminResult.Succeeded(checkNotNull(row.resultReference))
+            REJECTED -> StoredAdminResult.Rejected(MasterRejection.valueOf(checkNotNull(row.resultCode)), row.resultReference)
+            else -> error("unknown admin request result kind")
+        },
+    )
 
     override fun complete(scope: AdminRequestScope, result: StoredAdminResult, at: Instant): Unit = translate(ENTITY) {
         val row = lockedRow(scope)
@@ -62,6 +62,11 @@ class JpaAdminRequestStore(
         }
         row.updatedAt = at
         entityManager.flush()
+    }
+
+    /** 비잠금 읽기(DEMO-SEED-001 진행 판정). 쓰지 않는다 — 호출자의 읽기 전용 TX 안에서. */
+    override fun find(scope: AdminRequestScope): StoredAdminRequest? = translate(ENTITY) {
+        requests.findByOperationAndIdempotencyKey(scope.operation.code, scope.key.value)?.let(::stored)
     }
 
     /** 같은 TX에서 이미 잠갔으면 영속성 컨텍스트의 같은 Entity가 돌아온다(추가 SQL 잠금은 재진입). */

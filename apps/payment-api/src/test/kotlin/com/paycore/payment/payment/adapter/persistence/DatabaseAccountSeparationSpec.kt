@@ -77,7 +77,10 @@ class DatabaseAccountSeparationSpec(
         "entitlement_snapshot" to "Select,Insert",
         "entitlement_mid_owner" to "Select,Insert",
         // CP-API-001 V6: Credential 투영은 읽기만(투영 적용 쓰기는 MASTER-CREDENTIAL-001이 그 경로와 함께 추가).
-        "merchant_api_credential" to "Select",
+        // DEMO-SEED-001 V30(D-DEMO-002 — 사용자 결정 2026-10-31): DEMO 전용 `demo-credential` 명령의 INSERT만 추가(UPDATE·DELETE 없음, I-24). LIVE Gate 검토 항목.
+        "merchant_api_credential" to "Select,Insert",
+        // DEMO-SEED-001 V30: Demo Credential 1회성·감사 행은 INSERT 전용.
+        "demo_credential_issuance" to "Select,Insert",
         // AUTHN-001 V8: 토큰·결제창 세션·인증 세션은 INSERT·UPDATE(삭제 Job 없음), 결정 로그와 채우기 기준 pin은 append-only.
         "checkout_token" to "Select,Insert,Update",
         "checkout_session" to "Select,Insert,Update",
@@ -142,7 +145,8 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`entitlement_head` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_snapshot` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`entitlement_mid_owner` TO `paycore_payment_runtime`@`%`",
-            "GRANT SELECT ON `paycore_payment`.`merchant_api_credential` TO `paycore_payment_runtime`@`%`",
+            // DEMO-SEED-001 V30(D-DEMO-002): Demo Credential 명령의 INSERT만 추가(UPDATE·DELETE 없음).
+            "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_api_credential` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`checkout_token` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`checkout_session` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`authentication_session` TO `paycore_payment_runtime`@`%`",
@@ -170,6 +174,7 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`merchant_notification_failure` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_webhook_attempt` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`operator_approval_decision` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`demo_credential_issuance` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -429,7 +434,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

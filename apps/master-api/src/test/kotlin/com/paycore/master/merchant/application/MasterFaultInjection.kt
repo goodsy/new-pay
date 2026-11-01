@@ -108,13 +108,23 @@ class MutableMasterClock : MasterClock {
 class ScriptedIdGenerator(private val real: RandomMasterIdGenerator) : MasterIdGenerator {
     private val forced = ConcurrentHashMap<String, String>()
 
+    /** DEMO-SEED-001 golden: 접두별로 순서대로 낼 고정 ID(같은 접두를 여러 번 쓰는 seed — pas·pv). [forced]가 먼저다. */
+    private val queued = ConcurrentHashMap<String, java.util.concurrent.ConcurrentLinkedQueue<String>>()
+
     fun forceNext(prefix: String, id: String) {
         forced[prefix] = id
     }
 
-    fun reset() = forced.clear()
+    fun enqueue(prefix: String, vararg ids: String) {
+        queued.computeIfAbsent(prefix) { java.util.concurrent.ConcurrentLinkedQueue() }.addAll(ids)
+    }
 
-    override fun newId(prefix: String): String = forced.remove(prefix) ?: real.newId(prefix)
+    fun reset() {
+        forced.clear()
+        queued.clear()
+    }
+
+    override fun newId(prefix: String): String = forced.remove(prefix) ?: queued[prefix]?.poll() ?: real.newId(prefix)
 
     override fun newUuid(): String = real.newUuid()
 }
@@ -247,11 +257,17 @@ class MasterFaultInjectionConfig {
     @Bean
     @Primary
     fun faultInjectingAdminRequestStore(real: JpaAdminRequestStore, f: MasterFaultInjector): AdminRequestStore = object : AdminRequestStore {
-        override fun reserveOrLock(reservation: AdminReservation): AdminReservationOutcome =
-            f.around(MasterFaultPoint.ADMIN_RESERVE) { real.reserveOrLock(reservation) }
+        override fun reserveOrLock(reservation: AdminReservation): AdminReservationOutcome {
+            AdminKeyProbe.current.set(reservation.scope.key.value)
+            return f.around(MasterFaultPoint.ADMIN_RESERVE) { real.reserveOrLock(reservation) }
+        }
 
-        override fun complete(scope: AdminRequestScope, result: StoredAdminResult, at: Instant) =
+        override fun complete(scope: AdminRequestScope, result: StoredAdminResult, at: Instant) {
+            AdminKeyProbe.current.set(scope.key.value)
             f.around(MasterFaultPoint.ADMIN_COMPLETE) { real.complete(scope, result, at) }
+        }
+
+        override fun find(scope: AdminRequestScope) = real.find(scope)
     }
 
     @Bean

@@ -136,5 +136,8 @@ enum class StoreConstraint {
 
     /** 같은 전달·같은 시도 번호(V25 `uk_merchant_webhook_attempt_no` — 예약 번호는 claim TX마다 다르다, m-2). */
     MERCHANT_WEBHOOK_ATTEMPT,
+    // DEMO-SEED-001 V29(명세 §4.5): Demo Credential 1회성 행(고정 id 1 — 동시 실행 패자 LOST)·투영 keyId PK(KEY_ID_COLLISION — LOST와 구별).
+    DEMO_CREDENTIAL_ISSUANCE,
+    MERCHANT_API_CREDENTIAL_KEY_ID,
     OTHER,
 }

@@ -1,0 +1,21 @@
+{
+  "description": "DEMO-SEED-001 latest entitlement snapshot after the 18-step Demo merchant seed (schemaVersion 3; Demo values, NOT operational — D-DEMO-001/003). Generated independently of both apps from spec §4.2 literals and the §10 canonical rules of MASTER-SNAPSHOT-001.",
+  "schemaVersion": 3,
+  "issuedAt": "2026-10-09T02:00:00.000Z",
+  "effectiveFrom": "2026-10-09T15:00:00.000Z",
+  "revision": 12,
+  "merchantId": "mer_01J9ZQG1DENDM1000000000000",
+  "businessId": "biz_01J9ZQG1DENDB1000000000000",
+  "siteId": "site_01J9ZQG1DENDS1000000000000",
+  "mid": "mid_01J9ZQG1DENDA1000000000000",
+  "siteAssignmentId": "asg_01J9ZQG1DENDP1000000000000",
+  "agreementId": "csa_01J9ZQG1DENDC1000000000000",
+  "limitPolicyId": "tlp_01J9ZQG1DENDD1000000000000",
+  "feeAssignmentId": "pas_01J9ZQG1DENDF1000000000000",
+  "settlementAssignmentId": "pas_01J9ZQG1DENDT1000000000000",
+  "feeVersionId": "pv_01J9ZQG1DENDV1000000000000",
+  "settlementVersionId": "pv_01J9ZQG1DENDV2000000000000",
+  "cardRouteId": "cra_01J9ZQG1DENDR1000000000000",
+  "contentCanonical": "{\"accounts\":[{\"activations\":[{\"paymentMethod\":\"CARD\",\"status\":\"ACTIVE\"}],\"assignments\":[{\"assignmentId\":\"asg_01J9ZQG1DENDP1000000000000\",\"effectiveFrom\":\"2026-10-09T02:00:00.000Z\",\"effectiveTo\":null,\"role\":\"PRIMARY\",\"siteId\":\"site_01J9ZQG1DENDS1000000000000\",\"status\":\"ACTIVE\"}],\"blocked\":false,\"cardRoutes\":[{\"acquirerCode\":\"SIMACQA\",\"activationId\":\"cra_01J9ZQG1DENDR1000000000000\",\"institutionMerchantRef\":\"SIMVAN-DEMO-0001\",\"paymentMethod\":\"CARD\",\"routeRef\":\"SIMVAN01\",\"status\":\"ACTIVE\"}],\"contractWindows\":[{\"from\":\"2026-10-09T15:00:00.000Z\",\"siteId\":\"site_01J9ZQG1DENDS1000000000000\",\"to\":null}],\"currencies\":[{\"currency\":\"KRW\",\"from\":\"2026-10-09T15:00:00.000Z\",\"minorUnit\":0,\"to\":null}],\"issuingAgreementId\":\"csa_01J9ZQG1DENDC1000000000000\",\"lifecycle\":\"ACTIVE\",\"limitPolicies\":[{\"agreementId\":\"csa_01J9ZQG1DENDC1000000000000\",\"currency\":\"KRW\",\"daily\":{\"amountMinor\":5000000,\"kind\":\"LIMITED\"},\"from\":\"2026-10-09T15:00:00.000Z\",\"perTransaction\":{\"amountMinor\":1000000,\"kind\":\"LIMITED\"},\"policyId\":\"tlp_01J9ZQG1DENDD1000000000000\",\"scope\":\"CSA_DEFAULT\",\"to\":null}],\"mid\":\"mid_01J9ZQG1DENDA1000000000000\",\"policyAssignments\":[{\"agreementId\":\"csa_01J9ZQG1DENDC1000000000000\",\"assignmentId\":\"pas_01J9ZQG1DENDF1000000000000\",\"contentStatus\":\"DEMO\",\"currency\":\"KRW\",\"from\":\"2026-10-09T15:00:00.000Z\",\"kind\":\"FEE_SCHEDULE\",\"policyCode\":\"DEMO-FEE\",\"policyVersionId\":\"pv_01J9ZQG1DENDV1000000000000\",\"to\":null,\"versionNo\":1},{\"agreementId\":\"csa_01J9ZQG1DENDC1000000000000\",\"assignmentId\":\"pas_01J9ZQG1DENDT1000000000000\",\"contentStatus\":\"DEMO\",\"currency\":\"KRW\",\"from\":\"2026-10-09T15:00:00.000Z\",\"kind\":\"SETTLEMENT_POLICY\",\"policyCode\":\"DEMO-SETTLEMENT\",\"policyVersionId\":\"pv_01J9ZQG1DENDV2000000000000\",\"to\":null,\"versionNo\":1}],\"serviceKind\":\"CARD_PG_PAYMENT\",\"siteConfirmations\":[{\"paymentMethod\":\"CARD\",\"siteId\":\"site_01J9ZQG1DENDS1000000000000\"}]}],\"businessId\":\"biz_01J9ZQG1DENDB1000000000000\",\"merchantId\":\"mer_01J9ZQG1DENDM1000000000000\",\"party\":{\"businessBlocked\":false,\"businessLifecycle\":\"ACTIVE\",\"merchantBlocked\":false,\"merchantLifecycle\":\"ACTIVE\"},\"revision\":12,\"sites\":[{\"channel\":{\"host\":\"demo-shop.paycore.test\",\"type\":\"WEB\"},\"lifecycle\":\"ACTIVE\",\"reviewStatus\":\"APPROVED\",\"siteId\":\"site_01J9ZQG1DENDS1000000000000\"}]}",
+  "contentHash": "ec1:8d4a865a77069016d5d49b492d4b4f9475ee4007bb516cd05c1a24c71c369615"
+}

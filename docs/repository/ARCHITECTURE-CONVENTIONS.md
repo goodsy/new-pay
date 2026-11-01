@@ -518,3 +518,21 @@ ADMIN 승인으로 **다른 서비스가 소유한 금융 효과**를 일으킬 
 - **대사 job watermark**: checkpoint 단일 행(갱신 때만 짧게 잠그고 `max`로만 전진). 증분은 소유 서비스가 DB 시각으로 정한 **안정 watermark**(`nextWatermark` — 반환한 최대 seq 아님)까지, 항목 판정 오류가 있으면 그 직전 seq까지만. 전체 스캔은 watermark를 저장하지 않고(페이지 기준 = 읽은 최대 seq) 항목 오류 0일 때만 완료 표시. "결정 없음" 판정은 마지막 응답이 `스캔 시작 − (안정 지연 + 시각 여유)` 이전인 종료 건만. 발견 UNIQUE 1062는 정상(이미 기록됨). **대사는 상태를 바꾸지 않는다**(ArchUnit — 대사 클래스는 명령 호출 금지).
 - **비노출·관측**: 사유·근거·서명·키·본문은 로그·지표·발견·오류 응답에 없다(지표 label은 고정 분류만, paymentId·approvalId 금지). 근거·사유는 별도 권한 조회(역할·요청자 본인, 시도마다 감사, 속도 제한)로만. 지표 이름·label은 계약 시험으로 고정한다.
 
+
+## 22. DEMO 전용 1회성 명령 모드 (DEMO-SEED-001)
+
+DEMO 배포에서만 쓰는 비웹 1회성 명령(`master-api demo-seed`, `payment-api demo-credential`)의 구조 규칙. 세부는 DEMO-SEED-001 명세 §4.5~§4.8, Demo 절차는 ADMIN-PAYMENT-OPS-001 부록 D. **운영 경로가 아니다**(운영 가맹점·Credential은 MASTER-LIFECYCLE-001·MASTER-CREDENTIAL-001).
+
+| 항목 | 규칙 | 근거 |
+|---|---|---|
+| 앱 간 공유 | 명령 구조(게이트·가드·출력·종료 코드)는 앱마다 복제한다 — 앱 간 production 코드 공유 없음 | R-1 |
+| 진입점 | 루트 `<App>Application.kt` 최상위 함수 `isCommandMode`·`effectiveArguments`·`runCommand`·`exitCodeOf`만(다른 모듈 타입 import 없음 — Modulith). 명령 모드면 `--spring.main.web-application-type=none`과 그 앱의 주기 job 끔 인자를 **앞에** 덧붙인다 | §4.6, m3 |
+| 배치 모드 게이트 | `<module>.adapter.batch.DemoCommandModeGate` = `EnvironmentPostProcessor`(`META-INF/spring.factories`, Boot 4.x 키 `org.springframework.boot.EnvironmentPostProcessor`), order `ConfigDataEnvironmentPostProcessor.ORDER + 1`(설정 파일 반영 뒤). 명령 속성이 있고 `paycore.<app>.deployment-mode`가 정확히 `DEMO`가 아니면 컨텍스트·DataSource·Flyway **전**에 `DemoModeRefusedException`(`ExitCodeGenerator` → exit 3). runner가 같은 판정을 다시 한다 | M2, I-1·I-16 |
+| 명령 가드 | `OneShotModeGuard`(BeanDefinitionRegistryPostProcessor, 명령 속성 조건): 웹 컨텍스트면 `ONE_SHOT_COMMAND_IN_WEB_CONTEXT`로 기동 실패, 비웹이면 앱 패키지 `@Scheduled` 빈 정의 제거. 가드는 보안 빈을 지우지 않는다(분류 오류 시 fail-open) — 웹 보안 구성 클래스는 `@ConditionalOnWebApplication(type = SERVLET)`이라 비웹 명령 컨텍스트에서 구성되지 않는다(payment-api 세 구성) | I-2·I-3 |
+| 쓰기 빈은 명령 프로세스에만 | 명령 전용 쓰기 adapter는 `@ConditionalOnProperty(prefix = "paycore.<app>", name = ["command"], havingValue = "<명령>")`. application 서비스는 Boot 조건 annotation에 의존하지 않으므로(ArchUnit allowlist) stereotype 없이 두고 명령 가드가 명령일 때만 빈 정의를 등록한다. 웹 컨텍스트에는 빈 정의 자체가 없다(시험 `PaymentWebContextNoCredentialWriterSpec`) | I-23 |
+| 1회성 INSERT | 고정 PK 행(`CHECK (id = 1)`) + `EntityManager.persist` + `flush`. `Persistable`·Spring Data `save`(할당 ID = `merge` → 기존 행을 읽고 `@Immutable`이라 조용히 성공) 금지. 1062 분류는 기존 `PersistenceFailures.translate`의 `StoreConstraint`로만(새 adapter에서 MySQL 예외 직접 해석 금지) | C5, rev 0.3 |
+| 같은 표 두 Entity | 기존 읽기 Entity(`insertable=false`)는 그대로 두고 insert 전용 Entity(`insertable=true`·`updatable=false`·`@Immutable`)를 따로 매핑한다. 열 정의는 migration과 일치(`ddl-auto=validate`가 열마다 검사) | M3 |
+| 출력 | TTY 또는 `CREATE_NEW`+`NOFOLLOW_LINKS`+0600 파일(공유 쓰기 디렉터리 거부, 생성 직후 권한 재확인), **DB 변경 전 준비**, 커밋 뒤 같은 채널에 쓰기, 쓰기 실패면 자기가 만든 파일(같은 file key)을 지운다. logger·표준 출력에 값 없음 | I-15, m4 |
+| 종료 코드 | 0 성공·1 분류 밖·2 USAGE·3 MODE_REFUSED·4 CONDITION_REFUSED·5 LOST·6 OUTPUT_REFUSED·7 OUTPUT_FAILED·8 RETRY_LATER·9 CONTENT_CONFLICT·10 STEP_REJECTED·11 KEY_ID_COLLISION | §4.8 |
+| 관측 | 1회성 프로세스는 새 지표를 등록하지 않는다(수집 전 종료). 고정 code 로그(`operation=<명령> result=<exit 이름> reason=<code> correlationId=<id>`)·exit code·감사 행이 증거 | §4.10 |
+| LIVE Gate | 배포 구성에 `DEMO` 모드 값·명령 변수 없음, Demo 표지(actor `system:demo-*`, 키 공간 `demo-seed-v1:*`, keyId 접두 `demo`, contentStatus DEMO) 탐지. **검토 항목(D-DEMO-002)**: payment runtime 계정의 `merchant_api_credential` INSERT 권한(V30 — 모든 배치에 생긴다; 완화 = 쓰기 빈 명령 프로세스 전용 I-23·UPDATE/DELETE 없음 I-24·쓰기 Port 사용처 제한 I-22, MASTER-CREDENTIAL-001 도입 시 재검토) | §11, D-DEMO-002 |

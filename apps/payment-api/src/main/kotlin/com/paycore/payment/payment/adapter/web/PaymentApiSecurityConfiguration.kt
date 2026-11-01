@@ -3,6 +3,7 @@ package com.paycore.payment.payment.adapter.web
 import com.paycore.payment.payment.application.provided.MerchantAuthenticator
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.DispatcherType
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -23,7 +24,10 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
  * - 인증 정보 읽기는 [MerchantAuthenticator](PAYMENT 로컬 투영, 캐시 없음). 저장소 일시 실패는 401이 아니라 503(결과 미정이 아니라
  *   검증 불가 — 같은 키로 재시도).
  */
+/* DEMO-SEED-001(Coordinator 결정 2026-11-01): 서블릿 웹 컨텍스트에서만 구성한다 — 비웹 1회성 명령 프로세스에는 `HttpSecurity`가 없고 HTTP를 받지 않는다.
+ * 가드가 filter chain을 지우는 방식(분류 오류 시 fail-open)은 쓰지 않는다. */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class PaymentApiSecurityConfiguration {
 
     @Bean

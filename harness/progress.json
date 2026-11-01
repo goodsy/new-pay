@@ -7,7 +7,7 @@
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "DEMO-SEED-001 재개(DemoMerchantSeedValues SIMACQA/SIMVAN01 + seed 매입사=Simulator 카탈로그 단언, 공유 clock reset, payment-api demo-credential, golden, 부록 D/.env.example/ARCH-CONVENTIONS, 변이) → Demo DB 재설정 → Demo 캡처 2~5·7 → CHECKOUT-REACT-001",
+  "nextResumeAction": "DEMO-SEED-001 DONE(게이트 PASS 2026-11-01T170656Z, 미커밋) → 커밋 여부 사용자 확인 → Demo DB 재설정(사용자 확인) → Demo 캡처 2~5·7 → CHECKOUT-REACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",

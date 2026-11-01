@@ -527,9 +527,42 @@ class ArchitectureSpec : FunSpec({
         // 대상 있음(CP-DOMAIN-001): 모듈 slice `payment`.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)
     }
+
+    // DEMO-SEED-001 I-22: Demo Credential 쓰기 Port 두 개에 의존하는 타입은 발급 서비스(와 중첩 타입)·그 JPA 구현뿐. 기존 읽기 경로 타입은 무변경(fingerprint는 Reviewer).
+    test("only DemoCredentialIssueService (and the two JPA implementations) depend on the Demo credential write ports (DEMO-SEED-001 I-22)") {
+        demoCredentialWritersOnlyFromIssueService().check(classes)
+        // 실제 사용자가 있다(빈 대상 통과가 아님).
+        classes.get("$BASE_PACKAGE.payment.application.DemoCredentialIssueService").directDependenciesFromSelf
+            .map { it.targetClass.name }.containsAll(listOf(DEMO_PROJECTION_WRITER, DEMO_ISSUANCE_STORE)) shouldBe true
+        val fixture = com.paycore.archfixture.democredential.SideDoorCredentialWriter::class.java
+        violationsOf(demoCredentialWritersOnlyFromIssueService(), "com.paycore.archfixture.democredential", fixture).let { details ->
+            details.any { it.contains(fixture.simpleName) && it.contains("DemoCredentialProjectionWriter") } shouldBe true
+            details.any { it.contains(fixture.simpleName) && it.contains("DemoCredentialIssuanceStore") } shouldBe true
+        }
+    }
 }) {
     companion object {
         const val BASE_PACKAGE = "com.paycore.payment"
+
+        const val DEMO_PROJECTION_WRITER = "$BASE_PACKAGE.payment.application.required.DemoCredentialProjectionWriter"
+        const val DEMO_ISSUANCE_STORE = "$BASE_PACKAGE.payment.application.required.DemoCredentialIssuanceStore"
+
+        /** DEMO-SEED-001 I-22: 쓰기 Port 사용처 제한. 허용 = 발급 서비스(중첩·companion 포함)·두 JPA 구현(중첩 포함). 대상 범위는 `com.paycore..`(위반 fixture 포함). */
+        fun demoCredentialWritersOnlyFromIssueService(): com.tngtech.archunit.lang.ArchRule {
+            val allowed = listOf(
+                "$BASE_PACKAGE.payment.application.DemoCredentialIssueService",
+                "$BASE_PACKAGE.payment.adapter.persistence.JpaDemoCredentialProjectionWriter",
+                "$BASE_PACKAGE.payment.adapter.persistence.JpaDemoCredentialIssuanceStore",
+            )
+            val permitted = com.tngtech.archunit.base.DescribedPredicate.describe<com.tngtech.archunit.core.domain.JavaClass>("the issue service or its JPA implementations") { c ->
+                allowed.any { c.name == it || c.name.startsWith("$it$") } || c.name == DEMO_PROJECTION_WRITER || c.name == DEMO_ISSUANCE_STORE
+            }
+            return com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().resideInAPackage("com.paycore..")
+                .and(com.tngtech.archunit.base.DescribedPredicate.not(permitted))
+                .should().dependOnClassesThat().haveFullyQualifiedName(DEMO_PROJECTION_WRITER)
+                .orShould().dependOnClassesThat().haveFullyQualifiedName(DEMO_ISSUANCE_STORE)
+                .`as`("only DemoCredentialIssueService and its JPA implementations depend on the Demo credential write ports")
+        }
 
         /**
          * L-2 규칙: `Payment.startAuthorization`에 접근(호출 **및 메서드 참조** `Payment::startAuthorization` — review round1 m-2)하는 클래스는

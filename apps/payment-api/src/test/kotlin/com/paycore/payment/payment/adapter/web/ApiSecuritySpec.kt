@@ -260,21 +260,29 @@ class ApiSecuritySpec(
         }
     }
 
-    Given("the credential projection is read-only for the application (V6)") {
-        Then("the runtime account cannot insert, update or delete credential rows (1142)") {
+    // 기대값 변경 기록(DEMO-SEED-001 V30, D-DEMO-002 사용자 결정 2026-10-31): runtime 계정에 merchant_api_credential INSERT가 추가됐다(DEMO 전용 `demo-credential` 명령 —
+    // 쓰기 빈은 명령 프로세스에만, I-23). UPDATE·DELETE는 여전히 1142다(I-24). INSERT는 rollback하는 TX 안에서만 확인해 시험 행을 남기지 않는다.
+    Given("the credential projection cannot be changed by the application (V6; V30 adds INSERT only — D-DEMO-002)") {
+        Then("the runtime account cannot update or delete credential rows (1142); INSERT is granted (V30) and is rolled back here") {
             db.withApp { c ->
                 with(db) {
-                    listOf(
-                        c.errorCodeOf(
-                            "INSERT INTO merchant_api_credential (key_id, merchant_account_id, environment, secret_sha256, status, valid_from, lease_until," +
-                                " revision, updated_at) VALUES ('privtest0001', 'mid_x', 'LIVE', REPEAT('a', 64), 'ACTIVE', '2000-01-01', '2100-01-01', 1," +
-                                " '2000-01-01')",
-                        ),
-                        c.errorCodeOf("UPDATE merchant_api_credential SET status = 'ACTIVE' WHERE key_id = 'none'"),
-                        c.errorCodeOf("DELETE FROM merchant_api_credential WHERE key_id = 'none'"),
-                    )
+                    c.autoCommit = false
+                    try {
+                        listOf(
+                            c.errorCodeOf(
+                                "INSERT INTO merchant_api_credential (key_id, merchant_account_id, environment, secret_sha256, status, valid_from, lease_until," +
+                                    " revision, updated_at) VALUES ('privtest0001', 'mid_x', 'LIVE', REPEAT('a', 64), 'ACTIVE', '2000-01-01', '2100-01-01', 1," +
+                                    " '2000-01-01')",
+                            ),
+                            c.errorCodeOf("UPDATE merchant_api_credential SET status = 'ACTIVE' WHERE key_id = 'none'"),
+                            c.errorCodeOf("DELETE FROM merchant_api_credential WHERE key_id = 'none'"),
+                        )
+                    } finally {
+                        c.rollback()
+                        c.autoCommit = true
+                    }
                 }
-            } shouldBe listOf(1142, 1142, 1142)
+            } shouldBe listOf(null, 1142, 1142)
             db.count("SELECT COUNT(*) FROM merchant_api_credential WHERE key_id = ?", "privtest0001") shouldBe 0L
         }
     }

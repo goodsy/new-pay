@@ -6233,11 +6233,23 @@
     },
     {
       "phase": "FEATURE",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/DEMO-SEED-001-2026-11-01T170656Z.json (main tree, base df3a1c4)",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:848821be5b93377f82dce95fb16af7a3fb5dad7281cf0e5b7c4fd39529656cde",
+        "tests": "3313/0, Vitest 66/0, harness selftest PASS",
+        "gradleCheckWall": "34m57s",
+        "supplementary": "DEMO-SEED-001-2026-11-01T204823Z-supplementary DEPS×5+CVE PASS",
+        "priorAttempts": "demogate1: GRADLE-CHECK timeout(잔존 Gradle daemon), demogate2 PASS 3312(리뷰 m-2/m-3 반영 전)",
+        "mutations": "S1~S8·S10·S11·C5~C7·G1 RED, 복원 sha256 동일. S9·C1~C4 미실행"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "rounds": "1차 M-1/m-1/N-1~6, 재검토 m-2/m-3 — 전부 반영"
+      },
       "owner": "paycore-implementer",
       "allowedWritePaths": [],
       "id": "DEMO-SEED-001",

@@ -133,5 +133,7 @@ internal object PersistenceFailures {
         "merchant_webhook_delivery.PRIMARY" to StoreConstraint.MERCHANT_WEBHOOK_DELIVERY_ID,
         "merchant_webhook_delivery.uk_merchant_webhook_delivery_event" to StoreConstraint.MERCHANT_WEBHOOK_DELIVERY_EVENT,
         "merchant_webhook_attempt.uk_merchant_webhook_attempt_no" to StoreConstraint.MERCHANT_WEBHOOK_ATTEMPT,
+        "demo_credential_issuance.PRIMARY" to StoreConstraint.DEMO_CREDENTIAL_ISSUANCE,
+        "merchant_api_credential.PRIMARY" to StoreConstraint.MERCHANT_API_CREDENTIAL_KEY_ID,
     )
 }

@@ -56,6 +56,18 @@ class ArchitectureSpec : FunSpec({
         }
     }
 
+    test("DEMO-SEED-001 I-4·I-20: the seed coordinator uses only provided use cases and the read-only progress port") {
+        demoSeedUsesOnlyProvidedUseCases().check(classes)
+        classes.any { it.simpleName == "DemoMerchantSeedService" } shouldBe true
+    }
+
+    test("DEMO-SEED-001 I-4·I-20 rule catches a coordinator that reserves admin requests or touches persistence (violating fixture)") {
+        val fixture = ClassFileImporter().importPackages("com.paycore.master.archfixture.demoseed")
+        val error = shouldThrow<AssertionError> { demoSeedUsesOnlyProvidedUseCases().check(fixture) }
+        error.message shouldContain "reserveOrLock"
+        error.message shouldContain "jakarta.persistence"
+    }
+
     test("test sources are excluded from the architecture import (DO_NOT_INCLUDE_TESTS)") {
         // MasterUtcSessionSpec은 DataSource/Hikari를 쓰는 테스트 소스다. 테스트까지 import하면 영속 기술 규칙이 이를 잡는다.
         val withTests = ClassFileImporter().importPackages(BASE_PACKAGE)
@@ -68,6 +80,26 @@ class ArchitectureSpec : FunSpec({
     }
 }) {
     companion object {
+        /**
+         * DEMO-SEED-001 I-4·I-20: seed 조정자(`DemoMerchantSeedService`)는 기존 provided Use Case와 진행 판정 읽기(`AdminRequestStore.find`)만 쓴다 —
+         * 영속 기술·adapter 직접 사용 금지, `reserveOrLock`(PENDING 행 INSERT) 호출 금지.
+         */
+        fun demoSeedUsesOnlyProvidedUseCases(): com.tngtech.archunit.lang.ArchRule {
+            val noPersistence = com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveSimpleName("DemoMerchantSeedService")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                    "..adapter..", "jakarta.persistence..", "org.hibernate..", "org.jooq..", "org.springframework.jdbc..", "org.springframework.data..",
+                )
+            val noReservation = com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveSimpleName("DemoMerchantSeedService")
+                .should().callMethodWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                        com.tngtech.archunit.base.DescribedPredicate.describe("AdminRequestStore.reserveOrLock") { t ->
+                            t.name == "reserveOrLock" && t.owner.simpleName == "AdminRequestStore"
+                        },
+                    ),
+                )
+            return com.tngtech.archunit.lang.CompositeArchRule.of(noPersistence).and(noReservation).allowEmptyShould(false)
+        }
+
         const val BASE_PACKAGE = "com.paycore.master"
 
         const val GENERATED_JOOQ_PACKAGE = "com.paycore.master.jooq.generated"

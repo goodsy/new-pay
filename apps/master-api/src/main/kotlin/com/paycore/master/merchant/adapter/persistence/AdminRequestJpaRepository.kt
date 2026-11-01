@@ -13,6 +13,9 @@ interface AdminRequestJpaRepository : JpaRepository<JpaAdminRequestEntity, Long>
     @Query("select r from JpaAdminRequestEntity r where r.operation = :operation and r.idempotencyKey = :idempotencyKey")
     fun lockByScope(@Param("operation") operation: String, @Param("idempotencyKey") idempotencyKey: String): JpaAdminRequestEntity?
 
+    /** 비잠금 단건 조회(DEMO-SEED-001 진행 판정 — 쓰기·잠금 없음). */
+    fun findByOperationAndIdempotencyKey(operation: String, idempotencyKey: String): JpaAdminRequestEntity?
+
     /** 범위 UNIQUE에 예약(PENDING)을 삽입하거나, 이미 있으면 바꾸지 않고 그 행의 잠금을 기다려 잡는다(SELECT 후 INSERT 아님). */
     @Modifying
     @Query(

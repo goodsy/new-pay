@@ -42,4 +42,10 @@ interface AdminRequestStore {
     fun reserveOrLock(reservation: AdminReservation): AdminReservationOutcome
 
     fun complete(scope: AdminRequestScope, result: StoredAdminResult, at: Instant)
+
+    /**
+     * 비잠금 단건 읽기(DEMO-SEED-001 진행 판정 — 명세 §4.3). 기록이 없으면 null, 결과 전(PENDING)이면 `result = null`. 아무것도 쓰지 않는다 —
+     * 판정 보조일 뿐 같은 키 경합의 권위는 [reserveOrLock]의 잠금이다. 진행 판정에 [reserveOrLock]을 쓰지 않는다(PENDING 행이 생긴다).
+     */
+    fun find(scope: AdminRequestScope): StoredAdminRequest?
 }
