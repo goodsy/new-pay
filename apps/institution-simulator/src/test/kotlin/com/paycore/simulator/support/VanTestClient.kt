@@ -84,7 +84,7 @@ class VanTestClient(port: Int, private val readTimeoutMillis: Int = 5_000) : Clo
             requestedAt: String = "2026-10-16T01:00:31.000Z",
         ): ObjectNode = MAPPER.createObjectNode().apply {
             put("type", "AUTH_REQUEST"); put("messageId", messageId()); put("requestId", requestId); put("institutionAccount", account)
-            put("merchantRef", "mid-demo-0001"); put("environment", environment); put("routeRef", "SIM-VAN-01"); put("amountMinor", amountMinor); put("currency", "KRW")
+            put("merchantRef", "mid-demo-0001"); put("environment", environment); put("routeRef", "SIMVAN01"); put("amountMinor", amountMinor); put("currency", "KRW")
             putObject("plan").apply { if (months == null) put("kind", "LUMP_SUM") else { put("kind", "INSTALLMENT"); put("months", months) } }
             putObject("authentication").apply {
                 put("evidenceRef", evidence.evidenceRef); put("providerCode", evidence.providerCode); put("issuerCode", evidence.issuerCode); put("acquirerCode", evidence.acquirerCode)
@@ -114,7 +114,7 @@ class VanTestClient(port: Int, private val readTimeoutMillis: Int = 5_000) : Clo
             requestedAt: String = "2026-10-16T01:00:31.000Z",
         ): ObjectNode = MAPPER.createObjectNode().apply {
             put("type", "CANCEL_REQUEST"); put("messageId", messageId()); put("requestId", requestId); put("institutionAccount", account)
-            put("merchantRef", "mid-demo-0001"); put("environment", "TEST"); put("routeRef", "SIM-VAN-01"); put("originalRequestId", originalRequestId)
+            put("merchantRef", "mid-demo-0001"); put("environment", "TEST"); put("routeRef", "SIMVAN01"); put("originalRequestId", originalRequestId)
             put("originalProviderTransactionId", original.get("providerTransactionId").stringValue()); put("originalApprovalNumber", original.get("approvalNumber").stringValue())
             put("originalTransactionDate", original.get("institutionTransactionDate").stringValue()); put("cancelAmountMinor", amountMinor); put("currency", "KRW")
             put("scope", scope); put("requestedAt", requestedAt)

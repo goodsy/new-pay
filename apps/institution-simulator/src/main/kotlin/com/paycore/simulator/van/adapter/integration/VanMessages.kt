@@ -103,7 +103,8 @@ object VanMessages {
     private val ENVIRONMENT = Regex("^(TEST|LIVE)$")
     private val CURRENCY = Regex("^[A-Z]{3}$")
     private val EVIDENCE_REF = Regex("^[!-~]{1,128}$")
-    private val CODE = Regex("^[A-Z0-9-]{1,32}$")
+    // D-INST-CODE-001(INST-CODE-001 IC-8): Route·발급사·매입사·인증 기관 코드는 기관 식별 코드 공통 형식(하이픈·밑줄 금지).
+    private val CODE = Regex("^[A-Z0-9]{1,32}$")
     private val TIMESTAMP_TEXT = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$")
     private val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
@@ -156,7 +157,7 @@ object VanMessages {
                 institutionAccount = text(root, "institutionAccount", ACCOUNT),
                 merchantRef = text(root, "merchantRef", MERCHANT_REF),
                 environment = text(root, "environment", ENVIRONMENT),
-                routeRef = text(root, "routeRef", ACCOUNT),
+                routeRef = text(root, "routeRef", CODE),
                 amountMinor = amount.longValue(),
                 currency = text(root, "currency", CURRENCY),
                 plan = VanPlan(VanPlanKind.valueOf(text(plan, "kind")), months),
@@ -196,7 +197,7 @@ object VanMessages {
                 institutionAccount = text(root, "institutionAccount", ACCOUNT),
                 merchantRef = text(root, "merchantRef", MERCHANT_REF),
                 environment = text(root, "environment", ENVIRONMENT),
-                routeRef = text(root, "routeRef", ACCOUNT),
+                routeRef = text(root, "routeRef", CODE),
                 originalRequestId = text(root, "originalRequestId", REQUEST_ID),
                 originalProviderTransactionId = text(root, "originalProviderTransactionId", PROVIDER_REF),
                 originalApprovalNumber = text(root, "originalApprovalNumber", APPROVAL_NUMBER),

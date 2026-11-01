@@ -174,9 +174,11 @@ class SimulatorCardAuthenticationAdapter(settings: AuthenticationSettings, priva
         val validUntil = text(root, "validUntil")?.let(::instant) ?: return null
         val details = if (outcome == ProviderOutcome.AUTHENTICATED) {
             val cardType = text(root, "cardType")?.takeIf { CARD_TYPE.matches(it) } ?: return null
-            val codes = listOf("issuerCode", "acquirerCode", "providerCode", "evidenceRef").map { text(root, it)?.takeIf { v -> v.length in 1..MAX_CODE } ?: return null }
+            // D-INST-CODE-001(INST-CODE-001 IC-5): 발급사·매입사·인증 기관 코드는 기관 식별 코드 공통 형식 — 밖이면 계약 위반(MALFORMED).
+            val codes = listOf("issuerCode", "acquirerCode", "providerCode").map { text(root, it)?.takeIf(InstitutionCodeFormat::matches) ?: return null }
+            val evidenceRef = text(root, "evidenceRef")?.takeIf { v -> v.length in 1..MAX_CODE } ?: return null
             val at = text(root, "authenticatedAt")?.let(::instant) ?: return null
-            AuthenticatedDetails(cardType, codes[0], codes[1], codes[2], codes[3], at)
+            AuthenticatedDetails(cardType, codes[0], codes[1], codes[2], evidenceRef, at)
         } else {
             null
         }

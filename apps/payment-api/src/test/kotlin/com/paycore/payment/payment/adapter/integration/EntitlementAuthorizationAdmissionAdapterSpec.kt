@@ -39,7 +39,7 @@ class EntitlementAuthorizationAdmissionAdapterSpec : FunSpec({
     val mid = MerchantAccountId("mid_TEST0000000000000000000001")
     val fee = PolicyTerms("pas_FEE", "pv_FEE", "FEE-DEMO", 1, "DEMO")
     val settlement = PolicyTerms("pas_STL", "pv_STL", "STL-DEMO", 1, "UNDEFINED")
-    val route = RouteTerms("cra_1", "SIMCARD01", "SIM-VAN-01", "SIMMERCH0001")
+    val route = RouteTerms("cra_1", "SIMCARD01", "SIMVAN01", "SIMMERCH0001")
 
     fun admitted(limit: LimitTerms) = AuthorizationTermsResult.Admitted("es1:mer_X:4", route, fee, settlement, limit, at.plusSeconds(30), at)
 
@@ -56,7 +56,7 @@ class EntitlementAuthorizationAdmissionAdapterSpec : FunSpec({
         val query = FixedQuery { admitted(LimitTerms.Resolved("tlp_1", "MID_OVERRIDE", "KRW", LimitBound.Limited(300_000), LimitBound.Unlimited)) }
         val result = evaluate(query).shouldBeInstanceOf<AdmissionResult.Admitted>()
         listOf(result.policyAssignmentVersion, result.policyContentStatus, result.route.routeRef, result.validUntil) shouldBe
-            listOf("pa1:fee=pas_FEE/pv_FEE;stl=pas_STL/pv_STL", setOf("DEMO", "UNDEFINED"), "SIM-VAN-01", at.plusSeconds(30))
+            listOf("pa1:fee=pas_FEE/pv_FEE;stl=pas_STL/pv_STL", setOf("DEMO", "UNDEFINED"), "SIMVAN01", at.plusSeconds(30))
         result.limitPolicy shouldBeEqual LimitPolicyResolution.Resolved(
             TransactionLimitPolicy("tlp_1", mid, CurrencyCode("KRW"), LimitAmount.Limited(300_000), LimitAmount.Unlimited),
         )

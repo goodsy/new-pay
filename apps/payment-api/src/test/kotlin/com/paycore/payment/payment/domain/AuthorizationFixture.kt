@@ -47,9 +47,9 @@ object AuthorizationFixture {
     /** Payment 고정 입력(OrderFixture.originalIntent와 같은 Site·금액). */
     val intent = OrderIntent(OrderFixture.demoSite, 10_000L.won())
 
-    val providerRequest = ProviderRequestRef("SIM-VAN-A", Environment.TEST, "sim-acct-01", "AUTHORIZE", "ar_demo0001")
+    val providerRequest = ProviderRequestRef("SIMVANA", Environment.TEST, "sim-acct-01", "AUTHORIZE", "ar_demo0001")
 
-    val admission = AuthorizationAdmission("es1:demo-merchant:7", "demo-policy-assignment-v1", "SIM-VAN-A", "sim-van/1", startedAt)
+    val admission = AuthorizationAdmission("es1:demo-merchant:7", "demo-policy-assignment-v1", "SIMVANA", "sim-van/1", startedAt)
 
     /** Demo 할부 정책: 2·3·6·12개월, 최소 50,000원. */
     val planPolicy = PaymentPlanPolicy("demo-plan-v1", KRW, setOf(2, 3, 6, 12), 50_000L.won())
@@ -143,7 +143,7 @@ object AuthorizationFixture {
     /** 전송 게이트 통과(TXd) 뒤: Attempt DISPATCHING. */
     fun dispatching(): AuthorizationScenario = started().also { it.authorization.beginDispatch(it.attemptId, ROUTE_PROFILE_VERSION) }
 
-    /** 전송 게이트 통과 때 Attempt에 고정하는 Route 프로파일 버전(Demo — 시험 yml `SIM-VAN-01.profile-version`과 같은 값, D-AUTH1-007). */
+    /** 전송 게이트 통과 때 Attempt에 고정하는 Route 프로파일 버전(Demo — 시험 yml `SIMVAN01.profile-version`과 같은 값, D-AUTH1-007). */
     const val ROUTE_PROFILE_VERSION = "sim-van-a-demo-1"
 
     /** 전송 뒤 read timeout: Payment·Authorization UNKNOWN, Attempt OUTCOME_UNKNOWN. */

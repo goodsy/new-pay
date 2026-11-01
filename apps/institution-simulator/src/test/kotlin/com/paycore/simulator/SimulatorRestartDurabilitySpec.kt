@@ -44,7 +44,7 @@ class SimulatorRestartDurabilitySpec : FunSpec({
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
                         """{"paymentId":"pay_restart","merchantRef":"mid-demo-0001","environment":"TEST","amountMinor":10000,"currency":"KRW",""" +
-                            """"plan":{"kind":"INSTALLMENT","months":3},"cardCompany":"SIMISS-A","state":"${"r".repeat(43)}",""" +
+                            """"plan":{"kind":"INSTALLMENT","months":3},"cardCompany":"SIMISSA","state":"${"r".repeat(43)}",""" +
                             """"returnUrl":"https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"}""",
                     ),
                 ).build(),
@@ -87,7 +87,7 @@ class SimulatorRestartDurabilitySpec : FunSpec({
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
                         """{"paymentId":"pay_van_restart","merchantRef":"mid-demo-0001","environment":"TEST","amountMinor":10000,"currency":"KRW",""" +
-                            """"plan":{"kind":"LUMP_SUM"},"cardCompany":"SIMISS-A","state":"$state",""" +
+                            """"plan":{"kind":"LUMP_SUM"},"cardCompany":"SIMISSA","state":"$state",""" +
                             """"returnUrl":"https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"}""",
                     ),
                 ).build(),

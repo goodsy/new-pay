@@ -78,7 +78,7 @@ class VanServerSpec(
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
                         """{"paymentId":"pay_van_${state.take(8)}","merchantRef":"mid-demo-0001","environment":"TEST","amountMinor":$amountMinor,"currency":"KRW",""" +
-                            """"plan":$plan,"cardCompany":"SIMISS-A","state":"$state",""" +
+                            """"plan":$plan,"cardCompany":"SIMISSA","state":"$state",""" +
                             """"returnUrl":"https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"}""",
                     ),
                 ).build(),

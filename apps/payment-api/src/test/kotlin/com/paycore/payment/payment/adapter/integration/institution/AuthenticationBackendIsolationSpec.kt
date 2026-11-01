@@ -17,7 +17,7 @@ class AuthenticationBackendIsolationSpec : FunSpec({
 
     test("TEST with a SIMULATOR backend resolves its profile; LIVE has no backend (checkout not supported, fail-closed)") {
         val s = settings()
-        s.profileFor(Environment.TEST)!!.let { listOf(it.id, it.version, it.allows("SIMISS-A"), it.allows("SIMISS-Z")) } shouldBe
+        s.profileFor(Environment.TEST)!!.let { listOf(it.id, it.version, it.allows("SIMISSA"), it.allows("SIMISSZ")) } shouldBe
             listOf("sim-auth-demo", "sim-auth-demo-1", true, false)
         s.profileFor(Environment.LIVE) shouldBe null
     }
@@ -50,6 +50,19 @@ class AuthenticationBackendIsolationSpec : FunSpec({
         }
         connection(baseUrl = "https://sim-api.example.test", allowLoopbackHttp = false).baseUrl shouldBe "https://sim-api.example.test"
         shouldThrow<IllegalArgumentException> { connection(baseUrl = "http://evil.example.test", allowLoopbackHttp = true) }
+    }
+
+    // INST-CODE-001 IC-6(D-INST-CODE-001): 카드사(발급사) 코드는 기관 식별 코드 공통 형식 ^[A-Z0-9]{1,32}$ — 하이픈·밑줄·소문자·33자는 기동 실패.
+    test("start-up is refused when a card company code is not the common institution code format (hyphen, underscore, lower case, 33 characters)") {
+        fun withCompany(code: String) = AuthenticationSettings(
+            mapOf("TEST" to AuthenticationSettings.Backend("SIMULATOR", "sim-auth-demo")),
+            mapOf("sim-auth-demo" to AuthenticationSettingsFixture.profile().let { AuthenticationSettings.Profile(it.version, listOf(AuthenticationSettings.CardCompany(code, "가상카드")), it.planPolicy) }),
+            connection(),
+        )
+        listOf("SIMISS-A", "SIM_ISS_A", "simissa", "A".repeat(33), "").forEach { code ->
+            withClue(code) { shouldThrow<IllegalArgumentException> { withCompany(code) } }
+        }
+        withCompany("A".repeat(32)).profileFor(Environment.TEST)!!.allows("A".repeat(32)) shouldBe true
     }
 
     test("toString never prints the client key") {

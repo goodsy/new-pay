@@ -84,7 +84,7 @@ def golden_text(schema_version):
              "policyVersionId": ids["settlementVersionId"], "policyCode": "STL-DEMO", "versionNo": 1, "contentStatus": "DEMO", "from": t0, "to": None},
         ]
         account["cardRoutes"] = [
-            {"activationId": ids["cardRouteId"], "paymentMethod": "CARD", "acquirerCode": "SIMCARD01", "routeRef": "SIM-VAN-01",
+            {"activationId": ids["cardRouteId"], "paymentMethod": "CARD", "acquirerCode": "SIMCARD01", "routeRef": "SIMVAN01",
              "institutionMerchantRef": "SIMMERCH0001", "status": "ACTIVE"},
         ]
     sites = [{"siteId": s1, "lifecycle": "ACTIVE", "reviewStatus": "APPROVED"},

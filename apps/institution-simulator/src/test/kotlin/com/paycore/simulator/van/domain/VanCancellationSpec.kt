@@ -212,7 +212,7 @@ class VanCancellationSpec : BehaviorSpec({
             val r = request()
             r.payloadHash() shouldBe request().payloadHash()
             listOf(
-                r.copy(merchantRef = "mid-demo-0002"), r.copy(routeRef = "SIM-VAN-02"), r.copy(originalRequestId = VanFixture.requestId(seq = 9)),
+                r.copy(merchantRef = "mid-demo-0002"), r.copy(routeRef = "SIMVAN02"), r.copy(originalRequestId = VanFixture.requestId(seq = 9)),
                 r.copy(originalTransactionDate = LocalDate.parse("2026-10-14")), r.copy(cancelAmountMinor = 9_999), r.copy(scope = VanCancelScope.PARTIAL),
             ).forEach { changed -> (changed.payloadHash() == r.payloadHash()) shouldBe false }
         }

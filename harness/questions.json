@@ -2453,6 +2453,86 @@
       "humanAnswer": "운영 하한+경보 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-30)",
       "appliedSpec": "D-ADMIN1-023"
+    },
+    {
+      "id": "Q-DS-01",
+      "status": "ANSWERED",
+      "question": "DEMO-SEED-001 명세 §9 Q-DS-01",
+      "recommended": "PAYMENT DEMO 전용 명령 (Recommended)",
+      "dependentTasks": [
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "PAYMENT DEMO 전용 명령 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-DEMO-002"
+    },
+    {
+      "id": "Q-DS-02",
+      "status": "ANSWERED",
+      "question": "DEMO-SEED-001 명세 §9 Q-DS-02",
+      "recommended": "1건 100만·1일 500만 (Recommended)",
+      "dependentTasks": [
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "1건 100만·1일 500만 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-DEMO-003"
+    },
+    {
+      "id": "Q-DS-03",
+      "status": "ANSWERED",
+      "question": "DEMO-SEED-001 명세 §9 Q-DS-03",
+      "recommended": "7일, 갱신 없음 (Recommended)",
+      "dependentTasks": [
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "7일, 갱신 없음 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-DEMO-004"
+    },
+    {
+      "id": "Q-DS-05",
+      "status": "ANSWERED",
+      "question": "DEMO-SEED-001 명세 §9 Q-DS-05",
+      "recommended": "DEMO 전용이라 허용 (Recommended)",
+      "dependentTasks": [
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "DEMO 전용이라 허용 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-DEMO-005"
+    },
+    {
+      "id": "Q-DS-04",
+      "status": "ANSWERED",
+      "question": "Demo 가맹점은 다음 KST 자정부터 결제 가능(정책 변경 없음 확인)",
+      "recommended": "수용, 전날 seed",
+      "dependentTasks": [
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "DEMO 전용이라 허용 (Recommended) — Q-DS-05와 함께 질문",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-DEMO-005"
+    },
+    {
+      "id": "Q-DS-06",
+      "status": "ANSWERED",
+      "question": "기관 식별 코드 형식 불일치(MASTER [A-Z0-9_] vs Simulator/VAN/PAYMENT [A-Z0-9-])를 어느 쪽에 맞출지",
+      "recommended": "MASTER가 하이픈 허용",
+      "alternative": "Simulator 코드를 밑줄로 / 두 형식 모두 금지하는 공통 규칙",
+      "dependentTasks": [
+        "INST-CODE-001",
+        "DEMO-SEED-001"
+      ],
+      "askedAt": "2026-10-31",
+      "humanAnswer": "두 형식 모두 금지하는 공통 규칙; 범위: 기관 식별 코드 전부 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
+      "appliedSpec": "D-INST-CODE-001"
     }
   ]
 }

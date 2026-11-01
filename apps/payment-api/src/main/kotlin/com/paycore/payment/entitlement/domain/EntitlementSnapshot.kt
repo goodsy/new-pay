@@ -193,6 +193,10 @@ data class AccountEntry(
             throw SnapshotContractViolation("one card route per method and acquirer")
         }
         if (t.cardRoutes.any { it.status == ActivationStatus.TERMINATED }) throw SnapshotContractViolation("terminated card routes are not carried")
+        // D-INST-CODE-001(INST-CODE-001 IC-4): 매입사·Route 코드는 기관 식별 코드 공통 형식 ^[A-Z0-9]{1,32}$.
+        if (t.cardRoutes.any { !INSTITUTION_CODE.matches(it.acquirerCode) || !INSTITUTION_CODE.matches(it.routeRef) }) {
+            throw SnapshotContractViolation("card route acquirer and route codes must be 1..32 characters of [A-Z0-9]")
+        }
     }
 
     private fun overlapping(periods: List<Interval>): Boolean = periods.indices.any { i ->
@@ -516,6 +520,9 @@ sealed interface JsonValue {
 
     fun obj(what: String): JObject = this as? JObject ?: throw SnapshotContractViolation("$what must be an object")
 }
+
+/** 기관 식별 코드 공통 형식(D-INST-CODE-001, INST-CODE-001) — 카드사 개통의 매입사·Route 코드. */
+private val INSTITUTION_CODE = Regex("^[A-Z0-9]{1,32}$")
 
 private val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 

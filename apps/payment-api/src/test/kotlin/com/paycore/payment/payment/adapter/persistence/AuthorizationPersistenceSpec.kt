@@ -96,7 +96,7 @@ class AuthorizationPersistenceSpec(
     fun <T> inTx(block: () -> T): T = tx.execute { block() }
 
     val at = issuedAt.plusSeconds(60)
-    val admission = AuthorizationAdmission("es1:demo-merchant:7", "pa1:fee=pas_demo/pv_demo;stl=pas_demo2/pv_demo2", "SIM-VAN-A", "sim-van-1", at)
+    val admission = AuthorizationAdmission("es1:demo-merchant:7", "pa1:fee=pas_demo/pv_demo;stl=pas_demo2/pv_demo2", "SIMVANA", "sim-van-1", at)
     val planPolicy = PaymentPlanPolicy("plan-demo-1", PersistenceTestData.KRW, setOf(2, 3, 6), null)
 
     fun limitPolicy(mid: com.paycore.payment.payment.domain.MerchantAccountId, daily: Long = 5_000_000) =
@@ -118,7 +118,7 @@ class AuthorizationPersistenceSpec(
             var version = sessions.insertNew(s, attributes(cs.id))
             s.start("sat_demo0001")
             version = sessions.update(s, version)
-            val evidence = VerifiedAuthentication("demo-evidence-" + payment.id.value, s.binding, CardType.CREDIT, "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", issuedAt.plusSeconds(1200))
+            val evidence = VerifiedAuthentication("demo-evidence-" + payment.id.value, s.binding, CardType.CREDIT, "SIMISSA", "SIMACQA", "SIMAUTH1", issuedAt.plusSeconds(1200))
             s.verify(evidence, SecretDigest.of(SecretKind.RESULT_REFERENCE, DbAccess.unique("rr")), ref, issuedAt.plusSeconds(40)) shouldBe VerificationOutcome.VERIFIED
             sessions.update(s, version)
         }
@@ -140,7 +140,7 @@ class AuthorizationPersistenceSpec(
             AuthorizationStartCommand(
                 control.value, payment.value, PersistenceTestData.intent(), session.value, admission, planPolicy,
                 LimitPolicyResolution.Resolved(limitPolicy(p.orderKey.merchantAccountId)), usage.value, authorizationIdOf(p), attemptIdOf(p),
-                ProviderRequestRef("SIM-VAN-A", p.orderKey.environment, "sim-acct-01", "AUTH", "ar_" + p.id.value.takeLast(40)), at,
+                ProviderRequestRef("SIMVANA", p.orderKey.environment, "sim-acct-01", "AUTH", "ar_" + p.id.value.takeLast(40)), at,
             ),
         ).shouldBeInstanceOf<AuthorizationStartResult.Started>()
         authorizations.insertNew(result.authorization)
@@ -429,7 +429,7 @@ class AuthorizationPersistenceSpec(
             val p = prep.payment
             val id = started(prep)
             code("INSERT INTO $d.authorization_attempt (attempt_id, authorization_id, institution, environment, institution_account, operation, request_id, state, prepared_at, seq, version) " +
-                "VALUES ('att-x-${p.id.value.takeLast(30)}', ?, 'SIM-VAN-A', 'TEST', 'sim-acct-01', 'AUTH', 'ar_x_${p.id.value.takeLast(30)}', 'PREPARED', NOW(3), 1, 0)", id.value) shouldBe 1062
+                "VALUES ('att-x-${p.id.value.takeLast(30)}', ?, 'SIMVANA', 'TEST', 'sim-acct-01', 'AUTH', 'ar_x_${p.id.value.takeLast(30)}', 'PREPARED', NOW(3), 1, 0)", id.value) shouldBe 1062
             dispatch(p)
             applyObserved(p, observation(p, InstitutionOutcome.APPROVED, resultId = "dec-3"))
             code("INSERT INTO $d.payment_transaction (transaction_id, type, payment_id, authorization_id, amount_minor, currency, plan_kind, installment_months, card_type, " +

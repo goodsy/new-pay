@@ -78,6 +78,8 @@ class AuthenticationSettings(
     override fun toString(): String = "AuthenticationSettings(backends=$backends, simulator=$simulator)"
 
     private fun profileOf(id: String, p: Profile): AuthenticationProfile {
+        // D-INST-CODE-001: 카드사(발급사) 코드는 기관 식별 코드 공통 형식(INST-CODE-001 IC-6). 형식 밖이면 기동 실패.
+        require(p.cardCompanies.all { InstitutionCodeFormat.matches(it.code) }) { "authentication profile $id card company codes must be 1..32 characters of [A-Z0-9]" }
         val currency = CurrencyCode(p.planPolicy.currency)
         return AuthenticationProfile(
             id = id,

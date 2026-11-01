@@ -57,11 +57,18 @@ class AuthorizationTermsSchemaSpec(private val container: MySQLContainer) : Beha
         MasterSchemaRows.id("pas"), g.merchantId, agreement, g.accountId, kind, versionId, ACTOR,
     )
 
-    fun route(c: Connection, g: MasterSchemaRows.Graph, status: String = "UNDER_REVIEW", evidence: String? = null, acquirer: String = "SIMCARD01"): Int? = c.errorCodeOfUpdate(
+    fun route(
+        c: Connection,
+        g: MasterSchemaRows.Graph,
+        status: String = "UNDER_REVIEW",
+        evidence: String? = null,
+        acquirer: String = "SIMCARD01",
+        routeRef: String = "SIMVAN01",
+    ): Int? = c.errorCodeOfUpdate(
         "INSERT INTO card_route_activation (activation_id, merchant_account_id, merchant_id, payment_method, acquirer_code, route_ref, institution_merchant_ref, " +
-            "status, evidence_ref, registered_at, registered_by, status_changed_at, request_record_id, version) VALUES (?, ?, ?, 'CARD', ?, 'SIM-VAN-01', " +
+            "status, evidence_ref, registered_at, registered_by, status_changed_at, request_record_id, version) VALUES (?, ?, ?, 'CARD', ?, ?, " +
             "'SIMMERCH0001', ?, ?, '2026-10-09 01:00:00.000', ?, '2026-10-09 01:00:00.000', 'r-1', 0)",
-        MasterSchemaRows.id("cra"), g.accountId, g.merchantId, acquirer, status, evidence, ACTOR,
+        MasterSchemaRows.id("cra"), g.accountId, g.merchantId, acquirer, routeRef, status, evidence, ACTOR,
     )
 
     Given("transaction limit policies (D-AUTH-006, D-MS2-001·002)") {
@@ -144,6 +151,26 @@ class AuthorizationTermsSchemaSpec(private val container: MySQLContainer) : Beha
                     route(c, g, acquirer = "lower"),
                 )
             } shouldBe listOf(null, 1062, null, 3819, 3819)
+        }
+
+        // INST-CODE-001 IC-2·IC-3(D-INST-CODE-001, V7): 매입사·Route 코드 CHECK = ^[A-Z0-9]{1,32}$. Simulator 인증 결과 golden의 매입사는 그대로 등록된다.
+        Then("acquirer and route codes with a hyphen, an underscore or lower case are 3819; the Simulator authentication result acquirer is accepted") {
+            val simulatorAcquirer = tools.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(org.springframework.core.io.ClassPathResource("contracts/authentication-contract-v1.golden.json").inputStream)
+                .get("scenarios").get("authenticated").get("lookup").get("acquirerCode").stringValue()
+            runtime { c ->
+                listOf(
+                    route(c, MasterSchemaRows.graph(c), acquirer = "SIMACQ-A"),
+                    route(c, MasterSchemaRows.graph(c), acquirer = "SIM_ACQ_A"),
+                    route(c, MasterSchemaRows.graph(c), routeRef = "SIM-VAN-01"),
+                    route(c, MasterSchemaRows.graph(c), routeRef = "SIM_VAN_01"),
+                    route(c, MasterSchemaRows.graph(c), routeRef = "simvan01"),
+                    route(c, MasterSchemaRows.graph(c), routeRef = "SIMVAN.01"),
+                    route(c, MasterSchemaRows.graph(c), routeRef = "R".repeat(33)),
+                    route(c, MasterSchemaRows.graph(c), acquirer = simulatorAcquirer, routeRef = "SIMVAN01"),
+                    route(c, MasterSchemaRows.graph(c), acquirer = "A".repeat(32), routeRef = "R".repeat(32)),
+                )
+            } shouldBe listOf(3819, 3819, 3819, 3819, 3819, 3819, 3819, null, null)
         }
     }
 

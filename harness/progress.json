@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
+  "activeTaskId": "DEMO-SEED-001",
   "codeFingerprint": "sha256:51e6f205e952b28db893828c53c538f899de65af6f1a0d46a2e56b856a10fd4d",
   "lastSuccessfulStep": "ADMIN-BOOT-002 DONE (VERIFY-GATE PASS 2026-10-30T080012Z 3212/0·Vitest 66, DEPS×5+CVE 083949Z, REVIEW_PASS) sha256:51e6f205e952b28db893828c53c538f899de65af6f1a0d46a2e56b856a10fd4d",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ADMIN-BOOT-002 커밋(사용자 확인) → DEMO-SEED-001(D-DEMO-001) → 운영자 보정 취소 Demo 시연 재개(캡처 2~5·7) → CHECKOUT-REACT-001. push(17289a5 이후)는 사용자 확인",
+  "nextResumeAction": "DEMO-SEED-001 재개(DemoMerchantSeedValues SIMACQA/SIMVAN01 + seed 매입사=Simulator 카탈로그 단언, 공유 clock reset, payment-api demo-credential, golden, 부록 D/.env.example/ARCH-CONVENTIONS, 변이) → Demo DB 재설정 → Demo 캡처 2~5·7 → CHECKOUT-REACT-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -669,6 +669,8 @@
     "TEST-ASSERT-001",
     "ADMIN-PAYMENT-OPS-001",
     "ADMIN-BOOT-002",
+    "TEST-PERF-001",
+    "INST-CODE-001",
     "DEMO-SEED-001",
     "CHECKOUT-REACT-001",
     "MASTER-LIFECYCLE-001",

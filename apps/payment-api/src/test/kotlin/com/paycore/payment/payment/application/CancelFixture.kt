@@ -25,7 +25,7 @@ import java.util.UUID
 
 /**
  * 취소 시험 Named Fixture(CANCEL-001 S5, src/test 전용). 승인된 Payment는 **운영 confirm 경로**(TX1 → TXd → stub VAN 승인 → TX2)로 만든다 — 취소 Capability가 있는 sim-van-2
- * 시험 Route(`SIM-VAN-C` 기본, Admission 대역이 이 MID에만 그 routeRef를 고른다)로 승인해야 원 경로 Capability가 해석된다. 취소 금액은 기본 원 승인 전액이고 시험이 바꾸는 값만 인자로
+ * 시험 Route(`SIMVANC` 기본, Admission 대역이 이 MID에만 그 routeRef를 고른다)로 승인해야 원 경로 Capability가 해석된다. 취소 금액은 기본 원 승인 전액이고 시험이 바꾸는 값만 인자로
  * 고친다(독립 난수 없음). hold는 공식 domain 전이(`reportCancellationResultConflict`)로만 연다.
  */
 class CancelFixture(
@@ -93,7 +93,7 @@ class CancelFixture(
         )
     }
 
-    /** confirm 운영 경로로 승인된 Payment(기본 Route `SIM-VAN-C` — 부분취소 신용·체크 일시불·신용 할부, 취소 무효과 확정 있음). */
+    /** confirm 운영 경로로 승인된 Payment(기본 Route `SIMVANC` — 부분취소 신용·체크 일시불·신용 할부, 취소 무효과 확정 있음). */
     fun authorized(
         amount: Long = 10_000,
         cardType: CardType = CardType.CREDIT,
@@ -132,8 +132,8 @@ class CancelFixture(
     fun idempotencyRows(a: Authorized): List<Map<String, Any?>> = confirmFixture.cancelIdempotencyRows(a.mid)
 
     companion object {
-        const val ROUTE_C = "SIM-VAN-C"
-        const val ROUTE_CB = "SIM-VAN-CB"
+        const val ROUTE_C = "SIMVANC"
+        const val ROUTE_CB = "SIMVANCB"
 
         fun newKey(): String = "xk-" + UUID.randomUUID().toString().replace("-", "").take(24)
 

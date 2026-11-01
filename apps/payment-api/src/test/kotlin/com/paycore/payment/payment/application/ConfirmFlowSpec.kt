@@ -143,7 +143,7 @@ class ConfirmFlowSpec(
     Given("connect and gate failures before any byte is sent (§4.4·§4.5)") {
         Then("a refused connection after the retry budget → 200 FAILED(NOT_SENT), PRE_TRANSMISSION, limit RELEASED") {
             val p = fixture.prepared()
-            admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = "SIM-VAN-CLOSED") }
+            admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = "SIMVANCLOSED") }
             val view = accepted(confirm.confirm(p.command())).view
             view.status shouldBe AuthorizationViewStatus.FAILED
             view.failureCategory shouldBe FailureCategory.NOT_SENT

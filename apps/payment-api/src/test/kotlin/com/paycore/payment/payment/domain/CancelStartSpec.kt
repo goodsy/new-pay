@@ -171,7 +171,7 @@ class CancelStartSpec : BehaviorSpec({
             val other = CancellationFixture.authorizedSecondGeneration().second
             shouldThrow<IllegalArgumentException> { CancelStart.start(command(other, a.balance, 1_000L.won(), n = 2)) }
             shouldThrow<IllegalArgumentException> {
-                CancelStart.start(command(other, null, 1_000L.won(), providerRequest = CancellationFixture.cancelRequest().copy(institution = "SIM-VAN-B")))
+                CancelStart.start(command(other, null, 1_000L.won(), providerRequest = CancellationFixture.cancelRequest().copy(institution = "SIMVANB")))
             }
             shouldThrow<IllegalArgumentException> {
                 CancelStart.start(command(other, null, 1_000L.won(), providerRequest = CancellationFixture.cancelRequest().copy(institutionAccount = "sim-acct-99")))

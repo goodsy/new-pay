@@ -30,7 +30,7 @@ data class AdmissionCall(
 
 /**
  * **시험 전용** 승인 시작 허용 판정 Port 대역(운영 구현은 `EntitlementAuthorizationAdmissionAdapter` — 그 배선은 `AuthorizationAdmissionSpec`이 실DB로 시험한다).
- * 기본 응답은 Demo Admitted: Route `SIM-VAN-01`(시험 Route 등록부와 같은 값), 기관 가맹점 `SIMMERCH0001`, 한도 정책 MID+통화 하나(건당 1,000,000·일 5,000,000 —
+ * 기본 응답은 Demo Admitted: Route `SIMVAN01`(시험 Route 등록부와 같은 값), 기관 가맹점 `SIMMERCH0001`, 한도 정책 MID+통화 하나(건당 1,000,000·일 5,000,000 —
  * Demo 값, 운영값 아님). 시험은 자기 MID에만 [respondFor]로 응답을 바꾼다(공유 컨텍스트에서 섞이지 않게).
  */
 class ScriptedAdmissionPort : AuthorizationAdmissionPort {
@@ -57,7 +57,7 @@ class ScriptedAdmissionPort : AuthorizationAdmissionPort {
     fun callsFor(mid: MerchantAccountId): List<AdmissionCall> = calls.filter { it.mid == mid }
 
     companion object {
-        const val ROUTE_REF = "SIM-VAN-01"
+        const val ROUTE_REF = "SIMVAN01"
         const val INSTITUTION_MERCHANT_REF = "SIMMERCH0001"
 
         fun policy(call: AdmissionCall, perTransaction: Long = 1_000_000, daily: Long = 5_000_000) =

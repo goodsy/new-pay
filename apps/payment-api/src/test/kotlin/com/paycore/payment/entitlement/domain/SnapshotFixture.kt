@@ -86,7 +86,7 @@ object SnapshotFixture {
     val seoulMidnight2: Instant = Instant.parse("2026-10-10T15:00:00.000Z")
 
     const val ACQUIRER = "SIMCARD01"
-    const val ROUTE_REF = "SIM-VAN-01"
+    const val ROUTE_REF = "SIMVAN01"
     const val INSTITUTION_REF = "SIMMERCH0001"
 
     data class TermsIds(val csaDefault: String, val feeAssignment: String, val settlementAssignment: String, val feeVersion: String, val settlementVersion: String, val route: String)

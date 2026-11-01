@@ -55,7 +55,7 @@ object VanCancelFixture {
         currency: String = "KRW",
         account: String = original.namespace.institutionAccount,
     ) = VanCancelRequest(
-        requestId = requestId, institutionAccount = account, merchantRef = "mid-demo-0001", environment = environment, routeRef = "SIM-VAN-01",
+        requestId = requestId, institutionAccount = account, merchantRef = "mid-demo-0001", environment = environment, routeRef = "SIMVAN01",
         originalRequestId = original.namespace.requestId, originalProviderTransactionId = originalProviderTransactionId, originalApprovalNumber = originalApprovalNumber,
         originalTransactionDate = originalTransactionDate, cancelAmountMinor = amountMinor, currency = currency, scope = scope,
     )

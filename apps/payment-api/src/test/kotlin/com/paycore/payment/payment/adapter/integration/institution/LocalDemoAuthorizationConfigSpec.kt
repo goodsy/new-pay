@@ -64,8 +64,8 @@ class LocalDemoAuthorizationConfigSpec : BehaviorSpec({
                 .run { context ->
                     withClue(context.startupFailure) { context.startupFailure shouldBe null }
                     val registry = context.getBean(ConfiguredInstitutionRouteRegistry::class.java)
-                    val profile = registry.resolve("SIM-VAN-01").shouldNotBeNull()
-                    val route = registry.connection("SIM-VAN-01").shouldNotBeNull()
+                    val profile = registry.resolve("SIMVAN01").shouldNotBeNull()
+                    val route = registry.connection("SIMVAN01").shouldNotBeNull()
                     route.port shouldBe 17001
                     route.keyId shouldBe env["PAYCORE_SIMULATOR_VAN_KEY_ID"]
                     route.host shouldBe "127.0.0.1"

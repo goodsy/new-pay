@@ -46,7 +46,7 @@ class CheckoutObservabilitySpec(
     Given("an open checkout with an IN_PROGRESS authentication and an unexchanged token") {
         Then("the backlog gauges count them once their deadlines pass, and the elapsed-REQUESTED gauge is 0 after the expiry job") {
             val c = flow.opened()
-            start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISS-A", "LUMP_SUM", "req-obs")).shouldBeInstanceOf<StartCardAuthenticationResult.Redirect>()
+            start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISSA", "LUMP_SUM", "req-obs")).shouldBeInstanceOf<StartCardAuthenticationResult.Redirect>()
             flow.token(c.order, c.paymentId)
             clock.set(ApiTestTimes.T0.plus(Duration.ofMinutes(11))) // 인증 세션(10분)·토큰(10분) 시각 경과, 결제창(30분) 안
             gauge(UNRESOLVED_SESSIONS) shouldBeGreaterThanOrEqual 1.0

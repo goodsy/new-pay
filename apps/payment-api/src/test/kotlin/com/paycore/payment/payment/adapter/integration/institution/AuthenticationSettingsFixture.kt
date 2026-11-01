@@ -9,7 +9,7 @@ object AuthenticationSettingsFixture {
 
     fun profile() = AuthenticationSettings.Profile(
         version = "sim-auth-demo-1",
-        cardCompanies = listOf(AuthenticationSettings.CardCompany("SIMISS-A", "가상카드A"), AuthenticationSettings.CardCompany("SIMISS-B", "가상카드B")),
+        cardCompanies = listOf(AuthenticationSettings.CardCompany("SIMISSA", "가상카드A"), AuthenticationSettings.CardCompany("SIMISSB", "가상카드B")),
         planPolicy = AuthenticationSettings.PlanPolicy("plan-demo-1", "KRW", listOf(2, 3, 6), 50_000),
     )
 

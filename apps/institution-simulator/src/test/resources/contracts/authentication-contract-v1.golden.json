@@ -18,7 +18,7 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A",
+        "cardCompany": "SIMISSA",
         "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
       },
@@ -42,12 +42,12 @@
           "plan": {
             "kind": "LUMP_SUM"
           },
-          "cardCompany": "SIMISS-A"
+          "cardCompany": "SIMISSA"
         },
         "cardType": "CREDIT",
-        "issuerCode": "SIMISS-A",
-        "acquirerCode": "SIMACQ-A",
-        "providerCode": "SIMAUTH-1",
+        "issuerCode": "SIMISSA",
+        "acquirerCode": "SIMACQA",
+        "providerCode": "SIMAUTH1",
         "evidenceRef": "sim-ev-A",
         "authenticatedAt": "2026-10-16T01:00:30.000Z",
         "validUntil": "2026-10-16T01:05:30.000Z"
@@ -64,7 +64,7 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A",
+        "cardCompany": "SIMISSA",
         "state": "stateFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
       },
@@ -88,7 +88,7 @@
           "plan": {
             "kind": "LUMP_SUM"
           },
-          "cardCompany": "SIMISS-A"
+          "cardCompany": "SIMISSA"
         },
         "validUntil": "2026-10-16T01:05:30.000Z"
       }
@@ -104,7 +104,7 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A",
+        "cardCompany": "SIMISSA",
         "state": "stateCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
       },
@@ -128,7 +128,7 @@
           "plan": {
             "kind": "LUMP_SUM"
           },
-          "cardCompany": "SIMISS-A"
+          "cardCompany": "SIMISSA"
         },
         "validUntil": "2026-10-16T01:00:30.000Z"
       }
@@ -144,7 +144,7 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A",
+        "cardCompany": "SIMISSA",
         "state": "stateExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
       },
@@ -168,7 +168,7 @@
           "plan": {
             "kind": "LUMP_SUM"
           },
-          "cardCompany": "SIMISS-A"
+          "cardCompany": "SIMISSA"
         },
         "validUntil": "2026-10-16T01:00:30.000Z"
       }
@@ -189,12 +189,12 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "cardType": "CREDIT",
-      "issuerCode": "SIMISS-A",
-      "acquirerCode": "SIMACQ-A",
-      "providerCode": "SIMAUTH-1",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
       "authenticatedAt": "2026-10-16T01:00:30.000Z",
       "validUntil": "2026-10-16T01:05:30.000Z"
     },
@@ -212,10 +212,10 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "validUntil": "2026-10-16T01:05:30.000Z",
-      "issuerCode": "SIMISS-A"
+      "issuerCode": "SIMISSA"
     },
     "unknownField": {
       "resultRef": "srr_RrA0000000000000000000",
@@ -231,12 +231,12 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "cardType": "CREDIT",
-      "issuerCode": "SIMISS-A",
-      "acquirerCode": "SIMACQ-A",
-      "providerCode": "SIMAUTH-1",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
       "evidenceRef": "sim-ev-A",
       "authenticatedAt": "2026-10-16T01:00:30.000Z",
       "validUntil": "2026-10-16T01:05:30.000Z",
@@ -256,12 +256,12 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "cardType": null,
-      "issuerCode": "SIMISS-A",
-      "acquirerCode": "SIMACQ-A",
-      "providerCode": "SIMAUTH-1",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
       "evidenceRef": "sim-ev-A",
       "authenticatedAt": "2026-10-16T01:00:30.000Z",
       "validUntil": "2026-10-16T01:05:30.000Z"
@@ -280,12 +280,12 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "cardType": "CREDIT",
-      "issuerCode": "SIMISS-A",
-      "acquirerCode": "SIMACQ-A",
-      "providerCode": "SIMAUTH-1",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
       "evidenceRef": "sim-ev-A",
       "authenticatedAt": "2026-10-16T01:00:30.000Z",
       "validUntil": "2026-10-16T01:05:30.000Z"
@@ -304,11 +304,83 @@
         "plan": {
           "kind": "LUMP_SUM"
         },
-        "cardCompany": "SIMISS-A"
+        "cardCompany": "SIMISSA"
       },
       "cardType": "credit",
-      "issuerCode": "SIMISS-A",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "hyphenatedAcquirerCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
       "acquirerCode": "SIMACQ-A",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "underscoreIssuerCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIM_ISS_A",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "hyphenatedProviderCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
       "providerCode": "SIMAUTH-1",
       "evidenceRef": "sim-ev-A",
       "authenticatedAt": "2026-10-16T01:00:30.000Z",

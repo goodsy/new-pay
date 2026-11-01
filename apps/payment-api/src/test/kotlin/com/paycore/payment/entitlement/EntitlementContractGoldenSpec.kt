@@ -63,7 +63,7 @@ class EntitlementContractGoldenSpec : FunSpec({
             terms.limitPolicies.map { it.policyId }.toSet(), terms.policyAssignments.map { it.assignmentId }.toSet(),
             terms.cardRoutes.single().acquirerCode, terms.cardRoutes.single().routeRef,
         ) shouldBe listOf(
-            setOf(g2("limitDefaultId"), g2("limitOverrideId")), setOf(g2("feeAssignmentId"), g2("settlementAssignmentId")), "SIMCARD01", "SIM-VAN-01",
+            setOf(g2("limitDefaultId"), g2("limitOverrideId")), setOf(g2("feeAssignmentId"), g2("settlementAssignmentId")), "SIMCARD01", "SIMVAN01",
         )
         // v1 해석기로는 v2 내용을 받지 않는다(모르는 필드 거절 — 배포 순서 §5.4의 근거).
         runCatching { EntitlementContent.fromJson(payload, 1, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class

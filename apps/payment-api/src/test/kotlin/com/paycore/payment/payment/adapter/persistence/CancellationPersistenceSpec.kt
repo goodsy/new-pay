@@ -120,7 +120,7 @@ class CancellationPersistenceSpec(
 
     val at = issuedAt.plusSeconds(60)
     val cancelAt = at.plus(Duration.ofHours(1))
-    val admission = AuthorizationAdmission("es1:demo-merchant:7", "pa1:fee=pas_demo/pv_demo;stl=pas_demo2/pv_demo2", "SIM-VAN-A", "sim-van-1", at)
+    val admission = AuthorizationAdmission("es1:demo-merchant:7", "pa1:fee=pas_demo/pv_demo;stl=pas_demo2/pv_demo2", "SIMVANA", "sim-van-1", at)
     val planPolicy = PaymentPlanPolicy("plan-demo-1", PersistenceTestData.KRW, setOf(2, 3, 6), null)
     val capability = CancelCapability("demo-cancel-cap-v1", partialCancelLumpSum = setOf(CardType.CREDIT, CardType.CHECK), partialCancelInstallment = setOf(CardType.CREDIT))
     val routeVersion = "demo-route-v1"
@@ -145,7 +145,7 @@ class CancellationPersistenceSpec(
             var version = sessions.insertNew(s, attributes(cs.id))
             s.start("sat_demo0001")
             version = sessions.update(s, version)
-            val evidence = VerifiedAuthentication("demo-evidence-" + payment.id.value, s.binding, CardType.CREDIT, "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", issuedAt.plusSeconds(1200))
+            val evidence = VerifiedAuthentication("demo-evidence-" + payment.id.value, s.binding, CardType.CREDIT, "SIMISSA", "SIMACQA", "SIMAUTH1", issuedAt.plusSeconds(1200))
             s.verify(evidence, SecretDigest.of(SecretKind.RESULT_REFERENCE, DbAccess.unique("rr")), ref, issuedAt.plusSeconds(40)) shouldBe VerificationOutcome.VERIFIED
             sessions.update(s, version)
         }
@@ -159,7 +159,7 @@ class CancellationPersistenceSpec(
             val result = AuthorizationStart.start(
                 AuthorizationStartCommand(
                     control.value, locked.value, PersistenceTestData.intent(), session.value, admission, planPolicy, LimitPolicyResolution.Resolved(policy), usage.value,
-                    authorizationIdOf(p), attemptIdOf(p), ProviderRequestRef("SIM-VAN-A", p.orderKey.environment, "sim-acct-01", "AUTH", "ar_" + p.id.value.takeLast(40)), at,
+                    authorizationIdOf(p), attemptIdOf(p), ProviderRequestRef("SIMVANA", p.orderKey.environment, "sim-acct-01", "AUTH", "ar_" + p.id.value.takeLast(40)), at,
                 ),
             ).shouldBeInstanceOf<AuthorizationStartResult.Started>()
             authorizations.insertNew(result.authorization)

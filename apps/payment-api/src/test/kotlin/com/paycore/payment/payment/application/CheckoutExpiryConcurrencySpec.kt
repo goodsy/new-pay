@@ -100,7 +100,7 @@ class CheckoutExpiryConcurrencySpec(
         }
     }
 
-    fun startOn(c: CheckoutExpiryFlow.Opened) = start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISS-A", "LUMP_SUM", "req-race"))
+    fun startOn(c: CheckoutExpiryFlow.Opened) = start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISSA", "LUMP_SUM", "req-race"))
 
     fun returnOf(c: CheckoutExpiryFlow.Opened): Pair<String, String> {
         val reg = institution.registrations.last { it.binding.paymentId == c.paymentId }

@@ -9,7 +9,7 @@ PG(apps/payment-api, TCP Adapter)와 가상 VAN(apps/institution-simulator 모�
   mac = HMAC-SHA256(key[keyId], version ‖ keyIdLen ‖ keyId ‖ payload). 아래 키는 **시험 전용**(운영 키 아님).
 - 메시지는 첫 필드 `type`으로 구분하고 필드 집합은 닫혀 있다(모르는 필드·null·타입 오류 → FRAMING). 시각은 UTC ms, 금액은 minor 정수.
 - payload hash(같은 요청 ID 재전송 판정, rev 0.3 m-7)는 업무 필드의 canonical 문자열 SHA-256이며 전송 필드(messageId·requestedAt)를 넣지 않는다.
-- 값은 Demo(운영 MID·기관·키 아님). `python3 harness/tests/test_van_contract_golden.py --write`로 다시 쓴다(검토된 계약 변경일 때만).
+- 값은 Demo(운영 MID·기관·키 아님). `python3 harness/tests/test_van_contract_golden.py --write`(v2)·`--write-v1`(v1)로 다시 쓴다(검토된 계약 변경일 때만).
 """
 import base64
 import hashlib
@@ -44,9 +44,9 @@ def od(*pairs):
 def auth_request(message_id="01JA0000000000000000000010", requested_at="2026-10-16T01:00:31.000Z"):
     return od(
         ("type", "AUTH_REQUEST"), ("messageId", message_id), ("requestId", REQUEST_ID), ("institutionAccount", "SIMMERCH0001"),
-        ("merchantRef", "mid-demo-0001"), ("environment", "TEST"), ("routeRef", "SIM-VAN-01"), ("amountMinor", 10000), ("currency", "KRW"),
+        ("merchantRef", "mid-demo-0001"), ("environment", "TEST"), ("routeRef", "SIMVAN01"), ("amountMinor", 10000), ("currency", "KRW"),
         ("plan", od(("kind", "LUMP_SUM"))),
-        ("authentication", od(("evidenceRef", "sim-ev-A"), ("providerCode", "SIMAUTH-1"), ("issuerCode", "SIMISS-A"), ("acquirerCode", "SIMACQ-A"))),
+        ("authentication", od(("evidenceRef", "sim-ev-A"), ("providerCode", "SIMAUTH1"), ("issuerCode", "SIMISSA"), ("acquirerCode", "SIMACQA"))),
         ("requestedAt", requested_at),
     )
 
@@ -149,7 +149,9 @@ NAME_V2 = "van-contract-sim-van-2.golden.json"
 TARGETS_V2 = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME_V2) for app in ("institution-simulator", "payment-api")]
 CONTRACT_V2 = "sim-van-2"
 # rev 0.3 m-7: sim-van-1 golden은 v2를 만들어도 바뀌지 않는다 — 파일 hash 고정(바뀌면 검토된 계약 변경이 아니다).
-SIM_VAN_1_SHA256 = "0a7aaa20f1e02905b001cd875b70f88972c6454e893c1f909cea58d872ccf412"
+# INST-CODE-001(D-INST-CODE-001, 2026-10-31): 기관 식별 코드 형식 변경(SIM-VAN-01→SIMVAN01, SIMACQ-A→SIMACQA 등)으로 고정 hash를 한 번 갱신했다
+# — 결정된 계약 변경. 다시 쓰기: `python3 harness/tests/test_van_contract_golden.py --write-v1`(검토된 계약 변경일 때만).
+SIM_VAN_1_SHA256 = "9f17c02a00befeaae4b89fa5970b73af3b35cd238385336f42be5edde8098e30"
 CANCEL_REQUEST_ID = "cr_01JA0000000000000000000021"
 CANCEL_INQUIRY_ID = "cq_01JA0000000000000000000022"
 CANCEL_DECISION_ID = "vd_01JA0000000000000000000023"
@@ -160,7 +162,7 @@ CANCEL_PENDING_ID = "vp_01JA0000000000000000000025"
 def cancel_request(message_id="01JA0000000000000000000030", requested_at="2026-10-17T02:00:00.000Z", amount=3000, scope="PARTIAL"):
     return od(
         ("type", "CANCEL_REQUEST"), ("messageId", message_id), ("requestId", CANCEL_REQUEST_ID), ("institutionAccount", "SIMMERCH0001"),
-        ("merchantRef", "mid-demo-0001"), ("environment", "TEST"), ("routeRef", "SIM-VAN-01"), ("originalRequestId", REQUEST_ID),
+        ("merchantRef", "mid-demo-0001"), ("environment", "TEST"), ("routeRef", "SIMVAN01"), ("originalRequestId", REQUEST_ID),
         ("originalProviderTransactionId", "SIMPTX-0000000001"), ("originalApprovalNumber", "30000001"), ("originalTransactionDate", "2026-10-16"),
         ("cancelAmountMinor", amount), ("currency", "KRW"), ("scope", scope), ("requestedAt", requested_at),
     )
@@ -331,7 +333,13 @@ class VanContractGolden(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    if "--write" in sys.argv:
+    if "--write-v1" in sys.argv:
+        # 결정된 sim-van-1 계약 변경(위 SIM_VAN_1_SHA256 고정을 함께 바꾼다)일 때만 쓴다.
+        for target in TARGETS:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "w", encoding="utf-8", newline="\n") as f:
+                f.write(golden_text())
+    elif "--write" in sys.argv:
         # sim-van-1은 고정이다(m-7) — `--write`는 v2만 다시 쓴다. v1 변경은 이 hash 고정을 먼저 바꾸는 검토된 계약 변경이어야 한다.
         for target in TARGETS_V2:
             os.makedirs(os.path.dirname(target), exist_ok=True)

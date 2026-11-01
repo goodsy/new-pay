@@ -90,10 +90,10 @@ class CheckoutSchemaSpec(private val db: DbAccess) : BehaviorSpec({
                amount_minor, currency, plan_kind, installment_months, card_company, status, state_digest, provider_transaction_ref, result_ref_digest,
                failure_reason, expiry_cause, evidence_ref, card_type, issuer_code, acquirer_code, provider_code, provider_valid_until, verified_at,
                authentication_ref, bound_authorization_id, profile_id, plan_policy_version, policy_version, created_at, expires_at, version)
-               VALUES (?, ?, ?, 'TEST', 'mid-x', 'order-x', 10000, 'KRW', 'LUMP_SUM', NULL, 'SIMISS-A', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
+               VALUES (?, ?, ?, 'TEST', 'mid-x', 'order-x', 10000, 'KRW', 'LUMP_SUM', NULL, 'SIMISSA', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL,
                'sim-auth-demo', 'plan-demo-1', 'checkout-demo-1', '2026-10-07 00:00:00.000', '2026-10-07 00:10:00.000', 0)""",
             id, parents.paymentId, parents.sessionId, status, digest("std1:", n), providerRef, if (rrd) digest("rrd1:", n) else null, failure, cause,
-            *(if (evidence) arrayOf("ev-1", "CREDIT", "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", "2026-10-07 00:30:00.000", "2026-10-07 00:01:00.000", "aref_" + n.toString().padStart(22, 'A'))
+            *(if (evidence) arrayOf("ev-1", "CREDIT", "SIMISSA", "SIMACQA", "SIMAUTH1", "2026-10-07 00:30:00.000", "2026-10-07 00:01:00.000", "aref_" + n.toString().padStart(22, 'A'))
             else arrayOfNulls<Any?>(8)),
         )
     }

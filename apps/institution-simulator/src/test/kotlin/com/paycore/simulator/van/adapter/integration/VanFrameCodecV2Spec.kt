@@ -37,8 +37,9 @@ class VanFrameCodecV2Spec : BehaviorSpec({
 
     Given("the sim-van-1 golden pinned by m-7") {
         Then("the sim-van-1 golden file is byte-for-byte the reviewed contract (sha256 pin)") {
+            // INST-CODE-001(D-INST-CODE-001): 기관 식별 코드 형식 변경(SIMVAN01·SIMACQA 등)으로 고정 hash를 한 번 갱신 — 결정된 계약 변경(harness 고정값과 같음).
             HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(v1Bytes)) shouldBe
-                "0a7aaa20f1e02905b001cd875b70f88972c6454e893c1f909cea58d872ccf412"
+                "9f17c02a00befeaae4b89fa5970b73af3b35cd238385336f42be5edde8098e30"
         }
         Then("every sim-van-1 message, hash and frame is carried into sim-van-2 unchanged") {
             listOf("messages", "payloadHashes", "frames").forEach { part ->
@@ -85,6 +86,9 @@ class VanFrameCodecV2Spec : BehaviorSpec({
             fun mutated(name: String, change: (ObjectNode) -> Unit): ByteArray = compact((message(name).deepCopy() as ObjectNode).also(change))
             listOf(
                 mutated("cancelRequest") { it.put("extra", true) },
+                // INST-CODE-001 IC-8(D-INST-CODE-001): Route 코드는 ^[A-Z0-9]{1,32}$ — 하이픈·밑줄은 FRAMING.
+                mutated("cancelRequest") { it.put("routeRef", "SIM-VAN-01") },
+                mutated("cancelRequest") { it.put("routeRef", "SIM_VAN_01") },
                 mutated("cancelRequest") { it.putNull("originalApprovalNumber") },
                 mutated("cancelRequest") { it.put("cancelAmountMinor", "3000") },
                 mutated("cancelRequest") { it.put("cancelAmountMinor", 0) },

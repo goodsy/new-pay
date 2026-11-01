@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * UNKNOWN 회복 Worker(AUTH-001 §6 — 회복 일정 선점 → PREPARED fencing·dispatch lease 만료 표시·원 Attempt 조회 → TX2와 같은 반영 → 예산·연령 소진 시 대사 이관, 상태 불변).
  * 실 MySQL·운영 Adapter·실제 소켓의 시험 전용 stub VAN([ProgrammableVan] — 원장 의미 재현)으로 시험한다. 시험 Demo 시간(시험 yml): lease 30s·margin 5s·prepared 1s·조회 간격 10s·
- * 예산 3·최대 연령 1h·느린 조회 10m, Route A(`SIM-VAN-01`) closableAfter 2m·보존 7d, Route B(`SIM-VAN-B`) 무효과 확정 없음.
+ * 예산 3·최대 연령 1h·느린 조회 10m, Route A(`SIMVAN01`) closableAfter 2m·보존 7d, Route B(`SIMVANB`) 무효과 확정 없음.
  * 기대값은 명세 §6.1~§6.3 표(자동 종료 근거 — "never auto-fail")와 §8 장애 주입 표에서 직접 적는다. 같은 DB의 다른 시험 일정도 회차에 잡힐 수 있으므로 회차 합계가 아니라 이 시험의 Payment로 판정한다.
  */
 @PaymentApiTest
@@ -442,6 +442,6 @@ class AuthorizationRecoverySpec(
     private companion object {
         const val RECOVERY_VERSION = "recovery-demo-1"
         const val RUN_BATCH = 1000
-        const val ROUTE_B = "SIM-VAN-B"
+        const val ROUTE_B = "SIMVANB"
     }
 }

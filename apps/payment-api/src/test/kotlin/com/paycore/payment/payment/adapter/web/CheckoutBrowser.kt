@@ -46,7 +46,7 @@ class CheckoutBrowser(
         return Regex("name=\"_csrf\" value=\"([^\"]+)\"").find(page.body)!!.groupValues[1].also { secrets += it }
     }
 
-    fun start(o: Opened, cardCompany: String = "SIMISS-A", cookie: String = o.cookie) =
+    fun start(o: Opened, cardCompany: String = "SIMISSA", cookie: String = o.cookie) =
         web.post("/checkout/s/${o.handle}/authentication", mapOf("cardCompany" to cardCompany, "plan" to "LUMP_SUM", "_csrf" to csrf(o, cookie)), cookie)
 
     fun cancel(o: Opened, cookie: String = o.cookie) = web.post("/checkout/s/${o.handle}/cancel", mapOf("_csrf" to csrf(o, cookie)), cookie)

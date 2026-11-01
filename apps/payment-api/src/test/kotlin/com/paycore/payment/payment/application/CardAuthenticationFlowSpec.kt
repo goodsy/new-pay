@@ -99,7 +99,7 @@ class CardAuthenticationFlowSpec(
         return Checkout(order, id, opened.handle, opened.cookieSecret)
     }
 
-    fun begin(c: Checkout, cardCompany: String = "SIMISS-A", plan: String = "LUMP_SUM") =
+    fun begin(c: Checkout, cardCompany: String = "SIMISSA", plan: String = "LUMP_SUM") =
         start.start(StartCardAuthenticationCommand(c.handle, c.secret, cardCompany, plan, "req-start"))
 
     fun registrationOf(c: Checkout): CardAuthenticationRegistration = institution.registrations.last { it.binding.paymentId == c.paymentId }
@@ -137,7 +137,7 @@ class CardAuthenticationFlowSpec(
             reg.state shouldMatch Regex("^[A-Za-z0-9_-]{43}$")
             reg.returnUrl shouldBe "https://checkout.example.test/checkout/s/${c.handle}/authentication/return"
             reg.binding.plan shouldBe PaymentPlan.LumpSum
-            reg.binding.cardCompany shouldBe "SIMISS-A"
+            reg.binding.cardCompany shouldBe "SIMISSA"
             reg.binding.money.amountMinor shouldBe 10_000L
             val s = sessionsOf(c).single()
             s["status"] shouldBe "IN_PROGRESS"
@@ -153,7 +153,7 @@ class CardAuthenticationFlowSpec(
 
         Then("card companies outside the profile allowlist and plans failing the Demo pre-check are NotAllowed with no session") {
             val c = checkout(amount = 10_000)
-            listOf("SIMISS-Z" to "LUMP_SUM", "SIMISS-A" to "INSTALLMENT_2", "SIMISS-A" to "INSTALLMENT_4", "SIMISS-A" to "LUMP", "SIMISS-A" to "INSTALLMENT_x", "" to "LUMP_SUM")
+            listOf("SIMISSZ" to "LUMP_SUM", "SIMISSA" to "INSTALLMENT_2", "SIMISSA" to "INSTALLMENT_4", "SIMISSA" to "LUMP", "SIMISSA" to "INSTALLMENT_x", "" to "LUMP_SUM")
                 .forEach { (company, plan) -> withClue("$company/$plan") { begin(c, company, plan) shouldBe StartCardAuthenticationResult.NotAllowed } }
             start.start(StartCardAuthenticationCommand(c.handle, c.secret, null, "LUMP_SUM", "req")) shouldBe StartCardAuthenticationResult.NotAllowed
             sessionsOf(c) shouldBe emptyList()
@@ -167,7 +167,7 @@ class CardAuthenticationFlowSpec(
             val other = checkout()
             listOf(null, "A".repeat(43), other.secret).forEach { secret ->
                 withClue(secret?.take(4)) {
-                    start.start(StartCardAuthenticationCommand(c.handle, secret, "SIMISS-A", "LUMP_SUM", "req")) shouldBe StartCardAuthenticationResult.SessionExpired
+                    start.start(StartCardAuthenticationCommand(c.handle, secret, "SIMISSA", "LUMP_SUM", "req")) shouldBe StartCardAuthenticationResult.SessionExpired
                     complete.complete(CompleteCardAuthenticationCommand(c.handle, secret, mapOf("resultRef" to listOf(ScriptedCardAuthenticationPort.newResultRef()), "state" to listOf("S".repeat(43))), "req")) shouldBe
                         CompleteCardAuthenticationResult.SessionExpired
                     cancel.cancel(CancelCheckoutCommand(c.handle, secret, "req")) shouldBe CancelCheckoutResult.SessionExpired
@@ -232,7 +232,7 @@ class CardAuthenticationFlowSpec(
             (s["authentication_ref"] as String) shouldMatch Regex("^aref_[A-Za-z0-9_-]{22}$")
             s["result_ref_digest"] shouldBe SecretDigest.of(SecretKind.RESULT_REFERENCE, resultRef).value
             s["card_type"] shouldBe "CREDIT"
-            s["issuer_code"] shouldBe "SIMISS-A"
+            s["issuer_code"] shouldBe "SIMISSA"
             verified.successRedirect shouldBe "$okUrl&paymentId=${c.paymentId.value}&authenticationRef=${s["authentication_ref"]}"
             checkoutSessionOf(c).let { it["status"] shouldBe "COMPLETED"; it["close_reason"] shouldBe "VERIFIED_REDIRECT" }
             db.withApp { cn -> with(db) { cn.rows("SELECT status FROM payment WHERE payment_id = ?", c.paymentId.value) } }.single()["status"] shouldBe "REQUESTED"

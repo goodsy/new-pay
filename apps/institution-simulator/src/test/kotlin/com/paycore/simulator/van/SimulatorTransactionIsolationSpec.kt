@@ -51,7 +51,7 @@ class SimulatorTransactionIsolationSpec(
             cancel.cancel(
                 "pg-demo",
                 VanCancelRequest(
-                    requestId = cr, institutionAccount = "SIMMERCH0001", merchantRef = "mid-demo-0001", environment = "TEST", routeRef = "SIM-VAN-01",
+                    requestId = cr, institutionAccount = "SIMMERCH0001", merchantRef = "mid-demo-0001", environment = "TEST", routeRef = "SIMVAN01",
                     originalRequestId = VanTestClient.requestId(clock.now().minusSeconds(5)), originalProviderTransactionId = "SIMPTX-0000000001",
                     originalApprovalNumber = "30000001", originalTransactionDate = LocalDate.parse("2026-10-16"), cancelAmountMinor = 1_000, currency = "KRW",
                     scope = VanCancelScope.FULL,

@@ -130,9 +130,9 @@ class SimulatorCardAuthenticationAdapterSpec : FunSpec({
                 stateDigest = SecretDigest.of(SecretKind.AUTHENTICATION_STATE, req.get("state").stringValue()),
                 binding = ProviderBindingEcho(
                     PaymentId(req.get("paymentId").stringValue()), Environment.TEST, MerchantAccountId(req.get("merchantRef").stringValue()),
-                    Money(10_000, CurrencyCode("KRW")), PaymentPlan.LumpSum, "SIMISS-A",
+                    Money(10_000, CurrencyCode("KRW")), PaymentPlan.LumpSum, "SIMISSA",
                 ),
-                authenticated = AuthenticatedDetails("CREDIT", "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", "sim-ev-A", Instant.parse(golden.get("completedAt").stringValue())),
+                authenticated = AuthenticatedDetails("CREDIT", "SIMISSA", "SIMACQA", "SIMAUTH1", "sim-ev-A", Instant.parse(golden.get("completedAt").stringValue())),
                 validUntil = Instant.parse(lookup.get("validUntil").stringValue()),
             ),
         )

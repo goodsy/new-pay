@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * 취소 UNKNOWN 회복 Worker(CANCEL-001 §7 — 일정 선점 → PREPARED fencing·dispatch lease 만료 표시·원 **취소** 요청 ID 조회 → TX2와 같은 반영 → 예산·연령 소진 시 대사 이관, 상태 불변 —
  * D-CANCEL1-003 임시 출구 없음). 실 MySQL·운영 Adapter·실제 소켓의 시험 전용 stub VAN(sim-van-2 원장 의미). 시험 Demo 시간(시험 yml `paycore.cancellation.timing`): lease 30s·margin 5s·
- * prepared 1s·조회 간격 10s·예산 3·최대 연령 1h·느린 조회 10m. Route `SIM-VAN-C` 취소 closableAfter 2m·보존 7d(무효과 확정 있음), `SIM-VAN-CB` 무효과 확정 없음.
+ * prepared 1s·조회 간격 10s·예산 3·최대 연령 1h·느린 조회 10m. Route `SIMVANC` 취소 closableAfter 2m·보존 7d(무효과 확정 있음), `SIMVANCB` 무효과 확정 없음.
  * 기대값은 명세 §7.1·§7.2 표("never auto-fail")·§9.1 K7·K8·K9·K14·§9.2에서 직접 적는다. 다른 시험 일정도 회차에 잡힐 수 있으므로 회차 합계가 아니라 이 시험의 취소로 판정한다.
  */
 @PaymentApiTest
@@ -185,7 +185,7 @@ class CancellationRecoverySpec(
         }
     }
 
-    Given("no cancel no-effect capability (route SIM-VAN-CB) and the VAN never recorded the cancel") {
+    Given("no cancel no-effect capability (route SIMVANCB) and the VAN never recorded the cancel") {
         Then("NOT_FOUND until the budget, then CancellationOutcomeUnresolved once; UNKNOWN·RESERVED stay, a new cancel is blocked; slow inquiries continue; after retention the schedule closes, still UNKNOWN (D-CANCEL1-003)") {
             val a = fixture.authorized(routeRef = CancelFixture.ROUTE_CB)
             val id = lost(a, decision = null)

@@ -6233,20 +6233,27 @@
     },
     {
       "phase": "FEATURE",
-      "status": "BACKLOG",
+      "status": "IN_PROGRESS",
       "attempts": 0,
       "maxRepairAttempts": 3,
       "evidence": null,
       "review": null,
-      "owner": null,
+      "owner": "paycore-implementer",
       "allowedWritePaths": [],
       "id": "DEMO-SEED-001",
       "title": "DEMO 모드 전용 Demo 가맹점 seed 명령(Simulator 결제 시연용)",
       "dependsOn": [
-        "ADMIN-PAYMENT-OPS-001"
+        "ADMIN-PAYMENT-OPS-001",
+        "INST-CODE-001"
       ],
       "requiredQuestions": [
-        "Q-DEMO-MERCHANT"
+        "Q-DEMO-MERCHANT",
+        "Q-DS-01",
+        "Q-DS-02",
+        "Q-DS-03",
+        "Q-DS-04",
+        "Q-DS-05",
+        "Q-DS-06"
       ],
       "acceptanceCriteria": [
         "D-DEMO-001: DEMO 배포 모드에서만 동작, LIVE·비DEMO에서는 명령 거부(기동 검사 시험)",
@@ -6255,7 +6262,99 @@
         "이 명령으로 Simulator 결제 → 운영자 보정 취소 시연 절차(부록 D) 재현 가능"
       ],
       "coordinatorDecisions": [
-        "2026-10-30 등록: 사용자 D-DEMO-001 선택. 운영 자격 발급은 MASTER-CREDENTIAL-001 유지"
+        "2026-10-30 등록: 사용자 D-DEMO-001 선택. 운영 자격 발급은 MASTER-CREDENTIAL-001 유지",
+        "2026-10-31 명세 rev 0.1 작성(master-api seed 18단계, payment-api demo-credential). 사용자 답 D-DEMO-002~005",
+        "2026-10-31 명세 rev 0.3 REVIEW 반영. master-api seed 구현 GREEN(359 중 1 실패 = SIMACQ-A 형식 차단). INST-CODE-001 선행 후 재개(payment-api demo-credential·golden·문서 미착수)"
+      ]
+    },
+    {
+      "id": "TEST-PERF-001",
+      "phase": "FOUNDATION",
+      "status": "DONE",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/TEST-PERF-001-2026-10-31T173753Z.json (~/wt-perf)",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:56690ad31711344eafc0be40dda8870e68b837ed205ae0e18dd3861327616f1e",
+        "tests": "3220/0, Vitest 66/0",
+        "gradleCheckWall": "35m16s (baseline 42m59s, timeout 2400s unchanged)",
+        "supplementary": "TEST-PERF-001-2026-10-31T225026Z-supplementary DEPS×5+CVE PASS, 0 vulnerabilities",
+        "commit": "5cf71ba"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "blocker": 0,
+        "major": 0,
+        "minor": 4,
+        "nit": 3,
+        "followUps": [
+          "MINOR-1 commands.json 증거 서술(smoke system-out) prefetch 반영",
+          "MINOR-2 DB 서버 kill 시험용 내구성 factory",
+          "MINOR-3 frontendTest mustRunAfter typecheck/build",
+          "MINOR-4 take() 예외 문맥",
+          "NIT-1~3 주석"
+        ]
+      },
+      "owner": "paycore-implementer",
+      "title": "VERIFY-GATE GRADLE-CHECK 실행 시간 단축(40분 timeout 유지)",
+      "dependsOn": [
+        "ADMIN-BOOT-002"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "GRADLE-CHECK timeoutSeconds 2400·minTests·outputMustMatch/NotMatch·--no-build-cache --rerun-tasks 판정 기준 불변",
+        "실행 테스트 수 감소 없음(같은 테스트, 같은 assertion)",
+        "HEAD(406ebbf) 기준 실측 대비 GRADLE-CHECK 소요 시간 단축 + INST-CODE-001 추가 후에도 여유(목표 ≤32분)",
+        "WSL 7GB 환경에서 최대 메모리 측정·기록, 메모리 상한 근거(TECH-BASELINE §7) 갱신"
+      ],
+      "allowedWritePaths": [],
+      "coordinatorDecisions": [
+        "2026-10-31 사용자: INST-CODE-001 게이트 40분 timeout 2회 초과 → '제한 유지, 테스트 속도 개선 먼저' 선택. INST-CODE-001은 이 작업 뒤 재게이트",
+        "2026-11-01 D-TEST-PERF-001: 시험 MySQL 내구성 옵션 Coordinator 채택(리뷰 근거). 목표 ≤32분 미달(35m16s), 여유 약 4.7분 보고"
+      ]
+    },
+    {
+      "id": "INST-CODE-001",
+      "phase": "FEATURE",
+      "status": "DONE",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "verifyGate": "build/harness-evidence/INST-CODE-001-2026-10-31T225408Z.json (~/wt-inst, base 5cf71ba)",
+        "verdict": "PASS",
+        "codeFingerprint": "sha256:2e745eb0e35d23e800431fd3889a1822c1c2c8354ea9ffc2cff1f9b81008e3d3",
+        "tests": "3228/0, Vitest 66/0, harness selftest PASS",
+        "gradleCheckWall": "32m11s",
+        "supplementary": "INST-CODE-001-2026-11-01T130748Z-supplementary DEPS×5+CVE PASS, 0 vulnerabilities",
+        "priorAttempts": "instgate(2026-10-30T235851Z), instgate2(2026-10-31T090101Z): GRADLE-CHECK timeout 2400s 초과(테스트 실패 아님) → TEST-PERF-001 후 재실행"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "condition": "C-1 실패 0 실제 게이트 → 충족",
+        "low": [
+          "L-1 .env(사용자 승인 후 수정 완료)",
+          "L-3 MySQL $ 개행 정보성",
+          "L-4 schemaVersion 불변, 비운영 projection 재설정 필요"
+        ]
+      },
+      "owner": "paycore-implementer",
+      "title": "기관 식별 코드 공통 형식 [A-Z0-9]{1,32} 통일(MASTER·PAYMENT·Simulator·golden)",
+      "dependsOn": [
+        "MASTER-SNAPSHOT-002"
+      ],
+      "requiredQuestions": [
+        "Q-DS-06"
+      ],
+      "acceptanceCriteria": [
+        "D-INST-CODE-001: 매입사·발급사·인증 기관·Route 코드가 전 앱에서 ^[A-Z0-9]{1,32}$만 허용(도메인 값 객체·DB CHECK·VAN codec·PAYMENT 계약 검증)",
+        "MASTER 새 migration으로 CHECK 갱신(기존 migration 불변), 기존 행 영향 확인",
+        "Simulator 카탈로그 코드 갱신, harness golden 독립 재생성, 시험 기대값은 결정에 따른 갱신만",
+        "하이픈·밑줄 포함 코드 거절 시험(앱별), 종단: MASTER 개통 매입사 = Simulator 인증 결과 매입사 일치"
+      ],
+      "allowedWritePaths": [],
+      "coordinatorDecisions": [
+        "2026-10-31 등록: DEMO-SEED-001 구현 중 형식 불일치 발견, 사용자 D-INST-CODE-001 선택. DEMO-SEED-001은 이 작업 완료 후 재개"
       ]
     }
   ]

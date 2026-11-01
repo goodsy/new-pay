@@ -150,7 +150,7 @@ class AuthenticationResultCheckSpec : BehaviorSpec({
             Row("R7 currency", { s -> echoChanged(s) { it.copy(money = Money(it.money.amountMinor, CurrencyCode("USD"))) } }, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
             Row("R7 environment", { s -> echoChanged(s) { it.copy(environment = Environment.LIVE) } }, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
             Row("R7 plan", { s -> echoChanged(s) { it.copy(plan = PaymentPlan.Installment(3)) } }, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
-            Row("R7 card company", { s -> echoChanged(s) { it.copy(cardCompany = "SIMISS-OTHER") } }, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
+            Row("R7 card company", { s -> echoChanged(s) { it.copy(cardCompany = "SIMISSOTHER") } }, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
             Row("R7 MID", ProviderResultFixture::authenticatedWithDifferentMid, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
             Row("R7 issuer differs from the chosen card company", ProviderResultFixture::authenticatedByAnotherIssuer, AuthenticationFailure.BINDING_MISMATCH, AuthenticationEventDetail.BINDING_MISMATCH),
             Row("R7 before R8 (failed with a wrong amount)", { s -> ProviderResultFixture.failed(s).let { it.copy(binding = ProviderResultFixture.authenticatedWithDifferentAmount(s).binding) } },

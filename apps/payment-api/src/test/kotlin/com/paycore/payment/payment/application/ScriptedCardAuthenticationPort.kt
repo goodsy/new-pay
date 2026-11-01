@@ -67,7 +67,7 @@ class ScriptedCardAuthenticationPort : CardAuthenticationPort {
     ): ProviderAuthenticationResult {
         val b = registration.binding
         val now = Instant.now()
-        val details = if (outcome == ProviderOutcome.AUTHENTICATED) AuthenticatedDetails(cardType, b.cardCompany, "SIMACQ-A", "SIMAUTH-1", "sim-ev-" + UUID.randomUUID(), now) else null
+        val details = if (outcome == ProviderOutcome.AUTHENTICATED) AuthenticatedDetails(cardType, b.cardCompany, "SIMACQA", "SIMAUTH1", "sim-ev-" + UUID.randomUUID(), now) else null
         return mutate(
             ProviderAuthenticationResult(
                 providerTransactionRef = transactionRef,

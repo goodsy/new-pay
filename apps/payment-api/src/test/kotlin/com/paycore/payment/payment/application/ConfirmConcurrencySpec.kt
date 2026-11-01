@@ -143,7 +143,7 @@ class ConfirmConcurrencySpec(
                 val p = fixture.prepared()
                 val (confirm, startResult) = race(
                     { start.start(p.command()) },
-                    { authStart.start(StartCardAuthenticationCommand(p.handle, p.cookieSecret, "SIMISS-A", "LUMP_SUM", "req-c8")) },
+                    { authStart.start(StartCardAuthenticationCommand(p.handle, p.cookieSecret, "SIMISSA", "LUMP_SUM", "req-c8")) },
                 )
                 val c = confirm.getOrThrow()
                 withClue("round $round: $c / ${startResult.getOrNull()}") {

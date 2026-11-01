@@ -34,7 +34,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import java.time.Duration
 
 /**
- * 취소 TX1(CANCEL-001 §4.3 판정 순서·§4.8 멱등 저장·§4.9 매핑 중 TX1이 정하는 것). 실 MySQL·운영 Port·운영 Route 등록부(시험 설정 — sim-van-2 `SIM-VAN-C`·`SIM-VAN-CB`),
+ * 취소 TX1(CANCEL-001 §4.3 판정 순서·§4.8 멱등 저장·§4.9 매핑 중 TX1이 정하는 것). 실 MySQL·운영 Port·운영 Route 등록부(시험 설정 — sim-van-2 `SIMVANC`·`SIMVANCB`),
  * 승인은 운영 confirm 경로로 만든다([CancelFixture]). 기대값은 명세 표에서 직접 적는다. 전송(TXd 이후)은 S6 — 여기서는 TX1이 커밋한 행과 저장 결과만 본다.
  */
 @PaymentApiTest
@@ -171,7 +171,7 @@ class CancelStartServiceSpec(
             rejected(start.start(a.command(money = Money(3_000, a.money.currency)))) shouldBe CancelRejection.PARTIAL_CANCEL_NOT_SUPPORTED
             accepted(start.start(a.command())).outcome shouldBe CancelOutcome.ACCEPTED
         }
-        Then("a credit installment partial cancel on SIM-VAN-C starts (installment partial is a route capability, not a PG rule)") {
+        Then("a credit installment partial cancel on SIMVANC starts (installment partial is a route capability, not a PG rule)") {
             val a = fixture.authorized(amount = 60_000, plan = PaymentPlan.Installment(3))
             accepted(start.start(a.command(money = Money(10_000, a.money.currency)))).outcome shouldBe CancelOutcome.ACCEPTED
         }

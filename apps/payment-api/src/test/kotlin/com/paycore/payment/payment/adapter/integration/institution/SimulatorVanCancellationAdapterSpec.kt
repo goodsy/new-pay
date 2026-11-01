@@ -62,7 +62,7 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
     val krw = CurrencyCode("KRW")
 
     fun call(
-        routeRef: String = "SIM-VAN-01",
+        routeRef: String = "SIMVAN01",
         money: Money = Money(3_000, krw),
         scope: CancelScope = CancelScope.PARTIAL,
         connectDeadline: Instant = now.plusSeconds(30),
@@ -78,7 +78,7 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
         connectDeadline = connectDeadline,
     )
 
-    fun inquiryCall(closeIfAbsent: Boolean = false, routeRef: String = "SIM-VAN-01") = CancelInquiryCall(
+    fun inquiryCall(closeIfAbsent: Boolean = false, routeRef: String = "SIMVAN01") = CancelInquiryCall(
         attemptId = attemptId,
         providerRequest = ProviderRequestRef("SIMVAN", Environment.TEST, "SIMMERCH0001", "CANCEL", cancelRequestId),
         routeRef = routeRef,
@@ -92,7 +92,7 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
         connector: VanSocketConnector = VanSocketConnector.PLAIN,
         meters: MeterRegistry = SimpleMeterRegistry(),
         messageId: String = "01JA0000000000000000000030",
-    ) = SimulatorVanCancellationAdapter(VanRouteFixture.registry("SIM-VAN-01" to route(port)), clock, connector, meters) { messageId }
+    ) = SimulatorVanCancellationAdapter(VanRouteFixture.registry("SIMVAN01" to route(port)), clock, connector, meters) { messageId }
 
     fun withStub(handler: (JsonNode) -> Action, block: (StubVan) -> Unit) = StubVan(handler).use(block)
 
@@ -191,7 +191,7 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
         Then("a sim-van-1 route, an unknown route or a route of another institution is NotSentConfirmed without a connection (a LIVE route cannot be registered)") {
             mapOf<String, Pair<(Int) -> ConfiguredInstitutionRouteRegistry.Route, CancellationCall>>(
                 "sim-van-1 route" to ({ p: Int -> VanRouteFixture.route(p) } to call()),
-                "unknown route" to ({ p: Int -> VanRouteFixture.cancelRoute(p) } to call(routeRef = "SIM-VAN-99")),
+                "unknown route" to ({ p: Int -> VanRouteFixture.cancelRoute(p) } to call(routeRef = "SIMVAN99")),
                 "route of another institution" to ({ p: Int -> VanRouteFixture.cancelRoute(p, institution = "OTHERVAN") } to call()),
             ).forEach { (name, case) ->
                 withStub({ r -> Action.Respond(bytes(replyV2("cancelResponseApproved", r))) }) { stub ->
@@ -304,7 +304,7 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
         Then("the AUTH_REQUEST frame is byte-identical to the sim-van-1 golden frame") {
             withStub({ Action.Close }) { stub ->
                 SimulatorVanAuthorizationAdapter(
-                    VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.cancelRoute(stub.port)), object : PaymentClock {
+                    VanRouteFixture.registry("SIMVAN01" to VanRouteFixture.cancelRoute(stub.port)), object : PaymentClock {
                         override fun now(): Instant = Instant.parse("2026-10-16T01:00:31.000Z")
                     },
                     VanSocketConnector.PLAIN, SimpleMeterRegistry(),
@@ -312,8 +312,8 @@ class SimulatorVanCancellationAdapterSpec : BehaviorSpec({
                     AuthorizationCall(
                         attemptId = AttemptId("demo-att-0001"),
                         providerRequest = ProviderRequestRef("SIMVAN", Environment.TEST, "SIMMERCH0001", "AUTHORIZE", "ar_01JA0000000000000000000001"),
-                        routeRef = "SIM-VAN-01", merchantRef = "mid-demo-0001", money = Money(10_000, krw), plan = PaymentPlan.LumpSum,
-                        evidence = AuthorizationEvidenceRef("sim-ev-A", "SIMAUTH-1", "SIMISS-A", "SIMACQ-A"), connectDeadline = Instant.parse("2026-10-16T01:01:00.000Z"),
+                        routeRef = "SIMVAN01", merchantRef = "mid-demo-0001", money = Money(10_000, krw), plan = PaymentPlan.LumpSum,
+                        evidence = AuthorizationEvidenceRef("sim-ev-A", "SIMAUTH1", "SIMISSA", "SIMACQA"), connectDeadline = Instant.parse("2026-10-16T01:01:00.000Z"),
                     ),
                 )
                 stub.receivedFrames.single() shouldBe HexFormat.of().parseHex(StubVan.GOLDEN.get("frames").get("authRequest").stringValue())

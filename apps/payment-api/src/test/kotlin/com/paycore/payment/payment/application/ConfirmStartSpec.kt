@@ -89,7 +89,7 @@ class ConfirmStartSpec(
             stored.attempts.single().state shouldBe AttemptState.PREPARED
             stored.attempts.single().providerRequest.requestId shouldStartWith "ar_"
             stored.attempts.single().providerRequest.institutionAccount shouldBe ScriptedAdmissionPort.INSTITUTION_MERCHANT_REF
-            stored.admission.routeProfile shouldBe "SIM-VAN-01"
+            stored.admission.routeProfile shouldBe "SIMVAN01"
             stored.admission.protocolVersion shouldBe "sim-van-1"
             fixture.scalar("SELECT bound_authorization_id FROM authentication_session WHERE authentication_ref = ?", p.authenticationRef.value) shouldBe a.authorizationId.value
             fixture.scalar("SELECT state FROM limit_reservation WHERE authorization_id = ?", a.authorizationId.value) shouldBe LimitReservationState.RESERVED.name
@@ -104,7 +104,7 @@ class ConfirmStartSpec(
             val a = accepted(start.start(p.command()))
             val call = admission.callsFor(p.order.merchantAccountId).single()
             call.inTransaction shouldBe true
-            call.acquirerCode shouldBe "SIMACQ-A"
+            call.acquirerCode shouldBe "SIMACQA"
             val openedAt = tx.execute { authorizations.lockByPaymentId(p.paymentId) }!!.value.openedAt
             call.evaluatedAt shouldBe openedAt
             a.authorizationId shouldNotBe null
@@ -205,7 +205,7 @@ class ConfirmStartSpec(
         }
         Then("a routeRef unknown to the route registry is 503 fail-closed without storing (MS2 §13.2)") {
             val p = fixture.prepared()
-            admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = "SIM-VAN-99") }
+            admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = "SIMVAN99") }
             shouldThrow<ConfirmPaymentFailure.TemporarilyUnavailable> { start.start(p.command()) }
             fixture.idempotencyRows(p) shouldBe emptyList()
             fixture.authorizationRows(p) shouldBe 0

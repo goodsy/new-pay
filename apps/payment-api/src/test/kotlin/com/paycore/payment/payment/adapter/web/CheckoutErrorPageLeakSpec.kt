@@ -39,7 +39,7 @@ class CheckoutErrorPageLeakSpec(
             pages["400 token"] = b.web.get("/checkout?token=" + b.secrets.first()) to emptySet()
             pages["401 cookie"] = b.web.get("/checkout/s/${o.handle}") to emptySet()
             pages["403 csrf"] = b.web.post("/checkout/s/${o.handle}/cancel", mapOf("_csrf" to "x".repeat(43)), o.cookie) to emptySet()
-            pages["422 card"] = b.start(o, cardCompany = "SIMISS-Z") to emptySet()
+            pages["422 card"] = b.start(o, cardCompany = "SIMISSZ") to emptySet()
             b.start(o)
             pages["200 failed"] = b.web.get(b.returnPath(o, ProviderOutcome.FAILED), o.cookie) to emptySet()
             pages["410 late"] = b.web.get(latePath(b, o), o.cookie) to emptySet()

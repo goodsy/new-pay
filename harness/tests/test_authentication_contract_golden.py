@@ -7,7 +7,8 @@ golden을 만들어 두 앱 시험 자원의 파일과 바이트 비교한다. S
 계약 요점(§13.4, m-E·m-4): 등록 요청 닫힌 필드 9개, 시각은 UTC ms(`…T…:….SSSZ`), 금액은 minor 정수, plan은 {kind[, months]}. 조회 응답의 증거 6필드
 (cardType·issuerCode·acquirerCode·providerCode·evidenceRef·authenticatedAt)는 AUTHENTICATED에만 있고 다른 outcome에는 **없다**(null 아님 — 키 부재).
 cardType은 열린 토큰 `^[A-Z][A-Z0-9_]{0,31}$`(PayCore 지원 판정은 PG domain R10). malformedLookups는 계약 위반 벡터(PG adapter가 Unverifiable(MALFORMED)로
-바꿔야 한다). 값은 Demo(운영 MID·카드사·URL·키 아님). `python3 harness/tests/test_authentication_contract_golden.py --write`로 다시 쓴다(검토된 계약 변경일 때만).
+바꿔야 한다). 기관 식별 코드(issuerCode·acquirerCode·providerCode·cardCompany)는 D-INST-CODE-001 공통 형식 `^[A-Z0-9]{1,32}$`
+(하이픈·밑줄 금지 — INST-CODE-001). master-api는 종단 대조(MASTER 개통 매입사 = 인증 결과 매입사, IC-3)에 이 golden을 읽는다. 값은 Demo(운영 MID·카드사·URL·키 아님). `python3 harness/tests/test_authentication_contract_golden.py --write`로 다시 쓴다(검토된 계약 변경일 때만).
 """
 import json
 import os
@@ -17,7 +18,7 @@ from collections import OrderedDict
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 NAME = "authentication-contract-v1.golden.json"
-TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("institution-simulator", "payment-api")]
+TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("institution-simulator", "payment-api", "master-api")]
 
 CHECKOUT_ORIGIN = "https://checkout.example.test"
 CUSTOMER_BASE = "https://sim.example.test"
@@ -40,7 +41,7 @@ def state_of(tag):
 def register_request(tag):
     return OrderedDict([
         ("paymentId", "pay_demo_" + tag), ("merchantRef", "mid-demo-0001"), ("environment", "TEST"), ("amountMinor", 10000), ("currency", "KRW"),
-        ("plan", OrderedDict([("kind", "LUMP_SUM")])), ("cardCompany", "SIMISS-A"), ("state", state_of("state" + tag)),
+        ("plan", OrderedDict([("kind", "LUMP_SUM")])), ("cardCompany", "SIMISSA"), ("state", state_of("state" + tag)),
         ("returnUrl", f"{CHECKOUT_ORIGIN}/checkout/s/{HANDLE}/authentication/return"),
     ])
 
@@ -54,7 +55,7 @@ def scenario(tag, card, outcome, valid_until=VALID_UNTIL):
         ("binding", OrderedDict([(k, req[k]) for k in ("paymentId", "merchantRef", "environment", "amountMinor", "currency", "plan", "cardCompany")])),
     ])
     if outcome == "AUTHENTICATED":
-        lookup.update([("cardType", "CREDIT"), ("issuerCode", "SIMISS-A"), ("acquirerCode", "SIMACQ-A"), ("providerCode", "SIMAUTH-1"),
+        lookup.update([("cardType", "CREDIT"), ("issuerCode", "SIMISSA"), ("acquirerCode", "SIMACQA"), ("providerCode", "SIMAUTH1"),
                        ("evidenceRef", "sim-ev-" + tag), ("authenticatedAt", COMPLETED_AT)])
     lookup["validUntil"] = valid_until
     return OrderedDict([
@@ -77,11 +78,15 @@ def golden_text():
     failed = scenarios["failed"]["lookup"]
     malformed = OrderedDict([
         ("authenticatedWithoutEvidenceRef", OrderedDict((k, v) for k, v in ok.items() if k != "evidenceRef")),
-        ("failedWithIssuerCode", OrderedDict(list(failed.items()) + [("issuerCode", "SIMISS-A")])),
+        ("failedWithIssuerCode", OrderedDict(list(failed.items()) + [("issuerCode", "SIMISSA")])),
         ("unknownField", OrderedDict(list(ok.items()) + [("extra", True)])),
         ("nullCardType", OrderedDict((k, (None if k == "cardType" else v)) for k, v in ok.items())),
         ("amountAsString", OrderedDict((k, (OrderedDict(list(v.items())[:3] + [("amountMinor", "10000")] + list(v.items())[4:]) if k == "binding" else v)) for k, v in ok.items())),
         ("lowerCaseCardType", OrderedDict((k, ("credit" if k == "cardType" else v)) for k, v in ok.items())),
+        # INST-CODE-001(D-INST-CODE-001): 기관 식별 코드의 하이픈·밑줄은 계약 위반(IC-5).
+        ("hyphenatedAcquirerCode", OrderedDict((k, ("SIMACQ-A" if k == "acquirerCode" else v)) for k, v in ok.items())),
+        ("underscoreIssuerCode", OrderedDict((k, ("SIM_ISS_A" if k == "issuerCode" else v)) for k, v in ok.items())),
+        ("hyphenatedProviderCode", OrderedDict((k, ("SIMAUTH-1" if k == "providerCode" else v)) for k, v in ok.items())),
     ])
     golden = OrderedDict([
         ("description", "AUTHN-001 virtual authentication institution contract v1 (generated independently of both apps; Demo values, not production). "

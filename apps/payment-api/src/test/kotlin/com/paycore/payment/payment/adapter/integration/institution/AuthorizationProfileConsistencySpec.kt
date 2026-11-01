@@ -16,7 +16,7 @@ class AuthorizationProfileConsistencySpec : BehaviorSpec({
         backends = mapOf("TEST" to AuthenticationSettings.Backend("SIMULATOR", "sim-auth-demo")),
         profiles = mapOf(
             "sim-auth-demo" to AuthenticationSettings.Profile(
-                "sim-auth-demo-1", listOf(AuthenticationSettings.CardCompany("SIMISS-A", "가상카드A")),
+                "sim-auth-demo-1", listOf(AuthenticationSettings.CardCompany("SIMISSA", "가상카드A")),
                 AuthenticationSettings.PlanPolicy("plan-demo-1", currency, months, minimum),
             ),
         ),
@@ -26,7 +26,7 @@ class AuthorizationProfileConsistencySpec : BehaviorSpec({
     fun routes(months: List<Int> = listOf(2, 3, 6), minimum: Long? = 50_000) = ConfiguredInstitutionRouteRegistry(
         backends = mapOf("TEST" to ConfiguredInstitutionRouteRegistry.Backend("SIMULATOR")),
         routes = mapOf(
-            "SIM-VAN-01" to VanRouteFixture.route(9).let { r ->
+            "SIMVAN01" to VanRouteFixture.route(9).let { r ->
                 ConfiguredInstitutionRouteRegistry.Route(
                     r.environment, r.institution, r.protocolVersion, r.profileVersion, r.host, r.port, r.keyId,
                     java.util.Base64.getEncoder().encodeToString(StubVan.KEY), r.connectTimeout, r.readTimeout, r.totalDeadline, r.connectRetryBudget,

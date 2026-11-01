@@ -1,0 +1,390 @@
+{
+  "description": "AUTHN-001 virtual authentication institution contract v1 (generated independently of both apps; Demo values, not production). Evidence fields exist only for AUTHENTICATED; cardType is an open token.",
+  "checkoutOrigin": "https://checkout.example.test",
+  "customerBaseUrl": "https://sim.example.test",
+  "registeredAt": "2026-10-16T01:00:00.000Z",
+  "completedAt": "2026-10-16T01:00:30.000Z",
+  "transactionTtl": "PT10M",
+  "resultValidity": "PT5M",
+  "scenarios": {
+    "authenticated": {
+      "card": "VC-CREDIT-OK",
+      "registerRequest": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA",
+        "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
+      },
+      "registerResponse": {
+        "authenticationTransactionId": "sat_TxA0000000000000000000",
+        "customerUrl": "https://sim.example.test/sim/authenticate/sat_TxA0000000000000000000",
+        "expiresAt": "2026-10-16T01:10:00.000Z"
+      },
+      "redirect": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return?resultRef=srr_RrA0000000000000000000&state=stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "lookup": {
+        "resultRef": "srr_RrA0000000000000000000",
+        "authenticationTransactionId": "sat_TxA0000000000000000000",
+        "outcome": "AUTHENTICATED",
+        "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "binding": {
+          "paymentId": "pay_demo_A",
+          "merchantRef": "mid-demo-0001",
+          "environment": "TEST",
+          "amountMinor": 10000,
+          "currency": "KRW",
+          "plan": {
+            "kind": "LUMP_SUM"
+          },
+          "cardCompany": "SIMISSA"
+        },
+        "cardType": "CREDIT",
+        "issuerCode": "SIMISSA",
+        "acquirerCode": "SIMACQA",
+        "providerCode": "SIMAUTH1",
+        "evidenceRef": "sim-ev-A",
+        "authenticatedAt": "2026-10-16T01:00:30.000Z",
+        "validUntil": "2026-10-16T01:05:30.000Z"
+      }
+    },
+    "failed": {
+      "card": "VC-AUTH-FAIL",
+      "registerRequest": {
+        "paymentId": "pay_demo_F",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA",
+        "state": "stateFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
+      },
+      "registerResponse": {
+        "authenticationTransactionId": "sat_TxF0000000000000000000",
+        "customerUrl": "https://sim.example.test/sim/authenticate/sat_TxF0000000000000000000",
+        "expiresAt": "2026-10-16T01:10:00.000Z"
+      },
+      "redirect": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return?resultRef=srr_RrF0000000000000000000&state=stateFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "lookup": {
+        "resultRef": "srr_RrF0000000000000000000",
+        "authenticationTransactionId": "sat_TxF0000000000000000000",
+        "outcome": "FAILED",
+        "state": "stateFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "binding": {
+          "paymentId": "pay_demo_F",
+          "merchantRef": "mid-demo-0001",
+          "environment": "TEST",
+          "amountMinor": 10000,
+          "currency": "KRW",
+          "plan": {
+            "kind": "LUMP_SUM"
+          },
+          "cardCompany": "SIMISSA"
+        },
+        "validUntil": "2026-10-16T01:05:30.000Z"
+      }
+    },
+    "cancelled": {
+      "card": null,
+      "registerRequest": {
+        "paymentId": "pay_demo_C",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA",
+        "state": "stateCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
+      },
+      "registerResponse": {
+        "authenticationTransactionId": "sat_TxC0000000000000000000",
+        "customerUrl": "https://sim.example.test/sim/authenticate/sat_TxC0000000000000000000",
+        "expiresAt": "2026-10-16T01:10:00.000Z"
+      },
+      "redirect": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return?resultRef=srr_RrC0000000000000000000&state=stateCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "lookup": {
+        "resultRef": "srr_RrC0000000000000000000",
+        "authenticationTransactionId": "sat_TxC0000000000000000000",
+        "outcome": "CANCELLED",
+        "state": "stateCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "binding": {
+          "paymentId": "pay_demo_C",
+          "merchantRef": "mid-demo-0001",
+          "environment": "TEST",
+          "amountMinor": 10000,
+          "currency": "KRW",
+          "plan": {
+            "kind": "LUMP_SUM"
+          },
+          "cardCompany": "SIMISSA"
+        },
+        "validUntil": "2026-10-16T01:00:30.000Z"
+      }
+    },
+    "expired": {
+      "card": "VC-EXPIRED",
+      "registerRequest": {
+        "paymentId": "pay_demo_E",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA",
+        "state": "stateExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "returnUrl": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"
+      },
+      "registerResponse": {
+        "authenticationTransactionId": "sat_TxE0000000000000000000",
+        "customerUrl": "https://sim.example.test/sim/authenticate/sat_TxE0000000000000000000",
+        "expiresAt": "2026-10-16T01:10:00.000Z"
+      },
+      "redirect": "https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return?resultRef=srr_RrE0000000000000000000&state=stateExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "lookup": {
+        "resultRef": "srr_RrE0000000000000000000",
+        "authenticationTransactionId": "sat_TxE0000000000000000000",
+        "outcome": "EXPIRED",
+        "state": "stateExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "binding": {
+          "paymentId": "pay_demo_E",
+          "merchantRef": "mid-demo-0001",
+          "environment": "TEST",
+          "amountMinor": 10000,
+          "currency": "KRW",
+          "plan": {
+            "kind": "LUMP_SUM"
+          },
+          "cardCompany": "SIMISSA"
+        },
+        "validUntil": "2026-10-16T01:00:30.000Z"
+      }
+    }
+  },
+  "malformedLookups": {
+    "authenticatedWithoutEvidenceRef": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "failedWithIssuerCode": {
+      "resultRef": "srr_RrF0000000000000000000",
+      "authenticationTransactionId": "sat_TxF0000000000000000000",
+      "outcome": "FAILED",
+      "state": "stateFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_F",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "validUntil": "2026-10-16T01:05:30.000Z",
+      "issuerCode": "SIMISSA"
+    },
+    "unknownField": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z",
+      "extra": true
+    },
+    "nullCardType": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": null,
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "amountAsString": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": "10000",
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "lowerCaseCardType": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "credit",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "hyphenatedAcquirerCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQ-A",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "underscoreIssuerCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIM_ISS_A",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    },
+    "hyphenatedProviderCode": {
+      "resultRef": "srr_RrA0000000000000000000",
+      "authenticationTransactionId": "sat_TxA0000000000000000000",
+      "outcome": "AUTHENTICATED",
+      "state": "stateAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "binding": {
+        "paymentId": "pay_demo_A",
+        "merchantRef": "mid-demo-0001",
+        "environment": "TEST",
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "plan": {
+          "kind": "LUMP_SUM"
+        },
+        "cardCompany": "SIMISSA"
+      },
+      "cardType": "CREDIT",
+      "issuerCode": "SIMISSA",
+      "acquirerCode": "SIMACQA",
+      "providerCode": "SIMAUTH-1",
+      "evidenceRef": "sim-ev-A",
+      "authenticatedAt": "2026-10-16T01:00:30.000Z",
+      "validUntil": "2026-10-16T01:05:30.000Z"
+    }
+  }
+}

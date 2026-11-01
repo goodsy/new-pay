@@ -141,7 +141,7 @@ class ConfirmFixture(
             val cs = CheckoutPersistenceFixture.session(token, handle = handle)
                 .copy(digest = SecretDigest.of(SecretKind.CHECKOUT_SESSION, cookieSecret), createdAt = (T0.minusSeconds(100)).plus(shift), expiresAt = (T0.plusSeconds(1100)).plus(shift))
             checkoutSessions.insert(cs)
-            val binding = AuthenticationBinding(payment.id, payment.orderKey, intent.money, plan, "SIMISS-A")
+            val binding = AuthenticationBinding(payment.id, payment.orderKey, intent.money, plan, "SIMISSA")
             val session = AuthenticationSessionStart.start(
                 payment, emptyList(), AuthenticationSessionId("aus_" + UUID.randomUUID().toString().replace("-", "").take(24)), binding,
                 AuthenticationCorrelation(SecretDigest.of(SecretKind.AUTHENTICATION_STATE, DbAccess.unique("st"))), (T0.plus(Duration.ofMinutes(10))).plus(shift), (T0.minusSeconds(90)).plus(shift),
@@ -150,7 +150,7 @@ class ConfirmFixture(
             session.start("sat_" + UUID.randomUUID().toString().replace("-", "").take(22))
             version = sessions.update(session, version)
             if (verified) {
-                val evidence = VerifiedAuthentication("sim-ev-" + UUID.randomUUID(), binding, cardType, "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", validUntil)
+                val evidence = VerifiedAuthentication("sim-ev-" + UUID.randomUUID(), binding, cardType, "SIMISSA", "SIMACQA", "SIMAUTH1", validUntil)
                 check(session.verify(evidence, SecretDigest.of(SecretKind.RESULT_REFERENCE, DbAccess.unique("rr")), ref, (T0.minusSeconds(60)).plus(shift)) == VerificationOutcome.VERIFIED)
                 sessions.update(session, version)
             }

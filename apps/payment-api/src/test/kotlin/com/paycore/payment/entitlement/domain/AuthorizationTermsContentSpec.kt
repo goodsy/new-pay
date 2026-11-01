@@ -97,6 +97,31 @@ class AuthorizationTermsContentSpec : FunSpec({
         }
     }
 
+    // INST-CODE-001 IC-4(D-INST-CODE-001): 카드사 개통의 매입사·Route 코드는 기관 식별 코드 공통 형식 ^[A-Z0-9]{1,32}$ — 수신(wire)·구성 모두 계약 위반.
+    test("a card route whose acquirer or route code is not the common institution code format is a contract violation") {
+        val terms = termsIds()
+        val base = entitledWithTerms(ids(), terms)
+        mapOf<String, () -> Any>(
+            "hyphenated acquirer" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route, acquirer = "SIMACQ-A"))) } },
+            "underscore acquirer" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route, acquirer = "SIM_ACQ_A"))) } },
+            "lower-case acquirer" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route, acquirer = "simacqa"))) } },
+            "acquirer over 32" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route, acquirer = "A".repeat(33)))) } },
+            "hyphenated route" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route).copy(routeRef = "SIM-VAN-01"))) } },
+            "underscore route" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route).copy(routeRef = "SIM_VAN_01"))) } },
+            "dotted route over the old grammar" to { base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route).copy(routeRef = "sim.van:01"))) } },
+        ).forEach { (name, build) ->
+            val error = runCatching { build() }.exceptionOrNull()
+            (name to (error is SnapshotContractViolation)) shouldBe (name to true)
+        }
+        val wire = base.canonical
+        listOf("\"acquirerCode\":\"SIMCARD01\"" to "\"acquirerCode\":\"SIM-CARD-01\"", "\"routeRef\":\"SIMVAN01\"" to "\"routeRef\":\"SIM_VAN_01\"").forEach { (from, to) ->
+            val variant = wire.replace(from, to)
+            variant shouldNotBe wire
+            shouldThrow<SnapshotContractViolation> { EntitlementContent.fromJson(MiniJson.parse(variant), 2, allowLeaseFields = false) }
+        }
+        base.mapTerms { it.copy(cardRoutes = listOf(route(terms.route, acquirer = "A".repeat(32)))) }.schemaVersion shouldBe 2
+    }
+
     test("same-level non-overlapping periods and a CSA default overlapping a MID override are accepted (Override wins at decision time, D-MS2-001)") {
         val ids = ids()
         val content = entitledWithTerms(ids).mapTerms {

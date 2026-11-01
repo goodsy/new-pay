@@ -41,6 +41,17 @@ class AuthenticationTransactionSpec : BehaviorSpec({
         }
     }
 
+    // INST-CODE-001 IC-9(D-INST-CODE-001): 카탈로그의 발급사·매입사·인증 기관 코드는 기관 식별 코드 공통 형식 ^[A-Z0-9]{1,32}$(하이픈·밑줄 없음).
+    Given("the virtual card catalog") {
+        Then("every issuer, acquirer and authentication provider code is the common institution code format") {
+            val format = Regex("^[A-Z0-9]{1,32}$")
+            VirtualCard.entries.forEach { card ->
+                listOf(card.issuerCode, card.acquirerCode, card.providerCode).forEach { code -> withClue("${card.ref} $code") { format.matches(code) shouldBe true } }
+            }
+            VirtualCard.VC_CREDIT_OK.let { listOf(it.issuerCode, it.acquirerCode, it.providerCode) } shouldBe listOf("SIMISSA", "SIMACQA", "SIMAUTH1")
+        }
+    }
+
     Given("the customer completes with a virtual card") {
         Then("each card produces its scenario result (issuer/acquirer/provider are distinct names)") {
             mapOf(
@@ -55,7 +66,7 @@ class AuthenticationTransactionSpec : BehaviorSpec({
                 }
             }
             completed(VirtualCard.VC_SPLIT_OK).lookup(t0.plusSeconds(60)).let { listOf(it.issuerCode, it.acquirerCode, it.providerCode, it.cardType) } shouldBe
-                listOf("SIMISS-B", "SIMACQ-A", "SIMAUTH-2", "CREDIT")
+                listOf("SIMISSB", "SIMACQA", "SIMAUTH2", "CREDIT")
             completed(VirtualCard.VC_AUTH_FAIL).lookup(t0.plusSeconds(60)).let { listOf(it.issuerCode, it.evidenceRef, it.authenticatedAt) } shouldBe
                 listOf(null, null, null)
         }
@@ -64,7 +75,7 @@ class AuthenticationTransactionSpec : BehaviorSpec({
             completed(VirtualCard.VC_WRONG_AMOUNT).lookup(t0.plusSeconds(60)).binding.amountMinor shouldBe request.amountMinor + 1
             completed(VirtualCard.VC_WRONG_MID).lookup(t0.plusSeconds(60)).binding.merchantRef shouldBe request.merchantRef + "-X"
             completed(VirtualCard.VC_STATE_MISMATCH).lookup(t0.plusSeconds(60)).state shouldBe request.state.reversed()
-            completed(VirtualCard.VC_OTHER_ISSUER).lookup(t0.plusSeconds(60)).issuerCode shouldBe "SIMISS-B"
+            completed(VirtualCard.VC_OTHER_ISSUER).lookup(t0.plusSeconds(60)).issuerCode shouldBe "SIMISSB"
             completed(VirtualCard.VC_UNSUPPORTED_TYPE).lookup(t0.plusSeconds(60)).cardType shouldBe "PREPAID"
         }
         Then("the result is fixed once; a second completion or a cancel afterwards is refused") {

@@ -21,11 +21,11 @@ object VanFixture {
         evidenceRef: String = "sim-ev-A",
         environment: String = "TEST",
         merchantRef: String = "mid-demo-0001",
-        issuerCode: String = "SIMISS-A",
+        issuerCode: String = "SIMISSA",
     ) = VanAuthRequest(
-        requestId = requestId, institutionAccount = "SIMMERCH0001", merchantRef = merchantRef, environment = environment, routeRef = "SIM-VAN-01",
+        requestId = requestId, institutionAccount = "SIMMERCH0001", merchantRef = merchantRef, environment = environment, routeRef = "SIMVAN01",
         amountMinor = amountMinor, currency = "KRW", plan = plan,
-        authentication = VanAuthentication(evidenceRef = evidenceRef, providerCode = "SIMAUTH-1", issuerCode = issuerCode, acquirerCode = "SIMACQ-A"),
+        authentication = VanAuthentication(evidenceRef = evidenceRef, providerCode = "SIMAUTH1", issuerCode = issuerCode, acquirerCode = "SIMACQA"),
     )
 
     fun evidence(

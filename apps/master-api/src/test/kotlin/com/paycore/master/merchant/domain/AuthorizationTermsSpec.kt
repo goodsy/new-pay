@@ -139,7 +139,7 @@ class AuthorizationTermsSpec : BehaviorSpec({
 
         fun register(existing: List<CardRouteActivation> = emptyList(), method: PaymentMethodActivation? = registered.activation, code: AcquirerCode = acquirer) =
             CardRouteActivation.register(
-                CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, method, code, RouteRef("SIM-VAN-01"), InstitutionMerchantRef("SIMMERCH0001"),
+                CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, method, code, RouteRef("SIMVAN01"), InstitutionMerchantRef("SIMMERCH0001"),
                 existing, t0, operator,
             )
 

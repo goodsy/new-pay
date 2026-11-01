@@ -89,7 +89,8 @@ class ConfiguredInstitutionRouteRegistry(
             environment
         }.toSet()
         profiles = routes.mapValues { (routeRef, r) ->
-            require(ROUTE_REF.matches(routeRef)) { "routeRef must be 1..64 of [A-Za-z0-9._-]" }
+            // D-INST-CODE-001: Route 코드는 기관 식별 코드 공통 형식(INST-CODE-001 IC-6).
+            require(InstitutionCodeFormat.matches(routeRef)) { "routeRef must be 1..32 characters of [A-Z0-9]" }
             val environment = Environment.entries.firstOrNull { it.name == r.environment } ?: throw IllegalArgumentException("unknown route environment")
             require(environment in environments) { "route $routeRef has no authorization backend for its environment" }
             require(r.protocolVersion in PROTOCOLS) { "route $routeRef protocol must be one of $PROTOCOLS" }
@@ -104,6 +105,7 @@ class ConfiguredInstitutionRouteRegistry(
             listOf(r.connectTimeout, r.readTimeout, r.totalDeadline).forEach { require(!it.isNegative && !it.isZero) { "route $routeRef timeouts must be positive" } }
             require(r.readTimeout <= r.totalDeadline) { "route $routeRef read timeout must not exceed the total deadline" }
             require(r.institution.isNotEmpty() && r.profileVersion.isNotEmpty()) { "route $routeRef institution and profile version must be set" }
+            require(InstitutionCodeFormat.matches(r.institution)) { "route $routeRef institution must be 1..32 characters of [A-Z0-9]" }
             // D-AUTH1-007: profile version은 Attempt(route_profile_version VARCHAR(64))에 고정되는 비교 키 — Capability를 바꾸면 이 값도 바꾼다(§20).
             require(PROFILE_VERSION.matches(r.profileVersion)) { "route $routeRef profile version must be 1..64 printable ASCII" }
             val c = r.capabilities
@@ -157,7 +159,6 @@ class ConfiguredInstitutionRouteRegistry(
         const val MAX_KEY_ID = 64
         const val MAX_PORT = 65_535
         val LOOPBACK = setOf("127.0.0.1", "localhost", "::1")
-        val ROUTE_REF = Regex("^[A-Za-z0-9._-]{1,64}$")
         val PROFILE_VERSION = Regex("^[!-~]{1,64}$")
     }
 }

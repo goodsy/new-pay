@@ -41,12 +41,12 @@ class AuthorizationTermsAssemblySpec : BehaviorSpec({
         val feeVersion = PolicyVersion.register(PolicyVersionId("pv_${MasterFixture.ulid()}"), PolicyKind.FEE_SCHEDULE, PolicyCode("FEE-DEMO"), emptyList(), PolicyContentStatus.DEMO, null, reason, t0, operator)
         val fee = PolicyAssignment.assign(PolicyAssignmentId("pas_${MasterFixture.ulid()}"), account, csa, krw, feeVersion, EffectivePeriod(t0), emptyList(), reason, t0, operator)
         val (route, _) = CardRouteActivation.register(
-            CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, active.activation, AcquirerCode("SIMCARD01"), RouteRef("SIM-VAN-01"),
+            CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, active.activation, AcquirerCode("SIMCARD01"), RouteRef("SIMVAN01"),
             InstitutionMerchantRef("SIMMERCH0001"), emptyList(), t0, operator,
         )
         route.approve(account, evidence, t0, operator)
         val (terminated, _) = CardRouteActivation.register(
-            CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, active.activation, AcquirerCode("OLDCARD"), RouteRef("SIM-VAN-01"),
+            CardRouteActivationId("cra_${MasterFixture.ulid()}"), account, active.activation, AcquirerCode("OLDCARD"), RouteRef("SIMVAN01"),
             InstitutionMerchantRef("SIMMERCH0002"), listOf(route), t0, operator,
         )
         terminated.terminate(reason, t0, operator)

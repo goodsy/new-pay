@@ -34,7 +34,8 @@ data class RegistrationRequest(
     private companion object {
         val IDENTIFIER = Regex("^[!-~]{1,64}$")
         val CURRENCY = Regex("^[A-Z]{3}$")
-        val CARD_COMPANY = Regex("^[A-Z0-9-]{1,32}$")
+        // D-INST-CODE-001(INST-CODE-001 IC-7): 카드사(발급사) 코드는 기관 식별 코드 공통 형식(하이픈·밑줄 금지).
+        val CARD_COMPANY = Regex("^[A-Z0-9]{1,32}$")
         val STATE = Regex("^[A-Za-z0-9_-]{43}$")
         val ENVIRONMENTS = setOf("TEST", "LIVE")
     }

@@ -70,9 +70,9 @@ paycore:
       sim-auth-demo:
         version: sim-auth-demo-1
         card-companies:
-          - code: SIMISS-A
+          - code: SIMISSA
             name: 가상카드A
-          - code: SIMISS-B
+          - code: SIMISSB
             name: 가상카드B
         plan-policy:
           version: plan-demo-1
@@ -159,7 +159,7 @@ paycore:
       TEST:
         type: SIMULATOR
     routes:
-      SIM-VAN-01:
+      SIMVAN01:
         environment: TEST
         institution: SIMVAN
         protocol-version: sim-van-1
@@ -184,7 +184,7 @@ paycore:
           installment-months: [2, 3, 6]
           installment-minimum-amount: 50000
       # 프로파일 B(AUTH-001 §5.4 — 무효과 확정 Capability 없음: closeIfAbsent를 보내지 않고 NOT_FOUND는 예산 소진 시 대사 이관). 포트는 시험 stub(ProgrammableVanTestConfig).
-      SIM-VAN-B:
+      SIMVANB:
         environment: TEST
         institution: SIMVAN
         protocol-version: sim-van-1
@@ -208,9 +208,9 @@ paycore:
           installment-card-types: [CREDIT]
           installment-months: [2, 3, 6]
           installment-minimum-amount: 50000
-      # CANCEL-001 S5: sim-van-2 Route(취소 Capability 블록 — CN-28, Demo). 승인 Route(SIM-VAN-01·B)는 sim-van-1 그대로(기존 승인 시험 기대값 불변) — 취소 시험은
+      # CANCEL-001 S5: sim-van-2 Route(취소 Capability 블록 — CN-28, Demo). 승인 Route(SIMVAN01·B)는 sim-van-1 그대로(기존 승인 시험 기대값 불변) — 취소 시험은
       # 이 Route로 승인한 Payment를 쓴다(Admission 대역이 MID별로 routeRef를 고른다). 포트는 시험 stub(ProgrammableVanTestConfig).
-      SIM-VAN-C:
+      SIMVANC:
         environment: TEST
         institution: SIMVAN
         protocol-version: sim-van-2
@@ -242,7 +242,7 @@ paycore:
             closable-after: PT2M
             inquiry-retention: P7D
       # 부분취소 신용 일시불만·취소 무효과 확정 없음(프로파일 B 모양 — PARTIAL_CANCEL_NOT_SUPPORTED·조회 이관 시험).
-      SIM-VAN-CB:
+      SIMVANCB:
         environment: TEST
         institution: SIMVAN
         protocol-version: sim-van-2
@@ -273,7 +273,7 @@ paycore:
             confirms-no-effect: false
             closable-after: PT2M
             inquiry-retention: P7D
-      SIM-VAN-CLOSED:
+      SIMVANCLOSED:
         environment: TEST
         institution: SIMVAN
         protocol-version: sim-van-1

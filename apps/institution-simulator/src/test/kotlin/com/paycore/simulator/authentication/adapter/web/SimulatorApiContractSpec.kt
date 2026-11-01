@@ -121,6 +121,10 @@ class SimulatorApiContractSpec(
                 "unknown field" to requestWith("extra" to true),
                 "amount as string" to requestWith("amountMinor" to "10000"),
                 "missing field" to requestWith("cardCompany" to null),
+                // INST-CODE-001 IC-7(D-INST-CODE-001): 카드사(발급사) 코드는 기관 식별 코드 공통 형식 ^[A-Z0-9]{1,32}$.
+                "hyphenated card company" to requestWith("cardCompany" to "SIMISS-A"),
+                "underscore card company" to requestWith("cardCompany" to "SIM_ISS_A"),
+                "lower-case card company" to requestWith("cardCompany" to "simissa"),
             ).forEach { (name, body) -> withClue(name) { post("/sim/v1/authentications", body).statusCode() shouldBe 400 } }
             tree(post("/sim/v1/authentications", requestWith("environment" to "LIVE")).body()).get("code").stringValue() shouldBe "ENVIRONMENT_NOT_SUPPORTED"
         }

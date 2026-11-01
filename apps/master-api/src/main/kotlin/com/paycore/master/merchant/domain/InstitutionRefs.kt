@@ -1,14 +1,13 @@
 package com.paycore.master.merchant.domain
 
-/** PAYMENT 로컬 기관 프로파일 ID(SIMULATOR/REAL의 권위는 PAYMENT 프로파일 — 명세 §3.4). 1~64자 `[A-Za-z0-9._:-]`. */
+/**
+ * Route 코드 = PAYMENT 로컬 기관 프로파일 ID(SIMULATOR/REAL의 권위는 PAYMENT 프로파일 — 명세 §3.4). 기관 식별 코드 공통 형식 `^[A-Z0-9]{1,32}$`
+ * (D-INST-CODE-001 — 하이픈·밑줄 금지, INST-CODE-001).
+ */
 @JvmInline
 value class RouteRef(val value: String) {
     init {
-        require(value.length in 1..MAX && value.all(::isRefChar)) { "routeRef must be 1..$MAX characters of [A-Za-z0-9._:-]" }
-    }
-
-    private companion object {
-        const val MAX = 64
+        require(InstitutionCodeFormat.matches(value)) { "routeRef must be 1..32 characters of [A-Z0-9]" }
     }
 }
 

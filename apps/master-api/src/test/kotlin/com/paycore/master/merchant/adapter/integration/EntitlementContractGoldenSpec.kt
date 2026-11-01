@@ -112,7 +112,7 @@ class EntitlementContractGoldenSpec : FunSpec({
                 ),
                 cardRoutes = listOf(
                     CardRouteState(
-                        CardRouteActivationId(g("cardRouteId")), PaymentMethod.CARD, AcquirerCode("SIMCARD01"), RouteRef("SIM-VAN-01"),
+                        CardRouteActivationId(g("cardRouteId")), PaymentMethod.CARD, AcquirerCode("SIMCARD01"), RouteRef("SIMVAN01"),
                         InstitutionMerchantRef("SIMMERCH0001"), ActivationStatus.ACTIVE,
                     ),
                 ),

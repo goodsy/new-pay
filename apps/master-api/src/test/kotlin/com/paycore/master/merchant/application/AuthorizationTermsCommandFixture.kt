@@ -37,7 +37,7 @@ object AuthorizationTermsCommandFixture {
     val demoPerTransaction = LimitValue.Limited(1_000_000)
     val demoDaily = LimitValue.Limited(5_000_000)
     val acquirer = AcquirerCode("SIMCARD01")
-    val routeRef = RouteRef("SIM-VAN-01")
+    val routeRef = RouteRef("SIMVAN01")
     val institutionRef = InstitutionMerchantRef("SIMMERCH0001")
 
     /** 코드 충돌 없이 시험마다 새 정책 코드(같은 코드 번호 증가 시험은 직접 코드를 준다). */

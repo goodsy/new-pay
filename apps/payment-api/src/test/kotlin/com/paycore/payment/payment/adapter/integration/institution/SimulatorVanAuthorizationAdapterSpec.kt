@@ -54,7 +54,7 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
     val attemptId = AttemptId("demo-att-0001")
     val requestId = "ar_01JA0000000000000000000001"
 
-    fun call(routeRef: String = "SIM-VAN-01", money: Money = Money(10_000, CurrencyCode("KRW")), plan: PaymentPlan = PaymentPlan.LumpSum, connectDeadline: Instant = now.plusSeconds(30)) =
+    fun call(routeRef: String = "SIMVAN01", money: Money = Money(10_000, CurrencyCode("KRW")), plan: PaymentPlan = PaymentPlan.LumpSum, connectDeadline: Instant = now.plusSeconds(30)) =
         AuthorizationCall(
             attemptId = attemptId,
             providerRequest = ProviderRequestRef("SIMVAN", Environment.TEST, "SIMMERCH0001", "AUTHORIZE", requestId),
@@ -62,11 +62,11 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
             merchantRef = "mid-demo-0001",
             money = money,
             plan = plan,
-            evidence = AuthorizationEvidenceRef("sim-ev-A", "SIMAUTH-1", "SIMISS-A", "SIMACQ-A"),
+            evidence = AuthorizationEvidenceRef("sim-ev-A", "SIMAUTH1", "SIMISSA", "SIMACQA"),
             connectDeadline = connectDeadline,
         )
 
-    fun inquiryCall(closeIfAbsent: Boolean = false, routeRef: String = "SIM-VAN-01") = AuthorizationInquiryCall(
+    fun inquiryCall(closeIfAbsent: Boolean = false, routeRef: String = "SIMVAN01") = AuthorizationInquiryCall(
         attemptId = attemptId,
         providerRequest = ProviderRequestRef("SIMVAN", Environment.TEST, "SIMMERCH0001", "AUTHORIZE", requestId),
         routeRef = routeRef,
@@ -82,7 +82,7 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
         vararg extra: Pair<String, ConfiguredInstitutionRouteRegistry.Route>,
     ) =
         SimulatorVanAuthorizationAdapter(
-            VanRouteFixture.registry("SIM-VAN-01" to VanRouteFixture.route(port, confirmsNoEffect = confirmsNoEffect), *extra),
+            VanRouteFixture.registry("SIMVAN01" to VanRouteFixture.route(port, confirmsNoEffect = confirmsNoEffect), *extra),
             clock,
             connector,
             meters,
@@ -233,8 +233,8 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
         }
         Then("an unknown routeRef is fail-closed: NotSentConfirmed for authorization, Unavailable for inquiry, no connection") {
             withStub({ r -> Action.Respond(bytes(reply("authResponseApproved", r))) }) { stub ->
-                adapter(stub.port).authorize(call(routeRef = "SIM-VAN-99")) shouldBe AuthorizationCallResult.NotSentConfirmed
-                adapter(stub.port).inquire(inquiryCall(routeRef = "SIM-VAN-99")) shouldBe InquiryCallResult.Unavailable(InquiryUnavailableReason.UNKNOWN_ROUTE)
+                adapter(stub.port).authorize(call(routeRef = "SIMVAN99")) shouldBe AuthorizationCallResult.NotSentConfirmed
+                adapter(stub.port).inquire(inquiryCall(routeRef = "SIMVAN99")) shouldBe InquiryCallResult.Unavailable(InquiryUnavailableReason.UNKNOWN_ROUTE)
                 stub.connections.get() shouldBe 0
             }
         }
@@ -301,7 +301,7 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
             withStub({ Action.Close }) { stub -> adapter(stub.port, meters = meters).authorize(call()) }
             val closed = ServerSocket(0).let { val p = it.localPort; it.close(); p }
             adapter(closed, meters = meters).authorize(call())
-            adapter(closed, meters = meters).authorize(call(routeRef = "SIM-VAN-99"))
+            adapter(closed, meters = meters).authorize(call(routeRef = "SIMVAN99"))
             mapOf("APPROVED" to 1.0, "DECLINED" to 1.0, "PENDING" to 1.0, "UNKNOWN" to 1.0, "NOT_SENT" to 2.0).forEach { (outcome, n) ->
                 withClue(outcome) { dispatches(meters, outcome) shouldBe n }
             }
@@ -313,7 +313,7 @@ class SimulatorVanAuthorizationAdapterSpec : BehaviorSpec({
             listOf("inquiryResponseFound", "inquiryResponsePending", "inquiryResponseNotFound", "inquiryResponseNoEffectConfirmed", "inquiryResponseUnavailable").forEach { name ->
                 withStub({ r -> Action.Respond(bytes(reply(name, r))) }) { stub -> adapter(stub.port, meters = meters).inquire(inquiryCall(closeIfAbsent = true)) }
             }
-            adapter(1, meters = meters).inquire(inquiryCall(routeRef = "SIM-VAN-99"))
+            adapter(1, meters = meters).inquire(inquiryCall(routeRef = "SIMVAN99"))
             mapOf("FOUND" to 1.0, "PENDING" to 1.0, "NOT_FOUND" to 1.0, "NO_EFFECT_CONFIRMED" to 1.0, "UNAVAILABLE" to 2.0).forEach { (result, n) ->
                 withClue(result) { inquiries(meters, result) shouldBe n }
             }

@@ -55,7 +55,7 @@ class RequestedPaymentExpiryServiceSpec(
     Given("a REQUESTED payment with an open checkout and an IN_PROGRESS authentication, at its window end") {
         Then("one run expires it with its records closed and exactly one PaymentExpired carrying the run's causation") {
             val c = flow.opened()
-            start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISS-A", "LUMP_SUM", "req-start"))
+            start.start(StartCardAuthenticationCommand(c.handle, c.secret, "SIMISSA", "LUMP_SUM", "req-start"))
                 .shouldBeInstanceOf<StartCardAuthenticationResult.Redirect>()
             val issuedLater = flow.token(c.order, c.paymentId) // 교환 전 ISSUED 토큰 하나
             clock.set(WINDOW_END)

@@ -375,12 +375,12 @@ class ProgrammableVanTestConfig {
     @Bean(destroyMethod = "close")
     fun programmableVan(): ProgrammableVan = ProgrammableVan()
 
-    /** 시험 Route(CANCEL-001: `SIM-VAN-C`·`SIM-VAN-CB` sim-van-2 포함) `SIM-VAN-01`(프로파일 A)·`SIM-VAN-B`(프로파일 B — 무효과 확정 없음)가 이 stub의 포트를 가리키게 한다(운영 설정에는 포트 기본값 없음). */
+    /** 시험 Route(CANCEL-001: `SIMVANC`·`SIMVANCB` sim-van-2 포함) `SIMVAN01`(프로파일 A)·`SIMVANB`(프로파일 B — 무효과 확정 없음)가 이 stub의 포트를 가리키게 한다(운영 설정에는 포트 기본값 없음). */
     @Bean
     fun programmableVanRoute(van: ProgrammableVan): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->
-        registry.add("paycore.authorization.routes.SIM-VAN-01.port") { van.port }
-        registry.add("paycore.authorization.routes.SIM-VAN-B.port") { van.port }
-        registry.add("paycore.authorization.routes.SIM-VAN-C.port") { van.port }
-        registry.add("paycore.authorization.routes.SIM-VAN-CB.port") { van.port }
+        registry.add("paycore.authorization.routes.SIMVAN01.port") { van.port }
+        registry.add("paycore.authorization.routes.SIMVANB.port") { van.port }
+        registry.add("paycore.authorization.routes.SIMVANC.port") { van.port }
+        registry.add("paycore.authorization.routes.SIMVANCB.port") { van.port }
     }
 }

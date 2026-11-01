@@ -132,8 +132,8 @@ class CheckoutPersistenceSpec(
             val rrd = CheckoutPersistenceFixture.digest(SecretKind.RESULT_REFERENCE)
             val result = ProviderAuthenticationResult(
                 "sat_demo0001", ProviderOutcome.AUTHENTICATED, loaded.value.correlation.stateDigest,
-                ProviderBindingEcho(p.id, p.orderKey.environment, p.orderKey.merchantAccountId, loaded.value.binding.money, loaded.value.binding.plan, "SIMISS-A"),
-                AuthenticatedDetails("CHECK", "SIMISS-A", "SIMACQ-A", "SIMAUTH-1", "ev-demo-1", issuedAt.plusSeconds(25)), issuedAt.plusSeconds(900),
+                ProviderBindingEcho(p.id, p.orderKey.environment, p.orderKey.merchantAccountId, loaded.value.binding.money, loaded.value.binding.plan, "SIMISSA"),
+                AuthenticatedDetails("CHECK", "SIMISSA", "SIMACQA", "SIMAUTH1", "ev-demo-1", issuedAt.plusSeconds(25)), issuedAt.plusSeconds(900),
             )
             val aref = AuthenticationRef("aref_" + "Q".repeat(22))
             AuthenticationResultCheck.afterLookup(

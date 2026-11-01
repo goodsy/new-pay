@@ -79,7 +79,7 @@ class VanCancelServerSpec(
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
                         """{"paymentId":"pay_cxl_${state.take(8)}","merchantRef":"mid-demo-0001","environment":"TEST","amountMinor":$amountMinor,"currency":"KRW",""" +
-                            """"plan":{"kind":"LUMP_SUM"},"cardCompany":"SIMISS-A","state":"$state",""" +
+                            """"plan":{"kind":"LUMP_SUM"},"cardCompany":"SIMISSA","state":"$state",""" +
                             """"returnUrl":"https://checkout.example.test/checkout/s/Hh0123456789abcdefghij/authentication/return"}""",
                     ),
                 ).build(),

@@ -56,7 +56,7 @@ object ProviderResultFixture {
         authenticatedMatching(session).copy(stateDigest = SecretDigest.of(SecretKind.AUTHENTICATION_STATE, "demo-state-other"))
 
     fun authenticatedByAnotherIssuer(session: AuthenticationSession) =
-        authenticatedMatching(session).copy(authenticated = details(session, issuer = "SIMISS-B"))
+        authenticatedMatching(session).copy(authenticated = details(session, issuer = "SIMISSB"))
 
     fun authenticatedWithUnsupportedCardType(session: AuthenticationSession) = authenticatedMatching(session, cardType = "PREPAID")
 }

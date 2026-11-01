@@ -55,7 +55,7 @@ class CheckoutAuthenticationWebSpec(
         return Regex("name=\"_csrf\" value=\"([^\"]+)\"").find(page.body)!!.groupValues[1]
     }
 
-    fun startAuthentication(o: Opened, cardCompany: String = "SIMISS-A") =
+    fun startAuthentication(o: Opened, cardCompany: String = "SIMISSA") =
         web.post("/checkout/s/${o.handle}/authentication", mapOf("cardCompany" to cardCompany, "plan" to "LUMP_SUM", "_csrf" to csrf(o)), o.cookie)
 
     /** 등록된 세션의 기관 결과를 조회 대역에 두고 복귀 경로를 돌려준다. */
@@ -103,11 +103,11 @@ class CheckoutAuthenticationWebSpec(
 
         Then("a card company outside the allowlist re-renders the page with 422 and a fixed notice; an unknown form field is 400") {
             val o = opened()
-            val r = startAuthentication(o, cardCompany = "SIMISS-Z")
+            val r = startAuthentication(o, cardCompany = "SIMISSZ")
             r.status shouldBe 422
             r.body shouldContain "선택한 카드사 또는 할부를 사용할 수 없습니다."
             r.body shouldContain "name=\"_csrf\""
-            web.post("/checkout/s/${o.handle}/authentication", mapOf("cardCompany" to "SIMISS-A", "plan" to "LUMP_SUM", "extra" to "1", "_csrf" to csrf(o)), o.cookie).status shouldBe 400
+            web.post("/checkout/s/${o.handle}/authentication", mapOf("cardCompany" to "SIMISSA", "plan" to "LUMP_SUM", "extra" to "1", "_csrf" to csrf(o)), o.cookie).status shouldBe 400
         }
 
         Then("cancel redirects (303) to the fail URL with USER_CANCELLED and deletes the handle cookie") {

@@ -34,8 +34,8 @@ class VanAuthorizationSpec : BehaviorSpec({
             val base = request()
             listOf(
                 base.copy(amountMinor = 10_001), base.copy(currency = "USD"), base.copy(plan = VanPlan.installment(3)), base.copy(merchantRef = "mid-demo-0002"),
-                base.copy(institutionAccount = "SIMMERCH0002"), base.copy(routeRef = "SIM-VAN-02"), base.copy(requestId = VanFixture.requestId(seq = 2)),
-                base.copy(authentication = base.authentication.copy(evidenceRef = "sim-ev-B")), base.copy(authentication = base.authentication.copy(issuerCode = "SIMISS-B")),
+                base.copy(institutionAccount = "SIMMERCH0002"), base.copy(routeRef = "SIMVAN02"), base.copy(requestId = VanFixture.requestId(seq = 2)),
+                base.copy(authentication = base.authentication.copy(evidenceRef = "sim-ev-B")), base.copy(authentication = base.authentication.copy(issuerCode = "SIMISSB")),
             ).forEach { it.payloadHash() shouldNotBe base.payloadHash() }
             request().payloadHash() shouldBe base.payloadHash()
         }
@@ -102,7 +102,7 @@ class VanAuthorizationSpec : BehaviorSpec({
                 authorize(evidence = evidence(amountMinor = 9_999)),
                 authorize(evidence = evidence(plan = VanPlan.installment(3))),
                 authorize(request = request(merchantRef = "mid-demo-0002"), evidence = evidence(request = request())),
-                authorize(request = request(issuerCode = "SIMISS-B"), evidence = evidence(request = request())),
+                authorize(request = request(issuerCode = "SIMISSB"), evidence = evidence(request = request())),
                 authorize(evidenceUsedByAnotherRequest = true),
             ).forEach { declined(it) shouldBe VanDeclineCategory.AUTHENTICATION_INVALID }
         }

@@ -82,7 +82,7 @@ object CheckoutPersistenceFixture {
     fun attributes(checkoutSessionId: CheckoutSessionId) = AuthenticationSessionAttributes(checkoutSessionId, "sim-auth-demo", "plan-demo-1", "checkout-demo-1")
 
     fun binding(payment: Payment, plan: PaymentPlan = PaymentPlan.LumpSum) =
-        AuthenticationBinding(payment.id, payment.orderKey, PersistenceTestData.intent().money, plan, "SIMISS-A")
+        AuthenticationBinding(payment.id, payment.orderKey, PersistenceTestData.intent().money, plan, "SIMISSA")
 
     /** 공식 경로(AuthenticationSessionStart)로 만든 CREATED 세션. */
     fun created(payment: Payment, earlier: List<AuthenticationSession> = emptyList(), at: Instant = issuedAt.plusSeconds(20)): AuthenticationSession =

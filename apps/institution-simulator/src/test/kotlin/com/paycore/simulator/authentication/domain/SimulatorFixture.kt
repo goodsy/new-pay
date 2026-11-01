@@ -18,7 +18,7 @@ object SimulatorFixture {
         amountMinor = amountMinor,
         currency = "KRW",
         plan = plan,
-        cardCompany = "SIMISS-A",
+        cardCompany = "SIMISSA",
         state = state,
         returnUrl = "$RETURN_ORIGIN/checkout/s/$HANDLE/authentication/return",
     )
