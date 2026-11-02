@@ -1,29 +1,132 @@
-/* inline style 없이 파일로만 둔다(CSP style-src 'self'). */
+/*
+ * ADMIN-UI-001 shadcn/ui neutral 테마(Tailwind CSS v4). 빌드 때 정적 assets/*.css 한 파일로 나온다 — CSP style-src 'self'(inline style·<style> 없음).
+ * 외부 CDN·원격 글꼴 없음(시스템 글꼴). 다크 모드는 OS 설정(prefers-color-scheme)만 따른다 — 선택을 브라우저 저장소에 남기지 않는다.
+ */
+@import "tailwindcss";
+
+/*
+ * 브랜드 색 한 곳(ADMIN-UI-001): 이 두 값만 바꾸면 로고·주 버튼·선택 탭·focus ring·링크가 함께 바뀐다. 상태 Badge 색(성공·실패·대기)과 파괴 동작은 쓰지 않는다.
+ * rev 0.4(D-ADMIN-UI-003): 참고 시안 'pg workspace'(all.css)의 --blue #3182f6 계열.
+ */
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: #1a1a1a;
-  background: #fafafa;
+  --brand: #3182f6;
+  --brand-dark: #4c95f7;
+  --brand-foreground: #ffffff;
 }
 
-body {
-  margin: 0;
+:root {
+  /*
+   * rev 0.4 참고 시안 색: 쪽 바탕 #f7f9fc, 글자 #202938, 선 #edf0f4, 선택 메뉴 #edf4ff/#2476e8.
+   * 시안의 흐린 글자(#8b95a1·#869dbb·#a5afbb)는 흰 바탕에서 WCAG AA(4.5:1)에 못 미쳐 같은 색조로 진하게 했다.
+   */
+  --radius: 0.75rem;
+  --canvas: #f7f9fc;
+  --background: #ffffff;
+  --foreground: #202938;
+  --card: #ffffff;
+  --card-foreground: #202938;
+  --popover: #ffffff;
+  --popover-foreground: #202938;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --secondary: #f5f7fa;
+  --secondary-foreground: #263445;
+  --muted: #f5f7fa;
+  --muted-foreground: #6b7684;
+  --accent: #f5f7fa;
+  --accent-foreground: #263445;
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.527 0.154 150.069);
+  --warning: oklch(0.666 0.179 58.318);
+  --border: #edf0f4;
+  --input: #e3e8ef;
+  --ring: var(--brand);
+  --eyebrow: #5f7696;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #5f6b7c;
+  --sidebar-label: #6f7b8c;
+  --sidebar-accent: #edf4ff;
+  --sidebar-accent-foreground: #1f6fd9;
+  --sidebar-border: #edf0f4;
+  color-scheme: light;
 }
 
-.app-header {
-  padding: 12px 24px;
-  border-bottom: 1px solid #ddd;
-  background: #fff;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: oklch(0.145 0 0);
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: var(--brand-dark);
+    --primary-foreground: var(--brand-foreground);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --success: oklch(0.723 0.219 149.579);
+    --warning: oklch(0.769 0.188 70.08);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: var(--brand-dark);
+    --eyebrow: #93a9c7;
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.82 0 0);
+    --sidebar-label: oklch(0.68 0 0);
+    --sidebar-accent: color-mix(in oklab, var(--brand-dark) 20%, transparent);
+    --sidebar-accent-foreground: #9cc4fb;
+    --sidebar-border: oklch(1 0 0 / 10%);
+    color-scheme: dark;
+  }
 }
 
-.app-header h1 {
-  margin: 0;
-  font-size: 18px;
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-canvas: var(--canvas);
+  --color-eyebrow: var(--eyebrow);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-label: var(--sidebar-label);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
 }
 
-.app-main {
-  padding: 24px;
-}
-
-.error-screen button {
-  margin-right: 8px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-canvas text-foreground font-sans antialiased;
+  }
 }

@@ -3,14 +3,25 @@ import type { AccountView, AdminApi, ApprovalRequestInput, ReactivationCause } f
 import { OneTimeCode } from '../components/OneTimeCode'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { ChevronDownIcon, UserPlusIcon } from '../components/icons'
+import { EmptyRow, Field, RoleBadges, Spinner, StatusBadge } from '../components/DataBits'
+import { ErrorNotice, StatusNotice } from '../components/Notice'
+import { PageHeader } from '../components/PageHeader'
+import { Button, buttonVariants } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { NativeSelect } from '../components/ui/native-select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { labelOf } from '../lib/labels'
+import { cn } from '../lib/utils'
 
 /** 2인 승인 요청 선택지(ADMIN 소유 종류 — §4.7.1). ROLE_REACTIVATE는 원인이 필요해 별도 동작([ReactivationRequest] — 서버 원인 후보에서만 고른다, Q-S7-2). */
 const REQUESTS: { value: string; label: string; input: (target: string) => ApprovalRequestInput }[] = [
   ...['VIEWER', 'OPERATOR', 'APPROVER', 'SECURITY_ADMIN', 'UNMASK'].map((role) => ({
-    value: `ROLE_GRANT:${role}`, label: `역할 부여 ${role}`, input: (t: string) => ({ kind: 'ROLE_GRANT', targetActorId: t, grantedRole: role }),
+    value: `ROLE_GRANT:${role}`, label: `역할 부여 · ${labelOf(role)} (${role})`, input: (t: string) => ({ kind: 'ROLE_GRANT', targetActorId: t, grantedRole: role }),
   })),
   ...['ACCOUNT_UNLOCK', 'ACCOUNT_REACTIVATE', 'PASSWORD_RESET', 'TOTP_REENROLL'].map((kind) => ({
-    value: kind, label: kind, input: (t: string) => ({ kind, targetActorId: t }),
+    value: kind, label: `${labelOf(kind)} (${kind})`, input: (t: string) => ({ kind, targetActorId: t }),
   })),
 ]
 
@@ -49,31 +60,36 @@ function ReactivationRequest({ load, onRequest, onFail }: {
   }
   if (causes === null) {
     return (
-      <button type="button" onClick={() => void fetchCauses()}>
+      <Button type="button" variant="outline" size="sm" onClick={() => void fetchCauses()} className="self-start">
         재활성 원인 조회
-      </button>
+      </Button>
     )
   }
-  if (causes.length === 0) return <span>재활성할 원인이 없습니다</span>
+  if (causes.length === 0) return <span className="text-xs text-muted-foreground">재활성할 원인이 없습니다</span>
   return (
-    <>
-      <label>
-        재활성 원인
-        <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
-          {causes.map((c) => (
-            <option key={c.cause} value={c.cause}>
-              {`${c.cause} (${c.roles.join(', ')})`}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button type="button" disabled={!chosen} onClick={() => onRequest(chosen)}>
+    <div className="flex items-end gap-2">
+      <Field label="재활성 원인" className="flex-1 text-xs">
+        {(describedBy) => (
+          <NativeSelect value={chosen} onChange={(e) => setChosen(e.target.value)} aria-describedby={describedBy} className="h-8">
+            {causes.map((c) => (
+              <option key={c.cause} value={c.cause}>
+                {`${c.cause} (${c.roles.join(', ')})`}
+              </option>
+            ))}
+          </NativeSelect>
+        )}
+      </Field>
+      <Button type="button" size="sm" disabled={!chosen} onClick={() => onRequest(chosen)}>
         재활성 승인 요청
-      </button>
-    </>
+      </Button>
+    </div>
   )
 }
 
+/**
+ * 계정 행 작업(ADMIN-UI-001): 행마다 버튼을 늘어놓지 않고 native `<details>`(Radix 메뉴 없음 — CSP)로 접는다.
+ * 순서: 2인 승인 요청(주 동작) → 역할 재활성 → 위험 동작(정지·회수 — 빨강, 구분선 아래).
+ */
 function AccountRow({ account, canManage, showLogin, onAction, loadCauses, onFail }: {
   account: AccountView
   canManage: boolean
@@ -85,58 +101,85 @@ function AccountRow({ account, canManage, showLogin, onAction, loadCauses, onFai
   const [request, setRequest] = useState(REQUESTS[0]!.value)
   const roleLess = account.activeRoles.length === 0 && account.suspendedRoles.length === 0
   return (
-    <tr aria-label={`${account.loginName ?? account.displayName} ${account.status}`}>
-      {showLogin && <td>{account.loginName ?? ''}</td>}
-      <td>{account.displayName}</td>
-      <td>{account.status}</td>
-      <td>{account.activeRoles.join(', ')}</td>
-      <td>{account.suspendedRoles.join(', ')}</td>
+    <TableRow aria-label={`${account.loginName ?? account.displayName} ${account.status}`}>
+      {showLogin && <TableCell className="font-mono text-xs">{account.loginName ?? ''}</TableCell>}
+      <TableCell className="font-medium">{account.displayName}</TableCell>
+      <TableCell><StatusBadge code={account.status} /></TableCell>
+      <TableCell><RoleBadges roles={account.activeRoles} /></TableCell>
+      <TableCell><RoleBadges roles={account.suspendedRoles} suspended /></TableCell>
       {canManage && (
-        <td>
-          {account.status !== 'SUSPENDED' && (
-            <button type="button" onClick={() => onAction({ type: 'suspend' })}>
-              정지
-            </button>
-          )}
-          {account.status === 'PENDING_ENROLLMENT' && roleLess && (
-            <button type="button" onClick={() => onAction({ type: 'reissue' })}>
-              등록 코드 재발급
-            </button>
-          )}
-          {[...account.activeRoles, ...account.suspendedRoles].map((role) => (
-            <button key={role} type="button" onClick={() => onAction({ type: 'revoke', role })}>
-              {role} 회수
-            </button>
-          ))}
-          <label>
-            승인 요청 종류
-            <select value={request} onChange={(e) => setRequest(e.target.value)}>
-              {REQUESTS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              const choice = REQUESTS.find((r) => r.value === request)
-              if (choice) onAction({ type: 'request', request: choice.input(account.actorId) })
-            }}
-          >
-            승인 요청
-          </button>
-          {account.suspendedRoles.length > 0 && (
-            <ReactivationRequest
-              load={loadCauses}
-              onFail={onFail}
-              onRequest={(cause) => onAction({ type: 'request', request: { kind: 'ROLE_REACTIVATE', targetActorId: account.actorId, causeApprovalId: cause } })}
-            />
-          )}
-        </td>
+        <TableCell className="align-top">
+          <details className="group">
+            <summary className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
+              작업
+              <ChevronDownIcon aria-hidden="true" className="transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="mt-2 flex min-w-72 flex-col gap-3 rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-end gap-2">
+                <Field label="승인 요청 종류" className="flex-1 text-xs">
+                  {(describedBy) => (
+                    <NativeSelect value={request} onChange={(e) => setRequest(e.target.value)} aria-describedby={describedBy} className="h-8">
+                      {REQUESTS.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </Field>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const choice = REQUESTS.find((r) => r.value === request)
+                    if (choice) onAction({ type: 'request', request: choice.input(account.actorId) })
+                  }}
+                >
+                  승인 요청
+                </Button>
+              </div>
+              {account.suspendedRoles.length > 0 && (
+                <ReactivationRequest
+                  load={loadCauses}
+                  onFail={onFail}
+                  onRequest={(cause) => onAction({ type: 'request', request: { kind: 'ROLE_REACTIVATE', targetActorId: account.actorId, causeApprovalId: cause } })}
+                />
+              )}
+              {account.status === 'PENDING_ENROLLMENT' && roleLess && (
+                <Button type="button" variant="outline" size="sm" onClick={() => onAction({ type: 'reissue' })} className="self-start">
+                  등록 코드 재발급
+                </Button>
+              )}
+              {(account.status !== 'SUSPENDED' || account.activeRoles.length + account.suspendedRoles.length > 0) && (
+                <div className="flex flex-col gap-2 border-t pt-3">
+                  <span className="text-xs font-medium text-destructive">위험 작업 — 바로 적용됩니다</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {account.status !== 'SUSPENDED' && (
+                      <Button type="button" variant="destructive" size="sm" onClick={() => onAction({ type: 'suspend' })}>
+                        정지
+                      </Button>
+                    )}
+                    {[...account.activeRoles, ...account.suspendedRoles].map((role, index) => (
+                      <Button
+                        key={`${role}-${index}`}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        title={`${labelOf(role)} 역할 회수`}
+                        onClick={() => onAction({ type: 'revoke', role })}
+                        className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        {role} 회수
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </details>
+        </TableCell>
       )}
-    </tr>
+    </TableRow>
   )
 }
 
@@ -148,6 +191,7 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
   const [oneTimeCode, setOneTimeCode] = useState<string | null>(null)
   const [loginName, setLoginName] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const fail = useCallback((e: unknown) => {
     const code = codeOf(e)
@@ -199,47 +243,61 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
 
   const create = (event: FormEvent) => {
     event.preventDefault()
+    setCreating(true)
     void act(async () => {
-      const result = await api.createAccount(loginName, displayName)
-      setLoginName('')
-      setDisplayName('')
-      return result
+      try {
+        const result = await api.createAccount(loginName, displayName)
+        setLoginName('')
+        setDisplayName('')
+        return result
+      } finally {
+        setCreating(false)
+      }
     })
   }
 
   const showLogin = accounts.some((a) => a.loginName !== null)
 
   return (
-    <section>
-      <h2>계정</h2>
-      {error && <p role="alert">{ERROR_MESSAGES[error]}</p>}
-      {truncated && <p role="status">목록이 길어 앞의 500개만 보입니다.</p>}
+    <section className="flex flex-col gap-6">
+      <PageHeader title="계정" description="관리자 계정과 역할을 확인합니다. 역할 부여·잠금 해제 같은 변경은 다른 관리자의 승인을 거쳐 적용됩니다." />
+      {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
+      {truncated && <StatusNotice>목록이 길어 앞의 500개만 보입니다.</StatusNotice>}
       {oneTimeCode && <OneTimeCode code={oneTimeCode} onClose={() => setOneTimeCode(null)} />}
       {canManage && (
-        <form onSubmit={create}>
-          <label>
-            새 로그인 이름
-            <input value={loginName} onChange={(e) => setLoginName(e.target.value)} required />
-          </label>
-          <label>
-            표시명
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-          </label>
-          <button type="submit">계정 만들기</button>
-        </form>
+        <Card className="gap-4 py-5">
+          <CardHeader className="px-5">
+            <CardTitle className="text-sm">새 계정 만들기</CardTitle>
+            <CardDescription className="text-xs">만들면 등록 코드가 한 번만 표시됩니다. 역할은 만든 뒤 2인 승인으로 부여합니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="px-5">
+            <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <Field label="새 로그인 이름" hint="로그인할 때 쓰는 이름입니다." className="flex-1">
+                {(describedBy) => <Input value={loginName} onChange={(e) => setLoginName(e.target.value)} aria-describedby={describedBy} required />}
+              </Field>
+              <Field label="표시명" hint="화면과 감사 기록에 보이는 이름입니다." className="flex-1">
+                {(describedBy) => <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-describedby={describedBy} required />}
+              </Field>
+              <Button type="submit" aria-busy={creating} className="sm:mt-6">
+                {creating ? <Spinner active /> : <UserPlusIcon aria-hidden="true" />}
+                계정 만들기
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
-      <table>
-        <thead>
-          <tr>
-            {showLogin && <th>로그인 이름</th>}
-            <th>표시명</th>
-            <th>상태</th>
-            <th>활성 역할</th>
-            <th>정지 역할</th>
-            {canManage && <th>작업</th>}
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {showLogin && <TableHead>로그인 이름</TableHead>}
+            <TableHead>표시명</TableHead>
+            <TableHead>상태</TableHead>
+            <TableHead>활성 역할</TableHead>
+            <TableHead>정지 역할</TableHead>
+            {canManage && <TableHead>작업</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {accounts.map((account) => (
             <AccountRow
               key={account.actorId}
@@ -251,8 +309,9 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
               onFail={fail}
             />
           ))}
-        </tbody>
-      </table>
+          {accounts.length === 0 && <EmptyRow columns={(showLogin ? 1 : 0) + 4 + (canManage ? 1 : 0)} message="표시할 계정이 없습니다." />}
+        </TableBody>
+      </Table>
     </section>
   )
 }

@@ -58,3 +58,11 @@ subprojects {
         }
     }
 }
+
+// 루트 `check`는 included build(build-logic) task를 자동으로 고르지 않는다. build-logic 시험(FrontendLockfileCheckSpec — D-ADMIN-UI-002)이
+// GRADLE-CHECK에서 빠지지 않게 루트 check가 직접 의존한다(ADMIN-UI-001 리뷰 M-1, harness/tests/test_module_registry.py가 등록을 검사).
+tasks.register("check") {
+    group = "verification"
+    description = "Runs the included build-logic tests (subproject checks run through the task selector)."
+    dependsOn(gradle.includedBuild("build-logic").task(":test"))
+}

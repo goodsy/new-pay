@@ -2,6 +2,12 @@ import { useState, type FormEvent } from 'react'
 import type { AdminApi, EnrollStart } from '../api/adminApi'
 import type { ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { ErrorNotice, StatusNotice } from '../components/Notice'
+import { Logo } from '../components/Logo'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
 
 /** `otpauth://totp/…?secret=XXXX&…`에서 수동 입력용 시크릿(base32)만 읽는다. */
 export function setupKeyOf(otpauthUri: string): string | null {
@@ -95,50 +101,62 @@ export function EnrollmentScreen({ api, onDone }: Props) {
   }
 
   return (
-    <section className="enrollment">
-      <h2>계정 등록</h2>
-      {error && <p role="alert">{ERROR_MESSAGES[error]}</p>}
-      {step === 'code' && (
-        <form onSubmit={start}>
-          <label>
-            등록 코드
-            <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" required />
-          </label>
-          <button type="submit">시작</button>
-        </form>
-      )}
-      {step === 'password' && (
-        <form onSubmit={providePassword}>
-          <label>
-            새 비밀번호
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
-          </label>
-          <button type="submit">비밀번호 설정</button>
-        </form>
-      )}
-      {(step === 'totp' || step === 'complete') && (
-        <form onSubmit={complete}>
-          {step === 'totp' && (
-            <>
-              <p>인증 앱에 아래 설정 키를 직접 입력하세요(이 화면에서 한 번만 보입니다).</p>
-              <p className="code" translate="no">{setupKey}</p>
-              <label>
-                인증 코드(6자리)
-                <input inputMode="numeric" maxLength={6} value={totp} onChange={(e) => setTotp(e.target.value)} autoComplete="one-time-code" required />
-              </label>
-            </>
-          )}
-          <button type="submit">등록 완료</button>
-        </form>
-      )}
-      {step === 'done' && (
-        <>
-          <p role="status">등록이 끝났습니다. 새 자격으로 로그인해 주세요.</p>
-          <button type="button" onClick={onDone}>
-            로그인 화면으로
-          </button>
-        </>
-      )}
-    </section>
+    <Card as="section">
+      <CardHeader className="justify-items-center text-center">
+        <Logo className="mb-2 size-10 text-sm" />
+        <h2 className="text-xl font-bold tracking-tight">계정 등록</h2>
+        <CardDescription>
+          {step === 'code' && '보안 관리자에게 따로 받은 등록 코드를 입력하세요.'}
+          {step === 'password' && '새로 쓸 비밀번호를 정하세요.'}
+          {step === 'totp' && 'OTP 앱에 설정 키를 등록한 뒤, 앱의 6자리 코드를 입력하세요.'}
+          {step === 'complete' && '마지막 단계입니다. 등록 완료를 눌러 주세요.'}
+          {step === 'done' && '등록이 끝났습니다.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
+        {step === 'code' && (
+          <form onSubmit={start} className="flex flex-col gap-4">
+            <Label>
+              <span>등록 코드</span>
+              <Input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" required className="font-mono" />
+            </Label>
+            <Button type="submit" className="w-full">시작</Button>
+          </form>
+        )}
+        {step === 'password' && (
+          <form onSubmit={providePassword} className="flex flex-col gap-4">
+            <Label>
+              <span>새 비밀번호</span>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+            </Label>
+            <Button type="submit" className="w-full">비밀번호 설정</Button>
+          </form>
+        )}
+        {(step === 'totp' || step === 'complete') && (
+          <form onSubmit={complete} className="flex flex-col gap-4">
+            {step === 'totp' && (
+              <>
+                <p className="text-sm text-muted-foreground">인증 앱에 아래 설정 키를 직접 입력하세요(이 화면에서 한 번만 보입니다).</p>
+                <p className="rounded-md border bg-muted px-3 py-2 text-center font-mono text-sm tracking-wider break-all" translate="no">{setupKey}</p>
+                <Label>
+                  <span>인증 코드(6자리)</span>
+                  <Input inputMode="numeric" maxLength={6} value={totp} onChange={(e) => setTotp(e.target.value)} autoComplete="one-time-code" required className="font-mono tracking-widest" />
+                </Label>
+              </>
+            )}
+            <Button type="submit" className="w-full">등록 완료</Button>
+          </form>
+        )}
+        {step === 'done' && (
+          <>
+            <StatusNotice tone="success">등록이 끝났습니다. 새 자격으로 로그인해 주세요.</StatusNotice>
+            <Button type="button" onClick={onDone} className="w-full">
+              로그인 화면으로
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }

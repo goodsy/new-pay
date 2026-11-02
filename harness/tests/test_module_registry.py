@@ -62,6 +62,21 @@ APPS = [p for p in included_projects() if p.startswith(":apps:")]
 LIBS = [p for p in included_projects() if p.startswith(":libs:")]
 
 
+def included_builds_with_tests() -> list[str]:
+    """settings.gradle.kts의 includeBuild("x") 중 src/test가 있는 것(ADMIN-UI-001 리뷰 M-1 — build-logic 시험이 루트 check에서 빠지지 않게)."""
+    builds = []
+    for line in SETTINGS.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("//"):
+            continue
+        builds += [b for b in re.findall(r'includeBuild\("([^"]+)"\)', stripped) if (ROOT / b / "src/test").is_dir()]
+    return builds
+
+
+BUILDS = included_builds_with_tests()
+ROOT_BUILD = (ROOT / "build.gradle.kts").read_text(encoding="utf-8")
+
+
 class ModuleRegistry(unittest.TestCase):
 
     def test_settings_includes_modules(self):
@@ -74,19 +89,31 @@ class ModuleRegistry(unittest.TestCase):
         self.assertEqual(on_disk, sorted(APPS))
 
     def test_gradle_check_expects_test_reports_of_every_module(self):
-        reports = command("GRADLE-CHECK")["expectedReports"]
+        check = command("GRADLE-CHECK")
+        reports = check["expectedReports"]
         for project in APPS + LIBS:
             self.assertIn(f"{directory(project)}/build/test-results/test/TEST-*.xml", reports, project)
+        # 시험이 있는 included build(build-logic)도 같은 규칙: 보고서 기대·보관.
+        for build in BUILDS:
+            self.assertIn(f"{build}/build/test-results/test/TEST-*.xml", reports, build)
+            self.assertIn(f"{build}/build/test-results/test/TEST-*.xml", check["archiveGlobs"], build)
 
     def test_gradle_check_requires_test_task_line_of_every_module(self):
         rules = command("GRADLE-CHECK")["outputMustMatch"]
         for project in APPS + LIBS:
             self.assertIn(f"^> Task {project}:test$", rules, project)
+        # included build 시험은 루트 `check`가 직접 의존해야 실행된다(루트 check는 included build task를 자동으로 고르지 않는다).
+        self.assertTrue(BUILDS, "settings.gradle.kts includeBuild parsing found no build with src/test")
+        for build in BUILDS:
+            self.assertIn(f"^> Task :{build}:test$", rules, build)
+            self.assertIn(f'gradle.includedBuild("{build}").task(":test")', ROOT_BUILD, build)
 
     def test_test_summary_reads_every_module(self):
         argv = command("TEST-SUMMARY")["argv"]
         for project in APPS + LIBS:
             self.assertIn(f"{directory(project)}/build/test-results/test", argv, project)
+        for build in BUILDS:
+            self.assertIn(f"{build}/build/test-results/test", argv, build)
 
     def test_test_summary_minimum_matches_gradle_check_min_tests(self):
         argv = command("TEST-SUMMARY")["argv"]

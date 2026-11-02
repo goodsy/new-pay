@@ -14,4 +14,20 @@ describe('OneTimeCode (shown once — no-store, not kept after leaving)', () => 
     expect(onClose).toHaveBeenCalledOnce()
     expect(storageIsEmpty()).toBe(true)
   })
+
+  it('ADMIN-UI-001 review m-4: while open the rest of the page is inert (aria-modal is real) and focus starts on the close button; closing restores it', () => {
+    const { unmount } = render(
+      <>
+        <button type="button">뒤 화면 버튼</button>
+        <OneTimeCode code="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567" onClose={vi.fn()} />
+      </>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const behind = screen.getByText('뒤 화면 버튼')
+    expect(behind.closest('[inert]')).not.toBeNull()
+    expect(dialog.closest('[inert]')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '확인했습니다 — 닫기' }))
+    unmount()
+    expect(document.querySelectorAll('[inert]')).toHaveLength(0)
+  })
 })

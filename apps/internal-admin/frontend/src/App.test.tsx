@@ -1,8 +1,28 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
+import type { AdminApi } from './api/adminApi'
 import { apiError, fakeApi } from './test/fakeApi'
+
+const sideMenu = () => within(screen.getByRole('navigation', { name: '메뉴' }))
+const menuNames = () => sideMenu().getAllByRole('button').map((b) => b.textContent)
+const breadcrumb = () => screen.getByRole('navigation', { name: '경로' })
+/** 로그인 확인(`me`)이 끝나 메뉴가 그려질 때까지 기다린다. */
+const signedInMenu = async () => within(await screen.findByRole('navigation', { name: '메뉴' }))
+
+/** 역할 하나로 로그인한 App(목록 조회는 빈 결과). */
+function signedIn(roles: string[], overrides: Partial<AdminApi> = {}) {
+  const api = fakeApi({
+    me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '관리자', roles })),
+    approvals: vi.fn(async () => ({ approvals: [] })),
+    reconciliation: vi.fn(async () => ({ openCounts: {}, openTotal: 0, findings: [], truncated: false, lastRunAt: null, lastFullScanAt: null, lastResult: null })),
+    accounts: vi.fn(async () => ({ accounts: [] })),
+    audit: vi.fn(async () => ({ entries: [] })),
+    ...overrides,
+  })
+  return { api, view: render(<App api={api} />) }
+}
 
 describe('App (session, role menu, error mapping)', () => {
   it('starts at the login screen when there is no session', async () => {
@@ -12,44 +32,125 @@ describe('App (session, role menu, error mapping)', () => {
   })
 
   it('shows the display name and only the menus the server roles allow (display only — the server decides)', async () => {
-    const api = fakeApi({
-      me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '승인자', roles: ['APPROVER'] })),
-      approvals: vi.fn(async () => ({ approvals: [] })),
-    })
-    render(<App api={api} />)
-    expect(await screen.findByText('승인자')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '승인함' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '계정' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '내 요청' })).toBeNull()
+    signedIn(['APPROVER'])
+    expect(await screen.findByText('관리자')).toBeInTheDocument()
+    expect(menuNames()).toEqual(['운영 홈', '승인함', '결제 관리', '매입·대사', '계정·권한'])
+    expect(sideMenu().queryByRole('button', { name: '내 요청' })).toBeNull()
   })
 
-  it('S8: OPERATOR sees the correction cancel and "my requests" menus (no findings); SECURITY_ADMIN and APPROVER see the findings menu', async () => {
-    const operator = fakeApi({
-      me: vi.fn(async () => ({ actorId: 'adm_O', displayName: '운영자', roles: ['OPERATOR'] })),
-      approvals: vi.fn(async () => ({ approvals: [] })),
-    })
-    const { unmount } = render(<App api={operator} />)
-    expect(await screen.findByRole('button', { name: '결제 보정 취소' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '내 요청' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '대사 발견' })).toBeNull()
-    unmount()
-    for (const role of ['SECURITY_ADMIN', 'APPROVER']) {
-      const api = fakeApi({
-        me: vi.fn(async () => ({ actorId: 'adm_S', displayName: role, roles: [role] })),
-        approvals: vi.fn(async () => ({ approvals: [] })),
-        audit: vi.fn(async () => ({ entries: [] })),
-      })
-      const view = render(<App api={api} />)
-      expect(await screen.findByRole('button', { name: '대사 발견' })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '결제 보정 취소' })).not.toBeNull()
+  it('D-ADMIN-UI-003: the side menu is grouped under 내 업무 / PAYMENT OPERATIONS / WORKSPACE, per role', async () => {
+    const expected: Record<string, string[]> = {
+      SECURITY_ADMIN: ['운영 홈', '내 요청', '결제 관리', '매입·대사', '계정·권한'],
+      OPERATOR: ['운영 홈', '내 요청', '결제 관리', '계정·권한'],
+      VIEWER: ['운영 홈', '결제 관리', '계정·권한'],
+      UNMASK: ['운영 홈', '계정·권한'],
+    }
+    for (const [role, menus] of Object.entries(expected)) {
+      const { view } = signedIn([role])
+      await screen.findByRole('navigation', { name: '메뉴' })
+      expect(menuNames()).toEqual(menus)
+      const groups = sideMenu().getAllByRole('group').map((g) => g.getAttribute('aria-label'))
+      expect(groups).toEqual([
+        ...(menus.includes('내 요청') || menus.includes('승인함') ? ['내 업무'] : []),
+        ...(menus.includes('결제 관리') ? ['PAYMENT OPERATIONS'] : []),
+        'WORKSPACE',
+      ])
       view.unmount()
     }
+  })
+
+  it('S8: OPERATOR reaches the correction cancel tab and "my requests" (no findings); SECURITY_ADMIN and APPROVER reach the findings tab', async () => {
+    const operator = signedIn(['OPERATOR'])
+    await userEvent.click((await signedInMenu()).getByRole('button', { name: '결제 관리' }))
+    expect(screen.getByRole('tab', { name: '결제 보정 취소' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('결제 ID')).toBeInTheDocument()
+    expect(sideMenu().getByRole('button', { name: '내 요청' })).toBeInTheDocument()
+    expect(sideMenu().queryByRole('button', { name: '매입·대사' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: '대사 발견' })).toBeNull()
+    operator.view.unmount()
+    for (const role of ['SECURITY_ADMIN', 'APPROVER']) {
+      const { view, api } = signedIn([role])
+      await userEvent.click((await signedInMenu()).getByRole('button', { name: '매입·대사' }))
+      expect(screen.getByRole('tab', { name: '대사 발견' })).toHaveAttribute('aria-selected', 'true')
+      expect(await screen.findByRole('heading', { name: '열린 대사 발견 0건' })).toBeInTheDocument()
+      expect(api.reconciliation).toHaveBeenCalled()
+      expect(sideMenu().queryByRole('button', { name: '결제 관리' })).not.toBeNull()
+      view.unmount()
+    }
+  })
+
+  it('계정·권한: tabs switch inside the card, the breadcrumb follows the menu and the active menu is aria-current', async () => {
+    const { api } = signedIn(['SECURITY_ADMIN'])
+    await signedInMenu()
+    expect(within(breadcrumb()).getByText('운영 홈')).toBeInTheDocument()
+    await userEvent.click(sideMenu().getByRole('button', { name: '계정·권한' }))
+    expect(breadcrumb()).toHaveTextContent('워크스페이스/계정·권한')
+    expect(screen.getByRole('heading', { level: 1, name: '계정·권한' })).toBeInTheDocument()
+    expect(sideMenu().getByRole('button', { name: '계정·권한' })).toHaveAttribute('aria-current', 'page')
+    expect(sideMenu().getByRole('button', { name: '운영 홈' })).not.toHaveAttribute('aria-current')
+    const tabs = screen.getByRole('tablist', { name: '계정·권한' })
+    expect(within(tabs).getAllByRole('tab').map((t) => t.textContent)).toEqual(['계정 관리', '접속·감사 이력'])
+    expect(within(tabs).getByRole('tab', { name: '계정 관리' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tabpanel', { name: '계정 관리' })).toBeInTheDocument()
+    expect(api.accounts).toHaveBeenCalled()
+    expect(api.audit).not.toHaveBeenCalled()
+    await userEvent.click(within(tabs).getByRole('tab', { name: '접속·감사 이력' }))
+    expect(within(tabs).getByRole('tab', { name: '접속·감사 이력' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(tabs).getByRole('tab', { name: '계정 관리' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tabpanel', { name: '접속·감사 이력' })).toHaveTextContent('감사 기록')
+    expect(api.audit).toHaveBeenCalled()
+    // 화살표 키로도 탭을 옮긴다(선택된 탭만 Tab 순서에 있음).
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(within(tabs).getByRole('tab', { name: '계정 관리' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(tabs).getByRole('tab', { name: '계정 관리' })).toHaveFocus()
+    expect(within(tabs).getByRole('tab', { name: '접속·감사 이력' })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('UNMASK only: 계정·권한 shows the audit tab alone (no account list call)', async () => {
+    const { api } = signedIn(['UNMASK'])
+    await userEvent.click((await signedInMenu()).getByRole('button', { name: '계정·권한' }))
+    expect(within(screen.getByRole('tablist', { name: '계정·권한' })).getAllByRole('tab').map((t) => t.textContent)).toEqual(['접속·감사 이력'])
+    expect(api.accounts).not.toHaveBeenCalled()
+  })
+
+  it('운영 홈 is the first screen; a work item opens its screen and marks its menu', async () => {
+    signedIn(['APPROVER'], {
+      approvals: vi.fn(async () => ({
+        approvals: [{
+          approvalId: 'apr_1', kind: 'ROLE_GRANT', targetActorId: 'adm_T', targetSnapshot: '{}', grantedRole: 'VIEWER', causeApprovalId: null, requestedBy: 'adm_R',
+          requestedByDisplayName: '요청자', requestedAt: '2026-11-01T00:00:00Z', expiresAt: '2026-11-02T00:00:00Z', status: 'PENDING', decidedBy: null,
+          decidedByDisplayName: null, decidedAt: null, resultCode: null,
+        }],
+      })),
+    })
+    expect((await signedInMenu()).getByRole('button', { name: '운영 홈' })).toHaveAttribute('aria-current', 'page')
+    await userEvent.click(await screen.findByRole('button', { name: /승인을 기다리는 요청/ }))
+    expect(sideMenu().getByRole('button', { name: '승인함' })).toHaveAttribute('aria-current', 'page')
+    expect(breadcrumb()).toHaveTextContent('워크스페이스/승인함')
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(await screen.findByRole('row', { name: /ROLE_GRANT adm_T PENDING/ })).toBeInTheDocument()
+  })
+
+  it('the top search finds only menus the role can see and jumps there (no transaction search)', async () => {
+    signedIn(['OPERATOR'])
+    const search = await screen.findByRole('searchbox', { name: '메뉴 검색' })
+    await userEvent.type(search, '대사')
+    expect(screen.getByRole('status')).toHaveTextContent('찾는 메뉴가 없어요.')
+    await userEvent.clear(search)
+    await userEvent.type(search, '감사')
+    const results = screen.getByRole('list', { name: '메뉴 검색 결과' })
+    expect(within(results).getAllByRole('button').map((b) => b.textContent)).toEqual(['계정·권한 › 접속·감사 이력'])
+    await userEvent.type(search, '{Enter}')
+    expect(screen.getByRole('tab', { name: '접속·감사 이력' })).toHaveAttribute('aria-selected', 'true')
+    expect(search).toHaveValue('')
+    expect(screen.queryByRole('list', { name: '메뉴 검색 결과' })).toBeNull()
   })
 
   it('a SESSION_REPLACED answer during work returns to login with the explanation', async () => {
     const api = fakeApi({
       me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '승인자', roles: ['APPROVER'] })),
       approvals: vi.fn(async () => { throw apiError(401, 'SESSION_REPLACED') }),
+      reconciliation: vi.fn(async () => ({ openCounts: {}, openTotal: 0, findings: [], truncated: false, lastRunAt: null, lastFullScanAt: null, lastResult: null })),
     })
     render(<App api={api} />)
     expect(await screen.findByRole('status')).toHaveTextContent('다른 곳에서 로그인')

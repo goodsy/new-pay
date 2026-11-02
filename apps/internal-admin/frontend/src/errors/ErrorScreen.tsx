@@ -1,5 +1,7 @@
 import type { ConsoleErrorCode } from './errorCodes'
 import { ERROR_MESSAGES } from './messages'
+import { ErrorNotice } from '../components/Notice'
+import { Button } from '../components/ui/button'
 
 type Action = 'login' | 'retry' | 'none'
 
@@ -23,17 +25,17 @@ interface Props {
 export function ErrorScreen({ code, onLogin, onRetry }: Props) {
   const action = ACTIONS[code] ?? 'none'
   return (
-    <section className="error-screen">
-      <p role="alert">{ERROR_MESSAGES[code]}</p>
+    <section className="flex flex-col items-start gap-3">
+      <ErrorNotice>{ERROR_MESSAGES[code]}</ErrorNotice>
       {action === 'login' && (
-        <button type="button" onClick={onLogin}>
+        <Button type="button" onClick={onLogin}>
           로그인 화면으로
-        </button>
+        </Button>
       )}
       {action === 'retry' && (
-        <button type="button" onClick={onRetry}>
+        <Button type="button" variant="outline" onClick={onRetry}>
           다시 시도
-        </button>
+        </Button>
       )}
     </section>
   )

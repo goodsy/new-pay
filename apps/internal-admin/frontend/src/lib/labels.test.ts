@@ -1,0 +1,105 @@
+// @vitest-environment node
+// 순수 함수 시험 — jsdom 환경을 만들지 않는다(시험 파일마다 드는 환경 비용 절약).
+import { describe, expect, it } from 'vitest'
+import { AUDIT_ACTION_LABELS, CODE_LABELS, labelOf } from './labels'
+import { formatKst, formatMinor } from './format'
+import { statusTone } from './statusTone'
+
+/** 서버 enum·상수 전부(apps/internal-admin/src/main — 리뷰 m-3). 새 code가 생기면 여기와 labels.ts를 함께 고친다. */
+const SERVER_CODES = [
+  // AccountStatus
+  'PENDING_ENROLLMENT', 'ACTIVE', 'LOCKED', 'SUSPENDED',
+  // AdminRole
+  'VIEWER', 'OPERATOR', 'APPROVER', 'SECURITY_ADMIN', 'UNMASK',
+  // ApprovalStatus
+  'PENDING', 'EXECUTING', 'EXECUTION_UNKNOWN', 'EXECUTED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'INVALIDATED', 'OWNER_REJECTED',
+  // ApprovalKind
+  'ROLE_GRANT', 'ACCOUNT_UNLOCK', 'ACCOUNT_REACTIVATE', 'TOTP_REENROLL', 'PASSWORD_RESET', 'ROLE_REACTIVATE', 'OPERATOR_CORRECTION_CANCEL',
+  // OperatorCancelPurposeKind
+  'INCIDENT_OR_RECON_CORRECTION', 'MERCHANT_TERMINATED_OBLIGATION',
+  // ReconciliationFindingKind
+  'ORPHAN_DECISION', 'DECISION_FOR_UNAPPROVED', 'FINGERPRINT_MISMATCH', 'STATE_DIVERGENCE', 'UNRESOLVED_WITH_DECISION', 'MISSING_DECISION',
+  // AuditActorKind
+  'ADMIN', 'ANONYMOUS', 'SYSTEM_BOOTSTRAP', 'SYSTEM_RECOVERY', 'SYSTEM_JOB',
+  // 감사 resultCode
+  'SUCCESS', 'OK', 'DENIED', 'REFUSED', 'FORBIDDEN', 'FAILED', 'FAILURE', 'UNKNOWN', 'FLAGGED', 'HALTED', 'COUNTED', 'NOT_COUNTED',
+  // payment-api PaymentStatus(REQUESTED·AUTHORIZING·UNKNOWN·AUTHORIZED·FAILED·EXPIRED)
+  'REQUESTED', 'AUTHORIZING', 'AUTHORIZED',
+]
+
+const SERVER_AUDIT_ACTIONS = [
+  'LOGIN_PASSWORD', 'LOGIN_TOTP', 'LOGIN_SUCCEEDED', 'LOGOUT', 'AUTHENTICATION_FAILED', 'ACCOUNT_LOCKED', 'ACCOUNT_CREATED', 'ACCOUNT_SUSPENDED',
+  'ROLE_REVOKED', 'ENROLLMENT_CODE_ISSUED', 'ENROLLMENT_COMPLETED', 'BOOTSTRAP', 'RECOVERY', 'RECOVERY_EPISODE_CLOSED', 'AUDIT_VIEWED', 'IP_DENIED',
+  'UNMASK_REQUESTED', 'APPROVAL_REQUESTED', 'APPROVAL_EXECUTING', 'APPROVAL_EXECUTED', 'APPROVAL_EXECUTION_UNKNOWN', 'APPROVAL_REJECTED',
+  'APPROVAL_WITHDRAWN', 'APPROVAL_EXPIRED', 'APPROVAL_INVALIDATED', 'APPROVAL_DENIED', 'APPROVAL_OWNER_REJECTED', 'APPROVAL_INTEGRITY_VIOLATION',
+  'APPROVAL_INTEGRITY_MISMATCH', 'APPROVAL_RESEND_HALTED', 'APPROVAL_JUSTIFICATION_VIEWED', 'OPS_RECON_FINDING',
+]
+
+describe('ADMIN-UI-001 Korean labels (display only)', () => {
+  it('names statuses, roles and kinds in Korean', () => {
+    expect(labelOf('ACTIVE')).toBe('활성')
+    expect(labelOf('SUSPENDED')).toBe('정지')
+    expect(labelOf('PENDING')).toBe('대기')
+    expect(labelOf('EXECUTED')).toBe('실행됨')
+    expect(labelOf('EXECUTION_UNKNOWN')).toBe('결과 확인 중')
+    expect(labelOf('REJECTED')).toBe('거절')
+    expect(labelOf('SECURITY_ADMIN')).toBe('보안 관리자')
+    expect(labelOf('APPROVER')).toBe('승인자')
+    expect(labelOf('OPERATOR')).toBe('운영자')
+    expect(labelOf('VIEWER')).toBe('조회자')
+    expect(labelOf('ROLE_GRANT')).toBe('역할 부여')
+    expect(labelOf('OPERATOR_CORRECTION_CANCEL')).toBe('운영자 보정 취소')
+    expect(labelOf('AUTHORIZED')).toBe('승인 완료')
+  })
+
+  it('covers every server enum and constant the console shows, and nothing else (no dead labels)', () => {
+    expect(SERVER_CODES.filter((code) => !(code in CODE_LABELS))).toEqual([])
+    const known = new Set([...SERVER_CODES, ...SERVER_AUDIT_ACTIONS])
+    expect(Object.keys(CODE_LABELS).filter((code) => !known.has(code))).toEqual([])
+  })
+
+  it('names every server audit action in Korean', () => {
+    expect(SERVER_AUDIT_ACTIONS.filter((code) => !(code in AUDIT_ACTION_LABELS))).toEqual([])
+    expect(Object.keys(AUDIT_ACTION_LABELS).filter((code) => !SERVER_AUDIT_ACTIONS.includes(code))).toEqual([])
+    expect(labelOf('LOGIN_SUCCEEDED')).toBe('로그인 성공')
+    expect(labelOf('AUDIT_VIEWED')).toBe('감사 기록 조회')
+  })
+
+  it('shows an unknown code as is (never hides it)', () => {
+    expect(labelOf('SOMETHING_NEW')).toBe('SOMETHING_NEW')
+    expect(labelOf('constructor')).toBe('constructor')
+  })
+
+  it('status tones are semantic: success green, waiting amber, failure red, ended gray', () => {
+    expect(statusTone('EXECUTED')).toBe('success')
+    expect(statusTone('PENDING')).toBe('warning')
+    expect(statusTone('REJECTED')).toBe('destructive')
+    expect(statusTone('EXPIRED')).toBe('outline')
+  })
+
+  it('review m-3: investigation results are not shown as plain success or failure', () => {
+    expect([labelOf('UNKNOWN'), statusTone('UNKNOWN')]).toEqual(['결과 확인 중', 'warning'])
+    expect([labelOf('FLAGGED'), statusTone('FLAGGED')]).toEqual(['무결성 경보(조사 필요)', 'destructive'])
+    expect([labelOf('HALTED'), statusTone('HALTED')]).toEqual(['재전송 중단(조사 필요)', 'warning'])
+    expect([labelOf('REFUSED'), statusTone('REFUSED')]).toEqual(['거부', 'destructive'])
+  })
+})
+
+describe('ADMIN-UI-001 display formats', () => {
+  it('shows ISO instants in KST as YYYY-MM-DD HH:mm:ss and leaves unparsable text as is', () => {
+    expect(formatKst('2026-10-28T00:00:00Z')).toBe('2026-10-28 09:00:00')
+    expect(formatKst('2026-12-31T15:30:05Z')).toBe('2027-01-01 00:30:05')
+    expect(formatKst('not-a-date')).toBe('not-a-date')
+  })
+
+  it('formats minor-unit amounts with thousands separators (KRW in 원)', () => {
+    expect(formatMinor(7000, 'KRW')).toBe('7,000원')
+    expect(formatMinor(1234567, 'KRW')).toBe('1,234,567원')
+    expect(formatMinor(1050, 'USD')).toBe('1,050 USD(최소 단위)')
+  })
+
+  it('review m-2: an unknown currency is never shown as 원', () => {
+    expect(formatMinor(7000, null)).toBe('7,000(통화 미상)')
+    expect(formatMinor(7000, undefined)).toBe('7,000(통화 미상)')
+  })
+})

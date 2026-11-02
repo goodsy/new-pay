@@ -16,7 +16,8 @@ import org.gradle.api.tasks.TaskAction
  * 프론트 공급망 입력 검사(ADMIN-BOOT-001 §4.11.2, 네트워크 없음).
  *
  * - `package-lock.json`: lockfileVersion 3, 설치 entry마다 `resolved`가 공식 registry(`https://registry.npmjs.org/`)이고
- *   `integrity`가 sha512, 루트 entry의 의존 선언이 `package.json`과 같다.
+ *   `integrity`가 sha512, 루트 entry의 의존 선언이 `package.json`과 같다. 예외는 `inBundle: true` 항목 하나뿐 — 부모 항목이 그 이름을 bundleDependencies로
+ *   선언하고 registry `resolved` + sha512 `integrity`를 가질 때만(D-ADMIN-UI-002, [bundledEntryViolations]).
  * - `package.json`: dependencies·devDependencies·overrides가 정확한 버전(범위 금지), `engines.node` = catalog Node 버전.
  * - `overrides`는 보안 patch 예외만 허용한다 — `lockfile-policy.json`의 `securityOverrides`에 같은 버전·근거가 있어야 한다.
  * - override 대상 패키지는 lockfile 안에서 그 버전으로만 존재한다.
@@ -111,6 +112,14 @@ abstract class FrontendLockfileCheckTask : DefaultTask() {
                     return@forEach
                 }
                 installed++
+                if (entry["inBundle"] == true) {
+                    // 리뷰 n-2: npm은 묶인 항목에 자기 resolved·integrity를 쓰지 않는다 — 있으면 손댄 lockfile로 보고 거부(fail closed).
+                    if (entry.containsKey("resolved") || entry.containsKey("integrity")) {
+                        problems += "$path: inBundle entry must not carry its own resolved or integrity (D-ADMIN-UI-002)"
+                    }
+                    problems += bundledEntryViolations(path, packages)
+                    return@forEach
+                }
                 val resolved = entry["resolved"] as? String
                 if (resolved == null || !resolved.startsWith(REGISTRY)) problems += "$path: resolved must start with $REGISTRY (was $resolved)"
                 val integrity = entry["integrity"] as? String
@@ -142,6 +151,32 @@ abstract class FrontendLockfileCheckTask : DefaultTask() {
                 problems += "lockfile-policy.json before must be a UTC timestamp (was $before)"
             }
             problems += npmrcViolations(npmrcLines)
+            return problems
+        }
+
+        /**
+         * D-ADMIN-UI-002(Q-ADMIN-UI-1 판정 A): `inBundle: true` 항목(부모 tarball 안에 묶여 오는 bundleDependencies)은 자기 `resolved`·`integrity`가 없다.
+         * 가장 가까운 부모 패키지 항목(경로의 마지막 `/node_modules/` 앞)이 (a) 그 이름을 `bundleDependencies`(또는 `bundledDependencies`)에 선언하고
+         * (b) registry `resolved`와 sha512 `integrity`를 가질 때만 허용한다 — 묶인 파일은 부모 tarball 해시로 보호된다. 그 밖(부모 없음·미선언·부모 해시 없음·
+         * registry 밖·부모도 묶인 항목)은 위반이다.
+         */
+        private fun bundledEntryViolations(path: String, packages: Map<String, Any?>): List<String> {
+            val marker = "/node_modules/"
+            val cut = path.lastIndexOf(marker)
+            if (cut < 0) return listOf("$path: inBundle entry needs a parent package entry that bundles it (D-ADMIN-UI-002)")
+            val parentPath = path.substring(0, cut)
+            val name = path.substring(cut + marker.length)
+            val parent = packages[parentPath] as? Map<*, *>
+                ?: return listOf("$path: inBundle entry needs a parent package entry $parentPath that bundles it (D-ADMIN-UI-002)")
+            val problems = mutableListOf<String>()
+            // 이름 목록만 선언으로 본다 — `true`(전부 묶음) 같은 boolean은 어떤 이름도 선언하지 않은 것으로 처리(리뷰 n-2).
+            val declared = ((parent["bundleDependencies"] ?: parent["bundledDependencies"]) as? List<*>).orEmpty()
+            if (name !in declared) problems += "$path: parent $parentPath does not declare $name in bundleDependencies (D-ADMIN-UI-002)"
+            val parentResolved = parent["resolved"] as? String
+            val parentIntegrity = parent["integrity"] as? String
+            if (parentResolved == null || !parentResolved.startsWith(REGISTRY) || parentIntegrity == null || !parentIntegrity.startsWith("sha512-")) {
+                problems += "$path: parent $parentPath must have a registry resolved URL and a sha512 integrity (D-ADMIN-UI-002)"
+            }
             return problems
         }
 

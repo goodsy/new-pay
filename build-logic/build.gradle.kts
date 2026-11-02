@@ -14,4 +14,11 @@ dependencies {
     implementation(pluginMarker(libs.plugins.spring.boot))
     // paycore.frontend(ADMIN-BOOT-001): 고정 Node 배포판 내려받기·압축 해제만 이 plugin에 맡긴다(npm 실행은 격리 환경의 Exec task).
     implementation(pluginMarker(libs.plugins.node.gradle))
+    // 공급망 검사 규칙 시험(D-ADMIN-UI-002 — FrontendLockfileCheckTask.violations는 순수 함수라 Gradle TestKit 없이 시험한다).
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
