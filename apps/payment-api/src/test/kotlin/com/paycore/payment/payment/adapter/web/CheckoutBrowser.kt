@@ -39,11 +39,11 @@ class CheckoutBrowser(
         return Opened(paymentId, r.header("Location")!!.removePrefix("/checkout/s/"), cookie, cred, orderId)
     }
 
-    /** 화면의 CSRF 숨김 필드 값(마스킹된 값 — 그대로 비밀로 취급). [cookie]는 보낼 Cookie 헤더(여러 결제창 쿠키를 함께 보낼 수 있다). */
+    /** 화면의 CSRF 숨김 필드 값(shell 데이터의 마스킹된 값 — 그대로 비밀로 취급, CHECKOUT-REACT-001). [cookie]는 보낼 Cookie 헤더(여러 결제창 쿠키를 함께 보낼 수 있다). */
     fun csrf(o: Opened, cookie: String = o.cookie): String {
         val page = web.get("/checkout/s/${o.handle}", cookie)
         check(page.status == 200) { "page failed: ${page.status}" }
-        return Regex("name=\"_csrf\" value=\"([^\"]+)\"").find(page.body)!!.groupValues[1].also { secrets += it }
+        return CheckoutShellPage.csrf(page.body).also { secrets += it }
     }
 
     fun start(o: Opened, cardCompany: String = "SIMISSA", cookie: String = o.cookie) =

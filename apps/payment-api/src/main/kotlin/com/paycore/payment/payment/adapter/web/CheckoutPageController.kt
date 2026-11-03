@@ -21,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -32,6 +33,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * 결제창 Controller(checkout 포트, AUTHN-001 §6.1~§6.3, D-AUTHN-006 — provided Use Case만). 화면 모델은 application DTO만(Entity 없음, OSIV off).
+ * 화면은 React shell([CheckoutShell], CHECKOUT-REACT-001 — D-FE-001): 판정·상태 코드·헤더·redirect는 그대로이고 HTML만 shell + 화면 데이터로 바뀌었다.
  * - `GET /checkout?token=…`: 쿼리는 `token` 하나뿐. 교환 성공 → 303 `/checkout/s/{handle}`(상대 — 요청 Host로 만들지 않는다 m-9, handle은 경로 encode — m-3) + handle 쿠키.
  * - `GET /checkout/s/{handle}`: 쿼리 없음, handle 쿠키로 화면.
  * - `POST /checkout/s/{handle}/authentication`(CSRF — 보안 체인): 폼 닫힌 집합 `cardCompany`·`plan`·`_csrf`. 303 Simulator 고객 URL.
@@ -49,6 +51,7 @@ class CheckoutPageController(
     private val cancel: CancelCheckoutUseCase,
     private val settings: PaymentApiSettings,
     private val registry: MeterRegistry,
+    private val shell: CheckoutShell,
 ) {
 
     @GetMapping("/checkout")
@@ -165,14 +168,12 @@ class CheckoutPageController(
         val secret = CheckoutCookies.secretOf(request, handle)
         return when (val result = pages.page(CheckoutPageRequest(handle, secret, ApiResponses.requestId(request)))) {
             is CheckoutPageResult.Page -> {
+                // CSRF 값은 보안 체인(CsrfFilter + CheckoutCsrfTokenRepository)이 이 요청에 둔 마스킹 값이다. 없으면 화면을 만들지 않는다(fail closed).
+                val csrf = request.getAttribute(CsrfToken::class.java.name) as? CsrfToken
+                    ?: return error(HttpStatus.SERVICE_UNAVAILABLE, CheckoutPages.TEMPORARY_ERROR, PAGES_METRIC, "unavailable")
                 record(PAGES_METRIC, "shown")
-                response.setHeader(CheckoutResponseHeadersFilter.CSP, CheckoutResponseHeadersFilter.contentSecurityPolicy(result.view.formActionOrigins))
-                ModelAndView(PAGE_VIEW, status).apply {
-                    addObject("view", result.view)
-                    addObject("notice", notice)
-                    addObject("authenticationAction", handlePath(handle) + "/authentication")
-                    addObject("cancelAction", handlePath(handle) + "/cancel")
-                }
+                // shell CSP(script-src 'self' + 그 세션의 form-action origin)는 View가 쓴다.
+                ModelAndView(shell.page(result.view, notice, handlePath(handle) + "/authentication", handlePath(handle) + "/cancel", csrf)).also { it.status = status }
             }
             CheckoutPageResult.BadHandle -> error(HttpStatus.BAD_REQUEST, CheckoutPages.SESSION_EXPIRED, PAGES_METRIC, "bad_request")
             CheckoutPageResult.SessionExpired -> expired(handle, response, PAGES_METRIC)
@@ -199,11 +200,7 @@ class CheckoutPageController(
 
     private fun error(status: HttpStatus, message: String, metric: String, label: String, failRedirect: String? = null, retryUrl: String? = null): ModelAndView {
         record(metric, label)
-        return ModelAndView(ERROR_VIEW, status).apply {
-            addObject("message", message)
-            addObject("failRedirect", failRedirect)
-            addObject("retryUrl", retryUrl)
-        }
+        return ModelAndView(shell.error(message, retryUrl, failRedirect, pages.defaultFormActionOrigins())).also { it.status = status }
     }
 
     /** 폼(POST 본문) 이름은 닫힌 집합 — 모르는 이름·같은 이름 반복은 400(§6.1). 쿼리 문자열은 받지 않는다. */
@@ -216,8 +213,6 @@ class CheckoutPageController(
 
     private companion object {
         const val TOKEN_PARAM = "token"
-        const val PAGE_VIEW = "checkout/page"
-        const val ERROR_VIEW = "checkout/error"
         const val EXCHANGES_METRIC = "paycore.checkout.exchanges"
         const val PAGES_METRIC = "paycore.checkout.pages"
         const val STARTS_METRIC = "paycore.authentication.starts"

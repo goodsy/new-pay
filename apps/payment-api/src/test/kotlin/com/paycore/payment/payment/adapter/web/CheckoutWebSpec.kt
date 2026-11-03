@@ -20,6 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager
  * - connector 격리(AN-15): `/checkout` 아래는 checkout 포트에서만, checkout 포트는 `/checkout` 아래만. 쿠키로 `/v1` 아래 인증 불가.
  * - 교환: 303 `/checkout/s/{handle}` + `Set-Cookie: __Host-pc_checkout_<handle>`(Secure·HttpOnly·SameSite=Lax·Path=/·Max-Age). 실패는 고정 문구(사유 구분 없음).
  * - 화면: handle 쿠키 필수(없음·틀림·다른 handle → 401), 가맹점 입력은 escape(XSS), 응답 헤더(CSP·X-Frame-Options·nosniff·no-referrer·no-store·Permissions-Policy).
+ *   화면은 React shell(CHECKOUT-REACT-001): shell HTML 응답만 `script-src 'self'`(같은 출처 번들), 그 밖 응답은 `script-src 'none'` 그대로.
  * - CSRF: POST는 쿠키 비밀에서 파생한 토큰 필수(없음·틀림 → 403, AN-17). origin은 설정에서만(조작한 Host가 응답에 나타나지 않음).
  */
 @PaymentApiTest
@@ -42,6 +43,14 @@ class CheckoutWebSpec(
     val s = ApiSpecSupport(db, payments, controls, transactionManager)
     val csp = "default-src 'none'; style-src 'self'; img-src 'self'; script-src 'none'; base-uri 'none'; frame-ancestors 'none'; " +
         "form-action 'self' https://sim.example.test https://shop.example.test"
+    // 결제창 화면(shell): 같은 지시어에 script-src만 'self'(CHECKOUT-REACT-001 §4).
+    val pageCsp = csp.replace("script-src 'none'", "script-src 'self'")
+    // 오류 shell·CSRF 거절 shell: form-action은 설정 Simulator origin만(기존 기본값), script-src 'self'.
+    val errorShellCsp = "default-src 'none'; style-src 'self'; img-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'; " +
+        "form-action 'self' https://sim.example.test"
+    // shell이 아닌 응답(303·정적 자원): 기존 기본 CSP 그대로(script-src 'none').
+    val defaultCsp = errorShellCsp.replace("script-src 'self'", "script-src 'none'")
+    val bundleScript = "<script type=\"module\" crossorigin src=\"/checkout/assets/checkout.js\"></script>"
 
     fun newToken(cred: TestCredentials.Issued, orderName: String = "Demo order", amount: Long = 10_000, currency: String = "KRW"): Pair<String, String> {
         val created = api.post("/v1/payments", CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId(), orderName = orderName, amount = amount, currency = currency), cred.key, s.newKey())
@@ -82,7 +91,7 @@ class CheckoutWebSpec(
             cookie shouldMatch Regex("^__Host-pc_checkout_${Regex.escape(handle)}=[A-Za-z0-9_-]{43}; .*")
             listOf("Max-Age=1200", "Path=/", "Secure", "HttpOnly", "SameSite=Lax").forEach { attr -> withClue(attr) { cookie shouldContain attr } }
             cookie shouldNotContain "Domain="
-            securityHeaders(r, expectedCsp = null)
+            securityHeaders(r, expectedCsp = defaultCsp)
             r.body shouldNotContain token
         }
 
@@ -94,14 +103,30 @@ class CheckoutWebSpec(
             page.status shouldBe 200
             page.header("Content-Type")!! shouldStartWith "text/html"
             page.body shouldContain "&lt;script&gt;alert(1)&lt;/script&gt;주문"
-            page.body shouldNotContain "<script"
+            // 가맹점 입력은 markup으로 나타나지 않고, 응답의 script는 같은 출처 번들 하나뿐이다(inline script 없음 — CHECKOUT-REACT-001 §4).
+            page.body shouldNotContain "<script>"
+            CheckoutShellPage.scripts(page.body) shouldBe listOf(bundleScript)
             page.body shouldContain "shop.example.test"
             page.body shouldContain "가상카드A"
             page.body shouldContain "10,000"
-            page.body shouldContain "name=\"_csrf\""
-            securityHeaders(page)
+            CheckoutShellPage.data(page.body).let { d ->
+                d.get("orderName").stringValue() shouldBe "<script>alert(1)</script>주문"
+                d.get("siteHost").stringValue() shouldBe "shop.example.test"
+                d.get("amountDisplay").stringValue() shouldBe "10,000"
+                d.get("authenticationAction").stringValue() shouldBe "/checkout/s/$handle/authentication"
+                d.get("cancelAction").stringValue() shouldBe "/checkout/s/$handle/cancel"
+                d.has("handle") shouldBe false
+            }
+            // XorCsrfTokenRequestAttributeHandler 마스킹 값(base64url, padding 포함 가능 — Thymeleaf 숨김 필드와 같은 형식).
+            CheckoutShellPage.csrf(page.body) shouldMatch Regex("^[A-Za-z0-9_-]{20,}={0,2}$")
+            securityHeaders(page, expectedCsp = pageCsp)
 
-            web.get("/checkout/s/$handle").let { it.status shouldBe 401; it.body shouldContain "결제창 세션이 만료되었습니다." }
+            web.get("/checkout/s/$handle").let {
+                it.status shouldBe 401
+                it.body shouldContain "결제창 세션이 만료되었습니다."
+                securityHeaders(it, expectedCsp = errorShellCsp)
+                CheckoutShellPage.scripts(it.body) shouldBe listOf(bundleScript)
+            }
             web.get("/checkout/s/$handle", cookie.substringBefore('=') + "=" + "A".repeat(43)).status shouldBe 401
             val (otherHandle, otherCookie) = opened(newToken(cred).second)
             web.get("/checkout/s/$handle", otherCookie).status shouldBe 401
@@ -121,6 +146,8 @@ class CheckoutWebSpec(
                     r.body shouldContain "결제창을 열 수 없습니다. 가맹점에서 다시 시도해 주세요."
                     listOf("Exception", "SQL", "at com.", token).forEach { leak -> r.body shouldNotContain leak }
                     r.header("Set-Cookie") shouldBe null
+                    securityHeaders(r, expectedCsp = errorShellCsp)
+                    CheckoutShellPage.data(r.body).let { d -> d.get("retryUrl").isNull shouldBe true; d.get("failRedirect").isNull shouldBe true }
                 }
             }
         }
@@ -129,7 +156,12 @@ class CheckoutWebSpec(
             val cred = TestCredentials.issue(db, environment = Environment.TEST)
             val (_, token) = newToken(cred)
             val (handle, cookie) = opened(token)
-            web.post("/checkout/s/$handle/cancel", emptyMap(), cookie).let { it.status shouldBe 403; it.body shouldContain "요청을 처리할 수 없습니다." }
+            web.post("/checkout/s/$handle/cancel", emptyMap(), cookie).let {
+                it.status shouldBe 403
+                it.body shouldContain "요청을 처리할 수 없습니다."
+                securityHeaders(it, expectedCsp = errorShellCsp)
+                CheckoutShellPage.data(it.body).get("message").stringValue() shouldBe "요청을 처리할 수 없습니다."
+            }
             web.post("/checkout/s/$handle/cancel", mapOf("_csrf" to "A".repeat(43)), cookie).status shouldBe 403
             web.post("/checkout/s/$handle/cancel", mapOf("_csrf" to "A".repeat(43))).status shouldBe 403
             db.count("SELECT COUNT(*) FROM checkout_session WHERE handle = ? AND status = 'ACTIVE'", handle) shouldBe 1L
@@ -213,7 +245,12 @@ class CheckoutWebSpec(
             web.get("/v1/payments").status shouldBe 404
             web.get("/internal/entitlements").status shouldBe 404
             web.get("/actuator/health").status shouldBe 404
-            web.get("/checkout/assets/checkout.css").let { it.status shouldBe 200; it.header("Content-Type")!! shouldStartWith "text/css" }
+            web.get("/checkout/assets/checkout.css").let { it.status shouldBe 200; it.header("Content-Type")!! shouldStartWith "text/css"; securityHeaders(it, expectedCsp = defaultCsp) }
+            // React 번들(CHECKOUT-REACT-001): 같은 checkout 포트에서만, nosniff에 맞는 JavaScript 형식. shell 원본은 정적 자원으로 서빙하지 않는다.
+            web.get("/checkout/assets/checkout.js").let { it.status shouldBe 200; it.header("Content-Type")!! shouldStartWith "text/javascript"; securityHeaders(it, expectedCsp = defaultCsp) }
+            publicWeb.get("/checkout/assets/checkout.js").status shouldBe 404
+            web.get("/checkout/index.html").status shouldBe 404
+            web.get("/checkout/checkout-shell/index.html").status shouldBe 404
 
             val cred = TestCredentials.issue(db, environment = Environment.TEST)
             val (_, cookie) = opened(newToken(cred).second)

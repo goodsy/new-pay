@@ -56,7 +56,7 @@ Command는 JPA 기반 Aggregate 저장, Query는 jOOQ 기반 DTO 조회로 분�
 
 Batch는 소유 DB/권한을 유지한 Adapter에서 Application use case를 호출한다. JobRepository·식별 JobParameters·ExecutionContext/checkpoint·동일 업무효과 key를 설계한다. Job 재시작 성공이 외부 지급 exactly-once라는 뜻은 아니다. 파일/기관 요청에는 원 ID 조회와 재처리 규칙이 별도 필요하다. chunk TX와 처리 중 변경·중복/누락을 시험하고 안정적인 keyset/처리대상 Snapshot을 사용한다.
 
-React 화면(2026-10-24 사용자 변경 — D-ADMIN-008/D-FE-001)은 Vite+TypeScript로 빌드한 정적 번들을 소유 Spring Boot 앱이 같은 출처로 서빙한다(CORS 없음). 서버는 JSON inbound web adapter이며 Spring Security·쿠키 세션·CSRF(쿠키→헤더 토큰)와 서버 검증을 적용하고, 업무 규칙을 JS로 옮기지 않고 같은 Application use case를 호출한다. 화면 전환 때 Domain/금융 TX는 재작성하지 않는다. Simulator 화면과 결제창 React 전환 전까지의 결제창은 Thymeleaf(inbound web adapter, CSRF·서버 검증)를 유지한다.
+React 화면(2026-10-24 사용자 변경 — D-ADMIN-008/D-FE-001)은 Vite+TypeScript로 빌드한 정적 번들을 소유 Spring Boot 앱이 같은 출처로 서빙한다(CORS 없음). 서버는 JSON inbound web adapter이며 Spring Security·쿠키 세션·CSRF(쿠키→헤더 토큰)와 서버 검증을 적용하고, 업무 규칙을 JS로 옮기지 않고 같은 Application use case를 호출한다. 화면 전환 때 Domain/금융 TX는 재작성하지 않는다. Simulator 화면은 Thymeleaf(inbound web adapter, CSRF·서버 검증)를 유지한다. 결제창은 CHECKOUT-REACT-001로 React 전환했다(서버가 판정 후 정적 shell에 escape한 화면 값을 넣어 응답, 상태 변경은 CSRF form POST, 결제창 HTML만 script-src 'self' — D-CHECKOUT-CSP-001).
 
 ## 5. Kafka·Redis 적합성 판단
 

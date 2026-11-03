@@ -1,8 +1,8 @@
 package com.paycore.payment.payment.adapter.web
 
 /**
- * 결제창 화면 고정 문구(AUTHN-001 §6.3 — 내부 사유·예외·SQL·Snapshot 버전·기관 코드·URL 원문 없음, §12.5). 템플릿이 `th:text`로 쓴다.
- * 필터 단계(CSRF 거절 등 Controller 밖)는 [staticPage] — 같은 문구의 정적 HTML(가변 값 없음).
+ * 결제창 화면 고정 문구(AUTHN-001 §6.3 — 내부 사유·예외·SQL·Snapshot 버전·기관 코드·URL 원문 없음, §12.5). [CheckoutShell] 오류 화면 데이터의 `message`로 보내고
+ * React 화면이 텍스트로 그린다(CHECKOUT-REACT-001). 필터 단계(CSRF 거절)도 같은 shell 오류 화면을 쓴다.
  */
 object CheckoutPages {
     const val CANNOT_OPEN = "결제창을 열 수 없습니다. 가맹점에서 다시 시도해 주세요."
@@ -18,9 +18,4 @@ object CheckoutPages {
     const val AUTHENTICATION_INCOMPLETE = "인증이 완료되지 않았습니다."
     const val AUTHENTICATION_TIME_OVER = "인증 시간이 지났습니다."
     const val TEMPORARY_ERROR = "일시적인 오류입니다."
-
-    fun staticPage(message: String): String =
-        "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"UTF-8\"><title>PayCore 결제</title>" +
-            "<link rel=\"stylesheet\" href=\"/checkout/assets/checkout.css\"></head><body><main class=\"checkout\"><p class=\"message\">" +
-            message + "</p></main></body></html>"
 }

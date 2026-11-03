@@ -506,14 +506,11 @@ class ArchitectureSpec : FunSpec({
             .any { it.contains(fixture.simpleName) && it.contains("org.apache.catalina.connector.Connector") } shouldBe true
     }
 
-    test("Thymeleaf is used only by the web adapter (AUTHN-001 §17.3)") {
-        val rule = thymeleafOnlyInWebAdapter()
-        rule.check(classes)
-        val fixture = com.paycore.archfixture.web.DomainUsesThymeleaf::class.java
-        violationsOf(rule, "com.paycore.archfixture.web", fixture).let { details ->
-            details.isNotEmpty() shouldBe true
-            details.all { it.contains(fixture.simpleName) } shouldBe true
-        }
+    test("Thymeleaf is not on the payment-api classpath and no class depends on it (CHECKOUT-REACT-001 §9 — replaces AUTHN-001 §17.3 web-adapter-only rule)") {
+        // 결제창은 React shell(D-FE-001)이라 Thymeleaf 의존을 뺐다. 기존 규칙(web adapter만 Thymeleaf)보다 강한 주장: 어떤 클래스도 의존하지 않고, 라이브러리가 classpath에 없다.
+        noThymeleaf().check(classes)
+        io.kotest.assertions.throwables.shouldThrow<ClassNotFoundException> { Class.forName("org.thymeleaf.TemplateEngine") }
+        io.kotest.assertions.throwables.shouldThrow<ClassNotFoundException> { Class.forName("org.thymeleaf.spring6.SpringTemplateEngine") }
     }
 
     test("test-only fixture tooling (Fixture Monkey, Instancio) is not referenced from any production class (Test Fixture Policy)") {
@@ -981,7 +978,8 @@ class ArchitectureSpec : FunSpec({
                 .`as`("only AuthenticationResultCheck verifies authentication sessions")
 
         /**
-         * D-AUTHN-006(승인 편차 조건, 검토 m-2): 결제창 web 클래스(`adapter.web`의 `Checkout*`)는 provided Use Case·자기 패키지·JDK/Kotlin·Spring·Thymeleaf·Servlet·SLF4J에만
+         * D-AUTHN-006(승인 편차 조건, 검토 m-2): 결제창 web 클래스(`adapter.web`의 `Checkout*`)는 provided Use Case·자기 패키지·JDK/Kotlin·Spring·Servlet·SLF4J에만
+         * (Thymeleaf는 CHECKOUT-REACT-001에서 제거 — 허용 목록에서도 뺐다)
          * 의존한다 — domain·required Port·persistence에 닿지 않아 실행 단위 분리(A01 `payment-window`) 때 provided를 API로 노출하면 된다. 명세 목록에 더한 것(§24.12):
          * JSON 파서(`tools.jackson`, 토큰 발급 API 엄격 파서)·지표(`io.micrometer`)·Kotlin 컴파일러 annotation(`org.jetbrains.annotations`)·Tomcat connector
          * (`org.apache.catalina.connector`, 결제창 전용 connector 구성) — 모두 domain·required가 아니다.
@@ -1015,7 +1013,7 @@ class ArchitectureSpec : FunSpec({
         val CHECKOUT_WEB_HELPERS = setOf("ApiResponses", "ApiError", "ApiErrorCode", "RequestRejected", "SafeThrowable", "PaymentApiSettings", "PaymentApiSettingsKt")
 
         private val CHECKOUT_WEB_ALLOWED_PREFIXES = listOf(
-            "java.", "kotlin.", "org.thymeleaf.", "jakarta.servlet.", "org.slf4j.", "tools.jackson.", "io.micrometer.", "org.jetbrains.annotations.",
+            "java.", "kotlin.", "jakarta.servlet.", "org.slf4j.", "tools.jackson.", "io.micrometer.", "org.jetbrains.annotations.",
         ) + listOf("web", "http", "stereotype", "context", "core", "beans", "security", "ui", "util", "validation").map { "org.springframework.$it." } +
             // 검토 #4 n-1: Boot는 필요한 곳만(설정 바인딩·web server·자동 구성) — boot.jdbc 등은 허용하지 않는다.
             listOf("context.properties", "web", "autoconfigure").map { "org.springframework.boot.$it." }
@@ -1027,7 +1025,7 @@ class ArchitectureSpec : FunSpec({
 
         private fun checkoutWebAllowed(webPackage: String, tomcatConnector: Boolean) =
             com.tngtech.archunit.base.DescribedPredicate.describe(
-                "provided Use Cases, Checkout web classes, listed web helpers, JDK/Kotlin, the Spring web stack, Thymeleaf, Servlet, SLF4J, Jackson, Micrometer" +
+                "provided Use Cases, Checkout web classes, listed web helpers, JDK/Kotlin, the Spring web stack, Servlet, SLF4J, Jackson, Micrometer" +
                     if (tomcatConnector) ", Tomcat connector" else "",
             ) { target: com.tngtech.archunit.core.domain.JavaClass ->
                 val c = generateSequence(target) { if (it.isArray) it.componentType else null }.last()
@@ -1040,12 +1038,11 @@ class ArchitectureSpec : FunSpec({
                     (tomcatConnector && (pkg.startsWith("org.apache.catalina.connector.") || pkg.startsWith("org.springframework.boot.tomcat.")))
             }
 
-        /** AUTHN-001 §17.3: Thymeleaf(`org.thymeleaf..`) 의존은 web adapter만. */
-        fun thymeleafOnlyInWebAdapter(): com.tngtech.archunit.lang.ArchRule =
+        /** CHECKOUT-REACT-001 §9: payment-api는 Thymeleaf를 쓰지 않는다(AUTHN-001 §17.3 "web adapter만" 규칙을 대체 — 범위가 더 넓다). */
+        fun noThymeleaf(): com.tngtech.archunit.lang.ArchRule =
             com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
-                .that().resideOutsideOfPackage("..adapter.web..")
                 .should().dependOnClassesThat().resideInAPackage("org.thymeleaf..")
-                .`as`("only the web adapter depends on Thymeleaf")
+                .`as`("no payment-api class depends on Thymeleaf")
 
         /** AUTHN-001 §17.3: 인증 세션 상태 전이는 application·domain에서만 부른다(web·adapter가 세션을 직접 바꾸지 않는다). */
         fun authenticationTransitionsOnlyInApplicationOrDomain(): com.tngtech.archunit.lang.ArchRule =

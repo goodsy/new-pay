@@ -18,7 +18,8 @@ import org.springframework.core.env.Environment as SpringEnvironment
 import org.springframework.transaction.PlatformTransactionManager
 
 /**
- * 결제창 인증 흐름 HTTP(AUTHN-001 §6.1·§6.3·§12.2·§12.3, 판정 m-D) — 실서버·실 MySQL, 인증기관은 시험 대역. 화면의 CSRF 숨김 필드(쿠키 비밀에서 파생, 마스킹)로 POST가 통과하고,
+ * 결제창 인증 흐름 HTTP(AUTHN-001 §6.1·§6.3·§12.2·§12.3, 판정 m-D) — 실서버·실 MySQL, 인증기관은 시험 대역. 화면의 CSRF 값(쿠키 비밀에서 파생, 마스킹 — React shell 데이터,
+ * CHECKOUT-REACT-001)으로 POST가 통과하고,
  * 성공 복귀는 303 successUrl이며 쿠키를 지우지 않아 같은 복귀 URL 재요청이 같은 303(DUPLICATE)이다. 실패는 200 선택 화면(다시 시도·failUrl), 확인 불가는 503 + Retry-After,
  * 카드사 불허는 422 같은 화면, 취소는 303 failUrl + 쿠키 삭제.
  */
@@ -52,7 +53,7 @@ class CheckoutAuthenticationWebSpec(
     fun csrf(o: Opened): String {
         val page = web.get("/checkout/s/${o.handle}", o.cookie)
         page.status shouldBe 200
-        return Regex("name=\"_csrf\" value=\"([^\"]+)\"").find(page.body)!!.groupValues[1]
+        return CheckoutShellPage.csrf(page.body)
     }
 
     fun startAuthentication(o: Opened, cardCompany: String = "SIMISSA") =
@@ -90,12 +91,18 @@ class CheckoutAuthenticationWebSpec(
             val failed = web.get(returnPath(o, ProviderOutcome.FAILED), o.cookie)
             failed.status shouldBe 200
             failed.body shouldContain "인증이 완료되지 않았습니다."
-            failed.body shouldContain "href=\"/checkout/s/${o.handle}\""
             failed.body shouldContain "https://shop.example.test/fail?paymentId=${o.paymentId}&amp;code=AUTHENTICATION_FAILED"
+            CheckoutShellPage.data(failed.body).let { d ->
+                d.get("screen").stringValue() shouldBe "error"
+                d.get("retryUrl").stringValue() shouldBe "/checkout/s/${o.handle}"
+                d.get("failRedirect").stringValue() shouldBe "https://shop.example.test/fail?paymentId=${o.paymentId}&code=AUTHENTICATION_FAILED"
+            }
 
             startAuthentication(o).status shouldBe 303
-            val checking = web.get(returnPath(o, outcome = null), o.cookie)
+            val checkingPath = returnPath(o, outcome = null)
+            val checking = web.get(checkingPath, o.cookie)
             checking.status shouldBe 503
+            CheckoutShellPage.data(checking.body).get("retryUrl").stringValue() shouldBe checkingPath
             checking.header("Retry-After") shouldBe "1"
             checking.body shouldContain "인증 결과를 확인 중입니다."
             listOf("Exception", "SERVER_ERROR", "sat_").forEach { checking.body shouldNotContain it }
@@ -106,7 +113,11 @@ class CheckoutAuthenticationWebSpec(
             val r = startAuthentication(o, cardCompany = "SIMISSZ")
             r.status shouldBe 422
             r.body shouldContain "선택한 카드사 또는 할부를 사용할 수 없습니다."
-            r.body shouldContain "name=\"_csrf\""
+            CheckoutShellPage.data(r.body).let { d ->
+                d.get("screen").stringValue() shouldBe "page"
+                d.get("notice").stringValue() shouldBe "선택한 카드사 또는 할부를 사용할 수 없습니다."
+            }
+            CheckoutShellPage.csrf(r.body).isNotEmpty() shouldBe true
             web.post("/checkout/s/${o.handle}/authentication", mapOf("cardCompany" to "SIMISSA", "plan" to "LUMP_SUM", "extra" to "1", "_csrf" to csrf(o)), o.cookie).status shouldBe 400
         }
 

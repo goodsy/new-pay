@@ -2,6 +2,14 @@
 // 테스트 0건 실패, Mockito 제외): build-logic/src/main/kotlin/paycore.kotlin-app.gradle.kts
 plugins {
     id("paycore.kotlin-app")
+    // 결제창 React 화면(frontend/, CHECKOUT-REACT-001 — D-FE-001 같은 출처 정적 번들). ADMIN-BOOT-001 프론트 빌드·시험·공급망 검사 convention을 그대로 쓴다.
+    id("paycore.frontend")
+}
+
+// 결제창 shell(Vite index.html)은 정적 자원으로 서빙하지 않는다 — Controller(CheckoutShell)만 판정 뒤 데이터를 넣어 응답한다(CHECKOUT-REACT-001 §6).
+// 번들 assets는 static/checkout/assets/(checkout 포트 /checkout/assets/**), shell은 classpath checkout-shell/index.html.
+tasks.named<ProcessResources>("processResources") {
+    eachFile { if (path == "static/index.html") path = "checkout-shell/index.html" }
 }
 
 dependencies {
@@ -13,8 +21,7 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     // 가맹점 공개 API 인증(D-CPA-001 Bearer API 키). Boot 4.1.1 BOM 관리 버전(카탈로그 기존 항목 — internal-admin과 같다).
     implementation(libs.spring.boot.starter.security)
-    // 결제창 화면(AUTHN-001 §16, D-AUTHN-006 — Thymeleaf 우선). Boot 4.1.1 BOM 관리 버전(카탈로그 기존 항목 — internal-admin·institution-simulator와 같다).
-    implementation(libs.spring.boot.starter.thymeleaf)
+    // Thymeleaf 제거(CHECKOUT-REACT-001 §9): 결제창 화면은 frontend/ React 번들 + CheckoutShell(D-FE-001). Simulator는 Thymeleaf 유지(별도 앱).
     implementation(libs.spring.modulith.api)
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)
