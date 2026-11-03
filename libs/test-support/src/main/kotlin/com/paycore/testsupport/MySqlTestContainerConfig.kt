@@ -36,8 +36,9 @@ class MySqlTestContainerConfig {
          * 모든 시험 MySQL 컨테이너의 공통 시작점: 단일 이미지 + [TEST_SERVER_OPTIONS] + 시간대 표 적재 생략(`MYSQL_INITDB_SKIP_TZINFO` — 저장소의
          * SQL·설정은 이름 있는 시간대('Asia/Seoul' 등)를 쓰지 않고 offset('+00:00')과 OS 시간대(SYSTEM)만 쓴다). 측정: 기동 약 16~20초 → 약 7~13초.
          * 매번 새 컨테이너 객체다(재사용·withReuse 없음). 계정·초기화 스크립트·OS 시간대는 각 모듈이 이어서 설정한다.
+         * [image]는 이 저장소 이미지를 초기화해 만든 사본(TEST-PERF-002 [com.paycore.testsupport.containers.InitializedMySqlSnapshot])일 때만 바꾼다.
          */
-        fun newTestMySqlContainer(): MySQLContainer = MySQLContainer(DockerImageName.parse(MYSQL_IMAGE))
+        fun newTestMySqlContainer(image: DockerImageName = DockerImageName.parse(MYSQL_IMAGE)): MySQLContainer = MySQLContainer(image)
             .withEnv("MYSQL_INITDB_SKIP_TZINFO", "1")
             .withCommand(*TEST_SERVER_OPTIONS.toTypedArray())
     }

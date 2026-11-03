@@ -23,8 +23,30 @@ class AdminDbTestConfig {
     }
 }
 
+/**
+ * [AdminDbTestConfig]와 같되 컨테이너가 초기화 사본이 아니라 빈 MySQL에서 초기화 스크립트를 **매번 실제로 실행한** 새 서버다
+ * (TEST-PERF-002, D-TEST-PERF-002 "매번 초기화 시험 유지" — 초기화 스크립트 실행 결과 자체를 보는 계정·권한 시험용).
+ */
+@TestConfiguration(proxyBeanMethods = false)
+class AdminFreshInitDbTestConfig {
+
+    @Bean
+    fun adminMySqlContainer(): MySQLContainer = AdminDbAccounts.startedFreshContainer()
+
+    @Bean
+    fun adminDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->
+        AdminDbAccounts.applicationProperties(container).forEach { (name, value) -> registry.add(name) { value } }
+    }
+}
+
 /** ADMIN DB가 필요한 `@SpringBootTest`에 붙인다(webEnvironment는 각 spec이 정한다). */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 @Import(AdminDbTestConfig::class)
 annotation class AdminDbTest
+
+/** 초기화 스크립트를 빈 MySQL에서 실제로 실행한 ADMIN DB가 필요한 `@SpringBootTest`(예: AdminDatabaseAccountSpec)에 붙인다. */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+@Import(AdminFreshInitDbTestConfig::class)
+annotation class AdminFreshInitDbTest

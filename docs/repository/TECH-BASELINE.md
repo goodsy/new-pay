@@ -183,6 +183,45 @@ GRADLE-CHECK가 timeout 2400초에 걸려(같은 기계 기준 측정 42m59s) �
 | 동시 컨테이너 최대(ryuk·codegen 포함) | 6 | 9 |
 | 시험 수(Kotlin/Vitest) | 3,212 / 66 | 3,220 / 66 |
 
+### 7.4 GRADLE-CHECK 소요 시간 2차 (TEST-PERF-002, 2026-11-03)
+
+목표: timeout 2400초·gate 기준(minTests 3329 / Vitest 132·출력 규칙)·시험·단언은 그대로 두고 30분 이하(여유 25%). **결과: 목표 미달.**
+사용자 결정(2026-11-03): "관리자 개선만 남기고 마무리" — internal-admin 개선(초기화 사본 + spec 묶음 순서)만 유지하고 최적화를 멈춘다. 이후 gate는 Demo MySQL·Demo JVM을 모두 멈춘 상태에서 실행한다(약 35분 / 한도 40분). D-TEST-PERF-002.
+
+| 설정 | 위치 | 적용 범위 | 내용 |
+|---|---|---|---|
+| spec 묶음 순서 | `libs/test-support` `SpringContextGroupedSpecOrder`(Kotest `SpecExecutionOrderExtension`, `ProjectConfig` 등록) | 모든 모듈 | 이름순 정렬 뒤 같은 Spring `MergedContextConfiguration`(컨텍스트 캐시 key)의 spec을 붙인다. 순서만 바뀐다(시험·컨텍스트 설정·캐시 상한 `maxSize=4` 동일). 순서 의존 실패는 발생하지 않았다 |
+| 초기화 MySQL 사본 | `libs/test-support` `InitializedMySqlSnapshot` — internal-admin `AdminDbAccounts.startedContainer()` | internal-admin만 | 시험 JVM당 1회 실제 초기화(같은 이미지 8.4.11·초기화 스크립트·환경변수·OS 시간대·서버 옵션, datadir만 `/var/lib/paycore-mysql`) → 정상 종료 → `docker commit`(세션 label). 이후 컨텍스트마다 그 이미지로 **새** 컨테이너(공유·reuse 없음, Flyway·데이터 처음부터). JVM 종료 hook이 예비 컨테이너 정지 뒤 이미지 삭제(남으면 Ryuk). 증거: `InitializedMySqlSnapshotIsolationSpec`(사본 2개 = 새 초기화 서버와 계정·권한·role·procedure·schema 동일, 서로 쓰기 격리) |
+| 매번 새 초기화 유지 | internal-admin `@AdminFreshInitDbTest`(AdminDatabaseAccountSpec), payment-api·simulator·master-api·financial-batch 전체 | — | 초기화 스크립트 실행 결과 자체를 보는 계정·권한 시험은 빈 MySQL에서 매번 초기화(사용자 결정) |
+| 귀속 로그 | `PrefetchedStarts`(`waited Nms`), `InitializedMySqlSnapshot`(`committed … in Nms`), `SpringContextGroupedSpecOrder`(`sorted in Nms`) | — | 받는 쪽 기동 대기·사본 생성·정렬 시간. 한 줄씩(시험 XML system-out) |
+
+payment-api·simulator 사본은 시험해 보고 되돌렸다(after1): 사본 1회 생성 약 45~50초에 비해 재사용 컨테이너가 적고(simulator 사본 3회), 새 초기화 유지 컨텍스트(payment `PaymentDbTest`·`EntitlementDbTest`, simulator 2 spec)가 미리 시작 없이 동기 기동이 돼 task가 늘었다(payment 10m56 → 11m56, simulator 4m24 → 5m16).
+
+측정(전체 GRADLE-CHECK + `--profile`, 같은 기계, Demo MySQL stop·Demo JVM 없음, 5초 표본):
+
+| | 기준(변경 전) | after1(전 모듈 사본 + 순서) | after2(최종: admin 사본 + 순서) |
+|---|---|---|---|
+| 소요(exit) | 2108s = 35m08s (0) | 2043s = 34m03s (0) | 2097s = 34m56s (0) |
+| internal-admin:test | 12m15 | 8m02 | 10m15 |
+| payment-api:test | 10m56 | 11m56 | 11m23 |
+| institution-simulator:test | 4m24 | 5m16 | 5m03 |
+| master-api:test | 3m24 | 3m37 | 3m29 |
+| financial-batch:test | 2m08 | 2m10 | 1m59 |
+| libs/test-support:test | 1m27 | 1m09 | 1m33 |
+| 시험 수 Kotlin / Vitest | (기준 run) | 3,336 / 132, 실패 0 | 3,336 / 132, 실패 0 |
+| MemAvailable 최저 | 686MB | 673MB | 678MB |
+| 빌드 뒤 남은 사본 이미지 | — | 0 | 0 |
+
+internal-admin 단독 A/B(묶음 순서 유지, `:apps:internal-admin:test --rerun-tasks`): 사본 ON 587s(591 통과) / OFF 744s(590 통과 — 실패 1건은 사본 이미지 이름을 단언하는 isolation spec으로 OFF 구성에서 예상된 실패) → 사본 효과 약 −157s. 묶음 순서만의 효과는 작다(기준 12m15 ≈ OFF 12m22). 컨텍스트 기동 30 → 23.
+
+주의: 같은 구성의 run 사이 편차가 모듈당 ±1분 정도다(변경 없는 master-api도 run마다 움직였다). 벽시계 시간은 시험 전 단계(약 130~195초) + 직렬 DB test task(ExclusiveSlots) 합이라 test task 시간만 줄여야 줄어든다. 전체 2108 → 2097s는 편차 안이다.
+
+하지 않은 방안(사용자 결정으로 중단, 재개 시 질문 대상):
+- (a) `@AdminFreshInitDbTest` 컨테이너 미리 시작 — 약 −10s, 새 초기화 전용 예비 컨테이너가 더 떠 메모리 증가(최저 678MB).
+- (c) payment-api ArchitectureSpec(42s)의 ClassFileImporter/Modulith import 공유 — 약 −10~15s 추정, import 범위(시험 클래스 포함 여부)가 바뀌어 검증 강도 영향 가능.
+- (d) 첫 DB 시험 앞 대기(130~195s)를 Gradle task 순서로 줄이기 — 빌드 스케줄 변경.
+- DB test JVM 동시 실행·prefetch depth 2 — 메모리 한계로 제외(TEST-PERF-001 §7.3과 같은 이유).
+
 ## 8. payment-api 배포 규칙 (CP-API-001, 2026-10-14)
 
 배포 환경이 지켜야 하는 규칙이다(운영 수치 결정이 아니다). 어기면 기동 단계에서 실패한다(fail-closed).

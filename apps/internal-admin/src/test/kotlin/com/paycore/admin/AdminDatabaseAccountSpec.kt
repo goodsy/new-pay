@@ -6,7 +6,7 @@ import com.paycore.admin.support.AdminDbAccounts.ADMIN_GRANTOR
 import com.paycore.admin.support.AdminDbAccounts.ADMIN_MIGRATION_USER
 import com.paycore.admin.support.AdminDbAccounts.ADMIN_RUNTIME_ROLE
 import com.paycore.admin.support.AdminDbAccounts.ADMIN_RUNTIME_USER
-import com.paycore.admin.support.AdminDbTest
+import com.paycore.admin.support.AdminFreshInitDbTest
 import com.paycore.admin.support.column
 import com.paycore.admin.support.errorCodeOf
 import com.paycore.admin.support.update
@@ -28,9 +28,10 @@ import java.sql.Connection
  * - S0 m-4 실측 고정: 열 단위 UPDATE만 있는 표에서 `SELECT … FOR UPDATE`가 허용되고(잠금 경로 성립), SELECT·INSERT만 있는 표에서는 1142.
  * - migration 계정은 GRANT OPTION이 없고 권한은 procedure(받는 쪽 = 이 DB runtime role 고정, DEFINER = 잠긴 grantor)로만 준다.
  * - 초기화 스크립트의 ADMIN 블록은 ADMIN 비밀번호 두 개가 모두 있을 때만 실행된다(하나만 있으면 실패, 둘 다 없으면 생략 — 명세 §19 D-55).
+ * - TEST-PERF-002: 초기화 사본이 아니라 빈 MySQL에서 초기화 스크립트를 이번 실행에 실제로 돌린 서버로 본다([AdminFreshInitDbTest], D-TEST-PERF-002).
  */
 @SpringBootTest
-@AdminDbTest
+@AdminFreshInitDbTest
 class AdminDatabaseAccountSpec(private val container: MySQLContainer) : BehaviorSpec({
 
     fun root(): Connection = AdminDbAccounts.root(container)

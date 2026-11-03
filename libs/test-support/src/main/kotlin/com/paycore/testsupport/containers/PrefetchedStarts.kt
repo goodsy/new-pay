@@ -39,13 +39,16 @@ class PrefetchedStarts<T : Any>(
     fun take(): T {
         check(!closed) { "PrefetchedStarts($name) is closed" }
         val current = spares.removeFirstOrNull() ?: startNext()
+        val waitStart = System.nanoTime()
         try {
             val instance = try {
                 current.get()
             } catch (e: ExecutionException) {
                 throw e.cause ?: e
             }
-            println("[PrefetchedStarts:$name] handing out a newly created, already started instance: ${describe(instance)}")
+            // TEST-PERF-002: 받는 쪽이 기동을 기다린 시간(예비가 아직 시작 중이었으면 > 0)을 함께 남긴다 — 소요 시간 귀속 근거.
+            val waitedMillis = (System.nanoTime() - waitStart) / 1_000_000
+            println("[PrefetchedStarts:$name] handing out a newly created, already started instance: ${describe(instance)} (waited ${waitedMillis}ms)")
             return instance
         } finally {
             while (spares.size < depth) spares.addLast(startNext())

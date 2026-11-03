@@ -1,5 +1,6 @@
 package io.kotest.provided
 
+import com.paycore.testsupport.kotest.SpringContextGroupedSpecOrder
 import io.kotest.core.config.AbstractProjectConfig
 import io.kotest.extensions.spring.SpringExtension
 
@@ -24,7 +25,11 @@ class ProjectConfig : AbstractProjectConfig() {
         System.setProperty(SHOW_DATA_CLASS_DIFFS, "false")
     }
 
-    override val extensions = listOf(SpringExtension())
+    /**
+     * TEST-PERF-002: [SpringContextGroupedSpecOrder] — Kotest는 이 목록의 spec 순서 확장을 기본 순서 대신 쓴다. spec **순서**만 바꾼다
+     * (같은 Spring 컨텍스트 설정의 spec을 붙여 컨텍스트 캐시 상한 때문에 같은 컨텍스트가 다시 기동되지 않게 한다).
+     */
+    override val extensions = listOf(SpringExtension(), SpringContextGroupedSpecOrder())
 
     private companion object {
         const val SHOW_DATA_CLASS_DIFFS = "kotest.assertions.show-data-class-diffs"
