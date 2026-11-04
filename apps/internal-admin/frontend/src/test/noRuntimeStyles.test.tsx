@@ -13,6 +13,7 @@ import { LoginScreen } from '../screens/LoginScreen'
 import { MerchantsScreen } from '../screens/MerchantsScreen'
 import { PaymentOpsScreen } from '../screens/PaymentOpsScreen'
 import { ReconciliationScreen } from '../screens/ReconciliationScreen'
+import { TransactionsScreen } from '../screens/TransactionsScreen'
 import type { ApprovalView, PaymentTargetView } from '../api/adminApi'
 import { fakeApi } from './fakeApi'
 
@@ -110,6 +111,17 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     expect(screen.getByLabelText('사업자등록번호')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     expect(await screen.findByText('조건에 맞는 가맹점이 없습니다.')).toBeInTheDocument()
+    expectNoRuntimeStyles()
+  })
+
+  it('TXN-OPS-001: transaction lookup with a listed row', async () => {
+    const item = {
+      paymentId: PAY, environment: 'TEST', merchantAccountId: 'mid-demo-1', merchantOrderId: 'order-77', orderNamePreview: '주문', orderNameTruncated: false,
+      amountMinor: 10000, currency: 'KRW', status: 'AUTHORIZED', createdAt: '2026-11-01T00:00:00.000Z',
+    }
+    render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    expect(await screen.findByRole('row', { name: PAY })).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

@@ -2645,6 +2645,81 @@
       "humanAnswer": "거절만, 감사 없음 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
       "appliedSpec": "D-MOPS-003"
+    },
+    {
+      "id": "Q-TXOPS-01",
+      "status": "ANSWERED",
+      "question": "관리자 거래 목록 검색 조건",
+      "recommended": "생성일 기간 필수(최대 31일 Demo) + 환경·MID·결제 상태 필터, 결제 ID 정확 조회, MID+가맹점 주문번호 조회, 최신순 keyset 페이지, 상세(승인·취소 이력·잔액)",
+      "alternative": "결제 ID·주문번호만 / 필터+기간 무제한",
+      "dependentTasks": [
+        "TXN-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "TXN-OPS-001",
+      "humanAnswer": "기간 필수 + 필터 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-TXOPS-001"
+    },
+    {
+      "id": "Q-TXOPS-02",
+      "status": "ANSWERED",
+      "question": "거래 조회 감사 범위",
+      "recommended": "상세만 PAYMENT_VIEWED 감사(감사 실패 시 결과 미반환), 목록 미감사",
+      "alternative": "목록 검색도 감사 / 감사 없음",
+      "dependentTasks": [
+        "TXN-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "TXN-OPS-001",
+      "humanAnswer": "상세만 기록 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-TXOPS-002"
+    },
+    {
+      "id": "Q-TXOPS-03",
+      "status": "ANSWERED",
+      "question": "주문명(가맹점 자유 텍스트)·승인번호·기관 거래번호 노출",
+      "recommended": "목록은 주문명 앞 10자만, 상세(감사 대상)에서 주문명 전체·승인번호·기관 거래번호; 기관 내부 계정 값은 어디에도 미노출",
+      "alternative": "목록·상세 모두 전체 / 주문명 숨김",
+      "dependentTasks": [
+        "TXN-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "TXN-OPS-001",
+      "humanAnswer": "상세에서만 전체 표시 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-TXOPS-003"
+    },
+    {
+      "id": "Q-TXOPS-04",
+      "status": "ANSWERED",
+      "question": "거래 목록 CSV/엑셀 내려받기 포함 여부",
+      "recommended": "이번 작업 제외(별도 권한·감사·행 수 상한 필요)",
+      "alternative": "포함(매번 감사, 행 수 상한)",
+      "dependentTasks": [
+        "TXN-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "TXN-OPS-001",
+      "humanAnswer": "이번엔 제외 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-TXOPS-004"
+    },
+    {
+      "id": "Q-TXOPS-05",
+      "status": "ANSWERED",
+      "question": "거래 상세에서 운영자 보정 취소의 사유·요청자·승인자·승인 건 ID 노출 범위",
+      "recommended": "'운영자 취소' 표시(initiatorKind)만; 사유·요청자·승인자는 기존 승인 화면(사유 열람 별도 감사)에서만",
+      "alternative": "승인 건 ID까지 표시 / 요청자·승인자 ID까지 표시",
+      "dependentTasks": [
+        "TXN-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "TXN-OPS-001 I-2",
+      "humanAnswer": "표시만 유지 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-TXOPS-005"
     }
   ]
 }

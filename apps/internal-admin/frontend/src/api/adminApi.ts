@@ -249,6 +249,72 @@ export interface MerchantHistoryPage {
 }
 
 /**
+ * 거래 검색 조건(TXN-OPS-001 §3.1·§4.1 — POST 본문). 모드: [paymentId] 정확 조회(다른 조건 없음) / [merchantOrderId](+ [merchantAccountId] 필수) / 그 밖은 기간 필수
+ * ([createdFrom], [createdTo] — UTC ISO ms, `[from, to)`, 최대 31일 Demo 값). [after]는 다음 쪽 cursor, [limit] 1..50(없으면 서버 기본 20). 서버가 다시 검사한다.
+ */
+export interface TransactionSearchInput {
+  createdFrom?: string
+  createdTo?: string
+  environment?: 'TEST' | 'LIVE'
+  merchantAccountId?: string
+  merchantOrderId?: string
+  paymentId?: string
+  status?: string
+  after?: TransactionCursor
+  limit?: number
+}
+
+export interface TransactionCursor {
+  createdAt: string
+  paymentId: string
+}
+
+/** 목록 항목. 주문명은 앞 10자만(D-TXOPS-003 — [orderNameTruncated]면 더 있다). 승인번호·기관 거래번호는 목록에 없다. */
+export interface TransactionListItem {
+  paymentId: string
+  environment: string
+  merchantAccountId: string
+  merchantOrderId: string
+  orderNamePreview: string | null
+  orderNameTruncated: boolean
+  amountMinor: number
+  currency: string
+  status: string
+  createdAt: string
+}
+
+export interface TransactionSearchPage {
+  items: TransactionListItem[]
+  nextCursor: TransactionCursor | null
+}
+
+/**
+ * 거래 상세(TXN-OPS-001 §3.4 — 한 번의 일관 읽기, 서버가 PAYMENT_VIEWED 감사 후 반환). 주문명 전체·승인번호·기관 거래번호 포함. 기관 내부 계정 값·운영자 취소 사유는 없다.
+ * 시각은 UTC ISO, 날짜는 `YYYY-MM-DD`.
+ */
+export interface TransactionDetail {
+  payment: {
+    paymentId: string; environment: string; merchantAccountId: string; merchantSiteId: string; merchantOrderId: string; orderName: string | null
+    amountMinor: number; currency: string; paymentMethod: string; status: string; createdAt: string
+  }
+  onHold: boolean
+  terminationEvidence: string[]
+  authorization: {
+    authorizationId: string; status: string; failureEvidence: string | null; planKind: string; installmentMonths: number | null; cardType: string; openedAt: string
+  } | null
+  transactions: {
+    transactionId: string; type: string; amountMinor: number; currency: string; planKind: string | null; installmentMonths: number | null; cardType: string | null
+    approvalNumber: string | null; providerTransactionId: string; cancellationId: string | null; originalTransactionId: string | null; cancelScope: string | null
+    institutionTransactionDate: string; institutionBusinessDate: string | null; confirmedAt: string; recordedBy: string
+  }[]
+  cancellations: {
+    cancellationId: string; initiatorKind: string; merchantCancelId: string | null; scope: string; status: string; failureEvidence: string | null
+    amountMinor: number; currency: string; openedAt: string
+  }[]
+  returnBalance: { currency: string; authorizedMinor: number; completedMinor: number; reservedMinor: number; forcedMinor: number; revision: number } | null
+}
+
+/**
  * 화면이 쓰는 서버 API(같은 출처 `/api/` — [apiFetch] 하나로). 등록 코드·TOTP 시크릿은 응답을 받은 화면 상태에만 잠깐 두고 저장소·URL에 쓰지 않는다.
  * 권한 판정은 서버가 한다.
  */
@@ -286,6 +352,9 @@ export interface AdminApi {
   merchantDetail(merchantId: string): Promise<MerchantDetail>
   /** [after] 없으면 첫 쪽. */
   merchantHistory(merchantId: string, after?: number): Promise<MerchantHistoryPage>
+  /** TXN-OPS-001 §4.1(조회 4역할): 검색은 POST 본문(R-2, 감사 없음), 상세는 서버가 감사(D-TXOPS-002). */
+  transactionSearch(input: TransactionSearchInput): Promise<TransactionSearchPage>
+  transactionDetail(paymentId: string): Promise<TransactionDetail>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -330,5 +399,7 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     merchantSearch: (input) => call('/api/merchant-searches', 'POST', input),
     merchantDetail: (merchantId) => call(`/api/merchants/${segment(merchantId)}`),
     merchantHistory: (merchantId, after) => call(`/api/merchants/${segment(merchantId)}/history${after === undefined ? '' : `?after=${after}`}`),
+    transactionSearch: (input) => call('/api/payment-searches', 'POST', input),
+    transactionDetail: (paymentId) => call(`/api/payments/${segment(paymentId)}`),
   }
 }

@@ -8,7 +8,10 @@ import com.paycore.admin.paymentops.application.provided.DecisionResult
 import com.paycore.admin.paymentops.application.provided.ExecutionResult
 import com.paycore.admin.paymentops.application.provided.PaymentTargetView
 import com.paycore.admin.paymentops.application.provided.TargetResult
+import com.paycore.admin.paymentops.application.provided.TransactionSearchCriteria
 import com.paycore.admin.paymentops.application.required.PaymentOpsGateway
+import com.paycore.admin.paymentops.application.required.PaymentReadGateway
+import com.paycore.admin.paymentops.application.required.PaymentReadResult
 import com.paycore.admin.paymentops.domain.OwnerResponseClassifier
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpMethod
@@ -16,6 +19,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.client.RestClient
+import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.InputStream
@@ -32,10 +36,13 @@ import java.util.concurrent.Semaphore
  * - permit은 용도별 `Semaphore`(대기 0 — 없으면 PAYMENT를 부르지 않고 Unavailable/Unknown `PAYMENT_OPS_BUSY`).
  * - 서명은 매 호출 새 시각 `t`(같은 본문 재전송도 새 서명), 경로 변수는 호출자가 형식 검사한 값만.
  * 로그는 operation·결과 분류만(본문·서명·키 없음 — §6).
+ * TXN-OPS-001: 거래 조회 Port([PaymentReadGateway])도 이 객체가 구현한다 — 같은 서명 키·같은 `lookup` permit·같은 timeout·응답 상한(새 채널·새 키 없음, R-3).
  */
-class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private val signer: AdminCallSigner, private val clock: () -> Instant) : PaymentOpsGateway {
+class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private val signer: AdminCallSigner, private val clock: () -> Instant) :
+    PaymentOpsGateway, PaymentReadGateway {
 
-    private val json: JsonMapper = JsonMapper.builder().build()
+    // 리뷰 NIT: 응답의 중복 key는 어느 값을 믿을지 정할 수 없다 — 해석 오류(→ 해석 불가). 요청 본문 쓰기에는 영향 없음.
+    private val json: JsonMapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
     private val approvalPermits = Semaphore(settings.permits.approval)
     private val lookupPermits = Semaphore(settings.permits.lookup)
     private val executionPermits = Semaphore(settings.permits.execution)
@@ -116,6 +123,84 @@ class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private va
             executionPermits.release()
         }
     }
+
+    /**
+     * 거래 검색(TXN-OPS-001 §3.1 — 서명 POST, 본문은 형식 검사된 키만 정해진 순서로, `lookup` pool). 200은 [PaymentResponseShape.LIST]로 검사해 다시 만든다(위반 = 해석 불가).
+     */
+    override fun searchPayments(criteria: TransactionSearchCriteria): PaymentReadResult {
+        val body = linkedMapOf<String, Any>()
+        criteria.createdFrom?.let { body["createdFrom"] = it }
+        criteria.createdTo?.let { body["createdTo"] = it }
+        criteria.environment?.let { body["environment"] = it }
+        criteria.merchantAccountId?.let { body["merchantAccountId"] = it }
+        criteria.merchantOrderId?.let { body["merchantOrderId"] = it }
+        criteria.paymentId?.let { body["paymentId"] = it }
+        criteria.status?.let { body["status"] = it }
+        if (criteria.afterCreatedAt != null && criteria.afterPaymentId != null) body["after"] = linkedMapOf("createdAt" to criteria.afterCreatedAt, "paymentId" to criteria.afterPaymentId)
+        criteria.limit?.let { body["limit"] = it }
+        return read("search", HttpMethod.POST, PAYMENT_SEARCH_PATH, json.writeValueAsBytes(body), PaymentResponseShape.LIST) { answers(criteria, it) }
+    }
+
+    /**
+     * 리뷰 MINOR-1: 모양이 맞아도 **이 요청의 답**인지 확인한다(아니면 해석 불가 — fail-closed). 항목 수 ≤ 요청 limit(없으면 서버 기본 20), 결제 ID 정확 조회는 그 결제 0..1건, 준 환경·MID·
+     * 주문번호·상태와 같은 항목만, 기간을 주면 `createdAt ∈ [from, to)`, cursor를 주면 `(createdAt, paymentId) < cursor`, 주문명 미리보기와 잘림 여부가 서로 맞음(잘렸으면 정확히 10 code point,
+     * 미리보기가 없으면 잘림 아님).
+     */
+    @Suppress("UNCHECKED_CAST", "CyclomaticComplexMethod")
+    private fun answers(c: TransactionSearchCriteria, doc: Map<String, Any?>): Boolean {
+        val items = doc["items"] as List<Map<String, Any?>>
+        if (items.size > (c.limit ?: DEFAULT_SEARCH_LIMIT)) return false
+        if (c.paymentId != null && (items.size > 1 || items.any { it["paymentId"] != c.paymentId })) return false
+        val from = c.createdFrom?.let(Instant::parse)
+        val to = c.createdTo?.let(Instant::parse)
+        val cursorAt = c.afterCreatedAt?.let(Instant::parse)
+        fun same(item: Map<String, Any?>, key: String, expected: String?) = expected == null || item[key] == expected
+        return items.all { item ->
+            val at = Instant.parse(item["createdAt"] as String)
+            val preview = item["orderNamePreview"] as String?
+            val truncated = item["orderNameTruncated"] as Boolean
+            same(item, "environment", c.environment) && same(item, "merchantAccountId", c.merchantAccountId) && same(item, "merchantOrderId", c.merchantOrderId) &&
+                same(item, "status", c.status) && (from == null || at >= from) && (to == null || at < to) &&
+                (cursorAt == null || at < cursorAt || (at == cursorAt && (item["paymentId"] as String) < c.afterPaymentId!!)) &&
+                (if (preview == null) !truncated else !truncated || preview.codePointCount(0, preview.length) == ORDER_NAME_PREVIEW)
+        }
+    }
+
+    /** 거래 상세(§3.4 — 서명 GET, 경로 변수는 형식 검사된 paymentId만). 응답의 paymentId가 요청과 다르면 해석 불가. */
+    override fun paymentDetail(paymentId: String): PaymentReadResult {
+        require(PAYMENT_ID.matches(paymentId)) { "paymentId" }
+        return read("detail", HttpMethod.GET, "$PAYMENTS_PATH/$paymentId", ByteArray(0), PaymentResponseShape.DETAIL) { doc ->
+            (doc["payment"] as? Map<*, *>)?.get("paymentId") == paymentId
+        }
+    }
+
+    private fun read(operation: String, method: HttpMethod, path: String, body: ByteArray, shape: PaymentResponseShape, belongs: (Map<String, Any?>) -> Boolean): PaymentReadResult {
+        outsideTransaction()
+        if (!lookupPermits.tryAcquire()) return PaymentReadResult.Unavailable(BUSY).also { readLog(operation, it) }
+        try {
+            val result = when (val response = call(method, path, body)) {
+                is Raw.Failed -> PaymentReadResult.Unavailable(response.failure)
+                is Raw.Http -> when (response.status) {
+                    OK -> shaped(response.body, shape)?.takeIf { doc -> runCatching { belongs(doc) }.getOrDefault(false) }?.let { PaymentReadResult.Found(it) } ?: PaymentReadResult.Unavailable(UNREADABLE)
+                    NOT_FOUND -> if (errorCode(response.body) == "PAYMENT_NOT_FOUND") PaymentReadResult.NotFound else PaymentReadResult.Unavailable("HTTP_404")
+                    else -> PaymentReadResult.Unavailable("HTTP_${response.status}")
+                }
+            }
+            readLog(operation, result)
+            return result
+        } finally {
+            lookupPermits.release()
+        }
+    }
+
+    /** 로그는 연산·결과 분류만(MID·주문번호·결제 ID·주문명·서명 없음). */
+    private fun readLog(operation: String, result: PaymentReadResult) {
+        log.info("operation=payment-ops-read-{} result={}", operation, if (result is PaymentReadResult.Unavailable) result.reason else result.javaClass.simpleName)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun shaped(body: ByteArray?, shape: PaymentResponseShape): Map<String, Any?>? =
+        body?.takeIf { it.isNotEmpty() }?.let { bytes -> runCatching { shape.read(json.readTree(bytes)) as Map<String, Any?> }.getOrNull() }
 
     private fun parsePage(body: ByteArray?): DecisionPage? = runCatching {
         val n = readTree(body) ?: return null
@@ -233,6 +318,11 @@ class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private va
     private companion object {
         val log = LoggerFactory.getLogger(HttpPaymentOpsGateway::class.java)
         const val EXECUTE_PATH = "/internal/v1/admin/operator-cancellations"
+        const val PAYMENT_SEARCH_PATH = "/internal/v1/admin/payment-searches"
+        const val PAYMENTS_PATH = "/internal/v1/admin/payments"
+        val PAYMENT_ID = Regex("^pay_[0-9A-HJKMNP-TV-Z]{26}$")
+        const val DEFAULT_SEARCH_LIMIT = 20
+        const val ORDER_NAME_PREVIEW = 10
         const val BUSY = "PAYMENT_OPS_BUSY"
         const val UNREADABLE = "RESPONSE_UNREADABLE"
         const val OK = 200

@@ -329,6 +329,7 @@ class ArchitectureSpec : FunSpec({
             ),
             "operatorCancelTargetQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.TargetQueryCaller::class.java),
             "operatorDecisionQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.DecisionQueryCaller::class.java),
+            "adminPaymentQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.AdminPaymentQueryCaller::class.java),
             "operatorCancelMalformedRecorderOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.RecorderCaller::class.java),
             "deadlineConfirmationOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.DeadlineConfirmationCaller::class.java),
             "startOperatorOnlyFromOperatorService" to listOf(com.paycore.archfixture.operatorcancel.DirectStartOperatorCaller::class.java),
@@ -696,10 +697,10 @@ class ArchitectureSpec : FunSpec({
         private const val APP = "$BASE_PACKAGE.payment.application"
         private const val ADMIN_WEB = "$BASE_PACKAGE.payment.adapter.web.admin"
 
-        /** ADMIN-PAYMENT-OPS-001 §4.8: 인증된 ADMIN 진입 컨트롤러 4개(정확 FQN). */
+        /** ADMIN-PAYMENT-OPS-001 §4.8: 인증된 ADMIN 진입 컨트롤러(정확 FQN) — 4개 + TXN-OPS-001 거래 조회 1개. */
         val ADMIN_ENTRY_CONTROLLERS = listOf(
             "$ADMIN_WEB.OperatorCancelTargetController", "$ADMIN_WEB.AdminOperatorCancellationController", "$ADMIN_WEB.OperatorDecisionController",
-            "$ADMIN_WEB.OperatorDeadlineConfirmationController",
+            "$ADMIN_WEB.OperatorDeadlineConfirmationController", "$ADMIN_WEB.AdminPaymentController",
         )
 
         /** 정확 FQN 또는 그 Kotlin 합성 중첩 클래스(`<FQN>$…` — Companion·WhenMappings·람다)인가. */
@@ -731,6 +732,11 @@ class ArchitectureSpec : FunSpec({
             "operatorDecisionQueryOnlyFromAdminEntry" to onlyFrom(
                 "$APP.provided.OperatorDecisionQuery", listOf("$APP.OperatorDecisionQueryService", "$ADMIN_WEB.OperatorDecisionController"),
                 "only the authenticated admin entry adapter calls OperatorDecisionQuery",
+            ),
+            // TXN-OPS-001 §3: 관리자 거래 조회(비권위 읽기)는 인증된 ADMIN 진입 adapter의 정확 FQN만 부른다.
+            "adminPaymentQueryOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.AdminPaymentQuery", listOf("$APP.AdminPaymentQueryService", "$ADMIN_WEB.AdminPaymentController"),
+                "only the authenticated admin entry adapter calls AdminPaymentQuery (TXN-OPS-001)",
             ),
             "operatorCancelMalformedRecorderOnlyFromAdminEntry" to onlyFrom(
                 "$APP.provided.OperatorCancelMalformedRecorder",

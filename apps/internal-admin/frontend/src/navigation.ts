@@ -1,9 +1,9 @@
 /**
  * 관리자 콘솔 메뉴 구조(ADMIN-UI-001 rev 0.4, D-ADMIN-UI-003 — 참고 시안 'pg workspace'의 사이드바 그룹·탭).
- * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
+ * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회 + TXN-OPS-001 거래 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'transactions' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
 export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
@@ -42,6 +42,8 @@ export function pagesFor(roles: string[]): Page[] {
   // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
+  // TXN-OPS-001 §4.1: 거래 조회도 VIEW_MASKED(조회 4역할 — I-1 Implementer 해석, 기존 결제 대상 조회와 같다).
+  if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('transactions')
   if (roles.some((r) => r !== 'UNMASK')) pages.push('accounts')
   if (has('SECURITY_ADMIN') || has('APPROVER')) pages.push('reconciliation')
   pages.push('audit')
@@ -68,7 +70,7 @@ const MENUS: Menu[] = [
     description: '가맹점·사업자·MID 개통 상태와 변경 이력을 조회하세요(조회 전용 — 등록·변경은 별도 작업).',
   },
   {
-    id: 'payments', label: '결제 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'paymentOps', label: '결제 보정 취소' }],
+    id: 'payments', label: '결제 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'paymentOps', label: '결제 보정 취소' }, { page: 'transactions', label: '거래 조회' }],
     description: '결제를 조회하고, 다른 관리자의 승인을 거쳐 실행되는 보정 취소를 요청하세요.',
   },
   {

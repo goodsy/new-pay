@@ -162,6 +162,16 @@ describe('App (session, role menu, error mapping)', () => {
     expect(screen.queryByRole('list', { name: '메뉴 검색 결과' })).toBeNull()
   })
 
+  it('TXN-OPS-001: a VIEWER opens 결제 관리 › 거래 조회 and sees the transaction search (no call until searched)', async () => {
+    const { api } = signedIn(['VIEWER'])
+    await userEvent.click((await signedInMenu()).getByRole('button', { name: '결제 관리' }))
+    await userEvent.click(screen.getByRole('tab', { name: '거래 조회' }))
+    expect(screen.getByRole('tab', { name: '거래 조회' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: '거래 조회' })).toBeInTheDocument()
+    expect(screen.getByLabelText('조회 방식')).toBeInTheDocument()
+    expect(api.transactionSearch).not.toHaveBeenCalled()
+  })
+
   it('a SESSION_REPLACED answer during work returns to login with the explanation', async () => {
     const api = fakeApi({
       me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '승인자', roles: ['APPROVER'] })),

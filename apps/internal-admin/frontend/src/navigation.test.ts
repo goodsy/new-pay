@@ -7,10 +7,11 @@ const tree = (roles: string[]) => menusFor(roles).map((m) => [m.label, m.tabs.ma
 
 describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs (existing 6 screens only — display only, the server decides)', () => {
   it('the screens each role sees are unchanged (pagesFor)', () => {
-    expect(pagesFor(['SECURITY_ADMIN'])).toEqual(['mine', 'merchants', 'paymentOps', 'accounts', 'reconciliation', 'audit'])
-    expect(pagesFor(['APPROVER'])).toEqual(['approvals', 'merchants', 'paymentOps', 'accounts', 'reconciliation', 'audit'])
-    expect(pagesFor(['OPERATOR'])).toEqual(['mine', 'merchants', 'paymentOps', 'accounts', 'audit'])
-    expect(pagesFor(['VIEWER'])).toEqual(['merchants', 'paymentOps', 'accounts', 'audit'])
+    // 기대값 변경(TXN-OPS-001): 조회 4역할에 거래 조회('transactions')가 더해졌다 — 나머지 화면은 그대로.
+    expect(pagesFor(['SECURITY_ADMIN'])).toEqual(['mine', 'merchants', 'paymentOps', 'transactions', 'accounts', 'reconciliation', 'audit'])
+    expect(pagesFor(['APPROVER'])).toEqual(['approvals', 'merchants', 'paymentOps', 'transactions', 'accounts', 'reconciliation', 'audit'])
+    expect(pagesFor(['OPERATOR'])).toEqual(['mine', 'merchants', 'paymentOps', 'transactions', 'accounts', 'audit'])
+    expect(pagesFor(['VIEWER'])).toEqual(['merchants', 'paymentOps', 'transactions', 'accounts', 'audit'])
     expect(pagesFor(['UNMASK'])).toEqual(['audit'])
   })
 
@@ -19,7 +20,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
       ['운영 홈', []],
       ['내 요청', ['내 요청']],
       ['가맹점 관리', ['가맹점 조회']],
-      ['결제 관리', ['결제 보정 취소']],
+      ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['대사 발견']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
     ])
@@ -30,7 +31,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
       ['운영 홈', []],
       ['승인함', ['승인함']],
       ['가맹점 관리', ['가맹점 조회']],
-      ['결제 관리', ['결제 보정 취소']],
+      ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['대사 발견']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
     ])
@@ -41,7 +42,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
       ['운영 홈', []],
       ['내 요청', ['내 요청']],
       ['가맹점 관리', ['가맹점 조회']],
-      ['결제 관리', ['결제 보정 취소']],
+      ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
     ])
   })
@@ -50,7 +51,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(tree(['VIEWER'])).toEqual([
       ['운영 홈', []],
       ['가맹점 관리', ['가맹점 조회']],
-      ['결제 관리', ['결제 보정 취소']],
+      ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
     ])
   })
@@ -90,6 +91,16 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
       ['가맹점 관리', 'merchants'],
       ['가맹점 관리 › 가맹점 조회', 'merchants'],
     ])
+  })
+
+  it('TXN-OPS-001 (AC 10): 거래 조회 is a 결제 관리 tab for the four view roles only', () => {
+    for (const role of ['VIEWER', 'OPERATOR', 'APPROVER', 'SECURITY_ADMIN']) {
+      expect(menusFor([role]).find((m) => m.id === 'payments')?.tabs.map((t) => t.page)).toEqual(['paymentOps', 'transactions'])
+    }
+    expect(pagesFor(['UNMASK'])).not.toContain('transactions')
+    expect(pagesFor([])).not.toContain('transactions')
+    expect(menuOf('transactions')).toBe('payments')
+    expect(searchMenus(menusFor(['VIEWER']), '거래').map((r) => [r.path, r.target])).toEqual([['결제 관리 › 거래 조회', 'transactions']])
   })
 
   it('menuOf maps a screen back to its menu', () => {

@@ -6608,6 +6608,76 @@
       "evidence": null,
       "review": null,
       "coordinatorDecisions": []
+    },
+    {
+      "id": "TXN-OPS-001",
+      "title": "거래 목록·상세(read-only): ADMIN→PAYMENT 서명 채널 조회 API + 관리자 거래 목록 화면",
+      "phase": "OPS-SCREENS",
+      "status": "DONE",
+      "dependsOn": [
+        "ADMIN-PAYMENT-OPS-001",
+        "MERCHANT-OPS-001"
+      ],
+      "requiredQuestions": [
+        "Q-TXOPS-01",
+        "Q-TXOPS-02",
+        "Q-TXOPS-03",
+        "Q-TXOPS-04",
+        "Q-TXOPS-05"
+      ],
+      "acceptanceCriteria": [
+        "docs/repository/TXN-OPS-001-TRANSACTION-READ.md §7"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/internal-admin/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "docs/repository/TXN-OPS-001-TRANSACTION-READ.md",
+        ".env.example"
+      ],
+      "owner": "paycore-implementer",
+      "attempts": 1,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/TXN-OPS-001-2026-11-04T085505Z.json",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:187541949b4d5da8b7b23570e9b69be076d400cac584faf21a34858669c7f740",
+          "gradleCheck": "exit 0, 08:55:28Z..09:31:11Z (35m43s), Demo MySQL/JVM stopped",
+          "snapshotImagesAfterGate": 0
+        },
+        "tests": "Kotlin 3493/0 fail/0 skip, Vitest 166/0 fail (measured = registered floors)",
+        "supplementary": {
+          "dir": "build/harness-evidence/TXN-OPS-001-2026-11-04T093142Z-supplementary",
+          "verdict": "PASS",
+          "deps": "5 apps exit 0",
+          "cve": "0 vulnerabilities (5 modules + 2 frontends, canary detected)",
+          "codeFingerprint": "sha256:187541949b4d5da8b7b23570e9b69be076d400cac584faf21a34858669c7f740"
+        },
+        "mutations": "M-1 audit-before-return + (a) full order_name, (b) keyset lt->le, (c) UNMASK role in VIEW_ROLES, (d) preview maxCodePoints 10->100: all RED then reverted ((d) after added test) (spec §10)",
+        "demo": "Demo relaunch after gate: V31 applied on payment-api start, payment 8080 health 200, master 8085 200, admin 8090 401 (auth), MySQL healthy",
+        "spec": "docs/repository/TXN-OPS-001-TRANSACTION-READ.md rev 0.2 §9 limitations, §10"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS (APPROVED)",
+        "date": "2026-11-04",
+        "history": "round1 APPROVED with MINOR-1..5, NIT-1..3; fixed before gate: MINOR-1 response-vs-request check (answers), MINOR-2 single ALTER INPLACE/LOCK=NONE + L-10 LIVE online-DDL procedure, MINOR-3 body-limit spec without Content-Length, MINOR-4 mutations (a)-(d), MINOR-5 HTTP audit-failure 503 spec, NIT-1 STRICT_DUPLICATE_DETECTION",
+        "followUps": [
+          "NIT-2 empty order_name preview could fail the whole list shape check (503); confirm OrderNameRule forbids empty or map NULLIF; check preview vs orderNameTruncated consistency",
+          "NIT-3 / L-3,L-4 rare-status search without MID scans 31-day ix_payment_created range; LIVE Gate load test decides (status, created_at, payment_id) index",
+          "LIVE Gate L-10: V31 on LIVE-size payment table via online-DDL procedure (short lock_wait_timeout, MDL check)",
+          "I-3 exact lookups (paymentId, MID+merchantOrderId) exempt from period requirement - implementer interpretation, user informed 2026-11-04",
+          "I-2 operator correction cancel reason/requester/approver not exposed - default, separate question if ops need it"
+        ]
+      },
+      "coordinatorDecisions": [
+        "2026-11-04 user: Q-TXOPS-01 기간 필수 + 필터 (Recommended)",
+        "2026-11-04 user: Q-TXOPS-02 상세만 기록 (Recommended)",
+        "2026-11-04 user: Q-TXOPS-03 상세에서만 전체 표시 (Recommended)",
+        "2026-11-04 user: Q-TXOPS-04 이번엔 제외 (Recommended)",
+        "2026-11-04 user: Q-TXOPS-05 표시만 유지 (Recommended)"
+      ]
     }
   ]
 }

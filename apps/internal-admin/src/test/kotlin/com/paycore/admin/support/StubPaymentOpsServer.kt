@@ -21,6 +21,7 @@ object StubPaymentOpsServer {
     private const val LIST_PREFIX = "/internal/v1/admin/operator-decisions/after/"
     private val DECISION_PATH = Regex("^/internal/v1/admin/operator-cancellations/apr_[0-9A-Z]{26}$")
     private val DEADLINE_PATH = Regex("^/internal/v1/admin/operator-cancellations/apr_[0-9A-Z]{26}/deadline-confirmation$")
+    private val PAYMENT_DETAIL_PATH = Regex("^/internal/v1/admin/payments/pay_[0-9A-Z]{26}$")
     private const val KEY_BASE64 = "dGVzdC1vbmx5LWFkbWluLWNhbGwtZ29sZGVuLWtleS0wMDAx"
 
     class Received(val method: String, val path: String, val query: String?, val signature: String?, val body: ByteArray, val signatureValid: Boolean)
@@ -33,6 +34,11 @@ object StubPaymentOpsServer {
     private val decisions = ConcurrentHashMap<String, Reply>()
     private val deadlines = ConcurrentHashMap<String, Reply>()
     private val lists = ConcurrentHashMap<Long, Reply>()
+
+    /** TXN-OPS-001 거래 조회 응답: 검색은 본문의 표식 문자열(첫 일치)별, 상세는 paymentId별. 기본은 빈 목록·404 PAYMENT_NOT_FOUND. */
+    const val SEARCH_PATH = "/internal/v1/admin/payment-searches"
+    private val searches = java.util.concurrent.CopyOnWriteArrayList<Pair<String, Reply>>()
+    private val details = ConcurrentHashMap<String, Reply>()
 
     @Volatile
     private var defaultExecution: Reply = Reply(503, "{\"error\":\"TEMPORARILY_UNAVAILABLE\"}")
@@ -114,6 +120,15 @@ object StubPaymentOpsServer {
             "\"decidedAt\":\"$recordedAt\",\"recordedAt\":\"$recordedAt\",\"origin\":\"EXECUTION_COMMAND\"}"
     }
 
+    /** 검색 본문에 [marker]가 들어 있으면 [reply](나중에 등록한 것이 먼저). */
+    fun search(marker: String, reply: Reply) {
+        searches.add(0, marker to reply)
+    }
+
+    fun detail(paymentId: String, reply: Reply) {
+        details[paymentId] = reply
+    }
+
     fun requestsFor(approvalId: String): List<Received> = received.filter { r -> r.body.toString(Charsets.UTF_8).contains("\"approvalId\":\"$approvalId\"") }
 
     fun requestsForPath(path: String): List<Received> = received.filter { it.path == path }
@@ -125,6 +140,11 @@ object StubPaymentOpsServer {
             val signature = ex.requestHeaders.getFirst("PayCore-Admin-Signature")
             received += Received(ex.requestMethod, path, ex.requestURI.rawQuery, signature, body, verify(ex.requestMethod, path, signature, body))
             val reply = when {
+                ex.requestMethod == "POST" && path == SEARCH_PATH -> body.toString(Charsets.UTF_8).let { text ->
+                    searches.firstOrNull { text.contains(it.first) }?.second ?: Reply(200, "{\"items\":[],\"nextCursor\":null}")
+                }
+                ex.requestMethod == "GET" && PAYMENT_DETAIL_PATH.matches(path) ->
+                    details[path.substringAfterLast('/')] ?: Reply(404, "{\"error\":\"PAYMENT_NOT_FOUND\"}")
                 ex.requestMethod == "GET" && path.endsWith("/operator-cancel-target") ->
                     targets[path.removePrefix("/internal/v1/admin/payments/").removeSuffix("/operator-cancel-target")]
                         ?: Reply(404, "{\"error\":\"PAYMENT_NOT_FOUND\"}")

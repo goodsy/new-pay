@@ -42,6 +42,8 @@ const SERVER_AUDIT_ACTIONS = [
   'APPROVAL_INTEGRITY_MISMATCH', 'APPROVAL_RESEND_HALTED', 'APPROVAL_JUSTIFICATION_VIEWED', 'OPS_RECON_FINDING',
   // MERCHANT-OPS-001 §5.1·§5.2
   'MERCHANT_VIEWED', 'MERCHANT_BRN_SEARCHED',
+  // TXN-OPS-001 §5.1
+  'PAYMENT_VIEWED',
 ]
 
 describe('ADMIN-UI-001 Korean labels (display only)', () => {
@@ -74,6 +76,7 @@ describe('ADMIN-UI-001 Korean labels (display only)', () => {
     expect(labelOf('AUDIT_VIEWED')).toBe('감사 기록 조회')
     expect(labelOf('MERCHANT_VIEWED')).toBe('가맹점 상세 조회')
     expect(labelOf('MERCHANT_BRN_SEARCHED')).toBe('사업자등록번호 검색')
+    expect(labelOf('PAYMENT_VIEWED')).toBe('거래 상세 조회')
   })
 
   it('MERCHANT-OPS-001: merchant statuses, activation statuses and limit kinds in Korean with semantic tones', () => {

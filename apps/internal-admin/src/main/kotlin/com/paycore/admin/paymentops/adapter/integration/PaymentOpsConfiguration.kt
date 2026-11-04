@@ -1,6 +1,5 @@
 package com.paycore.admin.paymentops.adapter.integration
 
-import com.paycore.admin.paymentops.application.required.PaymentOpsGateway
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -18,7 +17,8 @@ import java.time.Instant
 class PaymentOpsConfiguration {
 
     @Bean
-    fun paymentOpsGateway(settings: PaymentOpsSettings, environment: Environment): PaymentOpsGateway {
+    // TXN-OPS-001 R-3: 같은 객체가 거래 조회 Port(PaymentReadGateway)도 구현한다 — 같은 키·같은 lookup permit(새 채널·새 키 없음). 반환 타입이 구현 타입이라 두 Port로 주입된다.
+    fun paymentOpsGateway(settings: PaymentOpsSettings, environment: Environment): HttpPaymentOpsGateway {
         startupGuard(environment.getProperty("server.servlet.context-path"), environment.getProperty("paycore.admin.deployment-mode"), settings)
         return HttpPaymentOpsGateway(settings, AdminCallSigner(settings.keyId, settings.signingKey())) { Instant.now() }
     }

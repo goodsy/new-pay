@@ -19,6 +19,7 @@ import { LoginScreen } from './screens/LoginScreen'
 import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
+import { TransactionsScreen } from './screens/TransactionsScreen'
 
 const ICONS: Record<MenuId, LucideIcon> = {
   home: HouseIcon, approvals: InboxIcon, mine: SendIcon, merchants: StoreIcon, payments: CreditCardIcon, recon: ArrowLeftRightIcon, accounts: UserRoundIcon,
@@ -172,6 +173,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
               <MerchantsScreen api={api} canSearchRegistrationNumber={me.roles.includes('OPERATOR') || me.roles.includes('APPROVER')} onSessionEnded={sessionEnded} />
             )}
             {page === 'paymentOps' && <PaymentOpsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
+            {page === 'transactions' && <TransactionsScreen api={api} onSessionEnded={sessionEnded} />}
             {page === 'reconciliation' && <ReconciliationScreen api={api} onSessionEnded={sessionEnded} />}
             {page === 'accounts' && <AccountsScreen api={api} canManage={me.roles.includes('SECURITY_ADMIN')} onSessionEnded={sessionEnded} />}
             {page === 'audit' && <AuditScreen api={api} onSessionEnded={sessionEnded} />}

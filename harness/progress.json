@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
-  "codeFingerprint": "sha256:631d0369916b665acff88468b8b11e1af35cf3ab5ed4b6b9b356a2a3f0c6ea10",
-  "lastSuccessfulStep": "MERCHANT-OPS-001 DONE (VERIFY-GATE PASS 2026-11-04T030711Z, Kotlin 3445/0, Vitest 157; supplementary 034404Z PASS CVE 0; REVIEW_PASS round3) sha256:631d0369916b665acff88468b8b11e1af35cf3ab5ed4b6b9b356a2a3f0c6ea10",
+  "activeTaskId": "TXN-OPS-001",
+  "codeFingerprint": "sha256:187541949b4d5da8b7b23570e9b69be076d400cac584faf21a34858669c7f740",
+  "lastSuccessfulStep": "TXN-OPS-001 VERIFY-GATE PASS 2026-11-04T085505Z + supplementary 093142Z PASS; REVIEW_PASS; DONE",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "Commit MERCHANT-OPS-001 (user decision). Then ops screens: transaction list (payment-api read API on existing signed channel) -> acquiring (ACQUIRING-001 server first) -> settlement/payout (Q-CALENDAR, Q-SETTLE-CURRENCY, Q-CORRECTION). MERCHANT-OPS-002 needs Q-MOPS-01. Demo launch config needs admin-channel/master-ops keys. Follow-ups: MERCHANT-OPS-001 NIT-1/2, CHECKOUT-REACT-001 MINOR-1..3, TEST-PERF-002 MINOR-1..5, ADMIN-UI-001 MINOR-1/NIT; CHECKOUT-TERMS-001 needs terms text. Run gates with Demo MySQL/JVM stopped.",
+  "nextResumeAction": "Commit TXN-OPS-001 (user decision), then show the 거래 조회 screen in the Demo. Next ops screens: acquiring (ACQUIRING-001 server first) -> settlement/payout (Q-CALENDAR, Q-SETTLE-CURRENCY, Q-CORRECTION). MERCHANT-OPS-002 needs Q-MOPS-01. Follow-ups: TXN-OPS-001 NIT-2/L-3/L-4/L-10, MERCHANT-OPS-001 NIT-1/2 + LIVE L-1/L-3, CHECKOUT-REACT-001 MINOR-1..3, TEST-PERF-002 MINOR-1..5, ADMIN-UI-001 MINOR-1/NIT; CHECKOUT-TERMS-001 needs terms text. Run gates with Demo MySQL/JVM stopped.",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -659,6 +659,16 @@
       "at": "2026-11-04T03:47Z",
       "taskId": "MERCHANT-OPS-001",
       "event": "Q-MOPS-05..08 answered; review r1/r2 fixes; VERIFY-GATE PASS 030711Z (3445/157) + supplementary PASS; REVIEW_PASS r3; DONE"
+    },
+    {
+      "at": "2026-11-04",
+      "taskId": "TXN-OPS-001",
+      "event": "discovery done; Q-TXOPS-01..04 answered; IN_PROGRESS"
+    },
+    {
+      "at": "2026-11-04T09:40Z",
+      "taskId": "TXN-OPS-001",
+      "event": "Q-TXOPS-05 answered; review fixes; VERIFY-GATE PASS 085505Z (3493/166) + supplementary PASS (CVE 0); REVIEW_PASS; DONE; Demo relaunched with V31"
     }
   ],
   "agreedOrder": [

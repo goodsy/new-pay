@@ -176,6 +176,11 @@
 | D-MOPS-001 | (사용자 결정, AskUserQuestion 2026-11-03) | 가맹점 운영 화면은 **읽기 전용 먼저**: 목록·상세·변경 이력 + ADMIN→MASTER 서명 내부 채널. 등록·개통·정지 명령(maker-checker)은 MERCHANT-OPS-002(Q-MOPS-01 대기). 이번 작업에 UNMASK 없음 | MERCHANT-OPS-001 §1·§2 rev 0.1 | MERCHANT-OPS-001, MERCHANT-OPS-002 | 2026-11-03 |
 | D-MOPS-002 | Q-MOPS-02 | 접근 감사는 **상세 조회만**(`MERCHANT_VIEWED`: 행위자·시각·merchantId). 목록·이력 조회는 감사하지 않는다. 결제 대상 조회(I-23 조회 감사 없음)와 다른 이유: 개인사업자 사업자등록번호는 개인정보일 수 있고 상세는 한 사업자를 특정해 보는 행위 | MERCHANT-OPS-001 §5.1 | MERCHANT-OPS-001 | 2026-11-03 |
 | D-MOPS-003 | Q-MOPS-03 | 전체 사업자등록번호 정확 일치 검색을 이번 작업에 포함, OPERATOR 이상만, **모든 시도 감사**, 감사에 평문 금지, oracle 취급(찾음/못 찾음 같은 모양·속도 제한·호출 전 형식 검사·오류/로그에 값 없음), 응답은 마스킹 값만. 세부는 사용자 직접 답변(Q-MOPS-05/06, 2026-11-04): 역할 = **OPERATOR·APPROVER**(VIEWER·SECURITY_ADMIN·UNMASK 단독 제외), 감사 = 앞 3자리 마스킹 값 + 결과 수 + 찾으면 targetRef=businessId(keyed hash 미사용). JSON 타입이 깨진 검색 본문도 시도로 보고 `INVALID_INPUT`(brn=INVALID) 감사, 중복 키 거부(Q-MOPS-07, 2026-11-04). 크기 상한 초과 본문은 해석 없이 거절·감사 없음(Q-MOPS-08, 2026-11-04; 상한 16 KiB는 Demo 값) | MERCHANT-OPS-001 §5.2–5.5 | MERCHANT-OPS-001 | 2026-11-03 (세부 2026-11-04) |
+| D-TXOPS-001 | Q-TXOPS-01 | 생성일 기간 필수(최대 31일 Demo) + 환경·MID·결제 상태 필터, 결제 ID 정확 조회, MID+가맹점 주문번호 조회, 최신순 keyset 페이지, 상세(승인·취소 이력·잔액) | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
+| D-TXOPS-002 | Q-TXOPS-02 | 상세만 PAYMENT_VIEWED 감사(감사 실패 시 결과 미반환), 목록 미감사 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
+| D-TXOPS-003 | Q-TXOPS-03 | 목록은 주문명 앞 10자만, 상세(감사 대상)에서 주문명 전체·승인번호·기관 거래번호; 기관 내부 계정 값은 어디에도 미노출 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
+| D-TXOPS-004 | Q-TXOPS-04 | 이번 작업 제외(별도 권한·감사·행 수 상한 필요) | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
+| D-TXOPS-005 | Q-TXOPS-05 | 거래 상세의 운영자 보정 취소는 '운영자 취소'(initiatorKind)만 표시. 사유·요청자·승인자·승인 건 ID는 기존 승인 화면에서만 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 
