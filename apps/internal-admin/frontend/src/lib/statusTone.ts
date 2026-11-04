@@ -11,6 +11,8 @@ const TONES: Record<string, BadgeVariant> = {
   SUSPENDED: 'destructive', REJECTED: 'destructive', OWNER_REJECTED: 'destructive', FAILED: 'destructive', FAILURE: 'destructive',
   DENIED: 'destructive', REFUSED: 'destructive', FORBIDDEN: 'destructive', FLAGGED: 'destructive',
   EXPIRED: 'outline', WITHDRAWN: 'outline', INVALIDATED: 'outline',
+  // MERCHANT-OPS-001: 심사 승인 초록, 심사 중 주황, 해지·종료 회색, 감사 결과 서비스 불가·속도 제한 빨강/주황.
+  APPROVED: 'success', UNDER_REVIEW: 'warning', TERMINATED: 'outline', ENDED: 'outline', UNAVAILABLE: 'destructive', RATE_LIMITED: 'warning',
 }
 
 export function statusTone(code: string): BadgeVariant {

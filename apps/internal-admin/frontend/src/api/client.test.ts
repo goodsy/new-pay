@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, XSRF_COOKIE, XSRF_HEADER, apiFetch, readCookie } from './client'
+import { createAdminApi } from './adminApi'
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -92,5 +93,34 @@ describe('readCookie', () => {
     expect(readCookie(XSRF_COOKIE, `a=1; ${XSRF_COOKIE}=v; ${XSRF_COOKIE}-old=w`)).toBe('v')
     expect(readCookie(XSRF_COOKIE, `x${XSRF_COOKIE}=v`)).toBeUndefined()
     expect(readCookie(XSRF_COOKIE, '')).toBeUndefined()
+  })
+})
+
+describe('createAdminApi — MERCHANT-OPS-001 §4.1 merchant lookup calls', () => {
+  it('search is a POST with the criteria in the JSON body and the CSRF header (the registration number never goes to the URL, R-3)', async () => {
+    const d = deps(jsonResponse(200, { items: [], nextCursor: null }), `${XSRF_COOKIE}=tok-m`)
+    await createAdminApi(d).merchantSearch({ registrationNumber: '1234567890', lifecycle: 'ACTIVE' })
+    const [path, init] = d.fetch.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/merchant-searches')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({ registrationNumber: '1234567890', lifecycle: 'ACTIVE' })
+    expect(headersOf(d.fetch).get(XSRF_HEADER)).toBe('tok-m')
+    expect(path).not.toContain('1234567890')
+  })
+
+  it('detail and history are GETs; history sends after only for later pages; the id is one encoded path segment', async () => {
+    // 응답 본문은 한 번만 읽히므로 호출마다 새 응답.
+    const d = { fetch: vi.fn(async (_input: string, _init: RequestInit) => jsonResponse(200, {})), cookie: () => '' }
+    const api = createAdminApi(d)
+    await api.merchantDetail('mer_0000000000000000000000000A')
+    await api.merchantHistory('mer_0000000000000000000000000A')
+    await api.merchantHistory('mer_0000000000000000000000000A', 57)
+    await api.merchantDetail('a/../b')
+    expect(d.fetch.mock.calls.map(([path, init]) => [path, (init as RequestInit).method])).toEqual([
+      ['/api/merchants/mer_0000000000000000000000000A', 'GET'],
+      ['/api/merchants/mer_0000000000000000000000000A/history', 'GET'],
+      ['/api/merchants/mer_0000000000000000000000000A/history?after=57', 'GET'],
+      ['/api/merchants/a%2F..%2Fb', 'GET'],
+    ])
   })
 })

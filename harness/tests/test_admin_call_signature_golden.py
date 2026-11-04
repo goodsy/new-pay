@@ -1,7 +1,7 @@
 """ADMIN → PAYMENT 내부 호출 서명 계약 v1 golden(ADMIN-PAYMENT-OPS-001 §4.2·§4.19 ②, D-OPS-001 — 두 앱 코드와 독립 생성).
 
-PAYMENT(apps/payment-api `payment.adapter.web.admin` 서명 검증)와 ADMIN(apps/internal-admin `paymentops` 서명 생성, S5)은 코드를 공유하지 않고 이 파일 하나로
-서명 계약을 맞춘다. 이 시험은 Python 표준 라이브러리(`hmac`·`hashlib`·`base64`)만으로 golden을 만들어 두 앱 시험 자원의 파일과 바이트 비교한다.
+PAYMENT(apps/payment-api `payment.adapter.web.admin` 서명 검증)와 ADMIN(apps/internal-admin `paymentops`·`merchantops` 서명 생성, S5), MASTER
+(apps/master-api `merchant.adapter.web.admin` 서명 검증, MERCHANT-OPS-001 — 같은 계약, 다른 키 공간)는 코드를 공유하지 않고 이 파일 하나로 서명 계약을 맞춘다. 이 시험은 Python 표준 라이브러리(`hmac`·`hashlib`·`base64`)만으로 golden을 만들어 세 앱 시험 자원의 파일과 바이트 비교한다.
 
 계약 요점:
 - 헤더 `PayCore-Admin-Signature: t=<unix 초>,kid=<keyId>,v1=<64 소문자 hex>` — 전체가 정규식
@@ -26,7 +26,7 @@ from collections import OrderedDict
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 NAME = "admin-call-signature-v1.golden.json"
-TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("internal-admin", "payment-api")]
+TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("internal-admin", "payment-api", "master-api")]
 
 HEADER_NAME = "PayCore-Admin-Signature"
 CANONICAL_TAG = "paycore.admin-call.v1"

@@ -25,6 +25,13 @@ const SERVER_CODES = [
   'SUCCESS', 'OK', 'DENIED', 'REFUSED', 'FORBIDDEN', 'FAILED', 'FAILURE', 'UNKNOWN', 'FLAGGED', 'HALTED', 'COUNTED', 'NOT_COUNTED',
   // payment-api PaymentStatus(REQUESTED·AUTHORIZING·UNKNOWN·AUTHORIZED·FAILED·EXPIRED)
   'REQUESTED', 'AUTHORIZING', 'AUTHORIZED',
+  // MERCHANT-OPS-001 가맹점 조회(master-api domain): Lifecycle(ACTIVE·TERMINATED), SiteReviewStatus(PENDING·APPROVED·REJECTED·SUSPENDED),
+  // ActivationStatus(UNDER_REVIEW·ACTIVE·SUSPENDED·TERMINATED), SiteAssignmentRole, SiteAssignmentStatus(ACTIVE·SUSPENDED·ENDED), ChannelType,
+  // 계약 Scope 종류(MasterPersistenceMapper SCOPE_*), LimitScopeKind, 한도 값 종류(AuthorizationTermsMapper), ServiceKind, PaymentMethod, EffectBasis
+  'TERMINATED', 'APPROVED', 'UNDER_REVIEW', 'PRIMARY', 'ADDITIONAL', 'ENDED', 'WEB', 'APP', 'MERCHANT', 'SITES', 'CSA_DEFAULT', 'MID_OVERRIDE',
+  'UNLIMITED', 'LIMITED', 'CARD_PG_PAYMENT', 'CARD', 'ACK', 'LEASE_EXPIRY',
+  // MERCHANT-OPS-001 §5.1·§5.2 감사 resultCode(MERCHANT_VIEWED·MERCHANT_BRN_SEARCHED)
+  'NOT_FOUND', 'INVALID_INPUT', 'RATE_LIMITED', 'UNAVAILABLE',
 ]
 
 const SERVER_AUDIT_ACTIONS = [
@@ -33,6 +40,8 @@ const SERVER_AUDIT_ACTIONS = [
   'UNMASK_REQUESTED', 'APPROVAL_REQUESTED', 'APPROVAL_EXECUTING', 'APPROVAL_EXECUTED', 'APPROVAL_EXECUTION_UNKNOWN', 'APPROVAL_REJECTED',
   'APPROVAL_WITHDRAWN', 'APPROVAL_EXPIRED', 'APPROVAL_INVALIDATED', 'APPROVAL_DENIED', 'APPROVAL_OWNER_REJECTED', 'APPROVAL_INTEGRITY_VIOLATION',
   'APPROVAL_INTEGRITY_MISMATCH', 'APPROVAL_RESEND_HALTED', 'APPROVAL_JUSTIFICATION_VIEWED', 'OPS_RECON_FINDING',
+  // MERCHANT-OPS-001 §5.1·§5.2
+  'MERCHANT_VIEWED', 'MERCHANT_BRN_SEARCHED',
 ]
 
 describe('ADMIN-UI-001 Korean labels (display only)', () => {
@@ -63,6 +72,18 @@ describe('ADMIN-UI-001 Korean labels (display only)', () => {
     expect(Object.keys(AUDIT_ACTION_LABELS).filter((code) => !SERVER_AUDIT_ACTIONS.includes(code))).toEqual([])
     expect(labelOf('LOGIN_SUCCEEDED')).toBe('로그인 성공')
     expect(labelOf('AUDIT_VIEWED')).toBe('감사 기록 조회')
+    expect(labelOf('MERCHANT_VIEWED')).toBe('가맹점 상세 조회')
+    expect(labelOf('MERCHANT_BRN_SEARCHED')).toBe('사업자등록번호 검색')
+  })
+
+  it('MERCHANT-OPS-001: merchant statuses, activation statuses and limit kinds in Korean with semantic tones', () => {
+    expect([labelOf('TERMINATED'), statusTone('TERMINATED')]).toEqual(['해지', 'outline'])
+    expect([labelOf('UNDER_REVIEW'), statusTone('UNDER_REVIEW')]).toEqual(['심사 중', 'warning'])
+    expect([labelOf('APPROVED'), statusTone('APPROVED')]).toEqual(['승인', 'success'])
+    expect([labelOf('ENDED'), statusTone('ENDED')]).toEqual(['종료', 'outline'])
+    expect(labelOf('UNLIMITED')).toBe('무제한')
+    expect(labelOf('SITES')).toBe('Site 지정')
+    expect([labelOf('UNAVAILABLE'), statusTone('UNAVAILABLE')]).toEqual(['서비스 불가', 'destructive'])
   })
 
   it('shows an unknown code as is (never hides it)', () => {

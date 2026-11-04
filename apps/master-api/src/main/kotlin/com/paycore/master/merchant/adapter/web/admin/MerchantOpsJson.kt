@@ -1,0 +1,102 @@
+package com.paycore.master.merchant.adapter.web.admin
+
+import com.paycore.master.merchant.application.provided.MerchantDetailView
+import com.paycore.master.merchant.application.provided.MerchantDirectoryPage
+import com.paycore.master.merchant.application.provided.MerchantHistoryPage
+import java.time.Instant
+
+/**
+ * MASTER 내부 응답 모양(MERCHANT-OPS-001 §3.1–3.3). 필드 이름·순서 고정, 값 없는 필드는 `null`. view에 없는 값(기관 가맹점 번호·이력 detail·등록번호 평문)은 여기서도 만들 수 없다.
+ */
+object MerchantOpsJson {
+
+    fun directory(page: MerchantDirectoryPage): Map<String, Any?> = linkedMapOf(
+        "items" to page.items.map {
+            linkedMapOf(
+                "merchantId" to it.merchantId, "merchantName" to it.merchantName, "businessId" to it.businessId, "businessName" to it.businessName,
+                "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision,
+                "midCount" to it.midCount, "createdAt" to time(it.createdAt),
+            )
+        },
+        "nextCursor" to page.nextCursor,
+    )
+
+    fun history(page: MerchantHistoryPage): Map<String, Any?> = linkedMapOf(
+        "items" to page.items.map {
+            linkedMapOf(
+                "seq" to it.seq, "occurredAt" to time(it.occurredAt), "operation" to it.operation, "aggregateType" to it.aggregateType,
+                "aggregateId" to it.aggregateId, "changeType" to it.changeType, "actorRef" to it.actorRef,
+            )
+        },
+        "nextCursor" to page.nextCursor,
+    )
+
+    fun detail(v: MerchantDetailView): Map<String, Any?> = linkedMapOf(
+        "merchant" to v.merchant.let {
+            linkedMapOf("merchantId" to it.merchantId, "name" to it.name, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision, "createdAt" to time(it.createdAt))
+        },
+        "business" to v.business.let {
+            linkedMapOf("businessId" to it.businessId, "name" to it.name, "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle)
+        },
+        "sites" to v.sites.map { s ->
+            linkedMapOf(
+                "merchantSiteId" to s.merchantSiteId, "channelType" to s.channelType, "channelIdentifier" to s.channelIdentifier, "lifecycle" to s.lifecycle,
+                "review" to s.review?.let { linkedMapOf("decision" to it.decision, "decidedAt" to time(it.decidedAt)) },
+            )
+        },
+        "contracts" to v.contracts.map { c ->
+            linkedMapOf(
+                "contractId" to c.contractId, "createdAt" to time(c.createdAt),
+                "revisions" to c.revisions.map {
+                    linkedMapOf(
+                        "revisionNo" to it.revisionNo, "scopeKind" to it.scopeKind, "effectiveFrom" to time(it.effectiveFrom), "effectiveTo" to it.effectiveTo?.let(::time),
+                        "approvedAt" to it.approvedAt?.let(::time), "scopeSiteIds" to it.scopeSiteIds,
+                    )
+                },
+                "agreements" to c.agreements.map { linkedMapOf("agreementId" to it.agreementId, "serviceKind" to it.serviceKind, "addedAt" to time(it.addedAt)) },
+            )
+        },
+        "accounts" to v.accounts.map(::account),
+        "limits" to v.limits.map {
+            linkedMapOf(
+                "policyId" to it.policyId, "scopeKind" to it.scopeKind, "agreementId" to it.agreementId, "merchantAccountId" to it.merchantAccountId,
+                "currencyCode" to it.currencyCode, "perTxKind" to it.perTxKind, "perTxAmount" to it.perTxAmount, "dailyKind" to it.dailyKind, "dailyAmount" to it.dailyAmount,
+                "effectiveFrom" to time(it.effectiveFrom), "effectiveTo" to it.effectiveTo?.let(::time), "endedAt" to it.endedAt?.let(::time),
+            )
+        },
+        "propagation" to v.propagation?.let {
+            linkedMapOf(
+                "latestRevision" to it.latestRevision, "latestRevisionIssuedAt" to time(it.latestRevisionIssuedAt), "latestAckRevision" to it.latestAckRevision,
+                "latestAckAt" to it.latestAckAt?.let(::time), "effectConfirmedAt" to it.effectConfirmedAt?.let(::time), "effectBasis" to it.effectBasis?.name,
+            )
+        },
+    )
+
+    private fun account(a: MerchantDetailView.AccountDetail): Map<String, Any?> = linkedMapOf(
+        "merchantAccountId" to a.merchantAccountId, "lifecycle" to a.lifecycle, "isDefault" to a.isDefault, "issuingContractId" to a.issuingContractId,
+        "issuingAgreementId" to a.issuingAgreementId, "issuingRevisionNo" to a.issuingRevisionNo, "issuedAt" to time(a.issuedAt),
+        "assignments" to a.assignments.map {
+            linkedMapOf(
+                "assignmentId" to it.assignmentId, "merchantSiteId" to it.merchantSiteId, "role" to it.role, "status" to it.status,
+                "effectiveFrom" to time(it.effectiveFrom), "effectiveTo" to it.effectiveTo?.let(::time),
+            )
+        },
+        "paymentMethods" to a.paymentMethods.map {
+            linkedMapOf("activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "status" to it.status, "registeredAt" to time(it.registeredAt))
+        },
+        "currencies" to a.currencies.map {
+            linkedMapOf(
+                "enablementId" to it.enablementId, "currencyCode" to it.currencyCode, "effectiveFrom" to time(it.effectiveFrom),
+                "effectiveTo" to it.effectiveTo?.let(::time), "endedAt" to it.endedAt?.let(::time),
+            )
+        },
+        "cardRoutes" to a.cardRoutes.map {
+            linkedMapOf(
+                "activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "acquirerCode" to it.acquirerCode, "routeRef" to it.routeRef,
+                "status" to it.status, "registeredAt" to time(it.registeredAt),
+            )
+        },
+    )
+
+    private fun time(at: Instant): String = AdminChannelResponses.time(at)
+}

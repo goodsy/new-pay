@@ -1,7 +1,8 @@
 /**
  * 서버 code → 화면 한국어 이름(ADMIN-UI-001 "직관적" 요구 — 표시만). 서버 판정·요청 값·행 aria-label은 원래 code를 그대로 쓴다.
  * 출처(서버 enum·상수 — labels.test.ts가 집합 전부를 확인): internal-admin domain enum AccountStatus·AdminRole·ApprovalStatus·ApprovalKind·
- * OperatorCancelPurposeKind·ReconciliationFindingKind·AuditActorKind, 감사 행위(action)·결과(resultCode) 상수, payment-api PaymentStatus.
+ * OperatorCancelPurposeKind·ReconciliationFindingKind·AuditActorKind, 감사 행위(action)·결과(resultCode) 상수, payment-api PaymentStatus,
+ * master-api 가맹점 enum(MERCHANT-OPS-001 가맹점 조회 표시).
  * 모르는 code는 원래 code를 그대로 보인다(숨기지 않는다). 같은 code는 도메인이 달라도 같은 뜻으로만 쓰인다.
  */
 
@@ -41,6 +42,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   APPROVAL_RESEND_HALTED: '재전송 중단',
   APPROVAL_JUSTIFICATION_VIEWED: '근거·사유 조회',
   OPS_RECON_FINDING: '대사 발견 기록',
+  // MERCHANT-OPS-001 §5.1·§5.2(admin.merchantops)
+  MERCHANT_VIEWED: '가맹점 상세 조회',
+  MERCHANT_BRN_SEARCHED: '사업자등록번호 검색',
 }
 
 export const CODE_LABELS: Readonly<Record<string, string>> = {
@@ -106,6 +110,31 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   REQUESTED: '요청됨',
   AUTHORIZING: '승인 진행 중',
   AUTHORIZED: '승인 완료',
+  // 가맹점 조회(MERCHANT-OPS-001 — master-api Lifecycle·SiteReviewStatus·ActivationStatus·SiteAssignmentRole/Status·ChannelType·계약 Scope 종류·
+  // LimitScopeKind·한도 값 종류·ServiceKind·PaymentMethod·EffectBasis). ACTIVE·SUSPENDED·PENDING·REJECTED는 위 이름과 같은 뜻.
+  TERMINATED: '해지',
+  APPROVED: '승인',
+  UNDER_REVIEW: '심사 중',
+  ENDED: '종료',
+  PRIMARY: '대표',
+  ADDITIONAL: '추가',
+  WEB: '웹',
+  APP: '앱',
+  MERCHANT: '가맹점 전체',
+  SITES: 'Site 지정',
+  CSA_DEFAULT: 'CSA 기본',
+  MID_OVERRIDE: 'MID 개별',
+  UNLIMITED: '무제한',
+  LIMITED: '한도 있음',
+  CARD_PG_PAYMENT: '카드 PG 결제',
+  CARD: '카드',
+  ACK: '수신 확인',
+  LEASE_EXPIRY: '임대 만료',
+  // 가맹점 조회 감사 결과(MERCHANT-OPS-001 §5.1·§5.2)
+  NOT_FOUND: '찾지 못함',
+  INVALID_INPUT: '입력 형식 오류',
+  RATE_LIMITED: '속도 제한',
+  UNAVAILABLE: '서비스 불가',
   ...AUDIT_ACTION_LABELS,
 }
 

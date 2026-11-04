@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRightIcon, CreditCardIcon, HouseIcon, InboxIcon, LogOutIcon, SendIcon, UserRoundIcon, type LucideIcon } from './components/icons'
+import { ArrowLeftRightIcon, CreditCardIcon, HouseIcon, InboxIcon, LogOutIcon, SendIcon, StoreIcon, UserRoundIcon, type LucideIcon } from './components/icons'
 import { createAdminApi, type AdminApi, type Me } from './api/adminApi'
 import { MenuCard } from './components/MenuCard'
 import { MenuSearch } from './components/MenuSearch'
@@ -16,11 +16,12 @@ import { AuditScreen } from './screens/AuditScreen'
 import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
 
 const ICONS: Record<MenuId, LucideIcon> = {
-  home: HouseIcon, approvals: InboxIcon, mine: SendIcon, payments: CreditCardIcon, recon: ArrowLeftRightIcon, accounts: UserRoundIcon,
+  home: HouseIcon, approvals: InboxIcon, mine: SendIcon, merchants: StoreIcon, payments: CreditCardIcon, recon: ArrowLeftRightIcon, accounts: UserRoundIcon,
 }
 
 /** 사이드바(rev 0.4): 운영 홈, 그 아래 구역 이름(내 업무·PAYMENT OPERATIONS·WORKSPACE)별 메뉴. 선택 메뉴는 `aria-current="page"`. */
@@ -167,6 +168,9 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
           <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
+            {page === 'merchants' && (
+              <MerchantsScreen api={api} canSearchRegistrationNumber={me.roles.includes('OPERATOR') || me.roles.includes('APPROVER')} onSessionEnded={sessionEnded} />
+            )}
             {page === 'paymentOps' && <PaymentOpsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
             {page === 'reconciliation' && <ReconciliationScreen api={api} onSessionEnded={sessionEnded} />}
             {page === 'accounts' && <AccountsScreen api={api} canManage={me.roles.includes('SECURITY_ADMIN')} onSessionEnded={sessionEnded} />}

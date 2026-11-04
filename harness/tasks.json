@@ -6511,6 +6511,103 @@
         "2026-11-03 사용자: 초기화 사본 방식 \"채택 + 매번 초기화 시험 유지\" — 초기화 스크립트를 빈 MySQL에서 실제 실행하는 계정·권한 시험(AdminDatabaseAccountSpec, DatabaseAccountSeparationSpec, SimulatorDatabaseAccountSpec 등)은 매번 새 초기화 유지. Demo MySQL 2개는 측정·게이트 중 docker stop만 허용(볼륨 유지, 끝나면 start)",
         "2026-11-03 사용자 \"관리자 개선만 남기고 마무리\": 30분 목표 미달(2108s→2097s, 편차 안) 수용. internal-admin 초기화 사본 + spec 묶음 순서만 유지, payment·simulator 사본 되돌림, 추가 최적화((a) 새 초기화 미리 시작·(c) ArchitectureSpec import 공유·(d) task 순서) 중단. 이후 gate는 Demo MySQL·JVM 모두 정지 상태에서 실행. 판정은 Verifier/Reviewer"
       ]
+    },
+    {
+      "id": "MERCHANT-OPS-001",
+      "title": "가맹점 조회(read-only): ADMIN→MASTER 서명 채널, 가맹점 목록·상세·변경 이력, 사업자번호 검색(OPERATOR·APPROVER, 감사)",
+      "phase": "OPS-SCREENS",
+      "status": "DONE",
+      "dependsOn": [
+        "ADMIN-PAYMENT-OPS-001",
+        "MASTER-DOMAIN-001"
+      ],
+      "requiredQuestions": [
+        "Q-MOPS-02",
+        "Q-MOPS-03",
+        "Q-MOPS-05",
+        "Q-MOPS-06",
+        "Q-MOPS-07",
+        "Q-MOPS-08"
+      ],
+      "acceptanceCriteria": [
+        "docs/repository/MERCHANT-OPS-001-MERCHANT-READ.md §7"
+      ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "docs/repository/MERCHANT-OPS-001-MERCHANT-READ.md",
+        "docs/DECISIONS.md",
+        ".env.example"
+      ],
+      "owner": "paycore-implementer",
+      "attempts": 1,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/MERCHANT-OPS-001-2026-11-04T030711Z.json",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:631d0369916b665acff88468b8b11e1af35cf3ab5ed4b6b9b356a2a3f0c6ea10",
+          "gradleCheck": "exit 0, 03:07:34Z..03:42:52Z (35m18s), Demo MySQL/JVM stopped",
+          "snapshotImagesAfterGate": 0
+        },
+        "tests": "Kotlin 3445/0 fail (master-api 442 after +5), Vitest 157",
+        "supplementary": {
+          "dir": "build/harness-evidence/MERCHANT-OPS-001-2026-11-04T034404Z-supplementary",
+          "verdict": "PASS",
+          "deps": "5 apps exit 0",
+          "cve": "0 vulnerabilities (5 modules + 2 frontends, canary detected)",
+          "codeFingerprint": "sha256:631d0369916b665acff88468b8b11e1af35cf3ab5ed4b6b9b356a2a3f0c6ea10"
+        },
+        "mutations": "M-1 (4 fail), M-2 (6 fail), M-3a default-chain permitAll (fail), M-3b admin authz permitAll survived → authz-rule test added, then fails; all reverted (spec §10.1)",
+        "earlierGates": "mogate1 154512Z PASS (pre-review), mogate2 231536Z PASS (pre re-review fixes); superseded",
+        "spec": "docs/repository/MERCHANT-OPS-001-MERCHANT-READ.md §9.1 L-1..L-8, §10/§10.1"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS (APPROVED)",
+        "date": "2026-11-04",
+        "history": "round1 CHANGES_REQUESTED (MAJOR-1 decision wording, MINOR-1..8, NIT-1..4) → round2 CHANGES_REQUESTED (MINOR-A wording comment, MINOR-B body size, NIT-A/B/C) → round3 APPROVED on sha256:631d0369916b665acff88468b8b11e1af35cf3ab5ed4b6b9b356a2a3f0c6ea10",
+        "followUps": [
+          "NIT-1 MerchantController: client abort during readNBytes → IOException falls to Spring default error shape (no body exposure); catch → 400 INVALID_INPUT",
+          "NIT-2 add 200 control rows for application/json;charset=UTF-8 and upper-case Content-Type",
+          "LIVE Gate L-1: master-api (and payment-api) admin-channel receivers must refuse Demo/golden keys in LIVE",
+          "LIVE Gate L-3: BRN attempt audit volume monitoring/retention/repeat detection",
+          "L-2 body-phase timeout classified CALL_FAILED not TIMEOUT; L-4 one-shot command mode needs master-ops env; L-5 BRN results cap 20; L-6 fixed-window burst",
+          "415 now for application/*+json and */* on POST /api/merchant-searches (admin UI always sends application/json)",
+          "Metric name paycore.admin.merchant_ops.rate_limited not asserted",
+          "Demo launch config (/tmp/paycore-demo, outside repo) needs Demo-only admin-channel/master-ops keys for master-api web + internal-admin"
+        ]
+      },
+      "coordinatorDecisions": [
+        "2026-11-03 user: scope read-only first (commands → MERCHANT-OPS-002)",
+        "2026-11-03 user: Q-MOPS-02 detail-only audit",
+        "2026-11-03 user: Q-MOPS-03 include full-BRN search, OPERATOR+ , audited",
+        "2026-11-04 user: Q-MOPS-05 BRN search roles OPERATOR·APPROVER",
+        "2026-11-04 user: Q-MOPS-06 BRN audit = first-3-digit mask + result count + targetRef=businessId (no keyed hash)",
+        "2026-11-04 user: Q-MOPS-07 JSON-type-malformed BRN bodies audited INVALID_INPUT brn=INVALID; strict body",
+        "2026-11-04 user: Q-MOPS-08 oversized search body (>16 KiB Demo) rejected unparsed, no audit, metric only"
+      ]
+    },
+    {
+      "id": "MERCHANT-OPS-002",
+      "title": "가맹점 등록·개통 명령(maker-checker, OWNER_SERVICE 2-TX, MASTER 승인 재확인)",
+      "phase": "OPS-SCREENS",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "MERCHANT-OPS-001"
+      ],
+      "requiredQuestions": [
+        "Q-MOPS-01"
+      ],
+      "acceptanceCriteria": [],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "coordinatorDecisions": []
     }
   ]
 }

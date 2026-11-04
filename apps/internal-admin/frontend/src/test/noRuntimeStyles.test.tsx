@@ -10,6 +10,7 @@ import { ApprovalsScreen } from '../screens/ApprovalsScreen'
 import { AuditScreen } from '../screens/AuditScreen'
 import { EnrollmentScreen } from '../screens/EnrollmentScreen'
 import { LoginScreen } from '../screens/LoginScreen'
+import { MerchantsScreen } from '../screens/MerchantsScreen'
 import { PaymentOpsScreen } from '../screens/PaymentOpsScreen'
 import { ReconciliationScreen } from '../screens/ReconciliationScreen'
 import type { ApprovalView, PaymentTargetView } from '../api/adminApi'
@@ -101,6 +102,14 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
       })),
     })} />)
     expect(await screen.findByRole('heading', { name: '열린 대사 발견 1건' })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+  })
+
+  it('MERCHANT-OPS-001: merchant lookup with the registration number field and an empty result', async () => {
+    render(<MerchantsScreen api={fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })} canSearchRegistrationNumber />)
+    expect(screen.getByLabelText('사업자등록번호')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    expect(await screen.findByText('조건에 맞는 가맹점이 없습니다.')).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

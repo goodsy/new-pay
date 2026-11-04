@@ -69,7 +69,7 @@ describe('HomeScreen (운영 홈 — real counts only from calls the role alread
     expect(screen.queryAllByRole('article')).toHaveLength(0)
     expect(screen.queryByRole('region', { name: '지금 처리할 업무' })).toBeNull()
     const shortcuts = screen.getByRole('region', { name: '바로가기' })
-    expect(within(shortcuts).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['결제 보정 취소 열기', '계정 관리 열기', '접속·감사 이력 열기'])
+    expect(within(shortcuts).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['가맹점 조회 열기', '결제 보정 취소 열기', '계정 관리 열기', '접속·감사 이력 열기'])
     await userEvent.click(within(shortcuts).getByRole('button', { name: '접속·감사 이력 열기' }))
     expect(onOpen).toHaveBeenCalledWith('audit')
     expect(api.approvals).not.toHaveBeenCalled()

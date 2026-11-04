@@ -7,6 +7,8 @@ plugins {
 
 dependencies {
     implementation(libs.spring.boot.starter.webmvc)
+    // ADMIN → MASTER 서명 내부 채널(MERCHANT-OPS-001 §3): 전용 보안 체인 + 그 밖 기본 거부. 버전은 Boot BOM 관리(새 버전 고정 없음).
+    implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.data.jpa)
     // 복잡한 CQRS 조회용(DSLContext, adapter.query). 생성 코드는 아래 generateJooqMain(Flyway 업무 schema → MySQL 8.4 컨테이너 → jOOQ).
     implementation(libs.spring.boot.starter.jooq)
@@ -20,6 +22,7 @@ dependencies {
 
     testImplementation(project(":libs:test-support"))
     testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.spring.boot.starter.security.test)
     testImplementation(libs.spring.modulith.starter.test)
     testImplementation(libs.testcontainers.mysql)
     testImplementation(libs.kotest.runner.junit5)

@@ -39,6 +39,15 @@ describe('errorCodeFrom (S7 — every fixed code of the JSON API)', () => {
     expect(errorCodeFrom(200, { error: 'PAYMENT_UNAVAILABLE' })).toBe('REQUEST_REJECTED')
   })
 
+  it('MERCHANT-OPS-001 §4.1: merchant lookup codes keep their statuses', () => {
+    expect(errorCodeFrom(404, { error: 'MERCHANT_NOT_FOUND' })).toBe('MERCHANT_NOT_FOUND')
+    expect(errorCodeFrom(503, { error: 'MASTER_UNAVAILABLE' })).toBe('MASTER_UNAVAILABLE')
+    expect(errorCodeFrom(503, { error: 'AUDIT_UNAVAILABLE' })).toBe('AUDIT_UNAVAILABLE')
+    expect(errorCodeFrom(429, { error: 'RATE_LIMITED' })).toBe('RATE_LIMITED')
+    expect(errorCodeFrom(400, { error: 'MERCHANT_NOT_FOUND' })).toBe('REQUEST_REJECTED')
+    expect(errorCodeFrom(500, { error: 'MASTER_UNAVAILABLE' })).toBe('SERVER_ERROR')
+  })
+
   it('distrusts a business code arriving with the wrong status', () => {
     expect(errorCodeFrom(500, { error: 'IP_DENIED' })).toBe('SERVER_ERROR')
     expect(errorCodeFrom(200, { error: 'ALREADY_DECIDED' })).toBe('REQUEST_REJECTED')

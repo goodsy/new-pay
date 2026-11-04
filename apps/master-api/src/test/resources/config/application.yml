@@ -25,3 +25,10 @@ paycore:
         read-timeout: PT0.5S
         signing-key-id: test-k1
         signing-key: dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh
+    # ADMIN → MASTER 서명 채널(MERCHANT-OPS-001 §3) — 시험 전용 키(운영 키 아님, 권리 dispatch 키와 다른 kid·바이트). 창·permit은 Demo 값(운영값 LIVE Gate).
+    admin-channel:
+      clock-window: PT300S
+      read-permits: 4
+      signing-keys:
+        - key-id: mops-test-k1
+          secret: dGVzdC1vbmx5LW1hc3Rlci1hZG1pbi1jaGFubmVsLWtleS0wMDAx

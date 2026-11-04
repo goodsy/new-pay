@@ -1,11 +1,11 @@
 /**
  * 관리자 콘솔 메뉴 구조(ADMIN-UI-001 rev 0.4, D-ADMIN-UI-003 — 참고 시안 'pg workspace'의 사이드바 그룹·탭).
- * 기존 6개 화면([Page])만 업무 메뉴의 탭으로 둔다. 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
+ * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'paymentOps' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
-export type MenuId = 'home' | 'approvals' | 'mine' | 'payments' | 'recon' | 'accounts'
+export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
 export interface Section {
   /** 사이드바 구역 이름. */
@@ -39,6 +39,8 @@ export function pagesFor(roles: string[]): Page[] {
   const pages: Page[] = []
   if (has('APPROVER')) pages.push('approvals')
   if (has('SECURITY_ADMIN') || has('OPERATOR')) pages.push('mine')
+  // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
+  if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   if (roles.some((r) => r !== 'UNMASK')) pages.push('accounts')
   if (has('SECURITY_ADMIN') || has('APPROVER')) pages.push('reconciliation')
@@ -60,6 +62,10 @@ const MENUS: Menu[] = [
   {
     id: 'mine', label: '내 요청', section: MY_WORK, tabbed: false, tabs: [{ page: 'mine', label: '내 요청' }],
     description: '내가 만든 승인 요청의 진행 상태를 확인하고, 대기 중이면 철회하세요.',
+  },
+  {
+    id: 'merchants', label: '가맹점 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'merchants', label: '가맹점 조회' }],
+    description: '가맹점·사업자·MID 개통 상태와 변경 이력을 조회하세요(조회 전용 — 등록·변경은 별도 작업).',
   },
   {
     id: 'payments', label: '결제 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'paymentOps', label: '결제 보정 취소' }],

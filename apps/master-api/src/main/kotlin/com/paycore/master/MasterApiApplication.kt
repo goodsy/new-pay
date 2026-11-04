@@ -3,14 +3,16 @@ package com.paycore.master
 import org.springframework.boot.ExitCodeGenerator
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 import org.springframework.boot.runApplication
 import kotlin.system.exitProcess
 
 /**
  * master-api 실행 단위. MASTER DB만 소유한다(D-CPC-006). PAYMENT/FINANCIAL Credential을 주입하지 않는다.
  * 하위 패키지가 Spring Modulith application module이 된다. 업무 모듈(Business·Merchant·MID 등)은 MASTER-DOMAIN-001부터 추가한다.
+ * UserDetailsServiceAutoConfiguration 제외(MERCHANT-OPS-001): HTTP 표면은 ADMIN 서명 채널뿐이라 Boot 기본 사용자("user" + 기동 시 생성 비밀번호 로그)를 만들지 않는다.
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = [UserDetailsServiceAutoConfiguration::class])
 class MasterApiApplication
 
 /**

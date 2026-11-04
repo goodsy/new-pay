@@ -2533,6 +2533,118 @@
       "humanAnswer": "두 형식 모두 금지하는 공통 규칙; 범위: 기관 식별 코드 전부 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-10-31)",
       "appliedSpec": "D-INST-CODE-001"
+    },
+    {
+      "id": "Q-MOPS-01",
+      "status": "PROPOSED",
+      "question": "가맹점 등록·개통 명령 중 2인 승인(maker-checker) 대상 범위",
+      "recommended": "등록(Business/Merchant/Site/계약 초안/CSA)은 OPERATOR 1인; approveContractRevision·issueFirstDefaultMID·approvePaymentMethodActivation·confirmSiteActivation·decideSiteReview=APPROVED·enableCurrency·approveCardRoute·한도 상향 등록/교체·수수료 정책 배정은 2인; 안전 방향(중지·철회·종료) 1인 즉시",
+      "alternative": "모든 명령 2인 / 모든 명령 1인",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-03",
+      "origin": "MERCHANT-OPS-001 조사 — MERCHANT-OPS-002 착수 전 질문"
+    },
+    {
+      "id": "Q-MOPS-02",
+      "status": "ANSWERED",
+      "question": "가맹점 조회 접근 감사 범위",
+      "recommended": "상세 조회만 감사(MERCHANT_VIEWED)",
+      "alternative": "감사 없음(I-23 선례) / 목록·상세 모두",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-03",
+      "origin": "MERCHANT-OPS-001",
+      "humanAnswer": "상세 조회만 기록 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-03)",
+      "appliedSpec": "D-MOPS-002"
+    },
+    {
+      "id": "Q-MOPS-03",
+      "status": "ANSWERED",
+      "question": "사업자등록번호 전체(10자리) 검색 허용 여부(존재 확인 oracle 위험)",
+      "recommended": "이번 작업 제외",
+      "alternative": "OPERATOR 이상 + 매 검색 감사",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-03",
+      "origin": "MERCHANT-OPS-001",
+      "humanAnswer": "넣기 (OPERATOR 이상, 감사 기록)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-03)",
+      "appliedSpec": "D-MOPS-003"
+    },
+    {
+      "id": "Q-MOPS-04",
+      "status": "PROPOSED",
+      "question": "운영자의 사업자등록번호 마스킹 해제(UNMASK) 필요 여부",
+      "recommended": "실제 필요 발생 시까지 보류; 필요 시 기존 UNMASK+사유+TOTP 흐름",
+      "alternative": "지금 도입",
+      "dependentTasks": [],
+      "askedAt": "2026-11-03",
+      "origin": "MERCHANT-OPS-001 조사 — 보류"
+    },
+    {
+      "id": "Q-MOPS-05",
+      "question": "사업자등록번호 전체 검색 허용 역할('OPERATOR 이상'의 해석)",
+      "recommended": "OPERATOR·APPROVER",
+      "alternative": "OPERATOR·APPROVER·SECURITY_ADMIN / OPERATOR만",
+      "humanAnswer": "OPERATOR·APPROVER (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "MERCHANT-OPS-001 review MAJOR-1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-MOPS-003"
+    },
+    {
+      "id": "Q-MOPS-06",
+      "question": "사업자등록번호 검색 감사 기록 형태",
+      "recommended": "현행 유지: 앞 3자리 + 사업자 ID",
+      "alternative": "keyed hash 추가 / 마스킹 값만",
+      "humanAnswer": "현행 유지: 앞 3자리 + 사업자 ID (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "MERCHANT-OPS-001 review MAJOR-1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-MOPS-003"
+    },
+    {
+      "id": "Q-MOPS-07",
+      "status": "ANSWERED",
+      "question": "JSON 타입 수준에서 깨진 사업자등록번호 검색 요청 본문(유스케이스 도달 전 400)도 검색 시도로 감사할지",
+      "recommended": "기록함: 엄격한 본문 파서로 INVALID_INPUT(brn=INVALID) 감사, 중복 키 거부(NIT-4) 함께",
+      "alternative": "현행 유지(Spring 400, 감사 없음)",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "MERCHANT-OPS-001 review NIT-3/NIT-4",
+      "humanAnswer": "기록함 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-MOPS-003"
+    },
+    {
+      "id": "Q-MOPS-08",
+      "status": "ANSWERED",
+      "question": "크기 상한(Demo 16 KiB)을 넘은 가맹점 검색 본문의 처리와 감사 여부",
+      "recommended": "해석하지 않고 거절(400/413), 감사 없음(내용을 읽지 않아 시도 판정 불가), 거절은 지표로만",
+      "alternative": "상한까지 읽어 최상위 registrationNumber 키가 있으면 brn=INVALID 감사",
+      "dependentTasks": [
+        "MERCHANT-OPS-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "MERCHANT-OPS-001 re-review MINOR-B",
+      "humanAnswer": "거절만, 감사 없음 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-MOPS-003"
     }
   ]
 }

@@ -147,6 +147,108 @@ export interface AuditFilterInput {
 }
 
 /**
+ * 가맹점 검색 조건(MERCHANT-OPS-001 §3.1·§4.1 — 모두 선택). [registrationNumber]는 ASCII 숫자 10자리이며 POST 본문으로만 보낸다(URL·저장소·로그에 남기지 않음, R-3).
+ * [after]는 다음 쪽 cursor(merchantId), [limit] 1..50(없으면 서버 기본 20).
+ */
+export interface MerchantSearchInput {
+  merchantId?: string
+  businessId?: string
+  lifecycle?: 'ACTIVE' | 'TERMINATED'
+  registrationNumber?: string
+  after?: string
+  limit?: number
+}
+
+/** 목록 항목. 사업자등록번호는 마스킹 값만(D-MD-008). */
+export interface MerchantListItem {
+  merchantId: string
+  merchantName: string
+  businessId: string
+  businessName: string
+  registrationNumberMasked: string
+  lifecycle: string
+  entitlementRevision: number
+  midCount: number
+  createdAt: string
+}
+
+export interface MerchantSearchPage {
+  items: MerchantListItem[]
+  nextCursor: string | null
+}
+
+/** 상세(§3.2 — 한 번의 일관 읽기). 카드 Route는 인수사 코드·Route 참조·상태 등만(기관 가맹점 번호 없음 — D-MS2-005). 시각은 UTC ISO. */
+export interface MerchantDetail {
+  merchant: { merchantId: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
+  business: { businessId: string; name: string; registrationNumberMasked: string; lifecycle: string }
+  sites: {
+    merchantSiteId: string
+    channelType: string
+    channelIdentifier: string
+    lifecycle: string
+    review: { decision: string; decidedAt: string } | null
+  }[]
+  contracts: {
+    contractId: string
+    createdAt: string
+    revisions: { revisionNo: number; scopeKind: string; effectiveFrom: string; effectiveTo: string | null; approvedAt: string | null; scopeSiteIds: string[] }[]
+    agreements: { agreementId: string; serviceKind: string; addedAt: string }[]
+  }[]
+  accounts: {
+    merchantAccountId: string
+    lifecycle: string
+    isDefault: boolean
+    issuingContractId: string
+    issuingAgreementId: string
+    issuingRevisionNo: number
+    issuedAt: string
+    assignments: { assignmentId: string; merchantSiteId: string; role: string; status: string; effectiveFrom: string; effectiveTo: string | null }[]
+    paymentMethods: { activationId: string; paymentMethod: string; status: string | null; registeredAt: string }[]
+    currencies: { enablementId: string; currencyCode: string; effectiveFrom: string; effectiveTo: string | null; endedAt: string | null }[]
+    cardRoutes: { activationId: string; paymentMethod: string; acquirerCode: string; routeRef: string; status: string; registeredAt: string }[]
+  }[]
+  /** 한도(설정값 — Demo 값은 운영값 아님). 금액은 통화 최소 단위 정수, 무제한이면 null. */
+  limits: {
+    policyId: string
+    scopeKind: string
+    agreementId: string | null
+    merchantAccountId: string | null
+    currencyCode: string
+    perTxKind: string
+    perTxAmount: number | null
+    dailyKind: string
+    dailyAmount: number | null
+    effectiveFrom: string
+    effectiveTo: string | null
+    endedAt: string | null
+  }[]
+  propagation: {
+    latestRevision: number
+    latestRevisionIssuedAt: string
+    latestAckRevision: number | null
+    latestAckAt: string | null
+    effectConfirmedAt: string | null
+    effectBasis: 'ACK' | 'LEASE_EXPIRY' | null
+  } | null
+}
+
+/** 변경 이력 항목(§3.3 — 감사 항목 투영, `detail` 없음). */
+export interface MerchantHistoryEntry {
+  seq: number
+  occurredAt: string
+  operation: string
+  aggregateType: string
+  aggregateId: string
+  changeType: string
+  actorRef: string
+}
+
+export interface MerchantHistoryPage {
+  items: MerchantHistoryEntry[]
+  nextCursor: number | null
+}
+
+/**
  * 화면이 쓰는 서버 API(같은 출처 `/api/` — [apiFetch] 하나로). 등록 코드·TOTP 시크릿은 응답을 받은 화면 상태에만 잠깐 두고 저장소·URL에 쓰지 않는다.
  * 권한 판정은 서버가 한다.
  */
@@ -179,6 +281,11 @@ export interface AdminApi {
   approvalDetail(approvalId: string): Promise<ApprovalView>
   justification(approvalId: string): Promise<Justification>
   reconciliation(): Promise<ReconciliationOverview>
+  /** MERCHANT-OPS-001 §4.1(조회 4역할, 등록번호 검색은 서버가 OPERATOR·APPROVER만 허용). 검색은 POST 본문(R-3), 상세는 서버가 감사(D-MOPS-002). */
+  merchantSearch(input: MerchantSearchInput): Promise<MerchantSearchPage>
+  merchantDetail(merchantId: string): Promise<MerchantDetail>
+  /** [after] 없으면 첫 쪽. */
+  merchantHistory(merchantId: string, after?: number): Promise<MerchantHistoryPage>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -220,5 +327,8 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     approvalDetail: (approvalId) => call(`/api/approvals/${segment(approvalId)}`),
     justification: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
     reconciliation: () => call('/api/reconciliation/findings'),
+    merchantSearch: (input) => call('/api/merchant-searches', 'POST', input),
+    merchantDetail: (merchantId) => call(`/api/merchants/${segment(merchantId)}`),
+    merchantHistory: (merchantId, after) => call(`/api/merchants/${segment(merchantId)}/history${after === undefined ? '' : `?after=${after}`}`),
   }
 }

@@ -25,6 +25,8 @@ export const ERROR_MESSAGES: Record<ConsoleErrorCode, string> = {
   PAYMENT_NOT_FOUND: '결제를 찾을 수 없습니다.',
   RATE_LIMITED: '조회가 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
   PAYMENT_UNAVAILABLE: '결제 서비스에 연결할 수 없어 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  MERCHANT_NOT_FOUND: '가맹점을 찾을 수 없습니다.',
+  MASTER_UNAVAILABLE: '가맹점 정보 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   INVALID_INPUT: '입력 형식이 올바르지 않습니다.',
   BAD_REQUEST: '입력 형식이 올바르지 않습니다.',
   ENROLLMENT_CODE_INVALID: '등록 코드가 올바르지 않거나 만료되었습니다.',
