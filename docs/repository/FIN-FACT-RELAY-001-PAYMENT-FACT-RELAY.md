@@ -117,7 +117,7 @@ backoff = initial × 2^attempts(상한 max) + jitter(비율). 재시도 상한 �
 | PAYMENT | `db/runtime-privilege/payment/V33__financial_fact_relay_privileges.sql` | relay = SELECT·INSERT·UPDATE, ack = SELECT·INSERT(주석을 실제 SQL과 맞춤 — n-1) |
 | PAYMENT | `db/runtime-privilege/payment/V34__outbox_publish_status_privileges.sql` | D-FFR-001: `grant_runtime_column_update('outbox_event', 'publish_status, published_at')`(부여만 — V24 알림 두 열 유지, 표 단위 helper 재호출 없음). 기대값 변경(DatabaseAccountSeparationSpec SHOW GRANTS·열별 1143 시험, OutboxNotificationMigrationSpec publish 1143 → 허용)은 **완화가 아니라 사용자 결정 D-FFR-001에 따른 것**이며 payload 등 나머지 열 1143·DELETE 1142는 그대로 시험한다 |
 
-FINANCIAL은 여전히 단일 계정(DB ALL)이라 append-only가 DB 권한으로 강제되지 않는다(§9 L-1 → FIN-DBACCOUNT-001, D-FFR-002). 현재 방어는 `@Immutable`·persist 전용 Store·UPDATE/DELETE 코드 경로 없음(FR-I11).
+작성 시점(rev 0.2) FINANCIAL은 단일 계정(DB ALL)이라 append-only가 DB 권한으로 강제되지 않았다(§9 L-1 → FIN-DBACCOUNT-001, D-FFR-002에서 SELECT·INSERT만으로 강제). 현재 방어는 `@Immutable`·persist 전용 Store·UPDATE/DELETE 코드 경로 없음(FR-I11).
 
 ## 6. 실패·회복
 
@@ -182,7 +182,7 @@ Fixture: FINANCIAL `PaymentFactFixture`(Named — 취소는 원승인에서 파�
 
 ### 9.1 알려진 한계·LIVE Gate 항목
 
-- **L-1 FINANCIAL DB 계정 분리 없음**: 단일 계정(ALL)이라 Inbox·사실·보류 append-only를 DB가 1142로 강제하지 못한다. D-FFR-002에 따라 별도 작업 **FIN-DBACCOUNT-001**(ACQUIRING-001 전)이 계정·role·runtime 권한 migration을 만든다.
+- **L-1 FINANCIAL DB 계정 분리 없음**: 단일 계정(ALL)이라 Inbox·사실·보류 append-only를 DB가 1142로 강제하지 못한다. D-FFR-002에 따라 별도 작업 **FIN-DBACCOUNT-001**(ACQUIRING-001 전)이 계정·role·runtime 권한 migration을 만든다. → **해소 예정: FIN-DBACCOUNT-001 DONE 시**(docs/repository/FIN-DBACCOUNT-001-FINANCIAL-DB-ACCOUNTS.md).
 - **L-2 mTLS·내부망**: 채널 인증은 HMAC 서명 + 시각 창. 운영은 내부망 바인딩 + mTLS, ACK 응답 위조 방어(현재는 TLS 없는 loopback Demo — 응답 본문은 서명되지 않는다)는 LIVE Gate.
 - **L-3 발견 질의 비용**: (rev 0.2 해소 — D-FFR-001) 발견·미발견 gauge는 `publish_status = PENDING` FINANCIAL_FACT 행만 본다. 비용 = 미전달 행(PENDING·QUARANTINED 전달 행 포함) 수. 격리 행이 쌓이면 그만큼 남는다(격리 gauge 경보).
 - **L-4 순서**: 같은 Payment의 사실도 재시도가 끼면 순서가 바뀔 수 있다(취소가 먼저 도착 → ORIGINAL_UNKNOWN 보류). Relay가 앞 사실 실패 시 뒤 사실을 막지는 않는다(보류가 정의된 처리 — D-ACQ-002).

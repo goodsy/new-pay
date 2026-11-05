@@ -2718,7 +2718,7 @@
       "id": "FIN-DBACCOUNT-001",
       "title": "FINANCIAL DB migration/runtime 계정 분리 — 확정 사실 표 UPDATE·DELETE를 DB 권한으로 거부",
       "phase": "ACQUIRING",
-      "status": "TODO",
+      "status": "DONE",
       "dependsOn": [
         "FIN-FACT-RELAY-001"
       ],
@@ -2733,24 +2733,62 @@
       ],
       "allowedWritePaths": [
         "apps/financial-batch/**",
-        "infra/**",
-        "compose*.yml",
-        "docker/**",
+        "docker/mysql/init/**",
+        "compose.yaml",
         ".env.example",
         "harness/commands.json",
         "harness/tests/**",
-        "docs/repository/FIN-DBACCOUNT-001-*.md"
+        "docs/repository/FIN-DBACCOUNT-001-FINANCIAL-DB-ACCOUNTS.md",
+        "apps/master-api/src/test/kotlin/com/paycore/master/MasterDatabaseAccountSpec.kt",
+        "docs/repository/FIN-FACT-RELAY-001-PAYMENT-FACT-RELAY.md"
       ],
-      "pathsResolved": false,
+      "pathsResolved": true,
       "owner": null,
-      "attempts": 0,
+      "attempts": 1,
       "maxRepairAttempts": 3,
-      "evidence": [],
-      "review": null,
-      "principleEvidence": {},
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/FIN-DBACCOUNT-001-2026-11-05T041331Z.json",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:a1464262edb3c1405e6ca194db35d003ed515d95dbd7754fc8b8eaf7746d4a5d",
+          "gradleCheck": "exit 0, 04:13:52Z..04:48:56Z (35m04s), Demo MySQL/JVM stopped"
+        },
+        "tests": "Kotlin 3590/0 fail/0 skip (= registered floor), Vitest 166/0, harness selftest 170",
+        "targeted": "Implementer: financial-batch 89/0; RED new spec 15/19 fail before split; mutation A 11/19, B 12/22 caught; payment DatabaseAccountSeparationSpec 17/0; admin AdminDatabaseAccountSpec 24/0; Coordinator: master MasterDatabaseAccountSpec 10/0 after expectation strengthened, MainMigrationLocationSpec rerun 0 exit",
+        "supplementary": {
+          "dir": "build/harness-evidence/FIN-DBACCOUNT-001-2026-11-05T050533Z-supplementary",
+          "verdict": "PASS",
+          "cve": "0 vulnerabilities (5 modules + 2 frontends, canary detected)"
+        }
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "date": "2026-11-05",
+        "history": "round1 REVIEW_PASS with MINOR-1..4, NIT-1..6; fixed before gate: MINOR-1 (table list via root), MINOR-4 (docs/comments), NIT-5 (principleEvidence), NIT-6 (comment); MINOR-2/3, NIT-3/4 recorded as spec L-7..L-9",
+        "followUps": [
+          "MINOR-2 full old-volume convergence path not tested (L-7)",
+          "MINOR-3 skip-path REVOKE on pre-existing DB ALL not tested (L-8)",
+          "NIT-1 SIGNAL message says lower-case for FINANCIAL",
+          "NIT-2 column FIND_IN_SET case-insensitive note",
+          "ARCHITECTURE-CONVENTIONS §9 privilege table not updated",
+          "L-5 Batch metadata cleanup privilege absent (retention policy)",
+          "Implementer Q-1 handled by Coordinator path expansion; Q-2 I-2 kept (coordinator, reversible)"
+        ]
+      },
+      "principleEvidence": {
+        "FinancialConsistency": "append-only 사실 표 UPDATE/DELETE를 DB가 1142/1143으로 거부(FinancialDatabaseAccountSpec T3-T6); 업무 경로는 runtime 계정으로 그대로 통과(PaymentFactInboxDbSpec 16, HttpSpec 9)",
+        "TransactionSafety": "권한 변경은 migration V3(Flyway TX 밖 DDL/GRANT) — 업무 TX 경계 무변경; IODKU+FOR UPDATE가 열 UPDATE 권한으로 동작(T4, mutation M3)",
+        "Idempotency": "init 스크립트 재실행 멱등·DB ALL 재회수(T18), privilege procedure 재호출 멱등",
+        "ConcurrencyControl": "stream 직렬화 행 version/fact_count/updated_at만 UPDATE — @Version·PESSIMISTIC_WRITE 경로 유지(InboxDbSpec FR-I7/I12)",
+        "Recoverability": "Spring Batch restart가 runtime 열 권한으로 동작(TechSmokeBatchRestartSpec, mutation M4); 기존 볼륨 수렴 절차 .env.example, 변수 누락 시 fail-closed(T19)",
+        "Reconciliation": "해당 없음 — 대사 대상 사실 생성 없음(명세 §7)",
+        "Auditability": "Flyway installed_by = migration 계정, runtime의 flyway_schema_history 1142; 권한 전체 SHOW GRANTS 정확 일치(T14, T15 root 정확 집합)",
+        "Observability": "해당 없음 — 런타임 경로 무변경(명세 §7)"
+      },
       "reports": [],
-      "lastSuccessfulStep": null,
-      "nextResumeAction": "실제 compose/init 스크립트 경로를 조사해 allowedWritePaths 확정 후 명세 작성"
+      "lastSuccessfulStep": "VERIFY-GATE PASS 2026-11-05T041331Z + supplementary PASS; REVIEW_PASS; DONE",
+      "nextResumeAction": "Implementer: 명세 작성 후 TDD",
+      "allowedWritePathsNote": "Coordinator 조사(2026-11-05): 계정은 docker/mysql/init/01-owned-databases.sh(paycore_financial ALL), compose.yaml env, .env.example. 다른 앱 시험이 init 스크립트를 쓰면 그 경로는 Coordinator에 요청. Coordinator 확장(2026-11-05, Implementer Q-1): MasterDatabaseAccountSpec의 FINANCIAL 기대값 DB ALL→권한 0(강화), FIN-FACT-RELAY-001 §9 L-1 해소 표시. Implementer Q-2(I-2 새 인스턴스 건너뛰기, ADMIN 규칙과 동일)는 가역 구현 세부로 Coordinator가 유지 결정 — 사용자 결정 아님"
     },
     {
       "id": "ACQUIRING-001",

@@ -1,5 +1,6 @@
 package com.paycore.financial.paymentfact.application
 
+import com.paycore.financial.FinancialMySqlContainerConfig
 import com.paycore.financial.paymentfact.adapter.web.PaymentFactEnvelopeFixture
 import com.paycore.financial.paymentfact.adapter.web.PaymentFactEnvelopeParser
 import com.paycore.financial.paymentfact.application.provided.ReceivePaymentFactFailure
@@ -12,7 +13,6 @@ import com.paycore.financial.paymentfact.domain.HoldReason
 import com.paycore.financial.paymentfact.domain.PaymentFact
 import com.paycore.financial.paymentfact.domain.PaymentFactFixture
 import com.paycore.financial.paymentfact.domain.PaymentFactInboxOutcome
-import com.paycore.testsupport.MySqlTestContainerConfig
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
  * 저장소·Use Case는 운영 Bean이고, 장애 주입 시험만 운영 Store를 감싼 대역·커밋 뒤 실패 TX 관리자로 서비스를 직접 만든다. 단언은 이 시험의 Payment로 한정한다.
  */
 @SpringBootTest
-@Import(MySqlTestContainerConfig::class)
+@Import(FinancialMySqlContainerConfig::class)
 class PaymentFactInboxDbSpec(
     private val service: PaymentFactInboxService,
     private val inboxStore: PaymentFactInboxStore,

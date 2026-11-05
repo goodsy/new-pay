@@ -21,7 +21,7 @@ import javax.sql.DataSource
  * - migration 계정은 GRANT OPTION이 없어 어떤 계정에도 권한을 직접 주지 못한다(1142). runtime 표 단위 권한은 초기화 스크립트의
  *   procedure `<db>_privilege.set_runtime_table_privileges`(받는 쪽 = 이 DB runtime role 고정, DEFINER = 잠긴 grantor)로만 준다.
  * - 스크립트가 만든 권한 전체(SHOW GRANTS): MASTER·PAYMENT는 migration 계정 / runtime 계정(role만) / runtime role / 잠긴 grantor,
- *   FINANCIAL은 Batch metadata 위치·권한 미결(Q-BATCH-META)이라 기존 단일 계정을 유지한다.
+ *   FINANCIAL은 FIN-DBACCOUNT-001(D-FFR-002)부터 같은 구조다. 이 컨테이너엔 FINANCIAL migration 비밀번호가 없어 새 인스턴스 건너뛰기 경로로 runtime 권한 0.
  *
  * 기대값 변경 기록(PAYMENT-DBACCOUNT-001, 정책을 따르는 의도된 변경): MASTER-BOOT-001의 runtime `SELECT, INSERT, UPDATE, DELETE ON <db>.*`
  * 기대값을 'role만'으로 바꿨다. DB 단위 DML은 append-only 확정 사실 표의 UPDATE/DELETE를 DB 권한으로 막지 못하기 때문이다(D1).
@@ -111,7 +111,7 @@ class MasterDatabaseAccountSpec(
     }
 
     Given("the local init script (docker/mysql/init/01-owned-databases.sh)") {
-        Then("MASTER and PAYMENT: migration account (DB ALL + procedure EXECUTE), role-only runtime account, runtime role, locked grantor; FINANCIAL unchanged") {
+        Then("MASTER and PAYMENT: migration account (DB ALL + procedure EXECUTE), role-only runtime account, runtime role, locked grantor; FINANCIAL runtime account has no DB-level privilege (FIN-DBACCOUNT-001, D-FFR-002)") {
             mapOf(
                 MasterDbAccounts.MASTER_RUNTIME_USER to grantsOf(MasterDbAccounts.MASTER_RUNTIME_USER),
                 MasterDbAccounts.MASTER_RUNTIME_ROLE to grantsOf(MasterDbAccounts.MASTER_RUNTIME_ROLE),
@@ -151,7 +151,9 @@ class MasterDatabaseAccountSpec(
                     // WEBHOOK-001 D-WH-009: PAYMENT 전용 열 단위 UPDATE helper(추가만 — MASTER·FINANCIAL 불변).
                     "GRANT EXECUTE ON PROCEDURE `paycore_payment_privilege`.`grant_runtime_column_update` TO `paycore_payment_grantor`@`localhost`",
                 ),
-                "paycore_financial" to setOf("GRANT ALL PRIVILEGES ON `paycore_financial`.* TO `paycore_financial`@`%`"),
+                // FIN-DBACCOUNT-001(D-FFR-002): 이전 기대값(DB ALL)이 바로 없애기로 한 위험 상태다 — 강화. 이 컨테이너엔 FINANCIAL migration 비밀번호가 없어
+                // 새 인스턴스 건너뛰기 경로(명세 I-2)로 role 설치도 생략되므로 runtime 계정 권한은 0이다.
+                "paycore_financial" to emptySet(),
             )
         }
 

@@ -5,7 +5,9 @@ spring:
   main:
     web-application-type: servlet
   # FINANCIAL DB 접속 정보는 환경변수로만 주입한다. 기본값/비밀번호를 저장소에 두지 않는다.
-  # FINANCIAL은 아직 단일 계정(DB ALL — migration·runtime 같음)이다. MASTER·PAYMENT 같은 계정 분리·표 단위 runtime 권한은 후속(명세 §9 L-1, init 스크립트 변경 필요).
+  # runtime 계정(FIN-DBACCOUNT-001, D-FFR-002): DB 단위 권한 없이 role(paycore_financial_runtime)의 표·열 단위 권한만 가진다 — DDL 불가, append-only 사실 표
+  # (Inbox·승인·취소·보류)는 SELECT·INSERT만, 결제별 직렬화 행·Batch metadata는 필요한 열만 UPDATE, DELETE는 어디에도 없다.
+  # 계정·role·권한 부여 procedure: docker/mysql/init/01-owned-databases.sh, 표별 권한: db/runtime-privilege/financial.
   datasource:
     url: ${PAYCORE_FINANCIAL_DB_URL}
     username: ${PAYCORE_FINANCIAL_DB_USERNAME}
@@ -25,7 +27,12 @@ spring:
       hibernate.jdbc.time_zone: UTC
   flyway:
     # schema 기준은 Flyway migration이다. V1 = Spring Batch metadata(BATCH_*, D-ACQ-007 — FINANCIAL DB 같은 schema), V2 = 결제 사실 Inbox·투영(FIN-FACT-RELAY-001).
-    locations: classpath:db/migration/financial
+    # runtime 표·열 단위 권한(db/runtime-privilege/financial — V3, FIN-DBACCOUNT-001)은 업무 schema와 다른 위치에 둔다(payment-api·master-api와 같은 관례).
+    locations: classpath:db/migration/financial,classpath:db/runtime-privilege/financial
+    # migration 계정(FINANCIAL DB ALL, GRANT OPTION 없음). Flyway만 이 계정으로 별도 연결을 만든다(URL은 datasource와 같다). payment-api와 같은 변수 이름 규칙.
+    user: ${PAYCORE_FINANCIAL_DB_MIGRATION_USERNAME}
+    password: ${PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD}
+    # 별도 연결에는 위 hikari driver 속성이 적용되지 않는다. migration 세션도 UTC로 맞춘다.
     init-sqls: "SET time_zone = '+00:00'"
   batch:
     jdbc:

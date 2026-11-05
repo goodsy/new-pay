@@ -1,7 +1,7 @@
 package com.paycore.financial.paymentfact.adapter.web
 
+import com.paycore.financial.FinancialMySqlContainerConfig
 import com.paycore.financial.paymentfact.domain.PaymentFactFixture
-import com.paycore.testsupport.MySqlTestContainerConfig
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
@@ -25,7 +25,7 @@ import java.util.UUID
  * 모양이 golden ACK 계약과 같은지 본다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(MySqlTestContainerConfig::class)
+@Import(FinancialMySqlContainerConfig::class)
 class PaymentFactInboxHttpSpec(
     @LocalServerPort private val port: Int,
     private val jdbc: JdbcTemplate,

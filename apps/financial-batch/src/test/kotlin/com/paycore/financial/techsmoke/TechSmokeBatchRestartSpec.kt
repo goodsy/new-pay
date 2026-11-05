@@ -1,6 +1,8 @@
 package com.paycore.financial.techsmoke
 
-import com.paycore.testsupport.MySqlTestContainerConfig
+import com.paycore.financial.FinancialDbAccounts
+import com.paycore.financial.FinancialMySqlContainerConfig
+import com.paycore.financial.scalar
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.springframework.batch.core.BatchStatus
@@ -14,20 +16,27 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.TestPropertySource
+import org.testcontainers.mysql.MySQLContainer
 
 /**
  * Spring Batch 기술 조합 smoke: JDBC JobRepository(Flyway가 만든 metadata) 위에서
  * chunk 실패 → 같은 JobParameters로 재시작 → 마지막 commit 지점부터 이어서 완료되는지 실제 MySQL로 확인한다.
  * 업무 Job이 아니며, 재시작 성공이 외부 효과 exactly-once를 뜻하지 않는다.
+ * FIN-DBACCOUNT-001: JobRepository·writer·시험 준비 DELETE 모두 **runtime 계정**(role의 표·열 단위 권한 — V3 + 시험 전용 V901)으로 돈다. 재시작 경로가 DELETE 없이,
+ * Batch metadata 식별 열 UPDATE 없이 완료된다는 증거다. Flyway history는 runtime 계정이 읽을 수 없으므로(1142) migration 계정 연결로 읽는다(단언 내용은 그대로).
  */
 @SpringBootTest
-@Import(MySqlTestContainerConfig::class, TechSmokeBatchJobConfig::class)
+@Import(FinancialMySqlContainerConfig::class, TechSmokeBatchJobConfig::class)
 @TestPropertySource(
-    properties = ["spring.flyway.locations=classpath:db/migration/financial,classpath:db/testmigration/financial"],
+    properties = [
+        "spring.flyway.locations=${FinancialDbAccounts.MAIN_MIGRATIONS},${FinancialDbAccounts.RUNTIME_PRIVILEGES}," +
+            "${FinancialDbAccounts.TEST_MIGRATIONS},${FinancialDbAccounts.TEST_PRIVILEGES}",
+    ],
 )
 class TechSmokeBatchRestartSpec(
     private val jobOperator: JobOperator,
     private val jdbcTemplate: JdbcTemplate,
+    private val container: MySQLContainer,
     private val switch: TechSmokeFailureSwitch,
     @Qualifier(TechSmokeBatchJobConfig.PROCESS_FAILURE_JOB) private val processFailureJob: Job,
     @Qualifier(TechSmokeBatchJobConfig.WRITE_FAILURE_JOB) private val writeFailureJob: Job,
@@ -92,14 +101,10 @@ class TechSmokeBatchRestartSpec(
     }
 
     test("batch metadata tables are created by the main Flyway V1 migration (D-ACQ-007 — FINANCIAL DB same schema; the test-only V0.1 copy is gone)") {
-        jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '0.1'",
-            Int::class.java,
-        ) shouldBe 0
-        jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1' AND success = 1",
-            Int::class.java,
-        ) shouldBe 1
+        FinancialDbAccounts.connect(container, FinancialDbAccounts.MIGRATION_USER).use { c ->
+            (c.scalar("SELECT COUNT(*) FROM flyway_schema_history WHERE version = '0.1'") as Number).toInt() shouldBe 0
+            (c.scalar("SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1' AND success = 1") as Number).toInt() shouldBe 1
+        }
         jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'BATCH_JOB_INSTANCE'",
             Int::class.java,

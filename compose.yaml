@@ -13,6 +13,9 @@ services:
       PAYCORE_PAYMENT_DB_PASSWORD: ${PAYCORE_PAYMENT_DB_PASSWORD:?set in .env}
       PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD: ${PAYCORE_PAYMENT_DB_MIGRATION_PASSWORD:?set in .env}
       PAYCORE_FINANCIAL_DB_PASSWORD: ${PAYCORE_FINANCIAL_DB_PASSWORD:?set in .env}
+      # FINANCIAL migration 계정(FIN-DBACCOUNT-001, D-FFR-002 — Flyway 전용, paycore_financial ALL, GRANT OPTION 없음). runtime 계정(위)은 role의 표·열 단위 권한만.
+      # 없으면 compose가 기동을 거부한다(fail-closed). 기존 volume·.env는 .env.example의 FINANCIAL 절차로 수렴시킨다.
+      PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD: ${PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD:?set in .env}
       # ADMIN DB(internal-admin 소유 — ADMIN-BOOT-001 §4.2.1, D-ADMIN-005). runtime 계정은 role의 표·열 단위 권한만, migration 계정은 Flyway 전용.
       # 없으면 compose가 기동을 거부한다(fail-closed). 기존 volume·.env는 .env.example의 ADMIN 절차로 수렴시킨다.
       PAYCORE_ADMIN_DB_PASSWORD: ${PAYCORE_ADMIN_DB_PASSWORD:?set in .env}

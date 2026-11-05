@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": "FIN-DBACCOUNT-001",
-  "codeFingerprint": "sha256:c1a8e417658fd9af1d9d7b19f1d26a996a0a023c768fdf3ffb68a26a29c77126",
-  "lastSuccessfulStep": "FIN-FACT-RELAY-001 VERIFY-GATE PASS 2026-11-05T023913Z + supplementary 031656Z PASS; REVIEW_PASS; DONE",
+  "activeTaskId": "ACQUIRING-001",
+  "codeFingerprint": "sha256:a1464262edb3c1405e6ca194db35d003ed515d95dbd7754fc8b8eaf7746d4a5d",
+  "lastSuccessfulStep": "FIN-DBACCOUNT-001 VERIFY-GATE PASS 2026-11-05T041331Z + supplementary PASS; REVIEW_PASS; DONE",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "Commit FIN-FACT-RELAY-001 (+ harness/DECISIONS for Q-MOPS-01, Q-ACQ-*, Q-BATCH-META, Q-FFR-*) on user decision. Next: FIN-DBACCOUNT-001 (D-FFR-002) → ACQUIRING-001 (incl. D-FFR-003 auto-release) → MERCHANT-OPS-002. Follow-ups: FIN-FACT-RELAY-001 review followUps, TXN-OPS-001 NIT-2/L-3/L-4/L-10, MERCHANT-OPS-001 NIT-1/2 + LIVE L-1/L-3, CHECKOUT MINOR-1..3, TEST-PERF MINOR-1..5, ADMIN-UI-001 MINOR-1/NIT, Appendix D Demo VAN account doc gap.",
+  "nextResumeAction": "Commit FIN-DBACCOUNT-001 on user decision. Next: ACQUIRING-001 (incl. D-FFR-003 auto-release) → MERCHANT-OPS-002. Follow-ups: FIN-FACT-RELAY-001 review followUps, TXN-OPS-001 NIT-2/L-3/L-4/L-10, MERCHANT-OPS-001 NIT-1/2 + LIVE L-1/L-3, CHECKOUT MINOR-1..3, TEST-PERF MINOR-1..5, ADMIN-UI-001 MINOR-1/NIT, Appendix D Demo VAN account doc gap.",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -679,6 +679,16 @@
       "at": "2026-11-05",
       "taskId": "FIN-FACT-RELAY-001",
       "event": "Q-FFR-01..04 answered (D-FFR-001..004); review round2 PASS; VERIFY-GATE PASS 023913Z (Kotlin 3571, Vitest 166); supplementary PASS CVE 0; DONE"
+    },
+    {
+      "at": "2026-11-05",
+      "taskId": "FIN-DBACCOUNT-001",
+      "event": "IN_PROGRESS; allowedWritePaths resolved"
+    },
+    {
+      "at": "2026-11-05",
+      "taskId": "FIN-DBACCOUNT-001",
+      "event": "REVIEW_PASS; VERIFY-GATE PASS 041331Z (Kotlin 3590, Vitest 166); supplementary PASS CVE 0; DONE"
     }
   ],
   "agreedOrder": [

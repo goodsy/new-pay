@@ -24,7 +24,14 @@
 #     (b) migration 계정이 <db>_privilege에는 EXECUTE만 있어 procedure를 지우거나 바꿀 수 없다.
 #   - 시험: apps/master-api MasterDatabaseAccountSpec과 apps/payment-api DatabaseAccountSeparationSpec이 이 파일을 그대로 MySQL 8.4.11 컨테이너에
 #     넣어 SHOW GRANTS 전체, runtime의 DDL·append-only 표 UPDATE/DELETE 거부(1142), migration 계정의 외부 계정 GRANT 거부를 확인한다.
-#   - FINANCIAL은 Batch metadata 위치·권한(Q-BATCH-META) 답변 전이라 기존 단일 계정(ALL)을 유지한다.
+#   - FINANCIAL(FIN-DBACCOUNT-001, D-FFR-002 — 명세 docs/repository/FIN-DBACCOUNT-001-FINANCIAL-DB-ACCOUNTS.md): MASTER·PAYMENT와 같은 migration 계정·runtime role·
+#     grantor·표 단위 procedure + ADMIN·PAYMENT와 같은 열 단위 UPDATE helper. 차이 하나: Spring Batch metadata 표(BATCH_*, D-ACQ-007 — 같은 schema, 이름이 대문자)를
+#     받기 위해 FINANCIAL procedure만 표 이름 `BATCH_[A-Z0-9_]{1,58}`과 대문자 열 이름도 받는다(MASTER·PAYMENT·ADMIN procedure의 SQL은 바이트 그대로).
+#     이 변경 전 volume의 단일 계정 paycore_financial(DB ALL)은 재실행 시 DB 단위 ALL·GRANT OPTION을 REVOKE당하고 role만 남는다.
+#     PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD가 없으면(다른 앱의 시험 컨테이너 등 compose 밖) **FINANCIAL이 전혀 쓰이지 않은 새 인스턴스일 때만** migration 계정·
+#     role·procedure 설치를 건너뛰고 runtime 계정의 DB 단위 권한을 모두 회수한 상태로 둔다(fail-closed — financial-batch는 기동하지 못한다).
+#     FINANCIAL 표·계정·procedure schema가 하나라도 있으면 실패한다(기존 volume 수렴 실행에서 변수 누락 방지). compose.yaml은 `:?`로 요구한다.
+#     시험: apps/financial-batch FinancialDatabaseAccountSpec.
 #   - ADMIN(ADMIN-BOOT-001 §4.2.1, D-ADMIN-005 — internal-admin의 소유 DB): MASTER·PAYMENT와 같은 계정·role·grantor·procedure에 더해 열 단위 UPDATE
 #     helper(grant_runtime_column_update)도 설치한다(승인 요청·등록 코드·계정·복구 회차의 생성 불변 열은 UPDATE 1143). 시험: apps/internal-admin AdminDatabaseAccountSpec.
 #     ADMIN 블록은 PAYCORE_ADMIN_DB_PASSWORD·PAYCORE_ADMIN_DB_MIGRATION_PASSWORD가 **둘 다** 있을 때만 실행한다. 하나만 있으면 실패(반쪽 계정 금지),
@@ -75,9 +82,36 @@ else
     echo "01-owned-databases.sh: ADMIN passwords not set — skipping paycore_admin (compose.yaml requires them)" >&2
 fi
 
+# FIN-DBACCOUNT-001: FINANCIAL migration 계정. 변수가 없을 때의 건너뛰기는 FINANCIAL이 전혀 쓰이지 않은 새 인스턴스에서만(ADMIN과 같은 fail-closed 규칙).
+# 표(Flyway history·BATCH_*·결제 사실 표)·migration 계정·grantor·role·procedure schema가 하나라도 있으면 실패한다. 조회 실패도 실패로 본다.
+financial_enabled=0
+if [ -n "${PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD}" ]; then
+    financial_enabled=1
+else
+    financial_existing="$(mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -N -B -e "SELECT
+        (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'paycore_financial')
+      + (SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = 'paycore_financial_privilege')
+      + (SELECT COUNT(*) FROM mysql.user WHERE User IN ('paycore_financial_migration', 'paycore_financial_grantor', 'paycore_financial_runtime'))" 2>/dev/null)" \
+        || financial_existing="unknown"
+    if [ "${financial_existing}" != "0" ]; then
+        echo "01-owned-databases.sh: PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD not set but paycore_financial is already in use (or could not be checked) — set it" >&2
+        exit 1
+    fi
+    # 주의(재검토 NIT-6): AdminDatabaseAccountSpec은 출력에 "is not set"이 없고 "ADMIN" 줄이 ADMIN 안내뿐임을 단언한다 — 이 문구에 그 두 문자열을 넣지 않는다.
+    echo "01-owned-databases.sh: PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD not set — paycore_financial runtime account gets no privileges, no migration account (compose.yaml requires it)" >&2
+fi
+
+# 표·열 이름 검사 정규식(REGEXP_LIKE, 대소문자 구분). 기본값은 MASTER·PAYMENT·ADMIN이 쓰는 소문자 이름(이 값으로 만든 SQL은 FIN-DBACCOUNT-001 전과 바이트 같다).
+# FINANCIAL만 Spring Batch metadata 표(BATCH_*)와 그 대문자 열을 더 받는다(V1 = Batch 공식 schema 그대로 — 이름을 바꿀 수 없다).
+lower_name_pattern='[a-z][a-z0-9_]{0,63}'
+financial_table_pattern='^([a-z][a-z0-9_]{0,63}|BATCH_[A-Z0-9_]{1,58})$'
+financial_column_name_pattern='([a-z][a-z0-9_]{0,63}|[A-Z][A-Z0-9_]{0,63})'
+
 # 소유 DB 하나(<db>)의 runtime role·grantor·권한 부여 procedure. migration·runtime 계정은 먼저 만들어져 있어야 한다.
+# $2(선택) = 표 이름 정규식(기본 소문자 이름).
 runtime_privilege_sql() {
     local db="$1"
+    local table_pattern="${2:-^${lower_name_pattern}\$}"
     cat <<SQL
 CREATE DATABASE IF NOT EXISTS ${db}_privilege;
 CREATE ROLE IF NOT EXISTS '${db}_runtime'@'%';
@@ -105,7 +139,7 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'runtime privileges must be one of the allowed sets';
     END IF;
     IF p_table IS NULL
-        OR NOT REGEXP_LIKE(p_table, '^[a-z][a-z0-9_]{0,63}\$', 'c')
+        OR NOT REGEXP_LIKE(p_table, '${table_pattern}', 'c')
         OR LOCATE(CHAR(10 USING ascii), p_table) > 0
         OR LOCATE(CHAR(13 USING ascii), p_table) > 0
         OR p_table = 'flyway_schema_history'
@@ -148,8 +182,11 @@ SQL
 # 모두 그 표에 실제로 있어야 한다(아니면 SIGNAL 1644). 부여만 한다(같은 열 재부여는 그대로 — 재실행 안전). 열 권한 회수는 DBA 절차다.
 # 주의(측정): 같은 표에 set_runtime_table_privileges를 나중에 부르면 여집합 REVOKE UPDATE가 열 단위 UPDATE도 회수하고, 'SELECT, INSERT, UPDATE'는 모든 열로 넓힌다 —
 # 열 권한이 있는 표에는 표 단위 helper를 다시 쓰지 않는다(V24 주석).
+# $2(선택) = 표 이름 정규식, $3(선택) = 열 이름 하나의 정규식(기본 소문자 이름). 열 목록은 그 이름을 ", "로 이은 1~8개.
 runtime_column_privilege_sql() {
     local db="$1"
+    local table_pattern="${2:-^${lower_name_pattern}\$}"
+    local column_name_pattern="${3:-${lower_name_pattern}}"
     cat <<SQL
 DROP PROCEDURE IF EXISTS ${db}_privilege.grant_runtime_column_update;
 DELIMITER //
@@ -161,7 +198,7 @@ CREATE DEFINER = '${db}_grantor'@'localhost' PROCEDURE ${db}_privilege.grant_run
     COMMENT 'WEBHOOK-001 D-WH-009: grant column-level UPDATE on existing columns of one ${db} base table to the ${db} runtime role'
 BEGIN
     IF p_table IS NULL
-        OR NOT REGEXP_LIKE(p_table, '^[a-z][a-z0-9_]{0,63}\$', 'c')
+        OR NOT REGEXP_LIKE(p_table, '${table_pattern}', 'c')
         OR LOCATE(CHAR(10 USING ascii), p_table) > 0
         OR LOCATE(CHAR(13 USING ascii), p_table) > 0
         OR p_table = 'flyway_schema_history'
@@ -170,7 +207,7 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'column privileges can be granted only on a base table of the owned database';
     END IF;
     IF p_columns IS NULL
-        OR NOT REGEXP_LIKE(p_columns, '^[a-z][a-z0-9_]{0,63}(, [a-z][a-z0-9_]{0,63}){0,7}\$', 'c')
+        OR NOT REGEXP_LIKE(p_columns, '^${column_name_pattern}(, ${column_name_pattern}){0,7}\$', 'c')
         OR LOCATE(CHAR(10 USING ascii), p_columns) > 0
         OR LOCATE(CHAR(13 USING ascii), p_columns) > 0
         OR (SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -205,11 +242,24 @@ CREATE USER IF NOT EXISTS 'paycore_financial'@'%'         IDENTIFIED BY '${PAYCO
 
 GRANT ALL PRIVILEGES ON paycore_master.* TO 'paycore_master_migration'@'%';
 GRANT ALL PRIVILEGES ON paycore_payment.* TO 'paycore_payment_migration'@'%';
-GRANT ALL PRIVILEGES ON paycore_financial.* TO 'paycore_financial'@'%';
 SQL
 runtime_privilege_sql paycore_master
 runtime_privilege_sql paycore_payment
 runtime_column_privilege_sql paycore_payment
+# FIN-DBACCOUNT-001: FINANCIAL은 더 이상 runtime 계정에 DB ALL을 주지 않는다(이전: GRANT ALL PRIVILEGES ON paycore_financial.* TO 'paycore_financial').
+if [ "${financial_enabled}" = 1 ]; then
+cat <<SQL
+CREATE USER IF NOT EXISTS 'paycore_financial_migration'@'%' IDENTIFIED BY '${PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD}';
+GRANT ALL PRIVILEGES ON paycore_financial.* TO 'paycore_financial_migration'@'%';
+SQL
+runtime_privilege_sql paycore_financial "${financial_table_pattern}"
+runtime_column_privilege_sql paycore_financial "${financial_table_pattern}" "${financial_column_name_pattern}"
+else
+cat <<SQL
+REVOKE IF EXISTS ALL PRIVILEGES ON paycore_financial.* FROM 'paycore_financial'@'%';
+REVOKE IF EXISTS GRANT OPTION ON paycore_financial.* FROM 'paycore_financial'@'%';
+SQL
+fi
 if [ "${admin_enabled}" = 1 ]; then
 cat <<SQL
 CREATE DATABASE IF NOT EXISTS paycore_admin;
