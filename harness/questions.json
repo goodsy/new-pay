@@ -127,7 +127,7 @@
     },
     {
       "id": "Q-BATCH-META",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "Spring Batch metadata(BATCH_*) 저장 위치와 보존/정리 정책",
       "recommended": "FINANCIAL DB 같은 schema(chunk TX와 metadata 원자성 유지), 보존 기간과 정리 Job은 운영 정책으로 별도 확정",
       "alternative": "FINANCIAL 인스턴스 안 별도 schema/계정(권한 분리), 단 같은 TX 참여 여부 검토 필요",
@@ -135,9 +135,9 @@
         "첫 실제 financial Job(SETTLEMENT-001/RECON-001)"
       ],
       "askedAt": null,
-      "humanAnswer": null,
-      "humanEvidence": null,
-      "appliedSpec": null,
+      "humanAnswer": "FINANCIAL DB 같은 schema (Recommended) — 보존·정리 정책은 운영 정책으로 별도",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-007",
       "origin": "TECH-001 Implementer 질문 후보",
       "technicalNote": "TECH-001: Batch metadata DDL은 시험용 migration 위치(src/test/resources/db/testmigration/financial)에만 PROVISIONAL로 둔다. 답변 전 운영 migration 위치에 넣지 않으며, 실제 DB에 적용하지 않는다. BATCH_* 테이블은 프레임워크 키(JOB_KEY는 hash)라 업무 키 collation 규칙 대상이 아니다."
     },
@@ -2536,7 +2536,7 @@
     },
     {
       "id": "Q-MOPS-01",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "가맹점 등록·개통 명령 중 2인 승인(maker-checker) 대상 범위",
       "recommended": "등록(Business/Merchant/Site/계약 초안/CSA)은 OPERATOR 1인; approveContractRevision·issueFirstDefaultMID·approvePaymentMethodActivation·confirmSiteActivation·decideSiteReview=APPROVED·enableCurrency·approveCardRoute·한도 상향 등록/교체·수수료 정책 배정은 2인; 안전 방향(중지·철회·종료) 1인 즉시",
       "alternative": "모든 명령 2인 / 모든 명령 1인",
@@ -2544,7 +2544,10 @@
         "MERCHANT-OPS-002"
       ],
       "askedAt": "2026-11-03",
-      "origin": "MERCHANT-OPS-001 조사 — MERCHANT-OPS-002 착수 전 질문"
+      "origin": "MERCHANT-OPS-001 조사 — MERCHANT-OPS-002 착수 전 질문",
+      "humanAnswer": "위험 명령만 2인 (Recommended) — 등록(Business/Merchant/Site/계약 초안/CSA) OPERATOR 1인; 계약 승인·첫 MID 발급·결제수단/카드사 개통 승인·사이트 심사 승인·통화 활성화·한도 상향 등록/교체·수수료 정책 배정 2인; 안전 방향(중지·철회·종료) 1인 즉시",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
+      "appliedSpec": "D-MOPS-004"
     },
     {
       "id": "Q-MOPS-02",
@@ -2720,6 +2723,159 @@
       "humanAnswer": "표시만 유지 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04)",
       "appliedSpec": "D-TXOPS-005"
+    },
+    {
+      "id": "Q-ACQ-01",
+      "question": "PAYMENT 승인·취소 사실을 FINANCIAL로 전달하는 방식",
+      "recommended": "PAYMENT Outbox → 서명된 내부 HTTP push → FINANCIAL Inbox(effect key 중복 제거), MASTER→PAYMENT 권리 전달 패턴 재사용",
+      "alternative": "FINANCIAL이 PAYMENT 읽기 API를 주기 조회",
+      "humanAnswer": "PAYMENT가 밀어줌 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "FIN-FACT-RELAY-001",
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-001"
+    },
+    {
+      "id": "Q-ACQ-02",
+      "question": "매입 대상과 취소 처리",
+      "recommended": "PAYMENT 승인 확정 건만 매입. 전송 전 전액 취소는 매입 제외, 부분 취소는 차감 금액으로 매입(상계). 전송 후 취소는 원거래 참조 별도 취소 레코드. 원거래 모르는 취소는 Hold",
+      "alternative": "항상 승인·취소 레코드 별도",
+      "humanAnswer": "전송 전 취소는 상계 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-002"
+    },
+    {
+      "id": "Q-ACQ-03",
+      "question": "매입 파일 전송 주기와 마감",
+      "recommended": "매입사별 하루 1파일(Asia/Seoul), 마감 시각은 버전 관리 설정(Demo 값 표시). Q-CALENDAR 확정 전 영업일=달력일 임시(Demo 한정)",
+      "alternative": "하루 여러 회차",
+      "humanAnswer": "하루 1회, 마감 설정 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-003"
+    },
+    {
+      "id": "Q-ACQ-04",
+      "question": "매입 결과 파일과 재전송",
+      "recommended": "ACK(수신)와 건별 결과(ACCEPTED/REJECTED) 구분. 마감까지 결과 없는 건은 UNKNOWN → 대사, 자동 재전송 없음. 거절은 그 파일에서 종결, 재매입은 원파일 참조 새 버전 + 운영자 승인",
+      "alternative": "지정 거절 코드 자동 재전송",
+      "humanAnswer": "자동 재전송 없음 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-004"
+    },
+    {
+      "id": "Q-ACQ-05",
+      "question": "선지급 건의 매입 거절·UNKNOWN 시 처리(기준 문서의 별도 위험 정책)",
+      "recommended": "이번 매입 작업은 사실 기록·알림만, 지급 보류 등 돈의 효과는 SETTLEMENT-CONTRACT-001에서 결정, 자동 회수 없음",
+      "alternative": "지금 보류로 확정",
+      "humanAnswer": "기준정보 설정인 승인시점과 매입결과 선택가능하며 매입결과에 때른 지급보류는 정산에서 정함 (사용자 직접 입력)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001",
+        "SETTLEMENT-CONTRACT-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-005"
+    },
+    {
+      "id": "Q-ACQ-06",
+      "question": "가상 기관 SFTP 접속 인증",
+      "recommended": "클라이언트 키 인증 + 서버 호스트 키 설정 고정(모르는 호스트 거부), 키는 환경변수/파일로만, 저장소에 없음",
+      "alternative": "Demo는 비밀번호",
+      "humanAnswer": "키 인증 + 호스트 키 고정 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-04",
+      "origin": "ACQUIRING-001 discovery",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-04/05)",
+      "appliedSpec": "D-ACQ-006"
+    },
+    {
+      "id": "Q-FFR-01",
+      "question": "PAYMENT runtime에 outbox_event.publish_status·published_at 두 열만 열 단위 UPDATE 허용(D-WH-009 확장)?",
+      "recommended": "허용: 예약 열 사용, 미전달 발견 비용을 미전달 행 수로 축소",
+      "alternative": "현행 유지 + archival",
+      "humanAnswer": "두 열만 허용 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "FIN-FACT-RELAY-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "FIN-FACT-RELAY-001 implementer",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-FFR-001"
+    },
+    {
+      "id": "Q-FFR-02",
+      "question": "FINANCIAL DB 계정 분리(append-only를 DB 1142/1143로 강제) 시점",
+      "recommended": "ACQUIRING-001 전 별도 작업 FIN-DBACCOUNT-001",
+      "alternative": "이번 작업 포함 / 정산 전까지 미룸",
+      "humanAnswer": "매입 전에 별도 작업 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "FIN-DBACCOUNT-001",
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "FIN-FACT-RELAY-001 implementer",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-FFR-002"
+    },
+    {
+      "id": "Q-FFR-03",
+      "question": "원승인 없이 먼저 도착한 취소 보류(ORIGINAL_UNKNOWN)의 해제 규칙과 정합성 보류 5종 유지",
+      "recommended": "정합성 보류 5종 유지 + 원승인 도착·MATCH 시 append-only 해제 기록으로 자동 해제, 불일치는 운영자 검토",
+      "alternative": "해제는 항상 운영자 승인",
+      "humanAnswer": "일치 시 자동 해제 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "FIN-FACT-RELAY-001 implementer",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-FFR-003"
+    },
+    {
+      "id": "Q-FFR-04",
+      "question": "FINANCIAL이 모르는 schema 버전 사실을 받으면?",
+      "recommended": "원문 UNSUPPORTED 보존 + ACK, 재처리 도구는 후속",
+      "alternative": "PAYMENT 쪽 재시도·격리",
+      "humanAnswer": "원문 보존 후 수신 확인 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "FIN-FACT-RELAY-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "FIN-FACT-RELAY-001 implementer",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-FFR-004"
     }
   ]
 }

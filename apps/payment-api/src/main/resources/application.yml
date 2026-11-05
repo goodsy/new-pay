@@ -91,3 +91,8 @@ logging:
 #   paycore.webhook.test-signing-keys[].{merchant-account-id,key-id,secret(whsec_…, 환경변수)} — TEST 시험 키만(MID당 최대 2, D-WH-005 — 발급은 WEBHOOK-ENDPOINT-001)
 #   paycore.webhook.transport.{connect-timeout,response-timeout,request-deadline,dns-timeout,max-response-bytes,test-allowlist[],test-trust-pem(선택)} — D-WH-007(Demo 3s·10s·15s·2s·4KiB)
 #   paycore.webhook.delivery.{claim-lease,schedule.{version,initial,max,jitter-ratio,max-attempts,max-age},job.{enabled,fixed-delay,batch-size}} — D-WH-006(Demo 60s·10s~1h·0.2·10회·24h)
+# PAYMENT → FINANCIAL 결제 사실 Relay(FIN-FACT-RELAY-001 §4.4·§8, D-ACQ-001). 운영 기본값 없음 — 값이 없으면 기동 실패.
+#   paycore.financial-relay.dispatch.{endpoint(http(s)://<FINANCIAL 내부 주소>/internal/v1/payment-facts),connect-timeout,request-timeout,signing-key-id,
+#     signing-key(Base64 ≥ 32바이트, 환경변수 — 이 채널 전용 키: entitlement inbox·admin-channel 키와 바이트·kid가 같으면 기동 거부),max-ack-bytes(256..65536)}
+#   paycore.financial-relay.job.{enabled,fixed-delay,batch-size,claim-lease(> connect + request + 1s — 기동 검사),backoff-initial,backoff-max,backoff-jitter-ratio}
+#     — Demo 1s·50·30s·1s~1m·0.2(운영값 LIVE Gate). 로컬 Demo 예시: .env.example PAYCORE_FINANCIAL_RELAY_JSON

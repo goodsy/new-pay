@@ -117,6 +117,9 @@ class DatabaseAccountSeparationSpec(
         "merchant_webhook_attempt" to "Select,Insert",
         // ADMIN-PAYMENT-OPS-001 V28: approvalId별 최초 확정 결정은 INSERT 전용(D-OPS-005).
         "operator_approval_decision" to "Select,Insert",
+        // FIN-FACT-RELAY-001 V33: Relay 전달 상태는 발견 IODKU·claim 잠금·결과 갱신(삭제 경로 없음), ACK 기록은 append-only.
+        "financial_fact_relay" to "Select,Insert,Update",
+        "financial_fact_relay_ack" to "Select,Insert",
     )
 
     fun grantsOf(account: String): Set<String> = db.withRoot { c ->
@@ -137,8 +140,8 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`idempotency_request` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`incident_hold` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`order_payment_control` TO `paycore_payment_runtime`@`%`",
-            // D-WH-009(WEBHOOK-001 V24): 알림 표시 두 열만 열 단위 UPDATE. 나머지 열 UPDATE는 1143, DELETE는 1142(아래 시험).
-            "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
+            // D-WH-009(WEBHOOK-001 V24): 알림 표시 두 열 + D-FFR-001(FIN-FACT-RELAY-001 V34): FINANCIAL Relay 표시 두 열만 열 단위 UPDATE. 나머지 열 UPDATE는 1143, DELETE는 1142(아래 시험).
+            "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`, `publish_status`, `published_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`payment` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`payment_termination_evidence` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`inbox_event` TO `paycore_payment_runtime`@`%`",
@@ -175,6 +178,9 @@ class DatabaseAccountSeparationSpec(
             "GRANT SELECT, INSERT ON `paycore_payment`.`merchant_webhook_attempt` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`operator_approval_decision` TO `paycore_payment_runtime`@`%`",
             "GRANT SELECT, INSERT ON `paycore_payment`.`demo_credential_issuance` TO `paycore_payment_runtime`@`%`",
+            // FIN-FACT-RELAY-001 V33.
+            "GRANT SELECT, INSERT, UPDATE ON `paycore_payment`.`financial_fact_relay` TO `paycore_payment_runtime`@`%`",
+            "GRANT SELECT, INSERT ON `paycore_payment`.`financial_fact_relay_ack` TO `paycore_payment_runtime`@`%`",
         ),
         PAYMENT_MIGRATION_USER to setOf(
             "GRANT USAGE ON *.* TO `paycore_payment_migration`@`%`",
@@ -309,12 +315,16 @@ class DatabaseAccountSeparationSpec(
                     "decision update" to c.codeOf("UPDATE operator_approval_decision SET decision = 'REJECTED' WHERE approval_id = 'none'"),
                     "decision delete" to c.codeOf("DELETE FROM operator_approval_decision WHERE approval_id = 'none'"),
                     "decision lock" to c.codeOf("SELECT * FROM operator_approval_decision WHERE approval_id = 'none' FOR UPDATE"),
+                    // FIN-FACT-RELAY-001 V33: FINANCIAL ACK 기록은 INSERT 전용.
+                    "relay ack update" to c.codeOf("UPDATE financial_fact_relay_ack SET outcome = 'APPLIED' WHERE outbox_id = -1"),
+                    "relay ack delete" to c.codeOf("DELETE FROM financial_fact_relay_ack WHERE outbox_id = -1"),
                 )
             } shouldBe mapOf(
                 "evidence update" to 1142, "evidence delete" to 1142, "hold update" to 1142, "hold delete" to 1142, "evidence lock" to 1142,
                 "auth event update" to 1142, "auth event delete" to 1142, "auth event lock" to 1142, "pin update" to 1142, "pin delete" to 1142,
                 "observation update" to 1142, "observation delete" to 1142, "observation lock" to 1142, "transaction update" to 1142, "transaction delete" to 1142,
                 "release insert" to 1142, "decision update" to 1142, "decision delete" to 1142, "decision lock" to 1142,
+                "relay ack update" to 1142, "relay ack delete" to 1142,
             )
             db.count(
                 "SELECT COUNT(*) FROM payment_termination_evidence WHERE payment_id = ? AND evidence = 'NOT_TRANSMITTED_AND_SESSION_DISCARDED'",
@@ -330,7 +340,8 @@ class DatabaseAccountSeparationSpec(
                     "control delete" to c.codeOf("DELETE FROM order_payment_control WHERE merchant_account_id = 'none'"),
                     "idempotency delete" to c.codeOf("DELETE FROM idempotency_request WHERE merchant_account_id = 'none'"),
                     "outbox delete" to c.codeOf("DELETE FROM outbox_event WHERE event_id = 'none'"),
-                    "outbox update" to c.codeOf("UPDATE outbox_event SET publish_status = 'PENDING' WHERE event_id = 'none'"),
+                    // D-FFR-001(2026-11-05 사용자 결정): publish_status·published_at은 Relay 표시용 열 단위 UPDATE가 허용됐다 — 나머지 열(payload 등)은 계속 1143.
+                    "outbox update" to c.codeOf("UPDATE outbox_event SET payload = payload WHERE event_id = 'none'"),
                     "token delete" to c.codeOf("DELETE FROM checkout_token WHERE checkout_token_id = 'none'"),
                     "checkout session delete" to c.codeOf("DELETE FROM checkout_session WHERE checkout_session_id = 'none'"),
                     "auth session delete" to c.codeOf("DELETE FROM authentication_session WHERE authentication_session_id = 'none'"),
@@ -348,18 +359,19 @@ class DatabaseAccountSeparationSpec(
             )
         }
 
-        Then("D-WH-009: on outbox_event only the two merchant notification columns are updatable; every other column is 1143, DELETE stays 1142") {
+        Then("D-WH-009 + D-FFR-001: on outbox_event only the two merchant notification columns and the two FINANCIAL relay marks are updatable; every other column is 1143, DELETE stays 1142") {
             val columns = db.withRoot { c ->
                 with(db) {
                     c.rows("SELECT COLUMN_NAME AS col FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'outbox_event'", PaymentDbAccounts.PAYMENT_DATABASE)
                 }
             }.map { it["col"] as String }
-            val notification = setOf("merchant_notification_status", "merchant_notified_at")
-            columns.containsAll(notification + setOf("publish_status", "payload", "event_id", "aggregate_id")) shouldBe true
+            // 기대값 변경 근거: D-FFR-001(사용자 결정 2026-11-05 — D-WH-009 확장). 완화가 아니라 결정에 따른 두 열 추가이며 나머지 열은 그대로 1143이다.
+            val notification = setOf("merchant_notification_status", "merchant_notified_at", "publish_status", "published_at")
+            columns.containsAll(notification + setOf("payload", "event_id", "aggregate_id", "event_category")) shouldBe true
             val codes = db.withApp { c ->
                 columns.associateWith { col -> c.codeOf("UPDATE outbox_event SET `$col` = `$col` WHERE id = -1") }
             }
-            // 알림 열 두 개만 허용(행 없음 — 0행 UPDATE 성공), 나머지 전부(publish_status·payload·집계 열 포함) 열 접근 거부.
+            // 알림 열 두 개 + Relay 표시 열 두 개만 허용(행 없음 — 0행 UPDATE 성공), 나머지 전부(payload·집계 열 포함) 열 접근 거부.
             codes.filterKeys { it in notification } shouldBe notification.associateWith { null }
             codes.filterKeys { it !in notification }.values.toSet() shouldBe setOf(1143)
             codes.size shouldBe columns.size
@@ -392,7 +404,7 @@ class DatabaseAccountSeparationSpec(
             // 재실행 안전(멱등): 같은 열을 다시 주어도 권한 줄은 그대로다.
             db.connectAs(PAYMENT_MIGRATION_USER).use { c -> c.codeOf("CALL $helper('outbox_event', 'merchant_notification_status, merchant_notified_at')") } shouldBe null
             grantsOf("'$PAYMENT_RUNTIME_ROLE'@'%'").filter { it.contains("`outbox_event`") } shouldBe listOf(
-                "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
+                "GRANT SELECT, INSERT, UPDATE (`merchant_notification_status`, `merchant_notified_at`, `publish_status`, `published_at`) ON `paycore_payment`.`outbox_event` TO `paycore_payment_runtime`@`%`",
             )
         }
 
@@ -434,7 +446,7 @@ class DatabaseAccountSeparationSpec(
                 "global" to "SYSTEM",
                 "system" to "KST",
                 "installedBy" to setOf(PAYMENT_MIGRATION_USER),
-                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "950"),
+                "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "950"),
                 "probe" to mapOf("z" to "+00:00", "u" to "$PAYMENT_MIGRATION_USER@%"),
             )
         }

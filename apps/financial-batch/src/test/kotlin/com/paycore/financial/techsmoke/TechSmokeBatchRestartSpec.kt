@@ -91,9 +91,13 @@ class TechSmokeBatchRestartSpec(
         failThenRestart(writeFailureJob, FailureMode.AFTER_WRITE, params)
     }
 
-    test("batch metadata tables are created by the provisional test-only Flyway V0.1 migration") {
+    test("batch metadata tables are created by the main Flyway V1 migration (D-ACQ-007 — FINANCIAL DB same schema; the test-only V0.1 copy is gone)") {
         jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '0.1' AND success = 1",
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '0.1'",
+            Int::class.java,
+        ) shouldBe 0
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1' AND success = 1",
             Int::class.java,
         ) shouldBe 1
         jdbcTemplate.queryForObject(

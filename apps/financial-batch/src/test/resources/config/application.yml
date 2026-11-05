@@ -1,0 +1,17 @@
+# 시험 전용 설정(test classpath에만 있다 — 운영 jar에 들어가지 않는다). Spring Boot는 classpath:/config/application.yml을 운영 application.yml 위에 덧씌운다.
+# 운영 application.yml에는 아래 값의 기본값이 없다(없으면 기동 실패 — FIN-FACT-RELAY-001 §8).
+# 서명 키는 golden(payment-fact-relay-v1.golden.json)의 시험 전용 키 두 개다(운영 키 아님 — 교체 중 2키 시험). 시각 창·본문 상한은 Demo 값(운영값 LIVE Gate).
+server:
+  # 0 = 시험마다 임의 포트(RANDOM_PORT 시험은 실제 포트를 주입받는다). 바인딩은 loopback.
+  port: 0
+  address: 127.0.0.1
+paycore:
+  financial:
+    payment-fact-inbox:
+      clock-window: PT300S
+      max-body-bytes: 65536
+      signing-keys:
+        - key-id: fact-golden-k1
+          secret: dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDE=
+        - key-id: fact-golden-k2
+          secret: dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDI=

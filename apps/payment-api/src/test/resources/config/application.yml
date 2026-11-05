@@ -122,6 +122,25 @@ paycore:
       fixed-delay: PT5S
       batch-size: 100
       failed-retry-interval: PT1M
+  # FIN-FACT-RELAY-001 PAYMENT → FINANCIAL 결제 사실 Relay(§4.4·§8 — 시험 Demo 값, 운영값 아님). 서명 키는 golden(payment-fact-relay-v1.golden.json)의 시험 전용 키이고
+  # 위 entitlement·admin-channel 키와 다르다(키 공간 분리 기동 검사). endpoint는 쓰지 않는 loopback 자리값이다(Relay 시험은 자체 stub FINANCIAL 서버로 dispatcher를 만든다).
+  # 주기 실행은 끄고 시험이 Use Case를 직접 부른다. claim lease 30초 > 연결 0.5초 + 요청 2초 + 1초(기동 검사).
+  financial-relay:
+    dispatch:
+      endpoint: http://127.0.0.1:1/internal/v1/payment-facts
+      connect-timeout: PT0.5S
+      request-timeout: PT2S
+      signing-key-id: fact-golden-k1
+      signing-key: dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDE=
+      max-ack-bytes: 4096
+    job:
+      enabled: false
+      fixed-delay: PT1S
+      batch-size: 50
+      claim-lease: PT30S
+      backoff-initial: PT1S
+      backoff-max: PT1M
+      backoff-jitter-ratio: 0.0
   cancellation:
     timing:
       dispatch:

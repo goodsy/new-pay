@@ -1,0 +1,621 @@
+{
+  "description": "FIN-FACT-RELAY-001 PAYMENT -> FINANCIAL payment fact channel v1 (generated independently of both apps with Python hmac/hashlib/json; Demo keys and identifiers, not production values).",
+  "header": "PayCore-Fact-Signature",
+  "headerPattern": "^t=([0-9]{1,10}),kid=([A-Za-z0-9._-]{1,32}),v1=([0-9a-f]{64})$",
+  "canonicalTag": "paycore.payment-fact.v1",
+  "method": "POST",
+  "path": "/internal/v1/payment-facts",
+  "canonical": "tag LF METHOD LF path LF t LF lowercase-hex(sha256(body)); UTF-8; no trailing LF",
+  "hmacKey": "base64-decoded secret bytes",
+  "windowSeconds": 300,
+  "checkOrder": [
+    "MALFORMED",
+    "STALE",
+    "UNKNOWN_KID",
+    "SIGNATURE"
+  ],
+  "consumer": "financial-batch",
+  "keys": [
+    {
+      "kid": "fact-golden-k1",
+      "secretBase64": "dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDE="
+    },
+    {
+      "kid": "fact-golden-k2",
+      "secretBase64": "dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDI="
+    }
+  ],
+  "envelopes": [
+    {
+      "input": {
+        "name": "authorized",
+        "eventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+        "effectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+        "eventType": "PaymentAuthorized",
+        "schemaVersion": 1,
+        "eventCategory": "FINANCIAL_FACT",
+        "producer": "payment-api/payment",
+        "aggregateType": "PaymentAuthorization",
+        "aggregateId": "pau_01JC0000000000000000000001",
+        "aggregateVersion": 2,
+        "occurredAt": "2026-11-05T01:02:03.456Z",
+        "payloadJson": "{\"plan\": {\"kind\": \"LUMP_SUM\"}, \"amount\": 10000, \"cardType\": \"CREDIT\", \"currency\": \"KRW\", \"paymentId\": \"pay_01JC0000000000000000000001\", \"approvedAt\": \"2026-11-05T01:02:03.456Z\", \"issuerCode\": \"SIMISSA\", \"environment\": \"TEST\", \"acquirerCode\": \"SIMACQA\", \"transactionId\": \"ptx_01JC0000000000000000000001\", \"approvalNumber\": \"30000001\", \"merchantSiteId\": \"demo-site-001\", \"authorizationId\": \"pau_01JC0000000000000000000001\", \"merchantOrderId\": \"order-20261105-0001\", \"merchantAccountId\": \"demo-mid-001\", \"entitlementVersion\": \"es1:demo-merchant-001:3\", \"providerTransactionId\": \"SIMVAN-T-0001\", \"institutionBusinessDate\": null, \"policyAssignmentVersion\": \"pa:demo-policy-1\", \"institutionTransactionDate\": \"2026-11-05\"}"
+      },
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "bodySha256": "ef53b994c90d02af53d7bd7b8b3d97678eeb8bb9d225bd61b73e624b5ca2844a",
+      "t": 1792500300,
+      "kid": "fact-golden-k1",
+      "canonical": "paycore.payment-fact.v1\nPOST\n/internal/v1/payment-facts\n1792500300\nef53b994c90d02af53d7bd7b8b3d97678eeb8bb9d225bd61b73e624b5ca2844a",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d"
+    },
+    {
+      "input": {
+        "name": "cancelled-partial-hangul-site",
+        "eventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000002",
+        "effectKey": "PaymentCancelled:ptx_01JC0000000000000000000003",
+        "eventType": "PaymentCancelled",
+        "schemaVersion": 1,
+        "eventCategory": "FINANCIAL_FACT",
+        "producer": "payment-api/payment",
+        "aggregateType": "PaymentCancellation",
+        "aggregateId": "pcn_01JC0000000000000000000001",
+        "aggregateVersion": 4,
+        "occurredAt": "2026-11-05T02:03:04.567Z",
+        "payloadJson": "{\"scope\": \"PARTIAL\", \"amount\": 3000, \"currency\": \"KRW\", \"paymentId\": \"pay_01JC0000000000000000000002\", \"cancelledAt\": \"2026-11-05T02:03:04.567Z\", \"environment\": \"TEST\", \"originalPlan\": {\"kind\": \"INSTALLMENT\", \"months\": 3}, \"initiatorKind\": \"MERCHANT\", \"transactionId\": \"ptx_01JC0000000000000000000003\", \"cancellationId\": \"pcn_01JC0000000000000000000001\", \"merchantSiteId\": \"사이트-001\", \"returnSequence\": 1, \"authorizationId\": \"pau_01JC0000000000000000000002\", \"merchantOrderId\": \"order-20261105-0002\", \"authorizedAmount\": 10000, \"originalCardType\": \"CREDIT\", \"merchantAccountId\": \"demo-mid-001\", \"returnStatusAfter\": \"PARTIALLY_RETURNED\", \"entitlementVersion\": \"es1:demo-merchant-001:3\", \"cancelApprovalNumber\": \"40000001\", \"originalTransactionId\": \"ptx_01JC0000000000000000000002\", \"providerTransactionId\": \"SIMVAN-C-0001\", \"institutionBusinessDate\": \"2026-11-05\", \"policyAssignmentVersion\": \"pa:demo-policy-1\", \"cumulativeReturnedAmount\": 3000, \"institutionTransactionDate\": \"2026-11-05\", \"originalProviderTransactionId\": \"SIMVAN-T-0002\"}"
+      },
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000002\",\"effectKey\":\"PaymentCancelled:ptx_01JC0000000000000000000003\",\"eventType\":\"PaymentCancelled\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentCancellation\",\"aggregateId\":\"pcn_01JC0000000000000000000001\",\"aggregateVersion\":4,\"occurredAt\":\"2026-11-05T02:03:04.567Z\",\"payload\":{\"scope\":\"PARTIAL\",\"amount\":3000,\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000002\",\"cancelledAt\":\"2026-11-05T02:03:04.567Z\",\"environment\":\"TEST\",\"originalPlan\":{\"kind\":\"INSTALLMENT\",\"months\":3},\"initiatorKind\":\"MERCHANT\",\"transactionId\":\"ptx_01JC0000000000000000000003\",\"cancellationId\":\"pcn_01JC0000000000000000000001\",\"merchantSiteId\":\"사이트-001\",\"returnSequence\":1,\"authorizationId\":\"pau_01JC0000000000000000000002\",\"merchantOrderId\":\"order-20261105-0002\",\"authorizedAmount\":10000,\"originalCardType\":\"CREDIT\",\"merchantAccountId\":\"demo-mid-001\",\"returnStatusAfter\":\"PARTIALLY_RETURNED\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"cancelApprovalNumber\":\"40000001\",\"originalTransactionId\":\"ptx_01JC0000000000000000000002\",\"providerTransactionId\":\"SIMVAN-C-0001\",\"institutionBusinessDate\":\"2026-11-05\",\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"cumulativeReturnedAmount\":3000,\"institutionTransactionDate\":\"2026-11-05\",\"originalProviderTransactionId\":\"SIMVAN-T-0002\"}}",
+      "bodySha256": "548de587c4a97f35c78836bda5e66f57001d6a444ee3a11e038ca8079e3b78ab",
+      "t": 1792500300,
+      "kid": "fact-golden-k1",
+      "canonical": "paycore.payment-fact.v1\nPOST\n/internal/v1/payment-facts\n1792500300\n548de587c4a97f35c78836bda5e66f57001d6a444ee3a11e038ca8079e3b78ab",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=e44f47653082bbffbc44b00dad14caacc48afdfd93f6606e99fd339a913a7395"
+    },
+    {
+      "input": {
+        "name": "unsupported-schema-version",
+        "eventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000003",
+        "effectKey": "PaymentAuthorized:ptx_01JC0000000000000000000009",
+        "eventType": "PaymentAuthorized",
+        "schemaVersion": 2,
+        "eventCategory": "FINANCIAL_FACT",
+        "producer": "payment-api/payment",
+        "aggregateType": "PaymentAuthorization",
+        "aggregateId": "pau_01JC0000000000000000000009",
+        "aggregateVersion": 1,
+        "occurredAt": "2026-11-05T03:04:05.678Z",
+        "payloadJson": "{\"note\": \"future schema\", \"paymentId\": \"pay_01JC0000000000000000000003\"}"
+      },
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000003\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000009\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":2,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000009\",\"aggregateVersion\":1,\"occurredAt\":\"2026-11-05T03:04:05.678Z\",\"payload\":{\"note\":\"future schema\",\"paymentId\":\"pay_01JC0000000000000000000003\"}}",
+      "bodySha256": "3ddd759371b4833bb6ce9a8bcbc088a022cac264fd1cce542d38f0e4603651d0",
+      "t": 1792500300,
+      "kid": "fact-golden-k1",
+      "canonical": "paycore.payment-fact.v1\nPOST\n/internal/v1/payment-facts\n1792500300\n3ddd759371b4833bb6ce9a8bcbc088a022cac264fd1cce542d38f0e4603651d0",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=442623f11a760277f2fb41905c215f4aba344a7dc626c397634e24f12c2b2bac"
+    }
+  ],
+  "verifyCases": [
+    {
+      "name": "accept",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "accept-window-minus-300",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500600,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "accept-window-plus-300",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500000,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "reject-window-minus-301",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500601,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "STALE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-window-plus-301",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792499999,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "STALE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "accept-second-key-while-rotating",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k2,v1=c0a3e966d5238b362c173603af89096e1473ea7377d045ef5be66a391d7d4c87",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "ACCEPT",
+        "reason": null,
+        "httpStatus": null
+      }
+    },
+    {
+      "name": "reject-retired-second-key",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k2,v1=c0a3e966d5238b362c173603af89096e1473ea7377d045ef5be66a391d7d4c87",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "UNKNOWN_KID",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-unknown-kid",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-unknown,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "UNKNOWN_KID",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-kid-swapped-to-other-known-key",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k2,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-body-changed",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10001,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-t-changed",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500301,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "SIGNATURE",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-missing-header",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": null,
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-empty-header",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-uppercase-hex",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68C55A26E12AB7709F9F3C448A1DCB578938E94A1D880120B3BF85CB1A1EA69D",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-spaces",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300, kid=fact-golden-k1, v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-field-order",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "kid=fact-golden-k1,t=1792500300,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-extra-field",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d,v2=abc",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-short-v1",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-t-eleven-digits",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=01792500300,kid=fact-golden-k1,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    },
+    {
+      "name": "reject-kid-too-long",
+      "body": "{\"envelopeVersion\":1,\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"eventType\":\"PaymentAuthorized\",\"schemaVersion\":1,\"eventCategory\":\"FINANCIAL_FACT\",\"producer\":\"payment-api/payment\",\"aggregateType\":\"PaymentAuthorization\",\"aggregateId\":\"pau_01JC0000000000000000000001\",\"aggregateVersion\":2,\"occurredAt\":\"2026-11-05T01:02:03.456Z\",\"payload\":{\"plan\":{\"kind\":\"LUMP_SUM\"},\"amount\":10000,\"cardType\":\"CREDIT\",\"currency\":\"KRW\",\"paymentId\":\"pay_01JC0000000000000000000001\",\"approvedAt\":\"2026-11-05T01:02:03.456Z\",\"issuerCode\":\"SIMISSA\",\"environment\":\"TEST\",\"acquirerCode\":\"SIMACQA\",\"transactionId\":\"ptx_01JC0000000000000000000001\",\"approvalNumber\":\"30000001\",\"merchantSiteId\":\"demo-site-001\",\"authorizationId\":\"pau_01JC0000000000000000000001\",\"merchantOrderId\":\"order-20261105-0001\",\"merchantAccountId\":\"demo-mid-001\",\"entitlementVersion\":\"es1:demo-merchant-001:3\",\"providerTransactionId\":\"SIMVAN-T-0001\",\"institutionBusinessDate\":null,\"policyAssignmentVersion\":\"pa:demo-policy-1\",\"institutionTransactionDate\":\"2026-11-05\"}}",
+      "header": "t=1792500300,kid=kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk,v1=68c55a26e12ab7709f9f3c448a1dcb578938e94a1d880120b3bf85cb1a1ea69d",
+      "now": 1792500300,
+      "knownKids": [
+        "fact-golden-k1",
+        "fact-golden-k2"
+      ],
+      "expected": {
+        "result": "REJECT",
+        "reason": "MALFORMED",
+        "httpStatus": 401
+      }
+    }
+  ],
+  "ackCases": [
+    {
+      "name": "applied",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "ACKNOWLEDGED",
+        "outcome": "APPLIED",
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "held",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"HELD\"}",
+      "expected": {
+        "result": "ACKNOWLEDGED",
+        "outcome": "HELD",
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "unsupported",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"UNSUPPORTED\"}",
+      "expected": {
+        "result": "ACKNOWLEDGED",
+        "outcome": "UNSUPPORTED",
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "duplicate-of-held",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"DUPLICATE\",\"originalOutcome\":\"HELD\"}",
+      "expected": {
+        "result": "ACKNOWLEDGED",
+        "outcome": "DUPLICATE",
+        "originalOutcome": "HELD"
+      }
+    },
+    {
+      "name": "duplicate-without-original",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"DUPLICATE\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "original-on-non-duplicate",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"APPLIED\",\"originalOutcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "unknown-outcome",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"ACCEPTED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "other-event-id",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c0000ff\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "other-effect-key",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"financial-batch\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001x\",\"outcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "other-consumer",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"consumer\":\"payment-api\",\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "missing-consumer",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "{\"eventId\":\"0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001\",\"effectKey\":\"PaymentAuthorized:ptx_01JC0000000000000000000001\",\"outcome\":\"APPLIED\"}",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    },
+    {
+      "name": "not-json",
+      "sentEventId": "0b8a6f4e-6a3c-4c8e-9f51-2d3f1c000001",
+      "sentEffectKey": "PaymentAuthorized:ptx_01JC0000000000000000000001",
+      "body": "OK",
+      "expected": {
+        "result": "UNREADABLE",
+        "outcome": null,
+        "originalOutcome": null
+      }
+    }
+  ],
+  "statusClassification": {
+    "200": "ACK",
+    "400": "REJECTED_WITH_CODE",
+    "409": "REJECTED_WITH_CODE",
+    "422": "REJECTED_WITH_CODE",
+    "302": "RETRYABLE",
+    "401": "RETRYABLE",
+    "404": "RETRYABLE",
+    "411": "RETRYABLE",
+    "413": "RETRYABLE",
+    "415": "RETRYABLE",
+    "429": "RETRYABLE",
+    "500": "RETRYABLE",
+    "502": "RETRYABLE",
+    "503": "RETRYABLE"
+  },
+  "rejectCodes": {
+    "400": [
+      "ENVELOPE_INVALID"
+    ],
+    "409": [
+      "EVENT_ID_CONFLICT",
+      "EFFECT_KEY_CONFLICT"
+    ],
+    "422": [
+      "CONTENT_INVALID"
+    ]
+  },
+  "statusCases": [
+    {
+      "status": 400,
+      "body": "{\"error\":\"ENVELOPE_INVALID\"}",
+      "expected": "REJECTED"
+    },
+    {
+      "status": 409,
+      "body": "{\"error\":\"EVENT_ID_CONFLICT\"}",
+      "expected": "REJECTED"
+    },
+    {
+      "status": 409,
+      "body": "{\"error\":\"EFFECT_KEY_CONFLICT\"}",
+      "expected": "REJECTED"
+    },
+    {
+      "status": 422,
+      "body": "{\"error\":\"CONTENT_INVALID\"}",
+      "expected": "REJECTED"
+    },
+    {
+      "status": 400,
+      "body": "{\"error\":\"QUERY_NOT_ALLOWED\"}",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 400,
+      "body": "{\"error\":\"CONTENT_INVALID\"}",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 422,
+      "body": "{\"error\":\"ENVELOPE_INVALID\"}",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 409,
+      "body": "{\"error\":\"CONFLICT\"}",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 422,
+      "body": "<html>Unprocessable</html>",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 400,
+      "body": "",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 401,
+      "body": "{\"error\":\"UNAUTHENTICATED\"}",
+      "expected": "RETRYABLE"
+    },
+    {
+      "status": 503,
+      "body": "{\"error\":\"TEMPORARILY_UNAVAILABLE\"}",
+      "expected": "RETRYABLE"
+    }
+  ]
+}

@@ -69,13 +69,15 @@ class OutboxNotificationMigrationSpec : FunSpec({
         val fresh = "00000000-0000-4000-8000-000000000009"
         app { c -> insertOutbox(c, fresh) }
         notification(fresh) shouldBe ("PENDING" to null)
-        // 같은 시점에 열 권한도 적용됐다(D-WH-009): 알림 열만 UPDATE, publish_status는 1143.
+        // 같은 시점에 열 권한도 적용됐다(D-WH-009): 알림 열 UPDATE. 최신 migration까지 적용했으므로 D-FFR-001(V34 — publish_status·published_at 열 UPDATE)도 반영돼
+        // publish는 허용, payload 등 나머지 열은 1143(기대값 변경 근거: D-FFR-001 사용자 결정 — 완화 아님).
         app { c ->
             mapOf(
                 "notification" to c.codeOf("UPDATE outbox_event SET merchant_notification_status = merchant_notification_status WHERE id = -1"),
                 "publish" to c.codeOf("UPDATE outbox_event SET publish_status = 'PUBLISHED' WHERE id = -1"),
+                "payload" to c.codeOf("UPDATE outbox_event SET payload = payload WHERE id = -1"),
             )
-        } shouldBe mapOf("notification" to null, "publish" to 1143)
+        } shouldBe mapOf("notification" to null, "publish" to null, "payload" to 1143)
     }
 
     test("the notification CHECK keeps a time exactly on terminal marks") {

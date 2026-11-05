@@ -176,11 +176,23 @@
 | D-MOPS-001 | (사용자 결정, AskUserQuestion 2026-11-03) | 가맹점 운영 화면은 **읽기 전용 먼저**: 목록·상세·변경 이력 + ADMIN→MASTER 서명 내부 채널. 등록·개통·정지 명령(maker-checker)은 MERCHANT-OPS-002(Q-MOPS-01 대기). 이번 작업에 UNMASK 없음 | MERCHANT-OPS-001 §1·§2 rev 0.1 | MERCHANT-OPS-001, MERCHANT-OPS-002 | 2026-11-03 |
 | D-MOPS-002 | Q-MOPS-02 | 접근 감사는 **상세 조회만**(`MERCHANT_VIEWED`: 행위자·시각·merchantId). 목록·이력 조회는 감사하지 않는다. 결제 대상 조회(I-23 조회 감사 없음)와 다른 이유: 개인사업자 사업자등록번호는 개인정보일 수 있고 상세는 한 사업자를 특정해 보는 행위 | MERCHANT-OPS-001 §5.1 | MERCHANT-OPS-001 | 2026-11-03 |
 | D-MOPS-003 | Q-MOPS-03 | 전체 사업자등록번호 정확 일치 검색을 이번 작업에 포함, OPERATOR 이상만, **모든 시도 감사**, 감사에 평문 금지, oracle 취급(찾음/못 찾음 같은 모양·속도 제한·호출 전 형식 검사·오류/로그에 값 없음), 응답은 마스킹 값만. 세부는 사용자 직접 답변(Q-MOPS-05/06, 2026-11-04): 역할 = **OPERATOR·APPROVER**(VIEWER·SECURITY_ADMIN·UNMASK 단독 제외), 감사 = 앞 3자리 마스킹 값 + 결과 수 + 찾으면 targetRef=businessId(keyed hash 미사용). JSON 타입이 깨진 검색 본문도 시도로 보고 `INVALID_INPUT`(brn=INVALID) 감사, 중복 키 거부(Q-MOPS-07, 2026-11-04). 크기 상한 초과 본문은 해석 없이 거절·감사 없음(Q-MOPS-08, 2026-11-04; 상한 16 KiB는 Demo 값) | MERCHANT-OPS-001 §5.2–5.5 | MERCHANT-OPS-001 | 2026-11-03 (세부 2026-11-04) |
+| D-MOPS-004 | Q-MOPS-01 | 가맹점 등록·개통 명령의 2인 승인 범위: 등록(Business·Merchant·Site·계약 초안·CSA)은 OPERATOR 1인. 계약 승인(approveContractRevision)·첫 Default MID 발급·결제수단 개통 승인·사이트 활성 확인·사이트 심사 APPROVED·통화 활성화·카드사 Route 개통 승인·한도 상향 등록/교체·수수료 정책 배정은 2인(요청자≠승인자). 안전 방향(중지·철회·종료)은 1인 즉시 | MERCHANT-OPS-002 | MERCHANT-OPS-002 | 2026-11-04 |
 | D-TXOPS-001 | Q-TXOPS-01 | 생성일 기간 필수(최대 31일 Demo) + 환경·MID·결제 상태 필터, 결제 ID 정확 조회, MID+가맹점 주문번호 조회, 최신순 keyset 페이지, 상세(승인·취소 이력·잔액) | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
 | D-TXOPS-002 | Q-TXOPS-02 | 상세만 PAYMENT_VIEWED 감사(감사 실패 시 결과 미반환), 목록 미감사 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
 | D-TXOPS-003 | Q-TXOPS-03 | 목록은 주문명 앞 10자만, 상세(감사 대상)에서 주문명 전체·승인번호·기관 거래번호; 기관 내부 계정 값은 어디에도 미노출 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
 | D-TXOPS-004 | Q-TXOPS-04 | 이번 작업 제외(별도 권한·감사·행 수 상한 필요) | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
 | D-TXOPS-005 | Q-TXOPS-05 | 거래 상세의 운영자 보정 취소는 '운영자 취소'(initiatorKind)만 표시. 사유·요청자·승인자·승인 건 ID는 기존 승인 화면에서만 | TXN-OPS-001 | TXN-OPS-001 | 2026-11-04 |
+| D-ACQ-001 | Q-ACQ-01 | PAYMENT→FINANCIAL 사실 전달은 PAYMENT Outbox → 서명된 내부 HTTP push → FINANCIAL Inbox(effect key unique, Inbox+투영 같은 로컬 TX). MASTER→PAYMENT 권리 전달 패턴 재사용. cross-DB SQL 금지 | FIN-FACT-RELAY-001 | ACQUIRING-001 | 2026-11-04 |
+| D-ACQ-002 | Q-ACQ-02 | 매입 대상은 PAYMENT 승인 확정 건만. 전송 전 전액 취소는 매입 제외, 부분 취소는 차감 금액으로 매입(상계). 전송 후 취소는 원거래 참조 별도 취소 레코드. 원거래를 모르는 취소는 Hold | ACQUIRING-001 | ACQUIRING-001 | 2026-11-04 |
+| D-ACQ-003 | Q-ACQ-03 | 매입사별 하루 1파일(Asia/Seoul), 마감 시각은 버전 관리 설정(Demo 값, 운영값 아님). Q-CALENDAR 확정 전 영업일=달력일은 Demo 한정 임시 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-04 |
+| D-ACQ-004 | Q-ACQ-04 | ACK(수신)와 건별 결과(ACCEPTED/REJECTED)는 별개 상태. 마감까지 결과 없는 건은 UNKNOWN → 대사, 자동 재전송 금지. 거절은 해당 파일에서 종결, 재매입은 원파일 참조 새 버전 + 운영자 승인 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-04 |
+| D-ACQ-005 | Q-ACQ-05 | 사용자 답(원문): "기준정보 설정인 승인시점과 매입결과 선택가능하며 매입결과에 때른 지급보류는 정산에서 정함". 매입 작업은 거절·UNKNOWN 사실 기록·알림만, 지급 보류 등 돈의 효과는 SETTLEMENT-CONTRACT-001. 지급 기준(승인 시점/매입 결과)은 기준정보 설정으로 선택. 매입 전송 완료 기준의 존속 여부는 정산 작업에서 확인 | ACQUIRING-001 | SETTLEMENT-CONTRACT-001 | 2026-11-05 |
+| D-ACQ-006 | Q-ACQ-06 | 가상 기관 SFTP는 클라이언트 키 인증 + 서버 호스트 키 설정 고정(모르는 호스트 거부). 키는 환경변수/파일로만, 저장소·로그에 없음 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-007 | Q-BATCH-META | Spring Batch metadata(BATCH_*)는 FINANCIAL DB 같은 schema(chunk TX와 원자성). 보존·정리 정책은 운영 정책으로 별도 | FIN-FACT-RELAY-001 | ACQUIRING-001 | 2026-11-04 |
+| D-FFR-001 | Q-FFR-01 | "두 열만 허용 (Recommended)". PAYMENT runtime 계정에 outbox_event의 publish_status·published_at 두 열만 열 단위 UPDATE 추가(D-WH-009 확장). payload 등 나머지 열 수정 거부(1143)·DELETE 거부(1142) 유지. FINANCIAL_FACT 미전달 발견 비용을 미전달 행 수로 줄이는 용도 | FIN-FACT-RELAY-001 | FIN-FACT-RELAY-001 | 2026-11-05 |
+| D-FFR-002 | Q-FFR-02 | "매입 전에 별도 작업 (Recommended)". FINANCIAL DB 계정 분리(migration/runtime, 확정 사실 표 UPDATE·DELETE DB 거부)는 FIN-DBACCOUNT-001로 ACQUIRING-001 전에 수행 | FIN-FACT-RELAY-001 | FIN-DBACCOUNT-001 | 2026-11-05 |
+| D-FFR-003 | Q-FFR-03 | "일치 시 자동 해제 (Recommended)". 정합성 보류 5종(ORIGINAL_MISMATCH 등) 유지. ORIGINAL_UNKNOWN 보류는 원승인 도착 + 금액·통화·식별 MATCH 시 append-only 해제 기록으로 자동 해제, 불일치는 운영자 검토. 보류 원본 기록은 수정하지 않음 | FIN-FACT-RELAY-001 | ACQUIRING-001 | 2026-11-05 |
+| D-FFR-004 | Q-FFR-04 | "원문 보존 후 수신 확인 (Recommended)". FINANCIAL은 모르는 schema 버전 사실을 UNSUPPORTED로 원문 보존 후 ACK. 재처리 도구는 후속 | FIN-FACT-RELAY-001 | FIN-FACT-RELAY-001 | 2026-11-05 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

@@ -2594,14 +2594,182 @@
       ]
     },
     {
+      "id": "FIN-FACT-RELAY-001",
+      "title": "PAYMENT→FINANCIAL 결제 사실 전달: PAYMENT Outbox relay(서명 내부 HTTP push) → FINANCIAL Inbox·결제 사실 투영(첫 FINANCIAL migration, BATCH_* metadata)",
+      "phase": "ACQUIRING",
+      "status": "DONE",
+      "dependsOn": [
+        "AUTH-001",
+        "CANCEL-001"
+      ],
+      "requiredQuestions": [
+        "Q-ACQ-01",
+        "Q-BATCH-META"
+      ],
+      "acceptanceCriteria": [
+        "docs/repository/FIN-FACT-RELAY-001-PAYMENT-FACT-RELAY.md §7",
+        "PaymentAuthorized·PaymentCancelled 사실이 중복·순서 뒤바뀜·응답 유실에도 FINANCIAL에 정확히 한 번 반영(effect key unique, Inbox+투영 같은 로컬 TX)",
+        "원승인을 모르는 취소는 보류 상태로 투영(D-ACQ-002 Hold 입력)"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/financial-batch/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "docs/repository/FIN-FACT-RELAY-001-PAYMENT-FACT-RELAY.md",
+        ".env.example"
+      ],
+      "pathsResolved": true,
+      "owner": "paycore-implementer",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/FIN-FACT-RELAY-001-2026-11-05T023913Z.json",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:c1a8e417658fd9af1d9d7b19f1d26a996a0a023c768fdf3ffb68a26a29c77126",
+          "gradleCheck": "exit 0, 02:39:33Z..03:13:26Z (33m53s), Demo MySQL/JVM stopped",
+          "previousAttempt": "FIN-FACT-RELAY-001-2026-11-04T234847Z FAIL: FR-H3 wall-clock 301s boundary race in PaymentFactInboxHttpSpec (test defect; exact 300/301 boundary stays covered by fixed-now PaymentFactRelayGoldenSpec); fixed to send-time ±360s"
+        },
+        "tests": "Kotlin 3571/0 fail/0 skip (= registered floor), Vitest 166/0 fail, harness selftest 170",
+        "targeted": "rev0.2 targeted: payment 128 (1 stale grant expectation fixed per D-FFR-001) → rerun 52/0; financial 70/0; RED: FR-R9 fails with lease check removed, restored (cmp)",
+        "supplementary": {
+          "dir": "build/harness-evidence/FIN-FACT-RELAY-001-2026-11-05T031656Z-supplementary",
+          "verdict": "PASS",
+          "cve": "0 vulnerabilities (5 modules + 2 frontends, canary detected)"
+        }
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "date": "2026-11-05",
+        "history": "round1 REVIEW_FAIL (M-1 lease vs sequential dispatch, m-1 quarantine by body code, m-2 append-only repos exposed delete/save, m-3 claim order/index, NITs); round2 REVIEW_PASS with m-A (no per-round progress guarantee) accepted by Coordinator: WARN result=STARVED + spec L-11, n-A comment fixed, n-B/n-D documented in L-11",
+        "followUps": [
+          "L-5 no reprocessing tool for QUARANTINED relay rows / UNSUPPORTED facts",
+          "L-6 ORIGINAL_UNKNOWN auto-release (D-FFR-003) in ACQUIRING-001",
+          "L-1 FINANCIAL DB account split → FIN-DBACCOUNT-001 (D-FFR-002)",
+          "L-2 no mTLS, ACK body unsigned",
+          "L-9 instance clock skew vs 1s margin; L-10/L-11 throughput & lease sizing are LIVE Gate",
+          "n-D FR-R9 RED margin ~0.5s; consider latch-based",
+          "n-3 unclassified FINANCIAL DB errors → 500 → infinite retry without cause alert",
+          "n-4 payload stored as MySQL JSON (normalized), raw bytes only via SHA-256",
+          "n-6 claim/lease uses app clock not DB clock",
+          "STARVED warn log has no dedicated test"
+        ]
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Transaction Safety": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Idempotency": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Recoverability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Reconciliation": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Auditability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        },
+        "Observability": {
+          "applicability": "UNASSESSED",
+          "reason": null,
+          "verificationCommandIds": [],
+          "evidence": null
+        }
+      },
+      "coordinatorDecisions": [
+        "2026-11-04 user: Q-ACQ-01 PAYMENT가 밀어줌 (Recommended) — D-ACQ-001",
+        "2026-11-04 user: Q-BATCH-META FINANCIAL DB 같은 schema (Recommended) — D-ACQ-007",
+        "2026-11-05 coordinator: ACQUIRING-001을 FIN-FACT-RELAY-001(선행) + ACQUIRING-001로 분할(구현 순서, 가역)"
+      ],
+      "lastSuccessfulStep": "VERIFY-GATE PASS 2026-11-05T023913Z + supplementary 031656Z PASS; REVIEW_PASS; DONE"
+    },
+    {
+      "id": "FIN-DBACCOUNT-001",
+      "title": "FINANCIAL DB migration/runtime 계정 분리 — 확정 사실 표 UPDATE·DELETE를 DB 권한으로 거부",
+      "phase": "ACQUIRING",
+      "status": "TODO",
+      "dependsOn": [
+        "FIN-FACT-RELAY-001"
+      ],
+      "requiredQuestions": [
+        "Q-FFR-02"
+      ],
+      "acceptanceCriteria": [
+        "financial-batch가 migration 계정과 runtime 계정을 분리해 사용",
+        "inbox·authorization·cancellation·hold 등 append-only 표 UPDATE/DELETE가 DB에서 1142/1143으로 거부됨을 Testcontainers로 검증",
+        "기존 볼륨/init 재실행 경로와 .env.example 갱신",
+        "payment-api DatabaseAccountSeparationSpec과 같은 수준의 권한 기대값 시험"
+      ],
+      "allowedWritePaths": [
+        "apps/financial-batch/**",
+        "infra/**",
+        "compose*.yml",
+        "docker/**",
+        ".env.example",
+        "harness/commands.json",
+        "harness/tests/**",
+        "docs/repository/FIN-DBACCOUNT-001-*.md"
+      ],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": [],
+      "review": null,
+      "principleEvidence": {},
+      "reports": [],
+      "lastSuccessfulStep": null,
+      "nextResumeAction": "실제 compose/init 스크립트 경로를 조사해 allowedWritePaths 확정 후 명세 작성"
+    },
+    {
       "id": "ACQUIRING-001",
       "title": "가상 SFTP 매입과 전송/확정 상태",
-      "phase": "FEATURE",
+      "phase": "ACQUIRING",
       "status": "BACKLOG",
       "dependsOn": [
-        "AUTH-001"
+        "AUTH-001",
+        "FIN-FACT-RELAY-001",
+        "FIN-DBACCOUNT-001"
       ],
-      "requiredQuestions": [],
+      "requiredQuestions": [
+        "Q-ACQ-02",
+        "Q-ACQ-03",
+        "Q-ACQ-04",
+        "Q-ACQ-05",
+        "Q-ACQ-06",
+        "Q-FFR-03"
+      ],
       "acceptanceCriteria": [
         "전송 완료와 업무 수신/매입 확정 구별",
         "파일 중복·재전송·부분 오류 회복",
@@ -2664,7 +2832,14 @@
           "verificationCommandIds": [],
           "evidence": null
         }
-      }
+      },
+      "coordinatorDecisions": [
+        "2026-11-04 user: Q-ACQ-02 전송 전 취소는 상계 (Recommended) — D-ACQ-002",
+        "2026-11-04 user: Q-ACQ-04 자동 재전송 없음 (Recommended) — D-ACQ-004",
+        "2026-11-05 user: Q-ACQ-03 하루 1회, 마감 설정 (Recommended) — D-ACQ-003",
+        "2026-11-05 user: Q-ACQ-05 직접 입력(원문 D-ACQ-005) — 지급 보류는 정산에서",
+        "2026-11-05 user: Q-ACQ-06 키 인증 + 호스트 키 고정 (Recommended) — D-ACQ-006"
+      ]
     },
     {
       "id": "SETTLEMENT-CONTRACT-001",
@@ -6607,7 +6782,9 @@
       "maxRepairAttempts": 3,
       "evidence": null,
       "review": null,
-      "coordinatorDecisions": []
+      "coordinatorDecisions": [
+        "2026-11-04 user: Q-MOPS-01 위험 명령만 2인 (Recommended) — D-MOPS-004"
+      ]
     },
     {
       "id": "TXN-OPS-001",
