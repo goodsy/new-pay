@@ -315,6 +315,131 @@ export interface TransactionDetail {
 }
 
 /**
+ * 매입 파일 검색 조건(ACQ-VIEW-001 §3.3·§4.6 — POST 본문, FINANCIAL 본문과 같은 키). 모드: [fileId] 정확 조회(다른 조건 없음) / 그 밖은 업무일 기간
+ * [businessDateFrom]·[businessDateTo](`YYYY-MM-DD` KST 달력일, 양끝 포함, 최대 31일 Demo 값) 필수. [needsAttention]은 true만 보낸다. 서버가 다시 검사한다.
+ */
+export interface AcquisitionSearchInput {
+  businessDateFrom?: string
+  businessDateTo?: string
+  fileId?: string
+  acquirerCode?: string
+  environment?: 'TEST' | 'LIVE'
+  transmissionState?: string
+  receiptState?: string
+  resultState?: string
+  needsAttention?: true
+  after?: AcquisitionCursor
+  limit?: number
+}
+
+export interface AcquisitionCursor {
+  businessDate: string
+  fileId: string
+}
+
+/** 레코드 현재 상태별 건수(FINANCIAL `RecordResultRule.status`와 같은 정의). */
+export interface AcquisitionRecordStatusCounts {
+  awaiting: number; accepted: number; rejected: number; fileRejected: number; unknown: number; conflict: number
+}
+
+/**
+ * 매입 파일 목록 항목(ACQ-VIEW-001 §4.1). 3축 상태(전송·수신·결과)는 저장 값 그대로, [attention]은 서버가 계산한 "확인 필요" 사유 code, [reacquisitionCandidate]는 재매입 검토 대상
+ * (거절이 있음 — 실행은 별도 승인 화면). 승인번호·기관 거래번호·발급사·카드 종류·할부는 없다(D-ACQV-002).
+ */
+export interface AcquisitionFileItem {
+  fileId: string
+  acquirerCode: string
+  environment: string
+  businessDate: string
+  fileVersion: number
+  originalFileId: string | null
+  recordCount: number
+  saleCount: number
+  saleAmountMinor: number
+  cancelCount: number
+  cancelAmountMinor: number
+  netAmountMinor: number
+  currency: string
+  transmissionState: string
+  receiptState: string
+  resultState: string
+  sealedAt: string
+  transmittedAt: string | null
+  recordStatusCounts: AcquisitionRecordStatusCounts
+  attention: string[]
+  reacquisitionCandidate: boolean
+}
+
+export interface AcquisitionSearchPage {
+  items: AcquisitionFileItem[]
+  nextCursor: AcquisitionCursor | null
+}
+
+/** 레코드 결과 행(append-only). 응답은 종류 + 순번으로만 가리킨다(결과 마감 행은 null). */
+export interface AcquisitionRecordResult {
+  entryNo: number
+  result: string
+  observedResult: string | null
+  reasonCode: string | null
+  source: string
+  responseRef: { kind: string; sequenceNo: number } | null
+  recognizedAt: string
+}
+
+export interface AcquisitionRecord {
+  seq: number
+  recordType: string
+  transactionId: string
+  originalTransactionId: string | null
+  merchantAccountId: string
+  institutionTransactionDate: string
+  eventAt: string
+  currency: string
+  approvedAmountMinor: number
+  nettedCancelAmountMinor: number
+  recordAmountMinor: number
+  generation: number
+  reacquisitionOf: string | null
+  status: string
+  results: AcquisitionRecordResult[]
+}
+
+export interface AcquisitionRecordPage {
+  items: AcquisitionRecord[]
+  nextCursor: number | null
+}
+
+export interface AcquisitionRecordSearchInput {
+  status?: string
+  afterSeq?: number
+  limit?: number
+}
+
+/** 매입 파일 상세(ACQ-VIEW-001 §4.2 — 한 번의 일관 읽기, 서버가 ACQUISITION_FILE_VIEWED 감사 후 반환). 봉인·응답 바이트·응답 파일명·송신자 ID는 없다. */
+export interface AcquisitionFileDetail {
+  file: AcquisitionFileItem & {
+    cutoffPolicyVersion: string; cutoffAt: string; contentSha256: string; contentBytes: number; transmissionLeaseUntil: string | null; updatedAt: string
+  }
+  attempts: {
+    total: number
+    latest: {
+      attemptNo: number; resumeState: string; claimedAt: string; leaseUntil: string; outcome: string | null; observed: string | null; evidence: string | null
+      reason: string | null; resultingState: string | null; decidedAt: string | null
+    }[]
+  }
+  responses: {
+    total: number
+    quarantined: number
+    latest: {
+      kind: string; sequenceNo: number; disposition: string; quarantineReason: string | null; ackOutcome: string | null; ackReasonCode: string | null
+      evidence: string | null; institutionAt: string | null; observedAt: string
+    }[]
+  }
+  records: AcquisitionRecordPage
+  readAt: string
+}
+
+/**
  * 화면이 쓰는 서버 API(같은 출처 `/api/` — [apiFetch] 하나로). 등록 코드·TOTP 시크릿은 응답을 받은 화면 상태에만 잠깐 두고 저장소·URL에 쓰지 않는다.
  * 권한 판정은 서버가 한다.
  */
@@ -355,6 +480,10 @@ export interface AdminApi {
   /** TXN-OPS-001 §4.1(조회 4역할): 검색은 POST 본문(R-2, 감사 없음), 상세는 서버가 감사(D-TXOPS-002). */
   transactionSearch(input: TransactionSearchInput): Promise<TransactionSearchPage>
   transactionDetail(paymentId: string): Promise<TransactionDetail>
+  /** ACQ-VIEW-001 §4.6(조회 4역할 — D-ACQV-001): 검색은 POST 본문(R-4, 감사 없음), 파일 상세·레코드 쪽은 서버가 감사 후 반환. */
+  acquisitionSearch(input: AcquisitionSearchInput): Promise<AcquisitionSearchPage>
+  acquisitionDetail(fileId: string): Promise<AcquisitionFileDetail>
+  acquisitionRecords(fileId: string, input: AcquisitionRecordSearchInput): Promise<AcquisitionRecordPage>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -401,5 +530,8 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     merchantHistory: (merchantId, after) => call(`/api/merchants/${segment(merchantId)}/history${after === undefined ? '' : `?after=${after}`}`),
     transactionSearch: (input) => call('/api/payment-searches', 'POST', input),
     transactionDetail: (paymentId) => call(`/api/payments/${segment(paymentId)}`),
+    acquisitionSearch: (input) => call('/api/acquisition-file-searches', 'POST', input),
+    acquisitionDetail: (fileId) => call(`/api/acquisition-files/${segment(fileId)}`),
+    acquisitionRecords: (fileId, input) => call(`/api/acquisition-files/${segment(fileId)}/record-searches`, 'POST', input),
   }
 }

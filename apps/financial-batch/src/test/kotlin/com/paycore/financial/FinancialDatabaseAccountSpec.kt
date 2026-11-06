@@ -384,7 +384,7 @@ class FinancialDatabaseAccountSpec(
                     "installedBy" to c.column("SELECT DISTINCT installed_by FROM flyway_schema_history").toSet(),
                     "versions" to c.column("SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank"),
                 )
-            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"))
+            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"))
         }
 
         Then("it cannot grant privileges to any account directly, grant the runtime role, or create accounts") {

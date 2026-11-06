@@ -29,10 +29,10 @@ class MainMigrationLocationSpec(
         c.column("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE ?", pattern).toSet()
     }
 
-    test("context starts with only the main FINANCIAL locations, applying V1 (batch metadata), V2 (payment fact inbox), V3 (runtime privileges), V4..V15 (acquiring)") {
+    test("context starts with only the main FINANCIAL locations, applying V1 (batch metadata), V2 (payment fact inbox), V3 (runtime privileges), V4..V15 (acquiring), V16 (acquisition view index — ACQ-VIEW-001)") {
         flyway.configuration.locations.map { it.descriptor } shouldBe
             listOf("classpath:db/migration/financial", "classpath:db/runtime-privilege/financial")
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15")
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16")
         flyway.info().applied().all { it.state.isApplied && !it.state.isFailed } shouldBe true
     }
 

@@ -47,6 +47,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   MERCHANT_BRN_SEARCHED: '사업자등록번호 검색',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
+  // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)
+  ACQUISITION_FILE_VIEWED: '매입 파일 조회',
 }
 
 export const CODE_LABELS: Readonly<Record<string, string>> = {

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": null,
-  "codeFingerprint": "sha256:644084eaaabb6da4d5d52f973b0654dee230db6e5a30cf145de2f89360ad476a",
-  "lastSuccessfulStep": "ACQUIRING-001 VERIFY-GATE PASS 2026-11-06T004855Z (rerun after ACQ-gate1 payment-api plan flake) + supplementary PASS 033047Z; REVIEW_PASS rev1.1; DONE",
+  "codeFingerprint": "sha256:82610cbc324fd4f9a3961df97ee9a0099b920714ad3da4b1ee6b4ea1a8aef93b",
+  "lastSuccessfulStep": "ACQ-VIEW-001 VERIFY-GATE PASS 2026-11-06T130246Z + supplementary PASS; REVIEW_PASS; Demo E2E PASS; DONE",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ACQUIRING-001 커밋은 사용자 결정. 사용자 방향 전환(2026-11-06): 관리자 화면 하나씩 만들며 결제·정산·매입 기능을 화면으로 확인 — 다음 작업 순서 재계획. 미실행: 매입 E2E(Demo).",
+  "nextResumeAction": "ACQ-VIEW-001 커밋은 사용자 결정. 다음 화면 작업 선택(ACQ-ADMIN-001 / 정산)",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -709,6 +709,16 @@
       "at": "2026-11-06T03:35Z",
       "taskId": null,
       "event": "사용자: 검증이 어렵고 진행 상황이 안 보임 → 관리자 화면 하나씩 만들면서 결제·정산·매입 기능 개발로 방향 전환 요청"
+    },
+    {
+      "at": "2026-11-06T03:50Z",
+      "taskId": "ACQ-VIEW-001",
+      "event": "작업 생성(사용자 선택: 매입 현황 화면 먼저) — Phase 1 명세 시작"
+    },
+    {
+      "at": "2026-11-06T13:55Z",
+      "taskId": "ACQ-VIEW-001",
+      "event": "VERIFY-GATE PASS(Kotlin 3956, Vitest 174, selftest 182) + CVE 0 + Demo E2E 3 시나리오 PASS → DONE"
     }
   ],
   "agreedOrder": [

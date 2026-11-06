@@ -6,6 +6,7 @@ import { App } from '../App'
 import { OneTimeCode } from '../components/OneTimeCode'
 import { ErrorScreen } from '../errors/ErrorScreen'
 import { AccountsScreen } from '../screens/AccountsScreen'
+import { AcquisitionsScreen } from '../screens/AcquisitionsScreen'
 import { ApprovalsScreen } from '../screens/ApprovalsScreen'
 import { AuditScreen } from '../screens/AuditScreen'
 import { EnrollmentScreen } from '../screens/EnrollmentScreen'
@@ -122,6 +123,19 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     expect(await screen.findByRole('row', { name: PAY })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+  })
+
+  it('ACQ-VIEW-001: acquisition status with a listed file and its badges', async () => {
+    const item = {
+      fileId: 'ACQ.SFTPV1.TEST.20261020.001', acquirerCode: 'SFTPV1', environment: 'TEST', businessDate: '2026-10-20', fileVersion: 1, originalFileId: null,
+      recordCount: 1, saleCount: 1, saleAmountMinor: 10000, cancelCount: 0, cancelAmountMinor: 0, netAmountMinor: 10000, currency: 'KRW',
+      transmissionState: 'TRANSMITTED', receiptState: 'RECEIVED', resultState: 'AWAITING', sealedAt: '2026-10-20T14:05:00.000Z', transmittedAt: '2026-10-20T14:06:00.000Z',
+      recordStatusCounts: { awaiting: 1, accepted: 0, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: ['RESULT_OVERDUE'], reacquisitionCandidate: true,
+    }
+    render(<AcquisitionsScreen api={fakeApi({ acquisitionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    expect(await screen.findByRole('row', { name: item.fileId })).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

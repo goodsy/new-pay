@@ -26,7 +26,7 @@ from collections import OrderedDict
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 NAME = "admin-call-signature-v1.golden.json"
-TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("internal-admin", "payment-api", "master-api")]
+TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("internal-admin", "payment-api", "master-api", "financial-batch")]
 
 HEADER_NAME = "PayCore-Admin-Signature"
 CANONICAL_TAG = "paycore.admin-call.v1"

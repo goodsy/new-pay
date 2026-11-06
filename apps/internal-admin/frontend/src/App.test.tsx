@@ -41,8 +41,9 @@ describe('App (session, role menu, error mapping)', () => {
   it('D-ADMIN-UI-003: the side menu is grouped under 내 업무 / PAYMENT OPERATIONS / WORKSPACE, per role', async () => {
     const expected: Record<string, string[]> = {
       SECURITY_ADMIN: ['운영 홈', '내 요청', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
-      OPERATOR: ['운영 홈', '내 요청', '가맹점 관리', '결제 관리', '계정·권한'],
-      VIEWER: ['운영 홈', '가맹점 관리', '결제 관리', '계정·권한'],
+      // 기대값 변경(ACQ-VIEW-001, D-ACQV-001): 조회 4역할에 매입·대사(매입 현황 탭)가 더해졌다.
+      OPERATOR: ['운영 홈', '내 요청', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
+      VIEWER: ['운영 홈', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
       UNMASK: ['운영 홈', '계정·권한'],
     }
     for (const [role, menus] of Object.entries(expected)) {
@@ -65,7 +66,9 @@ describe('App (session, role menu, error mapping)', () => {
     expect(screen.getByRole('tab', { name: '결제 보정 취소' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('결제 ID')).toBeInTheDocument()
     expect(sideMenu().getByRole('button', { name: '내 요청' })).toBeInTheDocument()
-    expect(sideMenu().queryByRole('button', { name: '매입·대사' })).toBeNull()
+    // 기대값 변경(ACQ-VIEW-001, D-ACQV-001): OPERATOR도 매입·대사 메뉴를 보지만 탭은 매입 현황뿐이다(대사 발견 없음).
+    await userEvent.click(sideMenu().getByRole('button', { name: '매입·대사' }))
+    expect(screen.getByRole('tab', { name: '매입 현황' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('tab', { name: '대사 발견' })).toBeNull()
     operator.view.unmount()
     for (const role of ['SECURITY_ADMIN', 'APPROVER']) {
@@ -150,7 +153,8 @@ describe('App (session, role menu, error mapping)', () => {
   it('the top search finds only menus the role can see and jumps there (no transaction search)', async () => {
     signedIn(['OPERATOR'])
     const search = await screen.findByRole('searchbox', { name: '메뉴 검색' })
-    await userEvent.type(search, '대사')
+    // 기대값 변경(ACQ-VIEW-001): OPERATOR는 이제 매입·대사(매입 현황 탭)를 보므로, 볼 수 없는 메뉴의 예로 '승인함'을 쓴다.
+    await userEvent.type(search, '승인함')
     expect(screen.getByRole('status')).toHaveTextContent('찾는 메뉴가 없어요.')
     await userEvent.clear(search)
     await userEvent.type(search, '감사')

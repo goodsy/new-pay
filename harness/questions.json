@@ -2982,6 +2982,51 @@
       "origin": "ACQUIRING-001 2-F/2-G review m-3",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
       "appliedSpec": "D-ACQ-014"
+    },
+    {
+      "id": "Q-ACQV-01",
+      "question": "매입 현황 조회 역할과 감사 범위",
+      "recommended": "VIEW_MASKED 4역할, 파일 상세·레코드 조회만 감사(실패 시 미반환), 목록 무감사",
+      "alternative": "OPERATOR 이상만 / 목록도 감사",
+      "humanAnswer": "거래 조회와 같게 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQ-VIEW-001"
+      ],
+      "askedAt": "2026-11-06",
+      "origin": "ACQ-VIEW-001 Phase 1 명세 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
+      "appliedSpec": "D-ACQV-001"
+    },
+    {
+      "id": "Q-ACQV-02",
+      "question": "매입 레코드 상세에 기관 값(승인번호·기관 거래번호·발급사·카드 종류·할부) 표시 여부",
+      "recommended": "보여 주지 않음 — 거래 ID로 거래 조회 상세에서 확인",
+      "alternative": "감사 대상 파일 상세에 승인번호·기관 거래번호만 표시",
+      "humanAnswer": "보여 주지 않음 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQ-VIEW-001"
+      ],
+      "askedAt": "2026-11-06",
+      "origin": "ACQ-VIEW-001 Phase 1 명세 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
+      "appliedSpec": "D-ACQV-002"
+    },
+    {
+      "id": "Q-ACQV-03",
+      "question": "Demo 매입 E2E 준비 작업 허락",
+      "recommended": "허락(볼륨 삭제 없음, init 재실행·앱 재기동·Demo 키 생성)",
+      "alternative": "새 Demo 볼륨 / Demo 실행 생략",
+      "humanAnswer": "허락 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQ-VIEW-001"
+      ],
+      "askedAt": "2026-11-06",
+      "origin": "ACQ-VIEW-001 Phase 1 명세 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
+      "appliedSpec": "D-ACQV-003"
     }
   ]
 }

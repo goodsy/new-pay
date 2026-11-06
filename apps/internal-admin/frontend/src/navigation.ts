@@ -3,7 +3,7 @@
  * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회 + TXN-OPS-001 거래 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'transactions' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
 export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
@@ -44,6 +44,8 @@ export function pagesFor(roles: string[]): Page[] {
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   // TXN-OPS-001 §4.1: 거래 조회도 VIEW_MASKED(조회 4역할 — I-1 Implementer 해석, 기존 결제 대상 조회와 같다).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('transactions')
+  // ACQ-VIEW-001 §4.6: 매입 현황도 VIEW_MASKED(조회 4역할 — 사용자 결정 D-ACQV-001).
+  if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('acquisitions')
   if (roles.some((r) => r !== 'UNMASK')) pages.push('accounts')
   if (has('SECURITY_ADMIN') || has('APPROVER')) pages.push('reconciliation')
   pages.push('audit')
@@ -74,8 +76,10 @@ const MENUS: Menu[] = [
     description: '결제를 조회하고, 다른 관리자의 승인을 거쳐 실행되는 보정 취소를 요청하세요.',
   },
   {
-    id: 'recon', label: '매입·대사', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'reconciliation', label: '대사 발견' }],
-    description: '승인 기록과 결제 서비스 결과가 서로 맞지 않는 건을 확인하세요.',
+    id: 'recon', label: '매입·대사', section: PAYMENT_OPERATIONS, tabbed: true,
+    // ACQ-VIEW-001: 기존 대사 발견 탭을 첫 탭으로 유지(SECURITY_ADMIN·APPROVER의 메뉴 진입 화면 불변), 매입 현황은 그 뒤 — 조회 4역할만 보면 매입 현황 하나.
+    tabs: [{ page: 'reconciliation', label: '대사 발견' }, { page: 'acquisitions', label: '매입 현황' }],
+    description: '매입 파일의 전송·수신·결과 상태와, 승인 기록과 결제 서비스 결과가 서로 맞지 않는 건을 확인하세요.',
   },
   {
     id: 'accounts', label: '계정·권한', section: WORKSPACE, tabbed: true,

@@ -23,8 +23,16 @@ class ArchitectureSpec : FunSpec({
     val classes = ClassFileImporter()
         .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
         .importPackages(BASE_PACKAGE)
-    // financial-batch는 아직 jOOQ codegen이 없다(생성 패키지 없음).
-    val rules = PayCoreArchitectureRules(BASE_PACKAGE)
+    // ACQ-VIEW-001(R-1 A): jOOQ codegen 도입 — 생성 패키지는 Modulith 모듈·계층 규칙에서 제외한다(master-api·payment-api와 같다).
+    val rules = PayCoreArchitectureRules(BASE_PACKAGE, listOf(GENERATED_JOOQ_PACKAGE))
+
+    test("GENERATED_JOOQ_PACKAGE matches the build's generateJooqMain package and generated tables are the acquisition_* tables only (no BATCH_*, no payment_fact_*)") {
+        System.getProperty("paycore.jooq.mainPackage") shouldBe GENERATED_JOOQ_PACKAGE
+        classes.any { it.packageName == "$GENERATED_JOOQ_PACKAGE.tables" && it.simpleName == "AcquisitionFile" } shouldBe true
+        classes.any { it.packageName == "$GENERATED_JOOQ_PACKAGE.tables" && it.simpleName.startsWith("Batch") } shouldBe false
+        // 리뷰 MINOR-3(명세 §5.1): 생성 대상은 acquisition_* 표만 — 결제 사실 표(paymentfact 모듈 소유)는 생성하지 않는다.
+        classes.filter { it.packageName == "$GENERATED_JOOQ_PACKAGE.tables" }.map { it.simpleName }.filterNot { it.contains('$') }.all { it.startsWith("Acquisition") } shouldBe true
+    }
 
     test("Spring Modulith module structure is valid") {
         ApplicationModules.of(FinancialBatchApplication::class.java, rules.generatedCode()).verify()
@@ -98,6 +106,22 @@ class ArchitectureSpec : FunSpec({
         rules.jooqOnlyInQueryAdapter().allowEmptyShould(false).check(classes)
     }
 
+    test("ACQ-VIEW-001: adapter.query does not write with jOOQ (insert/update/delete/merge/truncate/batch/execute or record store)") {
+        // 대상 있음: acquiring.adapter.query.JooqAcquisitionFileViewReader(매입 현황 관리 조회 — 읽기 전용).
+        rules.queryAdapterDoesNotWriteWithJooq().allowEmptyShould(false).check(classes)
+        classes.any { it.packageName == "$BASE_PACKAGE.acquiring.adapter.query" && it.simpleName == "JooqAcquisitionFileViewReader" } shouldBe true
+    }
+
+    test("ACQ-VIEW-001: the acquisition view query is entered only from the ADMIN channel controller") {
+        // 비권위 관리 조회가 매입 판정·Batch 경로에 섞이지 않게 한다(provided Query를 부르는 곳은 AdminAcquisitionController 하나).
+        noClasses().that().doNotHaveFullyQualifiedName("$BASE_PACKAGE.acquiring.adapter.web.admin.AdminAcquisitionController")
+            .and().doNotHaveFullyQualifiedName("$BASE_PACKAGE.acquiring.application.AcquisitionFileViewService")
+            // 인터페이스 자신의 Kotlin 기본 인자 구현(AcquisitionFileViewQuery$DefaultImpls)은 호출자가 아니다.
+            .and().haveNameNotMatching(".*\\.AcquisitionFileViewQuery\\$.*")
+            .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.acquiring.application.provided.AcquisitionFileViewQuery")
+            .check(classes)
+    }
+
     test("integration adapter types are not used outside adapter.integration") {
         rules.integrationAdapterIsEncapsulated().allowEmptyShould(false).check(classes)
     }
@@ -131,5 +155,6 @@ class ArchitectureSpec : FunSpec({
 }) {
     companion object {
         const val BASE_PACKAGE = "com.paycore.financial"
+        const val GENERATED_JOOQ_PACKAGE = "com.paycore.financial.jooq.generated"
     }
 }

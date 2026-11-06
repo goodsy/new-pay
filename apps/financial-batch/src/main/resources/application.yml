@@ -34,6 +34,9 @@ spring:
     password: ${PAYCORE_FINANCIAL_DB_MIGRATION_PASSWORD}
     # 별도 연결에는 위 hikari driver 속성이 적용되지 않는다. migration 세션도 UTC로 맞춘다.
     init-sqls: "SET time_zone = '+00:00'"
+  # ACQ-VIEW-001(R-1 A): 매입 현황 관리 조회(adapter.query)만 jOOQ를 쓴다. 방언 고정(자동 감지 없음 — payment-api·master-api와 같다).
+  jooq:
+    sql-dialect: MYSQL
   batch:
     jdbc:
       # Boot가 schema-mysql.sql을 직접 실행하지 않는다. Flyway만 schema를 만든다.
@@ -63,6 +66,13 @@ logging:
     # MySQL 1062 등 JDBC 오류 원문에는 키 값이 들어 있다. 구조화 로그(분류·vendor code)를 남기므로 원문 로그는 끈다(payment-api와 같다).
     org.hibernate.orm.jdbc.error: "OFF"
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
+# ADMIN → FINANCIAL 서명 채널(ACQ-VIEW-001 §3 — 매입 현황 조회, 읽기 전용). 운영 기본값 없음 — 값이 없거나 범위 밖이면 기동 실패(I-8).
+#   paycore.financial.admin-channel.signing-keys[].{key-id([A-Za-z0-9._-]{1,32}),secret(Base64 ≥ 32바이트, 환경변수)} — 1..2개. 이 채널 전용 키 공간
+#     (결제 사실 Inbox 키와 kid·바이트가 같으면 기동 거부 — AdminChannelKeySeparation).
+#   paycore.financial.admin-channel.clock-window: 서명 시각 창(1s..10m, 정수 초, Demo PT300S — 운영값 LIVE Gate)
+#   paycore.financial.admin-channel.read-permits: 조회 동시 처리 상한(대기 0, 1..16, Demo 2 — Hikari pool을 Inbox·스케줄러와 나눠 쓴다)
+#   경로 /internal/v1/admin/** 는 같은 내부 포트(아래 server.*)로 받는다. 로컬 Demo 예시: .env.example PAYCORE_FINANCIAL_INBOX_JSON "admin-channel"
 
 # 결제 사실 Inbox 수신(FIN-FACT-RELAY-001 §4.1·§8). 운영 기본값 없음 — 값이 없거나 범위 밖이면 기동 실패.
 #   paycore.financial.payment-fact-inbox.signing-keys[].{key-id([A-Za-z0-9._-]{1,32}),secret(Base64 ≥ 32바이트, 환경변수)} — 1..2개(교체 중에만 2개). 이 채널 전용 키 공간.

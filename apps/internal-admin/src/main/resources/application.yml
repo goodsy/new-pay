@@ -139,6 +139,18 @@ paycore:
       # actor별 분당 상한(Demo): 목록·상세·이력 공용 30, 사업자등록번호 검색 10(oracle 방어 — 모든 시도 감사).
       lookup-per-minute: 30
       registration-number-searches-per-minute: 10
+    # FINANCIAL 매입 현황 조회 호출(ACQ-VIEW-001 §4.6 — **Demo 값, 운영값 아님**, LIVE Gate). 연결·키는 환경변수로만(저장소에 키 없음). 키는 FINANCIAL
+    # `paycore.financial.admin-channel` 키와 같은 값이고, PAYMENT·MASTER ops 키와 kid·바이트가 같으면, LIVE에서 Demo·시험 키면, context path가 있으면 기동 실패.
+    # permit은 PAYMENT·MASTER ops와 별개(FINANCIAL 장애가 결제·가맹점 운영을 막지 않는다). 응답 읽기 상한 128 KiB(코드 상수).
+    financial-ops:
+      base-url: ${PAYCORE_ADMIN_FINANCIAL_OPS_BASE_URL}
+      key-id: ${PAYCORE_ADMIN_FINANCIAL_OPS_KEY_ID}
+      signing-key: ${PAYCORE_ADMIN_FINANCIAL_OPS_SIGNING_KEY}
+      connect-timeout: 2s
+      read-timeout: 10s
+      permits: 4
+      # actor별 분당 상한(Demo): 목록·상세·레코드 쪽 공용.
+      lookup-per-minute: 30
     # 활성 역할 보유자 gauge(D-ADMIN1-023 — `paycore.admin.accounts.active{role}`, 경보 기준 2 미만은 운영 설정). 주기 Demo 1분(운영값 LIVE Gate).
     # 1회성 명령 모드에서는 켜져 있어도 등록되지 않는다(ActiveRoleHolderGaugeScheduler 조건).
     accounts:

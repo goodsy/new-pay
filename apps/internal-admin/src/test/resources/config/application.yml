@@ -55,6 +55,16 @@ paycore:
       permits: 4
       lookup-per-minute: 1000
       registration-number-searches-per-minute: 1000
+    # FINANCIAL 매입 현황 조회 호출(시험 — ACQ-VIEW-001): 대역 StubFinancialOpsServer(고정 포트), 키 = 시험 전용 fops-test-k1(financial-batch 시험 키와 같은 공개 값 — 운영 키 아님,
+    # payment-ops·master-ops 시험 키와 다른 바이트·kid).
+    financial-ops:
+      base-url: http://127.0.0.1:18495
+      key-id: fops-test-k1
+      signing-key: "dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1jaGFubmVsLWtleS0wMDAx"
+      connect-timeout: 1s
+      read-timeout: 2s
+      permits: 4
+      lookup-per-minute: 1000
     accounts:
       active-role-gauge:
         # D-ADMIN1-023 활성 역할 gauge job: 시험은 끄고 Use Case(refresh)를 직접 부른다(값 단언에 끼어들지 않게). 켠 배선은 ActiveRoleHolderGaugeSchedulerSpec.

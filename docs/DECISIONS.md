@@ -200,6 +200,9 @@
 | D-ACQ-012 | Q-ACQ-11 | "목록 확정 시점 (Recommended)". 파일 대상 목록(membership) 확정 시점 이전 취소만 상계, 이후~전송 사이 취소는 별도 CANCEL 레코드(최종 순액 동일) | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
 | D-ACQ-013 | Q-2G-1 | "재매입을 순액으로 (Recommended)". 원 SALE 거절로 취소 매입 불요 종결된 취소가 있는 상태에서 재매입하면 재매입 레코드 금액 = 원승인액 − 그때까지 받은 모든 취소, 불요 기록은 유지(취소는 금액에 한 번만 반영) | ACQUIRING-001 | ACQ-ADMIN-001 | 2026-11-06 |
 | D-ACQ-014 | Q-2G-2 | "대사로 미매입 확인 후만 (Recommended)". 결과 UNKNOWN 레코드는 대사로 미매입이 확정된 경우에만 재매입 대상. 재매입 뒤 앞 세대 ACCEPTED가 오면 승인 무효(TARGET_CHANGED), 거래·종류당 세대를 넘는 ACCEPTED는 하나 | ACQUIRING-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQV-001 | Q-ACQV-01 | "거래 조회와 같게 (Recommended)". 매입 현황 조회 역할 = VIEW_MASKED 4역할(VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN), 파일 상세·레코드 조회만 `ACQUISITION_FILE_VIEWED` 감사(반환 전 기록, 감사 실패 → 결과 미반환), 목록 검색은 감사하지 않음 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
+| D-ACQV-002 | Q-ACQV-02 | "보여 주지 않음 (Recommended)". 매입 레코드 화면·API에 승인번호·기관 거래번호·원 기관 거래번호·발급사·카드 종류·할부를 내보내지 않음(SELECT하지 않음). 거래 ID·MID·금액·기관 거래일·결과·사유 코드만, 승인번호는 거래 ID로 기존 거래 조회 상세(감사 대상)에서 확인 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
+| D-ACQV-003 | Q-ACQV-03 | "허락 (Recommended)". Demo 준비 허락: Demo MySQL 2개 init 스크립트 재실행(볼륨 삭제 없음, 권한·procedure만), payment-api 재기동(미적용 migration·FINANCIAL Relay), financial-batch·Simulator 매입사 기동, /tmp/paycore-demo Demo 키·SFTP 키 생성, Demo 마감 정책 새 버전. 한 번에 하나씩 기동 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

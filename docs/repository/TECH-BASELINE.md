@@ -288,3 +288,14 @@ Boot BOM 밖·**빌드 전용**이다(앱 runtime·runtime SBOM에 들어가지 
 | CVE 확인 | 2026-11-05T07:59Z OSV API(`POST https://api.osv.dev/v1/query`, purl `pkg:maven/org.apache.sshd/<artifact>@2.20.1`): sshd-sftp·sshd-core·sshd-common **0건**. 양성 대조: `sshd-common@2.9.0` → GHSA-2326-hx7g-3m9r·GHSA-fhw8-8j55-vwgq·GHSA-mjmq-gwgm-5qhm 검출. 정식 CVE-SCAN(SBOM + osv-scanner — `harness/scripts/cve-scan.py`)은 Verifier 몫(이번 Implementer 실행 안 함) |
 | 키 알고리즘 | JDK 기본 ECDSA P-256(`ecdsa-sha2-nistp256`) — 추가 암호 라이브러리 없음. Ed25519는 쓰지 않는다(net.i2p eddsa 또는 BouncyCastle 추가가 필요 — 미도입) |
 | 주의 | 개인키는 암호 없는 OpenSSH 형식 파일(Demo). 암호화 키·비밀 저장소·운영 host key 배포·교체는 LIVE Gate(ACQUIRING-001 §14-3) |
+
+## 11. financial-batch 관리 조회 의존성 (ACQ-VIEW-001 B0·B1, 2026-11-06)
+
+| 항목 | 내용 |
+|---|---|
+| 결정 | Coordinator 결정 R-1 A(jOOQ codegen 도입 — 사용자 지정 "복잡한 CQRS 조회 jOOQ"), R-2 A(`spring-boot-starter-security` — ADMIN 서명 채널 전용 체인 + 기본 거부). 사용자 결정 아님 |
+| 의존성 | `spring-boot-starter-jooq`·`spring-boot-starter-security` — 둘 다 **Boot 4.1.1 BOM 관리**(catalog 기존 항목, 새 버전 고정·override 없음). codegen source set은 catalog 기존 `jooq-codegen`·`jooq-meta`·`testcontainers-mysql`·`flyway-mysql`(payment-api·master-api와 같은 조합, 앱 runtime classpath 밖) |
+| resolved | `./gradlew -q :apps:financial-batch:dependencies --configuration runtimeClasspath`(2026-11-06T10:19Z): `org.jooq:jooq:3.21.7`, `spring-security-core/config/web:7.1.1` — BOM 값 그대로 |
+| codegen | `generateJooqMain`: `db/migration/financial`만 MySQL 8.4.11 컨테이너에 적용, 생성 대상 `acquisition_*` 표만(리뷰 MINOR-3 — 결제 사실·`BATCH_*`·Flyway 표 제외), 생성 패키지 `com.paycore.financial.jooq.generated`(build/ 아래, commit 안 함). financial-batch 컴파일에 Docker가 필요해졌다(빌드 메모리 — Demo 실행 중 빌드 금지, ACQ-VIEW-001 §9.3) |
+| 범위 | jOOQ는 `acquiring.adapter.query`(관리 조회)만. 매입 판정·적체 count(C-2 JPA native)는 그대로 |
+| CVE | 이번 작업에서 실행하지 않았다(Verifier CVE-SCAN 대상) |

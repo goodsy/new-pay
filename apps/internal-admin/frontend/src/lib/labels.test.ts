@@ -44,6 +44,8 @@ const SERVER_AUDIT_ACTIONS = [
   'MERCHANT_VIEWED', 'MERCHANT_BRN_SEARCHED',
   // TXN-OPS-001 §5.1
   'PAYMENT_VIEWED',
+  // ACQ-VIEW-001 §4.6
+  'ACQUISITION_FILE_VIEWED',
 ]
 
 describe('ADMIN-UI-001 Korean labels (display only)', () => {

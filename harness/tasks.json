@@ -2959,6 +2959,152 @@
       ]
     },
     {
+      "id": "ACQ-VIEW-001",
+      "title": "매입 현황 조회(read-only): ADMIN→FINANCIAL 서명 채널 조회 API + 관리자 '매입 현황' 화면 + Demo 매입 E2E 화면 확인",
+      "phase": "Phase 2",
+      "status": "DONE",
+      "dependsOn": [
+        "ACQUIRING-001"
+      ],
+      "requiredQuestions": [
+        "Q-ACQV-01",
+        "Q-ACQV-02",
+        "Q-ACQV-03"
+      ],
+      "acceptanceCriteria": [
+        "매입 파일 목록(매입사·업무일·건수·금액·전송 상태·수신 상태·결과 상태) 검색 — 기간 상한·keyset 페이지",
+        "파일 상세: 레코드별 결과(ACCEPTED·REJECTED·UNKNOWN·CONFLICT)·전송 시도 이력·응답 처리 기록 요약(한 일관 읽기)",
+        "확인 필요 건 표시: TRANSMISSION_UNKNOWN·TRANSMISSION_QUARANTINED·RECEIPT_CONFLICT·레코드 UNKNOWN/CONFLICT·결과 마감 지남",
+        "읽기 전용: FINANCIAL 업무 표에 쓰지 않는다(읽기 전용 TX·질의 시간 상한), 응답·로그에 키·경로·파일 바이트·카드 정보 없음",
+        "ADMIN→FINANCIAL 서명 채널(기존 ADMIN→PAYMENT 서명 계약 재사용, 채널별 별도 키), 역할·감사는 기존 거래 조회와 같은 원칙 — 다른 정책이 필요하면 Coordinator 질문",
+        "관리자 화면 '매입 현황'(목록·상세 패널) + Vitest",
+        "Demo에서 결제 → 봉인 → SFTP 전송 → 가상 매입사 결과까지 실행(harness/e2e/acquiring_e2e.py)하고 화면 캡처로 사용자에게 보인다(ACQUIRING-001에서 미룬 E2E)"
+      ],
+      "allowedWritePaths": [
+        "apps/financial-batch/**",
+        "apps/internal-admin/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "harness/e2e/**",
+        "docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md",
+        ".env.example",
+        "docker/mysql/init/**",
+        "gradle/libs.versions.toml",
+        "docs/repository/TECH-BASELINE.md",
+        "harness/technology-baseline.json",
+        "docs/repository/ARCHITECTURE-CONVENTIONS.md"
+      ],
+      "pathsResolved": true,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "taskTimeoutSeconds": null,
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json",
+          "evidenceSha256": "f75699569010599283e3aa80930f148fea2fa12a45f1b7d0838b9b105967c01f",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:82610cbc324fd4f9a3961df97ee9a0099b920714ad3da4b1ee6b4ea1a8aef93b",
+          "gradleCheck": "exit 0, 2026-11-06T13:03:07Z..13:42:05Z (38m55s), Demo MySQL/JVM stopped"
+        },
+        "tests": "Kotlin 3956/0 fail/0 skip (= floor), Vitest 174/0, harness selftest 182",
+        "supplementary": "build/harness-evidence/ACQ-VIEW-001-2026-11-06T135120Z-supplementary PASS — DEPS x5 exit 0, CVE 0 (5 modules + 2 frontends, canary)",
+        "demo": "B3 Demo E2E normal/reject/missing-result exit 0, 실제 화면 캡처 8장(scratchpad demo/acqview/demo-*.png), init 재실행 전후 92표 1859행 불변 — Simulator Demo 성공이며 운영 준비 완료 아님"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "date": "2026-11-06",
+        "history": "B0+B1 round1 CHANGES_REQUIRED(MINOR-1..6) → rev0.3 수정 → round2 REVIEW_PASS, NIT 3(resolver else 분기 선택, RECORD_UNKNOWN 구조상 겹침, 3024 지표 경로 한계); B2 round1 CHANGES_REQUIRED(MAJOR-1 숫자 사유 코드 거부, MINOR-1..3) → rev0.5 → round2 REVIEW_PASS(L-12 수용)",
+        "coordinatorRuns": [
+          "run1 financial-batch check 364/1 fail(MainMigrationLocationSpec V16)",
+          "run2 financial-batch check exit 0, 366 tests 0 fail 0 skip, harness 182 OK (2026-11-06)",
+          "B2 run1 internal-admin check exit 0 (691)",
+          "B2 run2 internal-admin check exit 0 (699 tests 0 fail 0 skip), financial-batch check exit 0 (367)",
+          "B3 Demo E2E 2026-11-06 21:51 KST: normal/reject/missing-result 모두 exit 0, 실제 화면 캡처 8장, init 재실행 전후 92표 1859행 불변, 비밀 로그 노출 0"
+        ],
+        "pending": "전체 gate ACQV-gate1(fp sha256:82610cbc…), supplementary"
+      },
+      "principleEvidence": {
+        "Financial Consistency": {
+          "applicability": "APPLICABLE",
+          "reason": "조회가 FINANCIAL 상태 정의(RecordResultRule·needsAttention)와 동치, ADMIN은 요청에 대한 답이 아닌 쪽(순서·cursor·다른 파일)을 표시하지 않음",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AcquisitionFileViewReaderSpec 동치·M1·M4, FinancialOpsGatewaySpec MB4~MB8 — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Transaction Safety": {
+          "applicability": "APPLICABLE",
+          "reason": "읽기 전용 RO·RR TX 한 번(상세), 감사는 ADMIN 로컬 TX 안에서 반환 전 기록, FINANCIAL 호출은 TX 밖(TX 안 호출 거부)",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "ViewSnapshotProbe(M6), AcquisitionLookupServiceSpec, AcquisitionAuditFailureHttpSpec(MB10) — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Idempotency": {
+          "applicability": "NOT_APPLICABLE",
+          "reason": "쓰기 없는 조회(감사 행만 append) — 재시도해도 업무 효과 없음",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": null
+        },
+        "Concurrency Control": {
+          "applicability": "APPLICABLE",
+          "reason": "permit 대기 0(즉시 busy), 질의 시간 상한 MAX_EXECUTION_TIME, 상세 일관 스냅샷",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "실제 3024 시험, permit 시험, M5 — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Recoverability": {
+          "applicability": "APPLICABLE",
+          "reason": "FINANCIAL 장애·시간 초과·해석 불가 → 503 고정 코드, 업무 상태 무영향, 응답 크기 상한 128 KiB",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "FinancialOpsGatewaySpec, AdminAcquisitionApiSpec — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Reconciliation": {
+          "applicability": "APPLICABLE",
+          "reason": "확인 필요 사유 8종(전송 결과 모름·격리·수신 충돌·응답 격리·레코드 UNKNOWN/CONFLICT·마감 지남·결과 지연)을 화면에 노출 — 대사 입력 확인, 숫자 기관 사유 코드 수용",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AcquisitionFileViewReaderSpec, Demo E2E normal/reject/missing-result exit 0(§13.11) — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Auditability": {
+          "applicability": "APPLICABLE",
+          "reason": "D-ACQV-001 상세·레코드 조회 ACQUISITION_FILE_VIEWED 감사(실패 → 미반환), 목록 무감사, D-ACQV-002 카드사 값 비노출(SQL·응답·ADMIN 모양 검사)",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AcquisitionAuditFailureHttpSpec, AcquisitionLookupHttpSpec, Reader SQL 단언(M3), Demo 감사 4행 — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        },
+        "Observability": {
+          "applicability": "APPLICABLE",
+          "reason": "query_timeout·busy·응답 해석 불가 지표(label에 ID·금액 없음), 로그에 키·경로·바이트 없음",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AdminAcquisitionControllerSpec, FinancialOpsGatewaySpec 로그 비노출 — docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md rev 0.6 §6·§13 (build/harness-evidence/ACQ-VIEW-001-2026-11-06T130246Z.json)"
+        }
+      },
+      "coordinatorDecisions": [
+        "(1) 2026-11-06 사용자 방향: 관리자 화면 하나씩 기능을 붙이고 단계마다 Demo 화면으로 확인 — 첫 화면 '매입 현황 화면 (Recommended)' 사용자 선택. 조회만, 재매입 승인 등 조작은 ACQ-ADMIN-001",
+        "(2) R-1 조회 구현 = jOOQ codegen을 financial-batch에 도입(payment-api·master-api와 같은 방식, Boot BOM jOOQ 버전) — 사용자 지정 기술 '복잡한 CQRS 조회 jOOQ', ACQUIRING-001 C-2의 '운영 조회 화면 생기면 재검토' 조건 충족. 기존 C-2 JPA native count 지표는 유지",
+        "(3) R-2 수신 구조 = spring-boot-starter-security, 체인 2개(/internal/v1/admin/** 서명 필터 → ADMIN_SERVICE; 그 밖 payment-facts 정확 경로·health만 permitAll, 나머지 denyAll). 기존 Inbox·relay golden 시험을 기대값 변경 없이 재실행해 회귀 확인",
+        "(4) R-3 ADMIN 모듈 = 새 financialops 모듈(FINANCIAL 채널 소유, permit·설정 분리)",
+        "(5) R-4 검색 = 본문 POST(기존 관례)",
+        "(6) 허용 경로에 libs.versions.toml·TECH-BASELINE.md·technology-baseline.json·ARCHITECTURE-CONVENTIONS.md 추가(의존성 기록용)",
+        "(7) 메모리: Implementer는 단일 spec 단위 Gradle 실행만, 모듈 전체 실행은 Coordinator가 detached로 한다(OOM 이력)"
+      ],
+      "nextResumeAction": "DONE — 커밋은 사용자 결정. 다음 화면 작업은 사용자와 정한다(후보: ACQ-ADMIN-001 매입 조작, 정산 화면)",
+      "followUps": [
+        "L-13 감사 화면 '대상' 열이 파일 ID(target_ref)를 보이지 않음 — 후속 ADMIN audit 화면 작업"
+      ]
+    },
+    {
       "id": "ACQ-ADMIN-001",
       "title": "재매입 2인 승인·보류 REVIEW_REQUIRED 해소 관리자 입력(internal-admin)",
       "phase": "ACQUIRING",
@@ -2981,7 +3127,8 @@
         "매입 확정 표지 PK 경합 시험(서로 다른 세대 동시 ACCEPTED → 1062 → 재시도 → CONFLICT 수렴, CyclicBarrier — ACQUIRING-001 재리뷰 R-m1)",
         "모든 ACCEPTED 쓰기 경로가 같은 TX에서 markAccepted(N-1)",
         "재매입 금액 = 순액(D-ACQ-013), UNKNOWN 재매입은 대사 미매입 확정 후만(D-ACQ-014)",
-        "승인 표 FK·복합 UNIQUE(n-4), 격리 응답 재반영 입력"
+        "승인 표 FK·복합 UNIQUE(n-4), 격리 응답 재반영 입력",
+        "매입 현황 '재매입 검토 대상' 배지가 재매입 새 세대 ACCEPTED 뒤에는 꺼지도록(ACQ-VIEW-001 리뷰 MINOR-6)"
       ],
       "allowedWritePaths": [],
       "pathsResolved": false,

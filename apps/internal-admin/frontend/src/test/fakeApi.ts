@@ -38,6 +38,9 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     merchantHistory: notStubbed('merchantHistory'),
     transactionSearch: notStubbed('transactionSearch'),
     transactionDetail: notStubbed('transactionDetail'),
+    acquisitionSearch: notStubbed('acquisitionSearch'),
+    acquisitionDetail: notStubbed('acquisitionDetail'),
+    acquisitionRecords: notStubbed('acquisitionRecords'),
   } as AdminApi
   return { ...base, ...overrides }
 }

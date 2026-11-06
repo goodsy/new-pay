@@ -7,6 +7,13 @@ server:
   address: 127.0.0.1
 paycore:
   financial:
+    # ACQ-VIEW-001 ADMIN → FINANCIAL 서명 채널(시험 전용 키 — 운영 키 아님, 결제 사실 Inbox 키와 다른 키 공간). 시각 창·permit은 Demo 값.
+    admin-channel:
+      clock-window: PT300S
+      read-permits: 2
+      signing-keys:
+        - key-id: fops-test-k1
+          secret: dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1jaGFubmVsLWtleS0wMDAx
     payment-fact-inbox:
       clock-window: PT300S
       max-body-bytes: 65536

@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter
  * financial-batch HTTP 진입 제한(FIN-FACT-RELAY-001 §4.1). 이 앱의 HTTP는 **내부 전용**이다(공개 API 없음 — 내부망 바인딩·mTLS는 배포 작업, LIVE Gate):
  * - `POST /internal/v1/payment-facts`만 통과. query 문자열이 있으면 400(서명 canonical에 query가 없다), Content-Length가 없으면 411, 상한 초과면 413 — 본문을 읽기 전에 거절한다.
  * - `GET /actuator/health`(세부 없음)만 통과.
+ * - (ACQ-VIEW-001 §3.2) `/internal/v1/admin/` 아래 GET·POST는 ADMIN 서명 채널 보안 체인으로 넘긴다(크기·query·서명 판정은 그 체인의 서명 필터 몫 — 이 필터는 경로·method만 본다).
  * - 그 밖(같은 경로의 다른 method 포함)은 404 빈 본문(존재 비노출).
  * `server.servlet.context-path`가 비어 있지 않으면 기동을 거부한다(서명 경로 = 요청 경로).
  */
@@ -33,6 +34,7 @@ class PaymentFactInboxEntryFilter(private val maxBodyBytes: Int) : OncePerReques
                 }
             }
             path == HEALTH_PATH && request.method == "GET" -> chain.doFilter(request, response)
+            path.startsWith(ADMIN_CHANNEL_PREFIX) && request.method in ADMIN_CHANNEL_METHODS -> chain.doFilter(request, response)
             else -> response.status = HttpStatus.NOT_FOUND.value()
         }
     }
@@ -45,6 +47,10 @@ class PaymentFactInboxEntryFilter(private val maxBodyBytes: Int) : OncePerReques
 
     companion object {
         const val HEALTH_PATH = "/actuator/health"
+
+        /** ADMIN → FINANCIAL 서명 채널 경로 접두(ACQ-VIEW-001 — acquiring.adapter.web.admin 보안 체인이 처리). */
+        const val ADMIN_CHANNEL_PREFIX = "/internal/v1/admin/"
+        private val ADMIN_CHANNEL_METHODS = setOf("GET", "POST")
     }
 }
 
