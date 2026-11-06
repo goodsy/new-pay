@@ -16,6 +16,9 @@ dependencies {
     implementation(libs.spring.modulith.api)
     implementation(libs.kotlin.reflect)
     implementation(libs.flyway.mysql)
+    // ACQUIRING-001 배치2(2-D): 가상 매입사 SFTP 전송(클라이언트 키 인증 + host key 고정 — D-ACQ-006). Boot BOM 밖 — catalog 고정 2.20.1(Coordinator 결정 C-1).
+    // 시험의 SFTP 서버(SshServer)도 같은 artifact(sshd-core)를 쓴다.
+    implementation(libs.apache.sshd.sftp)
     runtimeOnly(libs.mysql.connector.j)
 
     testImplementation(project(":libs:test-support"))

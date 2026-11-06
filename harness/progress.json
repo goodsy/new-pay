@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": "ACQUIRING-001",
-  "codeFingerprint": "sha256:a1464262edb3c1405e6ca194db35d003ed515d95dbd7754fc8b8eaf7746d4a5d",
-  "lastSuccessfulStep": "FIN-DBACCOUNT-001 VERIFY-GATE PASS 2026-11-05T041331Z + supplementary PASS; REVIEW_PASS; DONE",
+  "activeTaskId": null,
+  "codeFingerprint": "sha256:644084eaaabb6da4d5d52f973b0654dee230db6e5a30cf145de2f89360ad476a",
+  "lastSuccessfulStep": "ACQUIRING-001 VERIFY-GATE PASS 2026-11-06T004855Z (rerun after ACQ-gate1 payment-api plan flake) + supplementary PASS 033047Z; REVIEW_PASS rev1.1; DONE",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "Commit FIN-DBACCOUNT-001 on user decision. Next: ACQUIRING-001 (incl. D-FFR-003 auto-release) → MERCHANT-OPS-002. Follow-ups: FIN-FACT-RELAY-001 review followUps, TXN-OPS-001 NIT-2/L-3/L-4/L-10, MERCHANT-OPS-001 NIT-1/2 + LIVE L-1/L-3, CHECKOUT MINOR-1..3, TEST-PERF MINOR-1..5, ADMIN-UI-001 MINOR-1/NIT, Appendix D Demo VAN account doc gap.",
+  "nextResumeAction": "ACQUIRING-001 커밋은 사용자 결정. 사용자 방향 전환(2026-11-06): 관리자 화면 하나씩 만들며 결제·정산·매입 기능을 화면으로 확인 — 다음 작업 순서 재계획. 미실행: 매입 E2E(Demo).",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -689,6 +689,26 @@
       "at": "2026-11-05",
       "taskId": "FIN-DBACCOUNT-001",
       "event": "REVIEW_PASS; VERIFY-GATE PASS 041331Z (Kotlin 3590, Vitest 166); supplementary PASS CVE 0; DONE"
+    },
+    {
+      "at": "2026-11-05",
+      "taskId": "ACQUIRING-001",
+      "event": "IN_PROGRESS phase 1 (spec + questions)"
+    },
+    {
+      "at": "2026-11-05",
+      "taskId": "ACQUIRING-001",
+      "event": "Q-ACQ-07..11 answered (D-ACQ-008..012); phase 2 batch 1 start"
+    },
+    {
+      "at": "2026-11-06T03:33Z",
+      "taskId": "ACQUIRING-001",
+      "event": "ACQ-gate1 FAIL(payment-api PaymentStatusReaderSpec P-1 계획 불안정) → 사용자 선택 재검사 → ACQ-gate2 PASS(Kotlin 3821, Vitest 166, selftest 182) + supplementary CVE 0 → DONE. E2E 미실행(사용자 선택)."
+    },
+    {
+      "at": "2026-11-06T03:35Z",
+      "taskId": null,
+      "event": "사용자: 검증이 어렵고 진행 상황이 안 보임 → 관리자 화면 하나씩 만들면서 결제·정산·매입 기능 개발로 방향 전환 요청"
     }
   ],
   "agreedOrder": [

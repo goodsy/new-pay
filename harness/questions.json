@@ -2876,6 +2876,112 @@
       "origin": "FIN-FACT-RELAY-001 implementer",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
       "appliedSpec": "D-FFR-004"
+    },
+    {
+      "id": "Q-ACQ-07",
+      "question": "매입 레코드의 가맹점 계약번호(기관 계약계정) 출처 — FINANCIAL 사실에 없음(D-MS2-005)",
+      "recommended": "Demo는 PayCore MID + 기관 거래 참조로 대조, 실제 계약번호는 후속 PaymentAuthorized v2(승인 시점 값), 그 전 LIVE 매입 차단",
+      "alternative": "지금 v2로 전달",
+      "humanAnswer": "Demo는 MID로, 실값은 후속 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "ACQUIRING-001 phase 1 spec",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-ACQ-008"
+    },
+    {
+      "id": "Q-ACQ-08",
+      "question": "전송 후 취소 시 원 SALE이 결과 대기·UNKNOWN·REJECTED이면 취소 레코드를 보내나",
+      "recommended": "원 SALE ACCEPTED일 때만. 대기면 자동 대기, UNKNOWN이면 대사·경보, REJECTED면 '취소 매입 불요' 기록",
+      "alternative": "항상 바로 보냄",
+      "humanAnswer": "원승인 매입 확정 때만 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "ACQUIRING-001 phase 1 spec",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-ACQ-009"
+    },
+    {
+      "id": "Q-ACQ-09",
+      "question": "결과 마감(UNKNOWN 기록) 뒤 늦게 온 결과 처리",
+      "recommended": "유효 결과면 append-only 자동 반영(UNKNOWN 행 보존), ACCEPTED 인정 시각=수신 시각, 상충 시 격리",
+      "alternative": "운영자 확인 후 반영",
+      "humanAnswer": "자동 반영, 기록 보존 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "ACQUIRING-001 phase 1 spec",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-ACQ-010"
+    },
+    {
+      "id": "Q-ACQ-10",
+      "question": "재매입(및 파일 전체 거절 후 재매입) 승인 수준과 입력 경로",
+      "recommended": "2인 승인(위험 명령 목록 추가). 이번 작업은 FINANCIAL 기록·검사까지, ADMIN 입력은 후속 — 그 전 재매입 실행 불가",
+      "alternative": "1인 승인",
+      "humanAnswer": "2인 승인 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "ACQUIRING-001 phase 1 spec",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-ACQ-011"
+    },
+    {
+      "id": "Q-ACQ-11",
+      "question": "D-ACQ-002 '전송 전 취소 상계'의 경계 — Implementer 해석 I-1 확인",
+      "recommended": "파일 대상 목록(membership) 확정 시점 이전 취소만 상계, 이후~전송 사이 취소는 별도 CANCEL 레코드(최종 순액 동일)",
+      "alternative": "실제 전송 직전까지 상계",
+      "humanAnswer": "목록 확정 시점 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001"
+      ],
+      "askedAt": "2026-11-05",
+      "origin": "ACQUIRING-001 phase 1 spec",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-05)",
+      "appliedSpec": "D-ACQ-012"
+    },
+    {
+      "id": "Q-2G-1",
+      "question": "원 SALE 거절로 \"취소 매입 불요\" 종결된 취소가 있는데 그 SALE이 재매입으로 ACCEPTED되면 취소를 어떻게 반영하나",
+      "recommended": "재매입 레코드 금액을 원승인 − 그때까지 받은 모든 취소(순액)로, 불요 기록은 유지",
+      "alternative": "불요 무효화 기록 + CANCEL 레코드 / 원금액 재매입 + 대사만",
+      "humanAnswer": "재매입을 순액으로 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQ-ADMIN-001"
+      ],
+      "askedAt": "2026-11-06",
+      "origin": "ACQUIRING-001 2-G implementer",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
+      "appliedSpec": "D-ACQ-013"
+    },
+    {
+      "id": "Q-2G-2",
+      "question": "결과 UNKNOWN 레코드를 재매입 대상으로 허용하나(늦은 원 세대 ACCEPTED와 이중 매입 위험)",
+      "recommended": "대사로 미매입 확정된 경우만 허용, 앞 세대 ACCEPTED 도착 시 승인 무효(TARGET_CHANGED), 거래당 세대 넘는 ACCEPTED 하나",
+      "alternative": "REJECTED·파일 거절만 허용 / 운영자 2인 판단",
+      "humanAnswer": "대사로 미매입 확인 후만 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "ACQUIRING-001",
+        "ACQ-ADMIN-001"
+      ],
+      "askedAt": "2026-11-06",
+      "origin": "ACQUIRING-001 2-F/2-G review m-3",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-06)",
+      "appliedSpec": "D-ACQ-014"
     }
   ]
 }

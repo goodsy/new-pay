@@ -2794,7 +2794,7 @@
       "id": "ACQUIRING-001",
       "title": "가상 SFTP 매입과 전송/확정 상태",
       "phase": "ACQUIRING",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "AUTH-001",
         "FIN-FACT-RELAY-001",
@@ -2806,69 +2806,131 @@
         "Q-ACQ-04",
         "Q-ACQ-05",
         "Q-ACQ-06",
-        "Q-FFR-03"
+        "Q-FFR-03",
+        "Q-ACQ-07",
+        "Q-ACQ-08",
+        "Q-ACQ-09",
+        "Q-ACQ-10",
+        "Q-ACQ-11",
+        "Q-2G-2",
+        "Q-2G-1"
       ],
       "acceptanceCriteria": [
         "전송 완료와 업무 수신/매입 확정 구별",
         "파일 중복·재전송·부분 오류 회복",
         "파일 계약 미결은 해당 작업에서 질문"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
+      "allowedWritePaths": [
+        "apps/financial-batch/**",
+        "apps/institution-simulator/**",
+        "gradle/libs.versions.toml",
+        "docker/simulator-mysql/init/**",
+        "compose.yaml",
+        ".env.example",
+        "harness/commands.json",
+        "harness/tests/**",
+        "docs/repository/ACQUIRING-001-*.md",
+        "docs/repository/TECH-BASELINE.md",
+        "harness/technology-baseline.json",
+        "docs/repository/ARCHITECTURE-CONVENTIONS.md",
+        "harness/e2e/**"
+      ],
+      "pathsResolved": true,
       "owner": null,
       "attempts": 0,
       "maxRepairAttempts": 3,
       "taskTimeoutSeconds": null,
-      "evidence": null,
-      "review": null,
+      "evidence": {
+        "verifyGate": {
+          "gate": "build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json",
+          "evidenceSha256": "34e0e5bb49dd9059be8833577a26c98969892c9aa79dc08bba467166cad84278",
+          "verdict": "PASS",
+          "codeFingerprint": "sha256:644084eaaabb6da4d5d52f973b0654dee230db6e5a30cf145de2f89360ad476a",
+          "gradleCheck": "exit 0, 2026-11-06T00:49:16Z..01:25:38Z (36m20s), Demo MySQL/JVM stopped",
+          "priorRun": "ACQ-gate1 2026-11-05T215657Z FAIL — payment-api PaymentStatusReaderSpec P-1 계획 불안정(코드 무변경), gateRuns 참조"
+        },
+        "tests": "Kotlin 3821/0 fail/0 skip (= registered floor), Vitest 166/0, harness selftest 182",
+        "targeted": "Coordinator detached full runs: financial-batch 274/0, institution-simulator 259/0, harness 182 OK",
+        "supplementary": "build/harness-evidence/ACQUIRING-001-2026-11-06T033047Z-supplementary PASS — DEPS x5 exit 0, CVE-SCAN 0 vulnerabilities (5 modules + 2 frontends, canary detected, osv-scanner 2.6.0), sshd 2.20.1 포함",
+        "notRun": "E2E(harness/e2e/acquiring_e2e.py, Demo SFTP) 미실행 — 사용자 선택 '전체 검사 먼저, E2E는 다음'(Demo 화면 확인과 함께)"
+      },
+      "review": {
+        "verdict": "REVIEW_PASS",
+        "date": "2026-11-05",
+        "history": "batch1 FAIL(MJ-1,MJ-2)→PASS; 2-D FAIL(MJ-1 temp 이름, MJ-2 rename timeout)→수정; 2-E FAIL(MJ-1 이중 수락)→조건부 PASS→MINOR 수정; 2-F/2-G PASS→MINOR·D-ACQ-013/014 반영; rev 1.1 재리뷰 PASS(R-m1, N-1..N-6 기록)",
+        "followUps": [
+          "R-m1 세대 간 매입 확정 PK 경합 시험 → ACQ-ADMIN-001 완료 조건",
+          "N-1..N-6 명세 기록(rev 1.1)",
+          "E2E Demo 실행 미완",
+          "Demo simulator 볼륨 init 스크립트 재실행 필요(V12 전, 사용자 확인)",
+          "jcl-over-slf4j·commons-logging 중복 classpath(financial-batch·simulator)",
+          "PAYMENT-QUERY-PLAN-FLAKE"
+        ]
+      },
       "principleEvidence": {
         "Financial Consistency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "순액 = 승인 − 상계 취소(Domain·DB CHECK), 트레일러 합계 = 레코드 합, 매입 확정 = 레코드 ACCEPTED만, CANCEL 누적 ≤ 원승인, 거래·종류당 ACCEPTED 하나(V14 PK, D-ACQ-014), 재매입 = 순액(D-ACQ-013)",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-D1..D6, AQ-F1·F3·F4, AQ-R1·R4·R5, CC-1·CC-4, AQ-X1, AQ-R14, RR-8, Simulator R-1..R-5·AS-3·AS-10, mutation — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Transaction Safety": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "봉인·응답 반영·결과 마감 = 각 로컬 TX 하나, SFTP·파일 IO는 TX 밖, 해제 = 원승인 Inbox TX 안",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-DB4, HR-3, AQ-T8, AQ-R11·R12, AS-9 — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Idempotency": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "봉인 재호출 AlreadySealed, 같은 ID 재업로드 확인 먼저, 응답 (매입사, 이름, SHA-256) UNIQUE, 결과 마감 1회, Simulator 같은 파일 무기록",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-DB2, AQ-J2, AQ-T1·T2·T4, AQ-R1·R5·R6, AS-4, mutation B(M-B1) — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Concurrency Control": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "lane → 결제 행 FOR UPDATE 고정 순서(READ COMMITTED), lease + @Version, 파일 행 FOR UPDATE, UNIQUE/PK 수렴. 한계: 세대 간 매입 확정 PK 경합 시험은 ACQ-ADMIN-001 완료 조건(R-m1)",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-C1..C3, HR-7, AQ-T8, AQ-TD3, AQ-R9·R10·R14, AQ-S3 — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Recoverability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "결과 모름 → 확인 먼저(NOT_FOUND만으로 미수신 단정 안 함), RENAME_OUTCOME_UNKNOWN, 늦은 결과 자동 반영(UNKNOWN 보존), Job 재시작 수렴, 보류 SWEEP",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-DB4·DB5, AQ-T2·T4, AQ-TD4, AQ-R2·R6·R11·R12, AS-8·AS-9 — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Reconciliation": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "TRANSMISSION_UNKNOWN·격리·RECEIPT_CONFLICT·레코드 UNKNOWN/CONFLICT·상계 불일치를 기록·지표로 노출(자동 해결 없음), UNKNOWN 재매입은 대사로 미매입 확인 후만(D-ACQ-014), 응답 바이트 보존",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-R3·R6·R7, AQ-X1, AQ-M1, AQ-I2, AS-4·AS-6·AS-7 — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Auditability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "봉인 바이트·hash·마감 정책 버전, 전송 시도·응답 처리 기록·결과 행·재매입 승인(2인) append-only, runtime UPDATE/DELETE 1142·1143, SHOW GRANTS 정확 일치",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-DB1, AQ-T1..T8, AQ-R1, AQ-G1·G2, Financial/SimulatorDatabaseAccountSpec — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         },
         "Observability": {
-          "applicability": "UNASSESSED",
-          "reason": null,
-          "verificationCommandIds": [],
-          "evidence": null
+          "applicability": "APPLICABLE",
+          "reason": "Micrometer gauge·counter(전송 결과 모름·격리·UNKNOWN·CONFLICT·결과 대기·상계 불일치 등, label에 ID·금액 없음), error/warn 구조화 로그(키·경로·금액 원문 없음)",
+          "verificationCommandIds": [
+            "VERIFY-GATE"
+          ],
+          "evidence": "AQ-M1, AQ-S2, mutation C(C2·C3) — docs/repository/ACQUIRING-001-ACQUIRING.md §10 (build/harness-evidence/ACQUIRING-001-2026-11-06T004855Z.json)"
         }
       },
       "coordinatorDecisions": [
@@ -2877,7 +2939,58 @@
         "2026-11-05 user: Q-ACQ-03 하루 1회, 마감 설정 (Recommended) — D-ACQ-003",
         "2026-11-05 user: Q-ACQ-05 직접 입력(원문 D-ACQ-005) — 지급 보류는 정산에서",
         "2026-11-05 user: Q-ACQ-06 키 인증 + 호스트 키 고정 (Recommended) — D-ACQ-006"
+      ],
+      "allowedWritePathsNote": "Coordinator(2026-11-05): FINANCIAL 매입 모듈 + 가상 기관(simulator) 매입사·SFTP. SFTP 라이브러리 추가 시 version catalog. 다른 경로는 Coordinator 요청",
+      "nextResumeAction": "DONE — 커밋은 사용자 결정. 다음: E2E(Demo) 별도 실행, ACQ-ADMIN-001",
+      "coordinatorDecision": "2026-11-05 Coordinator(가역 구현 결정, 사용자 결정 아님): (1) 새 의존성 org.apache.sshd:sshd-sftp 2.20.1 catalog 고정 허용 — supplementary osv 0 조건, spring-integration-sftp 미사용. (2) financial-batch jOOQ codegen은 도입하지 않고 backlog 지표는 JPA/native count(읽기 전용) — 복잡 조회 생기면 재검토. (3) 재매입·REVIEW_REQUIRED 해소 ADMIN 입력은 후속 ACQ-ADMIN-001(internal-admin)로 분리. payment-api 변경 없음(D-ACQ-008). (4) 진행: 배치1 = 2-B(D-FFR-003 자동 해제)+2-A(파일 계약 golden·Domain)+2-C(표·권한·membership·봉인) → 리뷰 → 배치2 = 2-D SFTP+2-E Simulator acquirer+2-F 결과 수신·마감+2-G 재매입 기록 → 리뷰 → 전체 gate (5) 2026-11-05 batch1 review MJ-2: 미해제 보류가 있는 Payment의 모든 후보 Wait(PAYMENT_HELD) — fail-closed 확대, 가역, 사용자 결정 아님. MJ-1: 파일 v1 표현 불가 거래는 Wait(UNREPRESENTABLE), FactText 수신 계약 불변. (6) 2026-11-05 batch2 2-D done; E2E(FINANCIAL↔Simulator 실제 프로세스)는 GRADLE-CHECK 밖 Coordinator 실행 스크립트(harness/e2e/**)로 2-F 뒤 Demo 스택에서 실행 — 메모리 제약, financial-batch 시험은 시험 전용 SSHD(I-27). (7) TRANSMISSION_QUARANTINED 해소 입력은 ACQ-ADMIN-001 범위. (8) 2-E I-28 ACK 이름 ACK.{id}.{nn}.dat 수용(2-F 계약). jcl-over-slf4j/commons-logging 동시 존재는 두 앱 함께 후속 정리(follow-up). 기존 Demo simulator 볼륨의 01-simulator-database.sh 재실행은 Demo 기동 시 사용자 확인 후 Coordinator가 수행. (9) Q-2D-1: 시도별 임시명 채택 — Simulator I-32를 .{id}.dat.{n}.part 쓰기·그 이름→{id}.dat rename 허용으로 넓히고 FINANCIAL은 .{id}.dat.{attemptNo}.part 사용(2-E 수정 회차 → 2-D 후속). Q-2D-2: financial-batch 전체 실측은 Demo MySQL 중지 상태에서 Coordinator/gate가 수행. 구현 중 OOM 방지를 위해 Demo MySQL 2개를 중지(재기동은 ACQUIRING-001 gate 뒤).",
+      "gateRuns": [
+        {
+          "fingerprint": "sha256:644084eaaabb6da4d5d52f973b0654dee230db6e5a30cf145de2f89360ad476a",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/ACQUIRING-001-2026-11-05T215657Z.json",
+          "at": "2026-11-05T22:33:50Z",
+          "failure": "GRADLE-CHECK exit=1: apps/payment-api 2029 tests, 1 failed — PaymentStatusReaderSpec P-1 (EXPLAIN: payment_transaction ct type=ALL hash join, rows=28; payment row 'Using temporary; Using filesort'). payment-api 코드 무변경(git status 깨끗) — 통계 의존 실행 계획 불안정, DEMO-SEED-001 2026-11-01T144431Z 게이트에서도 같은 실패",
+          "userDecision": "재검사(코드·기대값 무변경), 시험 안정화는 후속 — 사용자 선택 2026-11-06 '그대로 재검사, 수정은 후속 (Recommended)'",
+          "rerun": "ACQ-gate2 같은 fingerprint로 재실행"
+        }
+      ],
+      "followUps": [
+        "PAYMENT-QUERY-PLAN-FLAKE: PaymentStatusReaderSpec P-1 실행 계획 단언이 InnoDB 통계에 따라 간헐 실패(2026-11-01 DEMO-SEED-001, 2026-11-05 ACQ-gate1). 기대값을 낮추지 않고 EXPLAIN 전 ANALYZE TABLE 등으로 통계를 고정하는 별도 작업 — payment-api 시험 경로"
       ]
+    },
+    {
+      "id": "ACQ-ADMIN-001",
+      "title": "재매입 2인 승인·보류 REVIEW_REQUIRED 해소 관리자 입력(internal-admin)",
+      "phase": "ACQUIRING",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ACQUIRING-001",
+        "MERCHANT-OPS-002"
+      ],
+      "requiredQuestions": [
+        "Q-ACQ-10",
+        "Q-FFR-03",
+        "Q-2G-1",
+        "Q-2G-2"
+      ],
+      "acceptanceCriteria": [
+        "재매입 2인 승인(D-ACQ-011, D-ADMIN-007 양쪽 검사)",
+        "REVIEW_REQUIRED 보류 해소 입력",
+        "FINANCIAL 쪽 기록·검사와 서명 채널",
+        "TRANSMISSION_QUARANTINED 해소 입력",
+        "매입 확정 표지 PK 경합 시험(서로 다른 세대 동시 ACCEPTED → 1062 → 재시도 → CONFLICT 수렴, CyclicBarrier — ACQUIRING-001 재리뷰 R-m1)",
+        "모든 ACCEPTED 쓰기 경로가 같은 TX에서 markAccepted(N-1)",
+        "재매입 금액 = 순액(D-ACQ-013), UNKNOWN 재매입은 대사 미매입 확정 후만(D-ACQ-014)",
+        "승인 표 FK·복합 UNIQUE(n-4), 격리 응답 재반영 입력"
+      ],
+      "allowedWritePaths": [],
+      "pathsResolved": false,
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": [],
+      "review": null,
+      "lastSuccessfulStep": null
     },
     {
       "id": "SETTLEMENT-CONTRACT-001",

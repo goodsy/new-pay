@@ -4,7 +4,10 @@ import com.paycore.financial.paymentfact.adapter.persistence.PaymentFactPersiste
 import com.paycore.financial.paymentfact.application.required.PaymentFactProjectionStore
 import com.paycore.financial.paymentfact.domain.AuthorizedPaymentFact
 import com.paycore.financial.paymentfact.domain.CancelledPaymentFact
+import com.paycore.financial.paymentfact.application.required.OpenHold
 import com.paycore.financial.paymentfact.domain.HoldReason
+import com.paycore.financial.paymentfact.domain.HoldReleaseDecision
+import com.paycore.financial.paymentfact.domain.HoldReleaseTrigger
 import com.paycore.financial.paymentfact.domain.PaymentFact
 import com.paycore.financial.paymentfact.domain.PaymentFactHistory
 import com.paycore.financial.paymentfact.domain.PaymentFactIdentity
@@ -76,7 +79,66 @@ class JpaPaymentFactProjectionStore(
         entityManager.flush()
     }
 
+    override fun unreleasedOriginalUnknownHolds(paymentId: String, originalTransactionId: String): List<OpenHold> = translate(RELEASE) {
+        rows(
+            entityManager.createNativeQuery(
+                "SELECT h.id, h.transaction_id FROM payment_fact_hold h JOIN payment_fact_cancellation c ON c.transaction_id = h.transaction_id " +
+                    "WHERE h.payment_id = ?1 AND h.reason = 'ORIGINAL_UNKNOWN' AND c.original_transaction_id = ?2 " +
+                    "AND NOT EXISTS (SELECT 1 FROM payment_fact_hold_release r WHERE r.hold_id = h.id) ORDER BY h.id",
+            ).setParameter(1, paymentId).setParameter(2, originalTransactionId),
+        ).map { OpenHold((it[0] as Number).toLong(), it[1] as String) }
+    }
+
+    override fun hasHolds(transactionId: String): Boolean = translate(HOLD) {
+        (entityManager.createNativeQuery("SELECT COUNT(*) FROM payment_fact_hold WHERE transaction_id = ?1").setParameter(1, transactionId)
+            .singleResult as Number).toLong() > 0
+    }
+
+    override fun insertHoldReleases(
+        paymentId: String,
+        authorizationTransactionId: String,
+        decisions: List<Pair<OpenHold, HoldReleaseDecision>>,
+        trigger: HoldReleaseTrigger,
+        at: Instant,
+    ): Unit = translate(RELEASE) {
+        decisions.forEach { (hold, decision) ->
+            require(hold.cancellationTransactionId == decision.cancellationTransactionId) { "decision must belong to the hold" }
+            val reasons = decision.mismatches.sortedBy { it.ordinal }.joinToString(",") { it.name }.ifEmpty { null }
+            entityManager.persist(
+                JpaPaymentFactHoldReleaseEntity.newRow(
+                    hold.holdId, paymentId, hold.cancellationTransactionId, authorizationTransactionId, decision.outcome.name, reasons, trigger.name, at,
+                ),
+            )
+        }
+        entityManager.flush()
+    }
+
+    override fun paymentsWithReleasableHolds(limit: Int): List<String> = translate(RELEASE) {
+        require(limit in 1..MAX_SWEEP) { "sweep limit must be within 1..$MAX_SWEEP" }
+        // 리뷰 m-1: 원승인이 **같은 Payment**의 것일 때만 대상이다. 다른 Payment의 승인을 가리키는 취소 보류(정합성 보류 — 운영자 검토)는 SWEEP이 해제할 수 없으므로
+        // 이 조건이 없으면 매 회차 다시 뽑혀 LIMIT를 차지하고 다른 보류가 처리되지 못한다.
+        val query = entityManager.createNativeQuery(
+            "SELECT DISTINCT h.payment_id FROM payment_fact_hold h JOIN payment_fact_cancellation c ON c.transaction_id = h.transaction_id " +
+                "JOIN payment_fact_authorization a ON a.transaction_id = c.original_transaction_id " +
+                "WHERE h.reason = 'ORIGINAL_UNKNOWN' AND a.payment_id = h.payment_id " +
+                "AND NOT EXISTS (SELECT 1 FROM payment_fact_hold_release r WHERE r.hold_id = h.id) " +
+                "ORDER BY h.payment_id LIMIT ?1",
+        ).setParameter(1, limit)
+        query.resultList.map { it as String }
+    }
+
+    override fun lockExistingStream(paymentId: String): PaymentFactIdentity? = translate(STREAM) {
+        val row = entityManager.find(JpaPaymentFactStreamEntity::class.java, paymentId) ?: return@translate null
+        entityManager.refresh(row, LockModeType.PESSIMISTIC_WRITE)
+        if (row.factCount == 0) null else PaymentFactPersistenceMapper.toOwner(row)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun rows(query: jakarta.persistence.Query): List<Array<Any?>> = query.resultList as List<Array<Any?>>
+
     private companion object {
+        const val RELEASE = "payment_fact_hold_release"
+        const val MAX_SWEEP = 1000
         const val STREAM = "payment_fact_stream"
         const val AUTHORIZATION = "payment_fact_authorization"
         const val CANCELLATION = "payment_fact_cancellation"

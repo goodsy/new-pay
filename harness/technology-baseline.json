@@ -62,5 +62,25 @@
     "apps/payment-api (PAYMENT)",
     "apps/financial-batch (FINANCIAL)",
     "apps/internal-admin (no DB)"
-  ]
+  ],
+  "nonBomLibraries": {
+    "apacheSshdSftp": {
+      "module": "org.apache.sshd:sshd-sftp",
+      "version": "2.20.1",
+      "transitive": [
+        "org.apache.sshd:sshd-core:2.20.1",
+        "org.apache.sshd:sshd-common:2.20.1",
+        "org.slf4j:slf4j-api (BOM 2.0.18)"
+      ],
+      "usedBy": [
+        "apps/financial-batch (ACQUIRING-001 2-D SFTP client)",
+        "apps/institution-simulator (ACQUIRING-001 2-E embedded SFTP server of the virtual acquirer; resolved tree 2026-11-05: sshd-sftp 2.20.1 -> sshd-core -> sshd-common 2.20.1, slf4j-api/jcl-over-slf4j 1.7.36 -> 2.0.18 by BOM)"
+      ],
+      "decisionRef": "ACQUIRING-001 Coordinator decision C-1 (not a user decision)",
+      "checkedDate": "2026-11-05",
+      "published": "2026-10-15 (Maven Central, 21 days before check)",
+      "osv": "api.osv.dev query 2026-11-05T07:59Z: sshd-sftp/sshd-core/sshd-common 2.20.1 = 0 advisories; positive control sshd-common 2.9.0 = 3 advisories",
+      "ref": "docs/repository/TECH-BASELINE.md §10"
+    }
+  }
 }

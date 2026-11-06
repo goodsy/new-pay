@@ -1,0 +1,153 @@
+{
+  "description": "ACQUIRING-001 acquisition file contract v1 (virtual acquirer format, generated independently of the apps with Python hashlib/json; Demo identifiers and amounts, not production values).",
+  "formatVersion": "1",
+  "encoding": "US-ASCII, LF line ends, final LF, no BOM",
+  "fieldCounts": {
+    "H": 11,
+    "D": 21,
+    "T": 8
+  },
+  "vectors": [
+    {
+      "name": "regular-two-sales-one-netted",
+      "header": {
+        "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+        "senderId": "PAYCORE",
+        "sealedAt": "2026-11-05T14:05:00.000Z",
+        "cutoffPolicyVersion": "acq-cutoff-demo-1",
+        "originalFileId": null
+      },
+      "records": [
+        {
+          "seq": 1,
+          "type": "SALE",
+          "transactionId": "ptx_auth_b",
+          "originalTransactionId": null,
+          "merchantRef": "demo-mid-001",
+          "approvalNumber": "30000001",
+          "providerTransactionId": "VAN-T-ptx_auth_b",
+          "originalProviderTransactionId": null,
+          "institutionTransactionDate": "2026-11-05",
+          "eventAt": "2026-11-05T01:00:00.000Z",
+          "currency": "KRW",
+          "approvedAmountMinor": 20000,
+          "nettedCancelAmountMinor": 5000,
+          "recordAmountMinor": 15000,
+          "planKind": "LUMP_SUM",
+          "installmentMonths": null,
+          "cardType": "CREDIT",
+          "issuerCode": "SIMISSA",
+          "generation": 0,
+          "reacquisitionOf": null
+        },
+        {
+          "seq": 2,
+          "type": "SALE",
+          "transactionId": "ptx_auth_a",
+          "originalTransactionId": null,
+          "merchantRef": "demo-mid-001",
+          "approvalNumber": "30000001",
+          "providerTransactionId": "VAN-T-ptx_auth_a",
+          "originalProviderTransactionId": null,
+          "institutionTransactionDate": "2026-11-05",
+          "eventAt": "2026-11-05T03:04:05.678Z",
+          "currency": "KRW",
+          "approvedAmountMinor": 30000,
+          "nettedCancelAmountMinor": 0,
+          "recordAmountMinor": 30000,
+          "planKind": "INSTALLMENT",
+          "installmentMonths": 3,
+          "cardType": "CREDIT",
+          "issuerCode": "SIMISSA",
+          "generation": 0,
+          "reacquisitionOf": null
+        }
+      ],
+      "expected": {
+        "content": "H|1|ACQ.SIMACQA.TEST.20261105.001|PAYCORE|SIMACQA|TEST|2026-11-05|001||2026-11-05T14:05:00.000Z|acq-cutoff-demo-1\nD|1|SALE|ptx_auth_b||demo-mid-001|30000001|VAN-T-ptx_auth_b||2026-11-05|2026-11-05T01:00:00.000Z|KRW|20000|5000|15000|LUMP_SUM||CREDIT|SIMISSA|0|\nD|2|SALE|ptx_auth_a||demo-mid-001|30000001|VAN-T-ptx_auth_a||2026-11-05|2026-11-05T03:04:05.678Z|KRW|30000|0|30000|INSTALLMENT|3|CREDIT|SIMISSA|0|\nT|2|2|45000|0|0|45000|53cfafd46e057b9f1aa440c6c76e137791561d9fd78e14efa46f3726e0225d4a\n",
+        "bodySha256": "53cfafd46e057b9f1aa440c6c76e137791561d9fd78e14efa46f3726e0225d4a",
+        "contentSha256": "fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f",
+        "contentBytes": 494
+      }
+    },
+    {
+      "name": "empty-business-day",
+      "header": {
+        "fileId": "ACQ.SIMACQA.TEST.20261106.001",
+        "senderId": "PAYCORE",
+        "sealedAt": "2026-11-06T14:05:00.000Z",
+        "cutoffPolicyVersion": "acq-cutoff-demo-1",
+        "originalFileId": null
+      },
+      "records": [],
+      "expected": {
+        "content": "H|1|ACQ.SIMACQA.TEST.20261106.001|PAYCORE|SIMACQA|TEST|2026-11-06|001||2026-11-06T14:05:00.000Z|acq-cutoff-demo-1\nT|0|0|0|0|0|0|ae6c5933ea175532b1c476c1bf3e97f36cfd0a6520ad37e2798b602010c2db85\n",
+        "bodySha256": "ae6c5933ea175532b1c476c1bf3e97f36cfd0a6520ad37e2798b602010c2db85",
+        "contentSha256": "aa018dd0ed93a69263aed0e0af0857372247d31d1837043b2c59d9e8a9b85662",
+        "contentBytes": 193
+      }
+    },
+    {
+      "name": "reacquisition-version-with-cancel-record",
+      "header": {
+        "fileId": "ACQ.SIMACQA.TEST.20261105.002",
+        "senderId": "PAYCORE",
+        "sealedAt": "2026-11-07T09:00:00.000Z",
+        "cutoffPolicyVersion": "acq-cutoff-demo-1",
+        "originalFileId": "ACQ.SIMACQA.TEST.20261105.001"
+      },
+      "records": [
+        {
+          "seq": 1,
+          "type": "SALE",
+          "transactionId": "ptx_auth_c",
+          "originalTransactionId": null,
+          "merchantRef": "demo-mid-001",
+          "approvalNumber": "30000001",
+          "providerTransactionId": "VAN-T-ptx_auth_c",
+          "originalProviderTransactionId": null,
+          "institutionTransactionDate": "2026-11-05",
+          "eventAt": "2026-11-05T02:00:00.000Z",
+          "currency": "KRW",
+          "approvedAmountMinor": 50000,
+          "nettedCancelAmountMinor": 0,
+          "recordAmountMinor": 50000,
+          "planKind": "LUMP_SUM",
+          "installmentMonths": null,
+          "cardType": "CREDIT",
+          "issuerCode": "SIMISSA",
+          "generation": 1,
+          "reacquisitionOf": "ACQ.SIMACQA.TEST.20261105.001#3"
+        },
+        {
+          "seq": 2,
+          "type": "CANCEL",
+          "transactionId": "ptx_cancel_d",
+          "originalTransactionId": "ptx_auth_d",
+          "merchantRef": "demo-mid-001",
+          "approvalNumber": "30000001",
+          "providerTransactionId": "VAN-T-ptx_cancel_d",
+          "originalProviderTransactionId": "VAN-T-ptx_auth_d",
+          "institutionTransactionDate": "2026-11-05",
+          "eventAt": "2026-11-06T05:06:07.890Z",
+          "currency": "KRW",
+          "approvedAmountMinor": 40000,
+          "nettedCancelAmountMinor": 0,
+          "recordAmountMinor": 10000,
+          "planKind": "LUMP_SUM",
+          "installmentMonths": null,
+          "cardType": "CHECK",
+          "issuerCode": "SIMISSA",
+          "generation": 0,
+          "reacquisitionOf": null
+        }
+      ],
+      "expected": {
+        "content": "H|1|ACQ.SIMACQA.TEST.20261105.002|PAYCORE|SIMACQA|TEST|2026-11-05|002|ACQ.SIMACQA.TEST.20261105.001|2026-11-07T09:00:00.000Z|acq-cutoff-demo-1\nD|1|SALE|ptx_auth_c||demo-mid-001|30000001|VAN-T-ptx_auth_c||2026-11-05|2026-11-05T02:00:00.000Z|KRW|50000|0|50000|LUMP_SUM||CREDIT|SIMISSA|1|ACQ.SIMACQA.TEST.20261105.001#3\nD|2|CANCEL|ptx_cancel_d|ptx_auth_d|demo-mid-001|30000001|VAN-T-ptx_cancel_d|VAN-T-ptx_auth_d|2026-11-05|2026-11-06T05:06:07.890Z|KRW|40000|0|10000|LUMP_SUM||CHECK|SIMISSA|0|\nT|2|1|50000|1|10000|40000|4c2e6c82e2afd559a435cd271152375f4084120f1bcb26599f39454c4720b910\n",
+        "bodySha256": "4c2e6c82e2afd559a435cd271152375f4084120f1bcb26599f39454c4720b910",
+        "contentSha256": "1b579d5010df2d549d000c8a26c87ff1718b2f8d418c3a778d462851a2bfa3aa",
+        "contentBytes": 582
+      }
+    }
+  ]
+}

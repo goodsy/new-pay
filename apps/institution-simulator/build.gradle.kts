@@ -5,7 +5,7 @@ plugins {
 }
 
 dependencies {
-    // 모두 Boot 4.1.1 BOM 관리 카탈로그 항목(버전 override 없음). jOOQ 없음(CQRS 조회 요구 없음).
+    // Boot 4.1.1 BOM 관리 카탈로그 항목(버전 override 없음) + sshd-sftp(BOM 밖 catalog 고정). jOOQ 없음(CQRS 조회 요구 없음).
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.thymeleaf)
     implementation(libs.spring.boot.starter.data.jpa)
@@ -14,6 +14,9 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.flyway.mysql)
+    // ACQUIRING-001 2-E 가상 매입사 내장 SFTP 서버(Apache MINA SSHD — Boot BOM 밖, catalog 고정 2.20.1, Coordinator 결정 C-1). financial-batch 클라이언트와 같은 artifact·버전.
+    // 시험의 SFTP 클라이언트(SftpClient)도 같은 artifact(sshd-sftp → sshd-core)를 쓴다.
+    implementation(libs.apache.sshd.sftp)
     runtimeOnly(libs.mysql.connector.j)
 
     testImplementation(project(":libs:test-support"))

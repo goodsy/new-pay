@@ -24,11 +24,15 @@ object PaymentFactFixture {
         amountMinor: Long = 10_000,
         currency: String = "KRW",
         transactionId: String = "ptx_auth_$paymentId",
+        // ACQUIRING-001: 매입 시험은 lane(매입사)을 시험마다 따로 두고 승인 시각으로 업무일 마감 전후를 정한다. 기본값은 이전과 같다.
+        acquirerCode: String = "SIMACQA",
+        approvedAt: Instant = Instant.parse("2026-11-05T01:02:03.456Z"),
+        environment: FactEnvironment = FactEnvironment.TEST,
     ) = AuthorizedPaymentFact(
-        identity = identity(paymentId), authorizationId = "pau_$paymentId", transactionId = transactionId, money = FactMoney(amountMinor, currency),
-        plan = FactPlan(FactPlan.LUMP_SUM, null), cardType = "CREDIT", issuerCode = "SIMISSA", acquirerCode = "SIMACQA", approvalNumber = "30000001",
+        identity = identity(paymentId, environment), authorizationId = "pau_$paymentId", transactionId = transactionId, money = FactMoney(amountMinor, currency),
+        plan = FactPlan(FactPlan.LUMP_SUM, null), cardType = "CREDIT", issuerCode = "SIMISSA", acquirerCode = acquirerCode, approvalNumber = "30000001",
         providerTransactionId = "VAN-T-$paymentId", institutionTransactionDate = LocalDate.parse("2026-11-05"), institutionBusinessDate = null,
-        approvedAt = Instant.parse("2026-11-05T01:02:03.456Z"), policyAssignmentVersion = "pa:demo-policy-1", entitlementVersion = "es1:demo-merchant-001:3",
+        approvedAt = approvedAt, policyAssignmentVersion = "pa:demo-policy-1", entitlementVersion = "es1:demo-merchant-001:3",
     )
 
     /**
@@ -53,8 +57,17 @@ object PaymentFactFixture {
     )
 
     /** 의도: 원승인 투영이 FINANCIAL에 아직 없는 취소(원승인 사실을 FINANCIAL에 넣지 않은 채 만든 원승인 모양에서 파생 — D-ACQ-002 Hold 입력). */
-    fun cancelWithoutOriginal(paymentId: String = nextPaymentId(), amountMinor: Long = 3_000): Pair<AuthorizedPaymentFact, CancelledPaymentFact> {
-        val unseenOriginal = authorized(paymentId)
+    fun cancelWithoutOriginal(
+        paymentId: String = nextPaymentId(),
+        amountMinor: Long = 3_000,
+        originalAmountMinor: Long = 10_000,
+        acquirerCode: String = "SIMACQA",
+        approvedAt: Instant = Instant.parse("2026-11-05T01:02:03.456Z"),
+    ): Pair<AuthorizedPaymentFact, CancelledPaymentFact> {
+        val unseenOriginal = authorized(paymentId, amountMinor = originalAmountMinor, acquirerCode = acquirerCode, approvedAt = approvedAt)
         return unseenOriginal to cancelOf(unseenOriginal, amountMinor)
     }
+
+    /** 시험별 매입 lane 매입사 코드(`^[A-Z0-9]{1,32}$` — D-INST-CODE-001). 같은 컨테이너를 쓰는 다른 시험의 사실이 섞이지 않게 한다. */
+    fun nextAcquirerCode(): String = "SIMACQT" + seq.incrementAndGet()
 }

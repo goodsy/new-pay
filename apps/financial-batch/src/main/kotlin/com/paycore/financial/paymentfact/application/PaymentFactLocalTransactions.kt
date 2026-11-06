@@ -13,18 +13,26 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * ([PaymentFactCommitOutcomeUnknownException] — 응답하지 않는다 → PAYMENT 재전송 → DUPLICATE/처음 처리로 수렴), [isRetryable] 실패만 새 TX로 처음부터 다시(최대 [maxAttempts]회).
  * 블록이 `status.setRollbackOnly()`를 부르면 commit은 rollback으로 끝난다(값은 그대로 돌려준다 — 충돌·중복 판정이 아무것도 남기지 않게).
  */
-internal class PaymentFactLocalTransactions(private val transactionManager: PlatformTransactionManager, private val maxAttempts: Int) {
+internal class PaymentFactLocalTransactions(
+    private val transactionManager: PlatformTransactionManager,
+    private val maxAttempts: Int,
+    /**
+     * true = 바깥 TX가 있어도 따로 새 TX(REQUIRES_NEW)로 실행한다(ACQUIRING-001 — Spring Batch Tasklet step TX 안에서 부르는 일괄 처리용. 업무 효과는 step metadata와
+     * 별도로 커밋되고, step 재시작 시 같은 의도를 멱등하게 다시 실행한다). false(기본) = 바깥 TX가 있으면 거부(Inbox 수신 — FIN-FACT-RELAY-001과 같다).
+     */
+    private val independentOfCaller: Boolean = false,
+) {
     init {
         require(maxAttempts >= 1) { "maxAttempts must be positive" }
     }
 
     private val definition = DefaultTransactionDefinition().apply {
-        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRED
+        propagationBehavior = if (independentOfCaller) TransactionDefinition.PROPAGATION_REQUIRES_NEW else TransactionDefinition.PROPAGATION_REQUIRED
         isolationLevel = TransactionDefinition.ISOLATION_READ_COMMITTED
     }
 
     fun <T> execute(isRetryable: (RuntimeException) -> Boolean, block: (TransactionStatus) -> T): T {
-        check(!TransactionSynchronizationManager.isActualTransactionActive()) {
+        check(independentOfCaller || !TransactionSynchronizationManager.isActualTransactionActive()) {
             "this use case owns its local transaction and must be called outside a transaction"
         }
         var attempt = 1

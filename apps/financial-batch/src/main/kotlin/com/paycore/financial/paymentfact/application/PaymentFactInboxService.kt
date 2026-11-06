@@ -11,6 +11,7 @@ import com.paycore.financial.paymentfact.application.required.PaymentFactPersist
 import com.paycore.financial.paymentfact.application.required.PaymentFactProjectionStore
 import com.paycore.financial.paymentfact.domain.AuthorizedPaymentFact
 import com.paycore.financial.paymentfact.domain.CancelledPaymentFact
+import com.paycore.financial.paymentfact.domain.HoldReleaseTrigger
 import com.paycore.financial.paymentfact.domain.PaymentFact
 import com.paycore.financial.paymentfact.domain.PaymentFactInboxOutcome
 import com.paycore.financial.paymentfact.domain.PaymentFactProjectionRule
@@ -46,6 +47,7 @@ class PaymentFactInboxService(
 ) : ReceivePaymentFactUseCase {
 
     private val transactions = PaymentFactLocalTransactions(transactionManager, MAX_ATTEMPTS)
+    private val holdRelease = OriginalUnknownHoldRelease(projection)
     private val log = LoggerFactory.getLogger(PaymentFactInboxService::class.java)
 
     override fun receive(envelope: InboundPaymentFact): ReceivePaymentFactResult {
@@ -97,6 +99,9 @@ class PaymentFactInboxService(
             )
         }
         if (decision.holds.isNotEmpty()) projection.insertHolds(fact, decision.holds, envelope.eventId, now)
+        // D-FFR-003: 원승인이 도착하면 같은 TX에서 먼저 와 있던 ORIGINAL_UNKNOWN 취소 보류를 판정해 append-only 해제 기록을 남긴다(ACK·Inbox outcome은 그대로 —
+        // 승인 자체의 결과다). 이 TX가 rollback되면 해제 기록도 함께 사라지고, PAYMENT 재전송이 처음부터 다시 판정한다.
+        if (fact is AuthorizedPaymentFact) holdRelease.apply(history, fact, decision.holds.isNotEmpty(), HoldReleaseTrigger.INBOX, now)
         projection.recordFact(fact.identity.paymentId, now)
         if (decision.holds.isNotEmpty()) {
             log.warn(

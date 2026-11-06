@@ -67,6 +67,11 @@ class FinancialDatabaseAccountSpec(
     /** 열 단위 UPDATE를 받는 표 → 열(정렬 — SHOW GRANTS 표기 순). 결제별 직렬화 행은 반영 건수·갱신 시각·@Version만(신원 열은 첫 사실 값 고정). */
     val expectedColumnUpdates: Map<String, List<String>> = mapOf(
         "payment_fact_stream" to listOf("fact_count", "updated_at", "version"),
+        // ACQUIRING-001(V6): lane은 마지막 봉인 업무일·갱신 시각·@Version만(식별 열은 IODKU가 만들 때 고정).
+        "acquisition_lane" to listOf("last_sealed_business_date", "updated_at", "version"),
+        // ACQUIRING-001 배치2 2-D(V8): 파일 행은 전송 축 열·updated_at·@Version만(식별·봉인·합계·hash·수신·결과 축 열은 1143 — 수신·결과 전이는 2-F가 연다).
+        // 2-F(V11): 수신·결과 축 열(receipt_state·result_state)을 더했다 — ACK·결과 반영·결과 마감의 변경 감지 + @Version.
+        "acquisition_file" to listOf("receipt_state", "result_state", "transmission_lease_until", "transmission_state", "transmitted_at", "updated_at", "version"),
         "BATCH_JOB_EXECUTION" to jobExecutionUpdatable,
         "BATCH_STEP_EXECUTION" to stepExecutionUpdatable,
         "BATCH_JOB_EXECUTION_CONTEXT" to contextUpdatable,
@@ -83,6 +88,26 @@ class FinancialDatabaseAccountSpec(
         "payment_fact_cancellation" to "Select,Insert",
         "payment_fact_hold" to "Select,Insert",
         "payment_fact_stream" to "Select,Insert",
+        // ACQUIRING-001(V4·V5 → V6, D-FFR-002 새 표마다 최소 권한): 해제 기록·봉인 파일·바이트·레코드·상계·제외는 append-only, lane만 열 단위 UPDATE.
+        // acquisition_file 표 단위는 SELECT·INSERT(V6). 전송 축 열 UPDATE는 V8(2-D) 열 권한 — 위 expectedColumnUpdates. 수신·결과 축 열은 2-F가 연다.
+        "payment_fact_hold_release" to "Select,Insert",
+        "acquisition_lane" to "Select,Insert",
+        "acquisition_file" to "Select,Insert",
+        "acquisition_file_content" to "Select,Insert",
+        "acquisition_file_record" to "Select,Insert",
+        "acquisition_netting" to "Select,Insert",
+        "acquisition_exclusion" to "Select,Insert",
+        // ACQUIRING-001 배치2 2-D(V7 → V8): 전송 시도·결과는 append-only.
+        "acquisition_transmission_attempt" to "Select,Insert",
+        "acquisition_transmission_outcome" to "Select,Insert",
+        // ACQUIRING-001 배치2 2-F(V10 → V11): 응답 처리 기록·레코드 결과·"취소 매입 불요"는 append-only.
+        "acquisition_response" to "Select,Insert",
+        "acquisition_record_result" to "Select,Insert",
+        "acquisition_cancel_not_required" to "Select,Insert",
+        // ACQUIRING-001 배치2 2-G(V12 → V13): 재매입 승인 기록은 SELECT만 — 입력 경로(ACQ-ADMIN-001) 전 기록 생성 불가(D-ACQ-011).
+        "acquisition_reacquisition_approval" to "Select",
+        // rev 1.1(V14 → V15): 매입 확정 표지(D-ACQ-014 세대를 넘는 ACCEPTED 하나)는 append-only.
+        "acquisition_accepted_record" to "Select,Insert",
         "BATCH_JOB_INSTANCE" to "Select,Insert",
         "BATCH_JOB_EXECUTION" to "Select,Insert",
         "BATCH_JOB_EXECUTION_PARAMS" to "Select,Insert",
@@ -162,9 +187,11 @@ class FinancialDatabaseAccountSpec(
                 "authorization" to count("SELECT COUNT(*) FROM payment_fact_authorization WHERE payment_id = ?", pid),
                 "cancellation" to count("SELECT COUNT(*) FROM payment_fact_cancellation WHERE payment_id = ?", pid),
                 "hold" to count("SELECT COUNT(*) FROM payment_fact_hold WHERE payment_id = ? AND reason = ?", pid, HoldReason.ORIGINAL_UNKNOWN.name),
+                // ACQUIRING-001(D-FFR-003): 원승인 도착 TX가 같은 runtime 권한으로 append-only 해제 기록을 남긴다.
+                "released" to count("SELECT COUNT(*) FROM payment_fact_hold_release WHERE payment_id = ? AND decision = 'RELEASED'", pid),
                 "factCount" to count("SELECT fact_count FROM payment_fact_stream WHERE payment_id = ?", pid),
                 "version" to count("SELECT version FROM payment_fact_stream WHERE payment_id = ?", pid),
-            ) shouldBe mapOf("inbox" to 3, "authorization" to 1, "cancellation" to 2, "hold" to 1, "factCount" to 3, "version" to 3)
+            ) shouldBe mapOf("inbox" to 3, "authorization" to 1, "cancellation" to 2, "hold" to 1, "released" to 1, "factCount" to 3, "version" to 3)
         }
 
         Then("append-only fact tables (inbox, authorization, cancellation, hold) reject UPDATE, DELETE and lock reads with 1142 and the rows stay unchanged") {
@@ -253,6 +280,78 @@ class FinancialDatabaseAccountSpec(
             }.values.toSet() shouldBe setOf(1142)
         }
 
+        Then("ACQUIRING-001 append-only tables (hold release, sealed file, bytes, records, netting, exclusion) reject UPDATE, DELETE and lock reads with 1142") {
+            val acquiringAppendOnly = listOf(
+                // acquisition_file은 배치2 2-D부터 전송 축 열만 UPDATE할 수 있어 아래 별도 시험(열 단위 1143)으로 옮겼다 — 나머지 열·DELETE 거부는 그대로 본다.
+                "payment_fact_hold_release", "acquisition_file_content", "acquisition_file_record", "acquisition_netting", "acquisition_exclusion",
+                "acquisition_transmission_attempt", "acquisition_transmission_outcome",
+                // 2-F·2-G: 응답 처리 기록·레코드 결과·취소 매입 불요·재매입 승인 기록.
+                "acquisition_response", "acquisition_record_result", "acquisition_cancel_not_required", "acquisition_reacquisition_approval",
+                "acquisition_accepted_record",
+            )
+            app { c ->
+                acquiringAppendOnly.flatMap { table ->
+                    listOf(
+                        "$table update" to c.codeOf("UPDATE $table SET ${columnsOf(table).first()} = ${columnsOf(table).first()} WHERE 1 = 0"),
+                        "$table delete" to c.codeOf("DELETE FROM $table WHERE 1 = 0"),
+                        "$table lock" to c.codeOf("SELECT * FROM $table WHERE 1 = 0 FOR UPDATE"),
+                        "$table truncate" to c.codeOf("TRUNCATE TABLE $table"),
+                    )
+                }.toMap()
+            }.values.toSet() shouldBe setOf(1142)
+        }
+
+        Then("acquisition_lane: only last_sealed_business_date, updated_at and version are updatable (identity columns 1143), DELETE is 1142, the lane IODKU and lock read work") {
+            val columns = columnsOf("acquisition_lane")
+            val allowed = expectedColumnUpdates.getValue("acquisition_lane").toSet()
+            columns.containsAll(allowed + setOf("acquirer_code", "environment", "created_at")) shouldBe true
+            val codes = app { c -> columns.associateWith { col -> c.codeOf("UPDATE acquisition_lane SET `$col` = `$col` WHERE acquirer_code = 'NONE'") } }
+            codes.filterKeys { it in allowed } shouldBe allowed.associateWith { null }
+            codes.filterKeys { it !in allowed }.values.toSet() shouldBe setOf(1143)
+            val lane = "INSERT INTO acquisition_lane (acquirer_code, environment, last_sealed_business_date, created_at, updated_at, version) " +
+                "VALUES ('PRIVPROBE', 'TEST', NULL, NOW(3), NOW(3), 0)"
+            app { c ->
+                mapOf(
+                    // 운영 코드의 자리 확보(JpaAcquisitionLaneStore.lock)와 같은 형태: INSERT + 열 단위 UPDATE(version).
+                    "iodku slot" to c.codeOf("$lane ON DUPLICATE KEY UPDATE version = version"),
+                    "iodku identity" to c.codeOf("$lane ON DUPLICATE KEY UPDATE created_at = NOW(3)"),
+                    "lock read" to c.codeOf("SELECT acquirer_code FROM acquisition_lane WHERE acquirer_code = 'PRIVPROBE' FOR UPDATE"),
+                    "delete" to c.codeOf("DELETE FROM acquisition_lane WHERE acquirer_code = 'PRIVPROBE'"),
+                )
+            } shouldBe mapOf("iodku slot" to null, "iodku identity" to 1143, "lock read" to null, "delete" to 1142)
+        }
+
+        Then("acquisition_file: only the transmission, receipt and result axis columns, updated_at and version are updatable (identity, seal, totals, hash 1143), DELETE and TRUNCATE are 1142") {
+            val columns = columnsOf("acquisition_file")
+            val allowed = expectedColumnUpdates.getValue("acquisition_file").toSet()
+            columns.containsAll(allowed + setOf("file_id", "content_sha256", "sale_amount_minor", "content_bytes", "sealed_at")) shouldBe true
+            val codes = app { c -> columns.associateWith { col -> c.codeOf("UPDATE acquisition_file SET `$col` = `$col` WHERE file_id = 'NONE'") } }
+            codes.filterKeys { it in allowed } shouldBe allowed.associateWith { null }
+            codes.filterKeys { it !in allowed }.values.toSet() shouldBe setOf(1143)
+            app { c ->
+                mapOf(
+                    "delete" to c.codeOf("DELETE FROM acquisition_file WHERE 1 = 0"),
+                    "truncate" to c.codeOf("TRUNCATE TABLE acquisition_file"),
+                    // 리뷰 m-6: 열 단위 UPDATE 권한이 있으면 MySQL은 잠금 읽기를 허용한다(lane과 같다). 의도: 운영 코드는 이 표를 잠그지 않고 @Version으로 전이하지만,
+                    // 잠금 읽기 허용은 열 권한의 부수 효과로 받아들인다(UPDATE 범위는 위 1143이 고정).
+                    "lock read" to c.codeOf("SELECT file_id FROM acquisition_file WHERE 1 = 0 FOR UPDATE"),
+                )
+            } shouldBe mapOf("delete" to 1142, "truncate" to 1142, "lock read" to null)
+        }
+
+        Then("ACQUIRING-001 2-G: the runtime account cannot INSERT a re-acquisition approval (D-ACQ-011 — no recording before the ACQ-ADMIN-001 input path) but can read") {
+            app { c ->
+                mapOf(
+                    "insert" to c.codeOf(
+                        "INSERT INTO acquisition_reacquisition_approval (approval_id, file_id, seq, transaction_id, record_type, target_generation, new_generation, " +
+                            "target_status, reacquisition_of, requested_by, approved_by, reason_code, evidence_ref, channel, recorded_at) VALUES ('apr-probe', 'ACQ.NONE.TEST.20261105.001', " +
+                            "1, 'ptx', 'SALE', 0, 1, 'REJECTED', 'ACQ.NONE.TEST.20261105.001#1', 'a', 'b', 'R', 'E', 'ADMIN_SIGNED', NOW(3))",
+                    ),
+                    "select" to c.codeOf("SELECT COUNT(*) FROM acquisition_reacquisition_approval"),
+                )
+            } shouldBe mapOf("insert" to 1142, "select" to null)
+        }
+
         Then("it cannot change the schema, read the Flyway history or call the privilege procedures") {
             app { c ->
                 mapOf(
@@ -285,7 +384,7 @@ class FinancialDatabaseAccountSpec(
                     "installedBy" to c.column("SELECT DISTINCT installed_by FROM flyway_schema_history").toSet(),
                     "versions" to c.column("SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank"),
                 )
-            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3"))
+            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"))
         }
 
         Then("it cannot grant privileges to any account directly, grant the runtime role, or create accounts") {

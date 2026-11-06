@@ -1,0 +1,187 @@
+{
+  "description": "ACQUIRING-001 acknowledgement and result file contract v1 (virtual acquirer outbox format, generated independently of the apps with Python hashlib/json; Demo identifiers and amounts, not production values).",
+  "formatVersion": "1",
+  "encoding": "US-ASCII, LF line ends, final LF, no BOM",
+  "fieldCounts": {
+    "A": 10,
+    "ackT": 2,
+    "H": 7,
+    "R": 7,
+    "resultT": 7
+  },
+  "acks": [
+    {
+      "name": "received-regular",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+      "ackSeq": 1,
+      "outcome": "RECEIVED",
+      "reasonCode": null,
+      "receivedSha256": "fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f",
+      "receivedBytes": 494,
+      "recordCount": 2,
+      "receivedAt": "2026-11-05T14:06:01.250Z",
+      "expected": {
+        "fileName": "ACK.ACQ.SIMACQA.TEST.20261105.001.01.dat",
+        "content": "A|1|ACQ.SIMACQA.TEST.20261105.001|01|RECEIVED||fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f|494|2|2026-11-05T14:06:01.250Z\nT|3d49e754d93c9b07cd8efa0d62e2fc446b0a2d23893bbffc909a531d91f35f2c\n",
+        "contentSha256": "83e8aa1c88dc0402b17bf5a553704abb0f7abe8a8ef969fe411a3960bf415b29",
+        "contentBytes": 210
+      }
+    },
+    {
+      "name": "file-rejected",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+      "ackSeq": 1,
+      "outcome": "FILE_REJECTED",
+      "reasonCode": "BODY_HASH_MISMATCH",
+      "receivedSha256": "fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f",
+      "receivedBytes": 494,
+      "recordCount": null,
+      "receivedAt": "2026-11-05T14:06:01.250Z",
+      "expected": {
+        "fileName": "ACK.ACQ.SIMACQA.TEST.20261105.001.01.dat",
+        "content": "A|1|ACQ.SIMACQA.TEST.20261105.001|01|FILE_REJECTED|BODY_HASH_MISMATCH|fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f|494||2026-11-05T14:06:01.250Z\nT|ce306718a3015df3c37f1f9582c4a23557fae10ecd0e6bf4e975721e28d611a0\n",
+        "contentSha256": "e5b6229bbc3f631e05ff26847d6a3992c26ba5baec54e26b775eefa8e3282465",
+        "contentBytes": 232
+      }
+    },
+    {
+      "name": "receipt-conflict-second-receipt",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+      "ackSeq": 2,
+      "outcome": "RECEIPT_CONFLICT",
+      "reasonCode": "CONTENT_MISMATCH",
+      "receivedSha256": "9d9d56051b7344b869e54a8ecebf1b39f21fe2449222bbdd135e9a608b216738",
+      "receivedBytes": 494,
+      "recordCount": null,
+      "receivedAt": "2026-11-06T00:00:00.000Z",
+      "expected": {
+        "fileName": "ACK.ACQ.SIMACQA.TEST.20261105.001.02.dat",
+        "content": "A|1|ACQ.SIMACQA.TEST.20261105.001|02|RECEIPT_CONFLICT|CONTENT_MISMATCH|9d9d56051b7344b869e54a8ecebf1b39f21fe2449222bbdd135e9a608b216738|494||2026-11-06T00:00:00.000Z\nT|115df78a9aff34f0c3ee4533ec4b5b4a2c0fd3c85b8de809b6800d0dfbb5c045\n",
+        "contentSha256": "b6213b75b0afca0fb6899f405214cb6c16901270c4a1c3025e9c8d4c1fcdba72",
+        "contentBytes": 233
+      }
+    },
+    {
+      "name": "received-empty-day",
+      "fileId": "ACQ.SIMACQA.TEST.20261106.001",
+      "ackSeq": 1,
+      "outcome": "RECEIVED",
+      "reasonCode": null,
+      "receivedSha256": "aa018dd0ed93a69263aed0e0af0857372247d31d1837043b2c59d9e8a9b85662",
+      "receivedBytes": 193,
+      "recordCount": 0,
+      "receivedAt": "2026-11-06T14:06:00.000Z",
+      "expected": {
+        "fileName": "ACK.ACQ.SIMACQA.TEST.20261106.001.01.dat",
+        "content": "A|1|ACQ.SIMACQA.TEST.20261106.001|01|RECEIVED||aa018dd0ed93a69263aed0e0af0857372247d31d1837043b2c59d9e8a9b85662|193|0|2026-11-06T14:06:00.000Z\nT|27ee326281ffdba84c5a02ff7376143e749b7a48e11efaac36c94e7b245e6a10\n",
+        "contentSha256": "738e017be911a6d32510e1f7bb9df340fb264a1a90d92edb7446a0dce92244fc",
+        "contentBytes": 210
+      }
+    }
+  ],
+  "results": [
+    {
+      "name": "regular-one-accepted-one-rejected",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+      "fileSha256": "fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f",
+      "resultSeq": 1,
+      "producedAt": "2026-11-05T14:06:31.250Z",
+      "lines": [
+        {
+          "recordSeq": 1,
+          "transactionId": "ptx_auth_b",
+          "recordType": "SALE",
+          "result": "ACCEPTED",
+          "reasonCode": null,
+          "recordAmountMinor": 15000
+        },
+        {
+          "recordSeq": 2,
+          "transactionId": "ptx_auth_a",
+          "recordType": "SALE",
+          "result": "REJECTED",
+          "reasonCode": "AMOUNT_MISMATCH",
+          "recordAmountMinor": 30000
+        }
+      ],
+      "expected": {
+        "resultFileId": "RES.ACQ.SIMACQA.TEST.20261105.001.01",
+        "fileName": "RES.ACQ.SIMACQA.TEST.20261105.001.01.dat",
+        "content": "H|1|RES.ACQ.SIMACQA.TEST.20261105.001.01|ACQ.SIMACQA.TEST.20261105.001|fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f|01|2026-11-05T14:06:31.250Z\nR|1|ptx_auth_b|SALE|ACCEPTED||15000\nR|2|ptx_auth_a|SALE|REJECTED|AMOUNT_MISMATCH|30000\nT|2|1|1|15000|0|1e005ca1002f31085834f69c03b24b28141c304db7cebd85aa8bdcbacf17bbbc\n",
+        "contentSha256": "cdbed02690b2bd46a590cced0d756dcd6a5a281de8d742e3edf7b8843c0c42c0",
+        "contentBytes": 332
+      }
+    },
+    {
+      "name": "regular-delayed-second-file",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.001",
+      "fileSha256": "fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f",
+      "resultSeq": 2,
+      "producedAt": "2026-11-05T15:06:31.250Z",
+      "lines": [
+        {
+          "recordSeq": 2,
+          "transactionId": "ptx_auth_a",
+          "recordType": "SALE",
+          "result": "ACCEPTED",
+          "reasonCode": null,
+          "recordAmountMinor": 30000
+        }
+      ],
+      "expected": {
+        "resultFileId": "RES.ACQ.SIMACQA.TEST.20261105.001.02",
+        "fileName": "RES.ACQ.SIMACQA.TEST.20261105.001.02.dat",
+        "content": "H|1|RES.ACQ.SIMACQA.TEST.20261105.001.02|ACQ.SIMACQA.TEST.20261105.001|fd3ae1319bcd011286da952a8d9b33392ff044bbd1584b76fe7db934a8c0300f|02|2026-11-05T15:06:31.250Z\nR|2|ptx_auth_a|SALE|ACCEPTED||30000\nT|1|1|0|30000|0|ef928577399c1e077f20cdcbd42cfc1ab9da829fe7ba5b3ffbfeed684bb11cb7\n",
+        "contentSha256": "9de28e2c1259ea804ddb968676ef8c0c1c36d9b5f8d642bd04fd67d87d4fdc12",
+        "contentBytes": 281
+      }
+    },
+    {
+      "name": "empty-business-day",
+      "fileId": "ACQ.SIMACQA.TEST.20261106.001",
+      "fileSha256": "aa018dd0ed93a69263aed0e0af0857372247d31d1837043b2c59d9e8a9b85662",
+      "resultSeq": 1,
+      "producedAt": "2026-11-06T14:06:30.000Z",
+      "lines": [],
+      "expected": {
+        "resultFileId": "RES.ACQ.SIMACQA.TEST.20261106.001.01",
+        "fileName": "RES.ACQ.SIMACQA.TEST.20261106.001.01.dat",
+        "content": "H|1|RES.ACQ.SIMACQA.TEST.20261106.001.01|ACQ.SIMACQA.TEST.20261106.001|aa018dd0ed93a69263aed0e0af0857372247d31d1837043b2c59d9e8a9b85662|01|2026-11-06T14:06:30.000Z\nT|0|0|0|0|0|2b32c470d1cb584d1bee0dd983a5c834b1c8dce20d81cc2f4872f22446c9a548\n",
+        "contentSha256": "ea01ccf8b84a8f18c6f6d8367958f7a9be242ac2491701a5f127d06e0522977d",
+        "contentBytes": 241
+      }
+    },
+    {
+      "name": "reacquisition-with-cancel",
+      "fileId": "ACQ.SIMACQA.TEST.20261105.002",
+      "fileSha256": "1b579d5010df2d549d000c8a26c87ff1718b2f8d418c3a778d462851a2bfa3aa",
+      "resultSeq": 1,
+      "producedAt": "2026-11-07T09:01:00.000Z",
+      "lines": [
+        {
+          "recordSeq": 1,
+          "transactionId": "ptx_auth_c",
+          "recordType": "SALE",
+          "result": "ACCEPTED",
+          "reasonCode": null,
+          "recordAmountMinor": 50000
+        },
+        {
+          "recordSeq": 2,
+          "transactionId": "ptx_cancel_d",
+          "recordType": "CANCEL",
+          "result": "ACCEPTED",
+          "reasonCode": null,
+          "recordAmountMinor": 10000
+        }
+      ],
+      "expected": {
+        "resultFileId": "RES.ACQ.SIMACQA.TEST.20261105.002.01",
+        "fileName": "RES.ACQ.SIMACQA.TEST.20261105.002.01.dat",
+        "content": "H|1|RES.ACQ.SIMACQA.TEST.20261105.002.01|ACQ.SIMACQA.TEST.20261105.002|1b579d5010df2d549d000c8a26c87ff1718b2f8d418c3a778d462851a2bfa3aa|01|2026-11-07T09:01:00.000Z\nR|1|ptx_auth_c|SALE|ACCEPTED||50000\nR|2|ptx_cancel_d|CANCEL|ACCEPTED||10000\nT|2|2|0|50000|10000|bc38fd0a9870abef5c20a939f82b7b6a2d9a8f576ad4572429925d33a9c36c5e\n",
+        "contentSha256": "5c1477a5747f8540a808559f44225c186d4f82771cd19e010e731c6b6a8f6ca6",
+        "contentBytes": 325
+      }
+    }
+  ]
+}

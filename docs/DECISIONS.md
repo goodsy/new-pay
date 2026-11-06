@@ -193,6 +193,13 @@
 | D-FFR-002 | Q-FFR-02 | "매입 전에 별도 작업 (Recommended)". FINANCIAL DB 계정 분리(migration/runtime, 확정 사실 표 UPDATE·DELETE DB 거부)는 FIN-DBACCOUNT-001로 ACQUIRING-001 전에 수행 | FIN-FACT-RELAY-001 | FIN-DBACCOUNT-001 | 2026-11-05 |
 | D-FFR-003 | Q-FFR-03 | "일치 시 자동 해제 (Recommended)". 정합성 보류 5종(ORIGINAL_MISMATCH 등) 유지. ORIGINAL_UNKNOWN 보류는 원승인 도착 + 금액·통화·식별 MATCH 시 append-only 해제 기록으로 자동 해제, 불일치는 운영자 검토. 보류 원본 기록은 수정하지 않음 | FIN-FACT-RELAY-001 | ACQUIRING-001 | 2026-11-05 |
 | D-FFR-004 | Q-FFR-04 | "원문 보존 후 수신 확인 (Recommended)". FINANCIAL은 모르는 schema 버전 사실을 UNSUPPORTED로 원문 보존 후 ACK. 재처리 도구는 후속 | FIN-FACT-RELAY-001 | FIN-FACT-RELAY-001 | 2026-11-05 |
+| D-ACQ-008 | Q-ACQ-07 | "Demo는 MID로, 실값은 후속 (Recommended)". Demo는 PayCore MID + 기관 거래 참조로 대조, 실제 계약번호는 후속 PaymentAuthorized v2(승인 시점 값), 그 전 LIVE 매입 차단 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-009 | Q-ACQ-08 | "원승인 매입 확정 때만 (Recommended)". 원 SALE ACCEPTED일 때만. 대기면 자동 대기, UNKNOWN이면 대사·경보, REJECTED면 '취소 매입 불요' 기록 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-010 | Q-ACQ-09 | "자동 반영, 기록 보존 (Recommended)". 유효 결과면 append-only 자동 반영(UNKNOWN 행 보존), ACCEPTED 인정 시각=수신 시각, 상충 시 격리 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-011 | Q-ACQ-10 | "2인 승인 (Recommended)". 2인 승인(위험 명령 목록 추가). 이번 작업은 FINANCIAL 기록·검사까지, ADMIN 입력은 후속 — 그 전 재매입 실행 불가 | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-012 | Q-ACQ-11 | "목록 확정 시점 (Recommended)". 파일 대상 목록(membership) 확정 시점 이전 취소만 상계, 이후~전송 사이 취소는 별도 CANCEL 레코드(최종 순액 동일) | ACQUIRING-001 | ACQUIRING-001 | 2026-11-05 |
+| D-ACQ-013 | Q-2G-1 | "재매입을 순액으로 (Recommended)". 원 SALE 거절로 취소 매입 불요 종결된 취소가 있는 상태에서 재매입하면 재매입 레코드 금액 = 원승인액 − 그때까지 받은 모든 취소, 불요 기록은 유지(취소는 금액에 한 번만 반영) | ACQUIRING-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQ-014 | Q-2G-2 | "대사로 미매입 확인 후만 (Recommended)". 결과 UNKNOWN 레코드는 대사로 미매입이 확정된 경우에만 재매입 대상. 재매입 뒤 앞 세대 ACCEPTED가 오면 승인 무효(TARGET_CHANGED), 거래·종류당 세대를 넘는 ACCEPTED는 하나 | ACQUIRING-001 | ACQ-ADMIN-001 | 2026-11-06 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

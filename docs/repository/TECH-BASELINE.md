@@ -274,3 +274,17 @@ Boot BOM 밖·**빌드 전용**이다(앱 runtime·runtime SBOM에 들어가지 
 - 시험: Vitest 39(`TEST-SUMMARY-FRONTEND`, JUnit 보고서 신선도 `--not-before`).
 - **LIVE 전 검토(후속 — Q-S7-1)**: TOTP 등록 QR. 현재는 설정 키 수동 입력만이며, QR 라이브러리를 넣으면 이 표의 14일 규칙·CVE(dev 포함)·lockfile·라이선스 검토를 거친다(자체 인코더는 시험 부담 — 대안).
 - actuator(Boot BOM, S2): management 포트 분리(D-15 — ADMIN-BOOT-001 §25), health 응답은 상세 없이 probe 그룹 이름만(Boot 4.1.1 실측 `{"groups":["liveness","readiness"],"status":"UP"}`).
+
+## 10. 매입 SFTP 라이브러리 (ACQUIRING-001 배치2 2-D, 2026-11-05)
+
+| 항목 | 값 |
+|---|---|
+| artifact | `org.apache.sshd:sshd-sftp` **2.20.1** (catalog `apache-sshd`) → 전이 `sshd-core`·`sshd-common` 2.20.1, `slf4j-api`(Boot BOM 2.0.18로 해석) |
+| 결정 | Coordinator 결정 C-1(가역 — 사용자 결정 아님): Boot BOM 밖이라 catalog 고정, spring-integration-sftp 미사용(7.1.1이 sshd 2.18.0을 끌어옴 — 더 오래된 sshd, Integration 의존 추가) |
+| 게시·14일 규칙 | Maven Central 2026-10-15 게시 GA, 확인일 기준 21일 경과 |
+| 사용처 | `apps/financial-batch` runtime(SFTP 클라이언트 `SftpAcquirerFileChannel`) + 시험(`TestAcquirerSftpServer` — 같은 artifact의 `SshServer`). **2-E(2026-11-05)**: `apps/institution-simulator` runtime(가상 매입사 내장 서버 `AcquirerSftpServer` — `SshServer` + `SftpSubsystemFactory`, 공개키 인증만) + 시험(같은 artifact의 `SshClient`·`SftpClient`). 같은 catalog 항목·버전(앱 간 코드 공유 없음) |
+| resolved tree(2-E) | `./gradlew --no-daemon -q :apps:institution-simulator:dependencies --configuration runtimeClasspath`(2026-11-05 09:30Z, exit 0 — GRADLE-DEPS-INSTITUTION-SIMULATOR argv): `sshd-sftp:2.20.1 → sshd-core:2.20.1 → sshd-common:2.20.1`, `slf4j-api 1.7.36 → 2.0.18`, `jcl-over-slf4j 1.7.36 → 2.0.18`(BOM). 관찰: runtime에 `commons-logging 1.3.6`(Spring)과 `jcl-over-slf4j`가 함께 있다(같은 `org.apache.commons.logging` 패키지 — sshd-common의 전이 의존이라 financial-batch에도 같은 전이가 있을 것으로 보이나 이번에는 그 트리를 다시 실행하지 않았다). 시험·기동 영향은 관찰되지 않았고 제외(exclude) 여부는 두 앱 공통 결정으로 Coordinator에 보고(2-E에서 바꾸지 않음) |
+| resolved tree | `./gradlew :apps:financial-batch:dependencies --configuration runtimeClasspath`(2026-11-05): `sshd-sftp:2.20.1 → sshd-core:2.20.1 → sshd-common:2.20.1`, `slf4j-api 1.7.36 → 2.0.18`. 다른 새 전이 의존 없음 |
+| CVE 확인 | 2026-11-05T07:59Z OSV API(`POST https://api.osv.dev/v1/query`, purl `pkg:maven/org.apache.sshd/<artifact>@2.20.1`): sshd-sftp·sshd-core·sshd-common **0건**. 양성 대조: `sshd-common@2.9.0` → GHSA-2326-hx7g-3m9r·GHSA-fhw8-8j55-vwgq·GHSA-mjmq-gwgm-5qhm 검출. 정식 CVE-SCAN(SBOM + osv-scanner — `harness/scripts/cve-scan.py`)은 Verifier 몫(이번 Implementer 실행 안 함) |
+| 키 알고리즘 | JDK 기본 ECDSA P-256(`ecdsa-sha2-nistp256`) — 추가 암호 라이브러리 없음. Ed25519는 쓰지 않는다(net.i2p eddsa 또는 BouncyCastle 추가가 필요 — 미도입) |
+| 주의 | 개인키는 암호 없는 OpenSSH 형식 파일(Demo). 암호화 키·비밀 저장소·운영 host key 배포·교체는 LIVE Gate(ACQUIRING-001 §14-3) |

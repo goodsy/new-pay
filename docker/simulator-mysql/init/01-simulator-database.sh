@@ -8,6 +8,11 @@
 #     ALL PRIVILEGES·GRANT OPTION을 REVOKE한다 — AUTH-001 이전 볼륨의 runtime 계정은 DB 단위 DML(UPDATE·DELETE 포함)을 가졌다(rev 0.3 m-4).
 #   - 권한 부여 procedure paycore_simulator_privilege.set_runtime_table_privileges(table, privileges): PayCore 관례 §9.2(docker/mysql/init/01-owned-databases.sh)와
 #     같은 규칙 — SQL SECURITY DEFINER(잠긴 계정 paycore_simulator_grantor@localhost), 받는 쪽 role 고정, 이 DB의 base table만, 허용 집합만, 먼저 GRANT 후 여집합 REVOKE.
+#   - 열 단위 UPDATE 부여 procedure paycore_simulator_privilege.grant_runtime_column_update(table, columns)(ACQUIRING-001 2-E — 가상 매입사 Worker 진행 표의
+#     상태 열만): PayCore WEBHOOK-001 D-WH-009 helper(docker/mysql/init/01-owned-databases.sh)와 같은 방어 — DEFINER = 잠긴 grantor, 받는 쪽 role 고정, 이 DB의
+#     base table만(flyway_schema_history 거부), 열 목록은 소문자 이름을 ", "로 이은 1~8개이고 모두 그 표에 있어야 한다. 부여만 한다(재실행 안전). 같은 표에
+#     set_runtime_table_privileges를 나중에 부르면 여집합 REVOKE UPDATE가 열 권한도 회수하므로 열 권한이 있는 표에는 표 단위 helper를 다시 쓰지 않는다.
+#     기존 Simulator 볼륨은 이 스크립트를 한 번 다시 실행해야 V12 migration(이 procedure 호출)이 돈다 — 실행 전에는 Flyway가 기동을 거부한다(fail-closed).
 #   - 시험: apps/institution-simulator 시험이 이 파일을 그대로 MySQL 8.4.11 컨테이너에 넣는다(SimulatorDatabaseAccountSpec이 SHOW GRANTS·1142·재실행 수렴을 확인).
 #   - 빈 volume의 첫 기동에 entrypoint가 실행한다. **기존 Simulator 볼륨에는 자동 실행되지 않는다** — 컨테이너 안에서 이 스크립트를 한 번 직접 실행해 수렴시킨다
 #     (`docker compose exec simulator-mysql bash /docker-entrypoint-initdb.d/01-simulator-database.sh`, .env.example). 수렴 전에는 Simulator가 원장 표에 UPDATE/DELETE
@@ -88,5 +93,43 @@ END //
 DELIMITER ;
 GRANT EXECUTE ON PROCEDURE ${db}_privilege.set_runtime_table_privileges TO '${db}_grantor'@'localhost';
 GRANT EXECUTE ON PROCEDURE ${db}_privilege.set_runtime_table_privileges TO '${db}_migration'@'%';
+
+DROP PROCEDURE IF EXISTS ${db}_privilege.grant_runtime_column_update;
+DELIMITER //
+CREATE DEFINER = '${db}_grantor'@'localhost' PROCEDURE ${db}_privilege.grant_runtime_column_update(
+    IN p_table VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin,
+    IN p_columns VARCHAR(600) CHARACTER SET ascii COLLATE ascii_bin)
+    MODIFIES SQL DATA
+    SQL SECURITY DEFINER
+    COMMENT 'ACQUIRING-001 2-E: grant column-level UPDATE on existing columns of one ${db} base table to the ${db} runtime role'
+BEGIN
+    IF p_table IS NULL
+        OR NOT REGEXP_LIKE(p_table, '^[a-z][a-z0-9_]{0,63}\$', 'c')
+        OR LOCATE(CHAR(10 USING ascii), p_table) > 0
+        OR LOCATE(CHAR(13 USING ascii), p_table) > 0
+        OR p_table = 'flyway_schema_history'
+        OR NOT EXISTS (SELECT 1 FROM information_schema.TABLES
+                       WHERE TABLE_SCHEMA = '${db}' AND TABLE_NAME = p_table AND TABLE_TYPE = 'BASE TABLE') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'column privileges can be granted only on a base table of the owned database';
+    END IF;
+    IF p_columns IS NULL
+        OR NOT REGEXP_LIKE(p_columns, '^[a-z][a-z0-9_]{0,63}(, [a-z][a-z0-9_]{0,63}){0,7}\$', 'c')
+        OR LOCATE(CHAR(10 USING ascii), p_columns) > 0
+        OR LOCATE(CHAR(13 USING ascii), p_columns) > 0
+        OR (SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = '${db}' AND TABLE_NAME = p_table AND FIND_IN_SET(COLUMN_NAME, REPLACE(p_columns, ', ', ',')) > 0)
+           <> (CHAR_LENGTH(p_columns) - CHAR_LENGTH(REPLACE(p_columns, ',', '')) + 1) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'column privileges need existing lower-case column names of that table';
+    END IF;
+    SET @paycore_runtime_column_sql =
+        CONCAT('GRANT UPDATE (', p_columns, ') ON \`${db}\`.\`', p_table, '\` TO \'${db}_runtime\'@\'%\'');
+    PREPARE paycore_runtime_column_stmt FROM @paycore_runtime_column_sql;
+    EXECUTE paycore_runtime_column_stmt;
+    DEALLOCATE PREPARE paycore_runtime_column_stmt;
+    SET @paycore_runtime_column_sql = NULL;
+END //
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE ${db}_privilege.grant_runtime_column_update TO '${db}_grantor'@'localhost';
+GRANT EXECUTE ON PROCEDURE ${db}_privilege.grant_runtime_column_update TO '${db}_migration'@'%';
 FLUSH PRIVILEGES;
 SQL

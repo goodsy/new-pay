@@ -115,6 +115,41 @@ class SimulatorArchitectureSpec : FunSpec({
         classes.get("$BASE_PACKAGE.merchant.adapter.persistence.JpaMerchantWebhookReceiptEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
     }
 
+    // ACQUIRING-001 2-E: 가상 매입사(acquirer)는 VAN 원장을 van.application.provided 조회로만 읽고(같은 DB여도 모듈 경계 유지), 인증·가맹점 모듈과 무관하다.
+    // 다른 모듈은 acquirer를 모른다.
+    test("the acquirer module reads the van module only through van.application.provided; no other module depends on acquirer") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.acquirer..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.van.domain..", "$BASE_PACKAGE.van.application.required..", "$BASE_PACKAGE.van.adapter..",
+                "$BASE_PACKAGE.authentication..", "$BASE_PACKAGE.merchant..",
+            )
+            .check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.acquirer..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.van.application")
+            .check(classes)
+        noClasses().that().resideInAnyPackage("$BASE_PACKAGE.authentication..", "$BASE_PACKAGE.van..", "$BASE_PACKAGE.merchant..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.acquirer..")
+            .check(classes)
+    }
+
+    // 2-E: 가상 매입사 기관 사실(수신·판정·결과 줄·게시 기록)은 append-only — Port에 수정·삭제 연산이 없고 Entity는 @Immutable. 진행 표 Entity만 갱신된다(열 권한 V12).
+    // VAN 대조 조회 Port는 읽기만 갖는다(원장 기록 Port의 메서드 집합은 위 시험 그대로).
+    test("the acquirer ledger has no update or delete path; only the work item entity is mutable; the VAN evidence port only reads") {
+        classes.get("$BASE_PACKAGE.acquirer.application.required.AcquirerReceiptStore").methods.map { it.name }.toSet() shouldBe
+            setOf(
+                "receipts", "receipt", "append", "appendJudgements", "appendResultLines", "resultLines", "transactionAccepted", "evidenceAccepted", "acceptedSale",
+                "consumedCancels",
+            )
+        classes.get("$BASE_PACKAGE.acquirer.application.required.AcquirerPublicationStore").methods.map { it.name }.toSet() shouldBe
+            setOf("schedule", "due", "markPublished")
+        listOf("ReceivedFile", "RecordDecision", "ResultLine", "OutboundFile").forEach { name ->
+            classes.get("$BASE_PACKAGE.acquirer.adapter.persistence.JpaAcquirer${name}Entity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe true
+        }
+        classes.get("$BASE_PACKAGE.acquirer.adapter.persistence.JpaAcquirerWorkItemEntity").isAnnotatedWith(org.hibernate.annotations.Immutable::class.java) shouldBe false
+        classes.get("$BASE_PACKAGE.van.application.required.VanAcquiringEvidenceStore").methods.map { it.name }.toSet() shouldBe
+            setOf("approvedAuthorizations", "approvedCancellations")
+    }
+
     test("the simulator has no REAL institution client and no card-number field (virtual card references only)") {
         classes.filter { it.simpleName.startsWith("Real") }.map { it.name } shouldBe emptyList()
         classes.flatMap { c -> c.fields.map { it.name.lowercase() } }.filter { it.contains("cardnumber") || it == "pan" || it.contains("cvc") } shouldBe emptyList()

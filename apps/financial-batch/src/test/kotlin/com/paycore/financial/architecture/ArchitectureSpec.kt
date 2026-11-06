@@ -4,6 +4,7 @@ import com.paycore.financial.FinancialBatchApplication
 import com.paycore.testsupport.architecture.PayCoreArchitectureRules
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -107,18 +108,25 @@ class ArchitectureSpec : FunSpec({
     }
 
     test("batch adapter uses only application.provided (no adapters/required ports/Spring Data/JPA)") {
-        // 빈 대상: adapter.batch가 아직 없다.
-        rules.batchAdapterUsesOnlyApplication().allowEmptyShould(true).check(classes)
+        // 대상 있음(ACQUIRING-001): acquiring.adapter.batch 매입 제출 Job(provided Use Case만 호출).
+        rules.batchAdapterUsesOnlyApplication().allowEmptyShould(false).check(classes)
     }
 
     test("@NamedInterface only on application.provided package-info") {
-        // 빈 대상: 공개 provided 패키지(package-info)가 아직 없다.
-        rules.namedInterfacesOnlyOnProvidedPackages().allowEmptyShould(true).check(classes)
+        // 대상 있음(ACQUIRING-001): paymentfact.application.provided package-info(acquiring 모듈이 쓰는 공개 API).
+        rules.namedInterfacesOnlyOnProvidedPackages().allowEmptyShould(false).check(classes)
     }
 
     test("no cycles between modules") {
-        // 대상 있음: paymentfact slice 하나(다른 모듈이 생기면 그 사이 순환을 검사).
+        // 대상 있음: paymentfact·acquiring 두 slice(acquiring → paymentfact.provided 한 방향).
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)
+    }
+
+    test("ACQUIRING-001 2-D: Apache MINA SSHD (org.apache.sshd) is used only in adapter.integration") {
+        // 대상 있음: SftpAcquirerFileChannel·AcquiringTransportSettings. Domain·application·다른 adapter는 기술 중립 Port(AcquirerFileChannel)만 본다.
+        noClasses().that().resideOutsideOfPackage("..adapter.integration..").should().dependOnClassesThat().resideInAPackage("org.apache.sshd..")
+            .allowEmptyShould(false).check(classes)
+        classes.any { c -> c.packageName.endsWith("adapter.integration") && c.directDependenciesFromSelf.any { it.targetClass.packageName.startsWith("org.apache.sshd") } } shouldBe true
     }
 }) {
     companion object {

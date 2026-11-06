@@ -3,6 +3,8 @@ package com.paycore.financial.paymentfact.application.required
 import com.paycore.financial.paymentfact.domain.AuthorizedPaymentFact
 import com.paycore.financial.paymentfact.domain.CancelledPaymentFact
 import com.paycore.financial.paymentfact.domain.HoldReason
+import com.paycore.financial.paymentfact.domain.HoldReleaseDecision
+import com.paycore.financial.paymentfact.domain.HoldReleaseTrigger
 import com.paycore.financial.paymentfact.domain.PaymentFact
 import com.paycore.financial.paymentfact.domain.PaymentFactHistory
 import com.paycore.financial.paymentfact.domain.PaymentFactIdentity
@@ -30,4 +32,30 @@ interface PaymentFactProjectionStore {
 
     /** 직렬화 행의 반영 건수 +1·갱신 시각. */
     fun recordFact(paymentId: String, at: Instant)
+
+    // ── D-FFR-003 ORIGINAL_UNKNOWN 자동 해제(ACQUIRING-001 §12). 모두 결제별 직렬화 행 잠금 아래에서 부른다. ──
+
+    /** 이 Payment에서 원승인 [originalTransactionId]를 가리키는 취소의 ORIGINAL_UNKNOWN 보류 중 해제 기록이 아직 없는 것(보류 id 순). */
+    fun unreleasedOriginalUnknownHolds(paymentId: String, originalTransactionId: String): List<OpenHold>
+
+    /** 거래 [transactionId]에 보류 행이 하나라도 있는가(원승인 자신의 정합성 보류 — 해제 경로 없음). */
+    fun hasHolds(transactionId: String): Boolean
+
+    /** 해제 판정 기록(append-only, 보류 하나당 한 행 — UNIQUE(hold_id)). 보류 원본 행은 바꾸지 않는다. */
+    fun insertHoldReleases(
+        paymentId: String,
+        authorizationTransactionId: String,
+        decisions: List<Pair<OpenHold, HoldReleaseDecision>>,
+        trigger: HoldReleaseTrigger,
+        at: Instant,
+    )
+
+    /** 일괄 처리(SWEEP) 대상: 해제 기록 없는 ORIGINAL_UNKNOWN 보류의 원승인이 이미 투영된 Payment(최대 [limit]개, payment_id 순). 잠금 없음. */
+    fun paymentsWithReleasableHolds(limit: Int): List<String>
+
+    /** 이미 있는 직렬화 행을 잠근다(없으면 null). 반환 = 처음 신원. */
+    fun lockExistingStream(paymentId: String): PaymentFactIdentity?
 }
+
+/** 해제 기록이 없는 보류 하나(보류 행 id와 보류된 취소 거래 ID). */
+data class OpenHold(val holdId: Long, val cancellationTransactionId: String)

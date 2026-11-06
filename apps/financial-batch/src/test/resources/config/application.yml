@@ -15,3 +15,13 @@ paycore:
           secret: dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDE=
         - key-id: fact-golden-k2
           secret: dGVzdC1vbmx5LXBheW1lbnQtZmFjdC1nb2xkZW4ta2V5LTAwMDI=
+    # ACQUIRING-001 매입 설정(Demo 값 — 운영값 아님, D-ACQ-003). 마감 정책은 버전 관리 설정이다. 시험은 업무일을 과거로 두고 시계를 고정한다.
+    acquiring:
+      sender-id: PAYCORE
+      cutoff-policies:
+        - version: acq-cutoff-demo-1
+          effective-from: "2026-01-01"
+          cutoff-time: "23:00"
+      # ACQUIRING-001 2-F 결과 마감(Demo 값 — 운영값 LIVE Gate). 시험은 대개 서비스를 고정 시계·명시 마감으로 직접 만들고, 이 값은 운영 Bean(스케줄러 시험)만 쓴다.
+      results:
+        deadline: PT1H
