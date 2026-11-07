@@ -326,6 +326,8 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
         /** 표 단위 runtime 권한 기대값(db/runtime-privilege/admin). 권한을 넓히는 변경은 이 기대값을 함께 바꾸는 검토된 변경이어야 한다. */
         val ADMIN_RUNTIME_TABLE_PRIVILEGES: Map<String, String> = linkedMapOf(
             "admin_account" to "SELECT, INSERT",
+            // ACQ-ADMIN-001 B1-A V8: 재매입 요청 고정 값 INSERT-only.
+            "admin_acquiring_ops_command" to "SELECT, INSERT",
             "admin_approval_request" to "SELECT, INSERT",
             "admin_audit_event" to "SELECT, INSERT",
             "admin_bootstrap" to "SELECT, INSERT",
@@ -361,7 +363,9 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_ops_reconciliation_checkpoint" to listOf("watermark", "last_run_at", "last_full_scan_at", "version"),
         )
 
-        val APPEND_ONLY_TABLES = listOf("admin_audit_event", "admin_bootstrap", "admin_role_event", "admin_operator_cancel_command", "admin_ops_reconciliation_finding")
+        val APPEND_ONLY_TABLES = listOf(
+            "admin_audit_event", "admin_bootstrap", "admin_role_event", "admin_operator_cancel_command", "admin_ops_reconciliation_finding", "admin_acquiring_ops_command",
+        )
 
         /** 초기화 스크립트의 ADMIN 건너뜀 안내(정확한 문구 — .env.example 수렴 절차가 "이 줄이 없어야 한다"로 참조). */
         const val ADMIN_SKIP_MESSAGE = "01-owned-databases.sh: ADMIN passwords not set — skipping paycore_admin (compose.yaml requires them)"
@@ -381,7 +385,7 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
 
         private val FIRST_COLUMN = mapOf(
             "admin_audit_event" to "event_id", "admin_bootstrap" to "id", "admin_role_event" to "event_id", "admin_operator_cancel_command" to "approval_id",
-            "admin_ops_reconciliation_finding" to "finding_id",
+            "admin_ops_reconciliation_finding" to "finding_id", "admin_acquiring_ops_command" to "approval_id",
         )
         fun firstColumn(table: String): String = FIRST_COLUMN.getValue(table)
     }

@@ -38,4 +38,22 @@ sealed interface ApprovalTarget {
             val PAYMENT_ID = Regex("^pay_[0-9A-HJKMNP-TV-Z]{26}$")
         }
     }
+
+    /**
+     * FINANCIAL 매입 원 파일 대상(`ACQ_REACQUISITION` — ACQ-ADMIN-001 B1-A, D-ACQA-003 승인 하나 = 원 파일 하나). ID 문법 = FINANCIAL 파일 계약 v1. 대상 버전 열은 0 고정이다:
+     * 권위 대상 버전은 명령 행 `pinned_target`의 레코드별 (세대, 상태)이고 승인 TX1이 FINANCIAL 재조회 값과 비교한다(FINANCIAL 실행 TX가 다시 비교).
+     */
+    data class AcquisitionFile(val fileId: String) : ApprovalTarget {
+        init {
+            require(FILE_ID.matches(fileId)) { "acquisition file id format (ACQ.<acquirer>.<env>.<yyyyMMdd>.<nnn>)" }
+        }
+
+        override val kind: ApprovalTargetKind get() = ApprovalTargetKind.ACQUISITION_FILE
+        override val ref: String get() = fileId
+        override val version: Long get() = 0
+
+        companion object {
+            val FILE_ID = Regex("^ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3}$")
+        }
+    }
 }

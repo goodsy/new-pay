@@ -88,12 +88,13 @@ internal sealed interface FinancialResponseShape {
         private fun opt(inner: FinancialResponseShape) = Nullable(inner)
 
         private val ENVIRONMENT = oneOf("TEST", "LIVE")
-        private val TRANSMISSION = oneOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED")
+        // ACQ-ADMIN-001 B2(§15 L-9): FINANCIAL 전송 축에 TRANSMISSION_WITHHELD(재매입 파일 전송 보류 — 대사)가 생겼다(FINANCIAL V19 CHECK와 같은 집합).
+        private val TRANSMISSION = oneOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "TRANSMISSION_WITHHELD")
         private val RECEIPT = oneOf("NONE", "RECEIVED", "FILE_REJECTED", "RECEIPT_CONFLICT")
         private val RESULT_AXIS = oneOf("AWAITING", "COMPLETE", "DEADLINE_PASSED")
         private val RECORD_STATUS = oneOf("AWAITING", "ACCEPTED", "REJECTED", "FILE_REJECTED", "UNKNOWN", "CONFLICT")
         private val ATTENTION = oneOf(
-            "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "RECEIPT_CONFLICT", "RESPONSE_QUARANTINED", "RECORD_UNKNOWN", "RECORD_CONFLICT",
+            "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "TRANSMISSION_WITHHELD", "RECEIPT_CONFLICT", "RESPONSE_QUARANTINED", "RECORD_UNKNOWN", "RECORD_CONFLICT",
             "RESULT_DEADLINE_PASSED", "RESULT_OVERDUE",
         )
         private val RESPONSE_KIND = oneOf("ACK", "RESULT")
@@ -107,7 +108,7 @@ internal sealed interface FinancialResponseShape {
             "CONNECT_FAILED", "HOST_KEY_REJECTED", "AUTHENTICATION_FAILED", "UPLOAD_FAILED", "RENAME_REFUSED", "RENAME_OUTCOME_UNKNOWN", "VERIFY_FAILED",
             "RENAMED_BUT_ABSENT", "LEASE_EXHAUSTED", "INTERNAL_ERROR",
         )
-        private val RESULTING_STATE = oneOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED")
+        private val RESULTING_STATE = oneOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "TRANSMISSION_WITHHELD")
 
         // 기관 응답·결과 행(V10 + V14 CHECK).
         private val DISPOSITION = oneOf("APPLIED", "QUARANTINED")
@@ -128,8 +129,10 @@ internal sealed interface FinancialResponseShape {
             "recordStatusCounts" to obj(
                 "awaiting" to COUNT, "accepted" to COUNT, "rejected" to COUNT, "fileRejected" to COUNT, "unknown" to COUNT, "conflict" to COUNT,
             ),
-            "attention" to Arr(ATTENTION, max = 8),
+            "attention" to Arr(ATTENTION, max = 9),
             "reacquisitionCandidate" to Flag,
+            // ACQ-ADMIN-001 B2(§5.1 3상태): 새 세대 진행 중(검토 대상 아님). 둘 다 false = 배지 없음.
+            "reacquisitionInProgress" to Flag,
         )
 
         private val RECORD: FinancialResponseShape = obj(
@@ -187,5 +190,39 @@ internal sealed interface FinancialResponseShape {
             "records" to RECORDS,
             "readAt" to TIME,
         )
+
+        // ------------------------------------------------------------------ ACQ-ADMIN-001 B1-A 조작 채널(FINANCIAL AdminAcquiringOperationsController — 같은 키 집합·값 문법)
+
+        /** FINANCIAL `ReacquisitionCommandParser.APPROVAL_ID`(승인·요청자·승인자 ID). */
+        private val OPS_ID = Text(Regex("^[A-Za-z0-9._:-]{1,64}$"))
+
+        /** FINANCIAL `AcquisitionOpsDecision.CODE`(결정 거절 code) = ReacquisitionRefusal 이름 + APPROVAL_EXECUTION_EXPIRED. */
+        private val OPS_CODE = Text(Regex("^[A-Z][A-Z0-9_]{0,47}$"))
+
+        /** 미리 보기(`targetsBody`): 순번이 파일에 없으면 TARGET_NOT_FOUND(다른 값 null). 카드사 값 없음. */
+        val TARGETS: FinancialResponseShape = obj(
+            "fileId" to FILE_ID, "readAt" to TIME,
+            "items" to Arr(
+                obj(
+                    "seq" to POSITIVE, "transactionId" to opt(REF), "recordType" to opt(oneOf("SALE", "CANCEL")), "generation" to opt(COUNT), "status" to opt(RECORD_STATUS),
+                    "eligible" to Flag, "refusal" to opt(OPS_CODE), "approvedAmountMinor" to opt(COUNT), "cancelledAmountMinor" to opt(COUNT), "expectedNetMinor" to opt(COUNT),
+                ),
+                max = 50,
+            ),
+        )
+
+        /** 결정(`body`) — V17 decision·origin CHECK 값, 내용 hash `acd1:`. */
+        val OPS_DECISION: FinancialResponseShape = obj(
+            "decision" to oneOf("EXECUTED", "NOT_REQUIRED", "REJECTED"), "approvalId" to OPS_ID, "kind" to oneOf("REACQUISITION"), "code" to opt(OPS_CODE),
+            "targetRef" to FILE_ID, "resultFileId" to opt(FILE_ID), "contentHash" to Text(Regex("^acd1:[0-9a-f]{64}$")), "requestedBy" to OPS_ID, "approvedBy" to OPS_ID,
+            "approvedAt" to TIME, "executeBefore" to TIME, "decidedAt" to TIME, "origin" to oneOf("EXECUTION_COMMAND", "DEADLINE_CONFIRMATION"),
+            "replayed" to Flag, "confirmed" to Flag,
+        )
+
+        /** 결정 조회의 결정 없음(`none`). */
+        val OPS_NONE_LOOKUP: FinancialResponseShape = obj("decision" to oneOf("NONE"), "approvalId" to OPS_ID)
+
+        /** 실행·기한 확인의 결정 없음(`NotDecided`). */
+        val OPS_NONE: FinancialResponseShape = obj("decision" to oneOf("NONE"), "confirmed" to Flag)
     }
 }

@@ -109,6 +109,12 @@ class ApprovalRequest private constructor(
     /** 소유 서비스 결과: PAYMENT가 그 승인으로 취소를 내구 시작함(STARTED) — EXECUTING·EXECUTION_UNKNOWN → EXECUTED. */
     fun executed(): ApprovalRequest = ownerResult(ApprovalStatus.EXECUTED, null)
 
+    /**
+     * 소유 서비스 결과: 실행됐으나 결과 참조 대신 종결 code가 있는 결정(ACQ-ADMIN-001 B1-A — FINANCIAL `NOT_REQUIRED`: 실행 시점 순액 0이라 파일 없이 "재매입 불요" 종결, D-ACQA-004)
+     * — EXECUTING·EXECUTION_UNKNOWN → EXECUTED([code]).
+     */
+    fun executedWith(code: String): ApprovalRequest = ownerResult(ApprovalStatus.EXECUTED, code)
+
     /** 소유 서비스 결과: PAYMENT 업무 거절(기록 결정) — EXECUTING·EXECUTION_UNKNOWN → OWNER_REJECTED([code]). */
     fun ownerRejected(code: String): ApprovalRequest = ownerResult(ApprovalStatus.OWNER_REJECTED, code)
 

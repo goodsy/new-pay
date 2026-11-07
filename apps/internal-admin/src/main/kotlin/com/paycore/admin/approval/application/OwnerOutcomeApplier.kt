@@ -10,6 +10,7 @@ import com.paycore.admin.approval.application.required.OwnerOpsMetrics
 import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
 import com.paycore.admin.approval.domain.ApprovalTarget
+import com.paycore.admin.approval.domain.OwnerExecution
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.PaymentOpsPolicy
@@ -27,7 +28,7 @@ import java.time.temporal.ChronoUnit
  *   남긴 뒤 결정을 반영한다(조용한 EXECUTED 없음, 반영 보류 없음).
  * - 내부 무결성 위반(승인·실행 행 없음 등)은 rollback 뒤 지표 `integrity_violation{check}` + **별도 TX 감사(승인 ID·target_ref)**(S5 리뷰 L-A — 로그에 묻지 않음),
  *   결과는 `Executing(EXECUTING)`(회복 job이 이어받음).
- * 감사 행위자: 웹은 승인자(ADMIN), 회복 job은 SYSTEM_JOB(실행자 = 원 승인자). 모두 target_ref = paymentId.
+ * 감사 행위자: 웹은 승인자(ADMIN), 회복 job은 SYSTEM_JOB(실행자 = 원 승인자). 모두 target_ref = 소유 대상 참조(paymentId 또는 매입 원 파일 ID — ACQ-ADMIN-001 B1-A).
  */
 @Component
 class OwnerOutcomeApplier(
@@ -48,6 +49,9 @@ class OwnerOutcomeApplier(
 
         data class Rejected(val code: String) : Outcome
 
+        /** 실행됐으나 참조 대신 종결 code(ACQ-ADMIN-001 B1-A — FINANCIAL `NOT_REQUIRED`: 순액 0 "재매입 불요", D-ACQA-004) → EXECUTED([code]). */
+        data class Completed(val code: String) : Outcome
+
         data class Unknown(val failure: String, val integrityFlag: String?) : Outcome
     }
 
@@ -67,13 +71,17 @@ class OwnerOutcomeApplier(
             val now = now()
             val locked = repository.lock(approvalId) ?: throw IntegrityViolation("approval", null)
             val request = locked.value
-            val paymentId = (request.target as? ApprovalTarget.Payment)?.paymentId ?: throw IntegrityViolation("target_kind", null)
+            // ACQ-ADMIN-001 B1-A: 소유 서비스 대상(Payment·매입 파일)의 참조가 감사 target_ref다. 계정 대상이면 결함(fail-closed).
+            val paymentId = ownerRef(request) ?: throw IntegrityViolation("target_kind", null)
             if (request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) {
                 if (diverges(request, outcome)) opsMetrics.outcomeDivergence()
                 return@execute terminalOutcome(request)
             }
             val row = executions.lock(approvalId) ?: throw IntegrityViolation("execution", paymentId)
             var execution = row.value
+            // B1-A 리뷰 m-4: 실행 행 지문·기록 참조와 도착한 참조가 승인 종류의 문법인지 대조(행 형식 검사는 두 종류의 합집합) — 어긋나면 rollback + 무결성 위반.
+            if (!execution.conformsTo(request.kind)) throw IntegrityViolation("execution_kind", paymentId)
+            if (outcome is Outcome.Started && !OwnerExecution.referenceFits(request.kind, outcome.cancellationId)) throw IntegrityViolation("owner_reference", paymentId)
             if (contentMismatch) {
                 execution = execution.flagIntegrity(DECISION_CONTENT_MISMATCH)
                 audit(now, source, "APPROVAL_INTEGRITY_MISMATCH", "FLAGGED", request, "reason=$DECISION_CONTENT_MISMATCH", execution.executorActorId)
@@ -83,6 +91,12 @@ class OwnerOutcomeApplier(
                     repository.update(locked, request.executed())
                     executions.update(row, execution.ownerResult(now, null, outcome.cancellationId))
                     audit(now, source, "APPROVAL_EXECUTED", "SUCCESS", request, null, execution.executorActorId)
+                    ApprovalOutcome.Executed(approvalId)
+                }
+                is Outcome.Completed -> {
+                    repository.update(locked, request.executedWith(outcome.code))
+                    executions.update(row, execution.ownerResult(now, outcome.code, null))
+                    audit(now, source, "APPROVAL_EXECUTED", "SUCCESS", request, "result=${outcome.code}", execution.executorActorId)
                     ApprovalOutcome.Executed(approvalId)
                 }
                 is Outcome.Rejected -> {
@@ -132,6 +146,7 @@ class OwnerOutcomeApplier(
         is Outcome.Started -> request.status != ApprovalStatus.EXECUTED ||
             executions.find(request.id)?.ownerReference?.let { it != outcome.cancellationId } == true
         is Outcome.Rejected -> request.status != ApprovalStatus.OWNER_REJECTED || request.resultCode != outcome.code
+        is Outcome.Completed -> request.status != ApprovalStatus.EXECUTED || request.resultCode != outcome.code
         is Outcome.Unknown -> false
     }
 
@@ -164,10 +179,13 @@ class OwnerOutcomeApplier(
                 occurredAt = now, actorKind = if (source is Source.Web) "ADMIN" else "SYSTEM_JOB", actorId = (source as? Source.Web)?.approverId, actorDisplayName = null,
                 action = action, resultCode = result, correlationId = correlation(source, request.id), executorActorId = executor, approvalId = request.id,
                 remoteIp = (source as? Source.Web)?.context?.remoteIp, detail = listOfNotNull("kind=${request.kind.name}", reasonDetail).joinToString(";"),
-                targetRef = (request.target as ApprovalTarget.Payment).paymentId,
+                targetRef = ownerRef(request),
             ),
         )
     }
+
+    /** 소유 서비스 대상 참조(Payment ID·매입 원 파일 ID). 계정 대상이면 null. */
+    private fun ownerRef(request: ApprovalRequest): String? = request.target.takeIf { it !is ApprovalTarget.AdminAccount }?.ref
 
     private fun correlation(source: Source, approvalId: String): String = (source as? Source.Web)?.context?.correlationId ?: "job-recovery-$approvalId"
 

@@ -43,6 +43,14 @@ class AcquisitionController(private val lookup: AcquisitionLookupUseCase, privat
         return respond(if (criteria == null) lookup.rejectMalformedSearch(authentication.name) else lookup.records(authentication.name, fileId, criteria, context(request)))
     }
 
+    /** 재매입 대상 미리 보기(ACQ-ADMIN-001 B1-A — 조회 키, 비권위·잠금 없음, 상세와 같은 감사). 본문 `{"seqs":[…]}`. */
+    @PostMapping("/api/acquisition-files/{fileId}/reacquisition-targets")
+    fun reacquisitionTargets(@PathVariable fileId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val body = readBody(request) ?: return rejected(request)
+        val seqs = AcquisitionSearchBodyParser.seqs(body)
+        return respond(if (seqs == null) lookup.rejectMalformedSearch(authentication.name) else lookup.reacquisitionTargets(authentication.name, fileId, seqs, context(request)))
+    }
+
     /** 읽기 전 거절(MERCHANT-OPS-001 Q-MOPS-08과 같은 규칙): JSON이 아니면 읽지 않고, 선언 길이·실제 바이트가 상한을 넘으면 상한 + 1바이트까지만 읽고 거절(null). */
     private fun readBody(request: HttpServletRequest): ByteArray? {
         if (!isJson(request.contentType) || request.contentLengthLong > MAX_BODY_BYTES) return null

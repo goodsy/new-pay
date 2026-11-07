@@ -223,7 +223,7 @@ TX2: 파일 다시 읽기 → version ≠ 점유 뒤 version 또는 TRANSMITTING
 
 ### 4.7 전송 후 취소 CANCEL 연결(2-F — `AcquisitionSealService`, D-ACQ-009)
 
-봉인 TX 안(§4.2 잠금 순서 그대로): 후보 키에 전송 후 취소 키(paymentfact provided `cancellationKeys` — 원승인이 이 lane, `cancelled_at ≤ 마감`)를 더하고 판정 끝난 취소(상계·CANCEL 레코드·취소 매입 불요)를 뺀 뒤, 승인 후보와 **같은 한 문장**으로 결제별 행을 잠그고(payment_id 순) 잠금 뒤 판정 끝남을 다시 확인한다. 원 SALE membership과 그 레코드 결과 행으로 원 SALE 상태를 계산해 `CancelCandidateRule`(I-47·I-48)로 판정 → CANCEL 레코드(파일 SALE 뒤)·"취소 매입 불요" 기록(`acquisition_cancel_not_required`)·대사(로그·지표)·대기. 같은 원승인의 여러 취소는 (취소 시각, 거래 ID) 순으로 누적 금액을 더해 본다. 봉인 끝에 상계 금액 DB 대조(`nettingMismatches` — 레코드 상계액 = 상계 기록 합, 제외 승인액 = 상계 합)가 0이 아니면 전체 rollback(INTEGRITY_VIOLATION). 재봉인(AlreadySealed 경로)도 같은 대조를 한다(AQ-I2).
+봉인 TX 안(§4.2 잠금 순서 그대로): 후보 키에 전송 후 취소 키(paymentfact provided `cancellationKeys` — 원승인이 이 lane, `cancelled_at ≤ 마감`)를 더하고 판정 끝난 취소(상계·CANCEL 레코드·취소 매입 불요)를 뺀 뒤, 승인 후보와 **같은 한 문장**으로 결제별 행을 잠그고(payment_id 순) 잠금 뒤 판정 끝남을 다시 확인한다. 원 SALE membership과 그 레코드 결과 행으로 원 SALE 상태를 계산해 `CancelCandidateRule`(I-47·I-48)로 판정 → CANCEL 레코드(파일 SALE 뒤)·"취소 매입 불요" 기록(`acquisition_cancel_not_required`)·대사(로그·지표)·대기. 같은 원승인의 여러 취소는 (취소 시각, 거래 ID) 순으로 누적 금액을 더해 본다. 봉인 끝에 상계 금액 DB 대조(`nettingMismatches` — 레코드 상계액 = 상계 기록 합, 제외 승인액 = 상계 합)가 0이 아니면 전체 rollback(INTEGRITY_VIOLATION). 재봉인(AlreadySealed 경로)도 같은 대조를 한다(AQ-I2). (ACQ-ADMIN-001 rev 0.3 — 리뷰 MJ-1) 레코드 쪽 대조와 지표 `integrity.netting_mismatch`는 **세대 0 레코드만** 센다. 재매입 레코드(세대 ≥ 1)는 상계 기록이 가리키지 않으므로 별도 검사(ACQ-ADMIN-001 I-17 — 상계액 = 판정 끝난 취소 합, 지표 `integrity.reacquisition_netting_mismatch`, 재매입 실행 TX 끝 대조)를 쓴다.
 
 ## 5. 파일 계약 v1 (가상 규격 — 실제 카드사 규격 추측 아님)
 
@@ -580,7 +580,7 @@ Fixture: `PaymentFactFixture`(취소는 원승인에서 파생, `nextAcquirerCod
 16. (2-F) 결과 마감 시간(`results.deadline` — Demo PT1H 시험·예시 PT3M), 스케줄 주기·lane·첫 업무일·회차 상한, 지표 경보 임계(UNKNOWN·CONFLICT·격리·UPLOAD_FAILED 반복·대기 체류)는 운영값 아님. 실제 기관의 결과 마감·늦은 결과 수용 기간·결과 재발행 규칙 확인.
 17. (2-F) 격리(RECEIPT_CONFLICT·RECORD_MISMATCH·NAME_REUSED·UNKNOWN_FILE)·CONFLICT 레코드·대사로 넘긴 전송 후 취소의 해소 입력은 ADMIN 경로 없음(ACQ-ADMIN-001 범위 후보 — 운영자 확인·기관 문의 기록). 응답 바이트는 보존한다.
 18. (2-F) outbox 처리 여부는 (이름, 크기)로 다시 읽을지 정한다 — 크기를 그대로 둔 SFTP 밖 내용 바꿔치기는 다시 읽지 않아 드러나지 않는다(받는 쪽 근거 = 처음 받은 바이트 hash 기록 — I-42와 같은 한계). 응답 BLOB 보관량(MEDIUMBLOB, 회차당 한 행)·보존 기간은 LIVE Gate.
-19. (2-G, rev 1.1 갱신) 재매입 실행(새 버전 파일 봉인)·ADMIN 서명 채널·runtime INSERT 권한은 ACQ-ADMIN-001. 금액은 D-ACQ-013 순액(`netAmountMinor` — I-54), 실행 직전 `revalidate`(D-ACQ-014 — TARGET_CHANGED), UNKNOWN 대상은 대사 미매입 확정 근거와 함께(I-55). **메모(리뷰 n-4)**: 승인 표는 지금 레코드 FK·(거래, 종류, 새 세대) UNIQUE만 있다 — ACQ-ADMIN-001에서 ADMIN 승인 요청 ID 참조·(파일, 순번, 새 세대) 복합 UNIQUE 등 입력 경로 키를 함께 설계한다.
+19. (2-G, rev 1.1 갱신) 재매입 실행(새 버전 파일 봉인)·ADMIN 서명 채널·runtime INSERT 권한은 ACQ-ADMIN-001. 금액은 D-ACQ-013 순액(`netAmountMinor` — I-54), 실행 직전 `revalidate`(D-ACQ-014 — TARGET_CHANGED), UNKNOWN 대상은 대사 미매입 확정 근거와 함께(I-55). **메모(리뷰 n-4)**: 승인 표는 지금 레코드 FK·(거래, 종류, 새 세대) UNIQUE만 있다 — ACQ-ADMIN-001에서 ADMIN 승인 요청 ID 참조·(파일, 순번, 새 세대) 복합 UNIQUE 등 입력 경로 키를 함께 설계한다. **(ACQ-ADMIN-001 rev 0.2 B1-F, 2026-11-06)**: I-51 세 겹 차단을 D-ACQ-011에 따라 입력 경로와 함께 열었다 — 조작 전용 서명 채널(D-ACQA-001), V17(결정 표·승인 표 PK(승인, 파일, 순번)·결정 FK·(파일, 순번, 새 세대) UNIQUE·재매입 불요 표), V18 runtime INSERT, 실행 Use Case(새 버전 파일 봉인 — 순액 D-ACQ-013·묶음 전체 무효 D-ACQA-003·불요 종결 D-ACQA-004). 상세: docs/repository/ACQ-ADMIN-001-ACQUIRING-OPERATIONS.md §17.
 20. (2-F) 대기 사유별 체류 지표는 프로세스 안 값(I-53) — 다중 인스턴스 합산·영속 체류 기록은 운영 관측 설계. rev 1.1: 체류 초는 새로 고침 때 매입 시계(`AcquiringClock`)로 계산한다(리뷰 n-6).
 
 ## 15. 허용 경로 확인

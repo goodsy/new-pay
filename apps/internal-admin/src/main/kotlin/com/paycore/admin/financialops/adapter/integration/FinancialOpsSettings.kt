@@ -1,5 +1,6 @@
 package com.paycore.admin.financialops.adapter.integration
 
+import com.paycore.admin.financialops.application.provided.AcquiringOpsPolicy
 import com.paycore.admin.financialops.application.required.FinancialOpsLimits
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.net.URI
@@ -24,14 +25,36 @@ class FinancialOpsSettings(
     readTimeout: Duration?,
     permits: Int?,
     lookupPerMinute: Int?,
-) : FinancialOpsLimits {
+    operationKeyId: String? = null,
+    operationSigningKey: String? = null,
+    operationPermits: Int? = null,
+    operationExecutionWindow: Duration? = null,
+) : FinancialOpsLimits, AcquiringOpsPolicy {
     val baseUrl: URI = URI.create(required(baseUrl, "base-url"))
     val keyId: String = required(keyId, "key-id")
-    private val key: ByteArray = decode(required(signingKey, "signing-key"))
+    private val key: ByteArray = decode(required(signingKey, "signing-key"), "signing-key")
     val connectTimeout: Duration = positive(connectTimeout, "connect-timeout")
     val readTimeout: Duration = positive(readTimeout, "read-timeout")
     val permits: Int = requireNotNull(permits) { "paycore.admin.financial-ops.permits is required" }
     override val lookupPerMinute: Int = requireNotNull(lookupPerMinute) { "paycore.admin.financial-ops.lookup-per-minute is required" }
+
+    /** 조작 전용 키(ACQ-ADMIN-001 D-ACQA-001 — FINANCIAL `admin-channel.operation-keys`와 같은 값, 조회 키와 kid·바이트가 달라야 기동 — [FinancialOpsConfiguration]). */
+    val operationKeyId: String = required(operationKeyId, "operation-key-id")
+    private val operationKey: ByteArray = decode(required(operationSigningKey, "operation-signing-key"), "operation-signing-key")
+    val operationPermits: Int = requireNotNull(operationPermits) { "paycore.admin.financial-ops.operation-permits is required" }
+    override val executionWindow: Duration = positive(operationExecutionWindow, "operation-execution-window")
+    override val staleAfter: Duration get() = connectTimeout.plus(readTimeout).plusSeconds(STALE_MARGIN_SECONDS)
+
+    init {
+        require(KEY_ID.matches(this.operationKeyId)) { "paycore.admin.financial-ops.operation-key-id format" }
+        require(this.operationPermits in 1..MAX_PERMITS) { "paycore.admin.financial-ops.operation-permits 1..$MAX_PERMITS" }
+        require(staleAfter < executionWindow) { "paycore.admin.financial-ops: stale delay (timeouts + 30s) must be shorter than the operation execution window" }
+    }
+
+    fun operationSigningKey(): ByteArray = operationKey.copyOf()
+
+    fun operationUsesKey(candidateBase64: String): Boolean =
+        runCatching { Base64.getDecoder().decode(candidateBase64) }.getOrNull()?.contentEquals(operationKey) == true
 
     init {
         require(this.baseUrl.scheme == "http" || this.baseUrl.scheme == "https") { "paycore.admin.financial-ops.base-url must be http(s)" }
@@ -51,7 +74,8 @@ class FinancialOpsSettings(
     fun usesKey(candidateBase64: String): Boolean = runCatching { Base64.getDecoder().decode(candidateBase64) }.getOrNull()?.contentEquals(key) == true
 
     override fun toString(): String =
-        "FinancialOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits)"
+        "FinancialOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits, " +
+            "operationKeyId=$operationKeyId, operationSigningKey=***, operationPermits=$operationPermits, operationExecutionWindow=$executionWindow)"
 
     companion object {
         const val RESPONSE_MAX_BYTES = 128 * 1024
@@ -69,9 +93,11 @@ class FinancialOpsSettings(
             return v
         }
 
-        private fun decode(base64: String): ByteArray {
-            val bytes = requireNotNull(runCatching { Base64.getDecoder().decode(base64) }.getOrNull()) { "paycore.admin.financial-ops.signing-key must be Base64" }
-            require(bytes.size >= MIN_KEY_BYTES) { "paycore.admin.financial-ops.signing-key must be at least $MIN_KEY_BYTES bytes" }
+        private const val STALE_MARGIN_SECONDS = 30L
+
+        private fun decode(base64: String, name: String): ByteArray {
+            val bytes = requireNotNull(runCatching { Base64.getDecoder().decode(base64) }.getOrNull()) { "paycore.admin.financial-ops.$name must be Base64" }
+            require(bytes.size >= MIN_KEY_BYTES) { "paycore.admin.financial-ops.$name must be at least $MIN_KEY_BYTES bytes" }
             return bytes
         }
     }

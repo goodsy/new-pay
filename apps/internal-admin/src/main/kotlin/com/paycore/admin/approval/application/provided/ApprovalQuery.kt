@@ -40,6 +40,25 @@ data class ApprovalView(
     val resultCode: String?,
     /** 소유 서비스 승인 상세(명령·실행 — S8 화면용, 사유·근거 문구 없음 — I-98). 목록·ADMIN 소유 종류는 null. */
     val owner: OwnerDetailView? = null,
+    /** 재매입 승인 상세(ACQ-ADMIN-001 B1-A §5.2 — 원 파일·사유 코드·고정 레코드·실행 결과, 사유 문구·근거 없음). 목록·다른 종류는 null. */
+    val acquiring: AcquiringDetailView? = null,
+)
+
+data class AcquiringDetailView(
+    val originalFileId: String,
+    val reasonCode: String,
+    /** 요청 시점 고정 레코드 JSON(권위 `pinned_target` — 화면의 "고정 값 vs 현재 값"). */
+    val pinnedTarget: String,
+    val approvedAt: Instant?,
+    val executeBefore: Instant?,
+    val attemptCount: Int?,
+    val nextAttemptAt: Instant?,
+    val lastResponseAt: Instant?,
+    val lastFailure: String?,
+    val integrityFlag: String?,
+    val resendHaltedReason: String?,
+    val ownerResultCode: String?,
+    val ownerReference: String?,
 )
 
 data class OwnerDetailView(

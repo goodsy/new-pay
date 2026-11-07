@@ -179,7 +179,8 @@ class AdminAcquisitionApiSpec(
             item.keys() shouldBe listOf(
                 "fileId", "acquirerCode", "environment", "businessDate", "fileVersion", "originalFileId", "recordCount", "saleCount", "saleAmountMinor",
                 "cancelCount", "cancelAmountMinor", "netAmountMinor", "currency", "transmissionState", "receiptState", "resultState", "sealedAt", "transmittedAt",
-                "recordStatusCounts", "attention", "reacquisitionCandidate",
+                // ACQ-ADMIN-001 rev 0.7(B2 — §5.1 3상태): 키 하나 추가(reacquisitionInProgress — 기존 키·순서 불변, 추가만).
+                "recordStatusCounts", "attention", "reacquisitionCandidate", "reacquisitionInProgress",
             )
             item.get("fileId").asString() shouldBe sealedFileId
             item.get("businessDate").asString() shouldBe "2026-10-21"

@@ -104,8 +104,15 @@ class FinancialDatabaseAccountSpec(
         "acquisition_response" to "Select,Insert",
         "acquisition_record_result" to "Select,Insert",
         "acquisition_cancel_not_required" to "Select,Insert",
-        // ACQUIRING-001 배치2 2-G(V12 → V13): 재매입 승인 기록은 SELECT만 — 입력 경로(ACQ-ADMIN-001) 전 기록 생성 불가(D-ACQ-011).
-        "acquisition_reacquisition_approval" to "Select",
+        // ACQUIRING-001 배치2 2-G(V12 → V13): 재매입 승인 기록은 SELECT만이었다(입력 경로 전 기록 생성 불가 — D-ACQ-011).
+        // ACQ-ADMIN-001 B1(V18): D-ACQ-011 "ADMIN 입력은 ACQ-ADMIN-001"에 따라 입력 경로(조작 전용 서명 채널 — D-ACQA-001)와 함께 INSERT를 연다 — 결정된 개방(완화 아님).
+        // 여전히 append-only(UPDATE·DELETE 1142 — 아래 시험), 기록은 결정 행과 같은 로컬 TX에서만 생긴다(FK — 결정 없는 승인 행 1452).
+        "acquisition_reacquisition_approval" to "Select,Insert",
+        // ACQ-ADMIN-001 B1(V17 → V18): 조작 결정 기록·재매입 불요 종결은 append-only.
+        "acquisition_ops_decision" to "Select,Insert",
+        "acquisition_reacquisition_not_required" to "Select,Insert",
+        // ACQ-ADMIN-001 B2(V19 → V20): 재매입 파일 전송 보류 근거는 append-only(추가 — 기존 단언 불변).
+        "acquisition_transmission_withhold" to "Select,Insert",
         // rev 1.1(V14 → V15): 매입 확정 표지(D-ACQ-014 세대를 넘는 ACCEPTED 하나)는 append-only.
         "acquisition_accepted_record" to "Select,Insert",
         "BATCH_JOB_INSTANCE" to "Select,Insert",
@@ -288,6 +295,10 @@ class FinancialDatabaseAccountSpec(
                 // 2-F·2-G: 응답 처리 기록·레코드 결과·취소 매입 불요·재매입 승인 기록.
                 "acquisition_response", "acquisition_record_result", "acquisition_cancel_not_required", "acquisition_reacquisition_approval",
                 "acquisition_accepted_record",
+                // ACQ-ADMIN-001 B1: 조작 결정·재매입 불요.
+                "acquisition_ops_decision", "acquisition_reacquisition_not_required",
+                // ACQ-ADMIN-001 B2: 전송 보류 근거.
+                "acquisition_transmission_withhold",
             )
             app { c ->
                 acquiringAppendOnly.flatMap { table ->
@@ -339,17 +350,61 @@ class FinancialDatabaseAccountSpec(
             } shouldBe mapOf("delete" to 1142, "truncate" to 1142, "lock read" to null)
         }
 
-        Then("ACQUIRING-001 2-G: the runtime account cannot INSERT a re-acquisition approval (D-ACQ-011 — no recording before the ACQ-ADMIN-001 input path) but can read") {
+        Then("ACQ-ADMIN-001 B1 (V18 — opened with the input path, D-ACQ-011): an approval row needs its committed decision row (FK 1452, not a privilege error); UPDATE/DELETE stay 1142") {
+            // 기존 단언(2-G: INSERT 1142)은 D-ACQ-011이 정한 개방 시점(ACQ-ADMIN-001 입력 경로)에 따라 바뀐다 — 대체 방어: 권한이 아니라 결정 행 FK가 "결정 없는 승인"을
+            // 막고(아래 1452), 승인 기록 생성 경로는 조작 전용 서명 채널뿐이다(AdminAcquiringOperationsHttpSpec — 조회 키·무서명 401).
+            // rev 0.3(리뷰 m-7): 실제 파일·레코드 행을 같은 TX에 만든 뒤 시험한다 — 1452가 레코드 FK가 아니라 **결정 FK**에서 나는지 이름으로 확인하고, 결정 행을 넣으면 같은 승인 행이
+            // 들어감(권한이 아니라 FK가 막았다)을 보인 뒤 전부 rollback한다(공유 시험 DB에 남기지 않음).
+            val file = "ACQ.FKPROBE.TEST.20261105.001"
+            val approvalInsert = "INSERT INTO acquisition_reacquisition_approval (approval_id, file_id, seq, transaction_id, record_type, target_generation, new_generation, " +
+                "target_status, reacquisition_of, requested_by, approved_by, reason_code, evidence_ref, channel, recorded_at) VALUES ('apr-fk-probe', '$file', " +
+                "1, 'ptx_fk_probe', 'SALE', 0, 1, 'REJECTED', '$file#1', 'a', 'b', 'R', 'E', 'ADMIN_SIGNED', NOW(3))"
             app { c ->
-                mapOf(
-                    "insert" to c.codeOf(
-                        "INSERT INTO acquisition_reacquisition_approval (approval_id, file_id, seq, transaction_id, record_type, target_generation, new_generation, " +
-                            "target_status, reacquisition_of, requested_by, approved_by, reason_code, evidence_ref, channel, recorded_at) VALUES ('apr-probe', 'ACQ.NONE.TEST.20261105.001', " +
-                            "1, 'ptx', 'SALE', 0, 1, 'REJECTED', 'ACQ.NONE.TEST.20261105.001#1', 'a', 'b', 'R', 'E', 'ADMIN_SIGNED', NOW(3))",
-                    ),
-                    "select" to c.codeOf("SELECT COUNT(*) FROM acquisition_reacquisition_approval"),
-                )
-            } shouldBe mapOf("insert" to 1142, "select" to null)
+                c.autoCommit = false
+                try {
+                    val setup = listOf(
+                        "INSERT INTO acquisition_lane (acquirer_code, environment, last_sealed_business_date, created_at, updated_at, version) " +
+                            "VALUES ('FKPROBE', 'TEST', NULL, NOW(3), NOW(3), 0)",
+                        "INSERT INTO acquisition_file (file_id, acquirer_code, environment, business_date, file_version, original_file_id, sender_id, cutoff_policy_version, " +
+                            "cutoff_at, sealed_at, record_count, sale_count, sale_amount_minor, cancel_count, cancel_amount_minor, net_amount_minor, content_sha256, content_bytes, " +
+                            "transmission_state, receipt_state, result_state, created_at, updated_at, version) VALUES ('$file', 'FKPROBE', 'TEST', '2026-11-05', 1, NULL, 'S', 'v', " +
+                            "NOW(3), NOW(3), 1, 1, 1000, 0, 0, 1000, '${"a".repeat(64)}', 1, 'SEALED', 'NONE', 'AWAITING', NOW(3), NOW(3), 0)",
+                        "INSERT INTO acquisition_file_record (file_id, seq, record_type, transaction_id, original_transaction_id, merchant_ref, approval_number, " +
+                            "provider_transaction_id, original_provider_transaction_id, institution_transaction_date, event_at, currency, approved_amount_minor, " +
+                            "netted_cancel_amount_minor, record_amount_minor, plan_kind, installment_months, card_type, issuer_code, generation, reacquisition_of) VALUES " +
+                            "('$file', 1, 'SALE', 'ptx_fk_probe', NULL, 'm', 'a', 'p', NULL, '2026-11-05', NOW(3), 'KRW', 1000, 0, 1000, 'LUMP_SUM', NULL, 'CREDIT', 'I', 0, NULL)",
+                    ).map { c.codeOf(it) }
+                    val withoutDecision = try {
+                        c.createStatement().use { it.execute(approvalInsert) }
+                        null
+                    } catch (e: java.sql.SQLException) {
+                        e.errorCode to (e.message ?: "").contains("fk_acquisition_reacquisition_approval_decision")
+                    }
+                    val decision = c.codeOf(
+                        "INSERT INTO acquisition_ops_decision (approval_id, kind, decision, rejection_code, target_ref, result_file_id, content_hash, requested_by, approved_by, " +
+                            "approved_at, execute_before, decided_at, origin) VALUES ('apr-fk-probe', 'REACQUISITION', 'NOT_REQUIRED', NULL, '$file', NULL, " +
+                            "'acd1:${"0".repeat(64)}', 'a', 'b', NOW(3), NOW(3) + INTERVAL 1 HOUR, NOW(3), 'EXECUTION_COMMAND')",
+                    )
+                    mapOf(
+                        "real record set up" to setup,
+                        "insert without a decision (decision FK)" to withoutDecision,
+                        "decision" to decision,
+                        "insert with its decision" to c.codeOf(approvalInsert),
+                        "select" to c.codeOf("SELECT COUNT(*) FROM acquisition_reacquisition_approval"),
+                        "decision select" to c.codeOf("SELECT COUNT(*) FROM acquisition_ops_decision"),
+                    )
+                } finally {
+                    c.rollback()
+                }
+            } shouldBe mapOf(
+                "real record set up" to listOf(null, null, null),
+                "insert without a decision (decision FK)" to (1452 to true),
+                "decision" to null,
+                "insert with its decision" to null,
+                "select" to null,
+                "decision select" to null,
+            )
+            rootLong("SELECT COUNT(*) FROM $FINANCIAL_DATABASE.acquisition_file WHERE file_id = ?", file) shouldBe 0L
         }
 
         Then("it cannot change the schema, read the Flyway history or call the privilege procedures") {
@@ -384,7 +439,7 @@ class FinancialDatabaseAccountSpec(
                     "installedBy" to c.column("SELECT DISTINCT installed_by FROM flyway_schema_history").toSet(),
                     "versions" to c.column("SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank"),
                 )
-            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"))
+            } shouldBe mapOf("installedBy" to setOf(MIGRATION_USER), "versions" to listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"))
         }
 
         Then("it cannot grant privileges to any account directly, grant the runtime role, or create accounts") {

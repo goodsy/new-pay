@@ -21,9 +21,10 @@ class AcquisitionBacklogService(
     override fun backlog(): AcquisitionBacklog {
         val c = transactions.execute({ false }) { reader.read() }
         return AcquisitionBacklog(
-            transmissionUnknown = c.transmissionUnknown, transmissionQuarantined = c.transmissionQuarantined, uploadFailedRepeated = c.uploadFailedRepeated,
+            transmissionUnknown = c.transmissionUnknown, transmissionQuarantined = c.transmissionQuarantined, transmissionWithheld = c.transmissionWithheld, uploadFailedRepeated = c.uploadFailedRepeated,
             recordsUnknown = c.recordsUnknown, recordsConflict = c.recordsConflict, responsesQuarantined = c.responsesQuarantined, receiptConflicts = c.receiptConflicts,
             nettingMismatches = c.nettingMismatches, awaitingResults = c.awaitingResults, cancelNotRequiredOriginalConflict = c.cancelNotRequiredOriginalConflict,
+            reacquisitionNettingMismatches = c.reacquisitionNettingMismatches,
             waiting = board.waiting(), cancelReconcile = board.cancelReconcile(), observedAt = clock.now(),
         )
     }

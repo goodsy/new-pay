@@ -81,6 +81,37 @@ class AcquisitionTransmissionRuleSpec : BehaviorSpec({
         }
     }
 
+    Given("AQ-TD6 (ACQ-ADMIN-001 B2 — §15 L-9) withholding a re-acquisition file whose record was meanwhile accepted in another generation (D-ACQ-014)") {
+        val original = AcquisitionFileId("SIMACQA", AcquisitionEnvironment.TEST, AcquisitionFixture.BUSINESS_DATE, 1)
+        val reHeader = AcquisitionFileHeader(AcquisitionFileId("SIMACQA", AcquisitionEnvironment.TEST, AcquisitionFixture.BUSINESS_DATE, 2), "PAYCORE", now, "acq-cutoff-demo-1", original)
+        val reRecord = AcquisitionFile.seal(header(), CUTOFF, listOf(included(sale()))).second.records.single().copy(generation = 1, reacquisitionOf = "${original.value}#1")
+        val reSealed = AcquisitionFile.sealReacquisition(reHeader, CUTOFF, listOf(reRecord)).first
+        Then("SEALED, TRANSMISSION_UNKNOWN and an expired TRANSMITTING lease become TRANSMISSION_WITHHELD (no lease, no transmission time, version kept for the store)") {
+            val unknown = claimed(reSealed).file.completeTransmission(TransmissionOutcome.Unknown(TransmissionFailureReason.RENAME_OUTCOME_UNKNOWN), TransmissionState.SEALED, now)
+            val expired = claimed(reSealed).file
+            listOf(reSealed.withholdTransmission(now), unknown.withholdTransmission(now), expired.withholdTransmission(lease)).forEach {
+                listOf(it.transmissionState, it.transmissionLeaseUntil, it.transmittedAt, it.version) shouldBe listOf(TransmissionState.TRANSMISSION_WITHHELD, null, null, 0L)
+            }
+        }
+        Then("a withheld file is never claimed again (no transmission, no confirm-first re-upload) and an in-flight, transmitted or quarantined file is not withheld") {
+            reSealed.withholdTransmission(now).claimTransmission(now, lease) shouldBe TransmissionClaim.NotClaimable(NotClaimableReason.WITHHELD)
+            val inFlight = claimed(reSealed).file
+            shouldThrow<AcquisitionContractViolation> { inFlight.withholdTransmission(now) }
+            shouldThrow<AcquisitionContractViolation> {
+                inFlight.completeTransmission(TransmissionOutcome.Delivered(TransmissionEvidence.RENAMED), TransmissionState.SEALED, now).withholdTransmission(now)
+            }
+            shouldThrow<AcquisitionContractViolation> { inFlight.completeTransmission(TransmissionOutcome.ContentMismatch, TransmissionState.SEALED, now).withholdTransmission(now) }
+            shouldThrow<AcquisitionContractViolation> { reSealed.withholdTransmission(now).withholdTransmission(now) }
+        }
+        Then("only a re-acquisition file is withheld (a first-acquisition file has no other generation)") {
+            shouldThrow<AcquisitionContractViolation> { sealed.withholdTransmission(now) }
+        }
+        Then("a response to a withheld file records the receipt axis but never promotes the transmission axis (reconciliation decides — I-27)") {
+            val f = reSealed.withholdTransmission(now).recordResponse(ReceiptState.RECEIVED, confirmsTransmission = true, now)
+            listOf(f.transmissionState, f.receiptState, f.transmittedAt) shouldBe listOf(TransmissionState.TRANSMISSION_WITHHELD, ReceiptState.RECEIVED, null)
+        }
+    }
+
     Given("AQ-TD5 terminal transmission states") {
         val c = claimed()
         Then("TRANSMITTED and TRANSMISSION_QUARANTINED are not claimed again (same file id, no new transmission)") {

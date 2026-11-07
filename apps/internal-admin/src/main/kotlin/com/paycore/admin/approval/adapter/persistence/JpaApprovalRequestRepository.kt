@@ -28,7 +28,7 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
     override fun insert(request: ApprovalRequest): VersionedApproval = translate {
         val target = request.target
         val row = JpaApprovalRequestEntity.newRow(
-            request.id, request.kind.name, target.kind.name, (target as? ApprovalTarget.AdminAccount)?.actorId, (target as? ApprovalTarget.Payment)?.paymentId,
+            request.id, request.kind.name, target.kind.name, (target as? ApprovalTarget.AdminAccount)?.actorId, target.ref.takeIf { target !is ApprovalTarget.AdminAccount },
             target.version, request.targetSnapshot, request.grantedRole, request.causeApprovalId, request.requestedBy, request.requestedByDisplayName,
             request.requestedAt, request.expiresAt,
         )
@@ -114,6 +114,10 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
     private fun target(r: JpaApprovalRequestEntity): ApprovalTarget = when (ApprovalTargetKind.valueOf(r.targetKind)) {
         ApprovalTargetKind.ADMIN_ACCOUNT -> ApprovalTarget.AdminAccount(requireNotNull(r.targetActorId) { "account target" }, r.targetSecurityVersion)
         ApprovalTargetKind.PAYMENT -> ApprovalTarget.Payment(requireNotNull(r.targetRef) { "payment target" }, r.targetSecurityVersion)
+        // ACQ-ADMIN-001 B1-A: 파일 대상의 대상 버전 열은 0 고정(권위 대상 버전은 명령 행 pinned_target) — 0이 아니면 재구성 실패(fail-closed).
+        ApprovalTargetKind.ACQUISITION_FILE -> ApprovalTarget.AcquisitionFile(requireNotNull(r.targetRef) { "acquisition file target" }).also {
+            require(r.targetSecurityVersion == 0L) { "acquisition file target version column is 0" }
+        }
     }
 
     private fun <T> translate(block: () -> T): T = ApprovalPersistenceTranslation.translate(block)

@@ -194,7 +194,7 @@ class TestAcquirerSftpConfig {
         val p = "paycore.financial.acquiring.transport"
         registry.add("$p.lease") { "PT2M" }
         registry.add("$p.clock-skew-allowance") { "PT1S" }
-        (ACQUIRERS + RESPONSE_ACQUIRERS + VIEW_ACQUIRERS + WRONG_HOST_KEY_ACQUIRER).forEach { code ->
+        (ACQUIRERS + RESPONSE_ACQUIRERS + VIEW_ACQUIRERS + REACQUISITION_ACQUIRERS + REACQUISITION_RESULT_ACQUIRERS + WRONG_HOST_KEY_ACQUIRER).forEach { code ->
             val a = "$p.acquirers.$code"
             registry.add("$a.host") { "127.0.0.1" }
             registry.add("$a.port") { server.port }
@@ -216,6 +216,12 @@ class TestAcquirerSftpConfig {
 
         /** ACQ-VIEW-001 매입 현황 조회 시험 lane(같은 컨텍스트·같은 DB의 다른 시험 lane과 겹치지 않게 따로 둔다). */
         val VIEW_ACQUIRERS = (1..20).map { "SFTPV$it" }
+
+        /** ACQ-ADMIN-001 재매입 실행 시험 lane(다른 시험 lane과 겹치지 않게 따로 둔다). */
+        val REACQUISITION_ACQUIRERS = (1..20).map { "SFTPQ$it" }
+
+        /** ACQ-ADMIN-001 B2 재매입 전송·결과·보류 시험 lane(ReacquisitionResultDbSpec). */
+        val REACQUISITION_RESULT_ACQUIRERS = (1..20).map { "SFTPW$it" }
         const val WRONG_HOST_KEY_ACQUIRER = "SFTPBADHOST"
     }
 }

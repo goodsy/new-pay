@@ -41,7 +41,11 @@ class FinancialOpsGatewaySpec : BehaviorSpec({
     val period = AcquisitionFileSearchCriteria(businessDateFrom = "2026-10-20", businessDateTo = "2026-10-20")
 
     fun settings(baseUrl: String = "http://127.0.0.1:${StubFinancialOpsServer.PORT}", permits: Int = 2, read: Duration = Duration.ofSeconds(2)) =
-        FinancialOpsSettings(baseUrl, StubFinancialOpsServer.KEY_ID, StubFinancialOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30)
+        FinancialOpsSettings(
+            baseUrl, StubFinancialOpsServer.KEY_ID, StubFinancialOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30,
+            // ACQ-ADMIN-001 B1-A: 조작 전용 키(필수 설정 — 조회 시험에는 쓰이지 않는다).
+            StubFinancialOpsServer.OP_KEY_ID, StubFinancialOpsServer.OP_KEY_BASE64, 1, Duration.ofHours(24),
+        )
 
     fun gateway(s: FinancialOpsSettings = settings()) = HttpFinancialOpsGateway(s, FinancialCallSigner(s.keyId, s.signingKey())) { Instant.now() }
 
@@ -88,6 +92,19 @@ class FinancialOpsGatewaySpec : BehaviorSpec({
             val request = StubFinancialOpsServer.received.drop(before).single()
             listOf(request.method, request.path, request.query, request.signatureValid) shouldBe listOf("POST", StubFinancialOpsServer.SEARCH, null, true)
             json.readTree(request.body).properties().map { it.key } shouldBe listOf("businessDateFrom", "businessDateTo", "acquirerCode", "needsAttention", "after", "limit")
+        }
+        Then("ACQ-ADMIN-001 B2: a withheld re-acquisition file (TRANSMISSION_WITHHELD + its attention reason) and the in-progress badge flag are in the contract") {
+            val body = StubFinancialOpsServer.itemJson(fileId, attention = listOf("TRANSMISSION_WITHHELD"))
+                .replace("\"transmissionState\":\"TRANSMITTED\"", "\"transmissionState\":\"TRANSMISSION_WITHHELD\"")
+                .replace("\"reacquisitionInProgress\":false", "\"reacquisitionInProgress\":true")
+            val found = search(StubFinancialOpsServer.pageJson(body), period.copy(needsAttention = true)).shouldBeInstanceOf<FinancialCallResult.Found>()
+            @Suppress("UNCHECKED_CAST")
+            val item = (found.document["items"] as List<Map<String, Any?>>).single()
+            listOf(item["transmissionState"], item["attention"], item["reacquisitionCandidate"], item["reacquisitionInProgress"]) shouldBe
+                listOf("TRANSMISSION_WITHHELD", listOf("TRANSMISSION_WITHHELD"), false, true)
+            // 새 키가 빠진(B1 모양) 항목은 fail-closed — FINANCIAL과 ADMIN이 같은 키 집합이어야 한다.
+            search(StubFinancialOpsServer.pageJson(StubFinancialOpsServer.itemJson(fileId).replace(",\"reacquisitionInProgress\":false", ""))) shouldBe
+                FinancialCallResult.Unavailable("RESPONSE_UNREADABLE")
         }
         Then("detail: GET without body is Found; records: POST {status, afterSeq, limit} is Found with responseRef {kind, sequenceNo}") {
             StubFinancialOpsServer.reply(StubFinancialOpsServer.filePath(fileId), StubFinancialOpsServer.Reply(200, StubFinancialOpsServer.detailJson(fileId)))
@@ -144,7 +161,7 @@ class FinancialOpsGatewaySpec : BehaviorSpec({
                     "CONNECT_FAILED", "HOST_KEY_REJECTED", "AUTHENTICATION_FAILED", "UPLOAD_FAILED", "RENAME_REFUSED", "RENAME_OUTCOME_UNKNOWN", "VERIFY_FAILED",
                     "RENAMED_BUT_ABSENT", "LEASE_EXHAUSTED", "INTERNAL_ERROR",
                 ).map { "\"reason\":\"$it\"" },
-                "\"resultingState\":\"TRANSMITTED\"" to listOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED")
+                "\"resultingState\":\"TRANSMITTED\"" to listOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "TRANSMISSION_WITHHELD")
                     .map { "\"resultingState\":\"$it\"" },
                 "\"disposition\":\"APPLIED\"" to listOf("APPLIED", "QUARANTINED").map { "\"disposition\":\"$it\"" },
                 "\"quarantineReason\":null" to listOf(

@@ -131,7 +131,7 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
       fileId: 'ACQ.SFTPV1.TEST.20261020.001', acquirerCode: 'SFTPV1', environment: 'TEST', businessDate: '2026-10-20', fileVersion: 1, originalFileId: null,
       recordCount: 1, saleCount: 1, saleAmountMinor: 10000, cancelCount: 0, cancelAmountMinor: 0, netAmountMinor: 10000, currency: 'KRW',
       transmissionState: 'TRANSMITTED', receiptState: 'RECEIVED', resultState: 'AWAITING', sealedAt: '2026-10-20T14:05:00.000Z', transmittedAt: '2026-10-20T14:06:00.000Z',
-      recordStatusCounts: { awaiting: 1, accepted: 0, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: ['RESULT_OVERDUE'], reacquisitionCandidate: true,
+      recordStatusCounts: { awaiting: 1, accepted: 0, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: ['RESULT_OVERDUE'], reacquisitionCandidate: true, reacquisitionInProgress: false,
     }
     render(<AcquisitionsScreen api={fakeApi({ acquisitionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))

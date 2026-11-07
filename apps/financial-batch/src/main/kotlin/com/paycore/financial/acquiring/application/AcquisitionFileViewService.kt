@@ -14,6 +14,8 @@ import com.paycore.financial.acquiring.application.provided.AcquisitionRecordVie
 import com.paycore.financial.acquiring.application.required.AcquiringClock
 import com.paycore.financial.acquiring.application.required.AcquisitionFileViewReader
 import com.paycore.financial.acquiring.application.required.AcquisitionResultPolicy
+import com.paycore.financial.acquiring.domain.ReacquisitionBadge
+import com.paycore.financial.acquiring.domain.ReacquisitionBadgeRule
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -66,6 +68,7 @@ class AcquisitionFileViewService(
             when (reason) {
                 AcquisitionAttention.TRANSMISSION_UNKNOWN -> s.transmissionState == TRANSMISSION_UNKNOWN
                 AcquisitionAttention.TRANSMISSION_QUARANTINED -> s.transmissionState == TRANSMISSION_QUARANTINED
+                AcquisitionAttention.TRANSMISSION_WITHHELD -> s.transmissionState == TRANSMISSION_WITHHELD
                 AcquisitionAttention.RECEIPT_CONFLICT -> s.receiptState == RECEIPT_CONFLICT
                 AcquisitionAttention.RESPONSE_QUARANTINED -> s.quarantinedResponses > 0
                 AcquisitionAttention.RECORD_UNKNOWN -> s.recordStatusCounts.unknown > 0
@@ -76,9 +79,14 @@ class AcquisitionFileViewService(
             }
         }
 
-        /** 재매입 검토 대상(I-5): 파일 전체 거절 또는 REJECTED·FILE_REJECTED 레코드. "확인 필요"가 아니라 정보 표시다(실행은 ACQ-ADMIN-001 — D-ACQ-011). */
-        fun reacquisitionCandidate(s: AcquisitionFileSummary): Boolean =
-            s.receiptState == FILE_REJECTED || s.recordStatusCounts.rejected > 0 || s.recordStatusCounts.fileRejected > 0
+        /**
+         * 재매입 배지 3상태(ACQ-ADMIN-001 rev 0.7 — §5.1 L-9, I-9, MINOR-6): Reader가 센 레코드 단계 건수에 Domain 규칙 [ReacquisitionBadgeRule]을 적용한다. "확인 필요"가 아니라
+         * 정보 표시다. (rev 0.6까지의 ACQ-VIEW-001 I-5 정의 "파일 전체 거절 또는 REJECTED·FILE_REJECTED 레코드가 있음"은 새 세대가 매입 확정된 뒤에도 배지를 남겼다 — 그 정의를
+         * "어느 세대에도 확정·불요 종결이 없고 더 높은 세대가 없는 거절 레코드"로 좁혔다. 파일 전체 거절은 레코드마다 FILE_REJECTED 결과 행을 남기므로 같은 규칙에 들어온다.)
+         */
+        fun reacquisitionBadge(s: AcquisitionFileSummary): ReacquisitionBadge = ReacquisitionBadgeRule.fileBadge(s.reacquisitionCandidates, s.reacquisitionInProgress)
+
+        fun reacquisitionCandidate(s: AcquisitionFileSummary): Boolean = reacquisitionBadge(s) == ReacquisitionBadge.CANDIDATE
 
         internal fun page(rows: List<AcquisitionRecordView>, limit: Int): AcquisitionRecordPage {
             val shown = rows.take(limit)
@@ -89,13 +97,16 @@ class AcquisitionFileViewService(
         private const val TRANSMITTED = "TRANSMITTED"
         private const val TRANSMISSION_UNKNOWN = "TRANSMISSION_UNKNOWN"
         private const val TRANSMISSION_QUARANTINED = "TRANSMISSION_QUARANTINED"
+        private const val TRANSMISSION_WITHHELD = "TRANSMISSION_WITHHELD"
         private const val RECEIPT_CONFLICT = "RECEIPT_CONFLICT"
-        private const val FILE_REJECTED = "FILE_REJECTED"
         private const val AWAITING = "AWAITING"
         private const val DEADLINE_PASSED = "DEADLINE_PASSED"
 
         internal fun cursorOf(s: AcquisitionFileSummary) = AcquisitionFileCursor(s.businessDate, s.fileId)
 
-        internal fun item(s: AcquisitionFileSummary, overdueBefore: Instant?) = AcquisitionFileListItem(s, attentionOf(s, overdueBefore), reacquisitionCandidate(s))
+        internal fun item(s: AcquisitionFileSummary, overdueBefore: Instant?): AcquisitionFileListItem {
+            val badge = reacquisitionBadge(s)
+            return AcquisitionFileListItem(s, attentionOf(s, overdueBefore), badge == ReacquisitionBadge.CANDIDATE, badge == ReacquisitionBadge.IN_PROGRESS)
+        }
     }
 }

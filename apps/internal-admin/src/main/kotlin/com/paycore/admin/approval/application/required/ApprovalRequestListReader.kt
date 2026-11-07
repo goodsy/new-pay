@@ -36,6 +36,25 @@ data class ApprovalRow(
     val resultCode: String?,
     /** 소유 서비스 승인의 명령·실행 행(상세에만 — LEFT JOIN, ADMIN-PAYMENT-OPS-001 §5 jOOQ). 사유·근거 문구는 조회 모델에 넣지 않는다(I-98). */
     val owner: OwnerDetailRow? = null,
+    /** 재매입 승인의 명령·실행 행(상세에만 — ACQ-ADMIN-001 B1-A). 사유 문구·근거는 넣지 않는다(I-98과 같은 규칙). */
+    val acquiring: AcquiringDetailRow? = null,
+)
+
+/** 재매입 명령 행(원 파일·사유 코드·고정 대상 JSON) + 실행 행(승인 뒤에만). [ownerReference] = 새 파일 ID, [ownerResultCode] = NOT_REQUIRED 또는 거절 code. */
+data class AcquiringDetailRow(
+    val originalFileId: String,
+    val reasonCode: String,
+    val pinnedTarget: String,
+    val approvedAt: Instant?,
+    val executeBefore: Instant?,
+    val attemptCount: Int?,
+    val nextAttemptAt: Instant?,
+    val lastResponseAt: Instant?,
+    val lastFailure: String?,
+    val integrityFlag: String?,
+    val resendHaltedReason: String?,
+    val ownerResultCode: String?,
+    val ownerReference: String?,
 )
 
 /** 명령 행(요청 고정 값) + 실행 행(승인 뒤에만 — 없으면 실행 열 null). */

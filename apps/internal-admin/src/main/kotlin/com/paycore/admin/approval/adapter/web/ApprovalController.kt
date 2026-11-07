@@ -2,7 +2,9 @@ package com.paycore.admin.approval.adapter.web
 
 import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionState
+import com.paycore.admin.approval.application.provided.AcquiringOpsApprovalUseCase
 import com.paycore.admin.approval.application.provided.ApprovalOutcome
+import com.paycore.admin.approval.application.provided.RequestReacquisition
 import com.paycore.admin.approval.application.provided.ApprovalQuery
 import com.paycore.admin.approval.application.provided.ApprovalUseCase
 import com.paycore.admin.approval.application.provided.ApprovalView
@@ -38,6 +40,7 @@ class ApprovalController(
     private val owners: OwnerServiceApprovalUseCase,
     private val query: ApprovalQuery,
     private val justifications: OperatorCancelJustificationQuery,
+    private val acquiring: AcquiringOpsApprovalUseCase,
 ) {
 
     @PostMapping
@@ -57,6 +60,22 @@ class ApprovalController(
             RequestOperatorCancel(
                 authentication.name, generation, body.paymentId.orEmpty(), body.amountMinor ?: 0, body.purposeKind.orEmpty(), body.purposeReference.orEmpty(),
                 body.reason.orEmpty(), context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * 재매입 요청(ACQ-ADMIN-001 B1-A — OPERATOR, D-ACQA-002·003). 순번은 JSON 정수 배열(1..50, 오름차순). 앞뒤 공백은 서버가 자르지 않고 거부한다.
+     * 응답: 201 approvalId / 400 INVALID_INPUT(field·reason)·ACQUISITION_FILE_NOT_FOUND / 403 / 409 TARGET_NOT_ELIGIBLE_ADVISORY·DUPLICATE_UNRESOLVED / 503 FINANCIAL_UNAVAILABLE.
+     */
+    @PostMapping("/acq-reacquisition")
+    fun requestReacquisition(@RequestBody body: ReacquisitionBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = acquiring.requestReacquisition(
+            RequestReacquisition(
+                authentication.name, generation, body.fileId.orEmpty(), body.seqs.orEmpty(), body.reasonCode.orEmpty(), body.evidenceRef.orEmpty(), body.reason.orEmpty(),
+                context(request),
             ),
         )
         return respond(outcome, request)
@@ -100,11 +119,13 @@ class ApprovalController(
     /**
      * 근거·사유 별도 권한 조회(D-OPS-010 — APPROVER 역할과 요청자 본인만, 서버가 계정 현재 행으로 판정): 200 문구 / 403 / 404 / 503 `AUDIT_UNAVAILABLE`(감사를 남기지 못하면
      * 보이지 않는다). 시도마다 감사 1행(문구 없음). 목록·상세(I-98)에는 계속 문구가 없다.
+     * 재매입 승인(ACQ-ADMIN-001 D-ACQA-005)은 같은 판정·감사로 `{approvalId, evidenceRef}`만(사유 문구 없음 — I-4).
      */
     @GetMapping("/{approvalId}/justification")
     fun justification(@PathVariable approvalId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
         when (val result = justifications.view(authentication.name, approvalId, context(request))) {
             is JustificationResult.Found -> ok(linkedMapOf("approvalId" to result.approvalId, "purposeReference" to result.purposeReference, "reason" to result.reason))
+            is JustificationResult.EvidenceFound -> ok(linkedMapOf("approvalId" to result.approvalId, "evidenceRef" to result.evidenceRef))
             JustificationResult.Forbidden -> status(HttpStatus.FORBIDDEN, "FORBIDDEN")
             JustificationResult.NotFound -> status(HttpStatus.NOT_FOUND, "NOT_FOUND")
             JustificationResult.AuditUnavailable -> status(HttpStatus.SERVICE_UNAVAILABLE, "AUDIT_UNAVAILABLE")
@@ -161,6 +182,16 @@ class ApprovalController(
                 "ownerReference" to o.ownerReference,
             )
         }
+        v.acquiring?.let { a ->
+            m["acquiring"] = linkedMapOf(
+                // D-ACQA-005: 근거 참조는 상세(4역할 공통)에 넣지 않는다 — APPROVER·요청자 본인만 `/justification` 별도 조회(감사).
+                "originalFileId" to a.originalFileId, "reasonCode" to a.reasonCode, "pinnedTarget" to pinnedJson.readTree(a.pinnedTarget),
+                "approvedAt" to a.approvedAt?.toString(), "executeBefore" to a.executeBefore?.toString(), "attemptCount" to a.attemptCount,
+                "nextAttemptAt" to a.nextAttemptAt?.toString(), "lastResponseAt" to a.lastResponseAt?.toString(), "lastFailure" to a.lastFailure,
+                "integrityFlag" to a.integrityFlag, "resendHaltedReason" to a.resendHaltedReason, "ownerResultCode" to a.ownerResultCode,
+                "ownerReference" to a.ownerReference,
+            )
+        }
     }
 
     private val pinnedJson = tools.jackson.databind.json.JsonMapper.builder().build()
@@ -175,13 +206,17 @@ class ApprovalController(
         const val INVALID_INPUT = "INVALID_INPUT"
 
         /** 400 code: 입력 형식, 종류 해석 단계의 실행 모델 거부(ADMIN-PAYMENT-OPS-001 §4.10 1행 — 소유 서비스 종류는 새 endpoint만), Payment 없음(§4.12 2). */
-        val BAD_REQUEST_CODES = setOf(INVALID_INPUT, "WRONG_EXECUTION_MODEL", "PAYMENT_NOT_FOUND")
+        val BAD_REQUEST_CODES = setOf(INVALID_INPUT, "WRONG_EXECUTION_MODEL", "PAYMENT_NOT_FOUND", "ACQUISITION_FILE_NOT_FOUND")
     }
 
     class CreateRequest(val kind: String?, val targetActorId: String?, val grantedRole: String?, val causeApprovalId: String?)
 
     class OperatorCancelBody(val paymentId: String?, val amountMinor: Long?, val purposeKind: String?, val purposeReference: String?, val reason: String?) {
         override fun toString(): String = "OperatorCancelBody(paymentId=$paymentId, amountMinor=$amountMinor)"
+    }
+
+    class ReacquisitionBody(val fileId: String?, val seqs: List<Int>?, val reasonCode: String?, val evidenceRef: String?, val reason: String?) {
+        override fun toString(): String = "ReacquisitionBody(fileId=$fileId, seqs=${seqs?.size})"
     }
 
     class TotpBody(val totpCode: String?) {

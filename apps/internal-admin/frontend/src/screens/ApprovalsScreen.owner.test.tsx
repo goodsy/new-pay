@@ -93,4 +93,25 @@ describe('ApprovalsScreen — owner-service approvals (S8 §4.20, I-105)', () =>
     await userEvent.click(approve)
     expect(api.approve).toHaveBeenCalledWith('apr_PENDING', '123456')
   })
+
+  // ACQ-ADMIN-001 B2 리뷰 m-1: 상세에 열린 승인을 거절하면 상세도 다시 읽는다(낡은 PENDING이 남지 않는다).
+  it('B2 review m-1: rejecting the approval shown in the detail panel re-reads the detail (REJECTED, not PENDING)', async () => {
+    let state: ApprovalView = { ...item('PENDING'), decidedBy: null, decidedByDisplayName: null, decidedAt: null }
+    const reject = vi.fn(async () => {
+      state = { ...item('PENDING'), status: 'REJECTED' }
+      return { approvalId: 'apr_PENDING', status: 'REJECTED' }
+    })
+    const approvalDetail = vi.fn(async () => state)
+    const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [state] })), approvalDetail, reject })
+    render(<ApprovalsScreen api={api} view="pending" canDecide viewer={approver} />)
+    const row = await screen.findByRole('row', { name: /PENDING/ })
+    await userEvent.click(within(row).getByRole('button', { name: '상세' }))
+    expect(within(await screen.findByRole('region', { name: '소유 서비스 실행 상세' })).getByTitle('PENDING')).toBeInTheDocument()
+    await userEvent.type(within(row).getByLabelText('인증 코드(6자리)'), '123456')
+    await userEvent.click(within(row).getByRole('button', { name: '거절' }))
+    const reread = await screen.findByRole('region', { name: '소유 서비스 실행 상세' })
+    expect(await within(reread).findByTitle('REJECTED')).toBeInTheDocument()
+    expect(within(reread).queryByTitle('PENDING')).toBeNull()
+    expect(approvalDetail).toHaveBeenCalledTimes(2)
+  })
 })

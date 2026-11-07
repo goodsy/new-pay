@@ -9,13 +9,9 @@ import com.paycore.financial.acquiring.application.AcquisitionResultCloseService
 import com.paycore.financial.acquiring.application.AcquisitionSealService
 import com.paycore.financial.acquiring.application.AcquisitionTransmissionService
 import com.paycore.financial.acquiring.application.AcquisitionWaitingBoard
-import com.paycore.financial.acquiring.application.ReacquisitionApprovalService
 import com.paycore.financial.acquiring.application.provided.CloseAcquisitionResultsUseCase
-import com.paycore.financial.acquiring.application.provided.ExecuteReacquisitionUseCase
 import com.paycore.financial.acquiring.application.provided.NextSealDate
-import com.paycore.financial.acquiring.application.provided.ReacquisitionApprovalResult
 import com.paycore.financial.acquiring.application.provided.ReceiveAcquirerResponsesUseCase
-import com.paycore.financial.acquiring.application.provided.RecordReacquisitionApprovalUseCase
 import com.paycore.financial.acquiring.application.provided.SealAcquisitionFileUseCase
 import com.paycore.financial.acquiring.application.provided.TransmissionResult.Kind
 import com.paycore.financial.acquiring.application.provided.TransmitAcquisitionFileUseCase
@@ -30,8 +26,6 @@ import com.paycore.financial.acquiring.application.required.AcquisitionResponseS
 import com.paycore.financial.acquiring.application.required.AcquisitionResultPolicy
 import com.paycore.financial.acquiring.application.required.AcquisitionTransmissionStore
 import com.paycore.financial.acquiring.application.required.AcquisitionTransportPolicy
-import com.paycore.financial.acquiring.application.required.ReacquisitionApprovalStore
-import com.paycore.financial.acquiring.application.required.ReacquisitionApprovalVerifier
 import com.paycore.financial.acquiring.domain.AckOutcome
 import com.paycore.financial.acquiring.domain.AcquirerAck
 import com.paycore.financial.acquiring.domain.AcquirerResponseFormat
@@ -39,10 +33,7 @@ import com.paycore.financial.acquiring.domain.AcquirerResultFile
 import com.paycore.financial.acquiring.domain.AcquirerResultLine
 import com.paycore.financial.acquiring.domain.AcquisitionFileId
 import com.paycore.financial.acquiring.domain.AcquisitionRecordType
-import com.paycore.financial.acquiring.domain.ApprovalChannel
 import com.paycore.financial.acquiring.domain.LineResult
-import com.paycore.financial.acquiring.domain.ReacquisitionApprovalCommand
-import com.paycore.financial.acquiring.domain.ReacquisitionTargetStatus
 import com.paycore.financial.codeOf
 import com.paycore.financial.paymentfact.adapter.web.PaymentFactEnvelopeFixture
 import com.paycore.financial.paymentfact.application.PaymentFactInboxService
@@ -63,7 +54,6 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.PlatformTransactionManager
 import org.testcontainers.mysql.MySQLContainer
 import java.nio.file.Files
-import java.sql.SQLException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -91,7 +81,6 @@ class AcquiringOperationsDbSpec(
     private val attempts: AcquisitionTransmissionStore,
     private val responses: AcquisitionResponseStore,
     private val results: AcquisitionRecordResultStore,
-    private val approvals: ReacquisitionApprovalStore,
     private val board: AcquisitionWaitingBoard,
     private val channel: AcquirerFileChannel,
     private val transport: AcquisitionTransportPolicy,
@@ -103,8 +92,6 @@ class AcquiringOperationsDbSpec(
     private val transmitUseCase: TransmitAcquisitionFileUseCase,
     private val receiveUseCase: ReceiveAcquirerResponsesUseCase,
     private val closeUseCase: CloseAcquisitionResultsUseCase,
-    private val recordApproval: RecordReacquisitionApprovalUseCase,
-    private val executeReacquisition: ExecuteReacquisitionUseCase,
     private val server: TestAcquirerSftpServer,
     private val jdbc: JdbcTemplate,
     private val container: MySQLContainer,
@@ -135,14 +122,6 @@ class AcquiringOperationsDbSpec(
 
     fun receive(acq: String, at: Instant = receivedAt) =
         AcquirerResponseService(transactionManager, files, responses, results, channel, FixedClock(at), membership).receive(acq, "TEST")
-
-    fun forged() = ReacquisitionApprovalService(
-        transactionManager, files, results, approvals,
-        object : ReacquisitionApprovalVerifier {
-            override fun verify(command: ReacquisitionApprovalCommand, signature: String) = true
-        },
-        FixedClock(receivedAt),
-    )
 
     fun close(acq: String, at: Instant) = AcquisitionResultCloseService(
         transactionManager, files, results, object : AcquisitionResultPolicy {
@@ -326,35 +305,9 @@ class AcquiringOperationsDbSpec(
         }
     }
 
-    Given("AQ-G1 a re-acquisition approval for a REJECTED record without the ADMIN signed channel (D-ACQ-011 — input path is ACQ-ADMIN-001)") {
-        val acq = acquirers.next()
-        authorize(acq, 10_000)
-        val fileId = seal(acq).fileId
-        transmit(fileId)
-        writeResult(fileId, 1, listOf(1 to LineResult.REJECTED))
-        receive(acq)
-        fun command(requestedBy: String = "admin-req-1", approvedBy: String = "admin-apv-2") = ReacquisitionApprovalCommand(
-            approvalId = "apr-$acq", fileId = AcquisitionFileId.parse(fileId), seq = 1, expectedTargetGeneration = 0,
-            expectedTargetStatus = ReacquisitionTargetStatus.REJECTED, requestedBy = requestedBy, approvedBy = approvedBy, reasonCode = "ACQUIRER_REQUESTED",
-            evidenceRef = "RECON-CASE-$acq", channel = ApprovalChannel.ADMIN_SIGNED,
-        )
-        val production = recordApproval.record(command(), "any-signature")
-        val forged = forged()
-
-        Then("the production channel never verifies: refused CHANNEL_NOT_VERIFIED and nothing is recorded") {
-            production shouldBe ReacquisitionApprovalResult(false, "CHANNEL_NOT_VERIFIED")
-            count("SELECT COUNT(*) FROM acquisition_reacquisition_approval WHERE file_id = ?", fileId) shouldBe 0
-        }
-
-        And("even a forged accepting verifier cannot record: the rule refuses the same person, and a valid approval is denied by the database (runtime INSERT 1142)") {
-            forged.record(command(approvedBy = "admin-req-1"), "sig") shouldBe ReacquisitionApprovalResult(false, "SAME_PERSON")
-            val denied = shouldThrow<RuntimeException> { forged.record(command(), "sig") }
-            generateSequence<Throwable>(denied) { it.cause }.filterIsInstance<SQLException>().first().errorCode shouldBe 1142
-            count("SELECT COUNT(*) FROM acquisition_reacquisition_approval WHERE file_id = ?", fileId) shouldBe 0
-        }
-    }
-
-    Given("AQ-G2 the approval table's own constraints (installed rows only via root here — CHECK and UNIQUE hold regardless of the application)") {
+    // AQ-G1·G3(2-G: 서명 채널 없음·runtime INSERT 1142·실행 언제나 거절)은 ACQ-ADMIN-001 B1이 D-ACQ-011에 따라 입력 경로를 열면서 ReacquisitionExecutionDbSpec·
+    // AdminAcquiringOperationsHttpSpec(조작 키 서명만, 결정 기록, 실행)으로 바뀌었다. 이 AQ-G2는 표 자체의 제약(CHECK·UNIQUE·결정 FK)을 계속 본다.
+    Given("AQ-G2 the approval table's own constraints (installed rows only via root here — CHECK, UNIQUE and the decision FK hold regardless of the application)") {
         val acq = acquirers.next()
         authorize(acq, 10_000)
         val fileId = seal(acq).fileId
@@ -363,8 +316,14 @@ class AcquiringOperationsDbSpec(
             "INSERT INTO acquisition_reacquisition_approval (approval_id, file_id, seq, transaction_id, record_type, target_generation, new_generation, target_status, " +
                 "reacquisition_of, requested_by, approved_by, reason_code, evidence_ref, channel, recorded_at) VALUES ('$id-$acq', '$fileId', 1, '$txn', 'SALE', $target, $next, " +
                 "'REJECTED', '$of', '$requestedBy', '$approvedBy', 'R', 'E', '$channel', NOW(3))"
+        fun decision(id: String) =
+            "INSERT INTO acquisition_ops_decision (approval_id, kind, decision, rejection_code, target_ref, result_file_id, content_hash, requested_by, approved_by, " +
+                "approved_at, execute_before, decided_at, origin) VALUES ('$id-$acq', 'REACQUISITION', 'NOT_REQUIRED', NULL, '$fileId', NULL, " +
+                "CONCAT('acd1:', REPEAT('a', 64)), 'a', 'b', NOW(3), NOW(3) + INTERVAL 1 HOUR, NOW(3), 'EXECUTION_COMMAND')"
         val codes = FinancialDbAccounts.root(container).use { c ->
+            listOf("p", "g", "c", "r", "v", "v2").forEach { c.codeOf(decision(it)) shouldBe null }
             mapOf(
+                "no decision row (ACQ-ADMIN-001 FK)" to c.codeOf(insert("orphan")),
                 "same person" to c.codeOf(insert("p", requestedBy = "x", approvedBy = "x")),
                 "skipped generation" to c.codeOf(insert("g", next = 2)),
                 "unsigned channel" to c.codeOf(insert("c", channel = "UNSIGNED")),
@@ -375,27 +334,10 @@ class AcquiringOperationsDbSpec(
         }
         Then("requester = approver, a skipped generation, an unsigned channel and a wrong reference are CHECK violations; one approval per (transaction, type, generation)") {
             codes shouldBe mapOf(
+                "no decision row (ACQ-ADMIN-001 FK)" to 1452,
                 "same person" to 3819, "skipped generation" to 3819, "unsigned channel" to 3819, "other reference" to 3819, "valid" to null,
                 "second approval of the same generation" to 1062,
             )
-        }
-
-        And("AQ-G3 even with an approval on record, re-acquisition execution is refused and no new file version or generation is created (D-ACQ-011)") {
-            executeReacquisition.execute("v-$acq").let { it.executed to it.refusal } shouldBe (false to "INPUT_PATH_NOT_AVAILABLE")
-            // 리뷰 n-5: 같은 승인 ID 재전송은 사유·근거·대상 상태까지 같아야 같은 명령이다(기록된 행 = root 설치 'v').
-            fun resend(evidence: String, reason: String = "R") = forged().record(
-                ReacquisitionApprovalCommand(
-                    approvalId = "v-$acq", fileId = AcquisitionFileId.parse(fileId), seq = 1, expectedTargetGeneration = 0,
-                    expectedTargetStatus = ReacquisitionTargetStatus.REJECTED, requestedBy = "a", approvedBy = "b", reasonCode = reason, evidenceRef = evidence,
-                    channel = ApprovalChannel.ADMIN_SIGNED,
-                ),
-                "sig",
-            )
-            resend("E") shouldBe ReacquisitionApprovalResult(true, null)
-            resend("E2") shouldBe ReacquisitionApprovalResult(false, "APPROVAL_ID_CONFLICT")
-            resend("E", reason = "OTHER") shouldBe ReacquisitionApprovalResult(false, "APPROVAL_ID_CONFLICT")
-            count("SELECT COUNT(*) FROM acquisition_file WHERE acquirer_code = ? AND file_version > 1", acq) shouldBe 0
-            count("SELECT COUNT(*) FROM acquisition_file_record WHERE transaction_id = ? AND generation > 0", txn) shouldBe 0
         }
     }
 })

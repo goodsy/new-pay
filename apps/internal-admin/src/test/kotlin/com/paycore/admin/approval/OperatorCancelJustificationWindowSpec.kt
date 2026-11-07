@@ -4,6 +4,7 @@ import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.approval.application.OperatorCancelJustificationService
 import com.paycore.admin.approval.application.provided.JustificationResult
+import com.paycore.admin.approval.application.required.AcquiringOpsCommandStore
 import com.paycore.admin.approval.application.required.ApprovalEnvironment
 import com.paycore.admin.approval.application.required.ApprovalRequestRepository
 import com.paycore.admin.approval.application.required.OperatorCancelCommandStore
@@ -42,7 +43,7 @@ class OperatorCancelJustificationWindowSpec : FunSpec({
         } as OwnerOpsMetrics
         val service = OperatorCancelJustificationService(
             unused<PlatformTransactionManager>(), unused<AdminSessionQuery>(), unused<ApprovalRequestRepository>(), unused<OperatorCancelCommandStore>(),
-            unused<AdminAuditRecorder>(), clock, metrics,
+            unused<AdminAuditRecorder>(), clock, metrics, unused<AcquiringOpsCommandStore>(),
         )
         val context = AdminRequestContext("corr-window", null)
         fun ask() = service.view("adm_viewer", "not-an-approval-id", context)

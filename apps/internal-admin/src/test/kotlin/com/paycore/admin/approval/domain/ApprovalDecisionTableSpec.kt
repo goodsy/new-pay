@@ -56,6 +56,8 @@ class ApprovalDecisionTableSpec : BehaviorSpec({
                 ApprovalKind.PASSWORD_RESET to Triple(ApprovalExecutionModel.ADMIN_OWNED, "SECURITY_ADMIN", ApprovalTargetKind.ADMIN_ACCOUNT),
                 ApprovalKind.ROLE_REACTIVATE to Triple(ApprovalExecutionModel.ADMIN_OWNED, "SECURITY_ADMIN", ApprovalTargetKind.ADMIN_ACCOUNT),
                 ApprovalKind.OPERATOR_CORRECTION_CANCEL to Triple(ApprovalExecutionModel.OWNER_SERVICE, "OPERATOR", ApprovalTargetKind.PAYMENT),
+                // ACQ-ADMIN-001 B1-A(D-ACQA-002): 재매입 — 요청 OPERATOR, 대상 원 매입 파일.
+                ApprovalKind.ACQ_REACQUISITION to Triple(ApprovalExecutionModel.OWNER_SERVICE, "OPERATOR", ApprovalTargetKind.ACQUISITION_FILE),
             )
             ApprovalKind.entries.map { it.approverRole }.toSet() shouldBe setOf("APPROVER")
             ApprovalKind.OPERATOR_CORRECTION_CANCEL.let { listOf(it.needsGrantedRole, it.needsCause, it.escalatesPrivilege, it.issuesEnrollmentCode, it.mayActivatePrivilegedRole(null)) } shouldBe
@@ -219,7 +221,7 @@ class ApprovalDecisionTableSpec : BehaviorSpec({
             ApprovalKind.entries.associateWith { it.mayActivatePrivilegedRole(if (it.needsGrantedRole) "APPROVER" else null) } shouldBe mapOf(
                 ApprovalKind.ROLE_GRANT to true, ApprovalKind.ACCOUNT_UNLOCK to true, ApprovalKind.ACCOUNT_REACTIVATE to true,
                 ApprovalKind.TOTP_REENROLL to false, ApprovalKind.PASSWORD_RESET to false, ApprovalKind.ROLE_REACTIVATE to true,
-                ApprovalKind.OPERATOR_CORRECTION_CANCEL to false,
+                ApprovalKind.OPERATOR_CORRECTION_CANCEL to false, ApprovalKind.ACQ_REACQUISITION to false,
             )
             ApprovalKind.ROLE_GRANT.mayActivatePrivilegedRole("VIEWER") shouldBe false
             ApprovalKind.entries.filter { it.issuesEnrollmentCode }.toSet() shouldBe setOf(ApprovalKind.TOTP_REENROLL, ApprovalKind.PASSWORD_RESET)

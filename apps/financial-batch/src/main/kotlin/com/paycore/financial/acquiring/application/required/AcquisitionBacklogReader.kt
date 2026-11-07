@@ -18,6 +18,8 @@ interface AcquisitionBacklogReader {
 data class AcquisitionBacklogCounts(
     val transmissionUnknown: Long,
     val transmissionQuarantined: Long,
+    /** (ACQ-ADMIN-001 B2 — L-9) TRANSMISSION_WITHHELD 파일 수(대사 입력). */
+    val transmissionWithheld: Long = 0,
     val uploadFailedRepeated: Long,
     val recordsUnknown: Long,
     val recordsConflict: Long,
@@ -27,6 +29,11 @@ data class AcquisitionBacklogCounts(
     val awaitingResults: Long,
     /** (rev 1.1 — 리뷰 m-1) 원 SALE이 나중에 CONFLICT가 된 "취소 매입 불요" 기록 수(판정 근거가 흔들린 취소 — 대사 입력). */
     val cancelNotRequiredOriginalConflict: Long,
+    /**
+     * (ACQ-ADMIN-001 rev 0.3 — 리뷰 MJ-1) 재매입 SALE 레코드(세대 ≥ 1) 중 상계액 ≠ 그 원승인의 판정 끝난 취소 합인 건수(I-17 — 0이어야 한다).
+     * [nettingMismatches]의 레코드 쪽은 세대 0만 센다.
+     */
+    val reacquisitionNettingMismatches: Long,
 ) {
     companion object {
         const val UPLOAD_FAILED_REPEAT = 3

@@ -16,7 +16,7 @@ const completed = (fileId: string): AcquisitionFileItem => ({
   fileId, acquirerCode: fileId.split('.')[1] ?? '', environment: 'TEST', businessDate: '2026-10-20', fileVersion: 1, originalFileId: null, recordCount: 2, saleCount: 2,
   saleAmountMinor: 30000, cancelCount: 0, cancelAmountMinor: 0, netAmountMinor: 30000, currency: 'KRW', transmissionState: 'TRANSMITTED', receiptState: 'RECEIVED',
   resultState: 'COMPLETE', sealedAt: '2026-10-20T14:05:00.000Z', transmittedAt: '2026-10-20T14:06:00.000Z',
-  recordStatusCounts: { awaiting: 0, accepted: 2, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: [], reacquisitionCandidate: false,
+  recordStatusCounts: { awaiting: 0, accepted: 2, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: [], reacquisitionCandidate: false, reacquisitionInProgress: false,
 })
 const overdue: AcquisitionFileItem = {
   ...completed(F1), resultState: 'AWAITING', recordStatusCounts: { awaiting: 1, accepted: 0, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, recordCount: 1,
@@ -159,7 +159,8 @@ describe('AcquisitionsScreen (ACQ-VIEW-001 §4.6 — read-only acquisition statu
     await search()
     await userEvent.click(within(await screen.findByRole('row', { name: F3 })).getByRole('button', { name: '상세' }))
     await screen.findByRole('region', { name: '레코드별 결과' })
-    expect(screen.getByText('거절된 레코드가 있습니다. 재매입은 2인 승인 화면에서 진행합니다(이 화면은 조회 전용).')).toBeInTheDocument()
+    // ACQ-ADMIN-001 B1-A 리뷰 m-5: 재매입 요청 패널이 생겨 "조회 전용" 문구를 역할별 문구로 바꿨다(이 시험은 OPERATOR 아님 — 조회 역할 문구).
+    expect(screen.getByText('거절된 레코드가 있습니다. 재매입은 운영자(OPERATOR)가 이 화면에서 요청하고, 다른 관리자(APPROVER)가 승인함에서 승인합니다.')).toBeInTheDocument()
     await choose('레코드 상태', 'REJECTED')
     expect(acquisitionRecords).toHaveBeenLastCalledWith(F3, { status: 'REJECTED' })
     expect(await screen.findByRole('row', { name: '레코드 3' })).toBeInTheDocument()

@@ -289,6 +289,20 @@ class ArchitectureSpec : FunSpec({
             .allowEmptyShould(false).check(classes)
     }
 
+    test("ACQ-ADMIN-001 B1-A: the FINANCIAL operation client is used only by AcquiringOpsApprovalService, OwnerExecutionRecoveryService and financialops.application") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE..")
+            .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.approval.application.") + "(AcquiringOpsApprovalService|OwnerExecutionRecoveryService)(\\$.*)?$")
+            .and().resideOutsideOfPackage("$BASE_PACKAGE.financialops.application..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.financialops.application.provided.AcquiringOpsClient")
+            .allowEmptyShould(false).check(classes)
+        // approval은 financialops 내부(domain·adapter·required)에 닿지 않는다 — provided만(Modulith named interface).
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.approval..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.financialops.domain..", "$BASE_PACKAGE.financialops.adapter..", "$BASE_PACKAGE.financialops.application.required..",
+            )
+            .allowEmptyShould(false).check(classes)
+    }
+
     test("no cycles between modules") {
         // 대상 있음: security 패키지.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)

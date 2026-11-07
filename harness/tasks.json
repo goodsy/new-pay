@@ -3108,36 +3108,150 @@
       "id": "ACQ-ADMIN-001",
       "title": "재매입 2인 승인·보류 REVIEW_REQUIRED 해소 관리자 입력(internal-admin)",
       "phase": "ACQUIRING",
-      "status": "BACKLOG",
+      "status": "DONE",
       "dependsOn": [
         "ACQUIRING-001",
-        "MERCHANT-OPS-002"
+        "ACQ-VIEW-001"
       ],
       "requiredQuestions": [
-        "Q-ACQ-10",
-        "Q-FFR-03",
         "Q-2G-1",
-        "Q-2G-2"
+        "Q-2G-2",
+        "Q-ACQ-10",
+        "Q-ACQA-01",
+        "Q-ACQA-02",
+        "Q-ACQA-03",
+        "Q-ACQA-04",
+        "Q-ACQA-09",
+        "Q-FFR-03"
       ],
       "acceptanceCriteria": [
         "재매입 2인 승인(D-ACQ-011, D-ADMIN-007 양쪽 검사)",
-        "REVIEW_REQUIRED 보류 해소 입력",
         "FINANCIAL 쪽 기록·검사와 서명 채널",
-        "TRANSMISSION_QUARANTINED 해소 입력",
-        "매입 확정 표지 PK 경합 시험(서로 다른 세대 동시 ACCEPTED → 1062 → 재시도 → CONFLICT 수렴, CyclicBarrier — ACQUIRING-001 재리뷰 R-m1)",
-        "모든 ACCEPTED 쓰기 경로가 같은 TX에서 markAccepted(N-1)",
+        "재매입 파일 전송·결과 반영, 원 세대 매입 확정 시 전송 보류(L-9)",
         "재매입 금액 = 순액(D-ACQ-013), UNKNOWN 재매입은 대사 미매입 확정 후만(D-ACQ-014)",
-        "승인 표 FK·복합 UNIQUE(n-4), 격리 응답 재반영 입력",
+        "승인 표 FK·복합 UNIQUE(n-4)",
         "매입 현황 '재매입 검토 대상' 배지가 재매입 새 세대 ACCEPTED 뒤에는 꺼지도록(ACQ-VIEW-001 리뷰 MINOR-6)"
       ],
-      "allowedWritePaths": [],
-      "pathsResolved": false,
+      "allowedWritePaths": [
+        "apps/financial-batch/**",
+        "apps/internal-admin/**",
+        "harness/commands.json",
+        "harness/tests/**",
+        "harness/e2e/**",
+        "docs/repository/ACQ-ADMIN-001-ACQUIRING-OPERATIONS.md",
+        "docs/repository/ACQUIRING-001-ACQUIRING.md",
+        ".env.example",
+        "docker/mysql/init/**",
+        "docs/repository/ARCHITECTURE-CONVENTIONS.md"
+      ],
+      "pathsResolved": true,
       "owner": null,
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "evidence": [],
+      "evidence": [
+        "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T101704Z.json",
+        "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T125904Z-supplementary"
+      ],
       "review": null,
-      "lastSuccessfulStep": null
+      "lastSuccessfulStep": "ACQA-gate3 PASS + supplementary DEPS x5/CVE-SCAN exit 0",
+      "coordinatorDecisions": [
+        "(1) 2026-11-06 사용자 선택 '매입 조작 화면 (Recommended)'(화면 단위 진행). MERCHANT-OPS-002 의존을 뺀다 — 2인 승인 틀은 ADMIN-PAYMENT-OPS-001 승인함(D-ADMIN-007)으로 이미 있고, 이 작업은 가맹점 등록 명령에 기대지 않는다(가역 계획 결정). 매입 현황 화면(ACQ-VIEW-001) 위에 조작을 붙인다",
+        "(2) 명세 rev 0.1 C-1..C-9 권장안 채택(가역): C-1 승인 TX에서 새 버전 봉인(승인당 파일 하나), C-2 공통 acquisition_ops_decision, C-3 OwnerServiceApprovalService를 소유 서비스 gateway로 일반화, C-4 보류 해소 진입점 paymentfact.adapter.web.admin, C-5 결정 대사 B5, C-6 jOOQ codegen 범위 확장, C-7 Verifier 삭제(인증은 채널 필터), C-8 Demo 재매입은 SCENARIO_FILE_REJECTED(002 거절 시 simulator 경로 추가 필요 — 보고), C-9 사유 코드 고정 목록·자유 문구는 ADMIN만",
+        "(3) 배치 순서 B1 재매입 요청·승인·봉인 → B2 전송·결과·배지 → B3 격리 해소·재반영 → B4 보류 → B5 결정 대사. Q-ACQA-05..08은 B3·B4 전에 질문",
+        "(4) 2026-11-07 사용자 결정: 'B2까지만 하고 b3.4는 나중에 할게' — 이 작업은 B2에서 닫는다. B3(격리 해소·재반영)·B4(REVIEW_REQUIRED 보류 해소)·B5·Q-ACQA-05..08·Q-ACQA-10·I-7 CANCEL 재매입·R-m1 PK 경합 시험·N-1 ArchUnit·B2 리뷰 m-2/m-3/m-4/n-1/n-3은 ACQ-ADMIN-002로 이동. 다음은 가맹점 기준정보 화면부터 Demo로 보며 진행",
+        "(5) 2026-11-07 Demo E2E(Coordinator): apr_01M6SW383D8WMFTS0CH0TE11J3 → ACQ.SIMACQA.TEST.20261106.002 전송·ACCEPTED, 원 파일 배지 해제. B2 리뷰 PASS(MAJOR 0, MINOR 4: m-1 승인 뒤 상세 패널 갱신은 마무리 배치에서 수정)"
+      ],
+      "gateRuns": [
+        {
+          "tag": "ACQA-gate1",
+          "fingerprint": "sha256:fdeb31cc607006416abafd93c7392edbc4ac057df0021324626993b3f0c1eb08",
+          "evidence": "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T040622Z.json",
+          "verdict": "FAIL",
+          "cause": "GRADLE-CHECK timedOut=True at 2400s (04:06:44Z..04:46:44Z) — payment-api test not finished; no test failure. Previous ACQV-gate1 took 38m58s; this task added Kotlin +111 tests (floor 3956→4067, FE 174→198)"
+        },
+        {
+          "tag": "ACQA-gate2",
+          "fingerprint": "sha256:7c6012ee0c0eb90c2a96725e002b8207e654ad12ac13ab1ae5e038786678444b",
+          "evidence": "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T082917Z.json",
+          "verdict": "FAIL",
+          "cause": "GRADLE-CHECK exit=1 at 4m10s (08:29:48Z..08:33:59Z): :apps:internal-admin:frontendTest — AcquisitionsScreen.reacquisition.test.tsx 2 tests 'Test timed out in 5000ms' under parallel Kotlin load (171/173 passed). Recorded TEST-PERF-003 risk materialized; no functional failure"
+        },
+        {
+          "tag": "ACQA-gate3",
+          "fingerprint": "sha256:86ec3a9178be48deba18a345185e1a22d0d37ff5b34419db40dc761c7fb76d37",
+          "evidence": "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T101704Z.json",
+          "verdict": "PASS",
+          "cause": "GRADLE-CHECK exit 0 in 43m05s (10:17:26Z..11:00:31Z, limit 3300s); Kotlin 4067/0 fail, Vitest 198 (admin 173 + payment-api 25)/0 fail; reacquisition tests 3734ms/1667ms under load; supplementary fp unchanged"
+        }
+      ],
+      "nextResumeAction": "DONE — 커밋·push 사용자 확인 후 가맹점 기준정보 화면(MERCHANT-OPS-001 → MERCHANT-OPS-002)을 Demo로 보며 진행. 후속은 ACQ-ADMIN-002"
+    },
+    {
+      "id": "TEST-PERF-003",
+      "title": "전체 검사(GRADLE-CHECK) 40분 제한 내 여유 재확보 — 시험 범위·기준 유지",
+      "phase": "FOUNDATION",
+      "status": "DONE",
+      "dependsOn": [
+        "TEST-PERF-002"
+      ],
+      "requiredQuestions": [],
+      "acceptanceCriteria": [
+        "사용자 결정(2026-11-07 '제한 유지, 속도 개선 먼저' — 2026-11-03 결정과 같음): GRADLE-CHECK timeoutSeconds 2400 유지, minTests(4067/198)·보고서·outputMustMatch 등 gate 기준 불변",
+        "ACQ-ADMIN-001 변경 포함 상태에서 GRADLE-CHECK argv 실측이 33분 이하(여유 ≥7분)",
+        "시험 삭제·skip·단언 약화·검증 범위 축소 금지. 실제 DB 경쟁·rollback 시험은 실제 MySQL 유지",
+        "측정 전후 수치와 원인을 docs/repository/TECH-BASELINE.md에 기록"
+      ],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": [
+        "build/harness-evidence/ACQ-ADMIN-001-2026-11-07T101704Z.json"
+      ],
+      "review": null,
+      "coordinatorDecisions": [
+        "2026-11-07 ACQA-gate1 timeout으로 생성. ACQ-ADMIN-001과 같은 작업 트리에서 진행하고 같은 gate로 검증(커밋은 작업별 명시 stage)",
+        "2026-11-07 Implementer 실측: 변경 없는 기준 2636s(43m56s, exit 0, Kotlin 4067/Vitest 198). 두 줄 병렬은 WSL 7.8GB에서 swap으로 이득 0 → 모두 되돌림, TECH-BASELINE §7.5만 남김. 33분 목표 미달",
+        "2026-11-07 사용자 결정 '게이트 제한 올리기'(선택지: WSL 메모리 12GB / 제한 55분 / 둘 다): GRADLE-CHECK timeoutSeconds 2400→3300. minTests·보고서·출력 규칙 불변. VERIFY-GATE 5400은 단계 합 검사 통과(harness 182 OK)",
+        "위험 기록: admin Vitest AcquisitionsScreen.reacquisition 'an OPERATOR selects rejected records…' 부하 시 4.0~5.6s(기본 5s timeout) — codegen 겹친 실측 2회 실패. 시험 timeout 변경 안 함, ACQ-ADMIN-002/후속에서 시험 속도 개선",
+        "2026-11-07 ACQA-gate2에서 위 위험 발생(2건 5s 초과). 사용자 결정 '시험을 빠르게 고치기 (Recommended)'(대안: 이 파일만 15s 제한 / 그대로 재실행): AcquisitionsScreen.reacquisition.test.tsx를 userEvent.setup({ delay: null })로 바꾸고 고정 문자열 입력은 click+paste. 카드 번호 경고 루프는 한 자씩 입력 유지. 단언·시험 수·timeout 불변. 단독 실측 715→483ms(첫 시험), admin Vitest 173 PASS, tsc 0",
+        "2026-11-07 결과: '33분 이하' 기준은 사용자 결정(제한 3300s)으로 대체. ACQA-gate3 GRADLE-CHECK 43m05s PASS(여유 약 12분). reacquisition 첫 시험 부하 시 3734ms — 5s 여유 작음, 후속 관찰"
+      ]
+    },
+    {
+      "id": "ACQ-ADMIN-002",
+      "title": "매입 조작 후속: 격리 해소·재반영(B3), REVIEW_REQUIRED 보류 해소(B4), 결정 대사(B5), CANCEL 재매입, 전송 보류 해소",
+      "phase": "ACQUIRING",
+      "status": "BACKLOG",
+      "dependsOn": [
+        "ACQ-ADMIN-001"
+      ],
+      "requiredQuestions": [
+        "Q-ACQA-05",
+        "Q-ACQA-06",
+        "Q-ACQA-07",
+        "Q-ACQA-08",
+        "Q-ACQA-10"
+      ],
+      "acceptanceCriteria": [
+        "TRANSMISSION_QUARANTINED 해소·격리 응답 재반영 입력",
+        "REVIEW_REQUIRED 보류 해소 입력",
+        "결정 대사(B5)",
+        "CANCEL 레코드 재매입(I-7)",
+        "매입 확정 표지 PK 경합 시험(서로 다른 세대 동시 ACCEPTED → 1062 → 재시도 → CONFLICT 수렴, CyclicBarrier — ACQUIRING-001 재리뷰 R-m1)",
+        "모든 ACCEPTED 쓰기 경로가 같은 TX에서 markAccepted(N-1 ArchUnit)",
+        "전송 보류 영향: 같은 파일의 영향 없는 레코드(m-2), 보류 중 취소의 원 SALE 세대 선택(m-3, JpaAcquisitionMembershipStore maxBy generation), 점유 뒤 원 세대 ACCEPTED 잔여 위험(m-4)",
+        "실제 AcquirerResponseService 경로 경합 시험(n-1), SUPERSEDED 행·보류 파일 응답 DB 시험(n-3)"
+      ],
+      "allowedWritePaths": [],
+      "owner": null,
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "evidence": null,
+      "review": null,
+      "coordinatorDecisions": [
+        "2026-11-07 사용자 결정으로 ACQ-ADMIN-001에서 분리(ACQ-ADMIN-001 명세 rev 0.8 §17.11)"
+      ]
     },
     {
       "id": "SETTLEMENT-CONTRACT-001",

@@ -22,4 +22,10 @@ class PaymentFactAcquisitionSourceService(private val store: PaymentFactAcquisit
 
     override fun lockAndRead(paymentIds: Collection<String>): List<AcquisitionSourcePayment> =
         if (paymentIds.isEmpty()) emptyList() else store.lockAndRead(paymentIds)
+
+    override fun paymentIdsOf(authorizationTransactionIds: Collection<String>): Map<String, String> =
+        if (authorizationTransactionIds.isEmpty()) emptyMap() else store.paymentIdsOf(authorizationTransactionIds)
+
+    override fun readWithoutLock(paymentIds: Collection<String>): List<AcquisitionSourcePayment> =
+        if (paymentIds.isEmpty()) emptyList() else store.read(paymentIds)
 }

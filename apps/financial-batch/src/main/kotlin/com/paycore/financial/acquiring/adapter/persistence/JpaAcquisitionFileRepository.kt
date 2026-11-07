@@ -47,7 +47,27 @@ class JpaAcquisitionFileRepository(private val entityManager: EntityManager) : A
         entityManager.find(JpaAcquisitionFileEntity::class.java, id.value, LockModeType.PESSIMISTIC_WRITE)?.let { mapped { toFile(it) } }
     }
 
+    override fun lockOtherGenerationFiles(id: AcquisitionFileId): List<AcquisitionFileId> = translate(FILE) {
+        @Suppress("UNCHECKED_CAST")
+        val others = entityManager.createNativeQuery(
+            "SELECT DISTINCT o.file_id FROM acquisition_file_record r JOIN acquisition_file_record o " +
+                "ON o.transaction_id = r.transaction_id AND o.record_type = r.record_type AND o.file_id <> r.file_id WHERE r.file_id = :fileId ORDER BY o.file_id",
+        ).setParameter("fileId", id.value).resultList as List<String>
+        // 같은 TX 안에서 파일 ID 오름차순으로 하나씩 잠근다(응답 TX와 같은 행 잠금 — PESSIMISTIC_WRITE).
+        others.map { AcquisitionFileId.parse(it) }.onEach { other ->
+            entityManager.find(JpaAcquisitionFileEntity::class.java, other.value, LockModeType.PESSIMISTIC_WRITE)
+        }
+    }
+
     override fun records(id: AcquisitionFileId): List<AcquisitionRecord> = translate(RECORD) { readRecords(id) }
+
+    override fun latestVersion(acquirerCode: String, environment: AcquisitionEnvironment, businessDate: java.time.LocalDate): Int? = translate(FILE) {
+        (
+            entityManager.createNativeQuery(
+                "SELECT MAX(file_version) FROM acquisition_file WHERE acquirer_code = :acquirer AND environment = :environment AND business_date = :day",
+            ).setParameter("acquirer", acquirerCode).setParameter("environment", environment.name).setParameter("day", businessDate).singleResult as Number?
+            )?.toInt()
+    }
 
     override fun awaitingResults(acquirerCode: String, environment: AcquisitionEnvironment, transmittedUpTo: Instant, limit: Int): List<AcquisitionFileId> =
         translate(FILE) {

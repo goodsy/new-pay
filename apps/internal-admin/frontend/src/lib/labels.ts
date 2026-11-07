@@ -81,6 +81,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   PASSWORD_RESET: '비밀번호 재설정',
   ROLE_REACTIVATE: '역할 재활성',
   OPERATOR_CORRECTION_CANCEL: '운영자 보정 취소',
+  ACQ_REACQUISITION: '재매입',
   // 보정 취소 목적(OperatorCancelPurposeKind)
   INCIDENT_OR_RECON_CORRECTION: '사고·대사 보정',
   MERCHANT_TERMINATED_OBLIGATION: '해지 가맹점 의무 이행',

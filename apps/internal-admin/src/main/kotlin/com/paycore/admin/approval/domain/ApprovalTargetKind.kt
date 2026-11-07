@@ -4,4 +4,7 @@ package com.paycore.admin.approval.domain
 enum class ApprovalTargetKind {
     ADMIN_ACCOUNT,
     PAYMENT,
+
+    /** FINANCIAL 매입 파일(ACQ-ADMIN-001 B1-A — 재매입 원 파일 ID, `target_ref` — V7 `ck_…_target`). */
+    ACQUISITION_FILE,
 }

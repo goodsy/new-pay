@@ -26,6 +26,14 @@ interface PaymentFactAcquisitionSource {
      * 잠금 없음 — 전송 후 취소 후보를 고르는 용도이고, 판정은 [lockAndRead]의 결과로 한다. 원승인 투영이 없는 취소(보류)는 나오지 않는다(원승인 매입사를 알 수 없다).
      */
     fun cancellationKeys(acquirerCode: String, environment: String, cancelledUpTo: Instant): List<AcquisitionCancellationKey>
+
+    /** (ACQ-ADMIN-001 재매입) 승인 거래 ID → Payment ID(승인 투영에 있는 것만). 잠금 없음 — 잠금은 [lockAndRead]. */
+    fun paymentIdsOf(authorizationTransactionIds: Collection<String>): Map<String, String>
+
+    /**
+     * (ACQ-ADMIN-001 재매입 미리 보기 — 비권위) [lockAndRead]와 같은 값을 **잠그지 않고** 읽는다. 판정(실행)에는 쓰지 않는다 — 실행 TX는 [lockAndRead]로 다시 읽는다.
+     */
+    fun readWithoutLock(paymentIds: Collection<String>): List<AcquisitionSourcePayment>
 }
 
 data class AcquisitionAuthorizationKey(val paymentId: String, val transactionId: String)

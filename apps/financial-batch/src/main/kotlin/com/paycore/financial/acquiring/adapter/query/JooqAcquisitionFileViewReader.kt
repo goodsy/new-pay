@@ -12,8 +12,10 @@ import com.paycore.financial.acquiring.application.provided.AcquisitionResponseR
 import com.paycore.financial.acquiring.application.provided.AcquisitionResponseView
 import com.paycore.financial.acquiring.application.required.AcquisitionFileDetailRows
 import com.paycore.financial.acquiring.application.required.AcquisitionFileViewReader
+import com.paycore.financial.jooq.generated.Tables.ACQUISITION_ACCEPTED_RECORD
 import com.paycore.financial.jooq.generated.Tables.ACQUISITION_FILE
 import com.paycore.financial.jooq.generated.Tables.ACQUISITION_FILE_RECORD
+import com.paycore.financial.jooq.generated.Tables.ACQUISITION_REACQUISITION_NOT_REQUIRED
 import com.paycore.financial.jooq.generated.Tables.ACQUISITION_RECORD_RESULT
 import com.paycore.financial.jooq.generated.Tables.ACQUISITION_RESPONSE
 import com.paycore.financial.jooq.generated.Tables.ACQUISITION_TRANSMISSION_ATTEMPT
@@ -68,7 +70,8 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
         val ids = heads.map { it.get(f.FILE_ID) }
         val counts = statusCounts(ids)
         val quarantined = quarantinedResponses(ids)
-        heads.map { summary(it, counts[it.get(f.FILE_ID)] ?: AcquisitionRecordStatusCounts(), quarantined[it.get(f.FILE_ID)] ?: 0) }
+        val stages = reacquisitionStages(ids)
+        heads.map { summary(it, counts[it.get(f.FILE_ID)] ?: AcquisitionRecordStatusCounts(), quarantined[it.get(f.FILE_ID)] ?: 0, stages[it.get(f.FILE_ID)] ?: NO_STAGES) }
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -83,7 +86,9 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
             .fetchOne() ?: return@guard null
         val ids = listOf(fileId)
         AcquisitionFileDetailRows(
-            summary = summary(head, statusCounts(ids)[fileId] ?: AcquisitionRecordStatusCounts(), quarantinedResponses(ids)[fileId] ?: 0),
+            summary = summary(
+                head, statusCounts(ids)[fileId] ?: AcquisitionRecordStatusCounts(), quarantinedResponses(ids)[fileId] ?: 0, reacquisitionStages(ids)[fileId] ?: NO_STAGES,
+            ),
             cutoffPolicyVersion = head.get(f.CUTOFF_POLICY_VERSION),
             cutoffAt = Instant.parse(head.get(cutoffAt)),
             contentSha256 = head.get(f.CONTENT_SHA256),
@@ -137,7 +142,7 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
             f.RESULT_STATE.eq(AWAITING).and(f.TRANSMISSION_STATE.eq(TRANSMITTED)).and(f.TRANSMITTED_AT.le(utc(it)))
         } ?: DSL.falseCondition()
         return DSL.or(
-            f.TRANSMISSION_STATE.`in`(TRANSMISSION_UNKNOWN, TRANSMISSION_QUARANTINED),
+            f.TRANSMISSION_STATE.`in`(TRANSMISSION_UNKNOWN, TRANSMISSION_QUARANTINED, TRANSMISSION_WITHHELD),
             f.RECEIPT_STATE.eq(RECEIPT_CONFLICT),
             f.RESULT_STATE.eq(DEADLINE_PASSED),
             overdue,
@@ -166,13 +171,13 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
         f.CANCEL_COUNT, f.CANCEL_AMOUNT_MINOR, f.NET_AMOUNT_MINOR, f.TRANSMISSION_STATE, f.RECEIPT_STATE, f.RESULT_STATE, sealedAt, transmittedAt,
     )
 
-    private fun summary(r: Record, counts: AcquisitionRecordStatusCounts, quarantined: Int) = AcquisitionFileSummary(
+    private fun summary(r: Record, counts: AcquisitionRecordStatusCounts, quarantined: Int, stages: Pair<Int, Int>) = AcquisitionFileSummary(
         fileId = r.get(f.FILE_ID), acquirerCode = r.get(f.ACQUIRER_CODE), environment = r.get(f.ENVIRONMENT), businessDate = LocalDate.parse(r.get(businessDate)),
         fileVersion = r.get(f.FILE_VERSION), originalFileId = r.get(f.ORIGINAL_FILE_ID), recordCount = r.get(f.RECORD_COUNT), saleCount = r.get(f.SALE_COUNT),
         saleAmountMinor = r.get(f.SALE_AMOUNT_MINOR), cancelCount = r.get(f.CANCEL_COUNT), cancelAmountMinor = r.get(f.CANCEL_AMOUNT_MINOR),
         netAmountMinor = r.get(f.NET_AMOUNT_MINOR), transmissionState = r.get(f.TRANSMISSION_STATE), receiptState = r.get(f.RECEIPT_STATE),
         resultState = r.get(f.RESULT_STATE), sealedAt = Instant.parse(r.get(sealedAt)), transmittedAt = r.get(transmittedAt)?.let(Instant::parse),
-        recordStatusCounts = counts, quarantinedResponses = quarantined,
+        recordStatusCounts = counts, quarantinedResponses = quarantined, reacquisitionCandidates = stages.first, reacquisitionInProgress = stages.second,
     )
 
     /** 파일별 레코드 현재 상태 건수(한 문장 — 파일 ID IN 목록). */
@@ -193,6 +198,34 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
                     unknown = m[UNKNOWN] ?: 0, conflict = m[CONFLICT] ?: 0,
                 )
             }
+    }
+
+    /**
+     * (ACQ-ADMIN-001 B2 — §5.1 L-9, AC9) 파일별 재매입 단계 건수(CANDIDATE, IN_PROGRESS) — `ReacquisitionBadgeRule.recordStage`와 같은 정의(시험이 레코드마다 대조):
+     * 현재 상태 REJECTED·FILE_REJECTED이고, 그 거래·종류에 매입 확정 표지·"재매입 불요" 종결이 없는 레코드 중 더 높은 세대 레코드가 있으면 IN_PROGRESS, 없으면 CANDIDATE.
+     * 한 문장(파일 ID IN 목록), 상관 부질의는 PK·UNIQUE(거래, 종류, 세대) 색인으로 찾는다.
+     */
+    private fun reacquisitionStages(fileIds: List<String>): Map<String, Pair<Int, Int>> {
+        if (fileIds.isEmpty()) return emptyMap()
+        val r = ACQUISITION_FILE_RECORD
+        val a = ACQUISITION_ACCEPTED_RECORD.`as`("rq_accepted")
+        val x = ACQUISITION_REACQUISITION_NOT_REQUIRED.`as`("rq_not_required")
+        val h = ACQUISITION_FILE_RECORD.`as`("rq_higher")
+        val unresolved = DSL.notExists(DSL.selectOne().from(a).where(a.TRANSACTION_ID.eq(r.TRANSACTION_ID), a.RECORD_TYPE.eq(r.RECORD_TYPE)))
+            .and(DSL.notExists(DSL.selectOne().from(x).where(x.TRANSACTION_ID.eq(r.TRANSACTION_ID), x.RECORD_TYPE.eq(r.RECORD_TYPE))))
+        val higher = DSL.exists(
+            DSL.selectOne().from(h).where(h.TRANSACTION_ID.eq(r.TRANSACTION_ID), h.RECORD_TYPE.eq(r.RECORD_TYPE), h.GENERATION.gt(r.GENERATION)),
+        )
+        val stage = DSL.`when`(higher, DSL.inline(IN_PROGRESS_STAGE)).otherwise(DSL.inline(CANDIDATE_STAGE)).`as`("reacquisition_stage")
+        val inner = DSL.select(r.FILE_ID, stage).from(r)
+            .where(r.FILE_ID.`in`(fileIds), recordStatus(r.FILE_ID, r.SEQ).`in`(REJECTED, FILE_REJECTED), unresolved)
+            .asTable("view_reacquisition_stage")
+        val fileId = DSL.field(DSL.name(inner.name, r.FILE_ID.name), String::class.java)
+        val value = DSL.field(DSL.name(inner.name, stage.name), String::class.java)
+        val n = DSL.count().`as`("record_count_by_stage")
+        return select(fileId, value, n).from(inner).groupBy(fileId, value).fetch()
+            .groupBy({ it.get(fileId) }, { it.get(value) to it.get(n) })
+            .mapValues { (_, byStage) -> byStage.toMap().let { (it[CANDIDATE_STAGE] ?: 0) to (it[IN_PROGRESS_STAGE] ?: 0) } }
     }
 
     private fun quarantinedResponses(fileIds: List<String>): Map<String, Int> {
@@ -327,6 +360,7 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
         const val TRANSMITTED = "TRANSMITTED"
         const val TRANSMISSION_UNKNOWN = "TRANSMISSION_UNKNOWN"
         const val TRANSMISSION_QUARANTINED = "TRANSMISSION_QUARANTINED"
+        const val TRANSMISSION_WITHHELD = "TRANSMISSION_WITHHELD"
         const val RECEIPT_CONFLICT = "RECEIPT_CONFLICT"
         const val DEADLINE_PASSED = "DEADLINE_PASSED"
         const val QUARANTINED = "QUARANTINED"
@@ -334,6 +368,9 @@ class JooqAcquisitionFileViewReader(private val dsl: DSLContext) : AcquisitionFi
         const val ACCEPTED = "ACCEPTED"
         const val REJECTED = "REJECTED"
         const val FILE_REJECTED = "FILE_REJECTED"
+        const val CANDIDATE_STAGE = "CANDIDATE"
+        const val IN_PROGRESS_STAGE = "IN_PROGRESS"
+        val NO_STAGES = 0 to 0
         const val FILE_REJECTED_SOURCE = "FILE_REJECTED"
         const val UNKNOWN = "UNKNOWN"
         const val CONFLICT = "CONFLICT"

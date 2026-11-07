@@ -12,7 +12,8 @@ import java.time.Instant
 
 /**
  * ADMIN 채널 서명 필터(ACQ-VIEW-001 §3.1 — `/internal/v1/admin` 아래 전용 체인에만). 판정 순서: context path → 본문 크기(16 KiB — `Content-Length`와 스트림을 상한 + 1바이트까지만,
- * 초과 413) → query 문자열(있으면 400) → 헤더 문법 → 시각 창 → kid → 서명([AdminCallSignature]). 통과하면 권한 `ADMIN_SERVICE`로 인증하고 **서명한 본문 바이트 그대로** 넘긴다.
+ * 초과 413) → query 문자열(있으면 400) → 헤더 문법 → 시각 창 → kid → 서명([AdminCallSignature]). 통과하면 조회 키는 권한 `ADMIN_SERVICE`, 조작 키(ACQ-ADMIN-001 —
+ * D-ACQA-001)는 권한 `ADMIN_OPERATION`으로 인증하고 **서명한 본문 바이트 그대로** 넘긴다. 어느 경로가 어느 권한을 요구하는지는 보안 체인이 정한다.
  * 실패는 원인 비구별 401 `UNAUTHENTICATED` + 지표 `paycore.financial.admin_channel.auth{result,reason}` + WARN(분류만 — 헤더·서명·본문·kid 없음).
  */
 class AdminChannelAuthenticationFilter(
@@ -35,11 +36,11 @@ class AdminChannelAuthenticationFilter(
         if (request.queryString != null) return reject(request, response, AdminCallRejection.QUERY_NOT_ALLOWED)
         val header = request.getHeaders(AdminCallSignature.HEADER)?.toList().orEmpty().singleOrNull()
         val path = request.servletPath + (request.pathInfo ?: "")
-        when (val result = AdminCallSignature.verify(header, request.method, path, body, clock().epochSecond, settings.clockWindow, settings::key)) {
+        when (val result = AdminCallSignature.verify(header, request.method, path, body, clock().epochSecond, settings.clockWindow, settings::anyKey)) {
             is AdminCallVerification.Rejected -> reject(request, response, result.reason)
             is AdminCallVerification.Accepted -> {
                 registry.counter(AUTH_METRIC, "result", "ACCEPTED", "reason", "NONE").increment()
-                SecurityContextHolder.setContext(SecurityContextImpl(AdminServiceAuthenticationToken(result.keyId)))
+                SecurityContextHolder.setContext(SecurityContextImpl(AdminServiceAuthenticationToken(result.keyId, settings.isOperationKey(result.keyId))))
                 chain.doFilter(AdminChannelCachedBodyRequest(request, body), response)
             }
         }
@@ -58,6 +59,7 @@ class AdminChannelAuthenticationFilter(
 
     companion object {
         const val ADMIN_SERVICE = "ADMIN_SERVICE"
+        const val ADMIN_OPERATION = "ADMIN_OPERATION"
         const val AUTH_METRIC = "paycore.financial.admin_channel.auth"
 
         /** 본문 상한 16 KiB(서명 전). */

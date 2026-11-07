@@ -2,7 +2,9 @@ package com.paycore.admin.financialops.adapter.integration
 
 import com.paycore.admin.financialops.application.provided.AcquisitionFileSearchCriteria
 import com.paycore.admin.financialops.application.provided.AcquisitionRecordSearchCriteria
+import com.paycore.admin.financialops.application.required.AcquiringOpsGateway
 import com.paycore.admin.financialops.application.required.FinancialCallResult
+import com.paycore.admin.financialops.application.required.OperationCallResult
 import com.paycore.admin.financialops.application.required.FinancialOpsGateway
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpMethod
@@ -30,10 +32,95 @@ import java.util.concurrent.Semaphore
  * `nextCursor`가 있으면 쪽이 가득(= limit)이고 마지막 항목과 같다, 레코드 쪽은 seq 오름차순·`nextCursor`가 있으면 쪽이 가득이고 마지막 seq와 같다, 상세의 레코드 첫 쪽은 기본 조건
  * (afterSeq 0·상태 없음·기본 쪽 크기 20)의 답이다. 위반이면 `RESPONSE_UNREADABLE`. 로그는 operation·결과 분류만(본문·서명·키·fileId 없음).
  */
-class HttpFinancialOpsGateway(private val settings: FinancialOpsSettings, private val signer: FinancialCallSigner, private val clock: () -> Instant) : FinancialOpsGateway {
+class HttpFinancialOpsGateway(
+    private val settings: FinancialOpsSettings,
+    private val signer: FinancialCallSigner,
+    private val operationSigner: FinancialCallSigner = FinancialCallSigner(settings.operationKeyId, settings.operationSigningKey()),
+    private val clock: () -> Instant,
+) : FinancialOpsGateway, AcquiringOpsGateway {
 
     private val json: JsonMapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
     private val permits = Semaphore(settings.permits)
+
+    /** 조작 permit(ACQ-ADMIN-001 — 조회 permit과 분리: 조회 폭주가 승인 실행을 막지 않고, 조작 장애가 조회를 막지 않는다). */
+    private val operationPermits = Semaphore(settings.operationPermits)
+
+    // ------------------------------------------------------------------ ACQ-ADMIN-001 B1-A 조작 채널
+
+    /** 미리 보기(조회 키): 모양 + 같은 파일 + 요청 순번과 같은 순번 집합(순서 무관, 중복 없음). */
+    override fun targets(fileId: String, seqs: List<Int>): FinancialCallResult {
+        require(FinancialResponseShape.FILE_ID_FORMAT.matches(fileId)) { "fileId" }
+        require(seqs.isNotEmpty() && seqs.all { it >= 1 }) { "seqs" }
+        val body = json.writeValueAsBytes(linkedMapOf("seqs" to seqs))
+        return call("reacquisition-targets", HttpMethod.POST, "$FILES_PATH/$fileId/reacquisition-targets", body, FinancialResponseShape.TARGETS) { doc ->
+            val got = items(doc).map { (it["seq"] as Long).toInt() }
+            doc["fileId"] == fileId && got.size == seqs.size && got.toSet() == seqs.toSet()
+        }
+    }
+
+    override fun execute(approvalId: String, body: ByteArray): OperationCallResult {
+        require(APPROVAL_ID.matches(approvalId)) { "approvalId" }
+        // B1-A 리뷰 n-3: 실행 POST 응답도 결정 조회·기한 확인처럼 본문 승인 ID가 이 승인이어야 결정으로 본다(아니면 결과 불명확 — 조회로만 수렴).
+        return operation("ops-execute", HttpMethod.POST, OPS_EXECUTE_PATH, body, approvalId)
+    }
+
+    override fun decision(approvalId: String): OperationCallResult {
+        require(APPROVAL_ID.matches(approvalId)) { "approvalId" }
+        return operation("ops-decision", HttpMethod.GET, "$OPS_DECISIONS_PATH/$approvalId", ByteArray(0), approvalId)
+    }
+
+    override fun confirmDeadline(approvalId: String, body: ByteArray): OperationCallResult {
+        require(APPROVAL_ID.matches(approvalId)) { "approvalId" }
+        return operation("ops-deadline", HttpMethod.POST, "$OPS_DECISIONS_PATH/$approvalId/deadline-confirmation", body, approvalId)
+    }
+
+    /**
+     * 조작 호출(조작 키·조작 permit). 200 본문: 결정 모양([FinancialResponseShape.OPS_DECISION] — 결정 모양 규칙: EXECUTED ⇔ 새 파일, REJECTED ⇔ code) 또는 결정 없음 모양.
+     * [expectedApprovalId]가 있으면(경로 승인 ID) 본문 승인 ID가 같아야 한다(요청-응답 대응). 해석 불가는 Failed(`RESPONSE_UNREADABLE` — 결과 불명확).
+     */
+    private fun operation(operation: String, method: HttpMethod, path: String, body: ByteArray, expectedApprovalId: String? = null): OperationCallResult {
+        check(!TransactionSynchronizationManager.isActualTransactionActive()) { "FINANCIAL is never called inside a database transaction (ACQ-ADMIN-001 §3.1)" }
+        if (!operationPermits.tryAcquire()) return OperationCallResult.Failed(OPERATION_BUSY).also { logOperation(operation, it) }
+        try {
+            val result = when (val response = exchange(method, path, body, operationSigner)) {
+                is Raw.Failed -> OperationCallResult.Failed(response.failure)
+                is Raw.Http -> if (response.status == OK) readOperation(response.body, expectedApprovalId) else OperationCallResult.Status(response.status, errorCode(response.body))
+            }
+            logOperation(operation, result)
+            return result
+        } finally {
+            operationPermits.release()
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun readOperation(body: ByteArray?, expectedApprovalId: String?): OperationCallResult {
+        val node = tree(body) ?: return OperationCallResult.Failed(UNREADABLE)
+        if (runCatching { FinancialResponseShape.OPS_NONE_LOOKUP.read(node) }.isSuccess) {
+            return if (expectedApprovalId == null || node.get("approvalId").asString() == expectedApprovalId) OperationCallResult.NoDecision else OperationCallResult.Failed(UNREADABLE)
+        }
+        if (runCatching { FinancialResponseShape.OPS_NONE.read(node) }.isSuccess) return OperationCallResult.NoDecision
+        val doc = runCatching { FinancialResponseShape.OPS_DECISION.read(node) as Map<String, Any?> }.getOrNull() ?: return OperationCallResult.Failed(UNREADABLE)
+        val shapeOk = when (doc["decision"]) {
+            "EXECUTED" -> doc["resultFileId"] != null && doc["code"] == null
+            "NOT_REQUIRED" -> doc["resultFileId"] == null && doc["code"] == null
+            else -> doc["resultFileId"] == null && doc["code"] != null
+        }
+        if (!shapeOk || (expectedApprovalId != null && doc["approvalId"] != expectedApprovalId)) return OperationCallResult.Failed(UNREADABLE)
+        return OperationCallResult.Decision(doc)
+    }
+
+    private fun logOperation(operation: String, result: OperationCallResult) {
+        log.info(
+            "operation=financial-{} result={}", operation,
+            when (result) {
+                is OperationCallResult.Failed -> result.reason
+                is OperationCallResult.Status -> "HTTP_${result.status}"
+                is OperationCallResult.Decision -> "DECISION_${result.document["decision"]}"
+                OperationCallResult.NoDecision -> "NONE"
+            },
+        )
+    }
     private val client: RestClient = RestClient.builder()
         .requestFactory(
             JdkClientHttpRequestFactory(
@@ -124,7 +211,7 @@ class HttpFinancialOpsGateway(private val settings: FinancialOpsSettings, privat
         check(!TransactionSynchronizationManager.isActualTransactionActive()) { "FINANCIAL is never called inside a database transaction (ACQ-VIEW-001 §4.6)" }
         if (!permits.tryAcquire()) return FinancialCallResult.Unavailable(BUSY).also { log(operation, it) }
         try {
-            val result = when (val response = exchange(method, path, body)) {
+            val result = when (val response = exchange(method, path, body, signer)) {
                 is Raw.Failed -> FinancialCallResult.Unavailable(response.failure)
                 is Raw.Http -> when (response.status) {
                     OK -> read(response.body, shape)?.takeIf { doc -> runCatching { answers(doc) }.getOrDefault(false) }?.let { FinancialCallResult.Found(it) }
@@ -150,9 +237,9 @@ class HttpFinancialOpsGateway(private val settings: FinancialOpsSettings, privat
         class Failed(val failure: String) : Raw
     }
 
-    private fun exchange(method: HttpMethod, path: String, body: ByteArray): Raw = try {
+    private fun exchange(method: HttpMethod, path: String, body: ByteArray, by: FinancialCallSigner): Raw = try {
         val request = client.method(method).uri(settings.baseUrl.resolve(path))
-            .header(FinancialCallSigner.HEADER, signer.header(method.name(), path, clock().epochSecond, body))
+            .header(FinancialCallSigner.HEADER, by.header(method.name(), path, clock().epochSecond, body))
             .accept(MediaType.APPLICATION_JSON)
         if (method == HttpMethod.POST) request.contentType(MediaType.APPLICATION_JSON).body(body)
         request.exchange { _, response -> Raw.Http(response.statusCode.value(), readLimited(response.body)) }
@@ -186,6 +273,10 @@ class HttpFinancialOpsGateway(private val settings: FinancialOpsSettings, privat
         val log = LoggerFactory.getLogger(HttpFinancialOpsGateway::class.java)
         const val SEARCH_PATH = "/internal/v1/admin/acquisition-file-searches"
         const val FILES_PATH = "/internal/v1/admin/acquisition-files"
+        const val OPS_EXECUTE_PATH = "/internal/v1/admin/acquiring-operations/reacquisitions"
+        const val OPS_DECISIONS_PATH = "/internal/v1/admin/acquiring-operations/decisions"
+        const val OPERATION_BUSY = "FINANCIAL_OPERATION_BUSY"
+        val APPROVAL_ID = Regex("^[A-Za-z0-9._:-]{1,64}$")
         const val BUSY = "FINANCIAL_OPS_BUSY"
         const val UNREADABLE = "RESPONSE_UNREADABLE"
         const val DEFAULT_LIMIT = 20

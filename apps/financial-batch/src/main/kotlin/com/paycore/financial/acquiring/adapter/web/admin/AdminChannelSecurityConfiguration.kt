@@ -36,7 +36,11 @@ class AdminChannelSecurityConfiguration {
         .anonymous { it.disable() }
         .exceptionHandling { it.authenticationEntryPoint(unauthenticated()).accessDeniedHandler(denied()) }
         .addFilterBefore(AdminChannelAuthenticationFilter(settings, registry), AnonymousAuthenticationFilter::class.java)
-        .authorizeHttpRequests { it.anyRequest().hasAuthority(AdminChannelAuthenticationFilter.ADMIN_SERVICE) }
+        .authorizeHttpRequests {
+            // ACQ-ADMIN-001(D-ACQA-001): 조작 경로는 조작 키 서명만, 그 밖 조회 경로는 조회 키 서명만 — 한쪽 키로 다른 쪽 경로를 열 수 없다(401 — 원인 비구별).
+            it.requestMatchers(OPERATION_PATHS).hasAuthority(AdminChannelAuthenticationFilter.ADMIN_OPERATION)
+            it.anyRequest().hasAuthority(AdminChannelAuthenticationFilter.ADMIN_SERVICE)
+        }
         .build()
 
     /** 인증 없음(서명 필터를 거치지 않은 경우 포함): 원인 비구별 401. */
@@ -51,6 +55,7 @@ class AdminChannelSecurityConfiguration {
 
     companion object {
         const val ADMIN_PATHS = "/internal/v1/admin/**"
+        const val OPERATION_PATHS = "/internal/v1/admin/acquiring-operations/**"
         private const val UNAUTHORIZED = 401
     }
 }

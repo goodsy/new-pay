@@ -55,19 +55,57 @@ class FinancialAdminChannelSettingsSpec : BehaviorSpec({
 
     Given("settings validation (no defaults, Demo values are not operating values)") {
         val key = AdminChannelSettings.SigningKey(FinancialAdminChannelFixture.K1, admin1)
+        val ops = FinancialAdminChannelFixture.OP_KEYS
+        val max = FinancialAdminChannelFixture.MAX_EXECUTION_WINDOW
+        val window = Duration.ofSeconds(300)
+        fun full(op: List<AdminChannelSettings.SigningKey> = ops, opPermits: Int = 1, maxWindow: Duration = max) =
+            AdminChannelSettings(listOf(key), window, 2, op, opPermits, maxWindow)
         Then("key count, id format, key length, window range/whole seconds and permits (1..16) are enforced") {
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(emptyList(), Duration.ofSeconds(300), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key, key, key), Duration.ofSeconds(300), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("bad id", admin1)), Duration.ofSeconds(300), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("k", "c2hvcnQ=")), Duration.ofSeconds(300), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMinutes(11), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMillis(1500), 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 0) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 17) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(emptyList(), Duration.ofSeconds(300), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key, key, key), Duration.ofSeconds(300), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("bad id", admin1)), Duration.ofSeconds(300), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("k", "c2hvcnQ=")), Duration.ofSeconds(300), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMinutes(11), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMillis(1500), 2, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 0, ops, 1, max) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 17, ops, 1, max) }
             shouldThrow<IllegalArgumentException> { AdminChannelSettings.SigningKey("k", "not base64 !") }.message!! shouldNotContain "not base64"
         }
+        Then("(ACQ-ADMIN-001 — D-ACQA-001) operation keys are required, 1..2, a separate key space from the read keys; permits 1..4; window 1m..7d") {
+            shouldThrow<IllegalArgumentException> { full(op = emptyList()) }
+            shouldThrow<IllegalArgumentException> { full(op = ops + ops + ops) }
+            shouldThrow<IllegalArgumentException> { full(op = listOf(AdminChannelSettings.SigningKey("fops-op-other", admin1))) }.message!! shouldNotContain admin1
+            shouldThrow<IllegalArgumentException> {
+                full(op = listOf(AdminChannelSettings.SigningKey(FinancialAdminChannelFixture.K1, FinancialAdminChannelFixture.OP_SECRET_2)))
+            }.message!! shouldNotContain FinancialAdminChannelFixture.K1
+            shouldThrow<IllegalArgumentException> { full(opPermits = 0) }
+            shouldThrow<IllegalArgumentException> { full(opPermits = 5) }
+            shouldThrow<IllegalArgumentException> { full(maxWindow = Duration.ofSeconds(59)) }
+            shouldThrow<IllegalArgumentException> { full(maxWindow = Duration.ofDays(8)) }
+            full().let {
+                it.isOperationKey(FinancialAdminChannelFixture.OP_KID) shouldBe true
+                it.isOperationKey(FinancialAdminChannelFixture.K1) shouldBe false
+                it.toString() shouldNotContain FinancialAdminChannelFixture.OP_SECRET
+            }
+        }
+        Then("(ACQ-ADMIN-001) an operation key shared with the payment-fact inbox is refused at startup") {
+            shouldThrow<IllegalStateException> {
+                AdminChannelKeySeparation(FinancialAdminChannelFixture.settings(), inbox("fact-k1" to FinancialAdminChannelFixture.OP_SECRET))
+            }
+        }
+        Then("(ACQ-ADMIN-001 rev 0.3 — review n-5) an operation key whose kid equals an inbox kid (bytes different) is refused, the message names the rule only") {
+            val e = shouldThrow<IllegalStateException> {
+                AdminChannelKeySeparation(FinancialAdminChannelFixture.settings(), inbox(FinancialAdminChannelFixture.OP_KID to inboxSecret))
+            }
+            e.message!! shouldNotContain FinancialAdminChannelFixture.OP_KID
+            e.message!! shouldNotContain inboxSecret
+            // 교체 중 두 번째 Inbox 키만 겹쳐도 거부한다.
+            shouldThrow<IllegalStateException> {
+                AdminChannelKeySeparation(FinancialAdminChannelFixture.settings(), inbox("fact-k1" to inboxSecret, FinancialAdminChannelFixture.OP_KID to inboxSecond))
+            }
+        }
         Then("toString never shows a secret") {
-            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 2).toString() shouldNotContain admin1
+            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 2, ops, 1, max).toString() shouldNotContain admin1
             key.toString() shouldNotContain admin1
         }
         Then("a context path is refused; the permits answer busy without waiting when exhausted and count it per endpoint") {
@@ -87,6 +125,10 @@ class FinancialAdminChannelSettingsSpec : BehaviorSpec({
             "paycore.financial.admin-channel.read-permits=2",
             "paycore.financial.admin-channel.signing-keys[0].key-id=${FinancialAdminChannelFixture.K1}",
             "paycore.financial.admin-channel.signing-keys[0].secret=$admin1",
+            "paycore.financial.admin-channel.operation-keys[0].key-id=${FinancialAdminChannelFixture.OP_KID}",
+            "paycore.financial.admin-channel.operation-keys[0].secret=${FinancialAdminChannelFixture.OP_SECRET}",
+            "paycore.financial.admin-channel.operation-permits=1",
+            "paycore.financial.admin-channel.max-execution-window=PT24H",
         )
         val web = WebApplicationContextRunner().withUserConfiguration(AdminChannelConfiguration::class.java).withBean(SimpleMeterRegistry::class.java)
         Then("separate keys start a servlet web context") {
@@ -99,8 +141,16 @@ class FinancialAdminChannelSettingsSpec : BehaviorSpec({
                 *base, "paycore.financial.payment-fact-inbox.signing-keys[0].key-id=fact-k1", "paycore.financial.payment-fact-inbox.signing-keys[0].secret=$admin1",
             ).run { it.startupFailure.shouldNotBeNull() }
         }
+        Then("(rev 0.3 — n-5) an operation key id shared with the payment-fact inbox (different bytes) does not start") {
+            web.withPropertyValues(
+                *base, "paycore.financial.payment-fact-inbox.signing-keys[0].key-id=${FinancialAdminChannelFixture.OP_KID}",
+                "paycore.financial.payment-fact-inbox.signing-keys[0].secret=$inboxSecret",
+            ).run { it.startupFailure.shouldNotBeNull() }
+        }
         Then("missing admin-channel settings do not start (no default, I-8), and a context path does not start") {
             web.run { it.startupFailure.shouldNotBeNull() }
+            // ACQ-ADMIN-001(D-ACQA-001): 조작 키가 없으면 기동하지 않는다(조용히 "조작 채널 꺼짐"이 되지 않게).
+            web.withPropertyValues(*base.filterNot { it.contains("operation-keys") }.toTypedArray()).run { it.startupFailure.shouldNotBeNull() }
             web.withPropertyValues(*base, "server.servlet.context-path=/financial").run { it.startupFailure.shouldNotBeNull() }
         }
     }

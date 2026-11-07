@@ -21,7 +21,69 @@ object StubFinancialOpsServer {
     const val KEY_ID = "fops-test-k1"
     const val KEY_BASE64 = "dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1jaGFubmVsLWtleS0wMDAx"
 
-    class Received(val method: String, val path: String, val query: String?, val signature: String?, val body: ByteArray, val signatureValid: Boolean)
+    /** 조작 전용 시험 키(financial-batch 시험 설정과 같은 공개 값 — 운영 키 아님, D-ACQA-001). */
+    const val OP_KEY_ID = "fops-op-test-k1"
+    const val OP_KEY_BASE64 = "dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1vcGVyYXRpb24ta2V5LTAwMDE="
+    private val dynamic = ConcurrentHashMap<String, (ByteArray) -> Reply>()
+
+    /** 요청 본문으로 응답을 만드는 경로(재매입 실행 — 결정 본문이 승인 ID·내용 hash를 되돌려 준다). [reply]보다 먼저 본다. */
+    fun replyWith(path: String, responder: (ByteArray) -> Reply) {
+        dynamic[path] = responder
+    }
+
+    fun clearDynamic(path: String) {
+        dynamic.remove(path)
+    }
+
+    const val EXECUTE = "/internal/v1/admin/acquiring-operations/reacquisitions"
+
+    fun decisionPath(approvalId: String) = "/internal/v1/admin/acquiring-operations/decisions/$approvalId"
+
+    fun deadlinePath(approvalId: String) = "/internal/v1/admin/acquiring-operations/decisions/$approvalId/deadline-confirmation"
+
+    fun targetsPath(fileId: String) = "/internal/v1/admin/acquisition-files/$fileId/reacquisition-targets"
+
+    /** 미리 보기 항목(FINANCIAL `AdminAcquiringOperationsController.targetsBody` 키 순서). eligible이면 refusal null·예상 순액 있음. */
+    @Suppress("LongParameterList")
+    fun targetItemJson(seq: Int, generation: Int = 0, status: String = "REJECTED", eligible: Boolean = true, refusal: String? = null, cancelled: Long = 0): String =
+        """{"seq":$seq,"transactionId":"ptx_ex$seq","recordType":"SALE","generation":$generation,"status":"$status","eligible":$eligible,""" +
+            """"refusal":${refusal?.let { "\"$it\"" } ?: "null"},"approvedAmountMinor":10000,"cancelledAmountMinor":$cancelled,""" +
+            """"expectedNetMinor":${if (eligible) 10_000 - cancelled else "null"}}"""
+
+    fun targetsJson(fileId: String, vararg items: String): String = """{"fileId":"$fileId","readAt":"2026-11-07T09:00:00.000Z","items":[${items.joinToString(",")}]}"""
+
+    /**
+     * FINANCIAL 결정 본문(`AdminAcquiringOperationsController.body` 키 순서). 명령 본문에서 승인 ID·사람·시각을 읽고 내용 hash를 **시험 쪽 독립 구현**([contentHashOf])으로 계산한다.
+     */
+    fun decisionJson(command: ByteArray, decision: String, code: String? = null, resultFileId: String? = null, origin: String = "EXECUTION_COMMAND", contentHash: String? = null): String {
+        val c = tools.jackson.databind.json.JsonMapper.builder().build().readTree(command)
+        fun s(name: String) = c.get(name).asString()
+        return """{"decision":"$decision","approvalId":"${s("approvalId")}","kind":"REACQUISITION","code":${code?.let { "\"$it\"" } ?: "null"},""" +
+            """"targetRef":"${s("originalFileId")}","resultFileId":${resultFileId?.let { "\"$it\"" } ?: "null"},"contentHash":"${contentHash ?: contentHashOf(command)}",""" +
+            """"requestedBy":"${s("requestedBy")}","approvedBy":"${s("approvedBy")}","approvedAt":"${s("approvedAt")}","executeBefore":"${s("executeBefore")}",""" +
+            """"decidedAt":"${s("approvedAt")}","origin":"$origin","replayed":false,"confirmed":${origin == "DEADLINE_CONFIRMATION"}}"""
+    }
+
+    /** acd1 내용 hash 시험 쪽 독립 구현(FINANCIAL `ReacquisitionCommand.contentHash` 명세 — 길이 접두 canonical, correlationId 제외). */
+    fun contentHashOf(command: ByteArray): String {
+        val c = tools.jackson.databind.json.JsonMapper.builder().build().readTree(command)
+        fun s(name: String) = c.get(name).asString()
+        val items = c.get("items")
+        val parts = mutableListOf("paycore.acquisition-ops-decision-content", "1", s("approvalId"), "REACQUISITION", s("originalFileId"), items.size().toString())
+        for (i in 0 until items.size()) {
+            val it = items.get(i)
+            parts += listOf(it.get("seq").asInt().toString(), it.get("expectedGeneration").asInt().toString(), it.get("expectedStatus").asString())
+        }
+        parts += listOf(s("requestedBy"), s("approvedBy"), s("reasonCode"), s("evidenceRef"), s("approvedAt"), s("executeBefore"))
+        val canonical = parts.joinToString("") { "${it.toByteArray(Charsets.UTF_8).size}:$it" }
+        return "acd1:" + MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+    }
+
+    /** [signatureValid] = 조회 키(fops-test-k1) 서명, [operationSignatureValid] = 조작 키(fops-op-test-k1 — D-ACQA-001) 서명. 둘은 동시에 참일 수 없다(kid가 다름). */
+    class Received(
+        val method: String, val path: String, val query: String?, val signature: String?, val body: ByteArray, val signatureValid: Boolean,
+        val operationSignatureValid: Boolean = false,
+    )
 
     class Reply(val status: Int, val body: String, val delayMillis: Long = 0)
 
@@ -53,8 +115,11 @@ object StubFinancialOpsServer {
             val body = ex.requestBody.readAllBytes()
             val path = ex.requestURI.rawPath
             val signature = ex.requestHeaders.getFirst("PayCore-Admin-Signature")
-            received += Received(ex.requestMethod, path, ex.requestURI.rawQuery, signature, body, verify(signature, ex.requestMethod, path, body))
-            val reply = replies[path] ?: Reply(404, "{\"error\":\"ACQUISITION_FILE_NOT_FOUND\"}")
+            received += Received(
+                ex.requestMethod, path, ex.requestURI.rawQuery, signature, body, verify(signature, ex.requestMethod, path, body),
+                verify(signature, ex.requestMethod, path, body, OP_KEY_ID, OP_KEY_BASE64),
+            )
+            val reply = dynamic[path]?.invoke(body) ?: replies[path] ?: Reply(404, "{\"error\":\"ACQUISITION_FILE_NOT_FOUND\"}")
             if (reply.delayMillis > 0) Thread.sleep(reply.delayMillis)
             val bytes = reply.body.toByteArray(Charsets.UTF_8)
             ex.responseHeaders.add("Content-Type", "application/json")
@@ -63,12 +128,12 @@ object StubFinancialOpsServer {
         }
     }
 
-    private fun verify(header: String?, method: String, path: String, body: ByteArray): Boolean {
+    private fun verify(header: String?, method: String, path: String, body: ByteArray, keyId: String = KEY_ID, keyBase64: String = KEY_BASE64): Boolean {
         val m = Regex("^t=([0-9]{1,10}),kid=([A-Za-z0-9._-]{1,32}),v1=([0-9a-f]{64})$").matchEntire(header ?: return false) ?: return false
-        if (m.groupValues[2] != KEY_ID) return false
+        if (m.groupValues[2] != keyId) return false
         val sha = MessageDigest.getInstance("SHA-256").digest(body).joinToString("") { "%02x".format(it) }
         val canonical = listOf("paycore.admin-call.v1", method, path, m.groupValues[1], sha).joinToString("\n")
-        val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(Base64.getDecoder().decode(KEY_BASE64), "HmacSHA256")) }
+        val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(Base64.getDecoder().decode(keyBase64), "HmacSHA256")) }
         return mac.doFinal(canonical.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) } == m.groupValues[3]
     }
 
@@ -91,7 +156,7 @@ object StubFinancialOpsServer {
             """"recordCount":2,"saleCount":2,"saleAmountMinor":30000,"cancelCount":0,"cancelAmountMinor":0,"netAmountMinor":30000,"currency":"KRW",""" +
             """"transmissionState":"TRANSMITTED","receiptState":"RECEIVED","resultState":"$resultState","sealedAt":"2026-10-20T14:05:00.000Z",""" +
             """"transmittedAt":"2026-10-20T14:06:00.000Z","recordStatusCounts":{"awaiting":0,"accepted":2,"rejected":0,"fileRejected":0,"unknown":0,"conflict":0},""" +
-            """"attention":[${attention.joinToString(",") { "\"$it\"" }}],"reacquisitionCandidate":false$extra}"""
+            """"attention":[${attention.joinToString(",") { "\"$it\"" }}],"reacquisitionCandidate":false,"reacquisitionInProgress":false$extra}"""
     }
 
     fun pageJson(vararg items: String, nextCursor: String = "null"): String = """{"items":[${items.joinToString(",")}],"nextCursor":$nextCursor}"""

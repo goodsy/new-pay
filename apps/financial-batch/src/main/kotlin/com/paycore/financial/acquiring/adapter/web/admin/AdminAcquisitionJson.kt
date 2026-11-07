@@ -52,6 +52,8 @@ object AdminAcquisitionJson {
             },
             "attention" to i.attention.map { it.name },
             "reacquisitionCandidate" to i.reacquisitionCandidate,
+            // ACQ-ADMIN-001 B2(§5.1 3상태): 검토 대상이 아니고 새 세대가 진행 중. 둘 다 false = 배지 없음(새 세대 ACCEPTED 뒤 포함).
+            "reacquisitionInProgress" to i.reacquisitionInProgress,
         )
     }
 

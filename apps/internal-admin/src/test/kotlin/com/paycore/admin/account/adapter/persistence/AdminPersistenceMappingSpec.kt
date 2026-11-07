@@ -70,6 +70,8 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
         selectables(JpaReconciliationCheckpointEntity::class.java).first shouldBe
             AdminDatabaseAccountSpec.ADMIN_RUNTIME_COLUMN_UPDATES.getValue("admin_ops_reconciliation_checkpoint").toSet()
         persister(JpaReconciliationFindingEntity::class.java).isMutable shouldBe false
+        // ACQ-ADMIN-001 B1-A: 재매입 요청 고정 값도 @Immutable(V8 권한 SELECT·INSERT와 두 겹).
+        persister(com.paycore.admin.approval.adapter.persistence.JpaAcquiringOpsCommandEntity::class.java).isMutable shouldBe false
     }
 
     test("every mapped table: Entity insertable columns are exactly the stored (non-generated) table columns") {
@@ -79,6 +81,8 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
             "admin_approval_request" to JpaApprovalRequestEntity::class.java, "admin_operator_cancel_command" to JpaOperatorCancelCommandEntity::class.java,
             "admin_owner_execution" to JpaOwnerExecutionEntity::class.java, "admin_ops_reconciliation_checkpoint" to JpaReconciliationCheckpointEntity::class.java,
             "admin_ops_reconciliation_finding" to JpaReconciliationFindingEntity::class.java,
+            // ACQ-ADMIN-001 B1-A V7: 재매입 요청 고정 값(INSERT-only).
+            "admin_acquiring_ops_command" to com.paycore.admin.approval.adapter.persistence.JpaAcquiringOpsCommandEntity::class.java,
         ).forEach { (table, type) ->
             val (_, insertable, ids) = selectables(type)
             val autoIncrement = when (table) {

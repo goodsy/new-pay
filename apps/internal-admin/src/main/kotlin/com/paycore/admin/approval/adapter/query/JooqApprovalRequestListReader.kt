@@ -1,9 +1,11 @@
 package com.paycore.admin.approval.adapter.query
 
+import com.paycore.admin.approval.application.required.AcquiringDetailRow
 import com.paycore.admin.approval.application.required.ApprovalListFilter
 import com.paycore.admin.approval.application.required.ApprovalRequestListReader
 import com.paycore.admin.approval.application.required.ApprovalRow
 import com.paycore.admin.approval.application.required.OwnerDetailRow
+import com.paycore.admin.jooq.generated.Tables.ADMIN_ACQUIRING_OPS_COMMAND
 import com.paycore.admin.jooq.generated.Tables.ADMIN_OPERATOR_CANCEL_COMMAND
 import com.paycore.admin.jooq.generated.Tables.ADMIN_OWNER_EXECUTION
 import com.paycore.admin.jooq.generated.Tables.ADMIN_APPROVAL_REQUEST
@@ -28,7 +30,7 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
         return select().where(conditions).orderBy(t.REQUESTED_AT.desc(), t.APPROVAL_ID.desc()).limit(filter.limit).fetch(::row)
     }
 
-    /** 상세: 소유 서비스 승인이면 명령·실행 행을 LEFT JOIN(같은 비권위 조회 — 명령 판정에 쓰지 않는다). 사유·근거 열은 고르지 않는다(I-98). */
+    /** 상세: 소유 서비스 승인이면 명령·실행 행을 LEFT JOIN(같은 비권위 조회 — 명령 판정에 쓰지 않는다). 운영자 보정 취소는 사유·근거 열을 고르지 않는다(I-98·D-OPS-010), 재매입은 근거 참조만(리뷰 m-2). */
     override fun detail(approvalId: String): ApprovalRow? {
         val base = select().where(t.APPROVAL_ID.eq(approvalId)).fetchOne(::row) ?: return null
         val c = ADMIN_OPERATOR_CANCEL_COMMAND
@@ -46,7 +48,23 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
                 ownerReference = r.get(e.OWNER_REFERENCE),
             )
         }
-        return if (owner == null) base else base.copy(owner = owner)
+        if (owner != null) return base.copy(owner = owner)
+        // ACQ-ADMIN-001 B1-A: 재매입 명령·실행 행. 근거 참조·사유 문구 열은 고르지 않는다(rev 0.6 D-ACQA-005 — 근거 참조는 APPROVER·요청자 본인만 별도 조회, 사유 문구 I-4).
+        val a = ADMIN_ACQUIRING_OPS_COMMAND
+        val acquiring = dsl.select(
+            a.ORIGINAL_FILE_ID, a.REASON_CODE, DSL.field("CAST({0} AS CHAR)", String::class.java, a.PINNED_TARGET).`as`(PINNED),
+            time(e.APPROVED_AT, APPROVED_AT), time(e.EXECUTE_BEFORE, EXECUTE_BEFORE), e.ATTEMPT_COUNT, time(e.NEXT_ATTEMPT_AT, NEXT_ATTEMPT_AT),
+            time(e.LAST_RESPONSE_AT, LAST_RESPONSE_AT), e.LAST_FAILURE, e.INTEGRITY_FLAG, e.RESEND_HALTED_REASON, e.OWNER_RESULT_CODE, e.OWNER_REFERENCE,
+        ).from(a).leftJoin(e).on(e.APPROVAL_ID.eq(a.APPROVAL_ID)).where(a.APPROVAL_ID.eq(approvalId)).fetchOne { r ->
+            AcquiringDetailRow(
+                originalFileId = r.get(a.ORIGINAL_FILE_ID)!!, reasonCode = r.get(a.REASON_CODE)!!, pinnedTarget = r.get(PINNED, String::class.java)!!,
+                approvedAt = instant(r, APPROVED_AT), executeBefore = instant(r, EXECUTE_BEFORE), attemptCount = r.get(e.ATTEMPT_COUNT),
+                nextAttemptAt = instant(r, NEXT_ATTEMPT_AT), lastResponseAt = instant(r, LAST_RESPONSE_AT), lastFailure = r.get(e.LAST_FAILURE),
+                integrityFlag = r.get(e.INTEGRITY_FLAG), resendHaltedReason = r.get(e.RESEND_HALTED_REASON), ownerResultCode = r.get(e.OWNER_RESULT_CODE),
+                ownerReference = r.get(e.OWNER_REFERENCE),
+            )
+        }
+        return if (acquiring == null) base else base.copy(acquiring = acquiring)
     }
 
     private fun instant(r: Record, alias: String): Instant? = r.get(alias, String::class.java)?.let(Instant::parse)

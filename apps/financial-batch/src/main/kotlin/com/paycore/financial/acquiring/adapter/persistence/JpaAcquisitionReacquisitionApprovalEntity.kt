@@ -3,16 +3,20 @@ package com.paycore.financial.acquiring.adapter.persistence
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
+import jakarta.persistence.IdClass
 import jakarta.persistence.Table
 import org.hibernate.annotations.Immutable
+import java.io.Serializable
 import java.time.Instant
 
 /**
- * acquisition_reacquisition_approval 행(재매입 2인 승인 기록 — D-ACQ-011, append-only, `@Immutable`). runtime 권한은 이번 작업에서 SELECT만(V13 — 입력 경로 ACQ-ADMIN-001 전
- * INSERT 1142). 요청자 ≠ 승인자·generation + 1·원 레코드 참조는 Domain 규칙과 DB CHECK가 함께 지킨다.
+ * acquisition_reacquisition_approval 행(재매입 2인 승인 기록 — D-ACQ-011, append-only, `@Immutable`). ACQ-ADMIN-001 B1(V17): 승인 하나 = 레코드 묶음(D-ACQA-003)이라
+ * 복합 키 (approval_id, file_id, seq) — `@IdClass`, 결정 행 FK, (파일, 순번, 새 세대) UNIQUE. runtime INSERT는 V18(입력 경로와 함께 — D-ACQ-011).
+ * 요청자 ≠ 승인자·generation + 1·원 레코드 참조는 Domain 규칙과 DB CHECK가 함께 지킨다.
  */
 @Entity
 @Immutable
+@IdClass(JpaAcquisitionReacquisitionApprovalEntity.Key::class)
 @Table(name = "acquisition_reacquisition_approval")
 class JpaAcquisitionReacquisitionApprovalEntity protected constructor() {
     @field:Id
@@ -20,10 +24,12 @@ class JpaAcquisitionReacquisitionApprovalEntity protected constructor() {
     lateinit var approvalId: String
         protected set
 
+    @field:Id
     @field:Column(name = "file_id", nullable = false, updatable = false, length = 64)
     lateinit var fileId: String
         protected set
 
+    @field:Id
     @field:Column(name = "seq", nullable = false, updatable = false)
     var seq: Int = 0
         protected set
@@ -81,6 +87,8 @@ class JpaAcquisitionReacquisitionApprovalEntity protected constructor() {
     override fun hashCode(): Int = System.identityHashCode(this)
 
     override fun toString(): String = "JpaAcquisitionReacquisitionApprovalEntity(approvalId=$approvalId, fileId=$fileId, seq=$seq)"
+
+    data class Key(var approvalId: String = "", var fileId: String = "", var seq: Int = 0) : Serializable
 
     companion object {
         @Suppress("LongParameterList")

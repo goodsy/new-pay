@@ -6,6 +6,15 @@ management:
   server:
     port: 0
 
+# ACQ-ADMIN-001 rev 0.6(Coordinator 결정 — 시험 설정만, 기대값 불변): Spring Session JDBC 만료 정리 cron을 시험에서 끈다("-" = Spring Session 4.1.1
+# JdbcIndexedSessionRepository.afterPropertiesSet가 스케줄러를 만들지 않는 값 — javap 확인). 운영 cron("0 * * * * *")이 매분 다른 스레드에서 TX를 열어
+# LoginServiceSpec의 전역 TX 계수(CountingTransactionManager.begins)에 +1로 섞였다. 다른 job들이 시험에서 enabled: false인 것과 같은 취지 —
+# 정리 동작 자체는 AnonymousSessionGrowthSpec이 cleanUpExpiredSessions()를 직접 불러 확인한다.
+spring:
+  session:
+    jdbc:
+      cleanup-cron: "-"
+
 paycore:
   admin:
     deployment-mode: DEMO
@@ -65,6 +74,12 @@ paycore:
       read-timeout: 2s
       permits: 4
       lookup-per-minute: 1000
+      # ACQ-ADMIN-001 B1-A(D-ACQA-001): 조작 전용 시험 키 fops-op-test-k1(financial-batch 시험 조작 키와 같은 공개 값 — 운영 키 아님, 조회 키와 kid·바이트 다름).
+      # 실행 기한 폭은 FINANCIAL max-execution-window(PT24H) 이하(Demo 값).
+      operation-key-id: fops-op-test-k1
+      operation-signing-key: "dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1vcGVyYXRpb24ta2V5LTAwMDE="
+      operation-permits: 2
+      operation-execution-window: 24h
     accounts:
       active-role-gauge:
         # D-ADMIN1-023 활성 역할 gauge job: 시험은 끄고 Use Case(refresh)를 직접 부른다(값 단언에 끼어들지 않게). 켠 배선은 ActiveRoleHolderGaugeSchedulerSpec.

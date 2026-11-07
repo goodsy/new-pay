@@ -10,15 +10,22 @@ import java.util.concurrent.Semaphore
 class AdminChannelPermits(settings: AdminChannelSettings, private val registry: MeterRegistry) {
     private val read = Semaphore(settings.readPermits)
 
-    fun <T> read(endpoint: String, busy: () -> T, block: () -> T): T {
-        if (!read.tryAcquire()) {
+    /** (ACQ-ADMIN-001) 조작 명령 permit — 조회 permit과 따로 센다(조회 폭주가 조작을, 조작이 조회를 막지 않는다). */
+    private val operation = Semaphore(settings.operationPermits)
+
+    fun <T> read(endpoint: String, busy: () -> T, block: () -> T): T = guarded(read, endpoint, busy, block)
+
+    fun <T> operation(endpoint: String, busy: () -> T, block: () -> T): T = guarded(operation, endpoint, busy, block)
+
+    private fun <T> guarded(permits: Semaphore, endpoint: String, busy: () -> T, block: () -> T): T {
+        if (!permits.tryAcquire()) {
             registry.counter(BUSY_METRIC, "endpoint", endpoint).increment()
             return busy()
         }
         try {
             return block()
         } finally {
-            read.release()
+            permits.release()
         }
     }
 

@@ -7,6 +7,9 @@ export const INPUT_FIELDS: Record<string, string> = {
   purposeKind: '목적 종류',
   purposeReference: '근거 참조',
   reason: '사유',
+  // ACQ-ADMIN-001 B1-A(재매입 요청 — 리뷰 M-1: 근거 참조 카드 번호 패턴 거절 등을 필드별로 보인다).
+  evidenceRef: '근거 참조',
+  reasonCode: '사유 코드',
 }
 
 export const INPUT_REASONS: Record<string, string> = {

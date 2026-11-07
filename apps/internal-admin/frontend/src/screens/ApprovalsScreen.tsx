@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AdminApi, ApprovalView } from '../api/adminApi'
 import { OneTimeCode } from '../components/OneTimeCode'
 import { OwnerApprovalDetail } from '../components/OwnerApprovalDetail'
+import { ReacquisitionApprovalDetail } from '../components/ReacquisitionApprovalDetail'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { EmptyRow, Field, KindLabel, RoleBadges, StatusBadge } from '../components/DataBits'
@@ -74,7 +75,7 @@ function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw, onDetail 
               철회
             </Button>
           )}
-          {item.targetKind === 'PAYMENT' && (
+          {(item.targetKind === 'PAYMENT' || item.targetKind === 'ACQUISITION_FILE') && (
             <Button type="button" size="sm" variant="outline" onClick={() => onDetail(item.approvalId)}>
               상세
             </Button>
@@ -110,12 +111,14 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
     void load()
   }, [load])
 
-  const act = async (action: () => Promise<{ enrollmentCode?: string } | object>) => {
+  /** 승인·거절·철회 후 목록을 다시 읽고, 그 승인이 상세에 열려 있으면 상세도 다시 읽는다(ACQ-ADMIN-001 B2 리뷰 m-1 — 낡은 PENDING 상세가 비교를 계속하지 않게). */
+  const act = async (id: string, action: () => Promise<{ enrollmentCode?: string } | object>) => {
     setError(null)
     try {
       const result = await action()
       if ('enrollmentCode' in result && typeof result.enrollmentCode === 'string') setOneTimeCode(result.enrollmentCode)
       await load()
+      if (detail?.approvalId === id) setDetail(await api.approvalDetail(id))
     } catch (e) {
       fail(e)
     }
@@ -147,9 +150,9 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
               item={item}
               canDecide={canDecide && view === 'pending'}
               mine={view === 'mine'}
-              onApprove={(id, totp) => act(() => api.approve(id, totp))}
-              onReject={(id, totp) => act(() => api.reject(id, totp))}
-              onWithdraw={(id) => act(() => api.withdraw(id))}
+              onApprove={(id, totp) => act(id, () => api.approve(id, totp))}
+              onReject={(id, totp) => act(id, () => api.reject(id, totp))}
+              onWithdraw={(id) => act(id, () => api.withdraw(id))}
               onDetail={async (id) => {
                 setError(null)
                 try {
@@ -163,7 +166,8 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
           {items.length === 0 && <EmptyRow columns={6} message={view === 'pending' ? '승인 대기 중인 요청이 없습니다.' : '내가 만든 승인 요청이 없습니다.'} />}
         </TableBody>
       </Table>
-      {detail && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
+      {detail && detail.targetKind === 'ACQUISITION_FILE' && <ReacquisitionApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
+      {detail && detail.targetKind !== 'ACQUISITION_FILE' && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
     </section>
   )
 }

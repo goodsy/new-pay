@@ -13,8 +13,10 @@ import com.paycore.financial.acquiring.application.required.AcquisitionTransmiss
 import com.paycore.financial.acquiring.application.required.AcquisitionTransportPolicy
 import com.paycore.financial.acquiring.application.required.TransmissionAttemptRecord
 import com.paycore.financial.acquiring.application.required.TransmissionOutcomeRecord
+import com.paycore.financial.acquiring.application.required.TransmissionWithholdRecord
 import com.paycore.financial.acquiring.domain.AcquisitionContractViolation
 import com.paycore.financial.acquiring.domain.AcquisitionEnvironment
+import com.paycore.financial.acquiring.domain.AcquisitionFile
 import com.paycore.financial.acquiring.domain.AcquisitionFileFormat
 import com.paycore.financial.acquiring.domain.AcquisitionFileId
 import com.paycore.financial.acquiring.domain.NotClaimableReason
@@ -118,6 +120,7 @@ class AcquisitionTransmissionService(
                 log.error("acquisition file integrity violation fileId={} — stored bytes differ from the stored header and records; not transmitting", id)
                 return@execute ClaimStep.Done(TransmissionResult(id.value, Kind.INTEGRITY_VIOLATION, stored.file.transmissionState.name, null))
             }
+            withhold(id, stored.file, now)?.let { return@execute it }
             when (val c = stored.file.claimTransmission(now, now.plus(transport.transmissionLease))) {
                 is TransmissionClaim.NotClaimable -> ClaimStep.Done(
                     TransmissionResult(
@@ -126,6 +129,7 @@ class AcquisitionTransmissionService(
                             NotClaimableReason.IN_FLIGHT -> Kind.IN_FLIGHT
                             NotClaimableReason.ALREADY_TRANSMITTED -> Kind.ALREADY_TRANSMITTED
                             NotClaimableReason.QUARANTINED -> Kind.QUARANTINED
+                            NotClaimableReason.WITHHELD -> Kind.WITHHELD
                         },
                         stored.file.transmissionState.name, null,
                     ),
@@ -151,6 +155,29 @@ class AcquisitionTransmissionService(
         // 점유 커밋 결과 모름: 점유됐다면 lease 만료 뒤 회복이 확인부터 이어받는다. 이 호출은 SFTP를 하지 않는다.
         log.warn("acquisition transmission claim commit outcome unknown fileId={}", id)
         ClaimStep.Done(TransmissionResult(id.value, Kind.ERROR, null, "CLAIM_COMMIT_OUTCOME_UNKNOWN"))
+    }
+
+    /**
+     * 재매입 파일 전송 보류(ACQ-ADMIN-001 B2 — §15 L-9, D-ACQ-014 "세대를 넘는 ACCEPTED 하나"). 점유 TX 안, SFTP 전:
+     * 점유할 수 있는 재매입 파일이면 그 레코드의 다른 세대 파일 행을 ID 오름차순으로 잠근 뒤(매입 확정 표지를 쓰는 응답 TX와 직렬화) 표지를 다시 읽는다. 하나라도 다른 세대
+     * 레코드를 가리키면 이 파일을 보내지 않는다 — TRANSMISSION_WITHHELD(@Version) + 근거 행(레코드마다)을 같은 TX에 남기고 대사로 넘긴다(자동 해제·재전송 없음).
+     * 정기 파일(세대 0)·점유할 수 없는 파일은 보지 않는다(기존 판정 그대로). 잠금 순서: 다른 세대 파일 행(오름차순) → 이 파일 행(@Version UPDATE) — 응답 TX(파일 행 하나)·
+     * 재매입 실행(원 파일 → lane → 결제별 행)과 순환하지 않는다(I-28).
+     */
+    private fun withhold(id: AcquisitionFileId, file: AcquisitionFile, now: Instant): ClaimStep.Done? {
+        if (file.header.originalFileId == null) return null
+        if (file.claimTransmission(now, now.plusMillis(1)) !is TransmissionClaim.Claimed) return null
+        files.lockOtherGenerationFiles(id)
+        val elsewhere = attempts.acceptedInOtherGeneration(id)
+        if (elsewhere.isEmpty()) return null
+        val withheld = file.withholdTransmission(now)
+        files.update(withheld, now)
+        attempts.appendWithholds(elsewhere.map { TransmissionWithholdRecord(id, it, file.transmissionState, now) })
+        log.error(
+            "re-acquisition file withheld fileId={} records={} prior={} — a record was already accepted in another generation (D-ACQ-014); not transmitting, reconcile",
+            id, elsewhere.size, file.transmissionState,
+        )
+        return ClaimStep.Done(TransmissionResult(id.value, Kind.WITHHELD, withheld.transmissionState.name, ACCEPTED_IN_OTHER_GENERATION))
     }
 
     /** rename 안전 여유가 남았는가(리뷰 MJ-1 (b)). lease가 지나면 다른 시도가 같은 임시명을 다시 열 수 있다. */
@@ -323,6 +350,9 @@ class AcquisitionTransmissionService(
 
     internal companion object {
         const val MAX_BATCH = 100
+
+        /** 보류 결과 detail(분류 코드 — ID·금액 없음). */
+        const val ACCEPTED_IN_OTHER_GENERATION = "ACCEPTED_IN_OTHER_GENERATION"
 
         /** 서버 계약의 임시명 시도 번호 상한(`[1-9][0-9]{0,5}`). */
         const val MAX_ATTEMPT_NO = 999_999

@@ -1,10 +1,12 @@
 package com.paycore.financial.acquiring.adapter.batch
 
+import com.paycore.financial.acquiring.application.AcquiringIntegrityEvents
 import com.paycore.financial.acquiring.application.provided.AcquisitionBacklog
 import com.paycore.financial.acquiring.application.provided.CloseRunResult
 import com.paycore.financial.acquiring.application.provided.ReadAcquisitionBacklogUseCase
 import com.paycore.financial.acquiring.application.provided.ResponseRunResult
 import com.paycore.financial.acquiring.application.provided.TransmissionResult
+import io.micrometer.core.instrument.FunctionCounter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.stereotype.Component
@@ -18,7 +20,8 @@ import java.util.concurrent.atomic.AtomicReference
  * Gauge(마지막 [refresh] 값 — 스케줄러 회차마다, 시험은 직접 부른다. 새로 고치기 전에는 NaN):
  * - `paycore.financial.acquiring.files.{transmission_unknown, transmission_quarantined, upload_failed_repeated, receipt_conflict}`
  * - `paycore.financial.acquiring.records.{unknown, conflict, awaiting_result}`, `paycore.financial.acquiring.responses.quarantined`,
- *   `paycore.financial.acquiring.integrity.netting_mismatch`(0이어야 한다)
+ *   `paycore.financial.acquiring.integrity.netting_mismatch`(0이어야 한다 — 레코드 쪽은 세대 0), `paycore.financial.acquiring.integrity.reacquisition_netting_mismatch`
+ *   (재매입 레코드 세대 ≥ 1 — 0이어야 한다, ACQ-ADMIN-001 rev 0.3)
  * - `paycore.financial.acquiring.waiting{lane,kind,reason}` = 마지막 봉인의 대기 건수, `paycore.financial.acquiring.waiting.oldest_age_seconds{lane,kind,reason}` = 가장 오래된
  *   대기 사건(승인·취소 시각)부터 지금까지(체류), `paycore.financial.acquiring.cancel.reconcile{lane}` = 대사로 넘긴 전송 후 취소
  *
@@ -27,7 +30,11 @@ import java.util.concurrent.atomic.AtomicReference
  * 경보 임계값은 운영값(LIVE Gate §14-12) — 지표는 판단 근거만 낸다.
  */
 @Component
-class AcquiringMetrics(private val registry: MeterRegistry, private val backlog: ReadAcquisitionBacklogUseCase) {
+class AcquiringMetrics(
+    private val registry: MeterRegistry,
+    private val backlog: ReadAcquisitionBacklogUseCase,
+    integrityEvents: AcquiringIntegrityEvents,
+) {
 
     private val snapshot = AtomicReference<AcquisitionBacklog?>(null)
     private val waiting = ConcurrentHashMap<List<String>, WaitingValue>()
@@ -46,7 +53,11 @@ class AcquiringMetrics(private val registry: MeterRegistry, private val backlog:
         fileGauge("records.awaiting_result") { it.awaitingResults }
         fileGauge("responses.quarantined") { it.responsesQuarantined }
         fileGauge("integrity.netting_mismatch") { it.nettingMismatches }
+        fileGauge("integrity.reacquisition_netting_mismatch") { it.reacquisitionNettingMismatches }
         fileGauge("cancel.not_required_original_conflict") { it.cancelNotRequiredOriginalConflict }
+        fileGauge("files.transmission_withheld") { it.transmissionWithheld }
+        // ACQ-ADMIN-001 B2(B1-F 리뷰 n-6): rollback된 재매입 무결성 거절 누적 수 — label 없음.
+        FunctionCounter.builder("$PREFIX.reacquisition.integrity_rejected", integrityEvents) { it.reacquisitionIntegrityRejectedTotal().toDouble() }.register(registry)
     }
 
     /** DB count와 대기 현황을 다시 읽는다(읽기 TX 하나). 사라진 대기 묶음은 0으로 둔다(gauge는 남는다). */

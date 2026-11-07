@@ -85,6 +85,13 @@ class AcquisitionLookupServiceSpec : BehaviorSpec({
                     rateLimited++
                 }
             },
+            // ACQ-ADMIN-001 B1-A: 미리 보기 Port(이 시험의 조회 경로에는 쓰이지 않는다 — 부르면 실패).
+            object : com.paycore.admin.financialops.application.required.AcquiringOpsGateway {
+                override fun targets(fileId: String, seqs: List<Int>) = error("not used")
+                override fun execute(approvalId: String, body: ByteArray) = error("not used")
+                override fun decision(approvalId: String) = error("not used")
+                override fun confirmDeadline(approvalId: String, body: ByteArray) = error("not used")
+            },
         )
         val actor get() = view.actorId
 

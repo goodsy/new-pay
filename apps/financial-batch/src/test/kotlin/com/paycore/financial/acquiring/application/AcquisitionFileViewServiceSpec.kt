@@ -84,6 +84,9 @@ class AcquisitionFileViewServiceSpec : BehaviorSpec({
                     recordStatusCounts = AcquisitionRecordStatusCounts(awaiting = 2)) to listOf(AcquisitionAttention.TRANSMISSION_UNKNOWN),
                 completed().copy(transmissionState = "TRANSMISSION_QUARANTINED", transmittedAt = null, resultState = "AWAITING", receiptState = "NONE",
                     recordStatusCounts = AcquisitionRecordStatusCounts(awaiting = 2)) to listOf(AcquisitionAttention.TRANSMISSION_QUARANTINED),
+                // ACQ-ADMIN-001 B2(§15 L-9): 재매입 파일 전송 보류 — 사유 추가(기존 행 불변).
+                completed().copy(transmissionState = "TRANSMISSION_WITHHELD", transmittedAt = null, resultState = "AWAITING", receiptState = "NONE",
+                    recordStatusCounts = AcquisitionRecordStatusCounts(awaiting = 1)) to listOf(AcquisitionAttention.TRANSMISSION_WITHHELD),
                 completed().copy(receiptState = "RECEIPT_CONFLICT", resultState = "AWAITING", recordStatusCounts = AcquisitionRecordStatusCounts(awaiting = 2),
                     quarantinedResponses = 1) to listOf(AcquisitionAttention.RECEIPT_CONFLICT, AcquisitionAttention.RESPONSE_QUARANTINED, AcquisitionAttention.RESULT_OVERDUE),
                 completed().copy(quarantinedResponses = 1) to listOf(AcquisitionAttention.RESPONSE_QUARANTINED),
@@ -100,11 +103,24 @@ class AcquisitionFileViewServiceSpec : BehaviorSpec({
             AcquisitionFileViewService.attentionOf(awaiting, null) shouldBe emptyList()
             AcquisitionFileViewService.attentionOf(awaiting.copy(transmissionState = "SEALED", transmittedAt = null), overdueBefore) shouldBe emptyList()
         }
-        Then("a file rejection or REJECTED/FILE_REJECTED records mark a re-acquisition candidate, which is not an attention reason (I-5)") {
-            val fileRejected = completed().copy(receiptState = "FILE_REJECTED", recordStatusCounts = AcquisitionRecordStatusCounts(fileRejected = 2))
+        Then("unresolved latest-generation rejected records mark a re-acquisition candidate, which is not an attention reason (I-5, ACQ-ADMIN-001 §5.1)") {
+            // 기대값 변경(ACQ-ADMIN-001 rev 0.7 — §5.1 L-9 배지 규칙·AC9, MINOR-6): 입력이 "거절 레코드 건수"에서 Reader가 센 재매입 단계 건수(어느 세대에도 확정·불요 종결이
+            // 없고 더 높은 세대가 없는 거절 레코드)로 바뀌었다. 파일 전체 거절·REJECTED 레코드가 그 상태면 그대로 검토 대상이다(아래 두 줄 — rev 0.6과 같은 결과).
+            val fileRejected = completed().copy(receiptState = "FILE_REJECTED", recordStatusCounts = AcquisitionRecordStatusCounts(fileRejected = 2), reacquisitionCandidates = 2)
             AcquisitionFileViewService.reacquisitionCandidate(fileRejected) shouldBe true
             AcquisitionFileViewService.attentionOf(fileRejected, overdueBefore) shouldBe emptyList()
-            AcquisitionFileViewService.reacquisitionCandidate(completed().copy(recordStatusCounts = AcquisitionRecordStatusCounts(accepted = 1, rejected = 1))) shouldBe true
+            AcquisitionFileViewService.reacquisitionCandidate(
+                completed().copy(recordStatusCounts = AcquisitionRecordStatusCounts(accepted = 1, rejected = 1), reacquisitionCandidates = 1),
+            ) shouldBe true
+        }
+        Then("§5.1 three states: in progress (a newer generation, nothing left to review) and none once it is accepted — the original record still reads REJECTED") {
+            val rejectedOnce = completed().copy(recordStatusCounts = AcquisitionRecordStatusCounts(rejected = 1))
+            AcquisitionFileViewService.item(rejectedOnce.copy(reacquisitionInProgress = 1), overdueBefore).let { it.reacquisitionCandidate to it.reacquisitionInProgress } shouldBe
+                (false to true)
+            AcquisitionFileViewService.item(rejectedOnce.copy(reacquisitionCandidates = 1, reacquisitionInProgress = 1), overdueBefore)
+                .let { it.reacquisitionCandidate to it.reacquisitionInProgress } shouldBe (true to false)
+            // 새 세대 ACCEPTED: Reader가 단계를 세지 않는다(표지) → 배지 없음, 레코드 상태 건수(rejected = 1)는 이력 그대로.
+            AcquisitionFileViewService.item(rejectedOnce, overdueBefore).let { it.reacquisitionCandidate to it.reacquisitionInProgress } shouldBe (false to false)
         }
     }
 

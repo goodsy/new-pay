@@ -122,6 +122,24 @@ class ArchitectureSpec : FunSpec({
             .check(classes)
     }
 
+    test("ACQ-ADMIN-001 rev 0.3 (review m-6): the re-acquisition approval and ops decision stores are used only by the execution service and their persistence adapters") {
+        // 승인 기록·결정 기록 쓰기 경로는 조작 서명 채널 → ReacquisitionExecutionService(재검사 + 같은 로컬 TX) 하나뿐이다(D-ACQ-011·D-ADMIN-007, V18 INSERT 개방의 대체 방어).
+        val rule = noClasses()
+            .that().haveNameNotMatching("${Regex.escape("$BASE_PACKAGE.acquiring.application.ReacquisitionExecutionService")}(\\$.*)?")
+            .and().haveNameNotMatching("${Regex.escape("$BASE_PACKAGE.acquiring.adapter.persistence.")}(JpaReacquisitionApprovalStore|JpaAcquisitionOpsDecisionStore)(\\$.*)?")
+            // Port 자신(Kotlin DefaultImpls 등)은 호출자가 아니다.
+            .and().haveNameNotMatching("${Regex.escape("$BASE_PACKAGE.acquiring.application.required.")}(ReacquisitionApprovalStore|AcquisitionOpsDecisionStore)(\\$.*)?")
+            .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.acquiring.application.required.ReacquisitionApprovalStore")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.acquiring.application.required.AcquisitionOpsDecisionStore")
+        rule.check(classes)
+        // 비어 있지 않음: 실행 서비스가 실제로 두 Port에 의존한다.
+        classes.get("$BASE_PACKAGE.acquiring.application.ReacquisitionExecutionService").directDependenciesFromSelf.map { it.targetClass.simpleName }.toSet()
+            .containsAll(setOf("ReacquisitionApprovalStore", "AcquisitionOpsDecisionStore")) shouldBe true
+        // 규칙이 실제로 잡는다: 시험 소스까지 import하면 Port를 직접 쓰는 DB 시험이 위반으로 나온다.
+        val error = shouldThrow<AssertionError> { rule.check(ClassFileImporter().importPackages("$BASE_PACKAGE.acquiring")) }
+        error.message shouldContain "ReacquisitionExecutionDbSpec"
+    }
+
     test("integration adapter types are not used outside adapter.integration") {
         rules.integrationAdapterIsEncapsulated().allowEmptyShould(false).check(classes)
     }

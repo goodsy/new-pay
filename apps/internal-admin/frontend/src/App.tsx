@@ -175,7 +175,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
             )}
             {page === 'paymentOps' && <PaymentOpsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
             {page === 'transactions' && <TransactionsScreen api={api} onSessionEnded={sessionEnded} />}
-            {page === 'acquisitions' && <AcquisitionsScreen api={api} onSessionEnded={sessionEnded} />}
+            {page === 'acquisitions' && <AcquisitionsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
             {page === 'reconciliation' && <ReconciliationScreen api={api} onSessionEnded={sessionEnded} />}
             {page === 'accounts' && <AccountsScreen api={api} canManage={me.roles.includes('SECURITY_ADMIN')} onSessionEnded={sessionEnded} />}
             {page === 'audit' && <AuditScreen api={api} onSessionEnded={sessionEnded} />}

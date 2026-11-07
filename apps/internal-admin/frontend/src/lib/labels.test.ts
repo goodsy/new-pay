@@ -15,6 +15,8 @@ const SERVER_CODES = [
   'PENDING', 'EXECUTING', 'EXECUTION_UNKNOWN', 'EXECUTED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'INVALIDATED', 'OWNER_REJECTED',
   // ApprovalKind
   'ROLE_GRANT', 'ACCOUNT_UNLOCK', 'ACCOUNT_REACTIVATE', 'TOTP_REENROLL', 'PASSWORD_RESET', 'ROLE_REACTIVATE', 'OPERATOR_CORRECTION_CANCEL',
+  // ACQ-ADMIN-001 B1-A 재매입(ApprovalKind ACQ_REACQUISITION)
+  'ACQ_REACQUISITION',
   // OperatorCancelPurposeKind
   'INCIDENT_OR_RECON_CORRECTION', 'MERCHANT_TERMINATED_OBLIGATION',
   // ReconciliationFindingKind
@@ -62,6 +64,7 @@ describe('ADMIN-UI-001 Korean labels (display only)', () => {
     expect(labelOf('VIEWER')).toBe('조회자')
     expect(labelOf('ROLE_GRANT')).toBe('역할 부여')
     expect(labelOf('OPERATOR_CORRECTION_CANCEL')).toBe('운영자 보정 취소')
+    expect(labelOf('ACQ_REACQUISITION')).toBe('재매입')
     expect(labelOf('AUTHORIZED')).toBe('승인 완료')
   })
 

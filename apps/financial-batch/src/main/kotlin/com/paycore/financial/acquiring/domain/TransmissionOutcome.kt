@@ -65,4 +65,4 @@ sealed interface TransmissionClaim {
     data class NotClaimable(val reason: NotClaimableReason) : TransmissionClaim
 }
 
-enum class NotClaimableReason { IN_FLIGHT, ALREADY_TRANSMITTED, QUARANTINED }
+enum class NotClaimableReason { IN_FLIGHT, ALREADY_TRANSMITTED, QUARANTINED, WITHHELD }

@@ -1,6 +1,7 @@
 package com.paycore.admin.approval.application
 
 import com.paycore.admin.account.application.provided.AdminSessionQuery
+import com.paycore.admin.approval.application.provided.AcquiringDetailView
 import com.paycore.admin.approval.application.provided.ApprovalQuery
 import com.paycore.admin.approval.application.provided.ApprovalView
 import com.paycore.admin.approval.application.provided.OwnerDetailView
@@ -38,6 +39,12 @@ class ApprovalQueryService(private val sessions: AdminSessionQuery, private val 
             OwnerDetailView(
                 o.amountMinor, o.currency, o.purposeKind, o.pinnedTarget, o.approvedAt, o.executeBefore, o.attemptCount, o.nextAttemptAt, o.lastResponseAt,
                 o.lastFailure, o.integrityFlag, o.resendHaltedReason, o.ownerResultCode, o.ownerReference,
+            )
+        },
+        r.acquiring?.let { a ->
+            AcquiringDetailView(
+                a.originalFileId, a.reasonCode, a.pinnedTarget, a.approvedAt, a.executeBefore, a.attemptCount, a.nextAttemptAt, a.lastResponseAt, a.lastFailure,
+                a.integrityFlag, a.resendHaltedReason, a.ownerResultCode, a.ownerReference,
             )
         },
     )

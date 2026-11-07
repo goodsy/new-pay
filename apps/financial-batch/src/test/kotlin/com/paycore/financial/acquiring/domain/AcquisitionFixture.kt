@@ -66,6 +66,25 @@ object AcquisitionFixture {
         )
     }
 
+    /**
+     * (ACQ-ADMIN-001 B2 — L-6) 원승인 [original]이 재매입돼 가장 높은 세대 SALE이 세대 [generation](원 SALE 상계액 [nettedMinor] = 실행 시점까지 판정 끝난 취소 합,
+     * I-13)인 뒤 받은 취소. 재매입 레코드는 같은 업무일 다음 버전 파일(버전 = 세대 + 1)의 순번 1이고 바로 앞 버전 레코드 #1을 가리킨다(I-13 — 정상 Fixture가 불변식을 만족).
+     */
+    fun cancelAfterReacquisition(
+        original: SaleCandidate = sale(),
+        amountMinor: Long = 2_000,
+        nettedMinor: Long = 0,
+        alreadyCancelledMinor: Long = 0,
+        generation: Int = 1,
+    ): CancelCandidate {
+        val base = cancelAfterMembership(original, amountMinor, nettedMinor, alreadyCancelledMinor)
+        val previous = AcquisitionFileId("SIMACQA", AcquisitionEnvironment.TEST, BUSINESS_DATE, generation)
+        return base.copy(
+            originalSaleFileId = AcquisitionFileId("SIMACQA", AcquisitionEnvironment.TEST, BUSINESS_DATE, generation + 1),
+            originalSale = base.originalSale.copy(generation = generation, reacquisitionOf = "${previous.value}#1"),
+        )
+    }
+
     /** 다음 업무일(2026-11-06) Demo 마감 = 14:00Z. */
     val NEXT_CUTOFF: Instant = Instant.parse("2026-11-06T14:00:00Z")
 }

@@ -14,4 +14,10 @@ interface PaymentFactAcquisitionReadStore {
 
     /** 원승인 투영의 매입사·환경으로 고른 취소 키(잠금 없음). */
     fun cancellationKeys(acquirerCode: String, environment: String, cancelledUpTo: Instant): List<AcquisitionCancellationKey>
+
+    /** 승인 거래 ID → Payment ID(잠금 없음). */
+    fun paymentIdsOf(authorizationTransactionIds: Collection<String>): Map<String, String>
+
+    /** [lockAndRead]와 같은 값, 잠금 없음(비권위 미리 보기). */
+    fun read(paymentIds: Collection<String>): List<AcquisitionSourcePayment>
 }

@@ -31,9 +31,14 @@ const STATUS = {
   MERCHANT_NOT_FOUND: [404],
   MASTER_UNAVAILABLE: [503],
   // ACQ-VIEW-001 §4.6(매입 현황 조회).
-  ACQUISITION_FILE_NOT_FOUND: [404],
+  // B1-A 리뷰 m-1: 조회는 404, 재매입 요청(원 파일 없음)은 400 — PAYMENT_NOT_FOUND 선례.
+  ACQUISITION_FILE_NOT_FOUND: [400, 404],
   FINANCIAL_UNAVAILABLE: [503],
   INVALID_INPUT: [400],
+  // ACQ-ADMIN-001 B1-A(재매입 요청 — 묶음 중 FINANCIAL이 지금 재매입 불가로 본 레코드가 있음).
+  TARGET_NOT_ELIGIBLE_ADVISORY: [409],
+  // 승인 A 단계(소유 서비스가 대상을 찾지 못함 — 상태·TOTP 불변) 등 업무 거절 409(B1-A 리뷰 m-1).
+  TARGET_NOT_FOUND: [409],
   BAD_REQUEST: [400],
   ENROLLMENT_CODE_INVALID: [400],
   ENROLLMENT_NOT_APPLICABLE: [400],

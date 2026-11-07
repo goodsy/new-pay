@@ -48,6 +48,14 @@ describe('errorCodeFrom (S7 — every fixed code of the JSON API)', () => {
     expect(errorCodeFrom(500, { error: 'MASTER_UNAVAILABLE' })).toBe('SERVER_ERROR')
   })
 
+  it('ACQ-ADMIN-001 B1-A review m-1: the missing acquisition file keeps its code on the re-acquisition request (400) and the lookup (404); approval-time TARGET_NOT_FOUND is 409', () => {
+    expect(errorCodeFrom(400, { error: 'ACQUISITION_FILE_NOT_FOUND' })).toBe('ACQUISITION_FILE_NOT_FOUND')
+    expect(errorCodeFrom(404, { error: 'ACQUISITION_FILE_NOT_FOUND' })).toBe('ACQUISITION_FILE_NOT_FOUND')
+    expect(errorCodeFrom(503, { error: 'ACQUISITION_FILE_NOT_FOUND' })).toBe('SERVER_ERROR')
+    expect(errorCodeFrom(409, { error: 'TARGET_NOT_FOUND' })).toBe('TARGET_NOT_FOUND')
+    expect(errorCodeFrom(400, { error: 'TARGET_NOT_FOUND' })).toBe('REQUEST_REJECTED')
+  })
+
   it('distrusts a business code arriving with the wrong status', () => {
     expect(errorCodeFrom(500, { error: 'IP_DENIED' })).toBe('SERVER_ERROR')
     expect(errorCodeFrom(200, { error: 'ALREADY_DECIDED' })).toBe('REQUEST_REJECTED')

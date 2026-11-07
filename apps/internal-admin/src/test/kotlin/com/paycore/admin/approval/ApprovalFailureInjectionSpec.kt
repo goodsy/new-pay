@@ -69,6 +69,8 @@ class ApprovalFailureInjectionSpec(
     private val commitFaults: CommitFaultTransactionManager,
     private val clock: OffsetApprovalEnvironment,
     private val registry: MeterRegistry,
+    private val acquiring: com.paycore.admin.approval.application.provided.AcquiringOpsApprovalUseCase,
+    private val justifications: com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery,
 ) : BehaviorSpec({
 
     afterEach {
@@ -190,6 +192,40 @@ class ApprovalFailureInjectionSpec(
             } shouldBe listOf("APPROVAL_INTEGRITY_VIOLATION:column=kind")
             // rev 0.5 n-1 "지표 증가"(S8): 경보 대상 counter가 그 검사 열 label로 1 증가.
             count(MicrometerApprovalMetrics.INTEGRITY_VIOLATION, "check", "kind") shouldBe violationsBefore + 1
+        }
+    }
+
+    Given("HT-3 ④ (ACQ-ADMIN-001 B2 — B1 review n-A, D-ACQA-005): the re-acquisition evidence lookup when its audit row cannot be written") {
+        // 위치: 감사 저장 실패 주입(SwitchableAuditStore)이 있는 이 컨텍스트에 둔다 — AcquiringOpsApprovalHttpSpec(HT-1..3)에 주입 구성을 더하면 Spring 컨텍스트가 하나 늘어난다
+        // (TEST-PERF-002). 서비스 결과 AuditUnavailable → HTTP 503 `AUDIT_UNAVAILABLE`은 ApprovalController의 같은 분기(D-OPS-010 선례)다.
+        Then("fail-closed: AuditUnavailable (503) without the reference and no audit row; with a working store the same viewer reads it and one OK row is written") {
+            com.paycore.admin.support.StubFinancialOpsServer.start()
+            val fileId = "ACQ.N${System.nanoTime() % 100_000_000L}.TEST.20261105.001"
+            com.paycore.admin.support.StubFinancialOpsServer.reply(
+                com.paycore.admin.support.StubFinancialOpsServer.targetsPath(fileId),
+                com.paycore.admin.support.StubFinancialOpsServer.Reply(
+                    200, com.paycore.admin.support.StubFinancialOpsServer.targetsJson(fileId, com.paycore.admin.support.StubFinancialOpsServer.targetItemJson(1)),
+                ),
+            )
+            val operator = path.withRolesViaApproval(AdminRole.OPERATOR)
+            val created = acquiring.requestReacquisition(
+                com.paycore.admin.approval.application.provided.RequestReacquisition(
+                    operator.id.value, storage.load(operator.id).sessionGeneration, fileId, listOf(1), "INSTITUTION_REQUESTED", "INQ-AUDF-0007", "audit failure reason", path.context(),
+                ),
+            ).shouldBeInstanceOf<ApprovalOutcome.Created>()
+            val approver = ready.bootstrapped(AdminRole.APPROVER)
+            fun viewed() = AdminDbAccounts.root(container).use {
+                it.column("SELECT result_code FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_JUSTIFICATION_VIEWED'", created.approvalId)
+            }
+            auditStore.failOn { it.action == "APPROVAL_JUSTIFICATION_VIEWED" }
+            val failed = justifications.view(approver.account.id.value, created.approvalId, path.context())
+            failed shouldBe com.paycore.admin.approval.application.provided.JustificationResult.AuditUnavailable
+            failed.toString().contains("INQ-AUDF-0007") shouldBe false
+            viewed() shouldBe emptyList()
+            auditStore.failOn(null)
+            justifications.view(approver.account.id.value, created.approvalId, path.context())
+                .shouldBeInstanceOf<com.paycore.admin.approval.application.provided.JustificationResult.EvidenceFound>().evidenceRef shouldBe "INQ-AUDF-0007"
+            viewed() shouldBe listOf("OK")
         }
     }
 

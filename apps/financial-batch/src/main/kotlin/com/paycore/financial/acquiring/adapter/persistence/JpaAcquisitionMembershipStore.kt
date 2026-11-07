@@ -49,12 +49,18 @@ class JpaAcquisitionMembershipStore(private val entityManager: EntityManager) : 
     }
 
     override fun saleMemberships(originalTransactionIds: Collection<String>): Map<String, SaleMembership> = translate(RECORD) {
+        // ACQ-ADMIN-001 B1: 재매입(generation ≥ 1)이 있으면 **가장 높은 세대**가 원 SALE이다 — 재매입 뒤 받은 전송 후 취소는 새 세대의 결과로 판정한다
+        // (원 세대 REJECTED로 "취소 매입 불요"를 쓰면 새 세대가 ACCEPTED될 때 그 취소가 매입사에 가지 않는다). 재매입 순액에 이미 들어간 취소는 실행 TX가
+        // "판정 끝남"을 확인한 것들뿐이다(CANCELLATION_UNDECIDED 거절) — 이 경로로 다시 셀 취소가 없다.
         originalTransactionIds.distinct().chunked(CHUNK).flatMap { chunk ->
             entityManager.createQuery(
-                "select r from JpaAcquisitionFileRecordEntity r where r.recordType = 'SALE' and r.generation = 0 and r.transactionId in :ids",
+                "select r from JpaAcquisitionFileRecordEntity r where r.recordType = 'SALE' and r.transactionId in :ids",
                 JpaAcquisitionFileRecordEntity::class.java,
             ).setParameter("ids", chunk).resultList
-        }.associate { r -> r.transactionId to SaleMembership(AcquisitionFileId.parse(r.fileId), r.toDomain()) }
+        }.groupBy { it.transactionId }.mapValues { (_, rows) ->
+            val r = rows.maxBy { it.generation }
+            SaleMembership(AcquisitionFileId.parse(r.fileId), r.toDomain())
+        }
     }
 
     override fun cancelledAmounts(originalTransactionIds: Collection<String>): Map<String, Long> = translate(RECORD) {
@@ -95,7 +101,7 @@ class JpaAcquisitionMembershipStore(private val entityManager: EntityManager) : 
         val records = (
             entityManager.createNativeQuery(
                 "SELECT COUNT(*) FROM acquisition_file_record r LEFT JOIN (SELECT seq, SUM(amount_minor) AS s FROM acquisition_netting WHERE file_id = :file GROUP BY seq) n " +
-                    "ON n.seq = r.seq WHERE r.file_id = :file AND r.record_type = 'SALE' AND r.netted_cancel_amount_minor <> COALESCE(n.s, 0)",
+                    "ON n.seq = r.seq WHERE r.file_id = :file AND ${AcquisitionNettingIntegritySql.GENERATION_ZERO_MISMATCH}",
             ).setParameter("file", fileId.value).singleResult as Number
             ).toInt()
         val exclusions = (
@@ -107,6 +113,14 @@ class JpaAcquisitionMembershipStore(private val entityManager: EntityManager) : 
                 .singleResult as Number
             ).toInt()
         records + exclusions
+    }
+
+    override fun reacquisitionNettingMismatches(fileId: AcquisitionFileId): Int = translate(NETTING) {
+        (
+            entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM acquisition_file_record r WHERE r.file_id = :file AND ${AcquisitionNettingIntegritySql.REACQUISITION_MISMATCH}",
+            ).setParameter("file", fileId.value).singleResult as Number
+            ).toInt()
     }
 
     override fun notRequiredCancellationsOf(original: RecordRef): Int = translate(NOT_REQUIRED) {

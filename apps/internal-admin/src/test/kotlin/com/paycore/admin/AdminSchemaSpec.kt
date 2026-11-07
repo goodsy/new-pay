@@ -66,6 +66,21 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
 
     fun paymentId(): String = "pay_" + UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
 
+    /** 서로 다른 원 파일 ID(매입사 코드에 임의 값 — 파일 계약 v1 문법). */
+    fun fileId(): String = "ACQ.S" + UUID.randomUUID().toString().replace("-", "").uppercase().take(20) + ".TEST.20261105.001"
+
+    /** 파일 대상 재매입 승인 행(V7 — 대상 버전 0, 결정 열은 PENDING이 아니면 승인자로). */
+    fun Connection.insertFileApproval(approvalId: String, fileId: String, status: String = "PENDING"): Int? {
+        val decided = status != "PENDING"
+        return errorCodeOf(
+            "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_actor_id, target_ref, target_security_version, target_snapshot, requested_by, " +
+                "requested_by_display_name, requested_at, expires_at, status, decided_by, decided_by_display_name, decided_at, version) " +
+                "VALUES (?, 'ACQ_REACQUISITION', 'ACQUISITION_FILE', NULL, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, ?, " +
+                (if (decided) "'adm_approver', 'Approver', UTC_TIMESTAMP(3)" else "NULL, NULL, NULL") + ", 0)",
+            approvalId, fileId, status,
+        )
+    }
+
     Given("the ADMIN schema after the Flyway migrations") {
         Then("it has exactly the ADMIN tables and the Flyway history") {
             root().use { c ->
@@ -74,7 +89,7 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
                     ADMIN_DATABASE,
                 )
             } shouldBe listOf(
-                "admin_account", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_enrollment_code",
+                "admin_account", "admin_acquiring_ops_command", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_enrollment_code",
                 "admin_operator_cancel_command", "admin_ops_reconciliation_checkpoint", "admin_ops_reconciliation_finding", "admin_owner_execution",
                 "admin_recovery_episode", "admin_role_event", "admin_session", "admin_session_attributes", "flyway_schema_history",
             )
@@ -257,6 +272,78 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
             } shouldBe mapOf(
                 "zero attempts" to 3819, "upper-case hex" to 3819, "other version" to 3819, "deadline not after approval" to 3819, "no approval" to 1452, "ok" to null,
             )
+        }
+
+        Then("V7 (ACQ-ADMIN-001 B1-A): the re-acquisition kind takes only a file target (file id grammar, version 0) and the owner-service states; other pairs stay 3819") {
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                mapOf(
+                    "file version 3" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, fileId()),
+                    "file executing" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, fileId(), status = "EXECUTING"),
+                    "file unknown" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, fileId(), status = "EXECUTION_UNKNOWN"),
+                    "file APPROVED" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, fileId(), status = "APPROVED"),
+                    "file with actor" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", actor, fileId()),
+                    "file without ref" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, null),
+                    "file ref not a file id" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ACQUISITION_FILE", null, paymentId()),
+                    "acq kind on PAYMENT" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "PAYMENT", null, paymentId()),
+                    "operator kind on file" to c.insertTargeted(id("apr_"), "OPERATOR_CORRECTION_CANCEL", "ACQUISITION_FILE", null, fileId()),
+                    "acq kind on account" to c.insertTargeted(id("apr_"), "ACQ_REACQUISITION", "ADMIN_ACCOUNT", actor, null),
+                )
+            } shouldBe mapOf(
+                // insertTargeted의 대상 버전은 3 — 파일 대상은 0만(권위 대상 버전은 명령 행 pinned_target)이라 조합이 맞아도 3819.
+                "file version 3" to 3819, "file executing" to 3819, "file unknown" to 3819, "file APPROVED" to 3819, "file with actor" to 3819, "file without ref" to 3819,
+                "file ref not a file id" to 3819, "acq kind on PAYMENT" to 3819, "operator kind on file" to 3819, "acq kind on account" to 3819,
+            )
+            // 버전 0이면 들어간다(위 행은 insertTargeted의 버전 3 때문에 모두 3819 — 아래에서 0으로 확인).
+            runtime().use { c ->
+                listOf("PENDING", "EXECUTING", "EXECUTION_UNKNOWN").map { c.insertFileApproval(id("apr_"), fileId(), it) } + c.insertFileApproval(id("apr_"), fileId(), "APPROVED")
+            } shouldBe listOf(null, null, null, 3819)
+        }
+
+        Then("V7 unresolved_key: one unresolved re-acquisition approval per original file (ACQFILE: — 1062), released when it ends; the Payment key is unchanged") {
+            val file = fileId()
+            val pay = paymentId()
+            runtime().use { c ->
+                val first = id("apr_")
+                val inserts = listOf(c.insertFileApproval(first, file), c.insertFileApproval(id("apr_"), file), c.insertFileApproval(id("apr_"), fileId()))
+                val key = c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", first)
+                c.update("UPDATE admin_approval_request SET status = 'EXECUTING', decided_by = 'adm_x', decided_by_display_name = 'X', decided_at = UTC_TIMESTAMP(3) WHERE approval_id = ?", first)
+                val whileExecuting = c.insertFileApproval(id("apr_"), file)
+                c.update("UPDATE admin_approval_request SET status = 'EXECUTED' WHERE approval_id = ?", first)
+                val payApproval = id("apr_")
+                c.insertPaymentApproval(payApproval, pay)
+                listOf(inserts, key, whileExecuting, c.insertFileApproval(id("apr_"), file), c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", payApproval))
+            } shouldBe listOf(listOf(null, 1062, null), "ACQFILE:$file", 1062, null, "PAYMENT:$pay")
+        }
+
+        Then("V7 execution fingerprint: acd1 (re-acquisition content hash) is accepted next to oct1; other prefixes stay 3819") {
+            runtime().use { c ->
+                fun execution(approval: String, fingerprint: String) = c.errorCodeOf(
+                    "INSERT INTO admin_owner_execution (approval_id, request_body, fingerprint, approved_at, execute_before, executor_actor_id, attempt_count, " +
+                        "next_attempt_at, version) VALUES (?, x'7b7d', ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 60 SECOND, 'adm_approver', 1, UTC_TIMESTAMP(3), 0)",
+                    approval, fingerprint,
+                )
+                val approval = id("apr_")
+                c.insertFileApproval(approval, fileId(), "EXECUTING")
+                listOf(execution(approval, "acd2:" + "a".repeat(64)), execution(approval, "acd1:" + "A".repeat(64)), execution(approval, "acd1:" + "a".repeat(64)))
+            } shouldBe listOf(3819, 3819, null)
+        }
+
+        Then("V7 command (INSERT-only): file id grammar, fixed reason codes, evidence grammar, an existing approval (FK 1452); one command per approval (1062)") {
+            runtime().use { c ->
+                fun command(approval: String, file: String = "ACQ.SIMACQA.TEST.20261105.001", code: String = "INSTITUTION_REQUESTED", evidence: String = "INQ-1") = c.errorCodeOf(
+                    "INSERT INTO admin_acquiring_ops_command (approval_id, original_file_id, reason_code, evidence_ref, reason, pinned_target, created_at) " +
+                        "VALUES (?, ?, ?, ?, 'reason', '{}', UTC_TIMESTAMP(3))",
+                    approval, file, code, evidence,
+                )
+                val approval = id("apr_")
+                c.insertFileApproval(approval, fileId())
+                mapOf(
+                    "bad file" to command(approval, file = "ACQ.x.TEST.1.001"), "unknown code" to command(approval, code = "WHIM"),
+                    "bad evidence" to command(approval, evidence = "has space"), "no approval" to command(id("apr_")), "ok" to command(approval), "second" to command(approval),
+                )
+            } shouldBe mapOf("bad file" to 3819, "unknown code" to 3819, "bad evidence" to 3819, "no approval" to 1452, "ok" to null, "second" to 1062)
         }
 
         Then("V5 reconciliation: the checkpoint is the single row id = 1 created by the migration (watermark 0); findings take only the 6 kinds, once per (kind, approval)") {

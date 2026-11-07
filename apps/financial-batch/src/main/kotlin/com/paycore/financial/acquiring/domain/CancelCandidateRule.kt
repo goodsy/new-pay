@@ -45,7 +45,9 @@ object CancelCandidateRule {
         val o = c.original
         val sale = c.originalSale
         if (c.currency != o.currency || c.originalProviderTransactionId != o.providerTransactionId || c.merchantAccountId != o.merchantAccountId) return false
-        if (sale.type != AcquisitionRecordType.SALE || sale.generation != 0 || sale.transactionId != o.transactionId || sale.approvedAmountMinor != o.amountMinor) return false
+        // ACQ-ADMIN-001 rev 0.7(B2 — §15 L-6): 원 SALE은 가장 높은 세대 레코드다(I-14). 세대 ≥ 1(재매입)도 같은 정합 규칙으로 판정한다 — 재매입 레코드 상계액 = 실행 시점까지
+        // 판정 끝난 취소 합(I-13)이고 실행 뒤 받은 취소는 판정 전이므로, 상계액 + 이미 봉인한 CANCEL + 이 취소 ≤ 원승인액이 세대와 무관하게 누적 한도다(rev 0.6까지는 세대 0만 정합).
+        if (sale.type != AcquisitionRecordType.SALE || sale.transactionId != o.transactionId || sale.approvedAmountMinor != o.amountMinor) return false
         if (c.alreadyCancelledMinor < 0) return false
         val used = runCatching { Math.addExact(Math.addExact(sale.nettedCancelAmountMinor, c.alreadyCancelledMinor), c.amountMinor) }.getOrNull() ?: return false
         return used <= o.amountMinor
@@ -53,7 +55,7 @@ object CancelCandidateRule {
 }
 
 /**
- * 전송 후 취소 후보. [original] = 원승인 투영(원승인 고정값 — [SaleCandidate.paymentHeld]는 같은 Payment의 미해제 보류), [originalSale] = 원승인의 첫 매입 SALE 레코드
+ * 전송 후 취소 후보. [original] = 원승인 투영(원승인 고정값 — [SaleCandidate.paymentHeld]는 같은 Payment의 미해제 보류), [originalSale] = 원승인의 가장 높은 세대 SALE 레코드(I-14 — 재매입 뒤에는 재매입 레코드, ACQ-ADMIN-001 B2)
  * (membership — 이것이 없으면 후보가 아니다)와 그 파일 [originalSaleFileId], [alreadyCancelledMinor] = 그 원승인으로 이미 봉인한 CANCEL 레코드 금액 합, [held] = 이 취소 자신의 미해제 보류.
  */
 data class CancelCandidate(

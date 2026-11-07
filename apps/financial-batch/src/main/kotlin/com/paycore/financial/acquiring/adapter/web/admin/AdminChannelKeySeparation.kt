@@ -22,7 +22,7 @@ class AdminChannelKeySeparation(settings: AdminChannelSettings, binder: Binder) 
                 }
             }
         }
-        settings.signingKeys.forEach { admin ->
+        (settings.signingKeys + settings.operationKeys).forEach { admin ->
             inbox.forEach { (kid, bytes) ->
                 check(admin.keyId != kid) { "admin-channel signing key ids must differ from the payment-fact inbox key ids (separate key spaces)" }
                 check(bytes == null || !MessageDigest.isEqual(bytes, admin.bytes)) {

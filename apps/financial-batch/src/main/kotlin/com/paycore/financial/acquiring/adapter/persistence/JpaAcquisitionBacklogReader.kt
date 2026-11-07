@@ -21,6 +21,7 @@ class JpaAcquisitionBacklogReader(private val entityManager: EntityManager) : Ac
         AcquisitionBacklogCounts(
             transmissionUnknown = count("SELECT COUNT(*) FROM acquisition_file WHERE transmission_state = 'TRANSMISSION_UNKNOWN'"),
             transmissionQuarantined = count("SELECT COUNT(*) FROM acquisition_file WHERE transmission_state = 'TRANSMISSION_QUARANTINED'"),
+            transmissionWithheld = count("SELECT COUNT(*) FROM acquisition_file WHERE transmission_state = 'TRANSMISSION_WITHHELD'"),
             uploadFailedRepeated = count(
                 "SELECT COUNT(*) FROM acquisition_file f WHERE f.transmission_state <> 'TRANSMITTED' AND (SELECT COUNT(*) FROM acquisition_transmission_outcome o " +
                     "WHERE o.file_id = f.file_id AND o.outcome = 'NOT_DELIVERED' AND o.reason = 'UPLOAD_FAILED') >= ${AcquisitionBacklogCounts.UPLOAD_FAILED_REPEAT}",
@@ -35,10 +36,14 @@ class JpaAcquisitionBacklogReader(private val entityManager: EntityManager) : Ac
             nettingMismatches = count(
                 "SELECT COUNT(*) FROM acquisition_file_record r LEFT JOIN (SELECT file_id, seq, SUM(amount_minor) AS s FROM acquisition_netting " +
                     "WHERE file_id IS NOT NULL GROUP BY file_id, seq) n ON n.file_id = r.file_id AND n.seq = r.seq " +
-                    "WHERE r.record_type = 'SALE' AND r.netted_cancel_amount_minor <> COALESCE(n.s, 0)",
+                    "WHERE ${AcquisitionNettingIntegritySql.GENERATION_ZERO_MISMATCH}",
             ) + count(
                 "SELECT COUNT(*) FROM acquisition_exclusion e LEFT JOIN (SELECT original_transaction_id AS o, SUM(amount_minor) AS s FROM acquisition_netting " +
                     "WHERE file_id IS NULL GROUP BY original_transaction_id) n ON n.o = e.transaction_id WHERE e.netted_amount_minor <> COALESCE(n.s, 0)",
+            ),
+            // ACQ-ADMIN-001 rev 0.3(리뷰 MJ-1): 재매입 레코드(세대 ≥ 1)는 따로 센다 — 상계액 = 판정 끝난 취소 합(I-17).
+            reacquisitionNettingMismatches = count(
+                "SELECT COUNT(*) FROM acquisition_file_record r WHERE ${AcquisitionNettingIntegritySql.REACQUISITION_MISMATCH}",
             ),
             awaitingResults = count(
                 "SELECT COUNT(*) FROM acquisition_file_record r JOIN acquisition_file f ON f.file_id = r.file_id WHERE f.transmission_state = 'TRANSMITTED' " +

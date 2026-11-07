@@ -222,6 +222,34 @@ internal-admin 단독 A/B(묶음 순서 유지, `:apps:internal-admin:test --rer
 - (d) 첫 DB 시험 앞 대기(130~195s)를 Gradle task 순서로 줄이기 — 빌드 스케줄 변경.
 - DB test JVM 동시 실행·prefetch depth 2 — 메모리 한계로 제외(TEST-PERF-001 §7.3과 같은 이유).
 
+### 7.5 GRADLE-CHECK 소요 시간 3차 (TEST-PERF-003, 2026-11-07) — 측정 기록, 코드 변경 없음
+
+목표: timeout 2400초·gate 기준(minTests 4067 / Vitest 198·출력 규칙)·시험·단언 그대로, Demo 정지 상태에서 33분 이하. **결과: 저장소 안 변경으로는 도달 경로를 찾지 못해 중단 — 시험한 변경은 모두 되돌렸다(아래 표의 after는 기록용).**
+측정 환경: 같은 기계(i7-1165G7 4코어/8스레드, WSL 7.8GB + swap 2GB, 호스트 16GB), Demo MySQL·JVM 정지, ACQ-ADMIN-001 미커밋 변경 포함 작업 트리, GRADLE-CHECK argv + `--profile`, 5초 표본(MemAvailable·java RSS 합·컨테이너 수).
+
+| | 기준 (현 설정) | after2 (DB test 두 줄 + 컨텍스트 캐시 1 + Vitest를 codegen 뒤로) |
+|---|---|---|
+| 소요(exit) | 2636s = 43m56s (0) | 2632s = 43m52s (0) |
+| 시험 수 Kotlin / Vitest, 실패·skip | 4,067(app 3,907 + test-support 149 + build-logic 11) / 198, 0 | 같음, 0 |
+| payment-api:test | 13m59 | 24m08 |
+| internal-admin:test | 8m23 | 14m58 |
+| financial-batch:test | 7m45 | 7m40 |
+| institution-simulator:test | 6m29 | 8m19 |
+| master-api:test | 3m50 | 6m07 |
+| libs/test-support:test | 1m43 | 1m50 |
+| 컨텍스트 기동 수(batch/payment/admin/sim/master) | 5 / 10 / 23 / 12 / 5 | 같음(캐시 1로 재기동 증가 없음) |
+| MemAvailable 최저 | 486MB(financial-batch 컨텍스트 5개·컨테이너 6개 시점) | 600MB, 단 swap 사용 0.3GB → 1.7GB(swap-in 지속), load 20 이상 |
+
+원인·관찰:
+- 벽시계 = 시험 전 단계(약 3.5분) + 직렬 DB test task 합(기준 40.4분). 33분이려면 test task 합을 약 11분 줄여야 한다. 이번 기준 실행(43m56)은 2026-11-06 gate(38m58)보다 5분 느렸다 — 같은 구성의 실행 사이 편차가 크다(노트북 CPU).
+- 직렬 실행 중 test JVM 하나일 때 load 평균은 약 2.5(8 스레드 중) — CPU가 아니라 대기(컨테이너 기동·잠금·sleep)와 단일 thread 실행이 시간을 쓴다.
+- 두 줄(after2): DB test JVM 두 개 + Gradle daemon(시험 단계에서도 RSS 약 1.4~1.7GB) + 컨테이너가 7.8GB를 넘어 swap으로 밀렸고, 각 task가 1.6~1.8배 느려져 이득이 0이었다. 메모리가 병목이다.
+- 컨텍스트 캐시 상한 1: spec 묶음 순서(§7.4) 덕분에 컨텍스트 기동 수가 모든 모듈에서 같았다(재기동 없음). test JVM당 살아 있는 컨텍스트 MySQL이 1개가 된다(기준에서는 batch 5개 등).
+- 관리자 Vitest: Vitest가 jOOQ codegen 컨테이너 기동과 겹친 두 실행에서 ACQ-ADMIN-001 시험 "an OPERATOR selects rejected records…"가 기본 timeout 5초를 넘었다(5159ms·5610ms). 겹치지 않은 실행은 4001ms·3525ms — 부하에 민감한 시험이다(기준 설정에서도 여유 20%).
+- test JVM `-XX:TieredStopAtLevel=1`(C1만) 단독 A/B(`:apps:<m>:test --rerun`): master-api 248s → 213s, internal-admin 493s → 610s — 모듈마다 반대 방향이라 채택 근거가 없다.
+
+남은 선택지(사용자 결정 대상 — gate 기준은 바꾸지 않았다): ① WSL 메모리 상한 상향(`.wslconfig` — 호스트 16GB, 현재 기본 50%) 뒤 두 줄 구성 재측정, ② 두 줄 + 메모리 감량(시험 단계 예비 컨테이너 끄기·test JVM GC 변경 등)을 추가 실험 — swap 위험, ③ gate 기준 변경(timeout 또는 명령 분할 — 사용자 결정), ④ 1분 단위 개선 묶음(batch 컨테이너 미리 시작·CheckoutWindow spec 컨테이너 동시 기동·캐시 1)로 40분 안쪽 여유만 확보.
+
 ## 8. payment-api 배포 규칙 (CP-API-001, 2026-10-14)
 
 배포 환경이 지켜야 하는 규칙이다(운영 수치 결정이 아니다). 어기면 기동 단계에서 실패한다(fail-closed).

@@ -61,6 +61,67 @@ export interface ApprovalView {
   decidedAt: string | null
   resultCode: string | null
   owner?: OwnerDetail
+  /** 재매입 승인 상세(ACQ-ADMIN-001 B1-A — 상세 조회에만, 사유 문구·근거 없음). */
+  acquiring?: AcquiringDetail
+}
+
+/** 재매입 요청 고정 레코드 하나(pinned_target — 요청 시점, 금액은 표시용). */
+export interface PinnedReacquisitionItem {
+  seq: number
+  transactionId: string
+  recordType: string
+  generation: number
+  status: string
+  approvedAmountMinor: number
+  cancelledAmountMinor: number
+  expectedNetMinor: number
+}
+
+/** 재매입 승인 상세(ACQ-ADMIN-001 B1-A §5.2). [ownerReference] = 새 재매입 파일 ID, [ownerResultCode] = NOT_REQUIRED 또는 FINANCIAL 거절 code. */
+export interface AcquiringDetail {
+  originalFileId: string
+  reasonCode: string
+  /** 근거 참조·사유 문구는 상세 응답에 없다(D-ACQA-005 — 근거 참조는 APPROVER·요청자 본인만 [AdminApi.reacquisitionEvidence] 별도 조회). */
+  pinnedTarget: unknown
+  approvedAt: string | null
+  executeBefore: string | null
+  attemptCount: number | null
+  nextAttemptAt: string | null
+  lastResponseAt: string | null
+  lastFailure: string | null
+  integrityFlag: string | null
+  resendHaltedReason: string | null
+  ownerResultCode: string | null
+  ownerReference: string | null
+}
+
+/** 재매입 대상 미리 보기 항목(FINANCIAL 계산 — 비권위, I-8: 버튼·승인 판단은 이 값만). eligible이 아니면 refusal에 사유 code. */
+export interface ReacquisitionTargetItem {
+  seq: number
+  transactionId: string | null
+  recordType: string | null
+  generation: number | null
+  status: string | null
+  eligible: boolean
+  refusal: string | null
+  approvedAmountMinor: number | null
+  cancelledAmountMinor: number | null
+  expectedNetMinor: number | null
+}
+
+export interface ReacquisitionTargets {
+  fileId: string
+  readAt: string
+  items: ReacquisitionTargetItem[]
+}
+
+/** 재매입 요청 입력(OPERATOR — D-ACQA-002·003: 같은 원 파일의 레코드 1~50건). */
+export interface ReacquisitionRequestInput {
+  fileId: string
+  seqs: number[]
+  reasonCode: string
+  evidenceRef: string
+  reason: string
 }
 
 /** 화면 대상 조회(§4.3 — 비권위 표시값). 금액은 최소 단위 정수. */
@@ -89,6 +150,12 @@ export interface Justification {
   approvalId: string
   purposeReference: string
   reason: string
+}
+
+/** 재매입 근거 참조(ACQ-ADMIN-001 D-ACQA-005 — D-OPS-010과 같은 endpoint·판정·조회 감사, 사유 문구 없음). 화면 상태에만 잠깐 둔다. */
+export interface ReacquisitionEvidence {
+  approvalId: string
+  evidenceRef: string
 }
 
 export interface ReconciliationFinding {
@@ -368,6 +435,8 @@ export interface AcquisitionFileItem {
   recordStatusCounts: AcquisitionRecordStatusCounts
   attention: string[]
   reacquisitionCandidate: boolean
+  /** ACQ-ADMIN-001 B2(§5.1 3상태): 검토 대상은 아니고 새 세대 재매입이 진행 중. 둘 다 false = 배지 없음(새 세대 매입 확정 뒤 포함). */
+  reacquisitionInProgress: boolean
 }
 
 export interface AcquisitionSearchPage {
@@ -471,6 +540,8 @@ export interface AdminApi {
   requestOperatorCancel(input: OperatorCancelInput): Promise<{ approvalId: string }>
   approvalDetail(approvalId: string): Promise<ApprovalView>
   justification(approvalId: string): Promise<Justification>
+  /** 재매입 승인 근거 참조(D-ACQA-005 — 같은 `/justification` endpoint, 서버가 APPROVER·요청자 본인만 허용하고 조회마다 감사). */
+  reacquisitionEvidence(approvalId: string): Promise<ReacquisitionEvidence>
   reconciliation(): Promise<ReconciliationOverview>
   /** MERCHANT-OPS-001 §4.1(조회 4역할, 등록번호 검색은 서버가 OPERATOR·APPROVER만 허용). 검색은 POST 본문(R-3), 상세는 서버가 감사(D-MOPS-002). */
   merchantSearch(input: MerchantSearchInput): Promise<MerchantSearchPage>
@@ -484,6 +555,9 @@ export interface AdminApi {
   acquisitionSearch(input: AcquisitionSearchInput): Promise<AcquisitionSearchPage>
   acquisitionDetail(fileId: string): Promise<AcquisitionFileDetail>
   acquisitionRecords(fileId: string, input: AcquisitionRecordSearchInput): Promise<AcquisitionRecordPage>
+  /** ACQ-ADMIN-001 B1-A: 재매입 대상 미리 보기(조회 키 — 서버가 감사 후 반환), 재매입 요청(OPERATOR → 승인함). */
+  reacquisitionTargets(fileId: string, seqs: number[]): Promise<ReacquisitionTargets>
+  requestReacquisition(input: ReacquisitionRequestInput): Promise<{ approvalId: string }>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -524,6 +598,7 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     requestOperatorCancel: (input) => call('/api/approvals/operator-correction-cancel', 'POST', input),
     approvalDetail: (approvalId) => call(`/api/approvals/${segment(approvalId)}`),
     justification: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
+    reacquisitionEvidence: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
     reconciliation: () => call('/api/reconciliation/findings'),
     merchantSearch: (input) => call('/api/merchant-searches', 'POST', input),
     merchantDetail: (merchantId) => call(`/api/merchants/${segment(merchantId)}`),
@@ -533,5 +608,7 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     acquisitionSearch: (input) => call('/api/acquisition-file-searches', 'POST', input),
     acquisitionDetail: (fileId) => call(`/api/acquisition-files/${segment(fileId)}`),
     acquisitionRecords: (fileId, input) => call(`/api/acquisition-files/${segment(fileId)}/record-searches`, 'POST', input),
+    reacquisitionTargets: (fileId, seqs) => call(`/api/acquisition-files/${segment(fileId)}/reacquisition-targets`, 'POST', { seqs }),
+    requestReacquisition: (input) => call('/api/approvals/acq-reacquisition', 'POST', input),
   }
 }

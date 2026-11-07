@@ -35,8 +35,17 @@ interface AcquisitionFileRepository {
      */
     fun lockFile(id: AcquisitionFileId): AcquisitionFile?
 
+    /**
+     * (ACQ-ADMIN-001 B2 — §15 L-9) 파일 [id]의 레코드와 같은 거래·종류인 **다른 파일**(다른 세대) 레코드가 있는 파일 행을 파일 ID 오름차순으로 `FOR UPDATE` 잠그고 그 ID를
+     * 돌려준다. 그 파일들의 응답 TX(파일 행만 잠금 — 매입 확정 표지를 쓴다)와 전송 점유 TX를 직렬화한다. 잠금 순서는 ID 오름차순 하나뿐이라 점유끼리 순환하지 않는다.
+     */
+    fun lockOtherGenerationFiles(id: AcquisitionFileId): List<AcquisitionFileId>
+
     /** 파일 레코드(순번 순). 저장 값이 계약을 어기면 [com.paycore.financial.acquiring.domain.AcquisitionContractViolation]. */
     fun records(id: AcquisitionFileId): List<AcquisitionRecord>
+
+    /** (ACQ-ADMIN-001) lane·업무일의 가장 높은 파일 버전(없으면 null). 재매입 버전 번호는 lane 잠금 아래에서 이 값 + 1이다(UNIQUE(lane, 업무일, 버전)가 이중 방어). */
+    fun latestVersion(acquirerCode: String, environment: AcquisitionEnvironment, businessDate: java.time.LocalDate): Int?
 
     /** 결과 마감 대상: 결과 축 AWAITING이고 전송 완료 시각이 [transmittedUpTo] 이하인 파일(업무일·버전 순). */
     fun awaitingResults(acquirerCode: String, environment: AcquisitionEnvironment, transmittedUpTo: Instant, limit: Int): List<AcquisitionFileId>

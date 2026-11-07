@@ -55,6 +55,15 @@ object AcquisitionSearchBodyParser {
         return AcquisitionRecordSearchCriteria(status, afterSeq, limit)
     }
 
+    /** 재매입 대상 미리 보기 본문 `{"seqs":[정수…]}`(ACQ-ADMIN-001 B1-A) — 자료형만(범위·순서는 Use Case). */
+    fun seqs(body: ByteArray): List<Int>? {
+        val root = tree(body) ?: return null
+        if (root.propertyNames().toSet() != setOf("seqs")) return null
+        val node = root.get("seqs")
+        if (!node.isArray) return null
+        return (0 until node.size()).map { i -> node.get(i).takeIf { it.isIntegralNumber && it.canConvertToInt() }?.asInt() ?: return null }
+    }
+
     private fun tree(body: ByteArray): JsonNode? {
         val root = try {
             strict.readTree(body)

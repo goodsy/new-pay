@@ -6,7 +6,11 @@ import com.paycore.admin.approval.application.required.ApprovalRequestRepository
 import com.paycore.admin.approval.application.required.OperatorCancelCommandStore
 import com.paycore.admin.approval.application.required.OwnerExecutionRepository
 import com.paycore.admin.approval.application.required.OwnerOpsMetrics
+import com.paycore.admin.approval.application.required.AcquiringOpsCommandStore
+import com.paycore.admin.approval.domain.ApprovalKind
 import com.paycore.admin.approval.domain.ApprovalParticipants
+import com.paycore.admin.financialops.application.provided.AcquiringOpsClient
+import com.paycore.admin.financialops.application.provided.AcquiringOpsResult
 import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
 import com.paycore.admin.approval.domain.OperatorCancelRequestSnapshot
@@ -47,6 +51,9 @@ class OwnerExecutionRecoveryService(
     private val policy: PaymentOpsPolicy,
     private val applier: OwnerOutcomeApplier,
     private val opsMetrics: OwnerOpsMetrics,
+    private val acquiringCommands: AcquiringOpsCommandStore,
+    private val acquiringClient: AcquiringOpsClient,
+    private val acquiring: AcquiringOpsApprovalService,
 ) : RecoverOwnerExecutionsUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -80,6 +87,8 @@ class OwnerExecutionRecoveryService(
     private class Snapshot(val request: ApprovalRequest, val execution: OwnerExecution, val command: OperatorCancelRequestSnapshot)
 
     private fun process(id: String, now: Instant) {
+        // ACQ-ADMIN-001 B1-A 종류 분기: 재매입은 FINANCIAL 조작 채널로 같은 단계(결정 조회 → 기한 확인 → 참여자 → 무결성 플래그 → 저장 본문 재전송).
+        if (transactions.execute({ false }) { repository.find(id)?.kind } == ApprovalKind.ACQ_REACQUISITION) return processAcquiring(id, now)
         val read = transactions.execute({ false }) { Triple(repository.find(id), executions.find(id), commands.find(id)) }
         val (request, execution, command) = read
         if (request == null || execution == null || command == null) {
@@ -90,6 +99,12 @@ class OwnerExecutionRecoveryService(
         }
         val s = Snapshot(request, execution, command)
         if (s.request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) return
+        // ACQ-ADMIN-001 rev 0.6(B1-A 재검토 NIT — 재매입 분기와 대칭, I-25 ③): 지문 접두·기록 참조가 이 종류의 문법이 아니면 PAYMENT를 부르지 않고(결정 조회·기한 확인·재전송 없음)
+        // 무결성 위반만 남긴다(행이 그대로면 backoff마다 감사 1행 반복 — 기존 reportIntegrity 선례).
+        if (!s.execution.conformsTo(s.request.kind)) {
+            applier.reportIntegrity(id, "execution_kind", s.command.paymentId)
+            return
+        }
         // 1. 기록 결정 조회.
         when (val decision = client.decision(id)) {
             is DecisionResult.Recorded -> return applyRecorded(s, decision)
@@ -139,6 +154,69 @@ class OwnerExecutionRecoveryService(
         applier.apply(id, toOutcome(result), OwnerOutcomeApplier.Source.Job)
     }
 
+    /**
+     * 재매입 회복(ACQ-ADMIN-001 B1-A — 503·EXECUTION_UNKNOWN): ① 결정 조회(조작 키) → 결정이면 내용 대조 후 반영(FINANCIAL은 REJECTED도 200 — I-16), 불가면 UNKNOWN 유지(같은 분류 반복은
+     * 감사 없이), 없으면 ② 기한 경과(ADMIN 시각 + 여유)면 저장 본문 그대로 기한 확인 → FINANCIAL이 자기 시각으로 REJECTED(APPROVAL_EXECUTION_EXPIRED) 기록(효과 없음) →
+     * OWNER_REJECTED, ③ 참여자 재검사(재전송 중단), ④ 무결성 플래그면 조회로만, ⑤ 같은 저장 바이트 재전송. 시도 상한 없음, 수동 종료 없음(D-OPS-003 선례).
+     */
+    private fun processAcquiring(id: String, now: Instant) {
+        val (request, execution, command) = transactions.execute({ false }) { Triple(repository.find(id), executions.find(id), acquiringCommands.find(id)) }
+        if (request == null || execution == null || command == null) {
+            applier.reportIntegrity(id, if (request == null) "approval" else if (command == null) "command" else "execution", request?.target?.ref)
+            return
+        }
+        if (request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) return
+        // B1-A 리뷰 m-4: 지문 접두·기록 참조가 재매입 문법이 아니면 FINANCIAL을 부르지 않고(저장 본문 재전송 없음) 무결성 위반만 남긴다.
+        if (!execution.conformsTo(request.kind)) {
+            applier.reportIntegrity(id, "execution_kind", request.target.ref)
+            return
+        }
+        when (val decision = acquiringClient.decision(id)) {
+            is AcquiringOpsResult.Decided -> {
+                acquiring.apply(id, decision, OwnerOutcomeApplier.Source.Job)
+                return
+            }
+            AcquiringOpsResult.None -> Unit
+            else -> {
+                opsMetrics.resend("LOOKUP_UNAVAILABLE")
+                val failure = (decision as? AcquiringOpsResult.Unknown)?.failure ?: (decision as AcquiringOpsResult.Malformed).code
+                applier.apply(id, OwnerOutcomeApplier.Outcome.Unknown("DECISION_$failure".take(MAX_CODE), null), OwnerOutcomeApplier.Source.Job, quietIfUnchanged = true)
+                return
+            }
+        }
+        if (!now.isBefore(execution.executeBefore.plus(policy.deadlineSkew))) {
+            when (val confirmed = acquiringClient.confirmDeadline(id, execution.requestBody())) {
+                is AcquiringOpsResult.Decided -> {
+                    opsMetrics.resend("DEADLINE_${confirmed.decision.decision}")
+                    acquiring.apply(id, confirmed, OwnerOutcomeApplier.Source.Job)
+                }
+                AcquiringOpsResult.None -> opsMetrics.resend("DEADLINE_NONE")
+                else -> {
+                    opsMetrics.resend("DEADLINE_UNAVAILABLE")
+                    val failure = (confirmed as? AcquiringOpsResult.Unknown)?.failure ?: (confirmed as AcquiringOpsResult.Malformed).code
+                    applier.apply(id, OwnerOutcomeApplier.Outcome.Unknown("DEADLINE_$failure".take(MAX_CODE), null), OwnerOutcomeApplier.Source.Job)
+                }
+            }
+            return
+        }
+        if (execution.resendHaltedReason != null) return
+        ineligibility(request, execution)?.let { reason ->
+            if (applier.haltResend(id, reason)) opsMetrics.resendHalted(reason)
+            return
+        }
+        if (execution.integrityFlag != null) return
+        val result = acquiringClient.execute(id, execution.requestBody())
+        opsMetrics.resend(
+            when (result) {
+                is AcquiringOpsResult.Decided -> "EXECUTE_${result.decision.decision}"
+                is AcquiringOpsResult.Malformed -> "EXECUTE_MALFORMED"
+                else -> "EXECUTE_UNKNOWN"
+            },
+        )
+        AcquiringOutcomes.alert(result)?.let(opsMetrics::integrityAlert)
+        acquiring.apply(id, result, OwnerOutcomeApplier.Source.Job)
+    }
+
     /** 기록 결정 반영 전 내용 대조(L-b): paymentId·금액·통화·요청자·승인자·지문. 다르면 경보 + 플래그 후 반영(I-35 — 보류하지 않는다). */
     private fun applyRecorded(s: Snapshot, d: DecisionResult.Recorded) {
         val expected = DecisionContent(
@@ -154,11 +232,13 @@ class OwnerExecutionRecoveryService(
         applier.apply(s.request.id, outcome, OwnerOutcomeApplier.Source.Job, contentMismatch = mismatch)
     }
 
-    private fun ineligibility(s: Snapshot): String? = transactions.execute({ false }) {
-        val requester = executor.snapshot(s.request.requestedBy)
-        val approver = executor.snapshot(s.execution.executorActorId)
+    private fun ineligibility(s: Snapshot): String? = ineligibility(s.request, s.execution)
+
+    private fun ineligibility(request: ApprovalRequest, execution: OwnerExecution): String? = transactions.execute({ false }) {
+        val requester = executor.snapshot(request.requestedBy)
+        val approver = executor.snapshot(execution.executorActorId)
         when {
-            requester == null || !requester.holds(ApprovalParticipants.requesterRole(s.request.kind)) -> "REQUESTER_NOT_ELIGIBLE"
+            requester == null || !requester.holds(ApprovalParticipants.requesterRole(request.kind)) -> "REQUESTER_NOT_ELIGIBLE"
             approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE) -> "APPROVER_NOT_ELIGIBLE"
             else -> null
         }

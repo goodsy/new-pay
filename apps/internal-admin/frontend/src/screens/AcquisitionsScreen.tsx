@@ -15,6 +15,7 @@ import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
+import { ReacquisitionRequest } from '../components/ReacquisitionRequest'
 
 /** 기간 상한(I-3 — Demo 값, 운영값 아님. 서버가 판정하고 화면은 미리 안내만 한다). */
 const MAX_PERIOD_DAYS = 31
@@ -31,6 +32,8 @@ const TRANSMISSION: Named = {
   TRANSMITTED: { label: '전송 완료', tone: 'success' },
   TRANSMISSION_UNKNOWN: { label: '전송 결과 모름', tone: 'warning' },
   TRANSMISSION_QUARANTINED: { label: '전송 격리', tone: 'destructive' },
+  // ACQ-ADMIN-001 B2(§15 L-9): 재매입 파일의 거래가 다른 세대에서 이미 매입 확정 — 보내지 않고 보류(대사, 자동 해제 없음).
+  TRANSMISSION_WITHHELD: { label: '전송 보류(대사)', tone: 'destructive' },
 }
 const RECEIPT: Named = {
   NONE: { label: '수신 확인 전', tone: 'secondary' },
@@ -62,6 +65,7 @@ const RESULT_ROW: Named = {
 const ATTENTION: Readonly<Record<string, { badge: string; text: string }>> = {
   TRANSMISSION_UNKNOWN: { badge: '전송 결과 모름', text: '전송 결과를 알 수 없습니다. 자동으로 다시 확인하고 있으며, 대사 대상입니다.' },
   TRANSMISSION_QUARANTINED: { badge: '전송 격리', text: '같은 파일 ID에 다른 내용이 있어 격리했습니다. 운영자 확인이 필요합니다.' },
+  TRANSMISSION_WITHHELD: { badge: '전송 보류', text: '이 재매입 파일의 거래가 다른 세대에서 이미 매입 확정되어 보내지 않고 보류했습니다. 대사 대상입니다.' },
   RECEIPT_CONFLICT: { badge: '수신 불일치', text: '기관이 받은 내용이 봉인한 파일과 다릅니다. 격리했습니다.' },
   RESPONSE_QUARANTINED: { badge: '격리된 응답', text: '자동으로 반영하지 않고 격리한 기관 응답이 있습니다.' },
   RECORD_UNKNOWN: { badge: '결과 모름', text: '결과 마감까지 결과가 오지 않은 레코드가 있습니다. 대사 대상입니다.' },
@@ -69,7 +73,17 @@ const ATTENTION: Readonly<Record<string, { badge: string; text: string }>> = {
   RESULT_DEADLINE_PASSED: { badge: '결과 마감 지남', text: '결과 마감이 지났습니다. 늦게 오는 결과는 자동으로 반영됩니다.' },
   RESULT_OVERDUE: { badge: '결과 지연', text: '결과 마감 시각이 지났지만 아직 마감 처리 전입니다.' },
 }
-const REACQUISITION = { badge: '재매입 검토 대상', text: '거절된 레코드가 있습니다. 재매입은 2인 승인 화면에서 진행합니다(이 화면은 조회 전용).' }
+/** 재매입 배지(B1-A 리뷰 m-5 — §5.1): 이 화면에 요청 패널이 생겨 "조회 전용" 문구를 역할별로 바꿨다. OPERATOR는 아래 패널에서 요청, 그 밖 역할은 누가 요청·승인하는지만 안내. */
+const REACQUISITION = {
+  badge: '재매입 검토 대상',
+  operatorText: '거절된 레코드가 있습니다. 아래에서 재매입을 요청하면 승인함에서 다른 관리자(APPROVER)가 승인합니다.',
+  viewerText: '거절된 레코드가 있습니다. 재매입은 운영자(OPERATOR)가 이 화면에서 요청하고, 다른 관리자(APPROVER)가 승인함에서 승인합니다.',
+}
+/** 재매입 진행 중(ACQ-ADMIN-001 B2 — §5.1 3상태): 새 세대가 있고 검토할 거절은 없다. 새 세대가 매입 확정되면 서버가 두 표시를 모두 끈다(배지 없음). */
+const REACQUISITION_IN_PROGRESS = {
+  badge: '재매입 진행 중',
+  text: '새 버전 파일로 재매입이 진행 중입니다. 매입사 결과가 매입 확정이면 이 표시는 사라집니다.',
+}
 
 const RECORD_TYPE: Readonly<Record<string, string>> = { SALE: '매출', CANCEL: '취소' }
 const READ_UNAVAILABLE = ERROR_MESSAGES.FINANCIAL_UNAVAILABLE
@@ -116,13 +130,14 @@ function Item({ term, children }: { term: string; children: ReactNode }) {
 
 /** 확인 필요 배지 + 재매입 검토 배지(목록·상세 공용). */
 function Marks({ file }: { file: AcquisitionFileItem }) {
-  if (file.attention.length === 0 && !file.reacquisitionCandidate) return <span className="text-xs text-muted-foreground">-</span>
+  if (file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress) return <span className="text-xs text-muted-foreground">-</span>
   return (
     <span className="flex flex-wrap gap-1">
       {file.attention.map((code) => (
         <Badge key={code} variant="warning" title={code}>{`확인 필요: ${ATTENTION[code]?.badge ?? code}`}</Badge>
       ))}
       {file.reacquisitionCandidate && <Badge variant="outline" title="REACQUISITION_CANDIDATE">{REACQUISITION.badge}</Badge>}
+      {file.reacquisitionInProgress && <Badge variant="secondary" title="REACQUISITION_IN_PROGRESS">{REACQUISITION_IN_PROGRESS.badge}</Badge>}
     </span>
   )
 }
@@ -180,8 +195,10 @@ function RecordRows({ records }: { records: AcquisitionRecord[] }) {
   )
 }
 
-function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRecords, recordsBusy }: {
+function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRecords, recordsBusy, request }: {
   detail: AcquisitionFileDetail
+  /** 재매입 요청 패널(OPERATOR일 때만 — 표시만, 권한은 서버가 판정). */
+  request?: ReactNode
   records: AcquisitionRecordPage
   recordStatus: string
   onRecordStatus: (status: string) => void
@@ -215,7 +232,7 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
           <Item term="수신 확인(ACK)"><Tone table={RECEIPT} code={file.receiptState} /></Item>
           <Item term="결과"><Tone table={RESULT} code={file.resultState} /></Item>
         </dl>
-        {file.attention.length === 0 && !file.reacquisitionCandidate ? (
+        {file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress ? (
           <p className="text-sm text-muted-foreground">확인할 일이 없습니다.</p>
         ) : (
           <ul aria-label="확인 필요 사유" className="flex flex-col gap-1.5">
@@ -228,7 +245,13 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
             {file.reacquisitionCandidate && (
               <li className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="outline">{REACQUISITION.badge}</Badge>
-                <span>{REACQUISITION.text}</span>
+                <span>{request ? REACQUISITION.operatorText : REACQUISITION.viewerText}</span>
+              </li>
+            )}
+            {file.reacquisitionInProgress && (
+              <li className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="secondary">{REACQUISITION_IN_PROGRESS.badge}</Badge>
+                <span>{REACQUISITION_IN_PROGRESS.text}</span>
               </li>
             )}
           </ul>
@@ -259,6 +282,7 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
             <RecordRows records={records.items} />
           </TableBody>
         </Table>
+        {request}
         {records.nextCursor !== null && (
           <div className="flex justify-end">
             <Button type="button" variant="outline" size="sm" onClick={onMoreRecords} aria-busy={recordsBusy}>레코드 더 보기</Button>
@@ -314,16 +338,18 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
 interface Props {
   api: AdminApi
   onSessionEnded?: (code: ConsoleErrorCode) => void
+  /** 재매입 요청 버튼 표시(OPERATOR — ACQ-ADMIN-001 D-ACQA-002, 표시만 — 서버가 판정). */
+  canRequest?: boolean
   /** 시험용 현재 시각(기본 Date.now). */
   now?: () => number
 }
 
 /**
- * 매입 현황(ACQ-VIEW-001 §4.6 — 조회 전용, 조작 버튼 없음). 업무일 기간(KST 달력일, 최대 31일) + 매입사·환경·3축 상태·"확인 필요만" 필터, 또는 파일 ID 정확 조회.
+ * 매입 현황(ACQ-VIEW-001 §4.6 조회 + ACQ-ADMIN-001 §5.1 재매입 요청 — OPERATOR에게만 요청 패널, 실행은 승인함의 2인 승인 뒤 FINANCIAL). 업무일 기간(KST 달력일, 최대 31일) + 매입사·환경·3축 상태·"확인 필요만" 필터, 또는 파일 ID 정확 조회.
  * 목록은 최신 업무일순 keyset("더 보기"로 이어 붙임). "상세"로 파일 요약·3축 상태·확인 필요 사유·레코드별 결과·전송 시도·기관 응답 기록을 연다 — 상세·레코드 쪽은 서버가 감사 기록을 남긴
  * 뒤에만 온다(D-ACQV-001). 승인번호·기관 거래번호·발급사·카드 종류·할부는 서버가 보내지 않는다(D-ACQV-002). 권한·형식·감사·속도 제한은 서버가 판정한다. 저장소·URL에 아무것도 남기지 않는다.
  */
-export function AcquisitionsScreen({ api, onSessionEnded, now = Date.now }: Props) {
+export function AcquisitionsScreen({ api, onSessionEnded, canRequest = false, now = Date.now }: Props) {
   const today = todayKst(now())
   const [mode, setMode] = useState<'period' | 'file'>('period')
   const [fromDate, setFromDate] = useState(daysBefore(today, 6))
@@ -466,7 +492,12 @@ export function AcquisitionsScreen({ api, onSessionEnded, now = Date.now }: Prop
 
   return (
     <section className="flex flex-col gap-6">
-      <PageHeader title="매입 현황" description="매입 파일의 전송·수신·결과 상태를 조회합니다. 조회 전용이며, 파일 상세 조회는 감사 기록에 남습니다." />
+      <PageHeader
+        title="매입 현황"
+        description={canRequest
+          ? "매입 파일의 전송·수신·결과 상태를 조회하고, 거절된 레코드의 재매입을 요청합니다. 파일 상세 조회는 감사 기록에 남습니다."
+          : "매입 파일의 전송·수신·결과 상태를 조회합니다. 파일 상세 조회는 감사 기록에 남습니다."}
+      />
 
       <Card className="gap-4 py-5">
         <CardHeader className="px-5">
@@ -550,6 +581,9 @@ export function AcquisitionsScreen({ api, onSessionEnded, now = Date.now }: Prop
                     <span className="flex flex-col">
                       <span className="font-mono text-xs whitespace-nowrap">{row.fileId}</span>
                       <span className="text-xs text-muted-foreground">{`${row.acquirerCode} · ${row.environment} · v${row.fileVersion}`}</span>
+                      {row.originalFileId !== null && (
+                        <span className="text-xs text-muted-foreground" title={row.originalFileId}>{`재매입 · 원 파일 ${row.originalFileId}`}</span>
+                      )}
                     </span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
@@ -596,6 +630,9 @@ export function AcquisitionsScreen({ api, onSessionEnded, now = Date.now }: Prop
             records={records}
             recordStatus={recordStatus}
             recordsBusy={recordsBusy}
+            request={canRequest ? (
+              <ReacquisitionRequest key={detail.file.fileId} api={api} fileId={detail.file.fileId} records={records.items} onSessionEnded={onSessionEnded} />
+            ) : undefined}
             onRecordStatus={(status) => {
               setRecordStatus(status)
               void loadRecords(status, 0, false)

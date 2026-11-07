@@ -9,6 +9,7 @@ import com.paycore.admin.financialops.application.provided.AcquisitionFileSearch
 import com.paycore.admin.financialops.application.provided.AcquisitionLookupResult
 import com.paycore.admin.financialops.application.provided.AcquisitionLookupUseCase
 import com.paycore.admin.financialops.application.provided.AcquisitionRecordSearchCriteria
+import com.paycore.admin.financialops.application.required.AcquiringOpsGateway
 import com.paycore.admin.financialops.application.required.FinancialCallResult
 import com.paycore.admin.financialops.application.required.FinancialOpsGateway
 import com.paycore.admin.financialops.application.required.FinancialOpsLimits
@@ -37,6 +38,8 @@ class AcquisitionLookupService(
     private val recorder: AdminAuditRecorder,
     private val limits: FinancialOpsLimits,
     private val metrics: FinancialOpsMetrics,
+    /** ACQ-ADMIN-001 B1-A 재매입 대상 미리 보기(조회 키 경로 — 같은 HTTP 구현의 조작 채널 Port). */
+    private val operations: AcquiringOpsGateway,
 ) : AcquisitionLookupUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -70,6 +73,14 @@ class AcquisitionLookupService(
         if (!FILE_ID.matches(fileId) || !wellFormed(criteria)) return AcquisitionLookupResult.InvalidInput
         if (!admit(viewerActorId)) return rateLimited()
         return seen(viewer, context, fileId, gateway.records(fileId, criteria)).also { log.info("operation=acquisition-records result={}", it.javaClass.simpleName) }
+    }
+
+    override fun reacquisitionTargets(viewerActorId: String, fileId: String, seqs: List<Int>, context: AdminRequestContext): AcquisitionLookupResult {
+        val viewer = viewer(viewerActorId) ?: return AcquisitionLookupResult.Forbidden
+        val wellFormed = FILE_ID.matches(fileId) && seqs.size in 1..MAX_LIMIT && seqs.first() >= 1 && seqs.zipWithNext().all { (a, b) -> a < b }
+        if (!wellFormed) return AcquisitionLookupResult.InvalidInput
+        if (!admit(viewerActorId)) return rateLimited()
+        return seen(viewer, context, fileId, operations.targets(fileId, seqs)).also { log.info("operation=acquisition-reacquisition-targets result={}", it.javaClass.simpleName) }
     }
 
     /** FINANCIAL이 답했으면(FOUND·NOT_FOUND) 감사 후 결과, 답하지 않았으면 감사 없이 Unavailable. */
@@ -158,7 +169,7 @@ class AcquisitionLookupService(
         val DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
         val ACQUIRER_CODE = Regex("^[A-Z0-9]{1,32}$")
         val ENVIRONMENTS = setOf("TEST", "LIVE")
-        val TRANSMISSION = setOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED")
+        val TRANSMISSION = setOf("SEALED", "TRANSMITTING", "TRANSMITTED", "TRANSMISSION_UNKNOWN", "TRANSMISSION_QUARANTINED", "TRANSMISSION_WITHHELD")
         val RECEIPT = setOf("NONE", "RECEIVED", "FILE_REJECTED", "RECEIPT_CONFLICT")
         val RESULT = setOf("AWAITING", "COMPLETE", "DEADLINE_PASSED")
         val RECORD_STATUSES = setOf("AWAITING", "ACCEPTED", "REJECTED", "FILE_REJECTED", "UNKNOWN", "CONFLICT")

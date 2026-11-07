@@ -100,6 +100,9 @@ class AcquisitionFileViewReaderSpec(
     private val resultPolicy: AcquisitionResultPolicy,
     private val probe: ViewSnapshotProbe,
     private val dsl: org.jooq.DSLContext,
+    private val approvals: com.paycore.financial.acquiring.application.required.ReacquisitionApprovalStore,
+    private val decisions: com.paycore.financial.acquiring.application.required.AcquisitionOpsDecisionStore,
+    private val integrityEvents: com.paycore.financial.acquiring.application.AcquiringIntegrityEvents,
 ) : BehaviorSpec({
 
     val day = LocalDate.parse("2026-10-20")
@@ -158,11 +161,11 @@ class AcquisitionFileViewReaderSpec(
         Files.write(server.outbox.resolve(AcquirerResponseFormat.ackFileName(id, 1)), AcquirerResponseFormat.renderAck(a))
     }
 
-    fun result(fileId: String, seq: Int, lines: List<Pair<Int, LineResult>>, reason: String = "AMOUNT_MISMATCH"): String {
+    fun result(fileId: String, seq: Int, lines: List<Pair<Int, LineResult>>, reason: String = "AMOUNT_MISMATCH", at: Instant = receivedAt.minusSeconds(10)): String {
         val id = AcquisitionFileId.parse(fileId)
         val records = recordsOf(fileId)
         val r = AcquirerResultFile(
-            id, sealed(fileId).first, seq, receivedAt.minusSeconds(10),
+            id, sealed(fileId).first, seq, at,
             lines.map { (n, res) ->
                 val (txn, type, amount) = records.getValue(n)
                 AcquirerResultLine(n, txn, type, res, if (res == LineResult.REJECTED) reason else null, amount)
@@ -556,6 +559,80 @@ class AcquisitionFileViewReaderSpec(
         Then("the configured result deadline is the one the Use Case uses for RESULT_OVERDUE") {
             resultPolicy.resultDeadline shouldBe Duration.ofHours(1)
             reader.search(period, null, 50).isNotEmpty() shouldBe true
+        }
+    }
+
+    Given("AC9 (ACQ-ADMIN-001 §5.1 L-9 — MINOR-6) the re-acquisition badge through a real re-acquisition: candidate → in progress → none once the new generation is ACCEPTED") {
+        // 업무일 2026-10-18(이 Given 전용 — period 10-20·keyset 두 날 10-19·10-20 검색에 들지 않는다), lane = VIEW_ACQUIRERS 다음 것.
+        val acq = acquirers.next()
+        val d = day.minusDays(2)
+        val executeAt = Instant.parse("2026-10-21T15:00:00Z")
+        authorize(acq, 10_000, approvedAt.minus(Duration.ofDays(2)))
+        val f0 = seal(acq, d)
+        transmit(f0).outcome shouldBe Kind.TRANSMITTED
+        result(f0, 1, listOf(1 to LineResult.REJECTED))
+        receive(acq)
+
+        fun badge(id: String) = query.search(AcquisitionFileSearchCriteria(fileId = id)).items.single().let { it.reacquisitionCandidate to it.reacquisitionInProgress }
+
+        /** 동치 기준(I-9): 레코드마다 Domain 규칙(RecordResultRule.status + 표지·불요·더 높은 세대)으로 계산한 파일 배지. */
+        fun domainBadge(id: String): com.paycore.financial.acquiring.domain.ReacquisitionBadge {
+            val fileId = AcquisitionFileId.parse(id)
+            val stages = org.springframework.transaction.support.TransactionTemplate(transactionManager).execute {
+                val entries = results.entries(fileId)
+                files.records(fileId).map { r ->
+                    fun exists(sql: String, vararg args: Any) = (root(sql, *args) as Number).toLong() > 0
+                    com.paycore.financial.acquiring.domain.ReacquisitionBadgeRule.recordStage(
+                        RecordResultRule.status(entries[r.seq].orEmpty()),
+                        accepted = exists("SELECT COUNT(*) FROM acquisition_accepted_record WHERE transaction_id = ? AND record_type = ?", r.transactionId, r.type.name),
+                        notRequired = exists("SELECT COUNT(*) FROM acquisition_reacquisition_not_required WHERE transaction_id = ? AND record_type = ?", r.transactionId, r.type.name),
+                        higherGeneration = exists(
+                            "SELECT COUNT(*) FROM acquisition_file_record WHERE transaction_id = ? AND record_type = ? AND generation > ?", r.transactionId, r.type.name, r.generation,
+                        ),
+                    )
+                }
+            }
+            return com.paycore.financial.acquiring.domain.ReacquisitionBadgeRule.fileBadge(stages)
+        }
+
+        fun state(id: String) = when (domainBadge(id)) {
+            com.paycore.financial.acquiring.domain.ReacquisitionBadge.CANDIDATE -> true to false
+            com.paycore.financial.acquiring.domain.ReacquisitionBadge.IN_PROGRESS -> false to true
+            com.paycore.financial.acquiring.domain.ReacquisitionBadge.NONE -> false to false
+        }
+
+        val rejected = badge(f0) to state(f0)
+        val approvedAt2 = executeAt.minusSeconds(10)
+        val g1 = com.paycore.financial.acquiring.application.ReacquisitionExecutionService(
+            transactionManager, files, lanes, results, membership, approvals, decisions, source, policies,
+            object : com.paycore.financial.acquiring.application.required.ReacquisitionExecutionPolicy {
+                override val maxExecutionWindow: Duration = Duration.ofHours(24)
+                override val clockWindow: Duration = Duration.ofMinutes(5)
+            },
+            FixedClock(executeAt), integrityEvents,
+        ).execute(
+            com.paycore.financial.acquiring.domain.ReacquisitionCommand(
+                approvalId = "apr_ac9_" + UUID.randomUUID().toString().replace("-", "").take(20), originalFileId = AcquisitionFileId.parse(f0),
+                items = listOf(com.paycore.financial.acquiring.domain.ReacquisitionItem(1, 0, com.paycore.financial.acquiring.domain.ReacquisitionTargetStatus.REJECTED)),
+                requestedBy = "adm_operator_1", approvedBy = "adm_approver_1", reasonCode = "INSTITUTION_REQUESTED", evidenceRef = "INQ-2026-0001",
+                approvedAt = approvedAt2, executeBefore = approvedAt2.plus(Duration.ofHours(1)),
+            ),
+        ).let { (it as com.paycore.financial.acquiring.application.provided.ReacquisitionExecution.Decided).decision.resultFileId!!.value }
+        val inProgress = listOf(badge(f0) to state(f0), badge(g1) to state(g1))
+        AcquisitionTransmissionService(transactionManager, files, attempts, channel, transport, FixedClock(executeAt.plusSeconds(60))).transmit(g1).outcome shouldBe
+            Kind.TRANSMITTED
+        result(g1, 1, listOf(1 to LineResult.ACCEPTED), at = executeAt.plusSeconds(3_000))
+        receive(acq, executeAt.plusSeconds(3_600))
+        val accepted = listOf(badge(f0) to state(f0), badge(g1) to state(g1))
+
+        Then("the original file is a candidate while nothing newer exists, in progress once generation 1 is sealed, and loses the badge when generation 1 is ACCEPTED") {
+            rejected shouldBe ((true to false) to (true to false))
+            inProgress shouldBe listOf((false to true) to (false to true), (false to false) to (false to false))
+            accepted shouldBe listOf((false to false) to (false to false), (false to false) to (false to false))
+        }
+        Then("history is unchanged: the original record still reads REJECTED, the new one ACCEPTED (the badge is a display class only)") {
+            query.records(f0, AcquisitionRecordSearchCriteria())!!.items.single().status shouldBe "REJECTED"
+            query.records(g1, AcquisitionRecordSearchCriteria())!!.items.single().status shouldBe "ACCEPTED"
         }
     }
 })

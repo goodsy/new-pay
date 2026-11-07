@@ -20,7 +20,6 @@ import com.paycore.admin.approval.application.required.OperatorCancelCommandStor
 import com.paycore.admin.approval.application.required.OwnerExecutionRepository
 import com.paycore.admin.approval.application.required.OwnerOpsMetrics
 import com.paycore.admin.approval.domain.ApprovalDecision
-import com.paycore.admin.approval.domain.ApprovalExecutionModel
 import com.paycore.admin.approval.domain.ApprovalKind
 import com.paycore.admin.approval.domain.ApprovalParticipants
 import com.paycore.admin.approval.domain.ApprovalRequest
@@ -73,6 +72,7 @@ class OwnerServiceApprovalService(
     private val contract: OperatorCancelContract,
     private val policy: PaymentOpsPolicy,
     private val applier: OwnerOutcomeApplier,
+    private val acquiring: AcquiringOpsApprovalService,
 ) : OwnerServiceApprovalUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -145,13 +145,21 @@ class OwnerServiceApprovalService(
 
     // ------------------------------------------------------------------ approve (§4.13)
 
-    override fun approve(command: DecideApproval): ApprovalOutcome = observed(APPROVE) { approveStep(command) }
+    /**
+     * 종류 분기(ACQ-ADMIN-001 B1-A §17.5 4 — C-3 권장안 "종류별 소유 서비스 gateway로 일반화"): 승인 행 종류를 비잠금으로 읽어 재매입이면 [AcquiringOpsApprovalService](FINANCIAL 조작 채널),
+     * 아니면 기존 운영자 보정 취소 경로(PAYMENT — 동작·시험 기대값 그대로). 분기는 비권위 — 각 경로의 TX1이 잠근 행 종류를 다시 확인한다(다르면 무결성 위반, fail-closed).
+     */
+    override fun approve(command: DecideApproval): ApprovalOutcome {
+        val seenKind = transactions.execute({ false }) { repository.find(command.approvalId)?.kind }
+        if (seenKind == ApprovalKind.ACQ_REACQUISITION) return acquiring.approve(command)
+        return observed(APPROVE) { approveStep(command) }
+    }
 
     private fun approveStep(command: DecideApproval): ApprovalOutcome {
         // A0(비권위): 세션 역할·승인 행 비잠금 읽기. 상태를 바꾸지 않는다 — 권위 판정은 TX1.
         if (!holdsNow(command.approverActorId, ApprovalParticipants.APPROVER_ROLE)) return ApprovalOutcome.Denied
         val seen = transactions.execute({ false }) { repository.find(command.approvalId) } ?: return ApprovalOutcome.NotFound
-        if (seen.kind.executionModel != ApprovalExecutionModel.OWNER_SERVICE) return ApprovalOutcome.Rejected(WRONG_EXECUTION_MODEL)
+        if (seen.kind != kind) return ApprovalOutcome.Rejected(WRONG_EXECUTION_MODEL)
         if (seen.status != ApprovalStatus.PENDING) return ApprovalOutcome.AlreadyDecided
         val paymentId = (seen.target as ApprovalTarget.Payment).paymentId
         // A(TX 밖): 대상 재조회. 진행 중 취소면 TARGET_BUSY — PENDING 유지, TOTP 검증·소비 없음(L-7). 장애면 503(상태·TOTP 불변).
@@ -193,7 +201,7 @@ class OwnerServiceApprovalService(
         val approverId = command.approverActorId
         val locked = repository.lock(command.approvalId) ?: return Tx1.Done(ApprovalOutcome.NotFound)
         val request = locked.value
-        if (request.kind.executionModel != ApprovalExecutionModel.OWNER_SERVICE) throw IntegrityViolation(EXECUTION_MODEL, null, request.id)
+        if (request.kind != kind) throw IntegrityViolation(EXECUTION_MODEL, null, request.id)
         val now = now()
         when (val decision = request.decideApproval(approverId, now)) {
             ApprovalDecision.AlreadyDecided -> return Tx1.Done(ApprovalOutcome.AlreadyDecided)
@@ -242,7 +250,7 @@ class OwnerServiceApprovalService(
                 snapshot.purposeReference, fingerprint, now, executeBefore, command.context.correlationId,
             ),
         )
-        executions.insert(OwnerExecution.start(request.id, body, fingerprint, now, executeBefore, approverId, now.plus(policy.staleAfter)))
+        executions.insert(OwnerExecution.start(kind, request.id, body, fingerprint, now, executeBefore, approverId, now.plus(policy.staleAfter)))
         repository.update(locked, request.beginExecution(approverId, approver.displayName, now))
         audit(now, approver, "APPROVAL_EXECUTING", "EXECUTING", command.context, request, null, executor = approverId)
         return Tx1.Begun(body)

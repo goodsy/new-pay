@@ -17,6 +17,8 @@ interface ReadAcquisitionBacklogUseCase {
 data class AcquisitionBacklog(
     val transmissionUnknown: Long,
     val transmissionQuarantined: Long,
+    /** (ACQ-ADMIN-001 B2 — L-9) TRANSMISSION_WITHHELD 파일 수(대사 입력). */
+    val transmissionWithheld: Long = 0,
     val uploadFailedRepeated: Long,
     val recordsUnknown: Long,
     val recordsConflict: Long,
@@ -25,6 +27,8 @@ data class AcquisitionBacklog(
     val nettingMismatches: Long,
     val awaitingResults: Long,
     val cancelNotRequiredOriginalConflict: Long,
+    /** (ACQ-ADMIN-001 rev 0.3 — 리뷰 MJ-1) 재매입 레코드 상계 무결성(I-17). */
+    val reacquisitionNettingMismatches: Long,
     val waiting: List<WaitingEntry>,
     val cancelReconcile: Map<String, Int>,
     /** (rev 1.1 — 리뷰 n-6) 이 현황을 읽은 시각(매입 시계 AcquiringClock) — 대기 체류 = observedAt − oldestEventAt. */

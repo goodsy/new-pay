@@ -23,6 +23,9 @@ enum class ApprovalKind(
 
     /** 운영자 보정 취소(D-ADMIN-007, D-OPS-001~009) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 PAYMENT가 재검사(소유 서비스). */
     OPERATOR_CORRECTION_CANCEL(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.PAYMENT),
+
+    /** 재매입(ACQ-ADMIN-001 B1-A, D-ACQ-011·D-ACQA-002) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 FINANCIAL이 재검사(소유 서비스, 조작 전용 키 — D-ACQA-001). */
+    ACQ_REACQUISITION(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.ACQUISITION_FILE),
     ;
 
     val approverRole: String get() = APPROVER
@@ -30,7 +33,7 @@ enum class ApprovalKind(
     fun mayActivatePrivilegedRole(grantedRole: String?): Boolean = when (this) {
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
-        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL -> false
+        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION -> false
     }
 
     /** 권한 상승 종류(D-ADMIN1-014·015 — 대상 자격 발급 근거의 요청자·승인자는 이 종류의 요청자·승인자가 될 수 없다). */

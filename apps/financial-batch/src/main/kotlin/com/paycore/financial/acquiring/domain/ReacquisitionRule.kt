@@ -4,7 +4,7 @@ import java.time.Instant
 
 /**
  * 재매입 2인 승인 기록의 검사(2-G — D-ACQ-011, D-ADMIN-007 양쪽 검사). 소유 서비스(FINANCIAL)는 ADMIN이 보낸 승인 명령의 요청자·승인자·승인 ID·대상 버전을 받아
- * 다시 검사하고 자기 감사 기록을 남긴다. **실행(새 버전 파일 봉인)은 이 규칙의 범위가 아니다** — 입력 경로(ACQ-ADMIN-001) 전에는 실행할 수 없다.
+ * 다시 검사하고 자기 감사 기록을 남긴다. 레코드 하나의 검사다 — 승인 묶음(D-ACQA-003)과 실행(새 버전 파일 봉인)은 [ReacquisitionExecutionRule](ACQ-ADMIN-001 B1).
  *
  * 사용자 결정:
  * - D-ACQ-011: 재매입(파일 전체 거절 뒤 재매입 포함 — I-7)은 2인 승인.
@@ -151,10 +151,15 @@ sealed interface ReacquisitionDecision {
 /** 재매입 대상 상태(DB CHECK와 같은 집합). UNKNOWN은 대사 미매입 확정 근거가 생길 때(D-ACQ-014 — 대사 기능 후) 쓰인다 — 지금 규칙은 UNKNOWN 대상을 거절한다. */
 enum class ReacquisitionTargetStatus { REJECTED, UNKNOWN, FILE_REJECTED }
 
-/** 승인 명령이 들어온 채널. ADMIN_SIGNED = ADMIN 서명 채널(ACQ-ADMIN-001 — 아직 없음). */
+/** 승인 명령이 들어온 채널. ADMIN_SIGNED = ADMIN 조작 전용 서명 채널(ACQ-ADMIN-001 — D-ACQA-001). */
 enum class ApprovalChannel { ADMIN_SIGNED, UNSIGNED }
 
-/** UNKNOWN_NOT_RECONCILED·ALREADY_ACCEPTED = D-ACQ-014(rev 1.1). */
+/**
+ * UNKNOWN_NOT_RECONCILED·ALREADY_ACCEPTED = D-ACQ-014(rev 1.1). ACQ-ADMIN-001 B1 실행 검사([ReacquisitionExecutionRule]): TARGET_NOT_FOUND, ALREADY_NOT_REQUIRED(D-ACQA-004
+ * 종결 뒤), CANCEL_NOT_SUPPORTED(B1은 SALE만 — 명세 I-7), PAYMENT_HELD(미해제 보류 — fail-closed), CANCELLATION_UNDECIDED(아직 판정 안 된 취소가 있어 "그때까지 받은 모든
+ * 취소"(D-ACQ-013)를 한 번씩만 셀 수 없다 — 다음 봉인 뒤 다시 요청), TARGET_INCONSISTENT(레코드 승인액 ≠ 투영 승인액 등 — 무결성), APPROVAL_WINDOW_INVALID·
+ * APPROVAL_EXECUTION_EXPIRED(실행 기한 — D-OPS-002 선례, 명세 I-2).
+ */
 enum class ReacquisitionRefusal {
     CHANNEL_NOT_SIGNED,
     SAME_PERSON,
@@ -163,4 +168,12 @@ enum class ReacquisitionRefusal {
     TARGET_CHANGED,
     UNKNOWN_NOT_RECONCILED,
     ALREADY_ACCEPTED,
+    TARGET_NOT_FOUND,
+    ALREADY_NOT_REQUIRED,
+    CANCEL_NOT_SUPPORTED,
+    PAYMENT_HELD,
+    CANCELLATION_UNDECIDED,
+    TARGET_INCONSISTENT,
+    APPROVAL_WINDOW_INVALID,
+    APPROVAL_EXECUTION_EXPIRED,
 }

@@ -33,9 +33,15 @@ interface AcquisitionMembershipStore {
 
     /**
      * (2-F — 대사 입력 무결성, §16 리뷰 NIT) 파일 [fileId]의 SALE 레코드 상계액 ≠ 그 레코드를 가리키는 상계 기록 합인 건수 + 그 lane·업무일 제외 기록의 승인액 ≠ 그 승인의
-     * 상계 기록(파일 없음) 합인 건수. 0이어야 한다.
+     * 상계 기록(파일 없음) 합인 건수. 0이어야 한다. (ACQ-ADMIN-001 rev 0.3 — 리뷰 MJ-1) 레코드 쪽은 세대 0만 센다(재매입 레코드를 가리키는 상계 기록은 없다).
      */
     fun nettingMismatches(fileId: AcquisitionFileId): Int
+
+    /**
+     * (ACQ-ADMIN-001 rev 0.3 — 리뷰 MJ-1, I-17) 파일 [fileId]의 재매입 SALE 레코드(세대 ≥ 1) 중 상계액 ≠ 그 원승인의 판정 끝난 취소 합(원 파일 상계 + 낮은 세대를 가리키는
+     * "취소 매입 불요" + 세대 0 CANCEL 레코드)인 건수. 0이어야 한다.
+     */
+    fun reacquisitionNettingMismatches(fileId: AcquisitionFileId): Int
 
     /** (rev 1.1 — 리뷰 m-1) 원 SALE 레코드 [original]을 가리키는 "취소 매입 불요" 기록 수(원 SALE이 나중에 CONFLICT가 되면 대사·경보 대상). */
     fun notRequiredCancellationsOf(original: RecordRef): Int

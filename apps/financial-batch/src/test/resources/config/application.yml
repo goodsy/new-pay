@@ -14,6 +14,12 @@ paycore:
       signing-keys:
         - key-id: fops-test-k1
           secret: dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1jaGFubmVsLWtleS0wMDAx
+      # ACQ-ADMIN-001(D-ACQA-001 "조작 전용 키 따로"): 조작(쓰기) 명령 전용 시험 키 — 조회 키와 다른 키 공간. 실행 기한 최대 폭은 Demo 값(운영값 LIVE Gate).
+      operation-permits: 1
+      max-execution-window: PT24H
+      operation-keys:
+        - key-id: fops-op-test-k1
+          secret: dGVzdC1vbmx5LWZpbmFuY2lhbC1hZG1pbi1vcGVyYXRpb24ta2V5LTAwMDE=
     payment-fact-inbox:
       clock-window: PT300S
       max-body-bytes: 65536

@@ -55,8 +55,25 @@ class AcquisitionFile private constructor(
                 else TransmissionState.TRANSMISSION_UNKNOWN
             TransmissionState.TRANSMITTED -> return TransmissionClaim.NotClaimable(NotClaimableReason.ALREADY_TRANSMITTED)
             TransmissionState.TRANSMISSION_QUARANTINED -> return TransmissionClaim.NotClaimable(NotClaimableReason.QUARANTINED)
+            TransmissionState.TRANSMISSION_WITHHELD -> return TransmissionClaim.NotClaimable(NotClaimableReason.WITHHELD)
         }
         return TransmissionClaim.Claimed(copyTransmission(TransmissionState.TRANSMITTING, leaseUntil, null), resume)
+    }
+
+    /**
+     * 전송 보류(ACQ-ADMIN-001 B2 — §15 L-9, D-ACQ-014 "세대를 넘는 ACCEPTED 하나"). 재매입 파일의 레코드가 다른 세대에서 이미 매입 확정(표지)이면 이 파일을 보내지 않는다:
+     * 점유할 수 있는 상태(SEALED·TRANSMISSION_UNKNOWN·lease가 지난 TRANSMITTING)에서만 TRANSMISSION_WITHHELD로 간다(호출자 = 전송 점유 TX, 잠금 아래 표지를 다시 본 뒤).
+     * 보류는 종결이다 — 다시 점유하지 않고(확인 먼저 재업로드도 없음) 대사로 넘긴다. 정기 파일(세대 0)은 다른 세대가 앞서 있을 수 없으므로 보류 대상이 아니다.
+     */
+    fun withholdTransmission(now: Instant): AcquisitionFile {
+        if (header.originalFileId == null) throw AcquisitionContractViolation("only a re-acquisition file is withheld")
+        val claimable = when (transmissionState) {
+            TransmissionState.SEALED, TransmissionState.TRANSMISSION_UNKNOWN -> true
+            TransmissionState.TRANSMITTING -> !now.isBefore(checkNotNull(transmissionLeaseUntil))
+            TransmissionState.TRANSMITTED, TransmissionState.TRANSMISSION_QUARANTINED, TransmissionState.TRANSMISSION_WITHHELD -> false
+        }
+        if (!claimable) throw AcquisitionContractViolation("only a file that could be claimed is withheld")
+        return copyTransmission(TransmissionState.TRANSMISSION_WITHHELD, null, null)
     }
 
     /**
@@ -98,6 +115,7 @@ class AcquisitionFile private constructor(
             ReceiptState.RECEIPT_CONFLICT -> receiptAfter == ReceiptState.RECEIPT_CONFLICT
         }
         if (!allowed) throw AcquisitionContractViolation("receipt axis transition is not allowed")
+        // (ACQ-ADMIN-001 B2 — I-27) 보류 파일(TRANSMISSION_WITHHELD)은 응답이 와도 전송 축을 올리지 않는다(수신·결과 축만 기록 — 그 파일이 기관에 갔는지는 대사가 정한다).
         val promote = confirmsTransmission && (transmissionState == TransmissionState.SEALED || transmissionState == TransmissionState.TRANSMISSION_UNKNOWN)
         return AcquisitionFile(
             header, cutoffAt, totals, contentSha256, contentBytes,
@@ -172,6 +190,33 @@ class AcquisitionFile private constructor(
             ) to rendered
         }
 
+        /**
+         * 재매입 봉인(ACQ-ADMIN-001 B1 — D-ACQ-004·D-ACQ-011): 같은 lane·업무일의 다음 버전([header].originalFileId 필수). [records]는 [ReacquisitionExecutionRule]이 만든
+         * 재매입 레코드(순번 1..n, generation ≥ 1, 원 레코드 참조)다. 원 파일의 마감 시각을 그대로 쓴다(대상은 원 파일 membership이다).
+         */
+        fun sealReacquisition(header: AcquisitionFileHeader, cutoffAt: Instant, records: List<AcquisitionRecord>): Pair<AcquisitionFile, RenderedAcquisitionFile> {
+            if (header.originalFileId == null) throw AcquisitionContractViolation("a re-acquisition file refers to its original file")
+            if (records.isEmpty()) throw AcquisitionContractViolation("a re-acquisition file has records")
+            if (records.map { it.seq } != (1..records.size).toList()) throw AcquisitionContractViolation("re-acquisition records are numbered 1..n")
+            if (records.any { it.generation < 1 || it.reacquisitionOf == null }) throw AcquisitionContractViolation("every record of a re-acquisition file is a re-acquisition")
+            if (records.map { it.transactionId to it.type }.toSet().size != records.size) throw AcquisitionContractViolation("a transaction is a member once")
+            // ACQ-ADMIN-001 B2(B1-F 리뷰 n-3): 헤더가 originalFileId = 같은 lane·업무일의 더 낮은 버전을 지키고(AcquisitionFileHeader.init), 여기서 각 레코드의 원 참조가
+            // 바로 그 원 파일의 레코드(`{originalFileId}#{seq ≥ 1}`)인지 검사한다 — 호출 경로가 하나뿐이어도 다른 lane·업무일·버전 레코드를 섞어 봉인하지 못하게 한다.
+            val original = header.originalFileId
+            if (records.any { !refersTo(it.reacquisitionOf, original) }) throw AcquisitionContractViolation("every record re-acquires a record of the original file")
+            val rendered = AcquisitionFileFormat.render(header, records)
+            return restore(
+                header, cutoffAt, rendered.totals, rendered.sha256, rendered.content.size, TransmissionState.SEALED, ReceiptState.NONE, ResultState.AWAITING,
+            ) to rendered
+        }
+
+        private val RECORD_REF = Regex("^(.+)#([1-9][0-9]{0,8})$")
+
+        private fun refersTo(reacquisitionOf: String?, original: AcquisitionFileId): Boolean {
+            val m = reacquisitionOf?.let(RECORD_REF::matchEntire) ?: return false
+            return m.groupValues[1] == original.value
+        }
+
         /** 저장된 상태 복원(persistence Mapper 전용 — 불변식은 init이 다시 검사한다). */
         @Suppress("LongParameterList")
         fun restore(
@@ -192,8 +237,11 @@ class AcquisitionFile private constructor(
     }
 }
 
-/** 전송 축(DB CHECK와 같은 집합). TRANSMISSION_QUARANTINED = 같은 파일 ID 최종명에 다른 내용이 있다(격리 — 대사·운영 확인 전 자동 처리 없음, I-23). */
-enum class TransmissionState { SEALED, TRANSMITTING, TRANSMITTED, TRANSMISSION_UNKNOWN, TRANSMISSION_QUARANTINED }
+/**
+ * 전송 축(DB CHECK와 같은 집합). TRANSMISSION_QUARANTINED = 같은 파일 ID 최종명에 다른 내용이 있다(격리 — 대사·운영 확인 전 자동 처리 없음, I-23).
+ * TRANSMISSION_WITHHELD(ACQ-ADMIN-001 B2 — §15 L-9) = 재매입 파일의 레코드가 다른 세대에서 이미 매입 확정(표지)이라 전송하지 않고 보류했다(D-ACQ-014 — 대사, 자동 해제 없음).
+ */
+enum class TransmissionState { SEALED, TRANSMITTING, TRANSMITTED, TRANSMISSION_UNKNOWN, TRANSMISSION_QUARANTINED, TRANSMISSION_WITHHELD }
 
 /** 기관 수신(ACK) 축. RECEIVED는 매입 확정이 아니다(architecture 04 금지사항). */
 enum class ReceiptState { NONE, RECEIVED, FILE_REJECTED, RECEIPT_CONFLICT }

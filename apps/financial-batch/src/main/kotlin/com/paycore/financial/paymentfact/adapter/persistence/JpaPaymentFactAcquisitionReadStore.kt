@@ -57,6 +57,22 @@ class JpaPaymentFactAcquisitionReadStore(private val entityManager: EntityManage
             entityManager.createNativeQuery("SELECT payment_id FROM payment_fact_stream WHERE payment_id IN (:ids) ORDER BY payment_id FOR UPDATE")
                 .setParameter("ids", chunk).resultList
         }
+        readPayments(ids)
+    }
+
+    override fun read(paymentIds: Collection<String>): List<AcquisitionSourcePayment> = translate(STREAM) { readPayments(paymentIds.toSortedSet().toList()) }
+
+    override fun paymentIdsOf(authorizationTransactionIds: Collection<String>): Map<String, String> = translate(AUTHORIZATION) {
+        authorizationTransactionIds.distinct().chunked(CHUNK).flatMap { chunk ->
+            entityManager.createNativeQuery("SELECT transaction_id, payment_id FROM payment_fact_authorization WHERE transaction_id IN (:ids)")
+                .setParameter("ids", chunk).resultList.map { row ->
+                    val r = row as Array<*>
+                    (r[0] as String) to (r[1] as String)
+                }
+        }.toMap()
+    }
+
+    private fun readPayments(ids: List<String>): List<AcquisitionSourcePayment> {
         val authorizations = ids.chunked(CHUNK).flatMap { chunk ->
             entityManager.createQuery(
                 "select a from JpaAuthorizedPaymentFactEntity a where a.paymentId in :ids order by a.paymentId, a.transactionId",
@@ -78,7 +94,7 @@ class JpaPaymentFactAcquisitionReadStore(private val entityManager: EntityManage
                 (r[0] as String) to (r[1] as String)
             }
         }.groupBy({ it.first }, { it.second })
-        ids.map { id ->
+        return ids.map { id ->
             AcquisitionSourcePayment(
                 paymentId = id,
                 authorizations = authorizations[id].orEmpty().map(::toSource),

@@ -331,6 +331,22 @@ class OwnerExecutionRecoverySpec(
         }
     }
 
+    Given("ACQ-ADMIN-001 rev 0.6 (B1-A re-review NIT — symmetric with the re-acquisition branch, I-25 ③): an operator cancel execution row whose fingerprint prefix is not its kind's") {
+        Then("the job calls PAYMENT neither for the decision lookup nor for a resend; it records an integrity violation (column=execution_kind) and the approval stays EXECUTION_UNKNOWN") {
+            val u = unknown()
+            root().use { it.update("UPDATE admin_owner_execution SET fingerprint = CONCAT('acd1', SUBSTRING(fingerprint, 5)) WHERE approval_id = ?", u.id) }
+            due(u.id)
+            val violations = counter("paycore.admin.approval.integrity_violation", "check", "execution_kind")
+            recovery.recoverDue()
+            listOf(row(u.id).substringBefore("|PAYMENT:"), decisionGets(u.id).toString(), posts(u.id).toString(), deadlineCalls(u.id).size.toString()) shouldBe
+                listOf("EXECUTION_UNKNOWN|-", "0", "1", "0")
+            (counter("paycore.admin.approval.integrity_violation", "check", "execution_kind") - violations) shouldBe 1.0
+            root().use {
+                it.column("SELECT CONCAT(actor_kind, '|', detail, '|', target_ref) FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_INTEGRITY_VIOLATION'", u.id)
+            } shouldBe listOf("SYSTEM_JOB|column=execution_kind|${u.paymentId}")
+        }
+    }
+
     Given("SKIP LOCKED: a due row held by another instance (third connection holds its execution row)") {
         Then("the job does not wait for it: it returns promptly, processes the other due row, and leaves the held one for a later run") {
             val held = unknown()

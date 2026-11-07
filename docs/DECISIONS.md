@@ -203,6 +203,11 @@
 | D-ACQV-001 | Q-ACQV-01 | "거래 조회와 같게 (Recommended)". 매입 현황 조회 역할 = VIEW_MASKED 4역할(VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN), 파일 상세·레코드 조회만 `ACQUISITION_FILE_VIEWED` 감사(반환 전 기록, 감사 실패 → 결과 미반환), 목록 검색은 감사하지 않음 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
 | D-ACQV-002 | Q-ACQV-02 | "보여 주지 않음 (Recommended)". 매입 레코드 화면·API에 승인번호·기관 거래번호·원 기관 거래번호·발급사·카드 종류·할부를 내보내지 않음(SELECT하지 않음). 거래 ID·MID·금액·기관 거래일·결과·사유 코드만, 승인번호는 거래 ID로 기존 거래 조회 상세(감사 대상)에서 확인 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
 | D-ACQV-003 | Q-ACQV-03 | "허락 (Recommended)". Demo 준비 허락: Demo MySQL 2개 init 스크립트 재실행(볼륨 삭제 없음, 권한·procedure만), payment-api 재기동(미적용 migration·FINANCIAL Relay), financial-batch·Simulator 매입사 기동, /tmp/paycore-demo Demo 키·SFTP 키 생성, Demo 마감 정책 새 버전. 한 번에 하나씩 기동 | ACQ-VIEW-001 | ACQ-VIEW-001 | 2026-11-06 |
+| D-ACQA-001 | Q-ACQA-01 | "조작 전용 키 따로 (Recommended)". ADMIN→FINANCIAL 쓰기 명령은 조회 키와 다른 쓰기 전용 키로만 서명·검증(조회 키로는 쓰기 경로 거부) | ACQ-ADMIN-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQA-002 | Q-ACQA-02 | "요청 OPERATOR, 승인 APPROVER (Recommended)". 재매입 2인 승인: 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 요청자≠승인자(D-ADMIN-007) | ACQ-ADMIN-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQA-003 | Q-ACQA-03 | "파일별 묶음 (Recommended)". 같은 원 파일의 레코드 1~50건을 승인 하나로, 하나라도 대상이 바뀌면 승인 전체 무효(부분 실행 없음) | ACQ-ADMIN-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQA-004 | Q-ACQA-04 | "'재매입 불요'로 종결 (Recommended)". 실행 시점 순액이 0원이면 파일 없이 '재매입 불요' 종결 기록, 재매입 검토 표시 꺼짐 | ACQ-ADMIN-001 | ACQ-ADMIN-001 | 2026-11-06 |
+| D-ACQA-005 | Q-ACQA-09 | "보정 취소와 같게 (Recommended)". 재매입 승인 상세의 근거 참조는 D-OPS-010과 같이 APPROVER와 요청자 본인만 별도 조회로 보고 조회마다 감사, 그 밖 역할·목록에는 숨김 | ACQ-ADMIN-001 | ACQ-ADMIN-001 | 2026-11-07 |
 
 구현 세부 선택(가역적, 사용자 업무 정책 아님): Gradle 멀티 프로젝트 `apps/<실행단위>`, 루트 패키지 `com.paycore.<unit>`, version catalog, MySQL 이미지 8.4.11 pin, 개발 compose의 DB/계정 분리. 근거: docs/repository/BOOT-001-DISCOVERY.md §4.
 

@@ -1,11 +1,14 @@
 package com.paycore.financial.acquiring.adapter.persistence
 
 import com.paycore.financial.acquiring.adapter.persistence.AcquiringPersistenceFailures.translate
+import com.paycore.financial.acquiring.application.required.AcceptedElsewhere
 import com.paycore.financial.acquiring.application.required.AcquisitionTransmissionStore
 import com.paycore.financial.acquiring.application.required.TransmissionAttemptRecord
 import com.paycore.financial.acquiring.application.required.TransmissionHistoryEntry
 import com.paycore.financial.acquiring.application.required.TransmissionOutcomeRecord
+import com.paycore.financial.acquiring.application.required.TransmissionWithholdRecord
 import com.paycore.financial.acquiring.domain.AcquisitionFileId
+import com.paycore.financial.acquiring.domain.AcquisitionRecordType
 import com.paycore.financial.acquiring.domain.TransmissionOutcome
 import com.paycore.financial.acquiring.domain.TransmissionState
 import jakarta.persistence.EntityManager
@@ -66,7 +69,35 @@ class JpaAcquisitionTransmissionStore(private val entityManager: EntityManager) 
         }
     }
 
+    override fun acceptedInOtherGeneration(fileId: AcquisitionFileId): List<AcceptedElsewhere> = translate(WITHHOLD) {
+        @Suppress("UNCHECKED_CAST")
+        val rows = entityManager.createNativeQuery(
+            "SELECT r.seq, r.transaction_id, r.record_type, a.file_id, a.seq, a.generation FROM acquisition_file_record r " +
+                "JOIN acquisition_accepted_record a ON a.transaction_id = r.transaction_id AND a.record_type = r.record_type " +
+                "WHERE r.file_id = :fileId AND NOT (a.file_id = r.file_id AND a.seq = r.seq) ORDER BY r.seq",
+        ).setParameter("fileId", fileId.value).resultList as List<Array<Any?>>
+        rows.map {
+            AcceptedElsewhere(
+                (it[0] as Number).toInt(), it[1] as String, AcquisitionRecordType.valueOf(it[2] as String), AcquisitionFileId.parse(it[3] as String),
+                (it[4] as Number).toInt(), (it[5] as Number).toInt(),
+            )
+        }
+    }
+
+    override fun appendWithholds(withholds: List<TransmissionWithholdRecord>): Unit = translate(WITHHOLD) {
+        withholds.forEach { w ->
+            val e = w.evidence
+            entityManager.persist(
+                JpaAcquisitionTransmissionWithholdEntity.newRow(
+                    w.fileId.value, e.seq, e.transactionId, e.recordType.name, e.acceptedFileId.value, e.acceptedSeq, e.acceptedGeneration, w.priorState.name, w.withheldAt,
+                ),
+            )
+        }
+        entityManager.flush()
+    }
+
     private companion object {
+        const val WITHHOLD = "acquisition_transmission_withhold"
         const val ATTEMPT = "acquisition_transmission_attempt"
         const val OUTCOME = "acquisition_transmission_outcome"
         const val SUPERSEDED = "SUPERSEDED"

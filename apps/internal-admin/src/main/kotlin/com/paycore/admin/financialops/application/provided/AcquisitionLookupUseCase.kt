@@ -20,6 +20,12 @@ interface AcquisitionLookupUseCase {
     fun detail(viewerActorId: String, fileId: String, context: AdminRequestContext): AcquisitionLookupResult
 
     fun records(viewerActorId: String, fileId: String, criteria: AcquisitionRecordSearchCriteria, context: AdminRequestContext): AcquisitionLookupResult
+
+    /**
+     * 재매입 대상 미리 보기(ACQ-ADMIN-001 B1-A §5.1·I-15 — 화면 버튼 표시·승인함 현재 값, **조회 키**·비권위). 순번 1..50 양수·오름차순. 상세·레코드 쪽과 같은 역할·속도 제한·감사
+     * (`ACQUISITION_FILE_VIEWED` — FINANCIAL이 답했을 때만, 감사 실패면 결과 미반환).
+     */
+    fun reacquisitionTargets(viewerActorId: String, fileId: String, seqs: List<Int>, context: AdminRequestContext): AcquisitionLookupResult
 }
 
 /** 목록 keyset 위치(FINANCIAL 계약 §3.3 — 업무일 `yyyy-MM-dd`, 파일 ID). */

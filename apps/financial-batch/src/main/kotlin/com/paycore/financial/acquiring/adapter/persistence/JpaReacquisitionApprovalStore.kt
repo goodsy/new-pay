@@ -6,22 +6,27 @@ import com.paycore.financial.acquiring.domain.AcquisitionFileId
 import com.paycore.financial.acquiring.domain.AcquisitionRecordType
 import com.paycore.financial.acquiring.domain.ApprovalChannel
 import com.paycore.financial.acquiring.domain.ReacquisitionApproval
+import com.paycore.financial.acquiring.domain.ReacquisitionNotRequired
 import com.paycore.financial.acquiring.domain.ReacquisitionTargetStatus
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 /**
- * [ReacquisitionApprovalStore] 구현(JPA, MANDATORY TX, append-only). **이번 작업에서 runtime 계정은 이 표에 SELECT만 있다**(V13): [append]는 DB가 1142로 거부한다 —
- * 입력 경로(ACQ-ADMIN-001)가 INSERT 권한을 열기 전까지 승인 기록은 만들어지지 않는다(D-ACQ-011).
+ * [ReacquisitionApprovalStore] 구현(JPA, MANDATORY TX, append-only — persist + flush만). ACQ-ADMIN-001 B1: runtime INSERT는 V18이 연다(입력 경로 = ADMIN 조작 서명 채널,
+ * D-ACQ-011·D-ACQA-001). 승인 행은 같은 TX에서 먼저 쓴 결정 행을 FK로 가리킨다.
  */
 @Component
 @Transactional(propagation = Propagation.MANDATORY)
 class JpaReacquisitionApprovalStore(private val entityManager: EntityManager) : ReacquisitionApprovalStore {
 
-    override fun find(approvalId: String): ReacquisitionApproval? = translate(APPROVAL) {
-        entityManager.find(JpaAcquisitionReacquisitionApprovalEntity::class.java, approvalId)?.let { r ->
+    override fun find(approvalId: String): List<ReacquisitionApproval> = translate(APPROVAL) {
+        entityManager.createQuery(
+            "select r from JpaAcquisitionReacquisitionApprovalEntity r where r.approvalId = :id order by r.fileId, r.seq",
+            JpaAcquisitionReacquisitionApprovalEntity::class.java,
+        ).setParameter("id", approvalId).resultList.map { r ->
             ReacquisitionApproval(
                 approvalId = r.approvalId, fileId = AcquisitionFileId.parse(r.fileId), seq = r.seq, transactionId = r.transactionId,
                 recordType = AcquisitionRecordType.valueOf(r.recordType), targetGeneration = r.targetGeneration, newGeneration = r.newGeneration,
@@ -40,20 +45,42 @@ class JpaReacquisitionApprovalStore(private val entityManager: EntityManager) : 
             )?.toInt()
     }
 
-    override fun append(approval: ReacquisitionApproval): Unit = translate(APPROVAL) {
-        entityManager.persist(
-            JpaAcquisitionReacquisitionApprovalEntity.newRow(
-                approvalId = approval.approvalId, fileId = approval.fileId.value, seq = approval.seq, transactionId = approval.transactionId,
-                recordType = approval.recordType.name, targetGeneration = approval.targetGeneration, newGeneration = approval.newGeneration,
-                targetStatus = approval.targetStatus.name, reacquisitionOf = approval.reacquisitionOf, requestedBy = approval.requestedBy,
-                approvedBy = approval.approvedBy, reasonCode = approval.reasonCode, evidenceRef = approval.evidenceRef, channel = approval.channel.name,
-                recordedAt = approval.recordedAt,
-            ),
-        )
+    override fun append(approvals: List<ReacquisitionApproval>): Unit = translate(APPROVAL) {
+        approvals.forEach { approval ->
+            entityManager.persist(
+                JpaAcquisitionReacquisitionApprovalEntity.newRow(
+                    approvalId = approval.approvalId, fileId = approval.fileId.value, seq = approval.seq, transactionId = approval.transactionId,
+                    recordType = approval.recordType.name, targetGeneration = approval.targetGeneration, newGeneration = approval.newGeneration,
+                    targetStatus = approval.targetStatus.name, reacquisitionOf = approval.reacquisitionOf, requestedBy = approval.requestedBy,
+                    approvedBy = approval.approvedBy, reasonCode = approval.reasonCode, evidenceRef = approval.evidenceRef, channel = approval.channel.name,
+                    recordedAt = approval.recordedAt,
+                ),
+            )
+        }
+        entityManager.flush()
+    }
+
+    override fun isNotRequired(transactionId: String, recordType: AcquisitionRecordType): Boolean = translate(NOT_REQUIRED) {
+        entityManager.find(
+            JpaAcquisitionReacquisitionNotRequiredEntity::class.java, JpaAcquisitionReacquisitionNotRequiredEntity.Key(transactionId, recordType.name),
+        ) != null
+    }
+
+    override fun appendNotRequired(records: List<ReacquisitionNotRequired>, decidedAt: Instant): Unit = translate(NOT_REQUIRED) {
+        records.forEach {
+            entityManager.persist(
+                JpaAcquisitionReacquisitionNotRequiredEntity.newRow(
+                    transactionId = it.approval.transactionId, recordType = it.approval.recordType.name, approvalId = it.approval.approvalId,
+                    fileId = it.approval.fileId.value, seq = it.approval.seq, approvedAmountMinor = it.approvedAmountMinor, cancelledAmountMinor = it.cancelledAmountMinor,
+                    currency = it.currency, decidedAt = decidedAt,
+                ),
+            )
+        }
         entityManager.flush()
     }
 
     private companion object {
         const val APPROVAL = "acquisition_reacquisition_approval"
+        const val NOT_REQUIRED = "acquisition_reacquisition_not_required"
     }
 }

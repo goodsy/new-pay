@@ -719,6 +719,21 @@
       "at": "2026-11-06T13:55Z",
       "taskId": "ACQ-VIEW-001",
       "event": "VERIFY-GATE PASS(Kotlin 3956, Vitest 174, selftest 182) + CVE 0 + Demo E2E 3 시나리오 PASS → DONE"
+    },
+    {
+      "at": "2026-11-06T14:00Z",
+      "taskId": "ACQ-VIEW-001",
+      "event": "committed 41d3794 + pushed (사용자 '커밋 + push')"
+    },
+    {
+      "at": "2026-11-06T14:02Z",
+      "taskId": "ACQ-ADMIN-001",
+      "event": "사용자 선택 매입 조작 화면 → Phase 1 시작"
+    },
+    {
+      "at": "2026-11-07T13:05Z",
+      "taskId": "ACQ-ADMIN-001",
+      "event": "DONE: ACQA-gate3 PASS fp sha256:86ec3a91… + supplementary PASS; TEST-PERF-003 DONE (GRADLE-CHECK 3300s); committed + pushed (사용자 '커밋 + push')"
     }
   ],
   "agreedOrder": [

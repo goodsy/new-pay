@@ -30,6 +30,8 @@ data class AcquisitionFileListItem(
     val summary: AcquisitionFileSummary,
     val attention: List<AcquisitionAttention>,
     val reacquisitionCandidate: Boolean,
+    /** (ACQ-ADMIN-001 B2 — §5.1 3상태) 검토 대상은 아니고 새 세대가 진행 중(전송·결과 대기 또는 그 세대 파일에서 다시 검토). 새 세대 ACCEPTED면 둘 다 false. */
+    val reacquisitionInProgress: Boolean = false,
 )
 
 /** 파일 행 요약(저장 값 그대로 — 3축은 서로 추정하지 않는다, D-ACQ-004) + 레코드 현재 상태별 건수 + 격리된 응답 수. 통화는 KRW만(파일 CHECK — I-5). */
@@ -53,6 +55,9 @@ data class AcquisitionFileSummary(
     val transmittedAt: Instant?,
     val recordStatusCounts: AcquisitionRecordStatusCounts,
     val quarantinedResponses: Int,
+    /** (ACQ-ADMIN-001 B2 — §5.1 L-9) 재매입 단계 CANDIDATE·IN_PROGRESS 레코드 수(ReacquisitionBadgeRule.recordStage — Reader가 같은 정의로 센다). */
+    val reacquisitionCandidates: Int = 0,
+    val reacquisitionInProgress: Int = 0,
 ) {
     val currency: String get() = CURRENCY
 
@@ -75,6 +80,9 @@ data class AcquisitionRecordStatusCounts(
 enum class AcquisitionAttention {
     TRANSMISSION_UNKNOWN,
     TRANSMISSION_QUARANTINED,
+
+    /** (ACQ-ADMIN-001 B2 — §15 L-9) 재매입 파일 전송 보류(다른 세대 매입 확정 — D-ACQ-014, 대사). */
+    TRANSMISSION_WITHHELD,
     RECEIPT_CONFLICT,
     RESPONSE_QUARANTINED,
     RECORD_UNKNOWN,

@@ -32,7 +32,7 @@ class MainMigrationLocationSpec(
     test("context starts with only the main FINANCIAL locations, applying V1 (batch metadata), V2 (payment fact inbox), V3 (runtime privileges), V4..V15 (acquiring), V16 (acquisition view index — ACQ-VIEW-001)") {
         flyway.configuration.locations.map { it.descriptor } shouldBe
             listOf("classpath:db/migration/financial", "classpath:db/runtime-privilege/financial")
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16")
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")
         flyway.info().applied().all { it.state.isApplied && !it.state.isFailed } shouldBe true
     }
 
@@ -59,6 +59,10 @@ class MainMigrationLocationSpec(
             "acquisition_response", "acquisition_record_result", "acquisition_cancel_not_required", "acquisition_reacquisition_approval",
             // rev 1.1(V14): 매입 확정 표지.
             "acquisition_accepted_record",
+            // ACQ-ADMIN-001 B1(V17): 조작 결정 기록·재매입 불요 종결.
+            "acquisition_ops_decision", "acquisition_reacquisition_not_required",
+            // ACQ-ADMIN-001 B2(V19): 재매입 파일 전송 보류 근거.
+            "acquisition_transmission_withhold",
         )
     }
 })

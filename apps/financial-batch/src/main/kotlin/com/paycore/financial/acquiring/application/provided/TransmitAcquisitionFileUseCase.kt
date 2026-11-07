@@ -24,6 +24,12 @@ data class TransmissionResult(val fileId: String, val outcome: Kind, val state: 
         OUTCOME_UNKNOWN,
         QUARANTINED,
 
+        /**
+         * (ACQ-ADMIN-001 B2 — §15 L-9) 재매입 파일의 레코드가 다른 세대에서 이미 매입 확정(표지)이라 보내지 않고 보류했다(TRANSMISSION_WITHHELD — 대사, D-ACQ-014),
+         * 또는 이미 보류된 파일이다.
+         */
+        WITHHELD,
+
         /** 다른 시도가 lease 안에서 점유 중. */
         IN_FLIGHT,
 

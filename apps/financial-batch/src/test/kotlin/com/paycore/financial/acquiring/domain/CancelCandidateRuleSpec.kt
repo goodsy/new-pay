@@ -2,6 +2,7 @@ package com.paycore.financial.acquiring.domain
 
 import com.paycore.financial.acquiring.domain.AcquisitionFixture.NEXT_CUTOFF
 import com.paycore.financial.acquiring.domain.AcquisitionFixture.cancelAfterMembership
+import com.paycore.financial.acquiring.domain.AcquisitionFixture.cancelAfterReacquisition
 import com.paycore.financial.acquiring.domain.AcquisitionFixture.header
 import com.paycore.financial.acquiring.domain.AcquisitionFixture.sale
 import io.kotest.core.spec.style.BehaviorSpec
@@ -56,15 +57,53 @@ class CancelCandidateRuleSpec : BehaviorSpec({
     Given("CC-4 cancellations that disagree with the original or exceed what is left of it") {
         val original = sale(amountMinor = 10_000)
         Then("netted + already cancelled + this > approved, other original institution reference, other MID or a non-SALE original record wait as INCONSISTENT") {
+            // ACQ-ADMIN-001 rev 0.7(B2 — §15 L-6): 이 목록의 넷째 벡터(세대 1 원 SALE → INCONSISTENT)는 CC-8로 옮겼다. 재매입 세대 SALE은 이제 같은 정합 규칙으로 판정한다
+            // (기대값 변경 근거 = L-6 "새 세대 결과에 따른 CANCEL·불요 판정은 B2에서 CancelCandidateRule을 바꿔 연다"). 그 자리에 원 레코드 종류·금액 불일치 벡터를 둔다(강화).
             listOf(
                 cancelAfterMembership(original, amountMinor = 3_000, nettedMinor = 4_000, alreadyCancelledMinor = 3_001),
                 cancelAfterMembership(original).copy(originalProviderTransactionId = "VAN-T-other"),
                 cancelAfterMembership(original).copy(merchantAccountId = "demo-mid-002"),
-                cancelAfterMembership(original).let { it.copy(originalSale = it.originalSale.copy(generation = 1, reacquisitionOf = "ACQ.SIMACQA.TEST.20261105.001#1")) },
+                cancelAfterMembership(original).let {
+                    it.copy(originalSale = it.originalSale.copy(type = AcquisitionRecordType.CANCEL, originalTransactionId = "ptx_x", originalProviderTransactionId = "VAN-x",
+                        nettedCancelAmountMinor = 0, recordAmountMinor = 1_000))
+                },
+                cancelAfterMembership(original).let { it.copy(originalSale = it.originalSale.copy(approvedAmountMinor = 10_001, recordAmountMinor = 10_001)) },
             ).forEach { CancelCandidateRule.decide(it, OriginalSaleResult.ACCEPTED, NEXT_CUTOFF) shouldBe CancelDecision.Wait(WaitReason.INCONSISTENT) }
             // 경계: 남은 금액 전부는 받는다.
             CancelCandidateRule.decide(cancelAfterMembership(original, amountMinor = 3_000, nettedMinor = 4_000, alreadyCancelledMinor = 3_000), OriginalSaleResult.ACCEPTED, NEXT_CUTOFF)
                 .shouldBeInstanceOf<CancelDecision.Include>()
+        }
+    }
+
+    Given("CC-8 (ACQ-ADMIN-001 B2 — §15 L-6) a cancellation received after the original was re-acquired: judged against the highest generation SALE (I-14)") {
+        val original = sale(amountMinor = 10_000)
+        // 재매입 실행 시점까지 판정 끝난 취소 3,000(상계액 — I-13) → 재매입 레코드 7,000. 이 취소 2,000은 실행 뒤에 받았다.
+        val c = cancelAfterReacquisition(original, amountMinor = 2_000, nettedMinor = 3_000)
+        Then("the new generation's result decides it exactly like generation 0 (D-ACQ-009): ACCEPTED → CANCEL record, REJECTED → not required, AWAITING → wait, UNKNOWN → reconcile") {
+            // 기대값 변경(rev 0.7 — 근거 L-6): rev 0.6까지 세대 ≥ 1 원 SALE은 결과와 무관하게 INCONSISTENT 대기였다(CC-4 넷째 벡터).
+            val include = CancelCandidateRule.decide(c, OriginalSaleResult.ACCEPTED, NEXT_CUTOFF).shouldBeInstanceOf<CancelDecision.Include>()
+            val r = include.toRecord(1)
+            listOf(r.type, r.originalTransactionId, r.approvedAmountMinor, r.recordAmountMinor, r.nettedCancelAmountMinor, r.generation, r.reacquisitionOf) shouldBe
+                listOf(AcquisitionRecordType.CANCEL, original.transactionId, 10_000L, 2_000L, 0L, 0, null)
+            CancelCandidateRule.decide(c, OriginalSaleResult.REJECTED, NEXT_CUTOFF) shouldBe CancelDecision.NotRequired(c)
+            CancelCandidateRule.decide(c, OriginalSaleResult.AWAITING, NEXT_CUTOFF) shouldBe CancelDecision.Wait(WaitReason.ORIGINAL_AWAITING_RESULT)
+            CancelCandidateRule.decide(c, OriginalSaleResult.UNKNOWN, NEXT_CUTOFF) shouldBe CancelDecision.Reconcile(c, OriginalSaleResult.UNKNOWN)
+            CancelCandidateRule.decide(cancelAfterReacquisition(original, generation = 2, nettedMinor = 3_000), OriginalSaleResult.ACCEPTED, NEXT_CUTOFF)
+                .shouldBeInstanceOf<CancelDecision.Include>()
+        }
+        Then("the cumulative limit still holds across generations: netted before the execution + CANCEL records + this ≤ approved, else INCONSISTENT (not relaxed)") {
+            CancelCandidateRule.decide(cancelAfterReacquisition(original, amountMinor = 2_001, nettedMinor = 3_000, alreadyCancelledMinor = 5_000), OriginalSaleResult.ACCEPTED, NEXT_CUTOFF) shouldBe
+                CancelDecision.Wait(WaitReason.INCONSISTENT)
+            CancelCandidateRule.decide(cancelAfterReacquisition(original, amountMinor = 2_000, nettedMinor = 3_000, alreadyCancelledMinor = 5_000), OriginalSaleResult.ACCEPTED, NEXT_CUTOFF)
+                .shouldBeInstanceOf<CancelDecision.Include>()
+            CancelCandidateRule.decide(cancelAfterReacquisition(original, amountMinor = 2_001, nettedMinor = 8_000), OriginalSaleResult.REJECTED, NEXT_CUTOFF) shouldBe
+                CancelDecision.Wait(WaitReason.INCONSISTENT)
+        }
+        Then("a re-acquisition record that is not this transaction's SALE at the original approved amount is INCONSISTENT") {
+            listOf(
+                c.copy(originalSale = c.originalSale.copy(transactionId = "ptx_other")),
+                c.copy(originalSale = c.originalSale.copy(approvedAmountMinor = 9_000, recordAmountMinor = 6_000)),
+            ).forEach { CancelCandidateRule.decide(it, OriginalSaleResult.ACCEPTED, NEXT_CUTOFF) shouldBe CancelDecision.Wait(WaitReason.INCONSISTENT) }
         }
     }
 

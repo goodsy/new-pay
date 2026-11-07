@@ -30,6 +30,8 @@ export const ERROR_MESSAGES: Record<ConsoleErrorCode, string> = {
   ACQUISITION_FILE_NOT_FOUND: '매입 파일을 찾을 수 없습니다.',
   FINANCIAL_UNAVAILABLE: '매입 정보 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   INVALID_INPUT: '입력 형식이 올바르지 않습니다.',
+  TARGET_NOT_FOUND: '대상을 찾을 수 없어 처리하지 않았습니다(상태는 바뀌지 않았습니다). 대상(매입 파일·레코드, 계정 등)이 그대로 있는지 확인해 주세요.',
+  TARGET_NOT_ELIGIBLE_ADVISORY: '선택한 레코드 중 지금 재매입할 수 없는 레코드가 있습니다. 미리 보기를 다시 확인해 주세요.',
   BAD_REQUEST: '입력 형식이 올바르지 않습니다.',
   ENROLLMENT_CODE_INVALID: '등록 코드가 올바르지 않거나 만료되었습니다.',
   ENROLLMENT_NOT_APPLICABLE: '이 등록 코드로는 지금 계정을 등록할 수 없습니다. 관리자에게 문의해 주세요.',
