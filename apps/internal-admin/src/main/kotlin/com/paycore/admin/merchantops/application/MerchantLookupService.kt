@@ -40,11 +40,11 @@ class MerchantLookupService(
     private val recorder: AdminAuditRecorder,
     private val limits: MerchantOpsLimits,
     private val metrics: MerchantOpsMetrics,
+    private val registrationNumbers: RegistrationNumberBudget,
 ) : MerchantLookupUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
     private val lookupWindows = ConcurrentHashMap<String, LongArray>()
-    private val registrationNumberWindows = ConcurrentHashMap<String, LongArray>()
 
     override fun search(viewerActorId: String, criteria: MerchantSearchCriteria, context: AdminRequestContext): MerchantLookupResult {
         val viewer = viewer(viewerActorId) ?: return MerchantLookupResult.Forbidden
@@ -80,7 +80,8 @@ class MerchantLookupService(
 
         if (viewer.roles.none { it in REGISTRATION_NUMBER_ROLES }) return audit("FORBIDDEN") { MerchantLookupResult.Forbidden }
         if (!numberWellFormed || !wellFormed(criteria)) return audit("INVALID_INPUT") { MerchantLookupResult.InvalidInput }
-        if (!admit(registrationNumberWindows, viewer.actorId, limits.registrationNumberSearchesPerMinute)) {
+        // MERCHANT-OPS-002 C-13: 등록번호 버킷은 사업자 등록(중복 결과 확정)과 공유한다([RegistrationNumberBudget]).
+        if (!registrationNumbers.admit(viewer.actorId)) {
             metrics.rateLimited(REGISTRATION_NUMBER_KIND)
             return audit("RATE_LIMITED") { MerchantLookupResult.RateLimited }
         }

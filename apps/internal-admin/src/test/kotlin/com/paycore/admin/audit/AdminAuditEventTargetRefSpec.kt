@@ -25,6 +25,13 @@ class AdminAuditEventTargetRefSpec : FunSpec({
         event("ACQ.${"A".repeat(32)}.LIVE.20261020.999")
     }
 
+    test("MERCHANT-OPS-002 C-6: a four-letter prefix id (site_) is accepted; five letters, upper case, two letters or a short ULID are not") {
+        event("site_01JC0000000000000000000001")
+        event("biz_01JC0000000000000000000001")
+        listOf("sitex_01JC0000000000000000000001", "SITE_01JC0000000000000000000001", "site_01JC000000000000000000001", "si_01JC0000000000000000000001")
+            .forEach { ref -> withClue(ref) { shouldThrow<IllegalArgumentException> { event(ref) } } }
+    }
+
     test("free text, near-miss file ids and an account target together are refused") {
         listOf(
             "ACQ.simacqa.TEST.20261020.001", "ACQ.SIMACQA.PROD.20261020.001", "ACQ.SIMACQA.TEST.2026102.001", "ACQ.SIMACQA.TEST.20261020.01",

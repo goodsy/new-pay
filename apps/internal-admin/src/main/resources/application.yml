@@ -139,6 +139,10 @@ paycore:
       # actor별 분당 상한(Demo): 목록·상세·이력 공용 30, 사업자등록번호 검색 10(oracle 방어 — 모든 시도 감사).
       lookup-per-minute: 30
       registration-number-searches-per-minute: 10
+      # MERCHANT-OPS-002 §4(Demo 값, 운영값 아님 — LIVE Gate): 등록 명령 permit(조회 permit과 별개, 대기 0 — C-1), actor별 분당 등록 상한.
+      # 사업자 등록은 위 registration-number-searches-per-minute 버킷에서도 1회를 예약한다(C-13 — 중복 결과는 검색과 같은 정보).
+      write-permits: 2
+      registrations-per-minute: 20
     # FINANCIAL 매입 현황 조회 호출(ACQ-VIEW-001 §4.6 — **Demo 값, 운영값 아님**, LIVE Gate). 연결·키는 환경변수로만(저장소에 키 없음). 키는 FINANCIAL
     # `paycore.financial.admin-channel` 키와 같은 값이고, PAYMENT·MASTER ops 키와 kid·바이트가 같으면, LIVE에서 Demo·시험 키면, context path가 있으면 기동 실패.
     # permit은 PAYMENT·MASTER ops와 별개(FINANCIAL 장애가 결제·가맹점 운영을 막지 않는다). 응답 읽기 상한 128 KiB(코드 상수).

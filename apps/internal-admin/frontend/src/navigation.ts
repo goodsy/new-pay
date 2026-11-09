@@ -3,7 +3,7 @@
  * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회 + TXN-OPS-001 거래 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'merchants' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'merchantRegistration' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
 export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
@@ -41,6 +41,8 @@ export function pagesFor(roles: string[]): Page[] {
   if (has('SECURITY_ADMIN') || has('OPERATOR')) pages.push('mine')
   // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
+  // MERCHANT-OPS-002 §5.1(D-MOPS-006 ①): 가맹점 등록은 OPERATOR에게만 보인다(서버 기능이 생겨 탭을 연다 — D-ADMIN-UI-003, 판정은 서버).
+  if (has('OPERATOR')) pages.push('merchantRegistration')
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   // TXN-OPS-001 §4.1: 거래 조회도 VIEW_MASKED(조회 4역할 — I-1 Implementer 해석, 기존 결제 대상 조회와 같다).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('transactions')
@@ -68,8 +70,9 @@ const MENUS: Menu[] = [
     description: '내가 만든 승인 요청의 진행 상태를 확인하고, 대기 중이면 철회하세요.',
   },
   {
-    id: 'merchants', label: '가맹점 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'merchants', label: '가맹점 조회' }],
-    description: '가맹점·사업자·MID 개통 상태와 변경 이력을 조회하세요(조회 전용 — 등록·변경은 별도 작업).',
+    id: 'merchants', label: '가맹점 관리', section: PAYMENT_OPERATIONS, tabbed: true,
+    tabs: [{ page: 'merchants', label: '가맹점 조회' }, { page: 'merchantRegistration', label: '가맹점 등록' }],
+    description: '가맹점·사업자·MID 개통 상태와 변경 이력을 조회하고, 사업자·가맹점·Site를 등록하세요(조회·등록).',
   },
   {
     id: 'payments', label: '결제 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'paymentOps', label: '결제 보정 취소' }, { page: 'transactions', label: '거래 조회' }],

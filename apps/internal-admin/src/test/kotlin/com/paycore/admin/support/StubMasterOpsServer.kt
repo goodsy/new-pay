@@ -85,6 +85,19 @@ object StubMasterOpsServer {
     }
 
     const val SEARCH = "/internal/v1/admin/merchant-searches"
+
+    /** MERCHANT-OPS-002 B1-1 명령 경로(서명 본문에 ID — C-2). */
+    const val BUSINESSES = "/internal/v1/admin/merchant-operations/businesses"
+    const val MERCHANTS = "/internal/v1/admin/merchant-operations/merchants"
+    const val SITES = "/internal/v1/admin/merchant-operations/merchant-sites"
+
+    /** B1-2 명령 경로. */
+    const val CONTRACTS = "/internal/v1/admin/merchant-operations/contracts"
+    const val AGREEMENTS = "/internal/v1/admin/merchant-operations/service-agreements"
+
+    fun succeeded(reference: String, replayed: Boolean = false) = """{"outcome":"SUCCEEDED","reference":"$reference","replayed":$replayed}"""
+
+    fun rejected(rejection: String, replayed: Boolean = false) = """{"outcome":"REJECTED","rejection":"$rejection","replayed":$replayed}"""
     const val INSTITUTION_CANARY = "SIMMERCH0001"
 
     fun merchantPath(merchantId: String) = "/internal/v1/admin/merchants/$merchantId"

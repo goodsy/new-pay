@@ -29,6 +29,8 @@ paycore:
     admin-channel:
       clock-window: PT300S
       read-permits: 4
+      # MERCHANT-OPS-002 §3.1 C-1: 명령 permit(조회와 별개, 대기 0) — Demo 값 2(운영값 LIVE Gate).
+      write-permits: 2
       signing-keys:
         - key-id: mops-test-k1
           secret: dGVzdC1vbmx5LW1hc3Rlci1hZG1pbi1jaGFubmVsLWtleS0wMDAx

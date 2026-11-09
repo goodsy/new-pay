@@ -72,6 +72,9 @@ enum class MasterRejection {
     CARD_ROUTE_METHOD_NOT_ACTIVATED,
     CARD_ROUTE_TRANSITION_NOT_ALLOWED,
     CARD_ROUTE_EVIDENCE_NOT_NEW,
+
+    // MERCHANT-OPS-002 §3.4(D-MOPS-006 ⑤): 계약(Revision 1) 효력 시작이 판정 시각의 KST 날짜 00:00보다 앞(소급 등록 거절)
+    CONTRACT_START_RETROACTIVE,
 }
 
 /**

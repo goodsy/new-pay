@@ -24,10 +24,11 @@ object MasterAdminChannelFixture {
 
     fun secret(kid: String): String = golden.get("keys").first { it.get("kid").asString() == kid }.get("secretBase64").asString()
 
-    fun settings(kids: List<String> = listOf(K1, K2), readPermits: Int = 4): AdminChannelSettings =
-        AdminChannelSettings(kids.map { AdminChannelSettings.SigningKey(it, secret(it)) }, WINDOW, readPermits)
+    fun settings(kids: List<String> = listOf(K1, K2), readPermits: Int = 4, writePermits: Int = 2): AdminChannelSettings =
+        AdminChannelSettings(kids.map { AdminChannelSettings.SigningKey(it, secret(it)) }, WINDOW, readPermits, writePermits)
 
-    fun springSettings(): AdminChannelSettings = AdminChannelSettings(listOf(AdminChannelSettings.SigningKey(SPRING_KID, SPRING_SECRET)), WINDOW, 4)
+    /** Spring 시험 설정(`src/test/resources/config/application.yml`)과 같은 값 — 조회 permit 4, 명령 permit 2(MERCHANT-OPS-002 C-1 Demo 값). */
+    fun springSettings(): AdminChannelSettings = AdminChannelSettings(listOf(AdminChannelSettings.SigningKey(SPRING_KID, SPRING_SECRET)), WINDOW, 4, 2)
 
     fun header(method: String, path: String, body: ByteArray, kid: String = K1, t: Long = Instant.now().epochSecond, keys: AdminChannelSettings = settings()): String =
         "t=$t,kid=$kid,v1=${AdminCallSignature.v1(keys.key(kid)!!, method, path, t.toString(), body)}"

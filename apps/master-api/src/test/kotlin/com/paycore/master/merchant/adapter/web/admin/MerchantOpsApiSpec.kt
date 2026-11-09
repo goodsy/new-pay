@@ -97,7 +97,9 @@ class MerchantOpsApiSpec(
                 val methods = info.methodsCondition.methods.map { it.name }.ifEmpty { listOf("GET", "POST") }
                 info.patternValues.filter { it.startsWith("/internal/v1/admin/") }.flatMap { p -> methods.map { it to p.replace(Regex("\\{[^}]+}"), "x") } }
             }
-            mapped.size shouldBe 3
+            // 기대값 변경(MERCHANT-OPS-002 B1-1 — 새 서버 기능): 조회 3 + 명령 3(businesses·merchants·merchant-sites). 쓰기 경로 전수는 MerchantOperationsApiSpec(m-5).
+            // 기대값 변경(MERCHANT-OPS-002 B1-2 — §8.1 B1-1-1 m-5 "B1-2 뒤 B1 5개"): + 명령 2(contracts·service-agreements) = 8.
+            mapped.size shouldBe 8
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {

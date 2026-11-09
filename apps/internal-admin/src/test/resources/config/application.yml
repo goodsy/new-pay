@@ -64,6 +64,9 @@ paycore:
       permits: 4
       lookup-per-minute: 1000
       registration-number-searches-per-minute: 1000
+      # MERCHANT-OPS-002(시험 값 — Demo 2·20, 운영값 아님): 등록 명령 permit(조회와 별개)·등록 버킷.
+      write-permits: 2
+      registrations-per-minute: 1000
     # FINANCIAL 매입 현황 조회 호출(시험 — ACQ-VIEW-001): 대역 StubFinancialOpsServer(고정 포트), 키 = 시험 전용 fops-test-k1(financial-batch 시험 키와 같은 공개 값 — 운영 키 아님,
     # payment-ops·master-ops 시험 키와 다른 바이트·kid).
     financial-ops:

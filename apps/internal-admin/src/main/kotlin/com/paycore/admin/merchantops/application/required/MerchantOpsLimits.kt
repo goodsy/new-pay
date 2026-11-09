@@ -7,4 +7,7 @@ package com.paycore.admin.merchantops.application.required
 interface MerchantOpsLimits {
     val lookupPerMinute: Int
     val registrationNumberSearchesPerMinute: Int
+
+    /** 등록 명령(MERCHANT-OPS-002 §4.4 3 — actor별 분당, 조회 버킷과 별개). 사업자 등록은 이에 더해 [registrationNumberSearchesPerMinute] 버킷에서 1회를 예약한다(C-13). */
+    val registrationsPerMinute: Int
 }

@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, MerchantDetail, MerchantHistoryEntry, MerchantListItem, MerchantSearchInput } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
@@ -24,6 +24,10 @@ interface Props {
   /** 사업자등록번호 입력란 표시(OPERATOR·APPROVER — §5.3, 표시만; 권한 판정·감사는 서버). */
   canSearchRegistrationNumber: boolean
   onSessionEnded?: (code: ConsoleErrorCode) => void
+  /** 화면을 열면서 이 가맹점 상세를 연다(가맹점 등록 "가맹점 조회에서 보기" — 행 "상세"와 같은 경로·감사, MERCHANT-OPS-002 §5.2). */
+  openMerchantId?: string | null
+  /** [openMerchantId]를 한 번 연 뒤 알린다(호출자가 비워 탭을 다시 와도 또 열지 않게). */
+  onOpenedMerchant?: () => void
 }
 
 /** 마지막으로 보낸 검색 조건(다음 쪽에 그대로). 사업자등록번호는 담지 않는다 — 화면 상태에 번호를 남기지 않는다. */
@@ -298,7 +302,7 @@ function DetailPanels({ detail }: { detail: MerchantDetail }) {
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
-export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnded }: Props) {
+export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant }: Props) {
   const [merchantId, setMerchantId] = useState('')
   const [businessId, setBusinessId] = useState('')
   const [lifecycle, setLifecycle] = useState('')
@@ -403,6 +407,16 @@ export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnd
       if (openRequest.current === request) setDetailBusy(false)
     }
   }
+
+  // 요청받은 가맹점 상세를 한 번만 연다(StrictMode 이중 effect에도 상세 조회·감사는 한 번).
+  const openedInitial = useRef(false)
+  useEffect(() => {
+    if (!openMerchantId || openedInitial.current) return
+    openedInitial.current = true
+    onOpenedMerchant?.()
+    void open(openMerchantId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 때 받은 요청 한 번만
+  }, [openMerchantId])
 
   const moreHistory = async () => {
     if (detail === null || history?.nextCursor == null) return

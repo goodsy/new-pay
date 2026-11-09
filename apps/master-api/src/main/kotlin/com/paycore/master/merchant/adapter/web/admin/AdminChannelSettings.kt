@@ -11,9 +11,10 @@ import java.util.Base64
  * @param signingKeys 1..2개(교체 중에만 2개). kid `[A-Za-z0-9._-]{1,32}`, 비밀 Base64 → 32바이트 이상.
  * @param clockWindow 서명 시각 창(경계 포함, 정수 초, 1초..10분). Demo 300초 — 운영값 LIVE Gate.
  * @param readPermits 조회 동시 처리 상한(대기 0 — 1..64). Demo 4.
+ * @param writePermits 명령(MERCHANT-OPS-002 §3.1 C-1) 동시 처리 상한(대기 0 — 1..16, 조회 permit과 별개). Demo 2. **기본값 없음**.
  */
 @ConfigurationProperties(prefix = "paycore.master.admin-channel")
-class AdminChannelSettings(val signingKeys: List<SigningKey>, val clockWindow: Duration, val readPermits: Int) {
+class AdminChannelSettings(val signingKeys: List<SigningKey>, val clockWindow: Duration, val readPermits: Int, val writePermits: Int) {
 
     class SigningKey(val keyId: String, secret: String) {
         // 디코드 오류 메시지·원인에는 비밀 일부가 들어갈 수 있어 원인을 붙이지 않는다.
@@ -33,16 +34,18 @@ class AdminChannelSettings(val signingKeys: List<SigningKey>, val clockWindow: D
         require(clockWindow >= MIN_WINDOW && clockWindow <= MAX_WINDOW) { "admin-channel clock-window must be within 1s..10m" }
         require(clockWindow.nano == 0) { "admin-channel clock-window must be whole seconds" }
         require(readPermits in 1..MAX_PERMITS) { "admin-channel read-permits must be within 1..$MAX_PERMITS" }
+        require(writePermits in 1..MAX_WRITE_PERMITS) { "admin-channel write-permits must be within 1..$MAX_WRITE_PERMITS" }
     }
 
     fun key(keyId: String): ByteArray? = signingKeys.firstOrNull { it.keyId == keyId }?.bytes
 
-    override fun toString(): String = "AdminChannelSettings(keys=${signingKeys.map { it.keyId }}, clockWindow=$clockWindow, readPermits=$readPermits)"
+    override fun toString(): String = "AdminChannelSettings(keys=${signingKeys.map { it.keyId }}, clockWindow=$clockWindow, readPermits=$readPermits, writePermits=$writePermits)"
 
     companion object {
         const val MAX_KEYS = 2
         const val MIN_KEY_BYTES = 32
         const val MAX_PERMITS = 64
+        const val MAX_WRITE_PERMITS = 16
         val KEY_ID = Regex("^[A-Za-z0-9._-]{1,32}$")
         private val MIN_WINDOW: Duration = Duration.ofSeconds(1)
         private val MAX_WINDOW: Duration = Duration.ofMinutes(10)

@@ -56,7 +56,7 @@ object MerchantSearchBodyParser {
     }
 
     /** 첫 최상위 객체의 직속 key에 `registrationNumber`가 있는가(문법 오류 지점까지). */
-    private fun namesRegistrationNumber(body: ByteArray): Boolean = try {
+    internal fun namesRegistrationNumber(body: ByteArray): Boolean = try {
         scanner.createParser(body).use { p ->
             if (p.nextToken() != JsonToken.START_OBJECT) return false
             var depth = 1

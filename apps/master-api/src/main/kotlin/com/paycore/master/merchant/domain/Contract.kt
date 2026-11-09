@@ -97,7 +97,11 @@ class Contract private constructor(
     override fun toString(): String = "Contract(id=${id.value}, revisions=${revisionList.size}, agreements=${agreementList.size})"
 
     companion object {
-        /** 계약과 첫 Revision을 등록한다. 대상 Merchant = 첫 Scope의 Merchant(D-MD-013). Scope 검증은 [ContractScope.requireValid]로 먼저 한다. */
+        /**
+         * 계약과 첫 Revision을 등록한다. 대상 Merchant = 첫 Scope의 Merchant(D-MD-013). Scope 검증은 [ContractScope.requireValid]로 먼저 한다.
+         * 효력 시작이 판정 시각 [at]의 **Asia/Seoul 날짜 00:00보다 앞**이면 소급 등록이라 거절한다([MasterRejection.CONTRACT_START_RETROACTIVE] — D-MOPS-006 ⑤,
+         * MERCHANT-OPS-002 §3.4). 같은 KST 날짜 안의 앞선 시각은 허용한다. 이 규칙은 첫 등록(Revision 1)에만 — [registerRevision]은 Q-MOPS-18 답 전까지 그대로다.
+         */
         fun register(
             id: ContractId,
             party: Business,
@@ -107,6 +111,7 @@ class Contract private constructor(
             by: ActorRef,
         ): Contract {
             party.requireActive()
+            if (firstPeriod.from.isBefore(SeoulMidnight.startOfDay(at))) throw MasterRuleViolation(MasterRejection.CONTRACT_START_RETROACTIVE)
             return Contract(
                 id, party.id, firstScope.merchantId, listOf(ContractRevision.register(1, firstScope, firstPeriod, at, by)), emptyList(), at, by,
             )

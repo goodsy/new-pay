@@ -56,6 +56,18 @@ class ArchitectureSpec : FunSpec({
         }
     }
 
+    test("MERCHANT-OPS-002 §8: the command controller calls only the provided onboarding use case — no storage port, adapter or service implementation") {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveSimpleName("MerchantOperationsController")
+            .should().dependOnClassesThat().resideInAnyPackage("..application.required..", "..adapter.persistence..", "..adapter.query..", "..adapter.integration..")
+            .orShould().dependOnClassesThat().haveSimpleName("MerchantOnboardingService")
+            .allowEmptyShould(false)
+            .check(classes)
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes().that().haveSimpleName("MerchantOperationsController")
+            .should().dependOnClassesThat().haveSimpleName("MerchantOnboardingUseCase")
+            .allowEmptyShould(false)
+            .check(classes)
+    }
+
     test("DEMO-SEED-001 I-4·I-20: the seed coordinator uses only provided use cases and the read-only progress port") {
         demoSeedUsesOnlyProvidedUseCases().check(classes)
         classes.any { it.simpleName == "DemoMerchantSeedService" } shouldBe true

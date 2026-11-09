@@ -310,6 +310,56 @@ export interface MerchantHistoryEntry {
   actorRef: string
 }
 
+/**
+ * 가맹점 등록(MERCHANT-OPS-002 §4.3 — B1-1, OPERATOR만). [submissionId] = 폼 제출 단위 UUID v4 소문자 hex 32자(결과가 확정될 때까지 재전송에 같은 값).
+ * 응답은 저장된 판정만 200 — 성공은 reference, 거절은 rejection(기존 ID 없음 — D-MOPS-006 ③).
+ */
+export interface BusinessRegistrationInput {
+  submissionId: string
+  registrationNumber: string
+  displayName: string
+}
+
+export interface MerchantRegistrationInput {
+  submissionId: string
+  businessId: string
+  displayName: string
+}
+
+export interface SiteRegistrationInput {
+  submissionId: string
+  merchantId: string
+  channelType: 'WEB' | 'APP'
+  channelIdentifier: string
+}
+
+/**
+ * MERCHANT-OPS-002 §4.3 B1-2 계약 초안(Revision 1 — 미승인). [scopeSiteIds]가 비면 가맹점 전체(MERCHANT Scope).
+ * 날짜는 Asia/Seoul 날짜 `YYYY-MM-DD`(C-7 — 서버가 그 날 00:00 KST로 바꾼다), [effectiveToDate]는 그 날 0시 종료(미포함), 없으면 종료 없음.
+ */
+export interface ContractRegistrationInput {
+  submissionId: string
+  partyBusinessId: string
+  scopeMerchantId: string
+  scopeSiteIds: string[]
+  effectiveFromDate: string
+  effectiveToDate?: string
+}
+
+/** B1-2 서비스 계약(CSA) — 현재 카드 PG 결제 하나(D-MD-002). */
+export interface ServiceAgreementInput {
+  submissionId: string
+  contractId: string
+  serviceKind: 'CARD_PG_PAYMENT'
+}
+
+export interface RegistrationOutcome {
+  outcome: 'SUCCEEDED' | 'REJECTED'
+  reference?: string
+  rejection?: string
+  replayed: boolean
+}
+
 export interface MerchantHistoryPage {
   items: MerchantHistoryEntry[]
   nextCursor: number | null
@@ -548,6 +598,13 @@ export interface AdminApi {
   merchantDetail(merchantId: string): Promise<MerchantDetail>
   /** [after] 없으면 첫 쪽. */
   merchantHistory(merchantId: string, after?: number): Promise<MerchantHistoryPage>
+  /** MERCHANT-OPS-002 §4.3 B1-1(OPERATOR만 — 서버가 판정·감사). */
+  registerBusiness(input: BusinessRegistrationInput): Promise<RegistrationOutcome>
+  registerMerchant(input: MerchantRegistrationInput): Promise<RegistrationOutcome>
+  registerMerchantSite(input: SiteRegistrationInput): Promise<RegistrationOutcome>
+  /** MERCHANT-OPS-002 §4.3 B1-2(OPERATOR만). 시작일 소급 판정은 MASTER(§3.4 — 화면 최솟값은 안내일 뿐). */
+  registerContract(input: ContractRegistrationInput): Promise<RegistrationOutcome>
+  addServiceAgreement(input: ServiceAgreementInput): Promise<RegistrationOutcome>
   /** TXN-OPS-001 §4.1(조회 4역할): 검색은 POST 본문(R-2, 감사 없음), 상세는 서버가 감사(D-TXOPS-002). */
   transactionSearch(input: TransactionSearchInput): Promise<TransactionSearchPage>
   transactionDetail(paymentId: string): Promise<TransactionDetail>
@@ -603,6 +660,11 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     merchantSearch: (input) => call('/api/merchant-searches', 'POST', input),
     merchantDetail: (merchantId) => call(`/api/merchants/${segment(merchantId)}`),
     merchantHistory: (merchantId, after) => call(`/api/merchants/${segment(merchantId)}/history${after === undefined ? '' : `?after=${after}`}`),
+    registerBusiness: (input) => call('/api/merchant-registrations/businesses', 'POST', input),
+    registerMerchant: (input) => call('/api/merchant-registrations/merchants', 'POST', input),
+    registerMerchantSite: (input) => call('/api/merchant-registrations/merchant-sites', 'POST', input),
+    registerContract: (input) => call('/api/merchant-registrations/contracts', 'POST', input),
+    addServiceAgreement: (input) => call('/api/merchant-registrations/service-agreements', 'POST', input),
     transactionSearch: (input) => call('/api/payment-searches', 'POST', input),
     transactionDetail: (paymentId) => call(`/api/payments/${segment(paymentId)}`),
     acquisitionSearch: (input) => call('/api/acquisition-file-searches', 'POST', input),

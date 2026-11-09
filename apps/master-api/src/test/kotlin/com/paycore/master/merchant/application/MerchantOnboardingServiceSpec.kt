@@ -330,4 +330,52 @@ class MerchantOnboardingServiceSpec(
             ) shouldBe OnboardingFixture.operator.value
         }
     }
+
+    Given("D-MOPS-006 ⑤ / MERCHANT-OPS-002 §3.4: a contract start before the KST date of the decision time (clock t0 = KST 2026-10-09 11:00)") {
+        val kstToday = java.time.Instant.parse("2026-10-08T15:00:00Z") // KST 10-09 00:00
+        fun contractRows(merchant: com.paycore.master.merchant.domain.MerchantId) = listOf(
+            scalar("SELECT COUNT(*) FROM contract WHERE merchant_id = ?", merchant.value).toString().toLong(),
+            scalar(
+                "SELECT COUNT(*) FROM master_change_history WHERE change_type = 'ContractRegistered' AND JSON_UNQUOTE(JSON_EXTRACT(detail, '$.scopeMerchantId')) = ?",
+                merchant.value,
+            ).toString().toLong(),
+            scalar(
+                "SELECT COUNT(*) FROM outbox_event WHERE event_type = 'ContractRegistered' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.scopeMerchantId')) = ?",
+                merchant.value,
+            ).toString().toLong(),
+        )
+
+        Then("one millisecond before today's KST midnight is a stored rejection replayed for the same key; no contract row, history or outbox; today's KST midnight is accepted (control)") {
+            val ready = readyMerchant(service)
+            val before = contractRows(ready.merchantId)
+            val key = OnboardingFixture.key()
+            val command = RegisterContractCommand(request(key), ready.businessId, ScopeInput(ready.merchantId), EffectivePeriod(kstToday.minusMillis(1)))
+            service.registerContract(command) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = false)
+            service.registerContract(command) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = true)
+            contractRows(ready.merchantId) shouldBe before
+            scalar("SELECT result_code FROM admin_request WHERE idempotency_key = ?", key.value) shouldBe "CONTRACT_START_RETROACTIVE"
+
+            succeeded(service.registerContract(RegisterContractCommand(request(), ready.businessId, ScopeInput(ready.merchantId), EffectivePeriod(kstToday)))) shouldStartWith "ctr_"
+            contractRows(ready.merchantId) shouldBe before.map { it + 1 }
+        }
+
+        // 이 시험은 판정이 서버 시계 값(KST 날짜)을 쓰는지만 확인한다 — 잠금 뒤에 시계를 읽는 순서(L-8)는 여기서 관찰하지 않는다.
+        Then("the decision uses the server clock value: the same command is accepted on KST 10-08 and rejected once the clock is past KST midnight (L-8 clock value only)") {
+            val ready = readyMerchant(service)
+            val start = EffectivePeriod(java.time.Instant.parse("2026-10-07T15:00:00Z")) // KST 10-08 00:00
+            clock.set(java.time.Instant.parse("2026-10-08T14:59:59.999Z")) // KST 10-08 23:59:59.999
+            succeeded(service.registerContract(RegisterContractCommand(request(), ready.businessId, ScopeInput(ready.merchantId), start))) shouldStartWith "ctr_"
+            clock.set(kstToday)
+            service.registerContract(RegisterContractCommand(request(), ready.businessId, ScopeInput(ready.merchantId), start)) shouldBe
+                AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = false)
+        }
+
+        Then("Q-MOPS-18 regression (review n-1): registerContractRevision still accepts a revision that starts in the past (rule not extended to revisions before the answer)") {
+            val ready = readyMerchant(service)
+            val past = EffectivePeriod(t0.minus(java.time.Duration.ofDays(3)))
+            succeeded(
+                service.registerContractRevision(RegisterContractRevisionCommand(request(), ready.contractId, ScopeInput(ready.merchantId), past)),
+            ) shouldBe "${ready.contractId.value}#2"
+        }
+    }
 })

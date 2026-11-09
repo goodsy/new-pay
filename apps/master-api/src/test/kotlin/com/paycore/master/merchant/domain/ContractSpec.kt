@@ -3,6 +3,7 @@ package com.paycore.master.merchant.domain
 import com.paycore.master.merchant.domain.MasterFixture.operator
 import com.paycore.master.merchant.domain.MasterFixture.t0
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 
@@ -202,6 +203,52 @@ class ContractSpec : BehaviorSpec({
             shouldThrow<IllegalArgumentException> {
                 Contract.reconstitute(MasterFixture.contractId(), business.id, merchant.id, revisions, emptyList(), t0, operator)
             }
+        }
+    }
+
+    Given("D-MOPS-006 ⑤ / MERCHANT-OPS-002 §3.4: a contract may not start before the KST date of the decision time (CONTRACT_START_RETROACTIVE)") {
+        val business = MasterFixture.business()
+        val merchant = MasterFixture.merchant(business)
+
+        /** Named Fixture: 시각 [at]에 판정되는, [from]에 시작하는 MERCHANT Scope 계약 등록(종료 없음). */
+        fun registerStartingAt(from: String, at: String, party: Business = business): Contract = Contract.register(
+            MasterFixture.contractId(), party, ContractScope.MerchantWide(merchant.id), EffectivePeriod(java.time.Instant.parse(from)), java.time.Instant.parse(at), operator,
+        )
+        val kstMidnightOfNov9 = "2026-11-08T15:00:00Z" // KST 11-09 00:00
+        val kstLastMilliOfNov8 = "2026-11-08T14:59:59.999Z" // KST 11-08 23:59:59.999
+
+        Then("KST boundary table: same KST day (from its 00:00 on) and future starts are accepted; one millisecond before the KST midnight of the decision date is rejected") {
+            data class Case(val name: String, val at: String, val from: String, val accepted: Boolean)
+            val cases = listOf(
+                Case("at KST 11-09 00:00, from KST 11-09 00:00", kstMidnightOfNov9, kstMidnightOfNov9, true),
+                Case("at KST 11-09 00:00, from KST 11-08 23:59:59.999", kstMidnightOfNov9, kstLastMilliOfNov8, false),
+                Case("at KST 11-08 23:59:59.999, from KST 11-08 00:00 (same day, earlier time)", kstLastMilliOfNov8, "2026-11-07T15:00:00Z", true),
+                Case("at KST 11-08 23:59:59.999, from KST 11-07 23:59:59.999", kstLastMilliOfNov8, "2026-11-07T14:59:59.999Z", false),
+                Case("at KST 11-09 00:00, from a future day", kstMidnightOfNov9, "2026-11-10T15:00:00Z", true),
+                Case("at KST 11-09 00:00, from later the same day", kstMidnightOfNov9, "2026-11-09T03:00:00Z", true),
+            )
+            cases.forEach { c ->
+                withClue(c.name) {
+                    if (c.accepted) {
+                        registerStartingAt(c.from, c.at).revisions.single().effectivePeriod.from shouldBe java.time.Instant.parse(c.from)
+                    } else {
+                        violation { registerStartingAt(c.from, c.at) } shouldBe MasterRejection.CONTRACT_START_RETROACTIVE
+                    }
+                }
+            }
+        }
+
+        Then("an inactive party is still rejected with BUSINESS_NOT_ACTIVE first (the retroactive check comes after party.requireActive)") {
+            val closed = Business.reconstitute(
+                MasterFixture.businessId(), MasterFixture.registrationNumber(), DisplayName("Closed"), Lifecycle.TERMINATED, t0, operator,
+            )
+            violation { registerStartingAt("2026-11-01T15:00:00Z", kstMidnightOfNov9, closed) } shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
+        }
+
+        Then("Q-MOPS-18 boundary (review n-1): a later revision with a past start is still accepted — the rule covers Revision 1 only until Q-MOPS-18 is answered") {
+            val contract = registerStartingAt(kstMidnightOfNov9, kstMidnightOfNov9)
+            val past = EffectivePeriod(java.time.Instant.parse("2026-11-01T15:00:00Z"))
+            contract.registerRevision(ContractScope.MerchantWide(merchant.id), past, java.time.Instant.parse(kstMidnightOfNov9), operator).revisionNo shouldBe 2
         }
     }
 

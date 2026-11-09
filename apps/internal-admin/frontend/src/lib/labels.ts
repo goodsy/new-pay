@@ -45,6 +45,12 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   // MERCHANT-OPS-001 §5.1·§5.2(admin.merchantops)
   MERCHANT_VIEWED: '가맹점 상세 조회',
   MERCHANT_BRN_SEARCHED: '사업자등록번호 검색',
+  // MERCHANT-OPS-002 §6(B1-1 — C-5 명령별 code)
+  MERCHANT_BUSINESS_REGISTER: '사업자 등록',
+  MERCHANT_REGISTER: '가맹점 등록',
+  MERCHANT_SITE_REGISTER: 'Site 등록',
+  MERCHANT_CONTRACT_REGISTER: '계약 초안 등록',
+  MERCHANT_AGREEMENT_ADD: '서비스 계약 추가',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
   // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)
@@ -135,6 +141,10 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   CARD: '카드',
   ACK: '수신 확인',
   LEASE_EXPIRY: '임대 만료',
+  // 가맹점 등록 감사 결과(MERCHANT-OPS-002 §6 — REQUESTED·OK·REJECTED·FORBIDDEN·INVALID_INPUT·RATE_LIMITED는 위·아래 기존 이름)
+  KEY_REUSED: '요청키 재사용',
+  BUSY: '처리 대기 없음(바쁨)',
+  OUTCOME_UNKNOWN: '결과 불명',
   // 가맹점 조회 감사 결과(MERCHANT-OPS-001 §5.1·§5.2)
   NOT_FOUND: '찾지 못함',
   INVALID_INPUT: '입력 형식 오류',

@@ -7,6 +7,9 @@ import com.paycore.admin.account.application.provided.AdminSessionView
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.merchantops.application.MerchantLookupService
+import com.paycore.admin.merchantops.application.RegistrationNumberBudget
+import com.paycore.admin.merchantops.application.required.MasterCommand
+import com.paycore.admin.merchantops.application.required.MasterCommandResult
 import com.paycore.admin.merchantops.application.provided.MerchantLookupResult
 import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 import com.paycore.admin.merchantops.application.required.MasterCallResult
@@ -47,6 +50,11 @@ class MerchantLookupServiceSpec : BehaviorSpec({
         var searchReply: MasterCallResult = MasterCallResult.Found(mapOf("items" to emptyList<Any>(), "nextCursor" to null))
         var detailReply: MasterCallResult = MasterCallResult.NotFound
         val view = AdminSessionView("adm_01JC00000000000000000000V1", "Viewer", status, 1, 1, roles)
+        val limits = object : MerchantOpsLimits {
+            override val lookupPerMinute = lookupPerMinute
+            override val registrationNumberSearchesPerMinute = brnPerMinute
+            override val registrationsPerMinute = 100
+        }
         val tx = object : AbstractPlatformTransactionManager() {
             override fun doGetTransaction(): Any = Any()
             override fun doBegin(transaction: Any, definition: TransactionDefinition) = Unit
@@ -63,6 +71,7 @@ class MerchantLookupServiceSpec : BehaviorSpec({
                 override fun search(criteria: MerchantSearchCriteria): MasterCallResult = searchReply.also { calls += "search"; callInTx += TransactionSynchronizationManager.isActualTransactionActive() }
                 override fun detail(merchantId: String): MasterCallResult = detailReply.also { calls += "detail"; callInTx += TransactionSynchronizationManager.isActualTransactionActive() }
                 override fun history(merchantId: String, afterSeq: Long): MasterCallResult = MasterCallResult.Found(mapOf("items" to emptyList<Any>())).also { calls += "history:$afterSeq" }
+                override fun command(command: MasterCommand): MasterCommandResult = error("lookup never sends a command")
             },
             object : AdminAuditRecorder {
                 override fun record(record: AuditRecord) {
@@ -71,15 +80,16 @@ class MerchantLookupServiceSpec : BehaviorSpec({
                     audits += record
                 }
             },
-            object : MerchantOpsLimits {
-                override val lookupPerMinute = lookupPerMinute
-                override val registrationNumberSearchesPerMinute = brnPerMinute
-            },
+            limits,
             object : MerchantOpsMetrics {
                 override fun rateLimited(kind: String) {
                     rateLimited += kind
                 }
+                override fun command(operation: String, result: String) = Unit
+                override fun commandUnknown(operation: String) = Unit
             },
+            // MERCHANT-OPS-002 C-13: 등록번호 버킷은 사업자 등록과 공유하는 Bean이다(시험은 같은 limits로 하나 만든다 — 기대값 불변).
+            RegistrationNumberBudget(limits),
         )
         val actor get() = view.actorId
 

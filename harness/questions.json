@@ -2650,6 +2650,166 @@
       "appliedSpec": "D-MOPS-003"
     },
     {
+      "id": "Q-MOPS-09",
+      "status": "ANSWERED",
+      "question": "ADMIN→MASTER 가맹점 등록·개통 명령의 서명 키: 조회 키와 분리할지",
+      "recommended": "조작 전용 키 따로(D-ACQA-001과 같음): 명령 경로 /internal/v1/admin/merchant-operations/**는 조회 키와 kid·값이 다른 조작 키로만 허용",
+      "alternative": "조회 키 하나로: 기존 ADMIN_SERVICE 키로 명령도 받음(조회 키 유출 시 등록·개통까지 가능)",
+      "impact": "MASTER AdminChannelSettings/Filter/SecurityConfiguration 권한 구성, ADMIN MasterOpsSettings 키 수, Demo/운영 키 배포",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 범위 조사(Coordinator)",
+      "humanAnswer": "조회 키 하나로",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-005"
+    },
+    {
+      "id": "Q-MOPS-10",
+      "status": "ANSWERED",
+      "question": "B1 가맹점 등록(1인) 화면을 쓸 수 있는 역할",
+      "recommended": "OPERATOR만(만드는 사람과 승인하는 사람 분리)",
+      "alternative": "OPERATOR와 APPROVER",
+      "impact": "ADMIN 권한 검사·메뉴 노출",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "OPERATOR만 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-11",
+      "status": "ANSWERED",
+      "question": "1인 등록 명령의 ADMIN 감사 방식",
+      "recommended": "MASTER 호출 전 시도 감사 + 결과 감사(ADMIN 명령 테이블 없음, MASTER 요청키 멱등)",
+      "alternative": "결과만 감사 / ADMIN 명령 테이블 추가",
+      "impact": "응답 유실 시 감사 흔적, ADMIN migration 유무",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "보내기 전·후 두 번 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-12",
+      "status": "ANSWERED",
+      "question": "이미 등록된 사업자등록번호로 사업자 등록 시 표시",
+      "recommended": "기존 businessId 표시 + 등록번호 검색처럼 감사·횟수 제한",
+      "alternative": "중복이라고만 표시(ID 비노출)",
+      "impact": "등록 명령이 번호→ID 조회 수단이 되는지",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "중복이라고만 표시",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-13",
+      "status": "ANSWERED",
+      "question": "사업자등록번호가 오간 등록 시도의 감사·횟수 제한 범위",
+      "recommended": "성공·중복·403·형식 오류 모두 감사(앞 3자리 마스킹, 형식 오류 brn=INVALID), 중복 결과는 등록번호 검색 횟수 제한에 포함",
+      "alternative": "MASTER까지 간 시도만 감사, 제한 없음",
+      "impact": "존재 여부 노출 통제",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "모든 시도 감사 + 제한 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-14",
+      "status": "ANSWERED",
+      "question": "계약 초안 효력 시작일의 과거(KST 오늘 이전) 허용 여부",
+      "recommended": "거절(MASTER 새 거절 코드)",
+      "alternative": "허용",
+      "impact": "소급 적용 방지, MASTER 도메인 규칙 추가",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "과거 날짜 거절 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-15",
+      "status": "ANSWERED",
+      "question": "같은 사업자 아래 같은 이름 가맹점 중복 등록 차단 여부",
+      "recommended": "막지 않음(중복 클릭은 같은 요청키 재전송으로 방지)",
+      "alternative": "같은 사업자 안에서 이름 고유",
+      "impact": "MASTER 규칙·DB 제약",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-08",
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": "막지 않음 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
+      "appliedSpec": "D-MOPS-006"
+    },
+    {
+      "id": "Q-MOPS-16",
+      "status": "PENDING",
+      "question": "(B2 전) 2인 승인 근거를 MASTER가 저장하고 요청자≠승인자를 MASTER도 재확인할지",
+      "recommended": "MASTER가 승인 근거 저장·재확인",
+      "alternative": "ADMIN 승인만 신뢰",
+      "impact": "approveContractRevision 등 2인 명령의 소유 서비스 방어",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": null,
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-MOPS-17",
+      "status": "PENDING",
+      "question": "(B3~B5 전) D-MOPS-004에 없는 명령의 1인/2인 구분",
+      "recommended": "UNDER_REVIEW로 남는 등록·사이트 심사 REJECTED·한도 하향은 1인, 재개·한도 종료·정산 정책 배정·배정 종료는 2인",
+      "alternative": "모두 2인",
+      "impact": "B3~B5 승인 흐름",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": null,
+      "origin": "MERCHANT-OPS-002 명세 rev 0.1",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-MOPS-18",
+      "status": "PENDING",
+      "question": "(B2 전) 계약 Revision 등록에도 효력 시작일 과거 거절(CONTRACT_START_RETROACTIVE)을 적용할지",
+      "recommended": "적용(D-MOPS-006 ⑤와 같은 소급 방지)",
+      "alternative": "첫 계약에만 적용",
+      "impact": "registerContractRevision 도메인 규칙·B2 화면",
+      "dependentTasks": [
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": null,
+      "origin": "MERCHANT-OPS-002 명세 rev 0.2",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
       "id": "Q-TXOPS-01",
       "status": "ANSWERED",
       "question": "관리자 거래 목록 검색 조건",

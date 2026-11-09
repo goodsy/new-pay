@@ -26,6 +26,12 @@ object AdminChannelResponses {
     const val TEMPORARILY_UNAVAILABLE = "TEMPORARILY_UNAVAILABLE"
     const val ADMIN_READ_BUSY = "ADMIN_READ_BUSY"
 
+    // MERCHANT-OPS-002 §3.3 명령 응답 code(요청 값 없음).
+    const val ADMIN_WRITE_BUSY = "ADMIN_WRITE_BUSY"
+    const val IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
+    const val REQUEST_IN_PROGRESS = "REQUEST_IN_PROGRESS"
+    const val OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
+
     private const val REQUEST_ID_ATTRIBUTE = "paycore.master.admin.requestId"
     private val mapper: JsonMapper = JsonMapper.builder().build()
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)

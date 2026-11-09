@@ -9,6 +9,9 @@ import com.paycore.admin.merchantops.adapter.integration.MasterOpsConfiguration
 import com.paycore.admin.merchantops.adapter.integration.MasterOpsSettings
 import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 import com.paycore.admin.merchantops.application.required.MasterCallResult
+import com.paycore.admin.merchantops.application.required.MasterCommand
+import com.paycore.admin.merchantops.application.required.MasterCommandKind
+import com.paycore.admin.merchantops.application.required.MasterCommandResult
 import com.paycore.admin.paymentops.adapter.integration.AdminCallSigner
 import com.paycore.admin.paymentops.adapter.integration.HttpPaymentOpsGateway
 import com.paycore.admin.paymentops.adapter.integration.PaymentOpsSettings
@@ -42,8 +45,8 @@ class MasterOpsGatewaySpec : BehaviorSpec({
     StubPaymentOpsServer.start()
     val json = JsonMapper.builder().build()
 
-    fun settings(baseUrl: String = "http://127.0.0.1:${StubMasterOpsServer.PORT}", permits: Int = 2, read: Duration = Duration.ofSeconds(2)) = MasterOpsSettings(
-        baseUrl, StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30, 10,
+    fun settings(baseUrl: String = "http://127.0.0.1:${StubMasterOpsServer.PORT}", permits: Int = 2, read: Duration = Duration.ofSeconds(2), writePermits: Int = 2) = MasterOpsSettings(
+        baseUrl, StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30, 10, writePermits, 20,
     )
 
     fun gateway(s: MasterOpsSettings = settings()) = HttpMasterOpsGateway(s, MasterCallSigner(s.keyId, s.signingKey())) { Instant.now() }
@@ -176,6 +179,186 @@ class MasterOpsGatewaySpec : BehaviorSpec({
         }
     }
 
+    Given("MERCHANT-OPS-002 §4.1 registration commands (B1-1)") {
+        fun command(kind: MasterCommandKind = MasterCommandKind.REGISTER_BUSINESS, sub: String = java.util.UUID.randomUUID().toString().replace("-", "")) = MasterCommand(
+            kind, "mo1.01JC00000000000000000000V1.$sub", "admin:adm_01JC00000000000000000000V1", "mos.$sub",
+            when (kind) {
+                MasterCommandKind.REGISTER_BUSINESS -> mapOf("registrationNumber" to "7781234560", "displayName" to "시험 사업자")
+                MasterCommandKind.REGISTER_MERCHANT -> mapOf("businessId" to "biz_01JC0000000000000000000001", "displayName" to "시험 가맹점")
+                MasterCommandKind.REGISTER_MERCHANT_SITE -> mapOf("merchantId" to "mer_01JC0000000000000000000001", "channelType" to "WEB", "channelIdentifier" to "demo-shop2.paycore.test")
+                MasterCommandKind.REGISTER_CONTRACT -> mapOf(
+                    "partyBusinessId" to "biz_01JC0000000000000000000001", "scopeMerchantId" to "mer_01JC0000000000000000000001",
+                    "scopeSiteIds" to listOf("site_01JC0000000000000000000001"), "effectiveFrom" to "2026-11-08T15:00:00.000Z",
+                )
+                MasterCommandKind.ADD_SERVICE_AGREEMENT -> mapOf("contractId" to "ctr_01JC0000000000000000000001", "serviceKind" to "CARD_PG_PAYMENT")
+            },
+        )
+        fun lastBody(path: String) = String(StubMasterOpsServer.requestsForPath(path).last().body, Charsets.UTF_8)
+
+        Then("the signed POST body carries the common fields then the command fields in order; the stub verifies the signature independently; the write path signature is reproduced byte-for-byte") {
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("mer_01JC0000000000000000000009")))
+            val c = command(MasterCommandKind.REGISTER_MERCHANT, sub = "0123456789abcdef0123456789abcdef")
+            gateway().command(c) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "mer_01JC0000000000000000000009", false)
+            val req = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).last()
+            listOf(req.method, req.query, req.signatureValid) shouldBe listOf("POST", null, true)
+            lastBody(StubMasterOpsServer.MERCHANTS) shouldBe """{"idempotencyKey":"mo1.01JC00000000000000000000V1.0123456789abcdef0123456789abcdef",""" +
+                """"actor":"admin:adm_01JC00000000000000000000V1","correlationId":"mos.0123456789abcdef0123456789abcdef","businessId":"biz_01JC0000000000000000000001","displayName":"시험 가맹점"}"""
+            // C-9: golden 파일은 바꾸지 않는다 — 쓰기 경로 사례는 앱 시험에서 독립 HMAC(javax.crypto 직접)과 대조한다.
+            val body = req.body
+            val t = 1_767_000_000L
+            val expectedCanonical = listOf("paycore.admin-call.v1", "POST", StubMasterOpsServer.MERCHANTS, t.toString(),
+                java.security.MessageDigest.getInstance("SHA-256").digest(body).joinToString("") { "%02x".format(it) }).joinToString("\n")
+            val mac = javax.crypto.Mac.getInstance("HmacSHA256").apply { init(javax.crypto.spec.SecretKeySpec(java.util.Base64.getDecoder().decode(StubMasterOpsServer.KEY_BASE64), "HmacSHA256")) }
+            val expected = "t=$t,kid=${StubMasterOpsServer.KEY_ID},v1=" + mac.doFinal(expectedCanonical.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+            MasterCallSigner(StubMasterOpsServer.KEY_ID, java.util.Base64.getDecoder().decode(StubMasterOpsServer.KEY_BASE64)).header("POST", StubMasterOpsServer.MERCHANTS, t, body) shouldBe expected
+        }
+        Then("200 shapes are fail-closed: a rejection carrying a reference (C-12), unknown fields, wrong types or an unknown outcome are Unknown(RESPONSE_UNREADABLE)") {
+            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("BUSINESS_REGISTRATION_NUMBER_DUPLICATE", replayed = true)))
+            gateway().command(command()) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", null, true)
+            listOf(
+                """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","reference":"biz_01JC0000000000000000000001","replayed":false}""",
+                """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","reference":null,"replayed":false}""",
+                """{"outcome":"SUCCEEDED","reference":"biz_01JC0000000000000000000001","replayed":false,"extra":1}""",
+                """{"outcome":"SUCCEEDED","reference":"biz_01JC0000000000000000000001","replayed":"false"}""",
+                """{"outcome":"SUCCEEDED","reference":"not an id","replayed":false}""",
+                """{"outcome":"SUCCEEDED","replayed":false}""",
+                """{"outcome":"MAYBE","replayed":false}""",
+                """[]""", "", "not json",
+            ).forEach { reply ->
+                StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, reply))
+                io.kotest.assertions.withClue(reply) { gateway().command(command()) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
+            }
+            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001") + " ".repeat(MasterOpsSettings.COMMAND_RESPONSE_MAX_BYTES)))
+            gateway().command(command()) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE")
+        }
+        Then("B1-2: the contract body carries scopeSiteIds as a JSON array and omits an absent effectiveTo; the agreement body is two strings; both are signed and verified") {
+            StubMasterOpsServer.reply(StubMasterOpsServer.CONTRACTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("ctr_01JC0000000000000000000009")))
+            val sub = "0123456789abcdef0123456789abcdef"
+            gateway().command(command(MasterCommandKind.REGISTER_CONTRACT, sub)) shouldBe
+                MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "ctr_01JC0000000000000000000009", false)
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.CONTRACTS).last().signatureValid shouldBe true
+            lastBody(StubMasterOpsServer.CONTRACTS) shouldBe """{"idempotencyKey":"mo1.01JC00000000000000000000V1.$sub","actor":"admin:adm_01JC00000000000000000000V1",""" +
+                """"correlationId":"mos.$sub","partyBusinessId":"biz_01JC0000000000000000000001","scopeMerchantId":"mer_01JC0000000000000000000001",""" +
+                """"scopeSiteIds":["site_01JC0000000000000000000001"],"effectiveFrom":"2026-11-08T15:00:00.000Z"}"""
+            val withEnd = MasterCommand(
+                MasterCommandKind.REGISTER_CONTRACT, "mo1.01JC00000000000000000000V1.$sub", "admin:adm_01JC00000000000000000000V1", "mos.$sub",
+                mapOf(
+                    "partyBusinessId" to "biz_01JC0000000000000000000001", "scopeMerchantId" to "mer_01JC0000000000000000000001", "scopeSiteIds" to emptyList<String>(),
+                    "effectiveFrom" to "2026-11-08T15:00:00.000Z", "effectiveTo" to "2026-12-31T15:00:00.000Z",
+                ),
+            )
+            gateway().command(withEnd).shouldBeInstanceOf<MasterCommandResult.Decided>()
+            lastBody(StubMasterOpsServer.CONTRACTS) shouldContain """"scopeSiteIds":[],"effectiveFrom":"2026-11-08T15:00:00.000Z","effectiveTo":"2026-12-31T15:00:00.000Z"}"""
+            StubMasterOpsServer.reply(StubMasterOpsServer.AGREEMENTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("SERVICE_KIND_DUPLICATE")))
+            gateway().command(command(MasterCommandKind.ADD_SERVICE_AGREEMENT)) shouldBe
+                MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "SERVICE_KIND_DUPLICATE", null, false)
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.AGREEMENTS).last().signatureValid shouldBe true
+            // 명령 필드 계약: 모르는 필드·빠진 필수 필드·문자열/문자열 배열 아닌 값은 만들 수 없다.
+            listOf(
+                mapOf("contractId" to "ctr_01JC0000000000000000000001"),
+                mapOf("contractId" to "ctr_01JC0000000000000000000001", "serviceKind" to "CARD_PG_PAYMENT", "extra" to "x"),
+                mapOf("contractId" to listOf("ctr_01JC0000000000000000000001"), "serviceKind" to "CARD_PG_PAYMENT"),
+                mapOf("contractId" to 1, "serviceKind" to "CARD_PG_PAYMENT"),
+            ).forEach { fields ->
+                io.kotest.assertions.withClue(fields) {
+                    shouldThrow<IllegalArgumentException> { MasterCommand(MasterCommandKind.ADD_SERVICE_AGREEMENT, "k", "admin:a", "c", fields) }
+                }
+            }
+        }
+        Then("review n-3: a SUCCEEDED reference must carry the prefix of the command kind (business→biz_, merchant→mer_, site→site_, contract→ctr_, agreement→csa_); any other prefix is Unknown(RESPONSE_UNREADABLE)") {
+            val paths = mapOf(
+                MasterCommandKind.REGISTER_BUSINESS to StubMasterOpsServer.BUSINESSES,
+                MasterCommandKind.REGISTER_MERCHANT to StubMasterOpsServer.MERCHANTS,
+                MasterCommandKind.REGISTER_MERCHANT_SITE to StubMasterOpsServer.SITES,
+                MasterCommandKind.REGISTER_CONTRACT to StubMasterOpsServer.CONTRACTS,
+                MasterCommandKind.ADD_SERVICE_AGREEMENT to StubMasterOpsServer.AGREEMENTS,
+            )
+            val own = mapOf(
+                MasterCommandKind.REGISTER_BUSINESS to "biz_01JC0000000000000000000001",
+                MasterCommandKind.REGISTER_MERCHANT to "mer_01JC0000000000000000000001",
+                MasterCommandKind.REGISTER_MERCHANT_SITE to "site_01JC0000000000000000000001",
+                MasterCommandKind.REGISTER_CONTRACT to "ctr_01JC0000000000000000000001",
+                MasterCommandKind.ADD_SERVICE_AGREEMENT to "csa_01JC0000000000000000000001",
+            )
+            paths.forEach { (kind, path) ->
+                StubMasterOpsServer.reply(path, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(own.getValue(kind))))
+                gateway().command(command(kind)) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, own.getValue(kind), false)
+                (own.filterKeys { it != kind }.values + "mst_01JC0000000000000000000001").forEach { foreign ->
+                    StubMasterOpsServer.reply(path, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(foreign)))
+                    io.kotest.assertions.withClue("$kind $foreign") { gateway().command(command(kind)) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
+                }
+            }
+        }
+        Then("409 and 503 codes are classified; other statuses, a read timeout and a refused connection are Unknown (no effect assumed)") {
+            listOf(
+                StubMasterOpsServer.Reply(409, """{"error":"IDEMPOTENCY_KEY_REUSED"}""") to MasterCommandResult.KeyReused,
+                StubMasterOpsServer.Reply(409, """{"error":"OTHER"}""") to MasterCommandResult.Unknown("HTTP_409"),
+                StubMasterOpsServer.Reply(503, """{"error":"ADMIN_WRITE_BUSY"}""") to MasterCommandResult.Busy("ADMIN_WRITE_BUSY"),
+                StubMasterOpsServer.Reply(503, """{"error":"REQUEST_IN_PROGRESS"}""") to MasterCommandResult.RetrySameKey("REQUEST_IN_PROGRESS"),
+                StubMasterOpsServer.Reply(503, """{"error":"OUTCOME_UNKNOWN"}""") to MasterCommandResult.RetrySameKey("OUTCOME_UNKNOWN"),
+                StubMasterOpsServer.Reply(503, """{"error":"TEMPORARILY_UNAVAILABLE"}""") to MasterCommandResult.RetrySameKey("TEMPORARILY_UNAVAILABLE"),
+                StubMasterOpsServer.Reply(503, """{"error":"ADMIN_READ_BUSY"}""") to MasterCommandResult.Unknown("HTTP_503"),
+                StubMasterOpsServer.Reply(400, """{"error":"REQUEST_MALFORMED"}""") to MasterCommandResult.Unknown("HTTP_400"),
+                StubMasterOpsServer.Reply(401, """{"error":"UNAUTHENTICATED"}""") to MasterCommandResult.Unknown("HTTP_401"),
+                StubMasterOpsServer.Reply(500, "") to MasterCommandResult.Unknown("HTTP_500"),
+            ).forEach { (reply, expected) ->
+                StubMasterOpsServer.reply(StubMasterOpsServer.SITES, reply)
+                io.kotest.assertions.withClue("${reply.status} ${reply.body}") { gateway().command(command(MasterCommandKind.REGISTER_MERCHANT_SITE)) shouldBe expected }
+            }
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("site_01JC0000000000000000000001"), delayMillis = 1_000))
+            gateway(settings(read = Duration.ofMillis(200))).command(command(MasterCommandKind.REGISTER_MERCHANT_SITE)) shouldBe MasterCommandResult.Unknown("TIMEOUT")
+            gateway(settings(baseUrl = "http://127.0.0.1:9")).command(command(MasterCommandKind.REGISTER_MERCHANT_SITE)) shouldBe MasterCommandResult.Unknown("CONNECT_FAILED")
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("site_01JC0000000000000000000001")))
+            gateway().command(command(MasterCommandKind.REGISTER_MERCHANT_SITE)).shouldBeInstanceOf<MasterCommandResult.Decided>().reference shouldBe "site_01JC0000000000000000000001"
+        }
+        Then("inside a DB transaction the command is refused before any HTTP call; logs never carry the MASTER key, the number, the channel identifier or the signature") {
+            val c = command()
+            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size
+            TransactionSynchronizationManager.setActualTransactionActive(true)
+            try {
+                shouldThrow<IllegalStateException> { gateway().command(c) }
+            } finally {
+                TransactionSynchronizationManager.setActualTransactionActive(false)
+            }
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size shouldBe before
+            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001")))
+            val site = command(MasterCommandKind.REGISTER_MERCHANT_SITE)
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("SITE_CHANNEL_DUPLICATE")))
+            val lines = captureLogs {
+                gateway().command(c).shouldBeInstanceOf<MasterCommandResult.Decided>()
+                gateway().command(site).shouldBeInstanceOf<MasterCommandResult.Decided>()
+            }
+            lines.count { "operation=master-ops-command-" in it } shouldBe 2
+            val signatures = StubMasterOpsServer.received.takeLast(2).mapNotNull { it.signature }
+            (listOf(c.idempotencyKey, site.idempotencyKey, "7781234560", "demo-shop2.paycore.test", StubMasterOpsServer.KEY_BASE64) + signatures).forEach { s -> lines.filter { s in it }.shouldBeEmpty() }
+            c.toString() shouldNotContain c.idempotencyKey
+            c.toString() shouldNotContain "7781234560"
+        }
+        Then("C-1: the write permit is separate from the lookup permit — a held lookup permit does not block a command, a held write permit answers Busy at once without calling MASTER") {
+            val slow = merchantId()
+            StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(slow), StubMasterOpsServer.Reply(200, StubMasterOpsServer.detailJson(slow), delayMillis = 1_200))
+            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001")))
+            val g = gateway(settings(permits = 1, writePermits = 1))
+            val lookup = CompletableFuture.supplyAsync { g.detail(slow) }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (StubMasterOpsServer.requestsForPath(StubMasterOpsServer.merchantPath(slow)).isEmpty() && System.nanoTime() < deadline) Thread.sleep(20)
+            g.detail(merchantId()) shouldBe MasterCallResult.Unavailable("MASTER_OPS_BUSY")
+            g.command(command()).shouldBeInstanceOf<MasterCommandResult.Decided>()
+            lookup.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<MasterCallResult.Found>()
+
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("mer_01JC0000000000000000000001"), delayMillis = 1_200))
+            val holder = CompletableFuture.supplyAsync { g.command(command(MasterCommandKind.REGISTER_MERCHANT)) }
+            val deadline2 = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            val merchantsBefore = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size
+            while (StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size == merchantsBefore && System.nanoTime() < deadline2) Thread.sleep(20)
+            val businessesBefore = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size
+            g.command(command()) shouldBe MasterCommandResult.Busy("MASTER_OPS_BUSY")
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size shouldBe businessesBefore
+            g.detail(merchantId()) shouldBe MasterCallResult.NotFound
+            holder.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<MasterCommandResult.Decided>()
+        }
+    }
+
     Given("transaction and permit rules") {
         Then("calling inside an active DB transaction is refused before any HTTP call") {
             val id = merchantId()
@@ -211,11 +394,20 @@ class MasterOpsGatewaySpec : BehaviorSpec({
     }
 
     Given("settings and startup guard") {
+        Then("MERCHANT-OPS-002: write-permits and registrations-per-minute have no default and are range-checked") {
+            fun s(write: Int?, regs: Int?) = MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, write, regs)
+            shouldThrow<IllegalArgumentException> { s(null, 1) }
+            shouldThrow<IllegalArgumentException> { s(1, null) }
+            shouldThrow<IllegalArgumentException> { s(0, 1) }
+            shouldThrow<IllegalArgumentException> { s(17, 1) }
+            shouldThrow<IllegalArgumentException> { s(1, 0) }
+            s(16, 10_000).writePermits shouldBe 16
+        }
         Then("no defaults; base-url without path; key length; rates in range; toString hides the key") {
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings(null, "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h/x", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", "c2hvcnQ=", Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 0) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings(null, "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h/x", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", "c2hvcnQ=", Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 0, 1, 1) }
             settings().toString() shouldNotContain StubMasterOpsServer.KEY_BASE64
         }
         Then("a master-ops key equal to the payment-ops key (bytes or kid) is refused; LIVE refuses a Demo key; a context path is refused") {

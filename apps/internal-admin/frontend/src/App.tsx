@@ -6,6 +6,7 @@ import { MenuSearch } from './components/MenuSearch'
 import { WorkspaceHeader } from './components/WorkspaceHeader'
 import { Button } from './components/ui/button'
 import { labelOf } from './lib/labels'
+import { createScreenMemory } from './lib/screenMemory'
 import { cn } from './lib/utils'
 import type { ConsoleErrorCode } from './errors/errorCodes'
 import { AppLayout } from './layout/AppLayout'
@@ -17,6 +18,7 @@ import { AuditScreen } from './screens/AuditScreen'
 import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { MerchantRegistrationScreen } from './screens/MerchantRegistrationScreen'
 import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
@@ -82,11 +84,17 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const [mode, setMode] = useState<'login' | 'enroll'>('login')
   const [notice, setNotice] = useState<ConsoleErrorCode | undefined>(undefined)
   const [view, setView] = useState<View>('home')
+  // 가맹점 등록 화면 상태(결과 불명 잠금·submissionId·입력) — 탭을 바꿔도 유지, 메모리에만(MERCHANT-OPS-002 §5.3, 리뷰 m-1). 세션마다 새로.
+  const [registrationMemory, setRegistrationMemory] = useState(createScreenMemory)
+  // "가맹점 조회에서 보기"로 열 가맹점 — 조회 화면이 한 번 열면 비운다(리뷰 m-3).
+  const [lookupMerchantId, setLookupMerchantId] = useState<string | null>(null)
 
   const signedIn = useCallback((account: Me) => {
     setMe(account)
     setNotice(undefined)
     setView('home')
+    setRegistrationMemory(createScreenMemory())
+    setLookupMerchantId(null)
   }, [])
 
   useEffect(() => {
@@ -101,6 +109,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setMe(null)
     setMode('login')
     setNotice(code)
+    setRegistrationMemory(createScreenMemory())
+    setLookupMerchantId(null)
   }, [])
 
   const logout = async () => {
@@ -109,6 +119,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     } finally {
       setMe(null)
       setMode('login')
+      setRegistrationMemory(createScreenMemory())
+      setLookupMerchantId(null)
     }
   }
 
@@ -171,7 +183,24 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'merchants' && (
-              <MerchantsScreen api={api} canSearchRegistrationNumber={me.roles.includes('OPERATOR') || me.roles.includes('APPROVER')} onSessionEnded={sessionEnded} />
+              <MerchantsScreen
+                api={api}
+                canSearchRegistrationNumber={me.roles.includes('OPERATOR') || me.roles.includes('APPROVER')}
+                onSessionEnded={sessionEnded}
+                openMerchantId={lookupMerchantId}
+                onOpenedMerchant={() => setLookupMerchantId(null)}
+              />
+            )}
+            {page === 'merchantRegistration' && (
+              <MerchantRegistrationScreen
+                api={api}
+                memory={registrationMemory}
+                onOpenLookup={(merchantId) => {
+                  setLookupMerchantId(merchantId)
+                  open('merchants')
+                }}
+                onSessionEnded={sessionEnded}
+              />
             )}
             {page === 'paymentOps' && <PaymentOpsScreen api={api} canRequest={me.roles.includes('OPERATOR')} onSessionEnded={sessionEnded} />}
             {page === 'transactions' && <TransactionsScreen api={api} onSessionEnded={sessionEnded} />}

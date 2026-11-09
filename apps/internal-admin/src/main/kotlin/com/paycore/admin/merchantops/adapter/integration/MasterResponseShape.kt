@@ -1,5 +1,6 @@
 package com.paycore.admin.merchantops.adapter.integration
 
+import com.paycore.admin.merchantops.application.required.MasterCommandKind
 import tools.jackson.databind.JsonNode
 
 /**
@@ -95,6 +96,26 @@ internal sealed interface MasterResponseShape {
             ),
             "nextCursor" to opt(Whole(1)),
         )
+
+        /**
+         * MERCHANT-OPS-002 §3.3 명령 성공(저장된 판정). `reference`는 **명령 종류의 접두사**여야 한다(사업자 `biz_`·가맹점 `mer_`·Site `site_`·계약 `ctr_`·CSA `csa_` — 리뷰 n-3):
+         * 다른 종류의 ID가 오면 다른 모양 위반과 같이 해석 불가(Unknown)로 둔다.
+         */
+        fun commandSucceeded(kind: MasterCommandKind): MasterResponseShape = COMMAND_SUCCEEDED.getValue(kind)
+
+        private val COMMAND_SUCCEEDED: Map<MasterCommandKind, MasterResponseShape> = MasterCommandKind.entries.associateWith { kind ->
+            val prefix = when (kind) {
+                MasterCommandKind.REGISTER_BUSINESS -> "biz"
+                MasterCommandKind.REGISTER_MERCHANT -> "mer"
+                MasterCommandKind.REGISTER_MERCHANT_SITE -> "site"
+                MasterCommandKind.REGISTER_CONTRACT -> "ctr"
+                MasterCommandKind.ADD_SERVICE_AGREEMENT -> "csa"
+            }
+            obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to Text(Regex("^${prefix}_$ULID$")), "replayed" to Flag)
+        }
+
+        /** 명령 업무 거절 — **`reference` 키 없음**(C-12: 오면 키 집합이 달라 해석 불가). */
+        val COMMAND_REJECTED: MasterResponseShape = obj("outcome" to Text(Regex("^REJECTED$")), "rejection" to Text(Regex("^[A-Z][A-Z0-9_]{0,47}$")), "replayed" to Flag)
 
         val DETAIL: MasterResponseShape = obj(
             "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME),

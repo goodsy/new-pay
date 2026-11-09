@@ -48,10 +48,10 @@ data class AdminAuditEvent(
     private companion object {
         val CODE = Regex("^[A-Z][A-Z0-9_]{0,47}$")
         /**
-         * 대상 참조: 접두사 3자 + ULID(paymentId 등), 또는 (ACQ-VIEW-001 I-15) 매입 파일 ID(파일 계약 v1 `ACQ.{매입사}.{환경}.{yyyyMMdd}.{vvv}` — 54자 이하, 열 VARCHAR(64)).
+         * 대상 참조: 접두사 3~4자 + ULID(paymentId 등 — 4자는 MERCHANT-OPS-002 C-6 `site_`), 또는 (ACQ-VIEW-001 I-15) 매입 파일 ID(파일 계약 v1 `ACQ.{매입사}.{환경}.{yyyyMMdd}.{vvv}` — 54자 이하, 열 VARCHAR(64)).
          * 둘 다 고정 문법 식별자라 자유 문구가 감사 행에 들어가지 않는다.
          */
-        val TARGET_REF = Regex("^([a-z]{3}_[0-9A-HJKMNP-TV-Z]{26}|ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3})$")
+        val TARGET_REF = Regex("^([a-z]{3,4}_[0-9A-HJKMNP-TV-Z]{26}|ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3})$")
         val DETAIL = Regex("^[a-z][a-zA-Z0-9]*=[A-Za-z0-9_:.,*-]*(;[a-z][a-zA-Z0-9]*=[A-Za-z0-9_:.,*-]*)*$")
         const val HMAC_BYTES = 32
         const val DETAIL_MAX = 500
