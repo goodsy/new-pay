@@ -4,6 +4,7 @@ import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.approval.application.provided.AcquiringDetailView
 import com.paycore.admin.approval.application.provided.ApprovalQuery
 import com.paycore.admin.approval.application.provided.ApprovalView
+import com.paycore.admin.approval.application.provided.MerchantOpsDetailView
 import com.paycore.admin.approval.application.provided.OwnerDetailView
 import com.paycore.admin.approval.application.required.ApprovalListFilter
 import com.paycore.admin.approval.application.required.ApprovalRequestListReader
@@ -45,6 +46,12 @@ class ApprovalQueryService(private val sessions: AdminSessionQuery, private val 
             AcquiringDetailView(
                 a.originalFileId, a.reasonCode, a.pinnedTarget, a.approvedAt, a.executeBefore, a.attemptCount, a.nextAttemptAt, a.lastResponseAt, a.lastFailure,
                 a.integrityFlag, a.resendHaltedReason, a.ownerResultCode, a.ownerReference,
+            )
+        },
+        r.merchant?.let { m ->
+            MerchantOpsDetailView(
+                m.commandKind, m.merchantId, m.pinnedTarget, m.approvedAt, m.executeBefore, m.attemptCount, m.nextAttemptAt, m.lastResponseAt, m.lastFailure,
+                m.integrityFlag, m.resendHaltedReason, m.ownerResultCode, m.ownerReference,
             )
         },
     )

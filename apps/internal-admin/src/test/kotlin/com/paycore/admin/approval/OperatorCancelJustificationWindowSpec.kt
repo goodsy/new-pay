@@ -44,6 +44,8 @@ class OperatorCancelJustificationWindowSpec : FunSpec({
         val service = OperatorCancelJustificationService(
             unused<PlatformTransactionManager>(), unused<AdminSessionQuery>(), unused<ApprovalRequestRepository>(), unused<OperatorCancelCommandStore>(),
             unused<AdminAuditRecorder>(), clock, metrics, unused<AcquiringOpsCommandStore>(),
+            // MERCHANT-OPS-002 B2-2: 가맹점 승인 명령 Store(이 시험은 쓰지 않는다 — 기대값 불변).
+            unused<com.paycore.admin.approval.application.required.MerchantOpsCommandStore>(),
         )
         val context = AdminRequestContext("corr-window", null)
         fun ask() = service.view("adm_viewer", "not-an-approval-id", context)

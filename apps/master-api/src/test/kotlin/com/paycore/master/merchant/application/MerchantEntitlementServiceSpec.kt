@@ -234,7 +234,7 @@ class MerchantEntitlementServiceSpec(
                 ),
             )
             val before = revisionOf(container, entitled.merchantId)
-            succeeded(onboarding.approveContractRevision(ApproveContractRevisionCommand(request(), entitled.ready.contractId, 2)))
+            succeeded(onboarding.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), entitled.ready.contractId, 2))) // D-MOPS-008 ②: seed 경로 행위자
             revisionOf(container, entitled.merchantId) shouldBe before + 1
             account(latestSnapshot(container, entitled.merchantId)).get("contractWindows")
                 .associate { it.get("siteId").stringValue() to (it.get("from").stringValue() to it.get("to").let { to -> if (to.isNull) null else to.stringValue() }) } shouldBe

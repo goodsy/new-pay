@@ -4,10 +4,15 @@ import com.paycore.master.merchant.application.provided.AdminCommandFailure
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.AdminOperation
 import com.paycore.master.merchant.application.provided.AdminRequest
+import com.paycore.master.merchant.application.provided.ApprovalDecidedVia
+import com.paycore.master.merchant.application.provided.ApprovalOutcome
+import com.paycore.master.merchant.application.provided.DeadlineConfirmationResult
 import com.paycore.master.merchant.application.required.AdminRequestScope
 import com.paycore.master.merchant.application.required.AdminRequestStore
 import com.paycore.master.merchant.application.required.AdminReservation
 import com.paycore.master.merchant.application.required.AdminReservationOutcome
+import com.paycore.master.merchant.application.required.ApprovalEvidenceRecord
+import com.paycore.master.merchant.application.required.ApprovalEvidenceStore
 import com.paycore.master.merchant.application.required.ChangeRecord
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterIdGenerator
@@ -17,6 +22,9 @@ import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.StoreConstraint
 import com.paycore.master.merchant.application.required.StoredAdminResult
+import com.paycore.master.merchant.domain.ApprovalEvidence
+import com.paycore.master.merchant.domain.ApprovalWindow
+import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MasterRuleViolation
 import com.paycore.master.merchant.domain.Merchant
 import com.paycore.master.merchant.application.required.MasterClock
@@ -53,6 +61,12 @@ import java.util.HexFormat
  *
  * 권리 Snapshot(MASTER-SNAPSHOT-001 §4.6): 권리 입력을 바꾼 본문은 쓰기 단계에서 [Work.publishEntitlement]로 같은 TX에 Snapshot 발행
  * (issue + Outbox)을 남긴다. 조립은 같은 TX의 JPA 읽기다(변경과 Snapshot이 원자적 — 두 번째 hop 없음).
+ *
+ * **승인 근거 명령**(MERCHANT-OPS-002 §9.3·§9.4 — [executeApproved]·[confirmDeadline], operation 매개변수형: B2-2 계약 승인, B2-3 첫 MID가 같은 틀). 기존 [execute](B1·seed 경로)는
+ * 바뀌지 않는다. 한 로컬 TX 안의 순서: 멱등 예약(재생/409는 [execute]와 같음) → 판정 1·2 [ApprovalEvidence.admit](예약 시각) → 판정 3 approvalId 근거 행 존재(잠금 없는 조회)
+ * → 업무 본문. 본문의 [Work.lockedNow]가 시각을 읽은 **직후** 판정 4(만료) 훅이 돈다(본문이 빠뜨릴 수 없게 — m-4). 근거 모드에서 [Work.lockedNow] 없이 [Work.beginWrites]는 결함
+ * (IllegalState → rollback). 성공은 쓰기 단계에서 EXECUTED 근거 행, 저장되는 거절(판정 3 제외)은 같은 TX에 REJECTED 근거 행을 쓴 뒤 `admin_request` 결과를 완료한다(불변식 n-a).
+ * 근거 행 PK 충돌은 Store가 flush 시점에 `StoreConstraint.APPROVAL_EVIDENCE`(업무 유일키)로 번역 → 새 TX 재판정에서 판정 3으로 수렴한다(m-1).
  */
 internal class AdminCommandExecutor(
     transactionManager: PlatformTransactionManager,
@@ -63,14 +77,63 @@ internal class AdminCommandExecutor(
     private val clock: MasterClock,
     private val metrics: MasterOperationalMetrics,
     private val publisher: EntitlementSnapshotPublisher,
+    private val evidences: ApprovalEvidenceStore? = null,
 ) {
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
     private val log = LoggerFactory.getLogger(AdminCommandExecutor::class.java)
 
     fun execute(operation: AdminOperation, request: AdminRequest, fingerprintFields: List<String?>, body: (Work) -> String): AdminCommandResult {
         val fingerprint = fingerprintOf(operation, fingerprintFields)
+        return classified(operation, request) { transactions.execute(::isRetryable) { once(operation, request, fingerprint, body) } }
+    }
+
+    /**
+     * 승인 근거 명령 실행(§9.3). [fingerprintFields]에는 명령 필드와 근거 필드 전부(approvalId·요청자·승인자·시각 2개·근거 참조·`mop1` 지문)가 들어가야 한다 —
+     * 같은 키·다른 근거는 [AdminCommandResult.IdempotencyKeyReused](409).
+     */
+    @Suppress("LongParameterList")
+    fun executeApproved(
+        operation: AdminOperation,
+        request: AdminRequest,
+        evidence: ApprovalEvidence,
+        window: ApprovalWindow,
+        fingerprintFields: List<String?>,
+        body: (Work) -> String,
+    ): AdminCommandResult {
+        val store = checkNotNull(evidences) { "approved commands need the approval evidence store" }
+        val fingerprint = fingerprintOf(operation, fingerprintFields)
+        return classified(operation, request) {
+            transactions.execute(::isRetryable) { onceApproved(store, operation, request, fingerprint, evidence, window, body) }
+        }
+    }
+
+    /**
+     * 기한 확인 전용(§9.4 — 실행과 같은 operation·키·지문으로 예약, **업무 본문 없음**). 결과가 있으면 재생, 판정 1·2 저장(근거 행 `DEADLINE_CONFIRM`), 판정 3 저장(근거 행 없음),
+     * MASTER 시각 < 기한이면 [DeadlineNotYetDue]로 TX 전체 rollback(예약 행도 남지 않음, 재시도 대상 아님 — m-c) 뒤 [DeadlineConfirmationResult.NotYetDue],
+     * 기한 이상이면 `APPROVAL_EXPIRED` 저장 + 근거 행(`DEADLINE_CONFIRM`).
+     */
+    fun confirmDeadline(
+        operation: AdminOperation,
+        request: AdminRequest,
+        evidence: ApprovalEvidence,
+        window: ApprovalWindow,
+        fingerprintFields: List<String?>,
+    ): DeadlineConfirmationResult {
+        val store = checkNotNull(evidences) { "deadline confirmation needs the approval evidence store" }
+        val fingerprint = fingerprintOf(operation, fingerprintFields)
         return try {
-            transactions.execute(::isRetryable) { once(operation, request, fingerprint, body) }
+            DeadlineConfirmationResult.Decided(
+                classified(operation, request) { transactions.execute(::isRetryable) { onceDeadline(store, operation, request, fingerprint, evidence, window) } },
+            )
+        } catch (_: DeadlineNotYetDue) {
+            DeadlineConfirmationResult.NotYetDue
+        }
+    }
+
+    /** TX 실행 결과의 기술 실패 분류([execute]와 근거 명령 공통 — 동작은 이전 [execute]와 같다). */
+    private fun <T> classified(operation: AdminOperation, request: AdminRequest, block: () -> T): T {
+        return try {
+            block()
         } catch (e: AdminCommandFailure) {
             throw e
         } catch (e: CommitOutcomeUnknownException) {
@@ -116,16 +179,7 @@ internal class AdminCommandExecutor(
         val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
         val scope = AdminRequestScope(operation, request.idempotencyKey)
         val recordId = ids.newUuid()
-        val reserved = try {
-            requests.reserveOrLock(AdminReservation(scope, recordId, fingerprint, request.actor, now))
-        } catch (e: PersistenceFailure.LockTimeout) {
-            throw AdminCommandFailure.RequestInProgress(e)
-        }
-        if (reserved is AdminReservationOutcome.Existing) {
-            val record = reserved.record
-            if (record.requestFingerprint != fingerprint) return AdminCommandResult.IdempotencyKeyReused
-            return present(checkNotNull(record.result) { "committed admin request has no result" }, replayed = true)
-        }
+        reserveOrReplay(scope, recordId, fingerprint, request, now)?.let { return it }
 
         val work = Work(operation, request, recordId)
         val result = try {
@@ -136,6 +190,115 @@ internal class AdminCommandExecutor(
         }
         requests.complete(scope, result, work.decidedAt ?: now)
         return present(result, replayed = false)
+    }
+
+    /** 멱등 기록 예약/잠금. 이미 커밋된 기록이면 재생(같은 fingerprint) 또는 키 재사용(다른 fingerprint) 결과, 새로 예약했으면 null. */
+    private fun reserveOrReplay(scope: AdminRequestScope, recordId: String, fingerprint: String, request: AdminRequest, now: Instant): AdminCommandResult? {
+        val reserved = try {
+            requests.reserveOrLock(AdminReservation(scope, recordId, fingerprint, request.actor, now))
+        } catch (e: PersistenceFailure.LockTimeout) {
+            throw AdminCommandFailure.RequestInProgress(e)
+        }
+        if (reserved !is AdminReservationOutcome.Existing) return null
+        val record = reserved.record
+        if (record.requestFingerprint != fingerprint) return AdminCommandResult.IdempotencyKeyReused
+        return present(checkNotNull(record.result) { "committed admin request has no result" }, replayed = true)
+    }
+
+    @Suppress("LongParameterList")
+    private fun onceApproved(
+        store: ApprovalEvidenceStore,
+        operation: AdminOperation,
+        request: AdminRequest,
+        fingerprint: String,
+        evidence: ApprovalEvidence,
+        window: ApprovalWindow,
+        body: (Work) -> String,
+    ): AdminCommandResult {
+        val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
+        val scope = AdminRequestScope(operation, request.idempotencyKey)
+        val recordId = ids.newUuid()
+        reserveOrReplay(scope, recordId, fingerprint, request, now)?.let { return it }
+
+        val work = Work(operation, request, recordId, evidence)
+        val result = try {
+            evidence.admit(now, window)
+            requireUnused(store, evidence)
+            val reference = body(work)
+            check(work.writing) { "an approved command body must decide and start writing before it succeeds" }
+            StoredAdminResult.Succeeded(reference).also {
+                store.record(evidenceRecord(evidence, operation, recordId, it, ApprovalDecidedVia.EXECUTE, work.now))
+            }
+        } catch (e: MasterRuleViolation) {
+            check(!work.writing) { "a business rule was violated after writes started (decide before writing)" }
+            warnIfAlerting(operation, request, e.rejection)
+            StoredAdminResult.Rejected(e.rejection, e.reference).also {
+                if (e.rejection != MasterRejection.APPROVAL_ID_ALREADY_USED) {
+                    store.record(evidenceRecord(evidence, operation, recordId, it, ApprovalDecidedVia.EXECUTE, work.decidedAt ?: now))
+                }
+            }
+        }
+        requests.complete(scope, result, work.decidedAt ?: now)
+        return present(result, replayed = false)
+    }
+
+    @Suppress("LongParameterList")
+    private fun onceDeadline(
+        store: ApprovalEvidenceStore,
+        operation: AdminOperation,
+        request: AdminRequest,
+        fingerprint: String,
+        evidence: ApprovalEvidence,
+        window: ApprovalWindow,
+    ): AdminCommandResult {
+        val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
+        val scope = AdminRequestScope(operation, request.idempotencyKey)
+        val recordId = ids.newUuid()
+        reserveOrReplay(scope, recordId, fingerprint, request, now)?.let { return it }
+
+        val rejection = try {
+            evidence.admit(now, window)
+            requireUnused(store, evidence)
+            if (!evidence.isDueAt(now)) throw DeadlineNotYetDue()
+            MasterRejection.APPROVAL_EXPIRED
+        } catch (e: MasterRuleViolation) {
+            e.rejection
+        }
+        warnIfAlerting(operation, request, rejection)
+        val result = StoredAdminResult.Rejected(rejection, null)
+        if (rejection != MasterRejection.APPROVAL_ID_ALREADY_USED) {
+            store.record(evidenceRecord(evidence, operation, recordId, result, ApprovalDecidedVia.DEADLINE_CONFIRM, now))
+        }
+        requests.complete(scope, result, now)
+        return present(result, replayed = false)
+    }
+
+    /**
+     * 판정 3(§9.3): 같은 approvalId의 근거 행이 이미 있으면(다른 operation — 같은 operation이면 같은 키라 예약 단계에서 재생) 1회 사용 위반. 잠금 없는 존재 조회
+     * (WARN은 [warnIfAlerting]이 남긴다).
+     */
+    private fun requireUnused(store: ApprovalEvidenceStore, evidence: ApprovalEvidence) {
+        if (store.find(evidence.approvalId) != null) throw MasterRuleViolation(MasterRejection.APPROVAL_ID_ALREADY_USED)
+    }
+
+    /** 경보 후보 거절(§9.8 Observability — 같은 행위자·1회 사용 위반·Revision 등록자 승인)은 WARN(연산·상관 ID·사유만 — 행위자·근거 참조 값 없음). */
+    private fun warnIfAlerting(operation: AdminOperation, request: AdminRequest, rejection: MasterRejection) {
+        if (rejection in ALERTING_REJECTIONS) {
+            log.warn("approval evidence rejected operation={} correlationId={} rejection={}", operation.code, request.correlationId, rejection)
+        }
+    }
+
+    private fun evidenceRecord(
+        evidence: ApprovalEvidence,
+        operation: AdminOperation,
+        requestRecordId: String,
+        result: StoredAdminResult,
+        via: ApprovalDecidedVia,
+        at: Instant,
+    ): ApprovalEvidenceRecord = when (result) {
+        is StoredAdminResult.Succeeded -> ApprovalEvidenceRecord(evidence, operation, requestRecordId, ApprovalOutcome.EXECUTED, null, result.reference, via, at)
+        // 근거 행 거절에는 reference를 두지 않는다(DB CHECK — 거절 근거 대상 ID는 admin_request에만).
+        is StoredAdminResult.Rejected -> ApprovalEvidenceRecord(evidence, operation, requestRecordId, ApprovalOutcome.REJECTED, result.rejection, null, via, at)
     }
 
     private fun present(result: StoredAdminResult, replayed: Boolean): AdminCommandResult = when (result) {
@@ -150,7 +313,12 @@ internal class AdminCommandExecutor(
     }
 
     /** 명령 한 번의 업무 본문 맥락: 시각·행위자·요청 기록 ID, 쓰기 단계 표시, 이력 + Outbox 기록. */
-    inner class Work(val operation: AdminOperation, val request: AdminRequest, val requestRecordId: String) {
+    inner class Work(
+        val operation: AdminOperation,
+        val request: AdminRequest,
+        val requestRecordId: String,
+        private val evidence: ApprovalEvidence? = null,
+    ) {
         var writing: Boolean = false
             private set
 
@@ -161,13 +329,18 @@ internal class AdminCommandExecutor(
         /**
          * 이 명령의 판정·저장 시각. 본문이 필요한 잠금을 **모두 잡은 뒤** 처음 부를 때 서버 시계를 읽고(ms 버림) 이후 같은 값을 돌려준다(review n-1).
          */
-        fun lockedNow(): Instant = decidedAt ?: clock.now().truncatedTo(ChronoUnit.MILLIS).also { decidedAt = it }
+        fun lockedNow(): Instant = decidedAt ?: clock.now().truncatedTo(ChronoUnit.MILLIS).also {
+            decidedAt = it
+            // 승인 근거 모드(§9.3 판정 4, m-4): 잠금 뒤 시각을 읽은 직후 만료 훅 — 본문은 이 훅을 직접 부르지 않는다.
+            evidence?.requireNotExpired(it)
+        }
 
         /** [lockedNow]로 정한 판정 시각. 잠금 전에 읽으면 결함이다. */
         val now: Instant get() = checkNotNull(decidedAt) { "read the decision time with lockedNow() after acquiring the locks" }
 
         /** domain 판정이 끝났다. 이후의 규칙 위반은 업무 거절이 아니라 결함이다. */
         fun beginWrites() {
+            check(evidence == null || decidedAt != null) { "an approved command must read lockedNow() (expiry check) before writing" }
             writing = true
         }
 
@@ -226,6 +399,11 @@ internal class AdminCommandExecutor(
         /** 서버가 만든 식별자(업무 입력이 아님)의 UNIQUE/PK. 충돌하면 사용자 충돌이 아니라 [AdminCommandFailure.IdentifierCollision]. */
         private val GENERATED_IDENTIFIERS = setOf(StoreConstraint.IDENTIFIER, StoreConstraint.OUTBOX_EVENT_ID)
 
+        /** 경보 후보 근거 거절(§9.3·§9.8). */
+        private val ALERTING_REJECTIONS = setOf(
+            MasterRejection.APPROVAL_SAME_ACTOR, MasterRejection.APPROVAL_ID_ALREADY_USED, MasterRejection.APPROVER_IS_REVISION_REGISTRANT,
+        )
+
         /**
          * 요청 fingerprint `m1:` + SHA-256(연산 코드와 필드의 길이 접두 canonical 연결). null 필드는 `~`, 값은 `<UTF-8 byte 길이>:<값>`.
          * 입력은 이미 domain 값 객체를 통과한 well-formed 문자열이다.
@@ -242,3 +420,9 @@ internal class AdminCommandExecutor(
         }
     }
 }
+
+/**
+ * 기한 확인 전용 신호(§9.4 ③, review m-c): MASTER 시각 < 실행 기한. [MasterRuleViolation]이 아니고(저장하지 않는다) 재시도 분류 대상도 아니다 — 실행기가 TX 전체를 rollback한 뒤
+ * [DeadlineConfirmationResult.NotYetDue]로 바꾼다(그 키 `admin_request` 0행). 스택 추적 없음 — 제어 흐름 전용.
+ */
+internal class DeadlineNotYetDue : RuntimeException("approval deadline not yet due", null, false, false)

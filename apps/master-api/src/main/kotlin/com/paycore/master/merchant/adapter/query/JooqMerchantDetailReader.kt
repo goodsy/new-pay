@@ -95,7 +95,7 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             .groupBy({ it.value1() to it.value2() }) { it.value3() }
         val revisions = dsl.select(
             CONTRACT_REVISION.CONTRACT_ID, CONTRACT_REVISION.REVISION_NO, CONTRACT_REVISION.SCOPE_KIND, MasterSqlText.instant(CONTRACT_REVISION.EFFECTIVE_FROM),
-            MasterSqlText.instant(CONTRACT_REVISION.EFFECTIVE_TO), MasterSqlText.instant(CONTRACT_REVISION_APPROVAL.APPROVED_AT),
+            MasterSqlText.instant(CONTRACT_REVISION.EFFECTIVE_TO), MasterSqlText.instant(CONTRACT_REVISION_APPROVAL.APPROVED_AT), CONTRACT_REVISION.REGISTERED_BY,
         )
             .from(CONTRACT_REVISION)
             .leftJoin(CONTRACT_REVISION_APPROVAL).on(
@@ -108,6 +108,7 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
                 RevisionDetail(
                     revisionNo = it.value2(), scopeKind = it.value3(), effectiveFrom = Instant.parse(it.value4()), effectiveTo = it.value5()?.let(Instant::parse),
                     approvedAt = it.value6()?.let(Instant::parse), scopeSiteIds = scopeSites[it.value1() to it.value2()].orEmpty(),
+                    registeredBy = it.value7(),
                 )
             }
         val agreements = dsl.select(

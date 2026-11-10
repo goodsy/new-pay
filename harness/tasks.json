@@ -7192,7 +7192,13 @@
         "Q-MOPS-12",
         "Q-MOPS-13",
         "Q-MOPS-14",
-        "Q-MOPS-15"
+        "Q-MOPS-15",
+        "Q-MOPS-16",
+        "Q-MOPS-17",
+        "Q-MOPS-18",
+        "Q-MOPS-19",
+        "Q-MOPS-20",
+        "Q-MOPS-21"
       ],
       "acceptanceCriteria": [
         "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §8.1 (B1-1, B1-2). B2..B5는 후속 배치(Q-MOPS-16/17/18 답 전 구현 금지)"
@@ -7210,7 +7216,15 @@
       "evidence": {
         "gate": "build/harness-evidence/MERCHANT-OPS-002-2026-11-09T105333Z.json",
         "supplementary": "build/harness-evidence/MERCHANT-OPS-002-2026-11-09T114400Z-supplementary (GRADLE-DEPS x5 exit 0, CVE-SCAN 0건)",
-        "scope": "B1(B1-1·B1-2)"
+        "scope": "B1(B1-1·B1-2)",
+        "b2": {
+          "gate": "build/harness-evidence/MERCHANT-OPS-002-2026-11-10T094956Z.json",
+          "supplementary": "CVE-SCAN 미실행: B2 변경에 빌드 파일·lockfile·의존성 변경 없음(commands.json CVE-SCAN 실행 조건 밖). 변경 파일 비밀·카드번호 패턴 검사 ~/gate-logs/mops-secret-scan.log 0건",
+          "devEvidence": "~/gate-logs/mops-b21, mops-b22, mops-b23 (mutations-v2.log 8건 RED·원복 일치, vector.log, green-evidence.log)",
+          "demo": "scratchpad/demo/mops-b21·b22·b23 — B1→계약 승인→첫 MID 발급 2인 Demo 통과(mid_01M729TH0RXE61F1DYSDJCNZWV)",
+          "review": "B2-1 REVIEW_PASS, B2-2 REVIEW_PASS(조건부→반영), B2-3 REVIEW_PASS(조건부: M-1·m-1~m-3·n-1~n-5 반영, rev 0.7.1)",
+          "scope": "B2(B2-1 Revision 등록, B2-2 계약 승인 2인, B2-3 첫 Default MID 발급 2인)"
+        }
       },
       "review": null,
       "coordinatorDecisions": [
@@ -7222,9 +7236,18 @@
         "2026-11-08 구현자 자체 결정 수용(B1-1): Busy도 BRN 예약 확정(명세 C-13 문구대로), MASTER 400/401/기타 → Unknown(fail-closed). 미제출 BRN 입력값은 컴포넌트 로컬 상태(탭 이동 시 비움), 세션 경계 메모리 초기화 시험 추가.",
         "2026-11-08 B1-2 리뷰 REVIEW_PASS(기준 2는 전체 master 시험 실행 필요 → 게이트). 구현자 결정 수용: 계약 시도·거절 감사 targetRef=입력 scopeMerchantId, CSA=입력 contractId, 성공=ctr_/csa_; effectiveTo 생략·null 동일; scopeSiteIds 필수 배열·중복 400; MASTER 시각 정규 .SSSZ만; RegistrationStep noValidate(소급 판정은 MASTER); Site ID 직접 입력; 화면 kstDate UTC+9 고정. MerchantOpsApiSpec 경로 수 6→8은 §8.1 m-5 목록 갱신(기대 완화 아님). 후속: 잠긴 단계 자동 채움 금지, ADMIN 날짜가 MASTER 정규 표기로 변환 안 되면 400, 같은 키 null/순서 차이 재생 고정 시험.",
         "2026-11-08 시험 안정화(기대값 불변): MerchantRegistrationServiceSpec Fixture 목록 synchronizedList(C-13 동시성 시험 간헐 실패 원인), 등록 화면 Vitest userEvent delay:null + 고정 문자열 붙여넣기(TEST-PERF-003 방식, 날짜 입력은 유지). Asia/Seoul 역사 오프셋(1988 이전)은 ADMIN·MASTER 같은 ZoneId라 일치, 과거 날짜는 소급 거절이므로 조치 없음.",
-        "2026-11-09 사용자: 게이트 시간 초과 2회 후 '깨끗한 상태로 재실행' → MOPS-gate3 PASS(42m20s), 보충 스캔 CVE 0. B1 완료."
+        "2026-11-09 사용자: 게이트 시간 초과 2회 후 '깨끗한 상태로 재실행' → MOPS-gate3 PASS(42m20s), 보충 스캔 CVE 0. B1 완료.",
+        "2026-11-10 B1 커밋 89c6fac·푸시. 사용자 Q-MOPS-16/17/18 모두 권장안 → D-MOPS-007",
+        "2026-11-10 명세 rev 0.5(B2 상세) 독립 리뷰 FAIL: M-1 결과 조회 없음→영구 EXECUTION_UNKNOWN, M-2 기한 단계가 실행 재전송(D-OPS-006·009 취지 위반). Coordinator: C-18 대안 채택(MASTER 서명 결정 조회 + 쓰기 효과 없는 기한 확인 전용 호출, PAYMENT·FINANCIAL OwnerExecutionRecovery 선례 — 가역 구현 선택, 결정 변경 아님).",
+        "2026-11-10 사용자 Q-MOPS-19/20/21 모두 권장안 → D-MOPS-008",
+        "2026-11-10 명세 rev 0.6/0.6.1(C-18 대안·D-MOPS-008·NIT) 재리뷰 FAIL: 새 M-1 등록자 검사 Domain 위치가 Demo seed와 충돌. Coordinator C-31: 등록자≠승인자 검사는 근거 있는 경로에만, seed(system:demo-seed+Demo)는 D-MOPS-008 ②·D-DEMO-005 예외(사용자 결정 해석, 행위자 하드코딩 금지). m-a..m-c, n-a..n-d 반영 지시 → rev 0.6.2, 동시에 B2-1 TDD 착수(리뷰어: B2-1 비차단).",
+        "2026-11-10 명세 rev 0.6.2 REVIEW_PASS (sha 3ae16957…). B2-1 코드 리뷰 FAIL: C-M1 화면 닫기/가맹점 전환 시 결과 불명 잠금 소실(중복 Revision 위험), C-m1 모듈 전체 시험 미실행(OOM), C-m2 TDD 순서 이탈(endpoint·ADMIN 코드 시험보다 먼저 — 기록, Verifier 변이 확인 권장), C-m3 component→screen import, n-1..n-4. 수정 지시.",
+        "2026-11-10 사용자: WSL 재시작으로 /tmp Demo 키 소실(TOTP 복호화 불가) → 'Demo 전체 초기화' 선택. Demo 설정은 ~/paycore-demo(영구)로 재구성.",
+        "2026-11-10 B2-1: Demo 시연 PASS(ctr_01M71F76DZR43JHRZH34068V9V#2, 소급 거절, 감사 2행, APPROVER 버튼 없음). C-32(성공 후 완료 상태·'승인 전' 통일, rev 0.6.3). TDD 이탈(C-m2: endpoint·ADMIN 코드 시험보다 먼저) 기록 — 변이 a~f 6종 RED로 보완. Verifier: internal-admin check PASS(Kotlin 800, Vitest 213, fp d636c492…); master-api check 1차 FAIL(MerchantOpsApiSpec 경로 8→9) → 9개 경로 집합 단언 갱신(§8 규칙·B1-2 선례, Coordinator 승인) → 재실행 PASS(493, fp f554ca99…, 11:08–11:20 KST, ~/gate-logs/mops-b21/rerun). 재리뷰 REVIEW_PASS(NIT n-a..n-c).",
+        "2026-11-10 B2-2: MASTER(V9/V10, 3 endpoint, mop1, C-33 rev 0.6.4) + ADMIN(V9/V10, MERCHANT_CONTRACT_APPROVAL, 회복, 화면, registeredBy, rev 0.6.5). master check 568 중 2 실패(n-a 시험 데이터 섞임→불변식 양방향 강화, migration 목록) → 55 재실행 PASS. ADMIN TDD 이탈(게이트웨이·서비스·회복·HTTP·화면 구현 먼저) 기록, 변이 5종 RED. 코드 리뷰 REVIEW_PASS 조건부(모듈 전체 check 필요; m-2 변이 4종·n-1..n-4 권장). Demo 시연 PASS: apr_01M71Y9BDZS7PGATTXS2REKARE EXECUTED ctr_…#2, 권리 rev 12→13, 중복 요청 409 DUPLICATE_UNRESOLVED, 근거 값 감사 비노출. 화면 개선 후보: 요청 완료 문구 즉시 사라짐, 배너에 Revision 번호 없음, 감사 요약 열 잘림/대상 열 공란.",
+        "2026-11-10 B2-3: C-34(REFERENCE_MISMATCH → EXECUTION_UNKNOWN+무결성 플래그, 경보 1회, OWNER_UNRESOLVABLE finding 1회, POST 중단) 채택. 후속: AcquisitionsScreen 시험 5000ms 근접(flaky 위험), ApprovedCommandAtomicitySpec 역방향 예외 표식 강화, ADMIN V9 주석 최신화(checksum 영향으로 다음 migration 기회에), DB 문서-SQL 불일치 정리."
       ],
-      "nextResumeAction": "B1 게이트·보충 PASS(fp 516bee8c…) → 사용자 확인 후 B1 커밋·푸시. 그 뒤 B2 전 Q-MOPS-16·18 질문(B3~B5 전 Q-MOPS-17).",
+      "nextResumeAction": "B2 커밋(사용자 확인 후) → 계약 업무/서비스 흐름·시스템 구성 설명 + DB 명세·ERD 전달 → B3(개통) 착수",
       "gateRuns": [
         {
           "tag": "MOPS-gate1",
@@ -7247,6 +7270,24 @@
           "kotlinTests": 4156,
           "frontendTests": 228,
           "note": "사용자 결정 '깨끗한 상태로 재실행'(같은 코드, Demo 중지, Docker Desktop 재시작)"
+        },
+        {
+          "tag": "MOPS-gate4",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-10T094053Z.json",
+          "verdict": "FAIL",
+          "fingerprint": "sha256:f436e31a4ba4d3bd8319cf58b56570fe8d995adce6cac4dd5d14538ae78b31cb",
+          "reason": "internal-admin frontendTest 5건 'Test timed out in 5000ms'(assertion 실패 0, 229 통과) — backend Testcontainers와 동시 실행 부하. 기대값·timeout 변경 없이 같은 fingerprint로 재실행"
+        },
+        {
+          "tag": "MOPS-gate5",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-10T094956Z.json",
+          "verdict": "PASS",
+          "fingerprint": "sha256:f436e31a4ba4d3bd8319cf58b56570fe8d995adce6cac4dd5d14538ae78b31cb",
+          "gradleCheck": "50m54s/3300s",
+          "kotlinTests": 4326,
+          "frontendTests": 259,
+          "scope": "B2-1~B2-3(spec rev 0.7.1 sha256 7c0fe00976553783e51d6e5892aab59f96eda4b126272c8679eb1db7badb9ae5)",
+          "verifier": "VERIFIED 2026-11-10T10:42:40Z (fingerprint 재계산 일치, 보고서 436개 sha 일치, n-a 불변식 약화 없음)"
         }
       ]
     },

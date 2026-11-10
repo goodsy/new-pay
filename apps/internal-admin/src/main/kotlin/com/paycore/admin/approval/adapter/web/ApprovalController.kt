@@ -10,6 +10,9 @@ import com.paycore.admin.approval.application.provided.ApprovalUseCase
 import com.paycore.admin.approval.application.provided.ApprovalView
 import com.paycore.admin.approval.application.provided.DecideApproval
 import com.paycore.admin.approval.application.provided.JustificationResult
+import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
+import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
+import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
 import com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery
 import com.paycore.admin.approval.application.provided.OwnerServiceApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestOperatorCancel
@@ -41,6 +44,7 @@ class ApprovalController(
     private val query: ApprovalQuery,
     private val justifications: OperatorCancelJustificationQuery,
     private val acquiring: AcquiringOpsApprovalUseCase,
+    private val merchants: MerchantOpsApprovalUseCase,
 ) {
 
     @PostMapping
@@ -76,6 +80,36 @@ class ApprovalController(
             RequestReacquisition(
                 authentication.name, generation, body.fileId.orEmpty(), body.seqs.orEmpty(), body.reasonCode.orEmpty(), body.evidenceRef.orEmpty(), body.reason.orEmpty(),
                 context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * 가맹점 계약 승인 요청(MERCHANT-OPS-002 B2-2 §9.5 — OPERATOR, D-MOPS-008 ① 근거 참조 필수). revisionNo는 JSON 정수. 앞뒤 공백은 서버가 자르지 않고 거부한다.
+     * 응답: 201 approvalId / 400 INVALID_INPUT(field·reason) / 403 / 404 MERCHANT_NOT_FOUND / 409 TARGET_NOT_ELIGIBLE_ADVISORY·DUPLICATE_UNRESOLVED / 503 MASTER_UNAVAILABLE·AUDIT_UNAVAILABLE.
+     */
+    @PostMapping("/merchant-contract-approval")
+    fun requestMerchantContractApproval(@RequestBody body: MerchantContractApprovalBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestContractApproval(
+            RequestMerchantContractApproval(
+                authentication.name, generation, body.merchantId.orEmpty(), body.contractId.orEmpty(), body.revisionNo ?: 0, body.evidenceRef.orEmpty(), context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * 첫 Default MID 발급 요청(MERCHANT-OPS-002 B2-3 §9.5 — OPERATOR, 근거 참조 필수). revisionNo는 JSON 정수. 응답은 계약 승인 요청과 같은 표.
+     */
+    @PostMapping("/merchant-first-mid")
+    fun requestMerchantFirstMid(@RequestBody body: MerchantFirstMidBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestFirstMidIssuance(
+            RequestMerchantFirstMid(
+                authentication.name, generation, body.merchantId.orEmpty(), body.contractId.orEmpty(), body.agreementId.orEmpty(), body.revisionNo ?: 0,
+                body.primarySiteId.orEmpty(), body.evidenceRef.orEmpty(), context(request),
             ),
         )
         return respond(outcome, request)
@@ -143,6 +177,7 @@ class ApprovalController(
                 ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(CacheControl.noStore())
                     .body(linkedMapOf("error" to outcome.code, "field" to outcome.field, "reason" to outcome.reason))
             outcome.code in BAD_REQUEST_CODES -> status(HttpStatus.BAD_REQUEST, outcome.code)
+            outcome.code in NOT_FOUND_CODES -> status(HttpStatus.NOT_FOUND, outcome.code)
             else -> status(HttpStatus.CONFLICT, outcome.code)
         }
         is ApprovalOutcome.Refused -> status(HttpStatus.FORBIDDEN, outcome.code)
@@ -182,6 +217,16 @@ class ApprovalController(
                 "ownerReference" to o.ownerReference,
             )
         }
+        v.merchant?.let { g ->
+            m["merchant"] = linkedMapOf(
+                // D-MOPS-008 ①: 근거 참조는 상세(4역할 공통)에 넣지 않는다 — APPROVER·요청자 본인만 `/justification` 별도 조회(감사). 고정 대상에 Revision 등록자가 있다.
+                "commandKind" to g.commandKind, "merchantId" to g.merchantId, "pinnedTarget" to pinnedJson.readTree(g.pinnedTarget),
+                "approvedAt" to g.approvedAt?.toString(), "executeBefore" to g.executeBefore?.toString(), "attemptCount" to g.attemptCount,
+                "nextAttemptAt" to g.nextAttemptAt?.toString(), "lastResponseAt" to g.lastResponseAt?.toString(), "lastFailure" to g.lastFailure,
+                "integrityFlag" to g.integrityFlag, "resendHaltedReason" to g.resendHaltedReason, "ownerResultCode" to g.ownerResultCode,
+                "ownerReference" to g.ownerReference,
+            )
+        }
         v.acquiring?.let { a ->
             m["acquiring"] = linkedMapOf(
                 // D-ACQA-005: 근거 참조는 상세(4역할 공통)에 넣지 않는다 — APPROVER·요청자 본인만 `/justification` 별도 조회(감사).
@@ -207,6 +252,9 @@ class ApprovalController(
 
         /** 400 code: 입력 형식, 종류 해석 단계의 실행 모델 거부(ADMIN-PAYMENT-OPS-001 §4.10 1행 — 소유 서비스 종류는 새 endpoint만), Payment 없음(§4.12 2). */
         val BAD_REQUEST_CODES = setOf(INVALID_INPUT, "WRONG_EXECUTION_MODEL", "PAYMENT_NOT_FOUND", "ACQUISITION_FILE_NOT_FOUND")
+
+        /** 404 code: 가맹점 없음(MERCHANT-OPS-002 §9.5 — MASTER 상세 404). */
+        val NOT_FOUND_CODES = setOf("MERCHANT_NOT_FOUND")
     }
 
     class CreateRequest(val kind: String?, val targetActorId: String?, val grantedRole: String?, val causeApprovalId: String?)
@@ -217,6 +265,16 @@ class ApprovalController(
 
     class ReacquisitionBody(val fileId: String?, val seqs: List<Int>?, val reasonCode: String?, val evidenceRef: String?, val reason: String?) {
         override fun toString(): String = "ReacquisitionBody(fileId=$fileId, seqs=${seqs?.size})"
+    }
+
+    class MerchantContractApprovalBody(val merchantId: String?, val contractId: String?, val revisionNo: Long?, val evidenceRef: String?) {
+        override fun toString(): String = "MerchantContractApprovalBody(merchantId=$merchantId, contractId=$contractId, revisionNo=$revisionNo)"
+    }
+
+    class MerchantFirstMidBody(
+        val merchantId: String?, val contractId: String?, val agreementId: String?, val revisionNo: Long?, val primarySiteId: String?, val evidenceRef: String?,
+    ) {
+        override fun toString(): String = "MerchantFirstMidBody(merchantId=$merchantId, contractId=$contractId, revisionNo=$revisionNo)"
     }
 
     class TotpBody(val totpCode: String?) {

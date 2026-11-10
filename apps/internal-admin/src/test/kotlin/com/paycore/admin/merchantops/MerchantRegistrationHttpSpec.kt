@@ -15,6 +15,7 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.string.shouldNotContain
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -263,6 +264,56 @@ class MerchantRegistrationHttpSpec(
                 withClue(body.take(80)) { register(client, "contracts", body).contentAsString shouldBe """{"error":"INVALID_INPUT"}""" }
             }
             StubMasterOpsServer.received.size shouldBe before
+        }
+    }
+
+    Given("B2-1 contract revision over HTTP (MERCHANT-OPS-002 §9.2·§8.2 B2-1-4)") {
+        val ctr = "ctr_01JC0000000000000000000021"
+        fun revisionBody(s: String, from: String = "2026-11-09") =
+            """{"submissionId":"$s","contractId":"$ctr","scopeMerchantId":"$mer","scopeSiteIds":[],"effectiveFromDate":"$from"}"""
+        fun revisionAudits(actorId: String) = AdminDbAccounts.root(container).use {
+            it.column(
+                "SELECT CONCAT(action, '|', result_code, '|', COALESCE(detail, '-'), '|', COALESCE(target_ref, '-'), '|', correlation_id) FROM admin_audit_event " +
+                    "WHERE actor_id = ? AND action = 'MERCHANT_CONTRACT_REVISION_REGISTER' ORDER BY event_id",
+                actorId,
+            )
+        }
+
+        Then("an OPERATOR registers a revision (signed MASTER call to contract-revisions, C-7 date); audit rows keep the contract id with rev=2; a retroactive start passes through REJECTED; VIEWER is 403 audited") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            StubMasterOpsServer.reply(StubMasterOpsServer.CONTRACT_REVISIONS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("$ctr#2")))
+            val s1 = sub()
+            register(client, "contract-revisions", revisionBody(s1)).let {
+                it.status shouldBe 200
+                it.getHeader("Cache-Control")!! shouldContain "no-store"
+                it.contentAsString shouldBe """{"outcome":"SUCCEEDED","reference":"$ctr#2","replayed":false}"""
+            }
+            val sent = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.CONTRACT_REVISIONS).last()
+            sent.signatureValid shouldBe true
+            json.readTree(sent.body).let { n -> listOf(n.get("contractId").asString(), n.get("effectiveFrom").asString(), n.get("correlationId").asString()) } shouldBe
+                listOf(ctr, "2026-11-08T15:00:00.000Z", "mos.$s1")
+
+            StubMasterOpsServer.reply(
+                StubMasterOpsServer.CONTRACT_REVISIONS,
+                StubMasterOpsServer.Reply(200, """{"outcome":"REJECTED","rejection":"CONTRACT_START_RETROACTIVE","replayed":false}"""),
+            )
+            val s2 = sub()
+            register(client, "contract-revisions", revisionBody(s2, from = "2020-01-01")).contentAsString shouldBe
+                """{"outcome":"REJECTED","rejection":"CONTRACT_START_RETROACTIVE","replayed":false}"""
+            revisionAudits(operator.account.id.value) shouldBe listOf(
+                "MERCHANT_CONTRACT_REVISION_REGISTER|REQUESTED|sub=${s1.take(8)}|$ctr|mos.$s1",
+                "MERCHANT_CONTRACT_REVISION_REGISTER|OK|sub=${s1.take(8)};replayed=false;rev=2|$ctr|mos.$s1",
+                "MERCHANT_CONTRACT_REVISION_REGISTER|REQUESTED|sub=${s2.take(8)}|$ctr|mos.$s2",
+                "MERCHANT_CONTRACT_REVISION_REGISTER|REJECTED|sub=${s2.take(8)};replayed=false;rejection=CONTRACT_START_RETROACTIVE|$ctr|mos.$s2",
+            )
+
+            val viewer = withRole(AdminRole.VIEWER)
+            val before = StubMasterOpsServer.received.size
+            val s3 = sub()
+            register(loggedIn(viewer), "contract-revisions", revisionBody(s3)).status shouldBe 403
+            StubMasterOpsServer.received.size shouldBe before
+            revisionAudits(viewer.account.id.value).single() shouldStartWith "MERCHANT_CONTRACT_REVISION_REGISTER|FORBIDDEN|sub=${s3.take(8)}|$ctr|"
         }
     }
 

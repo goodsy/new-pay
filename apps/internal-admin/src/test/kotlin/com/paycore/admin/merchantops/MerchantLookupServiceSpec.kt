@@ -71,6 +71,10 @@ class MerchantLookupServiceSpec : BehaviorSpec({
                 override fun search(criteria: MerchantSearchCriteria): MasterCallResult = searchReply.also { calls += "search"; callInTx += TransactionSynchronizationManager.isActualTransactionActive() }
                 override fun detail(merchantId: String): MasterCallResult = detailReply.also { calls += "detail"; callInTx += TransactionSynchronizationManager.isActualTransactionActive() }
                 override fun history(merchantId: String, afterSeq: Long): MasterCallResult = MasterCallResult.Found(mapOf("items" to emptyList<Any>())).also { calls += "history:$afterSeq" }
+                // MERCHANT-OPS-002 B2-2: 승인 명령 채널(이 시험은 쓰지 않는다).
+                override fun approval(operation: com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation, body: ByteArray, deadline: Boolean):
+                    com.paycore.admin.merchantops.application.provided.MerchantApprovalResult = error("not used")
+                override fun approvalDecision(approvalId: String): com.paycore.admin.merchantops.application.provided.MerchantApprovalResult = error("not used")
                 override fun command(command: MasterCommand): MasterCommandResult = error("lookup never sends a command")
             },
             object : AdminAuditRecorder {

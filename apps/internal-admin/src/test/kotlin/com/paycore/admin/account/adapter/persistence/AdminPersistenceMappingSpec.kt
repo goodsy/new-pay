@@ -72,6 +72,8 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
         persister(JpaReconciliationFindingEntity::class.java).isMutable shouldBe false
         // ACQ-ADMIN-001 B1-A: 재매입 요청 고정 값도 @Immutable(V8 권한 SELECT·INSERT와 두 겹).
         persister(com.paycore.admin.approval.adapter.persistence.JpaAcquiringOpsCommandEntity::class.java).isMutable shouldBe false
+        // MERCHANT-OPS-002 B2-2: 가맹점 승인 요청 고정 값(근거 참조 포함)도 @Immutable(V10 권한 SELECT·INSERT와 두 겹).
+        persister(com.paycore.admin.approval.adapter.persistence.JpaMerchantOpsCommandEntity::class.java).isMutable shouldBe false
     }
 
     test("every mapped table: Entity insertable columns are exactly the stored (non-generated) table columns") {
@@ -83,6 +85,8 @@ class AdminPersistenceMappingSpec(private val emf: EntityManagerFactory, private
             "admin_ops_reconciliation_finding" to JpaReconciliationFindingEntity::class.java,
             // ACQ-ADMIN-001 B1-A V7: 재매입 요청 고정 값(INSERT-only).
             "admin_acquiring_ops_command" to com.paycore.admin.approval.adapter.persistence.JpaAcquiringOpsCommandEntity::class.java,
+            // MERCHANT-OPS-002 B2-2 V9: 가맹점 승인 요청 고정 값(INSERT-only).
+            "admin_merchant_ops_command" to com.paycore.admin.approval.adapter.persistence.JpaMerchantOpsCommandEntity::class.java,
         ).forEach { (table, type) ->
             val (_, insertable, ids) = selectables(type)
             val autoIncrement = when (table) {

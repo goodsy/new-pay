@@ -1,7 +1,7 @@
 // @vitest-environment node
 // 순수 함수 시험 — jsdom 환경을 만들지 않는다(시험 파일마다 드는 환경 비용 절약).
 import { describe, expect, it } from 'vitest'
-import { AUDIT_ACTION_LABELS, CODE_LABELS, labelOf } from './labels'
+import { AUDIT_ACTION_LABELS, CODE_LABELS, labelOf, REVISION_AWAITING_APPROVAL } from './labels'
 import { formatKst, formatMinor } from './format'
 import { statusTone } from './statusTone'
 
@@ -17,6 +17,10 @@ const SERVER_CODES = [
   'ROLE_GRANT', 'ACCOUNT_UNLOCK', 'ACCOUNT_REACTIVATE', 'TOTP_REENROLL', 'PASSWORD_RESET', 'ROLE_REACTIVATE', 'OPERATOR_CORRECTION_CANCEL',
   // ACQ-ADMIN-001 B1-A 재매입(ApprovalKind ACQ_REACQUISITION)
   'ACQ_REACQUISITION',
+  // 기대값 변경(B2-2 MERCHANT-OPS-002): 가맹점 계약 승인 종류, 대사 발견 OWNER_UNRESOLVABLE(C-28).
+  'MERCHANT_CONTRACT_APPROVAL', 'OWNER_UNRESOLVABLE',
+  // 기대값 변경(B2-3): 첫 Default MID 발급 종류.
+  'MERCHANT_FIRST_MID_ISSUANCE',
   // OperatorCancelPurposeKind
   'INCIDENT_OR_RECON_CORRECTION', 'MERCHANT_TERMINATED_OBLIGATION',
   // ReconciliationFindingKind
@@ -48,6 +52,8 @@ const SERVER_AUDIT_ACTIONS = [
   'MERCHANT_VIEWED', 'MERCHANT_BRN_SEARCHED',
   // MERCHANT-OPS-002 §6(B1-1·B1-2)
   'MERCHANT_BUSINESS_REGISTER', 'MERCHANT_REGISTER', 'MERCHANT_SITE_REGISTER', 'MERCHANT_CONTRACT_REGISTER', 'MERCHANT_AGREEMENT_ADD',
+  // MERCHANT-OPS-002 §9.7(B2-1)
+  'MERCHANT_CONTRACT_REVISION_REGISTER',
   // TXN-OPS-001 §5.1
   'PAYMENT_VIEWED',
   // ACQ-VIEW-001 §4.6
@@ -87,6 +93,9 @@ describe('ADMIN-UI-001 Korean labels (display only)', () => {
     expect(labelOf('MERCHANT_BRN_SEARCHED')).toBe('사업자등록번호 검색')
     expect(labelOf('MERCHANT_CONTRACT_REGISTER')).toBe('계약 초안 등록')
     expect(labelOf('MERCHANT_AGREEMENT_ADD')).toBe('서비스 계약 추가')
+    expect(labelOf('MERCHANT_CONTRACT_REVISION_REGISTER')).toBe('계약 Revision 등록')
+    // C-32: 계약 Revision 승인 상태 표기는 한 곳(상세 표·등록 성공 문구 공통).
+    expect(REVISION_AWAITING_APPROVAL).toBe('승인 전')
     expect(labelOf('PAYMENT_VIEWED')).toBe('거래 상세 조회')
   })
 

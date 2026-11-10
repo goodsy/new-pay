@@ -103,6 +103,9 @@ internal object PersistenceFailures {
         "card_route_activation.PRIMARY" to StoreConstraint.IDENTIFIER,
         "contract_revision_approval.PRIMARY" to StoreConstraint.REVISION_APPROVAL,
         "admin_request.uk_admin_request_scope" to StoreConstraint.ADMIN_REQUEST_SCOPE,
+        // MERCHANT-OPS-002 B2-2(V9): approvalId 1회 사용(업무 유일키 — 새 TX 판정 3으로 수렴, m-1), 요청 기록 ID는 서버 생성 UUID.
+        "admin_approval_evidence.PRIMARY" to StoreConstraint.APPROVAL_EVIDENCE,
+        "admin_approval_evidence.uk_admin_approval_evidence_request_record" to StoreConstraint.IDENTIFIER,
         "business.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant_site.PRIMARY" to StoreConstraint.IDENTIFIER,

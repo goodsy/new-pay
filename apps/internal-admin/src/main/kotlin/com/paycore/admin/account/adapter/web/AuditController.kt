@@ -51,6 +51,8 @@ class AuditController(private val audit: AuditViewUseCase) {
                             "actorDisplayName" to it.actorDisplayName, "executorActorId" to it.executorActorId, "action" to it.action,
                             "targetActorId" to it.targetActorId, "resultCode" to it.resultCode, "approvalId" to it.approvalId,
                             "correlationId" to it.correlationId, "detail" to it.detail, "reason" to it.reason,
+                            // L-13(MERCHANT-OPS-002 B2-2 Demo 개선 C-3): 계정이 아닌 대상(가맹점·Payment·매입 파일·계약 등)도 화면 "대상" 열에 보이게.
+                            "targetRef" to it.targetRef,
                         )
                     },
                 ),

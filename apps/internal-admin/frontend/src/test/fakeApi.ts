@@ -42,6 +42,7 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     registerMerchantSite: notStubbed('registerMerchantSite'),
     registerContract: notStubbed('registerContract'),
     addServiceAgreement: notStubbed('addServiceAgreement'),
+    registerContractRevision: notStubbed('registerContractRevision'),
     transactionSearch: notStubbed('transactionSearch'),
     transactionDetail: notStubbed('transactionDetail'),
     acquisitionSearch: notStubbed('acquisitionSearch'),
@@ -49,6 +50,9 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     acquisitionRecords: notStubbed('acquisitionRecords'),
     reacquisitionTargets: notStubbed('reacquisitionTargets'),
     requestReacquisition: notStubbed('requestReacquisition'),
+    requestMerchantContractApproval: notStubbed('requestMerchantContractApproval'),
+    merchantApprovalEvidence: notStubbed('merchantApprovalEvidence'),
+    requestMerchantFirstMid: notStubbed('requestMerchantFirstMid'),
   } as AdminApi
   return { ...base, ...overrides }
 }

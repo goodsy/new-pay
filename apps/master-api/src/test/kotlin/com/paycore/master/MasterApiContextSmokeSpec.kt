@@ -45,7 +45,8 @@ class MasterApiContextSmokeSpec(
         flyway.info().pending().size shouldBe 0
         // 운영 V1(업무 schema)·V2(runtime 표 단위 권한, MASTER-DOMAIN-001)·V3(권리 Snapshot 표)·V4(그 권한, MASTER-SNAPSHOT-001)
         // + V5(승인 시작 조건 표)·V6(그 권한, MASTER-SNAPSHOT-002) + V7(기관 식별 코드 CHECK, INST-CODE-001) + 시험 전용 V900(probe)·V901(probe runtime 권한).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "900", "901")
+        // 기대값 변경(MERCHANT-OPS-002 B2-2, 명세 §9.3 C-21): + V9(승인 근거 schema)·V10(그 runtime 권한). V8은 의도적으로 비운다.
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
@@ -70,8 +71,9 @@ class MasterApiContextSmokeSpec(
 }) {
     companion object {
         /** MASTER-DOMAIN-001 JPA Entity(adapter.persistence). 표마다 하나(생성 컬럼은 매핑하지 않는다). */
+        // 기대값 변경(MERCHANT-OPS-002 B2-2 §9.3): + JpaApprovalEvidenceEntity(승인 근거, @Immutable).
         val MASTER_ENTITIES = setOf(
-            "JpaAdminRequestEntity", "JpaBusinessEntity", "JpaContractEntity", "JpaContractRevisionEntity", "JpaContractRevisionApprovalEntity",
+            "JpaApprovalEvidenceEntity", "JpaAdminRequestEntity", "JpaBusinessEntity", "JpaContractEntity", "JpaContractRevisionEntity", "JpaContractRevisionApprovalEntity",
             "JpaContractRevisionScopeSiteEntity", "JpaContractServiceAgreementEntity", "JpaDefaultDesignationEntity",
             "JpaMasterChangeHistoryEntity", "JpaMerchantEntity", "JpaMerchantAccountEntity", "JpaSiteAssignmentEntity", "JpaMerchantSiteEntity",
             "JpaOutboxEventEntity", "JpaPaymentMethodActivationEntity",

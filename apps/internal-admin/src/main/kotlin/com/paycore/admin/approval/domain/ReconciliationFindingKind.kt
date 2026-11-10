@@ -11,4 +11,10 @@ enum class ReconciliationFindingKind {
     STATE_DIVERGENCE,
     UNRESOLVED_WITH_DECISION,
     MISSING_DECISION,
+
+    /**
+     * 소유 서비스 결과를 확정할 수 없음(MERCHANT-OPS-002 C-28 — 기한 + 여유 뒤에도 결정 조회 NONE이고 기한 확인이 400·413·409). 회복 job이 승인당 1회 기록하고 자동 종결하지 않는다
+     * (대사 job의 판정 대상이 아니다 — 위 6종의 우선순위와 무관).
+     */
+    OWNER_UNRESOLVABLE,
 }

@@ -11,6 +11,7 @@ export const ERROR_MESSAGES: Record<ConsoleErrorCode, string> = {
   STEP_UP_FAILED: '인증 코드가 올바르지 않습니다. 새 코드로 다시 시도해 주세요.',
   SELF_APPROVAL: '자기가 요청한 건은 승인할 수 없습니다.',
   APPROVER_IS_TARGET: '자기 계정에 대한 요청은 승인할 수 없습니다.',
+  APPROVER_IS_REGISTRANT: '등록자는 승인할 수 없습니다(이 Revision을 등록한 계정입니다). 다른 승인자에게 요청하세요.',
   CAUSE_PARTICIPANT: '원인이 된 재설정의 요청자·승인자는 이 재활성에 참여할 수 없습니다.',
   CREDENTIAL_ISSUER: '이 계정의 자격을 발급한 관리자는 이 계정의 권한 상승을 요청·승인할 수 없습니다.',
   NOT_FOUND: '요청한 화면이나 대상을 찾을 수 없습니다.',

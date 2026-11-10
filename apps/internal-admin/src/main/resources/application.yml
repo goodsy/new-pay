@@ -143,6 +143,16 @@ paycore:
       # 사업자 등록은 위 registration-number-searches-per-minute 버킷에서도 1회를 예약한다(C-13 — 중복 결과는 검색과 같은 정보).
       write-permits: 2
       registrations-per-minute: 20
+    # MERCHANT-OPS-002 B2-2 가맹점 2인 승인(C-19 — **Demo 값, 운영값 아님**, LIVE Gate, 기본값 없음): 실행 창(승인 + 이 값 = 실행 기한, MASTER max-execution-window PT24H 이하),
+    # 기한 확인 여유(MASTER max-clock-skew PT1M + read timeout 이상), 회복 다음 시도 간격(두 배씩 — 상한 PT30M). stale = master-ops connect + read + 30초.
+    merchant-ops:
+      approval:
+        execution-window: 1h
+        deadline-grace: 2m
+        backoff-initial: 30s
+        backoff-max: 30m
+        # B2-2 리뷰 n-1: MASTER paycore.master.admin-channel.approval.max-execution-window 거울 값(Demo PT24H — 운영값 아님). execution-window가 이보다 크면 기동 실패.
+        master-max-execution-window: 24h
     # FINANCIAL 매입 현황 조회 호출(ACQ-VIEW-001 §4.6 — **Demo 값, 운영값 아님**, LIVE Gate). 연결·키는 환경변수로만(저장소에 키 없음). 키는 FINANCIAL
     # `paycore.financial.admin-channel` 키와 같은 값이고, PAYMENT·MASTER ops 키와 kid·바이트가 같으면, LIVE에서 Demo·시험 키면, context path가 있으면 기동 실패.
     # permit은 PAYMENT·MASTER ops와 별개(FINANCIAL 장애가 결제·가맹점 운영을 막지 않는다). 응답 읽기 상한 128 KiB(코드 상수).

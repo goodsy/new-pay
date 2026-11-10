@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { kstDate, MerchantRegistrationScreen } from './MerchantRegistrationScreen'
+import { MerchantRegistrationScreen } from './MerchantRegistrationScreen'
+import { kstDate } from '../lib/registration'
 import { App } from '../App'
 import type { MerchantDetail, Me, RegistrationOutcome } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
@@ -78,6 +79,8 @@ describe('MerchantRegistrationScreen (MERCHANT-OPS-002 §5·§8.1 B1-1 — ① �
     expect(within(done).getByText(BIZ)).toBeInTheDocument()
     expect(within(done).getByText(MER)).toBeInTheDocument()
     expect(within(done).getByText(SITE)).toBeInTheDocument()
+    // B2-3 Demo 지적 2(추가 단언): 다음 단계 안내 = 조회 상세에서 계약 승인 → 첫 MID 발급, 개통 전까지 결제 불가.
+    expect(done).toHaveTextContent('다음: 가맹점 조회 상세에서 계약 승인 → 첫 MID 발급을 요청하세요. 결제수단·Route 개통 전까지 결제는 아직 할 수 없습니다.')
     await click(done, '가맹점 조회에서 보기')
     expect(onOpenLookup).toHaveBeenCalledTimes(1)
     expect(onOpenLookup).toHaveBeenCalledWith(MER)
@@ -313,7 +316,8 @@ describe('MerchantRegistrationScreen (MERCHANT-OPS-002 §5·§8.1 B1-1 — ① �
       submissionId: '4'.padStart(32, '0'), partyBusinessId: BIZ, scopeMerchantId: MER, scopeSiteIds: [SITE], effectiveFromDate: '2026-11-09', effectiveToDate: '2027-01-01',
     })
     expect(await within(contract).findByText(CTR)).toBeInTheDocument()
-    expect(within(contract).getByText(/미승인/)).toBeInTheDocument()
+    // C-32 표기 통일(상세 표와 같은 "승인 전").
+    expect(within(contract).getByText(/Revision 1, 승인 전/)).toBeInTheDocument()
 
     const agreement = step('⑤ 서비스 계약')
     expect(within(agreement).getByLabelText('계약 ID')).toHaveValue(CTR)
@@ -673,6 +677,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only)', 
     await lockBusinessStep()
     await click(step('① 사업자'), '같은 내용 다시 보내기')
     expect(await screen.findByRole('status')).toHaveTextContent(ERROR_MESSAGES.SESSION_EXPIRED)
+    // B2-1 리뷰 n-a(B2-2): 결과 불명으로 잠긴 단계가 있던 세션이 끝나면 로그인 화면이 한 번 안내한다(추가 단언 — 기존 기대 불변).
+    expect(screen.getByRole('note', { name: '결과 확인 필요' })).toHaveTextContent('결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요')
     await signInAgain()
     await expectFreshRegistration()
     expect(send).toHaveBeenCalledTimes(2)

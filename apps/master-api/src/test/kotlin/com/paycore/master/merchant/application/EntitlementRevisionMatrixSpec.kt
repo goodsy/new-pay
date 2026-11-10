@@ -127,7 +127,7 @@ class EntitlementRevisionMatrixSpec(
                     RegisterContractRevisionCommand(request(), e.ready.contractId, ScopeInput(m, setOf(e.siteId)), EffectivePeriod(OnboardingFixture.t0.plusSeconds(3600))),
                 )
             }
-            step("ApproveContractRevision") { onboarding.approveContractRevision(ApproveContractRevisionCommand(request(), e.ready.contractId, 2)) }
+            step("ApproveContractRevision") { onboarding.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), e.ready.contractId, 2)) } // D-MOPS-008 ②: seed 경로 행위자
             step("SuspendActivation") { entitlement.suspendPaymentMethodActivation(SuspendPaymentMethodActivationCommand(request(), e.activationId, reason)) }
             step("ResumeActivation") { entitlement.resumePaymentMethodActivation(ResumePaymentMethodActivationCommand(request(), e.activationId, newEvidence)) }
             val primary = SiteActivationConfirmationId(

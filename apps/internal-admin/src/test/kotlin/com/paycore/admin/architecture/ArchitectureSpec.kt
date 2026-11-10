@@ -303,6 +303,23 @@ class ArchitectureSpec : FunSpec({
             .allowEmptyShould(false).check(classes)
     }
 
+    test("MERCHANT-OPS-002 B2-2: the MASTER approval client is used only by MerchantOpsApprovalService and merchantops.application; approval reaches merchantops only via provided") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE..")
+            .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.approval.application.") + "MerchantOpsApprovalService(\\$.*)?$")
+            .and().resideOutsideOfPackage("$BASE_PACKAGE.merchantops.application..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.merchantops.application.provided.MerchantApprovalClient")
+            .allowEmptyShould(false).check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.approval..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.merchantops.domain..", "$BASE_PACKAGE.merchantops.adapter..", "$BASE_PACKAGE.merchantops.application.required..",
+            )
+            .allowEmptyShould(false).check(classes)
+        // merchantops는 approval을 모른다(승인 대기 표시는 merchantops.provided SPI를 approval이 구현 — 순환 없음).
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.merchantops..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.approval..")
+            .allowEmptyShould(false).check(classes)
+    }
+
     test("no cycles between modules") {
         // 대상 있음: security 패키지.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)

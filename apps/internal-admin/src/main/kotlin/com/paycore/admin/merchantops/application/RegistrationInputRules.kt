@@ -42,6 +42,8 @@ internal object RegistrationInputRules {
         is RegistrationRequest.Contract -> BUSINESS_ID.matches(request.partyBusinessId) && MERCHANT_ID.matches(request.scopeMerchantId) &&
             scopeSites(request.scopeSiteIds) && period(request.effectiveFromDate, request.effectiveToDate)
         is RegistrationRequest.ServiceAgreement -> CONTRACT_ID.matches(request.contractId) && request.serviceKind in SERVICE_KINDS
+        is RegistrationRequest.ContractRevision -> CONTRACT_ID.matches(request.contractId) && MERCHANT_ID.matches(request.scopeMerchantId) &&
+            scopeSites(request.scopeSiteIds) && period(request.effectiveFromDate, request.effectiveToDate)
     }
 
     /** 비면 MERCHANT Scope. 최대 [MAX_SCOPE_SITES]개, 모두 `site_` ID, 중복 없음(MASTER가 400으로 거절하는 것과 같다). */

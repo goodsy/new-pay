@@ -55,8 +55,8 @@ class AdminOpsMetricsContractSpec : FunSpec({
             "paycore.admin.approval.retry_later" to setOf(listOf("operation")),
             "paycore.admin.approval.integrity_violation" to setOf(listOf("check")),
         )
-        // open_findings는 6종 모두(없으면 0).
+        // open_findings는 종류 전부(없으면 0). 기대값 변경(B2-2 MERCHANT-OPS-002 C-28): 6종 + OWNER_UNRESOLVABLE(가맹점 승인 확정 불가 finding).
         registry.find("paycore.admin.ops.recon.open_findings").gauges().map { it.id.getTag("kind") }.toSet() shouldBe
-            setOf("ORPHAN_DECISION", "DECISION_FOR_UNAPPROVED", "FINGERPRINT_MISMATCH", "STATE_DIVERGENCE", "UNRESOLVED_WITH_DECISION", "MISSING_DECISION")
+            setOf("ORPHAN_DECISION", "DECISION_FOR_UNAPPROVED", "FINGERPRINT_MISMATCH", "STATE_DIVERGENCE", "UNRESOLVED_WITH_DECISION", "MISSING_DECISION", "OWNER_UNRESOLVABLE")
     }
 })

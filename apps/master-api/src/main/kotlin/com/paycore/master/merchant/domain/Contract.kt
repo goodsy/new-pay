@@ -49,9 +49,12 @@ class Contract private constructor(
     /**
      * 새 Revision(Scope 변경 포함, D-MD-004). 대상 Merchant는 바꿀 수 없다 — 다른 Merchant는 새 계약(D-MD-013).
      * Scope 검증은 [ContractScope.requireValid]로 호출자가 먼저 한다.
+     * 효력 시작이 판정 시각 [at]의 Asia/Seoul 날짜 00:00보다 앞이면 [MasterRejection.CONTRACT_START_RETROACTIVE](D-MOPS-007 ② — Revision 1과 같은 규칙,
+     * MERCHANT-OPS-002 §9.2). 판정 순서: 대상 Merchant 불일치가 먼저.
      */
     fun registerRevision(scope: ContractScope, period: EffectivePeriod, at: Instant, by: ActorRef): ContractRevision {
         if (scope.merchantId != merchantId) throw MasterRuleViolation(MasterRejection.CONTRACT_MERCHANT_MISMATCH)
+        if (period.from.isBefore(SeoulMidnight.startOfDay(at))) throw MasterRuleViolation(MasterRejection.CONTRACT_START_RETROACTIVE)
         return ContractRevision.register(revisionList.size + 1, scope, period, at, by).also { revisionList += it }
     }
 
@@ -60,6 +63,19 @@ class Contract private constructor(
         val revision = revision(revisionNo) ?: throw MasterRuleViolation(MasterRejection.REVISION_NOT_FOUND)
         if (revision.effectivePeriod.hasEndedAt(at)) throw MasterRuleViolation(MasterRejection.REVISION_ENDED)
         return revision.approve(at, by)
+    }
+
+    /**
+     * 승인 근거가 있는 경로의 승인(MERCHANT-OPS-002 §9.3 판정 5 — D-MOPS-008 ③, C-27·C-31). 판정 순서: Revision 없음 → 끝난 Revision(D-MD-014) →
+     * **Revision 등록자 = 승인자**([MasterRejection.APPROVER_IS_REVISION_REGISTRANT]) → 이미 승인됨. Revision 1의 등록자는 계약 등록자다.
+     * 근거 없는 [approve](Demo seed 경로 — D-MOPS-008 ②·D-DEMO-005)는 등록자 검사를 하지 않는다. 어느 경로인지는 Application이 어느 메서드를 부르는지로 정한다 —
+     * Domain은 행위자 이름을 모른다(하드코딩 없음, 정규형 문자열 비교만).
+     */
+    fun approveWithEvidence(revisionNo: Int, at: Instant, approver: ActorRef): RevisionApproval {
+        val revision = revision(revisionNo) ?: throw MasterRuleViolation(MasterRejection.REVISION_NOT_FOUND)
+        if (revision.effectivePeriod.hasEndedAt(at)) throw MasterRuleViolation(MasterRejection.REVISION_ENDED)
+        if (revision.registeredBy == approver) throw MasterRuleViolation(MasterRejection.APPROVER_IS_REVISION_REGISTRANT)
+        return revision.approve(at, approver)
     }
 
     fun addAgreement(id: ContractServiceAgreementId, kind: ServiceKind, at: Instant, by: ActorRef): ContractServiceAgreement {
@@ -100,7 +116,7 @@ class Contract private constructor(
         /**
          * 계약과 첫 Revision을 등록한다. 대상 Merchant = 첫 Scope의 Merchant(D-MD-013). Scope 검증은 [ContractScope.requireValid]로 먼저 한다.
          * 효력 시작이 판정 시각 [at]의 **Asia/Seoul 날짜 00:00보다 앞**이면 소급 등록이라 거절한다([MasterRejection.CONTRACT_START_RETROACTIVE] — D-MOPS-006 ⑤,
-         * MERCHANT-OPS-002 §3.4). 같은 KST 날짜 안의 앞선 시각은 허용한다. 이 규칙은 첫 등록(Revision 1)에만 — [registerRevision]은 Q-MOPS-18 답 전까지 그대로다.
+         * MERCHANT-OPS-002 §3.4). 같은 KST 날짜 안의 앞선 시각은 허용한다. [registerRevision]에도 같은 규칙(D-MOPS-007 ②).
          */
         fun register(
             id: ContractId,

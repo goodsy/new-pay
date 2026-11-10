@@ -16,6 +16,7 @@ import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.PaymentOpsPolicy
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
+import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -66,7 +67,11 @@ class OwnerOutcomeApplier(
      * [quietIfUnchanged](S6 리뷰 L-1, I-112): 외부 효과가 없는 결과(결정 조회 실패)가 **같은 분류로 반복**되면(이미 EXECUTION_UNKNOWN이고 마지막 실패가 같음) 감사 행 없이
      * 마지막 응답·다음 시도만 갱신한다. 분류가 바뀌거나 상태가 바뀌면 감사한다.
      */
-    fun apply(approvalId: String, outcome: Outcome, source: Source, contentMismatch: Boolean = false, quietIfUnchanged: Boolean = false): ApprovalOutcome = guarded(approvalId, source) {
+    @Suppress("LongParameterList")
+    fun apply(
+        approvalId: String, outcome: Outcome, source: Source, contentMismatch: Boolean = false, quietIfUnchanged: Boolean = false, integrityAudit: Boolean = false,
+        backoff: ((Int) -> Duration)? = null,
+    ): ApprovalOutcome = guarded(approvalId, source) {
         transactions.execute({ false }) {
             val now = now()
             val locked = repository.lock(approvalId) ?: throw IntegrityViolation("approval", null)
@@ -109,8 +114,12 @@ class OwnerOutcomeApplier(
                     val next = if (request.status == ApprovalStatus.EXECUTING) request.executionUnknown() else request
                     if (next !== request) repository.update(locked, next)
                     val failure = outcome.failure.take(MAX_CODE)
-                    var updated = execution.unknownResponse(now, failure, now.plus(policy.backoff(execution.attemptCount)))
+                    var updated = execution.unknownResponse(now, failure, now.plus((backoff ?: policy::backoff)(execution.attemptCount)))
                     outcome.integrityFlag?.let { updated = updated.flagIntegrity(it) }
+                    // MERCHANT-OPS-002 C-28: 무결성 플래그를 이번에 처음 세웠으면 감사 APPROVAL_INTEGRITY_VIOLATION 1회(같은 TX — [integrityAudit]을 켠 종류만, 기존 종류는 그대로).
+                    if (integrityAudit && execution.integrityFlag == null && outcome.integrityFlag != null) {
+                        audit(now, source, "APPROVAL_INTEGRITY_VIOLATION", "FLAGGED", request, "reason=${outcome.integrityFlag}", execution.executorActorId)
+                    }
                     executions.update(row, updated)
                     val repeated = quietIfUnchanged && request.status == ApprovalStatus.EXECUTION_UNKNOWN && execution.lastFailure == failure
                     if (!repeated) audit(now, source, "APPROVAL_EXECUTION_UNKNOWN", "UNKNOWN", request, "reason=$failure", execution.executorActorId)

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AdminApi, ApprovalView } from '../api/adminApi'
 import { OneTimeCode } from '../components/OneTimeCode'
 import { OwnerApprovalDetail } from '../components/OwnerApprovalDetail'
+import { isRegistrant, MerchantContractApprovalDetail } from '../components/MerchantContractApprovalDetail'
 import { ReacquisitionApprovalDetail } from '../components/ReacquisitionApprovalDetail'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
@@ -24,9 +25,11 @@ interface Props {
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }
 
-function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw, onDetail }: {
+function Row({ item, canDecide, mine, registrant, onApprove, onReject, onWithdraw, onDetail }: {
   item: ApprovalView
   canDecide: boolean
+  /** 조회자가 이 계약 Revision의 등록자(MERCHANT-OPS-002 D-MOPS-008 ③ — 표시만, 서버가 403 APPROVER_IS_REGISTRANT로 다시 막는다). */
+  registrant: boolean
   mine: boolean
   onApprove: (id: string, totp: string) => Promise<void>
   onReject: (id: string, totp: string) => Promise<void>
@@ -60,9 +63,13 @@ function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw, onDetail 
                 )}
               </Field>
               <div className="flex items-center gap-2 pt-6">
-                <Button type="button" size="sm" disabled={!valid} onClick={() => decide(onApprove)}>
-                  승인
-                </Button>
+                {registrant ? (
+                  <span className="text-xs text-muted-foreground">등록자는 승인할 수 없습니다</span>
+                ) : (
+                  <Button type="button" size="sm" disabled={!valid} onClick={() => decide(onApprove)}>
+                    승인
+                  </Button>
+                )}
                 <span aria-hidden="true" className="h-5 w-px bg-border" />
                 <Button type="button" size="sm" variant="destructive" disabled={!valid} onClick={() => decide(onReject)}>
                   거절
@@ -75,7 +82,7 @@ function Row({ item, canDecide, mine, onApprove, onReject, onWithdraw, onDetail 
               철회
             </Button>
           )}
-          {(item.targetKind === 'PAYMENT' || item.targetKind === 'ACQUISITION_FILE') && (
+          {(item.targetKind === 'PAYMENT' || item.targetKind === 'ACQUISITION_FILE' || item.targetKind === 'MERCHANT') && (
             <Button type="button" size="sm" variant="outline" onClick={() => onDetail(item.approvalId)}>
               상세
             </Button>
@@ -149,6 +156,7 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
               key={item.approvalId}
               item={item}
               canDecide={canDecide && view === 'pending'}
+              registrant={isRegistrant(item, viewer?.actorId)}
               mine={view === 'mine'}
               onApprove={(id, totp) => act(id, () => api.approve(id, totp))}
               onReject={(id, totp) => act(id, () => api.reject(id, totp))}
@@ -167,7 +175,8 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
         </TableBody>
       </Table>
       {detail && detail.targetKind === 'ACQUISITION_FILE' && <ReacquisitionApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
-      {detail && detail.targetKind !== 'ACQUISITION_FILE' && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
+      {detail && detail.targetKind === 'MERCHANT' && <MerchantContractApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
+      {detail && detail.targetKind !== 'ACQUISITION_FILE' && detail.targetKind !== 'MERCHANT' && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
     </section>
   )
 }

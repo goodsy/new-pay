@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * 화면 가맹점 등록 API(MERCHANT-OPS-002 §4.3 — B1-1: 사업자·가맹점·Site, B1-2: 계약 초안·CSA). 세션 + CSRF(보안 체인), 모두 `no-store`, 오류 본문 `{"error":"<CODE>"}`만(입력 값 없음).
+ * 화면 가맹점 등록 API(MERCHANT-OPS-002 §4.3 — B1-1: 사업자·가맹점·Site, B1-2: 계약 초안·CSA, B2-1: 계약 Revision §9.2). 세션 + CSRF(보안 체인), 모두 `no-store`, 오류 본문 `{"error":"<CODE>"}`만(입력 값 없음).
  * 읽기 전 거절(감사 없음 — MERCHANT-OPS-001 Q-MOPS-08과 같은 규칙): JSON이 아닌 Content-Type 415 `UNSUPPORTED_MEDIA_TYPE`(본문을 읽지 않는다), 16 KiB 초과 413 `REQUEST_TOO_LARGE`
  * (상한 + 1바이트까지만 읽는다). 그 뒤 [MerchantRegistrationBodyParser] 엄격 해석 → Use Case.
  *
@@ -39,6 +39,11 @@ class MerchantRegistrationController(private val registrations: MerchantRegistra
     /** B1-2 계약 초안(Revision 1 — 미승인). 날짜는 Asia/Seoul `YYYY-MM-DD`(C-7), 시작 소급 판정은 MASTER(§3.4). */
     @PostMapping("/api/merchant-registrations/contracts")
     fun registerContract(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> = handle(RegistrationKind.CONTRACT, authentication, request)
+
+    /** B2-1 계약 Revision 등록(1인 — MERCHANT-OPS-002 §9.2, 미승인). 날짜 규칙은 계약 초안과 같다(C-7), 시작 소급 판정은 MASTER(D-MOPS-007 ②). */
+    @PostMapping("/api/merchant-registrations/contract-revisions")
+    fun registerContractRevision(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(RegistrationKind.CONTRACT_REVISION, authentication, request)
 
     /** B1-2 서비스 계약(CSA) 추가. */
     @PostMapping("/api/merchant-registrations/service-agreements")

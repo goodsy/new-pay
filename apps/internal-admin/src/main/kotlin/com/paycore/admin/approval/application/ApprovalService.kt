@@ -109,7 +109,8 @@ class ApprovalService(
         ApprovalKind.ROLE_REACTIVATE -> reactivationRefusal(command.causeApprovalId!!, command.targetActorId, requester.actorId, null)
             ?: ApprovalParticipants.credentialIssuerConflict(kind, requester.actorId, target.credentialIssuers)
             ?: if (target.status != "ACTIVE") NOT_ELIGIBLE else if (executor.rolesSuspendedBy(command.targetActorId, command.causeApprovalId).isEmpty()) "NOTHING_TO_REACTIVATE" else null
-        ApprovalKind.OPERATOR_CORRECTION_CANCEL, ApprovalKind.ACQ_REACQUISITION -> error("owner-service kinds are refused before the transaction (M-6)")
+        ApprovalKind.OPERATOR_CORRECTION_CANCEL, ApprovalKind.ACQ_REACQUISITION, ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE ->
+            error("owner-service kinds are refused before the transaction (M-6)")
     }
 
     /** `ROLE_REACTIVATE` 원인 검사: 원인은 같은 대상의 실행된 재설정 승인이고, 요청자·승인자는 원인의 요청자·승인자 모두와 달라야 한다(H-A). */
@@ -474,6 +475,7 @@ class ApprovalService(
         when (targetKind) {
             "PAYMENT" -> ApprovalTarget.Payment(targetRef, 0)
             "ACQUISITION_FILE" -> ApprovalTarget.AcquisitionFile(targetRef)
+            "MERCHANT" -> ApprovalTarget.Merchant(targetRef)
             else -> ApprovalTarget.AdminAccount(targetRef, 0)
         }
     }.getOrNull()

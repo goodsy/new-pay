@@ -149,7 +149,7 @@ class MerchantOnboardingServiceSpec(
                 ),
             )
             revision shouldBe "${ready.contractId.value}#2"
-            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(request(), ready.contractId, 2)))
+            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 2))) // D-MOPS-008 ②: seed 경로 행위자
             service.issueFirstDefaultMerchantAccount(ready.issueCommand(site = ready.secondSiteId).copy(revisionNo = 2)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.SITE_OUTSIDE_CONTRACT_SCOPE, null, replayed = false)
             service.issueFirstDefaultMerchantAccount(ready.issueCommand().copy(revisionNo = 2)).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
@@ -168,7 +168,7 @@ class MerchantOnboardingServiceSpec(
                     RegisterContractRevisionCommand(request(), ready.contractId, ScopeInput(ready.merchantId, setOf(ready.siteId)), EffectivePeriod(t5)),
                 ),
             )
-            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(request(), ready.contractId, 2)))
+            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 2))) // D-MOPS-008 ②: seed 경로 행위자
             return ready
         }
 
@@ -213,13 +213,13 @@ class MerchantOnboardingServiceSpec(
             val contract = com.paycore.master.merchant.domain.ContractId(
                 succeeded(service.registerContract(RegisterContractCommand(request(), business, ScopeInput(merchant), EffectivePeriod(t0.plusSeconds(86_400))))),
             )
-            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(request(), contract, 1)))
+            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), contract, 1))) // D-MOPS-008 ②: seed 경로 행위자
             val agreement = com.paycore.master.merchant.domain.ContractServiceAgreementId(
                 succeeded(service.addServiceAgreement(AddServiceAgreementCommand(request(), contract, ServiceKind.CARD_PG_PAYMENT))),
             )
             val mid = succeeded(
                 service.issueFirstDefaultMerchantAccount(
-                    com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand(request(), merchant, agreement, contract, 1, site),
+                    com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand(OnboardingFixture.seedRequest(), merchant, agreement, contract, 1, site), // D-MOPS-008 ②: seed 경로 행위자
                 ),
             )
             rowsOf(container, merchant).let { listOf(it.accounts, it.defaults, it.assignments) } shouldBe listOf(1L, 1L, 1L)
@@ -246,7 +246,7 @@ class MerchantOnboardingServiceSpec(
                 ),
             )
             clock.set(t0.plusSeconds(2))
-            service.approveContractRevision(ApproveContractRevisionCommand(request(), ready.contractId, 2)) shouldBe
+            service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 2)) shouldBe // D-MOPS-008 ②: seed 경로 행위자
                 AdminCommandResult.Rejected(MasterRejection.REVISION_ENDED, null, replayed = false)
             scalar(
                 "SELECT COUNT(*) FROM contract_revision_approval WHERE contract_id = ? AND revision_no = 2", ready.contractId.value,
@@ -316,18 +316,18 @@ class MerchantOnboardingServiceSpec(
                 AdminCommandResult.Rejected(MasterRejection.SCOPE_MERCHANT_OF_OTHER_BUSINESS, null, replayed = false)
             service.addServiceAgreement(AddServiceAgreementCommand(request(), ready.contractId, ServiceKind.CARD_PG_PAYMENT)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.SERVICE_KIND_DUPLICATE, ready.agreementId.value, replayed = false)
-            service.approveContractRevision(ApproveContractRevisionCommand(request(), ready.contractId, 1)) shouldBe
+            service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 1)) shouldBe // D-MOPS-008 ②: seed 경로 행위자
                 AdminCommandResult.Rejected(MasterRejection.REVISION_ALREADY_APPROVED, null, replayed = false)
         }
 
         Then("revision approval advances the scope Merchant's entitlement revision and records the approver") {
             val ready = readyMerchant(service, approved = false)
             val before = rowsOf(container, ready.merchantId).entitlement
-            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(request(), ready.contractId, 1)))
+            succeeded(service.approveContractRevision(ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 1))) // D-MOPS-008 ②: seed 경로 행위자
             rowsOf(container, ready.merchantId).entitlement shouldBe before + 1
             scalar(
                 "SELECT approved_by FROM contract_revision_approval WHERE contract_id = ? AND revision_no = 1", ready.contractId.value,
-            ) shouldBe OnboardingFixture.operator.value
+            ) shouldBe OnboardingFixture.seedActor.value // 기대값 변경(D-MOPS-008 ②, C-26): 근거 없는 승인은 seed 행위자만 실행할 수 있어 기록된 승인자도 seed 행위자다(이전 operator-1)
         }
     }
 
@@ -370,12 +370,32 @@ class MerchantOnboardingServiceSpec(
                 AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = false)
         }
 
-        Then("Q-MOPS-18 regression (review n-1): registerContractRevision still accepts a revision that starts in the past (rule not extended to revisions before the answer)") {
+        Then("D-MOPS-007 ② (Q-MOPS-18 answered — expectation reversed from the B1 n-1 regression): a revision starting before today's KST date is a stored rejection replayed for the same key; revision count, history and outbox unchanged") {
+            clock.set(t0)
             val ready = readyMerchant(service)
+            fun revisionRows() = listOf(
+                scalar("SELECT COUNT(*) FROM contract_revision WHERE contract_id = ?", ready.contractId.value).toString().toLong(),
+                scalar(
+                    "SELECT COUNT(*) FROM master_change_history WHERE change_type = 'ContractRevisionRegistered' AND aggregate_id = ?", ready.contractId.value,
+                ).toString().toLong(),
+                scalar(
+                    "SELECT COUNT(*) FROM outbox_event WHERE event_type = 'ContractRevisionRegistered' AND aggregate_id = ?", ready.contractId.value,
+                ).toString().toLong(),
+            )
+            val before = revisionRows()
+            val key = OnboardingFixture.key()
             val past = EffectivePeriod(t0.minus(java.time.Duration.ofDays(3)))
+            val command = RegisterContractRevisionCommand(request(key), ready.contractId, ScopeInput(ready.merchantId), past)
+            service.registerContractRevision(command) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = false)
+            service.registerContractRevision(command) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_START_RETROACTIVE, null, replayed = true)
+            revisionRows() shouldBe before
+            scalar("SELECT result_code FROM admin_request WHERE idempotency_key = ?", key.value) shouldBe "CONTRACT_START_RETROACTIVE"
+
+            // 대조군: 오늘 KST 00:00 시작은 받는다(같은 날 앞선 시각 허용 — §3.4 경계와 같다).
             succeeded(
-                service.registerContractRevision(RegisterContractRevisionCommand(request(), ready.contractId, ScopeInput(ready.merchantId), past)),
+                service.registerContractRevision(RegisterContractRevisionCommand(request(), ready.contractId, ScopeInput(ready.merchantId), EffectivePeriod(kstToday))),
             ) shouldBe "${ready.contractId.value}#2"
+            revisionRows() shouldBe before.map { it + 1 }
         }
     }
 })

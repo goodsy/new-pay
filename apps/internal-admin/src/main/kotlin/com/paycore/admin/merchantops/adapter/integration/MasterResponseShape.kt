@@ -110,12 +110,52 @@ internal sealed interface MasterResponseShape {
                 MasterCommandKind.REGISTER_MERCHANT_SITE -> "site"
                 MasterCommandKind.REGISTER_CONTRACT -> "ctr"
                 MasterCommandKind.ADD_SERVICE_AGREEMENT -> "csa"
+                MasterCommandKind.REGISTER_CONTRACT_REVISION -> "ctr"
             }
-            obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to Text(Regex("^${prefix}_$ULID$")), "replayed" to Flag)
+            // B2-1 Revision만 `ctr_…#<n>`(n = 1..2147483647 — Domain·DB에 상한이 없어 INT 범위, MERCHANT-OPS-002 C-30). 다른 종류에 `#`가 오면 해석 불가.
+            val suffix = if (kind == MasterCommandKind.REGISTER_CONTRACT_REVISION) "#$REVISION_NO" else ""
+            obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to Text(Regex("^${prefix}_$ULID$suffix$")), "replayed" to Flag)
         }
+
+        /** 1..2147483647(Int 범위)의 10진 표기 — 앞자리 0 없음. */
+        private const val REVISION_NO =
+            "([1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])"
 
         /** 명령 업무 거절 — **`reference` 키 없음**(C-12: 오면 키 집합이 달라 해석 불가). */
         val COMMAND_REJECTED: MasterResponseShape = obj("outcome" to Text(Regex("^REJECTED$")), "rejection" to Text(Regex("^[A-Z][A-Z0-9_]{0,47}$")), "replayed" to Flag)
+
+        // ---------------------------------------------------------------- MERCHANT-OPS-002 B2-2 승인 명령(§9.4 — C-33: 실행·기한 확인은 §3.3 모양, 기한 전만 NOT_YET_DUE)
+
+        private val REJECTION = Text(Regex("^[A-Z][A-Z0-9_]{0,47}$"))
+        private val MOP1 = Text(Regex("^mop1:[0-9a-f]{64}$"))
+        private val DECIDED_VIA = Text(Regex("^(EXECUTE|DEADLINE_CONFIRM)$"))
+        private val CONTRACT_REVISION_REFERENCE = Text(Regex("^ctr_$ULID#$REVISION_NO$"))
+
+        private val MERCHANT_ACCOUNT_REFERENCE = Text(Regex("^mid_$ULID$"))
+
+        /** operation code → 성공 reference 문법(계약 승인 `ctr_…#n` — C-30, 첫 MID `mid_…` — B2-3). 다른 문법이면 해석 불가(Unknown). */
+        private val APPROVAL_REFERENCES: Map<String, MasterResponseShape> = mapOf(
+            "ApproveContractRevision" to CONTRACT_REVISION_REFERENCE, "IssueFirstDefaultMerchantAccount" to MERCHANT_ACCOUNT_REFERENCE,
+        )
+
+        fun approvalSucceeded(operationCode: String): MasterResponseShape =
+            obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to APPROVAL_REFERENCES.getValue(operationCode), "replayed" to Flag)
+
+        /** 기한 확인 — MASTER 시각상 기한 전(저장 없음). */
+        val NOT_YET_DUE: MasterResponseShape = obj("decision" to Text(Regex("^NOT_YET_DUE$")))
+
+        /** 결정 조회 — 아직 커밋된 결정 없음(효과 없음 아님). */
+        val DECISION_NONE: MasterResponseShape = obj("decision" to Text(Regex("^NONE$")))
+
+        /** 결정 조회 DECIDED 성공(reference만 — operation의 문법)·거절(rejection만). 지문은 `mop1`, 경로 표식은 EXECUTE·DEADLINE_CONFIRM. 모르는 operation이면 해석 불가. */
+        fun decisionSucceeded(operationCode: String): MasterResponseShape = obj(
+            "decision" to Text(Regex("^DECIDED$")), "operation" to Text(Regex("^" + Regex.escape(operationCode) + "$")), "outcome" to Text(Regex("^SUCCEEDED$")),
+            "reference" to APPROVAL_REFERENCES.getValue(operationCode), "approvalFingerprint" to MOP1, "decidedVia" to DECIDED_VIA,
+        )
+        val DECISION_REJECTED: MasterResponseShape = obj(
+            "decision" to Text(Regex("^DECIDED$")), "operation" to Text(Regex("^(ApproveContractRevision|IssueFirstDefaultMerchantAccount)$")), "outcome" to Text(Regex("^REJECTED$")),
+            "rejection" to REJECTION, "approvalFingerprint" to MOP1, "decidedVia" to DECIDED_VIA,
+        )
 
         val DETAIL: MasterResponseShape = obj(
             "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME),
@@ -133,6 +173,8 @@ internal sealed interface MasterResponseShape {
                         obj(
                             "revisionNo" to Whole(1), "scopeKind" to CODE, "effectiveFrom" to TIME, "effectiveTo" to opt(TIME), "approvedAt" to opt(TIME),
                             "scopeSiteIds" to list(ID),
+                            // MERCHANT-OPS-002 B2-2(D-MOPS-008 ③): Revision 등록자 — MASTER와 함께 바꾼다(필드 집합 정확 일치).
+                            "registeredBy" to ACTOR,
                         ),
                     ),
                     "agreements" to list(obj("agreementId" to ID, "serviceKind" to CODE, "addedAt" to TIME)),

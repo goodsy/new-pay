@@ -9,6 +9,8 @@ export interface ScreenMemory {
   has(key: string): boolean
   write(key: string, value: unknown): void
   subscribe(listener: () => void): () => void
+  /** 지금 있는 키(MERCHANT-OPS-002 B2-1 리뷰 n-a — 세션 경계에서 결과 확인이 필요한 폼이 있었는지 본다). */
+  keys(): string[]
 }
 
 export function createScreenMemory(): ScreenMemory {
@@ -26,6 +28,7 @@ export function createScreenMemory(): ScreenMemory {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    keys: () => [...values.keys()],
   }
 }
 
@@ -34,4 +37,18 @@ export function useRemembered<T>(memory: ScreenMemory, key: string, initial: T):
   const value = useSyncExternalStore(memory.subscribe, () => (memory.has(key) ? (memory.read(key) as T) : initial))
   const set = useCallback((next: T) => memory.write(key, next), [memory, key])
   return [value, set]
+}
+
+/**
+ * 결과 확인이 필요한 폼이 있는지(MERCHANT-OPS-002 B2-1 리뷰 n-a): 등록 단계·Revision 폼의 상태 키(`….status`)가 보내는 중(`busy`)이거나 결과 불명(`unknown`)이면 true.
+ * 세션이 끝나면 메모리를 버리므로 App이 버리기 전에 한 번 물어 로그인 화면에 안내한다(submissionId·입력은 남기지 않는다).
+ */
+export function hasUnresolvedRequest(...memories: ScreenMemory[]): boolean {
+  return memories.some((memory) =>
+    memory.keys().some((key) => {
+      if (!key.endsWith('.status')) return false
+      const kind = (memory.read(key) as { kind?: unknown } | undefined)?.kind
+      return kind === 'busy' || kind === 'unknown'
+    }),
+  )
 }

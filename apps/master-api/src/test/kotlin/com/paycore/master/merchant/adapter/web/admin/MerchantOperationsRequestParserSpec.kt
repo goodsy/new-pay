@@ -172,4 +172,34 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
             ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.serviceAgreement(bytes(body)).shouldBeNull() } }
         }
     }
+
+    Given("B2-1 contract revision bodies (§9.2 — same scope/period rules as the contract draft, contractId instead of partyBusinessId)") {
+        val ctr = "ctr_01JC0000000000000000000001"
+        val mer = "mer_01JC0000000000000000000001"
+        val site = "site_01JC0000000000000000000001"
+        Then("MERCHANT and SITES scopes come through as Domain values; a past start is not judged here (Domain decides — D-MOPS-007 ②)") {
+            val s = MerchantOperationsBodies.Submission()
+            val merchantWide = MerchantOperationsRequestParser.contractRevision(bytes(MerchantOperationsBodies.registerContractRevision(ctr, mer, s = s))).shouldNotBeNull()
+            listOf(merchantWide.request.idempotencyKey.value, merchantWide.request.actor.value, merchantWide.request.correlationId) shouldBe listOf(s.idempotencyKey, s.actor, s.correlationId)
+            listOf(merchantWide.contractId.value, merchantWide.scope.merchantId.value, merchantWide.scope.siteIds.size) shouldBe listOf(ctr, mer, 0)
+            merchantWide.effectivePeriod.to.shouldBeNull()
+            val sites = MerchantOperationsRequestParser.contractRevision(
+                bytes(MerchantOperationsBodies.registerContractRevision(ctr, mer, listOf(site), to = "2026-12-31T15:00:00.000Z")),
+            ).shouldNotBeNull()
+            sites.scope.siteIds.map { it.value } shouldBe listOf(site)
+            MerchantOperationsRequestParser.contractRevision(bytes(MerchantOperationsBodies.registerContractRevision(ctr, mer, from = "2020-01-01T15:00:00.000Z"))).shouldNotBeNull()
+        }
+        Then("malformed: business id as contract, 51 sites, duplicate site, non-canonical time, end ≤ start, admin actor namespace, a contract-draft body") {
+            listOf(
+                MerchantOperationsBodies.registerContractRevision("biz_01JC0000000000000000000001", mer),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer, (1..51).map { "site_01JC00000000000000000000%02d".format(it % 100).take(31) }),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer, listOf(site, site)),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer, from = "2026-10-10"),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer, from = "2026-10-10T15:00:00.000Z", to = "2026-10-10T15:00:00.000Z"),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer).replace("\"actor\":\"admin:", "\"actor\":\"system:"),
+                MerchantOperationsBodies.registerContract("biz_01JC0000000000000000000001", mer),
+                MerchantOperationsBodies.registerContractRevision(ctr, mer).dropLast(1) + ",\"extra\":\"x\"}",
+            ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.contractRevision(bytes(body)).shouldBeNull() } }
+        }
+    }
 })

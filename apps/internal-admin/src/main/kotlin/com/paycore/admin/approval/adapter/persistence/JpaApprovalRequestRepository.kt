@@ -118,6 +118,10 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
         ApprovalTargetKind.ACQUISITION_FILE -> ApprovalTarget.AcquisitionFile(requireNotNull(r.targetRef) { "acquisition file target" }).also {
             require(r.targetSecurityVersion == 0L) { "acquisition file target version column is 0" }
         }
+        // MERCHANT-OPS-002 B2-2: 가맹점 대상도 대상 버전 0 고정(C-16 — pinned 비교 + MASTER 재판정).
+        ApprovalTargetKind.MERCHANT -> ApprovalTarget.Merchant(requireNotNull(r.targetRef) { "merchant target" }).also {
+            require(r.targetSecurityVersion == 0L) { "merchant target version column is 0" }
+        }
     }
 
     private fun <T> translate(block: () -> T): T = ApprovalPersistenceTranslation.translate(block)

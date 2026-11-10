@@ -29,8 +29,9 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
 
     fun <T> root(block: (Connection) -> T): T = MasterDbAccounts.root(container).use(block)
 
+    // 기대값 변경(MERCHANT-OPS-002 B2-2 V9, 명세 §9.3·§8.2 B2-2-4): 새 업무 표 `admin_approval_evidence`(INSERT-only 승인 근거) — 아래 DELETE 1142 검사 대상에도 들어간다.
     val businessTables = listOf(
-        "admin_request", "business", "card_route_activation", "card_route_activation_event", "contract", "contract_revision",
+        "admin_approval_evidence", "admin_request", "business", "card_route_activation", "card_route_activation_event", "contract", "contract_revision",
         "contract_revision_approval", "contract_revision_scope_site", "contract_service_agreement", "currency_enablement", "currency_unit",
         "default_designation", "entitlement_snapshot_ack", "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account",
         "merchant_account_site_assignment", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
@@ -292,6 +293,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "merchant_site_review_decision", "entitlement_snapshot_issue", "entitlement_snapshot_ack",
             // MASTER-SNAPSHOT-002 V6: 정책 버전 등록부·카드사 개통 이력.
             "policy_version", "card_route_activation_event",
+            // 기대값 변경(MERCHANT-OPS-002 B2-2 V10, 명세 §9.3·§8.2 B2-2-4): 승인 근거(append-only — SELECT, INSERT만).
+            "admin_approval_evidence",
         )
 
         Then("UPDATE and locking reads on insert-only tables are denied (1142)") {
@@ -317,6 +320,116 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
         Then("DELETE is denied on every business table (1142)") {
             runtime { c -> businessTables.associateWith { c.errorCodeOf("DELETE FROM $it WHERE 1 = 0") } } shouldBe
                 businessTables.associateWith { 1142 }
+        }
+    }
+
+    Given("MERCHANT-OPS-002 B2-2 V9 admin_approval_evidence (§9.3 — CHECK 3819, PK/UNIQUE 1062, formats; runtime account)") {
+        val requester = "admin:adm_01JC0000000000000000000RQ1"
+        val approver = "admin:adm_01JC0000000000000000000AP1"
+        val fingerprint = "mop1:" + "ab".repeat(32)
+
+        /** 근거 행 INSERT(열을 바꿔 가며 제약을 시험한다). 성공이면 null, 실패면 MySQL 오류 코드. */
+        @Suppress("LongParameterList")
+        fun insert(
+            c: Connection,
+            approvalId: String = MasterSchemaRows.id("apr"),
+            operation: String = "ApproveContractRevision",
+            requestRecordId: String = java.util.UUID.randomUUID().toString(),
+            requestedBy: String = requester,
+            approvedBy: String = approver,
+            approvedAt: String = "2026-10-09 01:59:00.000",
+            executeBefore: String = "2026-10-09 02:59:00.000",
+            // 직접 INSERT 표식(admin_request 없는 시험 행 — ApprovedCommandAtomicitySpec 불변식 n-a가 이 값으로 구별한다).
+            evidenceRef: String = com.paycore.master.merchant.application.ApprovedCommandFixture.SCHEMA_TEST_EVIDENCE_REF,
+            approvalFingerprint: String = fingerprint,
+            outcome: String = "EXECUTED",
+            resultCode: String? = null,
+            resultReference: String? = "ctr_01JC0000000000000000000CT1#1",
+            decidedVia: String? = "EXECUTE",
+        ): Int? = c.errorCodeOfUpdate(
+            "INSERT INTO admin_approval_evidence (approval_id, operation, request_record_id, requested_by, approved_by, approved_at, execute_before, evidence_ref, " +
+                "approval_fingerprint, outcome, result_code, result_reference, decided_via, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2026-10-09 02:00:00.000')",
+            approvalId, operation, requestRecordId, requestedBy, approvedBy, approvedAt, executeBefore, evidenceRef, approvalFingerprint, outcome, resultCode, resultReference,
+            decidedVia,
+        )
+
+        Then("control: EXECUTED, REJECTED and DEADLINE_CONFIRM rows of the allowed shapes are accepted by the runtime account") {
+            runtime { c ->
+                listOf(
+                    insert(c),
+                    insert(c, outcome = "REJECTED", resultCode = "REVISION_ALREADY_APPROVED", resultReference = null),
+                    insert(c, outcome = "REJECTED", resultCode = "APPROVAL_EXPIRED", resultReference = null, decidedVia = "DEADLINE_CONFIRM"),
+                    insert(c, outcome = "REJECTED", resultCode = "APPROVAL_SAME_ACTOR", resultReference = null, approvedBy = requester, decidedVia = "DEADLINE_CONFIRM"),
+                    insert(c, outcome = "REJECTED", resultCode = "APPROVAL_WINDOW_INVALID", resultReference = null, executeBefore = "2026-10-09 01:59:00.000"),
+                    insert(c, operation = "IssueFirstDefaultMerchantAccount", resultReference = "mid_01JC0000000000000000000MD1"),
+                )
+            } shouldBe listOf(null, null, null, null, null, null)
+        }
+
+        Then("EXECUTED with the same actor or a deadline not after the approval is rejected by CHECK (3819 — DB defence line, §8.2 B2-2-3)") {
+            runtime { c ->
+                mapOf(
+                    "executed same actor" to insert(c, approvedBy = requester),
+                    "executed deadline = approval" to insert(c, executeBefore = "2026-10-09 01:59:00.000"),
+                    "executed deadline before approval" to insert(c, executeBefore = "2026-10-09 01:58:59.999"),
+                )
+            } shouldBe mapOf("executed same actor" to 3819, "executed deadline = approval" to 3819, "executed deadline before approval" to 3819)
+        }
+
+        Then("outcome/code/reference consistency and the DEADLINE_CONFIRM code set are enforced (3819); decided_via other values 3819, NULL refused by NOT NULL (1048)") {
+            runtime { c ->
+                mapOf(
+                    "executed with code" to insert(c, resultCode = "REVISION_ENDED"),
+                    "executed without reference" to insert(c, resultReference = null),
+                    "rejected without code" to insert(c, outcome = "REJECTED", resultReference = null),
+                    "rejected with reference" to insert(c, outcome = "REJECTED", resultCode = "REVISION_ENDED"),
+                    "deadline confirm with REVISION_ENDED (n-b/m-a)" to
+                        insert(c, outcome = "REJECTED", resultCode = "REVISION_ENDED", resultReference = null, decidedVia = "DEADLINE_CONFIRM"),
+                    "deadline confirm executed" to insert(c, decidedVia = "DEADLINE_CONFIRM"),
+                    "decided_via other" to insert(c, decidedVia = "MANUAL"),
+                    "decided_via NULL" to insert(c, decidedVia = null),
+                    "unknown outcome" to insert(c, outcome = "UNKNOWN"),
+                    "unknown operation" to insert(c, operation = "RegisterBusiness"),
+                )
+            } shouldBe mapOf(
+                "executed with code" to 3819, "executed without reference" to 3819, "rejected without code" to 3819, "rejected with reference" to 3819,
+                "deadline confirm with REVISION_ENDED (n-b/m-a)" to 3819, "deadline confirm executed" to 3819, "decided_via other" to 3819,
+                // NOT NULL 열(명세 n-b "열도 NOT NULL")은 CHECK보다 먼저 NULL을 거부한다 — 같은 거부, 오류 코드만 1048(명세 표기 3819와 다름 — 보고 대상).
+                "decided_via NULL" to 1048,
+                "unknown outcome" to 3819, "unknown operation" to 3819,
+            )
+        }
+
+        Then("formats: approval id, canonical actors (no lower case), evidence reference (space, empty), fingerprint (3819); 129 characters exceed the column (1406)") {
+            runtime { c ->
+                mapOf(
+                    "approval id" to insert(c, approvalId = "apr_short"),
+                    "lower case approval id" to insert(c, approvalId = MasterSchemaRows.id("apr").lowercase()),
+                    "requested_by lower case" to insert(c, requestedBy = requester.lowercase()),
+                    "approved_by namespace" to insert(c, approvedBy = "system:demo-seed"),
+                    "evidence ref with space" to insert(c, evidenceRef = "has space"),
+                    "evidence ref empty" to insert(c, evidenceRef = ""),
+                    "fingerprint upper case" to insert(c, approvalFingerprint = "mop1:" + "AB".repeat(32)),
+                    "fingerprint other tag" to insert(c, approvalFingerprint = "acd1:" + "ab".repeat(32)),
+                    "evidence ref 129" to insert(c, evidenceRef = "x".repeat(129)),
+                )
+            } shouldBe mapOf(
+                "approval id" to 3819, "lower case approval id" to 3819, "requested_by lower case" to 3819, "approved_by namespace" to 3819,
+                "evidence ref with space" to 3819, "evidence ref empty" to 3819, "fingerprint upper case" to 3819, "fingerprint other tag" to 3819,
+                "evidence ref 129" to 1406,
+            )
+        }
+
+        Then("the same approval id twice (also under another operation) and the same request record id twice are rejected (1062)") {
+            runtime { c ->
+                val approvalId = MasterSchemaRows.id("apr")
+                val record = java.util.UUID.randomUUID().toString()
+                insert(c, approvalId = approvalId, requestRecordId = record) shouldBe null
+                mapOf(
+                    "same approval id, other operation" to insert(c, approvalId = approvalId, operation = "IssueFirstDefaultMerchantAccount"),
+                    "same request record" to insert(c, requestRecordId = record),
+                )
+            } shouldBe mapOf("same approval id, other operation" to 1062, "same request record" to 1062)
         }
     }
 }) {
@@ -352,6 +465,7 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "entitlement_snapshot_ack" to "consumer",
             "policy_version" to "registered_by",
             "card_route_activation_event" to "actor_ref",
+            "admin_approval_evidence" to "approved_by",
         )
 
         fun firstColumn(table: String): String = FIRST_COLUMNS.getValue(table)

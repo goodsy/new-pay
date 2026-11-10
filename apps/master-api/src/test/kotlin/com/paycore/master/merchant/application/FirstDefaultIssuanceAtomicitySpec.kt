@@ -141,6 +141,42 @@ class FirstDefaultIssuanceAtomicitySpec(
         }
     }
 
+    Given("B2-3 §8.2 B2-3-2 (review M-1): the approved first Default issuance with a failure injected after the evidence row and at the request result") {
+        fun evidenceRows(approvalId: String): Long = OnboardingFixture.runtime(container).use { c ->
+            c.prepareStatement("SELECT COUNT(*) FROM admin_approval_evidence WHERE approval_id = ?").use { ps ->
+                ps.setString(1, approvalId)
+                ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+            }
+        }
+        fun requestRows(key: String): Long = OnboardingFixture.runtime(container).use { c ->
+            c.prepareStatement("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ?").use { ps ->
+                ps.setString(1, key)
+                ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+            }
+        }
+        listOf(MasterFaultPoint.APPROVAL_EVIDENCE_RECORD, MasterFaultPoint.ADMIN_COMPLETE).forEach { point ->
+            Then("after $point: MID·Default·PRIMARY·entitlement revision·Snapshot·history·Outbox unchanged, evidence 0, admin_request 0; the retry executes once with one EXECUTED evidence row") {
+                val ready = readyMerchant(service)
+                val before = rowsOf(container, ready.merchantId)
+                val command = ApprovedCommandFixture.firstDefault(ready)
+                faults.after(point) { throw Injected(point) }
+
+                shouldThrow<Injected> { service.issueFirstDefaultMerchantAccountWithEvidence(command) }
+                rowsOf(container, ready.merchantId) shouldBe before
+                listOf(evidenceRows(command.evidence.approvalId), requestRows(command.request.idempotencyKey.value)) shouldBe listOf(0L, 0L)
+
+                faults.reset()
+                service.issueFirstDefaultMerchantAccountWithEvidence(command).shouldBeInstanceOf<AdminCommandResult.Succeeded>().replayed shouldBe false
+                service.issueFirstDefaultMerchantAccountWithEvidence(command).shouldBeInstanceOf<AdminCommandResult.Succeeded>().replayed shouldBe true
+                rowsOf(container, ready.merchantId) shouldBe before.copy(
+                    accounts = 1, defaults = 1, assignments = 1, outbox = 3, history = 3, entitlement = before.entitlement + 1,
+                )
+                OnboardingFixture.runtime(container).use { ApprovedCommandFixture.evidenceRow(it, command.evidence.approvalId)!!.outcome } shouldBe "EXECUTED"
+                listOf(evidenceRows(command.evidence.approvalId), requestRows(command.request.idempotencyKey.value)) shouldBe listOf(1L, 1L)
+            }
+        }
+    }
+
     Given("$n different keys issue the first Default of the same Merchant at once") {
         Then("exactly one succeeds; the others wait on the business/merchant row locks and are rejected with the winner as reference") {
             val ready = readyMerchant(service)
@@ -217,7 +253,7 @@ class FirstDefaultIssuanceAtomicitySpec(
                 holder = { service.registerMerchantSite(RegisterMerchantSiteCommand(request(), ready.merchantId, ChannelType.WEB, OnboardingFixture.host())) },
                 waiter = {
                     service.approveContractRevision(
-                        com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand(request(), ready.contractId, 2),
+                        com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand(OnboardingFixture.seedRequest(), ready.contractId, 2), // D-MOPS-008 ②: seed 경로 행위자
                     )
                 },
             )

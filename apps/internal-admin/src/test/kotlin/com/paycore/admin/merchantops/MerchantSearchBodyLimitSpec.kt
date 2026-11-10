@@ -57,7 +57,7 @@ class MerchantSearchBodyLimitSpec : BehaviorSpec({
     fun call(request: Request): Triple<Int, String, Pair<Recording, SimpleMeterRegistry>> {
         val lookup = Recording()
         val registry = SimpleMeterRegistry()
-        val response = MerchantController(lookup, registry).search(TestingAuthenticationToken("adm_x", null), request)
+        val response = MerchantController(lookup, registry, com.paycore.admin.merchantops.application.provided.MerchantPendingApprovals { _, _ -> emptyList() }).search(TestingAuthenticationToken("adm_x", null), request)
         response.headers.cacheControl!! shouldContain "no-store"
         return Triple(response.statusCode.value(), JsonMapper.builder().build().writeValueAsString(response.body), lookup to registry)
     }

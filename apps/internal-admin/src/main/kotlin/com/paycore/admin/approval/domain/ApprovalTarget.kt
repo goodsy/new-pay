@@ -56,4 +56,22 @@ sealed interface ApprovalTarget {
             val FILE_ID = Regex("^ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3}$")
         }
     }
+
+    /**
+     * MASTER 가맹점 대상(`MERCHANT_CONTRACT_APPROVAL` — MERCHANT-OPS-002 B2-2 §9.5). 대상 버전 열은 0 고정(C-16): 명령 필드 자체(`contractId#revisionNo`)가 고정값이고, 승인 TX1이
+     * 명령 행 `pinned_target`과 MASTER 재조회 값을 비교하며(INVALIDATED), MASTER가 실행 TX에서 업무 규칙을 다시 판정한다.
+     */
+    data class Merchant(val merchantId: String) : ApprovalTarget {
+        init {
+            require(MERCHANT_ID.matches(merchantId)) { "merchant id format (mer_ + ULID)" }
+        }
+
+        override val kind: ApprovalTargetKind get() = ApprovalTargetKind.MERCHANT
+        override val ref: String get() = merchantId
+        override val version: Long get() = 0
+
+        companion object {
+            val MERCHANT_ID = Regex("^mer_[0-9A-HJKMNP-TV-Z]{26}$")
+        }
+    }
 }

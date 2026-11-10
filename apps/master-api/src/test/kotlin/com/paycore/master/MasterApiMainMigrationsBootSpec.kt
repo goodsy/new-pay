@@ -26,9 +26,10 @@ class MasterApiMainMigrationsBootSpec(
     private val container: MySQLContainer,
 ) : FunSpec({
 
-    test("only the production Flyway locations are applied (V1·V3·V5·V7 business schema, V2·V4·V6 runtime table privileges)") {
+    test("only the production Flyway locations are applied (V1·V3·V5·V7·V9 business schema, V2·V4·V6·V10 runtime table privileges)") {
         flyway.configuration.locations.map { it.descriptor } shouldBe listOf(MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES)
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7")
+        // 기대값 변경(B2-2 V9·V10, MERCHANT-OPS-002 §9.3 C-21): 승인 근거 schema(V9)와 그 runtime 권한(V10). V8은 의도적으로 비운다.
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10")
     }
 
     test("the runtime account (role-only, no database-level privilege) connects to the MASTER database and reads business tables") {

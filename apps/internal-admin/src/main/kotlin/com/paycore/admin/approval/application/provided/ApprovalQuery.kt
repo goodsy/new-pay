@@ -42,6 +42,25 @@ data class ApprovalView(
     val owner: OwnerDetailView? = null,
     /** 재매입 승인 상세(ACQ-ADMIN-001 B1-A §5.2 — 원 파일·사유 코드·고정 레코드·실행 결과, 사유 문구·근거 없음). 목록·다른 종류는 null. */
     val acquiring: AcquiringDetailView? = null,
+    /** 가맹점 승인 상세(MERCHANT-OPS-002 B2-2 — 고정 대상(등록자 포함)·실행 결과, 근거 참조 없음). 목록·다른 종류는 null. */
+    val merchant: MerchantOpsDetailView? = null,
+)
+
+data class MerchantOpsDetailView(
+    val commandKind: String,
+    val merchantId: String,
+    /** 요청 시점 고정 대상 JSON(권위 `pinned_target` — 가맹점·계약·Revision·Scope·기간·registeredBy). */
+    val pinnedTarget: String,
+    val approvedAt: Instant?,
+    val executeBefore: Instant?,
+    val attemptCount: Int?,
+    val nextAttemptAt: Instant?,
+    val lastResponseAt: Instant?,
+    val lastFailure: String?,
+    val integrityFlag: String?,
+    val resendHaltedReason: String?,
+    val ownerResultCode: String?,
+    val ownerReference: String?,
 )
 
 data class AcquiringDetailView(

@@ -99,7 +99,26 @@ class MerchantOpsApiSpec(
             }
             // 기대값 변경(MERCHANT-OPS-002 B1-1 — 새 서버 기능): 조회 3 + 명령 3(businesses·merchants·merchant-sites). 쓰기 경로 전수는 MerchantOperationsApiSpec(m-5).
             // 기대값 변경(MERCHANT-OPS-002 B1-2 — §8.1 B1-1-1 m-5 "B1-2 뒤 B1 5개"): + 명령 2(contracts·service-agreements) = 8.
-            mapped.size shouldBe 8
+            // 기대값 변경(B2-1 contract-revisions, 명세 §8·§8.2 B2-1): + 명령 1 = 9. 개수가 아니라 경로 집합 자체를 고정해 새 경로가 아래 401 검사 대상에 들어 있음을 보인다.
+            mapped.toSet() shouldBe setOf(
+                "POST" to search,
+                "GET" to "/internal/v1/admin/merchants/x",
+                "GET" to "/internal/v1/admin/merchants/x/history/after/x",
+                "POST" to "/internal/v1/admin/merchant-operations/businesses",
+                "POST" to "/internal/v1/admin/merchant-operations/merchants",
+                "POST" to "/internal/v1/admin/merchant-operations/merchant-sites",
+                "POST" to "/internal/v1/admin/merchant-operations/contracts",
+                "POST" to "/internal/v1/admin/merchant-operations/service-agreements",
+                "POST" to "/internal/v1/admin/merchant-operations/contract-revisions",
+                // 기대값 변경(B2-2 승인 근거 endpoint 3개, 명세 §8.2 B2-2-5·§9.4): 실행·결정 조회·기한 확인 = 12. 경로 목록 갱신이지 완화가 아니다(아래 401 검사 대상에 들어간다).
+                "POST" to "/internal/v1/admin/merchant-operations/contract-revision-approvals",
+                "POST" to "/internal/v1/admin/merchant-operations/approval-decisions",
+                "POST" to "/internal/v1/admin/merchant-operations/approval-deadline-confirmations",
+                // 기대값 변경(B2-3, 명세 §8.2 B2-3-1): 첫 Default MID 발급 실행 = 13(401 검사 대상).
+                "POST" to "/internal/v1/admin/merchant-operations/first-default-merchant-accounts",
+            )
+            // review n-c: 집합 비교는 같은 (method, path)가 두 handler에 중복 매핑돼도 하나로 합쳐 숨긴다 — 목록 크기를 따로 고정해 중복 매핑(모호한 handler)을 잡는다.
+            mapped.size shouldBe 13
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {
@@ -229,6 +248,10 @@ class MerchantOpsApiSpec(
             node.get("business").get("registrationNumberMasked").asString() shouldBe brn.take(3) + "*******"
             node.get("accounts").get(0).get("cardRoutes").get(0).propertyNames().toList() shouldBe
                 listOf("activationId", "paymentMethod", "acquirerCode", "routeRef", "status", "registeredAt")
+            // MERCHANT-OPS-002 B2-2(D-MOPS-008 ③, §9.5): Revision마다 등록자(정규 actor 문자열) — ADMIN이 pinned registeredBy로 등록자≠승인자를 판정한다.
+            val revision = node.get("contracts").get(0).get("revisions").get(0)
+            revision.propertyNames().toList() shouldBe listOf("revisionNo", "scopeKind", "effectiveFrom", "effectiveTo", "approvedAt", "scopeSiteIds", "registeredBy")
+            revision.get("registeredBy").asString() shouldBe OnboardingFixture.operator.value
             text shouldNotContain institutionRef
             text shouldNotContain "institutionMerchantRef"
             text shouldNotContain "\"detail\""

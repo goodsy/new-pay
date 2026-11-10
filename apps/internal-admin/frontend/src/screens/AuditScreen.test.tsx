@@ -26,6 +26,18 @@ describe('AuditScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('감사 기록을 남길 수 없어 조회하지 않았습니다')
   })
 
+  it('L-13 (MERCHANT-OPS-002 B2-2 Demo C-3): a non-account target (merchant, payment, file) shows in the target column; the long summary wraps and keeps the full text as a tooltip', async () => {
+    const merchantRow = { ...entry, eventId: 8, action: 'APPROVAL_REQUESTED', targetActorId: null, targetRef: 'mer_01JCME00000000000000000001', detail: 'kind=MERCHANT_CONTRACT_APPROVAL;reason=APPROVER_IS_REGISTRANT' }
+    const api = fakeApi({ audit: vi.fn(async () => ({ entries: [merchantRow] })) })
+    render(<AuditScreen api={api} />)
+    const row = await screen.findByRole('row', { name: /APPROVAL_REQUESTED/ })
+    expect(within(row).getByText('mer_01JCME00000000000000000001')).toBeInTheDocument()
+    const summary = within(row).getByText(merchantRow.detail)
+    expect(summary).toHaveAttribute('title', merchantRow.detail)
+    expect(summary.className).toContain('whitespace-normal')
+    expect(summary.className).toContain('break-all')
+  })
+
   it('ADMIN-UI-001: the action shows its Korean name with the raw code beside it, the time in KST with the ISO in its title', async () => {
     const api = fakeApi({ audit: vi.fn(async () => ({ entries: [entry] })) })
     render(<AuditScreen api={api} />)

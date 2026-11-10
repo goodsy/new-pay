@@ -1,5 +1,7 @@
 package com.paycore.admin.merchantops.adapter.integration
 
+import com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation
+import com.paycore.admin.merchantops.application.provided.MerchantApprovalResult
 import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 import com.paycore.admin.merchantops.application.required.MasterCallResult
 import com.paycore.admin.merchantops.application.required.MasterCommand
@@ -92,6 +94,102 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         } finally {
             writePermits.release()
         }
+    }
+
+    /**
+     * MERCHANT-OPS-002 B2-2 승인 실행·기한 확인(§9.4·§9.5 C-28 매핑). 저장 바이트 그대로 POST, 쓰기 permit(등록 명령과 공유 — 대기 0).
+     * 200 성공·거절(§3.3 모양 — 거절에 reference 없음, C-12)·기한 확인 NOT_YET_DUE / 409 `IDEMPOTENCY_KEY_REUSED` → KeyReused / 400·413 → Malformed /
+     * 401·404 → Unknown(alert) / 503·timeout·해석 불가·permit 없음 → Unknown. 로그에 본문·키·근거 참조가 없다.
+     */
+    override fun approval(operation: MerchantApprovalOperation, body: ByteArray, deadline: Boolean): MerchantApprovalResult {
+        check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (MERCHANT-OPS-002 §9.5)" }
+        val name = if (deadline) "approval-deadline" else "approval-${operation.path}"
+        if (!writePermits.tryAcquire()) return MerchantApprovalResult.Unknown(BUSY, alert = false).also { logApproval(name, it) }
+        try {
+            val path = if (deadline) "$COMMANDS_PATH/approval-deadline-confirmations" else "$COMMANDS_PATH/${operation.path}"
+            val result = classify(exchange(HttpMethod.POST, path, body, MasterOpsSettings.COMMAND_RESPONSE_MAX_BYTES)) { node ->
+                when {
+                    deadline && node.has("decision") -> read(node, MasterResponseShape.NOT_YET_DUE)?.let { MerchantApprovalResult.NotYetDue }
+                    node.get("outcome")?.takeIf { it.isString }?.asString() == "SUCCEEDED" -> read(node, MasterResponseShape.approvalSucceeded(operation.code))?.let {
+                        MerchantApprovalResult.Decided(true, it["reference"] as String, null, it["replayed"] as Boolean)
+                    }
+                    else -> read(node, MasterResponseShape.COMMAND_REJECTED)?.let {
+                        MerchantApprovalResult.Decided(false, null, it["rejection"] as String, it["replayed"] as Boolean)
+                    }
+                }
+            }
+            logApproval(name, result)
+            return result
+        } finally {
+            writePermits.release()
+        }
+    }
+
+    /**
+     * 결정 조회(조회 permit — 쓰기 효과 없음). NONE / DECIDED(지문·경로 표식 포함).
+     * B2-2 리뷰 n-4: DECIDED의 [MerchantApprovalResult.Decided.replayed]는 **항상 true**로 둔다 — 결정 조회 응답에는 `replayed` 필드가 없고, 조회가 돌려주는 결정은 정의상 이미 커밋된
+     * 과거 결정(이 호출이 만든 효과가 아님)이기 때문이다. 결과 반영은 replayed 값을 쓰지 않는다(지문·operation 대조와 outcome만 쓴다).
+     */
+    override fun approvalDecision(approvalId: String): MerchantApprovalResult {
+        check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (MERCHANT-OPS-002 §9.5)" }
+        require(APPROVAL_ID.matches(approvalId)) { "approvalId" }
+        if (!permits.tryAcquire()) return MerchantApprovalResult.Unknown(BUSY, alert = false).also { logApproval("approval-decision", it) }
+        try {
+            val body = """{"approvalId":"$approvalId","correlationId":"mop.$approvalId"}""".toByteArray(Charsets.UTF_8)
+            val result = classify(exchange(HttpMethod.POST, "$COMMANDS_PATH/approval-decisions", body, MasterOpsSettings.COMMAND_RESPONSE_MAX_BYTES)) { node ->
+                when (node.get("decision")?.takeIf { it.isString }?.asString()) {
+                    "NONE" -> read(node, MasterResponseShape.DECISION_NONE)?.let { MerchantApprovalResult.None }
+                    "DECIDED" -> if (node.get("outcome")?.takeIf { it.isString }?.asString() == "SUCCEEDED") {
+                        val code = node.get("operation")?.takeIf { it.isString }?.asString()
+                        code?.takeIf { c -> MerchantApprovalOperation.entries.any { it.code == c } }?.let { read(node, MasterResponseShape.decisionSucceeded(it)) }?.let {
+                            MerchantApprovalResult.Decided(true, it["reference"] as String, null, true, it["operation"] as String, it["approvalFingerprint"] as String, it["decidedVia"] as String)
+                        }
+                    } else {
+                        read(node, MasterResponseShape.DECISION_REJECTED)?.let {
+                            MerchantApprovalResult.Decided(false, null, it["rejection"] as String, true, it["operation"] as String, it["approvalFingerprint"] as String, it["decidedVia"] as String)
+                        }
+                    }
+                    else -> null
+                }
+            }
+            logApproval("approval-decision", result)
+            return result
+        } finally {
+            permits.release()
+        }
+    }
+
+    /** C-28 상태 분류(200 본문은 [ok]가 모양 검사 — null이면 해석 불가). */
+    private fun classify(raw: Raw, ok: (JsonNode) -> MerchantApprovalResult?): MerchantApprovalResult = when (raw) {
+        is Raw.Failed -> MerchantApprovalResult.Unknown(raw.failure, alert = false)
+        is Raw.Http -> when (raw.status) {
+            OK -> tree(raw.body)?.takeIf { it.isObject }?.let(ok) ?: MerchantApprovalResult.Unknown(UNREADABLE, alert = false)
+            CONFLICT -> if (errorCode(raw.body) == "IDEMPOTENCY_KEY_REUSED") MerchantApprovalResult.KeyReused else MerchantApprovalResult.Unknown("HTTP_409", alert = true)
+            BAD_REQUEST -> MerchantApprovalResult.Malformed(if (errorCode(raw.body) == "REQUEST_MALFORMED") "REQUEST_MALFORMED" else "HTTP_400")
+            PAYLOAD_TOO_LARGE -> MerchantApprovalResult.Malformed("PAYLOAD_TOO_LARGE")
+            UNAUTHORIZED -> MerchantApprovalResult.Unknown("MASTER_UNAUTHORIZED", alert = true)
+            NOT_FOUND -> MerchantApprovalResult.Unknown("MASTER_NOT_FOUND", alert = true)
+            SERVICE_UNAVAILABLE -> when (val code = errorCode(raw.body)) {
+                "REQUEST_IN_PROGRESS", "OUTCOME_UNKNOWN", "TEMPORARILY_UNAVAILABLE", "ADMIN_WRITE_BUSY", "ADMIN_READ_BUSY" -> MerchantApprovalResult.Unknown(code, alert = false)
+                else -> MerchantApprovalResult.Unknown("HTTP_503", alert = false)
+            }
+            else -> MerchantApprovalResult.Unknown("HTTP_${raw.status}", alert = false)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun read(node: JsonNode, shape: MasterResponseShape): Map<String, Any?>? = runCatching { shape.read(node) as Map<String, Any?> }.getOrNull()
+
+    private fun logApproval(operation: String, result: MerchantApprovalResult) {
+        val text = when (result) {
+            is MerchantApprovalResult.Decided -> if (result.succeeded) "SUCCEEDED" else "REJECTED:${result.rejection}"
+            MerchantApprovalResult.None -> "NONE"
+            MerchantApprovalResult.NotYetDue -> "NOT_YET_DUE"
+            MerchantApprovalResult.KeyReused -> "KEY_REUSED"
+            is MerchantApprovalResult.Malformed -> "MALFORMED:${result.code}"
+            is MerchantApprovalResult.Unknown -> "UNKNOWN:${result.failure}"
+        }
+        log.info("operation=master-ops-{} result={}", operation, text)
     }
 
     /** 200 본문 → 저장된 판정. 성공(명령 종류의 reference 접두사 포함)·거절 모양과 정확히 같지 않으면 Unknown(RESPONSE_UNREADABLE). */
@@ -192,6 +290,10 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         const val UNREADABLE = "RESPONSE_UNREADABLE"
         const val OK = 200
         const val NOT_FOUND = 404
+        const val BAD_REQUEST = 400
+        const val UNAUTHORIZED = 401
+        const val PAYLOAD_TOO_LARGE = 413
+        val APPROVAL_ID = Regex("^apr_[0-9A-HJKMNP-TV-Z]{26}$")
         const val MAX_CAUSE_DEPTH = 20
         val MERCHANT_ID = Regex("^mer_[0-9A-HJKMNP-TV-Z]{26}$")
     }

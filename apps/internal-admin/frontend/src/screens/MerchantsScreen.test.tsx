@@ -30,7 +30,7 @@ const detail: MerchantDetail = {
   ],
   contracts: [{
     contractId: id('ctr', 1), createdAt: '2026-10-03T00:00:00.000Z',
-    revisions: [{ revisionNo: 1, scopeKind: 'SITES', effectiveFrom: '2026-10-04T15:00:00.000Z', effectiveTo: null, approvedAt: '2026-10-03T01:00:00.000Z', scopeSiteIds: [id('mst', 1)] }],
+    revisions: [{ revisionNo: 1, scopeKind: 'SITES', effectiveFrom: '2026-10-04T15:00:00.000Z', effectiveTo: null, approvedAt: '2026-10-03T01:00:00.000Z', scopeSiteIds: [id('mst', 1)], registeredBy: 'admin:adm_01JCRG0000000000000000RG01' }],
     agreements: [{ agreementId: id('csa', 1), serviceKind: 'CARD_PG_PAYMENT', addedAt: '2026-10-03T02:00:00.000Z' }],
   }],
   accounts: [{

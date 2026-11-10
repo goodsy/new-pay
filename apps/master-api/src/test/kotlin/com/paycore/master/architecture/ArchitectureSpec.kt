@@ -68,6 +68,33 @@ class ArchitectureSpec : FunSpec({
             .check(classes)
     }
 
+    test("MERCHANT-OPS-002 §8.2 B2-2-5 / C-26 (D-MOPS-008 ②): only DemoMerchantSeedService calls the evidence-less approval and first-MID issuance") {
+        evidenceLessCallersAreOnlyTheSeed().check(classes)
+        // 대조군(규칙이 빈 대상으로 통과하지 않음): seed 조정자(내부 클래스·lambda 포함)는 실제로 두 메서드를 부른다.
+        callsFrom(classes, "com.paycore.master.merchant.application.DemoMerchantSeedService").filter { EVIDENCE_LESS.test(it.target) }.map { it.target.name }.toSet() shouldBe
+            setOf("approveContractRevision", "issueFirstDefaultMerchantAccount")
+    }
+
+    test("MERCHANT-OPS-002 C-26 rule catches other callers (control: test fixtures that prepare data through the seed path are flagged when imported)") {
+        val withTests = ClassFileImporter().importPackages("com.paycore.master.merchant.application")
+        val error = shouldThrow<AssertionError> { evidenceLessCallersAreOnlyTheSeed().check(withTests) }
+        error.message shouldContain "OnboardingFixture"
+    }
+
+    test("MERCHANT-OPS-002 §9.4 B2-2: the approval controller calls only the evidence command and the decision use case — no storage port, adapter or service implementation") {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveSimpleName("MerchantApprovalController")
+            .should().dependOnClassesThat().resideInAnyPackage("..application.required..", "..adapter.persistence..", "..adapter.query..", "..adapter.integration..")
+            .orShould().dependOnClassesThat().haveSimpleName("MerchantOnboardingService")
+            .orShould().dependOnClassesThat().haveSimpleName("ApprovalDecisionService")
+            .allowEmptyShould(false)
+            .check(classes)
+        // 대조군: 컨트롤러(lambda 포함)는 근거 있는 명령과 결정 조회 Use Case를 실제로 부른다.
+        callsFrom(classes, "com.paycore.master.merchant.adapter.web.admin.MerchantApprovalController")
+            .filter { it.target.owner.simpleName in setOf("MerchantOnboardingUseCase", "ApprovalDecisionUseCase") }.map { it.target.name }.toSet() shouldBe
+            // 기대값 변경(B2-3): 근거 있는 첫 MID 발급 명령을 더한다(근거 없는 두 메서드는 여전히 호출하지 않는다).
+            setOf("approveContractRevisionWithEvidence", "issueFirstDefaultMerchantAccountWithEvidence", "decision", "confirmDeadline")
+    }
+
     test("DEMO-SEED-001 I-4·I-20: the seed coordinator uses only provided use cases and the read-only progress port") {
         demoSeedUsesOnlyProvidedUseCases().check(classes)
         classes.any { it.simpleName == "DemoMerchantSeedService" } shouldBe true
@@ -111,6 +138,26 @@ class ArchitectureSpec : FunSpec({
                 )
             return com.tngtech.archunit.lang.CompositeArchRule.of(noPersistence).and(noReservation).allowEmptyShould(false)
         }
+
+        /** 근거 없는 두 Use Case 메서드(D-MOPS-008 ② — Demo seed 전용). */
+        val EVIDENCE_LESS: com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitCallTarget> =
+            com.tngtech.archunit.base.DescribedPredicate.describe("evidence-less approveContractRevision / issueFirstDefaultMerchantAccount") { t ->
+                t.name in setOf("approveContractRevision", "issueFirstDefaultMerchantAccount") &&
+                    t.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantOnboardingService")
+            }
+
+        /** seed 조정자와 그 내부 클래스(Kotlin lambda·inner class) 이름. */
+        val SEED_COORDINATOR_NAMES = Regex.escape("com.paycore.master.merchant.application.DemoMerchantSeedService") + "(\\$.*)?"
+
+        /** [fqcn] 클래스와 그 내부·익명 클래스(Kotlin lambda·inner class)의 메서드 호출. */
+        fun callsFrom(classes: com.tngtech.archunit.core.domain.JavaClasses, fqcn: String): List<com.tngtech.archunit.core.domain.JavaMethodCall> =
+            classes.filter { it.name == fqcn || it.name.startsWith("$fqcn$") }.flatMap { it.methodCallsFromSelf }
+
+        /** C-26: 근거 없는 두 메서드의 호출자는 `DemoMerchantSeedService`(내부 클래스·lambda 포함)뿐 — 관리 채널 컨트롤러 포함 그 밖 운영 코드는 근거 있는 명령만. */
+        fun evidenceLessCallersAreOnlyTheSeed(): com.tngtech.archunit.lang.ArchRule =
+            com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveNameNotMatching(SEED_COORDINATOR_NAMES)
+                .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(EVIDENCE_LESS))
+                .allowEmptyShould(false)
 
         const val BASE_PACKAGE = "com.paycore.master"
 

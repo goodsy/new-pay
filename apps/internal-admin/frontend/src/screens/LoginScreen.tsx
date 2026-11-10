@@ -17,10 +17,12 @@ interface Props {
   onEnroll: () => void
   /** 앞 화면에서 세션이 끝난 이유(SESSION_REPLACED 등) — 안내만. */
   notice?: ConsoleErrorCode
+  /** 세션이 끝날 때 결과 확인이 필요한 가맹점 등록·Revision 요청이 있었다(MERCHANT-OPS-002 B2-1 리뷰 n-a — 한 번 안내). */
+  unresolvedNotice?: boolean
 }
 
 /** 2단계 로그인(§4.3.2): CSRF 세션 → 비밀번호 → TOTP. 입력 값은 컴포넌트 상태에만, 실패하면 비밀 입력을 지운다. */
-export function LoginScreen({ api, onAuthenticated, onEnroll, notice }: Props) {
+export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolvedNotice = false }: Props) {
   const [step, setStep] = useState<'password' | 'totp'>('password')
   const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
@@ -73,6 +75,12 @@ export function LoginScreen({ api, onAuthenticated, onEnroll, notice }: Props) {
           <Alert role="status" variant="warning">
             <InfoIcon aria-hidden="true" />
             <AlertDescription>{ERROR_MESSAGES[notice]}</AlertDescription>
+          </Alert>
+        )}
+        {unresolvedNotice && (
+          <Alert role="note" variant="warning" aria-label="결과 확인 필요">
+            <InfoIcon aria-hidden="true" />
+            <AlertDescription>결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요</AlertDescription>
           </Alert>
         )}
         {error && (

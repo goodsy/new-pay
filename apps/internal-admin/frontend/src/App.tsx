@@ -6,7 +6,7 @@ import { MenuSearch } from './components/MenuSearch'
 import { WorkspaceHeader } from './components/WorkspaceHeader'
 import { Button } from './components/ui/button'
 import { labelOf } from './lib/labels'
-import { createScreenMemory } from './lib/screenMemory'
+import { createScreenMemory, hasUnresolvedRequest } from './lib/screenMemory'
 import { cn } from './lib/utils'
 import type { ConsoleErrorCode } from './errors/errorCodes'
 import { AppLayout } from './layout/AppLayout'
@@ -86,14 +86,20 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const [view, setView] = useState<View>('home')
   // 가맹점 등록 화면 상태(결과 불명 잠금·submissionId·입력) — 탭을 바꿔도 유지, 메모리에만(MERCHANT-OPS-002 §5.3, 리뷰 m-1). 세션마다 새로.
   const [registrationMemory, setRegistrationMemory] = useState(createScreenMemory)
+  // 조회 상세 Revision 폼 상태(B2-1 — 결과 불명 잠금·submissionId, 리뷰 C-M1). 등록 화면과 같이 세션마다 새로.
+  const [revisionMemory, setRevisionMemory] = useState(createScreenMemory)
   // "가맹점 조회에서 보기"로 열 가맹점 — 조회 화면이 한 번 열면 비운다(리뷰 m-3).
   const [lookupMerchantId, setLookupMerchantId] = useState<string | null>(null)
+  // B2-1 리뷰 n-a: 세션이 끝날 때 결과 확인이 필요한 등록 단계·Revision 폼이 있었으면 로그인 화면에 한 번 안내한다(다음 로그인에서 지운다 — 입력·submissionId는 남기지 않는다).
+  const [unresolvedNotice, setUnresolvedNotice] = useState(false)
 
   const signedIn = useCallback((account: Me) => {
     setMe(account)
     setNotice(undefined)
+    setUnresolvedNotice(false)
     setView('home')
     setRegistrationMemory(createScreenMemory())
+    setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
   }, [])
 
@@ -109,9 +115,11 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setMe(null)
     setMode('login')
     setNotice(code)
+    setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, revisionMemory))
     setRegistrationMemory(createScreenMemory())
+    setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
-  }, [])
+  }, [registrationMemory, revisionMemory])
 
   const logout = async () => {
     try {
@@ -119,7 +127,9 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     } finally {
       setMe(null)
       setMode('login')
+      setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, revisionMemory))
       setRegistrationMemory(createScreenMemory())
+      setRevisionMemory(createScreenMemory())
       setLookupMerchantId(null)
     }
   }
@@ -132,7 +142,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
         {!checked ? null : mode === 'enroll' ? (
           <EnrollmentScreen api={api} onDone={() => setMode('login')} />
         ) : (
-          <LoginScreen api={api} onAuthenticated={signedIn} onEnroll={() => setMode('enroll')} notice={notice} />
+          <LoginScreen api={api} onAuthenticated={signedIn} onEnroll={() => setMode('enroll')} notice={notice} unresolvedNotice={unresolvedNotice} />
         )}
       </AppLayout>
     )
@@ -186,6 +196,10 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
               <MerchantsScreen
                 api={api}
                 canSearchRegistrationNumber={me.roles.includes('OPERATOR') || me.roles.includes('APPROVER')}
+                canRegisterRevision={me.roles.includes('OPERATOR')}
+                canRequestApproval={me.roles.includes('OPERATOR')}
+                onOpenApprovals={() => open('mine')}
+                revisionMemory={revisionMemory}
                 onSessionEnded={sessionEnded}
                 openMerchantId={lookupMerchantId}
                 onOpenedMerchant={() => setLookupMerchantId(null)}

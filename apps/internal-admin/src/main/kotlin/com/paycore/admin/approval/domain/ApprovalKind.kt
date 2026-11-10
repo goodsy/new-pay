@@ -26,6 +26,18 @@ enum class ApprovalKind(
 
     /** 재매입(ACQ-ADMIN-001 B1-A, D-ACQ-011·D-ACQA-002) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 FINANCIAL이 재검사(소유 서비스, 조작 전용 키 — D-ACQA-001). */
     ACQ_REACQUISITION(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.ACQUISITION_FILE),
+
+    /**
+     * 가맹점 계약 Revision 승인(MERCHANT-OPS-002 B2-2 §9.5 — D-MOPS-004·007·008, C-11) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER가 승인 근거와 업무 규칙을 재검사
+     * (소유 서비스, 조회 키 서명 — D-MOPS-005). 대상 = 가맹점(미해결 키 `MERCHANT:<merchantId>` — C-20). 승인자는 Revision 등록자와 달라야 한다(D-MOPS-008 ③ — TX1·MASTER 양쪽).
+     */
+    MERCHANT_CONTRACT_APPROVAL(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * 첫 Default MID 발급(MERCHANT-OPS-002 B2-3 §9.5 — D-MOPS-004, C-11) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER가 승인 근거·발급 규칙을 재검사. 대상·미해결 키는 계약 승인과
+     * 같다(`MERCHANT:<merchantId>` — 두 종류 합쳐 가맹점당 미해결 하나, C-20). Revision 등록자 규칙은 적용하지 않는다(계약 승인만).
+     */
+    MERCHANT_FIRST_MID_ISSUANCE(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
     ;
 
     val approverRole: String get() = APPROVER
@@ -33,7 +45,7 @@ enum class ApprovalKind(
     fun mayActivatePrivilegedRole(grantedRole: String?): Boolean = when (this) {
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
-        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION -> false
+        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE -> false
     }
 
     /** 권한 상승 종류(D-ADMIN1-014·015 — 대상 자격 발급 근거의 요청자·승인자는 이 종류의 요청자·승인자가 될 수 없다). */

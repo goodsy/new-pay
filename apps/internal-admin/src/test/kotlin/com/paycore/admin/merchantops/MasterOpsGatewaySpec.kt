@@ -191,6 +191,10 @@ class MasterOpsGatewaySpec : BehaviorSpec({
                     "scopeSiteIds" to listOf("site_01JC0000000000000000000001"), "effectiveFrom" to "2026-11-08T15:00:00.000Z",
                 )
                 MasterCommandKind.ADD_SERVICE_AGREEMENT -> mapOf("contractId" to "ctr_01JC0000000000000000000001", "serviceKind" to "CARD_PG_PAYMENT")
+                MasterCommandKind.REGISTER_CONTRACT_REVISION -> mapOf(
+                    "contractId" to "ctr_01JC0000000000000000000001", "scopeMerchantId" to "mer_01JC0000000000000000000001",
+                    "scopeSiteIds" to emptyList<String>(), "effectiveFrom" to "2026-11-08T15:00:00.000Z",
+                )
             },
         )
         fun lastBody(path: String) = String(StubMasterOpsServer.requestsForPath(path).last().body, Charsets.UTF_8)
@@ -288,6 +292,25 @@ class MasterOpsGatewaySpec : BehaviorSpec({
                     io.kotest.assertions.withClue("$kind $foreign") { gateway().command(command(kind)) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
                 }
             }
+        }
+        Then("B2-1 (§9.2, C-30): the revision command posts to contract-revisions and accepts only ctr_…#<n> with n in 1..2147483647; a plain ctr_, n=0, a leading zero, n > Int.MAX or #n on another kind is Unknown(RESPONSE_UNREADABLE)") {
+            val ok = listOf("ctr_01JC0000000000000000000001#2", "ctr_01JC0000000000000000000001#1", "ctr_01JC0000000000000000000001#2147483647", "ctr_01JC0000000000000000000001#999999999")
+            ok.forEach { ref ->
+                StubMasterOpsServer.reply(StubMasterOpsServer.CONTRACT_REVISIONS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(ref)))
+                io.kotest.assertions.withClue(ref) {
+                    gateway().command(command(MasterCommandKind.REGISTER_CONTRACT_REVISION)) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, ref, false)
+                }
+            }
+            lastBody(StubMasterOpsServer.CONTRACT_REVISIONS) shouldContain "\"scopeSiteIds\":[]"
+            listOf(
+                "ctr_01JC0000000000000000000001", "ctr_01JC0000000000000000000001#0", "ctr_01JC0000000000000000000001#02",
+                "ctr_01JC0000000000000000000001#2147483648", "ctr_01JC0000000000000000000001#10000000000", "csa_01JC0000000000000000000001#2",
+            ).forEach { ref ->
+                StubMasterOpsServer.reply(StubMasterOpsServer.CONTRACT_REVISIONS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(ref)))
+                io.kotest.assertions.withClue(ref) { gateway().command(command(MasterCommandKind.REGISTER_CONTRACT_REVISION)) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
+            }
+            StubMasterOpsServer.reply(StubMasterOpsServer.CONTRACTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("ctr_01JC0000000000000000000001#2")))
+            gateway().command(command(MasterCommandKind.REGISTER_CONTRACT)) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE")
         }
         Then("409 and 503 codes are classified; other statuses, a read timeout and a refused connection are Unknown (no effect assumed)") {
             listOf(

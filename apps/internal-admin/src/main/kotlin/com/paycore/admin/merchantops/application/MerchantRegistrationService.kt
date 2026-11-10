@@ -34,7 +34,7 @@ import java.time.temporal.ChronoUnit
  * 감사 행 수: MASTER까지 간 시도 = 2행(REQUESTED → 결과), 호출 전 거절(403·400·429·시도 감사 실패 전) = 결과 1행. correlationId: MASTER로 가는 시도는 `mos.<submissionId>`(C-14 — 재전송마다 같아
  * MASTER 변경 이력·Outbox와 대조된다, MASTER 키가 아니다), 호출 전 거절은 ADMIN 요청 ID(n-4). detail은 고정 `key=value`(`sub=<submissionId 앞 8자>;replayed;rejection` + 사업자 `brn=앞3*******`
  * 또는 `brn=INVALID`, Site `channel=WEB|APP`) — 등록번호 평문·기존 businessId·이름·채널 식별값·MASTER 키 원문 없음. targetRef: 성공 = 만든 ID(`ctr_`·`csa_` 포함), 그 밖 = 입력의 상위 ID
- * (가맹점 = 사업자, Site = 가맹점, 계약 = 대상 가맹점, CSA = 계약), 사업자는 성공만. 계약 날짜는 KST 날짜 → 그 날 00:00 KST의 UTC 시각(C-7)으로 바꿔 보내고 소급 판정은 MASTER에 맡긴다(§3.4).
+ * (가맹점 = 사업자, Site = 가맹점, 계약 = 대상 가맹점, CSA = 계약, Revision = 계약 — 성공도 계약 ID + detail `rev=<n>` C-22), 사업자는 성공만. 계약 날짜는 KST 날짜 → 그 날 00:00 KST의 UTC 시각(C-7)으로 바꿔 보내고 소급 판정은 MASTER에 맡긴다(§3.4).
  * 로그: 연산·결과 분류·상관 ID만(MASTER 키 원문 없음). 결과 불명은 WARN + `command_unknown` 지표.
  */
 @Service
@@ -82,13 +82,15 @@ class MerchantRegistrationService(
             return finish(kind, "AUDIT_UNAVAILABLE", MerchantRegistrationResult.AuditUnavailable, correlationId)
         }
 
-        val result = gateway.command(command(actorId, request, correlationId))
+        val result = gateway.command(command(actorId, request, correlationId)).let { checkedReference(request, it) }
 
         if (reservation != null && !confirmsRegistrationNumber(result)) registrationNumbers.refund(reservation)
         val (resultCode, outcome) = classify(result)
         val decided = result as? MasterCommandResult.Decided
-        val detail = pre.text(replayed = decided?.replayed, rejection = decided?.rejection)
-        val targetRef = decided?.reference ?: pre.parentRef
+        // C-22(B2-1): Revision 성공 reference `ctr_…#<n>`은 감사 targetRef 형식 밖 → targetRef = 계약 ID, detail에 `rev=<n>`.
+        val revisionNo = if (kind == RegistrationKind.CONTRACT_REVISION) decided?.reference?.substringAfter('#', "")?.ifEmpty { null } else null
+        val detail = pre.text(replayed = decided?.replayed, rejection = decided?.rejection, revision = revisionNo)
+        val targetRef = if (kind == RegistrationKind.CONTRACT_REVISION) pre.parentRef else decided?.reference ?: pre.parentRef
         if (!audited(view, context, correlationId, kind, resultCode, detail, targetRef)) {
             return finish(kind, "AUDIT_UNAVAILABLE", MerchantRegistrationResult.AuditUnavailable, correlationId)
         }
@@ -127,8 +129,27 @@ class MerchantRegistrationService(
             }
             is RegistrationRequest.ServiceAgreement -> MasterCommandKind.ADD_SERVICE_AGREEMENT to
                 mapOf("contractId" to request.contractId, "serviceKind" to request.serviceKind)
+            // B2-1(§9.2): 계약 초안과 같은 C-7 날짜 변환. 시작 소급 판정은 MASTER Domain(D-MOPS-007 ②).
+            is RegistrationRequest.ContractRevision -> MasterCommandKind.REGISTER_CONTRACT_REVISION to buildMap<String, Any> {
+                put("contractId", request.contractId)
+                put("scopeMerchantId", request.scopeMerchantId)
+                put("scopeSiteIds", request.scopeSiteIds.toList())
+                put("effectiveFrom", RegistrationInputRules.kstStartOfDay(request.effectiveFromDate))
+                request.effectiveToDate?.let { put("effectiveTo", RegistrationInputRules.kstStartOfDay(it)) }
+            }
         }
         return MasterCommand(kind, key, "$ACTOR_PREFIX$actorId", correlationId, fields)
+    }
+
+    /**
+     * 리뷰 n-3(B2-1): Revision 성공 reference는 **보낸 계약의** Revision(`<contractId>#<n>`)이어야 한다. 다른 계약·번호 없는 값이면 응답이 이 요청의 결과라고 볼 수 없으므로
+     * 결과 불명([MasterCommandResult.Unknown] `REFERENCE_MISMATCH`)으로 둔다 — 효과 유무를 단정하지 않고 같은 submissionId 재전송으로 확인한다(fail-closed, 응답 모양 검사 다음 단계).
+     */
+    private fun checkedReference(request: RegistrationRequest, result: MasterCommandResult): MasterCommandResult {
+        if (request !is RegistrationRequest.ContractRevision || result !is MasterCommandResult.Decided) return result
+        if (result.outcome != MasterCommandResult.Outcome.SUCCEEDED) return result
+        val ownRevision = Regex("^${Regex.escape(request.contractId)}#[1-9][0-9]*$")
+        return if (result.reference?.let(ownRevision::matches) == true) result else MasterCommandResult.Unknown(REFERENCE_MISMATCH)
     }
 
     /** C-13: 중복 거절은 "그 번호가 있다"는 검색 결과와 같은 정보 → 확정. 결과 불명·503도 확정(중복이었을 수 있다). */
@@ -198,10 +219,12 @@ class MerchantRegistrationService(
             // 계약의 상위 = 운영자가 입력한 대상 가맹점(조회 화면이 가맹점 중심), CSA의 상위 = 입력한 계약.
             is RegistrationRequest.Contract -> request.scopeMerchantId.takeIf { RegistrationInputRules.MERCHANT_ID.matches(it) }
             is RegistrationRequest.ServiceAgreement -> request.contractId.takeIf { RegistrationInputRules.CONTRACT_ID.matches(it) }
+            // B2-1: Revision의 상위 = 입력한 계약(성공도 계약 ID — C-22).
+            is RegistrationRequest.ContractRevision -> request.contractId.takeIf { RegistrationInputRules.CONTRACT_ID.matches(it) }
         }
 
-        fun text(replayed: Boolean? = null, rejection: String? = null): String? = listOfNotNull(
-            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, brn, channel,
+        fun text(replayed: Boolean? = null, rejection: String? = null, revision: String? = null): String? = listOfNotNull(
+            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel,
         ).joinToString(";").ifEmpty { null }
     }
 
@@ -214,6 +237,7 @@ class MerchantRegistrationService(
         const val CORRELATION_PREFIX = "mos."
         const val DUPLICATE_NUMBER = "BUSINESS_REGISTRATION_NUMBER_DUPLICATE"
         const val OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
+        const val REFERENCE_MISMATCH = "REFERENCE_MISMATCH"
         const val INVALID_NUMBER = "brn=INVALID"
         const val REGISTRATION = "REGISTRATION"
         const val REGISTRATION_NUMBER = "REGISTRATION_NUMBER"

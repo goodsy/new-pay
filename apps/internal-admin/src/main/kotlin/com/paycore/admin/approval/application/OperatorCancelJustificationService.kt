@@ -5,6 +5,7 @@ import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.approval.application.provided.JustificationResult
 import com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery
 import com.paycore.admin.approval.application.required.AcquiringOpsCommandStore
+import com.paycore.admin.approval.application.required.MerchantOpsCommandStore
 import com.paycore.admin.approval.application.required.ApprovalEnvironment
 import com.paycore.admin.approval.application.required.ApprovalRequestRepository
 import com.paycore.admin.approval.application.required.OperatorCancelCommandStore
@@ -37,6 +38,7 @@ class OperatorCancelJustificationService(
     private val environment: ApprovalEnvironment,
     private val opsMetrics: OwnerOpsMetrics,
     private val acquiringCommands: AcquiringOpsCommandStore,
+    private val merchantCommands: MerchantOpsCommandStore,
 ) : OperatorCancelJustificationQuery {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -61,6 +63,10 @@ class OperatorCancelJustificationService(
                     }
                     ApprovalKind.ACQ_REACQUISITION -> acquiringCommands.find(approvalId)?.let { c ->
                         c.originalFileId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
+                    }
+                    // MERCHANT-OPS-002 B2-2(D-MOPS-008 ①): 가맹점 승인도 근거 참조만, 같은 판정(APPROVER·요청자)·같은 감사(target_ref = merchantId).
+                    ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> merchantCommands.find(approvalId)?.let { c ->
+                        c.merchantId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
                     }
                     else -> null
                 } ?: return@execute JustificationResult.NotFound

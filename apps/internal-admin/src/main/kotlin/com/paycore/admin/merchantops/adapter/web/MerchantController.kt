@@ -3,6 +3,7 @@ package com.paycore.admin.merchantops.adapter.web
 import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.merchantops.application.provided.MerchantLookupResult
 import com.paycore.admin.merchantops.application.provided.MerchantLookupUseCase
+import com.paycore.admin.merchantops.application.provided.MerchantPendingApprovals
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.CacheControl
@@ -24,7 +25,7 @@ import java.util.UUID
  * 오류 응답에 입력 값(특히 등록번호)을 넣지 않는다.
  */
 @RestController
-class MerchantController(private val lookup: MerchantLookupUseCase, private val registry: MeterRegistry) {
+class MerchantController(private val lookup: MerchantLookupUseCase, private val registry: MeterRegistry, private val pending: MerchantPendingApprovals) {
 
     /**
      * 검색 본문은 바이트로 받아 [MerchantSearchBodyParser]로 엄격 해석한다(Q-MOPS-07 — Spring 기본 Jackson의 중복 key·모르는 필드·자료형 강제 변환을 받지 않는다).
@@ -57,7 +58,17 @@ class MerchantController(private val lookup: MerchantLookupUseCase, private val 
 
     @GetMapping("/api/merchants/{merchantId}")
     fun detail(@PathVariable merchantId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
-        respond(lookup.detail(authentication.name, merchantId, context(request)))
+        when (val result = lookup.detail(authentication.name, merchantId, context(request))) {
+            // MERCHANT-OPS-002 C-24: ADMIN DB의 미해결 승인(승인 목록 권한 역할에게만 — 그 밖은 빈 배열). MASTER 문서 뒤에 붙인다(MASTER 응답 모양은 그대로).
+            is MerchantLookupResult.Found -> respond(
+                MerchantLookupResult.Found(
+                    LinkedHashMap(result.document).apply {
+                        put("pendingApprovals", pending.pendingFor(authentication.name, merchantId).map { linkedMapOf("approvalId" to it.approvalId, "kind" to it.kind, "status" to it.status, "revisionNo" to it.revisionNo) })
+                    },
+                ),
+            )
+            else -> respond(result)
+        }
 
     @GetMapping("/api/merchants/{merchantId}/history")
     fun history(@PathVariable merchantId: String, @RequestParam(required = false) after: String?, authentication: Authentication): ResponseEntity<out Any> {

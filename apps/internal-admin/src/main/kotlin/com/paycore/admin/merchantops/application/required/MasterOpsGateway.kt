@@ -1,5 +1,7 @@
 package com.paycore.admin.merchantops.application.required
 
+import com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation
+import com.paycore.admin.merchantops.application.provided.MerchantApprovalResult
 import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 
 /**
@@ -18,6 +20,15 @@ interface MasterOpsGateway {
      * 결과는 값([MasterCommandResult]) — timeout·연결 끊김·해석 불가는 [MasterCommandResult.Unknown](효과 단정 없음). **DB TX 안에서 부르면 `IllegalStateException`**.
      */
     fun command(command: MasterCommand): MasterCommandResult
+
+    /**
+     * 2인 승인 실행([deadline] false — `/<operation.path>`) 또는 기한 확인([deadline] true — `/approval-deadline-confirmations`): 저장 바이트 [body] 그대로 POST(MERCHANT-OPS-002 §9.4·§9.5).
+     * 쓰기 permit(등록 명령과 공유 — 대기 0), 매 호출 새 `t`, 응답 4 KiB, 응답 매핑 C-28. **DB TX 안에서 부르면 `IllegalStateException`**.
+     */
+    fun approval(operation: MerchantApprovalOperation, body: ByteArray, deadline: Boolean): MerchantApprovalResult
+
+    /** 결정 조회 `/approval-decisions`(조회 permit — 쓰기 효과 없음). 본문 `{"approvalId","correlationId":"mop.<approvalId>"}`. */
+    fun approvalDecision(approvalId: String): MerchantApprovalResult
 }
 
 sealed interface MasterCallResult {

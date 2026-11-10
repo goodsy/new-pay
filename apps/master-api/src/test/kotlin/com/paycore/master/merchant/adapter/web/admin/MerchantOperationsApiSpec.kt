@@ -5,11 +5,13 @@ import com.paycore.master.MasterDbTest
 import com.paycore.master.column
 import com.paycore.master.merchant.adapter.web.admin.MerchantOperationsBodies.Submission
 import com.paycore.master.merchant.application.CapturedLogs
+import com.paycore.master.merchant.application.MutableMasterClock
 import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.merchant.application.provided.AddServiceAgreementCommand
 import com.paycore.master.merchant.application.provided.AdminCommandFailure
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
+import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
@@ -57,7 +59,12 @@ class MerchantOperationsApiSpec(
     private val registry: MeterRegistry,
     private val container: MySQLContainer,
     private val permits: AdminChannelPermits,
+    private val clock: MutableMasterClock,
 ) : BehaviorSpec({
+
+    // 리뷰 n-2: KST_TODAY·KST_YESTERDAY는 시험 clock t0(KST 2026-10-09 11:00) 기준이다. 판정 시각은 주입된 MASTER clock(@Primary MutableMasterClock)이라 벽시계·KST 자정과 무관하다 —
+    // 같은 컨텍스트를 쓰는 다른 spec이 clock을 옮겨 두었어도 흔들리지 않게 매 시험 전에 t0로 되돌린다.
+    beforeEach { clock.reset() }
 
     val mvc: MockMvc = MockMvcBuilders.webAppContextSetup(context).apply<DefaultMockMvcBuilder>(SecurityMockMvcConfigurers.springSecurity()).build()
     val json = JsonMapper.builder().build()
@@ -97,16 +104,25 @@ class MerchantOperationsApiSpec(
     Given("the signed admin channel in front of the new command handlers") {
         val paths = listOf(
             MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.SITES,
-            MerchantOperationsBodies.CONTRACTS, MerchantOperationsBodies.AGREEMENTS,
+            MerchantOperationsBodies.CONTRACTS, MerchantOperationsBodies.AGREEMENTS, MerchantOperationsBodies.CONTRACT_REVISIONS,
         )
 
-        Then("write-path inventory (m-5 — D-MOPS-005 risk scope): the non-GET handlers under /internal/v1/admin/ are exactly the search and the five B1 commands") {
+        Then("write-path inventory (m-5 — D-MOPS-005 risk scope): the non-GET handlers under /internal/v1/admin/ are exactly the search, the five B1 commands and the B2-1 revision registration") {
             val nonGet = mappings.flatMap { it.handlerMethods.keys }.flatMap { info ->
                 val methods = info.methodsCondition.methods.map { it.name }.ifEmpty { listOf("ANY") }
                 info.patternValues.filter { it.startsWith("/internal/v1/admin/") }.flatMap { p -> methods.filter { it != "GET" }.map { "$it $p" } }
             }.toSet()
-            // B1-2(계약 초안·CSA)까지 B1 5개(§8.1 B1-1-1 m-5). B2 이후 배치는 그 배치 결정 근거로 이 기대 집합을 갱신한다. 승인·개통·한도·정지 경로는 없다.
-            nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet()
+            // B1 5개 + B2-1 `contract-revisions`(§8.2 B2-1-3 — D-MOPS-004 "계약 초안" 해석으로 1인, MERCHANT-OPS-002 rev 0.6.2). 승인·개통·한도·정지 경로는 없다(B2-2 이후 그 배치 결정 근거로 갱신).
+            // 기대값 변경(B2-2 승인 근거 endpoint 3개, 명세 §8.2 B2-2-5·§9.4): + `contract-revision-approvals`(실행)·`approval-decisions`(결정 조회 — 쓰기 효과 없음)·
+            // `approval-deadline-confirmations`(기한 확인 — 실행 경로 없음). 경로 목록 갱신이지 완화가 아니다 — 첫 MID(B2-3)·개통·한도·정지 경로는 여전히 없다.
+            val approvals = setOf(
+                "POST /internal/v1/admin/merchant-operations/contract-revision-approvals",
+                "POST /internal/v1/admin/merchant-operations/approval-decisions",
+                "POST /internal/v1/admin/merchant-operations/approval-deadline-confirmations",
+                // 기대값 변경(B2-3 첫 Default MID 발급, 명세 §8.2 B2-3-1): + `first-default-merchant-accounts`. 개통·한도·정지(B3~B5) 경로는 여전히 없다.
+                "POST /internal/v1/admin/merchant-operations/first-default-merchant-accounts",
+            )
+            nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }
 
         Then("unsigned, foreign-key and stale calls are 401 UNAUTHENTICATED without reaching the use case (no admin_request row)") {
@@ -338,6 +354,51 @@ class MerchantOperationsApiSpec(
             count("SELECT COUNT(*) FROM contract WHERE merchant_id = ?", merchantId) shouldBe 1L
         }
 
+        Then("§8.2 B2-1-3·5 (D-MOPS-007 ②): a revision answers 200 SUCCEEDED ctr_…#2 (unapproved, rights unchanged); replay/409 as other commands; yesterday (KST) is a stored CONTRACT_START_RETROACTIVE without a reference; an unknown contract is CONTRACT_NOT_FOUND") {
+            val businessId = registerBusiness()
+            val merchantId = registerMerchant(businessId)
+            val siteId = registerSite(merchantId)
+            val contractId = post(MerchantOperationsBodies.CONTRACTS, MerchantOperationsBodies.registerContract(businessId, merchantId)).field("reference")
+            val rightsBefore = entitlement(merchantId)
+            val succeededBefore = commandCount("RegisterContractRevision", "SUCCEEDED")
+
+            val s = Submission()
+            val body = MerchantOperationsBodies.registerContractRevision(contractId, merchantId, listOf(siteId), s = s, to = "2026-12-31T15:00:00.000Z")
+            val first = post(MerchantOperationsBodies.CONTRACT_REVISIONS, body)
+            first.response.status shouldBe 200
+            first.response.getHeader("Cache-Control")!! shouldContain "no-store"
+            json.readTree(first.body()).propertyNames().toList() shouldBe listOf("outcome", "reference", "replayed")
+            first.field("reference") shouldBe "$contractId#2"
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, body).body() shouldBe """{"outcome":"SUCCEEDED","reference":"$contractId#2","replayed":true}"""
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, MerchantOperationsBodies.registerContractRevision(contractId, merchantId, s = s)).let {
+                it.response.status shouldBe 409
+                it.body() shouldBe """{"error":"IDEMPOTENCY_KEY_REUSED"}"""
+            }
+            OnboardingFixture.runtime(container).use { c ->
+                listOf(
+                    c.scalar("SELECT scope_kind FROM contract_revision WHERE contract_id = ? AND revision_no = 2", contractId),
+                    c.scalar("SELECT merchant_site_id FROM contract_revision_scope_site WHERE contract_id = ? AND revision_no = 2", contractId),
+                    c.scalar("SELECT registered_by FROM contract_revision WHERE contract_id = ? AND revision_no = 2", contractId),
+                )
+            } shouldBe listOf("SITES", siteId, "admin:${MerchantOperationsBodies.ACCOUNT}")
+            count("SELECT COUNT(*) FROM contract_revision_approval WHERE contract_id = ?", contractId) shouldBe 0L
+            // §8.2 B2-1-5: 미승인 Revision은 권리 입력이 아니다.
+            entitlement(merchantId) shouldBe rightsBefore
+
+            val retro = Submission()
+            val retroBody = MerchantOperationsBodies.registerContractRevision(contractId, merchantId, s = retro, from = MerchantOperationsBodies.KST_YESTERDAY)
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, retroBody).body() shouldBe """{"outcome":"REJECTED","rejection":"CONTRACT_START_RETROACTIVE","replayed":false}"""
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, retroBody).body() shouldBe """{"outcome":"REJECTED","rejection":"CONTRACT_START_RETROACTIVE","replayed":true}"""
+            count("SELECT COUNT(*) FROM contract_revision WHERE contract_id = ?", contractId) shouldBe 2L
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, MerchantOperationsBodies.registerContractRevision(contractId, merchantId, from = MerchantOperationsBodies.KST_TODAY))
+                .field("reference") shouldBe "$contractId#3"
+
+            post(MerchantOperationsBodies.CONTRACT_REVISIONS, MerchantOperationsBodies.registerContractRevision("ctr_01JC0000000000000000000000", merchantId)).body() shouldBe
+                """{"outcome":"REJECTED","rejection":"CONTRACT_NOT_FOUND","replayed":false}"""
+            // 지표는 저장된 판정 응답마다 센다(재생 포함): 첫 성공 + 재생 + #3 = 3.
+            commandCount("RegisterContractRevision", "SUCCEEDED") shouldBe succeededBefore + 3.0
+        }
+
         Then("Idempotency (review NIT): the same key with effectiveTo omitted vs null and with scopeSiteIds in another order is a replay (replayed=true, same ctr_), not 409; no new row") {
             val businessId = registerBusiness()
             val merchantId = registerMerchant(businessId)
@@ -402,6 +463,8 @@ class MerchantOperationsApiSpec(
                 override fun registerContract(command: RegisterContractCommand): AdminCommandResult = throw e
                 override fun registerContractRevision(command: RegisterContractRevisionCommand): AdminCommandResult = error("not used")
                 override fun approveContractRevision(command: ApproveContractRevisionCommand): AdminCommandResult = error("not used")
+                override fun approveContractRevisionWithEvidence(command: ApprovedContractRevisionApprovalCommand): AdminCommandResult = error("not used")
+                override fun issueFirstDefaultMerchantAccountWithEvidence(command: com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand): AdminCommandResult = error("not used")
                 override fun addServiceAgreement(command: AddServiceAgreementCommand): AdminCommandResult = throw e
                 override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult = error("not used")
                 override fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult = error("not used")
@@ -479,6 +542,8 @@ class MerchantOperationsApiSpec(
                 override fun registerContract(command: RegisterContractCommand): AdminCommandResult = error("not used")
                 override fun registerContractRevision(command: RegisterContractRevisionCommand): AdminCommandResult = error("not used")
                 override fun approveContractRevision(command: ApproveContractRevisionCommand): AdminCommandResult = error("not used")
+                override fun approveContractRevisionWithEvidence(command: ApprovedContractRevisionApprovalCommand): AdminCommandResult = error("not used")
+                override fun issueFirstDefaultMerchantAccountWithEvidence(command: com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand): AdminCommandResult = error("not used")
                 override fun addServiceAgreement(command: AddServiceAgreementCommand): AdminCommandResult = error("not used")
                 override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult = error("not used")
                 override fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult = error("not used")

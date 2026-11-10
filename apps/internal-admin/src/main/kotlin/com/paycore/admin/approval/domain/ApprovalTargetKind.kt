@@ -7,4 +7,7 @@ enum class ApprovalTargetKind {
 
     /** FINANCIAL 매입 파일(ACQ-ADMIN-001 B1-A — 재매입 원 파일 ID, `target_ref` — V7 `ck_…_target`). */
     ACQUISITION_FILE,
+
+    /** MASTER 가맹점(MERCHANT-OPS-002 B2-2 — `target_ref` = merchantId, 대상 버전 0 — C-16, V9 `ck_…_target`). */
+    MERCHANT,
 }

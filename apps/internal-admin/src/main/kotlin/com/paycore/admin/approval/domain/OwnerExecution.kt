@@ -36,7 +36,7 @@ class OwnerExecution private constructor(
         require(executorActorId.isNotBlank()) { "executor (= approver)" }
         require(attemptCount >= 1) { "the approval TX1 counts the first command" }
         listOf(lastFailure, integrityFlag, resendHaltedReason, ownerResultCode).forEach { require(it == null || CODE.matches(it)) { "code format" } }
-        require(ownerReference == null || REFERENCE.matches(ownerReference)) { "owner reference format (cancellation id)" }
+        require(ownerReference == null || referenceFormat(ownerReference)) { "owner reference format (cancellation id, file id or contract revision)" }
         require(ownerResultCode == null || ownerReference == null) { "an owner result is a reference (STARTED) or a code (REJECTED), not both" }
     }
 
@@ -109,27 +109,40 @@ class OwnerExecution private constructor(
         /** PAYMENT 본문 상한(I-03 — 16 KiB, 서명 전 거부)과 같다. */
         const val MAX_BODY_BYTES = 16 * 1024
         private val ID = Regex("^apr_[0-9A-HJKMNP-TV-Z]{26}$")
-        /** 운영자 보정 취소 `oct1:`(대상 지문) 또는 재매입 `acd1:`(명령 내용 hash — ACQ-ADMIN-001 B1-A, V7 CHECK와 같다). */
-        private val FINGERPRINT = Regex("^(oct1|acd1):[0-9a-f]{64}$")
+        /**
+         * 운영자 보정 취소 `oct1:`(대상 지문), 재매입 `acd1:`(명령 내용 hash — ACQ-ADMIN-001 B1-A), 가맹점 승인 `mop1:`(MASTER 근거 지문 — MERCHANT-OPS-002 C-23). V9 CHECK와 같다.
+         */
+        private val FINGERPRINT = Regex("^(oct1|acd1|mop1):[0-9a-f]{64}$")
         private val CODE = Regex("^[A-Z][A-Z0-9_]{0,47}$")
 
-        /** 소유 참조: PAYMENT cancellationId 또는 FINANCIAL 재매입 새 파일 ID(파일 계약 v1). */
-        private val REFERENCE = Regex("^(pcn_[0-9A-HJKMNP-TV-Z]{26}|ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3})$")
+        /** 1..2147483647(Int 범위, 앞자리 0 없음 — MASTER Revision 번호, C-30). */
+        private const val REVISION_NO =
+            "([1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])"
 
         private val CANCELLATION_REFERENCE = Regex("^pcn_[0-9A-HJKMNP-TV-Z]{26}$")
         private val FILE_REFERENCE = Regex("^ACQ\\.[A-Z0-9]{1,32}\\.(TEST|LIVE)\\.[0-9]{8}\\.[0-9]{3}$")
+        private val CONTRACT_REVISION_REFERENCE = Regex("^ctr_[0-9A-HJKMNP-TV-Z]{26}#$REVISION_NO$")
+        private val MERCHANT_ACCOUNT_REFERENCE = Regex("^mid_[0-9A-HJKMNP-TV-Z]{26}$")
+
+        /** 소유 참조: PAYMENT cancellationId, FINANCIAL 재매입 새 파일 ID(파일 계약 v1), MASTER 승인 Revision `ctr_…#n`(MERCHANT-OPS-002 B2-2). */
+        private fun referenceFormat(reference: String): Boolean =
+            CANCELLATION_REFERENCE.matches(reference) || FILE_REFERENCE.matches(reference) || CONTRACT_REVISION_REFERENCE.matches(reference) ||
+                MERCHANT_ACCOUNT_REFERENCE.matches(reference)
 
         /** 종류별 지문 접두(m-4). 소유 서비스 종류가 아니면 실행 행이 없다(fail-closed). */
         fun fingerprintPrefix(kind: ApprovalKind): String = when (kind) {
             ApprovalKind.OPERATOR_CORRECTION_CANCEL -> "oct1"
             ApprovalKind.ACQ_REACQUISITION -> "acd1"
+            ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> "mop1"
             else -> throw IllegalArgumentException("no owner execution for $kind")
         }
 
-        /** 소유 참조가 [kind]의 문법인지(m-4): 운영자 보정 취소 = PAYMENT cancellationId, 재매입 = FINANCIAL 새 파일 ID. */
+        /** 소유 참조가 [kind]의 문법인지(m-4): 운영자 보정 취소 = PAYMENT cancellationId, 재매입 = FINANCIAL 새 파일 ID, 계약 승인 = `ctr_…#n`. */
         fun referenceFits(kind: ApprovalKind, reference: String): Boolean = when (kind) {
             ApprovalKind.OPERATOR_CORRECTION_CANCEL -> CANCELLATION_REFERENCE.matches(reference)
             ApprovalKind.ACQ_REACQUISITION -> FILE_REFERENCE.matches(reference)
+            ApprovalKind.MERCHANT_CONTRACT_APPROVAL -> CONTRACT_REVISION_REFERENCE.matches(reference)
+            ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> MERCHANT_ACCOUNT_REFERENCE.matches(reference)
             else -> false
         }
 

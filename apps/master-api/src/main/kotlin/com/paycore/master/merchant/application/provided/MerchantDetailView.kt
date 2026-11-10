@@ -38,6 +38,8 @@ data class MerchantDetailView(
         val effectiveTo: Instant?,
         val approvedAt: Instant?,
         val scopeSiteIds: List<String>,
+        /** Revision 등록자(정규 actor 문자열 — 기존 `contract_revision.registered_by`, Revision 1 = 계약 등록자). MERCHANT-OPS-002 B2-2 D-MOPS-008 ③: ADMIN pinned·등록자≠승인자 판정. */
+        val registeredBy: String,
     )
 
     data class AgreementDetail(val agreementId: String, val serviceKind: String, val addedAt: Instant)

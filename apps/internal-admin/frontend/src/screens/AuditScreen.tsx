@@ -86,11 +86,11 @@ export function AuditScreen({ api, onSessionEnded }: Props) {
             <TableRow key={e.eventId} aria-label={`${e.action} ${e.resultCode}`}>
               <TableCell className="align-top text-muted-foreground"><KstTime iso={e.occurredAt} /></TableCell>
               <TableCell className="align-top whitespace-nowrap" title={e.actorKind}>{e.actorDisplayName ?? labelOf(e.actorKind)}</TableCell>
-              <TableCell className="align-top whitespace-nowrap"><KindLabel code={e.action} /></TableCell>
-              <TableCell className="align-top font-mono text-xs">{e.targetActorId ?? ''}</TableCell>
+              <TableCell className="align-top"><KindLabel code={e.action} /></TableCell>
+              <TableCell className="align-top font-mono text-xs break-all">{e.targetActorId ?? e.targetRef ?? ''}</TableCell>
               <TableCell className="align-top"><StatusBadge code={e.resultCode} /></TableCell>
               {/* 요약은 길 수 있다 — 칸 너비를 두고 줄바꿈(긴 토큰도 끊음), 표가 쪽 밖으로 넘치지 않게. */}
-              <TableCell className="max-w-80 min-w-48 align-top font-mono text-xs break-all whitespace-normal text-muted-foreground" title={e.detail ?? undefined}>
+              <TableCell className="max-w-64 min-w-40 align-top font-mono text-xs break-all whitespace-normal text-muted-foreground" title={e.detail ?? undefined}>
                 {e.detail ?? ''}
               </TableCell>
             </TableRow>

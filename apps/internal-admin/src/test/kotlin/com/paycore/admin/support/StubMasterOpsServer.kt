@@ -49,6 +49,19 @@ object StubMasterOpsServer {
         replies[path] = reply
     }
 
+    /**
+     * MERCHANT-OPS-002 B2-2: 본문에 따라 응답하는 경로(승인 실행·기한 확인·결정 조회는 경로 하나를 모든 승인이 공유 — 시험이 approvalId별로 정한다). [reply]보다 먼저 본다.
+     */
+    private val dynamic = ConcurrentHashMap<String, (ByteArray) -> Reply>()
+
+    fun replyWith(path: String, handler: (ByteArray) -> Reply) {
+        dynamic[path] = handler
+    }
+
+    fun clearDynamic(path: String) {
+        dynamic.remove(path)
+    }
+
     fun requestsForPath(path: String): List<Received> = received.filter { it.path == path }
 
     private fun handle(exchange: HttpExchange) {
@@ -57,7 +70,7 @@ object StubMasterOpsServer {
             val path = ex.requestURI.rawPath
             val signature = ex.requestHeaders.getFirst("PayCore-Admin-Signature")
             received += Received(ex.requestMethod, path, ex.requestURI.rawQuery, signature, body, verify(signature, ex.requestMethod, path, body))
-            val reply = replies[path] ?: Reply(404, "{\"error\":\"MERCHANT_NOT_FOUND\"}")
+            val reply = dynamic[path]?.invoke(body) ?: replies[path] ?: Reply(404, "{\"error\":\"MERCHANT_NOT_FOUND\"}")
             if (reply.delayMillis > 0) Thread.sleep(reply.delayMillis)
             val bytes = reply.body.toByteArray(Charsets.UTF_8)
             ex.responseHeaders.add("Content-Type", "application/json")
@@ -94,6 +107,7 @@ object StubMasterOpsServer {
     /** B1-2 명령 경로. */
     const val CONTRACTS = "/internal/v1/admin/merchant-operations/contracts"
     const val AGREEMENTS = "/internal/v1/admin/merchant-operations/service-agreements"
+    const val CONTRACT_REVISIONS = "/internal/v1/admin/merchant-operations/contract-revisions"
 
     fun succeeded(reference: String, replayed: Boolean = false) = """{"outcome":"SUCCEEDED","reference":"$reference","replayed":$replayed}"""
 
@@ -110,13 +124,41 @@ object StubMasterOpsServer {
 
     const val EMPTY_DIRECTORY = """{"items":[],"nextCursor":null}"""
 
-    /** MASTER 상세 계약 모양(카드 Route는 인수사·Route 참조·상태만). [routeExtra]로 허용되지 않는 필드를 끼워 넣어 fail-closed를 시험한다. */
-    fun detailJson(merchantId: String, routeExtra: String = ""): String {
+    /** B2-2 승인 경로(§9.4 — 모두 POST, 서명 본문). */
+    const val CONTRACT_REVISION_APPROVALS = "/internal/v1/admin/merchant-operations/contract-revision-approvals"
+    const val APPROVAL_DECISIONS = "/internal/v1/admin/merchant-operations/approval-decisions"
+    const val DEADLINE_CONFIRMATIONS = "/internal/v1/admin/merchant-operations/approval-deadline-confirmations"
+
+    /** B2-3 첫 Default MID 발급 실행 경로. */
+    const val FIRST_DEFAULT_MERCHANT_ACCOUNTS = "/internal/v1/admin/merchant-operations/first-default-merchant-accounts"
+
+    /** 시험 Revision 등록자(기존 상세 Fixture — Demo 값). */
+    const val REGISTRANT = "admin:adm_01JCRG0000000000000000RG01"
+
+    /** 상세 Revision 한 줄(MASTER 계약 모양 — B2-2부터 `registeredBy` 포함). */
+    fun revisionJson(
+        revisionNo: Int, approvedAt: String? = "2026-10-09T02:00:00.000Z", effectiveFrom: String = "2026-10-09T02:00:00.000Z", effectiveTo: String? = null,
+        registeredBy: String = REGISTRANT, scopeKind: String = "MERCHANT",
+    ): String =
+        """{"revisionNo":$revisionNo,"scopeKind":"$scopeKind","effectiveFrom":"$effectiveFrom","effectiveTo":${effectiveTo?.let { "\"$it\"" } ?: "null"},""" +
+            """"approvedAt":${approvedAt?.let { "\"$it\"" } ?: "null"},"scopeSiteIds":[],"registeredBy":"$registeredBy"}"""
+
+    /** 결정 조회 DECIDED 본문(MASTER 필드 순서 그대로). */
+    fun decidedJson(fingerprint: String, reference: String? = null, rejection: String? = null, decidedVia: String = "EXECUTE", operation: String = "ApproveContractRevision"): String =
+        """{"decision":"DECIDED","operation":"$operation","outcome":"${if (reference != null) "SUCCEEDED" else "REJECTED"}",""" +
+            (if (reference != null) """"reference":"$reference",""" else """"rejection":"$rejection",""") +
+            """"approvalFingerprint":"$fingerprint","decidedVia":"$decidedVia"}"""
+
+    /**
+     * MASTER 상세 계약 모양(카드 Route는 인수사·Route 참조·상태만). [routeExtra]로 허용되지 않는 필드를 끼워 넣어 fail-closed를 시험한다. [revisions]는 계약 하나의 Revision 목록 JSON
+     * (기본 = 승인된 Revision 1, B2-2 기대값 변경: `registeredBy` 포함).
+     */
+    fun detailJson(merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1)): String {
         val ulid = merchantId.removePrefix("mer_")
         return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z"},""" +
             """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumberMasked":"123*******","lifecycle":"ACTIVE"},""" +
             """"sites":[{"merchantSiteId":"site_$ulid","channelType":"WEB","channelIdentifier":"shop.example.test","lifecycle":"ACTIVE","review":{"decision":"APPROVED","decidedAt":"2026-10-09T02:00:00.000Z"}}],""" +
-            """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[{"revisionNo":1,"scopeKind":"MERCHANT","effectiveFrom":"2026-10-09T02:00:00.000Z","effectiveTo":null,"approvedAt":"2026-10-09T02:00:00.000Z","scopeSiteIds":[]}],""" +
+            """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[$revisions],""" +
             """"agreements":[{"agreementId":"csa_$ulid","serviceKind":"CARD_PG_PAYMENT","addedAt":"2026-10-09T02:00:00.000Z"}]}],""" +
             """"accounts":[{"merchantAccountId":"mid_$ulid","lifecycle":"ACTIVE","isDefault":true,"issuingContractId":"ctr_$ulid","issuingAgreementId":"csa_$ulid","issuingRevisionNo":1,"issuedAt":"2026-10-09T02:00:00.000Z",""" +
             """"assignments":[{"assignmentId":"asg_$ulid","merchantSiteId":"site_$ulid","role":"PRIMARY","status":"ACTIVE","effectiveFrom":"2026-10-09T02:00:00.000Z","effectiveTo":null}],""" +

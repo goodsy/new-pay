@@ -245,10 +245,60 @@ class ContractSpec : BehaviorSpec({
             violation { registerStartingAt("2026-11-01T15:00:00Z", kstMidnightOfNov9, closed) } shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
         }
 
-        Then("Q-MOPS-18 boundary (review n-1): a later revision with a past start is still accepted — the rule covers Revision 1 only until Q-MOPS-18 is answered") {
+        Then("D-MOPS-007 ② (Q-MOPS-18 answered — expectation reversed from the B1 n-1 boundary): a later revision with a past start is rejected with CONTRACT_START_RETROACTIVE") {
             val contract = registerStartingAt(kstMidnightOfNov9, kstMidnightOfNov9)
             val past = EffectivePeriod(java.time.Instant.parse("2026-11-01T15:00:00Z"))
-            contract.registerRevision(ContractScope.MerchantWide(merchant.id), past, java.time.Instant.parse(kstMidnightOfNov9), operator).revisionNo shouldBe 2
+            violation {
+                contract.registerRevision(ContractScope.MerchantWide(merchant.id), past, java.time.Instant.parse(kstMidnightOfNov9), operator)
+            } shouldBe MasterRejection.CONTRACT_START_RETROACTIVE
+            contract.revisions.size shouldBe 1
+        }
+    }
+
+    Given("D-MOPS-007 ② / MERCHANT-OPS-002 §9.2 (B2-1): a contract revision may not start before the KST date of the decision time") {
+        val business = MasterFixture.business()
+        val merchant = MasterFixture.merchant(business)
+        val sibling = MasterFixture.merchant(business)
+        val kstMidnightOfNov9 = "2026-11-08T15:00:00Z" // KST 11-09 00:00
+        val kstLastMilliOfNov8 = "2026-11-08T14:59:59.999Z" // KST 11-08 23:59:59.999
+
+        /** Named Fixture: KST 11-07 00:00에 시작한 Revision 1만 있는 계약(그 날 판정 — 소급 아님). */
+        fun contractStartedOnNov7(): Contract = Contract.register(
+            MasterFixture.contractId(), business, ContractScope.MerchantWide(merchant.id),
+            EffectivePeriod(java.time.Instant.parse("2026-11-06T15:00:00Z")), java.time.Instant.parse("2026-11-06T15:00:00Z"), operator,
+        )
+
+        /** Named Fixture: 시각 [at]에 판정되는, [from]에 시작하는 MERCHANT Scope Revision 등록. */
+        fun registerRevisionStartingAt(contract: Contract, from: String, at: String, scopeMerchant: Merchant = merchant): ContractRevision =
+            contract.registerRevision(
+                ContractScope.MerchantWide(scopeMerchant.id), EffectivePeriod(java.time.Instant.parse(from)), java.time.Instant.parse(at), operator,
+            )
+
+        Then("KST boundary table (same values as Revision 1): same KST day and future starts accepted, one millisecond before the decision date's KST midnight rejected") {
+            data class Case(val name: String, val at: String, val from: String, val accepted: Boolean)
+            val cases = listOf(
+                Case("at KST 11-09 00:00, from KST 11-09 00:00", kstMidnightOfNov9, kstMidnightOfNov9, true),
+                Case("at KST 11-09 00:00, from KST 11-08 23:59:59.999", kstMidnightOfNov9, kstLastMilliOfNov8, false),
+                Case("at KST 11-08 23:59:59.999, from KST 11-08 00:00 (same day, earlier time)", kstLastMilliOfNov8, "2026-11-07T15:00:00Z", true),
+                Case("at KST 11-08 23:59:59.999, from KST 11-07 23:59:59.999", kstLastMilliOfNov8, "2026-11-07T14:59:59.999Z", false),
+                Case("at KST 11-09 00:00, from a future day", kstMidnightOfNov9, "2026-11-10T15:00:00Z", true),
+            )
+            cases.forEach { c ->
+                withClue(c.name) {
+                    val contract = contractStartedOnNov7()
+                    if (c.accepted) {
+                        registerRevisionStartingAt(contract, c.from, c.at).revisionNo shouldBe 2
+                    } else {
+                        violation { registerRevisionStartingAt(contract, c.from, c.at) } shouldBe MasterRejection.CONTRACT_START_RETROACTIVE
+                        contract.revisions.size shouldBe 1
+                    }
+                }
+            }
+        }
+
+        Then("a revision targeting another merchant is rejected with CONTRACT_MERCHANT_MISMATCH before the retroactive check") {
+            violation { registerRevisionStartingAt(contractStartedOnNov7(), "2026-11-01T15:00:00Z", kstMidnightOfNov9, sibling) } shouldBe
+                MasterRejection.CONTRACT_MERCHANT_MISMATCH
         }
     }
 
@@ -288,6 +338,45 @@ class ContractSpec : BehaviorSpec({
             val agreement = contract.addAgreement(MasterFixture.agreementId(), ServiceKind.CARD_PG_PAYMENT, t0, operator)
             violation { contract.issuingBasis(agreement.id, 1, other, t0) } shouldBe MasterRejection.SITE_OUTSIDE_CONTRACT_SCOPE
             contract.issuingBasis(agreement.id, 1, site, t0).revisionNo shouldBe 1
+        }
+    }
+
+    Given("D-MOPS-008 ③ / MERCHANT-OPS-002 §9.3 판정 5 (B2-2, C-27·C-31): the evidence path refuses an approver who registered the revision") {
+        val business = MasterFixture.business()
+        val merchant = MasterFixture.merchant(business)
+        val approver = ApprovalEvidenceFixtures.APPROVER
+        val revisionRegistrant = ApprovalEvidenceFixtures.OTHER
+
+        Then("Revision 1: the contract registrant approving with evidence is APPROVER_IS_REVISION_REGISTRANT and nothing is recorded; another approver is recorded") {
+            val contract = Contract.register(MasterFixture.contractId(), business, ContractScope.MerchantWide(merchant.id), EffectivePeriod(t0), t0, approver)
+            violation { contract.approveWithEvidence(1, t0, approver) } shouldBe MasterRejection.APPROVER_IS_REVISION_REGISTRANT
+            contract.revision(1)!!.isApproved shouldBe false
+            contract.approveWithEvidence(1, t0, revisionRegistrant) shouldBe RevisionApproval(t0, revisionRegistrant)
+        }
+
+        Then("Revision 2: its own registrant (not the contract registrant) is the one refused") {
+            val contract = MasterFixture.contract(merchant, business)
+            contract.registerRevision(ContractScope.MerchantWide(merchant.id), EffectivePeriod(t0.plusSeconds(60)), t0, revisionRegistrant)
+            violation { contract.approveWithEvidence(2, t0, revisionRegistrant) } shouldBe MasterRejection.APPROVER_IS_REVISION_REGISTRANT
+            contract.approveWithEvidence(2, t0, operator).approvedBy shouldBe operator
+        }
+
+        Then("order: REVISION_NOT_FOUND, then REVISION_ENDED before the registrant check, then the registrant check before REVISION_ALREADY_APPROVED") {
+            val ended = Contract.register(
+                MasterFixture.contractId(), business, ContractScope.MerchantWide(merchant.id), EffectivePeriod(t0, t0.plusSeconds(60)), t0, approver,
+            )
+            violation { ended.approveWithEvidence(9, t0, approver) } shouldBe MasterRejection.REVISION_NOT_FOUND
+            violation { ended.approveWithEvidence(1, t0.plusSeconds(60), approver) } shouldBe MasterRejection.REVISION_ENDED
+
+            val approved = Contract.register(MasterFixture.contractId(), business, ContractScope.MerchantWide(merchant.id), EffectivePeriod(t0), t0, approver)
+            approved.approve(1, t0, operator)
+            violation { approved.approveWithEvidence(1, t0, approver) } shouldBe MasterRejection.APPROVER_IS_REVISION_REGISTRANT
+            violation { approved.approveWithEvidence(1, t0, revisionRegistrant) } shouldBe MasterRejection.REVISION_ALREADY_APPROVED
+        }
+
+        Then("C-31: the evidence-less approve (Demo seed path) still lets the registrant approve — no registrant check there") {
+            val contract = MasterFixture.contract(merchant, business)
+            contract.approve(1, t0, operator) shouldBe RevisionApproval(t0, operator)
         }
     }
 })

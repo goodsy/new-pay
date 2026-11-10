@@ -25,6 +25,7 @@ import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -97,6 +98,10 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                 override fun search(criteria: MerchantSearchCriteria): MasterCallResult = error("not used")
                 override fun detail(merchantId: String): MasterCallResult = error("not used")
                 override fun history(merchantId: String, afterSeq: Long): MasterCallResult = error("not used")
+                // MERCHANT-OPS-002 B2-2: 승인 명령 채널(이 시험은 쓰지 않는다).
+                override fun approval(operation: com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation, body: ByteArray, deadline: Boolean):
+                    com.paycore.admin.merchantops.application.provided.MerchantApprovalResult = error("not used")
+                override fun approvalDecision(approvalId: String): com.paycore.admin.merchantops.application.provided.MerchantApprovalResult = error("not used")
                 override fun command(command: MasterCommand): MasterCommandResult {
                     callInTx += TransactionSynchronizationManager.isActualTransactionActive()
                     events += "call"
@@ -508,6 +513,92 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                     f.commands.size shouldBe 1
                 }
             }
+        }
+    }
+
+    Given("B2-1 contract revision registration (MERCHANT-OPS-002 §9.2 — OPERATOR 1인, C-7 dates, C-22 audit targetRef = contract id + rev=<n>)") {
+        val ctr = "ctr_01JC0000000000000000000001"
+        val site1 = "site_01JC0000000000000000000001"
+        fun revision(s: String = sub(), contractId: String = ctr, scope: String = mer, sites: List<String> = emptyList(), from: String = "2026-11-09", to: String? = null) =
+            RegistrationRequest.ContractRevision(s, contractId, scope, sites, from, to)
+
+        Then("roles: VIEWER, APPROVER and SECURITY_ADMIN are 403 audited FORBIDDEN with targetRef = the entered contract; MASTER is not called") {
+            listOf("VIEWER", "APPROVER", "SECURITY_ADMIN").forEach { role ->
+                val f = Fixture(setOf(role))
+                val s = sub()
+                f.service.register(operatorId, revision(s), ctx) shouldBe MerchantRegistrationResult.Forbidden
+                withClue(role) {
+                    f.rows() shouldBe listOf(listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "FORBIDDEN", "sub=${s.take(8)}", ctr, "req-1"))
+                    f.commands.shouldBeEmpty()
+                }
+            }
+        }
+
+        Then("fields follow C-7 (KST date → 00:00 KST UTC instant, exclusive end); key/actor/correlation as B1; audit rows keep the contract id and add rev=<n> on success") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "$ctr#2", false) }
+            val s = sub()
+            f.service.register(operatorId, revision(s, sites = listOf(site1), from = "2026-11-09", to = "2027-01-01"), ctx) shouldBe
+                MerchantRegistrationResult.Decided("SUCCEEDED", "$ctr#2", null, false)
+            val c = f.commands.single()
+            c.kind shouldBe MasterCommandKind.REGISTER_CONTRACT_REVISION
+            listOf(c.idempotencyKey, c.actor, c.correlationId) shouldBe listOf("mo1.01JC00000000000000000000V1.$s", "admin:$operatorId", "mos.$s")
+            c.fields shouldBe mapOf(
+                "contractId" to ctr, "scopeMerchantId" to mer, "scopeSiteIds" to listOf(site1),
+                "effectiveFrom" to "2026-11-08T15:00:00.000Z", "effectiveTo" to "2026-12-31T15:00:00.000Z",
+            )
+            f.rows() shouldBe listOf(
+                listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "REQUESTED", "sub=${s.take(8)}", ctr, "mos.$s"),
+                listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "OK", "sub=${s.take(8)};replayed=false;rev=2", ctr, "mos.$s"),
+            )
+            f.metrics.take(1) shouldBe listOf("command:CONTRACT_REVISION:OK")
+            f.service.register(operatorId, revision(from = "2026-11-09"), ctx)
+            f.commands.last().fields shouldBe mapOf("contractId" to ctr, "scopeMerchantId" to mer, "scopeSiteIds" to emptyList<String>(), "effectiveFrom" to "2026-11-08T15:00:00.000Z")
+        }
+
+        Then("D-MOPS-007 ②: ADMIN does not judge a past start — MASTER's CONTRACT_START_RETROACTIVE is passed through and audited REJECTED without rev=") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "CONTRACT_START_RETROACTIVE", null, false) }
+            val s = sub()
+            f.service.register(operatorId, revision(s, from = "2020-01-01"), ctx) shouldBe MerchantRegistrationResult.Decided("REJECTED", null, "CONTRACT_START_RETROACTIVE", false)
+            f.commands.single().fields["effectiveFrom"] shouldBe "2019-12-31T15:00:00.000Z"
+            f.rows().last() shouldBe listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "REJECTED", "sub=${s.take(8)};replayed=false;rejection=CONTRACT_START_RETROACTIVE", ctr, "mos.$s")
+        }
+
+        Then("C-10 formats: a business id as contract, a contract id as scope, bad dates, an end not after the start, malformed sites are 400 without audit or MASTER call") {
+            val f = Fixture()
+            listOf(
+                revision(contractId = biz), revision(contractId = "ctr_1"), revision(scope = ctr), revision(from = "2026-02-30"),
+                revision(from = "2026-11-09", to = "2026-11-09"), revision(sites = listOf("site_1")), revision(sites = listOf(site1, site1)),
+                revision(s = "NOT-A-SUBMISSION"),
+            ).forEach { r -> withClue(r.toString()) { f.service.register(operatorId, r, ctx) shouldBe MerchantRegistrationResult.InvalidInput } }
+            f.rows().shouldBeEmpty()
+            f.commands.shouldBeEmpty()
+        }
+
+        Then("review n-3: a SUCCEEDED reference that is not this contract's revision (ctr_<sent contract>#<n>) is treated as Unknown — audited OUTCOME_UNKNOWN with the entered contract id, no rev=, counted") {
+            val other = "ctr_01JC0000000000000000000002"
+            listOf("$other#2", "$ctr#", ctr).forEach { foreign ->
+                val f = Fixture()
+                f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, foreign, false) }
+                val s = sub()
+                withClue(foreign) {
+                    f.service.register(operatorId, revision(s), ctx) shouldBe MerchantRegistrationResult.OutcomeUnknown
+                    f.rows().last() shouldBe listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "OUTCOME_UNKNOWN", "sub=${s.take(8)}", ctr, "mos.$s")
+                    f.metrics shouldContain "unknown:CONTRACT_REVISION"
+                }
+            }
+        }
+
+        Then("result classes: Unknown is audited OUTCOME_UNKNOWN with the contract id (no rev=), KEY_REUSED is audited; the number budget is untouched") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Unknown("TIMEOUT") }
+            val s = sub()
+            f.service.register(operatorId, revision(s), ctx) shouldBe MerchantRegistrationResult.OutcomeUnknown
+            f.rows().last() shouldBe listOf("MERCHANT_CONTRACT_REVISION_REGISTER", "OUTCOME_UNKNOWN", "sub=${s.take(8)}", ctr, "mos.$s")
+            f.reply = { MasterCommandResult.KeyReused }
+            f.service.register(operatorId, revision(), ctx) shouldBe MerchantRegistrationResult.KeyReused
+            f.rows().last()[1] shouldBe "KEY_REUSED"
         }
     }
 })

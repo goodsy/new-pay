@@ -73,8 +73,15 @@ enum class MasterRejection {
     CARD_ROUTE_TRANSITION_NOT_ALLOWED,
     CARD_ROUTE_EVIDENCE_NOT_NEW,
 
-    // MERCHANT-OPS-002 §3.4(D-MOPS-006 ⑤): 계약(Revision 1) 효력 시작이 판정 시각의 KST 날짜 00:00보다 앞(소급 등록 거절)
+    // MERCHANT-OPS-002 §3.4·§9.2(D-MOPS-006 ⑤·D-MOPS-007 ②): 계약(Revision 1)·Revision 등록의 효력 시작이 판정 시각의 KST 날짜 00:00보다 앞(소급 등록 거절)
     CONTRACT_START_RETROACTIVE,
+
+    // MERCHANT-OPS-002 §9.3(B2-2 — D-MOPS-007 ①·D-MOPS-008 ③, D-ADMIN-007): 2인 승인 근거 판정 1~5(저장된 거절 — 영속 이름, 끝에 추가만)
+    APPROVAL_SAME_ACTOR,
+    APPROVAL_WINDOW_INVALID,
+    APPROVAL_ID_ALREADY_USED,
+    APPROVAL_EXPIRED,
+    APPROVER_IS_REVISION_REGISTRANT,
 }
 
 /**

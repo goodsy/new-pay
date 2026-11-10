@@ -31,4 +31,10 @@ enum class MasterCommandKind(val path: String, val fields: Set<String>, val opti
         optional = setOf("effectiveTo"), arrays = setOf("scopeSiteIds"),
     ),
     ADD_SERVICE_AGREEMENT("service-agreements", linkedSetOf("contractId", "serviceKind")),
+
+    /** B2-1 계약 Revision 등록(§9.2). 성공 reference `ctr_…#<n>`. */
+    REGISTER_CONTRACT_REVISION(
+        "contract-revisions", linkedSetOf("contractId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom", "effectiveTo"),
+        optional = setOf("effectiveTo"), arrays = setOf("scopeSiteIds"),
+    ),
 }

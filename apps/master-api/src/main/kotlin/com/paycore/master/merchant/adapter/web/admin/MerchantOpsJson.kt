@@ -50,7 +50,7 @@ object MerchantOpsJson {
                 "revisions" to c.revisions.map {
                     linkedMapOf(
                         "revisionNo" to it.revisionNo, "scopeKind" to it.scopeKind, "effectiveFrom" to time(it.effectiveFrom), "effectiveTo" to it.effectiveTo?.let(::time),
-                        "approvedAt" to it.approvedAt?.let(::time), "scopeSiteIds" to it.scopeSiteIds,
+                        "approvedAt" to it.approvedAt?.let(::time), "scopeSiteIds" to it.scopeSiteIds, "registeredBy" to it.registeredBy,
                     )
                 },
                 "agreements" to c.agreements.map { linkedMapOf("agreementId" to it.agreementId, "serviceKind" to it.serviceKind, "addedAt" to time(it.addedAt)) },

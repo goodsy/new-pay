@@ -81,6 +81,23 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
         )
     }
 
+    /** 서로 다른 가맹점 ID(`mer_` + 대문자 hex 26자 — Crockford ULID 문자 집합 안). */
+    fun merchantId(): String = "mer_" + UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
+
+    /** 가맹점 대상 승인 행(V9 — 대상 버전 0, 결정 열은 PENDING이 아니면 승인자로). [actor]·[kind]는 Invalid Fixture가 바꾼다. */
+    fun Connection.insertMerchantApproval(
+        approvalId: String, merchantId: String?, status: String = "PENDING", kind: String = "MERCHANT_CONTRACT_APPROVAL", actor: String? = null,
+    ): Int? {
+        val decided = status != "PENDING"
+        return errorCodeOf(
+            "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_actor_id, target_ref, target_security_version, target_snapshot, requested_by, " +
+                "requested_by_display_name, requested_at, expires_at, status, decided_by, decided_by_display_name, decided_at, version) " +
+                "VALUES (?, ?, 'MERCHANT', ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, ?, " +
+                (if (decided) "'adm_approver', 'Approver', UTC_TIMESTAMP(3)" else "NULL, NULL, NULL") + ", 0)",
+            approvalId, kind, actor, merchantId, status,
+        )
+    }
+
     Given("the ADMIN schema after the Flyway migrations") {
         Then("it has exactly the ADMIN tables and the Flyway history") {
             root().use { c ->
@@ -89,8 +106,9 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
                     ADMIN_DATABASE,
                 )
             } shouldBe listOf(
+                // 기대값 변경(B2-2 MERCHANT-OPS-002 §9.5 V9): 가맹점 승인 명령 표 admin_merchant_ops_command 추가.
                 "admin_account", "admin_acquiring_ops_command", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_enrollment_code",
-                "admin_operator_cancel_command", "admin_ops_reconciliation_checkpoint", "admin_ops_reconciliation_finding", "admin_owner_execution",
+                "admin_merchant_ops_command", "admin_operator_cancel_command", "admin_ops_reconciliation_checkpoint", "admin_ops_reconciliation_finding", "admin_owner_execution",
                 "admin_recovery_episode", "admin_role_event", "admin_session", "admin_session_attributes", "flyway_schema_history",
             )
         }
@@ -344,6 +362,96 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
                     "bad evidence" to command(approval, evidence = "has space"), "no approval" to command(id("apr_")), "ok" to command(approval), "second" to command(approval),
                 )
             } shouldBe mapOf("bad file" to 3819, "unknown code" to 3819, "bad evidence" to 3819, "no approval" to 1452, "ok" to null, "second" to 1062)
+        }
+
+        Then("V9 (MERCHANT-OPS-002 B2-2): the merchant kinds take only a MERCHANT target (mer_ ULID, version 0) and the owner-service states; MERCHANT takes no other kind") {
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                mapOf(
+                    "merchant version 3" to c.insertTargeted(id("apr_"), "MERCHANT_CONTRACT_APPROVAL", "MERCHANT", null, merchantId()),
+                    "merchant with actor" to c.insertMerchantApproval(id("apr_"), merchantId(), actor = actor),
+                    "merchant without ref" to c.insertMerchantApproval(id("apr_"), null),
+                    "ref not a merchant id" to c.insertMerchantApproval(id("apr_"), paymentId()),
+                    "lower-case merchant id" to c.insertMerchantApproval(id("apr_"), merchantId().lowercase().replace("mer_", "mer_")),
+                    "merchant kind on PAYMENT" to c.insertTargeted(id("apr_"), "MERCHANT_CONTRACT_APPROVAL", "PAYMENT", null, paymentId()),
+                    "acq kind on MERCHANT" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "ACQ_REACQUISITION"),
+                    "account kind on MERCHANT" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "ROLE_GRANT"),
+                    "unknown kind" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "MERCHANT_GUESS"),
+                    "APPROVED" to c.insertMerchantApproval(id("apr_"), merchantId(), status = "APPROVED"),
+                    "pending" to c.insertMerchantApproval(id("apr_"), merchantId()),
+                    "executing" to c.insertMerchantApproval(id("apr_"), merchantId(), status = "EXECUTING"),
+                    "unknown" to c.insertMerchantApproval(id("apr_"), merchantId(), status = "EXECUTION_UNKNOWN"),
+                    "first MID kind (B2-3 — DB ready)" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "MERCHANT_FIRST_MID_ISSUANCE"),
+                )
+            } shouldBe mapOf(
+                "merchant version 3" to 3819, "merchant with actor" to 3819, "merchant without ref" to 3819, "ref not a merchant id" to 3819, "lower-case merchant id" to 3819,
+                "merchant kind on PAYMENT" to 3819, "acq kind on MERCHANT" to 3819, "account kind on MERCHANT" to 3819, "unknown kind" to 3819, "APPROVED" to 3819,
+                "pending" to null, "executing" to null, "unknown" to null, "first MID kind (B2-3 — DB ready)" to null,
+            )
+        }
+
+        Then("V9 unresolved_key: one unresolved merchant approval per merchant across both merchant kinds (MERCHANT: — C-20, 1062), released when it ends; file key unchanged") {
+            val merchant = merchantId()
+            val file = fileId()
+            runtime().use { c ->
+                val first = id("apr_")
+                val inserts = listOf(
+                    c.insertMerchantApproval(first, merchant), c.insertMerchantApproval(id("apr_"), merchant), c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_FIRST_MID_ISSUANCE"),
+                    c.insertMerchantApproval(id("apr_"), merchantId()),
+                )
+                val key = c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", first)
+                c.update("UPDATE admin_approval_request SET status = 'EXECUTION_UNKNOWN', decided_by = 'adm_x', decided_by_display_name = 'X', decided_at = UTC_TIMESTAMP(3) WHERE approval_id = ?", first)
+                val whileUnknown = c.insertMerchantApproval(id("apr_"), merchant)
+                c.update("UPDATE admin_approval_request SET status = 'OWNER_REJECTED', result_code = 'APPROVAL_EXPIRED' WHERE approval_id = ?", first)
+                val fileApproval = id("apr_")
+                c.insertFileApproval(fileApproval, file)
+                listOf(inserts, key, whileUnknown, c.insertMerchantApproval(id("apr_"), merchant), c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", fileApproval))
+            } shouldBe listOf(listOf(null, 1062, 1062, null), "MERCHANT:$merchant", 1062, null, "ACQFILE:$file")
+        }
+
+        Then("V9 execution fingerprint: mop1 (MASTER evidence fingerprint) is accepted next to oct1/acd1; other prefixes stay 3819") {
+            runtime().use { c ->
+                fun execution(approval: String, fingerprint: String) = c.errorCodeOf(
+                    "INSERT INTO admin_owner_execution (approval_id, request_body, fingerprint, approved_at, execute_before, executor_actor_id, attempt_count, " +
+                        "next_attempt_at, version) VALUES (?, x'7b7d', ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 60 SECOND, 'adm_approver', 1, UTC_TIMESTAMP(3), 0)",
+                    approval, fingerprint,
+                )
+                val approval = id("apr_")
+                c.insertMerchantApproval(approval, merchantId(), status = "EXECUTING")
+                listOf(execution(approval, "mop2:" + "a".repeat(64)), execution(approval, "mop1:" + "A".repeat(64)), execution(approval, "mop1:" + "a".repeat(64)))
+            } shouldBe listOf(3819, 3819, null)
+        }
+
+        Then("V9 command (INSERT-only): command kind, merchant id grammar, required evidence in the reacquisition grammar, an existing approval (FK 1452); one per approval (1062)") {
+            runtime().use { c ->
+                fun command(approval: String, kind: String = "CONTRACT_APPROVAL", merchant: String = "mer_01JCME00000000000000000001", evidence: String? = "CONTRACT-2026/0001#p1") =
+                    c.errorCodeOf(
+                        "INSERT INTO admin_merchant_ops_command (approval_id, command_kind, merchant_id, pinned_target, evidence_ref, created_at) VALUES (?, ?, ?, '{}', ?, UTC_TIMESTAMP(3))",
+                        approval, kind, merchant, evidence,
+                    )
+                val approval = id("apr_")
+                c.insertMerchantApproval(approval, merchantId())
+                mapOf(
+                    "unknown kind" to command(approval, kind = "GUESS"), "bad merchant" to command(approval, merchant = "mer_x"), "no evidence" to command(approval, evidence = null),
+                    "empty evidence" to command(approval, evidence = ""), "free text evidence" to command(approval, evidence = "see the contract"),
+                    "129 chars" to command(approval, evidence = "x".repeat(129)), "no approval" to command(id("apr_")), "ok" to command(approval), "second" to command(approval),
+                )
+            } shouldBe mapOf(
+                "unknown kind" to 3819, "bad merchant" to 3819, "no evidence" to 1048, "empty evidence" to 3819, "free text evidence" to 3819, "129 chars" to 1406,
+                "no approval" to 1452, "ok" to null, "second" to 1062,
+            )
+        }
+
+        Then("V9 reconciliation findings: OWNER_UNRESOLVABLE (C-28) is accepted next to the existing six, once per approval; other kinds stay 3819") {
+            runtime().use { c ->
+                val approval = id("apr_")
+                fun finding(kind: String) = c.errorCodeOf(
+                    "INSERT INTO admin_ops_reconciliation_finding (kind, approval_id, payment_ref, detail_code, found_at) VALUES (?, ?, 'mer_x', 'REQUEST_MALFORMED', UTC_TIMESTAMP(3))",
+                    kind, approval,
+                )
+                listOf("OWNER_UNRESOLVABLE", "OWNER_UNRESOLVABLE", "ORPHAN_DECISION", "OWNER_GUESS").map(::finding)
+            } shouldBe listOf(null, 1062, null, 3819)
         }
 
         Then("V5 reconciliation: the checkpoint is the single row id = 1 created by the migration (watermark 0); findings take only the 6 kinds, once per (kind, approval)") {

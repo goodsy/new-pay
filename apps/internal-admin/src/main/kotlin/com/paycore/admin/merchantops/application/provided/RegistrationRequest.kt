@@ -43,6 +43,22 @@ sealed interface RegistrationRequest {
         override fun toString(): String = "RegistrationRequest.Contract(scopeMerchantId=$scopeMerchantId, sites=${scopeSiteIds.size})"
     }
 
+    /**
+     * B2-1 계약 Revision 등록(MERCHANT-OPS-002 §9.2 — 1인, 미승인으로 남는다). Scope·날짜 규칙은 [Contract]와 같다(C-7). 시작 소급은 MASTER Domain이 판정한다(D-MOPS-007 ②).
+     */
+    class ContractRevision(
+        override val submissionId: String,
+        val contractId: String,
+        val scopeMerchantId: String,
+        val scopeSiteIds: List<String>,
+        val effectiveFromDate: String,
+        val effectiveToDate: String?,
+    ) : RegistrationRequest {
+        override val kind = RegistrationKind.CONTRACT_REVISION
+
+        override fun toString(): String = "RegistrationRequest.ContractRevision(contractId=$contractId, sites=${scopeSiteIds.size})"
+    }
+
     /** B1-2 서비스 계약(CSA) 추가 — 현재 서비스 종류 `CARD_PG_PAYMENT` 하나(D-MD-002). */
     class ServiceAgreement(override val submissionId: String, val contractId: String, val serviceKind: String) : RegistrationRequest {
         override val kind = RegistrationKind.SERVICE_AGREEMENT

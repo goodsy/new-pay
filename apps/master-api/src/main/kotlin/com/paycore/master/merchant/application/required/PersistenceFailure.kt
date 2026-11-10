@@ -43,6 +43,9 @@ enum class StoreConstraint(val businessKey: Boolean) {
     POLICY_ASSIGNMENT_OPEN(true),
     CARD_ROUTE_OPEN(true),
     CARD_ROUTE_EVENT(true),
+
+    // MERCHANT-OPS-002 §9.3(B2-2 V9): 승인 근거 PK(approvalId 1회 사용 — 동시 경합은 새 TX 판정 3 `APPROVAL_ID_ALREADY_USED`로 수렴, review m-1).
+    APPROVAL_EVIDENCE(true),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

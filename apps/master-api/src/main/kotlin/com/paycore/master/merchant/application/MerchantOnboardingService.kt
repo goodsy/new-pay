@@ -3,7 +3,10 @@ package com.paycore.master.merchant.application
 import com.paycore.master.merchant.application.provided.AddServiceAgreementCommand
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.AdminOperation
+import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
+import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
+import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
@@ -14,8 +17,10 @@ import com.paycore.master.merchant.application.provided.RegisterMerchantSiteComm
 import com.paycore.master.merchant.application.provided.RegisterPaymentMethodActivationCommand
 import com.paycore.master.merchant.application.provided.ScopeInput
 import com.paycore.master.merchant.application.required.AdminRequestStore
+import com.paycore.master.merchant.application.required.ApprovalEvidenceStore
 import com.paycore.master.merchant.application.required.BusinessRepository
 import com.paycore.master.merchant.application.required.ContractRepository
+import com.paycore.master.merchant.application.required.DeploymentModePort
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
@@ -25,6 +30,7 @@ import com.paycore.master.merchant.application.required.MerchantSiteRepository
 import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
+import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.Contract
@@ -44,6 +50,7 @@ import com.paycore.master.merchant.domain.PaymentMethodActivation
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import com.paycore.master.merchant.domain.SiteAssignmentId
 import com.paycore.master.merchant.domain.SiteChannel
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import java.time.temporal.ChronoUnit
@@ -55,6 +62,9 @@ import java.time.temporal.ChronoUnit
  *
  * 업무 본문은 항상 "잠금·읽기 → domain 판정 → beginWrites → 저장·이력·Outbox" 순서다. 거절(판정 단계 [MasterRuleViolation])은 쓰기 없이
  * 멱등 결과로만 저장된다.
+ *
+ * MERCHANT-OPS-002 B2-2(§9.3, D-MOPS-008 ②·③, C-26·C-31): 관리 채널의 계약 승인은 [approveContractRevisionWithEvidence](승인 근거 실행기 + Revision 등록자 ≠ 승인자)만 쓴다.
+ * 근거 없는 [approveContractRevision]·[issueFirstDefaultMerchantAccount]는 Demo seed 전용 진입 관문(행위자 정확히 `system:demo-seed` + [DeploymentModePort.isDemo]) 뒤에서만 실행한다.
  */
 @Service
 class MerchantOnboardingService(
@@ -72,9 +82,12 @@ class MerchantOnboardingService(
     clock: MasterClock,
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
+    evidences: ApprovalEvidenceStore,
+    private val deploymentMode: DeploymentModePort,
 ) : MerchantOnboardingUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    private val log = LoggerFactory.getLogger(MerchantOnboardingService::class.java)
 
     override fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult =
         executor.execute(
@@ -192,31 +205,64 @@ class MerchantOnboardingService(
             "${contract.id.value}#${revision.revisionNo}"
         }
 
-    override fun approveContractRevision(command: ApproveContractRevisionCommand): AdminCommandResult =
-        executor.execute(
+    override fun approveContractRevision(command: ApproveContractRevisionCommand): AdminCommandResult {
+        requireDemoSeedPath(AdminOperation.APPROVE_CONTRACT_REVISION, command.request)
+        return executor.execute(
             AdminOperation.APPROVE_CONTRACT_REVISION, command.request, listOf(command.contractId.value, command.revisionNo.toString()),
         ) { work ->
-            // Revision 내용은 불변이라 잠그지 않고 Scope Merchant를 먼저 읽어 잠금 순서(merchant → contract)를 지킨다.
-            val unlocked = contracts.find(command.contractId) ?: throw MasterRuleViolation(MasterRejection.CONTRACT_NOT_FOUND)
-            val scopeMerchant = unlocked.revision(command.revisionNo)?.scope?.merchantId
-                ?: throw MasterRuleViolation(MasterRejection.REVISION_NOT_FOUND)
-            val merchant = merchants.lock(scopeMerchant) ?: error("scope merchant must exist")
-            val locked = contracts.lock(command.contractId) ?: error("contract must exist")
-            work.lockedNow() // 끝난 Revision 승인 거절(D-MD-014)은 잠금 뒤 시각으로 판정한다
-            val contract = locked.value
-            // 승인자 ≠ 요청자 같은 2인 통제는 Q-ADMIN-AUTH 이후(지금은 행위자 기록만).
-            contract.approve(command.revisionNo, work.now, command.request.actor)
-            merchant.value.recordEntitlementChange()
-            work.beginWrites()
-            val version = contracts.update(contract, locked.version)
-            merchants.update(merchant.value, merchant.version)
-            work.record(
-                AGG_CONTRACT, contract.id.value, version, "ContractRevisionApproved",
-                contractPayload(contract, command.revisionNo) + ("entitlementRevision" to merchant.value.entitlementRevision),
-            )
-            work.publishEntitlement(merchant.value)
-            "${contract.id.value}#${command.revisionNo}"
+            // 근거 없는 seed 경로(D-MOPS-008 ②·D-DEMO-005): Revision 등록자 검사 없음(C-31).
+            approveRevision(work, command.contractId, command.revisionNo) { contract, at -> contract.approve(command.revisionNo, at, command.request.actor) }
         }
+    }
+
+    override fun approveContractRevisionWithEvidence(command: ApprovedContractRevisionApprovalCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            // 판정 5(D-MOPS-008 ③): Revision 등록자 = 승인자 거절은 근거 경로에만. 행위자 = 승인자(C-17 — command.request.actor와 같다).
+            approveRevision(work, command.contractId, command.revisionNo) { contract, at ->
+                contract.approveWithEvidence(command.revisionNo, at, command.evidence.approvedBy)
+            }
+        }
+
+    /**
+     * 계약 Revision 승인 본문(두 경로 공통 — 잠금 순서·쓰기·이력·Outbox·Snapshot은 그대로, 승인 판정만 [decide]). 잠금 전 조회(`CONTRACT_NOT_FOUND`·`REVISION_NOT_FOUND`)는
+     * 근거 경로에서 만료보다 먼저 저장된다(m-4 — 둘 다 무효과 거절).
+     */
+    private fun approveRevision(
+        work: AdminCommandExecutor.Work,
+        contractId: ContractId,
+        revisionNo: Int,
+        decide: (com.paycore.master.merchant.domain.Contract, java.time.Instant) -> Unit,
+    ): String {
+        // Revision 내용은 불변이라 잠그지 않고 Scope Merchant를 먼저 읽어 잠금 순서(merchant → contract)를 지킨다.
+        val unlocked = contracts.find(contractId) ?: throw MasterRuleViolation(MasterRejection.CONTRACT_NOT_FOUND)
+        val scopeMerchant = unlocked.revision(revisionNo)?.scope?.merchantId
+            ?: throw MasterRuleViolation(MasterRejection.REVISION_NOT_FOUND)
+        val merchant = merchants.lock(scopeMerchant) ?: error("scope merchant must exist")
+        val locked = contracts.lock(contractId) ?: error("contract must exist")
+        work.lockedNow() // 끝난 Revision 승인 거절(D-MD-014)은 잠금 뒤 시각으로 판정한다(근거 경로는 여기서 만료 훅도 돈다 — §9.3 판정 4)
+        val contract = locked.value
+        decide(contract, work.now)
+        merchant.value.recordEntitlementChange()
+        work.beginWrites()
+        val version = contracts.update(contract, locked.version)
+        merchants.update(merchant.value, merchant.version)
+        work.record(
+            AGG_CONTRACT, contract.id.value, version, "ContractRevisionApproved",
+            contractPayload(contract, revisionNo) + ("entitlementRevision" to merchant.value.entitlementRevision),
+        )
+        work.publishEntitlement(merchant.value)
+        return "${contract.id.value}#$revisionNo"
+    }
+
+    /**
+     * 근거 없는 두 명령의 진입 관문(D-MOPS-008 ②, C-26 — D-DEMO-001·005): 행위자가 **정확히** `system:demo-seed`이고 배포 모드가 Demo일 때만. 아니면 결함으로 보고
+     * TX를 열기 전에 IllegalStateException(감사 WARN — 연산·상관 ID만). 관리 채널은 이 메서드를 부르지 않는다(ArchUnit — 호출자는 DemoMerchantSeedService뿐).
+     */
+    private fun requireDemoSeedPath(operation: AdminOperation, request: AdminRequest) {
+        if (request.actor == DEMO_SEED_ACTOR && deploymentMode.isDemo()) return
+        log.warn("evidence-less command refused operation={} correlationId={} reason=NOT_DEMO_SEED_PATH", operation.code, request.correlationId)
+        throw IllegalStateException("evidence-less ${operation.code} runs only on the Demo seed path (system:demo-seed in DEMO mode, D-MOPS-008 ②)")
+    }
 
     override fun addServiceAgreement(command: AddServiceAgreementCommand): AdminCommandResult =
         executor.execute(AdminOperation.ADD_SERVICE_AGREEMENT, command.request, listOf(command.contractId.value, command.serviceKind.name)) { work ->
@@ -238,14 +284,36 @@ class MerchantOnboardingService(
             agreement.id.value
         }
 
-    override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult =
+    override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult {
+        requireDemoSeedPath(AdminOperation.ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT, command.request)
+        return issueFirstDefault(command)
+    }
+
+    /**
+     * MERCHANT-OPS-002 B2-3: 근거 있는 첫 MID 발급 — 근거 실행기(판정 1~4, 잠금 뒤 만료 훅 — 본문의 [AdminCommandExecutor] `lockedNow`) + 기존 발급 본문. Revision 등록자 규칙 없음(C-31·§9.3 판정 5는
+     * 계약 승인만). 행위자 = 승인자(C-17).
+     */
+    override fun issueFirstDefaultMerchantAccountWithEvidence(command: ApprovedFirstDefaultIssuanceCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            issueFirstDefaultBody(
+                work, IssueFirstDefaultMerchantAccountCommand(
+                    command.request, command.merchantId, command.agreementId, command.contractId, command.revisionNo, command.primarySiteId,
+                ),
+            )
+        }
+
+    private fun issueFirstDefault(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult =
         executor.execute(
             AdminOperation.ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT, command.request,
             listOf(
                 command.merchantId.value, command.contractId.value, command.agreementId.value, command.revisionNo.toString(),
                 command.primarySiteId.value,
             ),
-        ) { work ->
+        ) { work -> issueFirstDefaultBody(work, command) }
+
+    /** 첫 Default MID 발급 본문(seed·근거 경로 공용 — 잠금 순서 business → merchant → contract, 같은 MASTER 로컬 TX). */
+    private fun issueFirstDefaultBody(work: AdminCommandExecutor.Work, command: IssueFirstDefaultMerchantAccountCommand): String {
+        return run {
             val businessId = merchantBusiness(command.merchantId)
             val business = businesses.lock(businessId) ?: error("merchant business must exist")
             val merchant = merchants.lock(command.merchantId) ?: error("merchant must exist")
@@ -294,6 +362,7 @@ class MerchantOnboardingService(
             work.publishEntitlement(merchant.value)
             account.id.value
         }
+    }
 
     override fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult =
         executor.execute(
@@ -366,6 +435,8 @@ class MerchantOnboardingService(
     }
 
     private companion object {
+        /** Demo seed 행위자(DEMO-SEED-001 — `DemoMerchantSeedValues.ACTOR`와 같은 값). 이 이름은 Application의 진입 관문에만 있다(Domain은 모른다 — C-31). */
+        val DEMO_SEED_ACTOR = ActorRef("system:demo-seed")
         const val AGG_BUSINESS = "Business"
         const val AGG_MERCHANT = "Merchant"
         const val AGG_SITE = "MerchantSite"

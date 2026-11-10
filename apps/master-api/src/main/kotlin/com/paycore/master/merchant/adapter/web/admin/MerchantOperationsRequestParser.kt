@@ -5,6 +5,7 @@ import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
+import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantSiteCommand
 import com.paycore.master.merchant.application.provided.ScopeInput
@@ -50,6 +51,7 @@ object MerchantOperationsRequestParser {
     private val SITE = COMMON + setOf("merchantId", "channelType", "channelIdentifier")
     private val CONTRACT = COMMON + setOf("partyBusinessId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom")
     private val CONTRACT_OPTIONAL = setOf("effectiveTo")
+    private val CONTRACT_REVISION = COMMON + setOf("contractId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom")
     private val AGREEMENT = COMMON + setOf("contractId", "serviceKind")
 
     /** SITES Scope 상한(MERCHANT-OPS-002 C-2 — Demo 값 아님, 채널 형식 상한). */
@@ -78,17 +80,40 @@ object MerchantOperationsRequestParser {
      * 기간은 [EffectivePeriod] 값 객체가 검사한다(끝 ≤ 시작이면 400). **소급 시작은 여기서 판정하지 않는다** — Domain `Contract.register`가 서버 시각으로 판정한다(§3.4).
      */
     fun contract(body: ByteArray): RegisterContractCommand? = parseNode(body, CONTRACT, CONTRACT_OPTIONAL) { root ->
+        RegisterContractCommand(
+            request(COMMON.associateWith { text(root.get(it)) }),
+            BusinessId(text(root.get("partyBusinessId"))),
+            scope(root),
+            period(root),
+        )
+    }
+
+    /**
+     * B2-1 계약 Revision 등록(MERCHANT-OPS-002 §9.2 — 1인, 미승인으로 남는다): `contractId`, `scopeMerchantId`, `scopeSiteIds`, `effectiveFrom`, `effectiveTo`(선택).
+     * Scope·기간 규칙은 [contract]와 같다. **소급 시작은 여기서 판정하지 않는다** — Domain `Contract.registerRevision`이 서버 시각으로 판정한다(D-MOPS-007 ②).
+     */
+    fun contractRevision(body: ByteArray): RegisterContractRevisionCommand? = parseNode(body, CONTRACT_REVISION, CONTRACT_OPTIONAL) { root ->
+        RegisterContractRevisionCommand(
+            request(COMMON.associateWith { text(root.get(it)) }),
+            ContractId(text(root.get("contractId"))),
+            scope(root),
+            period(root),
+        )
+    }
+
+    /** `scopeSiteIds`: 필수 배열(비면 MERCHANT Scope, 최대 [MAX_SCOPE_SITES], 원소 문자열, 중복 거부). */
+    private fun scope(root: JsonNode): ScopeInput {
         val sites = root.get("scopeSiteIds")
         require(sites.isArray && sites.size() <= MAX_SCOPE_SITES) { "scopeSiteIds" }
         val siteIds = (0 until sites.size()).map { i -> MerchantSiteId(text(sites.get(i))) }
         require(siteIds.toSet().size == siteIds.size) { "duplicate site" }
+        return ScopeInput(MerchantId(text(root.get("scopeMerchantId"))), siteIds.toSet())
+    }
+
+    /** `effectiveFrom`(필수)·`effectiveTo`(선택 — 없음 또는 `null`), 정규 표기만. */
+    private fun period(root: JsonNode): EffectivePeriod {
         val to = root.get("effectiveTo")?.takeUnless { it.isNull }?.let { instant(text(it)) }
-        RegisterContractCommand(
-            request(COMMON.associateWith { text(root.get(it)) }),
-            BusinessId(text(root.get("partyBusinessId"))),
-            ScopeInput(MerchantId(text(root.get("scopeMerchantId"))), siteIds.toSet()),
-            EffectivePeriod(instant(text(root.get("effectiveFrom"))), to),
-        )
+        return EffectivePeriod(instant(text(root.get("effectiveFrom"))), to)
     }
 
     /** B1-2 서비스 계약(CSA) 추가: `contractId`, `serviceKind`(현재 `CARD_PG_PAYMENT`만 — D-MD-002). */

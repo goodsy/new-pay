@@ -51,6 +51,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   MERCHANT_SITE_REGISTER: 'Site 등록',
   MERCHANT_CONTRACT_REGISTER: '계약 초안 등록',
   MERCHANT_AGREEMENT_ADD: '서비스 계약 추가',
+  MERCHANT_CONTRACT_REVISION_REGISTER: '계약 Revision 등록',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
   // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)
@@ -88,6 +89,10 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ROLE_REACTIVATE: '역할 재활성',
   OPERATOR_CORRECTION_CANCEL: '운영자 보정 취소',
   ACQ_REACQUISITION: '재매입',
+  // MERCHANT-OPS-002 B2-2 가맹점 계약 승인(ApprovalKind MERCHANT_CONTRACT_APPROVAL)
+  MERCHANT_CONTRACT_APPROVAL: '가맹점 계약 승인',
+  // MERCHANT-OPS-002 B2-3 첫 Default MID 발급(ApprovalKind MERCHANT_FIRST_MID_ISSUANCE)
+  MERCHANT_FIRST_MID_ISSUANCE: '첫 MID 발급',
   // 보정 취소 목적(OperatorCancelPurposeKind)
   INCIDENT_OR_RECON_CORRECTION: '사고·대사 보정',
   MERCHANT_TERMINATED_OBLIGATION: '해지 가맹점 의무 이행',
@@ -97,6 +102,8 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   FINGERPRINT_MISMATCH: '요청 지문 불일치',
   STATE_DIVERGENCE: '상태 불일치',
   UNRESOLVED_WITH_DECISION: '결정 있는 미해결',
+  // MERCHANT-OPS-002 C-28: 기한 뒤에도 MASTER 결정으로 확정할 수 없는 승인(자동 종결 없음)
+  OWNER_UNRESOLVABLE: '결과 확정 불가',
   MISSING_DECISION: '결정 누락',
   // 감사 결과(resultCode) — 위 승인 상태와 겹치는 code는 위 이름을 쓴다
   SUCCESS: '성공',
@@ -152,6 +159,9 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   UNAVAILABLE: '서비스 불가',
   ...AUDIT_ACTION_LABELS,
 }
+
+/** 계약 Revision 승인 전 표기(C-32 — 조회 상세 표·등록 성공 문구 공통). 서버 code가 아니라 화면 문구라 CODE_LABELS 밖에 둔다. */
+export const REVISION_AWAITING_APPROVAL = '승인 전'
 
 /** code의 한국어 이름. 모르는 code는 code 그대로. */
 export function labelOf(code: string): string {

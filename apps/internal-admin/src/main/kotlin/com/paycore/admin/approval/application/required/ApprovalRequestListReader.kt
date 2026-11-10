@@ -38,6 +38,25 @@ data class ApprovalRow(
     val owner: OwnerDetailRow? = null,
     /** 재매입 승인의 명령·실행 행(상세에만 — ACQ-ADMIN-001 B1-A). 사유 문구·근거는 넣지 않는다(I-98과 같은 규칙). */
     val acquiring: AcquiringDetailRow? = null,
+    /** 가맹점 승인의 명령·실행 행(상세에만 — MERCHANT-OPS-002 B2-2). 근거 참조는 넣지 않는다(D-MOPS-008 ① — APPROVER·요청자만 별도 조회). */
+    val merchant: MerchantOpsDetailRow? = null,
+)
+
+/** 가맹점 승인 명령 행(종류·가맹점·고정 대상 JSON) + 실행 행(승인 뒤에만). [ownerReference] = `ctr_…#n`, [ownerResultCode] = MASTER 거절 code. */
+data class MerchantOpsDetailRow(
+    val commandKind: String,
+    val merchantId: String,
+    val pinnedTarget: String,
+    val approvedAt: Instant?,
+    val executeBefore: Instant?,
+    val attemptCount: Int?,
+    val nextAttemptAt: Instant?,
+    val lastResponseAt: Instant?,
+    val lastFailure: String?,
+    val integrityFlag: String?,
+    val resendHaltedReason: String?,
+    val ownerResultCode: String?,
+    val ownerReference: String?,
 )
 
 /** 재매입 명령 행(원 파일·사유 코드·고정 대상 JSON) + 실행 행(승인 뒤에만). [ownerReference] = 새 파일 ID, [ownerResultCode] = NOT_REQUIRED 또는 거절 code. */

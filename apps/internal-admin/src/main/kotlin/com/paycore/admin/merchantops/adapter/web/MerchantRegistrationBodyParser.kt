@@ -30,6 +30,7 @@ object MerchantRegistrationBodyParser {
     private const val EFFECTIVE_TO = "effectiveToDate"
     private val CONTRACT_REQUIRED = setOf("submissionId", "partyBusinessId", "scopeMerchantId", SCOPE_SITE_IDS, "effectiveFromDate")
     private val CONTRACT_OPTIONAL = setOf(EFFECTIVE_TO)
+    private val REVISION_REQUIRED = setOf("submissionId", "contractId", "scopeMerchantId", SCOPE_SITE_IDS, "effectiveFromDate")
     private val AGREEMENT = setOf("submissionId", "contractId", "serviceKind")
 
     private val strict: JsonMapper = JsonMapper.builder()
@@ -44,7 +45,12 @@ object MerchantRegistrationBodyParser {
             null
         }
         val request: RegistrationRequest? = when (kind) {
-            RegistrationKind.CONTRACT -> contract(root)
+            RegistrationKind.CONTRACT -> scoped(root, CONTRACT_REQUIRED)?.let { (f, sites, to) ->
+                RegistrationRequest.Contract(f.getValue("submissionId"), f.getValue("partyBusinessId"), f.getValue("scopeMerchantId"), sites, f.getValue("effectiveFromDate"), to)
+            }
+            RegistrationKind.CONTRACT_REVISION -> scoped(root, REVISION_REQUIRED)?.let { (f, sites, to) ->
+                RegistrationRequest.ContractRevision(f.getValue("submissionId"), f.getValue("contractId"), f.getValue("scopeMerchantId"), sites, f.getValue("effectiveFromDate"), to)
+            }
             RegistrationKind.SERVICE_AGREEMENT -> text(root, AGREEMENT)?.let {
                 RegistrationRequest.ServiceAgreement(it.getValue("submissionId"), it.getValue("contractId"), it.getValue("serviceKind"))
             }
@@ -63,22 +69,20 @@ object MerchantRegistrationBodyParser {
     }
 
     /**
-     * B1-2 계약 초안: 필수 문자열 `submissionId`·`partyBusinessId`·`scopeMerchantId`·`effectiveFromDate`, 필수 **문자열 배열** `scopeSiteIds`(비면 MERCHANT Scope),
-     * 선택 문자열 `effectiveToDate`(없음 또는 `null` = 종료 없음). 그 밖 key·자료형은 해석 실패.
+     * B1-2 계약 초안·B2-1 계약 Revision: [required]의 문자열 필드(계약 = `partyBusinessId`, Revision = `contractId`), 필수 **문자열 배열** `scopeSiteIds`(비면 MERCHANT Scope),
+     * 선택 문자열 `effectiveToDate`(없음 또는 `null` = 종료 없음). 그 밖 key·자료형은 해석 실패. 결과 = (문자열 필드, Site 목록, 종료일?).
      */
-    private fun contract(root: JsonNode?): RegistrationRequest.Contract? {
+    private fun scoped(root: JsonNode?, required: Set<String>): Triple<Map<String, String>, List<String>, String?>? {
         if (root == null || !root.isObject) return null
         val names = root.propertyNames().toSet()
-        if (!names.containsAll(CONTRACT_REQUIRED) || !(CONTRACT_REQUIRED + CONTRACT_OPTIONAL).containsAll(names)) return null
-        if ((CONTRACT_REQUIRED - SCOPE_SITE_IDS).any { !root.get(it).isString }) return null
+        if (!names.containsAll(required) || !(required + CONTRACT_OPTIONAL).containsAll(names)) return null
+        val textNames = required - SCOPE_SITE_IDS
+        if (textNames.any { !root.get(it).isString }) return null
         val sites = root.get(SCOPE_SITE_IDS)
         if (!sites.isArray || (0 until sites.size()).any { !sites.get(it).isString }) return null
         val to = root.get(EFFECTIVE_TO)
         if (to != null && !to.isNull && !to.isString) return null
-        return RegistrationRequest.Contract(
-            root.get("submissionId").asString(), root.get("partyBusinessId").asString(), root.get("scopeMerchantId").asString(),
-            (0 until sites.size()).map { sites.get(it).asString() }, root.get("effectiveFromDate").asString(), to?.takeIf { it.isString }?.asString(),
-        )
+        return Triple(textNames.associateWith { root.get(it).asString() }, (0 until sites.size()).map { sites.get(it).asString() }, to?.takeIf { it.isString }?.asString())
     }
 
     /** 필드 집합이 정확히 [names]이고 값이 모두 JSON 문자열이면 이름 → 값, 아니면 null. */

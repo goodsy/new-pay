@@ -77,6 +77,14 @@ object OnboardingFixture {
     /** 명령 시각은 요청에 없다(서버 `MasterClock` — 시험에서는 [MutableMasterClock], 기본 [t0]). */
     fun request(key: AdminIdempotencyKey = key(), actor: ActorRef = operator) = AdminRequest(key, actor, "corr-" + UUID.randomUUID())
 
+    /**
+     * D-MOPS-008 ② / MERCHANT-OPS-002 C-26: 근거 없는 계약 승인·첫 MID 발급은 Demo seed 경로 전용(행위자 정확히 `system:demo-seed` + Demo 모드)이 됐다. 시험 준비에서 그 두 명령을 부를 때만
+     * 이 요청을 쓴다(@Primary `SwitchableDeploymentMode` = Demo). 다른 명령의 행위자는 그대로 [operator]다.
+     */
+    val seedActor = ActorRef("system:demo-seed")
+
+    fun seedRequest(key: AdminIdempotencyKey = key()) = request(key, seedActor)
+
     fun registrationNumber() = BusinessRegistrationNumber((1..10).map { random.nextInt(10) }.joinToString(""))
 
     fun host() = "shop-" + UUID.randomUUID().toString().substring(0, 12) + ".example.test"
@@ -91,20 +99,21 @@ object OnboardingFixture {
         val agreementId: ContractServiceAgreementId,
     ) {
         fun issueCommand(key: AdminIdempotencyKey = key(), site: MerchantSiteId = siteId, revisionNo: Int = 1) =
-            IssueFirstDefaultMerchantAccountCommand(request(key), merchantId, agreementId, contractId, revisionNo, site)
+            IssueFirstDefaultMerchantAccountCommand(seedRequest(key), merchantId, agreementId, contractId, revisionNo, site) // D-MOPS-008 ②: seed 경로 행위자
     }
 
     fun succeeded(result: AdminCommandResult): String = result.shouldBeInstanceOf<AdminCommandResult.Succeeded>().reference
 
-    fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true): ReadyMerchant {
+    /** [contractActor]: 계약(Revision 1) 등록자 — B2-3 "등록자 = 승인자여도 MID 발급은 통과" 시험이 승인자로 바꾼다(기본 [operator] — 기존 시험 불변). */
+    fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true, contractActor: ActorRef = operator): ReadyMerchant {
         val business = BusinessId(succeeded(service.registerBusiness(RegisterBusinessCommand(request(), registrationNumber(), DisplayName("Demo Business")))))
         val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant")))))
         val site = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val second = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val contract = ContractId(
-            succeeded(service.registerContract(RegisterContractCommand(request(), business, ScopeInput(merchant), EffectivePeriod(t0)))),
+            succeeded(service.registerContract(RegisterContractCommand(request(actor = contractActor), business, ScopeInput(merchant), EffectivePeriod(t0)))),
         )
-        if (approved) succeeded(service.approveContractRevision(ApproveContractRevisionCommand(request(), contract, 1)))
+        if (approved) succeeded(service.approveContractRevision(ApproveContractRevisionCommand(seedRequest(), contract, 1))) // D-MOPS-008 ②: seed 경로 행위자
         val agreement = ContractServiceAgreementId(
             succeeded(service.addServiceAgreement(AddServiceAgreementCommand(request(), contract, ServiceKind.CARD_PG_PAYMENT))),
         )

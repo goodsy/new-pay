@@ -40,6 +40,26 @@ class MerchantRegistrationBodyParserSpec : BehaviorSpec({
         }
     }
 
+    Given("B2-1 contract revision bodies (§9.2 — contractId instead of partyBusinessId, same site array and dates)") {
+        val revision = contract.replace("\"partyBusinessId\":\"biz_01JC0000000000000000000001\"", "\"contractId\":\"ctr_01JC0000000000000000000001\"")
+        Then("ids, the site array and both dates come through unchanged; an absent or null end is no end") {
+            val r = parse(RegistrationKind.CONTRACT_REVISION, revision).shouldBeInstanceOf<Parsed.Request>().request.shouldBeInstanceOf<RegistrationRequest.ContractRevision>()
+            listOf(r.submissionId, r.contractId, r.scopeMerchantId, r.scopeSiteIds, r.effectiveFromDate, r.effectiveToDate) shouldBe
+                listOf(sub, "ctr_01JC0000000000000000000001", "mer_01JC0000000000000000000001", listOf("site_01JC0000000000000000000001"), "2026-11-09", "2027-01-01")
+            parse(RegistrationKind.CONTRACT_REVISION, revision.replace("\"2027-01-01\"", "null"))
+                .shouldBeInstanceOf<Parsed.Request>().request.shouldBeInstanceOf<RegistrationRequest.ContractRevision>().effectiveToDate shouldBe null
+        }
+        Then("a contract-draft body, a missing contractId, an extra key, a non-array site list or a number date are Malformed (no registration-number attempt)") {
+            listOf(
+                contract,
+                revision.replace("\"contractId\":\"ctr_01JC0000000000000000000001\",", ""),
+                revision.dropLast(1) + ",\"partyBusinessId\":\"biz_01JC0000000000000000000001\"}",
+                revision.replace("[\"site_01JC0000000000000000000001\"]", "\"site_01JC0000000000000000000001\""),
+                revision.replace("\"2026-11-09\"", "20261109"),
+            ).forEach { body -> withClue(body) { parse(RegistrationKind.CONTRACT_REVISION, body) shouldBe Parsed.Malformed(false) } }
+        }
+    }
+
     Given("malformed B1-2 bodies are Malformed without a registration-number attempt (no audit — §4.4 0)") {
         Then("types, missing or unknown keys, duplicates and trailing tokens") {
             listOf(

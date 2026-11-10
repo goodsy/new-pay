@@ -205,6 +205,8 @@ class MasterDatabaseAccountSpec(
          * UPDATE, 나머지는 SELECT, INSERT. 권한을 넓히는 변경은 이 기대값을 함께 바꾸는 검토된 변경이어야 한다.
          */
         val MASTER_RUNTIME_TABLE_PRIVILEGES: Map<String, String> = linkedMapOf(
+            // 기대값 변경(MERCHANT-OPS-002 B2-2 V10, 명세 §9.3·§8.2 B2-2-4): 승인 근거 append-only — SELECT, INSERT만(UPDATE·DELETE 1142).
+            "admin_approval_evidence" to "SELECT, INSERT",
             "admin_request" to "SELECT, INSERT, UPDATE",
             "business" to "SELECT, INSERT, UPDATE",
             // MASTER-SNAPSHOT-002 V6: 카드사 개통 상태 전이(UPDATE, @Version)·이력(append-only).

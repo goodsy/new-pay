@@ -87,6 +87,8 @@ class MerchantOpsReaderSpec(
             val contract = v.contracts.single()
             contract.contractId shouldBe e.ready.contractId.value
             contract.revisions.single().approvedAt.shouldNotBeNull()
+            // MERCHANT-OPS-002 B2-2(D-MOPS-008 ③): 기존 contract_revision.registered_by(Revision 1 = 계약 등록자 — 새 열 없음).
+            contract.revisions.single().registeredBy shouldBe OnboardingFixture.operator.value
             contract.agreements.single().agreementId shouldBe e.ready.agreementId.value
             val account = v.accounts.single()
             listOf(account.merchantAccountId, account.isDefault, account.lifecycle) shouldBe listOf(e.mid.value, true, "ACTIVE")

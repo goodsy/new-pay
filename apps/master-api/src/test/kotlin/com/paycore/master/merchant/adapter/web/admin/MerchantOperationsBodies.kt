@@ -14,6 +14,7 @@ object MerchantOperationsBodies {
     const val SITES = "/internal/v1/admin/merchant-operations/merchant-sites"
     const val CONTRACTS = "/internal/v1/admin/merchant-operations/contracts"
     const val AGREEMENTS = "/internal/v1/admin/merchant-operations/service-agreements"
+    const val CONTRACT_REVISIONS = "/internal/v1/admin/merchant-operations/contract-revisions"
 
     /** 한 번의 화면 제출(submissionId)에서 파생되는 MASTER 공통 필드. */
     class Submission(val submissionId: String = UUID.randomUUID().toString().replace("-", ""), account: String = ACCOUNT) {
@@ -51,10 +52,27 @@ object MerchantOperationsBodies {
         ) + listOfNotNull(to?.let { "effectiveTo" to str(it) }),
     )
 
+    /** B2-1 계약 Revision 등록(§9.2). [siteIds]가 비면 MERCHANT Scope. 기본 시작 = t0 다음 날 KST 00:00. [to]가 null이면 필드 없음. */
+    fun registerContractRevision(
+        contractId: String,
+        scopeMerchantId: String,
+        siteIds: List<String> = emptyList(),
+        s: Submission = Submission(),
+        from: String = KST_TOMORROW,
+        to: String? = null,
+    ): String = raw(
+        common(s).map { (k, v) -> k to str(v) } + listOf(
+            "contractId" to str(contractId),
+            "scopeMerchantId" to str(scopeMerchantId),
+            "scopeSiteIds" to siteIds.joinToString(",", "[", "]") { str(it) },
+            "effectiveFrom" to str(from),
+        ) + listOfNotNull(to?.let { "effectiveTo" to str(it) }),
+    )
+
     fun addServiceAgreement(contractId: String, s: Submission = Submission(), kind: String = "CARD_PG_PAYMENT"): String =
         obj(common(s) + listOf("contractId" to contractId, "serviceKind" to kind))
 
-    /** 시험 clock t0 = 2026-10-09T02:00Z(KST 10-09 11:00) 기준 KST 날짜 경계. */
+    /** 시험 clock t0 = 2026-10-09T02:00Z(KST 10-09 11:00) 기준 KST 날짜 경계. 판정은 주입된 MASTER clock(@Primary MutableMasterClock)으로 하므로 벽시계 자정과 무관하다(리뷰 n-2 — 쓰는 spec은 clock을 t0로 되돌린다). */
     const val KST_TODAY = "2026-10-08T15:00:00.000Z"
     const val KST_TOMORROW = "2026-10-09T15:00:00.000Z"
     const val KST_YESTERDAY = "2026-10-07T15:00:00.000Z"

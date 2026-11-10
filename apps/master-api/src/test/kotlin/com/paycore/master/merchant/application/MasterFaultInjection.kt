@@ -40,6 +40,24 @@ enum class MasterFaultPoint {
 
     // MASTER-SNAPSHOT-001
     ACTIVATION_INSERT, ACTIVATION_UPDATE, CONFIRMATION_INSERT, CURRENCY_INSERT, REVIEW_APPEND, ISSUE_RECORD, RELAY_CLAIM, RELAY_MARK,
+
+    // MERCHANT-OPS-002 B2-2: 승인 근거 행 INSERT+flush 직후(같은 TX·commit 전).
+    APPROVAL_EVIDENCE_RECORD,
+}
+
+/**
+ * 시험 전용 배포 모드(@Primary — MERCHANT-OPS-002 C-26 `DeploymentModePort`). 기본 true(Demo — 기존 시험의 seed 경로 준비가 그대로 돈다), LIVE 거부 시험만 false로 바꾼 뒤 [reset]한다.
+ * 운영 구현은 `EnvironmentDeploymentMode`(설정 `paycore.master.deployment-mode`).
+ */
+class SwitchableDeploymentMode : com.paycore.master.merchant.application.required.DeploymentModePort {
+    @Volatile
+    var demo: Boolean = true
+
+    override fun isDemo(): Boolean = demo
+
+    fun reset() {
+        demo = true
+    }
 }
 
 /**
@@ -224,6 +242,21 @@ class MasterFaultInjectionConfig {
 
     @Bean
     fun masterFaultInjector(): MasterFaultInjector = MasterFaultInjector()
+
+    @Bean
+    @Primary
+    fun switchableDeploymentMode(): SwitchableDeploymentMode = SwitchableDeploymentMode()
+
+    @Bean
+    @Primary
+    fun faultInjectingApprovalEvidenceStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaApprovalEvidenceStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.ApprovalEvidenceStore =
+        object : com.paycore.master.merchant.application.required.ApprovalEvidenceStore by real {
+            override fun record(record: com.paycore.master.merchant.application.required.ApprovalEvidenceRecord) =
+                f.around(MasterFaultPoint.APPROVAL_EVIDENCE_RECORD) { real.record(record) }
+        }
 
     @Bean
     @Primary

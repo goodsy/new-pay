@@ -1,5 +1,6 @@
 package com.paycore.admin.merchantops.adapter.integration
 
+import com.paycore.admin.merchantops.application.provided.MerchantApprovalPolicy
 import com.paycore.admin.merchantops.application.required.MasterOpsGateway
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -17,8 +18,13 @@ import java.util.Base64
  *   호출 권한이 되지 않게. paymentops 설정 타입에 의존하지 않고 Environment 속성만 읽는다(모듈 경계). 실패 메시지에 키·kid가 없다.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(MasterOpsSettings::class)
+@EnableConfigurationProperties(MasterOpsSettings::class, MerchantApprovalSettings::class)
 class MasterOpsConfiguration {
+
+    /** 가맹점 2인 승인 실행 시간 정책(MERCHANT-OPS-002 C-19 — Demo 값, 기본값 없음). stale = master-ops connect + read + 30초. */
+    @Bean
+    fun merchantApprovalPolicy(approval: MerchantApprovalSettings, settings: MasterOpsSettings): MerchantApprovalPolicy =
+        approval.policy(settings.connectTimeout, settings.readTimeout)
 
     @Bean
     fun masterOpsGateway(settings: MasterOpsSettings, environment: Environment): MasterOpsGateway {

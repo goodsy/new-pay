@@ -5,6 +5,10 @@ import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { SearchIcon } from '../components/icons'
 import { EmptyRow, Field, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
+import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
+import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
+import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
+import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
 import { PageHeader } from '../components/PageHeader'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -13,7 +17,7 @@ import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
-import { labelOf } from '../lib/labels'
+import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 
 /** 사업자등록번호 형식(ASCII 숫자 정확히 10자리 — 서버도 다시 검사한다, MERCHANT-OPS-001 §3.1). */
 const REGISTRATION_NUMBER = /^[0-9]{10}$/
@@ -28,6 +32,19 @@ interface Props {
   openMerchantId?: string | null
   /** [openMerchantId]를 한 번 연 뒤 알린다(호출자가 비워 탭을 다시 와도 또 열지 않게). */
   onOpenedMerchant?: () => void
+  /** 계약 영역 "새 Revision 등록" 표시(OPERATOR — MERCHANT-OPS-002 §9.6 B2-1, 표시만; 판정·감사는 서버). */
+  canRegisterRevision?: boolean
+  /** Revision 폼 상태(결과 불명 잠금·submissionId·입력)를 둘 App 메모리(리뷰 C-M1 — 탭·가맹점 전환에도 유지, 세션 경계에서 App이 새로 만든다). 없으면 화면 자체 메모리. */
+  revisionMemory?: ScreenMemory
+  /** Revision 행 "승인 요청" 표시(OPERATOR — MERCHANT-OPS-002 §9.6 B2-2, 미승인·끝나지 않은 Revision, 승인 대기 없음; 표시만 — 판정·감사는 서버). */
+  canRequestApproval?: boolean
+  /** 승인 요청 성공 뒤 "승인함에서 보기". */
+  onOpenApprovals?: () => void
+  /** 시험 주입용(끝난 Revision 판정 기준 시각). */
+  now?: () => Date
+  /** 시험 주입용(Revision 폼 submissionId·오늘 KST). */
+  newSubmissionId?: () => string
+  todayKst?: () => string
 }
 
 /** 마지막으로 보낸 검색 조건(다음 쪽에 그대로). 사업자등록번호는 담지 않는다 — 화면 상태에 번호를 남기지 않는다. */
@@ -71,10 +88,41 @@ function Item({ term, children }: { term: string; children: ReactNode }) {
   )
 }
 
-function DetailPanels({ detail }: { detail: MerchantDetail }) {
+/** "새 Revision 등록" 버튼 — 그 계약의 폼이 결과 불명으로 잠겨 있으면 닫혀 있어도 알린다(리뷰 C-M1). */
+function RevisionButton({ memory, contractId, onOpen }: { memory: ScreenMemory; contractId: string; onOpen: () => void }) {
+  const locked = useRevisionLocked(memory, contractId)
+  return (
+    <div className="flex justify-end">
+      <Button type="button" variant={locked ? 'destructive' : 'outline'} size="sm" onClick={onOpen}>
+        {locked ? '새 Revision 등록 — 결과 확인 필요' : '새 Revision 등록'}
+      </Button>
+    </div>
+  )
+}
+
+function DetailPanels({ detail, contractAction, revisionAction }: {
+  detail: MerchantDetail
+  contractAction?: (contractId: string) => ReactNode
+  /** Revision 행의 작업 칸(B2-2 "승인 요청" — 표시만, 판정은 서버). */
+  revisionAction?: (contractId: string, revision: MerchantDetail['contracts'][number]['revisions'][number]) => ReactNode
+}) {
   const { merchant, business, sites, contracts, accounts, limits, propagation } = detail
+  const pending = detail.pendingApprovals ?? []
   return (
     <>
+      {pending.length > 0 && (
+        <section role="status" aria-label="승인 대기" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          {pending.map((p) => (
+            <p key={p.approvalId} className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">승인 대기 중</span>
+              {/* Demo 개선 C-2: 대상(계약 승인 Revision 번호 또는 첫 MID 발급). */}
+              {/* Demo 지적 1(B2-3): 첫 MID 발급은 종류 라벨이 대상을 말하므로 대상 표시는 계약 승인의 Revision 번호만. */}
+              {p.revisionNo != null && <span>{`Revision ${p.revisionNo}`}</span>}
+              <KindLabel code={p.kind} /><StatusBadge code={p.status} /><Mono>{p.approvalId}</Mono>
+            </p>
+          ))}
+        </section>
+      )}
       <Panel name="기본정보">
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Item term="가맹점">
@@ -126,11 +174,14 @@ function DetailPanels({ detail }: { detail: MerchantDetail }) {
             </p>
             <Table aria-label={`계약 revision ${contract.contractId}`}>
               <TableHeader>
-                <TableRow><TableHead>revision</TableHead><TableHead>범위</TableHead><TableHead>효력 기간</TableHead><TableHead>승인</TableHead></TableRow>
+                <TableRow>
+                  <TableHead>revision</TableHead><TableHead>범위</TableHead><TableHead>효력 기간</TableHead><TableHead>승인</TableHead><TableHead>등록자</TableHead>
+                  {revisionAction && <TableHead><span className="sr-only">작업</span></TableHead>}
+                </TableRow>
               </TableHeader>
               <TableBody>
                 {contract.revisions.map((revision) => (
-                  <TableRow key={revision.revisionNo}>
+                  <TableRow key={revision.revisionNo} aria-label={`revision ${revision.revisionNo}`}>
                     <TableCell className="font-mono">{revision.revisionNo}</TableCell>
                     <TableCell>
                       <span className="flex flex-col gap-0.5">
@@ -139,7 +190,9 @@ function DetailPanels({ detail }: { detail: MerchantDetail }) {
                       </span>
                     </TableCell>
                     <TableCell>{period(revision.effectiveFrom, revision.effectiveTo)}</TableCell>
-                    <TableCell>{revision.approvedAt === null ? <span className="text-muted-foreground">승인 전</span> : <KstTime iso={revision.approvedAt} />}</TableCell>
+                    <TableCell>{revision.approvedAt === null ? <span className="text-muted-foreground">{REVISION_AWAITING_APPROVAL}</span> : <KstTime iso={revision.approvedAt} />}</TableCell>
+                    <TableCell><Mono>{revision.registeredBy}</Mono></TableCell>
+                    {revisionAction && <TableCell>{revisionAction(contract.contractId, revision)}</TableCell>}
                   </TableRow>
                 ))}
               </TableBody>
@@ -152,6 +205,7 @@ function DetailPanels({ detail }: { detail: MerchantDetail }) {
                 </li>
               ))}
             </ul>
+            {contractAction?.(contract.contractId)}
           </div>
         ))}
       </Panel>
@@ -302,7 +356,20 @@ function DetailPanels({ detail }: { detail: MerchantDetail }) {
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
-export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant }: Props) {
+export function MerchantsScreen({
+  api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant, canRegisterRevision = false, revisionMemory: injectedRevisionMemory, newSubmissionId, todayKst,
+  canRequestApproval = false, onOpenApprovals, now = () => new Date(),
+}: Props) {
+  /** 승인 요청 폼을 연 Revision(`<contractId>#<revisionNo>` — 한 번에 하나, B2-2). */
+  const [approvalFor, setApprovalFor] = useState<string | null>(null)
+  /** 마지막 승인 요청 결과(Demo 개선 C-1 — 상세를 다시 읽어도 한 번 남는다, 다른 가맹점을 열면 지운다). */
+  const [requestResult, setRequestResult] = useState<{ approvalId: string; what: string } | null>(null)
+  /** "첫 MID 발급 요청" 폼 열림(B2-3). */
+  const [midOpen, setMidOpen] = useState(false)
+  const [ownRevisionMemory] = useState(createScreenMemory)
+  const revisionMemory = injectedRevisionMemory ?? ownRevisionMemory
+  /** 새 Revision 폼을 연 계약(B2-1 — 한 번에 하나). */
+  const [revisionFor, setRevisionFor] = useState<string | null>(null)
   const [merchantId, setMerchantId] = useState('')
   const [businessId, setBusinessId] = useState('')
   const [lifecycle, setLifecycle] = useState('')
@@ -387,7 +454,22 @@ export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnd
     }
   }
 
+  /** Revision 등록 성공 뒤 같은 가맹점 상세를 다시 읽는다(화면은 유지 — 다른 가맹점을 열었으면 무시). 상세 조회 감사는 서버가 그대로 남긴다. */
+  const refreshDetail = async (id: string) => {
+    const request = openRequest.current
+    try {
+      const found = await api.merchantDetail(id)
+      if (openRequest.current === request) setDetail(found)
+    } catch (e) {
+      if (openRequest.current === request) setDetailError(failure(e))
+    }
+  }
+
   const open = async (id: string) => {
+    setRevisionFor(null)
+    setApprovalFor(null)
+    setRequestResult(null)
+    setMidOpen(false)
     const request = ++openRequest.current
     setDetail(null)
     setDetailError(null)
@@ -536,7 +618,81 @@ export function MerchantsScreen({ api, canSearchRegistrationNumber, onSessionEnd
             {'가맹점 상세 '}
             <span className="font-mono text-xs text-muted-foreground">{detail.merchant.merchantId}</span>
           </h3>
-          <DetailPanels detail={detail} />
+          {requestResult && (
+            <section role="status" aria-label="승인 요청 결과" className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+              <span>{`승인 요청을 만들었습니다 — ${requestResult.what}`}</span>
+              <Mono>{requestResult.approvalId}</Mono>
+              {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
+              <Button type="button" variant="ghost" size="sm" onClick={() => setRequestResult(null)}>닫기</Button>
+            </section>
+          )}
+          {canRequestApproval && mayRequestFirstMid(detail, now()) && (
+            midOpen ? (
+              <FirstMidRequest
+                api={api}
+                detail={detail}
+                now={now()}
+                onRequested={(approvalId) => {
+                  setRequestResult({ approvalId, what: '첫 MID 발급' })
+                  setMidOpen(false)
+                  void refreshDetail(detail.merchant.merchantId)
+                }}
+                onSessionEnded={onSessionEnded}
+              />
+            ) : (
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => setMidOpen(true)}>첫 MID 발급 요청</Button>
+              </div>
+            )
+          )}
+          <DetailPanels
+            detail={detail}
+            contractAction={canRegisterRevision ? (contractId) => (
+              revisionFor === contractId ? (
+                <div className="flex flex-col gap-2">
+                  <ContractRevisionForm
+                    api={api}
+                    memory={revisionMemory}
+                    contractId={contractId}
+                    merchantId={detail.merchant.merchantId}
+                    // 리뷰 n-4: ACTIVE Site만 후보로 보이는 것은 안내일 뿐이다 — 범위 판정의 권위는 MASTER(validScope: 다른 가맹점·비활성 Site 거절)다.
+                    siteIds={detail.sites.filter((site) => site.lifecycle === 'ACTIVE').map((site) => site.merchantSiteId)}
+                    onRegistered={() => void refreshDetail(detail.merchant.merchantId)}
+                    onSessionEnded={onSessionEnded}
+                    newSubmissionId={newSubmissionId}
+                    todayKst={todayKst}
+                  />
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setRevisionFor(null)}>닫기</Button>
+                  </div>
+                </div>
+              ) : (
+                <RevisionButton memory={revisionMemory} contractId={contractId} onOpen={() => setRevisionFor(contractId)} />
+              )
+            ) : undefined}
+            revisionAction={canRequestApproval ? (contractId, revision) => {
+              const ended = revision.effectiveTo !== null && new Date(revision.effectiveTo).getTime() <= now().getTime()
+              if (revision.approvedAt !== null || ended || (detail.pendingApprovals ?? []).length > 0) return null
+              const key = `${contractId}#${revision.revisionNo}`
+              return approvalFor === key ? (
+                <ContractApprovalRequest
+                  api={api}
+                  merchantId={detail.merchant.merchantId}
+                  contractId={contractId}
+                  revisionNo={revision.revisionNo}
+                  onRequested={(approvalId) => {
+                    setRequestResult({ approvalId, what: `계약 승인(Revision ${revision.revisionNo})` })
+                    setApprovalFor(null)
+                    void refreshDetail(detail.merchant.merchantId)
+                  }}
+                  onOpenApprovals={onOpenApprovals}
+                  onSessionEnded={onSessionEnded}
+                />
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={() => setApprovalFor(key)}>승인 요청</Button>
+              )
+            } : undefined}
+          />
           <Panel name="변경 이력">
             {historyError && <ErrorNotice>{ERROR_MESSAGES[historyError]}</ErrorNotice>}
             {history && (

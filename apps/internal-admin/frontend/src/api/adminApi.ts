@@ -63,6 +63,66 @@ export interface ApprovalView {
   owner?: OwnerDetail
   /** 재매입 승인 상세(ACQ-ADMIN-001 B1-A — 상세 조회에만, 사유 문구·근거 없음). */
   acquiring?: AcquiringDetail
+  /** 가맹점 계약 승인 상세(MERCHANT-OPS-002 B2-2 — 상세 조회에만, 근거 참조 없음 — APPROVER·요청자만 [AdminApi.merchantApprovalEvidence]). */
+  merchant?: MerchantApprovalDetail
+}
+
+/** 계약 승인 고정 대상(pinned_target — 요청 시점 MASTER 상세, D-MOPS-008 ③ registeredBy 포함). 사업자등록번호·채널 식별값 없음. */
+export interface PinnedContractApproval {
+  merchantId: string
+  merchantName: string
+  contractId: string
+  revisionNo: number
+  scopeKind: string
+  scopeSiteIds: string[]
+  effectiveFrom: string
+  effectiveTo: string | null
+  approved: boolean
+  registeredBy: string
+}
+
+/** 가맹점 승인 상세(MERCHANT-OPS-002 B2-2). [ownerReference] = 승인된 Revision `ctr_…#n`, [ownerResultCode] = MASTER 거절 code. */
+export interface MerchantApprovalDetail {
+  commandKind: string
+  merchantId: string
+  pinnedTarget: unknown
+  approvedAt: string | null
+  executeBefore: string | null
+  attemptCount: number | null
+  nextAttemptAt: string | null
+  lastResponseAt: string | null
+  lastFailure: string | null
+  integrityFlag: string | null
+  resendHaltedReason: string | null
+  ownerResultCode: string | null
+  ownerReference: string | null
+}
+
+/** 가맹점 계약 승인 요청 입력(OPERATOR — 근거 참조 필수, 자유 문구 불가). */
+export interface MerchantContractApprovalInput {
+  merchantId: string
+  contractId: string
+  revisionNo: number
+  evidenceRef: string
+}
+
+/** 상세의 미해결 승인 한 건(C-24 — 승인 목록 권한 역할에게만, 그 밖 빈 배열). */
+export interface PendingMerchantApproval {
+  approvalId: string
+  kind: string
+  status: string
+  /** 계약 승인의 대상 Revision(첫 MID 발급은 null — Demo 개선 C-2). */
+  revisionNo?: number | null
+}
+
+/** 첫 Default MID 발급 요청 입력(B2-3 — OPERATOR, 근거 참조 필수). */
+export interface MerchantFirstMidInput {
+  merchantId: string
+  contractId: string
+  agreementId: string
+  revisionNo: number
+  primarySiteId: string
+  evidenceRef: string
 }
 
 /** 재매입 요청 고정 레코드 하나(pinned_target — 요청 시점, 금액은 표시용). */
@@ -205,6 +265,8 @@ export interface AuditEntry {
   correlationId: string
   detail: string | null
   reason: string | null
+  /** 계정이 아닌 대상(가맹점·Payment·매입 파일 등 — L-13). 이전 서버 응답에는 없을 수 있다. */
+  targetRef?: string | null
 }
 
 export interface AuditFilterInput {
@@ -258,7 +320,8 @@ export interface MerchantDetail {
   contracts: {
     contractId: string
     createdAt: string
-    revisions: { revisionNo: number; scopeKind: string; effectiveFrom: string; effectiveTo: string | null; approvedAt: string | null; scopeSiteIds: string[] }[]
+    /** [registeredBy] = Revision 등록자(MERCHANT-OPS-002 B2-2 — 정규 actor `admin:adm_…`). */
+    revisions: { revisionNo: number; scopeKind: string; effectiveFrom: string; effectiveTo: string | null; approvedAt: string | null; scopeSiteIds: string[]; registeredBy: string }[]
     agreements: { agreementId: string; serviceKind: string; addedAt: string }[]
   }[]
   accounts: {
@@ -297,6 +360,8 @@ export interface MerchantDetail {
     effectConfirmedAt: string | null
     effectBasis: 'ACK' | 'LEASE_EXPIRY' | null
   } | null
+  /** ADMIN DB 미해결 승인(MERCHANT-OPS-002 C-24 — "승인 대기 중" 표시). 이전 서버 응답에는 없을 수 있다. */
+  pendingApprovals?: PendingMerchantApproval[]
 }
 
 /** 변경 이력 항목(§3.3 — 감사 항목 투영, `detail` 없음). */
@@ -340,6 +405,18 @@ export interface SiteRegistrationInput {
 export interface ContractRegistrationInput {
   submissionId: string
   partyBusinessId: string
+  scopeMerchantId: string
+  scopeSiteIds: string[]
+  effectiveFromDate: string
+  effectiveToDate?: string
+}
+
+/**
+ * MERCHANT-OPS-002 §9.2 B2-1 계약 Revision 등록(1인 — 미승인으로 남는다). 범위·날짜 규칙은 계약 초안과 같다(C-7). 성공 reference는 `ctr_…#<n>`.
+ */
+export interface ContractRevisionInput {
+  submissionId: string
+  contractId: string
   scopeMerchantId: string
   scopeSiteIds: string[]
   effectiveFromDate: string
@@ -605,6 +682,7 @@ export interface AdminApi {
   /** MERCHANT-OPS-002 §4.3 B1-2(OPERATOR만). 시작일 소급 판정은 MASTER(§3.4 — 화면 최솟값은 안내일 뿐). */
   registerContract(input: ContractRegistrationInput): Promise<RegistrationOutcome>
   addServiceAgreement(input: ServiceAgreementInput): Promise<RegistrationOutcome>
+  registerContractRevision(input: ContractRevisionInput): Promise<RegistrationOutcome>
   /** TXN-OPS-001 §4.1(조회 4역할): 검색은 POST 본문(R-2, 감사 없음), 상세는 서버가 감사(D-TXOPS-002). */
   transactionSearch(input: TransactionSearchInput): Promise<TransactionSearchPage>
   transactionDetail(paymentId: string): Promise<TransactionDetail>
@@ -615,6 +693,11 @@ export interface AdminApi {
   /** ACQ-ADMIN-001 B1-A: 재매입 대상 미리 보기(조회 키 — 서버가 감사 후 반환), 재매입 요청(OPERATOR → 승인함). */
   reacquisitionTargets(fileId: string, seqs: number[]): Promise<ReacquisitionTargets>
   requestReacquisition(input: ReacquisitionRequestInput): Promise<{ approvalId: string }>
+  /** MERCHANT-OPS-002 B2-2: 계약 승인 요청(OPERATOR → 승인함), 근거 참조 권한 조회(같은 `/justification` — APPROVER·요청자만, 조회마다 감사). */
+  requestMerchantContractApproval(input: MerchantContractApprovalInput): Promise<{ approvalId: string }>
+  merchantApprovalEvidence(approvalId: string): Promise<ReacquisitionEvidence>
+  /** B2-3: 첫 Default MID 발급 요청(OPERATOR → 승인함). */
+  requestMerchantFirstMid(input: MerchantFirstMidInput): Promise<{ approvalId: string }>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -665,6 +748,7 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     registerMerchantSite: (input) => call('/api/merchant-registrations/merchant-sites', 'POST', input),
     registerContract: (input) => call('/api/merchant-registrations/contracts', 'POST', input),
     addServiceAgreement: (input) => call('/api/merchant-registrations/service-agreements', 'POST', input),
+    registerContractRevision: (input) => call('/api/merchant-registrations/contract-revisions', 'POST', input),
     transactionSearch: (input) => call('/api/payment-searches', 'POST', input),
     transactionDetail: (paymentId) => call(`/api/payments/${segment(paymentId)}`),
     acquisitionSearch: (input) => call('/api/acquisition-file-searches', 'POST', input),
@@ -672,5 +756,8 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     acquisitionRecords: (fileId, input) => call(`/api/acquisition-files/${segment(fileId)}/record-searches`, 'POST', input),
     reacquisitionTargets: (fileId, seqs) => call(`/api/acquisition-files/${segment(fileId)}/reacquisition-targets`, 'POST', { seqs }),
     requestReacquisition: (input) => call('/api/approvals/acq-reacquisition', 'POST', input),
+    requestMerchantContractApproval: (input) => call('/api/approvals/merchant-contract-approval', 'POST', input),
+    merchantApprovalEvidence: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
+    requestMerchantFirstMid: (input) => call('/api/approvals/merchant-first-mid', 'POST', input),
   }
 }

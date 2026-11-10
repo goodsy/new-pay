@@ -5,7 +5,9 @@ import com.paycore.admin.approval.application.required.ApprovalListFilter
 import com.paycore.admin.approval.application.required.ApprovalRequestListReader
 import com.paycore.admin.approval.application.required.ApprovalRow
 import com.paycore.admin.approval.application.required.OwnerDetailRow
+import com.paycore.admin.approval.application.required.MerchantOpsDetailRow
 import com.paycore.admin.jooq.generated.Tables.ADMIN_ACQUIRING_OPS_COMMAND
+import com.paycore.admin.jooq.generated.Tables.ADMIN_MERCHANT_OPS_COMMAND
 import com.paycore.admin.jooq.generated.Tables.ADMIN_OPERATOR_CANCEL_COMMAND
 import com.paycore.admin.jooq.generated.Tables.ADMIN_OWNER_EXECUTION
 import com.paycore.admin.jooq.generated.Tables.ADMIN_APPROVAL_REQUEST
@@ -64,7 +66,23 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
                 ownerReference = r.get(e.OWNER_REFERENCE),
             )
         }
-        return if (acquiring == null) base else base.copy(acquiring = acquiring)
+        if (acquiring != null) return base.copy(acquiring = acquiring)
+        // MERCHANT-OPS-002 B2-2: 가맹점 승인 명령·실행 행. 근거 참조 열은 고르지 않는다(D-MOPS-008 ① — APPROVER·요청자만 별도 조회).
+        val m = ADMIN_MERCHANT_OPS_COMMAND
+        val merchant = dsl.select(
+            m.COMMAND_KIND, m.MERCHANT_ID, DSL.field("CAST({0} AS CHAR)", String::class.java, m.PINNED_TARGET).`as`(PINNED),
+            time(e.APPROVED_AT, APPROVED_AT), time(e.EXECUTE_BEFORE, EXECUTE_BEFORE), e.ATTEMPT_COUNT, time(e.NEXT_ATTEMPT_AT, NEXT_ATTEMPT_AT),
+            time(e.LAST_RESPONSE_AT, LAST_RESPONSE_AT), e.LAST_FAILURE, e.INTEGRITY_FLAG, e.RESEND_HALTED_REASON, e.OWNER_RESULT_CODE, e.OWNER_REFERENCE,
+        ).from(m).leftJoin(e).on(e.APPROVAL_ID.eq(m.APPROVAL_ID)).where(m.APPROVAL_ID.eq(approvalId)).fetchOne { r ->
+            MerchantOpsDetailRow(
+                commandKind = r.get(m.COMMAND_KIND)!!, merchantId = r.get(m.MERCHANT_ID)!!, pinnedTarget = r.get(PINNED, String::class.java)!!,
+                approvedAt = instant(r, APPROVED_AT), executeBefore = instant(r, EXECUTE_BEFORE), attemptCount = r.get(e.ATTEMPT_COUNT),
+                nextAttemptAt = instant(r, NEXT_ATTEMPT_AT), lastResponseAt = instant(r, LAST_RESPONSE_AT), lastFailure = r.get(e.LAST_FAILURE),
+                integrityFlag = r.get(e.INTEGRITY_FLAG), resendHaltedReason = r.get(e.RESEND_HALTED_REASON), ownerResultCode = r.get(e.OWNER_RESULT_CODE),
+                ownerReference = r.get(e.OWNER_REFERENCE),
+            )
+        }
+        return if (merchant == null) base else base.copy(merchant = merchant)
     }
 
     private fun instant(r: Record, alias: String): Instant? = r.get(alias, String::class.java)?.let(Instant::parse)

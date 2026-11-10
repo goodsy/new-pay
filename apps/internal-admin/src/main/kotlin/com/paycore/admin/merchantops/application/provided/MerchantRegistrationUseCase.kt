@@ -25,4 +25,7 @@ enum class RegistrationKind(val auditAction: String) {
     MERCHANT_SITE("MERCHANT_SITE_REGISTER"),
     CONTRACT("MERCHANT_CONTRACT_REGISTER"),
     SERVICE_AGREEMENT("MERCHANT_AGREEMENT_ADD"),
+
+    /** B2-1 계약 Revision 등록(MERCHANT-OPS-002 §9.2 — 1인, C-22: targetRef = 계약 ID, 성공 detail `rev=<n>`). */
+    CONTRACT_REVISION("MERCHANT_CONTRACT_REVISION_REGISTER"),
 }
