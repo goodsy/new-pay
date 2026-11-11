@@ -53,6 +53,10 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     requestMerchantContractApproval: notStubbed('requestMerchantContractApproval'),
     merchantApprovalEvidence: notStubbed('merchantApprovalEvidence'),
     requestMerchantFirstMid: notStubbed('requestMerchantFirstMid'),
+    registerPaymentMethodActivation: notStubbed('registerPaymentMethodActivation'),
+    rejectSiteReview: notStubbed('rejectSiteReview'),
+    requestMerchantPaymentMethodActivation: notStubbed('requestMerchantPaymentMethodActivation'),
+    requestMerchantSiteReviewApproval: notStubbed('requestMerchantSiteReviewApproval'),
   } as AdminApi
   return { ...base, ...overrides }
 }

@@ -132,6 +132,15 @@ object StubMasterOpsServer {
     /** B2-3 첫 Default MID 발급 실행 경로. */
     const val FIRST_DEFAULT_MERCHANT_ACCOUNTS = "/internal/v1/admin/merchant-operations/first-default-merchant-accounts"
 
+    /** B3-1 명령 경로(1인 2 · 2인 2 — §9.14). */
+    const val PAYMENT_METHOD_ACTIVATIONS = "/internal/v1/admin/merchant-operations/payment-method-activations"
+    const val SITE_REVIEW_REJECTIONS = "/internal/v1/admin/merchant-operations/site-review-rejections"
+    const val PAYMENT_METHOD_ACTIVATION_APPROVALS = "/internal/v1/admin/merchant-operations/payment-method-activation-approvals"
+    const val SITE_REVIEW_APPROVALS = "/internal/v1/admin/merchant-operations/site-review-approvals"
+
+    /** B3-1 Site·개통 등록자(상세 `sites[].registeredBy`·`paymentMethods[].registeredBy` — Demo 값, Revision 등록자와 다른 값). */
+    const val SITE_REGISTRANT = "admin:adm_01JCSR0000000000000000SR01"
+
     /** 시험 Revision 등록자(기존 상세 Fixture — Demo 값). */
     const val REGISTRANT = "admin:adm_01JCRG0000000000000000RG01"
 
@@ -152,22 +161,56 @@ object StubMasterOpsServer {
     /**
      * MASTER 상세 계약 모양(카드 Route는 인수사·Route 참조·상태만). [routeExtra]로 허용되지 않는 필드를 끼워 넣어 fail-closed를 시험한다. [revisions]는 계약 하나의 Revision 목록 JSON
      * (기본 = 승인된 Revision 1, B2-2 기대값 변경: `registeredBy` 포함).
+     * B3-1 fixture 추가(MASTER 상세 모양 변경과 같은 키): `sites[].registeredBy`, `paymentMethods[].registeredBy`, `accounts[].siteConfirmations[]`. [sites]·[assignments]·[paymentMethods]·
+     * [siteConfirmations]를 주면 그 목록 JSON으로 바꾼다(B3 Fixture — 기본은 기존 값 + 새 필드).
      */
-    fun detailJson(merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1)): String {
+    fun detailJson(
+        merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1), sites: String? = null, assignments: String? = null, paymentMethods: String? = null,
+        siteConfirmations: String? = null,
+    ): String {
         val ulid = merchantId.removePrefix("mer_")
+        val siteList = sites ?: siteJson("site_$ulid")
+        val assignmentList = assignments ?: assignmentJson("asg_$ulid", "site_$ulid")
+        val methodList = paymentMethods ?: paymentMethodJson("act_$ulid", "ACTIVE")
+        val confirmationList = siteConfirmations ?: siteConfirmationJson("sac_$ulid", "site_$ulid", "act_$ulid")
         return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z"},""" +
             """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumberMasked":"123*******","lifecycle":"ACTIVE"},""" +
-            """"sites":[{"merchantSiteId":"site_$ulid","channelType":"WEB","channelIdentifier":"shop.example.test","lifecycle":"ACTIVE","review":{"decision":"APPROVED","decidedAt":"2026-10-09T02:00:00.000Z"}}],""" +
+            """"sites":[$siteList],""" +
             """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[$revisions],""" +
             """"agreements":[{"agreementId":"csa_$ulid","serviceKind":"CARD_PG_PAYMENT","addedAt":"2026-10-09T02:00:00.000Z"}]}],""" +
             """"accounts":[{"merchantAccountId":"mid_$ulid","lifecycle":"ACTIVE","isDefault":true,"issuingContractId":"ctr_$ulid","issuingAgreementId":"csa_$ulid","issuingRevisionNo":1,"issuedAt":"2026-10-09T02:00:00.000Z",""" +
-            """"assignments":[{"assignmentId":"asg_$ulid","merchantSiteId":"site_$ulid","role":"PRIMARY","status":"ACTIVE","effectiveFrom":"2026-10-09T02:00:00.000Z","effectiveTo":null}],""" +
-            """"paymentMethods":[{"activationId":"act_$ulid","paymentMethod":"CARD","status":"ACTIVE","registeredAt":"2026-10-09T02:00:00.000Z"}],""" +
+            """"assignments":[$assignmentList],""" +
+            """"paymentMethods":[$methodList],""" +
             """"currencies":[{"enablementId":"cur_$ulid","currencyCode":"KRW","effectiveFrom":"2026-10-09T02:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +
-            """"cardRoutes":[{"activationId":"cra_$ulid","paymentMethod":"CARD","acquirerCode":"SIMCARD01","routeRef":"SIMVAN01","status":"ACTIVE","registeredAt":"2026-10-09T02:00:00.000Z"$routeExtra}]}],""" +
+            """"cardRoutes":[{"activationId":"cra_$ulid","paymentMethod":"CARD","acquirerCode":"SIMCARD01","routeRef":"SIMVAN01","status":"ACTIVE","registeredAt":"2026-10-09T02:00:00.000Z"$routeExtra}],""" +
+            """"siteConfirmations":[$confirmationList]}],""" +
             """"limits":[{"policyId":"tlp_$ulid","scopeKind":"CSA_DEFAULT","agreementId":"csa_$ulid","merchantAccountId":null,"currencyCode":"KRW","perTxKind":"LIMITED","perTxAmount":1000000,"dailyKind":"LIMITED","dailyAmount":5000000,"effectiveFrom":"2026-10-09T15:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +
             """"propagation":{"latestRevision":5,"latestRevisionIssuedAt":"2026-10-09T02:00:00.000Z","latestAckRevision":null,"latestAckAt":null,"effectConfirmedAt":null,"effectBasis":null}}"""
     }
+
+    /** B3-1 상세 Site 한 줄(기본 심사 APPROVED — [review] null이면 심사 결정 없음 = PENDING). */
+    fun siteJson(
+        siteId: String, lifecycle: String = "ACTIVE", review: String? = "APPROVED", registeredBy: String = SITE_REGISTRANT, identifier: String = "shop.example.test",
+    ): String =
+        """{"merchantSiteId":"$siteId","channelType":"WEB","channelIdentifier":"$identifier","lifecycle":"$lifecycle",""" +
+            """"review":${review?.let { """{"decision":"$it","decidedAt":"2026-10-09T02:00:00.000Z"}""" } ?: "null"},"registeredBy":"$registeredBy"}"""
+
+    /** B3-1 상세 Assignment 한 줄(기본 열린 PRIMARY). */
+    fun assignmentJson(
+        assignmentId: String, siteId: String, role: String = "PRIMARY", status: String = "ACTIVE", effectiveFrom: String = "2026-10-09T02:00:00.000Z", effectiveTo: String? = null,
+    ): String =
+        """{"assignmentId":"$assignmentId","merchantSiteId":"$siteId","role":"$role","status":"$status","effectiveFrom":"$effectiveFrom",""" +
+            """"effectiveTo":${effectiveTo?.let { "\"$it\"" } ?: "null"}}"""
+
+    /** B3-1 상세 개통 한 줄(`registeredBy` 포함). */
+    fun paymentMethodJson(activationId: String, status: String?, registeredBy: String = SITE_REGISTRANT): String =
+        """{"activationId":"$activationId","paymentMethod":"CARD","status":${status?.let { "\"$it\"" } ?: "null"},"registeredAt":"2026-10-09T02:00:00.000Z",""" +
+            """"registeredBy":"$registeredBy"}"""
+
+    /** B3-1 상세 Site 적용 확인 한 줄(근거·사유 없음). */
+    fun siteConfirmationJson(confirmationId: String, siteId: String, activationId: String, revoked: Boolean = false): String =
+        """{"confirmationId":"$confirmationId","merchantSiteId":"$siteId","paymentMethod":"CARD","activationId":"$activationId",""" +
+            """"confirmedAt":"2026-10-09T02:00:00.000Z","revoked":$revoked}"""
 
     fun historyJson(merchantId: String): String =
         """{"items":[{"seq":7,"occurredAt":"2026-10-09T02:00:00.000Z","operation":"RegisterMerchant","aggregateType":"Merchant","aggregateId":"$merchantId","changeType":"MerchantRegistered","actorRef":"operator-1"}],"nextCursor":null}"""

@@ -24,6 +24,22 @@ object MerchantOpsInputRules {
         else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
     }
 
+    /** B3-1 개통 승인: merchantId·merchantAccountId(`mid_ULID`)·activationId(`act_ULID`)·근거 참조(같은 문법 — 기관 회신 참조, C-36). */
+    fun activationProblem(merchantId: String, merchantAccountId: String, activationId: String, evidenceRef: String): Pair<String, String>? = when {
+        !ApprovalTarget.Merchant.MERCHANT_ID.matches(merchantId) -> "merchantId" to FORMAT
+        !PinnedActivationApprovalTarget.MERCHANT_ACCOUNT_ID.matches(merchantAccountId) -> "merchantAccountId" to FORMAT
+        !PinnedActivationApprovalTarget.ACTIVATION_ID.matches(activationId) -> "activationId" to FORMAT
+        else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
+    }
+
+    /** B3-1 Site 심사 승인: merchantId·merchantSiteId(`site_ULID`)·사유 코드(승인 목록 C-37 — `REVIEW_PASSED`만)·근거 참조(PG 심사 근거). */
+    fun siteReviewProblem(merchantId: String, merchantSiteId: String, reasonCode: String, evidenceRef: String): Pair<String, String>? = when {
+        !ApprovalTarget.Merchant.MERCHANT_ID.matches(merchantId) -> "merchantId" to FORMAT
+        !PinnedContractApprovalTarget.SITE_ID.matches(merchantSiteId) -> "merchantSiteId" to FORMAT
+        reasonCode !in PinnedSiteReviewApprovalTarget.APPROVE_REASONS -> "reasonCode" to "NOT_ALLOWED"
+        else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
+    }
+
     fun evidenceProblem(evidenceRef: String): String? = when {
         !ReacquisitionInputRules.EVIDENCE.matches(evidenceRef) -> FORMAT
         OperatorCancelInputRules.containsCardNumber(evidenceRef) -> OperatorCancelInputRules.CARD_NUMBER_PATTERN

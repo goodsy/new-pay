@@ -121,6 +121,12 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/merchant-operations/approval-deadline-confirmations",
                 // 기대값 변경(B2-3 첫 Default MID 발급, 명세 §8.2 B2-3-1): + `first-default-merchant-accounts`. 개통·한도·정지(B3~B5) 경로는 여전히 없다.
                 "POST /internal/v1/admin/merchant-operations/first-default-merchant-accounts",
+                // 기대값 변경(B3-1, 명세 §8.3 B3-1-6): 1인 `payment-method-activations`·`site-review-rejections`, 2인 `payment-method-activation-approvals`·`site-review-approvals`.
+                // 경로 목록 갱신이지 완화가 아니다 — 통화·Route·재개·재확인(B3-2~4)·한도·정지 경로는 여전히 없다.
+                "POST /internal/v1/admin/merchant-operations/payment-method-activations",
+                "POST /internal/v1/admin/merchant-operations/site-review-rejections",
+                "POST /internal/v1/admin/merchant-operations/payment-method-activation-approvals",
+                "POST /internal/v1/admin/merchant-operations/site-review-approvals",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }

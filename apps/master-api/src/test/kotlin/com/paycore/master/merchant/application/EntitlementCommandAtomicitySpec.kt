@@ -7,6 +7,7 @@ import com.paycore.master.merchant.application.EntitlementCommandFixture.issuesO
 import com.paycore.master.merchant.application.EntitlementCommandFixture.reason
 import com.paycore.master.merchant.application.EntitlementCommandFixture.revisionOf
 import com.paycore.master.merchant.application.OnboardingFixture.request
+import com.paycore.master.merchant.application.OnboardingFixture.seedRequest
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
 import com.paycore.master.merchant.application.provided.AdminCommandFailure
 import com.paycore.master.merchant.application.provided.AdminCommandResult
@@ -84,7 +85,7 @@ class EntitlementCommandAtomicitySpec(
             Then("a failure after $point leaves nothing (activation, confirmation, revision, snapshot issue, history, request) and the same key then succeeds") {
                 val (ready, ids2) = EntitlementCommandFixture.issuedWithActivation(onboarding)
                 val activation = ids2.second
-                val command = ApprovePaymentMethodActivationCommand(request(), activation, evidence)
+                val command = ApprovePaymentMethodActivationCommand(seedRequest(), activation, evidence)
                 val before = stateOf(ready, activation, command.request.idempotencyKey.value)
                 faults.after(point) { throw Injected(point.name) }
                 shouldThrow<Injected> { entitlement.approvePaymentMethodActivation(command) }
@@ -100,7 +101,7 @@ class EntitlementCommandAtomicitySpec(
 
         Then("a failure right before commit is OutcomeUnknown, leaves nothing and is counted (review m-7·m-8)") {
             val (ready, ids2) = EntitlementCommandFixture.issuedWithActivation(onboarding)
-            val command = ApprovePaymentMethodActivationCommand(request(), ids2.second, evidence)
+            val command = ApprovePaymentMethodActivationCommand(seedRequest(), ids2.second, evidence)
             val before = stateOf(ready, ids2.second, command.request.idempotencyKey.value)
             val unknownBefore = counter("outcome_unknown", "ApprovePaymentMethodActivation")
             faults.after(MasterFaultPoint.ADMIN_COMPLETE) {
@@ -122,7 +123,7 @@ class EntitlementCommandAtomicitySpec(
             val before = counter("retries_exhausted", "ApprovePaymentMethodActivation")
             faults.after(MasterFaultPoint.ACTIVATION_UPDATE) { throw PersistenceFailure.Deadlock(RuntimeException("injected deadlock")) }
             shouldThrow<AdminCommandFailure.TemporarilyUnavailable> {
-                entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(request(), ids2.second, evidence))
+                entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), ids2.second, evidence))
             }
             counter("retries_exhausted", "ApprovePaymentMethodActivation") shouldBe before + 1
         }
@@ -136,7 +137,7 @@ class EntitlementCommandAtomicitySpec(
                 }
             }
             val (ready, ids2) = EntitlementCommandFixture.issuedWithActivation(onboarding)
-            val command = ApprovePaymentMethodActivationCommand(request(), ids2.second, evidence)
+            val command = ApprovePaymentMethodActivationCommand(seedRequest(), ids2.second, evidence)
             val before = stateOf(ready, ids2.second, command.request.idempotencyKey.value)
             val collisions = counter("identifier_collision", "ApprovePaymentMethodActivation")
             ids.forceNext(SiteActivationConfirmationId.PREFIX, existing.value)
@@ -153,7 +154,7 @@ class EntitlementCommandAtomicitySpec(
             val before = stateOf(ready, activation, "none")
             val results = OnboardingFixture.concurrently(6) { i ->
                 if (i % 2 == 0) {
-                    entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(request(), activation, EvidenceRef("van-reply:race-$i")))
+                    entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), activation, EvidenceRef("van-reply:race-$i")))
                 } else {
                     entitlement.terminatePaymentMethodActivation(TerminatePaymentMethodActivationCommand(request(), activation, reason))
                 }

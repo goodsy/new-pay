@@ -12,6 +12,41 @@ interface MerchantOpsApprovalUseCase {
 
     /** B2-3 첫 Default MID 발급 요청(§9.5 — 같은 틀, 미리 보기 적격: MID 0·승인 Revision·CSA·Scope 안 ACTIVE PRIMARY Site, 미해결 키 `MERCHANT:` 공유 — C-20). */
     fun requestFirstMidIssuance(command: RequestMerchantFirstMid): ApprovalOutcome
+
+    /**
+     * B3-1 결제수단 개통 승인 요청(§9.16 — OPERATOR, 근거 참조 필수 = 기관(카드사/VAN) 회신 참조 C-36). 미리 보기 적격(advisory): 개통 UNDER_REVIEW·MID ACTIVE·열린 PRIMARY 있음
+     * (그 Site를 pinned `primarySiteId`로 — C-45). 미해결 키 `MERCHANT:PM:<merchantId>`(C-35).
+     */
+    fun requestPaymentMethodActivation(command: RequestMerchantPaymentMethodActivation): ApprovalOutcome
+
+    /** B3-1 Site 심사 승인 요청(§9.16 — 근거 = PG 심사 근거, 사유 `REVIEW_PASSED`만). 적격(advisory): Site ACTIVE·심사 PENDING 또는 SUSPENDED. 키 `MERCHANT:SITE_REVIEW:<merchantId>`. */
+    fun requestSiteReviewApproval(command: RequestMerchantSiteReviewApproval): ApprovalOutcome
+}
+
+/** B3-1 개통 승인 요청 입력(서버는 자르거나 정규화하지 않는다). toString에 근거 참조가 없다. */
+data class RequestMerchantPaymentMethodActivation(
+    val requesterActorId: String,
+    val sessionGeneration: Long,
+    val merchantId: String,
+    val merchantAccountId: String,
+    val activationId: String,
+    val evidenceRef: String,
+    val context: AdminRequestContext,
+) {
+    override fun toString(): String = "RequestMerchantPaymentMethodActivation(requester=$requesterActorId, merchantId=$merchantId, activationId=$activationId)"
+}
+
+/** B3-1 Site 심사 승인 요청 입력. toString에 근거 참조가 없다. */
+data class RequestMerchantSiteReviewApproval(
+    val requesterActorId: String,
+    val sessionGeneration: Long,
+    val merchantId: String,
+    val merchantSiteId: String,
+    val reasonCode: String,
+    val evidenceRef: String,
+    val context: AdminRequestContext,
+) {
+    override fun toString(): String = "RequestMerchantSiteReviewApproval(requester=$requesterActorId, merchantId=$merchantId, merchantSiteId=$merchantSiteId)"
 }
 
 /** 계약 승인 요청 입력(서버는 자르거나 정규화하지 않는다). [revisionNo]는 JSON 정수 그대로(범위는 Use Case가 본다). toString에 근거 참조가 없다. */

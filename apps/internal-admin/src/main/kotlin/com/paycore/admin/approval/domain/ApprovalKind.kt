@@ -38,6 +38,18 @@ enum class ApprovalKind(
      * 같다(`MERCHANT:<merchantId>` — 두 종류 합쳐 가맹점당 미해결 하나, C-20). Revision 등록자 규칙은 적용하지 않는다(계약 승인만).
      */
     MERCHANT_FIRST_MID_ISSUANCE(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * 결제수단 개통 승인(MERCHANT-OPS-002 B3-1 §9.16 — D-MOPS-007 ③, C-45) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER가 승인 근거·개통 규칙을 재검사(PRIMARY Site 적용 확인
+     * 동반). 미해결 키 `MERCHANT:PM:<merchantId>`(C-35). **등록자 ≠ 승인자 검사 없음**(Q-MOPS-24 답 전 — pinned `registeredBy`는 표시용).
+     */
+    MERCHANT_PAYMENT_METHOD_ACTIVATION(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * Site 심사 승인(MERCHANT-OPS-002 B3-1 §9.16 — APPROVED 고정, C-40) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP. 미해결 키 `MERCHANT:SITE_REVIEW:<merchantId>`(C-35).
+     * 거절은 1인(화면 API `site-review-rejections`)이라 이 종류가 아니다. 등록자 검사 없음(Q-MOPS-24 답 전).
+     */
+    MERCHANT_SITE_REVIEW_APPROVAL(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
     ;
 
     val approverRole: String get() = APPROVER
@@ -45,8 +57,13 @@ enum class ApprovalKind(
     fun mayActivatePrivilegedRole(grantedRole: String?): Boolean = when (this) {
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
-        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE -> false
+        TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE,
+        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL,
+        -> false
     }
+
+    /** MASTER 가맹점 승인 채널 종류(MERCHANT-OPS-002 — 대상 MERCHANT, [com.paycore.admin.approval.application.MerchantOpsApprovalService]가 처리). */
+    val merchantOps: Boolean get() = targetKind == ApprovalTargetKind.MERCHANT
 
     /** 권한 상승 종류(D-ADMIN1-014·015 — 대상 자격 발급 근거의 요청자·승인자는 이 종류의 요청자·승인자가 될 수 없다). */
     val escalatesPrivilege: Boolean get() = this == ROLE_GRANT || this == ROLE_REACTIVATE

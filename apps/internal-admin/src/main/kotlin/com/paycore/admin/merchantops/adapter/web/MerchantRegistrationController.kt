@@ -50,6 +50,16 @@ class MerchantRegistrationController(private val registrations: MerchantRegistra
     fun addServiceAgreement(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
         handle(RegistrationKind.SERVICE_AGREEMENT, authentication, request)
 
+    /** B3-1 결제수단 개통 등록(1인 — §9.14, UNDER_REVIEW). 개통 승인은 2인(`/api/approvals/merchant-payment-method-activation`). */
+    @PostMapping("/api/merchant-registrations/payment-method-activations")
+    fun registerPaymentMethodActivation(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(RegistrationKind.PAYMENT_METHOD_ACTIVATION, authentication, request)
+
+    /** B3-1 Site 심사 거절(1인 — §9.14, REJECTED 고정·되돌릴 수 없음 D-MS-005). 심사 승인은 2인(`/api/approvals/merchant-site-review-approval`). */
+    @PostMapping("/api/merchant-registrations/site-review-rejections")
+    fun rejectSiteReview(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(RegistrationKind.SITE_REVIEW_REJECTION, authentication, request)
+
     private fun handle(kind: RegistrationKind, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
         if (!isJson(request.contentType)) return rejectBody(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE")
         if (request.contentLengthLong > MAX_BODY_BYTES) return rejectBody(HttpStatus.CONTENT_TOO_LARGE, "REQUEST_TOO_LARGE")

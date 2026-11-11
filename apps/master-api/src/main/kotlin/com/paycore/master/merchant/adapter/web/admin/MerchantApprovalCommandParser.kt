@@ -7,14 +7,18 @@ import com.paycore.master.merchant.application.provided.ApprovalFingerprint
 import com.paycore.master.merchant.application.provided.ApprovedCommand
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand
+import com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand
+import com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ApprovalEvidence
 import com.paycore.master.merchant.domain.ApprovalWindow
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
+import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
+import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
@@ -46,6 +50,8 @@ object MerchantApprovalCommandParser {
     )
     private val CONTRACT_REVISION_APPROVAL = EVIDENCE_FIELDS + setOf("contractId", "revisionNo")
     private val FIRST_DEFAULT_ISSUANCE = EVIDENCE_FIELDS + setOf("merchantId", "contractId", "agreementId", "revisionNo", "primarySiteId")
+    private val ACTIVATION_APPROVAL = EVIDENCE_FIELDS + setOf("operation", "activationId", "primarySiteId")
+    private val SITE_REVIEW_APPROVAL = EVIDENCE_FIELDS + setOf("operation", "merchantSiteId", "reasonCode")
     private val DECISION = setOf("approvalId", "correlationId")
 
     /** C-30: `[1-9][0-9]{0,9}` + 값 ≤ 2147483647(DB `revision_no INT`). */
@@ -89,7 +95,33 @@ object MerchantApprovalCommandParser {
      * 정확히 하나가 받아야 한다(B2-3 리뷰 n-1 — KDoc 위치 정정).
      */
     fun deadlineConfirmation(body: ByteArray, window: ApprovalWindow): ApprovedCommand? =
-        listOfNotNull<ApprovedCommand>(contractRevisionApproval(body, window), firstDefaultIssuance(body, window)).singleOrNull()
+        // B3 본문은 `operation` 필드가 있어 B2 해석기(정확한 필드 집합)가 받지 않고, B2 본문은 B3 해석기가 받지 않는다(minor-4 — 정확히 하나).
+        listOfNotNull<ApprovedCommand>(
+            contractRevisionApproval(body, window), firstDefaultIssuance(body, window), paymentMethodActivationApproval(body, window), siteReviewApproval(body, window),
+        ).singleOrNull()
+
+    /**
+     * B3-1 `payment-method-activation-approvals`(§9.14): 근거 공통 9 + **`operation` = `ApprovePaymentMethodActivation`**(C-39) + 명령 필드 `activationId`, `primarySiteId`(C-45 — `mop1` 끝 줄 순서).
+     */
+    fun paymentMethodActivationApproval(body: ByteArray, window: ApprovalWindow): ApprovedPaymentMethodActivationApprovalCommand? =
+        parse(body, ACTIVATION_APPROVAL) { fields ->
+            require(fields.getValue("operation") == AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION.code) { "operation" }
+            val activationId = PaymentMethodActivationId(fields.getValue("activationId"))
+            val primarySiteId = MerchantSiteId(fields.getValue("primarySiteId"))
+            val (request, evidence) = approved(fields, AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, listOf(activationId.value, primarySiteId.value))
+            ApprovedPaymentMethodActivationApprovalCommand(request, evidence, window, activationId, primarySiteId)
+        }
+
+    /** B3-1 `site-review-approvals`(§9.14 — APPROVED 고정, 결정값 필드 없음 C-40): `operation` = `DecideSiteReview` + `merchantSiteId`, `reasonCode`(승인 사유 목록 — C-37). */
+    fun siteReviewApproval(body: ByteArray, window: ApprovalWindow): ApprovedSiteReviewApprovalCommand? =
+        parse(body, SITE_REVIEW_APPROVAL) { fields ->
+            require(fields.getValue("operation") == AdminOperation.DECIDE_SITE_REVIEW.code) { "operation" }
+            val siteId = MerchantSiteId(fields.getValue("merchantSiteId"))
+            val reasonCode = fields.getValue("reasonCode")
+            require(reasonCode in SiteReviewReasonCodes.APPROVE) { "reasonCode" }
+            val (request, evidence) = approved(fields, AdminOperation.DECIDE_SITE_REVIEW, listOf(siteId.value, reasonCode))
+            ApprovedSiteReviewApprovalCommand(request, evidence, window, siteId, DecisionReason(reasonCode))
+        }
 
     /** `approval-decisions`: `approvalId`, `correlationId`(1..128 printable ASCII — 상관용)만. 키·근거 필드 없음. */
     fun decisionApprovalId(body: ByteArray): String? = parse(body, DECISION) { fields ->

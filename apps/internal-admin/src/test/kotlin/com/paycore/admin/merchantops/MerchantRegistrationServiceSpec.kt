@@ -601,4 +601,92 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             f.rows().last()[1] shouldBe "KEY_REUSED"
         }
     }
+
+    Given("B3-1 1-person screen commands (MERCHANT-OPS-002 §9.14·§9.16 — OPERATOR only, attempt + result audit rows, mo1/mos, response shape per kind)") {
+        val mid = "mid_01JC0000000000000000000001"
+        val siteId = "site_01JC0000000000000000000001"
+        val act = "act_01JC0000000000000000000009"
+        fun activation(s: String = sub(), merchantAccountId: String = mid, method: String = "CARD") = RegistrationRequest.PaymentMethodActivation(s, merchantAccountId, method)
+        fun rejection(s: String = sub(), site: String = siteId, reason: String = "DOCUMENT_INSUFFICIENT", evidence: String? = null) =
+            RegistrationRequest.SiteReviewRejection(s, site, reason, evidence)
+
+        Then("roles: VIEWER, APPROVER and SECURITY_ADMIN are 403 for both commands, audited FORBIDDEN with targetRef = MID / site; MASTER is not called") {
+            listOf("VIEWER", "APPROVER", "SECURITY_ADMIN").forEach { role ->
+                val f = Fixture(setOf(role))
+                val s1 = sub()
+                val s2 = sub()
+                f.service.register(operatorId, activation(s1), ctx) shouldBe MerchantRegistrationResult.Forbidden
+                f.service.register(operatorId, rejection(s2), ctx) shouldBe MerchantRegistrationResult.Forbidden
+                withClue(role) {
+                    f.rows() shouldBe listOf(
+                        listOf("MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER", "FORBIDDEN", "sub=${s1.take(8)}", mid, "req-1"),
+                        listOf("MERCHANT_SITE_REVIEW_REJECT", "FORBIDDEN", "sub=${s2.take(8)};reason=DOCUMENT_INSUFFICIENT", siteId, "req-1"),
+                    )
+                    f.commands.shouldBeEmpty()
+                }
+            }
+        }
+
+        Then("activation register: fields {merchantAccountId, paymentMethod}, mo1/mos/actor as B1, attempt + result rows with targetRef = MID (also on success), act_ reference returned") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, act, false) }
+            val s = sub()
+            f.service.register(operatorId, activation(s), ctx) shouldBe MerchantRegistrationResult.Decided("SUCCEEDED", act, null, false)
+            val c = f.commands.single()
+            c.kind shouldBe MasterCommandKind.REGISTER_PAYMENT_METHOD_ACTIVATION
+            listOf(c.idempotencyKey, c.actor, c.correlationId) shouldBe listOf("mo1.01JC00000000000000000000V1.$s", "admin:$operatorId", "mos.$s")
+            c.fields shouldBe mapOf("merchantAccountId" to mid, "paymentMethod" to "CARD")
+            f.rows() shouldBe listOf(
+                listOf("MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER", "REQUESTED", "sub=${s.take(8)}", mid, "mos.$s"),
+                listOf("MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER", "OK", "sub=${s.take(8)};replayed=false", mid, "mos.$s"),
+            )
+            f.callInTx.single() shouldBe false
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "ACTIVATION_DUPLICATE", null, false) }
+            val s2 = sub()
+            f.service.register(operatorId, activation(s2), ctx) shouldBe MerchantRegistrationResult.Decided("REJECTED", null, "ACTIVATION_DUPLICATE", false)
+            f.rows().last() shouldBe listOf("MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER", "REJECTED", "sub=${s2.take(8)};replayed=false;rejection=ACTIVATION_DUPLICATE", mid, "mos.$s2")
+        }
+
+        Then("site review rejection: no decision field, evidenceRef only when given and never in audit/logs; detail reason=<code>; targetRef = site (success reference site_…#n is not a targetRef)") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "$siteId#1", false) }
+            val s = sub()
+            val logs = captureLogs {
+                f.service.register(operatorId, rejection(s, evidence = "PG-REVIEW/2026-0009"), ctx) shouldBe MerchantRegistrationResult.Decided("SUCCEEDED", "$siteId#1", null, false)
+            }
+            val c = f.commands.single()
+            c.kind shouldBe MasterCommandKind.REJECT_SITE_REVIEW
+            c.fields shouldBe mapOf("merchantSiteId" to siteId, "reasonCode" to "DOCUMENT_INSUFFICIENT", "evidenceRef" to "PG-REVIEW/2026-0009")
+            f.rows() shouldBe listOf(
+                listOf("MERCHANT_SITE_REVIEW_REJECT", "REQUESTED", "sub=${s.take(8)};reason=DOCUMENT_INSUFFICIENT", siteId, "mos.$s"),
+                listOf("MERCHANT_SITE_REVIEW_REJECT", "OK", "sub=${s.take(8)};replayed=false;reason=DOCUMENT_INSUFFICIENT", siteId, "mos.$s"),
+            )
+            (f.audits.map { it.toString() } + logs + c.toString() + rejection(evidence = "PG-REVIEW/2026-0009").toString()).filter { "PG-REVIEW" in it }.shouldBeEmpty()
+            f.service.register(operatorId, rejection(reason = "OTHER_POLICY"), ctx)
+            f.commands.last().fields shouldBe mapOf("merchantSiteId" to siteId, "reasonCode" to "OTHER_POLICY")
+        }
+
+        Then("C-10 formats (400 without audit or MASTER call): wrong id kinds, a method other than CARD, an approve or unknown reason, a free-text or card-number evidence") {
+            val f = Fixture()
+            listOf(
+                activation(merchantAccountId = siteId), activation(method = "BANK"), rejection(site = mid), rejection(reason = "REVIEW_PASSED"), rejection(reason = "WHIM"),
+                rejection(evidence = "free text"), rejection(evidence = "4111111111111111"), rejection(evidence = ""),
+            ).forEach { r -> withClue(r.toString()) { f.service.register(operatorId, r, ctx) shouldBe MerchantRegistrationResult.InvalidInput } }
+            f.rows().shouldBeEmpty()
+            f.commands.shouldBeEmpty()
+        }
+
+        Then("the response shape is per kind: a rejection success whose reference is another site's decision (or a bare site id) is OUTCOME_UNKNOWN, audited with the entered site") {
+            listOf("site_01JC0000000000000000000002#1", siteId).forEach { foreign ->
+                val f = Fixture()
+                f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, foreign, false) }
+                val s = sub()
+                withClue(foreign) {
+                    f.service.register(operatorId, rejection(s), ctx) shouldBe MerchantRegistrationResult.OutcomeUnknown
+                    f.rows().last() shouldBe listOf("MERCHANT_SITE_REVIEW_REJECT", "OUTCOME_UNKNOWN", "sub=${s.take(8)};reason=DOCUMENT_INSUFFICIENT", siteId, "mos.$s")
+                    f.metrics shouldContain "unknown:SITE_REVIEW_REJECTION"
+                }
+            }
+        }
+    }
 })

@@ -50,6 +50,33 @@ object ApprovedCommandFixture {
         )
     }
 
+    /** B3-1 근거 있는 개통 승인(명령 필드 activationId, primarySiteId — C-45). 기본 근거 참조는 기관 회신 참조 모양(C-36). */
+    fun activationApproval(
+        activationId: com.paycore.master.merchant.domain.PaymentMethodActivationId,
+        primarySiteId: com.paycore.master.merchant.domain.MerchantSiteId,
+        evidence: ApprovalEvidence = ApprovalEvidenceFixtures.distinctActors(evidenceRef = INSTITUTION_REPLY),
+        window: ApprovalWindow = ApprovalEvidenceFixtures.DEMO_WINDOW,
+    ): com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand {
+        val e = withFingerprint(evidence, AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, listOf(activationId.value, primarySiteId.value))
+        return com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand(requestOf(e), e, window, activationId, primarySiteId)
+    }
+
+    /** B3-1 근거 있는 Site 심사 승인(명령 필드 merchantSiteId, reasonCode — C-37). */
+    fun siteReviewApproval(
+        siteId: com.paycore.master.merchant.domain.MerchantSiteId,
+        evidence: ApprovalEvidence = ApprovalEvidenceFixtures.distinctActors(evidenceRef = PG_REVIEW),
+        reasonCode: String = "REVIEW_PASSED",
+        window: ApprovalWindow = ApprovalEvidenceFixtures.DEMO_WINDOW,
+    ): com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand {
+        val e = withFingerprint(evidence, AdminOperation.DECIDE_SITE_REVIEW, listOf(siteId.value, reasonCode))
+        return com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand(
+            requestOf(e), e, window, siteId, com.paycore.master.merchant.domain.DecisionReason(reasonCode),
+        )
+    }
+
+    const val INSTITUTION_REPLY = "VAN-REPLY/2026-0001"
+    const val PG_REVIEW = "PG-REVIEW/2026-0001"
+
     /** 근거 행 한 행의 주요 열(시험 단언용 — runtime 계정으로 읽는다). */
     data class EvidenceRow(
         val operation: String,
@@ -92,7 +119,8 @@ object ApprovedCommandFixture {
     fun invariantViolations(c: Connection): List<String> = c.prepareStatement(
         "SELECT CONCAT(r.operation, ' ', r.idempotency_key, ' ', r.result_kind, ' ', IFNULL(r.result_code, '-'), ' rows=', " +
             "(SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id)) " +
-            "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount') AND r.idempotency_key LIKE 'mop1.%' " +
+            "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount', 'ApprovePaymentMethodActivation', 'DecideSiteReview') " +
+            "AND r.idempotency_key LIKE 'mop1.%' " +
             "AND r.result_kind <> 'PENDING' AND (" +
             "  (IFNULL(r.result_code, '') <> 'APPROVAL_ID_ALREADY_USED' AND (SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id) <> 1)" +
             "  OR (r.result_code = 'APPROVAL_ID_ALREADY_USED' AND (SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id) <> 0))",

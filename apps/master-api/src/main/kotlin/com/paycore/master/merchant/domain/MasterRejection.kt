@@ -82,6 +82,9 @@ enum class MasterRejection {
     APPROVAL_ID_ALREADY_USED,
     APPROVAL_EXPIRED,
     APPROVER_IS_REVISION_REGISTRANT,
+
+    // MERCHANT-OPS-002 C-45(rev 0.8.1): 근거 경로 개통 승인의 고정 PRIMARY Site(`primarySiteId`)가 실행 시점 열린 PRIMARY와 다름(없음 포함)
+    PRIMARY_SITE_MISMATCH,
 }
 
 /**

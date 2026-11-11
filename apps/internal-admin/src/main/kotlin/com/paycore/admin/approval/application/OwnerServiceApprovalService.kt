@@ -154,7 +154,8 @@ class OwnerServiceApprovalService(
         val seenKind = transactions.execute({ false }) { repository.find(command.approvalId)?.kind }
         if (seenKind == ApprovalKind.ACQ_REACQUISITION) return acquiring.approve(command)
         // MERCHANT-OPS-002 B2-2: 가맹점 계약 승인은 MASTER 승인 채널(같은 OWNER_SERVICE 2-TX — 잠근 행 종류를 TX1이 다시 확인).
-        if (seenKind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL || seenKind == ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE) return merchants.approve(command)
+        // B3-1: 가맹점 대상 종류 전부(개통·Site 심사 포함)가 같은 채널이다.
+        if (seenKind?.merchantOps == true) return merchants.approve(command)
         return observed(APPROVE) { approveStep(command) }
     }
 

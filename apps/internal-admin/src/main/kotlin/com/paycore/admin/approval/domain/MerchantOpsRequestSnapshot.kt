@@ -20,7 +20,9 @@ data class MerchantOpsRequestSnapshot(
         require(pinnedTarget.merchantId == merchantId) { "the pinned target is the commanded merchant" }
         require(
             (commandKind == MerchantOpsCommandKind.CONTRACT_APPROVAL && pinnedTarget is PinnedContractApprovalTarget) ||
-                (commandKind == MerchantOpsCommandKind.FIRST_MID_ISSUANCE && pinnedTarget is PinnedFirstMidTarget),
+                (commandKind == MerchantOpsCommandKind.FIRST_MID_ISSUANCE && pinnedTarget is PinnedFirstMidTarget) ||
+                (commandKind == MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION && pinnedTarget is PinnedActivationApprovalTarget) ||
+                (commandKind == MerchantOpsCommandKind.SITE_REVIEW_APPROVAL && pinnedTarget is PinnedSiteReviewApprovalTarget),
         ) { "the pinned target kind matches the command kind" }
         require(MerchantOpsInputRules.evidenceProblem(evidenceRef) == null) { "evidence format" }
     }
@@ -38,4 +40,10 @@ enum class MerchantOpsCommandKind {
 
     /** B2-3 첫 Default MID 발급. */
     FIRST_MID_ISSUANCE,
+
+    /** B3-1 결제수단 개통 승인(§9.16). V11 CHECK에는 B3-2~4 값도 있으나 앱은 B3-1 두 값만 만든다(C-42). */
+    PAYMENT_METHOD_ACTIVATION,
+
+    /** B3-1 Site 심사 승인(APPROVED 고정). */
+    SITE_REVIEW_APPROVAL,
 }

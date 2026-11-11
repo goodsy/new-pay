@@ -7198,17 +7198,23 @@
         "Q-MOPS-18",
         "Q-MOPS-19",
         "Q-MOPS-20",
-        "Q-MOPS-21"
+        "Q-MOPS-21",
+        "Q-MOPS-22",
+        "Q-MOPS-23",
+        "Q-MOPS-24"
       ],
       "acceptanceCriteria": [
-        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §8.1 (B1-1, B1-2). B2..B5는 후속 배치(Q-MOPS-16/17/18 답 전 구현 금지)"
+        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §8.1 (B1-1, B1-2). B2..B5는 후속 배치(Q-MOPS-16/17/18 답 전 구현 금지)",
+        "§8.3 B3-1 (rev 0.8.1 — review 조건부 PASS 반영). B3-1 2인 승인 경로(개통 승인·Site 심사 승인)의 DONE 판정은 Q-MOPS-24(확대) 답 전 금지. B3-2는 Q-MOPS-23, B3-3은 Q-MOPS-22·24 답 전 구현 금지"
       ],
       "allowedWritePaths": [
         "apps/master-api/**",
         "apps/internal-admin/**",
         "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md",
         "docs/DECISIONS.md",
-        ".env.example"
+        ".env.example",
+        "docs/merchant-onboarding/**",
+        "harness/questions.json"
       ],
       "owner": null,
       "attempts": 0,
@@ -7245,9 +7251,17 @@
         "2026-11-10 사용자: WSL 재시작으로 /tmp Demo 키 소실(TOTP 복호화 불가) → 'Demo 전체 초기화' 선택. Demo 설정은 ~/paycore-demo(영구)로 재구성.",
         "2026-11-10 B2-1: Demo 시연 PASS(ctr_01M71F76DZR43JHRZH34068V9V#2, 소급 거절, 감사 2행, APPROVER 버튼 없음). C-32(성공 후 완료 상태·'승인 전' 통일, rev 0.6.3). TDD 이탈(C-m2: endpoint·ADMIN 코드 시험보다 먼저) 기록 — 변이 a~f 6종 RED로 보완. Verifier: internal-admin check PASS(Kotlin 800, Vitest 213, fp d636c492…); master-api check 1차 FAIL(MerchantOpsApiSpec 경로 8→9) → 9개 경로 집합 단언 갱신(§8 규칙·B1-2 선례, Coordinator 승인) → 재실행 PASS(493, fp f554ca99…, 11:08–11:20 KST, ~/gate-logs/mops-b21/rerun). 재리뷰 REVIEW_PASS(NIT n-a..n-c).",
         "2026-11-10 B2-2: MASTER(V9/V10, 3 endpoint, mop1, C-33 rev 0.6.4) + ADMIN(V9/V10, MERCHANT_CONTRACT_APPROVAL, 회복, 화면, registeredBy, rev 0.6.5). master check 568 중 2 실패(n-a 시험 데이터 섞임→불변식 양방향 강화, migration 목록) → 55 재실행 PASS. ADMIN TDD 이탈(게이트웨이·서비스·회복·HTTP·화면 구현 먼저) 기록, 변이 5종 RED. 코드 리뷰 REVIEW_PASS 조건부(모듈 전체 check 필요; m-2 변이 4종·n-1..n-4 권장). Demo 시연 PASS: apr_01M71Y9BDZS7PGATTXS2REKARE EXECUTED ctr_…#2, 권리 rev 12→13, 중복 요청 409 DUPLICATE_UNRESOLVED, 근거 값 감사 비노출. 화면 개선 후보: 요청 완료 문구 즉시 사라짐, 배너에 Revision 번호 없음, 감사 요약 열 잘림/대상 열 공란.",
-        "2026-11-10 B2-3: C-34(REFERENCE_MISMATCH → EXECUTION_UNKNOWN+무결성 플래그, 경보 1회, OWNER_UNRESOLVABLE finding 1회, POST 중단) 채택. 후속: AcquisitionsScreen 시험 5000ms 근접(flaky 위험), ApprovedCommandAtomicitySpec 역방향 예외 표식 강화, ADMIN V9 주석 최신화(checksum 영향으로 다음 migration 기회에), DB 문서-SQL 불일치 정리."
+        "2026-11-10 B2-3: C-34(REFERENCE_MISMATCH → EXECUTION_UNKNOWN+무결성 플래그, 경보 1회, OWNER_UNRESOLVABLE finding 1회, POST 중단) 채택. 후속: AcquisitionsScreen 시험 5000ms 근접(flaky 위험), ApprovedCommandAtomicitySpec 역방향 예외 표식 강화, ADMIN V9 주석 최신화(checksum 영향으로 다음 migration 기회에), DB 문서-SQL 불일치 정리.",
+        {
+          "date": "2026-11-11",
+          "decision": "B3 설계 rev 0.8 리뷰 조건부 PASS. C-35 그룹별 미해결 키 채택(같은 그룹 대기 중에도 Site 1인 거절 버튼은 숨기지 않음). minor-1 → C-45 개통 승인 명령에 primarySiteId 포함(mop1) + MASTER 불일치 거절. C-36 질문 승격 안 함(근거 의미 표시 조건). Q-MOPS-24를 1인 등록자≠2인 승인자(Route·결제수단 개통·Site 심사)로 확대. B2·B3 문서 docs/merchant-onboarding/ (사용자 요청), DB 명세는 Demo DB 실제 스키마 대조본"
+        },
+        {
+          "date": "2026-11-11",
+          "decision": "사용자: B3-1(구현·리뷰 조건부 PASS 반영, 명세 rev 0.8.4)과 docs/merchant-onboarding을 전체 게이트 통과 전에 '지금 전부 커밋' 선택 → main에 반영. MOPS-gate7은 Claude Code 메모리 부족 종료(시험 실패 아님)로 통과 기록 없음. B3-1은 VERIFIED/DONE 아님 — 게이트 재실행 필요. 이후 브랜치 없이 main에서 직접 작업(사용자 지시)."
+        }
       ],
-      "nextResumeAction": "B2 커밋(사용자 확인 후) → 계약 업무/서비스 흐름·시스템 구성 설명 + DB 명세·ERD 전달 → B3(개통) 착수",
+      "nextResumeAction": "Demo 중지 → 전체 게이트 재실행(B3-1 커밋 기준) → Verifier → Demo B3-1 스크린샷 → Q-MOPS-22~24 질문. 작업 브랜치는 main.",
       "gateRuns": [
         {
           "tag": "MOPS-gate1",

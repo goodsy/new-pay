@@ -306,6 +306,47 @@ export interface MerchantSearchPage {
   nextCursor: string | null
 }
 
+/** Site 적용 확인 한 건(MERCHANT-OPS-002 B3-1 — 개통 승인 때 PRIMARY에 함께 기록, D-MD-016). */
+export interface SiteConfirmation {
+  confirmationId: string
+  merchantSiteId: string
+  paymentMethod: string
+  activationId: string
+  confirmedAt: string
+  revoked: boolean
+}
+
+/** B3-1 1인 결제수단 개통 등록(OPERATOR — UNDER_REVIEW로 남는다, 성공 reference `act_…`). */
+export interface PaymentMethodActivationInput {
+  submissionId: string
+  merchantAccountId: string
+  paymentMethod: 'CARD'
+}
+
+/** B3-1 1인 Site 심사 거절(OPERATOR — 되돌릴 수 없음, 재신청은 새 Site. 사유 코드 C-37, 근거 참조 선택). 성공 reference `site_…#n`. */
+export interface SiteReviewRejectionInput {
+  submissionId: string
+  merchantSiteId: string
+  reasonCode: string
+  evidenceRef?: string
+}
+
+/** B3-1 2인 결제수단 개통 승인 요청(근거 = 기관(카드사/VAN) 회신 참조 필수). */
+export interface MerchantActivationApprovalInput {
+  merchantId: string
+  merchantAccountId: string
+  activationId: string
+  evidenceRef: string
+}
+
+/** B3-1 2인 Site 심사 승인 요청(근거 = PG 심사 근거 필수, 사유 REVIEW_PASSED). */
+export interface MerchantSiteReviewApprovalInput {
+  merchantId: string
+  merchantSiteId: string
+  reasonCode: 'REVIEW_PASSED'
+  evidenceRef: string
+}
+
 /** 상세(§3.2 — 한 번의 일관 읽기). 카드 Route는 인수사 코드·Route 참조·상태 등만(기관 가맹점 번호 없음 — D-MS2-005). 시각은 UTC ISO. */
 export interface MerchantDetail {
   merchant: { merchantId: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
@@ -316,6 +357,8 @@ export interface MerchantDetail {
     channelIdentifier: string
     lifecycle: string
     review: { decision: string; decidedAt: string } | null
+    /** Site 등록자(MERCHANT-OPS-002 B3-1 — `merchant_site.created_by`, 표시용 — Q-MOPS-24 답 전 검사 없음). B3-1 전 서버 응답에는 없다. */
+    registeredBy?: string
   }[]
   contracts: {
     contractId: string
@@ -333,9 +376,12 @@ export interface MerchantDetail {
     issuingRevisionNo: number
     issuedAt: string
     assignments: { assignmentId: string; merchantSiteId: string; role: string; status: string; effectiveFrom: string; effectiveTo: string | null }[]
-    paymentMethods: { activationId: string; paymentMethod: string; status: string | null; registeredAt: string }[]
+    /** [registeredBy] = 개통 등록자(B3-1 — 표시용). */
+    paymentMethods: { activationId: string; paymentMethod: string; status: string | null; registeredAt: string; registeredBy?: string }[]
     currencies: { enablementId: string; currencyCode: string; effectiveFrom: string; effectiveTo: string | null; endedAt: string | null }[]
     cardRoutes: { activationId: string; paymentMethod: string; acquirerCode: string; routeRef: string; status: string; registeredAt: string }[]
+    /** Site 적용 확인(B3-1 C-43 — 근거·사유 없음). B3-1 전 서버 응답에는 없다. */
+    siteConfirmations?: SiteConfirmation[]
   }[]
   /** 한도(설정값 — Demo 값은 운영값 아님). 금액은 통화 최소 단위 정수, 무제한이면 null. */
   limits: {
@@ -698,6 +744,11 @@ export interface AdminApi {
   merchantApprovalEvidence(approvalId: string): Promise<ReacquisitionEvidence>
   /** B2-3: 첫 Default MID 발급 요청(OPERATOR → 승인함). */
   requestMerchantFirstMid(input: MerchantFirstMidInput): Promise<{ approvalId: string }>
+  /** B3-1(§9.16): 1인 개통 등록·Site 심사 거절(OPERATOR — 서버가 판정·감사), 2인 개통 승인·Site 심사 승인 요청(OPERATOR → 승인함). */
+  registerPaymentMethodActivation(input: PaymentMethodActivationInput): Promise<RegistrationOutcome>
+  rejectSiteReview(input: SiteReviewRejectionInput): Promise<RegistrationOutcome>
+  requestMerchantPaymentMethodActivation(input: MerchantActivationApprovalInput): Promise<{ approvalId: string }>
+  requestMerchantSiteReviewApproval(input: MerchantSiteReviewApprovalInput): Promise<{ approvalId: string }>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -759,5 +810,9 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     requestMerchantContractApproval: (input) => call('/api/approvals/merchant-contract-approval', 'POST', input),
     merchantApprovalEvidence: (approvalId) => call(`/api/approvals/${segment(approvalId)}/justification`),
     requestMerchantFirstMid: (input) => call('/api/approvals/merchant-first-mid', 'POST', input),
+    registerPaymentMethodActivation: (input) => call('/api/merchant-registrations/payment-method-activations', 'POST', input),
+    rejectSiteReview: (input) => call('/api/merchant-registrations/site-review-rejections', 'POST', input),
+    requestMerchantPaymentMethodActivation: (input) => call('/api/approvals/merchant-payment-method-activation', 'POST', input),
+    requestMerchantSiteReviewApproval: (input) => call('/api/approvals/merchant-site-review-approval', 'POST', input),
   }
 }

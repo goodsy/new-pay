@@ -14,6 +14,9 @@ import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT_SITE_ASSIGNMENT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE_REVIEW_DECISION
+import com.paycore.master.jooq.generated.Tables.SITE_ACTIVATION_CONFIRMATION
+import com.paycore.master.jooq.generated.Tables.SITE_ACTIVATION_CONFIRMATION_REVOCATION
+import com.paycore.master.merchant.application.provided.MerchantDetailView.SiteConfirmationDetail
 import com.paycore.master.jooq.generated.Tables.PAYMENT_METHOD_ACTIVATION
 import com.paycore.master.jooq.generated.Tables.TRANSACTION_LIMIT_POLICY
 import com.paycore.master.merchant.application.provided.AssignmentView
@@ -79,11 +82,11 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             .orderBy(MERCHANT_SITE_REVIEW_DECISION.MERCHANT_SITE_ID, MERCHANT_SITE_REVIEW_DECISION.SEQ)
             .fetch()
             .associate { it.value1() to SiteReview(it.value2(), Instant.parse(it.value3())) }
-        return dsl.select(MERCHANT_SITE.MERCHANT_SITE_ID, MERCHANT_SITE.CHANNEL_TYPE, MERCHANT_SITE.CHANNEL_IDENTIFIER, MERCHANT_SITE.LIFECYCLE)
+        return dsl.select(MERCHANT_SITE.MERCHANT_SITE_ID, MERCHANT_SITE.CHANNEL_TYPE, MERCHANT_SITE.CHANNEL_IDENTIFIER, MERCHANT_SITE.LIFECYCLE, MERCHANT_SITE.CREATED_BY)
             .from(MERCHANT_SITE)
             .where(MERCHANT_SITE.MERCHANT_ID.eq(merchantId))
             .orderBy(MERCHANT_SITE.MERCHANT_SITE_ID)
-            .fetch { SiteDetail(it.value1(), it.value2(), it.value3(), it.value4(), latestReview[it.value1()]) }
+            .fetch { SiteDetail(it.value1(), it.value2(), it.value3(), it.value4(), latestReview[it.value1()], registeredBy = it.value5()) }
     }
 
     private fun contracts(merchantId: String): List<ContractDetail> {
@@ -145,14 +148,14 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             .groupBy({ it.value1() }) { AssignmentView(it.value2(), it.value3(), it.value4(), it.value5(), Instant.parse(it.value6()), it.value7()?.let(Instant::parse)) }
         val methods = dsl.select(
             PAYMENT_METHOD_ACTIVATION.MERCHANT_ACCOUNT_ID, PAYMENT_METHOD_ACTIVATION.ACTIVATION_ID, PAYMENT_METHOD_ACTIVATION.PAYMENT_METHOD,
-            PAYMENT_METHOD_ACTIVATION.STATUS, MasterSqlText.instant(PAYMENT_METHOD_ACTIVATION.REGISTERED_AT),
+            PAYMENT_METHOD_ACTIVATION.STATUS, MasterSqlText.instant(PAYMENT_METHOD_ACTIVATION.REGISTERED_AT), PAYMENT_METHOD_ACTIVATION.REGISTERED_BY,
         )
             .from(PAYMENT_METHOD_ACTIVATION)
             .join(MERCHANT_ACCOUNT).on(MERCHANT_ACCOUNT.MERCHANT_ACCOUNT_ID.eq(PAYMENT_METHOD_ACTIVATION.MERCHANT_ACCOUNT_ID))
             .where(MERCHANT_ACCOUNT.MERCHANT_ID.eq(merchantId))
             .orderBy(PAYMENT_METHOD_ACTIVATION.PAYMENT_METHOD, PAYMENT_METHOD_ACTIVATION.ACTIVATION_ID)
             .fetch()
-            .groupBy({ it.value1() }) { PaymentMethodDetail(it.value2(), it.value3(), it.value4(), Instant.parse(it.value5())) }
+            .groupBy({ it.value1() }) { PaymentMethodDetail(it.value2(), it.value3(), it.value4(), Instant.parse(it.value5()), registeredBy = it.value6()) }
         val currencies = dsl.select(
             CURRENCY_ENABLEMENT.MERCHANT_ACCOUNT_ID, CURRENCY_ENABLEMENT.ENABLEMENT_ID, CURRENCY_ENABLEMENT.CURRENCY_CODE,
             MasterSqlText.instant(CURRENCY_ENABLEMENT.EFFECTIVE_FROM), MasterSqlText.instant(CURRENCY_ENABLEMENT.EFFECTIVE_TO), MasterSqlText.instant(CURRENCY_ENABLEMENT.ENDED_AT),
@@ -165,6 +168,18 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             .groupBy({ it.value1() }) {
                 CurrencyDetail(it.value2(), it.value3(), Instant.parse(it.value4()), it.value5()?.let(Instant::parse), it.value6()?.let(Instant::parse))
             }
+        // MERCHANT-OPS-002 B3-1(C-43): Site 적용 확인 — evidence_ref·철회 reason/evidence_ref는 SELECT하지 않는다(철회 여부만 LEFT JOIN 존재로).
+        val confirmations = dsl.select(
+            SITE_ACTIVATION_CONFIRMATION.MERCHANT_ACCOUNT_ID, SITE_ACTIVATION_CONFIRMATION.CONFIRMATION_ID, SITE_ACTIVATION_CONFIRMATION.MERCHANT_SITE_ID,
+            SITE_ACTIVATION_CONFIRMATION.PAYMENT_METHOD, SITE_ACTIVATION_CONFIRMATION.ACTIVATION_ID, MasterSqlText.instant(SITE_ACTIVATION_CONFIRMATION.CONFIRMED_AT),
+            SITE_ACTIVATION_CONFIRMATION_REVOCATION.CONFIRMATION_ID,
+        )
+            .from(SITE_ACTIVATION_CONFIRMATION)
+            .leftJoin(SITE_ACTIVATION_CONFIRMATION_REVOCATION).on(SITE_ACTIVATION_CONFIRMATION_REVOCATION.CONFIRMATION_ID.eq(SITE_ACTIVATION_CONFIRMATION.CONFIRMATION_ID))
+            .where(SITE_ACTIVATION_CONFIRMATION.MERCHANT_ID.eq(merchantId))
+            .orderBy(SITE_ACTIVATION_CONFIRMATION.CONFIRMED_AT, SITE_ACTIVATION_CONFIRMATION.CONFIRMATION_ID)
+            .fetch()
+            .groupBy({ it.value1() }) { SiteConfirmationDetail(it.value2(), it.value3(), it.value4(), it.value5(), Instant.parse(it.value6()), it.value7() != null) }
         // 기관 가맹점 번호(institution_merchant_ref)는 SELECT하지 않는다(D-MS2-005).
         val routes = dsl.select(
             CARD_ROUTE_ACTIVATION.MERCHANT_ACCOUNT_ID, CARD_ROUTE_ACTIVATION.ACTIVATION_ID, CARD_ROUTE_ACTIVATION.PAYMENT_METHOD, CARD_ROUTE_ACTIVATION.ACQUIRER_CODE,
@@ -188,7 +203,7 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
                     merchantAccountId = mid, lifecycle = r.value2(), isDefault = mid == defaultAccount, issuingContractId = r.value3(),
                     issuingAgreementId = r.value4(), issuingRevisionNo = r.value5(), issuedAt = Instant.parse(r.value6()),
                     assignments = assignments[mid].orEmpty(), paymentMethods = methods[mid].orEmpty(), currencies = currencies[mid].orEmpty(),
-                    cardRoutes = routes[mid].orEmpty(),
+                    cardRoutes = routes[mid].orEmpty(), siteConfirmations = confirmations[mid].orEmpty(),
                 )
             }
     }

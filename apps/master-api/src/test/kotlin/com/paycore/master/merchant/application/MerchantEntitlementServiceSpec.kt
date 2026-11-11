@@ -8,6 +8,7 @@ import com.paycore.master.merchant.application.EntitlementCommandFixture.newEvid
 import com.paycore.master.merchant.application.EntitlementCommandFixture.reason
 import com.paycore.master.merchant.application.EntitlementCommandFixture.revisionOf
 import com.paycore.master.merchant.application.OnboardingFixture.request
+import com.paycore.master.merchant.application.OnboardingFixture.seedRequest
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.AdminCommandResult
@@ -73,8 +74,8 @@ class MerchantEntitlementServiceSpec(
             issuesOf(container, ready.merchantId).map { it.revision to it.priority } shouldBe
                 listOf(afterRegistration - 1 to "HIGH", afterRegistration to "HIGH")
 
-            succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(request(), activation, evidence)))
-            succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(request(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
+            succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), activation, evidence)))
+            succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(seedRequest(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
             val enablement = succeeded(
                 entitlement.enableCurrency(EnableCurrencyCommand(request(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence)),
             )
@@ -117,7 +118,7 @@ class MerchantEntitlementServiceSpec(
         Then("a rejected command changes nothing (no revision increment, no snapshot) and replays the stored rejection") {
             val entitled = EntitlementCommandFixture.entitled(onboarding, entitlement)
             val before = revisionOf(container, entitled.merchantId) to issuesOf(container, entitled.merchantId).size
-            val command = ApprovePaymentMethodActivationCommand(request(), entitled.activationId, newEvidence)
+            val command = ApprovePaymentMethodActivationCommand(seedRequest(), entitled.activationId, newEvidence)
             val rejected = AdminCommandResult.Rejected(MasterRejection.ACTIVATION_TRANSITION_NOT_ALLOWED, null, replayed = false)
             entitlement.approvePaymentMethodActivation(command) shouldBe rejected
             entitlement.approvePaymentMethodActivation(command) shouldBe rejected.copy(replayed = true)
@@ -221,7 +222,7 @@ class MerchantEntitlementServiceSpec(
             succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(request(), ready.siteId, SiteReviewStatus.REJECTED, reason, evidence)))
             revisionOf(container, ready.merchantId) shouldBe before + 1
             issuesOf(container, ready.merchantId) shouldBe emptyList()
-            entitlement.decideSiteReview(DecideSiteReviewCommand(request(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)) shouldBe
+            entitlement.decideSiteReview(DecideSiteReviewCommand(seedRequest(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.SITE_REVIEW_TRANSITION_NOT_ALLOWED, null, replayed = false)
         }
 

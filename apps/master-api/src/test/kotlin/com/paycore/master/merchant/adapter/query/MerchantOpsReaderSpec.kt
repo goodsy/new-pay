@@ -95,6 +95,11 @@ class MerchantOpsReaderSpec(
             account.assignments.single().role shouldBe "PRIMARY"
             account.paymentMethods.single().let { listOf(it.activationId, it.paymentMethod, it.status) } shouldBe listOf(e.activationId.value, "CARD", "ACTIVE")
             account.currencies.single().currencyCode shouldBe "KRW"
+            // MERCHANT-OPS-002 B3-1(§8.3 B3-1-7, MAJOR-1 표시용): 등록자(기존 열 — Activation registered_by, Site created_by)와 계정별 Site 적용 확인(근거·사유 없음).
+            account.paymentMethods.single().registeredBy shouldBe OnboardingFixture.operator.value
+            v.sites.single { it.merchantSiteId == e.ready.siteId.value }.registeredBy shouldBe OnboardingFixture.operator.value
+            account.siteConfirmations.single().let { listOf(it.merchantSiteId, it.paymentMethod, it.activationId, it.revoked) } shouldBe
+                listOf(e.ready.siteId.value, "CARD", e.activationId.value, false)
             account.cardRoutes.single().let { listOf(it.activationId, it.acquirerCode, it.routeRef, it.status) } shouldBe
                 listOf(r.route.value, AuthorizationTermsCommandFixture.acquirer.value, AuthorizationTermsCommandFixture.routeRef.value, "ACTIVE")
             v.limits.single().let { listOf(it.policyId, it.scopeKind, it.perTxAmount, it.dailyAmount) } shouldBe
@@ -129,7 +134,8 @@ class MerchantOpsReaderSpec(
                 recorder.recording = false
             }
             // merchant+business 1, sites 2(심사·Site), contracts 4(범위 Site·revision·CSA·계약), accounts 6(Default·연결·개통·통화·Route·MID), 한도 1
-            recorder.observations shouldBe List(14) {
+            // 기대값 변경(MERCHANT-OPS-002 B3-1 §8.3 B3-1-7): accounts에 Site 적용 확인 1문장 = 15. 모든 문장이 같은 읽기 전용 REPEATABLE READ TX라는 단언은 그대로다.
+            recorder.observations shouldBe List(15) {
                 JooqStatementRecorder.Observation(inTransaction = true, readOnly = true, isolation = Connection.TRANSACTION_REPEATABLE_READ)
             }
         }

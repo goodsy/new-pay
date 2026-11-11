@@ -28,4 +28,10 @@ enum class RegistrationKind(val auditAction: String) {
 
     /** B2-1 계약 Revision 등록(MERCHANT-OPS-002 §9.2 — 1인, C-22: targetRef = 계약 ID, 성공 detail `rev=<n>`). */
     CONTRACT_REVISION("MERCHANT_CONTRACT_REVISION_REGISTER"),
+
+    /** B3-1 결제수단 개통 등록(§9.16 — targetRef = MID). */
+    PAYMENT_METHOD_ACTIVATION("MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER"),
+
+    /** B3-1 Site 심사 거절(§9.16 — targetRef = siteId, detail `reason=<code>`, 근거 참조 값 없음). */
+    SITE_REVIEW_REJECTION("MERCHANT_SITE_REVIEW_REJECT"),
 }

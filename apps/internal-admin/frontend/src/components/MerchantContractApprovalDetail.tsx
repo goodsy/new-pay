@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { AdminApi, ApprovalView, PinnedContractApproval, ReacquisitionEvidence } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
-import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst } from '../lib/format'
 import { labelOf } from '../lib/labels'
 import { StatusBadge } from './DataBits'
@@ -72,6 +72,61 @@ export function pinnedMidOf(value: unknown): PinnedFirstMid | null {
     ? (p as PinnedFirstMid) : null
 }
 
+/** B3-1 결제수단 개통 승인 고정 대상(사업자등록번호·채널 식별값·근거 참조 없음). [registeredBy]는 표시용(Q-MOPS-24 답 전 — 등록자도 승인할 수 있다). */
+export interface PinnedActivation {
+  merchantId: string
+  merchantName: string
+  merchantAccountId: string
+  activationId: string
+  paymentMethod: string
+  status: string
+  primarySiteId: string
+  registeredBy: string
+}
+
+/** B3-1 Site 심사 승인 고정 대상(채널 식별값·근거 참조 없음). */
+export interface PinnedSiteReview {
+  merchantId: string
+  merchantName: string
+  merchantSiteId: string
+  channelType: string
+  reviewStatus: string
+  reasonCode: string
+  registeredBy: string
+}
+
+function parsed(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'string') {
+    try {
+      return parsed(JSON.parse(value))
+    } catch {
+      return null
+    }
+  }
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+}
+
+const strings = (p: Record<string, unknown> | null, keys: string[]) => p !== null && keys.every((k) => typeof p[k] === 'string')
+
+export function pinnedActivationOf(value: unknown): PinnedActivation | null {
+  const p = parsed(value)
+  return strings(p, ['merchantId', 'merchantAccountId', 'activationId', 'paymentMethod', 'status', 'primarySiteId', 'registeredBy']) ? (p as unknown as PinnedActivation) : null
+}
+
+export function pinnedSiteReviewOf(value: unknown): PinnedSiteReview | null {
+  const p = parsed(value)
+  return strings(p, ['merchantId', 'merchantSiteId', 'channelType', 'reviewStatus', 'reasonCode', 'registeredBy']) ? (p as unknown as PinnedSiteReview) : null
+}
+
+/** 종류별 제목·근거 라벨(minor-5 — 같은 형식, 다른 의미). */
+const KIND_TEXT: Readonly<Record<string, { title: string; region: string; executed: string; evidence: string }>> = {
+  MERCHANT_CONTRACT_APPROVAL: { title: '가맹점 계약 승인', region: '가맹점 계약 승인 상세', executed: '승인됨', evidence: '근거 참조' },
+  MERCHANT_FIRST_MID_ISSUANCE: { title: '첫 MID 발급', region: '첫 MID 발급 승인 상세', executed: '발급됨', evidence: '근거 참조' },
+  MERCHANT_PAYMENT_METHOD_ACTIVATION: { title: '결제수단 개통 승인', region: '결제수단 개통 승인 상세', executed: '개통됨', evidence: '기관(카드사/VAN) 회신 참조' },
+  MERCHANT_SITE_REVIEW_APPROVAL: { title: 'Site 심사 승인', region: 'Site 심사 승인 상세', executed: '심사 승인됨', evidence: 'PG 심사 근거' },
+}
+const kindText = (kind: string) => KIND_TEXT[kind] ?? KIND_TEXT.MERCHANT_CONTRACT_APPROVAL!
+
 /** 시청자가 그 Revision의 등록자인지(정규 actor `admin:<계정 ID>` 문자열 비교 — 표시만, 권위 판정은 승인 TX1·MASTER). */
 export function isRegistrant(item: ApprovalView, viewerActorId: string | undefined): boolean {
   if (item.kind !== 'MERCHANT_CONTRACT_APPROVAL' || viewerActorId === undefined) return false
@@ -89,10 +144,10 @@ function statusText(item: ApprovalView): string {
     case 'EXECUTION_UNKNOWN':
       return '결과 확인 중(자동 재확인) — 수동 종료 없음'
     case 'EXECUTED':
-      return item.kind === 'MERCHANT_FIRST_MID_ISSUANCE' ? `발급됨 — ${g?.ownerReference ?? '-'}` : `승인됨 — ${g?.ownerReference ?? '-'}`
+      return `${kindText(item.kind).executed} — ${g?.ownerReference ?? '-'}`
     case 'OWNER_REJECTED': {
       const code = g?.ownerResultCode ?? item.resultCode ?? ''
-      return `가맹점 정보 서비스가 거절했습니다: ${MERCHANT_REJECTIONS[code] ?? code ?? '-'}`
+      return `가맹점 정보 서비스가 거절했습니다: ${MERCHANT_REJECTIONS[code] ?? ACTIVATION_REJECTION_MESSAGES[code] ?? code ?? '-'}`
     }
     case 'INVALIDATED':
       return '요청 뒤 대상이 바뀌어 무효'
@@ -117,9 +172,15 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
 }) {
   const g = item.merchant
   const isMid = item.kind === 'MERCHANT_FIRST_MID_ISSUANCE'
-  const pinned = isMid ? null : pinnedContractOf(g?.pinnedTarget ?? item.targetSnapshot)
-  const mid = isMid ? pinnedMidOf(g?.pinnedTarget ?? item.targetSnapshot) : null
-  const title = isMid ? '첫 MID 발급' : '가맹점 계약 승인'
+  const isActivation = item.kind === 'MERCHANT_PAYMENT_METHOD_ACTIVATION'
+  const isSiteReview = item.kind === 'MERCHANT_SITE_REVIEW_APPROVAL'
+  const raw = g?.pinnedTarget ?? item.targetSnapshot
+  const pinned = isMid || isActivation || isSiteReview ? null : pinnedContractOf(raw)
+  const mid = isMid ? pinnedMidOf(raw) : null
+  const activation = isActivation ? pinnedActivationOf(raw) : null
+  const siteReview = isSiteReview ? pinnedSiteReviewOf(raw) : null
+  const text = kindText(item.kind)
+  const title = text.title
   const [evidence, setEvidence] = useState<ReacquisitionEvidence | null>(null)
   const [evidenceError, setEvidenceError] = useState<ConsoleErrorCode | null>(null)
   const mayAsk = viewer !== undefined && (viewer.roles.includes('APPROVER') || viewer.actorId === item.requestedBy)
@@ -139,7 +200,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
   }
 
   return (
-    <Card as="section" role="region" aria-label={isMid ? "첫 MID 발급 승인 상세" : "가맹점 계약 승인 상세"} className="gap-4 py-5">
+    <Card as="section" role="region" aria-label={text.region} className="gap-4 py-5">
       <CardHeader className="px-5">
         <h3 className="font-semibold">
           {title} <span className="font-mono text-sm">{item.approvalId}</span>
@@ -177,6 +238,30 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
             {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
           </ul>
         )}
+        {activation && (
+          <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            <li>{'가맹점: '}<span className="font-medium">{activation.merchantName}</span> <span className="font-mono text-xs">{activation.merchantId}</span></li>
+            <li>{'MID: '}<span className="font-mono text-xs">{activation.merchantAccountId}</span></li>
+            <li>{'개통: '}<span className="font-mono text-xs">{activation.activationId}</span>{` (${labelOf(activation.paymentMethod)} · 요청 시점 ${labelOf(activation.status)})`}</li>
+            <li>{'대표(PRIMARY) Site: '}<span className="font-mono text-xs">{activation.primarySiteId}</span></li>
+            <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
+            <li>{'등록자: '}<span className="font-mono text-xs">{activation.registeredBy}</span></li>
+            {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
+            {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
+          </ul>
+        )}
+        {siteReview && (
+          <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            <li>{'가맹점: '}<span className="font-medium">{siteReview.merchantName}</span> <span className="font-mono text-xs">{siteReview.merchantId}</span></li>
+            <li>{'Site: '}<span className="font-mono text-xs">{siteReview.merchantSiteId}</span>{` (${labelOf(siteReview.channelType)})`}</li>
+            <li>{`요청 시점 심사 상태: ${labelOf(siteReview.reviewStatus)}`}</li>
+            <li>{`사유: ${siteReview.reasonCode === 'REVIEW_PASSED' ? '심사 통과' : siteReview.reasonCode}`}</li>
+            <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
+            <li>{'등록자: '}<span className="font-mono text-xs">{siteReview.registeredBy}</span></li>
+            {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
+            {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
+          </ul>
+        )}
         {mayAsk && (
           <Button type="button" variant="outline" size="sm" onClick={reveal} className="self-start">
             근거 보기
@@ -185,7 +270,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         {evidenceError && <ErrorNotice>{ERROR_MESSAGES[evidenceError]}</ErrorNotice>}
         {evidence && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md border bg-muted/50 p-3 text-sm">
-            <dt className="text-muted-foreground">근거 참조</dt>
+            <dt className="text-muted-foreground">{text.evidence}</dt>
             <dd className="font-mono text-xs">{evidence.evidenceRef}</dd>
           </dl>
         )}

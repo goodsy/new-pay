@@ -141,7 +141,8 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
                     "NONE" -> read(node, MasterResponseShape.DECISION_NONE)?.let { MerchantApprovalResult.None }
                     "DECIDED" -> if (node.get("outcome")?.takeIf { it.isString }?.asString() == "SUCCEEDED") {
                         val code = node.get("operation")?.takeIf { it.isString }?.asString()
-                        code?.takeIf { c -> MerchantApprovalOperation.entries.any { it.code == c } }?.let { read(node, MasterResponseShape.decisionSucceeded(it)) }?.let {
+                        // minor-4: operation 허용 목록 밖이면 해석 불가(Unknown — fail-closed), 안이면 그 operation의 reference 문법으로 검사.
+                        code?.takeIf { it in MasterResponseShape.APPROVAL_OPERATIONS }?.let { read(node, MasterResponseShape.decisionSucceeded(it)) }?.let {
                             MerchantApprovalResult.Decided(true, it["reference"] as String, null, true, it["operation"] as String, it["approvalFingerprint"] as String, it["decidedVia"] as String)
                         }
                     } else {

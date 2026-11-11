@@ -72,7 +72,8 @@ class ArchitectureSpec : FunSpec({
         evidenceLessCallersAreOnlyTheSeed().check(classes)
         // 대조군(규칙이 빈 대상으로 통과하지 않음): seed 조정자(내부 클래스·lambda 포함)는 실제로 두 메서드를 부른다.
         callsFrom(classes, "com.paycore.master.merchant.application.DemoMerchantSeedService").filter { EVIDENCE_LESS.test(it.target) }.map { it.target.name }.toSet() shouldBe
-            setOf("approveContractRevision", "issueFirstDefaultMerchantAccount")
+            // 기대값 변경(B3-1, C-40 — D-MOPS-008 ② 적용): 근거 없는 2인 개통 승인·Site 심사 결정도 seed 전용(seed가 실제로 부른다).
+            setOf("approveContractRevision", "issueFirstDefaultMerchantAccount", "approvePaymentMethodActivation", "decideSiteReview")
     }
 
     test("MERCHANT-OPS-002 C-26 rule catches other callers (control: test fixtures that prepare data through the seed path are flagged when imported)") {
@@ -93,6 +94,18 @@ class ArchitectureSpec : FunSpec({
             .filter { it.target.owner.simpleName in setOf("MerchantOnboardingUseCase", "ApprovalDecisionUseCase") }.map { it.target.name }.toSet() shouldBe
             // 기대값 변경(B2-3): 근거 있는 첫 MID 발급 명령을 더한다(근거 없는 두 메서드는 여전히 호출하지 않는다).
             setOf("approveContractRevisionWithEvidence", "issueFirstDefaultMerchantAccountWithEvidence", "decision", "confirmDeadline")
+    }
+
+    test("MERCHANT-OPS-002 §8.3 B3-1-3: the activation controller calls only evidence commands, 1-person registrations and rejectSiteReview — no storage port or service") {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveSimpleName("MerchantActivationController")
+            .should().dependOnClassesThat().resideInAnyPackage("..application.required..", "..adapter.persistence..", "..adapter.query..", "..adapter.integration..")
+            .orShould().dependOnClassesThat().haveSimpleName("MerchantEntitlementService")
+            .orShould().dependOnClassesThat().haveSimpleName("MerchantOnboardingService")
+            .allowEmptyShould(false)
+            .check(classes)
+        callsFrom(classes, "com.paycore.master.merchant.adapter.web.admin.MerchantActivationController")
+            .filter { it.target.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantEntitlementUseCase") }.map { it.target.name }.toSet() shouldBe
+            setOf("registerPaymentMethodActivation", "rejectSiteReview", "approvePaymentMethodActivationWithEvidence", "approveSiteReviewWithEvidence")
     }
 
     test("DEMO-SEED-001 I-4·I-20: the seed coordinator uses only provided use cases and the read-only progress port") {
@@ -141,9 +154,10 @@ class ArchitectureSpec : FunSpec({
 
         /** 근거 없는 두 Use Case 메서드(D-MOPS-008 ② — Demo seed 전용). */
         val EVIDENCE_LESS: com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitCallTarget> =
-            com.tngtech.archunit.base.DescribedPredicate.describe("evidence-less approveContractRevision / issueFirstDefaultMerchantAccount") { t ->
-                t.name in setOf("approveContractRevision", "issueFirstDefaultMerchantAccount") &&
-                    t.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantOnboardingService")
+            com.tngtech.archunit.base.DescribedPredicate.describe("evidence-less 2-person use case entries (B2 two + B3-1 two)") { t ->
+                (t.name in setOf("approveContractRevision", "issueFirstDefaultMerchantAccount") && t.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantOnboardingService")) ||
+                    // B3-1(C-40): 근거 없는 개통 승인·Site 심사 결정(APPROVED는 seed 관문 — 1인 거절은 `rejectSiteReview`).
+                    (t.name in setOf("approvePaymentMethodActivation", "decideSiteReview") && t.owner.simpleName in setOf("MerchantEntitlementUseCase", "MerchantEntitlementService"))
             }
 
         /** seed 조정자와 그 내부 클래스(Kotlin lambda·inner class) 이름. */

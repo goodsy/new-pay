@@ -3,6 +3,10 @@ package com.paycore.master.merchant.application
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.AdminOperation
 import com.paycore.master.merchant.application.provided.ApprovePaymentMethodActivationCommand
+import com.paycore.master.merchant.application.provided.AdminRequest
+import com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand
+import com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand
+import com.paycore.master.merchant.application.provided.RejectSiteReviewCommand
 import com.paycore.master.merchant.application.provided.ConfirmSiteActivationCommand
 import com.paycore.master.merchant.application.provided.DecideSiteReviewCommand
 import com.paycore.master.merchant.application.provided.EnableCurrencyCommand
@@ -13,6 +17,8 @@ import com.paycore.master.merchant.application.provided.RevokeSiteActivationConf
 import com.paycore.master.merchant.application.provided.SuspendPaymentMethodActivationCommand
 import com.paycore.master.merchant.application.provided.TerminatePaymentMethodActivationCommand
 import com.paycore.master.merchant.application.required.AdminRequestStore
+import com.paycore.master.merchant.application.required.ApprovalEvidenceStore
+import com.paycore.master.merchant.application.required.DeploymentModePort
 import com.paycore.master.merchant.application.required.CurrencyEnablementRepository
 import com.paycore.master.merchant.application.required.MasterChangeLog
 import com.paycore.master.merchant.application.required.MasterClock
@@ -27,21 +33,27 @@ import com.paycore.master.merchant.application.required.SiteActivationConfirmati
 import com.paycore.master.merchant.application.required.SiteReviewStore
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.ActivationApproval
+import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ActivationTransition
 import com.paycore.master.merchant.domain.CurrencyEnablement
 import com.paycore.master.merchant.domain.CurrencyEnablementId
+import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EffectivePeriod
+import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MasterRuleViolation
 import com.paycore.master.merchant.domain.Merchant
 import com.paycore.master.merchant.domain.MerchantAccount
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethodActivation
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import com.paycore.master.merchant.domain.SiteActivationConfirmation
 import com.paycore.master.merchant.domain.SiteActivationConfirmationId
 import com.paycore.master.merchant.domain.SiteConfirmationRules
 import com.paycore.master.merchant.domain.SiteReviewRules
+import com.paycore.master.merchant.domain.SiteReviewStatus
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import java.time.temporal.ChronoUnit
@@ -72,30 +84,54 @@ class MerchantEntitlementService(
     private val confirmations: SiteActivationConfirmationRepository,
     private val currencies: CurrencyEnablementRepository,
     private val reviews: SiteReviewStore,
+    evidences: ApprovalEvidenceStore,
+    private val deploymentMode: DeploymentModePort,
 ) : MerchantEntitlementUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    private val log = LoggerFactory.getLogger(MerchantEntitlementService::class.java)
 
-    override fun approvePaymentMethodActivation(command: ApprovePaymentMethodActivationCommand): AdminCommandResult =
-        executor.execute(
+    /** 근거 없는 개통 승인 — Demo seed 경로 전용(MERCHANT-OPS-002 C-40, D-MOPS-008 ②): 행위자 정확히 `system:demo-seed` + Demo 모드. 관리 채널은 [approvePaymentMethodActivationWithEvidence]. */
+    override fun approvePaymentMethodActivation(command: ApprovePaymentMethodActivationCommand): AdminCommandResult {
+        requireDemoSeedPath(AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, command.request)
+        return executor.execute(
             AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, command.request, listOf(command.activationId.value, command.evidenceRef.value),
-        ) { work ->
-            val ctx = lockActivation(command.activationId)
-            work.lockedNow()
-            val assignments = accounts.assignmentsOf(ctx.account.id)
-            val result = ActivationApproval.approve(
-                ctx.activation.value, ctx.account, assignments, confirmations.listByActivation(ctx.activation.value.id),
-                SiteActivationConfirmationId(work.newId(SiteActivationConfirmationId.PREFIX)),
-                command.evidenceRef, work.now, command.request.actor,
-            )
-            ctx.merchant.value.recordEntitlementChange()
-            work.beginWrites()
-            val version = writeTransition(work, ctx, result.transition, "PaymentMethodActivationApproved")
-            result.primaryConfirmation?.let { recordConfirmation(work, it, ctx.merchant.value) }
-            check(version > ctx.activation.version) { "activation version advances" }
-            work.publishEntitlement(ctx.merchant.value)
-            ctx.activation.value.id.value
+        ) { work -> approveActivation(work, command.activationId, command.evidenceRef, command.request.actor, expectedPrimarySiteId = null) }
+    }
+
+    override fun approvePaymentMethodActivationWithEvidence(command: ApprovedPaymentMethodActivationApprovalCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            // C-36: Domain 기관 근거 = 승인 근거 참조. C-45: 승인자가 본 PRIMARY 고정. 행위자 = 승인자(C-17). 등록자 검사 없음(Q-MOPS-24 답 전).
+            approveActivation(work, command.activationId, command.evidence.evidenceRef, command.request.actor, command.primarySiteId)
         }
+
+    /**
+     * 개통 승인 본문(두 경로 공통): 잠금(merchant → merchant_account → activation) → `lockedNow`(근거 경로는 여기서 만료 훅) → Domain([ActivationApproval] — 전이 판정 뒤 C-45 PRIMARY 고정)
+     * → 쓰기(전이·이력·PRIMARY 확인·Snapshot). 잠금 전 `ACTIVATION_NOT_FOUND`는 만료보다 먼저 저장된다(m-4와 같은 의도된 순서).
+     */
+    private fun approveActivation(
+        work: AdminCommandExecutor.Work,
+        activationId: PaymentMethodActivationId,
+        evidence: EvidenceRef,
+        actor: ActorRef,
+        expectedPrimarySiteId: MerchantSiteId?,
+    ): String {
+        val ctx = lockActivation(activationId)
+        work.lockedNow()
+        val assignments = accounts.assignmentsOf(ctx.account.id)
+        val result = ActivationApproval.approve(
+            ctx.activation.value, ctx.account, assignments, confirmations.listByActivation(ctx.activation.value.id),
+            SiteActivationConfirmationId(work.newId(SiteActivationConfirmationId.PREFIX)),
+            evidence, work.now, actor, expectedPrimarySiteId,
+        )
+        ctx.merchant.value.recordEntitlementChange()
+        work.beginWrites()
+        val version = writeTransition(work, ctx, result.transition, "PaymentMethodActivationApproved")
+        result.primaryConfirmation?.let { recordConfirmation(work, it, ctx.merchant.value) }
+        check(version > ctx.activation.version) { "activation version advances" }
+        work.publishEntitlement(ctx.merchant.value)
+        return ctx.activation.value.id.value
+    }
 
     override fun suspendPaymentMethodActivation(command: SuspendPaymentMethodActivationCommand): AdminCommandResult =
         executor.execute(
@@ -235,33 +271,67 @@ class MerchantEntitlementService(
             locked.value.id.value
         }
 
-    override fun decideSiteReview(command: DecideSiteReviewCommand): AdminCommandResult =
-        executor.execute(
+    /**
+     * 근거 없는 Site 심사 결정. **APPROVED는 Demo seed 경로 전용**(C-40 — 2인 결정, D-MOPS-008 ②). REJECTED(1인 — 관리 채널은 [rejectSiteReview])·SUSPENDED(안전 방향 1인 — B5)는 관문 없음.
+     */
+    override fun decideSiteReview(command: DecideSiteReviewCommand): AdminCommandResult {
+        if (command.decision == SiteReviewStatus.APPROVED) requireDemoSeedPath(AdminOperation.DECIDE_SITE_REVIEW, command.request)
+        return executor.execute(
             AdminOperation.DECIDE_SITE_REVIEW, command.request,
             listOf(command.merchantSiteId.value, command.decision.name, command.reason.value, command.evidenceRef?.value),
-        ) { work ->
-            val merchantId = sites.find(command.merchantSiteId)?.merchantId ?: throw MasterRuleViolation(MasterRejection.SITE_NOT_FOUND)
-            val merchant = merchants.lock(merchantId) ?: error("site merchant must exist")
-            work.lockedNow()
-            val site = checkNotNull(sites.find(command.merchantSiteId)) { "site must exist" }
-            val decision = SiteReviewRules.decide(
-                site, reviews.history(site.id), command.decision, command.reason, command.evidenceRef, work.now, command.request.actor,
-            )
-            merchant.value.recordEntitlementChange()
-            work.beginWrites()
-            reviews.append(decision, work.requestRecordId)
-            merchants.update(merchant.value, merchant.version)
-            work.record(
-                AGG_SITE, site.id.value, decision.seq.toLong(), "MerchantSiteReviewDecided",
-                mapOf(
-                    "merchantSiteId" to site.id.value, "merchantId" to site.merchantId.value, "seq" to decision.seq,
-                    "decision" to decision.decision.name, "reason" to decision.reason.value, "evidenceRef" to decision.evidenceRef?.value,
-                    "entitlementRevision" to merchant.value.entitlementRevision,
-                ),
-            )
-            work.publishEntitlement(merchant.value)
-            "${site.id.value}#${decision.seq}"
+        ) { work -> decideReview(work, command.merchantSiteId, command.decision, command.reason, command.evidenceRef, command.request.actor) }
+    }
+
+    override fun approveSiteReviewWithEvidence(command: ApprovedSiteReviewApprovalCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            decideReview(work, command.merchantSiteId, SiteReviewStatus.APPROVED, command.reason, command.evidence.evidenceRef, command.request.actor)
         }
+
+    override fun rejectSiteReview(command: RejectSiteReviewCommand): AdminCommandResult =
+        executor.execute(
+            AdminOperation.REJECT_SITE_REVIEW, command.request, listOf(command.merchantSiteId.value, command.reason.value, command.evidenceRef?.value),
+        ) { work -> decideReview(work, command.merchantSiteId, SiteReviewStatus.REJECTED, command.reason, command.evidenceRef, command.request.actor) }
+
+    /** 심사 결정 본문(세 경로 공통): 소속 Merchant(불변)만 먼저 읽고 잠근 뒤 `lockedNow` → Domain 전이 판정 → 결정 행·이력·Snapshot. 잠금 전 `SITE_NOT_FOUND`가 만료보다 먼저. */
+    @Suppress("LongParameterList")
+    private fun decideReview(
+        work: AdminCommandExecutor.Work,
+        siteId: MerchantSiteId,
+        decisionValue: SiteReviewStatus,
+        reason: DecisionReason,
+        evidence: EvidenceRef?,
+        actor: ActorRef,
+    ): String {
+        val merchantId = sites.find(siteId)?.merchantId ?: throw MasterRuleViolation(MasterRejection.SITE_NOT_FOUND)
+        val merchant = merchants.lock(merchantId) ?: error("site merchant must exist")
+        work.lockedNow()
+        val site = checkNotNull(sites.find(siteId)) { "site must exist" }
+        val decision = SiteReviewRules.decide(site, reviews.history(site.id), decisionValue, reason, evidence, work.now, actor)
+        merchant.value.recordEntitlementChange()
+        work.beginWrites()
+        reviews.append(decision, work.requestRecordId)
+        merchants.update(merchant.value, merchant.version)
+        work.record(
+            AGG_SITE, site.id.value, decision.seq.toLong(), "MerchantSiteReviewDecided",
+            mapOf(
+                "merchantSiteId" to site.id.value, "merchantId" to site.merchantId.value, "seq" to decision.seq,
+                "decision" to decision.decision.name, "reason" to decision.reason.value, "evidenceRef" to decision.evidenceRef?.value,
+                "entitlementRevision" to merchant.value.entitlementRevision,
+            ),
+        )
+        work.publishEntitlement(merchant.value)
+        return "${site.id.value}#${decision.seq}"
+    }
+
+    /**
+     * 근거 없는 2인 메서드의 진입 관문(D-MOPS-008 ②, C-26·C-40): 행위자가 **정확히** `system:demo-seed`이고 배포 모드가 Demo일 때만. 아니면 결함으로 보고 TX를 열기 전에
+     * IllegalStateException(감사 WARN — 연산·상관 ID만). 관리 채널은 근거 있는 메서드만 부른다(ArchUnit).
+     */
+    private fun requireDemoSeedPath(operation: AdminOperation, request: AdminRequest) {
+        if (request.actor == DEMO_SEED_ACTOR && deploymentMode.isDemo()) return
+        log.warn("evidence-less command refused operation={} correlationId={} reason=NOT_DEMO_SEED_PATH", operation.code, request.correlationId)
+        throw IllegalStateException("evidence-less ${operation.code} runs only on the Demo seed path (system:demo-seed in DEMO mode, D-MOPS-008 ②)")
+    }
 
     private data class ActivationContext(
         val merchant: Versioned<Merchant>,
@@ -328,5 +398,6 @@ class MerchantEntitlementService(
         const val AGG_CONFIRMATION = "SiteActivationConfirmation"
         const val AGG_CURRENCY = "CurrencyEnablement"
         const val AGG_SITE = "MerchantSite"
+        val DEMO_SEED_ACTOR = ActorRef("system:demo-seed")
     }
 }

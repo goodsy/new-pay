@@ -44,7 +44,26 @@ internal object RegistrationInputRules {
         is RegistrationRequest.ServiceAgreement -> CONTRACT_ID.matches(request.contractId) && request.serviceKind in SERVICE_KINDS
         is RegistrationRequest.ContractRevision -> CONTRACT_ID.matches(request.contractId) && MERCHANT_ID.matches(request.scopeMerchantId) &&
             scopeSites(request.scopeSiteIds) && period(request.effectiveFromDate, request.effectiveToDate)
+        is RegistrationRequest.PaymentMethodActivation -> MERCHANT_ACCOUNT_ID.matches(request.merchantAccountId) && request.paymentMethod in PAYMENT_METHODS
+        is RegistrationRequest.SiteReviewRejection -> MERCHANT_SITE_ID.matches(request.merchantSiteId) && request.reasonCode in REJECT_REASONS &&
+            (request.evidenceRef == null || evidence(request.evidenceRef))
     }
+
+    val MERCHANT_ACCOUNT_ID = Regex("^mid_$ULID$")
+    val MERCHANT_SITE_ID = Regex("^site_$ULID$")
+
+    /** B3-1 결제수단(MASTER `PaymentMethod` — 현재 CARD 하나). */
+    private val PAYMENT_METHODS = setOf("CARD")
+
+    /** C-37 Site 심사 거절 사유 코드(Demo 목록 — 운영 사유 체계 아님, MASTER `SiteReviewReasonCodes.REJECT`와 같은 목록 복제). */
+    val REJECT_REASONS = setOf("DOCUMENT_INSUFFICIENT", "PROHIBITED_BUSINESS", "SITE_UNREACHABLE", "OTHER_POLICY")
+    private val EVIDENCE = Regex("^[A-Za-z0-9._:#/-]{1,128}$")
+
+    /** 카드 번호 모양(13~19자리, 공백·하이픈 구분 허용 — 근거 참조에 받지 않는다. approval `OperatorCancelInputRules.CARD_NUMBER`와 같은 규칙 복제, 모듈 경계). */
+    private val CARD_NUMBER = Regex("(?<!\\p{Nd})(?:\\p{Nd}[ -]?){12,18}\\p{Nd}(?!\\p{Nd})")
+
+    /** 근거 참조(§9.3 형식 — MASTER `EvidenceRef`와 같다) + 카드 번호 모양 거부. */
+    private fun evidence(value: String): Boolean = EVIDENCE.matches(value) && !CARD_NUMBER.containsMatchIn(value)
 
     /** 비면 MERCHANT Scope. 최대 [MAX_SCOPE_SITES]개, 모두 `site_` ID, 중복 없음(MASTER가 400으로 거절하는 것과 같다). */
     private fun scopeSites(ids: List<String>): Boolean = ids.size <= MAX_SCOPE_SITES && ids.toSet().size == ids.size && ids.all { SITE_ID.matches(it) }

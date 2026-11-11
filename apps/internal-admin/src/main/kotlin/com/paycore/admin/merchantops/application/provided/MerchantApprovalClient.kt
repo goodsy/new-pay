@@ -17,6 +17,12 @@ interface MerchantApprovalClient {
     /** B2-3 첫 MID 발급 대상 사실(MASTER 상세 — MID 수·Revision 승인·CSA·PRIMARY Site). 적격 판정은 호출자(advisory), 권위는 MASTER 실행 TX. */
     fun firstMidTarget(merchantId: String, contractId: String, agreementId: String, revisionNo: Int, primarySiteId: String): FirstMidTargetResult
 
+    /** B3-1 결제수단 개통 승인 대상 사실(MASTER 상세 — MID·개통 행·[now]에 열린 PRIMARY Site). 적격 판정은 호출자(advisory), 권위는 MASTER 실행 TX. */
+    fun activationTarget(merchantId: String, merchantAccountId: String, activationId: String, now: Instant): MerchantTargetResult<ActivationTarget>
+
+    /** B3-1 Site 심사 승인 대상 사실(MASTER 상세 — Site 생애·심사 상태·등록자). */
+    fun siteReviewTarget(merchantId: String, merchantSiteId: String): MerchantTargetResult<SiteReviewTarget>
+
     fun execute(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
 
     fun confirmDeadline(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
@@ -30,7 +36,50 @@ enum class MerchantApprovalOperation(val path: String, val code: String) {
 
     /** B2-3 첫 Default MID 발급(성공 reference `mid_…`). */
     ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT("first-default-merchant-accounts", "IssueFirstDefaultMerchantAccount"),
+
+    /** B3-1 결제수단 개통 승인(성공 reference = 그 `act_…`, 본문 `operation` 필드 — C-39). */
+    APPROVE_PAYMENT_METHOD_ACTIVATION("payment-method-activation-approvals", "ApprovePaymentMethodActivation"),
+
+    /** B3-1 Site 심사 승인(APPROVED 고정, 성공 reference `site_…#<seq>`). */
+    DECIDE_SITE_REVIEW("site-review-approvals", "DecideSiteReview"),
 }
+
+/** B3 승인 대상 조회 결과(MASTER 상세 한 번의 읽기). */
+sealed interface MerchantTargetResult<out T> {
+    data class Found<T>(val target: T) : MerchantTargetResult<T>
+
+    /** MASTER 404 `MERCHANT_NOT_FOUND`. */
+    data object MerchantNotFound : MerchantTargetResult<Nothing>
+
+    data class Unavailable(val reason: String) : MerchantTargetResult<Nothing>
+}
+
+/**
+ * 결제수단 개통 승인 대상 사실(B3-1 §9.16). MID가 상세에 없으면 [accountLifecycle] null, 개통 행이 없으면 [status]·[paymentMethod]·[registeredBy] null.
+ * [primarySiteId] = 조회 시각에 열린 PRIMARY Assignment의 Site(없거나 둘 이상이면 null — C-45: 승인자가 본 PRIMARY를 본문에 고정한다). [registeredBy]는 표시용(Q-MOPS-24 답 전).
+ */
+data class ActivationTarget(
+    val merchantId: String,
+    val merchantName: String,
+    val merchantAccountId: String,
+    val accountLifecycle: String?,
+    val activationId: String,
+    val paymentMethod: String?,
+    val status: String?,
+    val registeredBy: String?,
+    val primarySiteId: String?,
+)
+
+/** Site 심사 승인 대상 사실(B3-1 §9.16). Site가 없으면 [siteLifecycle] null. [reviewStatus] = 심사 결정(결정 없음 = `PENDING`). 채널 식별값 없음. */
+data class SiteReviewTarget(
+    val merchantId: String,
+    val merchantName: String,
+    val merchantSiteId: String,
+    val siteLifecycle: String?,
+    val channelType: String?,
+    val reviewStatus: String?,
+    val registeredBy: String?,
+)
 
 /**
  * 승인 명령의 MASTER 상세 기준 대상(가맹점·계약·Revision 한 줄). [registeredBy] = Revision 등록자(정규 actor — D-MOPS-008 ③). [ended] = MASTER 상세의 종료 시각이 조회 시각 이전.
@@ -160,6 +209,18 @@ interface MerchantApprovalContract {
     fun firstDefaultIssuance(
         approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantId: String, contractId: String,
         agreementId: String, revisionNo: Int, primarySiteId: String,
+    ): MerchantApprovalCommandOutput
+
+    /** B3-1: `operation` = ApprovePaymentMethodActivation, 명령 필드 activationId, primarySiteId(C-45). */
+    @Suppress("LongParameterList")
+    fun paymentMethodActivationApproval(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, activationId: String, primarySiteId: String,
+    ): MerchantApprovalCommandOutput
+
+    /** B3-1: `operation` = DecideSiteReview, 명령 필드 merchantSiteId, reasonCode(C-37 — REVIEW_PASSED). */
+    @Suppress("LongParameterList")
+    fun siteReviewApproval(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantSiteId: String, reasonCode: String,
     ): MerchantApprovalCommandOutput
 }
 

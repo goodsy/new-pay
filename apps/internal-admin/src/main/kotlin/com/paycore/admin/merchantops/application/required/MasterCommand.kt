@@ -37,4 +37,10 @@ enum class MasterCommandKind(val path: String, val fields: Set<String>, val opti
         "contract-revisions", linkedSetOf("contractId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom", "effectiveTo"),
         optional = setOf("effectiveTo"), arrays = setOf("scopeSiteIds"),
     ),
+
+    /** B3-1 결제수단 개통 등록(§9.14 — 1인, `CARD`만). 성공 reference `act_…`. */
+    REGISTER_PAYMENT_METHOD_ACTIVATION("payment-method-activations", linkedSetOf("merchantAccountId", "paymentMethod")),
+
+    /** B3-1 Site 심사 거절(§9.14 — 1인, REJECTED 고정 C-40, `decision` 필드 없음). 근거 참조 선택(없으면 키 없음). 성공 reference `site_…#<seq>`. */
+    REJECT_SITE_REVIEW("site-review-rejections", linkedSetOf("merchantSiteId", "reasonCode", "evidenceRef"), optional = setOf("evidenceRef")),
 }

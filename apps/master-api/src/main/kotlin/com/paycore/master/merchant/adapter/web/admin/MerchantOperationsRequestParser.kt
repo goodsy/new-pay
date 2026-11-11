@@ -1,5 +1,11 @@
 package com.paycore.master.merchant.adapter.web.admin
 
+import com.paycore.master.merchant.domain.PaymentMethod
+import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.EvidenceRef
+import com.paycore.master.merchant.domain.DecisionReason
+import com.paycore.master.merchant.application.provided.RejectSiteReviewCommand
+import com.paycore.master.merchant.application.provided.RegisterPaymentMethodActivationCommand
 import com.paycore.master.merchant.application.provided.AddServiceAgreementCommand
 import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminRequest
@@ -53,6 +59,8 @@ object MerchantOperationsRequestParser {
     private val CONTRACT_OPTIONAL = setOf("effectiveTo")
     private val CONTRACT_REVISION = COMMON + setOf("contractId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom")
     private val AGREEMENT = COMMON + setOf("contractId", "serviceKind")
+    private val ACTIVATION = COMMON + setOf("merchantAccountId", "paymentMethod")
+    private val SITE_REJECTION = COMMON + setOf("merchantSiteId", "reasonCode")
 
     /** SITES Scope 상한(MERCHANT-OPS-002 C-2 — Demo 값 아님, 채널 형식 상한). */
     const val MAX_SCOPE_SITES = 50
@@ -120,6 +128,27 @@ object MerchantOperationsRequestParser {
     fun serviceAgreement(body: ByteArray): AddServiceAgreementCommand? = parse(body, AGREEMENT) { fields ->
         val kind = ServiceKind.entries.single { it.name == fields.getValue("serviceKind") }
         AddServiceAgreementCommand(request(fields), ContractId(fields.getValue("contractId")), kind)
+    }
+
+    /** B3-1 1인 수단 개통 등록(§9.14 `payment-method-activations` — UNDER_REVIEW로 남는다): `merchantAccountId`, `paymentMethod`(현재 `CARD`만 — 기존 enum). */
+    fun paymentMethodActivation(body: ByteArray): RegisterPaymentMethodActivationCommand? = parse(body, ACTIVATION) { fields ->
+        val method = PaymentMethod.entries.single { it.name == fields.getValue("paymentMethod") }
+        RegisterPaymentMethodActivationCommand(request(fields), MerchantAccountId(fields.getValue("merchantAccountId")), method)
+    }
+
+    /**
+     * B3-1 1인 Site 심사 거절(§9.14 `site-review-rejections`): `merchantSiteId`, `reasonCode`(거절 사유 목록 — C-37), `evidenceRef`(선택 — 없음만, `null` 거부).
+     * **결정값 필드를 받지 않는다**(오면 모르는 key라 400 — C-40: 1인 채널로 APPROVED·SUSPENDED를 만들 수 없다).
+     */
+    fun siteReviewRejection(body: ByteArray): RejectSiteReviewCommand? = parseNode(body, SITE_REJECTION, setOf("evidenceRef")) { root ->
+        val reasonCode = text(root.get("reasonCode"))
+        require(reasonCode in SiteReviewReasonCodes.REJECT) { "reasonCode" }
+        RejectSiteReviewCommand(
+            request(COMMON.associateWith { text(root.get(it)) }),
+            MerchantSiteId(text(root.get("merchantSiteId"))),
+            DecisionReason(reasonCode),
+            root.get("evidenceRef")?.let { EvidenceRef(text(it)) },
+        )
     }
 
     private fun text(node: JsonNode?): String = requireNotNull(node).also { require(it.isString) { "type" } }.asString()

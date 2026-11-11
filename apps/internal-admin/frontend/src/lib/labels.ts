@@ -52,6 +52,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   MERCHANT_CONTRACT_REGISTER: '계약 초안 등록',
   MERCHANT_AGREEMENT_ADD: '서비스 계약 추가',
   MERCHANT_CONTRACT_REVISION_REGISTER: '계약 Revision 등록',
+  // MERCHANT-OPS-002 §9.18(B3-1 — 1인 명령)
+  MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER: '결제수단 개통 등록',
+  MERCHANT_SITE_REVIEW_REJECT: 'Site 심사 거절',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
   // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)
@@ -93,6 +96,9 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MERCHANT_CONTRACT_APPROVAL: '가맹점 계약 승인',
   // MERCHANT-OPS-002 B2-3 첫 Default MID 발급(ApprovalKind MERCHANT_FIRST_MID_ISSUANCE)
   MERCHANT_FIRST_MID_ISSUANCE: '첫 MID 발급',
+  // MERCHANT-OPS-002 B3-1 개통 승인(ApprovalKind MERCHANT_PAYMENT_METHOD_ACTIVATION·MERCHANT_SITE_REVIEW_APPROVAL)
+  MERCHANT_PAYMENT_METHOD_ACTIVATION: '결제수단 개통 승인',
+  MERCHANT_SITE_REVIEW_APPROVAL: 'Site 심사 승인',
   // 보정 취소 목적(OperatorCancelPurposeKind)
   INCIDENT_OR_RECON_CORRECTION: '사고·대사 보정',
   MERCHANT_TERMINATED_OBLIGATION: '해지 가맹점 의무 이행',

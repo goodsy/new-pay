@@ -13,6 +13,8 @@ import com.paycore.admin.approval.application.provided.JustificationResult
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
+import com.paycore.admin.approval.application.provided.RequestMerchantPaymentMethodActivation
+import com.paycore.admin.approval.application.provided.RequestMerchantSiteReviewApproval
 import com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery
 import com.paycore.admin.approval.application.provided.OwnerServiceApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestOperatorCancel
@@ -110,6 +112,36 @@ class ApprovalController(
             RequestMerchantFirstMid(
                 authentication.name, generation, body.merchantId.orEmpty(), body.contractId.orEmpty(), body.agreementId.orEmpty(), body.revisionNo ?: 0,
                 body.primarySiteId.orEmpty(), body.evidenceRef.orEmpty(), context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /** B3-1 결제수단 개통 승인 요청(MERCHANT-OPS-002 §9.16 — OPERATOR, 근거 참조 = 기관(카드사/VAN) 회신 참조 필수). 응답은 계약 승인 요청과 같은 표. */
+    @PostMapping("/merchant-payment-method-activation")
+    fun requestMerchantPaymentMethodActivation(
+        @RequestBody body: MerchantActivationApprovalBody, authentication: Authentication, request: HttpServletRequest,
+    ): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestPaymentMethodActivation(
+            RequestMerchantPaymentMethodActivation(
+                authentication.name, generation, body.merchantId.orEmpty(), body.merchantAccountId.orEmpty(), body.activationId.orEmpty(), body.evidenceRef.orEmpty(),
+                context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /** B3-1 Site 심사 승인 요청(§9.16 — OPERATOR, 근거 참조 = PG 심사 근거 필수, 사유 `REVIEW_PASSED`). 거절은 1인 화면 API(`/api/merchant-registrations/site-review-rejections`). */
+    @PostMapping("/merchant-site-review-approval")
+    fun requestMerchantSiteReviewApproval(
+        @RequestBody body: MerchantSiteReviewApprovalBody, authentication: Authentication, request: HttpServletRequest,
+    ): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestSiteReviewApproval(
+            RequestMerchantSiteReviewApproval(
+                authentication.name, generation, body.merchantId.orEmpty(), body.merchantSiteId.orEmpty(), body.reasonCode.orEmpty(), body.evidenceRef.orEmpty(),
+                context(request),
             ),
         )
         return respond(outcome, request)
@@ -275,6 +307,14 @@ class ApprovalController(
         val merchantId: String?, val contractId: String?, val agreementId: String?, val revisionNo: Long?, val primarySiteId: String?, val evidenceRef: String?,
     ) {
         override fun toString(): String = "MerchantFirstMidBody(merchantId=$merchantId, contractId=$contractId, revisionNo=$revisionNo)"
+    }
+
+    class MerchantActivationApprovalBody(val merchantId: String?, val merchantAccountId: String?, val activationId: String?, val evidenceRef: String?) {
+        override fun toString(): String = "MerchantActivationApprovalBody(merchantId=$merchantId, activationId=$activationId)"
+    }
+
+    class MerchantSiteReviewApprovalBody(val merchantId: String?, val merchantSiteId: String?, val reasonCode: String?, val evidenceRef: String?) {
+        override fun toString(): String = "MerchantSiteReviewApprovalBody(merchantId=$merchantId, merchantSiteId=$merchantSiteId)"
     }
 
     class TotpBody(val totpCode: String?) {

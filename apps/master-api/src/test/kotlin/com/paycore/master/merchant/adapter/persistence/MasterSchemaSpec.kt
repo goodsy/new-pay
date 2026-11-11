@@ -400,6 +400,16 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             )
         }
 
+        Then("MERCHANT-OPS-002 B3 V11 (§9.22, C-42): the operation CHECK accepts exactly the nine approval operations; 1-person and other operations are 3819") {
+            val allowed = listOf(
+                "ApproveContractRevision", "IssueFirstDefaultMerchantAccount", "ApprovePaymentMethodActivation", "DecideSiteReview", "EnableCurrency",
+                "ApproveCardRouteActivation", "ResumePaymentMethodActivation", "ResumeCardRouteActivation", "ConfirmSiteActivation",
+            )
+            runtime { c -> allowed.associateWith { insert(c, operation = it) } } shouldBe allowed.associateWith { null }
+            val refused = listOf("RejectSiteReview", "RegisterPaymentMethodActivation", "SuspendPaymentMethodActivation", "EndCurrencyEnablement", "decideSiteReview")
+            runtime { c -> refused.associateWith { insert(c, operation = it) } } shouldBe refused.associateWith { 3819 }
+        }
+
         Then("formats: approval id, canonical actors (no lower case), evidence reference (space, empty), fingerprint (3819); 129 characters exceed the column (1406)") {
             runtime { c ->
                 mapOf(

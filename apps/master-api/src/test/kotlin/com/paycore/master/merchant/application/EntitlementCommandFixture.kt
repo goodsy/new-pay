@@ -1,6 +1,7 @@
 package com.paycore.master.merchant.application
 
 import com.paycore.master.merchant.application.OnboardingFixture.request
+import com.paycore.master.merchant.application.OnboardingFixture.seedRequest
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.ApprovePaymentMethodActivationCommand
@@ -54,8 +55,8 @@ object EntitlementCommandFixture {
     fun entitled(onboarding: MerchantOnboardingUseCase, entitlement: MerchantEntitlementUseCase): Entitled {
         val (ready, ids) = issuedWithActivation(onboarding)
         val (mid, activation) = ids
-        succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(request(), activation, evidence)))
-        succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(request(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
+        succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), activation, evidence)))
+        succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(seedRequest(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
         succeeded(
             entitlement.enableCurrency(
                 EnableCurrencyCommand(request(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence),

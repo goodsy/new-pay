@@ -33,6 +33,11 @@ object MerchantRegistrationBodyParser {
     private val REVISION_REQUIRED = setOf("submissionId", "contractId", "scopeMerchantId", SCOPE_SITE_IDS, "effectiveFromDate")
     private val AGREEMENT = setOf("submissionId", "contractId", "serviceKind")
 
+    /** B3-1(§9.14): 개통 등록 — 문자열 필드 정확히. Site 심사 거절 — `evidenceRef` 선택(없음·`null`), **`decision` 같은 다른 필드는 해석 실패**(C-40). */
+    private val ACTIVATION = setOf("submissionId", "merchantAccountId", "paymentMethod")
+    private val SITE_REJECTION_REQUIRED = setOf("submissionId", "merchantSiteId", "reasonCode")
+    private const val EVIDENCE_REF = "evidenceRef"
+
     private val strict: JsonMapper = JsonMapper.builder()
         .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -63,6 +68,10 @@ object MerchantRegistrationBodyParser {
             RegistrationKind.MERCHANT_SITE -> text(root, FIELDS.getValue(kind))?.let {
                 RegistrationRequest.MerchantSite(it.getValue("submissionId"), it.getValue("merchantId"), it.getValue("channelType"), it.getValue("channelIdentifier"))
             }
+            RegistrationKind.PAYMENT_METHOD_ACTIVATION -> text(root, ACTIVATION)?.let {
+                RegistrationRequest.PaymentMethodActivation(it.getValue("submissionId"), it.getValue("merchantAccountId"), it.getValue("paymentMethod"))
+            }
+            RegistrationKind.SITE_REVIEW_REJECTION -> siteRejection(root)
         }
         // 해석 실패: 등록번호 시도 여부는 사업자 등록만(감사 brn=INVALID 판정용 — 본문 값은 넘기지 않는다).
         return request?.let { Parsed.Request(it) } ?: Parsed.Malformed(kind == RegistrationKind.BUSINESS && MerchantSearchBodyParser.namesRegistrationNumber(body))
@@ -83,6 +92,19 @@ object MerchantRegistrationBodyParser {
         val to = root.get(EFFECTIVE_TO)
         if (to != null && !to.isNull && !to.isString) return null
         return Triple(textNames.associateWith { root.get(it).asString() }, (0 until sites.size()).map { sites.get(it).asString() }, to?.takeIf { it.isString }?.asString())
+    }
+
+    /** Site 심사 거절: 필수 문자열 3개 + 선택 문자열 `evidenceRef`(없음 또는 `null`). 그 밖 key(`decision` 포함)·자료형은 해석 실패. */
+    private fun siteRejection(root: JsonNode?): RegistrationRequest? {
+        if (root == null || !root.isObject) return null
+        val names = root.propertyNames().toSet()
+        if (!names.containsAll(SITE_REJECTION_REQUIRED) || !(SITE_REJECTION_REQUIRED + EVIDENCE_REF).containsAll(names)) return null
+        if (SITE_REJECTION_REQUIRED.any { !root.get(it).isString }) return null
+        val evidence = root.get(EVIDENCE_REF)
+        if (evidence != null && !evidence.isNull && !evidence.isString) return null
+        return RegistrationRequest.SiteReviewRejection(
+            root.get("submissionId").asString(), root.get("merchantSiteId").asString(), root.get("reasonCode").asString(), evidence?.takeIf { it.isString }?.asString(),
+        )
     }
 
     /** 필드 집합이 정확히 [names]이고 값이 모두 JSON 문자열이면 이름 → 값, 아니면 null. */

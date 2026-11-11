@@ -25,6 +25,8 @@ data class MerchantDetailView(
         val channelIdentifier: String,
         val lifecycle: String,
         val review: SiteReview?,
+        /** MERCHANT-OPS-002 B3-1(MAJOR-1 — 표시용): Site 등록자 = 기존 `merchant_site.created_by`(정규 actor 문자열). */
+        val registeredBy: String,
     )
 
     data class SiteReview(val decision: String, val decidedAt: Instant)
@@ -56,9 +58,21 @@ data class MerchantDetailView(
         val paymentMethods: List<PaymentMethodDetail>,
         val currencies: List<CurrencyDetail>,
         val cardRoutes: List<CardRouteDetail>,
+        val siteConfirmations: List<SiteConfirmationDetail>,
     )
 
-    data class PaymentMethodDetail(val activationId: String, val paymentMethod: String, val status: String?, val registeredAt: Instant)
+    /** [registeredBy]: 개통 등록자(기존 `payment_method_activation.registered_by` — MERCHANT-OPS-002 B3-1 표시용). 근거 참조는 없다. */
+    data class PaymentMethodDetail(val activationId: String, val paymentMethod: String, val status: String?, val registeredAt: Instant, val registeredBy: String)
+
+    /** Site 적용 확인(D-MD-016, MERCHANT-OPS-002 B3-1 C-43): 근거 참조·철회 사유는 의도적으로 없다. [revoked] = 철회 기록 있음. */
+    data class SiteConfirmationDetail(
+        val confirmationId: String,
+        val merchantSiteId: String,
+        val paymentMethod: String,
+        val activationId: String,
+        val confirmedAt: Instant,
+        val revoked: Boolean,
+    )
 
     data class CurrencyDetail(val enablementId: String, val currencyCode: String, val effectiveFrom: Instant, val effectiveTo: Instant?, val endedAt: Instant?)
 

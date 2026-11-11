@@ -116,9 +116,14 @@ class MerchantOpsApiSpec(
                 "POST" to "/internal/v1/admin/merchant-operations/approval-deadline-confirmations",
                 // 기대값 변경(B2-3, 명세 §8.2 B2-3-1): 첫 Default MID 발급 실행 = 13(401 검사 대상).
                 "POST" to "/internal/v1/admin/merchant-operations/first-default-merchant-accounts",
+                // 기대값 변경(B3-1, 명세 §8.3 B3-1-6): 새 handler 4개 = 17(401 검사 대상).
+                "POST" to "/internal/v1/admin/merchant-operations/payment-method-activations",
+                "POST" to "/internal/v1/admin/merchant-operations/site-review-rejections",
+                "POST" to "/internal/v1/admin/merchant-operations/payment-method-activation-approvals",
+                "POST" to "/internal/v1/admin/merchant-operations/site-review-approvals",
             )
             // review n-c: 집합 비교는 같은 (method, path)가 두 handler에 중복 매핑돼도 하나로 합쳐 숨긴다 — 목록 크기를 따로 고정해 중복 매핑(모호한 handler)을 잡는다.
-            mapped.size shouldBe 13
+            mapped.size shouldBe 17
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {
@@ -252,6 +257,13 @@ class MerchantOpsApiSpec(
             val revision = node.get("contracts").get(0).get("revisions").get(0)
             revision.propertyNames().toList() shouldBe listOf("revisionNo", "scopeKind", "effectiveFrom", "effectiveTo", "approvedAt", "scopeSiteIds", "registeredBy")
             revision.get("registeredBy").asString() shouldBe OnboardingFixture.operator.value
+            // MERCHANT-OPS-002 B3-1(§8.3 B3-1-7): 등록자·Site 적용 확인 목록 — 근거 참조·사유 열은 SELECT하지 않는다(값이 응답에 없음).
+            node.get("sites").get(0).propertyNames().toList() shouldBe listOf("merchantSiteId", "channelType", "channelIdentifier", "lifecycle", "review", "registeredBy")
+            node.get("accounts").get(0).get("paymentMethods").get(0).propertyNames().toList() shouldBe
+                listOf("activationId", "paymentMethod", "status", "registeredAt", "registeredBy")
+            node.get("accounts").get(0).get("siteConfirmations").get(0).propertyNames().toList() shouldBe
+                listOf("confirmationId", "merchantSiteId", "paymentMethod", "activationId", "confirmedAt", "revoked")
+            text shouldNotContain com.paycore.master.merchant.application.EntitlementCommandFixture.evidence.value
             text shouldNotContain institutionRef
             text shouldNotContain "institutionMerchantRef"
             text shouldNotContain "\"detail\""

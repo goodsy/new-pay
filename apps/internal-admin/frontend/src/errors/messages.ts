@@ -57,3 +57,21 @@ export function codeOf(error: unknown): ConsoleErrorCode {
   }
   return 'SERVER_ERROR'
 }
+
+/**
+ * MASTER 개통 거절 code → 화면 문구(MERCHANT-OPS-002 §9.14 — 1인 등록·거절 응답의 `rejection`과 2인 승인의 OWNER_REJECTED 결과 code). 모르는 code는 일반 문구.
+ * 거절에는 기존 ID가 오지 않는다(C-12).
+ */
+export const ACTIVATION_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
+  ACTIVATION_DUPLICATE: '이미 개통 등록이 있습니다',
+  ACTIVATION_TRANSITION_NOT_ALLOWED: '지금 상태에서는 할 수 없습니다',
+  ACTIVATION_NOT_FOUND: '개통 등록을 찾을 수 없습니다',
+  ACTIVATION_EVIDENCE_NOT_NEW: '이전에 쓴 근거 참조입니다 — 새 근거가 필요합니다',
+  PRIMARY_SITE_MISMATCH: '승인 요청 뒤 대표(PRIMARY) Site가 바뀌었습니다 — 다시 요청하세요',
+  SITE_REVIEW_TRANSITION_NOT_ALLOWED: '지금 심사 상태에서는 할 수 없습니다(거절된 Site는 되돌릴 수 없음)',
+  SITE_NOT_FOUND: 'Site를 찾을 수 없습니다',
+  SITE_NOT_ACTIVE: '활성 상태가 아닌 Site입니다',
+  MERCHANT_ACCOUNT_NOT_FOUND: 'MID를 찾을 수 없습니다',
+  MERCHANT_ACCOUNT_NOT_ACTIVE: '활성 상태가 아닌 MID입니다',
+  APPROVAL_EXPIRED: '실행 기한이 지나 처리되지 않았습니다 — 다시 요청하세요',
+}

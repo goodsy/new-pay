@@ -36,6 +36,9 @@ enum class AdminOperation(val code: String) {
     SUSPEND_CARD_ROUTE_ACTIVATION("SuspendCardRouteActivation"),
     RESUME_CARD_ROUTE_ACTIVATION("ResumeCardRouteActivation"),
     TERMINATE_CARD_ROUTE_ACTIVATION("TerminateCardRouteActivation"),
+
+    // MERCHANT-OPS-002 B3-1(§9.14, nit-1): 1인 Site 심사 거절 — 2인 `DecideSiteReview`(APPROVED)와 멱등 범위·지표 label·이력 operation을 분리한다.
+    REJECT_SITE_REVIEW("RejectSiteReview"),
     ;
 
     companion object {

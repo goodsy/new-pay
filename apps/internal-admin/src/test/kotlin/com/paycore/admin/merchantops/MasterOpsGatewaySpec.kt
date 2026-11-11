@@ -195,6 +195,9 @@ class MasterOpsGatewaySpec : BehaviorSpec({
                     "contractId" to "ctr_01JC0000000000000000000001", "scopeMerchantId" to "mer_01JC0000000000000000000001",
                     "scopeSiteIds" to emptyList<String>(), "effectiveFrom" to "2026-11-08T15:00:00.000Z",
                 )
+                // 목록 추가(B3-1 §9.14): 1인 개통 등록·Site 심사 거절(시험 본문은 MasterApprovalGatewayB3Spec).
+                MasterCommandKind.REGISTER_PAYMENT_METHOD_ACTIVATION -> mapOf("merchantAccountId" to "mid_01JC0000000000000000000001", "paymentMethod" to "CARD")
+                MasterCommandKind.REJECT_SITE_REVIEW -> mapOf("merchantSiteId" to "site_01JC0000000000000000000001", "reasonCode" to "DOCUMENT_INSUFFICIENT")
             },
         )
         fun lastBody(path: String) = String(StubMasterOpsServer.requestsForPath(path).last().body, Charsets.UTF_8)

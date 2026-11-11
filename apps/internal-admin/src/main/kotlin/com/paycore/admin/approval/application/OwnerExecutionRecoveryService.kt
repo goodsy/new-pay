@@ -91,7 +91,7 @@ class OwnerExecutionRecoveryService(
         // ACQ-ADMIN-001 B1-A 종류 분기: 재매입은 FINANCIAL 조작 채널로 같은 단계(결정 조회 → 기한 확인 → 참여자 → 무결성 플래그 → 저장 본문 재전송).
         // MERCHANT-OPS-002 B2-2 종류 분기: 가맹점 계약 승인은 MASTER 승인 채널로 같은 순서(결정 조회 → 기한 확인 → 참여자 → 무결성 플래그 → 저장 바이트 재전송, C-18·C-28).
         val kind = transactions.execute({ false }) { repository.find(id)?.kind }
-        if (kind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL || kind == ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE) return merchants.recover(id, now)
+        if (kind?.merchantOps == true) return merchants.recover(id, now)
         if (kind == ApprovalKind.ACQ_REACQUISITION) return processAcquiring(id, now)
         val read = transactions.execute({ false }) { Triple(repository.find(id), executions.find(id), commands.find(id)) }
         val (request, execution, command) = read

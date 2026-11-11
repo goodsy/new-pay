@@ -4,7 +4,9 @@ import com.paycore.admin.approval.application.required.MerchantOpsCommandStore
 import com.paycore.admin.approval.domain.MerchantOpsCommandKind
 import com.paycore.admin.approval.domain.MerchantOpsRequestSnapshot
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
+import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
+import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -38,6 +40,8 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
             val pinned = when (kind) {
                 MerchantOpsCommandKind.CONTRACT_APPROVAL -> pinned(r.pinnedTarget)
                 MerchantOpsCommandKind.FIRST_MID_ISSUANCE -> pinnedMid(r.pinnedTarget)
+                MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION -> pinnedActivation(r.pinnedTarget)
+                MerchantOpsCommandKind.SITE_REVIEW_APPROVAL -> pinnedSiteReview(r.pinnedTarget)
             }
             MerchantOpsRequestSnapshot(r.approvalId, kind, r.merchantId, pinned, r.evidenceRef, r.createdAt)
         }
@@ -71,11 +75,33 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
         )
     }
 
+    /** B3-1 개통 승인 고정 대상(문자열 필드 8개 정확 일치). */
+    private fun pinnedActivation(text: String): PinnedActivationApprovalTarget {
+        val n = json.readTree(text)
+        check(n.isObject && n.propertyNames().toSet() == ACTIVATION_FIELDS) { "pinned_target shape (activation)" }
+        return PinnedActivationApprovalTarget(
+            merchantId = text(n, "merchantId"), merchantName = text(n, "merchantName"), merchantAccountId = text(n, "merchantAccountId"), activationId = text(n, "activationId"),
+            paymentMethod = text(n, "paymentMethod"), status = text(n, "status"), primarySiteId = text(n, "primarySiteId"), registeredBy = text(n, "registeredBy"),
+        )
+    }
+
+    /** B3-1 Site 심사 승인 고정 대상(문자열 필드 7개 정확 일치). */
+    private fun pinnedSiteReview(text: String): PinnedSiteReviewApprovalTarget {
+        val n = json.readTree(text)
+        check(n.isObject && n.propertyNames().toSet() == SITE_REVIEW_FIELDS) { "pinned_target shape (site review)" }
+        return PinnedSiteReviewApprovalTarget(
+            merchantId = text(n, "merchantId"), merchantName = text(n, "merchantName"), merchantSiteId = text(n, "merchantSiteId"), channelType = text(n, "channelType"),
+            reviewStatus = text(n, "reviewStatus"), reasonCode = text(n, "reasonCode"), registeredBy = text(n, "registeredBy"),
+        )
+    }
+
     private fun int(node: JsonNode, name: String): Int = node.required(name).also { check(it.isIntegralNumber && it.canConvertToInt()) { "pinned_target $name" } }.asInt()
 
     private fun text(node: JsonNode, name: String): String = node.required(name).also { check(it.isString) { "pinned_target $name type" } }.asString()
 
     private companion object {
+        val ACTIVATION_FIELDS = setOf("merchantId", "merchantName", "merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy")
+        val SITE_REVIEW_FIELDS = setOf("merchantId", "merchantName", "merchantSiteId", "channelType", "reviewStatus", "reasonCode", "registeredBy")
         val MID_FIELDS = setOf(
             "merchantId", "merchantName", "accountCount", "contractId", "agreementId", "revisionNo", "approved", "effectiveFrom", "effectiveTo", "primarySiteId", "channelType",
         )

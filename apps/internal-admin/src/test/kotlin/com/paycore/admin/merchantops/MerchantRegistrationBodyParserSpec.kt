@@ -84,4 +84,32 @@ class MerchantRegistrationBodyParserSpec : BehaviorSpec({
             parse(RegistrationKind.SERVICE_AGREEMENT, contract) shouldBe Parsed.Malformed(false)
         }
     }
+
+    Given("B3-1 1-person bodies (§9.14 — exact fields; site review rejection has an optional evidenceRef and no decision field, C-40)") {
+        val s = "a".repeat(32)
+        val activation = """{"submissionId":"$s","merchantAccountId":"mid_01JC0000000000000000000001","paymentMethod":"CARD"}"""
+        val rejection = """{"submissionId":"$s","merchantSiteId":"site_01JC0000000000000000000001","reasonCode":"DOCUMENT_INSUFFICIENT"}"""
+        Then("well-formed bodies come through; evidenceRef absent or null is no evidence") {
+            parse(RegistrationKind.PAYMENT_METHOD_ACTIVATION, activation).shouldBeInstanceOf<Parsed.Request>().request
+                .shouldBeInstanceOf<RegistrationRequest.PaymentMethodActivation>().let { listOf(it.merchantAccountId, it.paymentMethod) } shouldBe
+                listOf("mid_01JC0000000000000000000001", "CARD")
+            listOf(rejection, rejection.dropLast(1) + ",\"evidenceRef\":null}").forEach {
+                parse(RegistrationKind.SITE_REVIEW_REJECTION, it).shouldBeInstanceOf<Parsed.Request>().request
+                    .shouldBeInstanceOf<RegistrationRequest.SiteReviewRejection>().evidenceRef shouldBe null
+            }
+            parse(RegistrationKind.SITE_REVIEW_REJECTION, rejection.dropLast(1) + ",\"evidenceRef\":\"PG-1\"}").shouldBeInstanceOf<Parsed.Request>().request
+                .shouldBeInstanceOf<RegistrationRequest.SiteReviewRejection>().evidenceRef shouldBe "PG-1"
+        }
+        Then("a decision field (APPROVED via the 1-person channel), unknown keys, missing keys and wrong types are Malformed") {
+            listOf(
+                RegistrationKind.SITE_REVIEW_REJECTION to rejection.dropLast(1) + ",\"decision\":\"APPROVED\"}",
+                RegistrationKind.SITE_REVIEW_REJECTION to rejection.replace(",\"reasonCode\":\"DOCUMENT_INSUFFICIENT\"", ""),
+                RegistrationKind.SITE_REVIEW_REJECTION to rejection.dropLast(1) + ",\"evidenceRef\":1}",
+                RegistrationKind.SITE_REVIEW_REJECTION to activation,
+                RegistrationKind.PAYMENT_METHOD_ACTIVATION to activation.dropLast(1) + ",\"extra\":\"x\"}",
+                RegistrationKind.PAYMENT_METHOD_ACTIVATION to activation.replace("\"CARD\"", "null"),
+                RegistrationKind.PAYMENT_METHOD_ACTIVATION to rejection,
+            ).forEach { (kind, body) -> withClue(body) { parse(kind, body) shouldBe Parsed.Malformed(false) } }
+        }
+    }
 })

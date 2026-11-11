@@ -13,6 +13,8 @@ import com.paycore.admin.approval.application.provided.DecideApproval
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
+import com.paycore.admin.approval.application.provided.RequestMerchantPaymentMethodActivation
+import com.paycore.admin.approval.application.provided.RequestMerchantSiteReviewApproval
 import com.paycore.admin.approval.application.required.ApprovalEnvironment
 import com.paycore.admin.approval.application.required.ApprovalMetrics
 import com.paycore.admin.approval.application.required.ApprovalPersistenceFailure
@@ -33,12 +35,15 @@ import com.paycore.admin.approval.domain.MerchantOpsCommandKind
 import com.paycore.admin.approval.domain.MerchantOpsInputRules
 import com.paycore.admin.approval.domain.MerchantOpsRequestSnapshot
 import com.paycore.admin.approval.domain.OwnerExecution
+import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
 import com.paycore.admin.approval.domain.PinnedMerchantTarget
+import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
 import com.paycore.admin.approval.domain.ReconciliationFindingKind
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
+import com.paycore.admin.merchantops.application.provided.ActivationTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTargetResult
@@ -47,7 +52,9 @@ import com.paycore.admin.merchantops.application.provided.MerchantApprovalContra
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalPolicy
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalResult
+import com.paycore.admin.merchantops.application.provided.MerchantTargetResult
 import com.paycore.admin.merchantops.application.provided.RevisionTargetResult
+import com.paycore.admin.merchantops.application.provided.SiteReviewTarget
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
@@ -66,6 +73,11 @@ import java.time.temporal.ChronoUnit
  *   기한 뒤에도 확정할 수 없으면(NONE + 기한 확인 400·413·409) `OWNER_UNRESOLVABLE` finding 1회·경보, 자동 종결 없음.
  * 감사 target_ref = merchantId. 근거 참조·본문·MASTER 키 원문은 감사·로그·지표에 없다(키 = `mop1.<approvalId>`는 승인 ID에서 유도되지만 원문을 쓰지 않는다).
  * Kafka/Redis 없음 — 미해결 하나는 ADMIN UNIQUE, 최초 실행은 MASTER `admin_request` UNIQUE·근거 PK·업무 잠금이 지킨다.
+ *
+ * B3-1(§9.16): 결제수단 개통 승인([ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION] — `ApprovePaymentMethodActivation`, 소유 참조 = pinned `act_…`)·Site 심사 승인
+ * ([ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL] — `DecideSiteReview`, 소유 참조 `site_…#n`의 Site 부분 = pinned Site)이 같은 틀(요청 → A → TX1 → C → TX2·회복)을 쓴다.
+ * **Q-MOPS-24 미답 — 이 두 종류에는 "등록자 ≠ 승인자" 검사가 없다**(pinned `registeredBy`는 표시·pinned 비교용일 뿐 TX1이 거절 근거로 쓰지 않는다 — 계약 승인의 D-MOPS-008 ③ 검사만
+ * 그대로). 답이 권장안이면 B3-1 DONE 전에 계약 승인과 같은 위치(TOTP 전 403 `APPROVER_IS_REGISTRANT`)에 더한다(§9.16).
  */
 @Service
 class MerchantOpsApprovalService(
@@ -95,6 +107,8 @@ class MerchantOpsApprovalService(
     private fun operationOf(kind: ApprovalKind): MerchantApprovalOperation = when (kind) {
         ApprovalKind.MERCHANT_CONTRACT_APPROVAL -> MerchantApprovalOperation.APPROVE_CONTRACT_REVISION
         ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> MerchantApprovalOperation.ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT
+        ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION -> MerchantApprovalOperation.APPROVE_PAYMENT_METHOD_ACTIVATION
+        ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL -> MerchantApprovalOperation.DECIDE_SITE_REVIEW
         else -> throw IllegalArgumentException("not a merchant approval kind: $kind")
     }
 
@@ -227,21 +241,138 @@ class MerchantOpsApprovalService(
             FirstMidTargetResult.MerchantNotFound -> null
             is FirstMidTargetResult.Unavailable -> throw Unreadable()
         }
+        is PinnedActivationApprovalTarget -> when (val found = client.activationTarget(pinned.merchantId, pinned.merchantAccountId, pinned.activationId, now())) {
+            is MerchantTargetResult.Found -> if (activationIneligibility(found.target) != null) null else pinnedActivationOf(found.target) ?: throw Unreadable()
+            MerchantTargetResult.MerchantNotFound -> null
+            is MerchantTargetResult.Unavailable -> throw Unreadable()
+        }
+        is PinnedSiteReviewApprovalTarget -> when (val found = client.siteReviewTarget(pinned.merchantId, pinned.merchantSiteId)) {
+            is MerchantTargetResult.Found -> if (siteReviewIneligibility(found.target) != null) null else pinnedSiteReviewOf(found.target, pinned.reasonCode) ?: throw Unreadable()
+            MerchantTargetResult.MerchantNotFound -> null
+            is MerchantTargetResult.Unavailable -> throw Unreadable()
+        }
     }
 
     private fun sameTarget(pinned: PinnedMerchantTarget, current: PinnedMerchantTarget?): Boolean = when (pinned) {
         is PinnedContractApprovalTarget -> current is PinnedContractApprovalTarget && pinned.sameTargetAs(current)
         is PinnedFirstMidTarget -> current is PinnedFirstMidTarget && pinned.sameTargetAs(current)
+        is PinnedActivationApprovalTarget -> current is PinnedActivationApprovalTarget && pinned.sameTargetAs(current)
+        is PinnedSiteReviewApprovalTarget -> current is PinnedSiteReviewApprovalTarget && pinned.sameTargetAs(current)
     }
 
     private class Unreadable : RuntimeException(null, null, false, false)
+
+    // ------------------------------------------------------------------ request (B3-1 결제수단 개통 승인·Site 심사 승인 — §9.16)
+
+    override fun requestPaymentMethodActivation(command: RequestMerchantPaymentMethodActivation): ApprovalOutcome = observed(REQUEST, ACTIVATION_KIND) {
+        MerchantOpsInputRules.activationProblem(command.merchantId, command.merchantAccountId, command.activationId, command.evidenceRef)?.let { (field, reason) ->
+            return@observed ApprovalOutcome.Rejected(INVALID_INPUT, field, reason)
+        }
+        if (!holdsNow(command.requesterActorId, ApprovalParticipants.requesterRole(ACTIVATION_KIND))) return@observed ApprovalOutcome.Denied
+        val target = when (val found = client.activationTarget(command.merchantId, command.merchantAccountId, command.activationId, now())) {
+            is MerchantTargetResult.Found -> found.target
+            MerchantTargetResult.MerchantNotFound -> return@observed refuseKind(ACTIVATION_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(MERCHANT_NOT_FOUND), MERCHANT_NOT_FOUND)
+            is MerchantTargetResult.Unavailable -> return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        }
+        activationIneligibility(target)?.let {
+            return@observed refuseKind(ACTIVATION_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(NOT_ELIGIBLE), it)
+        }
+        val pinned = pinnedActivationOf(target) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        requestPinned(
+            ACTIVATION_KIND, MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
+            command.context,
+        )
+    }
+
+    override fun requestSiteReviewApproval(command: RequestMerchantSiteReviewApproval): ApprovalOutcome = observed(REQUEST, SITE_REVIEW_KIND) {
+        MerchantOpsInputRules.siteReviewProblem(command.merchantId, command.merchantSiteId, command.reasonCode, command.evidenceRef)?.let { (field, reason) ->
+            return@observed ApprovalOutcome.Rejected(INVALID_INPUT, field, reason)
+        }
+        if (!holdsNow(command.requesterActorId, ApprovalParticipants.requesterRole(SITE_REVIEW_KIND))) return@observed ApprovalOutcome.Denied
+        val target = when (val found = client.siteReviewTarget(command.merchantId, command.merchantSiteId)) {
+            is MerchantTargetResult.Found -> found.target
+            MerchantTargetResult.MerchantNotFound -> return@observed refuseKind(SITE_REVIEW_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(MERCHANT_NOT_FOUND), MERCHANT_NOT_FOUND)
+            is MerchantTargetResult.Unavailable -> return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        }
+        siteReviewIneligibility(target)?.let {
+            return@observed refuseKind(SITE_REVIEW_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(NOT_ELIGIBLE), it)
+        }
+        val pinned = pinnedSiteReviewOf(target, command.reasonCode) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        requestPinned(
+            SITE_REVIEW_KIND, MerchantOpsCommandKind.SITE_REVIEW_APPROVAL, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
+            command.context,
+        )
+    }
+
+    /** B3 공통 요청 TX(B2와 같은 순서 — 승인 행 INSERT(그룹 미해결 키 C-35) → 요청자 잠금·재검사 → 명령 행 INSERT(pinned·근거) → 감사). */
+    @Suppress("LongParameterList")
+    private fun requestPinned(
+        kind: ApprovalKind, commandKind: MerchantOpsCommandKind, requesterId: String, sessionGeneration: Long, merchantId: String, pinned: PinnedMerchantTarget, evidenceRef: String,
+        context: AdminRequestContext,
+    ): ApprovalOutcome = guarded(context, requesterId, merchantId, kind) {
+        transactions.execute({ false }) {
+            val now = now()
+            val request = ApprovalRequest.create(
+                environment.newApprovalId(), kind, ApprovalTarget.Merchant(merchantId), pinned.toSnapshotJson(), null, null, requesterId, snapshotName(requesterId), now,
+                environment.validity,
+            )
+            try {
+                repository.insert(request)
+            } catch (_: ApprovalPersistenceFailure.DuplicateUnresolved) {
+                throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, merchantId)
+            }
+            val requester = executor.lockParticipants(listOf(requesterId))[requesterId]
+            if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(kind))) throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, merchantId)
+            if (requester.sessionGeneration != sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
+            commands.insert(MerchantOpsRequestSnapshot(request.id, commandKind, merchantId, pinned, evidenceRef, now))
+            audit(now, requester, "APPROVAL_REQUESTED", "SUCCESS", context, request, null)
+            ApprovalOutcome.Created(request.id)
+        }
+    }
+
+    /** 개통 승인 미리 보기 부적격 사유(advisory — 권위는 MASTER 실행 TX). 순서: MID 없음·비활성 → 개통 없음·상태 → PRIMARY 없음(C-45). */
+    private fun activationIneligibility(t: ActivationTarget): String? = when {
+        t.accountLifecycle == null -> "MERCHANT_ACCOUNT_NOT_FOUND"
+        t.accountLifecycle != "ACTIVE" -> "MERCHANT_ACCOUNT_NOT_ACTIVE"
+        t.paymentMethod == null -> "ACTIVATION_NOT_FOUND"
+        t.status != "UNDER_REVIEW" -> "ACTIVATION_NOT_UNDER_REVIEW"
+        t.primarySiteId == null -> "PRIMARY_SITE_NOT_OPEN"
+        else -> null
+    }
+
+    /** Site 심사 승인 미리 보기 부적격 사유: Site 없음·비활성 → 심사 상태가 PENDING·SUSPENDED가 아님(APPROVED·REJECTED — REJECTED는 종결 D-MS-005). */
+    private fun siteReviewIneligibility(t: SiteReviewTarget): String? = when {
+        t.siteLifecycle == null -> "SITE_NOT_FOUND"
+        t.siteLifecycle != "ACTIVE" -> "SITE_NOT_ACTIVE"
+        t.reviewStatus !in SITE_REVIEW_OPEN -> "SITE_REVIEW_NOT_OPEN"
+        else -> null
+    }
+
+    private fun pinnedActivationOf(t: ActivationTarget): PinnedActivationApprovalTarget? = runCatching {
+        PinnedActivationApprovalTarget(
+            t.merchantId, t.merchantName, t.merchantAccountId, t.activationId, requireNotNull(t.paymentMethod), requireNotNull(t.status), requireNotNull(t.primarySiteId),
+            requireNotNull(t.registeredBy),
+        )
+    }.getOrNull()
+
+    private fun pinnedSiteReviewOf(t: SiteReviewTarget, reasonCode: String): PinnedSiteReviewApprovalTarget? = runCatching {
+        PinnedSiteReviewApprovalTarget(
+            t.merchantId, t.merchantName, t.merchantSiteId, requireNotNull(t.channelType), requireNotNull(t.reviewStatus), reasonCode, requireNotNull(t.registeredBy),
+        )
+    }.getOrNull()
+
+    @Suppress("LongParameterList")
+    private fun refuseKind(kind: ApprovalKind, context: AdminRequestContext, actorId: String, merchantId: String, outcome: ApprovalOutcome, reason: String): ApprovalOutcome {
+        separateAudit(context, actorId, "APPROVAL_DENIED", "DENIED", merchantId, null, "kind=${kind.name};reason=$reason")
+        return outcome
+    }
 
     // ------------------------------------------------------------------ approve
 
     fun approve(command: DecideApproval): ApprovalOutcome {
         // B2-3 리뷰 n-4: 비권위 0단계 읽기는 한 번 — 지표 종류 label과 경로 판정에 같은 값을 쓴다(권위 판정은 TX1의 잠근 행).
         val seen = transactions.execute({ false }) { repository.find(command.approvalId) }
-        return observed(APPROVE, if (seen?.kind == MID_KIND) MID_KIND else kind) { approveStep(command, seen) }
+        return observed(APPROVE, seen?.kind?.takeIf { it in KINDS } ?: kind) { approveStep(command, seen) }
     }
 
     private fun approveStep(command: DecideApproval, seen: ApprovalRequest?): ApprovalOutcome {
@@ -307,6 +438,9 @@ class MerchantOpsApprovalService(
     private fun referenceIsOwn(pinned: PinnedMerchantTarget?, reference: String): Boolean = when (pinned) {
         is PinnedContractApprovalTarget -> reference == "${pinned.contractId}#${pinned.revisionNo}"
         is PinnedFirstMidTarget -> MERCHANT_ACCOUNT_ID.matches(reference)
+        // B3-1(C-34): 개통 승인 = pinned activationId 그대로, Site 심사 승인 = `site_…#n` 문법이고 Site 부분 = pinned Site.
+        is PinnedActivationApprovalTarget -> reference == pinned.activationId
+        is PinnedSiteReviewApprovalTarget -> SITE_REVIEW_REFERENCE.matches(reference) && reference.substringBefore('#') == pinned.merchantSiteId
         null -> false
     }
 
@@ -345,10 +479,12 @@ class MerchantOpsApprovalService(
         if (snapshot.merchantId != merchantId) throw IntegrityViolation("target_ref", merchantId, request.id)
         val pinned = snapshot.pinnedTarget
         val pinnedKindMatches = (request.kind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL && pinned is PinnedContractApprovalTarget) ||
-            (request.kind == MID_KIND && pinned is PinnedFirstMidTarget)
+            (request.kind == MID_KIND && pinned is PinnedFirstMidTarget) || (request.kind == ACTIVATION_KIND && pinned is PinnedActivationApprovalTarget) ||
+            (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget)
         if (!pinnedKindMatches) throw IntegrityViolation("command_kind", merchantId, request.id)
         // D-MOPS-008 ③(C-27): Revision 등록자는 그 Revision을 승인할 수 없다 — TOTP를 쓰기 전에 거부(상태·TOTP 불변, 감사 APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT).
         // B2-3: 첫 MID 발급에는 적용하지 않는다(결정 범위가 "그 Revision을 승인" — §9.3 판정 5).
+        // B3-1: 개통·Site 심사 승인에도 적용하지 않는다 — Q-MOPS-24(등록자 ≠ 승인자) 미답, pinned registeredBy는 표시용(§9.16·§8.3 B3-1 11).
         if (pinned is PinnedContractApprovalTarget && pinned.registeredBy == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, merchantId, request.id)
         if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
             status.setRollbackOnly()
@@ -368,6 +504,12 @@ class MerchantOpsApprovalService(
                 is PinnedFirstMidTarget -> contract.firstDefaultIssuance(
                     request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantId, pinned.contractId,
                     pinned.agreementId, pinned.revisionNo, pinned.primarySiteId,
+                )
+                is PinnedActivationApprovalTarget -> contract.paymentMethodActivationApproval(
+                    request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.activationId, pinned.primarySiteId,
+                )
+                is PinnedSiteReviewApprovalTarget -> contract.siteReviewApproval(
+                    request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantSiteId, pinned.reasonCode,
                 )
             }
         } catch (_: IllegalArgumentException) {
@@ -622,7 +764,13 @@ class MerchantOpsApprovalService(
         const val MAX_CODE = 48
         const val REFERENCE_MISMATCH = "REFERENCE_MISMATCH"
         val MID_KIND = ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE
-        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE)
+        val ACTIVATION_KIND = ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION
+        val SITE_REVIEW_KIND = ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL
+        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ACTIVATION_KIND, SITE_REVIEW_KIND)
+        val SITE_REVIEW_REFERENCE = Regex("^site_[0-9A-HJKMNP-TV-Z]{26}#[1-9][0-9]{0,9}$")
+
+        /** Site 심사 승인 요청이 가능한 심사 상태(PENDING = 결정 없음, SUSPENDED → APPROVED 재개 — §9.13 해석). */
+        val SITE_REVIEW_OPEN = setOf("PENDING", "SUSPENDED")
         val MERCHANT_ACCOUNT_ID = Regex("^mid_[0-9A-HJKMNP-TV-Z]{26}\$")
         val FINDING_DETAIL = Regex("^[A-Z_]{1,48}$")
     }

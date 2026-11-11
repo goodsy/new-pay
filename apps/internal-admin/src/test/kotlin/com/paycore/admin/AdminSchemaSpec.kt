@@ -454,6 +454,89 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
             } shouldBe listOf(null, 1062, null, 3819)
         }
 
+        Then("V11 (MERCHANT-OPS-002 B3 §9.22): the seven B3 kinds take only a MERCHANT target and the owner-service states; MERCHANT takes no other kind; command kinds 3819") {
+            val b3 = listOf(
+                "MERCHANT_PAYMENT_METHOD_ACTIVATION", "MERCHANT_SITE_REVIEW_APPROVAL", "MERCHANT_CURRENCY_ENABLEMENT", "MERCHANT_CARD_ROUTE_ACTIVATION",
+                "MERCHANT_PAYMENT_METHOD_RESUME", "MERCHANT_CARD_ROUTE_RESUME", "MERCHANT_SITE_ACTIVATION_CONFIRMATION",
+            )
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                val merchantOk = b3.associateWith { c.insertMerchantApproval(id("apr_"), merchantId(), status = "EXECUTION_UNKNOWN", kind = it) }
+                val onAccount = b3.associateWith { c.insertTargeted(id("apr_"), it, "ADMIN_ACCOUNT", actor, null) }
+                val onPayment = b3.associateWith { c.insertTargeted(id("apr_"), it, "PAYMENT", null, paymentId()) }
+                val others = mapOf(
+                    "unknown merchant kind" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "MERCHANT_ROUTE_GUESS"),
+                    "acq kind on MERCHANT" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "ACQ_REACQUISITION"),
+                    "B3 kind APPROVED" to c.insertMerchantApproval(id("apr_"), merchantId(), status = "APPROVED", kind = "MERCHANT_PAYMENT_METHOD_ACTIVATION"),
+                    "B3 kind with actor" to c.insertMerchantApproval(id("apr_"), merchantId(), kind = "MERCHANT_SITE_REVIEW_APPROVAL", actor = actor),
+                )
+                fun command(kind: String): Int? {
+                    val approval = id("apr_")
+                    c.insertMerchantApproval(approval, merchantId(), status = "REJECTED")
+                    return c.errorCodeOf(
+                        "INSERT INTO admin_merchant_ops_command (approval_id, command_kind, merchant_id, pinned_target, evidence_ref, created_at) " +
+                            "VALUES (?, ?, 'mer_01JCME00000000000000000001', '{}', 'VAN-REPLY/2026-0001', UTC_TIMESTAMP(3))",
+                        approval, kind,
+                    )
+                }
+                val commandKinds = listOf(
+                    "PAYMENT_METHOD_ACTIVATION", "SITE_REVIEW_APPROVAL", "CURRENCY_ENABLEMENT", "CARD_ROUTE_ACTIVATION", "PAYMENT_METHOD_RESUME", "CARD_ROUTE_RESUME",
+                    "SITE_ACTIVATION_CONFIRMATION", "CONTRACT_APPROVAL", "FIRST_MID_ISSUANCE", "SITE_REVIEW_REJECTION", "ROUTE_GUESS",
+                ).associateWith(::command)
+                listOf(merchantOk, onAccount, onPayment, others, commandKinds)
+            } shouldBe listOf(
+                b3.associateWith { null }, b3.associateWith { 3819 }, b3.associateWith { 3819 },
+                mapOf("unknown merchant kind" to 3819, "acq kind on MERCHANT" to 3819, "B3 kind APPROVED" to 3819, "B3 kind with actor" to 3819),
+                mapOf(
+                    "PAYMENT_METHOD_ACTIVATION" to null, "SITE_REVIEW_APPROVAL" to null, "CURRENCY_ENABLEMENT" to null, "CARD_ROUTE_ACTIVATION" to null, "PAYMENT_METHOD_RESUME" to null,
+                    "CARD_ROUTE_RESUME" to null, "SITE_ACTIVATION_CONFIRMATION" to null, "CONTRACT_APPROVAL" to null, "FIRST_MID_ISSUANCE" to null,
+                    "SITE_REVIEW_REJECTION" to 3819, "ROUTE_GUESS" to 3819,
+                ),
+            )
+        }
+
+        Then("V11 unresolved_key (C-35): one unresolved approval per target group per merchant — same group 1062, different groups coexist, B2 kinds keep MERCHANT:<id>") {
+            val merchant = merchantId()
+            runtime().use { c ->
+                fun key(approval: String) = c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", approval)
+                val contract = id("apr_")
+                val pm = id("apr_")
+                val site = id("apr_")
+                val currency = id("apr_")
+                val route = id("apr_")
+                val confirm = id("apr_")
+                val coexist = listOf(
+                    c.insertMerchantApproval(contract, merchant), c.insertMerchantApproval(pm, merchant, kind = "MERCHANT_PAYMENT_METHOD_ACTIVATION"),
+                    c.insertMerchantApproval(site, merchant, kind = "MERCHANT_SITE_REVIEW_APPROVAL"), c.insertMerchantApproval(currency, merchant, kind = "MERCHANT_CURRENCY_ENABLEMENT"),
+                    c.insertMerchantApproval(route, merchant, kind = "MERCHANT_CARD_ROUTE_ACTIVATION"),
+                    c.insertMerchantApproval(confirm, merchant, kind = "MERCHANT_SITE_ACTIVATION_CONFIRMATION"),
+                )
+                val sameGroup = listOf(
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_FIRST_MID_ISSUANCE"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_PAYMENT_METHOD_ACTIVATION"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_PAYMENT_METHOD_RESUME"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_SITE_REVIEW_APPROVAL"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_CARD_ROUTE_RESUME"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_SITE_ACTIVATION_CONFIRMATION"),
+                    c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_CURRENCY_ENABLEMENT"),
+                )
+                val keys = listOf(contract, pm, site, currency, route, confirm).map(::key)
+                val otherMerchant = c.insertMerchantApproval(id("apr_"), merchantId(), kind = "MERCHANT_PAYMENT_METHOD_ACTIVATION")
+                c.update("UPDATE admin_approval_request SET status = 'OWNER_REJECTED', result_code = 'APPROVAL_EXPIRED', decided_by = 'adm_x', decided_by_display_name = 'X', " +
+                    "decided_at = UTC_TIMESTAMP(3) WHERE approval_id = ?", pm)
+                val afterEnd = listOf(key(pm), c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_PAYMENT_METHOD_RESUME"))
+                listOf(coexist, sameGroup, keys, otherMerchant, afterEnd)
+            } shouldBe listOf(
+                List(6) { null }, List(7) { 1062 },
+                listOf(
+                    "MERCHANT:$merchant", "MERCHANT:PM:$merchant", "MERCHANT:SITE_REVIEW:$merchant", "MERCHANT:CURRENCY:$merchant", "MERCHANT:ROUTE:$merchant",
+                    "MERCHANT:SITE_CONFIRM:$merchant",
+                ),
+                null, listOf(null, null),
+            )
+        }
+
         Then("V5 reconciliation: the checkpoint is the single row id = 1 created by the migration (watermark 0); findings take only the 6 kinds, once per (kind, approval)") {
             root().use { c ->
                 listOf(

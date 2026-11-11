@@ -1,4 +1,4 @@
-# MERCHANT-OPS-002 가맹점 등록·개통 명령 명세 (rev 0.7.1)
+# MERCHANT-OPS-002 가맹점 등록·개통 명령 명세 (rev 0.8.4)
 
 - **rev 0.1** (2026-11-08, Implementer — 명세 초안. 코드·Gradle 실행 없음). B1(1인 등록 화면)만 상세 설계, B2~B5는 개요와 미결. 자기 완료 판정 아님(Verifier·Reviewer 별도).
 - **rev 0.2** (2026-11-08, Implementer — 사용자 결정 **D-MOPS-006**(Q-MOPS-10~15) 반영, Coordinator가 C-1~C-11 권장안 채택. 코드·Gradle 실행 없음). Q-MOPS-12는 사용자가
@@ -19,6 +19,11 @@
 - **rev 0.6.5** (2026-11-10, Implementer — B2-2 ADMIN 구현, Coordinator 지시의 작은 정정 2건 + ADMIN 가역 구현 선택 기록. 정책·기대값 변경 없음): `decided_via` NULL은 1048, `EnvironmentDeploymentMode` 위치 adapter/integration. §13 기록.
 - **rev 0.7** (2026-11-10, Implementer — **B2-3 첫 Default MID 발급 구현**(MASTER endpoint `first-default-merchant-accounts` + ADMIN 승인 종류 `MERCHANT_FIRST_MID_ISSUANCE`·화면) + B2-2 리뷰 반영(n-1 거울 값 기동 검사, n-2 성공 reference 대조, n-3 Demo 값 LIVE Gate L-16, n-4 주석) + Demo 개선(C-34). 정책 변경 없음). §13 기록.
 - **rev 0.7.1** (2026-11-10, Implementer — B2-3 리뷰(REVIEW_PASS 조건부, MAJOR 1) 반영: M-1 근거 경로 원자성 장애 주입, m-1 C-34 REFERENCE_MISMATCH 소음 감소·finding, m-2 MID 행렬, m-3 화면 선택값, NIT, Demo 화면 지적 3건. 정책 변경 없음). §13 기록.
+- **rev 0.8** (2026-11-11, Implementer — **B3 개통 상세 설계(§9.13~§9.24, 시험·수용 §8.3)**. 코드·migration·빌드·커밋 없음, 자기 완료 판정 아님). B2 커밋 `1b5538d` 기준 코드 확인.
+  B3를 Demo 단위 B3-1(수단 개통 등록 1인·승인 2인 + Site 심사 승인 2인/거절 1인) → B3-2(통화 활성화 2인) → B3-3(카드 Route 등록 1인·승인 2인) → B3-4(재개·Site 재확인 2인 — B5 뒤, C-38)로 나눈다.
+  "결제 가능" 시점(§9.19): B3-2 뒤 **결제 생성 판정**까지, **승인 시작은 B4(수수료·정산 배정·한도) 뒤**, 새 MID의 가맹점 API 호출은 Credential 경로 밖(L-17). 새 질문 후보 **Q-MOPS-22~24**(PENDING), 가역 C-35~C-44(권장안 채택 표시).
+- **rev 0.8.1** (2026-11-11, Implementer — rev 0.8 독립 리뷰 조건부 PASS 반영, Coordinator 지시. 정책 변경 없음): MAJOR-1 Q-MOPS-24를 "1인 등록자 ≠ 그 대상의 2인 승인자"(Route·결제수단 개통·Site)로 확대,
+  C-45(개통 승인 `primarySiteId` 고정), minor-2~7·nit-1·3, C-35 Coordinator 채택(1인 거절 버튼은 숨기지 않음). §13 기록.
 - **rev 0.6.2** (2026-11-10, Implementer — rev 0.6.1 재리뷰 FAIL(새 M-1·m-a~m-c·n-a~n-d) 반영, Coordinator 결정 C-31. 코드 변경 없음 — 이 rev 뒤 B2-1 구현 착수).
 - 기준: branch `feat/foundation-setup`, B1 커밋 `89c6fac`(rev 0.4까지는 HEAD `1ad6ed8` 기준). 선행: MERCHANT-OPS-001 rev 0.1(DONE — 조회 화면·ADMIN→MASTER 서명 채널), MASTER-DOMAIN-001, MASTER-SNAPSHOT-001/002, DEMO-SEED-001.
 - 표기: **사용자 결정** = `docs/DECISIONS.md`. **Q-MOPS-n** = 사용자 질문 후보(미결 — Coordinator 경유, 답 전 해당 운영 동작 구현 금지). **C-n** = Coordinator가 정할 가역 선택(권장안 표시).
@@ -32,7 +37,7 @@
 |---|---|---|---|---|
 | **B1** | 새 탭 **"가맹점 등록"** | registerBusiness·registerMerchant·registerMerchantSite·registerContract(초안, Revision 1)·addServiceAgreement | OPERATOR 1인(D-MOPS-004) | **상세 설계(§3~§8)** |
 | **B2** | 승인함 새 종류 2개 + 조회 상세 패널 버튼 | registerContractRevision(1인 — B2-1)·approveContractRevision(2인 — B2-2)·issueFirstDefaultMerchantAccount(2인 — B2-3) | 1인 + 2인(D-MOPS-004·007) | **상세 설계(§9.1~§9.11, 시험·수용 §8.2)** |
-| B3 | 상세 패널 "개통" 버튼 | 개통 등록(1인)·결제수단 개통 승인·Site 적용 확인·Site 심사 APPROVED(2인)/REJECTED(1인)·통화 활성화·카드 Route 개통 승인·재개(2인) | D-MOPS-004·007 ③ | 개요(§9.12) |
+| **B3** | 상세 패널 "개통" 영역 + 승인함 새 종류 7개 | 개통 등록(1인)·결제수단 개통 승인·Site 적용 확인·Site 심사 APPROVED(2인)/REJECTED(1인)·통화 활성화·카드 Route 개통 승인·재개(2인) | D-MOPS-004·007 ③ | **상세 설계(§9.13~§9.24, 시험·수용 §8.3)** — B3-3은 Q-MOPS-22·24, B3-2는 Q-MOPS-23 답 대기 |
 | B4 | 상세 패널 "한도·수수료" | 한도 상향 등록/교체(2인)·한도 하향(1인)·한도 종료(2인)·수수료·정산 정책 배정·배정 종료(2인) | D-MOPS-004·007 ③ | 개요 |
 | B5 | 상세 패널 "중지·종료" | 개통 중지/종료·Site 확인 철회·통화 종료 | 1인 즉시 | 개요 |
 
@@ -390,6 +395,52 @@ Fixture Monkey는 형식 조합(`apr_`·`adm_` ULID 문자열)에만. Fixture는
 5. Vitest: "첫 MID 발급 요청" 버튼 표시 조건, 선택 폼(CSA·Revision·PRIMARY Site), 승인 뒤 상세에 MID 1·Default·PRIMARY.
 6. Demo(Coordinator): §9.11 B2-3. **결제는 여전히 불가**(결제수단 개통·Site 적용 확인 등은 B3) 안내 확인.
 
+### 8.3 B3 시험·수용 기준(rev 0.8 — 배치별 Verifier 확인 항목, C-38 전달 순서 B3-1 → B3-2 → B3-3 → (B5) → B3-4)
+
+공통 증거는 §8.1·§8.2와 같다(exit code·시험 개수·0건/skip 실패·보고서·source fingerprint·시각·대조군 단언). **RED 먼저**: 각 배치 첫 커밋 전 아래 1·2번(parser·근거 경로)과 새 handler 전수 집합 단언이 실패하는 보고서를 남긴다.
+Fixture: 개통 상태는 이름 있는 Fixture(`ActivationFixtures.underReview(mid)`·`active(evidence)`·`suspended(…)`, `SiteReviewFixtures.pending/approved/suspended/rejected`, `RouteFixtures.underReview(acq, route, imr)`), 승인 근거는 §8.2 Fixture 재사용,
+기간·시각 경계는 명시 값. Fixture Monkey는 ID 형식 조합에만. 기존 시험이 근거 없는 B3 메서드를 부르는 곳은 seed 경로 행위자(`OnboardingFixture.seedRequest()`)로 **준비 경로만** 바꾼다(B2-2 선례) — 이력 actor·결과 기대값이 바뀌는 단언이 있으면 고치지 말고 보고(C-40).
+
+**B3-1 수단 개통 등록(1인)·개통 승인(2인) + Site 심사 승인(2인)/거절(1인)**
+1. MASTER parser(단위): `payment-method-activations`(1인 B1 공통 필드), `payment-method-activation-approvals`(명령 필드 `activationId`·`primarySiteId` — C-45)·`site-review-approvals`(근거 공통 9 + **`operation` 필드 = 경로의 operation** — C-39, 다르면 400), `site-review-rejections`(1인 — **`decision` 필드가 오면 400**, C-40).
+   `mop1` 독립 벡터(operation `ApprovePaymentMethodActivation`·`DecideSiteReview`, Python 계산 hex를 MASTER·ADMIN 양쪽 시험에), 명령 필드 한 글자 변경 → 다른 지문. `reasonCode` 허용 목록 밖 400(C-37).
+   **기한 확인 교차 수용 금지(minor-4)**: B3 본문의 `operation`이 다른 B3 operation이면 400, B3 본문(`operation` 있음)을 B2 모양 해석기가 받지 않고 B2 본문(`operation` 없음)을 B3 해석기가 받지 않음 — 한 본문은 정확히 한 해석기만 수용(단언).
+2. 근거 경로 Use Case(MySQL — `ApprovedCommandAtomicitySpec` 확장, 기존 단언 불변): 개통 승인 성공 시 Activation ACTIVE·PRIMARY Site 적용 확인 1행·전이 이력·권리 revision +1·Snapshot issue·이력·Outbox·`admin_request`·근거 EXECUTED 행이 **한 TX**
+   (근거 행 쓰기 직후·결과 저장 직전 장애 주입 → 전부 0, 주입 지점을 하나씩 끄는 변이 RED 기록). Domain `evidence_ref` = 승인 근거 `evidenceRef`(C-36 — 두 열 값 동일 단언). Site 심사 승인도 같은 행렬(심사 결정 행 seq +1·`site_…#n`).
+   같은 행위자 → `APPROVAL_SAME_ACTOR` 저장·업무 불변, 기한 지난 근거 + 잠금 뒤 → `APPROVAL_EXPIRED`, 잠금 전 거절(`ACTIVATION_NOT_FOUND`·`SITE_NOT_FOUND`)이 만료보다 먼저(m-4 순서 고정), 결정 조회·기한 확인이 두 operation을 처리(본문 `operation`으로 분기 — C-39).
+   불변식 n-a(승인 operation 결과 ↔ 근거 행 1:1)를 새 operation까지 단언. **C-45**: 실행 시점 열린 PRIMARY ≠ 본문 `primarySiteId`(또는 PRIMARY 없음) → `PRIMARY_SITE_MISMATCH` 저장(근거 REJECTED 행·Activation 불변).
+3. **채널 분리(C-40)**: 1인 `site-review-rejections`로는 APPROVED·SUSPENDED를 만들 수 없음(Use Case `rejectSiteReview`가 REJECTED 고정), 2인 `site-review-approvals`는 APPROVED 고정. ArchUnit: 근거 없는 `approvePaymentMethodActivation`·`decideSiteReview`·`enableCurrency`·`approveCardRouteActivation`·`confirmSiteActivation`·두 resume의 호출자는 `DemoMerchantSeedService`뿐,
+   관리 채널 컨트롤러는 근거 있는 메서드·1인 등록·`rejectSiteReview`만. Use Case 단위: 그 메서드들에 `system:other`·`admin:…`·LIVE 모드 → IllegalState·TX 없음·행 0. `DemoMerchantSeedServiceSpec`·`DemoSeedSnapshotGoldenSpec` 기대값 불변.
+4. 경합(실제 MySQL 두 연결, 3회): 같은 Activation에 다른 approvalId 둘 → 1 SUCCEEDED, 1 `ACTIVATION_TRANSITION_NOT_ALLOWED`(근거 EXECUTED 1·REJECTED 1, PRIMARY 확인 1행); 같은 가맹점의 개통 승인과 Site 심사 승인 동시 → 둘 다 성공·merchant 잠금 직렬화·revision +2·Snapshot 2건(시험 단언은 결과·revision·Snapshot 수 — `data_lock_waits` 관찰은 하지 않는다);
+   같은 MID 개통 등록 두 submissionId 동시 → 1 `act_…`, 1 `ACTIVATION_DUPLICATE`(**merchant 잠금 대기 뒤 `findOpen` 판정** — `MerchantOnboardingService.registerPaymentMethodActivation`; 생성 열 UNIQUE는 보조 방어선이라 정상 경로에서 1062를 거치지 않는다. 시험 `ActivationConcurrencySpec` ③의 단언 = 결과 집합 {SUCCEEDED, ACTIVATION_DUPLICATE}·거절 응답에 `reference` 키 없음(C-12)·Activation 1행).
+   **1인 거절과 2인 승인이 같은 Site에 동시(minor-2)** → 정확히 하나만 결정 행(seq 1), 다른 하나 `SITE_REVIEW_TRANSITION_NOT_ALLOWED`(APPROVED→REJECTED·REJECTED→APPROVED 모두 불허), 승인이 졌으면 근거 REJECTED 행.
+5. 응답 유실(실제 HTTP + MySQL): **새 handler 4개 전부**(`payment-method-activations`·`payment-method-activation-approvals`·`site-review-approvals`·`site-review-rejections` — minor-3) 각각 커밋 뒤 연결 종료 → 같은 저장 바이트 재전송 `replayed=true`, 행 각 1.
+6. `MasterSchemaSpec`(V11 — 근거 operation CHECK 9값 허용·그 밖 3819). 쓰기 handler 전수 집합 = {B2-3 집합, `payment-method-activations`, `payment-method-activation-approvals`, `site-review-approvals`, `site-review-rejections`} — 집합 갱신 근거는 이 항목(§13 rev 0.6.3 선례, 기대 완화 아님).
+7. MASTER 상세(jOOQ): 계정별 `siteConfirmations[{confirmationId, merchantSiteId, paymentMethod, activationId, confirmedAt, revoked}]` 추가, `evidence_ref`·`reason` 열은 SELECT 목록에 없음(기존 비노출 규칙 시험 확장).
+8. ADMIN: `AdminSchemaSpec`(V11 — 새 종류·대상·`command_kind` CHECK 3819, **미해결 키 C-35**: 같은 그룹 1062·다른 그룹 공존·B2 두 종류 `MERCHANT:<id>` 의미 불변), 1인 등록 서비스(OPERATOR만·감사 2행·응답 모양 `act_…`·`site_…#n`은 이 종류에만),
+   `MerchantOpsApprovalServiceSpec` 종류 행(evidenceRef 필수·미리 보기 부적격 409·pinned ≠ 현재 → INVALIDATED·MASTER 조회 실패 503·pinned `registeredBy` 표시), `MerchantOpsRecoverySpec` 종류 행(결정 조회 → 기한 확인 `operation` 본문 → 재전송 순서), `MerchantApprovalFlowHttpSpec` 종류 행(stub 응답 유실 → 같은 바이트).
+   **`MasterResponseShape`(minor-4)**: 결정 조회 응답의 `operation` 허용 목록에 B3-1 두 operation 추가, operation별 reference 문법(`ApprovePaymentMethodActivation` → `act_`, `DecideSiteReview` → `site_…#n`), 목록 밖 operation·문법 불일치는 해석 불가(Unknown — fail-closed).
+9. Vitest: 상세 "개통" 영역 버튼 표시(역할·상태별), Site 거절 확인 대화상자("되돌릴 수 없음 — 새 Site로 재신청"), 개통 점검표 "참고(권위 아님)" 표기(C-43), 승인함 종류 라벨·pinned 상세.
+10. Demo(Coordinator): §9.24 B3-1.
+11. **DONE 증거(minor-7)**: 바뀐 기존 시험 파일 목록과 파일별 바뀐 단언(준비 호출의 행위자만 seed로 바꾼 곳 vs 기대값을 바꾼 곳 — 후자는 0이어야 함), actor 단언 변경 여부(이력 `actor_ref` 단언이 있는 시험), Q-MOPS-24 답 전 **2인 승인 경로의 등록자 검사 미구현** 상태 표시(pinned·화면 표시만).
+
+**B3-2 통화 활성화(2인)** — Q-MOPS-23 답 뒤
+1. parser `currency-enablements`: `currency` = `KRW`만(C-41 — 그 밖 400, ADMIN 값 객체도 같음), `effectiveFrom`은 Q-MOPS-23 답의 형식, `effectiveTo` 선택. `mop1` 벡터(`EnableCurrency`).
+2. 원자성·근거 행·같은 행위자·만료·결정 조회·기한 확인 = B3-1 2와 같은 행렬. Domain 거절 `CURRENCY_ENABLEMENT_RETROACTIVE`(효력 시작 < 잠금 뒤 시각 — 승인 대기 중 시작 시각이 지난 경우 포함)·`CURRENCY_ENABLEMENT_OVERLAP` 저장.
+3. 경합: 같은 (MID, KRW) 다른 approvalId 둘 → 1 `cur_…`, 1 `CURRENCY_ENABLEMENT_OVERLAP`(merchant 잠금 아래 Domain 중첩 판정 — 열린 기록 생성 열 UNIQUE는 보조 방어선). 쓰기 handler 집합 + `currency-enablements`.
+4. Snapshot 내용(골든 확장): 새 MID의 통화 구간이 Snapshot에 들어가고 Outbox HIGH 1건(전파 경로 §9.19). ADMIN·Vitest 종류 행. Demo §9.24 B3-2.
+
+**B3-3 카드 Route 등록(1인)·승인(2인)** — Q-MOPS-22·24 답 뒤
+1. parser `card-route-activations`(1인 — `acquirerCode`·`routeRef` 형식 `[A-Z0-9]{1,32}`, `institutionMerchantRef` `[A-Za-z0-9._:-]{1,64}`)·`card-route-activation-approvals`(2인, `ApproveCardRouteActivation` 벡터).
+2. **비노출(D-MS2-005)**: 기관 가맹점 참조 원문이 ADMIN DB 모든 표·ADMIN 감사·로그(appender 포획)·지표·오류 응답·MASTER 로그·Outbox 통합 이벤트에 없음, MASTER는 `card_route_activation`·변경 이력 detail·Snapshot에만(기존 단언 확장). 관리 조회 표시는 Q-MOPS-22 답의 마스킹 형식.
+3. Q-MOPS-24 답이 권장안이면(B3-1 Activation·Site 행은 B3-1 DONE 전 같은 방식): 근거 경로 Route 등록자 = 승인자 → `APPROVER_IS_ROUTE_REGISTRANT`(Domain `CardRouteActivation.approveWithEvidence`, 같은 MID·MID ACTIVE 확인 뒤·상태 전이 판정 앞 — 순서 시험) + ADMIN TX1 403, seed 경로는 검사 없음(C-31과 같은 구조).
+4. 경합: 같은 (MID, CARD, 매입사) 등록 동시 → 1 `cra_…`, 1 `CARD_ROUTE_DUPLICATE`; 같은 Route 승인 둘 → 1 성공·1 `CARD_ROUTE_TRANSITION_NOT_ALLOWED`. 응답 유실·원자성 = B3-1과 같은 행렬. 쓰기 handler 집합 + 2.
+
+**B3-4 재개(수단·Route)·Site 적용 재확인(2인)** — B5 1인 중지·철회 뒤(C-38)
+1. `payment-method-activation-resumptions`·`card-route-activation-resumptions`·`site-activation-confirmations`: 근거 행렬 = B3-1 2. 재개 근거가 과거 근거와 같으면 `ACTIVATION_EVIDENCE_NOT_NEW`·`CARD_ROUTE_EVIDENCE_NOT_NEW` 저장(C-36 — 승인 근거 = 재개 기관 근거).
+   재개 시 기존 Site 확인 유지(D-MS-003 — 확인 행 추가 0). 재확인: UNDER_REVIEW 중 PRIMARY → `PRIMARY_CONFIRMED_BY_APPROVAL`, 유효 확인 있음 → `SITE_CONFIRMATION_DUPLICATE`, 열린 Assignment 없음 → `ASSIGNMENT_NOT_OPEN`.
+2. 쓰기 handler 집합 + 3. ADMIN·Vitest 종류 행. Demo §9.24 B3-4.
+
 ## 9. B2 상세 설계(rev 0.6 — D-MOPS-004·005·007·008, D-ADMIN-007, D-DEMO-001·005, C-11·C-15~C-32)
 
 ### 9.1 범위와 단계
@@ -647,7 +698,7 @@ EXECUTION_UNKNOWN 유지 + 기존 운영 대사 finding(`admin_ops_reconciliatio
 
 **B3 개통** — 2인: approvePaymentMethodActivation(근거 + PRIMARY Site 적용 확인 동반 D-MD-016), confirmSiteActivation, decideSiteReview(APPROVED), enableCurrency, approveCardRouteActivation,
 resume(결제수단·Route 재개 — D-MOPS-007 ③). 1인: 개통 등록(registerPaymentMethodActivation·registerCardRouteActivation — UNDER_REVIEW로 남음), decideSiteReview(REJECTED)(D-MOPS-007 ③).
-2인 명령은 §9.3 승인 근거 계약을 그대로 쓴다(operation CHECK·종류만 추가). 남은 미결: 카드 Route 기관 가맹점 참조(D-MS2-005 감사 전용) 입력·전송·감사 형태.
+2인 명령은 §9.3 승인 근거 계약을 그대로 쓴다(operation CHECK·종류만 추가). **rev 0.8: 상세 설계는 §9.13~§9.24**, 남은 미결은 Q-MOPS-22(기관 가맹점 참조 형태)·Q-MOPS-23(통화 효력 시작)·Q-MOPS-24(Route 등록자≠승인자).
 
 **B4 한도·수수료** — 2인: registerTransactionLimitPolicy·replace(상향), endTransactionLimitPolicy(한도 종료 — 상한 없음 = 완화), assignPolicy(FEE_SCHEDULE·정산 정책), endPolicyAssignment(D-MOPS-004·007 ③).
 1인: 한도 하향(D-MOPS-007 ③). 남은 미결: "상향/하향" 판정 기준(기존 대비 비교 — 통화·건당/일 각각, 섞인 변경의 분류). registerPolicyVersion은 전역 정책이라 이 작업 밖. 한도·요율 값은 Demo 값 — 운영값 아님.
@@ -655,7 +706,168 @@ resume(결제수단·Route 재개 — D-MOPS-007 ③). 1인: 개통 등록(regis
 **B5 안전 방향(1인 즉시)** — suspend/terminate PaymentMethodActivation·CardRouteActivation, revokeSiteActivationConfirmation, endCurrencyEnablement. (재개는 B3 2인.)
 Business·Merchant·Site·Contract·MerchantAccount **종료 메서드가 Domain에 없음**(MASTER-DOMAIN-001 §5 묶음 B, D-MD-006 — MASTER-LIFECYCLE-001 미착수) → B5에서 가맹점 단위 정지는 할 수 없다.
 
-## 10. Coordinator 결정(가역 — rev 0.2: C-1~C-11 권장안 **채택**, C-12·C-13 추가. rev 0.3: C-13 개정·C-14 추가 — 채택 권장. rev 0.5: C-15~C-26 B2 — **권장안 채택 표시**, Reviewer 확인 대상. rev 0.6: C-18 대안 채택·C-26 사용자 결정 확정·C-27~C-29 추가. rev 0.6.1: C-30. rev 0.6.2: C-31. rev 0.6.3: C-32. rev 0.6.4: C-33)
+## 9B. B3 개통 상세 설계(rev 0.8 — D-MOPS-004·005·007 ③·008, D-MD-016~018, D-MS-002·003·005, D-MS2-004·005, C-35~C-44)
+
+### 9.13 범위·하위 배치(C-38 — 전달 순서 = Demo 순서)
+
+코드 확인(B2 커밋 `1b5538d`): MASTER Use Case는 모두 있고 **근거 없는 경로**(`AdminCommandExecutor.execute`)만 있다 — `MerchantEntitlementService`·`MerchantAuthorizationTermsService`의 executor는 `ApprovalEvidenceStore` 없이 생성된다.
+Demo seed(`DemoMerchantSeedService`)가 그중 `approvePaymentMethodActivation`·`decideSiteReview(APPROVED)`·`enableCurrency`·`approveCardRouteActivation`을 행위자 `system:demo-seed`로 부른다. 따라서 B2와 같이 **근거 경로 메서드(`…WithEvidence`)를 새로 두고**, 근거 없는 2인 메서드는 seed 관문(C-26 구조)으로 묶는다(C-40).
+
+| 배치 | 명령(분류 D-MOPS-007 ③) | MASTER endpoint(`/internal/v1/admin/merchant-operations/…`) | ADMIN | 질문 |
+|---|---|---|---|---|
+| **B3-1** | registerPaymentMethodActivation(1인) · approvePaymentMethodActivation(2인, PRIMARY Site 적용 확인 동반 D-MD-016) · decideSiteReview APPROVED(2인) · decideSiteReview REJECTED(1인) | `payment-method-activations`(1인) · `payment-method-activation-approvals` · `site-review-approvals` · `site-review-rejections`(1인) | 1인 화면 API 2 · 승인 종류 2 · 상세 "개통" 영역·개통 점검표 | 착수 가능. **2인 경로 DONE은 Q-MOPS-24 답 뒤**(MAJOR-1) |
+| **B3-2** | enableCurrency(2인) | `currency-enablements` | 승인 종류 1 | **Q-MOPS-23** |
+| **B3-3** | registerCardRouteActivation(1인) · approveCardRouteActivation(2인) | `card-route-activations`(1인) · `card-route-activation-approvals` | 1인 화면 API 1 · 승인 종류 1 | **Q-MOPS-22·24** |
+| **B3-4** | resumePaymentMethodActivation · resumeCardRouteActivation · confirmSiteActivation(2인) | `payment-method-activation-resumptions` · `card-route-activation-resumptions` · `site-activation-confirmations` | 승인 종류 3 | 없음 — **B5 뒤**(C-38) |
+
+- **B3-4를 B5 뒤로 두는 이유(코드 확인)**: 재개는 SUSPENDED가, Site 재확인은 철회된 확인이 있어야 Demo에서 의미가 있다. 중지·철회는 B5(1인)다. 또 ADDITIONAL Assignment 생성 명령이 MASTER에 없다(`MerchantOnboardingUseCase` KDoc — MASTER-LIFECYCLE-001)
+  → 새 가맹점에서 `confirmSiteActivation`이 쓰이는 경우는 PRIMARY 확인 철회 뒤 재확인뿐이고(`SiteConfirmationRules.confirm` — UNDER_REVIEW 중 PRIMARY는 `PRIMARY_CONFIRMED_BY_APPROVAL`), 그 전에는 `ASSIGNMENT_NOT_OPEN`·`SITE_CONFIRMATION_DUPLICATE`만 보인다.
+- **해석(원문 아님)**: Site 심사 SUSPENDED(APPROVED → SUSPENDED)는 D-MOPS-004 "안전 방향(중지) 1인 즉시"에 해당 → **B5**(1인). SUSPENDED → APPROVED는 decideSiteReview(APPROVED)라 2인(B3-1 endpoint 그대로).
+- 제외: B4 명령(한도·정책 배정 — "승인 가능"에는 필요, §9.19), B5 명령, ADDITIONAL Assignment·추가 MID(MASTER-LIFECYCLE-001), 가맹점 API Credential 발급(MASTER-CREDENTIAL-001 — L-17), registerPolicyVersion(전역 정책).
+- Kafka/Redis 없음: 같은 근거 계약(§9.3)·MASTER merchant 행 잠금·업무 UNIQUE(열린 Activation·열린 통화 기록·열린 Route 생성 열)·`admin_request` UNIQUE가 직렬화와 1회성을 지킨다.
+
+### 9.14 MASTER endpoint(B3 — `master.merchant.adapter.web.admin`, 서명 v1·`ADMIN_SERVICE`, 쓰기 permit 공유, 응답 §3.3·C-12)
+
+**1인**(B1 공통 필드 `idempotencyKey`(`mo1.…`)·`actor`·`correlationId` — `AdminCommandExecutor.execute`):
+
+| 경로 | 명령 필드 | Use Case | 성공 reference |
+|---|---|---|---|
+| `payment-method-activations`(B3-1) | `merchantAccountId`, `paymentMethod`(`CARD`만 — 기존 enum) | `registerPaymentMethodActivation`(기존 그대로) | `act_…` |
+| `site-review-rejections`(B3-1) | `merchantSiteId`, `reasonCode`(C-37), `evidenceRef`(선택 — 형식 §9.3) — **`decision` 필드 없음**(오면 400) | **새 `rejectSiteReview`**(REJECTED 고정 — 기존 `SiteReviewRules.decide` 재사용, C-40). **operation `RejectSiteReview`**(새 `AdminOperation` — `admin_request`·지표 label·이력 operation이 2인 `DecideSiteReview`와 분리, nit-1) | `site_…#<seq>` |
+| `card-route-activations`(B3-3) | `merchantAccountId`, `paymentMethod`, `acquirerCode`, `routeRef`, `institutionMerchantRef`(Q-MOPS-22) | `registerCardRouteActivation`(기존) | `cra_…` |
+
+**2인**(§9.3 근거 공통 9필드 + **`operation`**(C-39) + 명령 필드, `executeApproved`, 키 `mop1.<approvalId>`, 행위자 = approvedBy, Domain 기관 근거 = 근거 `evidenceRef`(C-36)):
+
+| 경로 | `operation`(= AdminOperation code, `mop1` 2번째 줄) | 명령 필드(`mop1` 끝 줄 순서) | 새 Use Case(근거 경로) | 성공 reference |
+|---|---|---|---|---|
+| `payment-method-activation-approvals`(B3-1) | `ApprovePaymentMethodActivation` | `activationId`, `primarySiteId`(C-45) | `approvePaymentMethodActivationWithEvidence` | `act_…` |
+| `site-review-approvals`(B3-1) | `DecideSiteReview` | `merchantSiteId`, `reasonCode` | `approveSiteReviewWithEvidence`(APPROVED 고정) | `site_…#<seq>` |
+| `currency-enablements`(B3-2) | `EnableCurrency` | `merchantAccountId`, `currency`, `effectiveFrom`(Q-MOPS-23), `effectiveTo`(선택 — 없으면 빈 줄) | `enableCurrencyWithEvidence` | `cur_…` |
+| `card-route-activation-approvals`(B3-3) | `ApproveCardRouteActivation` | `activationId`(`cra_`) | `approveCardRouteActivationWithEvidence` | `cra_…` |
+| `payment-method-activation-resumptions`(B3-4) | `ResumePaymentMethodActivation` | `activationId` | `resumePaymentMethodActivationWithEvidence` | `act_…` |
+| `card-route-activation-resumptions`(B3-4) | `ResumeCardRouteActivation` | `activationId`(`cra_`) | `resumeCardRouteActivationWithEvidence` | `cra_…` |
+| `site-activation-confirmations`(B3-4) | `ConfirmSiteActivation` | `merchantAccountId`, `merchantSiteId`, `paymentMethod` | `confirmSiteActivationWithEvidence` | `sac_…` |
+
+- 근거 경로 메서드는 기존 본문을 함수로 빼서 공용한다(B2-3 `issueFirstDefaultBody` 방식): 잠금 순서(**경로별 실제 코드**: 수단 개통 승인·재개 = merchant → merchant_account → payment_method_activation, Route 승인·재개 = merchant → merchant_account → card_route_activation, 통화 활성화·Site 재확인 = merchant → merchant_account, Site 심사 승인·1인 거절 = **merchant만**(Site 행은 잠그지 않고 잠금 뒤 다시 읽는다), 1인 수단 개통 등록 = merchant → merchant_account — rev 0.8.3 nit-2)·`lockedNow()`(만료 훅이 여기서 돈다 — §9.3 판정 4)·Domain 판정·`beginWrites()`·이력·Outbox·`publishEntitlement`는 그대로. 근거 행만 더해진다.
+  잠금 전 거절(`ACTIVATION_NOT_FOUND`·`CARD_ROUTE_NOT_FOUND`·`MERCHANT_ACCOUNT_NOT_FOUND`·`SITE_NOT_FOUND`)은 만료보다 먼저 저장된다(m-4와 같은 의도된 순서 — 시험 고정).
+- 두 서비스의 executor를 `ApprovalEvidenceStore`·`ApprovalWindow`와 함께 생성한다(B2 `MerchantOnboardingService`와 같음). 새 Domain 규칙은 Q-MOPS-24 답(Route 등록자)뿐 — 그 밖은 기존 Domain 판정을 바꾸지 않는다.
+- 결정 조회(`approval-decisions`)는 operation 무관(근거 행 PK)이라 변경 없음. 기한 확인(`approval-deadline-confirmations`)은 B3 본문의 `operation` 필드로 해석기를 고른다(C-39), B2 두 본문은 기존 모양 판정 그대로(불변).
+- 거절 → 화면 문구(모르는 code는 일반 문구): `ACTIVATION_DUPLICATE` "이미 개통 등록이 있습니다", `ACTIVATION_TRANSITION_NOT_ALLOWED` "지금 상태에서는 할 수 없습니다", `ACTIVATION_EVIDENCE_NOT_NEW` "이전에 쓴 근거 참조입니다 — 새 근거가 필요합니다",
+  `SITE_REVIEW_TRANSITION_NOT_ALLOWED`, `SITE_NOT_ACTIVE`, `MERCHANT_ACCOUNT_NOT_ACTIVE`, `CURRENCY_ENABLEMENT_RETROACTIVE` "효력 시작 시각이 이미 지났습니다 — 다시 요청하세요", `CURRENCY_ENABLEMENT_OVERLAP`, `CARD_ROUTE_METHOD_NOT_ACTIVATED`, `CARD_ROUTE_DUPLICATE`, `CARD_ROUTE_TRANSITION_NOT_ALLOWED`,
+  `CARD_ROUTE_EVIDENCE_NOT_NEW`, `PRIMARY_CONFIRMED_BY_APPROVAL`, `ASSIGNMENT_NOT_OPEN`, `SITE_CONFIRMATION_DUPLICATE`, 근거 5종은 §9.5 문구.
+
+### 9.15 MASTER 근거 계약 확장(§9.3 그대로 + 아래만)
+
+- `admin_approval_evidence.operation` CHECK에 B3 operation 7개 추가(V11 — §9.22). 그 밖 열·CHECK·`decided_via` 규칙·불변식 n-a 그대로. `result_reference VARCHAR(64)` ≥ 가장 긴 B3 reference(`site_` 31자 + `#` + 10자리 = 42).
+- **`operation` 본문 필드(C-39)**: B3 승인 endpoint는 본문에 `operation`을 필수로 받고 경로의 operation과 다르면 400. 이미 `mop1` 2번째 줄이므로 지문 의미는 바뀌지 않는다. 같은 필드 집합을 가진 승인·재개(`activationId` 하나)를 기한 확인이 구별할 수 있게 하는 목적이다.
+- **Domain 기관 근거 = 승인 근거(C-36)**: D-MS-003은 승인·재개에 기관 근거 참조를 요구하고, D-MOPS-008 ①은 2인 요청의 업무 근거 참조를 요구한다. B3에서는 같은 문서 참조이므로 한 입력값을 둘 다에 쓴다(형식 동일 — `EvidenceRef` `[A-Za-z0-9._:/#-]{1,128}`).
+  MASTER에서 Domain 근거는 기존대로 개통 이력·변경 이력·Outbox 참조 이벤트 payload에 남는다(D-MS-003 기존 설계 — 상세 조회 SELECT에는 없음). ADMIN에서는 B2와 같이 감사·로그·목록·상세에 없고 "근거 보기"로만.
+- **PRIMARY 고정(C-45)**: 개통 승인은 PRIMARY Site 적용 확인을 함께 기록하므로(D-MD-016) 승인자가 본 PRIMARY를 명령 필드 `primarySiteId`로 고정해 `mop1`에 넣는다. MASTER는 잠금·`lockedNow()` 뒤 열린 PRIMARY(`ActivationApproval`과 같은 판정 `isOpenAt(at)`)가 없거나 다르면 **`PRIMARY_SITE_MISMATCH`**(`MasterRejection` 끝에 추가 — `CONTRACT_MERCHANT_MISMATCH` 명명 관례)를 저장한다(근거 REJECTED 행). 근거 없는 seed 경로는 기존 그대로(필드 없음).
+- **근거 입력란 의미(minor-5)**: 수단 개통 승인·통화·Route·재개 = "기관(카드사/VAN) 회신 참조", Site 심사 = "PG 심사 근거" — 화면 라벨·승인 상세에 표시. 형식·저장 규칙은 같다(C-36 유지 — 질문 승격 안 함, Coordinator 결정).
+- **seed 관문(C-40)** — *rev 0.8.2 구현 기록(B3-1)*: 이번 배치는 `approvePaymentMethodActivation`과 `decideSiteReview`의 **APPROVED 결정만** 관문 뒤로 옮겼다(REJECTED·SUSPENDED는 1인·안전 방향이라 관문 없음 — 관리 채널의 1인 거절은 `rejectSiteReview`). 나머지 5개(`enableCurrency`·`approveCardRouteActivation`·`confirmSiteActivation`·두 resume)는 각 배치(B3-2~4)에서 같은 방식으로 옮긴다. 원안: 근거 없는 2인 메서드 7개(`approvePaymentMethodActivation`·`decideSiteReview`·`enableCurrency`·`approveCardRouteActivation`·`confirmSiteActivation`·`resumePaymentMethodActivation`·`resumeCardRouteActivation`)는 진입에서 `requireDemoSeedPath`(행위자 정확히 `system:demo-seed` + `DeploymentModePort.isDemo()`).
+  1인 명령(등록 2개·`rejectSiteReview`)과 B5 안전 방향 명령은 관문 없음. 근거: D-MOPS-008 ②(Demo seed 근거 없는 승인 경로 유지 + 진입 관문)의 B3 적용.
+
+### 9.16 ADMIN 승인 종류·미해결 키·요청(B3 — `admin.approval`·`admin.merchantops`, §9.5 틀 그대로)
+
+| 종류(`ApprovalKind`, OWNER_SERVICE·OPERATOR·MERCHANT) | `command_kind` | 요청 경로(`POST /api/approvals/…`) | 요청 본문(+ `evidenceRef` 필수) | 소유 참조 문법 | 미리 보기(advisory) |
+|---|---|---|---|---|---|
+| `MERCHANT_PAYMENT_METHOD_ACTIVATION`(B3-1) | `PAYMENT_METHOD_ACTIVATION` | `merchant-payment-method-activation` | `merchantId, merchantAccountId, activationId` | `act_` | Activation UNDER_REVIEW·MID ACTIVE·열린 PRIMARY 있음 |
+| `MERCHANT_SITE_REVIEW_APPROVAL`(B3-1) | `SITE_REVIEW_APPROVAL` | `merchant-site-review-approval` | `merchantId, merchantSiteId, reasonCode` | `site_…#n` | Site ACTIVE·심사 PENDING 또는 SUSPENDED |
+| `MERCHANT_CURRENCY_ENABLEMENT`(B3-2) | `CURRENCY_ENABLEMENT` | `merchant-currency-enablement` | `merchantId, merchantAccountId, currency, effectiveFrom…, effectiveToDate?` | `cur_` | MID ACTIVE·같은 통화 열린 기록 없음 |
+| `MERCHANT_CARD_ROUTE_ACTIVATION`(B3-3) | `CARD_ROUTE_ACTIVATION` | `merchant-card-route-activation` | `merchantId, merchantAccountId, routeActivationId` | `cra_` | Route UNDER_REVIEW·수단 개통 열림 |
+| `MERCHANT_PAYMENT_METHOD_RESUME`(B3-4) | `PAYMENT_METHOD_RESUME` | `merchant-payment-method-resume` | `merchantId, merchantAccountId, activationId` | `act_` | SUSPENDED |
+| `MERCHANT_CARD_ROUTE_RESUME`(B3-4) | `CARD_ROUTE_RESUME` | `merchant-card-route-resume` | `merchantId, merchantAccountId, routeActivationId` | `cra_` | SUSPENDED |
+| `MERCHANT_SITE_ACTIVATION_CONFIRMATION`(B3-4) | `SITE_ACTIVATION_CONFIRMATION` | `merchant-site-activation-confirmation` | `merchantId, merchantAccountId, merchantSiteId, paymentMethod` | `sac_` | 열린 Assignment·유효 확인 없음·Activation 종료 아님 |
+
+- 종류 이름 ≤ 40(`kind VARCHAR(40)`), `command_kind` ≤ 32 확인. 승인자 APPROVER + 직전 TOTP, 요청자≠승인자(기존 참여자 규칙). **Q-MOPS-24(MAJOR-1 확대)** 답이 권장안이면 수단 개통·Site 심사·Route 승인 모두 승인자 ≠ pinned `registeredBy`(403 `APPROVER_IS_REGISTRANT` — B2-2와 같은 모양) — 답 전에는 pinned·화면 표시만(검사 미구현).
+- **pinned**(표시·비교용 — 사업자등록번호·채널 식별값·근거 참조·기관 가맹점 참조 원문 없음): 공통 `{merchantId, merchantName, merchantAccountId}` + 종류별 대상 상태(Activation `{activationId, paymentMethod, status, primarySiteId, registeredBy}`, Site `{merchantSiteId, channelType, reviewStatus, reasonCode, registeredBy}`(Site의 `registeredBy` = `merchant_site.created_by` — MAJOR-1, 표시용),
+  통화 `{currency, effectiveFrom, effectiveTo}`, Route `{routeActivationId, acquirerCode, routeRef, status, registeredBy, institutionMerchantRefMasked}`(Q-MOPS-22·24), 재개 `{…, status:SUSPENDED}`, 재확인 `{merchantSiteId, paymentMethod, activationId, activationStatus}`). 승인 A 단계 재조회 값과 다르면 INVALIDATED(TARGET_CHANGED).
+- **미해결 키(C-35 — rev 0.8.1 Coordinator 채택)**: 대상 그룹별 가맹점당 하나. B2 두 종류는 `MERCHANT:<merchantId>` **그대로**(C-20 의미 불변), B3는 `MERCHANT:<그룹>:<merchantId>` — 그룹 `PM`(수단 승인·재개)·`SITE_REVIEW`·`CURRENCY`·`ROUTE`(Route 승인·재개)·`SITE_CONFIRM`(최대 9 + 12 + 1 + 30 = 52 ≤ 80).
+  MASTER 직렬화(merchant 행 잠금)는 키와 무관하게 정확성을 지키므로, 키는 "같은 대상에 대한 중복 대기 요청"만 막는다. 화면은 같은 그룹 승인 대기 중 그 그룹의 2인 요청 버튼만 숨기고, **Site의 1인 "심사 거절" 버튼은 숨기지 않는다**(안전 방향 동작을 막지 않음 — Coordinator 결정. 거절이 먼저 커밋되면 대기 중 승인은 MASTER에서 `SITE_REVIEW_TRANSITION_NOT_ALLOWED`로 끝난다).
+- **열린 PRIMARY 판정 차이(rev 0.8.4 — B3-1 코드 리뷰 m-1, 의도된 보수적 판정)**: ADMIN 미리 보기(`MerchantApprovalChannelService`)와 화면(`MerchantActivationArea.openPrimarySite`)은 PRIMARY Assignment를 **ACTIVE·기간 안**일 때만 열린 것으로 본다. MASTER `SiteAssignment.isOpenAt`은 ENDED가 아니고 기간 안이면 열린 것으로 본다 — ADMIN이 더 좁아 요청을 덜 허용할 뿐(fail-closed) 더 허용하지는 않는다. 고정 PRIMARY의 권위 판정은 MASTER 실행 TX(`PRIMARY_SITE_MISMATCH`, C-45).
+- **`MasterResponseShape`(minor-4)**: 결정 조회 응답 `operation` 허용 목록에 배치별 operation을 추가하고 operation별 성공 reference 문법(`act_`·`site_…#n`·`cur_`·`cra_`·`sac_`)을 검사한다. 목록 밖 operation·문법 불일치는 해석 불가(fail-closed). 1인 응답 모양 표는 종류별(`act_`, Site 거절 `site_…#n`).
+- 1인 화면 API(B1 틀 — `MerchantRegistrationService`, OPERATOR만, 감사 시도·결과 2행, `mo1.<계정 ULID>.<submissionId>`·`mos.<submissionId>`): `POST /api/merchant-registrations/payment-method-activations`(감사 `MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER`, targetRef = MID),
+  `…/site-review-rejections`(감사 `MERCHANT_SITE_REVIEW_REJECT`, targetRef = siteId, detail `reason=<code>`), `…/card-route-activations`(B3-3, 감사 `MERCHANT_CARD_ROUTE_ACTIVATION_REGISTER`, targetRef = MID, detail `acq=<code>` — 기관 가맹점 참조 처리 Q-MOPS-22). 응답 모양 표: `site_…#n`은 Site 거절 종류에만(B2-1 `ctr_…#n`과 같은 방식).
+- 회복: `OwnerExecutionRecoveryService` 가맹점 분기에 종류 행 추가(순서 §9.5 그대로 — 결정 조회 → 기한 확인(`operation` 포함 저장 바이트) → 참여자 재검사 → 무결성 플래그면 조회만 → 같은 바이트 재전송). C-34 `REFERENCE_MISMATCH` 대조는 종류별 pinned 대상 ID(`act_`·`cra_`·`site_…#`의 site 부분)로.
+
+### 9.17 화면(D-ADMIN-UI-003 — 서버 배포된 배치의 버튼만)
+
+- **가맹점 조회 상세 → MID 행 아래 "개통" 영역**(버튼은 OPERATOR에게만, 서버가 권위): 결제수단(상태 배지 UNDER_REVIEW·ACTIVE·SUSPENDED·TERMINATED, "개통 등록"(1인) → "개통 승인 요청"(2인, 근거 참조 필수 — 라벨 "기관(카드사/VAN) 회신 참조")), Site 표(등록자 표시, 심사 상태 + "심사 승인 요청"(2인 — 근거 라벨 "PG 심사 근거")·"심사 거절"(1인 — 확인 대화상자 "되돌릴 수 없습니다. 재신청은 새 Site로", 사유 코드 선택)),
+  Site 적용 확인 목록(유효/철회), 통화(B3-2 "통화 활성화 요청"), 카드 Route(B3-3 "Route 등록"·"개통 승인 요청", 기관 가맹점 참조는 Q-MOPS-22 형식 표시), 재개·재확인 버튼(B3-4). 승인 대기 중이면 같은 그룹 버튼 숨김(`pendingApprovals` — C-24·C-35).
+- **개통 점검표(C-43 — "참고, 권위 아님")**: MASTER 상세 값으로 화면이 계산 — ① 계약 적용 중(승인 Revision이 오늘 포함) ② Site 심사 APPROVED ③ 수단 ACTIVE ④ PRIMARY 적용 확인 유효 ⑤ 통화 활성(KRW) → "결제 생성 조건" / ⑥ 카드 Route ACTIVE ⑦ 수수료·정산 배정·한도(B4 — 지금은 "B4 이후") → "승인 시작 조건" / ⑧ 전파: 최신 revision을 PAYMENT가 ACK(`propagation.effectConfirmedAt`).
+  문구: "이 표는 참고용입니다. 실제 판정은 결제 시점에 PAYMENT가 합니다". 가맹점 API Credential 상태는 표시하지 않는다(MASTER 상세에 없음 — L-17).
+- **승인함**: 종류 라벨 7개, 상세 pinned(대상 상태·Site·통화 기간 KST·Route 매입사/routeRef/마스킹 참조·등록자), "근거 보기"(APPROVER·요청자만), 상태별 문구는 §9.6 그대로.
+- B2 등록 탭·첫 MID 패널의 "결제수단·Route 개통 전 결제 불가" 문구 → 배치 배포 뒤 "가맹점 조회 상세 → 개통"으로 안내.
+
+### 9.18 감사·권한(B3)
+
+| 항목 | 1인(등록 2·Site 거절) | 2인(7종류) |
+|---|---|---|
+| 역할 | OPERATOR만 | 요청 OPERATOR, 승인·거절 APPROVER + 직전 TOTP(요청자≠승인자, Route는 Q-MOPS-24), 철회 요청자, 근거 보기 APPROVER·요청자 |
+| ADMIN 감사 | 명령별 code 3개(§9.16) 시도·결과 2행, 자유 문구 없음 | 기존 승인 감사 code(§9.7), target_ref = merchantId |
+| MASTER | `admin_request`·변경 이력(actor `admin:…`)·Outbox·Snapshot(기존) | + `admin_approval_evidence`(operation 7 추가), 이력 actor = approvedBy |
+| 넣지 않는 값 | 등록번호·채널 식별값·근거 참조·**기관 가맹점 참조 원문**(D-MS2-005)·MASTER 키·서명 | 같음 + 본문 바이트·TOTP |
+
+D-MOPS-005 위험 추가 기록(L-1 확장): 조회 키가 유출되면 1인 `site-review-rejections`로 Site를 **되돌릴 수 없게** 거절할 수 있다(REJECTED 종결 — D-MS-005). 금융 효과는 없음(결제 차단 방향). 탐지: `command{operation=DecideSiteReview}` 지표·감사 대조(L-2).
+
+### 9.19 "결제 가능" 시점과 전파 경로(코드 확인)
+
+전파: 모든 B3 명령은 같은 MASTER TX에서 `work.publishEntitlement` → `entitlement_snapshot_issue` + Outbox `ENTITLEMENT_SNAPSHOT`(HIGH) → TX 밖 `EntitlementSchedules` → `EntitlementRelayService` → `HttpEntitlementDispatcher`(HMAC 서명 — D-MS-004)
+→ PAYMENT 권리 투영 저장 → ACK → MASTER `EntitlementPropagationQuery.merchant`(상세 `propagation` — `effectConfirmedAt`). 발행만으로 효력 확인을 표시하지 않는다(ACK 또는 이전 lease 만료).
+
+| 배치 뒤 | PAYMENT `EntitlementEvaluator`(CreatePayment 판정 F1·E1~E5) | `AuthorizationTermsEvaluator`(승인 시작 A2~A4) |
+|---|---|---|
+| B2-3 | E3 `METHOD_NOT_ENABLED`(Site 심사 PENDING) | — |
+| B3-1 | E3·E4 통과 → E5 `CURRENCY_NOT_ENABLED` | — |
+| **B3-2** | **Allowed**(Snapshot ACK·lease 유효·계약 Revision이 그 시각 포함일 때) — **처음으로 "결제 생성 판정 통과"** | A2 `CARD_COMPANY_NOT_ENABLED` |
+| B3-3 | Allowed | A2 통과 → A3 `POLICY_ASSIGNMENT_MISSING`(수수료·정산 배정 없음) |
+| B4 | Allowed | A3 통과, A4 한도 없으면 `AuthorizationStart` `LimitPolicyUnavailable` 거절 → 한도 등록 뒤 **승인 시작 가능** |
+
+- 따라서 **B3만으로는 승인(결제 완료)이 불가**하다. 수수료·정산 정책 배정(assignPolicy — 정책 버전은 seed가 만든 Demo 버전 재사용)과 한도 등록은 B4다.
+- **가맹점 API 호출 불가(L-17)**: PAYMENT Demo Credential은 한 행뿐(V29 `demo_credential_issuance` id = 1 CHECK — seed MID). 새로 만든 MID로 가맹점 서버가 CreatePayment를 부를 Credential 경로가 없다(MASTER-CREDENTIAL-001). 그래서 B3 Demo는 결제 시도가 아니라 상세 상태·개통 점검표·전파 ACK로 보여 준다.
+- 계약 Revision 시작일이 미래면(B2 Demo의 "내일") E2 `CONTRACT_NOT_EFFECTIVE` — Demo는 오늘 시작 Revision이 승인된 가맹점을 쓴다.
+
+### 9.20 8대 원칙 적용(B3)
+
+| 원칙 | 의미 | 증거(§8.3) |
+|---|---|---|
+| Financial Consistency | 금액 없음. 결제 허용 입력(개통·확인·심사·통화·Route)만 바뀌며 Snapshot과 같은 TX. 확정 사실(전이 이력·확인·심사 결정·근거 행)은 append-only, Site 거절은 종결(D-MS-005) | B3-1 2·7, B3-2 4 |
+| Transaction Safety | MASTER: 업무 효과·근거 행·결과·이력·Outbox·Snapshot 한 로컬 TX, 전파는 TX 밖. ADMIN: TX1 → TX 밖 POST → TX2 | 장애 주입 rollback(B3-1 2) |
+| Idempotency | 승인 하나 = `mop1.<approvalId>`, 1인은 `mo1.…`, 저장 바이트 재전송, `operation` 필드로 기한 확인 대상 고정(C-39) | B3-1 1·5 |
+| Concurrency Control | MASTER merchant 행 잠금이 직렬화 지점(경로별 순서 §9.14), 잠금 아래 Domain 판정(열린 Activation·통화 중첩·Route 중복), 생성 열 UNIQUE는 보조 방어선, ADMIN 그룹별 미해결 하나(C-35) | 실제 MySQL 두 연결(B3-1 4, B3-2 3, B3-3 4) |
+| Recoverability | B2와 같은 회복 순서·종결 규칙(C-18·C-28), 응답 유실 = EXECUTION_UNKNOWN, 효과 단정 없음 | B3-1 5·8 |
+| Reconciliation | ADMIN 실행 행 ↔ MASTER 근거 행 1:1(approvalId·`mop1`·소유 참조), Snapshot revision ↔ PAYMENT ACK(전파 조회) | B3-1 2·8, §9.19 |
+| Auditability | ADMIN 감사(1인 code 3·승인 감사) + MASTER 근거 행·개통 이력(Domain 근거 = 승인 근거 C-36)·Route 기관 참조는 MASTER 이력에만(D-MS2-005) | B3-1 2, B3-3 2 |
+| Observability | 기존 `approval_rejected{operation,rejection}`·`approval_executed{operation}`에 operation 7 추가, `command{operation}`(1인), 전파 지표(`EntitlementPropagationGauges`)·승인 조건 누락 지표(`AuthorizationTermsCoverageGauges`)로 "결제 생성 가능 ↔ 승인 불가" 차이 관찰 | B3-1 6 |
+
+### 9.21 기술 선택 연결(이번 변경에 한함)
+
+- **JPA** — 새 Entity 없음. 근거 행은 B2 `JpaApprovalEvidenceEntity`(`@Immutable`, `persist` 뒤 즉시 `flush` → `StoreConstraint(businessKey)`)를 그대로 쓴다. 예: 개통 승인 TX에서 `payment_method_activation` 갱신(`@Version`)·전이 이력 INSERT·PRIMARY 확인 INSERT·근거 INSERT가 한 로컬 TX로 commit.
+  잠금은 기존 `PESSIMISTIC_WRITE`(경로별 순서 §9.14 — Site 심사는 merchant만). 주의(rev 0.8.3 minor-6 정정): 개통 등록·통화·Route 중복은 **merchant 잠금 아래에서 Domain이 먼저 판정**하므로 경합 패자는 잠금 대기 뒤 곧바로 `ACTIVATION_DUPLICATE` 등으로 거절된다(1062를 거치지 않음). 열린 Activation·Route·통화 **생성 열 UNIQUE는 보조 방어선**이며, 그 위반이 나면(결함·잠금 우회) flush 시점 1062 → 기존 업무 유일키 재시도(새 TX)로 같은 거절에 수렴한다. 근거 행 PK(approvalId)는 잠금 밖 판정이라 이 재시도 경로가 주 경로다(B2 m-1). 순수 Domain(`PaymentMethodActivation`·`CardRouteActivation`·`SiteReviewRules`)은 JPA를 모른다(Mapper는 adapter).
+- **jOOQ(CQRS)** — MASTER `JooqMerchantDetailReader`에 계정별 Site 적용 확인 목록(+ Q-MOPS-24면 Route `registered_by`, Q-MOPS-22면 SQL 마스킹 값) 추가 — `evidence_ref`·`reason`·`institution_merchant_ref` 원문은 SELECT하지 않는다. ADMIN `pendingApprovals`는 기존 Reader 그대로(종류만 늘어남).
+- **버전** — 새 의존성 없음(Boot BOM 관리 조합 그대로). Flyway MASTER V11·ADMIN V11, ADMIN jOOQ codegen 재생성.
+- **Kafka/Redis** — 도입하지 않는다. Snapshot 전파는 기존 Outbox + 서명 HTTP relay + ACK이고, 승인 1회성·직렬화는 소유 DB 제약·로컬 TX다. 브로커·분산 lock은 이 보장(같은 TX의 Outbox, ACK 기반 효력 확인)을 대신하지 못한다.
+
+### 9.22 migration(C-21 관례 확인: MASTER·ADMIN 모두 최신 V10 — 홀수 schema·짝수 privilege, C-42)
+
+- **MASTER `V11__admin_approval_evidence_b3_operations.sql`**: `ck_admin_approval_evidence_operation`을 **한 ALTER 문**(`DROP CHECK …, ADD CONSTRAINT …` — nit-3, 중간 상태 없음)으로 9값(B2 2 + `ApprovePaymentMethodActivation`·`DecideSiteReview`·`EnableCurrency`·`ApproveCardRouteActivation`·`ResumePaymentMethodActivation`·`ResumeCardRouteActivation`·`ConfirmSiteActivation`)으로 재생성. 새 표·열 없음 → privilege 변경 없음, **V12 비움**(V8 선례).
+  B3 operation 7개를 B3-1에서 한 번에 넣는다(rev 0.6.5 ADMIN V9 선례 — 앱은 각 배치 전까지 그 operation 경로를 만들지 않는다). `admin_request`에는 operation CHECK가 없음(V1 확인).
+- **ADMIN `V11__merchant_ops_activation_approval.sql`**: `ck_admin_approval_request_kind`·`_target`(MERCHANT 대상 = 가맹점 9종류)·`_owner_states` 재생성, `unresolved_key` 생성 식에 C-35 그룹 분기(표 재작성 — V7·V9와 같은 주의), `ck_admin_merchant_ops_command_kind` 9값. 표·권한 변경 없음 → **V12 비움**.
+- Q-MOPS-22·24 답에 따라 열이 필요해지면(예: ADMIN에 기관 참조 HMAC 보관) MASTER·ADMIN V13/V14로 따로 둔다(B3-3 착수 시 확정).
+
+### 9.23 결정·질문 연결
+
+재질문하지 않는 것: D-MOPS-004·005·007 ③(2인/1인 분류)·008(근거 필수·seed 예외·Revision 등록자), D-MD-016~018, D-MS-002·003·005, D-MS2-004·005(서명 Snapshot 전달·내부 식별자 등급). 새 질문 후보 **Q-MOPS-22·23·24**(§11.2). 가역 C-35~C-44(§10).
+
+### 9.24 Demo 시나리오(Coordinator — Demo 값, 운영값 아님)
+
+- **B3-1**: B2-3까지 끝난 가맹점(오늘 시작 Revision 승인·MID·PRIMARY Site) → OPERATOR(A) "개통 등록(CARD)" → `act_…` UNDER_REVIEW·권리 revision +1 → A "개통 승인 요청"(근거 참조) → APPROVER(B) TOTP 승인 → ACTIVE + PRIMARY 적용 확인 표시 →
+  A "Site 심사 승인 요청" → B 승인 → APPROVED → 점검표 ①~④ 통과·⑤ 미충족, 전파 ACK 표시. 두 번째 Site로 "심사 거절"(확인 대화상자) → REJECTED·다시 버튼 없음. (경합·응답 유실·seed 관문은 시험 보고서.)
+- **B3-2**: A "통화 활성화 요청(KRW, Q-MOPS-23 형식)" → B 승인 → `cur_…` → 점검표 "결제 생성 조건 충족" + "승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)" + "새 MID는 가맹점 API Credential이 없어 Demo 결제 호출 불가(L-17)" 안내 확인.
+- **B3-3**: A "Route 등록"(매입사·routeRef·기관 가맹점 참조) → 마스킹 표시 → "개통 승인 요청" → B 승인(등록자 규칙 Q-MOPS-24) → ACTIVE → 점검표 ⑥ 통과.
+- **B3-4**(B5 뒤): B5로 수단 중지·PRIMARY 확인 철회 → "재개 요청"(새 근거)·"Site 재확인 요청" → 승인 → ACTIVE·유효 확인.
+
+## 10. Coordinator 결정(가역 — rev 0.2: C-1~C-11 권장안 **채택**, C-12·C-13 추가. rev 0.3: C-13 개정·C-14 추가 — 채택 권장. rev 0.5: C-15~C-26 B2 — **권장안 채택 표시**, Reviewer 확인 대상. rev 0.6: C-18 대안 채택·C-26 사용자 결정 확정·C-27~C-29 추가. rev 0.6.1: C-30. rev 0.6.2: C-31. rev 0.6.3: C-32. rev 0.6.4: C-33. rev 0.8: C-35~C-44 B3 — 권장안 채택 표시, C-35는 Coordinator 결정·C-36은 질문 승격 판단 대상)
 
 | ID | 선택 | 채택(권장안) | 대안 |
 |---|---|---|---|
@@ -693,6 +905,17 @@ Business·Merchant·Site·Contract·MerchantAccount **종료 메서드가 Domain
 | C-32 (rev 0.6.3 — Coordinator 결정, B2-1 Demo 지적) | Revision 폼 성공 뒤·승인 상태 표기 | **성공하면 완료 상태**(입력 읽기 전용·제출 버튼 없음 — 같은 폼 재클릭으로 새 submissionId의 Revision n+1 중복 생성 방지), "다른 Revision 새로 입력"만 새 submissionId·빈 폼. 승인 상태 표기는 상세 표 기준 **"승인 전"**으로 통일(등록 성공 문구 포함) | 성공 뒤에도 바로 재입력 가능(B1 단계 방식 — 같은 내용 중복 위험) / "미승인" 유지 |
 | C-33 (rev 0.6.4 — Coordinator 결정, B2-2 구현 중) | 기한 확인(`approval-deadline-confirmations`) 응답 모양 | **실행과 같은 §3.3 모양**(성공·거절·재생·409·503), 기한 전만 `{"decision":"NOT_YET_DUE"}` — `APPROVAL_ID_ALREADY_USED`에는 자기 근거 행이 없어 `decidedVia`가 없다. ADMIN은 실행 응답 해석기를 그대로 쓰고, `decidedVia`·지문 대조는 결정 조회로 한다 | 결정 조회 모양(`decidedVia` 포함 — rev 0.6 §9.4 문구, 판정 3에서 값이 정의되지 않음) |
 | C-34 (rev 0.7 — Implementer 가역 선택, Coordinator 확인 대상) | B2-2 리뷰 n-2 처리·B2-3 미리 보기·Demo 개선 | **n-2**: 성공 reference가 이 승인의 대상이 아니면(계약 승인 = pinned `contractId#revisionNo`, 첫 MID = `mid_` 문법) EXECUTED로 닫지 않고 EXECUTION_UNKNOWN + 무결성 플래그 `REFERENCE_MISMATCH`(실행 POST 중단 — 조회·기한 확인으로만, 사람 검토) + 경보. **rev 0.7.1(B2-3 리뷰 m-1, Coordinator 채택)**: 경보는 플래그를 처음 세울 때 1회, 같은 응답 반복(회복 결정 조회 등)은 `quietIfUnchanged`로 감사·lastFailure를 다시 쌓지 않으며, 운영 대사 finding `OWNER_UNRESOLVABLE`(detail `REFERENCE_MISMATCH`)을 1회 남긴다 — 자동 종결 없음(C-28과 대칭). 시험: 회복 N주기 POST 0·감사 1·finding 1. **B2-3 미리 보기(advisory)**: MID 0개 → Revision 있음·승인·끝나지 않음(적용 Revision 판정 — 지금 적용 또는 시작 시 적용 — 은 MASTER 권위라 화면·ADMIN은 거르지 않음) → 그 계약 CSA → Site 있음·ACTIVE·Scope 안 순서로 첫 사유를 감사 detail에. A 단계 재조회가 부적격이면 현재 = 없음(TARGET_CHANGED). **화면**: 승인 요청 결과는 상세 재조회 뒤에도 패널 위에 남김(닫기 전까지·다른 가맹점을 열면 지움), 승인 대기 배너에 대상(Revision n·첫 MID 발급) — 상세 API `pendingApprovals[].revisionNo`(계약 승인만, 고정 대상 JSON에서), 감사 화면 "대상" = targetActorId 또는 targetRef(L-13 감사 대상 열 — API에 `targetRef` 추가) | n-2를 IntegrityViolation(rollback·EXECUTING 유지)으로 — 회복 job이 같은 응답을 계속 받아 반복 |
+| C-35 (rev 0.8 — **rev 0.8.1 Coordinator 채택**) | B3 ADMIN 미해결 키(C-20의 B3 적용) | **대상 그룹별 가맹점당 하나**: B2 두 종류는 `MERCHANT:<merchantId>` 그대로, B3는 `MERCHANT:<그룹>:<merchantId>`(그룹 `PM`·`SITE_REVIEW`·`CURRENCY`·`ROUTE`·`SITE_CONFIRM` — 승인·재개는 같은 그룹). 개통은 서로 다른 대상(수단·Site·통화·Route)을 병렬 요청하는 것이 자연스럽고, MASTER merchant 잠금이 실행을 직렬화하므로 정확성은 키에 기대지 않는다. Site 여러 개의 심사는 같은 그룹이라 순차. **rev 0.8.1**: 그룹 대기 중에도 Site 1인 거절 버튼은 숨기지 않음(안전 방향) | (a) C-20 그대로 `MERCHANT:<id>` 하나(가장 단순·migration 식 변경 없음, Demo에서 4번 순차 승인 — B4도 같은 키에 묶임) (b) 대상 객체별 키(`act_`·`site_`·`cra_`…) — 가장 병렬, 새 열(대상 하위 참조) 필요 |
+| C-36 (rev 0.8 — rev 0.8.1 Coordinator: 질문으로 올리지 않음, 입력란 의미 표시 minor-5) | 2인 B3 명령의 근거 입력 | **승인 근거 `evidenceRef`(D-MOPS-008 ①) = Domain 기관 근거 참조(D-MS-003) 한 값** — 형식이 같고(`EvidenceRef`·V9 CHECK) 같은 문서 참조이며, 두 입력은 불일치 위험만 만든다. MASTER Domain 근거는 기존 저장 위치(개통 이력·변경 이력·Outbox 참조 payload) 그대로, ADMIN은 B2 규칙(감사·목록에 없음, 근거 보기만) | 두 값을 따로 입력(승인 근거 = 내부 결재 번호, 기관 근거 = 카드사 심사 번호) — 본문·지문·화면 필드 1개 추가 |
+| C-37 (rev 0.8) | Site 심사 사유(`DecisionReason` — Domain은 자유 문구 허용) | **ADMIN 고정 코드 목록**(Demo: 승인 `REVIEW_PASSED`, 거절 `DOCUMENT_INSUFFICIENT`·`PROHIBITED_BUSINESS`·`SITE_UNREACHABLE`·`OTHER_POLICY`)을 코드 문자열로 전송, MASTER parser도 같은 목록만(C-10 복제). 자유 문구 불가 규칙(B1·B2)과 같음. 목록은 Demo 값 — 운영 사유 체계 아님(LIVE Gate) | 자유 문구 입력(개인정보·로그 위험, 기존 규칙과 다름) |
+| C-38 (rev 0.8) | B3 분할·순서 | **B3-1 → B3-2 → B3-3 → (B5) → B3-4**(§9.13): 각 배치 Demo, B3-4(재개·재확인)는 중지·철회(B5 1인)가 있어야 화면으로 보여 줄 수 있어 B5 뒤. 질문 대기 배치(B3-2 Q-23, B3-3 Q-22·24)는 B3-1 진행 중 답을 받는다. B4는 "승인 시작 가능"에 필요 — B3-3 뒤 B4 권장(Coordinator) | B3 한 번에 / B3-4를 B3-3 직후(시험 보고서로만 시연) |
+| C-39 (rev 0.8) | 기한 확인 해석기의 operation 판별 | **B3 승인 본문에 `operation` 필수 필드**(경로와 같아야 함, 이미 `mop1` 2번째 줄) — 승인·재개가 같은 필드 모양(`activationId`)이라 본문 모양으로 구별할 수 없다. B2 두 본문은 기존 모양 판정 유지(저장 바이트 불변) | 기한 확인 endpoint를 operation별 경로로 분리(C-2 경로 규칙과 다름) / 헤더로 전달(서명 대상 밖 위험) |
+| C-40 (rev 0.8 — D-MOPS-008 ② 적용) | 1인/2인 채널 분리·seed 관문 | **Site 심사는 결정값을 본문에 받지 않는다**: 1인 `site-review-rejections` → 새 `rejectSiteReview`(REJECTED 고정), 2인 `site-review-approvals` → `approveSiteReviewWithEvidence`(APPROVED 고정). 근거 없는 2인 메서드 7개는 `requireDemoSeedPath` + ArchUnit(호출자 `DemoMerchantSeedService`만). 기존 시험의 준비 호출은 seed 행위자로(B2-2 선례) | 한 endpoint + `decision` 필드(1인 채널로 APPROVED를 보낼 수 있어 2인 우회 — 불가) |
+| C-41 (rev 0.8 — CLAUDE.md 확정 규칙 적용) | 통화 활성화 대상 | **KRW만**(ADMIN 값 객체·MASTER parser 모두). MASTER `currency_unit`에 USD가 있으나 "실제 통화 추가안은 사용자 채택 전"(CLAUDE.md) — USD는 사용자 채택 뒤 별도 | currency_unit 전체 노출(미채택 통화 개통 — 불가) |
+| C-42 (rev 0.8) | migration 번호·범위 | **MASTER V11(operation CHECK 9값)·ADMIN V11(종류·대상·상태·미해결 키·command_kind)을 B3-1에서 한 번에**, 두 앱 V12 비움(privilege 변경 없음 — V8 선례). 이후 V12 추가 금지(outOfOrder 없음) | 배치마다 migration(V11·V13·V15 — CHECK 재생성 반복) |
+| C-43 (rev 0.8) | B3 Demo 표시 | **MASTER 상세 확장(계정별 Site 적용 확인 목록 — 근거·사유 없음) + 화면 개통 점검표("참고, 권위 아님")** — PAYMENT 판정을 화면이 대신하지 않는다(§9.17). 결제 가능 여부의 권위는 PAYMENT | PAYMENT에 판정 미리 보기 API 추가(서비스 간 새 조회 채널 — 범위 밖) |
+| C-45 (rev 0.8.1 — 리뷰 minor-1, Coordinator 채택) | 개통 승인의 PRIMARY Site 고정 | **명령 필드 `primarySiteId`를 `mop1`에 포함**, MASTER는 실행 시점 열린 PRIMARY와 다르면(없음 포함) `PRIMARY_SITE_MISMATCH` 저장 — 승인자가 본 PRIMARY와 다른 Site에 적용 확인이 기록되지 않게 | pinned 비교만(ADMIN A 단계 — 승인 TX1 뒤 MASTER 실행까지의 변경은 못 막음) |
+| C-44 (rev 0.8) | 매입사 코드·routeRef 입력(B3-3) | **형식 검사만**(`[A-Z0-9]{1,32}` — MASTER V7과 같음) + 화면에 Demo seed 값 안내. 틀린 routeRef는 PAYMENT 기관 프로파일이 없어 승인 시작에서 막힌다(fail-closed) | ADMIN 설정 허용 목록에서 선택(Demo 값 관리 지점 증가) |
 
 ## 11. 사용자 질문
 
@@ -725,7 +948,13 @@ Business·Merchant·Site·Contract·MerchantAccount **종료 메서드가 Domain
 
 ### 11.2 PENDING
 
-없음(rev 0.6). B3~B5 착수 전 질문은 §9.12의 남은 미결(카드 Route 기관 가맹점 참조 형태, 한도 상향/하향 판정 기준)에서 각 배치 설계 때 만든다.
+rev 0.8 — B3 질문 후보 3건(`harness/questions.json` PENDING, Coordinator가 사용자에게 묻는다). 답 전 해당 배치의 운영 동작은 구현하지 않는다. B3-1은 막히지 않는다.
+
+| ID | 질문 | 권장안 | 대안 | 영향 | 막히는 배치 |
+|---|---|---|---|---|---|
+| **Q-MOPS-22** | 카드 Route 기관 가맹점 참조(D-MS2-005 내부 식별자 등급)의 입력·전송·감사·관리 조회 형태 | ① OPERATOR가 1인 Route 등록 화면에서 입력(형식 `[A-Za-z0-9._:-]{1,64}`), ADMIN은 **저장하지 않고** 서명 본문으로만 MASTER에 전달 — ADMIN DB·감사·로그·지표·오류에 원문 없음(감사 detail은 `imr=PRESENT`만). ② MASTER는 기존대로 `card_route_activation`·변경 이력 detail·서명 Snapshot에만(Outbox 통합 이벤트 제외 — 기존 코드). ③ 관리 조회(상세·승인 pinned)는 MASTER SQL이 만든 **뒤 4자리 마스킹 `****1234`**(4자 이하는 `****`)만, 원문 조회 기능 없음 — 승인자는 근거 문서의 뒤 4자리와 대조. ④ 정정은 수정 없이 종료(B5) 후 재등록 | (a) 원문 조회 기능 — APPROVER·요청자만, 조회마다 감사(D-ACQA-005 "근거 보기" 방식) (b) 마스킹 형식 앞 2 + 뒤 2 (c) ADMIN이 HMAC만 보관해 MASTER 값과 사후 대조(ADMIN migration 열 추가) | MASTER 상세 jOOQ(마스킹 SQL)·ADMIN pinned·감사·화면 입력/표시, 로그 비노출 시험. **확정 때 함께 확인(rev 0.8.3 nit-4)**: 기존 `registerCardRouteActivation`이 `institutionMerchantRef` 원문을 요청 지문 입력에 넣는다(`MerchantAuthorizationTermsService` 지문 필드 목록) — 저장되는 `admin_request.request_fingerprint`가 값 공간이 작은 원문의 무염 SHA-256이 될 수 있다(L-4 등록번호 선례와 같은 성격). 지문 입력에서 빼거나 HMAC으로 바꿀지 Q-22 답과 함께 정한다 | B3-3 |
+| **Q-MOPS-23** | 2인 통화 활성화의 효력 시작 시각. Domain은 `from ≥ 기록 시각`(소급 금지 D-MD-018)을 정확한 시각으로 비교하므로 KST 날짜 00:00 입력은 "오늘"을 쓸 수 없다(승인 대기 동안 지나면 `CURRENCY_ENABLEMENT_RETROACTIVE`) | **두 선택지**: "승인 실행 즉시"(본문 `effectiveFrom: "AT_EXECUTION"` — `mop1`에 포함, MASTER가 잠금 뒤 시각으로 확정, 실행 창 Demo ≤ 1시간) 또는 "KST 날짜 00:00(내일 이후)". 승인 화면에 어느 쪽인지 표시 | (a) 날짜만(가장 이른 효력 = 내일 00:00 KST — Demo 당일 시연 불가) (b) 요청 시각 기준 자동(요청 + execution-window — 승인이 늦으면 거절) | MASTER parser·Use Case(새 Domain 규칙 없음 — from = lockedNow), ADMIN 요청 본문·pinned·화면 | B3-2 |
+| **Q-MOPS-24**(rev 0.8.1 확대 — MAJOR-1) | 1인으로 등록한 사람이 그 대상의 2인 승인자가 될 수 있는지(D-MOPS-008 ③ Revision 규칙의 확대): ① 카드 Route 등록자 → Route 개통 승인(B3-3), ② 결제수단 개통 등록자 → 개통 승인(B3-1), ③ Site 등록자 → Site 심사 승인(B3-1). 등록이 승인 대상을 정하므로 같은 사람이면 2인 통제가 사실상 1인 | **셋 다 금지**: ADMIN 승인 TX1(pinned `registeredBy` — 403 `APPROVER_IS_REGISTRANT`) + MASTER Domain 근거 경로(`…WithEvidence`) 양쪽, 새 거절 `APPROVER_IS_ROUTE_REGISTRANT`·`APPROVER_IS_ACTIVATION_REGISTRANT`·`APPROVER_IS_SITE_REGISTRANT`, seed 경로는 예외(C-31 구조), 화면에 등록자 표시. **등록자 열 확인(코드)**: Route `card_route_activation.registered_by`(V5), Activation `payment_method_activation.registered_by`(V1 — `PaymentMethodActivation.registeredBy`), Site `merchant_site.created_by`(V1 — `MerchantSite.createdBy`) 모두 있음 → migration 불필요 | (a) 허용하고 표시만 (b) Route만 금지(rev 0.8 원안) (c) Route·Activation만(Site 등록은 B1 등록 화면이라 등록자와 심사자가 같은 경우가 흔함) | MASTER Domain 3곳·상세 jOOQ `registeredBy`(Activation·Site·Route), ADMIN TX1 403·pinned | B3-3, **B3-1 2인 승인 경로의 DONE 판정**(B3-1 구현은 pinned·화면 표시까지 — 검사는 답 뒤) |
 
 ## 12. 위험·미결
 
@@ -747,9 +976,17 @@ Business·Merchant·Site·Contract·MerchantAccount **종료 메서드가 Domain
 | L-14 | (review n-6) ADMIN 시계가 순간적으로 MASTER보다 `max-clock-skew`(Demo PT1M) 넘게 앞서면 `approvedAt > now + skew`로 `APPROVAL_WINDOW_INVALID`가 **저장**되어 그 승인(approvalId·키)이 영구 소진된다 | 안전 방향(실행 안 됨)이라 수용. 운영자는 새 승인 요청으로 재시도. 시계 차이 지표(L-13 ①)로 탐지 |
 | L-15 | (review n-8 — D-OPS-004 선례) 업무 근거 참조(D-MOPS-008 ①, 필수)는 **Demo에서는 형식 검사만** 한다(계약서·심사 기록 원천과 대조하지 않음) | **LIVE Gate 차단 조건**: 근거 참조의 원천 대조(계약 문서·심사 기록 저장소)가 동작하기 전에는 LIVE에서 B2 2인 명령을 열지 않는다. 사용자 결정 '필수'는 바꾸지 않는 LIVE Gate 메모 |
 | L-16 | (B2-2 리뷰 n-3) internal-admin `application.yml`의 가맹점 승인 값 — `paycore.admin.master-ops`(timeout·permit·속도 제한), `paycore.admin.merchant-ops.approval`(execution-window PT1H·deadline-grace PT2M·backoff-initial PT30S·backoff-max PT30M·master-max-execution-window PT24H)과 MASTER `admin-channel.approval`(max-execution-window PT24H·max-clock-skew PT1M)은 **Demo 값, 운영값 아님** | **LIVE Gate**: 운영값 확정·두 앱 거울 값 동시 변경 절차(ADMIN 기동 검사가 execution-window ≤ 거울 값을 강제 — n-1). L-13 ④와 같은 항목 |
+| L-17 | (rev 0.8, 코드 확인) 새로 만든 MID에는 가맹점 API Credential이 없다 — PAYMENT Demo Credential은 한 행뿐(V29 `demo_credential_issuance` id = 1 CHECK, seed MID). B3·B4를 마쳐도 Demo에서 그 MID로 CreatePayment를 호출할 수 없다 | B3 Demo는 상세 상태·개통 점검표·전파 ACK로 보여 준다(C-43). 새 MID 결제 시연에는 MASTER-CREDENTIAL-001(또는 D-DEMO-002 범위의 Demo 발급 확장 — 사용자 결정 필요)이 선행 — Coordinator 후속 작업 판단 |
+| L-18 | (rev 0.8) D-MOPS-005 조회 키 유출 시 1인 `site-review-rejections`로 Site를 되돌릴 수 없게 거절할 수 있다(REJECTED 종결 D-MS-005). 금융 효과 없음(결제 차단 방향)이지만 복구는 새 Site 등록뿐 | L-1과 같이 수용 범위. 탐지 `command{operation=DecideSiteReview}`·감사 대조(L-2) |
+| L-19 | (rev 0.8, C-36) 2인 승인 근거 참조가 Domain 기관 근거로도 쓰여 MASTER 개통 이력·변경 이력·Outbox 참조 이벤트 payload에 남는다(D-MS-003 기존 저장 위치). B2의 계약 승인 근거는 근거 행에만 있었다 | 근거 참조는 Secret 아님(D-MOPS-008 ① — 형식 제한·자유 문구 불가). MASTER 상세 조회 SELECT에는 없음. rev 0.8.1 Coordinator: 질문으로 올리지 않음. **재검토 조건**: 참조 이벤트 Outbox를 다른 서비스로 relay하게 되면(현재는 `ENTITLEMENT_SNAPSHOT`만 relay — `EntitlementRelayService`) payload의 `evidenceRef` 포함 여부를 다시 판단 |
+| L-20 | (rev 0.8) B3 후에도 승인 시작은 불가 — 수수료·정산 정책 배정(A3)·한도(A4)는 B4. 정책 버전 등록(registerPolicyVersion)은 전역 정책이라 이 작업 밖이며 Demo는 seed가 만든 Demo 버전을 배정한다 | §9.19 표. B4 설계 때 정책 버전 선택 화면 범위 확정 |
 
-**재개 동작**(rev 0.6): 재리뷰 PASS 뒤 Coordinator가 MERCHANT-OPS-002 B2 acceptanceCriteria·allowedWritePaths를 §8.2로 등록 → **B2-1부터** TDD(RED 먼저 — 첫 RED는 반전된 n-1 회귀 시험과 `registerRevision` KST 경계 표) → Verifier gate → Demo →
-B2-2(V9/V10 확정 — D-MOPS-008로 열 결정 완료) → B2-3. B3~B5 분류는 D-MOPS-007 ③으로 확정, 남은 미결은 각 배치 착수 전에 묻는다.
+**재개 동작**(rev 0.8): ① Coordinator가 Q-MOPS-22~24를 사용자에게 묻고(`harness/questions.json` PENDING → ASKED), C-35(미해결 키)를 결정. ② rev 0.8 독립 리뷰. ③ PASS 뒤 Coordinator가 B3 acceptanceCriteria(§8.3)·allowedWritePaths(아래 후보)를 등록 →
+**B3-1부터** TDD(RED 먼저 — parser·근거 경로·handler 집합) → Verifier gate → Demo(§9.24) → B3-2(Q-23 답 뒤) → B3-3(Q-22·24 답 뒤) → B4·B5 설계(C-38 순서는 Coordinator) → B3-4.
+**allowedWritePaths 후보**(B3 — 배치마다 좁힌다): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/{domain,application,adapter/web/admin,adapter/persistence,adapter/query}/**`,
+`apps/master-api/src/main/resources/db/migration/master/V11__admin_approval_evidence_b3_operations.sql`, `apps/master-api/src/test/kotlin/com/paycore/master/{merchant,architecture}/**`,
+`apps/internal-admin/src/main/kotlin/com/paycore/admin/{approval,merchantops,audit}/**`, `apps/internal-admin/src/main/resources/db/migration/admin/V11__merchant_ops_activation_approval.sql`, `apps/internal-admin/src/main/resources/application.yml`(C-37 사유 목록 설정이 필요할 때만),
+`apps/internal-admin/src/test/kotlin/com/paycore/admin/{approval,merchantops,audit,architecture}/**`, `apps/internal-admin/src/test/kotlin/com/paycore/admin/AdminSchemaSpec.kt`, `apps/internal-admin/frontend/src/{screens,api,components}/**`, 이 명세 §13. 제외: STUDY.md, `harness/tasks.json`·`questions.json`(Coordinator), PAYMENT·FINANCIAL 앱, 다른 migration.
 
 ## 13. 리뷰·결정 기록
 
@@ -769,3 +1006,8 @@ B2-2(V9/V10 확정 — D-MOPS-008로 열 결정 완료) → B2-3. B3~B5 분류�
 | 0.6.5 | 2026-11-10 | Implementer(B2-2 ADMIN 구현 — Coordinator 지시 정정, 정책·기대값 변경 없음) | **정정 2건**: ① §8.2 B2-2-3 `decided_via` NULL 직접 INSERT는 열이 NOT NULL이라 MySQL **1048**(3819 아님 — 다른 값만 3819). ② §9.3 `EnvironmentDeploymentMode` 위치 = **adapter/integration**(adapter/batch는 ArchUnit `batchAdapterUsesOnlyApplication`이 required Port 구현을 막는다 — MASTER 코드 위치 그대로). **ADMIN 가역 구현 선택(Coordinator 확인 대상, 업무 의미 변경 없음)**: V9 종류 CHECK·미해결 키·명령 표 `command_kind`(`CONTRACT_APPROVAL`·`FIRST_MID_ISSUANCE`)에 B2-3 종류를 미리 둠(앱은 B2-3 전까지 만들지 않음 — §9.5 V9 문구), 근거 참조는 재매입과 같은 문법 + 카드 번호 모양 거부(ACQ-ADMIN-001 B1-A 리뷰 M-1 선례 — "같은 형식"), 결정 조회는 ADMIN 조회 permit·실행/기한 확인은 쓰기 permit(MASTER와 같은 분리), 회복 backoff = `backoff-initial` Demo PT30S부터 두 배·상한 `backoff-max` PT30M(가맹점 종류에만 — 기존 종류 backoff 불변), 400·413은 실행 응답이면 `Malformed`(재전송 중단 `OWNER_MALFORMED` 1회)·409는 무결성 플래그 + 감사 `APPROVAL_INTEGRITY_VIOLATION` 1회(`OwnerOutcomeApplier.apply(integrityAudit = true)` — 기존 종류 기본값 false), `pendingApprovals`는 merchantops 공개 SPI `MerchantPendingApprovals`(approval 모듈 jOOQ Reader + QueryService가 구현 — 모듈 순환 없음)를 ADMIN 상세 응답에 붙임. B2-1 리뷰 n-a(세션 경계 "결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요" 1회 안내) 반영, n-b(`REFERENCE_MISMATCH` → OUTCOME_UNKNOWN → `command_unknown{operation}` 지표·WARN)는 기존 `MerchantRegistrationServiceSpec` review n-3 시험이 이미 단언함을 확인(코드 변경 없음) |
 | 0.7 | 2026-11-10 | Implementer(B2-3 구현 + B2-2 리뷰(REVIEW_PASS 조건부) 반영 + Demo 개선 — 정책 변경 없음) | **B2-3**: MASTER `POST …/first-default-merchant-accounts`(서명 v1·쓰기 permit, 본문 = 근거 공통 9 + 명령 필드 5 — merchantId·contractId·agreementId·revisionNo·primarySiteId, `mop1` operation `IssueFirstDefaultMerchantAccount` — Python 독립 벡터 `5763462d…`·`1121aa32…`를 MASTER·ADMIN 양쪽 시험에), Use Case `issueFirstDefaultMerchantAccountWithEvidence`(근거 실행기 + 기존 발급 본문 공용 — Revision 등록자 규칙 없음, 시험으로 고정), 결정 조회·기한 확인은 기존 endpoint가 operation으로 일반화(기한 확인 해석기가 본문 모양으로 둘 중 하나). 쓰기 handler 전수 집합에 경로 1 추가(기대값 갱신 근거 §8.2 B2-3-1). 실제 MySQL 경합(같은 가맹점 다른 approvalId 둘 → 1 `mid_`·1 `DEFAULT_ALREADY_ISSUED`, MID 1개 — 3회). ADMIN 승인 종류 `MERCHANT_FIRST_MID_ISSUANCE`(V9 CHECK·미해결 키·명령 표 `FIRST_MID_ISSUANCE` 그대로 사용 — migration 없음), pinned `PinnedFirstMidTarget`(§9.5 필드), 미리 보기 적격 C-34, 회복 분기·소유 참조 `mid_`. 화면: 조회 상세 "첫 MID 발급 요청"(OPERATOR·MID 0·승인 Revision·CSA·ACTIVE Site — Revision·CSA·PRIMARY Site 선택, 근거 참조 필수), 승인함 "첫 MID 발급" 상세. **B2-2 리뷰**: m-2 변이 4종(기한 뒤 실행 POST 허용·기한 확인 409 finding 제거·결정 조회 지문 불일치 플래그 생략·`requireDemoSeedPath` isDemo 제거) 모두 RED 확인·원복 sha256 동일, n-1 ADMIN `master-max-execution-window` 거울 값 기동 검사, n-2 C-34, n-3 L-16, n-4 결정 조회 `replayed=true` 주석. **Demo 개선(C-34)**: 요청 결과 유지, 승인 대기 배너 대상, 감사 화면 대상 열(targetRef — L-13 감사 대상 열 해소) |
 | 0.7.1 | 2026-11-10 | Implementer(B2-3 리뷰 REVIEW_PASS 조건부 — MAJOR 1·MINOR 3·NIT 5 + Demo 지적 3 반영, 정책 변경 없음) | **M-1** §8.2 B2-3-2: `FirstDefaultIssuanceAtomicitySpec`에 근거 경로 Then 추가(기존 단언 불변) — 근거 행 쓰기 직후·ADMIN_COMPLETE 장애 주입 시 MID·Default·PRIMARY·권리 revision·Snapshot·이력·Outbox 불변, 근거 행 0·`admin_request` 0, 재시도 1회 실행·근거 EXECUTED 1행(재요청은 재생). 주입 지점을 하나씩 끄는 변이 RED 기록. **m-1** C-34 보강(위 표). **m-2** `FirstMidApprovalApiSpec`·`MerchantApprovalLostResponseSpec`에 MID 행: 같은 키 다른 본문 409, 쓰기 permit 소진 503, `approval_executed{operation=IssueFirstDefaultMerchantAccount}`, 실제 HTTP 응답 유실 후 재전송 재생, 기한 뒤 미실행 → APPROVAL_EXPIRED(`DEADLINE_CONFIRM`) 저장·재생, 경합 근거 행 EXECUTED 1·REJECTED(`DEFAULT_ALREADY_ISSUED`) 1 + `data_lock_waits` 관찰. **m-3** 첫 MID 폼: Revision 변경 시 CSA·Site를 새 옵션 첫 값으로, 보내기 조건에 "선택값이 현재 옵션 안" — 두 계약 Vitest. **NIT** n-1 기한 확인 KDoc 위치, n-2 설정 toString, n-3 감사 targetRef 변이, n-4 승인 0단계 읽기 1회, n-5 변이 로그 형식(대상 파일·명령·sha). **Demo 지적**: 승인 대기 배너의 MID 중복 표기 제거, 등록 화면 다음 단계 문구(계약 승인 → 첫 MID 발급, 결제수단·Route 개통 전 결제 불가)·페이지 설명, 첫 MID 폼 제목·Revision 선택지 "ctr_… #n · YYYY-MM-DD 시작"(KST) |
+| 0.8 | 2026-11-11 | Implementer(B3 상세 설계 — B2 커밋 `1b5538d` 기준 코드 확인, 코드·migration·빌드·커밋 없음, 정책 변경 없음) | **B3 상세 설계** §9.13~§9.24·§8.3: 하위 배치 B3-1(수단 개통 등록 1인·승인 2인 + Site 심사 승인 2인/거절 1인) → B3-2(통화 2인) → B3-3(Route 등록 1인·승인 2인) → (B5) → B3-4(재개·Site 재확인 2인)(C-38). 코드 확인: B3 Use Case는 모두 있으나 근거 없는 `execute` 경로뿐(두 서비스 executor에 근거 Store 없음) → `…WithEvidence` 7개·`rejectSiteReview` 신설, 근거 없는 2인 메서드 7개 seed 관문(C-40 — Demo seed가 4개 사용 확인). MASTER endpoint 1인 3·2인 7, 본문 `operation` 필드(C-39 — 승인·재개 본문 모양 동일), Domain 기관 근거 = 승인 근거(C-36), Site 사유 코드(C-37), KRW만(C-41 — CLAUDE.md), ADMIN 종류 7·미해결 키 그룹(C-35 Coordinator 결정 대상)·pinned·1인 화면 API 3·감사 code 3, 화면 개통 영역·점검표(C-43), migration MASTER V11·ADMIN V11(V12 비움 — C-42). **"결제 가능"(§9.19 — PAYMENT `EntitlementEvaluator`·`AuthorizationTermsEvaluator`·`AuthorizationStart` 확인)**: B3-2 뒤 결제 생성 판정 Allowed가 처음, 승인 시작은 B4(정책 배정·한도) 뒤, 새 MID는 Credential 없음(L-17). 새 질문 후보 Q-MOPS-22(기관 가맹점 참조 형태)·23(통화 효력 시작)·24(Route 등록자≠승인자) PENDING — B3-1은 막히지 않음. L-17~L-20, 재개 동작·allowedWritePaths 후보 갱신 |
+| 0.8.1 | 2026-11-11 | Implementer(rev 0.8 독립 리뷰 조건부 PASS — Coordinator 지시 반영, 정책 변경 없음) | **MAJOR-1** Q-MOPS-24를 "1인 등록자 ≠ 그 대상의 2인 승인자"(Route·결제수단 개통·Site)로 확대 — 등록자 열 코드 확인(`card_route_activation.registered_by`·`payment_method_activation.registered_by`·`merchant_site.created_by`, migration 불필요), 막히는 배치에 B3-1 2인 경로 DONE 추가, Activation·Site pinned `registeredBy`(표시용), `harness/questions.json` 갱신. **C-45**(minor-1) 개통 승인 `primarySiteId` 고정·`PRIMARY_SITE_MISMATCH`. minor-2 1인 거절 ↔ 2인 승인 같은 Site 경합 시험, minor-3 응답 유실 handler 4개 전부, minor-4 기한 확인 교차 수용 금지·`MasterResponseShape` operation 허용 목록·reference 문법, minor-5 근거 입력란 의미 표시·L-19 relay 재검토 조건(C-36 질문 안 올림), minor-7 B3-1 DONE 증거 항목, nit-1 1인 거절 operation `RejectSiteReview` 분리, nit-3 V11 한 ALTER. **C-35 Coordinator 채택** + Site 1인 거절 버튼은 그룹 대기 중에도 숨기지 않음. **minor-6·nit-2·nit-4 원문 미수령** — Coordinator 메시지에 지적 원문이 없어 임의 추정 반영하지 않음(원문 전달 필요, rev 0.6 n-1~n-8 선례) |
+| 0.8.2 | 2026-11-11 | Implementer(B3-1 MASTER 구현 기록 — 정책·기대값 완화 없음, 자기 완료 판정 아님) | MASTER B3-1 구현: endpoint 4개(`MerchantActivationController` — 1인 `payment-method-activations`·`site-review-rejections`, 2인 `payment-method-activation-approvals`·`site-review-approvals`), Use Case `approvePaymentMethodActivationWithEvidence`·`approveSiteReviewWithEvidence`·`rejectSiteReview`(operation `RejectSiteReview` — nit-1), Domain `ActivationApproval.approve(expectedPrimarySiteId)` → `PRIMARY_SITE_MISMATCH`(C-45, 전이 판정 뒤), 기한 확인 해석기 4개 중 정확히 하나(minor-4), 사유 코드 `SiteReviewReasonCodes`(C-37), V11 한 ALTER(nit-3), 상세 조회 `sites[].registeredBy`·`paymentMethods[].registeredBy`·`accounts[].siteConfirmations[]`(근거·사유 없음 — C-43). seed 관문은 이번 배치 대상 2개만(§9.15 기록). **Q-MOPS-24 답 전**: 2인 경로의 등록자 검사 없음 — 시험으로 현재 상태 고정. 기존 시험 변경: 경로·migration·문장 수 목록 갱신과 근거 없는 2인 호출의 준비 행위자 seed화뿐(기대값 완화 0 — 목록은 보고서). 증거 `~/gate-logs/mops-b31/`(RED 115/23 실패 → GREEN 118/0, 상세 RED 21/2 → GREEN 21/0, 모듈 check 610/0, 변이 4/4 검출·sha 복원) |
+| 0.8.3 | 2026-11-11 | Implementer(rev 0.8 리뷰 minor-6·nit-2·nit-4 원문 수령 — Coordinator 전달, 명세만, 코드 변경 없음) | **minor-6** §8.3 B3-1-4(개통 등록 경합 = merchant 잠금 아래 `findOpen` 판정, UNIQUE 보조 방어선, `data_lock_waits` 관찰 문구 삭제 — `ActivationConcurrencySpec` 실제 단언과 일치), B3-2-3 같은 정정, §9.20 Concurrency 행, §9.21 JPA 설명 정정. **nit-2** §9.14 경로별 실제 잠금 순서(Site 심사는 merchant만). **nit-4** Q-MOPS-22 영향란(§11.2·`harness/questions.json`)에 Route 등록 지문의 기관 가맹점 참조 원문 입력 확인 메모. Coordinator: `frontend/src/test/fakeApi.ts` stub 변경 승인 |
+| 0.8.4 | 2026-11-11 | Implementer(B3-1 코드 리뷰 조건부 PASS 반영 — 정책·기대값 완화 없음) | M-2 `ActivationApprovalAtomicitySpec` Site 심사 승인 근거 경로 행렬(장애 주입 3지점·같은 행위자·`SITE_NOT_FOUND`/`APPROVAL_EXPIRED` 순서·기한 확인) — 시험 추가라 변이로 검출 확인. m-1 열린 PRIMARY 판정 차이(§9.16 기록, KDoc 정정 — ADMIN은 ACTIVE만, 보수적). m-2 Vitest(B3 그룹 대기가 B2 버튼을 숨기지 않음). n-1 ADMIN V11 DROP/ADD 한 ALTER. n-3 기한 확인 해석기 B3 operation 교차 null 단언. 증거 `~/gate-logs/mops-b31/`(r1-*, mutations/summary-r1.txt, changed-files-all.txt, changed-tests.md) |

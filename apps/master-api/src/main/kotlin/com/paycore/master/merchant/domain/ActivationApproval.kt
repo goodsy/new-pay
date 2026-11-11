@@ -21,11 +21,17 @@ object ActivationApproval {
         evidence: EvidenceRef,
         at: Instant,
         by: ActorRef,
+        expectedPrimarySiteId: MerchantSiteId? = null,
     ): ActivationApprovalResult {
         require(assignments.all { it.merchantAccountId == account.id }) { "assignments must belong to the activation's MID" }
         val transition = activation.approve(account, evidence, at, by)
         require(existingConfirmations.all { it.activationId == activation.id }) { "existing confirmations must belong to the activation" }
         val primary = assignments.singleOrNull { it.role == SiteAssignmentRole.PRIMARY && it.isOpenAt(at) }
+        // MERCHANT-OPS-002 C-45: 근거 경로는 승인자가 본 PRIMARY를 고정한다 — 전이 판정 뒤, 다르거나 없으면 거절(적용 확인이 다른 Site에 기록되지 않게).
+        // 근거 없는 seed 경로는 null(검사 없음 — 기존 동작).
+        if (expectedPrimarySiteId != null && primary?.merchantSiteId != expectedPrimarySiteId) {
+            throw MasterRuleViolation(MasterRejection.PRIMARY_SITE_MISMATCH)
+        }
         // review M-1: 그 Site의 유효 확인이 이미 있으면 두 번째를 만들지 않는다(철회 하나로 결제가 막혀야 한다 — 유효 확인은 하나).
         val alreadyConfirmed = primary != null && existingConfirmations.any { it.merchantSiteId == primary.merchantSiteId && it.isValid }
         val confirmation = primary?.takeUnless { alreadyConfirmed }?.let { p ->

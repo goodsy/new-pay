@@ -9,6 +9,7 @@ import com.paycore.master.merchant.application.EntitlementCommandFixture.newEvid
 import com.paycore.master.merchant.application.EntitlementCommandFixture.reason
 import com.paycore.master.merchant.application.EntitlementCommandFixture.revisionOf
 import com.paycore.master.merchant.application.OnboardingFixture.request
+import com.paycore.master.merchant.application.OnboardingFixture.seedRequest
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.AddServiceAgreementCommand
@@ -208,7 +209,7 @@ class EntitlementRevisionMatrixSpec(
             val (mid, activation) = ids
             entitlement.confirmSiteActivation(ConfirmSiteActivationCommand(request(), mid, ready.siteId, PaymentMethod.CARD, evidence)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.PRIMARY_CONFIRMED_BY_APPROVAL, null, replayed = false)
-            succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(request(), activation, evidence)))
+            succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), activation, evidence)))
             fun validCount() = (scalar(
                 "SELECT COUNT(*) FROM site_activation_confirmation c LEFT JOIN site_activation_confirmation_revocation r " +
                     "ON r.confirmation_id = c.confirmation_id WHERE c.activation_id = ? AND r.confirmation_id IS NULL",

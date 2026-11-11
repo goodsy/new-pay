@@ -65,7 +65,9 @@ class OperatorCancelJustificationService(
                         c.originalFileId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
                     }
                     // MERCHANT-OPS-002 B2-2(D-MOPS-008 ①): 가맹점 승인도 근거 참조만, 같은 판정(APPROVER·요청자)·같은 감사(target_ref = merchantId).
-                    ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> merchantCommands.find(approvalId)?.let { c ->
+                    ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION,
+                    ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL,
+                    -> merchantCommands.find(approvalId)?.let { c ->
                         c.merchantId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
                     }
                     else -> null

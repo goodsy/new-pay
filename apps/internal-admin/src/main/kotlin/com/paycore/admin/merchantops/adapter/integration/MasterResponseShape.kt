@@ -111,15 +111,25 @@ internal sealed interface MasterResponseShape {
                 MasterCommandKind.REGISTER_CONTRACT -> "ctr"
                 MasterCommandKind.ADD_SERVICE_AGREEMENT -> "csa"
                 MasterCommandKind.REGISTER_CONTRACT_REVISION -> "ctr"
+                MasterCommandKind.REGISTER_PAYMENT_METHOD_ACTIVATION -> "act"
+                MasterCommandKind.REJECT_SITE_REVIEW -> "site"
             }
-            // B2-1 Revision만 `ctr_…#<n>`(n = 1..2147483647 — Domain·DB에 상한이 없어 INT 범위, MERCHANT-OPS-002 C-30). 다른 종류에 `#`가 오면 해석 불가.
-            val suffix = if (kind == MasterCommandKind.REGISTER_CONTRACT_REVISION) "#$REVISION_NO" else ""
+            // B2-1 Revision만 `ctr_…#<n>`(n = 1..2147483647 — Domain·DB에 상한이 없어 INT 범위, MERCHANT-OPS-002 C-30), B3-1 Site 심사 거절만 `site_…#<seq>`(결정 행 순번).
+            // 다른 종류에 `#`가 오면 해석 불가.
+            val suffix = when (kind) {
+                MasterCommandKind.REGISTER_CONTRACT_REVISION -> "#$REVISION_NO"
+                MasterCommandKind.REJECT_SITE_REVIEW -> "#$DECISION_SEQ"
+                else -> ""
+            }
             obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to Text(Regex("^${prefix}_$ULID$suffix$")), "replayed" to Flag)
         }
 
         /** 1..2147483647(Int 범위)의 10진 표기 — 앞자리 0 없음. */
         private const val REVISION_NO =
             "([1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])"
+
+        /** Site 심사 결정 순번(MASTER 결정 행 seq — 1..10자리, 앞자리 0 없음 — B3-1). */
+        private const val DECISION_SEQ = "[1-9][0-9]{0,9}"
 
         /** 명령 업무 거절 — **`reference` 키 없음**(C-12: 오면 키 집합이 달라 해석 불가). */
         val COMMAND_REJECTED: MasterResponseShape = obj("outcome" to Text(Regex("^REJECTED$")), "rejection" to Text(Regex("^[A-Z][A-Z0-9_]{0,47}$")), "replayed" to Flag)
@@ -132,11 +142,20 @@ internal sealed interface MasterResponseShape {
         private val CONTRACT_REVISION_REFERENCE = Text(Regex("^ctr_$ULID#$REVISION_NO$"))
 
         private val MERCHANT_ACCOUNT_REFERENCE = Text(Regex("^mid_$ULID$"))
+        private val ACTIVATION_REFERENCE = Text(Regex("^act_$ULID$"))
+        private val SITE_REVIEW_REFERENCE = Text(Regex("^site_$ULID#$DECISION_SEQ$"))
 
-        /** operation code → 성공 reference 문법(계약 승인 `ctr_…#n` — C-30, 첫 MID `mid_…` — B2-3). 다른 문법이면 해석 불가(Unknown). */
+        /**
+         * operation code → 성공 reference 문법(계약 승인 `ctr_…#n` — C-30, 첫 MID `mid_…` — B2-3, B3-1 개통 승인 `act_…`·Site 심사 승인 `site_…#n` — minor-4).
+         * 다른 문법이면 해석 불가(Unknown). **이 표의 키가 결정 조회 `operation` 허용 목록이다** — 목록 밖 operation은 해석 불가(fail-closed).
+         */
         private val APPROVAL_REFERENCES: Map<String, MasterResponseShape> = mapOf(
             "ApproveContractRevision" to CONTRACT_REVISION_REFERENCE, "IssueFirstDefaultMerchantAccount" to MERCHANT_ACCOUNT_REFERENCE,
+            "ApprovePaymentMethodActivation" to ACTIVATION_REFERENCE, "DecideSiteReview" to SITE_REVIEW_REFERENCE,
         )
+
+        /** 결정 조회 응답 `operation` 허용 목록(minor-4). */
+        val APPROVAL_OPERATIONS: Set<String> get() = APPROVAL_REFERENCES.keys
 
         fun approvalSucceeded(operationCode: String): MasterResponseShape =
             obj("outcome" to Text(Regex("^SUCCEEDED$")), "reference" to APPROVAL_REFERENCES.getValue(operationCode), "replayed" to Flag)
@@ -153,7 +172,7 @@ internal sealed interface MasterResponseShape {
             "reference" to APPROVAL_REFERENCES.getValue(operationCode), "approvalFingerprint" to MOP1, "decidedVia" to DECIDED_VIA,
         )
         val DECISION_REJECTED: MasterResponseShape = obj(
-            "decision" to Text(Regex("^DECIDED$")), "operation" to Text(Regex("^(ApproveContractRevision|IssueFirstDefaultMerchantAccount)$")), "outcome" to Text(Regex("^REJECTED$")),
+            "decision" to Text(Regex("^DECIDED$")), "operation" to Text(Regex("^(" + APPROVAL_REFERENCES.keys.joinToString("|") + ")$")), "outcome" to Text(Regex("^REJECTED$")),
             "rejection" to REJECTION, "approvalFingerprint" to MOP1, "decidedVia" to DECIDED_VIA,
         )
 
@@ -164,6 +183,8 @@ internal sealed interface MasterResponseShape {
                 obj(
                     "merchantSiteId" to ID, "channelType" to CODE, "channelIdentifier" to CHANNEL, "lifecycle" to CODE,
                     "review" to opt(obj("decision" to CODE, "decidedAt" to TIME)),
+                    // MERCHANT-OPS-002 B3-1(MAJOR-1): Site 등록자(`merchant_site.created_by` — 표시용, Q-MOPS-24 답 전 검사 없음).
+                    "registeredBy" to ACTOR,
                 ),
             ),
             "contracts" to list(
@@ -189,7 +210,14 @@ internal sealed interface MasterResponseShape {
                             "assignmentId" to ID, "merchantSiteId" to ID, "role" to CODE, "status" to CODE, "effectiveFrom" to TIME, "effectiveTo" to opt(TIME),
                         ),
                     ),
-                    "paymentMethods" to list(obj("activationId" to ID, "paymentMethod" to CODE, "status" to opt(CODE), "registeredAt" to TIME)),
+                    // B3-1: 개통 등록자(`registeredBy` — 표시용).
+                    "paymentMethods" to list(obj("activationId" to ID, "paymentMethod" to CODE, "status" to opt(CODE), "registeredAt" to TIME, "registeredBy" to ACTOR)),
+                    // B3-1(C-43): Site 적용 확인 목록 — 근거 참조·사유 없음(MASTER SELECT 목록에 없다).
+                    "siteConfirmations" to list(
+                        obj(
+                            "confirmationId" to ID, "merchantSiteId" to ID, "paymentMethod" to CODE, "activationId" to ID, "confirmedAt" to TIME, "revoked" to Flag,
+                        ),
+                    ),
                     "currencies" to list(
                         obj("enablementId" to ID, "currencyCode" to CURRENCY, "effectiveFrom" to TIME, "effectiveTo" to opt(TIME), "endedAt" to opt(TIME)),
                     ),

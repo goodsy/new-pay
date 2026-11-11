@@ -65,4 +65,21 @@ sealed interface RegistrationRequest {
 
         override fun toString(): String = "RegistrationRequest.ServiceAgreement(contractId=$contractId)"
     }
+
+    /** B3-1 결제수단 개통 등록(§9.14 — 1인, UNDER_REVIEW로 남는다). 결제수단은 `CARD`만(기존 enum — 형식은 Use Case). */
+    class PaymentMethodActivation(override val submissionId: String, val merchantAccountId: String, val paymentMethod: String) : RegistrationRequest {
+        override val kind = RegistrationKind.PAYMENT_METHOD_ACTIVATION
+
+        override fun toString(): String = "RegistrationRequest.PaymentMethodActivation(merchantAccountId=$merchantAccountId, paymentMethod=$paymentMethod)"
+    }
+
+    /**
+     * B3-1 Site 심사 거절(§9.14 — 1인, **REJECTED 고정·되돌릴 수 없음**(D-MS-005, 재신청은 새 Site), 결정값 필드 없음 C-40). [reasonCode]는 거절 사유 목록(C-37),
+     * [evidenceRef]는 선택(형식 §9.3) — **감사·로그·toString에 넣지 않는다**(MASTER 본문에만).
+     */
+    class SiteReviewRejection(override val submissionId: String, val merchantSiteId: String, val reasonCode: String, val evidenceRef: String?) : RegistrationRequest {
+        override val kind = RegistrationKind.SITE_REVIEW_REJECTION
+
+        override fun toString(): String = "RegistrationRequest.SiteReviewRejection(merchantSiteId=$merchantSiteId, reasonCode=$reasonCode)"
+    }
 }

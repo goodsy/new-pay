@@ -90,7 +90,8 @@ class MerchantRegistrationService(
         // C-22(B2-1): Revision 성공 reference `ctr_…#<n>`은 감사 targetRef 형식 밖 → targetRef = 계약 ID, detail에 `rev=<n>`.
         val revisionNo = if (kind == RegistrationKind.CONTRACT_REVISION) decided?.reference?.substringAfter('#', "")?.ifEmpty { null } else null
         val detail = pre.text(replayed = decided?.replayed, rejection = decided?.rejection, revision = revisionNo)
-        val targetRef = if (kind == RegistrationKind.CONTRACT_REVISION) pre.parentRef else decided?.reference ?: pre.parentRef
+        // B3-1(§9.16): 개통 등록 targetRef = MID, Site 심사 거절 targetRef = siteId(성공 reference `site_…#n`은 targetRef 형식 밖) — 성공·거절 모두 입력의 대상.
+        val targetRef = if (kind in TARGET_IS_INPUT) pre.parentRef else decided?.reference ?: pre.parentRef
         if (!audited(view, context, correlationId, kind, resultCode, detail, targetRef)) {
             return finish(kind, "AUDIT_UNAVAILABLE", MerchantRegistrationResult.AuditUnavailable, correlationId)
         }
@@ -137,6 +138,14 @@ class MerchantRegistrationService(
                 put("effectiveFrom", RegistrationInputRules.kstStartOfDay(request.effectiveFromDate))
                 request.effectiveToDate?.let { put("effectiveTo", RegistrationInputRules.kstStartOfDay(it)) }
             }
+            // B3-1(§9.14): 개통 등록·Site 심사 거절(REJECTED 고정 — 결정값 필드 없음 C-40). 근거 참조는 있을 때만 키를 보낸다(선택).
+            is RegistrationRequest.PaymentMethodActivation -> MasterCommandKind.REGISTER_PAYMENT_METHOD_ACTIVATION to
+                mapOf("merchantAccountId" to request.merchantAccountId, "paymentMethod" to request.paymentMethod)
+            is RegistrationRequest.SiteReviewRejection -> MasterCommandKind.REJECT_SITE_REVIEW to buildMap<String, Any> {
+                put("merchantSiteId", request.merchantSiteId)
+                put("reasonCode", request.reasonCode)
+                request.evidenceRef?.let { put("evidenceRef", it) }
+            }
         }
         return MasterCommand(kind, key, "$ACTOR_PREFIX$actorId", correlationId, fields)
     }
@@ -146,10 +155,14 @@ class MerchantRegistrationService(
      * 결과 불명([MasterCommandResult.Unknown] `REFERENCE_MISMATCH`)으로 둔다 — 효과 유무를 단정하지 않고 같은 submissionId 재전송으로 확인한다(fail-closed, 응답 모양 검사 다음 단계).
      */
     private fun checkedReference(request: RegistrationRequest, result: MasterCommandResult): MasterCommandResult {
-        if (request !is RegistrationRequest.ContractRevision || result !is MasterCommandResult.Decided) return result
-        if (result.outcome != MasterCommandResult.Outcome.SUCCEEDED) return result
-        val ownRevision = Regex("^${Regex.escape(request.contractId)}#[1-9][0-9]*$")
-        return if (result.reference?.let(ownRevision::matches) == true) result else MasterCommandResult.Unknown(REFERENCE_MISMATCH)
+        if (result !is MasterCommandResult.Decided || result.outcome != MasterCommandResult.Outcome.SUCCEEDED) return result
+        // B3-1: Site 심사 거절 성공 reference도 **보낸 Site의** 결정(`<siteId>#<seq>`)이어야 한다(같은 규칙).
+        val own = when (request) {
+            is RegistrationRequest.ContractRevision -> Regex("^${Regex.escape(request.contractId)}#[1-9][0-9]*$")
+            is RegistrationRequest.SiteReviewRejection -> Regex("^${Regex.escape(request.merchantSiteId)}#[1-9][0-9]*$")
+            else -> return result
+        }
+        return if (result.reference?.let(own::matches) == true) result else MasterCommandResult.Unknown(REFERENCE_MISMATCH)
     }
 
     /** C-13: 중복 거절은 "그 번호가 있다"는 검색 결과와 같은 정보 → 확정. 결과 불명·503도 확정(중복이었을 수 있다). */
@@ -212,6 +225,9 @@ class MerchantRegistrationService(
             if (RegistrationInputRules.REGISTRATION_NUMBER.matches(it)) "brn=" + it.take(VISIBLE_DIGITS) + "*".repeat(MASKED_DIGITS) else INVALID_NUMBER
         }
         private val channel = (request as? RegistrationRequest.MerchantSite)?.channelType?.takeIf { it in CHANNEL_TYPES }?.let { "channel=$it" }
+
+        /** B3-1 Site 심사 거절 사유 코드(고정 목록 값만 — 근거 참조 값은 넣지 않는다). */
+        private val reason = (request as? RegistrationRequest.SiteReviewRejection)?.reasonCode?.takeIf { it in RegistrationInputRules.REJECT_REASONS }?.let { "reason=$it" }
         val parentRef: String? = when (request) {
             is RegistrationRequest.Business -> null
             is RegistrationRequest.Merchant -> request.businessId.takeIf { RegistrationInputRules.BUSINESS_ID.matches(it) }
@@ -221,10 +237,13 @@ class MerchantRegistrationService(
             is RegistrationRequest.ServiceAgreement -> request.contractId.takeIf { RegistrationInputRules.CONTRACT_ID.matches(it) }
             // B2-1: Revision의 상위 = 입력한 계약(성공도 계약 ID — C-22).
             is RegistrationRequest.ContractRevision -> request.contractId.takeIf { RegistrationInputRules.CONTRACT_ID.matches(it) }
+            // B3-1: 개통 등록의 대상 = MID, Site 심사 거절의 대상 = Site.
+            is RegistrationRequest.PaymentMethodActivation -> request.merchantAccountId.takeIf { RegistrationInputRules.MERCHANT_ACCOUNT_ID.matches(it) }
+            is RegistrationRequest.SiteReviewRejection -> request.merchantSiteId.takeIf { RegistrationInputRules.MERCHANT_SITE_ID.matches(it) }
         }
 
         fun text(replayed: Boolean? = null, rejection: String? = null, revision: String? = null): String? = listOfNotNull(
-            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel,
+            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel, reason,
         ).joinToString(";").ifEmpty { null }
     }
 
@@ -245,5 +264,6 @@ class MerchantRegistrationService(
         const val VISIBLE_DIGITS = 3
         const val MASKED_DIGITS = 7
         val CHANNEL_TYPES = setOf("WEB", "APP")
+        val TARGET_IS_INPUT = setOf(RegistrationKind.CONTRACT_REVISION, RegistrationKind.PAYMENT_METHOD_ACTIVATION, RegistrationKind.SITE_REVIEW_REJECTION)
     }
 }

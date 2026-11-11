@@ -42,6 +42,7 @@ object MerchantOpsJson {
             linkedMapOf(
                 "merchantSiteId" to s.merchantSiteId, "channelType" to s.channelType, "channelIdentifier" to s.channelIdentifier, "lifecycle" to s.lifecycle,
                 "review" to s.review?.let { linkedMapOf("decision" to it.decision, "decidedAt" to time(it.decidedAt)) },
+                "registeredBy" to s.registeredBy,
             )
         },
         "contracts" to v.contracts.map { c ->
@@ -82,7 +83,10 @@ object MerchantOpsJson {
             )
         },
         "paymentMethods" to a.paymentMethods.map {
-            linkedMapOf("activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "status" to it.status, "registeredAt" to time(it.registeredAt))
+            linkedMapOf(
+                "activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "status" to it.status, "registeredAt" to time(it.registeredAt),
+                "registeredBy" to it.registeredBy,
+            )
         },
         "currencies" to a.currencies.map {
             linkedMapOf(
@@ -94,6 +98,12 @@ object MerchantOpsJson {
             linkedMapOf(
                 "activationId" to it.activationId, "paymentMethod" to it.paymentMethod, "acquirerCode" to it.acquirerCode, "routeRef" to it.routeRef,
                 "status" to it.status, "registeredAt" to time(it.registeredAt),
+            )
+        },
+        "siteConfirmations" to a.siteConfirmations.map {
+            linkedMapOf(
+                "confirmationId" to it.confirmationId, "merchantSiteId" to it.merchantSiteId, "paymentMethod" to it.paymentMethod, "activationId" to it.activationId,
+                "confirmedAt" to time(it.confirmedAt), "revoked" to it.revoked,
             )
         },
     )

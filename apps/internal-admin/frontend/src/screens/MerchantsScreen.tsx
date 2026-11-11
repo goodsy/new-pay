@@ -8,6 +8,7 @@ import { ErrorNotice } from '../components/Notice'
 import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
 import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
+import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../components/MerchantActivationArea'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
 import { PageHeader } from '../components/PageHeader'
 import { Badge } from '../components/ui/badge'
@@ -100,9 +101,11 @@ function RevisionButton({ memory, contractId, onOpen }: { memory: ScreenMemory; 
   )
 }
 
-function DetailPanels({ detail, contractAction, revisionAction }: {
+function DetailPanels({ detail, contractAction, revisionAction, activation }: {
   detail: MerchantDetail
   contractAction?: (contractId: string) => ReactNode
+  /** MID 아래 "개통" 영역(B3-1 §9.17 — 결제수단·Site 심사·적용 확인·점검표). 있으면 결제수단 표를 이 영역이 그린다. */
+  activation?: (account: MerchantDetail['accounts'][number]) => ReactNode
   /** Revision 행의 작업 칸(B2-2 "승인 요청" — 표시만, 판정은 서버). */
   revisionAction?: (contractId: string, revision: MerchantDetail['contracts'][number]['revisions'][number]) => ReactNode
 }) {
@@ -241,21 +244,23 @@ function DetailPanels({ detail, contractAction, revisionAction }: {
                 ))}
               </TableBody>
             </Table>
-            <Table aria-label="결제수단 개통">
-              <TableHeader>
-                <TableRow><TableHead>결제수단</TableHead><TableHead>상태</TableHead><TableHead>등록</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {account.paymentMethods.length === 0 && <EmptyRow columns={3} message="결제수단 개통이 없습니다." />}
-                {account.paymentMethods.map((method) => (
-                  <TableRow key={method.activationId}>
-                    <TableCell>{labelOf(method.paymentMethod)}</TableCell>
-                    <TableCell>{method.status === null ? <span className="text-muted-foreground">상태 없음</span> : <StatusBadge code={method.status} />}</TableCell>
-                    <TableCell><KstTime iso={method.registeredAt} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {activation ? activation(account) : (
+              <Table aria-label="결제수단 개통">
+                <TableHeader>
+                  <TableRow><TableHead>결제수단</TableHead><TableHead>상태</TableHead><TableHead>등록</TableHead></TableRow>
+                </TableHeader>
+                <TableBody>
+                  {account.paymentMethods.length === 0 && <EmptyRow columns={3} message="결제수단 개통이 없습니다." />}
+                  {account.paymentMethods.map((method) => (
+                    <TableRow key={method.activationId}>
+                      <TableCell>{labelOf(method.paymentMethod)}</TableCell>
+                      <TableCell>{method.status === null ? <span className="text-muted-foreground">상태 없음</span> : <StatusBadge code={method.status} />}</TableCell>
+                      <TableCell><KstTime iso={method.registeredAt} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
             <Table aria-label="통화">
               <TableHeader>
                 <TableRow><TableHead>통화</TableHead><TableHead>효력 기간</TableHead><TableHead>종료 처리</TableHead></TableRow>
@@ -672,7 +677,8 @@ export function MerchantsScreen({
             ) : undefined}
             revisionAction={canRequestApproval ? (contractId, revision) => {
               const ended = revision.effectiveTo !== null && new Date(revision.effectiveTo).getTime() <= now().getTime()
-              if (revision.approvedAt !== null || ended || (detail.pendingApprovals ?? []).length > 0) return null
+              // C-35(B3-1): 같은 그룹(계약 승인·첫 MID 발급) 대기만 숨긴다 — 개통·Site 심사 대기는 다른 그룹.
+              if (revision.approvedAt !== null || ended || pendingIn(detail, APPROVAL_GROUPS.CONTRACT)) return null
               const key = `${contractId}#${revision.revisionNo}`
               return approvalFor === key ? (
                 <ContractApprovalRequest
@@ -692,6 +698,22 @@ export function MerchantsScreen({
                 <Button type="button" variant="outline" size="sm" onClick={() => setApprovalFor(key)}>승인 요청</Button>
               )
             } : undefined}
+            activation={(account) => (
+              <MerchantActivationArea
+                api={api}
+                detail={detail}
+                account={account}
+                canOperate={canRequestApproval}
+                now={now()}
+                onChanged={() => void refreshDetail(detail.merchant.merchantId)}
+                onRequested={(approvalId, what) => {
+                  setRequestResult({ approvalId, what })
+                  void refreshDetail(detail.merchant.merchantId)
+                }}
+                onSessionEnded={onSessionEnded}
+                newSubmissionId={newSubmissionId}
+              />
+            )}
           />
           <Panel name="변경 이력">
             {historyError && <ErrorNotice>{ERROR_MESSAGES[historyError]}</ErrorNotice>}
