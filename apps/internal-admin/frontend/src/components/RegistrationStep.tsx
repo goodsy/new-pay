@@ -53,12 +53,14 @@ export type StepStatus =
   | { kind: 'failed'; code: ConsoleErrorCode }
   | { kind: 'unknown'; code: ConsoleErrorCode }
 
-interface StepProps<P> {
+/**
+ * 저장 단계 하나의 명세(ADMIN-UI-MERCHANT-001): [RegistrationStep] 양식과 등록 마법사 "다음 단계 →"가 **같은** 제출 경로를 쓴다.
+ * 상태·보낸 입력은 [memory]의 `${memoryKey}.status`·`${memoryKey}.pending`에 둔다. [collect]·[onSucceeded]는 호출 시점의 값을 읽어야 한다(마법사가 앞 단계 성공 직후 이어 부른다).
+ */
+export interface StepSpec<P> {
   memory: ScreenMemory
   /** 이 단계 상태를 둘 메모리 키 접두사. */
   memoryKey: string
-  title: string
-  submitLabel: string
   api: { send: (input: P & { submissionId: string }) => Promise<RegistrationOutcome> }
   newSubmissionId: () => string
   onSessionEnded?: (code: ConsoleErrorCode) => void
@@ -67,60 +69,100 @@ interface StepProps<P> {
   /** 제출 직후(예: 등록번호 입력란 비우기). */
   afterSubmit?: (payload: P) => void
   onSucceeded: (reference: string, payload: P) => void
+}
+
+interface StepProps<P> extends StepSpec<P> {
+  title: string
+  submitLabel: string
   /** 성공 뒤 표시(만든 ID 등). */
   succeeded?: (reference: string) => ReactNode
   children: (locked: boolean) => ReactNode
   /**
    * 성공 뒤 완료 상태(C-32 — 선택): 주면 성공한 폼은 읽기 전용·제출 버튼 없음이 되고 [resetLabel] 버튼만 남는다. 그 버튼이 상태를 비우고 [onReset](입력 초기화)을 부른다 —
-   * 다음 제출은 새 submissionId. 주지 않으면 기존 동작(성공 뒤에도 바로 다시 입력 가능 — 가맹점 등록 화면 단계).
+   * 다음 제출은 새 submissionId. 주지 않으면 성공 뒤에도 바로 다시 입력 가능.
    */
   completion?: { resetLabel: string; onReset: () => void }
+  /** 제출 버튼을 잠시 막는다(선택 — 등록 마법사 "다음 단계 →"가 보내는 동안, 리뷰 NIT-3). 결과 불명 재전송 버튼은 막지 않는다. */
+  submitDisabled?: boolean
+}
+
+/** 메모리에 있는 단계 상태(콜백 시점 값 — 지난 렌더 값 아님). */
+export const stepStatusOf = (memory: ScreenMemory, memoryKey: string): StepStatus => (memory.read(`${memoryKey}.status`) as StepStatus | undefined) ?? IDLE
+/** 보내는 중이거나 결과 불명(같은 submissionId 재전송만 허용). */
+export const stepLocked = (memory: ScreenMemory, memoryKey: string) => {
+  const kind = stepStatusOf(memory, memoryKey).kind
+  return kind === 'busy' || kind === 'unknown'
+}
+/** 확정 성공(SUCCEEDED + reference)이면 그 reference. */
+export const stepReference = (memory: ScreenMemory, memoryKey: string): string | null => {
+  const status = stepStatusOf(memory, memoryKey)
+  return status.kind === 'decided' && status.outcome.outcome === 'SUCCEEDED' && status.outcome.reference ? status.outcome.reference : null
+}
+
+/** [retrying] — 결과 불명으로 잠긴 뒤 같은 submissionId로 다시 보내는 중. 확정 성공이면 true. */
+export async function sendStep<P>(spec: StepSpec<P>, submissionId: string, payload: P, retrying: boolean): Promise<boolean> {
+  const { memory, memoryKey } = spec
+  const setPending = (value: { submissionId: string; payload: P } | null) => memory.write(`${memoryKey}.pending`, value)
+  const setStatus = (value: StepStatus) => memory.write(`${memoryKey}.status`, value)
+  setPending({ submissionId, payload })
+  setStatus({ kind: 'busy' })
+  try {
+    const outcome = await spec.api.send({ ...payload, submissionId })
+    setPending(null)
+    setStatus({ kind: 'decided', outcome })
+    if (outcome.outcome === 'SUCCEEDED' && outcome.reference) {
+      spec.onSucceeded(outcome.reference, payload)
+      return true
+    }
+    return false
+  } catch (e) {
+    const code = codeOf(e)
+    if (SESSION_ENDING.includes(code)) {
+      spec.onSessionEnded?.(code)
+      return false
+    }
+    // 재전송 중에는 409만 확정 — 그 밖의 오류(503 MASTER_BUSY·429·403 등)는 앞 요청 결과를 여전히 모르므로 잠금 유지(§5.3, 리뷰 M-1).
+    const conflict = e instanceof ApiError && e.status === 409
+    if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
+      // 결과 불명 — 같은 submissionId·같은 입력을 메모리에 그대로 둔다(잠금).
+      setStatus({ kind: 'unknown', code })
+      return false
+    }
+    // 확정된 실패(첫 제출의 MASTER 미호출 또는 409 결함 신호) — 다음 제출은 새 submissionId.
+    setPending(null)
+    setStatus({ kind: 'failed', code })
+    return false
+  }
+}
+
+/** 새 제출(입력 검사 → 새 submissionId). 잠겨 있으면 보내지 않는다. 확정 성공이면 true. */
+export async function submitStep<P>(spec: StepSpec<P>): Promise<boolean> {
+  if (stepLocked(spec.memory, spec.memoryKey)) return false
+  const payload = spec.collect()
+  if (payload === null) return false
+  spec.afterSubmit?.(payload)
+  return sendStep(spec, spec.newSubmissionId(), payload, false)
 }
 
 /** 단계 하나: 제출·같은 submissionId 재전송·결과 불명 잠금·결과 표시. */
-export function RegistrationStep<P>({ memory, memoryKey, title, submitLabel, api, newSubmissionId, onSessionEnded, collect, afterSubmit, onSucceeded, succeeded, children, completion }: StepProps<P>) {
+export function RegistrationStep<P>({ title, submitLabel, succeeded, children, completion, submitDisabled = false, ...spec }: StepProps<P>) {
+  const { memory, memoryKey } = spec
   const [pending, setPending] = useRemembered<{ submissionId: string; payload: P } | null>(memory, `${memoryKey}.pending`, null)
   const [status, setStatus] = useRemembered<StepStatus>(memory, `${memoryKey}.status`, IDLE)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const locked = status.kind === 'busy' || status.kind === 'unknown'
   const completed = completion !== undefined && status.kind === 'decided' && status.outcome.outcome === 'SUCCEEDED'
 
-  /** [retrying] — 결과 불명으로 잠긴 뒤 같은 submissionId로 다시 보내는 중. */
   const send = async (submissionId: string, payload: P, retrying: boolean) => {
-    setPending({ submissionId, payload })
-    setStatus({ kind: 'busy' })
     setConfirmCancel(false)
-    try {
-      const outcome = await api.send({ ...payload, submissionId })
-      setPending(null)
-      setStatus({ kind: 'decided', outcome })
-      if (outcome.outcome === 'SUCCEEDED' && outcome.reference) onSucceeded(outcome.reference, payload)
-    } catch (e) {
-      const code = codeOf(e)
-      if (SESSION_ENDING.includes(code)) {
-        onSessionEnded?.(code)
-        return
-      }
-      // 재전송 중에는 409만 확정 — 그 밖의 오류(503 MASTER_BUSY·429·403 등)는 앞 요청 결과를 여전히 모르므로 잠금 유지(§5.3, 리뷰 M-1).
-      const conflict = e instanceof ApiError && e.status === 409
-      if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
-        // 결과 불명 — 같은 submissionId·같은 입력을 메모리에 그대로 둔다(잠금).
-        setStatus({ kind: 'unknown', code })
-        return
-      }
-      // 확정된 실패(첫 제출의 MASTER 미호출 또는 409 결함 신호) — 다음 제출은 새 submissionId.
-      setPending(null)
-      setStatus({ kind: 'failed', code })
-    }
+    await sendStep(spec, submissionId, payload, retrying)
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (locked || completed) return
-    const payload = collect()
-    if (payload === null) return
-    afterSubmit?.(payload)
-    await send(newSubmissionId(), payload, false)
+    if (locked || completed || submitDisabled) return
+    setConfirmCancel(false)
+    await submitStep(spec)
   }
 
   const resend = async () => {
@@ -152,7 +194,7 @@ export function RegistrationStep<P>({ memory, memoryKey, title, submitLabel, api
             {completed ? (
               <Button type="button" variant="outline" onClick={startOver}>{completion.resetLabel}</Button>
             ) : (
-              <Button type="submit" disabled={locked} aria-busy={status.kind === 'busy'}>
+              <Button type="submit" disabled={locked || submitDisabled} aria-busy={status.kind === 'busy'}>
                 <Spinner active={status.kind === 'busy'} />
                 {submitLabel}
               </Button>

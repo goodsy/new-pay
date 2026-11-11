@@ -9,6 +9,7 @@ import { ContractRevisionForm, useRevisionLocked } from '../components/ContractR
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
 import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
 import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../components/MerchantActivationArea'
+import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
 import { PageHeader } from '../components/PageHeader'
 import { Badge } from '../components/ui/badge'
@@ -623,6 +624,8 @@ export function MerchantsScreen({
             {'가맹점 상세 '}
             <span className="font-mono text-xs text-muted-foreground">{detail.merchant.merchantId}</span>
           </h3>
+          {/* ADMIN-UI-MERCHANT-001: 서비스 개통 현황(기존 상세 응답에서만 계산 — 참고용, 아래 개통 점검표 유지). */}
+          <ServiceOpeningTimeline detail={detail} now={now()} />
           {requestResult && (
             <section role="status" aria-label="승인 요청 결과" className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               <span>{`승인 요청을 만들었습니다 — ${requestResult.what}`}</span>

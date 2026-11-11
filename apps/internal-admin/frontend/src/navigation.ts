@@ -29,6 +29,10 @@ export interface Menu {
   tabbed: boolean
   /** 이 역할이 볼 수 있는 탭만(운영 홈은 빈 목록). */
   tabs: Tab[]
+  /**
+   * 쪽 머리 주요 버튼(ADMIN-UI-MERCHANT-001 — 참고 시안 '＋ 사업자 등록'): 탭 막대에 두지 않는 화면 하나를 연다. 이 역할이 볼 수 있을 때만 남는다(표시만 — 판정은 서버).
+   */
+  action?: Tab
 }
 
 const VIEW_ROLES = ['VIEWER', 'OPERATOR', 'APPROVER', 'SECURITY_ADMIN']
@@ -41,7 +45,8 @@ export function pagesFor(roles: string[]): Page[] {
   if (has('SECURITY_ADMIN') || has('OPERATOR')) pages.push('mine')
   // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
-  // MERCHANT-OPS-002 §5.1(D-MOPS-006 ①): 가맹점 등록은 OPERATOR에게만 보인다(서버 기능이 생겨 탭을 연다 — D-ADMIN-UI-003, 판정은 서버).
+  // MERCHANT-OPS-002 §5.1(D-MOPS-006 ①): 가맹점 등록은 OPERATOR에게만 보인다(서버 기능이 생겨 화면을 연다 — D-ADMIN-UI-003, 판정은 서버).
+  // ADMIN-UI-MERCHANT-001: 이 화면은 이제 탭이 아니라 '사업자·가맹점' 쪽 머리 '＋ 사업자 등록' 버튼으로 연다 — 보이는 역할은 그대로.
   if (has('OPERATOR')) pages.push('merchantRegistration')
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   // TXN-OPS-001 §4.1: 거래 조회도 VIEW_MASKED(조회 4역할 — I-1 Implementer 해석, 기존 결제 대상 조회와 같다).
@@ -70,9 +75,11 @@ const MENUS: Menu[] = [
     description: '내가 만든 승인 요청의 진행 상태를 확인하고, 대기 중이면 철회하세요.',
   },
   {
-    id: 'merchants', label: '가맹점 관리', section: PAYMENT_OPERATIONS, tabbed: true,
-    tabs: [{ page: 'merchants', label: '가맹점 조회' }, { page: 'merchantRegistration', label: '가맹점 등록' }],
-    description: '가맹점·사업자·MID 개통 상태와 변경 이력을 조회하고, 사업자·가맹점·Site를 등록하세요(조회·등록).',
+    // ADMIN-UI-MERCHANT-001(사용자 지시 2026-11-11, 참고 시안 #merchant): 사업자 등록은 탭이 아니라 쪽 머리 주요 버튼으로 연다(등록 마법사). 표시 규칙(pagesFor)은 그대로.
+    id: 'merchants', label: '사업자·가맹점', section: PAYMENT_OPERATIONS, tabbed: true,
+    tabs: [{ page: 'merchants', label: '가맹점 조회' }],
+    action: { page: 'merchantRegistration', label: '사업자 등록' },
+    description: '사업자 등록부터 서비스 개통까지, 가맹점의 전체 여정을 관리하세요(조회·등록 — 계약 승인·MID 발급·개통 요청은 가맹점 상세에서).',
   },
   {
     id: 'payments', label: '결제 관리', section: PAYMENT_OPERATIONS, tabbed: true, tabs: [{ page: 'paymentOps', label: '결제 보정 취소' }, { page: 'transactions', label: '거래 조회' }],
@@ -94,13 +101,20 @@ const MENUS: Menu[] = [
 /** 역할이 볼 수 있는 탭이 하나라도 있는 메뉴만(운영 홈은 항상). */
 export function menusFor(roles: string[]): Menu[] {
   const pages = pagesFor(roles)
-  return MENUS.map((m) => ({ ...m, tabs: m.tabs.filter((t) => pages.includes(t.page)) })).filter((m) => m.id === 'home' || m.tabs.length > 0)
+  return MENUS.map((m) => {
+    const { action, ...rest } = m
+    const shown = { ...rest, tabs: m.tabs.filter((t) => pages.includes(t.page)) }
+    return action && pages.includes(action.page) ? { ...shown, action } : shown
+  }).filter((m) => m.id === 'home' || m.tabs.length > 0)
 }
+
+/** 메뉴가 여는 모든 화면(탭 + 쪽 머리 주요 버튼). */
+export const pagesOf = (menu: Menu): Tab[] => (menu.action ? [...menu.tabs, menu.action] : menu.tabs)
 
 /** 화면 → 그 화면이 속한 메뉴. */
 export function menuOf(view: View): MenuId {
   if (view === 'home') return 'home'
-  return MENUS.find((m) => m.tabs.some((t) => t.page === view))?.id ?? 'home'
+  return MENUS.find((m) => pagesOf(m).some((t) => t.page === view))?.id ?? 'home'
 }
 
 export interface MenuSearchResult {
@@ -111,7 +125,7 @@ export interface MenuSearchResult {
 
 const normalize = (text: string) => text.replace(/[\s·]/g, '').toLowerCase()
 
-/** 상단 메뉴 검색(D-ADMIN-UI-003 — 거래·가맹점 검색 아님): 보이는 메뉴 이름과 탭 이름에서만 찾는다. */
+/** 상단 메뉴 검색(D-ADMIN-UI-003 — 거래·가맹점 검색 아님): 보이는 메뉴 이름과 탭 이름(쪽 머리 주요 버튼 포함)에서만 찾는다. */
 export function searchMenus(menus: Menu[], query: string): MenuSearchResult[] {
   const q = normalize(query)
   if (!q) return []
@@ -120,6 +134,7 @@ export function searchMenus(menus: Menu[], query: string): MenuSearchResult[] {
     if (normalize(menu.label).includes(q)) results.push({ path: menu.label, target: menu.tabs[0]?.page ?? 'home' })
     if (!menu.tabbed) continue
     for (const tab of menu.tabs) if (normalize(tab.label).includes(q)) results.push({ path: `${menu.label} › ${tab.label}`, target: tab.page })
+    if (menu.action && normalize(menu.action.label).includes(q)) results.push({ path: `${menu.label} › ${menu.action.label}`, target: menu.action.page })
   }
   return results
 }

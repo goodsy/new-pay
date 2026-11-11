@@ -4,7 +4,7 @@ import { cn } from '../lib/utils'
 
 /**
  * 메뉴 카드(rev 0.4, 참고 시안 `.card` + `.tabs`): 업무 메뉴는 카드 위쪽 탭 막대(선택 탭 = 파란 밑줄), 아래 탭 패널에 기존 화면을 그린다.
- * WAI-ARIA tabs: 선택된 탭만 Tab 순서(roving tabindex), ←/→/Home/End로 옮기면서 바로 선택. 내 업무(탭 없음)는 카드만.
+ * WAI-ARIA tabs: 선택된 탭만 Tab 순서(roving tabindex), ←/→/Home/End로 옮기면서 바로 선택. 내 업무(탭 없음)·탭이 아닌 화면은 카드만.
  */
 export function MenuCard({ label, tabs, tabbed, active, onSelect, children }: {
   label: string
@@ -16,7 +16,8 @@ export function MenuCard({ label, tabs, tabbed, active, onSelect, children }: {
 }) {
   const refs = useRef(new Map<Page, HTMLButtonElement>())
   const body = <div className="flex flex-col gap-6 p-5 md:p-6">{children}</div>
-  if (!tabbed) return <div className="overflow-hidden rounded-[13px] border bg-card text-card-foreground">{body}</div>
+  // 탭이 아닌 화면(쪽 머리 주요 버튼이 연 화면 — ADMIN-UI-MERCHANT-001)은 탭 막대 없이 카드만: 선택된 탭이 없는 tablist를 그리지 않는다.
+  if (!tabbed || !tabs.some((tab) => tab.page === active)) return <div className="overflow-hidden rounded-[13px] border bg-card text-card-foreground">{body}</div>
 
   const move = (event: KeyboardEvent, index: number) => {
     const last = tabs.length - 1

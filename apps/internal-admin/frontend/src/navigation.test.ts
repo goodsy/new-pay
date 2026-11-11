@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { menuOf, menusFor, pagesFor, searchMenus } from './navigation'
+import { menuOf, menusFor, pagesFor, pagesOf, searchMenus } from './navigation'
 
 /** 역할별 메뉴 트리를 [메뉴 이름, [탭 이름…]] 꼴로 펼친다(운영 홈은 탭 없음). */
 const tree = (roles: string[]) => menusFor(roles).map((m) => [m.label, m.tabs.map((t) => t.label)])
+/** 쪽 머리 주요 버튼(ADMIN-UI-MERCHANT-001)이 있는 메뉴만 [메뉴 이름, 버튼 이름]. */
+const actions = (roles: string[]) => menusFor(roles).filter((m) => m.action).map((m) => [m.label, m.action!.label, m.action!.page])
 
 describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs (existing 6 screens only — display only, the server decides)', () => {
   it('the screens each role sees are unchanged (pagesFor)', () => {
@@ -21,7 +23,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(tree(['SECURITY_ADMIN'])).toEqual([
       ['운영 홈', []],
       ['내 요청', ['내 요청']],
-      ['가맹점 관리', ['가맹점 조회']],
+      ['사업자·가맹점', ['가맹점 조회']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['대사 발견', '매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
@@ -32,7 +34,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(tree(['APPROVER'])).toEqual([
       ['운영 홈', []],
       ['승인함', ['승인함']],
-      ['가맹점 관리', ['가맹점 조회']],
+      ['사업자·가맹점', ['가맹점 조회']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['대사 발견', '매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
@@ -43,17 +45,18 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(tree(['OPERATOR'])).toEqual([
       ['운영 홈', []],
       ['내 요청', ['내 요청']],
-      ['가맹점 관리', ['가맹점 조회', '가맹점 등록']],
+      // 기대값 변경(ADMIN-UI-MERCHANT-001, 사용자 지시 2026-11-11): 가맹점 등록은 탭이 아니라 쪽 머리 '＋ 사업자 등록' 버튼(아래 시험) — 보이는 화면(pagesFor)은 그대로.
+      ['사업자·가맹점', ['가맹점 조회']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
     ])
   })
 
-  it('VIEWER: 가맹점 관리, 결제 관리, 매입·대사(매입 현황) and 계정·권한 only', () => {
+  it('VIEWER: 사업자·가맹점, 결제 관리, 매입·대사(매입 현황) and 계정·권한 only', () => {
     expect(tree(['VIEWER'])).toEqual([
       ['운영 홈', []],
-      ['가맹점 관리', ['가맹점 조회']],
+      ['사업자·가맹점', ['가맹점 조회']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
@@ -68,7 +71,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
   })
 
   it('combined roles get the union, in the fixed order', () => {
-    expect(tree(['SECURITY_ADMIN', 'APPROVER']).map(([label]) => label)).toEqual(['운영 홈', '승인함', '내 요청', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'])
+    expect(tree(['SECURITY_ADMIN', 'APPROVER']).map(([label]) => label)).toEqual(['운영 홈', '승인함', '내 요청', '사업자·가맹점', '결제 관리', '매입·대사', '계정·권한'])
   })
 
   it('menus sit under the reference section labels; inbox menus have no tab bar, business menus do', () => {
@@ -84,18 +87,20 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     ])
   })
 
-  it('MERCHANT-OPS-001 (AC 11): 가맹점 관리 is shown to the four view roles only (server function exists now — D-ADMIN-UI-003)', () => {
-    // 기대값 변경(MERCHANT-OPS-002 §5.1): OPERATOR의 가맹점 관리에는 가맹점 등록 탭이 더해졌다(다음 시험).
+  it('MERCHANT-OPS-001 (AC 11): 사업자·가맹점 is shown to the four view roles only (server function exists now — D-ADMIN-UI-003)', () => {
+    // 기대값 변경(MERCHANT-OPS-002 §5.1): OPERATOR의 가맹점 관리에는 가맹점 등록 화면이 더해졌다(다음 시험).
+    // 기대값 변경(ADMIN-UI-MERCHANT-001): 그 화면은 탭이 아니라 쪽 머리 주요 버튼(action) — 메뉴가 여는 화면 전체(pagesOf)는 그대로.
     for (const role of ['VIEWER', 'APPROVER', 'SECURITY_ADMIN']) {
-      expect(menusFor([role]).find((m) => m.id === 'merchants')?.tabs.map((t) => t.page)).toEqual(['merchants'])
+      expect(pagesOf(menusFor([role]).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants'])
     }
-    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.page)).toEqual(['merchants', 'merchantRegistration'])
+    expect(pagesOf(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants', 'merchantRegistration'])
+    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.page)).toEqual(['merchants'])
     expect(menusFor(['UNMASK']).some((m) => m.id === 'merchants')).toBe(false)
     expect(menusFor([]).some((m) => m.id === 'merchants')).toBe(false)
     expect(menuOf('merchants')).toBe('merchants')
     expect(searchMenus(menusFor(['VIEWER']), '가맹점').map((r) => [r.path, r.target])).toEqual([
-      ['가맹점 관리', 'merchants'],
-      ['가맹점 관리 › 가맹점 조회', 'merchants'],
+      ['사업자·가맹점', 'merchants'],
+      ['사업자·가맹점 › 가맹점 조회', 'merchants'],
     ])
   })
 
@@ -109,8 +114,12 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(searchMenus(menusFor(['VIEWER']), '거래').map((r) => [r.path, r.target])).toEqual([['결제 관리 › 거래 조회', 'transactions']])
   })
 
-  it('MERCHANT-OPS-002 §5.1 (D-MOPS-006 ①): 가맹점 등록 is a 가맹점 관리 tab for OPERATOR only; the menu description says 조회·등록', () => {
-    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.label)).toEqual(['가맹점 조회', '가맹점 등록'])
+  it('MERCHANT-OPS-002 §5.1 (D-MOPS-006 ①) + ADMIN-UI-MERCHANT-001: 사업자 등록 is the 사업자·가맹점 header action for OPERATOR only; the menu description says 조회·등록', () => {
+    // 기대값 변경(ADMIN-UI-MERCHANT-001, 사용자 지시 2026-11-11): '가맹점 등록' 탭 → 쪽 머리 '＋ 사업자 등록' 버튼. OPERATOR에게만(D-MOPS-006 ①) — 의미 불변.
+    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.label)).toEqual(['가맹점 조회'])
+    expect(actions(['OPERATOR'])).toEqual([['사업자·가맹점', '사업자 등록', 'merchantRegistration']])
+    expect(actions(['OPERATOR', 'APPROVER'])).toEqual([['사업자·가맹점', '사업자 등록', 'merchantRegistration']])
+    for (const roles of [['VIEWER'], ['APPROVER'], ['SECURITY_ADMIN'], ['UNMASK'], [], ['APPROVER', 'SECURITY_ADMIN', 'VIEWER']]) expect(actions(roles)).toEqual([])
     for (const roles of [['VIEWER'], ['APPROVER'], ['SECURITY_ADMIN'], ['UNMASK'], [], ['APPROVER', 'SECURITY_ADMIN', 'VIEWER']]) {
       expect(pagesFor(roles)).not.toContain('merchantRegistration')
     }
@@ -118,9 +127,11 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(menuOf('merchantRegistration')).toBe('merchants')
     const description = menusFor(['VIEWER']).find((m) => m.id === 'merchants')?.description ?? ''
     expect(description).toContain('조회·등록')
+    expect(description).toContain('사업자 등록부터 서비스 개통까지')
     expect(description).not.toContain('조회 전용')
-    expect(searchMenus(menusFor(['OPERATOR']), '가맹점 등록').map((r) => [r.path, r.target])).toEqual([['가맹점 관리 › 가맹점 등록', 'merchantRegistration']])
-    expect(searchMenus(menusFor(['VIEWER']), '가맹점 등록')).toEqual([])
+    expect(searchMenus(menusFor(['OPERATOR']), '사업자 등록').map((r) => [r.path, r.target])).toEqual([['사업자·가맹점 › 사업자 등록', 'merchantRegistration']])
+    expect(searchMenus(menusFor(['VIEWER']), '사업자 등록')).toEqual([])
+    expect(searchMenus(menusFor(['APPROVER', 'SECURITY_ADMIN']), '등록')).toEqual([])
   })
 
   it('menuOf maps a screen back to its menu', () => {

@@ -4,7 +4,7 @@ import { ArrowRightIcon, ChevronRightIcon } from '../components/icons'
 import { WorkspaceHeader } from '../components/WorkspaceHeader'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import type { Menu, Page, View } from '../navigation'
+import { pagesOf, type Menu, type Page, type View } from '../navigation'
 
 /**
  * 서버 승인 목록 조회 상한(`ApprovalQueryService.LIMIT` = 200, 총계·잘림 표시 없음). 목록이 이만큼이면 정확한 수가 아니라 "이상"으로 보인다.
@@ -72,7 +72,8 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
   })
   const loaded = metrics.every((m) => counts[m.id] && counts[m.id]?.state !== 'loading')
   const failed = metrics.some((m) => counts[m.id]?.state === 'error')
-  const shortcuts = menus.flatMap((m) => m.tabs.map((t) => ({ menu: m.label, tab: t })))
+  // ADMIN-UI-MERCHANT-001: 쪽 머리 주요 버튼 화면(사업자 등록 — OPERATOR)도 바로가기에 남긴다(탭에서 빠졌을 뿐 보이는 화면은 그대로).
+  const shortcuts = menus.flatMap((m) => pagesOf(m).map((t) => ({ menu: m.label, tab: t })))
   const amount = (value: number, atLeast: boolean) => `${value}건${atLeast ? ' 이상' : ''}`
 
   return (

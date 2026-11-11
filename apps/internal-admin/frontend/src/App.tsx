@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRightIcon, CreditCardIcon, HouseIcon, InboxIcon, LogOutIcon, SendIcon, StoreIcon, UserRoundIcon, type LucideIcon } from './components/icons'
+import { ArrowLeftRightIcon, CreditCardIcon, HouseIcon, InboxIcon, LogOutIcon, PlusIcon, SendIcon, StoreIcon, UserRoundIcon, type LucideIcon } from './components/icons'
 import { createAdminApi, type AdminApi, type Me } from './api/adminApi'
 import { MenuCard } from './components/MenuCard'
 import { MenuSearch } from './components/MenuSearch'
@@ -10,7 +10,7 @@ import { createScreenMemory, hasUnresolvedRequest } from './lib/screenMemory'
 import { cn } from './lib/utils'
 import type { ConsoleErrorCode } from './errors/errorCodes'
 import { AppLayout } from './layout/AppLayout'
-import { menuOf, menusFor, type Menu, type MenuId, type Page, type View } from './navigation'
+import { menuOf, menusFor, pagesOf, type Menu, type MenuId, type Page, type View } from './navigation'
 import { AccountsScreen } from './screens/AccountsScreen'
 import { AcquisitionsScreen } from './screens/AcquisitionsScreen'
 import { ApprovalsScreen } from './screens/ApprovalsScreen'
@@ -149,7 +149,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   }
 
   // 보이지 않는 화면으로는 가지 않는다(표시 규칙 — 서버도 따로 거부한다).
-  const visible = (target: View) => target === 'home' || menus.some((m) => m.tabs.some((t) => t.page === target))
+  const visible = (target: View) => target === 'home' || menus.some((m) => pagesOf(m).some((t) => t.page === target))
   const open = (target: View) => setView(visible(target) ? target : 'home')
   const menu = menus.find((m) => m.id === menuOf(view)) ?? menus[0]!
   const page: Page | null = view === 'home' ? null : view
@@ -188,7 +188,22 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
         <HomeScreen api={api} me={me} menus={menus} onOpen={open} onSessionEnded={sessionEnded} />
       ) : (
         <>
-          <WorkspaceHeader eyebrow={menu.section?.eyebrow ?? ''} title={menu.label} description={menu.description} />
+          <WorkspaceHeader
+            eyebrow={menu.section?.eyebrow ?? ''}
+            title={menu.label}
+            description={menu.description}
+            action={
+              // ADMIN-UI-MERCHANT-001: 쪽 머리 주요 버튼(이 역할에게 보일 때만 — menusFor). 그 화면을 연 뒤에는 첫 탭으로 돌아가는 버튼.
+              menu.action === undefined ? undefined : page === menu.action.page ? (
+                <Button type="button" variant="outline" onClick={() => open(menu.tabs[0]?.page ?? 'home')}>{`${menu.tabs[0]?.label ?? '운영 홈'}로`}</Button>
+              ) : (
+                <Button type="button" onClick={() => open(menu.action!.page)}>
+                  <PlusIcon aria-hidden="true" />
+                  {menu.action.label}
+                </Button>
+              )
+            }
+          />
           <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}

@@ -11,6 +11,8 @@ export interface ScreenMemory {
   subscribe(listener: () => void): () => void
   /** 지금 있는 키(MERCHANT-OPS-002 B2-1 리뷰 n-a — 세션 경계에서 결과 확인이 필요한 폼이 있었는지 본다). */
   keys(): string[]
+  /** 키를 지운다(ADMIN-UI-MERCHANT-001 "새 사업자 등록 시작" — 지운 키는 [useRemembered]가 초기값으로 읽는다). */
+  remove(key: string): void
 }
 
 export function createScreenMemory(): ScreenMemory {
@@ -29,6 +31,10 @@ export function createScreenMemory(): ScreenMemory {
       return () => listeners.delete(listener)
     },
     keys: () => [...values.keys()],
+    remove: (key) => {
+      if (!values.delete(key)) return
+      for (const listener of [...listeners]) listener()
+    },
   }
 }
 

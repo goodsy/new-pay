@@ -34,16 +34,16 @@ describe('App (session, role menu, error mapping)', () => {
   it('shows the display name and only the menus the server roles allow (display only — the server decides)', async () => {
     signedIn(['APPROVER'])
     expect(await screen.findByText('관리자')).toBeInTheDocument()
-    expect(menuNames()).toEqual(['운영 홈', '승인함', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'])
+    expect(menuNames()).toEqual(['운영 홈', '승인함', '사업자·가맹점', '결제 관리', '매입·대사', '계정·권한'])
     expect(sideMenu().queryByRole('button', { name: '내 요청' })).toBeNull()
   })
 
   it('D-ADMIN-UI-003: the side menu is grouped under 내 업무 / PAYMENT OPERATIONS / WORKSPACE, per role', async () => {
     const expected: Record<string, string[]> = {
-      SECURITY_ADMIN: ['운영 홈', '내 요청', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
+      SECURITY_ADMIN: ['운영 홈', '내 요청', '사업자·가맹점', '결제 관리', '매입·대사', '계정·권한'],
       // 기대값 변경(ACQ-VIEW-001, D-ACQV-001): 조회 4역할에 매입·대사(매입 현황 탭)가 더해졌다.
-      OPERATOR: ['운영 홈', '내 요청', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
-      VIEWER: ['운영 홈', '가맹점 관리', '결제 관리', '매입·대사', '계정·권한'],
+      OPERATOR: ['운영 홈', '내 요청', '사업자·가맹점', '결제 관리', '매입·대사', '계정·권한'],
+      VIEWER: ['운영 홈', '사업자·가맹점', '결제 관리', '매입·대사', '계정·권한'],
       UNMASK: ['운영 홈', '계정·권한'],
     }
     for (const [role, menus] of Object.entries(expected)) {
@@ -82,13 +82,13 @@ describe('App (session, role menu, error mapping)', () => {
     }
   })
 
-  it('MERCHANT-OPS-001 §5.3: 가맹점 관리 opens the lookup; the registration number field only for OPERATOR·APPROVER (display only — the server decides)', async () => {
+  it('MERCHANT-OPS-001 §5.3: 사업자·가맹점 opens the lookup; the registration number field only for OPERATOR·APPROVER (display only — the server decides)', async () => {
     const expected: [string[], boolean][] = [
       [['OPERATOR'], true], [['APPROVER'], true], [['VIEWER'], false], [['SECURITY_ADMIN'], false], [['VIEWER', 'UNMASK'], false],
     ]
     for (const [roles, brn] of expected) {
       const { view, api } = signedIn(roles)
-      await userEvent.click((await signedInMenu()).getByRole('button', { name: '가맹점 관리' }))
+      await userEvent.click((await signedInMenu()).getByRole('button', { name: '사업자·가맹점' }))
       expect(screen.getByRole('tab', { name: '가맹점 조회' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.getByLabelText('가맹점 ID')).toBeInTheDocument()
       expect(screen.queryByLabelText('사업자등록번호') !== null).toBe(brn)
