@@ -283,9 +283,30 @@ class PaymentStatusReaderSpec(
         }
     }
 
+    /**
+     * PAYMENT-QUERY-PLAN-FLAKE-001: EXPLAIN 직전에 두 문장이 읽는 표 전부의 InnoDB 영속 통계를 `ANALYZE TABLE`로 다시 계산한다.
+     * 원인 — 영속 통계 자동 재계산은 행 10% 변경 뒤 background 스레드가 비동기로(표당 최소 10초 간격) 하므로, 방금 만든 행이 통계에 없을 수 있다
+     * (예: `payment_transaction` n_rows=0·`fk_payment_transaction_cancellation` n_diff=0). 그러면 optimizer가 `ct`를 hash join 전체 스캔으로,
+     * 이력 정렬을 `uk_payment_cancellation_merchant_key` + filesort로 고른다(게이트 실패 계획과 같음). 통계를 데이터와 맞춰 계획을 결정적으로 만든다 — 단언은 그대로다.
+     * 대상 표 목록은 캡처한 문장의 FROM/JOIN 표와 정확히 같아야 한다(문장에 표가 늘면 여기서 실패 — 통계 고정 누락 방지).
+     * runtime 계정은 ANALYZE에 필요한 INSERT 권한이 없는 표가 있어(`incident_hold_release` — 1142) 시험 root 연결로 실행한다. 일회용 컨테이너 값이며 운영 DB가 아니다.
+     */
+    fun analyzeTablesOf(statements: List<String>) {
+        val planTables = setOf("payment", "payment_authorization", "payment_transaction", "return_balance", "incident_hold", "incident_hold_release", "payment_cancellation")
+        val named = statements.flatMap { sql -> Regex("(?:from|join) `(\\w+)`").findAll(sql).map { it.groupValues[1] }.toList() }.toSet()
+        withClue("tables named by the reader's statements") { named shouldBe planTables }
+        val results = db.withRoot { c -> with(db) { c.rows("ANALYZE TABLE " + planTables.joinToString { "${db.databaseName}.`$it`" }) } }
+        withClue("ANALYZE TABLE result $results") {
+            results.map { "${it["Table"]} ${it["Msg_type"]} ${it["Msg_text"]}" }.toSet() shouldBe planTables.map { "${db.databaseName}.$it status OK" }.toSet()
+        }
+    }
+
     // P-1(§6.2, 검토 #1 지시 — S2에서 S3로 옮김): 두 문장의 실행 계획 — 모든 표(활성 hold EXISTS·해제 NOT EXISTS 포함)가 인덱스 탐색이고 이력의 ORDER BY는 정렬 없이 인덱스 순서다.
     Given("the execution plans of the reader's statements (P-1)") {
         Then("no full table scan in either statement, including the hold EXISTS subqueries, and no filesort for the history ORDER BY") {
+            // PAYMENT-QUERY-PLAN-FLAKE-001 데이터 모양: 다른 MID의 승인·취소된 결제 5건을 먼저 둔다. 표가 1~2행뿐이면 통계가 정확해도 전체 스캔이 인덱스 탐색보다 싸다고
+            // 계산되어(측정: 다른 결제 0~1건이면 `t` type=ALL, 2건 이상이면 ref) 계획이 앞선 시험이 남긴 행 수에 좌우된다. 이 시험이 스스로 필요한 양을 만든다.
+            repeat(5) { fixture.authorized().let { other -> cancelled(cancel.cancel(other.command(money = Money(1_000, other.money.currency)))) } }
             val a = fixture.authorized()
             cancelled(cancel.cancel(a.command(money = Money(1_000, a.money.currency))))
             fixture.holdOn(a)
@@ -294,6 +315,7 @@ class PaymentStatusReaderSpec(
             val statements = probe.captured.toList()
             probe.disarm()
             statements.size shouldBe 2
+            analyzeTablesOf(statements)
             statements.forEach { sql ->
                 val plan = db.withApp { c -> with(db) { c.rows("EXPLAIN $sql") } }
                 withClue("$sql\n$plan") {

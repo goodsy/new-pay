@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "executionStarted": true,
-  "activeTaskId": null,
-  "codeFingerprint": "sha256:82610cbc324fd4f9a3961df97ee9a0099b920714ad3da4b1ee6b4ea1a8aef93b",
-  "lastSuccessfulStep": "ACQ-VIEW-001 VERIFY-GATE PASS 2026-11-06T130246Z + supplementary PASS; REVIEW_PASS; Demo E2E PASS; DONE",
+  "activeTaskId": "MERCHANT-OPS-002",
+  "codeFingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+  "lastSuccessfulStep": "MOPS-gate13 PASS + CVE-SCAN PASS (B3-1 VERIFIED, ADMIN-UI-MERCHANT-001·PAYMENT-QUERY-PLAN-FLAKE-001 DONE)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "ACQ-VIEW-001 커밋은 사용자 결정. 다음 화면 작업 선택(ACQ-ADMIN-001 / 정산)",
+  "nextResumeAction": "MERCHANT-OPS-002 B3-1F(등록자≠승인자, D-MOPS-009 ③/D-MOPS-010 ②) 구현 → 검증 → 게이트 → Demo",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -734,6 +734,11 @@
       "at": "2026-11-07T13:05Z",
       "taskId": "ACQ-ADMIN-001",
       "event": "DONE: ACQA-gate3 PASS fp sha256:86ec3a91… + supplementary PASS; TEST-PERF-003 DONE (GRADLE-CHECK 3300s); committed + pushed (사용자 '커밋 + push')"
+    },
+    {
+      "at": "2026-11-13T05:40+09:00",
+      "taskId": "MERCHANT-OPS-002",
+      "event": "MOPS-gate13 PASS(73m, Kotlin 4399/FE 299) fp sha256:10235988… + CVE-SCAN PASS(재시도; 1회차 SBOM 600s ENVIRONMENT). ADMIN-UI-MERCHANT-001·PAYMENT-QUERY-PLAN-FLAKE-001 DONE, B3-1 VERIFIED, GATE-LOAD-001 Reviewer 대기"
     }
   ],
   "agreedOrder": [

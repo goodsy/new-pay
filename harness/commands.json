@@ -78,7 +78,7 @@
         "--rerun-tasks",
         "check"
       ],
-      "timeoutSeconds": 3300,
+      "timeoutSeconds": 4500,
       "env": {},
       "purpose": "Kotlin 컴파일(경고=오류) + 전체 테스트(Kotest, ArchUnit/Modulith, Testcontainers MySQL 8.4.11, jOOQ codegen 포함). 검증 실행은 build cache/up-to-date 결과를 재사용하지 않는다(FROM-CACHE 보고서는 증거 아님). --console=plain(ANSI 없음)으로 task별 결과 줄을 고정 출력해 실행 여부를 출력 규칙으로 검사. verbose는 ANSI 제어문자로 정규식이 깨져 쓰지 않는다. 테스트 XML(system-out의 컨테이너 시작 로그 포함)을 증거에 보관",
       "expectedReports": [

@@ -131,6 +131,11 @@ val frontendTest = tasks.register<Exec>("frontendTest") {
     // (기본 5초)에 걸렸다(실측 1건). 시험 timeout은 바꾸지 않고, 이 둘과 겹치지 않게만 한다(같은 이름의 ExclusiveSlots — kotlin-base·kotlin-app).
     usesService(gradle.sharedServices.registerIfAbsent("paycoreKotlinCompileSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
     usesService(gradle.sharedServices.registerIfAbsent("paycoreDbTestJvmSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
+    // GATE-LOAD-001: 모든 모듈의 jOOQ 생성기(generateJooq* JavaExec — MySQL 컨테이너 기동 + Flyway + codegen)가 끝난 뒤에만 돈다(순서만, 의존 아님 —
+    // 생성기를 실행 대상에 넣지 않는다). gate9(MERCHANT-OPS-002-2026-11-11T233256Z)에서 financial-batch codegen과 겹쳐 Vitest 2건이 5초 timeout.
+    // 생성기를 DB test 슬롯에 넣었던 1차 안은 gate10(…-2026-11-12T022929Z)에서 codegen이 앞 모듈 시험 뒤로 밀려 큰 모듈 컴파일이 늦게 시작 →
+    // GRADLE-CHECK 3300초 timeout이라 되돌렸다. codegen끼리·codegen과 시험은 예전처럼 병렬. 이름 필터(named)라 다른 모듈 task를 미리 만들지 않는다.
+    mustRunAfter(rootProject.allprojects.map { p -> p.tasks.withType<JavaExec>().named { it.startsWith("generateJooq") } })
 }
 
 val frontendBuild = tasks.register<Exec>("frontendBuild") {

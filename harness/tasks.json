@@ -7230,6 +7230,25 @@
           "demo": "scratchpad/demo/mops-b21·b22·b23 — B1→계약 승인→첫 MID 발급 2인 Demo 통과(mid_01M729TH0RXE61F1DYSDJCNZWV)",
           "review": "B2-1 REVIEW_PASS, B2-2 REVIEW_PASS(조건부→반영), B2-3 REVIEW_PASS(조건부: M-1·m-1~m-3·n-1~n-5 반영, rev 0.7.1)",
           "scope": "B2(B2-1 Revision 등록, B2-2 계약 승인 2인, B2-3 첫 Default MID 발급 2인)"
+        },
+        "b3_1": {
+          "gate": {
+            "tag": "MOPS-gate13",
+            "date": "2026-11-12",
+            "verdict": "PASS",
+            "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T123032Z.json",
+            "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+            "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
+            "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
+          },
+          "supplementary": {
+            "command": "CVE-SCAN",
+            "at": "2026-11-13 KST",
+            "result": "PASS — 5 모듈 + 프론트 2 lockfile 취약점 0, canary 전부 검출. 1회차는 WSL 재시작 직후 SBOM Gradle 600초 내부 timeout(ENVIRONMENT exit 3), 재시도 exit 0",
+            "log": "~/gate-logs/MOPS-cve13b.log",
+            "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798"
+          },
+          "note": "B3-1(139a4c8) + ADMIN-UI-MERCHANT-001(b9c3f4c) 전체 게이트 통과 → B3-1 VERIFIED. 태스크는 B3-1F~B5 남아 IN_PROGRESS"
         }
       },
       "review": null,
@@ -7261,7 +7280,7 @@
           "decision": "사용자: B3-1(구현·리뷰 조건부 PASS 반영, 명세 rev 0.8.4)과 docs/merchant-onboarding을 전체 게이트 통과 전에 '지금 전부 커밋' 선택 → main에 반영. MOPS-gate7은 Claude Code 메모리 부족 종료(시험 실패 아님)로 통과 기록 없음. B3-1은 VERIFIED/DONE 아님 — 게이트 재실행 필요. 이후 브랜치 없이 main에서 직접 작업(사용자 지시)."
         }
       ],
-      "nextResumeAction": "Demo 중지 → 전체 게이트 재실행(B3-1 커밋 기준) → Verifier → Demo B3-1 스크린샷 → Q-MOPS-22~24 질문. 작업 브랜치는 main.",
+      "nextResumeAction": "B3-1F(D-MOPS-009 ③ / D-MOPS-010 ② 등록자≠승인자) 구현 — 명세 rev 0.9.1 §8.4 B3-1F, 계획 scratchpad dmops009/impl-plan-q24.md → Verifier·Reviewer → 게이트 → Demo. 작업 브랜치 main",
       "gateRuns": [
         {
           "tag": "MOPS-gate1",
@@ -7302,7 +7321,54 @@
           "frontendTests": 259,
           "scope": "B2-1~B2-3(spec rev 0.7.1 sha256 7c0fe00976553783e51d6e5892aab59f96eda4b126272c8679eb1db7badb9ae5)",
           "verifier": "VERIFIED 2026-11-10T10:42:40Z (fingerprint 재계산 일치, 보고서 436개 sha 일치, n-a 불변식 약화 없음)"
+        },
+        {
+          "tag": "MOPS-gate8",
+          "date": "2026-11-11",
+          "verdict": "FAIL",
+          "cause": "payment-api PaymentStatusReaderSpec P-1 간헐(PAYMENT-QUERY-PLAN-FLAKE) 1/2029"
+        },
+        {
+          "tag": "MOPS-gate9",
+          "date": "2026-11-12",
+          "verdict": "FAIL",
+          "cause": "admin Vitest 2건 5s timeout(financial-batch generateJooqMain과 겹침)"
+        },
+        {
+          "tag": "MOPS-gate10",
+          "date": "2026-11-12",
+          "verdict": "FAIL",
+          "cause": "GRADLE-CHECK timeout 3300s(시험 실패 없음; GATE-LOAD-001 1차 슬롯 안이 임계 경로 증가)"
+        },
+        {
+          "tag": "MOPS-gate11",
+          "date": "2026-11-12",
+          "verdict": "FAIL",
+          "cause": "GRADLE-CHECK timeout 3300s(시험 실패 없음; 시험 자체 약 2배 느림, Windows 메모리 부족)"
+        },
+        {
+          "tag": "MOPS-gate12",
+          "date": "2026-11-12",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T063505Z.json",
+          "fingerprint": "sha256:af241e2012f96a8cc09921711bbcd592a72fa1c4251255adf2c535da9bf513b4",
+          "cause": "GRADLE-CHECK timeout 3300s(WSL 재시작 후 깨끗한 상태, 시험 실패 0). 모듈 완료 시점 gate5 대비 sim 14→14m, fin 22→25m, admin 31→39m, master 37→51m, payment-api ~51m 시작(약 14m 필요) → 전체 약 65m 필요"
+        },
+        {
+          "tag": "MOPS-gate13",
+          "date": "2026-11-12",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T123032Z.json",
+          "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+          "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
+          "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
         }
+      ],
+      "followUps": [
+        "HARNESS-TIMEOUT-KILLTREE: verify-gate.py가 GRADLE-CHECK timeout(-9) 때 Gradle 하위 JVM(GradleWrapperMain·test worker)을 남김(MOPS-gate10·gate11, 2026-11-12) — 프로세스 그룹 종료 필요"
+      ],
+      "notes": [
+        "2026-11-12 사용자 결정 \"제한 4500s로 올리기\"(선택지: 4500s / 속도 개선 먼저 / 모듈별 분할): GRADLE-CHECK timeoutSeconds 3300→4500. minTests·보고서·출력 규칙·시험 기대값 불변. VERIFY-GATE 5400 ≥ 단계 합(120+4500+60×5)"
       ]
     },
     {
@@ -7378,7 +7444,7 @@
     {
       "id": "ADMIN-UI-MERCHANT-001",
       "title": "사업자·가맹점 화면 재배치(참고 시안 pg workspace #merchant 구조) — 화면만, API·업무 규칙 불변",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "dependsOn": [
         "MERCHANT-OPS-002"
       ],
@@ -7408,14 +7474,126 @@
           "decision": "Coordinator(가역 표시 규칙): 타임라인 '결제수단 개통·Site 심사' 완료 = 같은 MID에서 개통 점검표 ②대표 Site 심사 승인·③CARD 개통 모두 충족(리뷰 MINOR-2 권장). Q-UI-MERCHANT-1(단계 내 모든 카드 성공 요구)은 현행 유지 — 첫 MID 발급에 PRIMARY Site·CSA 필요, 단계 표시로 건너뛰기 가능, 안내 문구 추가."
         }
       ],
-      "nextResumeAction": "커밋·푸시됨(사용자 2026-11-11 \"커밋+푸시 후 게이트\") → Demo 중지 → B3-1과 함께 전체 게이트 → 통과 시 DONE",
+      "nextResumeAction": null,
       "review": "REVIEW_PASS (round2, 2026-11-11). round1 conditional: MINOR-1 연쇄 전송 중단 가드, MINOR-2 타임라인 점검표 기준 정렬, NIT-1~5 → 모두 반영",
       "evidence": {
         "fingerprint": "sha256:3fcfb7f9604f6973325446d979fde751eda5e9c90857827d392815cb8f32095d (git diff frontend/src + ADMIN-UI-001 doc + 새 파일 2개, HEAD 139a4c8)",
         "frontend": "2026-11-11T13:19:05+09:00 /tmp/fe-full.sh: Vitest 34 files / 274 passed (0 fail, 0 skip), tsc -p tsconfig.json exit 0 (/tmp/tsc-only.sh). lint 명령 저장소에 없음",
         "demo": "Demo admin 재빌드(restart.sh admin --build) UP 2026-11-11 — 사용자 아이폰(Tailscale)에서 확인 가능",
-        "notRun": "전체 게이트(GRADLE-CHECK) 미실행 — B3-1 게이트 재실행 때 함께"
+        "gate": {
+          "tag": "MOPS-gate13",
+          "date": "2026-11-12",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T123032Z.json",
+          "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+          "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
+          "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
+        },
+        "supplementary": {
+          "command": "CVE-SCAN",
+          "at": "2026-11-13 KST",
+          "result": "PASS — 5 모듈 + 프론트 2 lockfile 취약점 0, canary 전부 검출. 1회차는 WSL 재시작 직후 SBOM Gradle 600초 내부 timeout(ENVIRONMENT exit 3), 재시도 exit 0",
+          "log": "~/gate-logs/MOPS-cve13b.log",
+          "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798"
+        }
       }
+    },
+    {
+      "id": "PAYMENT-QUERY-PLAN-FLAKE-001",
+      "title": "PaymentStatusReaderSpec P-1 실행 계획 단언 간헐 실패 제거 — EXPLAIN 전 ANALYZE TABLE로 InnoDB 통계 고정 + 시험 스스로 데이터 모양 확보(단언 불변, 시험 경로만)",
+      "status": "DONE",
+      "dependsOn": [],
+      "questions": [],
+      "acceptanceCriteria": [
+        "P-1 단언 불변: 두 문장 모두 type=ALL 없음, filesort 없음, 첫 문장 계획에 incident_hold·incident_hold_release 존재. 재시도·FORCE INDEX·optimizer hint·운영 SQL 변경 없음",
+        "계획이 결정적: EXPLAIN 직전 두 문장이 읽는 표 전부를 ANALYZE TABLE(결과 status OK 단언), 대상 표 목록 = 캡처한 문장의 FROM/JOIN 표(누락 시 실패). P-1이 스스로 다른 결제 5건(각 취소 1건)을 공식 경로(Named Fixture)로 만들어 앞선 시험 행 수에 기대지 않음",
+        "RED/GREEN 증거: 통계 미갱신 상태에서 게이트 실패와 같은 계획 재현(RED) → ANALYZE 후 인덱스 탐색(GREEN), spec 반복 실행 ≥10회 통과, payment-api 모듈 test 1회"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/src/test/**",
+        "harness/tasks.json"
+      ],
+      "owner": "paycore-implementer",
+      "attempts": 1,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "rootCause": "InnoDB 영속 통계(innodb_stats_persistent) 자동 재계산은 행 10% 변경 후 background 스레드가 비동기(표당 최소 10초 간격)로 한다. 공유 Testcontainers DB에서 방금 만든 행이 통계에 없으면(실측: payment_transaction n_rows=0, fk_payment_transaction_cancellation n_diff=0 인데 실제 2행) optimizer가 이력 문장에서 ct(payment_transaction)를 hash join 전체 스캔, payment_cancellation을 uk_payment_cancellation_merchant_key로 골라 ORDER BY에 Using temporary; Using filesort. 게이트 실패(MERCHANT-OPS-002-2026-11-11T115328Z)의 ALL 표는 payment_cancellation이 아니라 ct(payment_transaction)였다. 별개로 통계가 정확해도 표가 1~2행이면 첫 문장 t(payment_transaction)가 ALL(다른 결제 0~1건: ALL, 2건 이상: ref — 실측)",
+        "red": "2026-11-12 임시 실험 spec(PlanExperimentScratchSpec, 조사 후 삭제) 새 컨테이너 2회: ANALYZE 전 이력 문장 = payment const 'Using temporary; Using filesort', payment_cancellation ref uk_payment_cancellation_merchant_key, ct type=ALL 'Using join buffer (hash join)'(게이트 실패와 같은 모양) / 첫 문장 t type=ALL(rows=2). 같은 데이터 ANALYZE 후 이력 문장 = ix_payment_cancellation_payment ref + ct ref fk_payment_transaction_cancellation, filesort 없음. 다른 결제 1~12건 추가하며 매번 ANALYZE: 1건 t=ALL, 2~12건 모두 ref. runtime 계정 ANALYZE는 incident_hold_release INSERT 권한 없음(1142)이라 root 연결 사용",
+        "guardMutation": "대상 표 목록에서 return_balance 제거 → PaymentStatusReaderSpec exit 1, 'tables named by the reader's statements' 단언 실패(RED) → 원복",
+        "green": "./gradlew --no-daemon --console=plain :apps:payment-api:test --tests 'com.paycore.payment.payment.adapter.query.PaymentStatusReaderSpec' --rerun ×10 (2026-11-11T22:14:04Z..22:53Z, 매회 새 JVM·새 Testcontainers MySQL 8.4.11): 10/10 exit 0, 각 tests=12 failures=0 errors=0 skipped=0, P-1 testcase 매회 존재·통과, 172~286초/회",
+        "module": "./gradlew --no-daemon --console=plain :apps:payment-api:test --rerun 2026-11-11T22:53:18Z..23:15:17Z (21m59s) exit 1: 194 report files, tests=2029 failures=1 errors=0 skipped=0. PaymentStatusReaderSpec 12/12 통과. 실패 1건은 이 변경과 무관한 AdminReadIsolationSpec.kt:137 시간 단언(public load 종료 < held admin read 종료)",
+        "adminReadIsolationRerun": "./gradlew --no-daemon --console=plain :apps:payment-api:test --tests com.paycore.payment.payment.adapter.web.admin.AdminReadIsolationSpec --rerun 2026-11-11T23:15:58Z: exit 0, tests=1 failures=0 (204초). latency baseline p50=2659 p95=6108ms, saturated p50=462 p95=3437ms — baseline p95가 hold SLEEP(6초)와 비슷해 WSL 부하 시 시간 단언이 흔들리는 별개 간헐 실패로 보임(이 작업 범위 밖, 수정 안 함)",
+        "fingerprint": "PaymentStatusReaderSpec.kt sha256:c0034b887306b1d49d3ca97b17b8ca82cf47ba9af7d6475b295a562cf4806b38, HEAD b9c3f4c(미커밋 diff)",
+        "notDone": "전체 다중 모듈 게이트 미실행(지시상 금지). 원 spec(변경 전)의 간헐 실패를 반복 실행으로 재현하지 않음 — 결정적 RED는 새 컨테이너의 통계 미갱신 상태로 재현",
+        "verifierMutation": "2026-11-11T23:23–23:31Z Verifier: GREEN exit 0 12/12 (spec sha256 c0034b88…6b38) → mutation JooqPaymentStatusReader historyRows ORDER BY (opened_at + INTERVAL 0 SECOND) → exit 1, P-1 RED at :323 filesort, 11 others pass → 원복 READER_EQUALS_HEAD (d389a5ae…a87a4). type=ALL 경로 mutation은 미실행",
+        "gate": {
+          "tag": "MOPS-gate13",
+          "date": "2026-11-12",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T123032Z.json",
+          "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+          "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
+          "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
+        }
+      },
+      "nextResumeAction": null,
+      "review": "REVIEW_PASS (round1, 2026-11-12) BLOCKER 0 MAJOR 0. MINOR-1 회귀 탐지 mutation 실행 증거 → Verifier 확인 중. MINOR-2 전체 게이트 P-1 통과 전 DONE 금지. NIT-1 type=index 미차단(기존 공백, 범위 밖), NIT-2 정규식 jOOQ 렌더링 의존 KDoc",
+      "followUps": [
+        "ADMIN-READ-ISOLATION-FLAKE: AdminReadIsolationSpec.kt:137 시간 순서 단언(public load 종료 < held admin read 종료)이 WSL 부하에서 간헐 실패(2026-11-12 payment-api 모듈 실행 1/2029, 단독 재실행 통과). baseline p95≈6108ms vs hold SLEEP 6s — 기대값을 낮추지 않는 결정적 동기화로 별도 작업"
+      ]
+    },
+    {
+      "id": "GATE-LOAD-001",
+      "title": "게이트 부하 구조 정리 — frontendTest를 모든 모듈 jOOQ 생성기(generateJooq* JavaExec, MySQL 컨테이너 기동) 뒤로 순서만 지정(mustRunAfter). 시험·timeout·기준 불변, 빌드 스케줄만",
+      "status": "DONE",
+      "dependsOn": [],
+      "questions": [],
+      "acceptanceCriteria": [
+        "시험·Vitest timeout(5초)·기대값·게이트 기준(commands.json minTests·timeoutSeconds·출력 규칙) 변경 없음",
+        "두 모듈 frontendTest가 모든 generateJooq*(master-api·payment-api main/test·internal-admin·financial-batch) 뒤에만 실행(mustRunAfter — 순서만, 생성기를 실행 대상에 추가하지 않음). generateJooq*는 슬롯 없이 서로·컴파일·시험과 병렬 유지",
+        "증거: task graph의 frontendTest mustRunAfter 목록·generateJooq* 슬롯 없음, frontendTest를 명령 앞에 써도 dry-run 순서가 생성기 뒤, build-logic test 통과"
+      ],
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**/*.test.tsx",
+        "apps/internal-admin/frontend/src/test/**",
+        "build-logic/src/main/kotlin/paycore.frontend.gradle.kts",
+        "build-logic/src/main/kotlin/paycore.kotlin-app.gradle.kts",
+        "docs/repository/TECH-BASELINE.md",
+        "harness/tasks.json"
+      ],
+      "owner": "paycore-implementer",
+      "attempts": 2,
+      "maxRepairAttempts": 3,
+      "evidence": {
+        "cause": "게이트 MOPS-gate9(build/harness-evidence/MERCHANT-OPS-002-2026-11-11T233256Z-logs/2-GRADLE-CHECK.log): :apps:financial-batch:generateJooqMain(MySQL 8.4.11 컨테이너 기동 52.96초 + Flyway + codegen)과 :apps:internal-admin:frontendTest 출력이 교차(동시 실행) — Vitest 2건 5000ms timeout(5106ms, 5547ms). generateJooq*는 어떤 ExclusiveSlots에도 없었다",
+        "change": "paycore.frontend frontendTest: mustRunAfter(rootProject.allprojects.map { p -> p.tasks.withType<JavaExec>().named { it.startsWith(\"generateJooq\") } }) — 이름 필터라 다른 모듈 task를 미리 realize하지 않음. 저장소는 configuration cache·isolated projects 미사용(gradle.properties 확인). 1차 안(paycore.kotlin-app에서 generateJooq*를 paycoreDbTestJvmSlots에 넣음)은 제거",
+        "slots": "2026-11-12T03:36:40Z..03:37:42Z ./gradlew --no-daemon --console=plain -I /tmp/slots.init.gradle.kts --dry-run :apps:internal-admin:frontendTest :apps:payment-api:frontendTest :apps:master-api:generateJooqMain :apps:payment-api:generateJooqTest :apps:financial-batch:generateJooqMain exit 0: generateJooq* -> [] (슬롯 없음), 두 frontendTest -> [paycoreKotlinCompileSlots, paycoreDbTestJvmSlots] mustRunAfter=[financial-batch·internal-admin·master-api·payment-api generateJooqMain, payment-api generateJooqTest]. 명령에 frontendTest를 먼저 썼는데도 실행 순서는 생성기 3개 → frontendTest 2개",
+        "noOverlap": "(1차 안 기준, 참고) 2026-11-12T02:02:06Z..02:05:11Z ./gradlew --no-daemon --console=plain --continue :apps:financial-batch:generateJooqMain --rerun :apps:internal-admin:frontendTest --rerun exit 0: generateJooqMain 02:02:50 시작(컨테이너 35.9초, migration 02:03:44 완료) → frontendTest 02:03:51 시작(Vitest Start at 02:03:51), 출력 교차 없음. Vitest 274 passed/0 failed/0 skipped(TEST-vitest.xml 02:05:09Z), 최장 2.519초",
+        "buildLogic": "2026-11-12 ~03:34Z..03:36:07Z ./gradlew --no-daemon --console=plain :build-logic:test --rerun exit 0, 11 tests 0 failures",
+        "residualRisk": "겹침 제거만으로 5초 여유가 보장되지 않는다: 같은 날 frontendTest 단독(컨테이너 0개) Gradle 실행 3회 중 2회 실패 — 01:39:21Z run(npm ci 직후) 1건 5122ms, 01:50:27Z run 2건 5453/5095ms(Vitest 126초), 01:56:50Z run 통과(116초, 최장 3.45초). 같은 시각대 직접 node 실행은 74~84초·최장 2.5~3초. Vitest 자체 worker 3개(maxWorkers 50%, 6코어)가 코어 약 3.5~4개를 쓰고 실행마다 편차가 크다. 추가 조치(vitest 설정·시험 경량화)는 이 작업 범위(빌드 스케줄) 밖 — Coordinator 판단",
+        "scopeExtension": "2026-11-12 Coordinator: 느린 Vitest 시험 경량화(5초 timeout·기대값·단언·maxWorkers 불변, 재시도·testTimeout 금지)로 범위 확장",
+        "slowTestProfile": "1.5초 이상 54건(어느 1회 이상) — /tmp/gl-w3·w2·env·vm·run4.xml. 같은 시험이 회차마다 0.9~5.3초로 흔들리고 회차별 최장 시험이 바뀜(파일 첫 시험 위주). 대상 3건: reacquisition 첫 시험 1.98/1.34/2.96/5.26/1.87, AcquisitionsScreen.test 첫 시험 2.46/1.58/2.66/1.42/2.30, MerchantRegistration ① 마법사 1.73/1.22/1.97/4.87/1.52(초)",
+        "causeMeasurement": "글자 단위 입력이 원인 아님: reacquisition·MerchantRegistration은 이미 delay:null+paste(TEST-PERF-003), 카드 번호 경고만 type. CPU profile(inspector, reacquisition 첫 시험 단독, 샘플 3.87초 중 inspector 0.6초): queryAllByRole 1.05초(computeAccessibleName 0.70), React render/commit 0.84, user-event checkPointerEvents 0.46, jsdom 계산 스타일(css-tree·dom-selector·css-color) 상당 부분. 단계별 lap: openDetail(첫 render+검색+상세) 0.6~0.97초, 나머지 단계 각 <0.25초. fake timer 없음, findBy 대기 짧음",
+        "experiments": "모두 직접 node 전체 suite(274) 또는 단일 파일, 저장소 변경 없이 임시 파일로 측정 후 삭제: pool threads 75.1초/최장 2.34, forks 75.0초/2.36; 전역 delay:null 144.9초(1건 timeout, 4초대 다수), delay:null+pointerEventsCheck Never 102.3초/최장 4.28; 단일 파일 pointerEventsCheck Never vs 원본 3회 CPU user 7.71/6.77/7.22 vs 7.78/9.34/7.18초(유의 차 없음); 파일 단위 warm-up beforeAll 3회 첫 시험 0.88/1.71/0.60 vs 2.15/1.00/0.99(유의 차 없음). 같은 suite 동일 설정 직접 실행 74~145초 편차 — Windows 호스트 백그라운드 CPU(Notion·nsload 등) 영향 관측",
+        "testChanges": "없음 — 측정상 의미 유지 경량화(붙여넣기·pointer 검사·warm-up·pool)로 잡음 대비 유의한 개선이 없어 시험 파일을 바꾸지 않음(Coordinator 판단 대기)",
+        "revert1": "gate10(build/harness-evidence/MERCHANT-OPS-002-2026-11-12T022929Z-logs/2-GRADLE-CHECK.log, Coordinator 확인): GRADLE-CHECK 3300초 timeout(실패 시험 없음, Vitest 274 통과) — internal-admin·master-api·payment-api generateJooq*가 슬롯 때문에 simulator·financial-batch test와 frontendTest 뒤로 밀려 큰 모듈 compileKotlin이 늦게 시작(임계 경로 증가). 그래서 슬롯 안을 되돌림",
+        "dryRunCheck": "2026-11-12T03:28:32Z~ ./gradlew --no-daemon --console=plain --dry-run check exit 0(5m56s, build-logic 재컴파일 포함): generateJooq* 5개(30·71·77·83·84행) 모두 internal-admin:frontendTest(88행)·payment-api:frontendTest(125행) 앞",
+        "note": "gate13(2026-11-12) 전체 check PASS로 실제 순서 확인(위 review). 이전 문구 \"다음 전체 게이트에서 확인 필요\"는 해소",
+        "gate": {
+          "tag": "MOPS-gate13",
+          "date": "2026-11-12",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-12T123032Z.json",
+          "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
+          "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
+          "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
+        }
+      },
+      "nextResumeAction": null,
+      "review": "REVIEW_PASS (round1, 2026-11-13) BLOCKER 0 MAJOR 0. gate13 로그: 마지막 codegen payment-api:generateJooqTest(427~489행) 뒤 frontendTest(519·864행), 출력 교차 없음. MINOR-1 이름 접두어+JavaExec 타입 선택 — codegen task 형태가 바뀌면 순서 제약이 조용히 빠짐(follow-up). MINOR-2 겹침 제거가 5초 여유를 보장하지 않음(단독 frontendTest 3회 중 2회 timeout 기록) — 잔여 위험 유지. NIT-1 note는 gate13으로 갱신, NIT-2 slots↔dryRunCheck 상호 참조",
+      "followUps": [
+        "GATE-LOAD-001 MINOR-1: 생성기 전부가 frontendTest mustRunAfter 목록에 있는지 검사(build-logic test 또는 dry-run 단언) 또는 생성기 공통 함수에 이름 규칙 명시. MINOR-2: Vitest 5초 여유 부족 잔여 위험(timeout 변경은 사용자 결정)"
+      ]
     }
   ]
 }
