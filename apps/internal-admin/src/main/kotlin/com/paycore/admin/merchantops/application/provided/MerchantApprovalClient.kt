@@ -56,7 +56,7 @@ sealed interface MerchantTargetResult<out T> {
 
 /**
  * 결제수단 개통 승인 대상 사실(B3-1 §9.16). MID가 상세에 없으면 [accountLifecycle] null, 개통 행이 없으면 [status]·[paymentMethod]·[registeredBy] null.
- * [primarySiteId] = 조회 시각에 열린 PRIMARY Assignment의 Site(없거나 둘 이상이면 null — C-45: 승인자가 본 PRIMARY를 본문에 고정한다). [registeredBy]는 표시용(Q-MOPS-24 답 전).
+ * [primarySiteId] = 조회 시각에 열린 PRIMARY Assignment의 Site(없거나 둘 이상이면 null — C-45: 승인자가 본 PRIMARY를 본문에 고정한다). [registeredBy]는 표시 + 승인 TX1 등록자 403 근거(D-MOPS-009 ③).
  */
 data class ActivationTarget(
     val merchantId: String,

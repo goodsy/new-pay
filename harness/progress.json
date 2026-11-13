@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "executionStarted": true,
   "activeTaskId": "MERCHANT-OPS-002",
-  "codeFingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
-  "lastSuccessfulStep": "MOPS-gate13 PASS + CVE-SCAN PASS (B3-1 VERIFIED, ADMIN-UI-MERCHANT-001·PAYMENT-QUERY-PLAN-FLAKE-001 DONE)",
+  "codeFingerprint": "sha256:9857d4e008a51be0cb9a3e40d364d0c08bc19775f7befd9e2213a9e55aad9bea",
+  "lastSuccessfulStep": "MOPS-gate16 PASS + CVE PASS (B3-1F verified, ADMIN-UI-MERCHANT-002 DONE)",
   "pendingQuestionIds": [
     "Q-SETTLE-CURRENCY (SETTLEMENT-CONTRACT-001)"
   ],
-  "nextResumeAction": "MERCHANT-OPS-002 B3-1F(등록자≠승인자, D-MOPS-009 ③/D-MOPS-010 ②) 구현 → 검증 → 게이트 → Demo",
+  "nextResumeAction": "MERCHANT-OPS-002 B3-2 / MERCHANT-CODE-001 명세 / MERCHANT-BIZ-LOOKUP-001",
   "events": [
     {
       "at": "2026-10-03 KST",
@@ -739,6 +739,11 @@
       "at": "2026-11-13T05:40+09:00",
       "taskId": "MERCHANT-OPS-002",
       "event": "MOPS-gate13 PASS(73m, Kotlin 4399/FE 299) fp sha256:10235988… + CVE-SCAN PASS(재시도; 1회차 SBOM 600s ENVIRONMENT). ADMIN-UI-MERCHANT-001·PAYMENT-QUERY-PLAN-FLAKE-001 DONE, B3-1 VERIFIED, GATE-LOAD-001 Reviewer 대기"
+    },
+    {
+      "at": "2026-11-13T15:10+09:00",
+      "taskId": "MERCHANT-OPS-002",
+      "event": "MOPS-gate16 PASS(36m, Kotlin 4431/FE 324) fp sha256:9857d4e0… + CVE PASS. B3-1F VERIFIED, ADMIN-UI-MERCHANT-002 DONE. gate14 FAIL(시험 Fixture CME)·gate15 ABORTED(사용자 Demo 요청) 기록"
     }
   ],
   "agreedOrder": [

@@ -12,6 +12,8 @@ import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../component
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
 import { PageHeader } from '../components/PageHeader'
+import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
+import { isRegistrationNumber } from '../lib/registrationNumber'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
@@ -21,8 +23,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { formatMinor } from '../lib/format'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 
-/** 사업자등록번호 형식(ASCII 숫자 정확히 10자리 — 서버도 다시 검사한다, MERCHANT-OPS-001 §3.1). */
-const REGISTRATION_NUMBER = /^[0-9]{10}$/
 const LIFECYCLES = ['ACTIVE', 'TERMINATED'] as const
 
 interface Props {
@@ -136,7 +136,8 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
           <Item term="권리 revision"><span className="font-mono">{merchant.entitlementRevision}</span></Item>
           <Item term="등록일"><KstTime iso={merchant.createdAt} /></Item>
           <Item term="사업자">
-            <span className="flex flex-col"><span className="font-medium">{business.name}</span><Mono>{business.businessId}</Mono></span>
+            {/* ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 그리지 않는다 — 상호·마스킹 등록번호로 식별(내부 키·API·감사 불변). */}
+            <span className="font-medium">{business.name}</span>
           </Item>
           <Item term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></Item>
           <Item term="사업자 상태"><StatusBadge code={business.lifecycle} /></Item>
@@ -358,7 +359,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
 }
 
 /**
- * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). 검색(가맹점 ID·사업자 ID·상태, 허용 역할에는 사업자등록번호) → 목록(keyset "다음") →
+ * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). 검색(가맹점 ID·상태, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
@@ -377,7 +378,6 @@ export function MerchantsScreen({
   /** 새 Revision 폼을 연 계약(B2-1 — 한 번에 하나). */
   const [revisionFor, setRevisionFor] = useState<string | null>(null)
   const [merchantId, setMerchantId] = useState('')
-  const [businessId, setBusinessId] = useState('')
   const [lifecycle, setLifecycle] = useState('')
   const [registrationNumber, setRegistrationNumber] = useState('')
   const [registrationNumberError, setRegistrationNumberError] = useState(false)
@@ -422,14 +422,13 @@ export function MerchantsScreen({
   const search = async (event?: FormEvent) => {
     event?.preventDefault()
     const brn = canSearchRegistrationNumber ? registrationNumber : ''
-    if (brn !== '' && !REGISTRATION_NUMBER.test(brn)) {
+    if (brn !== '' && !isRegistrationNumber(brn)) {
       setRegistrationNumberError(true)
       return
     }
     setRegistrationNumberError(false)
     const criteria: SentSearch['criteria'] = {}
     if (merchantId.trim() !== '') criteria.merchantId = merchantId.trim()
-    if (businessId.trim() !== '') criteria.businessId = businessId.trim()
     if (lifecycle === 'ACTIVE' || lifecycle === 'TERMINATED') criteria.lifecycle = lifecycle
     // 번호는 이 요청 본문에만 — 보내는 즉시 입력란을 비운다(실패해도 다시 입력해야 한다).
     setRegistrationNumber('')
@@ -442,7 +441,16 @@ export function MerchantsScreen({
   }
 
   const nextPage = async () => {
-    if (sent === null || sent.byRegistrationNumber || !page?.nextCursor) return
+    if (sent === null || !page?.nextCursor) return
+    if (sent.byRegistrationNumber) {
+      // ADMIN-UI-MERCHANT-002: 번호는 다시 보내지 않는다(화면 상태에 번호 없음). 정확 일치 결과는 한 사업자뿐이므로 결과에 이미 있던 내부 사업자 키로 이어 찾는다
+      // (사업자 ID를 화면에 보이지 않게 되어 "사업자 ID로 다시 검색" 안내를 대신한다 — 기존 businessId 조건, 새 API 없음).
+      const businessId = page.items[0]?.businessId
+      if (businessId === undefined) return
+      const next: SentSearch = { criteria: { ...sent.criteria, businessId }, byRegistrationNumber: false }
+      await runSearch({ ...next.criteria, after: page.nextCursor }, next)
+      return
+    }
     await runSearch({ ...sent.criteria, after: page.nextCursor }, sent)
   }
 
@@ -527,11 +535,6 @@ export function MerchantsScreen({
                   <Input value={merchantId} onChange={(e) => setMerchantId(e.target.value)} autoComplete="off" placeholder="mer_…" aria-describedby={describedBy} className="font-mono" />
                 )}
               </Field>
-              <Field label="사업자 ID">
-                {(describedBy) => (
-                  <Input value={businessId} onChange={(e) => setBusinessId(e.target.value)} autoComplete="off" placeholder="biz_…" aria-describedby={describedBy} className="font-mono" />
-                )}
-              </Field>
               <Field label="상태">
                 {(describedBy) => (
                   <NativeSelect value={lifecycle} onChange={(e) => setLifecycle(e.target.value)} aria-describedby={describedBy}>
@@ -546,20 +549,14 @@ export function MerchantsScreen({
                 <Field
                   label="사업자등록번호"
                   error={registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : undefined}
-                  hint="사업자등록번호 검색은 매번 감사 기록에 남습니다(번호는 마스킹 값만 기록). 정확히 일치하는 번호만 찾습니다."
+                  hint="검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만)."
                 >
                   {(describedBy) => (
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={10}
-                      autoComplete="off"
+                    <RegistrationNumberInput
                       value={registrationNumber}
-                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      onValueChange={setRegistrationNumber}
                       aria-describedby={describedBy}
                       aria-invalid={registrationNumberError || undefined}
-                      placeholder="숫자 10자리"
-                      className="font-mono"
                     />
                   )}
                 </Field>
@@ -591,7 +588,7 @@ export function MerchantsScreen({
               {page.items.map((row) => (
                 <TableRow key={row.merchantId} aria-label={row.merchantId} className={detail?.merchant.merchantId === row.merchantId ? 'bg-muted/50' : undefined}>
                   <TableCell><span className="flex flex-col"><span className="font-medium">{row.merchantName}</span><Mono>{row.merchantId}</Mono></span></TableCell>
-                  <TableCell><span className="flex flex-col"><span>{row.businessName}</span><Mono>{row.businessId}</Mono></span></TableCell>
+                  <TableCell>{row.businessName}</TableCell>
                   <TableCell className="font-mono">{row.registrationNumberMasked}</TableCell>
                   <TableCell><StatusBadge code={row.lifecycle} /></TableCell>
                   <TableCell data-col="midCount" className="font-mono">{row.midCount}</TableCell>
@@ -605,13 +602,9 @@ export function MerchantsScreen({
             </TableBody>
           </Table>
           {page.nextCursor !== null && (
-            sent?.byRegistrationNumber ? (
-              <p className="text-xs text-muted-foreground">결과가 더 있습니다. 사업자등록번호는 다시 보내지 않으니, 나머지는 사업자 ID로 검색해 주세요.</p>
-            ) : (
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" onClick={nextPage} aria-busy={listBusy}>다음</Button>
-              </div>
-            )
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={nextPage} aria-busy={listBusy}>다음</Button>
+            </div>
           )}
         </div>
       )}

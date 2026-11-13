@@ -41,13 +41,13 @@ enum class ApprovalKind(
 
     /**
      * 결제수단 개통 승인(MERCHANT-OPS-002 B3-1 §9.16 — D-MOPS-007 ③, C-45) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER가 승인 근거·개통 규칙을 재검사(PRIMARY Site 적용 확인
-     * 동반). 미해결 키 `MERCHANT:PM:<merchantId>`(C-35). **등록자 ≠ 승인자 검사 없음**(Q-MOPS-24 답 전 — pinned `registeredBy`는 표시용).
+     * 동반). 미해결 키 `MERCHANT:PM:<merchantId>`(C-35). 승인자 ≠ pinned `registeredBy`(개통 등록자 — D-MOPS-009 ③, TX1 403 `APPROVER_IS_REGISTRANT`).
      */
     MERCHANT_PAYMENT_METHOD_ACTIVATION(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
 
     /**
      * Site 심사 승인(MERCHANT-OPS-002 B3-1 §9.16 — APPROVED 고정, C-40) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP. 미해결 키 `MERCHANT:SITE_REVIEW:<merchantId>`(C-35).
-     * 거절은 1인(화면 API `site-review-rejections`)이라 이 종류가 아니다. 등록자 검사 없음(Q-MOPS-24 답 전).
+     * 거절은 1인(화면 API `site-review-rejections`)이라 이 종류가 아니다. 승인자 ≠ pinned `registeredBy`(Site 등록자 — D-MOPS-009 ③·SUSPENDED 재승인 포함 D-MOPS-010 ②, TX1 403).
      */
     MERCHANT_SITE_REVIEW_APPROVAL(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
     ;

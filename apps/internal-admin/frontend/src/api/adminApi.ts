@@ -357,7 +357,7 @@ export interface MerchantDetail {
     channelIdentifier: string
     lifecycle: string
     review: { decision: string; decidedAt: string } | null
-    /** Site 등록자(MERCHANT-OPS-002 B3-1 — `merchant_site.created_by`, 표시용 — Q-MOPS-24 답 전 검사 없음). B3-1 전 서버 응답에는 없다. */
+    /** Site 등록자(MERCHANT-OPS-002 B3-1 — `merchant_site.created_by` — 표시 + 등록자 ≠ 승인자 판정 근거, D-MOPS-009 ③). B3-1 전 서버 응답에는 없다. */
     registeredBy?: string
   }[]
   contracts: {

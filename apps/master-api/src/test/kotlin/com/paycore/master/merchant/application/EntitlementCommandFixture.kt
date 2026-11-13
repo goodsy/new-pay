@@ -10,6 +10,7 @@ import com.paycore.master.merchant.application.provided.EnableCurrencyCommand
 import com.paycore.master.merchant.application.provided.MerchantEntitlementUseCase
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.RegisterPaymentMethodActivationCommand
+import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EffectivePeriod
@@ -43,11 +44,20 @@ object EntitlementCommandFixture {
         val siteId: MerchantSiteId get() = ready.siteId
     }
 
-    fun issuedWithActivation(onboarding: MerchantOnboardingUseCase): Pair<OnboardingFixture.ReadyMerchant, Pair<MerchantAccountId, PaymentMethodActivationId>> {
+    /**
+     * [activationRegistrant]: 개통 등록자(1인 경로 행위자). 기본 [OnboardingFixture.operator] — 기존 시험 불변. B3-1F(D-MOPS-009 ③) 시험은 승인자
+     * (`ApprovalEvidenceFixtures.APPROVER`)로 바꿔 "등록자 = 승인자"를 만든다.
+     */
+    fun issuedWithActivation(
+        onboarding: MerchantOnboardingUseCase,
+        activationRegistrant: ActorRef = OnboardingFixture.operator,
+    ): Pair<OnboardingFixture.ReadyMerchant, Pair<MerchantAccountId, PaymentMethodActivationId>> {
         val ready = OnboardingFixture.readyMerchant(onboarding)
         val mid = MerchantAccountId(succeeded(onboarding.issueFirstDefaultMerchantAccount(ready.issueCommand())))
         val activation = PaymentMethodActivationId(
-            succeeded(onboarding.registerPaymentMethodActivation(RegisterPaymentMethodActivationCommand(request(), mid, PaymentMethod.CARD))),
+            succeeded(
+                onboarding.registerPaymentMethodActivation(RegisterPaymentMethodActivationCommand(request(actor = activationRegistrant), mid, PaymentMethod.CARD)),
+            ),
         )
         return ready to (mid to activation)
     }

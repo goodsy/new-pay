@@ -7249,6 +7249,24 @@
             "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798"
           },
           "note": "B3-1(139a4c8) + ADMIN-UI-MERCHANT-001(b9c3f4c) 전체 게이트 통과 → B3-1 VERIFIED. 태스크는 B3-1F~B5 남아 IN_PROGRESS"
+        },
+        "b3_1f": {
+          "scope": "D-MOPS-009 ③ / D-MOPS-010 ② 1인 등록자 ≠ 2인 승인자(결제수단 개통·Site 심사, Site SUSPENDED 재승인 포함). migration 없음, 운영 코드 MASTER 9·ADMIN 2(+KDoc), 프론트 1(+주석)",
+          "red": "~/gate-logs/mops-b31f/red-{1-domain,2-application,3-admin,4-vitest}: 31/6, 59/7, 22/5, 8/3 (단언 실패, 컴파일 실패 아님)",
+          "review": "round1 REVIEW_FAIL MAJOR-1(변이 i 생존 — TX1 rollback이 TOTP 소비를 되돌림), MINOR-1 경합 순서 비결정, MINOR-2 변이 정의 → 수정 → round2 REVIEW_PASS(MINOR-A 모듈 재검증 = 아래, MINOR-B b-site 변이·NIT-A 잠금 관측 한정은 선택)",
+          "mutations": "~/gate-logs/mops-b31f/mutation-run2.log 2026-11-13 07:30~07:50 KST: 16종(a,b,c-act,c-site,d-master,e,e-route,act-route,j-approval,j-alerting,f,g,h,i,d-admin,j-defect) 전부 killed, compileError 0, restoredIdentical 전부 true; baseline master 120/admin 54 통과",
+          "moduleCheck": "2026-11-13 07:50~08:03 KST ./gradlew --no-daemon :apps:master-api:check exit 0 (639 tests), :apps:internal-admin:check exit 0 (914 tests + Vitest 277), 실패·skip 0. 로그 ~/gate-logs/mops-b31f/modcheck-{master,admin}.log",
+          "fingerprint": "sha256:3d2aa8b04581554dfe7357139a0de3783f630c6f865f006e88545b44df680c8e (검증 전후 동일, 명세 §13 0.9.2 기록 전)",
+          "status": "VERIFIED(gate16 PASS + CVE PASS) — 배치 완료",
+          "gate": {
+            "tag": "MOPS-gate16",
+            "date": "2026-11-13",
+            "verdict": "PASS",
+            "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T050955Z.json",
+            "fingerprint": "sha256:9857d4e008a51be0cb9a3e40d364d0c08bc19775f7befd9e2213a9e55aad9bea",
+            "result": "GRADLE-CHECK 05:10:17Z..05:46:38Z(36m21s/4500s) exit 0; Kotlin 4431 / FRONTEND 324 실패·errors·skip 0; fingerprint 전후 동일",
+            "supplementary": "CVE-SCAN PASS 2026-11-13 ~15:10 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve16.log"
+          }
         }
       },
       "review": null,
@@ -7280,7 +7298,7 @@
           "decision": "사용자: B3-1(구현·리뷰 조건부 PASS 반영, 명세 rev 0.8.4)과 docs/merchant-onboarding을 전체 게이트 통과 전에 '지금 전부 커밋' 선택 → main에 반영. MOPS-gate7은 Claude Code 메모리 부족 종료(시험 실패 아님)로 통과 기록 없음. B3-1은 VERIFIED/DONE 아님 — 게이트 재실행 필요. 이후 브랜치 없이 main에서 직접 작업(사용자 지시)."
         }
       ],
-      "nextResumeAction": "B3-1F(D-MOPS-009 ③ / D-MOPS-010 ② 등록자≠승인자) 구현 — 명세 rev 0.9.1 §8.4 B3-1F, 계획 scratchpad dmops009/impl-plan-q24.md → Verifier·Reviewer → 게이트 → Demo. 작업 브랜치 main",
+      "nextResumeAction": "B3-1F 커밋 완료 후 → B3-2(§9.26 통화 효력 시작) / 병행: MERCHANT-CODE-001 명세, MERCHANT-BIZ-LOOKUP-001",
       "gateRuns": [
         {
           "tag": "MOPS-gate1",
@@ -7362,10 +7380,37 @@
           "fingerprint": "sha256:10235988d07a6bbb054e6d58baadec336a7e6039700ac33bce2c93cfffb55798",
           "headRevision": "b9c3f4c (dirty: P-1 fix, GATE-LOAD-001, D-MOPS-009/010 records, spec rev 0.9.1, GRADLE-CHECK 4500s)",
           "result": "GRADLE-CHECK 2026-11-12T12:31:29Z..13:44:51Z(73m22s/4500s) exit 0; TEST-SUMMARY Kotlin 4399 / FRONTEND 299(admin 274, payment 25) failures·errors·skipped 0; fingerprint 전후 동일"
+        },
+        {
+          "tag": "MOPS-gate14",
+          "date": "2026-11-13",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T003739Z.json",
+          "fingerprint": "sha256:fe0606c661a6816521f2d998a9a6f54bfa5c416b17227d1b402ee91acc3820ad",
+          "cause": "GRADLE-CHECK exit 1 at 18m49s: internal-admin 914 중 1 실패 — MerchantRegistrationServiceSpec C-13 concurrency(B1 기존 시험, B3-1F 무관) round 1 [AuditUnavailable, Decided]. 원인: 시험 Fixture 가짜 감사 기록기가 synchronizedList events를 잠금 없이 count 순회 → 다른 스레드 events += \"call\"과 겹쳐 ConcurrentModificationException(시험 XML 로그 failure=ConcurrentModificationException) → 서비스가 정상적으로 AuditUnavailable 처리. 운영 결함 아님",
+          "fix": "시험 Fixture만: synchronized(audits) { synchronized(events) { … } } (기대값 불변). 해당 Spec 3회 반복 32/32 통과 ~/gate-logs/mops-flake-reg/. Reviewer 확인 중"
+        },
+        {
+          "tag": "MOPS-gate15",
+          "date": "2026-11-13",
+          "verdict": "ABORTED",
+          "fingerprint": "sha256:0561d15db81722739c9fef6cc11d3678e0a75865872e7b1584ba0eb67036a32c",
+          "log": "~/gate-logs/MOPS-gate15.{log,exit}",
+          "cause": "사용자 요청(2026-11-13 ~12:20 KST, Demo 확인 우선)으로 GRADLE-CHECK 약 24분 시점에 중단 — 판정 아님"
+        },
+        {
+          "tag": "MOPS-gate16",
+          "date": "2026-11-13",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T050955Z.json",
+          "fingerprint": "sha256:9857d4e008a51be0cb9a3e40d364d0c08bc19775f7befd9e2213a9e55aad9bea",
+          "result": "GRADLE-CHECK 05:10:17Z..05:46:38Z(36m21s/4500s) exit 0; Kotlin 4431 / FRONTEND 324 실패·errors·skip 0; fingerprint 전후 동일",
+          "supplementary": "CVE-SCAN PASS 2026-11-13 ~15:10 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve16.log"
         }
       ],
       "followUps": [
-        "HARNESS-TIMEOUT-KILLTREE: verify-gate.py가 GRADLE-CHECK timeout(-9) 때 Gradle 하위 JVM(GradleWrapperMain·test worker)을 남김(MOPS-gate10·gate11, 2026-11-12) — 프로세스 그룹 종료 필요"
+        "HARNESS-TIMEOUT-KILLTREE: verify-gate.py가 GRADLE-CHECK timeout(-9) 때 Gradle 하위 JVM(GradleWrapperMain·test worker)을 남김(MOPS-gate10·gate11, 2026-11-12) — 프로세스 그룹 종료 필요",
+        "B3-1F MINOR-B: mutate.py에 b-site(SiteReviewRules 등록자 검사를 decide 뒤로) 변이 추가. NIT-A: 경합 ⑦⑧ lockWaiters()를 data_locks OBJECT_NAME=merchant로 한정"
       ],
       "notes": [
         "2026-11-12 사용자 결정 \"제한 4500s로 올리기\"(선택지: 4500s / 속도 개선 먼저 / 모듈별 분할): GRADLE-CHECK timeoutSeconds 3300→4500. minTests·보고서·출력 규칙·시험 기대값 불변. VERIFY-GATE 5400 ≥ 단계 합(120+4500+60×5)"
@@ -7594,6 +7639,104 @@
       "followUps": [
         "GATE-LOAD-001 MINOR-1: 생성기 전부가 frontendTest mustRunAfter 목록에 있는지 검사(build-logic test 또는 dry-run 단언) 또는 생성기 공통 함수에 이름 규칙 명시. MINOR-2: Vitest 5초 여유 부족 잔여 위험(timeout 변경은 사용자 결정)"
       ]
+    },
+    {
+      "id": "ADMIN-UI-MERCHANT-002",
+      "title": "관리자 화면 Demo 피드백 반영: 글자 크기, 사업자·가맹점 등록 화면 분리, 사업자번호 하이픈 자동, 설명 최소화, 사업자 ID 화면 제외, 결제수단 목록 구조",
+      "status": "DONE",
+      "dependsOn": [
+        "ADMIN-UI-MERCHANT-001"
+      ],
+      "questions": [
+        "Q-ADMIN-UI-3",
+        "Q-ADMIN-UI-4",
+        "Q-ADMIN-UI-5",
+        "Q-ADMIN-UI-6"
+      ],
+      "acceptanceCriteria": [
+        "타이포·색은 사용자 지정 시안(https://pg-ops-workspace-kim.packedchili2.chatgpt.site/, 2026-11-13 갱신본) computed style에 맞춤 — 시스템 글꼴 스택+로컬 한글 글꼴(웹폰트 없음), body 14px/21px #334155, 사이드바 14px 500 #475569·활성 700 #1d4ed8/#edf4ff, h1 28px, 카드 제목 17px, 버튼 13px 600, th 13px 600, td 14px. 처음 피드백의 \"전역 글자 상향\"과 \"사이드바 15px bold\"는 사용자 지시로 취소(D-ADMIN-UI-004 ⑧). 레이아웃 깨짐 없음",
+        "사업자 등록·가맹점 등록 메뉴/화면 분리, 권한 OPERATOR 그대로",
+        "사업자등록번호 입력 시 000-00-00000 자동 하이픈, 전송 값은 기존 형식",
+        "항목 설명 문구 최소화(필수 안내·오류 문구는 유지)",
+        "사업자 ID를 화면 표시에서 제외(내부 키·API·감사 불변)",
+        "결제수단을 목록 구조로(현재 신용카드만, 새 수단 정책 없음)",
+        "권한·API·payload·CSP 불변, Vitest·tsc 통과, 기존 기대값 완화 없음"
+      ],
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/ADMIN-UI-*.md"
+      ],
+      "owner": "Coordinator",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "nextResumeAction": null,
+      "review": "REVIEW_PASS 조건부(round1, 2026-11-13) BLOCKER 0 MAJOR 0. MINOR-1 사업자 넘겨주기가 진행 중 마법사에 섞임 → 수정 중, MINOR-2 결제수단 one-shot 공유 → 결과 불명 중 다른 수단 비활성+확장 전 필수 메모, MINOR-3 문서 정합 → Coordinator 정리, MINOR-4 주 버튼 #3182f6 대비 3.7:1 → 사용자 지정 시안 브랜드 색이라 유지(알려진 한계, 후속 확인), NIT 3건 수정 중 → round2 REVIEW_PASS(2026-11-13): MINOR-1·2 해결, 새 시험 3건 수정 전 실패 구조 확인(코드 분석), NIT(registration.ts 주석 순서) Coordinator 수정",
+      "followUps": [
+        "MINOR-4: 주 버튼(#3182f6 위 흰 13px) 대비 약 3.7:1, 단계 표시 약 3.5:1 — WCAG AA 미달. 시안 브랜드 색이라 사용자 확인 뒤 조정 여부 결정"
+      ],
+      "evidence": {
+        "frontend": "2026-11-13 14:07 KST Implementer: tsc 0, Vitest 39파일/299 통과(보고서 apps/internal-admin/build/test-results/frontend/TEST-vitest.xml)",
+        "demo": "2026-11-13 13:25 KST Demo admin 재빌드(시안 스타일) — 사용자 확인 \"네\"",
+        "gate": {
+          "tag": "MOPS-gate16",
+          "date": "2026-11-13",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T050955Z.json",
+          "fingerprint": "sha256:9857d4e008a51be0cb9a3e40d364d0c08bc19775f7befd9e2213a9e55aad9bea",
+          "result": "GRADLE-CHECK 05:10:17Z..05:46:38Z(36m21s/4500s) exit 0; Kotlin 4431 / FRONTEND 324 실패·errors·skip 0; fingerprint 전후 동일",
+          "supplementary": "CVE-SCAN PASS 2026-11-13 ~15:10 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve16.log"
+        }
+      }
+    },
+    {
+      "id": "MERCHANT-CODE-001",
+      "title": "사람이 읽는 가맹점 코드(새 식별 키) 설계·질문",
+      "status": "READY",
+      "dependsOn": [],
+      "questions": [
+        "Q-MC-1",
+        "Q-MC-2",
+        "Q-MC-3",
+        "Q-MC-4",
+        "Q-MC-5",
+        "Q-MC-6"
+      ],
+      "acceptanceCriteria": [
+        "D-MCODE-001 기준 명세: 토스식 가맹점 코드(영문 소문자+숫자 ≤14, 상호 영문+랜덤 4자 미리보기, 운영자 직접 입력, 전체 고유), 외부 연동·정산서 노출 지점, 감사·승인 대상 전환과 기존 기록 연결, 불변·재사용 금지, 기존 가맹점 부여, 8대 원칙 증거",
+        "명세 리뷰 PASS 후 TDD 구현(별도 배치)"
+      ],
+      "allowedWritePaths": [
+        "docs/repository/**"
+      ],
+      "owner": "Coordinator",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "nextResumeAction": "ADMIN-UI-MERCHANT-002 뒤 명세 작성(Implementer) → 남은 세부 질문 → 리뷰 → 구현"
+    },
+    {
+      "id": "MERCHANT-BIZ-LOOKUP-001",
+      "title": "사업자등록번호 정확 일치 사업자 조회(가맹점 0개 사업자 선택용) — MASTER 조회 API + ADMIN 조회·감사 + 가맹점 등록 ① 연결",
+      "status": "READY",
+      "dependsOn": [
+        "ADMIN-UI-MERCHANT-002"
+      ],
+      "questions": [
+        "Q-ADMIN-UI-7"
+      ],
+      "acceptanceCriteria": [
+        "정확 일치만, D-MOPS-003 감사·한도(매 시도 감사), 응답 상호·마스킹 번호·내부 키만(평문 번호 미노출)",
+        "가맹점 등록 ① 사업자 선택에 연결",
+        "권한 OPERATOR, 기존 규칙 불변"
+      ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/**",
+        "docs/repository/**"
+      ],
+      "owner": "Coordinator",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "nextResumeAction": "ADMIN-UI-MERCHANT-002 뒤 명세 → 구현"
     }
   ]
 }

@@ -402,6 +402,8 @@ internal class AdminCommandExecutor(
         /** 경보 후보 근거 거절(§9.3·§9.8). */
         private val ALERTING_REJECTIONS = setOf(
             MasterRejection.APPROVAL_SAME_ACTOR, MasterRejection.APPROVAL_ID_ALREADY_USED, MasterRejection.APPROVER_IS_REVISION_REGISTRANT,
+            // MERCHANT-OPS-002 §9.27(B3-1F — D-MOPS-009 ③): ADMIN TX1이 먼저 막으므로 MASTER에서 나오면 2인 통제 우회 신호(경보 후보).
+            MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT, MasterRejection.APPROVER_IS_SITE_REGISTRANT,
         )
 
         /**

@@ -3,7 +3,7 @@ package com.paycore.admin.approval.domain
 /**
  * 결제수단 개통 승인 요청 시점의 고정 대상(MERCHANT-OPS-002 B3-1 §9.16 pinned — 표시·비교용): `{merchantId, merchantName, merchantAccountId, activationId, paymentMethod, status,
  * primarySiteId, registeredBy}`. 사업자등록번호·채널 식별값·근거 참조 없음. [primarySiteId]는 요청 시점 MID의 열린 PRIMARY Site(C-45 — 승인 본문 `primarySiteId`로 고정된다).
- * [registeredBy]는 개통 등록자(MASTER 상세 `paymentMethods[].registeredBy`) — **표시용**이다: Q-MOPS-24(등록자 ≠ 승인자) 답 전이라 승인 경로는 이 값으로 거절하지 않는다(§9.16, §8.3 B3-1 11).
+ * [registeredBy]는 개통 등록자(MASTER 상세 `paymentMethods[].registeredBy`) — 표시 + **TX1 403 판정 근거**(D-MOPS-009 ③ — 승인자 = 이 값이면 `APPROVER_IS_REGISTRANT`, §9.27).
  * 다만 pinned 비교 대상이므로 A 단계 재조회 값과 다르면 INVALIDATED(TARGET_CHANGED). 표시 이름은 비교하지 않는다(C-16).
  */
 data class PinnedActivationApprovalTarget(

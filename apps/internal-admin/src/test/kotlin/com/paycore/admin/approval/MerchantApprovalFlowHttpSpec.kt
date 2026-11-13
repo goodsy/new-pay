@@ -50,8 +50,10 @@ class MerchantApprovalFlowHttpSpec(
 ) : BehaviorSpec({
 
     val f = MerchantOpsApprovalFixture(merchants, owners, path, ready, storage)
-    f.install()
-    afterSpec { f.uninstall() }
+    // B3-1F: 개통 승인 실행 경로까지 연결한다(install이 base[f].install을 포함 — 계약 승인 행렬은 그대로).
+    val act = MerchantActivationApprovalFixture(f, merchants, path, storage)
+    act.install()
+    afterSpec { act.uninstall() }
     val json = JsonMapper.builder().build()
     fun root() = AdminDbAccounts.root(container)
     fun withRoles(vararg roles: AdminRole) = ready.withoutRoles().also { path.grant(it.account.id, *roles) }
@@ -94,6 +96,23 @@ class MerchantApprovalFlowHttpSpec(
             val id = json.readTree(request(loggedIn(withRoles(AdminRole.OPERATOR)), m).contentAsByteArray).get("approvalId").asString()
             approve(loggedIn(registrant), registrant, id).let { it.status to it.contentAsString } shouldBe (403 to """{"error":"APPROVER_IS_REGISTRANT"}""")
             status(id) shouldBe "PENDING|-"
+        }
+    }
+
+    Given("FH-4 B3-1F (D-MOPS-009 ③) payment method activation approval with real login sessions") {
+        Then("the activation registrant (OPERATOR + APPROVER) approving gets 403 {\"error\":\"APPROVER_IS_REGISTRANT\"} without values, PENDING; another APPROVER → EXECUTED") {
+            val registrant = withRoles(AdminRole.OPERATOR, AdminRole.APPROVER)
+            val m = f.newMerchantId().also { act.detail(it, activationRegistrant = "admin:${registrant.account.id.value}") }
+            val body = """{"merchantId":"$m","merchantAccountId":"${act.midOf(m)}","activationId":"${act.activationOf(m)}","evidenceRef":"${MerchantActivationApprovalFixture.ACTIVATION_EVIDENCE}"}"""
+            val created = loggedIn(withRoles(AdminRole.OPERATOR)).perform(post("/api/approvals/merchant-payment-method-activation").contentType(MediaType.APPLICATION_JSON).content(body))
+            created.status shouldBe 201
+            val id = json.readTree(created.contentAsByteArray).get("approvalId").asString()
+            approve(loggedIn(registrant), registrant, id).let { it.status to it.contentAsString } shouldBe (403 to """{"error":"APPROVER_IS_REGISTRANT"}""")
+            status(id) shouldBe "PENDING|-"
+            f.executeReplies[id] = f.succeeded(act.activationOf(m))
+            val other = withRoles(AdminRole.APPROVER)
+            val res = approve(loggedIn(other), other, id)
+            (res.status to json.readTree(res.contentAsByteArray).get("status").asString()) shouldBe (200 to "EXECUTED")
         }
     }
 

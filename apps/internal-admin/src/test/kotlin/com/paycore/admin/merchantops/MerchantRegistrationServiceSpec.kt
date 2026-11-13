@@ -112,14 +112,17 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             object : AdminAuditRecorder {
                 override fun record(record: AuditRecord) {
                     auditInTx += TransactionSynchronizationManager.isActualTransactionActive()
-                    synchronized(audits) {
+                    // events 순회(count)는 events 자체 잠금이 필요하다 — synchronizedList는 개별 add만 보호하고 반복은 보호하지 않는다.
+                    // gate14(MERCHANT-OPS-002-2026-11-13T003739Z): C-13 시험에서 다른 스레드의 `events += "call"`과 겹쳐
+                    // ConcurrentModificationException → 서비스가 AuditUnavailable로 처리 → 간헐 실패. 잠금 순서 audits → events(다른 곳은 events만 잡음).
+                    synchronized(audits) { synchronized(events) {
                         if (failAuditAt == audits.size + events.count { it == "audit-failed" }) {
                             events += "audit-failed"
                             throw IllegalStateException("injected audit failure")
                         }
                         audits += record
                         events += "audit:${record.resultCode}"
-                    }
+                    } }
                 }
             },
             limits,

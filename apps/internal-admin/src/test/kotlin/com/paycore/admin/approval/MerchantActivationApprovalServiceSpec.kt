@@ -15,11 +15,13 @@ import com.paycore.admin.support.AdminDbAccounts
 import com.paycore.admin.support.AdminDbTest
 import com.paycore.admin.support.StubMasterOpsServer
 import com.paycore.admin.support.StubMasterOpsServer.Reply
+import com.paycore.admin.support.TestTotp
 import com.paycore.admin.support.column
 import com.paycore.admin.support.scalar
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.testcontainers.mysql.MySQLContainer
@@ -28,7 +30,12 @@ import tools.jackson.databind.json.JsonMapper
 /**
  * B3-1 개통 승인·Site 심사 승인 ADMIN 절반(MERCHANT-OPS-002 §8.3 B3-1 8 — §9.16). 실제 MySQL 8.4, MASTER는 실제 HTTP 대역. 명시 Fixture [MerchantActivationApprovalFixture].
  * 행: 근거 필수(400 전 MASTER 미호출), 미리 보기 부적격 409(감사), MASTER 장애 503, 그룹 미해결 키(C-35 — 같은 그룹 409·다른 그룹 공존), pinned `registeredBy` 표시,
- * **등록자 검사 없음(Q-MOPS-24 미답 — 현재 동작 고정)**, pinned ≠ 현재 INVALIDATED, 본문(12필드·operation)·소유 참조 대조(C-34).
+ * pinned ≠ 현재 INVALIDATED, 본문(12필드·operation)·소유 참조 대조(C-34).
+ * B3-1F(§8.4 B3-1F-4 — D-MOPS-009 ③·D-MOPS-010 ②): 승인자 = pinned `registeredBy`(개통 등록자·Site 등록자)면 TX1에서 TOTP 소비 **전** 403 `APPROVER_IS_REGISTRANT`
+ * (PENDING·실행 행 없음·MASTER 미호출·TOTP 불변·감사 `APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT`), MASTER가 새 등록자 거절을 돌려주면 OWNER_REJECTED + 경보.
+ * 이전 "Q-MOPS-24 미답 — 등록자도 승인" 고정 시험 2건은 사용자 결정에 따라 반대 기대로 바뀌었다(기대 반전 4건 중 ADMIN 2건).
+ * B3-1F review MAJOR-1: TOTP 소비는 TX1에 합류하므로 등록자 Refusal의 rollback만으로도 `last_totp_step`이 되돌아간다 — "TOTP 불변"·n-3 시험은 검사 **순서**와 무관하게
+ * 성립하는 불변식이다. 순서(등록자 → TOTP)는 등록자가 틀린 TOTP·이미 쓴 step 코드로 승인해도 `APPROVER_IS_REGISTRANT`(STEP_UP_FAILED 아님, 실패 계수·인증 실패 감사 없음)인 시험이 고정한다.
  */
 @SpringBootTest
 @AdminDbTest
@@ -42,6 +49,7 @@ class MerchantActivationApprovalServiceSpec(
     path: ApprovalPath,
     ready: LoginReadyAccounts,
     storage: AdminAccountStorage,
+    registry: MeterRegistry,
     private val container: MySQLContainer,
 ) : BehaviorSpec({
 
@@ -51,6 +59,15 @@ class MerchantActivationApprovalServiceSpec(
     afterSpec { f.uninstall() }
     val json = JsonMapper.builder().build()
     fun root() = AdminDbAccounts.root(container)
+    /** TOTP 소비 기록(마지막 step)·실패 횟수. 등록자 403 뒤 이 값 불변은 rollback으로도 성립한다 — 순서 증거는 [authFailures]와 틀린/쓴 TOTP 시험(MAJOR-1). */
+    fun account(actorId: String) = root().use { it.column("SELECT CONCAT(COALESCE(last_totp_step, -1), '|', failed_attempts) FROM admin_account WHERE actor_id = ?", actorId).single() }
+    /** 별도 TX의 STEP_UP 실패 기록(AuthenticationFailureService — rollback되지 않음)이 남기는 인증 실패 감사 행 수. */
+    fun authFailures(actorId: String) = root().use {
+        (it.scalar("SELECT COUNT(*) FROM admin_audit_event WHERE actor_id = ? AND action = 'AUTHENTICATION_FAILED'", actorId) as Number).toLong()
+    }
+    fun alerts(code: String) = registry.find("paycore.admin.ops.integrity_alert").tags("code", code).counters().sumOf { it.count() }
+    /** OPERATOR + APPROVER 두 역할 계정(개통·Site를 1인 등록하고 2인 승인도 할 수 있는 사람 — D-MOPS-009 ③ 무효 조건). */
+    fun operatorAndApprover() = ready.withoutRoles().also { path.grant(it.account.id, AdminRole.OPERATOR, AdminRole.APPROVER) }
     fun status(id: String) = root().use { it.scalar("SELECT CONCAT(status, '|', COALESCE(result_code, '-')) FROM admin_approval_request WHERE approval_id = ?", id) as String }
     fun execution(id: String) = root().use {
         it.scalar(
@@ -156,15 +173,76 @@ class MerchantActivationApprovalServiceSpec(
             audits(id).map { it.substringBefore('|') } shouldBe listOf("APPROVAL_REQUESTED", "APPROVAL_EXECUTING", "APPROVAL_EXECUTED")
             StubMasterOpsServer.requestsForPath(StubMasterOpsServer.CONTRACT_REVISION_APPROVALS).count { base.idOf(it.body) == id } shouldBe 0
         }
-        Then("Q-MOPS-24 unanswered — current behaviour pinned: the activation registrant (OPERATOR + APPROVER) CAN approve; no APPROVER_IS_REGISTRANT for B3-1 kinds") {
-            val registrant = ready.withoutRoles().also { path.grant(it.account.id, AdminRole.APPROVER) }
+        Then("D-MOPS-009 ③: the activation registrant (OPERATOR + APPROVER) is refused 403 APPROVER_IS_REGISTRANT before the TOTP — PENDING, no execution row, no POST, TOTP unchanged, APPROVAL_DENIED audit") {
+            // 기대 반전(MERCHANT-OPS-002 §8.4 B3-1F-6 — D-MOPS-009 ③ 사용자 결정, 기대 완화 아님): 이전 시험 "Q-MOPS-24 unanswered — current behaviour pinned: the activation
+            // registrant (OPERATOR + APPROVER) CAN approve; no APPROVER_IS_REGISTRANT for B3-1 kinds"는 EXECUTED를 기대했다.
+            val registrant = operatorAndApprover()
             val m = base.newMerchantId()
             f.detail(m, activationRegistrant = "admin:${registrant.account.id.value}")
             val id = (f.requestActivation(base.operator(), m) as ApprovalOutcome.Created).approvalId
             pinned(id).get("registeredBy").asString() shouldBe "admin:${registrant.account.id.value}"
             base.executeReplies[id] = base.succeeded(f.activationOf(m))
-            base.approve(id, registrant) shouldBe ApprovalOutcome.Executed(id)
-            audits(id).none { it.contains("APPROVER_IS_REGISTRANT") } shouldBe true
+            val before = account(registrant.account.id.value)
+            base.approve(id, registrant) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.PAYMENT_METHOD_ACTIVATION_APPROVALS, id).size.toString(), account(registrant.account.id.value)) shouldBe
+                listOf("PENDING|-", "none", "0", before)
+            audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+            // 다른 APPROVER는 같은 승인을 처리할 수 있다.
+            base.approve(id) shouldBe ApprovalOutcome.Executed(id)
+        }
+        Then("D-MOPS-009 ③ (n-3, invariant — holds by order or by the TX1 rollback alike, so it does not pin the order): a refused registrant leaves the TOTP step unconsumed — the same account approves a different request with the same code") {
+            // B3-1F review MAJOR-1: TOTP 소비가 TX1(MANDATORY)에 합류하므로 등록자 검사가 TOTP 뒤로 가도 Refusal rollback이 소비를 되돌려 이 시험은 통과한다.
+            // 검사 순서(등록자 → TOTP)는 아래 "wrong / already-used TOTP" 시험이 고정한다. 기대값은 그대로다.
+            val registrant = operatorAndApprover()
+            val own = base.newMerchantId().also { f.detail(it, activationRegistrant = "admin:${registrant.account.id.value}") }
+            val ownId = (f.requestActivation(base.operator(), own) as ApprovalOutcome.Created).approvalId
+            val (otherId, other) = f.requestedActivation()
+            base.executeReplies[otherId] = base.succeeded(f.activationOf(other))
+            val code = TestTotp.code(registrant.secret)
+            val before = account(registrant.account.id.value)
+            base.approve(ownId, registrant, totp = code) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            account(registrant.account.id.value) shouldBe before
+            // TOTP는 계정별이다 — 거절된 시도가 이 코드를 쓰지 않았으므로 같은 계정이 같은 코드로 등록자가 아닌 다른 건을 승인할 수 있다.
+            base.approve(otherId, registrant, totp = code) shouldBe ApprovalOutcome.Executed(otherId)
+            status(ownId) shouldBe "PENDING|-"
+        }
+        Then("D-MOPS-009 ③ order (MAJOR-1): the activation registrant with a WRONG TOTP or an ALREADY-USED step code is still refused APPROVER_IS_REGISTRANT — not STEP_UP_FAILED; no failure counted, no AUTHENTICATION_FAILED audit") {
+            val registrant = operatorAndApprover()
+            val actor = registrant.account.id.value
+            fun ownRequest() = base.newMerchantId().let { m ->
+                f.detail(m, activationRegistrant = "admin:$actor")
+                (f.requestActivation(base.operator(), m) as ApprovalOutcome.Created).approvalId to m
+            }
+            // (1) 틀린 TOTP: 등록자 판정이 TOTP 판정 앞이면 403 APPROVER_IS_REGISTRANT, 뒤면 STEP_UP_FAILED + 별도 TX 실패 계수·감사(rollback되지 않음).
+            val (wrongId, wrongM) = ownRequest()
+            base.executeReplies[wrongId] = base.succeeded(f.activationOf(wrongM))
+            val before = account(actor)
+            val failuresBefore = authFailures(actor)
+            base.approve(wrongId, registrant, totp = TestTotp.wrongCode(registrant.secret)) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            listOf(status(wrongId), execution(wrongId) ?: "none", posts(StubMasterOpsServer.PAYMENT_METHOD_ACTIVATION_APPROVALS, wrongId).size.toString(), account(actor)) shouldBe
+                listOf("PENDING|-", "none", "0", before)
+            authFailures(actor) shouldBe failuresBefore
+            audits(wrongId).last() shouldBe "APPROVAL_DENIED|$wrongM|reason=APPROVER_IS_REGISTRANT"
+            // (2) 이미 쓴 step 코드: 같은 코드로 남의 개통을 먼저 승인(그 step 소비)한 뒤 자기 개통에 같은 코드 → 여전히 APPROVER_IS_REGISTRANT.
+            val (otherId, other) = f.requestedActivation()
+            base.executeReplies[otherId] = base.succeeded(f.activationOf(other))
+            val code = TestTotp.code(registrant.secret)
+            base.approve(otherId, registrant, totp = code) shouldBe ApprovalOutcome.Executed(otherId)
+            val (usedId, usedM) = ownRequest()
+            val consumed = account(actor)
+            base.approve(usedId, registrant, totp = code) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            listOf(status(usedId), execution(usedId) ?: "none", account(actor), authFailures(actor).toString()) shouldBe
+                listOf("PENDING|-", "none", consumed, failuresBefore.toString())
+            audits(usedId).last() shouldBe "APPROVAL_DENIED|$usedM|reason=APPROVER_IS_REGISTRANT"
+        }
+        Then("MASTER returning the new registrant rejections (ADMIN check bypassed) → OWNER_REJECTED + integrity alert (DEFECT_REJECTIONS)") {
+            listOf("APPROVER_IS_ACTIVATION_REGISTRANT", "APPROVER_IS_SITE_REGISTRANT").forEach { code ->
+                val (id, _) = if (code == "APPROVER_IS_ACTIVATION_REGISTRANT") f.requestedActivation() else f.requestedSiteReview()
+                base.executeReplies[id] = { Reply(200, StubMasterOpsServer.rejected(code)) }
+                val before = alerts(code)
+                base.approve(id) shouldBe ApprovalOutcome.OwnerRejected(code)
+                listOf(status(id), (alerts(code) - before).toString()) shouldBe listOf("OWNER_REJECTED|$code", "1.0")
+            }
         }
         Then("pinned ≠ current (PRIMARY changed, activation became ACTIVE, registrant changed, merchant gone) → INVALIDATED(TARGET_CHANGED), no POST; MASTER down → 503, PENDING") {
             val (primaryMoved, m1) = f.requestedActivation()
@@ -244,13 +322,52 @@ class MerchantActivationApprovalServiceSpec(
             base.approve(foreign) shouldBe ApprovalOutcome.Executing(foreign, "EXECUTION_UNKNOWN")
             execution(foreign)!!.split('|')[2] shouldBe "REFERENCE_MISMATCH"
         }
-        Then("Q-MOPS-24 unanswered: the site registrant may approve the site review (no registrant check); review approved meanwhile → INVALIDATED") {
-            val registrant = ready.withoutRoles().also { path.grant(it.account.id, AdminRole.APPROVER) }
-            val m = base.newMerchantId()
-            f.detail(m, siteRegistrant = "admin:${registrant.account.id.value}")
-            val id = (f.requestSiteReview(base.operator(), m) as ApprovalOutcome.Created).approvalId
-            base.executeReplies[id] = base.succeeded(f.secondSiteOf(m) + "#1")
-            base.approve(id, registrant) shouldBe ApprovalOutcome.Executed(id)
+        Then("D-MOPS-009 ③ / D-MOPS-010 ②: the site registrant (OPERATOR + APPROVER) is refused 403 APPROVER_IS_REGISTRANT for PENDING and SUSPENDED sites (same matrix)") {
+            // 기대 반전(MERCHANT-OPS-002 §8.4 B3-1F-6 — D-MOPS-009 ③): 이전 시험 "Q-MOPS-24 unanswered: the site registrant may approve the site review (no registrant check);
+            // review approved meanwhile → INVALIDATED"의 등록자 부분은 EXECUTED를 기대했다. INVALIDATED 부분은 아래 시험으로 옮겨 그대로 유지한다.
+            val registrant = operatorAndApprover()
+            listOf(null, "SUSPENDED").forEach { review ->
+                val m = base.newMerchantId()
+                f.detail(m, siteRegistrant = "admin:${registrant.account.id.value}", secondReview = review)
+                val id = (f.requestSiteReview(base.operator(), m) as ApprovalOutcome.Created).approvalId
+                base.executeReplies[id] = base.succeeded(f.secondSiteOf(m) + "#1")
+                val before = account(registrant.account.id.value)
+                base.approve(id, registrant) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+                listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.SITE_REVIEW_APPROVALS, id).size.toString(), account(registrant.account.id.value)) shouldBe
+                    listOf("PENDING|-", "none", "0", before)
+                audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+                base.approve(id) shouldBe ApprovalOutcome.Executed(id)
+            }
+        }
+        Then("D-MOPS-009 ③ / D-MOPS-010 ② order (MAJOR-1): the site registrant with a WRONG TOTP (PENDING and SUSPENDED) or an ALREADY-USED step code is still refused APPROVER_IS_REGISTRANT — not STEP_UP_FAILED; no failure counted or audited") {
+            val registrant = operatorAndApprover()
+            val actor = registrant.account.id.value
+            fun ownRequest(review: String?) = base.newMerchantId().let { m ->
+                f.detail(m, siteRegistrant = "admin:$actor", secondReview = review)
+                (f.requestSiteReview(base.operator(), m) as ApprovalOutcome.Created).approvalId to m
+            }
+            val failuresBefore = authFailures(actor)
+            listOf(null, "SUSPENDED").forEach { review ->
+                val (id, m) = ownRequest(review)
+                base.executeReplies[id] = base.succeeded(f.secondSiteOf(m) + "#1")
+                val before = account(actor)
+                base.approve(id, registrant, totp = TestTotp.wrongCode(registrant.secret)) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+                listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.SITE_REVIEW_APPROVALS, id).size.toString(), account(actor)) shouldBe
+                    listOf("PENDING|-", "none", "0", before)
+                audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+            }
+            authFailures(actor) shouldBe failuresBefore
+            val (otherId, other) = f.requestedSiteReview()
+            base.executeReplies[otherId] = base.succeeded(f.secondSiteOf(other) + "#1")
+            val code = TestTotp.code(registrant.secret)
+            base.approve(otherId, registrant, totp = code) shouldBe ApprovalOutcome.Executed(otherId)
+            val (usedId, usedM) = ownRequest(null)
+            val consumed = account(actor)
+            base.approve(usedId, registrant, totp = code) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            listOf(status(usedId), account(actor), authFailures(actor).toString()) shouldBe listOf("PENDING|-", consumed, failuresBefore.toString())
+            audits(usedId).last() shouldBe "APPROVAL_DENIED|$usedM|reason=APPROVER_IS_REGISTRANT"
+        }
+        Then("another approver: the site review approved meanwhile → INVALIDATED (kept from the former Q-MOPS-24 test)") {
             val (changed, m2) = f.requestedSiteReview()
             f.detail(m2, secondReview = "APPROVED")
             base.approve(changed) shouldBe ApprovalOutcome.Invalidated("TARGET_CHANGED")

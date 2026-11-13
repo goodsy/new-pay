@@ -76,8 +76,8 @@ import java.time.temporal.ChronoUnit
  *
  * B3-1(§9.16): 결제수단 개통 승인([ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION] — `ApprovePaymentMethodActivation`, 소유 참조 = pinned `act_…`)·Site 심사 승인
  * ([ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL] — `DecideSiteReview`, 소유 참조 `site_…#n`의 Site 부분 = pinned Site)이 같은 틀(요청 → A → TX1 → C → TX2·회복)을 쓴다.
- * **Q-MOPS-24 미답 — 이 두 종류에는 "등록자 ≠ 승인자" 검사가 없다**(pinned `registeredBy`는 표시·pinned 비교용일 뿐 TX1이 거절 근거로 쓰지 않는다 — 계약 승인의 D-MOPS-008 ③ 검사만
- * 그대로). 답이 권장안이면 B3-1 DONE 전에 계약 승인과 같은 위치(TOTP 전 403 `APPROVER_IS_REGISTRANT`)에 더한다(§9.16).
+ * **D-MOPS-009 ③(B3-1F — §9.27, Q-MOPS-24 답)**: 두 종류도 계약 승인과 같은 위치(참여자 잠금·pinned 종류 확인 뒤, TOTP 소비 **전**)에서 승인자 ≠ pinned `registeredBy`
+ * (개통 등록자·Site 등록자 — SUSPENDED 재승인 포함, D-MOPS-010 ②)를 검사한다([registrantOf] — 403 `APPROVER_IS_REGISTRANT`, ADMIN 응답 code는 하나 — C-50). 첫 MID 발급은 대상 아님.
  */
 @Service
 class MerchantOpsApprovalService(
@@ -484,8 +484,10 @@ class MerchantOpsApprovalService(
         if (!pinnedKindMatches) throw IntegrityViolation("command_kind", merchantId, request.id)
         // D-MOPS-008 ③(C-27): Revision 등록자는 그 Revision을 승인할 수 없다 — TOTP를 쓰기 전에 거부(상태·TOTP 불변, 감사 APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT).
         // B2-3: 첫 MID 발급에는 적용하지 않는다(결정 범위가 "그 Revision을 승인" — §9.3 판정 5).
-        // B3-1: 개통·Site 심사 승인에도 적용하지 않는다 — Q-MOPS-24(등록자 ≠ 승인자) 미답, pinned registeredBy는 표시용(§9.16·§8.3 B3-1 11).
-        if (pinned is PinnedContractApprovalTarget && pinned.registeredBy == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, merchantId, request.id)
+        // B3-1F(D-MOPS-009 ③·D-MOPS-010 ②, §9.27): 개통·Site 심사 승인도 같은 줄에서 대상 등록자(pinned registeredBy — 요청 시점 고정 값)와 비교한다.
+        registrantOf(pinned)?.let { registrant ->
+            if (registrant == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, merchantId, request.id)
+        }
         if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
             status.setRollbackOnly()
             return Tx1.Done(ApprovalOutcome.StepUpFailed)
@@ -525,6 +527,17 @@ class MerchantOpsApprovalService(
         repository.update(locked, request.beginExecution(approverId, approver.displayName, now))
         audit(now, approver, "APPROVAL_EXECUTING", "EXECUTING", command.context, request, null, executor = approverId)
         return Tx1.Begun(body)
+    }
+
+    /**
+     * 2인 승인자가 될 수 없는 1인 등록자(MERCHANT-OPS-002 §9.27 — D-MOPS-008 ③ 계약 Revision 등록자, D-MOPS-009 ③ 개통 등록자·Site 등록자). 첫 MID 발급은 없음(null — 결정 범위 밖).
+     * sealed `when` — 새 pinned 종류(B3-2·B3-3)를 더하면 컴파일러가 이 결정을 요구한다.
+     */
+    private fun registrantOf(pinned: PinnedMerchantTarget): String? = when (pinned) {
+        is PinnedContractApprovalTarget -> pinned.registeredBy
+        is PinnedActivationApprovalTarget -> pinned.registeredBy
+        is PinnedSiteReviewApprovalTarget -> pinned.registeredBy
+        is PinnedFirstMidTarget -> null
     }
 
     private fun invalidate(locked: VersionedApproval, request: ApprovalRequest, approver: ParticipantView, code: String, now: Instant, context: AdminRequestContext): ApprovalOutcome {

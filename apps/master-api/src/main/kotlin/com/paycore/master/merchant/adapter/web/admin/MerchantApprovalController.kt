@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController
  *   `{"decision":"DECIDED","operation","outcome":"SUCCEEDED|REJECTED","reference"(성공만),"rejection"(거절만),"approvalFingerprint","decidedVia"}`. NONE은 효과 없음의 근거가 아니다.
  *
  * 승인 창([AdminApprovalSettings], 기본값 없음)은 이 adapter가 명령에 넣는다. 로그·지표: 연산·결과 분류·상관 ID(`mop.<approvalId>`)만 — 멱등 키 원문·서명·근거 참조 값·행위자 없음.
- * 지표 `paycore.master.admin_channel.command{operation,outcome}`(B1과 같은 이름), `approval_rejected{operation,rejection}`(근거 거절 5종만 label — 첫 판정만, 재생 제외),
+ * 지표 `paycore.master.admin_channel.command{operation,outcome}`(B1과 같은 이름), `approval_rejected{operation,rejection}`(근거 거절 7종만 label — 첫 판정만, 재생 제외),
  * `approval_executed{operation}`(첫 실행 성공만 — ADMIN `owner_executed{kind}`와 대조할 수 있게, m-3).
  */
 @RestController
@@ -192,10 +192,11 @@ class MerchantApprovalController(
         const val APPROVAL_REJECTED_METRIC = "paycore.master.admin_channel.approval_rejected"
         const val APPROVAL_EXECUTED_METRIC = "paycore.master.admin_channel.approval_executed"
 
-        /** 지표 label로 쓰는 근거 거절(§9.3 판정 1~5). */
+        /** 지표 label로 쓰는 근거 거절(§9.3 판정 1~5 + §9.27 B3-1F 등록자 거절 2종 = 7종, B3-3에서 Route 등록자 1종을 더해 8종). */
         val APPROVAL_REJECTIONS: Set<MasterRejection> = setOf(
             MasterRejection.APPROVAL_SAME_ACTOR, MasterRejection.APPROVAL_WINDOW_INVALID, MasterRejection.APPROVAL_ID_ALREADY_USED,
             MasterRejection.APPROVAL_EXPIRED, MasterRejection.APPROVER_IS_REVISION_REGISTRANT,
+            MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT, MasterRejection.APPROVER_IS_SITE_REGISTRANT,
         )
 
         private const val EXECUTE = "ApproveContractRevision"

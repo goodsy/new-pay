@@ -146,6 +146,93 @@ class ActivationSpec : BehaviorSpec({
         }
     }
 
+    Given("D-MOPS-009 ③ evidence-path activation approval: the registrant cannot approve (MERCHANT-OPS-002 §9.27 B3-1F-1, C-49 order)") {
+        val approver = ApprovalEvidenceFixtures.APPROVER
+        val other = ApprovalEvidenceFixtures.OTHER
+
+        fun approveWithEvidence(
+            r: EntitlementFixture.Registered,
+            account: MerchantAccount = r.account,
+            by: ActorRef = approver,
+            primary: MerchantSiteId = r.primary.merchantSiteId,
+        ) = ActivationApproval.approveWithEvidence(r.activation, account, listOf(r.primary), emptyList(), EntitlementFixture.confirmationId(), evidence, t0, by, primary)
+
+        fun terminated(account: MerchantAccount) = MerchantAccount.reconstitute(
+            account.id, account.merchantId, account.businessId, account.issuingBasis, Lifecycle.TERMINATED, t0, operator,
+        )
+
+        Then("registrant = approver → APPROVER_IS_ACTIVATION_REGISTRANT; the activation stays UNDER_REVIEW without evidence") {
+            val r = ActivationFixtures.underReview(registeredBy = approver)
+            rejection { approveWithEvidence(r) } shouldBe MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT
+            r.activation.status shouldBe ActivationStatus.UNDER_REVIEW
+            r.activation.evidenceRef.shouldBeNull()
+            r.activation.statusChangedAt shouldBe t0
+        }
+
+        Then("another approver → ACTIVE with one PRIMARY confirmation (existing expectation)") {
+            val r = ActivationFixtures.underReview(registeredBy = other)
+            val result = approveWithEvidence(r)
+            r.activation.status shouldBe ActivationStatus.ACTIVE
+            listOf(result.transition.by, checkNotNull(result.primaryConfirmation).merchantSiteId) shouldBe listOf(approver, r.primary.merchantSiteId)
+        }
+
+        Then("order: a foreign MID is a defect (require) and an inactive MID is MERCHANT_ACCOUNT_NOT_ACTIVE — both before the registrant check") {
+            val r = ActivationFixtures.underReview(registeredBy = approver)
+            shouldThrow<IllegalArgumentException> { approveWithEvidence(r, account = MasterFixture.issued().issuance.account) }
+            rejection { approveWithEvidence(r, account = terminated(r.account)) } shouldBe MasterRejection.MERCHANT_ACCOUNT_NOT_ACTIVE
+            r.activation.status shouldBe ActivationStatus.UNDER_REVIEW
+        }
+
+        Then("order (B3-1F review NIT-1): on the activation itself, a foreign MID fails requireSameAccount before the registrant check (the assignments require above fires first)") {
+            // ActivationApproval의 assignments require가 위 사례를 먼저 막으므로, 개통 Aggregate 진입 메서드를 직접 불러 같은 MID 검사 → 등록자 검사 순서를 따로 확인한다.
+            val r = ActivationFixtures.underReview(registeredBy = approver)
+            val foreign = MasterFixture.issued().issuance.account
+            shouldThrow<IllegalArgumentException> { r.activation.approveWithEvidence(foreign, evidence, t0, approver) }.message shouldBe "activation belongs to another MID"
+            // 대조군: 같은 MID면 같은 호출이 등록자 거절에 닿는다(위 예외가 등록자 검사 전이라는 근거).
+            rejection { r.activation.approveWithEvidence(r.account, evidence, t0, approver) } shouldBe MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT
+            r.activation.status shouldBe ActivationStatus.UNDER_REVIEW
+        }
+
+        Then("order: an ACTIVE activation approved by its registrant is APPROVER_IS_ACTIVATION_REGISTRANT (registrant before transition); another approver gets ACTIVATION_TRANSITION_NOT_ALLOWED") {
+            val r = ActivationFixtures.underReview(registeredBy = approver)
+            ActivationApproval.approve(r.activation, r.account, listOf(r.primary), emptyList(), EntitlementFixture.confirmationId(), evidence, t0, other)
+            r.activation.status shouldBe ActivationStatus.ACTIVE
+            mapOf(
+                "registrant" to rejection { approveWithEvidence(r) },
+                "other" to rejection { approveWithEvidence(r, by = other) },
+            ) shouldBe mapOf(
+                "registrant" to MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT,
+                "other" to MasterRejection.ACTIVATION_TRANSITION_NOT_ALLOWED,
+            )
+        }
+
+        Then("order: PRIMARY_SITE_MISMATCH (C-45) only after the registrant and the transition pass") {
+            val elsewhere = MasterFixture.siteId()
+            val byRegistrant = ActivationFixtures.underReview(registeredBy = approver)
+            val byOther = ActivationFixtures.underReview(registeredBy = other)
+            val alreadyActive = ActivationFixtures.underReview(registeredBy = other).also {
+                ActivationApproval.approve(it.activation, it.account, listOf(it.primary), emptyList(), EntitlementFixture.confirmationId(), evidence, t0, other)
+            }
+            mapOf(
+                "registrant" to rejection { approveWithEvidence(byRegistrant, primary = elsewhere) },
+                "active" to rejection { approveWithEvidence(alreadyActive, primary = elsewhere) },
+                "other" to rejection { approveWithEvidence(byOther, primary = elsewhere) },
+            ) shouldBe mapOf(
+                "registrant" to MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT,
+                "active" to MasterRejection.ACTIVATION_TRANSITION_NOT_ALLOWED,
+                "other" to MasterRejection.PRIMARY_SITE_MISMATCH,
+            )
+            byRegistrant.activation.status shouldBe ActivationStatus.UNDER_REVIEW
+        }
+
+        Then("seed path ActivationApproval.approve accepts the same actor for registration and approval (C-31 — unchanged, no registrant check)") {
+            val r = ActivationFixtures.underReview(registeredBy = approver)
+            val result = ActivationApproval.approve(r.activation, r.account, listOf(r.primary), emptyList(), EntitlementFixture.confirmationId(), evidence, t0, approver)
+            result.transition.to shouldBe ActivationStatus.ACTIVE
+            r.activation.registeredBy shouldBe result.transition.by
+        }
+    }
+
     Given("stored activation state") {
         Then("an ACTIVE activation without evidence cannot be reconstituted") {
             val a = EntitlementFixture.active()

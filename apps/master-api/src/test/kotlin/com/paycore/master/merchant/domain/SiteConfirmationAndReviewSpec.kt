@@ -138,4 +138,65 @@ class SiteConfirmationAndReviewSpec : BehaviorSpec({
             shouldThrow<IllegalArgumentException> { SiteReviewDecision(site.id, site.merchantId, 1, SiteReviewStatus.PENDING, reason, null, t0, operator) }
         }
     }
+
+    Given("D-MOPS-009 ③ evidence-path site review approval: the site registrant cannot approve (MERCHANT-OPS-002 §9.27 B3-1F-1)") {
+        val approver = ApprovalEvidenceFixtures.APPROVER
+        val other = ApprovalEvidenceFixtures.OTHER
+
+        fun approveWithEvidence(site: MerchantSite, history: List<SiteReviewDecision>, by: ActorRef = approver) =
+            SiteReviewRules.approveWithEvidence(site, history, reason, evidence, t0, by)
+
+        fun inactive(createdBy: ActorRef): MerchantSite = SiteReviewFixtures.pending(createdBy).let {
+            MerchantSite.reconstitute(it.id, it.merchantId, it.channel, Lifecycle.TERMINATED, it.createdAt, it.createdBy)
+        }
+
+        Then("site creator = approver → APPROVER_IS_SITE_REGISTRANT from PENDING") {
+            val site = SiteReviewFixtures.pending(createdBy = approver)
+            rejection { approveWithEvidence(site, emptyList()) } shouldBe MasterRejection.APPROVER_IS_SITE_REGISTRANT
+        }
+
+        Then("D-MOPS-010 ② (user-confirmed): the SUSPENDED → APPROVED re-approval by the original site creator is APPROVER_IS_SITE_REGISTRANT too") {
+            val site = SiteReviewFixtures.pending(createdBy = approver)
+            val history = SiteReviewFixtures.suspendedHistory(site, suspendedBy = other)
+            SiteReviewRules.currentStatus(history) shouldBe SiteReviewStatus.SUSPENDED
+            rejection { approveWithEvidence(site, history) } shouldBe MasterRejection.APPROVER_IS_SITE_REGISTRANT
+        }
+
+        Then("D-MOPS-010 ②: the actor who suspended (not the creator) may re-approve — the suspender is not barred") {
+            val site = SiteReviewFixtures.pending(createdBy = other)
+            val history = SiteReviewFixtures.suspendedHistory(site, suspendedBy = approver)
+            approveWithEvidence(site, history).let { listOf(it.seq, it.decision, it.decidedBy, it.evidenceRef) } shouldBe
+                listOf(3, SiteReviewStatus.APPROVED, approver, evidence)
+        }
+
+        Then("another approver → APPROVED seq +1 with the evidence") {
+            val site = SiteReviewFixtures.pending(createdBy = other)
+            approveWithEvidence(site, emptyList()).let { listOf(it.seq, it.decision, it.decidedBy, it.evidenceRef) } shouldBe
+                listOf(1, SiteReviewStatus.APPROVED, approver, evidence)
+        }
+
+        Then("order: registrant before SITE_REVIEW_TRANSITION_NOT_ALLOWED (REJECTED site) and before SITE_NOT_ACTIVE (inactive site)") {
+            val creatorsSite = SiteReviewFixtures.pending(createdBy = approver)
+            val othersSite = SiteReviewFixtures.pending(createdBy = other)
+            fun rejected(site: MerchantSite) = listOf(SiteReviewRules.decide(site, emptyList(), SiteReviewStatus.REJECTED, reason, null, t0, operator))
+            mapOf(
+                "rejected, creator" to rejection { approveWithEvidence(creatorsSite, rejected(creatorsSite)) },
+                "rejected, other" to rejection { approveWithEvidence(othersSite, rejected(othersSite)) },
+                "inactive, creator" to rejection { approveWithEvidence(inactive(approver), emptyList()) },
+                "inactive, other" to rejection { approveWithEvidence(inactive(other), emptyList()) },
+            ) shouldBe mapOf(
+                "rejected, creator" to MasterRejection.APPROVER_IS_SITE_REGISTRANT,
+                "rejected, other" to MasterRejection.SITE_REVIEW_TRANSITION_NOT_ALLOWED,
+                "inactive, creator" to MasterRejection.APPROVER_IS_SITE_REGISTRANT,
+                "inactive, other" to MasterRejection.SITE_NOT_ACTIVE,
+            )
+        }
+
+        Then("decide(APPROVED) seed path and decide(REJECTED) 1-person path have no registrant check — the creator may reject (C-31, §9.27)") {
+            val seeded = SiteReviewFixtures.pending(createdBy = approver)
+            SiteReviewRules.decide(seeded, emptyList(), SiteReviewStatus.APPROVED, reason, null, t0, approver).decision shouldBe SiteReviewStatus.APPROVED
+            val rejectedByCreator = SiteReviewFixtures.pending(createdBy = approver)
+            SiteReviewRules.decide(rejectedByCreator, emptyList(), SiteReviewStatus.REJECTED, reason, null, t0, approver).decision shouldBe SiteReviewStatus.REJECTED
+        }
+    }
 })

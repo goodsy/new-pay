@@ -83,7 +83,9 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(api.merchantSearch).toHaveBeenCalledWith({ merchantId: MER1, lifecycle: 'TERMINATED' })
     const row = await screen.findByRole('row', { name: MER1 })
     expect(row).toHaveTextContent('데모 가맹점')
-    expect(row).toHaveTextContent(BIZ1)
+    // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 화면에 보이지 않는다 — 사업자는 상호·마스킹 등록번호로 식별.
+    expect(row).not.toHaveTextContent(BIZ1)
+    expect(row).toHaveTextContent('데모 사업자')
     expect(row).toHaveTextContent(MASKED)
     expect(row).toHaveTextContent('활성')
     expect(within(row).getByText('2', { selector: '[data-col="midCount"]' })).toBeInTheDocument()
@@ -107,13 +109,15 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
         .mockResolvedValueOnce({ items: [item(MER3, '셋째')], nextCursor: null }),
     })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
-    await typeIn('사업자 ID', BIZ1)
+    // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 사업자 ID 검색란이 없어졌다(화면에 사업자 ID를 보이지 않으므로 입력할 값도 없다) — 같은 규칙을 상태 조건으로 확인한다.
+    expect(screen.queryByLabelText('사업자 ID')).toBeNull()
+    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
     await search()
     await screen.findByRole('row', { name: MER2 })
     // 검색 뒤 입력란을 바꿔도 다음 쪽은 검색한 조건 그대로(조건이 섞이지 않는다).
-    await userEvent.clear(screen.getByLabelText('사업자 ID'))
+    await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
     await userEvent.click(screen.getByRole('button', { name: '다음' }))
-    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { businessId: BIZ1, after: MER2 })
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { lifecycle: 'ACTIVE', after: MER2 })
     expect(await screen.findByRole('row', { name: MER3 })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: MER1 })).toBeNull()
     expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
@@ -127,9 +131,12 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     const input = screen.getByLabelText('사업자등록번호')
     expect(input).toHaveAttribute('type', 'text')
     expect(input).toHaveAttribute('inputmode', 'numeric')
-    expect(input).toHaveAttribute('maxlength', '10')
+    // 기대값 변경(ADMIN-UI-MERCHANT-002 하이픈 자동): maxlength 10 → 없음. 표시에 하이픈이 들어가고(000-00-00000), 붙여넣기가 잘려 10자리로 맞춰지지 않게 한다.
+    // 10자리 보장은 보내기 전 형식 검사(다음 시험 — 그대로)와 서버 검사가 한다.
+    expect(input).not.toHaveAttribute('maxlength')
     expect(input).toHaveAttribute('autocomplete', 'off')
-    expect(screen.getByText(/사업자등록번호 검색은 매번 감사 기록/)).toBeInTheDocument()
+    // 감사 안내는 줄였지만 유지한다(보안상 필요한 안내 — D-ADMIN-UI-004 설명 최소화의 예외).
+    expect(screen.getByText(/검색은 매번 감사 기록/)).toBeInTheDocument()
   })
 
   it('a registration number that is not exactly 10 ASCII digits is not sent (client check — the server checks again)', async () => {
@@ -142,6 +149,12 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(screen.getByLabelText('사업자등록번호')).toHaveAttribute('aria-invalid', 'true')
     await userEvent.clear(screen.getByLabelText('사업자등록번호'))
     await typeIn('사업자등록번호', '12345-6789')
+    // 하이픈은 화면이 다시 넣는다 — 숫자 9자리라 여전히 보내지 않는다.
+    expect(screen.getByLabelText('사업자등록번호')).toHaveValue('123-45-6789')
+    await search()
+    expect(api.merchantSearch).not.toHaveBeenCalled()
+    await userEvent.clear(screen.getByLabelText('사업자등록번호'))
+    await typeIn('사업자등록번호', '12345678901')
     await search()
     expect(api.merchantSearch).not.toHaveBeenCalled()
   })
@@ -156,12 +169,15 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(await screen.findByRole('row', { name: MER1 })).toHaveTextContent(MASKED)
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.innerHTML).not.toContain(BRN)
+    expect(container.innerHTML).not.toContain('123-45-67890')
     expect(storageIsEmpty()).toBe(true)
     expect(window.location.href).not.toContain(BRN)
     expect(log).not.toHaveBeenCalled()
-    // 번호를 화면 상태에 남기지 않으므로 등록번호 검색의 다음 쪽은 다시 보내지 않고 안내만 한다(사업자 ID로 다시 검색).
-    expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
-    expect(screen.getByText(/결과가 더 있습니다/)).toBeInTheDocument()
+    // 기대값 변경(ADMIN-UI-MERCHANT-002): 사업자 ID를 화면에 보이지 않으므로 "사업자 ID로 다시 검색" 안내 대신 "다음"이 그 결과의 사업자로 이어 찾는다.
+    // 번호는 다시 보내지 않는다(화면 상태에 번호 없음 — 그대로) — 다음 쪽 조건은 결과에 이미 있던 내부 사업자 키(businessId)뿐.
+    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { businessId: BIZ1, after: MER1 })
+    expect(JSON.stringify(vi.mocked(api.merchantSearch).mock.calls[1])).not.toContain(BRN)
     log.mockRestore()
   })
 
@@ -207,7 +223,9 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
 
     const basic = await screen.findByRole('region', { name: '기본정보' })
     expect(basic).toHaveTextContent('데모 가맹점')
-    expect(basic).toHaveTextContent(BIZ1)
+    // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 상세에도 사업자 ID는 보이지 않는다(상호·마스킹 번호로 식별).
+    expect(basic).not.toHaveTextContent(BIZ1)
+    expect(basic).toHaveTextContent('데모 사업자')
     expect(basic).toHaveTextContent(MASKED)
 
     const sites = screen.getByRole('region', { name: 'Site' })

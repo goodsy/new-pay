@@ -28,7 +28,7 @@ export function AppLayout({ children, sidebar, account, topbar }: { children: Re
         <div className="flex flex-col px-[18px] py-4 md:h-full md:py-[30px]">
           <div className="flex shrink-0 items-center gap-2.5">
             <Logo />
-            <span className="text-[21px] font-extrabold tracking-[-0.7px] text-foreground">PayCore</span>
+            <span className="text-[21px] font-bold tracking-[-0.7px] text-heading">PayCore</span>
           </div>
           <div className="mt-8 mb-5 hidden shrink-0 rounded-[9px] border bg-muted px-3 py-3.5 text-xs font-bold md:block">
             관리자 콘솔<small className="mx-2 text-[10px] font-normal text-muted-foreground">내부 운영</small>

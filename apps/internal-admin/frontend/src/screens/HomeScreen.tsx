@@ -72,7 +72,7 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
   })
   const loaded = metrics.every((m) => counts[m.id] && counts[m.id]?.state !== 'loading')
   const failed = metrics.some((m) => counts[m.id]?.state === 'error')
-  // ADMIN-UI-MERCHANT-001: 쪽 머리 주요 버튼 화면(사업자 등록 — OPERATOR)도 바로가기에 남긴다(탭에서 빠졌을 뿐 보이는 화면은 그대로).
+  // 메뉴가 여는 모든 화면(탭 + 쪽 머리 주요 버튼 — pagesOf)을 바로가기에 둔다. ADMIN-UI-MERCHANT-002부터 사업자 등록·가맹점 등록(OPERATOR)은 탭이다.
   const shortcuts = menus.flatMap((m) => pagesOf(m).map((t) => ({ menu: m.label, tab: t })))
   const amount = (value: number, atLeast: boolean) => `${value}건${atLeast ? ' 이상' : ''}`
 
@@ -88,7 +88,7 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
                 <article key={m.id} aria-label={m.title} className="flex flex-col rounded-xl border bg-card p-4 text-card-foreground md:p-[21px]">
                   <span className="text-xs text-muted-foreground">{m.title}</span>
                   {count?.state === 'ok' ? (
-                    <strong className="my-3 text-[29px] leading-none font-bold tracking-[-1px]">
+                    <strong className="my-3 text-[29px] leading-none font-bold tracking-[-1px] text-heading">
                       {count.value}
                       <small className="ml-1 text-sm font-normal text-muted-foreground">{`건${count.atLeast ? ' 이상' : ''}`}</small>
                     </strong>
@@ -103,8 +103,8 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
           </div>
           <section aria-labelledby="home-todo" className="overflow-hidden rounded-[13px] border bg-card text-card-foreground">
             <div className="flex items-center gap-2 px-[23px] pt-[22px] pb-[17px]">
-              <h2 id="home-todo" className="text-[15px] font-bold">지금 처리할 업무</h2>
-              {todos.length > 0 && <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-bold text-sidebar-accent-foreground">{todos.length}</span>}
+              <h2 id="home-todo" className="text-[17px] font-bold text-heading">지금 처리할 업무</h2>
+              {todos.length > 0 && <span className="rounded bg-sidebar-accent px-1.5 py-[3px] text-xs font-semibold text-sidebar-accent-foreground">{todos.length}</span>}
             </div>
             {todos.length > 0 ? (
               <ul className="flex flex-col">
@@ -115,7 +115,7 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
                         <span className="text-[13px] font-bold">{metric.todo}</span>
                         <span className="text-[11px] text-muted-foreground">{metric.todoHint}</span>
                       </span>
-                      <span className="rounded bg-sidebar-accent px-2 py-1 text-[11px] font-medium text-sidebar-accent-foreground">{amount(count.value, count.atLeast)}</span>
+                      <span className="rounded bg-sidebar-accent px-[7px] py-[5px] text-xs font-semibold text-sidebar-accent-foreground">{amount(count.value, count.atLeast)}</span>
                       <ChevronRightIcon aria-hidden="true" className="size-4 text-muted-foreground" />
                     </button>
                   </li>
@@ -128,7 +128,7 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded }: {
         </>
       )}
       <section aria-labelledby="home-shortcuts" className="flex flex-col gap-3">
-        <h2 id="home-shortcuts" className="text-[15px] font-bold">바로가기</h2>
+        <h2 id="home-shortcuts" className="text-[17px] font-bold text-heading">바로가기</h2>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {shortcuts.map(({ menu, tab }) => (
             <button

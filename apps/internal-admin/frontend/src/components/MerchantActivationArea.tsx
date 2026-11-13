@@ -3,6 +3,7 @@ import type { AdminApi, MerchantDetail, RegistrationOutcome } from '../api/admin
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
+import { PAYMENT_METHODS } from '../lib/paymentMethods'
 import { EVIDENCE_REF } from './ContractApprovalRequest'
 import { EmptyRow, Field, KstTime, StatusBadge } from './DataBits'
 import { ErrorNotice, WarningNote } from './Notice'
@@ -231,7 +232,7 @@ function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded }: 
 /**
  * 가맹점 상세 MID 아래 "개통" 영역(MERCHANT-OPS-002 B3-1 §9.17 — D-ADMIN-UI-003: 배포된 배치의 버튼만). 버튼은 [canOperate](OPERATOR)일 때만 보이며 권위 판정·감사는 서버다.
  * 결제수단(상태·등록자, "개통 등록" 1인 → "개통 승인 요청" 2인), Site 표(심사 상태·등록자, "심사 승인 요청" 2인·"심사 거절" 1인), Site 적용 확인 목록, 개통 점검표(참고용).
- * 등록자는 표시만 한다 — Q-MOPS-24(등록자 ≠ 승인자) 답 전이라 화면·서버 모두 막지 않는다.
+ * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 개통·Site 심사의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER; 승인함은 등록자에게 안내를 보인다).
  */
 export function MerchantActivationArea({ api, detail, account, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId }: {
   api: AdminApi
@@ -249,11 +250,14 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
   const [requestFor, setRequestFor] = useState<string | null>(null)
   const [rejectFor, setRejectFor] = useState<string | null>(null)
   const register = useOneShot(newSubmissionId, onSessionEnded)
+  /** 마지막으로 누른 개통 등록 수단(결과 불명 재전송 버튼 위치 — 리뷰 MINOR-2). */
+  const [registerMethod, setRegisterMethod] = useState<string | null>(null)
   const merchantId = detail.merchant.merchantId
   const pmPending = pendingIn(detail, APPROVAL_GROUPS.PM)
   const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
   const primary = openPrimarySite(account, now)
-  const hasOpenCard = account.paymentMethods.some((m) => m.paymentMethod === 'CARD' && m.status !== 'TERMINATED')
+  // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ⑤): 개통 등록 버튼은 결제수단 목록(PAYMENT_METHODS)에서 그린다 — 지금은 카드 하나. 수단마다 끝나지 않은 개통이 없을 때만.
+  const registrable = PAYMENT_METHODS.filter((pm) => !account.paymentMethods.some((m) => m.paymentMethod === pm.code && m.status !== 'TERMINATED'))
   const midActive = account.lifecycle === 'ACTIVE'
   const checklist = activationChecklist(detail, account, now)
   const confirmations = account.siteConfirmations ?? []
@@ -296,14 +300,25 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
           ))}
         </TableBody>
       </Table>
-      {canOperate && midActive && !hasOpenCard && (
+      {canOperate && midActive && registrable.length > 0 && (
         <div className="flex flex-col gap-1">
-          <div>
-            <Button type="button" variant="outline" size="sm" disabled={register.status.kind === 'busy'} aria-busy={register.status.kind === 'busy'}
-              onClick={() => void register.run((submissionId) => api.registerPaymentMethodActivation({ submissionId, merchantAccountId: account.merchantAccountId, paymentMethod: 'CARD' }),
-                (o) => { if (o.outcome === 'SUCCEEDED') onChanged() })}>
-              {register.status.kind === 'unknown' ? '같은 개통 등록 다시 보내기' : '개통 등록(카드)'}
-            </Button>
+          <div className="flex flex-wrap gap-2">
+            {registrable.map((pm) => {
+              // 리뷰 MINOR-2: one-shot(submissionId) 하나를 모든 수단 버튼이 함께 쓴다 — 결과 불명이면 그 수단 버튼만 "같은 개통 등록 다시 보내기"로 남기고
+              // 다른 수단 버튼은 막는다(다른 수단이 같은 submissionId로 나가지 않게). 둘째 수단을 실제로 넣기 전 수단별 one-shot으로 나눠야 한다(paymentMethods.ts).
+              const unknownHere = register.status.kind === 'unknown' && registerMethod === pm.code
+              const blocked = register.status.kind === 'busy' || (register.status.kind === 'unknown' && registerMethod !== pm.code)
+              return (
+                <Button key={pm.code} type="button" variant="outline" size="sm" disabled={blocked} aria-busy={register.status.kind === 'busy' && registerMethod === pm.code}
+                  onClick={() => {
+                    setRegisterMethod(pm.code)
+                    void register.run((submissionId) => api.registerPaymentMethodActivation({ submissionId, merchantAccountId: account.merchantAccountId, paymentMethod: pm.code }),
+                      (o) => { if (o.outcome === 'SUCCEEDED') onChanged() })
+                  }}>
+                  {unknownHere ? '같은 개통 등록 다시 보내기' : `개통 등록(${pm.label})`}
+                </Button>
+              )
+            })}
           </div>
           <OneShotResult status={register.status} success={(ref) => `개통 등록되었습니다(심사 중) — ${ref}`} />
         </div>

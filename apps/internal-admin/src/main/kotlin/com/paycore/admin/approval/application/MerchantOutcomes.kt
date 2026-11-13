@@ -33,6 +33,12 @@ internal object MerchantOutcomes {
         else -> null
     }
 
-    /** ADMIN 승인함 경로에서는 나오면 안 되는 MASTER 근거 거절(§9.5 문구 표 — 경보). `APPROVAL_EXPIRED`는 정상 종결이라 제외. */
-    private val DEFECT_REJECTIONS = setOf("APPROVAL_SAME_ACTOR", "APPROVAL_WINDOW_INVALID", "APPROVAL_ID_ALREADY_USED", "APPROVER_IS_REVISION_REGISTRANT")
+    /**
+     * ADMIN 승인함 경로에서는 나오면 안 되는 MASTER 근거 거절(§9.5 문구 표 — 경보). `APPROVAL_EXPIRED`는 정상 종결이라 제외.
+     * B3-1F(D-MOPS-009 ③ — §9.27): 개통·Site 등록자 거절도 ADMIN TX1이 먼저 403으로 막으므로 MASTER에서 나오면 검사 우회·불일치 신호다.
+     */
+    private val DEFECT_REJECTIONS = setOf(
+        "APPROVAL_SAME_ACTOR", "APPROVAL_WINDOW_INVALID", "APPROVAL_ID_ALREADY_USED", "APPROVER_IS_REVISION_REGISTRANT",
+        "APPROVER_IS_ACTIVATION_REGISTRANT", "APPROVER_IS_SITE_REGISTRANT",
+    )
 }

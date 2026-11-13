@@ -22,32 +22,41 @@
   --radius: 0.75rem;
   --canvas: #f7f9fc;
   --background: #ffffff;
-  --foreground: #202938;
+  --foreground: #334155;
+  --heading: #0f172a;
+  --subtle: #475569;
   --card: #ffffff;
-  --card-foreground: #202938;
+  --card-foreground: #334155;
   --popover: #ffffff;
-  --popover-foreground: #202938;
+  --popover-foreground: #334155;
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
   --secondary: #f5f7fa;
   --secondary-foreground: #263445;
   --muted: #f5f7fa;
-  --muted-foreground: #6b7684;
+  --muted-foreground: #64748b;
   --accent: #f5f7fa;
   --accent-foreground: #263445;
   --destructive: oklch(0.577 0.245 27.325);
   --success: oklch(0.527 0.154 150.069);
   --warning: oklch(0.666 0.179 58.318);
-  --border: #edf0f4;
-  --input: #e3e8ef;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --table-head: #f9fafc;
+  --chip-info-bg: #edf4ff;
+  --chip-info-fg: #1d4ed8;
+  --chip-success-bg: #ebf6f0;
+  --chip-success-fg: #237a57;
+  --chip-warning-bg: #fff3e8;
+  --chip-warning-fg: #9a4c0c;
   --ring: var(--brand);
-  --eyebrow: #5f7696;
+  --eyebrow: #64748b;
   --sidebar: #ffffff;
-  --sidebar-foreground: #5f6b7c;
-  --sidebar-label: #6f7b8c;
+  --sidebar-foreground: #475569;
+  --sidebar-label: #64748b;
   --sidebar-accent: #edf4ff;
-  --sidebar-accent-foreground: #1f6fd9;
-  --sidebar-border: #edf0f4;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #e2e8f0;
   color-scheme: light;
 }
 
@@ -56,6 +65,8 @@
     --canvas: oklch(0.145 0 0);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
+    --heading: oklch(0.985 0 0);
+    --subtle: oklch(0.82 0 0);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
@@ -73,6 +84,13 @@
     --warning: oklch(0.769 0.188 70.08);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
+    --table-head: oklch(0.235 0 0);
+    --chip-info-bg: color-mix(in oklab, var(--brand-dark) 20%, transparent);
+    --chip-info-fg: #9cc4fb;
+    --chip-success-bg: color-mix(in oklab, var(--success) 18%, transparent);
+    --chip-success-fg: var(--success);
+    --chip-warning-bg: color-mix(in oklab, var(--warning) 18%, transparent);
+    --chip-warning-fg: var(--warning);
     --ring: var(--brand-dark);
     --eyebrow: #93a9c7;
     --sidebar: oklch(0.205 0 0);
@@ -86,7 +104,8 @@
 }
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* 참고 시안 글꼴 순서(-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif — 웹폰트 없음). 한글 대체 글꼴 둘은 Windows·macOS 시스템 글꼴이라 외부 요청이 없다. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -96,6 +115,15 @@
   --color-eyebrow: var(--eyebrow);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-heading: var(--heading);
+  --color-subtle: var(--subtle);
+  --color-table-head: var(--table-head);
+  --color-chip-info-bg: var(--chip-info-bg);
+  --color-chip-info-fg: var(--chip-info-fg);
+  --color-chip-success-bg: var(--chip-success-bg);
+  --color-chip-success-fg: var(--chip-success-fg);
+  --color-chip-warning-bg: var(--chip-warning-bg);
+  --color-chip-warning-fg: var(--chip-warning-fg);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -126,7 +154,8 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* ADMIN-UI-MERCHANT-002(2026-11-13 사용자 재요청 — 갱신된 시안 pg-ops-workspace): body 14px/21px #334155, 시스템 글꼴만. */
   body {
-    @apply bg-canvas text-foreground font-sans antialiased;
+    @apply bg-canvas text-foreground font-sans text-sm leading-[21px] antialiased;
   }
 }

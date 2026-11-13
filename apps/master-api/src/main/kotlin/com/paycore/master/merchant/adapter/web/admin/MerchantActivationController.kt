@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController
  *   기한 확인·결정 조회는 기존 [MerchantApprovalController] endpoint가 본문 `operation`으로 처리한다(C-39).
  *
  * 응답은 §3.3 그대로(거절에 `reference` 키 없음 — C-12). 로그·지표: 연산·결과 분류·상관 ID만(멱등 키 원문·근거 참조·행위자 없음). 지표 `command{operation,outcome}`(1인 거절 label은
- * `RejectSiteReview` — 2인 `DecideSiteReview`와 분리, nit-1), 2인은 `approval_executed{operation}`·`approval_rejected{operation,rejection}`(근거 거절 5종만).
+ * `RejectSiteReview` — 2인 `DecideSiteReview`와 분리, nit-1), 2인은 `approval_executed{operation}`·`approval_rejected{operation,rejection}`(근거 거절 7종만 — B3-1F 등록자 거절 2종 포함).
  */
 @RestController
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -122,7 +122,7 @@ class MerchantActivationController(
         return response
     }
 
-    /** 근거 지표(첫 판정만 — 재생 제외). label은 operation code와 근거 거절 5종만([MerchantApprovalController.APPROVAL_REJECTIONS]). */
+    /** 근거 지표(첫 판정만 — 재생 제외). label은 operation code와 근거 거절 7종만([MerchantApprovalController.APPROVAL_REJECTIONS]). */
     private fun observe(command: ApprovedCommand, result: AdminCommandResult) {
         when (result) {
             is AdminCommandResult.Succeeded -> if (!result.replayed) {

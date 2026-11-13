@@ -108,6 +108,41 @@ class ArchitectureSpec : FunSpec({
             setOf("registerPaymentMethodActivation", "rejectSiteReview", "approvePaymentMethodActivationWithEvidence", "approveSiteReviewWithEvidence")
     }
 
+    test("MERCHANT-OPS-002 §8.4 B3-1F-10 (m-6): only DemoMerchantSeedService calls any of the seven evidence-less 2-person entitlement/route methods; no admin web class calls them") {
+        // 기존 C-26 규칙(B2 둘 + B3-1 둘)과 별개로 B3-1F-10 목록 7개 전부를 덮는다(B3-2·B3-3 컨트롤러 연결 전 재실행 대상).
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().haveNameNotMatching(SEED_COORDINATOR_NAMES)
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(EVIDENCE_LESS_ENTITLEMENT_SEVEN))
+            .allowEmptyShould(false)
+            .check(classes)
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().resideInAPackage("com.paycore.master.merchant.adapter.web..")
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(EVIDENCE_LESS_ENTITLEMENT_SEVEN))
+            .orShould().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(EVIDENCE_LESS))
+            .allowEmptyShould(false)
+            .check(classes)
+        // 대조군(규칙이 빈 대상으로 통과하지 않음): seed 조정자는 7개 중 지금 연결된 넷을 실제로 부른다(confirmSiteActivation·resume 둘은 아직 호출자 없음).
+        callsFrom(classes, "com.paycore.master.merchant.application.DemoMerchantSeedService").filter { EVIDENCE_LESS_ENTITLEMENT_SEVEN.test(it.target) }.map { it.target.name }.toSet() shouldBe
+            setOf("approvePaymentMethodActivation", "decideSiteReview", "enableCurrency", "approveCardRouteActivation")
+        // 대조군: 7개 이름이 실제 provided 포트에 모두 있다(이름 오타로 규칙이 비지 않음).
+        classes.filter { it.simpleName in setOf("MerchantEntitlementUseCase", "MerchantAuthorizationTermsUseCase") }.flatMap { c -> c.methods.map { it.name } }
+            .filter { it in EVIDENCE_LESS_SEVEN_NAMES }.toSet() shouldBe EVIDENCE_LESS_SEVEN_NAMES
+    }
+
+    test("MERCHANT-OPS-002 §8.4 B3-1F-1: the merchant domain does not know actor names (no \"system:demo-seed\" literal, nor any \"system:\" actor prefix, in domain sources)") {
+        val domainSources = java.io.File("src/main/kotlin/com/paycore/master/merchant/domain")
+        val files = domainSources.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        // 대조군: 실제 domain 소스를 읽는다(경로 오류로 0개 통과 금지).
+        (files.size > 40) shouldBe true
+        files.any { it.name == "PaymentMethodActivation.kt" } shouldBe true
+        files.filter { it.readText(Charsets.UTF_8).contains("system:demo-seed") }.map { it.name } shouldBe emptyList()
+        // B3-1F review NIT-3: 특정 seed 이름뿐 아니라 시스템 행위자 접두 자체(`system:`)도 domain에 없다(행위자 종류 판단은 application 관문).
+        files.filter { it.readText(Charsets.UTF_8).contains("system:") }.map { it.name } shouldBe emptyList()
+        // 대조군: 같은 검사가 seed 경로 application 소스에서는 그 문자열을 찾는다.
+        java.io.File("src/main/kotlin/com/paycore/master/merchant/application").walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .any { it.readText(Charsets.UTF_8).contains("system:demo-seed") } shouldBe true
+        java.io.File("src/main/kotlin/com/paycore/master/merchant/application").walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .any { it.readText(Charsets.UTF_8).contains("system:") } shouldBe true
+    }
+
     test("DEMO-SEED-001 I-4·I-20: the seed coordinator uses only provided use cases and the read-only progress port") {
         demoSeedUsesOnlyProvidedUseCases().check(classes)
         classes.any { it.simpleName == "DemoMerchantSeedService" } shouldBe true
@@ -158,6 +193,19 @@ class ArchitectureSpec : FunSpec({
                 (t.name in setOf("approveContractRevision", "issueFirstDefaultMerchantAccount") && t.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantOnboardingService")) ||
                     // B3-1(C-40): 근거 없는 개통 승인·Site 심사 결정(APPROVED는 seed 관문 — 1인 거절은 `rejectSiteReview`).
                     (t.name in setOf("approvePaymentMethodActivation", "decideSiteReview") && t.owner.simpleName in setOf("MerchantEntitlementUseCase", "MerchantEntitlementService"))
+            }
+
+        /** MERCHANT-OPS-002 §8.4 B3-1F-10(m-6): 근거 없는 2인 권리·Route 메서드 7개(seed 관문 또는 아직 관리 채널 미연결). */
+        val EVIDENCE_LESS_SEVEN_NAMES = setOf(
+            "approvePaymentMethodActivation", "decideSiteReview", "enableCurrency", "approveCardRouteActivation", "confirmSiteActivation",
+            "resumePaymentMethodActivation", "resumeCardRouteActivation",
+        )
+
+        val EVIDENCE_LESS_ENTITLEMENT_SEVEN: com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitCallTarget> =
+            com.tngtech.archunit.base.DescribedPredicate.describe("evidence-less 2-person entitlement/route entries (B3-1F-10 seven)") { t ->
+                t.name in EVIDENCE_LESS_SEVEN_NAMES && t.owner.simpleName in setOf(
+                    "MerchantEntitlementUseCase", "MerchantEntitlementService", "MerchantAuthorizationTermsUseCase", "MerchantAuthorizationTermsService",
+                )
             }
 
         /** seed 조정자와 그 내부 클래스(Kotlin lambda·inner class) 이름. */

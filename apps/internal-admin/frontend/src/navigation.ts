@@ -3,7 +3,7 @@
  * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회 + TXN-OPS-001 거래 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'merchants' | 'merchantRegistration' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'businessRegistration' | 'merchantRegistration' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
 export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
@@ -30,7 +30,8 @@ export interface Menu {
   /** 이 역할이 볼 수 있는 탭만(운영 홈은 빈 목록). */
   tabs: Tab[]
   /**
-   * 쪽 머리 주요 버튼(ADMIN-UI-MERCHANT-001 — 참고 시안 '＋ 사업자 등록'): 탭 막대에 두지 않는 화면 하나를 연다. 이 역할이 볼 수 있을 때만 남는다(표시만 — 판정은 서버).
+   * 쪽 머리 주요 버튼(ADMIN-UI-MERCHANT-001에서 도입): 탭 막대에 두지 않는 화면 하나를 연다. 이 역할이 볼 수 있을 때만 남는다(표시만 — 판정은 서버).
+   * ADMIN-UI-MERCHANT-002부터 쓰는 메뉴가 없다(사업자 등록·가맹점 등록은 탭) — 공용 장치로만 남긴다.
    */
   action?: Tab
 }
@@ -46,8 +47,8 @@ export function pagesFor(roles: string[]): Page[] {
   // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
   // MERCHANT-OPS-002 §5.1(D-MOPS-006 ①): 가맹점 등록은 OPERATOR에게만 보인다(서버 기능이 생겨 화면을 연다 — D-ADMIN-UI-003, 판정은 서버).
-  // ADMIN-UI-MERCHANT-001: 이 화면은 이제 탭이 아니라 '사업자·가맹점' 쪽 머리 '＋ 사업자 등록' 버튼으로 연다 — 보이는 역할은 그대로.
-  if (has('OPERATOR')) pages.push('merchantRegistration')
+  // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ④ "화면만 분리, 권한은 그대로"): 사업자 등록·가맹점 등록을 두 화면(탭)으로 나눈다 — 둘 다 OPERATOR만.
+  if (has('OPERATOR')) pages.push('businessRegistration', 'merchantRegistration')
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('paymentOps')
   // TXN-OPS-001 §4.1: 거래 조회도 VIEW_MASKED(조회 4역할 — I-1 Implementer 해석, 기존 결제 대상 조회와 같다).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('transactions')
@@ -75,10 +76,9 @@ const MENUS: Menu[] = [
     description: '내가 만든 승인 요청의 진행 상태를 확인하고, 대기 중이면 철회하세요.',
   },
   {
-    // ADMIN-UI-MERCHANT-001(사용자 지시 2026-11-11, 참고 시안 #merchant): 사업자 등록은 탭이 아니라 쪽 머리 주요 버튼으로 연다(등록 마법사). 표시 규칙(pagesFor)은 그대로.
+    // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ④, 사용자 Demo 피드백 2026-11-13 "담당자별 업무가 다름"): 쪽 머리 '＋ 사업자 등록' 버튼(한 마법사) → 사업자 등록·가맹점 등록 두 탭. 표시 규칙(pagesFor)은 OPERATOR만 그대로.
     id: 'merchants', label: '사업자·가맹점', section: PAYMENT_OPERATIONS, tabbed: true,
-    tabs: [{ page: 'merchants', label: '가맹점 조회' }],
-    action: { page: 'merchantRegistration', label: '사업자 등록' },
+    tabs: [{ page: 'merchants', label: '가맹점 조회' }, { page: 'businessRegistration', label: '사업자 등록' }, { page: 'merchantRegistration', label: '가맹점 등록' }],
     description: '사업자 등록부터 서비스 개통까지, 가맹점의 전체 여정을 관리하세요(조회·등록 — 계약 승인·MID 발급·개통 요청은 가맹점 상세에서).',
   },
   {

@@ -3,7 +3,7 @@ package com.paycore.admin.approval.domain
 /**
  * Site 심사 승인 요청 시점의 고정 대상(MERCHANT-OPS-002 B3-1 §9.16 pinned): `{merchantId, merchantName, merchantSiteId, channelType, reviewStatus, reasonCode, registeredBy}`.
  * 채널 식별값·근거 참조 없음. [reviewStatus]는 요청 시점 심사 상태(PENDING — 심사 결정 없음, 또는 SUSPENDED), [reasonCode]는 승인 사유 코드(C-37 — `REVIEW_PASSED`만).
- * [registeredBy] = `merchant_site.created_by`(MAJOR-1 — **표시용**, Q-MOPS-24 답 전이라 등록자 ≠ 승인자 검사는 없다). 표시 이름은 비교하지 않는다(C-16).
+ * [registeredBy] = `merchant_site.created_by`(MAJOR-1 — 표시 + **TX1 403 판정 근거**, D-MOPS-009 ③·D-MOPS-010 ② §9.27). 표시 이름은 비교하지 않는다(C-16).
  */
 data class PinnedSiteReviewApprovalTarget(
     override val merchantId: String,

@@ -7,7 +7,7 @@ import { memo, type ReactNode } from 'react'
 export const PageHeader = memo(function PageHeader({ title, description }: { title: ReactNode; description: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <h2 className="text-[15px] font-bold">{title}</h2>
+      <h2 className="text-[17px] font-bold text-heading">{title}</h2>
       <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   )

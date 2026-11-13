@@ -61,6 +61,17 @@ class PaymentMethodActivation private constructor(
         return transition(ActivationStatus.UNDER_REVIEW, ActivationStatus.ACTIVE, evidence, null, at, by)
     }
 
+    /**
+     * 근거 경로 승인(MERCHANT-OPS-002 §9.27 — D-MOPS-009 ③): 1인 등록자는 같은 개통의 2인 승인자가 될 수 없다. 순서(C-49): 같은 MID(`require` — 결함) → MID ACTIVE →
+     * **등록자** → 상태 전이. 등록자를 전이 앞에서 보므로 이미 ACTIVE여도 등록자 = 승인자면 등록자 거절이다(경합 결과가 결정적). 근거 없는 [approve](seed)는 검사하지 않는다(C-31 구조).
+     */
+    internal fun approveWithEvidence(account: MerchantAccount, evidence: EvidenceRef, at: Instant, approver: ActorRef): ActivationTransition {
+        requireSameAccount(account)
+        account.requireActive()
+        if (registeredBy == approver) throw MasterRuleViolation(MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT)
+        return transition(ActivationStatus.UNDER_REVIEW, ActivationStatus.ACTIVE, evidence, null, at, approver)
+    }
+
     fun suspend(reason: DecisionReason, at: Instant, by: ActorRef): ActivationTransition =
         transition(ActivationStatus.ACTIVE, ActivationStatus.SUSPENDED, null, reason, at, by)
 

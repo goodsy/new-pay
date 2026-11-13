@@ -18,6 +18,9 @@ export const MERCHANT_REJECTIONS: Readonly<Record<string, string>> = {
   MERCHANT_NOT_ACTIVE: '가맹점이 활성 상태가 아닙니다',
   APPROVAL_EXPIRED: '실행 기한이 지나 처리되지 않았습니다 — 다시 요청하세요',
   APPROVER_IS_REVISION_REGISTRANT: 'Revision 등록자는 승인할 수 없습니다',
+  // B3-1F(D-MOPS-009 ③): ADMIN이 먼저 403으로 막으므로 보통 나오지 않는다(MASTER에서 나오면 경보 — 문구는 사람이 이해할 수 있게).
+  APPROVER_IS_ACTIVATION_REGISTRANT: '개통 등록자는 승인할 수 없습니다',
+  APPROVER_IS_SITE_REGISTRANT: 'Site 등록자는 심사 승인할 수 없습니다',
   APPROVAL_SAME_ACTOR: '시스템 점검 필요(관리자에게 알림)',
   APPROVAL_WINDOW_INVALID: '시스템 점검 필요(관리자에게 알림)',
   APPROVAL_ID_ALREADY_USED: '시스템 점검 필요(관리자에게 알림)',
@@ -72,7 +75,7 @@ export function pinnedMidOf(value: unknown): PinnedFirstMid | null {
     ? (p as PinnedFirstMid) : null
 }
 
-/** B3-1 결제수단 개통 승인 고정 대상(사업자등록번호·채널 식별값·근거 참조 없음). [registeredBy]는 표시용(Q-MOPS-24 답 전 — 등록자도 승인할 수 있다). */
+/** B3-1 결제수단 개통 승인 고정 대상(사업자등록번호·채널 식별값·근거 참조 없음). [registeredBy]는 표시 + 등록자 안내 근거(D-MOPS-009 ③ — 권위 판정은 서버 TX1 403·MASTER). */
 export interface PinnedActivation {
   merchantId: string
   merchantName: string
@@ -127,11 +130,26 @@ const KIND_TEXT: Readonly<Record<string, { title: string; region: string; execut
 }
 const kindText = (kind: string) => KIND_TEXT[kind] ?? KIND_TEXT.MERCHANT_CONTRACT_APPROVAL!
 
-/** 시청자가 그 Revision의 등록자인지(정규 actor `admin:<계정 ID>` 문자열 비교 — 표시만, 권위 판정은 승인 TX1·MASTER). */
+/**
+ * 시청자가 그 대상의 1인 등록자인지(정규 actor `admin:<계정 ID>` 문자열 비교 — 표시만, 권위 판정은 승인 TX1·MASTER): 계약 승인 = Revision 등록자(D-MOPS-008 ③),
+ * 결제수단 개통 승인 = 개통 등록자·Site 심사 승인 = Site 등록자(D-MOPS-009 ③ — SUSPENDED 재승인 포함 D-MOPS-010 ②). 첫 MID 발급은 대상 아님.
+ */
 export function isRegistrant(item: ApprovalView, viewerActorId: string | undefined): boolean {
-  if (item.kind !== 'MERCHANT_CONTRACT_APPROVAL' || viewerActorId === undefined) return false
-  const pinned = pinnedContractOf(item.merchant?.pinnedTarget ?? item.targetSnapshot)
-  return pinned !== null && pinned.registeredBy === `admin:${viewerActorId}`
+  if (viewerActorId === undefined) return false
+  const raw = item.merchant?.pinnedTarget ?? item.targetSnapshot
+  const registeredBy = (() => {
+    switch (item.kind) {
+      case 'MERCHANT_CONTRACT_APPROVAL':
+        return pinnedContractOf(raw)?.registeredBy
+      case 'MERCHANT_PAYMENT_METHOD_ACTIVATION':
+        return pinnedActivationOf(raw)?.registeredBy
+      case 'MERCHANT_SITE_REVIEW_APPROVAL':
+        return pinnedSiteReviewOf(raw)?.registeredBy
+      default:
+        return undefined
+    }
+  })()
+  return registeredBy !== undefined && registeredBy === `admin:${viewerActorId}`
 }
 
 function statusText(item: ApprovalView): string {

@@ -183,7 +183,7 @@ internal sealed interface MasterResponseShape {
                 obj(
                     "merchantSiteId" to ID, "channelType" to CODE, "channelIdentifier" to CHANNEL, "lifecycle" to CODE,
                     "review" to opt(obj("decision" to CODE, "decidedAt" to TIME)),
-                    // MERCHANT-OPS-002 B3-1(MAJOR-1): Site 등록자(`merchant_site.created_by` — 표시용, Q-MOPS-24 답 전 검사 없음).
+                    // MERCHANT-OPS-002 B3-1(MAJOR-1): Site 등록자(`merchant_site.created_by` — 표시 + ADMIN TX1 등록자 403 근거, D-MOPS-009 ③).
                     "registeredBy" to ACTOR,
                 ),
             ),

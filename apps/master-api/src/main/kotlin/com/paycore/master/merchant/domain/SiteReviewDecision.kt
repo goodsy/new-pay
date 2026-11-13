@@ -57,4 +57,22 @@ object SiteReviewRules {
         if (decision == SiteReviewStatus.APPROVED) site.requireActive()
         return SiteReviewDecision(site.id, site.merchantId, history.size + 1, decision, reason, evidence, at, by)
     }
+
+    /**
+     * 근거 경로 심사 승인(MERCHANT-OPS-002 §9.27 — D-MOPS-009 ③, D-MOPS-010 ②): Site 등록자([MerchantSite.createdBy])는 그 Site의 2인 심사 승인자가 될 수 없다 —
+     * PENDING → APPROVED와 SUSPENDED → APPROVED 재승인 모두(재승인 포함은 사용자 확정). 중지 행위자는 대상이 아니다. 순서: **등록자** → 전이(`SITE_REVIEW_TRANSITION_NOT_ALLOWED`)
+     * → `SITE_NOT_ACTIVE`([decide] 순서 그대로). 근거 없는 [decide](seed APPROVED·1인 REJECTED·SUSPENDED)는 검사하지 않는다 — Site 등록자도 1인 거절은 할 수 있다.
+     */
+    @Suppress("LongParameterList")
+    fun approveWithEvidence(
+        site: MerchantSite,
+        history: List<SiteReviewDecision>,
+        reason: DecisionReason,
+        evidence: EvidenceRef,
+        at: Instant,
+        approver: ActorRef,
+    ): SiteReviewDecision {
+        if (site.createdBy == approver) throw MasterRuleViolation(MasterRejection.APPROVER_IS_SITE_REGISTRANT)
+        return decide(site, history, SiteReviewStatus.APPROVED, reason, evidence, at, approver)
+    }
 }

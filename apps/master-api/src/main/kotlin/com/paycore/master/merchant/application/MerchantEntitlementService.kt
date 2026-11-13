@@ -37,7 +37,7 @@ import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ActivationTransition
 import com.paycore.master.merchant.domain.CurrencyEnablement
 import com.paycore.master.merchant.domain.CurrencyEnablementId
-import com.paycore.master.merchant.domain.DecisionReason
+import com.paycore.master.merchant.domain.MerchantSite
 import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.MasterRejection
@@ -51,11 +51,13 @@ import com.paycore.master.merchant.domain.PaymentMethodActivationId
 import com.paycore.master.merchant.domain.SiteActivationConfirmation
 import com.paycore.master.merchant.domain.SiteActivationConfirmationId
 import com.paycore.master.merchant.domain.SiteConfirmationRules
+import com.paycore.master.merchant.domain.SiteReviewDecision
 import com.paycore.master.merchant.domain.SiteReviewRules
 import com.paycore.master.merchant.domain.SiteReviewStatus
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
@@ -96,34 +98,46 @@ class MerchantEntitlementService(
         requireDemoSeedPath(AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, command.request)
         return executor.execute(
             AdminOperation.APPROVE_PAYMENT_METHOD_ACTIVATION, command.request, listOf(command.activationId.value, command.evidenceRef.value),
-        ) { work -> approveActivation(work, command.activationId, command.evidenceRef, command.request.actor, expectedPrimarySiteId = null) }
+        ) { work -> approveActivation(work, command.activationId, command.evidenceRef, command.request.actor, ActivationPath.SeedPath) }
     }
 
     override fun approvePaymentMethodActivationWithEvidence(command: ApprovedPaymentMethodActivationApprovalCommand): AdminCommandResult =
         executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
-            // C-36: Domain 기관 근거 = 승인 근거 참조. C-45: 승인자가 본 PRIMARY 고정. 행위자 = 승인자(C-17). 등록자 검사 없음(Q-MOPS-24 답 전).
-            approveActivation(work, command.activationId, command.evidence.evidenceRef, command.request.actor, command.primarySiteId)
+            // C-36: Domain 기관 근거 = 승인 근거 참조. C-45: 승인자가 본 PRIMARY 고정. 행위자 = 승인자(C-17). D-MOPS-009 ③ 등록자 검사(Domain — approveWithEvidence).
+            approveActivation(work, command.activationId, command.evidence.evidenceRef, command.request.actor, ActivationPath.EvidencePath(command.primarySiteId))
         }
 
+    /** 개통 승인 경로(B3-1F): seed(근거 없음 — 등록자 검사 없음, C-31 구조)와 근거 경로(등록자 검사 + 고정 PRIMARY C-45)를 Domain 진입 메서드로 나눈다. */
+    private sealed interface ActivationPath {
+        object SeedPath : ActivationPath
+
+        data class EvidencePath(val primarySiteId: MerchantSiteId) : ActivationPath
+    }
+
     /**
-     * 개통 승인 본문(두 경로 공통): 잠금(merchant → merchant_account → activation) → `lockedNow`(근거 경로는 여기서 만료 훅) → Domain([ActivationApproval] — 전이 판정 뒤 C-45 PRIMARY 고정)
-     * → 쓰기(전이·이력·PRIMARY 확인·Snapshot). 잠금 전 `ACTIVATION_NOT_FOUND`는 만료보다 먼저 저장된다(m-4와 같은 의도된 순서).
+     * 개통 승인 본문(두 경로 공통): 잠금(merchant → merchant_account → activation) → `lockedNow`(근거 경로는 여기서 만료 훅) → Domain([ActivationApproval] — 근거 경로는 등록자 → 전이 →
+     * C-45 PRIMARY 고정, C-49) → 쓰기(전이·이력·PRIMARY 확인·Snapshot). 잠금 전 `ACTIVATION_NOT_FOUND`는 만료보다 먼저 저장된다(m-4와 같은 의도된 순서).
      */
     private fun approveActivation(
         work: AdminCommandExecutor.Work,
         activationId: PaymentMethodActivationId,
         evidence: EvidenceRef,
         actor: ActorRef,
-        expectedPrimarySiteId: MerchantSiteId?,
+        path: ActivationPath,
     ): String {
         val ctx = lockActivation(activationId)
         work.lockedNow()
         val assignments = accounts.assignmentsOf(ctx.account.id)
-        val result = ActivationApproval.approve(
-            ctx.activation.value, ctx.account, assignments, confirmations.listByActivation(ctx.activation.value.id),
-            SiteActivationConfirmationId(work.newId(SiteActivationConfirmationId.PREFIX)),
-            evidence, work.now, actor, expectedPrimarySiteId,
-        )
+        val existing = confirmations.listByActivation(ctx.activation.value.id)
+        val confirmationId = SiteActivationConfirmationId(work.newId(SiteActivationConfirmationId.PREFIX))
+        val result = when (path) {
+            ActivationPath.SeedPath -> ActivationApproval.approve(
+                ctx.activation.value, ctx.account, assignments, existing, confirmationId, evidence, work.now, actor, expectedPrimarySiteId = null,
+            )
+            is ActivationPath.EvidencePath -> ActivationApproval.approveWithEvidence(
+                ctx.activation.value, ctx.account, assignments, existing, confirmationId, evidence, work.now, actor, path.primarySiteId,
+            )
+        }
         ctx.merchant.value.recordEntitlementChange()
         work.beginWrites()
         val version = writeTransition(work, ctx, result.transition, "PaymentMethodActivationApproved")
@@ -279,34 +293,44 @@ class MerchantEntitlementService(
         return executor.execute(
             AdminOperation.DECIDE_SITE_REVIEW, command.request,
             listOf(command.merchantSiteId.value, command.decision.name, command.reason.value, command.evidenceRef?.value),
-        ) { work -> decideReview(work, command.merchantSiteId, command.decision, command.reason, command.evidenceRef, command.request.actor) }
+        ) { work ->
+            decideReview(work, command.merchantSiteId) { site, history, at ->
+                SiteReviewRules.decide(site, history, command.decision, command.reason, command.evidenceRef, at, command.request.actor)
+            }
+        }
     }
 
     override fun approveSiteReviewWithEvidence(command: ApprovedSiteReviewApprovalCommand): AdminCommandResult =
         executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
-            decideReview(work, command.merchantSiteId, SiteReviewStatus.APPROVED, command.reason, command.evidence.evidenceRef, command.request.actor)
+            // D-MOPS-009 ③·D-MOPS-010 ②: 근거 경로만 Site 등록자 검사(Domain — approveWithEvidence). seed·1인 경로는 decide 그대로(C-31).
+            decideReview(work, command.merchantSiteId) { site, history, at ->
+                SiteReviewRules.approveWithEvidence(site, history, command.reason, command.evidence.evidenceRef, at, command.request.actor)
+            }
         }
 
     override fun rejectSiteReview(command: RejectSiteReviewCommand): AdminCommandResult =
         executor.execute(
             AdminOperation.REJECT_SITE_REVIEW, command.request, listOf(command.merchantSiteId.value, command.reason.value, command.evidenceRef?.value),
-        ) { work -> decideReview(work, command.merchantSiteId, SiteReviewStatus.REJECTED, command.reason, command.evidenceRef, command.request.actor) }
+        ) { work ->
+            decideReview(work, command.merchantSiteId) { site, history, at ->
+                SiteReviewRules.decide(site, history, SiteReviewStatus.REJECTED, command.reason, command.evidenceRef, at, command.request.actor)
+            }
+        }
 
-    /** 심사 결정 본문(세 경로 공통): 소속 Merchant(불변)만 먼저 읽고 잠근 뒤 `lockedNow` → Domain 전이 판정 → 결정 행·이력·Snapshot. 잠금 전 `SITE_NOT_FOUND`가 만료보다 먼저. */
-    @Suppress("LongParameterList")
+    /**
+     * 심사 결정 본문(세 경로 공통): 소속 Merchant(불변)만 먼저 읽고 잠근 뒤 `lockedNow` → Domain 판정([decide] — 경로별 Domain 진입: 근거 승인은 등록자 → 전이, 그 밖은 전이)
+     * → 결정 행·이력·Snapshot. 잠금 전 `SITE_NOT_FOUND`가 만료보다 먼저.
+     */
     private fun decideReview(
         work: AdminCommandExecutor.Work,
         siteId: MerchantSiteId,
-        decisionValue: SiteReviewStatus,
-        reason: DecisionReason,
-        evidence: EvidenceRef?,
-        actor: ActorRef,
+        decide: (MerchantSite, List<SiteReviewDecision>, Instant) -> SiteReviewDecision,
     ): String {
         val merchantId = sites.find(siteId)?.merchantId ?: throw MasterRuleViolation(MasterRejection.SITE_NOT_FOUND)
         val merchant = merchants.lock(merchantId) ?: error("site merchant must exist")
         work.lockedNow()
         val site = checkNotNull(sites.find(siteId)) { "site must exist" }
-        val decision = SiteReviewRules.decide(site, reviews.history(site.id), decisionValue, reason, evidence, work.now, actor)
+        val decision = decide(site, reviews.history(site.id), work.now)
         merchant.value.recordEntitlementChange()
         work.beginWrites()
         reviews.append(decision, work.requestRecordId)

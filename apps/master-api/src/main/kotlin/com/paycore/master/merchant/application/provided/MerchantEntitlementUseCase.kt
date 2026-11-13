@@ -42,11 +42,12 @@ interface MerchantEntitlementUseCase {
     /**
      * MERCHANT-OPS-002 B3-1(§9.14 — D-MOPS-007 ③·D-MOPS-008 ①, C-36·C-45): 근거 있는 개통 승인(2인). 승인 근거 실행기(§9.3 판정 1~4) + 기존 승인 본문,
      * Domain 기관 근거 = 승인 근거 `evidenceRef`(C-36), 실행 시점 열린 PRIMARY ≠ [ApprovedPaymentMethodActivationApprovalCommand.primarySiteId]이면 `PRIMARY_SITE_MISMATCH`.
-     * 행위자 = 승인자(C-17). 등록자 ≠ 승인자 검사는 Q-MOPS-24 답 전이라 **없다**(rev 0.8.1).
+     * 행위자 = 승인자(C-17). 개통 등록자 = 승인자면 `APPROVER_IS_ACTIVATION_REGISTRANT`(D-MOPS-009 ③ — Domain, MID ACTIVE 뒤·전이 앞 C-49; 저장된 거절).
      */
     fun approvePaymentMethodActivationWithEvidence(command: ApprovedPaymentMethodActivationApprovalCommand): AdminCommandResult
 
-    /** MERCHANT-OPS-002 B3-1: 근거 있는 Site 심사 승인(2인 — APPROVED 고정, C-40). Domain 근거 = 승인 근거(C-36). 등록자 검사 없음(Q-MOPS-24 답 전). */
+    /** MERCHANT-OPS-002 B3-1: 근거 있는 Site 심사 승인(2인 — APPROVED 고정, C-40). Domain 근거 = 승인 근거(C-36). Site 등록자 = 승인자면
+     *  `APPROVER_IS_SITE_REGISTRANT`(D-MOPS-009 ③·D-MOPS-010 ② — SUSPENDED 재승인 포함, 저장된 거절). */
     fun approveSiteReviewWithEvidence(command: ApprovedSiteReviewApprovalCommand): AdminCommandResult
 
     /** MERCHANT-OPS-002 B3-1: 1인 Site 심사 거절(REJECTED 고정 — 결정값을 받지 않는다, C-40). operation `RejectSiteReview`(nit-1). REJECTED는 종결(D-MS-005). */

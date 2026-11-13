@@ -11,7 +11,7 @@ export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
 }
 
 export function CardTitle({ className, ...props }: ComponentProps<'div'>) {
-  return <div data-slot="card-title" className={cn('leading-none font-semibold', className)} {...props} />
+  return <div data-slot="card-title" className={cn('leading-none font-bold text-heading', className)} {...props} />
 }
 
 export function CardDescription({ className, ...props }: ComponentProps<'div'>) {

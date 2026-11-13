@@ -85,6 +85,10 @@ enum class MasterRejection {
 
     // MERCHANT-OPS-002 C-45(rev 0.8.1): 근거 경로 개통 승인의 고정 PRIMARY Site(`primarySiteId`)가 실행 시점 열린 PRIMARY와 다름(없음 포함)
     PRIMARY_SITE_MISMATCH,
+
+    // MERCHANT-OPS-002 §9.27(B3-1F — D-MOPS-009 ③, D-MOPS-010 ②): 1인 등록자 ≠ 2인 승인자. 근거 경로(`approveWithEvidence`)만 — seed 경로는 검사 없음(C-31 구조)
+    APPROVER_IS_ACTIVATION_REGISTRANT,
+    APPROVER_IS_SITE_REGISTRANT,
 }
 
 /**

@@ -3472,6 +3472,185 @@
       "humanAnswer": "B5 Route 종료를 함께 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-12)",
       "appliedSpec": "D-MOPS-010"
+    },
+    {
+      "id": "Q-ADMIN-UI-3",
+      "status": "ANSWERED",
+      "question": "'사업자 ID 제거, 가맹점 ID 간소화'의 수준",
+      "recommended": "화면에서만 숨김/축약(내부 키 유지)",
+      "alternative": "사람이 읽는 새 가맹점 코드 도입 / 사업자 개념 축소",
+      "impact": "새 코드면 새 식별 키 — MASTER 명세·DB·발급 규칙 필요",
+      "dependentTasks": [
+        "ADMIN-UI-MERCHANT-002",
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "사용자 Demo 피드백 2026-11-13",
+      "humanAnswer": "사람이 읽는 새 가맹점 코드 도입",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13), Demo 피드백 직후",
+      "appliedSpec": "D-ADMIN-UI-004"
+    },
+    {
+      "id": "Q-ADMIN-UI-4",
+      "status": "ANSWERED",
+      "question": "사업자·가맹점 등록 화면 분리 시 권한도 분리할지",
+      "recommended": "화면만 분리, 권한은 그대로",
+      "alternative": "화면 + 역할도 분리",
+      "impact": "역할 분리면 계정·역할·감사 변경(보안)",
+      "dependentTasks": [
+        "ADMIN-UI-MERCHANT-002"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "사용자 Demo 피드백 2026-11-13",
+      "humanAnswer": "화면만 분리, 권한은 그대로 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13), Demo 피드백 직후",
+      "appliedSpec": "D-ADMIN-UI-004"
+    },
+    {
+      "id": "Q-ADMIN-UI-5",
+      "status": "ANSWERED",
+      "question": "'신용카드 외 다른 결제수단 확장 가능성'의 의미",
+      "recommended": "구조만 확장 가능하게(지금은 신용카드만)",
+      "alternative": "특정 결제수단 이번에 추가",
+      "impact": "추가면 기관·정산·수수료 정책 필요",
+      "dependentTasks": [
+        "ADMIN-UI-MERCHANT-002"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "사용자 Demo 피드백 2026-11-13",
+      "humanAnswer": "구조만 확장 가능하게 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13), Demo 피드백 직후",
+      "appliedSpec": "D-ADMIN-UI-004"
+    },
+    {
+      "id": "Q-ADMIN-UI-6",
+      "status": "ANSWERED",
+      "question": "작업 순서(B3-1F 게이트 vs 화면 개선)",
+      "recommended": "B3-1F 게이트·커밋 먼저",
+      "alternative": "화면 개선 먼저",
+      "impact": "게이트 1회로 합침, 커밋 단위 커짐",
+      "dependentTasks": [
+        "MERCHANT-OPS-002",
+        "ADMIN-UI-MERCHANT-002"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "사용자 Demo 피드백 2026-11-13",
+      "humanAnswer": "화면 개선 먼저",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13), Demo 피드백 직후",
+      "appliedSpec": "D-ADMIN-UI-004"
+    },
+    {
+      "id": "Q-MC-1",
+      "status": "ANSWERED",
+      "question": "새 가맹점 코드 노출 범위",
+      "recommended": "관리자 화면·검색·응대 전용",
+      "alternative": "외부 연동·정산서에도 노출",
+      "impact": "외부 계약·PAYMENT/FINANCIAL 변경",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "외부 연동·정산서에도 노출",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-MC-2",
+      "status": "ANSWERED",
+      "question": "가맹점 코드 형식",
+      "recommended": "M+6자리 순번+체크숫자",
+      "alternative": "M+7자리 / M+연도+순번 / 랜덤",
+      "impact": "발급 뒤 영구",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "토스기준",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-MC-3",
+      "status": "ANSWERED",
+      "question": "고유 범위와 Demo 구분",
+      "recommended": "전체에서 하나, Demo도 같은 형식",
+      "alternative": "Demo 전용 접두",
+      "impact": "응대 시 혼동",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "전체에서 하나, Demo도 같은 형식 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-MC-4",
+      "status": "ANSWERED",
+      "question": "내부 키(mer_)와 코드 재사용",
+      "recommended": "내부 키 유지, 코드 불변·재사용 금지",
+      "alternative": "감사·승인 대상도 새 코드로",
+      "impact": "기존 감사와 키 분리·migration",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "감사·승인 대상도 새 코드로",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-MC-5",
+      "status": "ANSWERED",
+      "question": "'토스 기준' 적용 대상",
+      "recommended": "-",
+      "alternative": "가맹점 코드 / MID / 둘 다",
+      "impact": "MID는 외부 계약 단위",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "가맹점 코드에 토스식 형식",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-MC-6",
+      "status": "ANSWERED",
+      "question": "토스식 코드 생성 방식",
+      "recommended": "자동: 상호 영문+랜덤 4자",
+      "alternative": "운영자 직접 입력 / 전부 랜덤",
+      "impact": "중복·문자 규칙",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 설계안",
+      "humanAnswer": "미리보기로 상호영문+램던4자 해주고 운영자가 직접 입력도 가능하게",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-001"
+    },
+    {
+      "id": "Q-ADMIN-UI-7",
+      "status": "ANSWERED",
+      "question": "가맹점 등록 화면 분리 후, 가맹점이 0개인 기존 사업자를 고를 수 없음(조회가 가맹점 검색뿐)",
+      "recommended": "사업자등록번호 정확 일치 사업자 조회 API 추가(별도 작업, D-MOPS-003 감사·한도 규칙, 응답 상호·마스킹 번호만)",
+      "alternative": "현 상태 유지(사업자 등록 직후 가맹점 등록 절차)",
+      "impact": "MASTER 조회 API·ADMIN 조회·감사 추가",
+      "dependentTasks": [
+        "ADMIN-UI-MERCHANT-002",
+        "MERCHANT-BIZ-LOOKUP-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "ADMIN-UI-MERCHANT-002 Implementer 보고",
+      "humanAnswer": "사업자 조회 기능 추가 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-ADMIN-UI-004"
     }
   ]
 }

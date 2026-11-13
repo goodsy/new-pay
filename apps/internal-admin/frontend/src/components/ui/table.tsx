@@ -26,12 +26,12 @@ export function TableHead({ className, ...props }: ComponentProps<'th'>) {
   return (
     <th
       data-slot="table-head"
-      className={cn('h-10 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground', className)}
+      className={cn('bg-table-head px-5 py-[13px] text-left align-middle text-[13px] font-semibold whitespace-nowrap text-subtle', className)}
       {...props}
     />
   )
 }
 
 export function TableCell({ className, ...props }: ComponentProps<'td'>) {
-  return <td data-slot="table-cell" className={cn('px-4 py-3 align-middle', className)} {...props} />
+  return <td data-slot="table-cell" className={cn('px-5 py-[17px] align-middle', className)} {...props} />
 }

@@ -17,6 +17,14 @@ object TestTotp {
         return (bin % 1_000_000).toString().padStart(6, '0')
     }
 
+    /**
+     * 틀린 코드(Invalid Fixture — 의도: 지금 ±[spanSteps] 단계 어느 코드와도 다른 6자리, 검증 창 안에서 우연히 맞지 않음). B3-1F review MAJOR-1: 등록자 403이 TOTP 판정 앞인지 보는 시험용.
+     */
+    fun wrongCode(secret: ByteArray, at: Instant = Instant.now(), spanSteps: Int = 3): String {
+        val valid = (-spanSteps..spanSteps).map { code(secret, at.plusSeconds(30L * it)) }.toSet()
+        return (0 until 1_000_000).asSequence().map { it.toString().padStart(6, '0') }.first { it !in valid }
+    }
+
     fun decodeBase32(text: String): ByteArray {
         val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
         val out = java.io.ByteArrayOutputStream()

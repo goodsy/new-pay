@@ -18,7 +18,8 @@ import { AuditScreen } from './screens/AuditScreen'
 import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LoginScreen } from './screens/LoginScreen'
-import { MerchantRegistrationScreen } from './screens/MerchantRegistrationScreen'
+import { BusinessRegistrationScreen } from './screens/BusinessRegistrationScreen'
+import { MerchantRegistrationScreen, registrationHandoffState, startWithBusiness } from './screens/MerchantRegistrationScreen'
 import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
@@ -47,7 +48,8 @@ function SideMenu({ menus, current, onOpen }: { menus: Menu[]; current: MenuId; 
         aria-current={active ? 'page' : undefined}
         onClick={() => onOpen(menu)}
         className={cn(
-          'my-[3px] flex w-full shrink-0 items-center gap-3 rounded-lg px-3.5 py-3 text-left text-[13px] whitespace-nowrap text-sidebar-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          // 갱신된 시안 'pg-ops-workspace'(2026-11-13 사용자 재요청): 메뉴 항목 14px·500 #475569, 선택 항목 14px·700 #1d4ed8 + #edf4ff 배경, padding 12px 14px.
+          'my-[3px] flex w-full shrink-0 items-center gap-3 rounded-lg px-3.5 py-3 text-left text-sm font-medium whitespace-nowrap text-sidebar-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50',
           active && 'bg-sidebar-accent font-bold text-sidebar-accent-foreground hover:bg-sidebar-accent',
         )}
       >
@@ -63,7 +65,7 @@ function SideMenu({ menus, current, onOpen }: { menus: Menu[]; current: MenuId; 
           group.items.map(item)
         ) : (
           <div key={group.label} role="group" aria-label={group.label} className="flex gap-1 md:flex-col md:gap-0">
-            <div aria-hidden="true" className="hidden px-3.5 pt-5 pb-2 text-[10px] tracking-[1px] text-sidebar-label md:block">{group.label}</div>
+            <div aria-hidden="true" className="hidden px-3.5 pt-5 pb-2 text-[11px] tracking-[1px] text-sidebar-label md:block">{group.label}</div>
             {group.items.map(item)}
           </div>
         ),
@@ -86,6 +88,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const [view, setView] = useState<View>('home')
   // 가맹점 등록 화면 상태(결과 불명 잠금·submissionId·입력) — 탭을 바꿔도 유지, 메모리에만(MERCHANT-OPS-002 §5.3, 리뷰 m-1). 세션마다 새로.
   const [registrationMemory, setRegistrationMemory] = useState(createScreenMemory)
+  // 사업자 등록 화면 상태(ADMIN-UI-MERCHANT-002 — 화면 분리, 같은 규칙: 메모리에만, 세션마다 새로).
+  const [businessMemory, setBusinessMemory] = useState(createScreenMemory)
   // 조회 상세 Revision 폼 상태(B2-1 — 결과 불명 잠금·submissionId, 리뷰 C-M1). 등록 화면과 같이 세션마다 새로.
   const [revisionMemory, setRevisionMemory] = useState(createScreenMemory)
   // "가맹점 조회에서 보기"로 열 가맹점 — 조회 화면이 한 번 열면 비운다(리뷰 m-3).
@@ -99,6 +103,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setUnresolvedNotice(false)
     setView('home')
     setRegistrationMemory(createScreenMemory())
+    setBusinessMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
   }, [])
@@ -115,11 +120,12 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setMe(null)
     setMode('login')
     setNotice(code)
-    setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, revisionMemory))
+    setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, revisionMemory))
     setRegistrationMemory(createScreenMemory())
+    setBusinessMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
-  }, [registrationMemory, revisionMemory])
+  }, [registrationMemory, businessMemory, revisionMemory])
 
   const logout = async () => {
     try {
@@ -127,8 +133,9 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     } finally {
       setMe(null)
       setMode('login')
-      setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, revisionMemory))
+      setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, revisionMemory))
       setRegistrationMemory(createScreenMemory())
+      setBusinessMemory(createScreenMemory())
       setRevisionMemory(createScreenMemory())
       setLookupMerchantId(null)
     }
@@ -218,6 +225,19 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 onSessionEnded={sessionEnded}
                 openMerchantId={lookupMerchantId}
                 onOpenedMerchant={() => setLookupMerchantId(null)}
+              />
+            )}
+            {page === 'businessRegistration' && (
+              <BusinessRegistrationScreen
+                api={api}
+                memory={businessMemory}
+                handoffState={() => registrationHandoffState(registrationMemory)}
+                onContinue={(business) => {
+                  // 내부 키(biz_…)는 화면에 그리지 않고 가맹점 등록 메모리로만 넘긴다(D-ADMIN-UI-004 ③).
+                  // 리뷰 MINOR-1: 진행 중인 마법사와 섞지 않는다 — 비운 뒤 이 사업자로 새로 시작(잠긴 카드가 있으면 넘기지 않음).
+                  if (startWithBusiness(registrationMemory, business)) open('merchantRegistration')
+                }}
+                onSessionEnded={sessionEnded}
               />
             )}
             {page === 'merchantRegistration' && (

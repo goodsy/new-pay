@@ -9,8 +9,8 @@ export function WorkspaceHeader({ eyebrow, title, description, action }: { eyebr
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="flex min-w-0 flex-col">
         <p aria-hidden="true" className="mb-3 text-[10px] tracking-[1.6px] text-eyebrow uppercase">{eyebrow}</p>
-        <h1 className="mb-2.5 text-[28px] leading-tight font-bold tracking-[-1px]">{title}</h1>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <h1 className="mb-2.5 text-[28px] leading-tight font-bold tracking-[-1px] text-heading">{title}</h1>
+        <p className="text-xs leading-[20.4px] text-muted-foreground">{description}</p>
       </div>
       {action && <div className="flex shrink-0 gap-2">{action}</div>}
     </div>

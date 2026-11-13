@@ -15,6 +15,7 @@ import com.paycore.admin.merchantops.application.provided.PendingMerchantApprova
 import com.paycore.admin.support.AdminDbAccounts
 import com.paycore.admin.support.AdminDbTest
 import com.paycore.admin.support.StubMasterOpsServer
+import com.paycore.admin.support.TestTotp
 import com.paycore.admin.support.StubMasterOpsServer.Reply
 import com.paycore.admin.support.column
 import com.paycore.admin.support.scalar
@@ -67,6 +68,10 @@ class MerchantOpsApprovalServiceSpec(
     fun posts(id: String) = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.CONTRACT_REVISION_APPROVALS).filter { f.idOf(it.body) == id }
     fun detailCalls(m: String) = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.merchantPath(m)).size
     fun account(actorId: String) = root().use { it.column("SELECT CONCAT(COALESCE(last_totp_step, -1), '|', failed_attempts) FROM admin_account WHERE actor_id = ?", actorId).single() }
+    /** 별도 TX의 STEP_UP 실패 기록(rollback되지 않음)이 남기는 인증 실패 감사 행 수 — 등록자 검사가 TOTP 앞인지 보는 증거(B3-1F review MAJOR-1). */
+    fun authFailures(actorId: String) = root().use {
+        (it.scalar("SELECT COUNT(*) FROM admin_audit_event WHERE actor_id = ? AND action = 'AUTHENTICATION_FAILED'", actorId) as Number).toLong()
+    }
 
     Given("MR-1 an OPERATOR requests a contract approval (D-MOPS-008 ① evidence required, C-20 one unresolved per merchant)") {
         Then("it stores the MERCHANT-target approval (version 0, MERCHANT: key), the INSERT-only command with pinned registeredBy and the evidence, one audit row without the evidence") {
@@ -195,6 +200,20 @@ class MerchantOpsApprovalServiceSpec(
             // 다른 APPROVER는 같은 승인을 처리할 수 있다.
             f.executeReplies[id] = f.succeeded(f.contractOf(m) + "#2")
             f.approve(id) shouldBe ApprovalOutcome.Executed(id)
+        }
+        Then("D-MOPS-008 ③ order (B3-1F review MAJOR-1): the revision registrant with a WRONG TOTP is still refused APPROVER_IS_REGISTRANT — not STEP_UP_FAILED; no failure counted, no AUTHENTICATION_FAILED audit") {
+            // 위 시험의 "TOTP 불변"은 TX1 rollback만으로도 성립한다(순서와 무관). 틀린 코드는 순서를 드러낸다: TOTP가 먼저면 STEP_UP_FAILED + 별도 TX 실패 계수·감사.
+            val both = ready.withoutRoles().also { path.grant(it.account.id, AdminRole.OPERATOR, AdminRole.APPROVER) }
+            val actor = both.account.id.value
+            val m = f.newMerchantId()
+            f.detail(m, registeredBy = "admin:$actor")
+            val id = (f.request(f.operator(), m) as ApprovalOutcome.Created).approvalId
+            val before = account(actor)
+            val failuresBefore = authFailures(actor)
+            f.approve(id, both, totp = TestTotp.wrongCode(both.secret)) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
+            listOf(status(id), posts(id).size.toString(), execution(id) ?: "none", account(actor), authFailures(actor).toString()) shouldBe
+                listOf("PENDING|-", "0", "none", before, failuresBefore.toString())
+            audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
         }
         Then("the requester holding APPROVER is refused SELF_APPROVAL (existing rule); a VIEWER/OPERATOR is denied") {
             val both = ready.withoutRoles().also { path.grant(it.account.id, AdminRole.OPERATOR, AdminRole.APPROVER) }
