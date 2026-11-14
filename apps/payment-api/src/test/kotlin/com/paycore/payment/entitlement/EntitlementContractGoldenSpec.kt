@@ -87,4 +87,23 @@ class EntitlementContractGoldenSpec : FunSpec({
         // v2 해석기로는 v3 내용을 받지 않는다(모르는 필드 거절 — 배포 순서: PAYMENT v3 해석 먼저, MS2 §5.4).
         runCatching { EntitlementContent.fromJson(payload, 2, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class
     }
+
+    // MERCHANT-OPS-002 §8.3 B3-2-4(골든 확장, review MINOR-1): 통화 구간 `from` = AT_EXECUTION 확정 시각(KST 자정 아님·ms 있음). MASTER 시험 자원과 같은 파일
+    // (harness 독립 생성). PAYMENT는 자정이 아닌 ms 시각을 그대로 해석하고 같은 정규 내용·hash를 다시 계산해야 한다.
+    val atExecution = mapper.readTree(ClassPathResource("contracts/entitlement-snapshot-v3-currency-at-execution.golden.json").inputStream)
+    fun ga(name: String): String = atExecution.get(name).stringValue()
+    val bodyA = ga("envelopeBody").toByteArray()
+
+    test("B3-2: the AT_EXECUTION currency-segment v3 golden verifies and PAYMENT re-derives its canonical content and hash with the millisecond start") {
+        val settings = EntitlementInboxSettings(listOf(EntitlementInboxSettings.SigningKey(ga("signingKeyId"), ga("signingKeyBase64"))))
+        EntitlementSignature.verify(settings, ga("signatureHeader"), bodyA) shouldBe true
+        val envelope = mapper.readTree(bodyA)
+        envelope.get("schemaVersion").intValue() shouldBe 3
+        val payload = WebJsonTree.toJsonValue(envelope.get("payload"))
+        val content = EntitlementContent.fromJson(payload, 3, allowLeaseFields = true)
+        listOf(content.canonical, content.contentHash, content.snapshotVersion) shouldBe
+            listOf(ga("contentCanonical"), ga("contentHash"), "es1:${ga("merchantId")}:8")
+        val currency = content.accounts.single().currencies.single()
+        listOf(currency.currency, currency.period.from.toString(), currency.period.to) shouldBe listOf("KRW", "2026-10-09T02:00:07.123Z", null)
+    }
 })

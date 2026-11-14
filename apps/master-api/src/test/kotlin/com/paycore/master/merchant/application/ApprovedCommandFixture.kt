@@ -74,6 +74,28 @@ object ApprovedCommandFixture {
         )
     }
 
+    /**
+     * B3-2 근거 있는 통화 활성화(D-MOPS-009 ② — 명령 필드 merchantAccountId, currency, effectiveFrom(본문 문자열), effectiveTo(없으면 빈 줄)).
+     * [effectiveFromText]는 `AT_EXECUTION` 또는 KST 00:00 `…Z` ms 문자열(parser가 통과시키는 모양 그대로), [effectiveToText]는 null 또는 KST 00:00 문자열.
+     */
+    fun currencyEnablement(
+        mid: com.paycore.master.merchant.domain.MerchantAccountId,
+        effectiveFromText: String = com.paycore.master.merchant.application.provided.CurrencyEffectiveStart.AT_EXECUTION_TEXT,
+        effectiveToText: String? = null,
+        evidence: ApprovalEvidence = ApprovalEvidenceFixtures.distinctActors(evidenceRef = INSTITUTION_REPLY),
+        window: ApprovalWindow = ApprovalEvidenceFixtures.DEMO_WINDOW,
+    ): com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand {
+        val from = if (effectiveFromText == com.paycore.master.merchant.application.provided.CurrencyEffectiveStart.AT_EXECUTION_TEXT) {
+            com.paycore.master.merchant.application.provided.CurrencyEffectiveStart.AtExecution
+        } else {
+            com.paycore.master.merchant.application.provided.CurrencyEffectiveStart.OnDate(java.time.Instant.parse(effectiveFromText))
+        }
+        val e = withFingerprint(evidence, AdminOperation.ENABLE_CURRENCY, listOf(mid.value, "KRW", effectiveFromText, effectiveToText ?: ""))
+        return com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand(
+            requestOf(e), e, window, mid, com.paycore.master.merchant.domain.CurrencyCode("KRW"), from, effectiveToText?.let { java.time.Instant.parse(it) },
+        )
+    }
+
     const val INSTITUTION_REPLY = "VAN-REPLY/2026-0001"
     const val PG_REVIEW = "PG-REVIEW/2026-0001"
 
@@ -119,7 +141,9 @@ object ApprovedCommandFixture {
     fun invariantViolations(c: Connection): List<String> = c.prepareStatement(
         "SELECT CONCAT(r.operation, ' ', r.idempotency_key, ' ', r.result_kind, ' ', IFNULL(r.result_code, '-'), ' rows=', " +
             "(SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id)) " +
-            "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount', 'ApprovePaymentMethodActivation', 'DecideSiteReview') " +
+            // B3-2: + EnableCurrency(불변식 대상 확장 — 완화 아님).
+            "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount', 'ApprovePaymentMethodActivation', 'DecideSiteReview', " +
+            "'EnableCurrency') " +
             "AND r.idempotency_key LIKE 'mop1.%' " +
             "AND r.result_kind <> 'PENDING' AND (" +
             "  (IFNULL(r.result_code, '') <> 'APPROVAL_ID_ALREADY_USED' AND (SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id) <> 1)" +

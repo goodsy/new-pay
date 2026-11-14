@@ -6,19 +6,24 @@ import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApprovalFingerprint
 import com.paycore.master.merchant.application.provided.ApprovedCommand
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
+import com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand
 import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand
 import com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand
+import com.paycore.master.merchant.application.provided.CurrencyEffectiveStart
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ApprovalEvidence
 import com.paycore.master.merchant.domain.ApprovalWindow
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
+import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EvidenceRef
+import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
+import com.paycore.master.merchant.domain.SeoulMidnight
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
@@ -52,6 +57,12 @@ object MerchantApprovalCommandParser {
     private val FIRST_DEFAULT_ISSUANCE = EVIDENCE_FIELDS + setOf("merchantId", "contractId", "agreementId", "revisionNo", "primarySiteId")
     private val ACTIVATION_APPROVAL = EVIDENCE_FIELDS + setOf("operation", "activationId", "primarySiteId")
     private val SITE_REVIEW_APPROVAL = EVIDENCE_FIELDS + setOf("operation", "merchantSiteId", "reasonCode")
+
+    /** B3-2 필수 필드(선택 `effectiveTo`는 [currencyEnablement]가 따로 허용). */
+    private val CURRENCY_ENABLEMENT = EVIDENCE_FIELDS + setOf("operation", "merchantAccountId", "currency", "effectiveFrom")
+
+    /** C-41: 관리 채널 통화 활성화는 KRW만(실제 통화 범위 추가안은 사용자 채택 전). */
+    private val ENABLED_CURRENCIES = setOf("KRW")
     private val DECISION = setOf("approvalId", "correlationId")
 
     /** C-30: `[1-9][0-9]{0,9}` + 값 ≤ 2147483647(DB `revision_no INT`). */
@@ -98,6 +109,7 @@ object MerchantApprovalCommandParser {
         // B3 본문은 `operation` 필드가 있어 B2 해석기(정확한 필드 집합)가 받지 않고, B2 본문은 B3 해석기가 받지 않는다(minor-4 — 정확히 하나).
         listOfNotNull<ApprovedCommand>(
             contractRevisionApproval(body, window), firstDefaultIssuance(body, window), paymentMethodActivationApproval(body, window), siteReviewApproval(body, window),
+            currencyEnablement(body, window),
         ).singleOrNull()
 
     /**
@@ -122,6 +134,32 @@ object MerchantApprovalCommandParser {
             val (request, evidence) = approved(fields, AdminOperation.DECIDE_SITE_REVIEW, listOf(siteId.value, reasonCode))
             ApprovedSiteReviewApprovalCommand(request, evidence, window, siteId, DecisionReason(reasonCode))
         }
+
+    /**
+     * B3-2 `currency-enablements`(§9.14·§9.26 — D-MOPS-009 ②, C-41·C-48): 근거 공통 9 + **`operation` = `EnableCurrency`**(C-39) + 명령 필드 `merchantAccountId`, `currency`(**KRW만**),
+     * `effectiveFrom`(정확히 `AT_EXECUTION` 또는 정규 `…Z` ms 시각이면서 **KST 00:00**), `effectiveTo`(선택 — 오면 KST 00:00 정규 시각, 없으면 `mop1` 끝 줄은 빈 줄).
+     * `mop1`·요청 지문의 명령 필드 = 본문 문자열 그대로(확정 시각 아님). 기간이 비는지(`to ≤ from`·`to ≤ 확정 시각`)는 MASTER Use Case의 저장된 거절(`EFFECTIVE_PERIOD_EMPTY`)이다.
+     */
+    fun currencyEnablement(body: ByteArray, window: ApprovalWindow): ApprovedCurrencyEnablementCommand? =
+        parse(body, CURRENCY_ENABLEMENT, optional = setOf("effectiveTo")) { fields ->
+            require(fields.getValue("operation") == AdminOperation.ENABLE_CURRENCY.code) { "operation" }
+            val mid = MerchantAccountId(fields.getValue("merchantAccountId"))
+            val currencyText = fields.getValue("currency")
+            require(currencyText in ENABLED_CURRENCIES) { "currency" }
+            val fromText = fields.getValue("effectiveFrom")
+            val from = if (fromText == CurrencyEffectiveStart.AT_EXECUTION_TEXT) CurrencyEffectiveStart.AtExecution else CurrencyEffectiveStart.OnDate(kstMidnight(fromText))
+            val toText = fields["effectiveTo"]
+            val to = toText?.let(::kstMidnight)
+            val (request, evidence) = approved(fields, AdminOperation.ENABLE_CURRENCY, listOf(mid.value, currencyText, fromText, toText ?: ""))
+            ApprovedCurrencyEnablementCommand(request, evidence, window, mid, CurrencyCode(currencyText), from, to)
+        }
+
+    /** C-48: 정규 `…Z` ms 시각이면서 Asia/Seoul 00:00(`SeoulMidnight.startOfDay(x) == x`). */
+    private fun kstMidnight(value: String): Instant {
+        val at = instant(value)
+        require(SeoulMidnight.startOfDay(at) == at) { "KST midnight" }
+        return at
+    }
 
     /** `approval-decisions`: `approvalId`, `correlationId`(1..128 printable ASCII — 상관용)만. 키·근거 필드 없음. */
     fun decisionApprovalId(body: ByteArray): String? = parse(body, DECISION) { fields ->
@@ -158,11 +196,15 @@ object MerchantApprovalCommandParser {
         return parsed
     }
 
-    /** 필드 집합이 정확히 [names]이고 값이 모두 JSON 문자열이면 [build]. 어떤 위반(예외 포함)이든 null. */
-    private fun <T> parse(body: ByteArray, names: Set<String>, build: (Map<String, String>) -> T): T? = runCatching {
+    /**
+     * 필드 집합이 정확히 [names](+ [optional] 중 온 것)이고 값이 모두 JSON 문자열이면 [build]. 어떤 위반(예외 포함)이든 null. 선택 필드는 B3-2 `effectiveTo`뿐이다
+     * (없으면 맵에 키가 없다 — JSON `null`·빈 문자열은 값 검사에서 거부).
+     */
+    private fun <T> parse(body: ByteArray, names: Set<String>, optional: Set<String> = emptySet(), build: (Map<String, String>) -> T): T? = runCatching {
         val root: JsonNode = mapper.readTree(body) ?: return null
-        if (!root.isObject || root.propertyNames().toSet() != names) return null
-        build(names.associateWith { name -> root.get(name).also { require(it.isString) { "type" } }.asString() })
+        val present = root.takeIf { it.isObject }?.propertyNames()?.toSet() ?: return null
+        if (!present.containsAll(names) || !(names + optional).containsAll(present)) return null
+        build(present.associateWith { name -> root.get(name).also { require(it.isString) { "type" } }.asString() })
     }.getOrNull()
 
     private const val KEY_PREFIX = "mop1."

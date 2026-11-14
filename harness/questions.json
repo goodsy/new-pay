@@ -3651,6 +3651,86 @@
       "humanAnswer": "사업자 조회 기능 추가 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
       "appliedSpec": "D-ADMIN-UI-004"
+    },
+    {
+      "id": "Q-MC-7",
+      "question": "가맹점 코드 불변 시점·오타 정정",
+      "recommended": "등록 즉시 불변, 정정 = 종료 후 새 코드 재등록(옛 코드 영구 점유)",
+      "alternative": "첫 계약 승인 전까지 2인 승인 1회 변경(옛 코드 영구 예약)",
+      "impact": "MASTER 열 권한·은퇴 표·변경 명령·ADMIN 승인 종류(MC-1)",
+      "humanAnswer": "계약 승인 전 1회 변경",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 명세 초안 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-002"
+    },
+    {
+      "id": "Q-MC-8",
+      "question": "외부 연동에서 가맹점 코드의 역할",
+      "recommended": "출력 전용(웹훅·결제 응답 필드), 식별·인증은 MID·API 키",
+      "alternative": "결제 요청에서 코드로 대상 지정 허용",
+      "impact": "CP-API 계약·요청 지문·웹훅 버전(MC-4)",
+      "humanAnswer": "응답에 보여주기만 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 명세 초안 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-002"
+    },
+    {
+      "id": "Q-MC-9",
+      "question": "기존 감사·승인 기록(대상 mer_) 처리",
+      "recommended": "고치지 않고 연결(append-only 유지, 코드 검색 시 대응 mer_ 행 함께 표시)",
+      "alternative": "기존 행 target_ref 재작성",
+      "impact": "ADMIN 감사 권한·migration·조회(MC-3)",
+      "humanAnswer": "고치지 않고 연결 (Recommended)",
+      "status": "ANSWERED",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-13",
+      "origin": "MERCHANT-CODE-001 명세 초안 rev 0.1",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-13)",
+      "appliedSpec": "D-MCODE-002"
+    },
+    {
+      "id": "Q-MC-10",
+      "status": "ANSWERED",
+      "question": "가맹점 코드 1회 변경 2인 승인에서 원 가맹점 등록자가 승인자가 될 수 있는가",
+      "recommended": "등록자 승인 금지(ADMIN TX1 403 + MASTER Domain)",
+      "alternative": "요청자≠승인자만",
+      "impact": "MC-1b 변경 명령 Domain·ADMIN TX1",
+      "dependentTasks": [
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-14",
+      "origin": "MERCHANT-CODE-001 명세 rev 0.2 초안",
+      "humanAnswer": "요청자≠승인자만",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-14)",
+      "appliedSpec": "D-MCODE-002"
+    },
+    {
+      "id": "Q-BL-1",
+      "status": "ANSWERED",
+      "question": "사업자 조회 응답에 내부 사업자 키(biz_)를 넣어도 되는가(D-MOPS-006 ③과의 관계)",
+      "recommended": "넣되 화면 미표시(③은 등록 중복 거절 응답 범위로 해석)",
+      "alternative": "불투명 선택 토큰 / (사용자 제안) 사업자등록번호를 식별자로 사용",
+      "impact": "MASTER·ADMIN 조회 응답, 가맹점 등록 요청 본문",
+      "dependentTasks": [
+        "MERCHANT-BIZ-LOOKUP-001"
+      ],
+      "askedAt": "2026-11-14",
+      "origin": "MERCHANT-BIZ-LOOKUP-001 명세 초안",
+      "humanAnswer": "내부 키 응답, 화면 미표시 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-14). 첫 응답은 되물음 \"사업자 번호를 id 대체 안돼?\" → 원문 노출 증가(요청 본문·ADMIN 요청 기록·재전송 바이트, D-MD-008 마스킹·D-MOPS-010 HMAC과 충돌)·정정 가능 값이라 내부 키 부적합 설명 후 재질문",
+      "appliedSpec": "D-BIZLOOKUP-001"
     }
   ]
 }

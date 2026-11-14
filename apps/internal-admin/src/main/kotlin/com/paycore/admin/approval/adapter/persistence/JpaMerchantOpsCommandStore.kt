@@ -4,6 +4,7 @@ import com.paycore.admin.approval.application.required.MerchantOpsCommandStore
 import com.paycore.admin.approval.domain.MerchantOpsCommandKind
 import com.paycore.admin.approval.domain.MerchantOpsRequestSnapshot
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
+import com.paycore.admin.approval.domain.PinnedCurrencyEnablementTarget
 import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
 import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
@@ -42,6 +43,7 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
                 MerchantOpsCommandKind.FIRST_MID_ISSUANCE -> pinnedMid(r.pinnedTarget)
                 MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION -> pinnedActivation(r.pinnedTarget)
                 MerchantOpsCommandKind.SITE_REVIEW_APPROVAL -> pinnedSiteReview(r.pinnedTarget)
+                MerchantOpsCommandKind.CURRENCY_ENABLEMENT -> pinnedCurrency(r.pinnedTarget)
             }
             MerchantOpsRequestSnapshot(r.approvalId, kind, r.merchantId, pinned, r.evidenceRef, r.createdAt)
         }
@@ -86,6 +88,18 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
     }
 
     /** B3-1 Site 심사 승인 고정 대상(문자열 필드 7개 정확 일치). */
+    /** B3-2 통화 활성화 고정 대상(필드 8개 정확 일치 — 날짜 두 개는 KST 날짜 문자열 또는 JSON null, 자료형 강제 변환 없음). */
+    private fun pinnedCurrency(text: String): PinnedCurrencyEnablementTarget {
+        val n = json.readTree(text)
+        check(n.isObject && n.propertyNames().toSet() == CURRENCY_FIELDS) { "pinned_target shape (currency)" }
+        fun date(name: String) = n.required(name).let { if (it.isNull) null else java.time.LocalDate.parse(text(n, name)) }
+        return PinnedCurrencyEnablementTarget(
+            merchantId = text(n, "merchantId"), merchantName = text(n, "merchantName"), merchantAccountId = text(n, "merchantAccountId"),
+            accountLifecycle = text(n, "accountLifecycle"), currency = text(n, "currency"), effectiveFromMode = text(n, "effectiveFromMode"),
+            effectiveFrom = date("effectiveFrom"), effectiveTo = date("effectiveTo"),
+        )
+    }
+
     private fun pinnedSiteReview(text: String): PinnedSiteReviewApprovalTarget {
         val n = json.readTree(text)
         check(n.isObject && n.propertyNames().toSet() == SITE_REVIEW_FIELDS) { "pinned_target shape (site review)" }
@@ -101,6 +115,9 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
 
     private companion object {
         val ACTIVATION_FIELDS = setOf("merchantId", "merchantName", "merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy")
+        val CURRENCY_FIELDS = setOf(
+            "merchantId", "merchantName", "merchantAccountId", "accountLifecycle", "currency", "effectiveFromMode", "effectiveFrom", "effectiveTo",
+        )
         val SITE_REVIEW_FIELDS = setOf("merchantId", "merchantName", "merchantSiteId", "channelType", "reviewStatus", "reasonCode", "registeredBy")
         val MID_FIELDS = setOf(
             "merchantId", "merchantName", "accountCount", "contractId", "agreementId", "revisionNo", "approved", "effectiveFrom", "effectiveTo", "primarySiteId", "channelType",

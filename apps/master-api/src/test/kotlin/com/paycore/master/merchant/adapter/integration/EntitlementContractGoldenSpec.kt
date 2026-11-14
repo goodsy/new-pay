@@ -137,6 +137,31 @@ class EntitlementContractGoldenSpec : FunSpec({
         EntitlementEnvelope.signatureHeader(g("signingKeyId"), Base64.getDecoder().decode(g("signingKeyBase64")), body) shouldBe g("signatureHeader")
     }
 
+    // MERCHANT-OPS-002 §8.3 B3-2-4(골든 확장, review MINOR-1): AT_EXECUTION 확정 시각(lockedNow — KST 자정 아님·ms 있음)이 통화 구간 `from`인 Snapshot.
+    // 같은 v3 계약·같은 ID에 통화 구간(열린 구간)·revision·발행 시각만 다르다. harness 생성 절차가 두 앱과 독립적으로 만든다(값은 Demo).
+    val atExecution = JsonMapper.builder().build()
+        .readTree(ClassPathResource("contracts/entitlement-snapshot-v3-currency-at-execution.golden.json").inputStream)
+    fun ga(name: String): String = atExecution.get(name).stringValue()
+
+    test("B3-2: a currency segment starting at an AT_EXECUTION lockedNow (non-midnight, milliseconds) equals its v3 golden byte for byte") {
+        val lockedNow = Instant.parse("2026-10-09T02:00:07.123Z")
+        listOf("merchantId", "businessId", "mid", "agreementId").forEach { ga(it) shouldBe g(it) }
+        val variant = snapshot.copy(
+            revision = 8,
+            issuedAt = Instant.parse(ga("issuedAt")),
+            leaseUntil = Instant.parse(ga("leaseUntil")),
+            accounts = listOf(snapshot.accounts.single().copy(currencies = listOf(CurrencyState(krw, 0, lockedNow, null)))),
+        )
+        listOf(variant.canonicalContent, variant.contentHash, variant.wirePayload()) shouldBe
+            listOf(ga("contentCanonical"), ga("contentHash"), ga("wirePayloadCanonical"))
+        variant.canonicalContent.contains("\"currencies\":[{\"currency\":\"KRW\",\"from\":\"2026-10-09T02:00:07.123Z\",\"minorUnit\":0,\"to\":null}]") shouldBe true
+        val body = EntitlementEnvelope.body(
+            RelayEnvelope(ga("eventId"), "EntitlementSnapshot", ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION, "master-api", ga("merchantId"), 8, lockedNow, 0, variant.wirePayload()),
+        )
+        String(body) shouldBe ga("envelopeBody")
+        EntitlementEnvelope.signatureHeader(ga("signingKeyId"), Base64.getDecoder().decode(ga("signingKeyBase64")), body) shouldBe ga("signatureHeader")
+    }
+
     test("the APP channel identifier is not carried — only its type (minimum identifiers, AUTHN-001 §9.1)") {
         snapshot.canonicalContent.contains("com.example.shop_app") shouldBe false
         snapshot.canonicalContent.contains("\"channel\":{\"type\":\"APP\"}") shouldBe true

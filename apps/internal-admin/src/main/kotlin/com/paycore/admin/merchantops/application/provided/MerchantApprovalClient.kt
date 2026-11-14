@@ -2,6 +2,7 @@ package com.paycore.admin.merchantops.application.provided
 
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * MASTER 2인 승인 명령 채널 클라이언트(MERCHANT-OPS-002 B2-2 §9.4·§9.5 — 서명 v1, 조회 키 하나 D-MOPS-005, **DB TX 밖에서만**: TX 안이면 `IllegalStateException`). 호출자는 approval의
@@ -23,6 +24,9 @@ interface MerchantApprovalClient {
     /** B3-1 Site 심사 승인 대상 사실(MASTER 상세 — Site 생애·심사 상태·등록자). */
     fun siteReviewTarget(merchantId: String, merchantSiteId: String): MerchantTargetResult<SiteReviewTarget>
 
+    /** B3-2 통화 활성화 대상 사실(MASTER 상세 — MID 생애·[now]에 끝나지 않은 같은 통화 기록 유무). 적격 판정은 호출자(advisory), 권위는 MASTER 실행 TX. */
+    fun currencyTarget(merchantId: String, merchantAccountId: String, currency: String, now: Instant): MerchantTargetResult<CurrencyTarget>
+
     fun execute(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
 
     fun confirmDeadline(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
@@ -42,6 +46,9 @@ enum class MerchantApprovalOperation(val path: String, val code: String) {
 
     /** B3-1 Site 심사 승인(APPROVED 고정, 성공 reference `site_…#<seq>`). */
     DECIDE_SITE_REVIEW("site-review-approvals", "DecideSiteReview"),
+
+    /** B3-2 통화 활성화(효력 시작 `AT_EXECUTION`/KST 00:00 — D-MOPS-009 ②, 성공 reference `cur_…`). */
+    ENABLE_CURRENCY("currency-enablements", "EnableCurrency"),
 }
 
 /** B3 승인 대상 조회 결과(MASTER 상세 한 번의 읽기). */
@@ -68,6 +75,19 @@ data class ActivationTarget(
     val status: String?,
     val registeredBy: String?,
     val primarySiteId: String?,
+)
+
+/**
+ * 통화 활성화 대상 사실(B3-2 §9.16). MID가 상세에 없으면 [accountLifecycle] null. [openRecord] = 같은 통화 기록 중 [종료 시각 없음 또는 조회 시각 이후 종료]가 있음
+ * (ADMIN 미리 보기의 "같은 통화 열린 기록" — 중첩 판정의 권위는 MASTER `CURRENCY_ENABLEMENT_OVERLAP`).
+ */
+data class CurrencyTarget(
+    val merchantId: String,
+    val merchantName: String,
+    val merchantAccountId: String,
+    val accountLifecycle: String?,
+    val currency: String,
+    val openRecord: Boolean,
 )
 
 /** Site 심사 승인 대상 사실(B3-1 §9.16). Site가 없으면 [siteLifecycle] null. [reviewStatus] = 심사 결정(결정 없음 = `PENDING`). 채널 식별값 없음. */
@@ -221,6 +241,16 @@ interface MerchantApprovalContract {
     @Suppress("LongParameterList")
     fun siteReviewApproval(
         approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantSiteId: String, reasonCode: String,
+    ): MerchantApprovalCommandOutput
+
+    /**
+     * B3-2(§9.26): `operation` = EnableCurrency, 명령 필드 merchantAccountId, currency, effectiveFrom, effectiveTo. [effectiveFromMode] `AT_EXECUTION`이면 본문 `effectiveFrom` = 문자열
+     * `AT_EXECUTION` 그대로(승인 시각을 넣지 않는다), `DATE`면 [effectiveFromDate](KST 날짜)의 00:00 KST UTC 시각. [effectiveToDate]도 같은 변환(C-7 배타 끝), 없으면 키 없음.
+     */
+    @Suppress("LongParameterList")
+    fun currencyEnablement(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantAccountId: String, currency: String,
+        effectiveFromMode: String, effectiveFromDate: LocalDate?, effectiveToDate: LocalDate?,
     ): MerchantApprovalCommandOutput
 }
 

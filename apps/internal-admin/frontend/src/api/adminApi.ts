@@ -347,6 +347,20 @@ export interface MerchantSiteReviewApprovalInput {
   evidenceRef: string
 }
 
+/**
+ * B3-2 2인 통화 활성화 요청(MERCHANT-OPS-002 §9.16·§9.26 — 근거 = 기관(카드사/VAN) 회신 참조 필수, KRW만 C-41). 효력 시작 `AT_EXECUTION`(MASTER 실행 시각으로 확정) 또는
+ * `DATE`(`effectiveFromDate` = KST `YYYY-MM-DD`, 내일 이후). `effectiveToDate`(선택)는 그 날 0시 종료(미포함 — C-7).
+ */
+export interface MerchantCurrencyEnablementInput {
+  merchantId: string
+  merchantAccountId: string
+  currency: 'KRW'
+  effectiveFromMode: 'AT_EXECUTION' | 'DATE'
+  effectiveFromDate?: string
+  effectiveToDate?: string
+  evidenceRef: string
+}
+
 /** 상세(§3.2 — 한 번의 일관 읽기). 카드 Route는 인수사 코드·Route 참조·상태 등만(기관 가맹점 번호 없음 — D-MS2-005). 시각은 UTC ISO. */
 export interface MerchantDetail {
   merchant: { merchantId: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
@@ -749,6 +763,7 @@ export interface AdminApi {
   rejectSiteReview(input: SiteReviewRejectionInput): Promise<RegistrationOutcome>
   requestMerchantPaymentMethodActivation(input: MerchantActivationApprovalInput): Promise<{ approvalId: string }>
   requestMerchantSiteReviewApproval(input: MerchantSiteReviewApprovalInput): Promise<{ approvalId: string }>
+  requestMerchantCurrencyEnablement(input: MerchantCurrencyEnablementInput): Promise<{ approvalId: string }>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -814,5 +829,6 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     rejectSiteReview: (input) => call('/api/merchant-registrations/site-review-rejections', 'POST', input),
     requestMerchantPaymentMethodActivation: (input) => call('/api/approvals/merchant-payment-method-activation', 'POST', input),
     requestMerchantSiteReviewApproval: (input) => call('/api/approvals/merchant-site-review-approval', 'POST', input),
+    requestMerchantCurrencyEnablement: (input) => call('/api/approvals/merchant-currency-enablement', 'POST', input),
   }
 }

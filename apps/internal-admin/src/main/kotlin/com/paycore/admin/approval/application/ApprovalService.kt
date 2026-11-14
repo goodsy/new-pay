@@ -110,7 +110,7 @@ class ApprovalService(
             ?: ApprovalParticipants.credentialIssuerConflict(kind, requester.actorId, target.credentialIssuers)
             ?: if (target.status != "ACTIVE") NOT_ELIGIBLE else if (executor.rolesSuspendedBy(command.targetActorId, command.causeApprovalId).isEmpty()) "NOTHING_TO_REACTIVATE" else null
         ApprovalKind.OPERATOR_CORRECTION_CANCEL, ApprovalKind.ACQ_REACQUISITION, ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE,
-        ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION, ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL,
+        ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION, ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL, ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT,
         ->
             error("owner-service kinds are refused before the transaction (M-6)")
     }

@@ -12,6 +12,7 @@ import com.paycore.admin.approval.application.provided.ApprovalOutcome
 import com.paycore.admin.approval.application.provided.DecideApproval
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
+import com.paycore.admin.approval.application.provided.RequestMerchantCurrencyEnablement
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
 import com.paycore.admin.approval.application.provided.RequestMerchantPaymentMethodActivation
 import com.paycore.admin.approval.application.provided.RequestMerchantSiteReviewApproval
@@ -37,6 +38,7 @@ import com.paycore.admin.approval.domain.MerchantOpsRequestSnapshot
 import com.paycore.admin.approval.domain.OwnerExecution
 import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
+import com.paycore.admin.approval.domain.PinnedCurrencyEnablementTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
 import com.paycore.admin.approval.domain.PinnedMerchantTarget
 import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
@@ -45,6 +47,7 @@ import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.merchantops.application.provided.ActivationTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
+import com.paycore.admin.merchantops.application.provided.CurrencyTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTargetResult
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalClient
@@ -60,6 +63,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionStatus
 import java.time.Instant
+import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /**
@@ -78,6 +82,8 @@ import java.time.temporal.ChronoUnit
  * ([ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL] — `DecideSiteReview`, 소유 참조 `site_…#n`의 Site 부분 = pinned Site)이 같은 틀(요청 → A → TX1 → C → TX2·회복)을 쓴다.
  * **D-MOPS-009 ③(B3-1F — §9.27, Q-MOPS-24 답)**: 두 종류도 계약 승인과 같은 위치(참여자 잠금·pinned 종류 확인 뒤, TOTP 소비 **전**)에서 승인자 ≠ pinned `registeredBy`
  * (개통 등록자·Site 등록자 — SUSPENDED 재승인 포함, D-MOPS-010 ②)를 검사한다([registrantOf] — 403 `APPROVER_IS_REGISTRANT`, ADMIN 응답 code는 하나 — C-50). 첫 MID 발급은 대상 아님.
+ * B3-2(§9.16·§9.26 — D-MOPS-009 ②): 통화 활성화([ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT] — `EnableCurrency`, 소유 참조 `cur_…` 문법)도 같은 틀. 본문 `effectiveFrom`은 TX1이 한 번
+ * 만들어 저장하고(`AT_EXECUTION` 문자열 또는 KST 00:00 시각) 실행·기한 확인·재전송은 그 바이트 그대로다. 등록자 규칙 없음(1인 등록 단계 없음 — [registrantOf] null).
  */
 @Service
 class MerchantOpsApprovalService(
@@ -109,6 +115,7 @@ class MerchantOpsApprovalService(
         ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> MerchantApprovalOperation.ISSUE_FIRST_DEFAULT_MERCHANT_ACCOUNT
         ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION -> MerchantApprovalOperation.APPROVE_PAYMENT_METHOD_ACTIVATION
         ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL -> MerchantApprovalOperation.DECIDE_SITE_REVIEW
+        ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT -> MerchantApprovalOperation.ENABLE_CURRENCY
         else -> throw IllegalArgumentException("not a merchant approval kind: $kind")
     }
 
@@ -251,6 +258,16 @@ class MerchantOpsApprovalService(
             MerchantTargetResult.MerchantNotFound -> null
             is MerchantTargetResult.Unavailable -> throw Unreadable()
         }
+        // B3-2: 현재 = MID 생애 + 요청 값(모드·날짜는 pinned 그대로 — 바뀌는 것은 MASTER 상태뿐). 그 사이 같은 통화가 열렸거나 MID가 ACTIVE가 아니면 null(TARGET_CHANGED).
+        is PinnedCurrencyEnablementTarget -> when (val found = client.currencyTarget(pinned.merchantId, pinned.merchantAccountId, pinned.currency, now())) {
+            is MerchantTargetResult.Found -> if (currencyIneligibility(found.target) != null) {
+                null
+            } else {
+                pinnedCurrencyOf(found.target, pinned.effectiveFromMode, pinned.effectiveFrom, pinned.effectiveTo) ?: throw Unreadable()
+            }
+            MerchantTargetResult.MerchantNotFound -> null
+            is MerchantTargetResult.Unavailable -> throw Unreadable()
+        }
     }
 
     private fun sameTarget(pinned: PinnedMerchantTarget, current: PinnedMerchantTarget?): Boolean = when (pinned) {
@@ -258,6 +275,7 @@ class MerchantOpsApprovalService(
         is PinnedFirstMidTarget -> current is PinnedFirstMidTarget && pinned.sameTargetAs(current)
         is PinnedActivationApprovalTarget -> current is PinnedActivationApprovalTarget && pinned.sameTargetAs(current)
         is PinnedSiteReviewApprovalTarget -> current is PinnedSiteReviewApprovalTarget && pinned.sameTargetAs(current)
+        is PinnedCurrencyEnablementTarget -> current is PinnedCurrencyEnablementTarget && pinned.sameTargetAs(current)
     }
 
     private class Unreadable : RuntimeException(null, null, false, false)
@@ -303,6 +321,45 @@ class MerchantOpsApprovalService(
             command.context,
         )
     }
+
+    /**
+     * B3-2 통화 활성화 요청(§9.16·§9.26 — D-MOPS-009 ②): 입력 규칙(KRW만·모드·DATE는 요청 시각 KST 기준 내일 이후 — advisory)·역할 → MASTER 상세(MID ACTIVE·같은 통화 끝나지 않은 기록 없음
+     * — advisory) → pinned(모드·KST 날짜 그대로) → 공통 요청 TX. 권위 판정(소급·중첩·MID)은 MASTER 실행 TX.
+     */
+    override fun requestCurrencyEnablement(command: RequestMerchantCurrencyEnablement): ApprovalOutcome = observed(REQUEST, CURRENCY_KIND) {
+        MerchantOpsInputRules.currencyProblem(
+            command.merchantId, command.merchantAccountId, command.currency, command.effectiveFromMode, command.effectiveFromDate, command.effectiveToDate, command.evidenceRef,
+            now().atZone(SEOUL).toLocalDate(),
+        )?.let { (field, reason) -> return@observed ApprovalOutcome.Rejected(INVALID_INPUT, field, reason) }
+        if (!holdsNow(command.requesterActorId, ApprovalParticipants.requesterRole(CURRENCY_KIND))) return@observed ApprovalOutcome.Denied
+        val target = when (val found = client.currencyTarget(command.merchantId, command.merchantAccountId, command.currency, now())) {
+            is MerchantTargetResult.Found -> found.target
+            MerchantTargetResult.MerchantNotFound -> return@observed refuseKind(CURRENCY_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(MERCHANT_NOT_FOUND), MERCHANT_NOT_FOUND)
+            is MerchantTargetResult.Unavailable -> return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        }
+        currencyIneligibility(target)?.let {
+            return@observed refuseKind(CURRENCY_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(NOT_ELIGIBLE), it)
+        }
+        val pinned = pinnedCurrencyOf(
+            target, command.effectiveFromMode, command.effectiveFromDate?.let(LocalDate::parse), command.effectiveToDate?.let(LocalDate::parse),
+        ) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        requestPinned(
+            CURRENCY_KIND, MerchantOpsCommandKind.CURRENCY_ENABLEMENT, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
+            command.context,
+        )
+    }
+
+    /** 통화 활성화 미리 보기 부적격 사유(advisory — 권위는 MASTER 실행 TX). 순서: MID 없음·비활성 → 같은 통화 끝나지 않은 기록 있음. */
+    private fun currencyIneligibility(t: CurrencyTarget): String? = when {
+        t.accountLifecycle == null -> "MERCHANT_ACCOUNT_NOT_FOUND"
+        t.accountLifecycle != "ACTIVE" -> "MERCHANT_ACCOUNT_NOT_ACTIVE"
+        t.openRecord -> "CURRENCY_ENABLEMENT_OPEN"
+        else -> null
+    }
+
+    private fun pinnedCurrencyOf(t: CurrencyTarget, mode: String, from: LocalDate?, to: LocalDate?): PinnedCurrencyEnablementTarget? = runCatching {
+        PinnedCurrencyEnablementTarget(t.merchantId, t.merchantName, t.merchantAccountId, requireNotNull(t.accountLifecycle), t.currency, mode, from, to)
+    }.getOrNull()
 
     /** B3 공통 요청 TX(B2와 같은 순서 — 승인 행 INSERT(그룹 미해결 키 C-35) → 요청자 잠금·재검사 → 명령 행 INSERT(pinned·근거) → 감사). */
     @Suppress("LongParameterList")
@@ -441,6 +498,8 @@ class MerchantOpsApprovalService(
         // B3-1(C-34): 개통 승인 = pinned activationId 그대로, Site 심사 승인 = `site_…#n` 문법이고 Site 부분 = pinned Site.
         is PinnedActivationApprovalTarget -> reference == pinned.activationId
         is PinnedSiteReviewApprovalTarget -> SITE_REVIEW_REFERENCE.matches(reference) && reference.substringBefore('#') == pinned.merchantSiteId
+        // B3-2: 새 통화 기록 ID는 MASTER가 정한다(첫 MID와 같은 방식 — `cur_` 문법만).
+        is PinnedCurrencyEnablementTarget -> CURRENCY_REFERENCE.matches(reference)
         null -> false
     }
 
@@ -480,7 +539,7 @@ class MerchantOpsApprovalService(
         val pinned = snapshot.pinnedTarget
         val pinnedKindMatches = (request.kind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL && pinned is PinnedContractApprovalTarget) ||
             (request.kind == MID_KIND && pinned is PinnedFirstMidTarget) || (request.kind == ACTIVATION_KIND && pinned is PinnedActivationApprovalTarget) ||
-            (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget)
+            (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget) || (request.kind == CURRENCY_KIND && pinned is PinnedCurrencyEnablementTarget)
         if (!pinnedKindMatches) throw IntegrityViolation("command_kind", merchantId, request.id)
         // D-MOPS-008 ③(C-27): Revision 등록자는 그 Revision을 승인할 수 없다 — TOTP를 쓰기 전에 거부(상태·TOTP 불변, 감사 APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT).
         // B2-3: 첫 MID 발급에는 적용하지 않는다(결정 범위가 "그 Revision을 승인" — §9.3 판정 5).
@@ -513,6 +572,11 @@ class MerchantOpsApprovalService(
                 is PinnedSiteReviewApprovalTarget -> contract.siteReviewApproval(
                     request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantSiteId, pinned.reasonCode,
                 )
+                // B3-2(§9.26): 본문은 여기서 한 번 만들어 저장한다 — AT_EXECUTION은 문자열 그대로(승인 시각 `now`는 근거 시각일 뿐 효력 시작이 아니다), 날짜는 KST 00:00(C-7).
+                is PinnedCurrencyEnablementTarget -> contract.currencyEnablement(
+                    request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantAccountId, pinned.currency,
+                    pinned.effectiveFromMode, pinned.effectiveFrom, pinned.effectiveTo,
+                )
             }
         } catch (_: IllegalArgumentException) {
             throw IntegrityViolation("command_body", merchantId, request.id)
@@ -538,6 +602,8 @@ class MerchantOpsApprovalService(
         is PinnedActivationApprovalTarget -> pinned.registeredBy
         is PinnedSiteReviewApprovalTarget -> pinned.registeredBy
         is PinnedFirstMidTarget -> null
+        // B3-2(§9.27 적용 범위 밖): 통화 활성화에는 1인 등록 단계가 없다 — 요청자≠승인자(참여자 규칙)만.
+        is PinnedCurrencyEnablementTarget -> null
     }
 
     private fun invalidate(locked: VersionedApproval, request: ApprovalRequest, approver: ParticipantView, code: String, now: Instant, context: AdminRequestContext): ApprovalOutcome {
@@ -779,7 +845,10 @@ class MerchantOpsApprovalService(
         val MID_KIND = ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE
         val ACTIVATION_KIND = ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION
         val SITE_REVIEW_KIND = ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL
-        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ACTIVATION_KIND, SITE_REVIEW_KIND)
+        val CURRENCY_KIND = ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT
+        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ACTIVATION_KIND, SITE_REVIEW_KIND, CURRENCY_KIND)
+        val CURRENCY_REFERENCE = Regex("^cur_[0-9A-HJKMNP-TV-Z]{26}$")
+        val SEOUL: java.time.ZoneId = java.time.ZoneId.of("Asia/Seoul")
         val SITE_REVIEW_REFERENCE = Regex("^site_[0-9A-HJKMNP-TV-Z]{26}#[1-9][0-9]{0,9}$")
 
         /** Site 심사 승인 요청이 가능한 심사 상태(PENDING = 결정 없음, SUSPENDED → APPROVED 재개 — §9.13 해석). */

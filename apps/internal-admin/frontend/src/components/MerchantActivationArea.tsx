@@ -4,6 +4,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
 import { PAYMENT_METHODS } from '../lib/paymentMethods'
+import { CURRENCIES, kstTomorrowOf, nextKstDate, type EffectiveFromMode } from '../lib/currencies'
 import { EVIDENCE_REF } from './ContractApprovalRequest'
 import { EmptyRow, Field, KstTime, StatusBadge } from './DataBits'
 import { ErrorNotice, WarningNote } from './Notice'
@@ -23,6 +24,7 @@ export const APPROVAL_GROUPS = {
   CONTRACT: ['MERCHANT_CONTRACT_APPROVAL', 'MERCHANT_FIRST_MID_ISSUANCE'],
   PM: ['MERCHANT_PAYMENT_METHOD_ACTIVATION', 'MERCHANT_PAYMENT_METHOD_RESUME'],
   SITE_REVIEW: ['MERCHANT_SITE_REVIEW_APPROVAL'],
+  CURRENCY: ['MERCHANT_CURRENCY_ENABLEMENT'],
 } as const
 
 export function pendingIn(detail: MerchantDetail, group: readonly string[]): boolean {
@@ -65,6 +67,8 @@ export function activationChecklist(detail: MerchantDetail, account: Account, no
   const methodActive = account.paymentMethods.some((m) => m.paymentMethod === 'CARD' && m.status === 'ACTIVE')
   const confirmed = (account.siteConfirmations ?? []).some((c) => c.merchantSiteId === primary && c.paymentMethod === 'CARD' && !c.revoked)
   const krw = account.currencies.some((c) => c.currencyCode === 'KRW' && c.endedAt === null && isOpenAt(c.effectiveFrom, c.effectiveTo, t))
+  // B3-2(D-MOPS-009 ②): 날짜 지정으로 아직 시작 전인 KRW — 미충족이지만 "효력 전"으로 구별한다(§9.24 Demo).
+  const krwLater = !krw && account.currencies.some((c) => c.currencyCode === 'KRW' && new Date(c.effectiveFrom).getTime() > t)
   const route = account.cardRoutes.some((r) => r.status === 'ACTIVE')
   const p = detail.propagation
   const acked = p !== null && p.effectConfirmedAt !== null && p.latestAckRevision === p.latestRevision
@@ -73,7 +77,7 @@ export function activationChecklist(detail: MerchantDetail, account: Account, no
     { key: 'review', group: '결제 생성 조건', label: '② 대표 Site 심사 승인', state: state(primarySite?.review?.decision === 'APPROVED') },
     { key: 'method', group: '결제 생성 조건', label: '③ 결제수단(카드) 개통 활성', state: state(methodActive) },
     { key: 'confirmation', group: '결제 생성 조건', label: '④ 대표 Site 적용 확인 유효', state: state(confirmed) },
-    { key: 'currency', group: '결제 생성 조건', label: '⑤ 통화(KRW) 활성', state: state(krw), note: krw ? undefined : 'B3-2 통화 활성화 이후' },
+    { key: 'currency', group: '결제 생성 조건', label: '⑤ 통화(KRW) 활성', state: state(krw), note: krw ? undefined : krwLater ? '효력 전' : '통화 활성화 승인 필요' },
     { key: 'route', group: '승인 시작 조건', label: '⑥ 카드 Route 활성', state: state(route), note: route ? undefined : 'B3-3 Route 개통 이후' },
     { key: 'terms', group: '승인 시작 조건', label: '⑦ 수수료·정산 배정·한도', state: 'LATER', note: 'B4 이후' },
     { key: 'propagation', group: '전파', label: '⑧ 최신 권리 revision을 결제 서비스가 수신 확인', state: state(acked) },
@@ -81,6 +85,106 @@ export function activationChecklist(detail: MerchantDetail, account: Account, no
 }
 
 const CHECK_TEXT: Record<CheckState, string> = { MET: '충족', NOT_MET: '미충족', LATER: '이후 배치' }
+
+/** 통화 기록 한 줄의 [now] 기준 상태(표시만 — 권위는 결제 시점 PAYMENT 판정). */
+function currencyState(c: Account['currencies'][number], now: Date): '효력 전' | '효력 중' | '종료' {
+  const t = now.getTime()
+  if (new Date(c.effectiveFrom).getTime() > t) return '효력 전'
+  if (c.effectiveTo !== null && new Date(c.effectiveTo).getTime() <= t) return '종료'
+  return '효력 중'
+}
+
+const ISO_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+
+/**
+ * B3-2 통화 활성화 요청 폼(MERCHANT-OPS-002 §8.4 B3-2-6 — D-MOPS-009 ②, KRW만 C-41). 효력 시작: "승인 실행 즉시"(MASTER가 실행할 때의 시각으로 확정 — 승인 시각이 아니다) 또는
+ * "날짜 지정(내일 이후)"(KST 날짜 — 날짜 선택기 최솟값 = 내일 KST, 날짜 없이 보낼 수 없음). 종료일(선택)은 그 날 0시 종료(미포함 — C-7). 근거 = 기관(카드사/VAN) 회신 참조(필수).
+ * 날짜 판정은 화면·ADMIN 모두 advisory이고 권위는 MASTER(소급 거절 `CURRENCY_ENABLEMENT_RETROACTIVE`). 입력값은 화면 상태에만(저장소·URL 없음).
+ */
+function CurrencyRequest({ api, merchantId, account, now, onRequested, onSessionEnded }: {
+  api: AdminApi
+  merchantId: string
+  account: Account
+  now: Date
+  onRequested: (approvalId: string) => void
+  onSessionEnded?: (code: ConsoleErrorCode) => void
+}) {
+  const [mode, setMode] = useState<EffectiveFromMode>('AT_EXECUTION')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [evidenceRef, setEvidenceRef] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<ConsoleErrorCode | null>(null)
+  const groupName = useId()
+  const tomorrow = kstTomorrowOf(now)
+  const fromOk = mode === 'AT_EXECUTION' || (ISO_DATE.test(fromDate) && fromDate >= tomorrow)
+  const toMin = mode === 'DATE' && fromOk ? nextKstDate(fromDate) : tomorrow
+  const toOk = toDate === '' || (ISO_DATE.test(toDate) && toDate >= toMin)
+  const evidenceOk = EVIDENCE_REF.test(evidenceRef)
+  const valid = evidenceOk && fromOk && toOk
+  const currency = CURRENCIES[0]!
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!valid || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const { approvalId } = await api.requestMerchantCurrencyEnablement({
+        merchantId, merchantAccountId: account.merchantAccountId, currency: currency.code, effectiveFromMode: mode,
+        ...(mode === 'DATE' ? { effectiveFromDate: fromDate } : {}), ...(toDate === '' ? {} : { effectiveToDate: toDate }), evidenceRef,
+      })
+      setEvidenceRef('')
+      onRequested(approvalId)
+    } catch (e) {
+      const code = codeOf(e)
+      if (SESSION_ENDING.includes(code) && onSessionEnded) onSessionEnded(code)
+      else setError(code)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <form onSubmit={submit} aria-label={`통화 활성화 요청 ${account.merchantAccountId}`} className="flex flex-col gap-2 rounded-md border p-3">
+      <p className="text-xs">{`통화: ${currency.label}`}</p>
+      <fieldset className="flex flex-col gap-1 text-sm">
+        <legend className="text-xs font-medium">효력 시작</legend>
+        <label className="flex items-center gap-2">
+          <input type="radio" name={groupName} checked={mode === 'AT_EXECUTION'} onChange={() => setMode('AT_EXECUTION')} />
+          <span>승인 실행 즉시</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name={groupName} checked={mode === 'DATE'} onChange={() => setMode('DATE')} />
+          <span>날짜 지정(내일 이후)</span>
+        </label>
+        <p className="text-xs text-muted-foreground">
+          {mode === 'AT_EXECUTION' ? '승인 뒤 MASTER가 실제로 실행한 시각부터 효력이 시작됩니다.' : '그 날 00:00(KST)부터 효력이 시작됩니다. 승인 전에 그 시각이 지나면 거절됩니다.'}
+        </p>
+      </fieldset>
+      {mode === 'DATE' && (
+        <Field label="효력 시작일(KST)" hint={`${tomorrow} 이후`} className="text-xs">
+          {(describedBy) => (
+            <Input type="date" min={tomorrow} value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-describedby={describedBy}
+              aria-invalid={fromDate !== '' && !fromOk} className="h-8 text-xs" />
+          )}
+        </Field>
+      )}
+      <Field label="종료일(선택)" hint="이 날 0시 종료(미포함) — 비우면 종료 없음" className="text-xs">
+        {(describedBy) => (
+          <Input type="date" min={toMin} value={toDate} onChange={(e) => setToDate(e.target.value)} aria-describedby={describedBy}
+            aria-invalid={!toOk} className="h-8 text-xs" />
+        )}
+      </Field>
+      <Field label="기관(카드사/VAN) 회신 참조(필수)" hint="카드사·VAN 회신 번호 — 영문·숫자와 . _ : # / - 만, 1~128자(자유 문구 불가)" className="text-xs">
+        {(describedBy) => (
+          <Input value={evidenceRef} onChange={(e) => setEvidenceRef(e.target.value)} autoComplete="off" aria-describedby={describedBy}
+            aria-invalid={evidenceRef !== '' && !evidenceOk} className="h-8 font-mono text-xs" />
+        )}
+      </Field>
+      {error && <ErrorNotice>{CURRENCY_REQUEST_MESSAGES[error] ?? REQUEST_MESSAGES[error] ?? ERROR_MESSAGES[error]}</ErrorNotice>}
+      <div><Button type="submit" size="sm" disabled={!valid || busy} aria-busy={busy}>승인 요청 보내기</Button></div>
+    </form>
+  )
+}
 
 /** 결과 불명(같은 submissionId로 다시 보내 확인) 응답 code. */
 const UNKNOWN_CODES: readonly ConsoleErrorCode[] = ['MASTER_OUTCOME_UNKNOWN', 'MASTER_RETRY_SAME_KEY', 'AUDIT_UNAVAILABLE', 'SERVER_ERROR']
@@ -128,6 +232,11 @@ const REQUEST_MESSAGES: Partial<Record<ConsoleErrorCode, string>> = {
   TARGET_NOT_ELIGIBLE_ADVISORY: '지금은 승인 요청할 수 없는 상태입니다. 상세를 다시 확인해 주세요.',
   DUPLICATE_UNRESOLVED: '같은 종류의 승인 요청이 이미 대기 중입니다. 승인함에서 확인해 주세요.',
   INVALID_INPUT: '근거 참조 형식이 올바르지 않습니다(영문·숫자와 . _ : # / - 만, 1~128자, 공백 없음).',
+}
+
+/** B3-2 통화 요청 400(입력 규칙 — 날짜·모드·통화 포함). */
+const CURRENCY_REQUEST_MESSAGES: Partial<Record<ConsoleErrorCode, string>> = {
+  INVALID_INPUT: '입력이 올바르지 않습니다(시작일은 내일 이후, 종료일은 시작 뒤, 근거 참조 형식 확인).',
 }
 
 /** 2인 승인 요청 폼(근거 참조 필수 — 라벨이 의미를 말한다: 기관 회신 참조 / PG 심사 근거, minor-5). 근거는 화면 상태에만(저장소·URL 없음). */
@@ -255,6 +364,10 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
   const merchantId = detail.merchant.merchantId
   const pmPending = pendingIn(detail, APPROVAL_GROUPS.PM)
   const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
+  const currencyPending = pendingIn(detail, APPROVAL_GROUPS.CURRENCY)
+  const [currencyRequest, setCurrencyRequest] = useState(false)
+  // B3-2: 같은 통화(KRW)의 끝나지 않은 기록(효력 전 포함)이 있으면 요청 버튼을 숨긴다(서버 미리 보기와 같은 판정 — 권위는 MASTER 중첩 판정).
+  const unendedKrw = account.currencies.some((c) => c.currencyCode === 'KRW' && (c.effectiveTo === null || new Date(c.effectiveTo).getTime() > now.getTime()))
   const primary = openPrimarySite(account, now)
   // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ⑤): 개통 등록 버튼은 결제수단 목록(PAYMENT_METHODS)에서 그린다 — 지금은 카드 하나. 수단마다 끝나지 않은 개통이 없을 때만.
   const registrable = PAYMENT_METHODS.filter((pm) => !account.paymentMethods.some((m) => m.paymentMethod === pm.code && m.status !== 'TERMINATED'))
@@ -393,6 +506,31 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
         </TableBody>
       </Table>
 
+      <Table aria-label="통화">
+        <TableHeader>
+          <TableRow><TableHead>통화</TableHead><TableHead>효력 시작</TableHead><TableHead>종료</TableHead><TableHead>상태</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {account.currencies.length === 0 && <EmptyRow columns={4} message="통화 활성화가 없습니다." />}
+          {account.currencies.map((c) => (
+            <TableRow key={c.enablementId} aria-label={c.enablementId}>
+              <TableCell>{c.currencyCode}</TableCell>
+              <TableCell><KstTime iso={c.effectiveFrom} /></TableCell>
+              <TableCell>{c.effectiveTo === null ? <span className="text-muted-foreground">없음</span> : <KstTime iso={c.effectiveTo} />}</TableCell>
+              <TableCell>{currencyState(c, now)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {canOperate && midActive && !currencyPending && !unendedKrw && (
+        currencyRequest ? (
+          <CurrencyRequest api={api} merchantId={merchantId} account={account} now={now} onSessionEnded={onSessionEnded}
+            onRequested={(id) => { setCurrencyRequest(false); onRequested(id, '통화 활성화') }} />
+        ) : (
+          <div><Button type="button" variant="outline" size="sm" onClick={() => setCurrencyRequest(true)}>통화 활성화 요청</Button></div>
+        )
+      )}
+
       <section aria-label="개통 점검표" className="flex flex-col gap-2 rounded-md bg-muted/40 p-3 text-sm">
         <h5 className="font-semibold">개통 점검표</h5>
         <p className="text-xs text-muted-foreground">이 표는 참고용입니다. 실제 판정은 결제 시점에 PAYMENT가 합니다.</p>
@@ -406,6 +544,9 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
             </li>
           ))}
         </ul>
+        <p className="text-xs">{`결제 생성 조건: ${checklist.filter((c) => c.group === '결제 생성 조건').every((c) => c.state === 'MET') ? '충족' : '미충족'}(참고)`}</p>
+        <p className="text-xs text-muted-foreground">승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)</p>
+        <p className="text-xs text-muted-foreground">새 MID는 가맹점 API Credential이 없어 Demo 결제 호출 불가(L-17)</p>
       </section>
     </section>
   )

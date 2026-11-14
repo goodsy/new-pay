@@ -20,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController
  * ID는 서명 본문에 있다(C-2). 이 컨트롤러는 TX를 열지 않고 저장 Port를 직접 부르지 않는다(ArchUnit) — 1인 등록·1인 거절·근거 있는 2인 명령만 부른다(근거 없는 2인 메서드는 seed 전용).
  *
  * - 1인(B1 공통 필드 — `mo1.…`·`actor`): `payment-method-activations`(→ `act_…`), `site-review-rejections`(REJECTED 고정 — 결정값 필드 없음, → `site_…#n`).
- * - 2인(근거 공통 9 + `operation` + 명령 필드, 키 `mop1.<approvalId>`): `payment-method-activation-approvals`(→ `act_…`), `site-review-approvals`(APPROVED 고정, → `site_…#n`).
+ * - 2인(근거 공통 9 + `operation` + 명령 필드, 키 `mop1.<approvalId>`): `payment-method-activation-approvals`(→ `act_…`), `site-review-approvals`(APPROVED 고정, → `site_…#n`),
+ *   B3-2 `currency-enablements`(→ `cur_…` — `effectiveFrom` `AT_EXECUTION`/KST 00:00, D-MOPS-009 ②).
  *   기한 확인·결정 조회는 기존 [MerchantApprovalController] endpoint가 본문 `operation`으로 처리한다(C-39).
  *
  * 응답은 §3.3 그대로(거절에 `reference` 키 없음 — C-12). 로그·지표: 연산·결과 분류·상관 ID만(멱등 키 원문·근거 참조·행위자 없음). 지표 `command{operation,outcome}`(1인 거절 label은
@@ -60,6 +61,15 @@ class MerchantActivationController(
     @PostMapping("/site-review-approvals")
     fun approveSiteReview(request: HttpServletRequest): ResponseEntity<ByteArray> = approved(request, DECIDE_REVIEW) { body ->
         MerchantApprovalCommandParser.siteReviewApproval(body, settings.window)?.let { c -> c to { entitlement.approveSiteReviewWithEvidence(c) } }
+    }
+
+    /**
+     * B3-2 2인 통화 활성화(근거 경로 — D-MOPS-009 ②, §9.26): `effectiveFrom` = `AT_EXECUTION`(MASTER 잠금 뒤 시각으로 확정) 또는 KST 00:00 시각, KRW만(C-41). 성공 reference `cur_…`.
+     * B3-1F-10: 이 연결 전에 ArchUnit(근거 없는 `enableCurrency` 호출자 = seed뿐)을 다시 실행해 보고서를 남겼다.
+     */
+    @PostMapping("/currency-enablements")
+    fun enableCurrency(request: HttpServletRequest): ResponseEntity<ByteArray> = approved(request, ENABLE_CURRENCY) { body ->
+        MerchantApprovalCommandParser.currencyEnablement(body, settings.window)?.let { c -> c to { entitlement.enableCurrencyWithEvidence(c) } }
     }
 
     private fun command(
@@ -152,6 +162,7 @@ class MerchantActivationController(
         const val REJECT = "RejectSiteReview"
         const val APPROVE_ACTIVATION = "ApprovePaymentMethodActivation"
         const val DECIDE_REVIEW = "DecideSiteReview"
+        const val ENABLE_CURRENCY = "EnableCurrency"
         const val SUCCEEDED = "SUCCEEDED"
         const val REJECTED = "REJECTED"
         const val KEY_REUSED = "KEY_REUSED"

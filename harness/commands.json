@@ -57,7 +57,7 @@
       "env": {},
       "purpose": "harness 판정 도구 자체 시험: test-summary(0건·미달·실패·오류·skip·오래된 보고서·timestamp 없음·--not-before 누락 거부), fingerprint(소스·gate 정의·실행비트·삭제·HEAD 없음 감지, umask 차이 무시, 상태 파일 제외, 무시된 소스 거부), verify-gate(단계 실패 중단·timeout 제한 시간 내 FAIL·fingerprint 변경/누락/기대값 불일치·FROM-CACHE·selftest skip/미달·실행파일 없음=ENVIRONMENT_ERROR·not-before 치환). 정확히 'OK'(skip 없음)와 Ran N>=minTests 필요; cve-scan(모듈에 canary artifact 포함=FAIL, osv 중복 병합, canary 미검출·누락, osv exit 불일치, 스캔 수 불일치, 빈 SBOM, 도구 오류, 결과 파일 없음/이전 결과 재사용, 바이너리 checksum 불일치, 빈 --version, 대조 fixture, SBOM gradle argv의 --no-build-cache/--rerun-tasks, SBOM 미재생성); module-registry(settings.gradle.kts 모듈 ↔ GRADLE-CHECK expectedReports/outputMustMatch·TEST-SUMMARY 경로·하한 일치·GRADLE-DEPS-<APP>·cve-scan MODULES·이 하한 = harness 시험 수); ADMIN-BOOT-001 S1: test-summary(Vitest <testsuites> 루트 자식 suite별 집계·suite 합계와 <testcase> 대조·알 수 없는 루트 거부), fingerprint(프론트 src·public·루트 설정 무시 파일 거부, node_modules·build 제외), verify-gate(npm_config_* 이름만·~/.npmrc hash, TEST-SUMMARY-FRONTEND 단계·같은 not-before), cve-scan npm(lockfile+npm canary 한 번 호출, dependencies·devDependencies canary 각각 검출, 스캔 집합 = lockfile 집합, source path 구분, dev 제외 옵션 금지, canary 중복 거부), module-registry(프론트 lockfile ↔ FRONTENDS·frontend task 출력 규칙·보고서 등록·TEST-SUMMARY-FRONTEND 하한·보고서 디렉터리 이중 집계 금지)",
       "expectedReports": [],
-      "minTests": 182,
+      "minTests": 184,
       "sideEffects": "임시 디렉터리만 사용. -B로 __pycache__ 미생성",
       "countRegex": "^Ran (\\d+) tests?",
       "outputMustMatch": [

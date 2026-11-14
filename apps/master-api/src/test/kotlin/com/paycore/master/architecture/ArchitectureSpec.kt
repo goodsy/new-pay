@@ -105,7 +105,11 @@ class ArchitectureSpec : FunSpec({
             .check(classes)
         callsFrom(classes, "com.paycore.master.merchant.adapter.web.admin.MerchantActivationController")
             .filter { it.target.owner.simpleName in setOf("MerchantOnboardingUseCase", "MerchantEntitlementUseCase") }.map { it.target.name }.toSet() shouldBe
-            setOf("registerPaymentMethodActivation", "rejectSiteReview", "approvePaymentMethodActivationWithEvidence", "approveSiteReviewWithEvidence")
+            // 기대값 변경(B3-2, 명세 §8.4 B3-2-8): + 근거 있는 `enableCurrencyWithEvidence`(근거 없는 `enableCurrency`는 여전히 seed 전용 — B3-1F-10 규칙).
+            setOf(
+                "registerPaymentMethodActivation", "rejectSiteReview", "approvePaymentMethodActivationWithEvidence", "approveSiteReviewWithEvidence",
+                "enableCurrencyWithEvidence",
+            )
     }
 
     test("MERCHANT-OPS-002 §8.4 B3-1F-10 (m-6): only DemoMerchantSeedService calls any of the seven evidence-less 2-person entitlement/route methods; no admin web class calls them") {

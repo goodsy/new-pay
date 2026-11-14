@@ -21,6 +21,29 @@ interface MerchantOpsApprovalUseCase {
 
     /** B3-1 Site 심사 승인 요청(§9.16 — 근거 = PG 심사 근거, 사유 `REVIEW_PASSED`만). 적격(advisory): Site ACTIVE·심사 PENDING 또는 SUSPENDED. 키 `MERCHANT:SITE_REVIEW:<merchantId>`. */
     fun requestSiteReviewApproval(command: RequestMerchantSiteReviewApproval): ApprovalOutcome
+
+    /**
+     * B3-2 통화 활성화 요청(§9.16·§9.26 — OPERATOR, 근거 참조 = 기관(카드사/VAN) 회신 참조 필수, D-MOPS-009 ②). 효력 시작 `AT_EXECUTION`(MASTER 실행 시각으로 확정) 또는 `DATE`
+     * (KST 날짜 — 요청 시각 기준 내일 이후, advisory). 미리 보기 적격(advisory): MID ACTIVE·같은 통화 끝나지 않은 기록 없음. 미해결 키 `MERCHANT:CURRENCY:<merchantId>`(C-35).
+     */
+    fun requestCurrencyEnablement(command: RequestMerchantCurrencyEnablement): ApprovalOutcome
+}
+
+/** B3-2 통화 활성화 요청 입력(서버는 자르거나 정규화하지 않는다 — 날짜는 `YYYY-MM-DD` KST 날짜 문자열). toString에 근거 참조가 없다. */
+data class RequestMerchantCurrencyEnablement(
+    val requesterActorId: String,
+    val sessionGeneration: Long,
+    val merchantId: String,
+    val merchantAccountId: String,
+    val currency: String,
+    val effectiveFromMode: String,
+    val effectiveFromDate: String?,
+    val effectiveToDate: String?,
+    val evidenceRef: String,
+    val context: AdminRequestContext,
+) {
+    override fun toString(): String =
+        "RequestMerchantCurrencyEnablement(requester=$requesterActorId, merchantId=$merchantId, merchantAccountId=$merchantAccountId, mode=$effectiveFromMode)"
 }
 
 /** B3-1 개통 승인 요청 입력(서버는 자르거나 정규화하지 않는다). toString에 근거 참조가 없다. */

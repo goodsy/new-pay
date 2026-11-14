@@ -127,6 +127,8 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/merchant-operations/site-review-rejections",
                 "POST /internal/v1/admin/merchant-operations/payment-method-activation-approvals",
                 "POST /internal/v1/admin/merchant-operations/site-review-approvals",
+                // 기대값 변경(B3-2, 명세 §8.4 B3-2-8·§8.3 B3-2-3): 2인 `currency-enablements`. 경로 목록 갱신이지 완화가 아니다 — Route·재개·재확인(B3-3·B3-4)·한도·정지 경로는 여전히 없다.
+                "POST /internal/v1/admin/merchant-operations/currency-enablements",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }

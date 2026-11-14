@@ -124,4 +124,23 @@ class MerchantActivationFlowHttpSpec(
             json.readTree(operator.perform(get("/api/merchants/$m")).contentAsByteArray).get("pendingApprovals").get(0).get("kind").asString() shouldBe "MERCHANT_SITE_REVIEW_APPROVAL"
         }
     }
+
+    Given("FS-2 B3-2 currency enablement request screen API (§8.4 B3-2-5)") {
+        Then("OPERATOR 201 (pending kind MERCHANT_CURRENCY_ENABLEMENT), VIEWER 403, CSRF-less 403; DATE without a date is 400 effectiveFromDate; USD is 400 currency") {
+            val cf = MerchantCurrencyApprovalFixture(base, merchants, path, storage)
+            val m = base.newMerchantId().also { cf.detail(it) }
+            fun send(client: AdminHttpClient, extra: String = """"effectiveFromMode":"AT_EXECUTION"""", currency: String = "KRW", xsrf: Boolean = true) = client.perform(
+                post("/api/approvals/merchant-currency-enablement").contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"merchantId":"$m","merchantAccountId":"${cf.midOf(m)}","currency":"$currency",$extra,"evidenceRef":"VAN-REPLY/1"}"""),
+                xsrf,
+            )
+            val operator = loggedIn(withRoles(AdminRole.OPERATOR))
+            send(operator, xsrf = false).status shouldBe 403
+            send(loggedIn(withRoles(AdminRole.VIEWER))).status shouldBe 403
+            send(operator, extra = """"effectiveFromMode":"DATE"""").let { it.status to json.readTree(it.contentAsByteArray).get("field").asString() } shouldBe (400 to "effectiveFromDate")
+            send(operator, currency = "USD").let { it.status to json.readTree(it.contentAsByteArray).get("field").asString() } shouldBe (400 to "currency")
+            send(operator).status shouldBe 201
+            json.readTree(operator.perform(get("/api/merchants/$m")).contentAsByteArray).get("pendingApprovals").get(0).get("kind").asString() shouldBe "MERCHANT_CURRENCY_ENABLEMENT"
+        }
+    }
 })

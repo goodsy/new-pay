@@ -10,6 +10,8 @@ golden 값에는 제어문자가 없으므로 escape 규칙 차이(\\n 표기 �
   조립하므로 MASTER 시험 자원의 v2 golden은 v3 golden으로 대체했다(PAYMENT는 v2를 계속 해석 — PAYMENT 시험 자원에 남는다, v1과 같은 선례).
 - v3(AUTHN-001 §9, D-AUTHN-002): MASTER·PAYMENT 둘 다 — v2 내용 + sites[].channel(WEB = {type, host}, APP = {type}만 — 앱 식별값은 싣지 않는다).
   host는 Demo 값(운영 가맹점 도메인 아님).
+- v3 변형 `entitlement-snapshot-v3-currency-at-execution`(MERCHANT-OPS-002 §8.3 B3-2-4 골든 확장): MASTER·PAYMENT 둘 다 — v3와 같은 ID·내용에
+  통화 구간만 `from` = AT_EXECUTION 확정 시각(lockedNow — KST 자정 아님·ms 있음 `…T02:00:07.123Z`)·`to` 없음, revision 8·발행 시각 = 그 확정 시각.
 
 `python3 harness/tests/test_entitlement_golden.py --write`로 파일을 다시 쓸 수 있다(검토된 계약 변경일 때만).
 """
@@ -34,6 +36,12 @@ TARGETS = {
     2: [resource("payment-api", "entitlement-snapshot-v2.golden.json")],
     3: [resource(app, "entitlement-snapshot-v3.golden.json") for app in ("master-api", "payment-api")],
 }
+AT_EXECUTION_VARIANT = "currency-at-execution"
+VARIANT_TARGETS = {
+    AT_EXECUTION_VARIANT: [resource(app, "entitlement-snapshot-v3-currency-at-execution.golden.json") for app in ("master-api", "payment-api")],
+}
+# B3-2 AT_EXECUTION 확정 시각(Demo): 자정이 아니고 ms가 있는 lockedNow. Snapshot은 같은 TX에서 발행되므로 발행 시각도 같다.
+AT_EXECUTION_LOCKED_NOW = "2026-10-09T02:00:07.123Z"
 KEY_ID = "test-k1"
 KEY_B64 = "dGVzdC1vbmx5LWVudGl0bGVtZW50LXNpZ25pbmcta2V5LTEh"
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -49,11 +57,19 @@ def ulid(prefix, tail):
     return f"{prefix}_{body}"
 
 
-def golden_text(schema_version):
+def golden_text(schema_version, variant=None):
     m, b = ulid("mer", "M1"), ulid("biz", "B1")
     s1, s2 = ulid("site", "S1"), ulid("site", "S2")
     mid, asg, csa = ulid("mid", "A1"), ulid("asg", "P1"), ulid("csa", "C1")
     t0 = "2026-10-09T02:00:00.000Z"
+    revision, issued_at, lease_until = 7, "2026-10-09T02:00:05.000Z", "2026-10-09T02:01:05.000Z"
+    currencies = [{"currency": "KRW", "minorUnit": 0, "from": t0, "to": "2026-12-31T15:00:00.000Z"}]
+    if variant == AT_EXECUTION_VARIANT:
+        assert schema_version == 3
+        revision, issued_at, lease_until = 8, AT_EXECUTION_LOCKED_NOW, "2026-10-09T02:01:07.123Z"
+        currencies = [{"currency": "KRW", "minorUnit": 0, "from": AT_EXECUTION_LOCKED_NOW, "to": None}]
+    elif variant is not None:
+        raise ValueError(variant)
     account = {
         "mid": mid, "lifecycle": "ACTIVE", "blocked": False, "issuingAgreementId": csa, "serviceKind": "CARD_PG_PAYMENT",
         "assignments": [{"assignmentId": asg, "siteId": s1, "role": "PRIMARY", "status": "ACTIVE", "effectiveFrom": t0, "effectiveTo": None}],
@@ -61,7 +77,7 @@ def golden_text(schema_version):
                             {"siteId": s2, "from": t0, "to": "2026-10-09T03:00:00.000Z"}],
         "activations": [{"paymentMethod": "CARD", "status": "ACTIVE"}],
         "siteConfirmations": [{"siteId": s1, "paymentMethod": "CARD"}],
-        "currencies": [{"currency": "KRW", "minorUnit": 0, "from": t0, "to": "2026-12-31T15:00:00.000Z"}],
+        "currencies": currencies,
     }
     ids = {}
     if schema_version >= 2:
@@ -93,7 +109,7 @@ def golden_text(schema_version):
         sites[0]["channel"] = {"type": "WEB", "host": "shop.example.test"}
         sites[1]["channel"] = {"type": "APP"}
     content = {
-        "merchantId": m, "businessId": b, "revision": 7,
+        "merchantId": m, "businessId": b, "revision": revision,
         "party": {"businessLifecycle": "ACTIVE", "merchantLifecycle": "ACTIVE", "businessBlocked": False, "merchantBlocked": False},
         "sites": sites,
         "accounts": [account],
@@ -101,12 +117,14 @@ def golden_text(schema_version):
     content_canonical = canon(content)
     content_hash = "ec1:" + hashlib.sha256(content_canonical.encode("utf-8")).hexdigest()
     wire = dict(content)
-    wire.update({"contentHash": content_hash, "issuedAt": "2026-10-09T02:00:05.000Z", "leaseSeq": 0, "leaseUntil": "2026-10-09T02:01:05.000Z"})
+    wire.update({"contentHash": content_hash, "issuedAt": issued_at, "leaseSeq": 0, "leaseUntil": lease_until})
     wire_canonical = canon(wire)
     event_id = {1: "0f1e2d3c-4b5a-4987-8a6b-5c4d3e2f1a0b", 2: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", 3: "2b3c4d5e-6f70-4a81-9b2c-3d4e5f6a7b8c"}[schema_version]
+    if variant == AT_EXECUTION_VARIANT:
+        event_id = "3c4d5e6f-7081-4b92-8c3d-4e5f6a7b8c9d"
     # 봉투 v1 필드 순서는 MASTER EntitlementEnvelope.body와 같다(본문 바이트가 서명 대상).
     body = ('{"envelopeVersion":1,"eventId":"%s","eventType":"EntitlementSnapshot","schemaVersion":%d,"producer":"master-api",'
-            '"aggregateId":"%s","aggregateVersion":7,"occurredAt":"2026-10-09T02:00:05.000Z","payload":%s}') % (event_id, schema_version, m, wire_canonical)
+            '"aggregateId":"%s","aggregateVersion":%d,"occurredAt":"%s","payload":%s}') % (event_id, schema_version, m, revision, issued_at, wire_canonical)
     signature = f"keyId={KEY_ID},v1=" + hmac.new(base64.b64decode(KEY_B64), body.encode("utf-8"), hashlib.sha256).hexdigest()
     description = {
         1: "MASTER-SNAPSHOT-001 S7 contract golden (generated independently of both apps from spec §10 canonical rules). Test-only key.",
@@ -115,13 +133,17 @@ def golden_text(schema_version):
         3: "AUTHN-001 schemaVersion 3 contract golden (v2 + sites[].channel WEB host / APP type; Demo values, not production). "
            "Generated independently of both apps from spec §10 canonical rules. Test-only key.",
     }[schema_version]
+    if variant == AT_EXECUTION_VARIANT:
+        description = ("MERCHANT-OPS-002 B3-2 schemaVersion 3 golden variant: currency segment from = AT_EXECUTION lockedNow "
+                       "(not KST midnight, milliseconds), open end; revision 8 issued at that instant. Demo values, not production. "
+                       "Generated independently of both apps from spec §10 canonical rules. Test-only key.")
     golden = OrderedDict([
         ("description", description),
         ("eventId", event_id), ("merchantId", m), ("businessId", b), ("siteIds", [s1, s2]), ("mid", mid), ("assignmentId", asg), ("agreementId", csa),
     ])
     golden.update(ids)
     golden.update([
-        ("revision", 7), ("issuedAt", "2026-10-09T02:00:05.000Z"), ("leaseSeq", 0), ("leaseUntil", "2026-10-09T02:01:05.000Z"),
+        ("revision", revision), ("issuedAt", issued_at), ("leaseSeq", 0), ("leaseUntil", lease_until),
         ("contentCanonical", content_canonical), ("contentHash", content_hash), ("wirePayloadCanonical", wire_canonical), ("envelopeBody", body),
         ("signingKeyId", KEY_ID), ("signingKeyBase64", KEY_B64), ("signatureHeader", signature),
     ])
@@ -149,6 +171,21 @@ class EntitlementGoldenTest(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), expected, path)
 
+    def test_v3_currency_at_execution_golden_files_of_both_apps_equal_the_independent_generation(self):
+        expected = golden_text(3, AT_EXECUTION_VARIANT)
+        for path in VARIANT_TARGETS[AT_EXECUTION_VARIANT]:
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), expected, path)
+
+    def test_v3_currency_at_execution_differs_from_v3_only_by_currency_segment_and_revision(self):
+        base = json.loads(json.loads(golden_text(3))["contentCanonical"])
+        variant = json.loads(json.loads(golden_text(3, AT_EXECUTION_VARIANT))["contentCanonical"])
+        self.assertEqual(variant["accounts"][0]["currencies"], [{"currency": "KRW", "from": "2026-10-09T02:00:07.123Z", "minorUnit": 0, "to": None}])
+        for content in (base, variant):
+            content["accounts"][0].pop("currencies")
+            content.pop("revision")
+        self.assertEqual(base, variant)
+
     def test_v3_differs_from_v2_only_by_site_channels(self):
         v2 = json.loads(json.loads(golden_text(2))["contentCanonical"])
         v3 = json.loads(json.loads(golden_text(3))["contentCanonical"])
@@ -163,5 +200,9 @@ if __name__ == "__main__":
             for target in targets:
                 with open(target, "w", encoding="utf-8", newline="\n") as f:
                     f.write(golden_text(version))
+        for variant, targets in VARIANT_TARGETS.items():
+            for target in targets:
+                with open(target, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(golden_text(3, variant))
     else:
         unittest.main()

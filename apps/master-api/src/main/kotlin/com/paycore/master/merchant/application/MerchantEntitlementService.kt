@@ -5,6 +5,7 @@ import com.paycore.master.merchant.application.provided.AdminOperation
 import com.paycore.master.merchant.application.provided.ApprovePaymentMethodActivationCommand
 import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand
+import com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand
 import com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand
 import com.paycore.master.merchant.application.provided.RejectSiteReviewCommand
 import com.paycore.master.merchant.application.provided.ConfirmSiteActivationCommand
@@ -35,6 +36,7 @@ import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.ActivationApproval
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ActivationTransition
+import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.CurrencyEnablement
 import com.paycore.master.merchant.domain.CurrencyEnablementId
 import com.paycore.master.merchant.domain.MerchantSite
@@ -242,27 +244,60 @@ class MerchantEntitlementService(
             confirmation.id.value
         }
 
-    override fun enableCurrency(command: EnableCurrencyCommand): AdminCommandResult =
-        executor.execute(
+    /** 근거 없는 통화 활성화 — Demo seed 경로 전용(MERCHANT-OPS-002 C-40, D-MOPS-008 ② — B3-2에서 관문 뒤로). 관리 채널은 [enableCurrencyWithEvidence]. */
+    override fun enableCurrency(command: EnableCurrencyCommand): AdminCommandResult {
+        requireDemoSeedPath(AdminOperation.ENABLE_CURRENCY, command.request)
+        return executor.execute(
             AdminOperation.ENABLE_CURRENCY, command.request,
             listOf(command.merchantAccountId.value, command.currency.value) + periodFields(command.effectivePeriod) + command.evidenceRef.value,
         ) { work ->
+            // seed 경로는 기존 순서 그대로: 기간(ms 절단·빈 기간 거절)을 잠금 전에 정한다.
             val period = EffectivePeriod.ofMillis(command.effectivePeriod.from, command.effectivePeriod.to)
-            val (merchant, account) = lockAccount(command.merchantAccountId)
-            work.lockedNow()
-            val unit = currencies.findUnit(command.currency) ?: throw MasterRuleViolation(MasterRejection.CURRENCY_UNKNOWN)
-            val enablement = CurrencyEnablement.enable(
-                CurrencyEnablementId(work.newId(CurrencyEnablementId.PREFIX)), account, unit, period, currencies.listByAccount(account.id),
-                command.evidenceRef, work.now, command.request.actor,
-            )
-            merchant.value.recordEntitlementChange()
-            work.beginWrites()
-            currencies.insert(enablement, work.requestRecordId)
-            merchants.update(merchant.value, merchant.version)
-            work.record(AGG_CURRENCY, enablement.id.value, 0, "CurrencyEnabled", currencyPayload(enablement, merchant.value))
-            work.publishEntitlement(merchant.value)
-            enablement.id.value
+            enableCurrencyBody(work, command.merchantAccountId, command.currency, command.evidenceRef, command.request.actor) { period }
         }
+    }
+
+    /**
+     * B3-2(D-MOPS-009 ② — §9.26): 근거 경로. 요청 지문 입력은 [ApprovedCurrencyEnablementCommand.commandFields](본문 문자열 — `AT_EXECUTION` 그대로, 확정 시각 아님)라 같은 바이트 재전송은
+     * 실행 시각이 달라도 재생된다. 기간은 잠금·`lockedNow()`(만료 훅) **뒤**에 정한다: `AT_EXECUTION` → 시작 = 잠금 뒤 시각, DATE → 본문 시각(기존 Domain 소급 판정).
+     * `effectiveTo` ≤ 시작이면 `EFFECTIVE_PERIOD_EMPTY`(저장된 거절 — 근거 REJECTED 행). C-36: Domain 기관 근거 = 승인 근거 참조. 행위자 = 승인자(C-17).
+     */
+    override fun enableCurrencyWithEvidence(command: ApprovedCurrencyEnablementCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            enableCurrencyBody(work, command.merchantAccountId, command.currency, command.evidence.evidenceRef, command.request.actor) { lockedNow ->
+                EffectivePeriod.ofMillis(command.effectiveFrom.resolve(lockedNow), command.effectiveTo)
+            }
+        }
+
+    /**
+     * 통화 활성화 본문(두 경로 공통): 소속 Merchant(불변)만 먼저 읽고 merchant → merchant_account 잠금 → `lockedNow`(근거 경로는 여기서 만료 훅) → [period]로 기간 확정 → Domain
+     * [CurrencyEnablement.enable](MID ACTIVE → 소급 → 같은 통화 중첩 — merchant 잠금 아래 판정, 열린 기록 생성 열 UNIQUE는 보조 방어선) → 쓰기(기록·이력·Snapshot).
+     * 잠금 전 `MERCHANT_ACCOUNT_NOT_FOUND`는 만료보다 먼저 저장된다(m-4와 같은 의도된 순서).
+     */
+    @Suppress("LongParameterList")
+    private fun enableCurrencyBody(
+        work: AdminCommandExecutor.Work,
+        mid: MerchantAccountId,
+        currency: CurrencyCode,
+        evidence: EvidenceRef,
+        actor: ActorRef,
+        period: (lockedNow: Instant) -> EffectivePeriod,
+    ): String {
+        val (merchant, account) = lockAccount(mid)
+        val at = work.lockedNow()
+        val resolved = period(at)
+        val unit = currencies.findUnit(currency) ?: throw MasterRuleViolation(MasterRejection.CURRENCY_UNKNOWN)
+        val enablement = CurrencyEnablement.enable(
+            CurrencyEnablementId(work.newId(CurrencyEnablementId.PREFIX)), account, unit, resolved, currencies.listByAccount(account.id), evidence, at, actor,
+        )
+        merchant.value.recordEntitlementChange()
+        work.beginWrites()
+        currencies.insert(enablement, work.requestRecordId)
+        merchants.update(merchant.value, merchant.version)
+        work.record(AGG_CURRENCY, enablement.id.value, 0, "CurrencyEnabled", currencyPayload(enablement, merchant.value))
+        work.publishEntitlement(merchant.value)
+        return enablement.id.value
+    }
 
     override fun endCurrencyEnablement(command: EndCurrencyEnablementCommand): AdminCommandResult =
         executor.execute(

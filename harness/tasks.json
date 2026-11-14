@@ -7267,6 +7267,17 @@
             "result": "GRADLE-CHECK 05:10:17Z..05:46:38Z(36m21s/4500s) exit 0; Kotlin 4431 / FRONTEND 324 실패·errors·skip 0; fingerprint 전후 동일",
             "supplementary": "CVE-SCAN PASS 2026-11-13 ~15:10 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve16.log"
           }
+        },
+        "b3_2": {
+          "spec": "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md rev 0.9.4 sha256 d9412822b6a434d389f4f03c3ee02668df7ac223dee60732c7525230434dcf7c",
+          "implementation": "B3-2 통화 활성화 2인 + 효력 시작 AT_EXECUTION/DATE (D-MOPS-009 ②), migration 없음, 새 Domain 규칙·거절 code 없음",
+          "tests": "관련 Spec RED→GREEN ~/gate-logs/mops-b32/ (ADMIN RED는 구현 뒤 stub 재현 mut-red-admin 22건 — 절차 편차, RED-first 아님)",
+          "mutations": "a~e 전부 killed, restoredIdentical (e = 잠금 제거 → 강제 순서 경합 ③ RED)",
+          "moduleChecks": "master 671 / admin 939 + Vitest 41 files PASS, fp a2787f54… 전후 동일 (리뷰 수정 전)",
+          "review": "REVIEW_PASS (MINOR-1 골든 변형 추가, MINOR-2 강제 순서 경합+변이 e, MINOR-3 기록, NIT-1 주석) — 수정 반영",
+          "demo": "Demo PASS 2026-11-13: AT_EXECUTION apr_01M7AE2M4TKED943AAD4ZR74Q7 → cur_01M7AE5SBPVN8MT6YTG2E5B9YC, DATE(2026-11-14) apr_01M7AEB4FDCDBPZH9QVHYAGCV4 → cur_01M7AEC6RQ155N1KPQ0C1Y0H9N, 스크린샷 scratchpad/demo/mops-b32",
+          "gate": "MOPS-gate18 PASS",
+          "status": "VERIFIED"
         }
       },
       "review": null,
@@ -7298,7 +7309,7 @@
           "decision": "사용자: B3-1(구현·리뷰 조건부 PASS 반영, 명세 rev 0.8.4)과 docs/merchant-onboarding을 전체 게이트 통과 전에 '지금 전부 커밋' 선택 → main에 반영. MOPS-gate7은 Claude Code 메모리 부족 종료(시험 실패 아님)로 통과 기록 없음. B3-1은 VERIFIED/DONE 아님 — 게이트 재실행 필요. 이후 브랜치 없이 main에서 직접 작업(사용자 지시)."
         }
       ],
-      "nextResumeAction": "B3-1F 커밋 완료 후 → B3-2(§9.26 통화 효력 시작) / 병행: MERCHANT-CODE-001 명세, MERCHANT-BIZ-LOOKUP-001",
+      "nextResumeAction": "B3-2 커밋 완료 → (B3-3a·B3-3은 MERCHANT-CODE-001·MERCHANT-BIZ-LOOKUP-001 뒤, 사용자 순서 \"차례로\")",
       "gateRuns": [
         {
           "tag": "MOPS-gate1",
@@ -7406,11 +7417,30 @@
           "fingerprint": "sha256:9857d4e008a51be0cb9a3e40d364d0c08bc19775f7befd9e2213a9e55aad9bea",
           "result": "GRADLE-CHECK 05:10:17Z..05:46:38Z(36m21s/4500s) exit 0; Kotlin 4431 / FRONTEND 324 실패·errors·skip 0; fingerprint 전후 동일",
           "supplementary": "CVE-SCAN PASS 2026-11-13 ~15:10 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve16.log"
+        },
+        {
+          "tag": "MOPS-gate17",
+          "date": "2026-11-14",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T214647Z.json",
+          "fingerprint": "sha256:34e851ccac7c4f24bd0d9cdb6c835a5d96977599a1d8a87766ed5112aadd4ed2",
+          "result": "HARNESS-SELFTEST exit 1 (21:47:09Z): test_module_registry 182 != 184 — B3-2 리뷰 수정(MINOR-1 골든 생성기)으로 harness 시험 2건 추가, commands.json HARNESS-SELFTEST minTests 미갱신. 기술 검사 실패(시험 실패 아님) → minTests 182→184(시험 추가에 따른 하한 상향, 완화 아님), 로컬 Ran 184 OK"
+        },
+        {
+          "tag": "MOPS-gate18",
+          "date": "2026-11-14",
+          "verdict": "PASS",
+          "fingerprint": "sha256:fb9f62b53e918775fd05b3b650212365ce94167037ab3615f808d82c453dafd6",
+          "result": "GRADLE-CHECK 23:48:35Z..00:21:56Z(33m21s/4500s) exit 0; Kotlin 4491 / FRONTEND 335 실패·errors·skip 0; HARNESS-SELFTEST 184; fingerprint 전후 동일 sha256:fb9f62b5…",
+          "evidence": "build/harness-evidence/MERCHANT-OPS-002-2026-11-13T234813Z.json",
+          "supplementary": "CVE-SCAN PASS 2026-11-14 ~09:55 KST(취약점 0, canary 전부) ~/gate-logs/MOPS-cve18.log"
         }
       ],
       "followUps": [
         "HARNESS-TIMEOUT-KILLTREE: verify-gate.py가 GRADLE-CHECK timeout(-9) 때 Gradle 하위 JVM(GradleWrapperMain·test worker)을 남김(MOPS-gate10·gate11, 2026-11-12) — 프로세스 그룹 종료 필요",
-        "B3-1F MINOR-B: mutate.py에 b-site(SiteReviewRules 등록자 검사를 decide 뒤로) 변이 추가. NIT-A: 경합 ⑦⑧ lockWaiters()를 data_locks OBJECT_NAME=merchant로 한정"
+        "B3-1F MINOR-B: mutate.py에 b-site(SiteReviewRules 등록자 검사를 decide 뒤로) 변이 추가. NIT-A: 경합 ⑦⑧ lockWaiters()를 data_locks OBJECT_NAME=merchant로 한정",
+        "B3-2 UI: 가맹점 상세 통화 시각에 KST 표기 없음(다른 시각과 같은 형식) — 화면 정비 때 일괄",
+        "B3-2 NIT-2: ADMIN 통화 시험이 실제 시계 사용(KST 자정 경계 흔들림 위험 낮음) — 고정 시계 주입 선택"
       ],
       "notes": [
         "2026-11-12 사용자 결정 \"제한 4500s로 올리기\"(선택지: 4500s / 속도 개선 먼저 / 모듈별 분할): GRADLE-CHECK timeoutSeconds 3300→4500. minTests·보고서·출력 규칙·시험 기대값 불변. VERIFY-GATE 5400 ≥ 단계 합(120+4500+60×5)"

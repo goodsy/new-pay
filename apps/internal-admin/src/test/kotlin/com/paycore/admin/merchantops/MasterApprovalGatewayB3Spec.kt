@@ -83,15 +83,42 @@ class MasterApprovalGatewayB3Spec : BehaviorSpec({
             decision(Reply(200, StubMasterOpsServer.decidedJson(fp, rejection = "SITE_REVIEW_TRANSITION_NOT_ALLOWED", operation = "DecideSiteReview"))) shouldBe
                 MerchantApprovalResult.Decided(false, null, "SITE_REVIEW_TRANSITION_NOT_ALLOWED", true, "DecideSiteReview", fp, "EXECUTE")
         }
-        Then("cross acceptance is refused: act_ under DecideSiteReview, site#n under ApprovePaymentMethodActivation; an operation outside the list (B3-2..4, 1-person RejectSiteReview) is unreadable") {
+        Then("cross acceptance is refused: act_ under DecideSiteReview, site#n under ApprovePaymentMethodActivation; an operation outside the list (B3-3..4, 1-person RejectSiteReview) is unreadable") {
+            // 기대값 변경(B3-2, 명세 §8.4 B3-2-5 — 허용 목록에 EnableCurrency 추가): 목록 밖 대조군을 EnableCurrency에서 아직 열리지 않은 B3-3 operation으로 옮긴다(완화 아님 — 목록 밖 fail-closed 단언은 그대로).
+            // EnableCurrency 판정은 아래 AG-B3-5가 `cur_` 문법으로 시험한다.
             listOf(
                 decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = act, operation = "DecideSiteReview"))),
                 decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = siteDecision, operation = "ApprovePaymentMethodActivation"))),
-                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = "cur_01JCAC00000000000000000AC1", operation = "EnableCurrency"))),
-                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, rejection = "APPROVAL_EXPIRED", operation = "EnableCurrency"))),
+                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = "cra_01JCAC00000000000000000AC1", operation = "ApproveCardRouteActivation"))),
+                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, rejection = "APPROVAL_EXPIRED", operation = "ApproveCardRouteActivation"))),
                 decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = siteDecision, operation = "RejectSiteReview"))),
                 decision(Reply(200, StubMasterOpsServer.decidedJson(fp, rejection = "APPROVAL_EXPIRED", operation = "RejectSiteReview"))),
             ) shouldBe List(6) { unreadable }
+        }
+    }
+
+    Given("AG-B3-5 B3-2 EnableCurrency (§8.4 B3-2-5): execution path currency-enablements and the cur_ grammar in executions and decisions") {
+        val currencyOp = MerchantApprovalOperation.ENABLE_CURRENCY
+        val cur = "cur_01JCAC00000000000000000AC1"
+        Then("execution: stored bytes to currency-enablements; only cur_ is a success (act_, mid_, lower case unreadable); rejections pass through") {
+            val path = StubMasterOpsServer.CURRENCY_ENABLEMENTS
+            execute(currencyOp, path, Reply(200, StubMasterOpsServer.succeeded(cur))) shouldBe MerchantApprovalResult.Decided(true, cur, null, false)
+            StubMasterOpsServer.requestsForPath(path).last().let { listOf(it.method, it.signatureValid, it.body.contentEquals(body)) } shouldBe listOf("POST", true, true)
+            execute(currencyOp, path, Reply(200, StubMasterOpsServer.rejected("CURRENCY_ENABLEMENT_RETROACTIVE"))) shouldBe
+                MerchantApprovalResult.Decided(false, null, "CURRENCY_ENABLEMENT_RETROACTIVE", false)
+            listOf(act, "mid_01JCAC00000000000000000AC1", "cur_01jcac00000000000000000ac1", "$cur#1").map {
+                execute(currencyOp, path, Reply(200, StubMasterOpsServer.succeeded(it)))
+            } shouldBe List(4) { unreadable }
+        }
+        Then("decision: EnableCurrency is in the allow-list with cur_; act_ under EnableCurrency and cur_ under ApprovePaymentMethodActivation are unreadable") {
+            decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = cur, operation = "EnableCurrency"))) shouldBe
+                MerchantApprovalResult.Decided(true, cur, null, true, "EnableCurrency", fp, "EXECUTE")
+            decision(Reply(200, StubMasterOpsServer.decidedJson(fp, rejection = "APPROVAL_EXPIRED", operation = "EnableCurrency", decidedVia = "DEADLINE_CONFIRM"))) shouldBe
+                MerchantApprovalResult.Decided(false, null, "APPROVAL_EXPIRED", true, "EnableCurrency", fp, "DEADLINE_CONFIRM")
+            listOf(
+                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = act, operation = "EnableCurrency"))),
+                decision(Reply(200, StubMasterOpsServer.decidedJson(fp, reference = cur, operation = "ApprovePaymentMethodActivation"))),
+            ) shouldBe List(2) { unreadable }
         }
     }
 

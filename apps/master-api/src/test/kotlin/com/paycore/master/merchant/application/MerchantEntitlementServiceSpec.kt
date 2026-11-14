@@ -77,7 +77,7 @@ class MerchantEntitlementServiceSpec(
             succeeded(entitlement.approvePaymentMethodActivation(ApprovePaymentMethodActivationCommand(seedRequest(), activation, evidence)))
             succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(seedRequest(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
             val enablement = succeeded(
-                entitlement.enableCurrency(EnableCurrencyCommand(request(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence)),
+                entitlement.enableCurrency(EnableCurrencyCommand(seedRequest(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence)), // D-MOPS-008 ②·C-40(B3-2): seed 경로 행위자(준비 경로만)
             )
             revisionOf(container, ready.merchantId) shouldBe afterRegistration + 3
             val issues = issuesOf(container, ready.merchantId)
@@ -199,9 +199,9 @@ class MerchantEntitlementServiceSpec(
             val krw = CurrencyEnablementId(scalar("SELECT enablement_id FROM currency_enablement WHERE merchant_account_id = ?", entitled.mid.value) as String)
             val t0 = OnboardingFixture.t0
             mapOf(
-                "retro start" to entitlement.enableCurrency(EnableCurrencyCommand(request(), entitled.mid, CurrencyCode("USD"), EffectivePeriod(t0.minusSeconds(1)), evidence)),
-                "overlap" to entitlement.enableCurrency(EnableCurrencyCommand(request(), entitled.mid, CurrencyCode("KRW"), EffectivePeriod(t0.plusSeconds(5)), evidence)),
-                "unknown" to entitlement.enableCurrency(EnableCurrencyCommand(request(), entitled.mid, CurrencyCode("EUR"), EffectivePeriod(t0), evidence)),
+                "retro start" to entitlement.enableCurrency(EnableCurrencyCommand(seedRequest(), entitled.mid, CurrencyCode("USD"), EffectivePeriod(t0.minusSeconds(1)), evidence)), // D-MOPS-008 ②·C-40(B3-2): 시험 대상 호출을 seed 경로로 이동(C-40), 기대값 불변
+                "overlap" to entitlement.enableCurrency(EnableCurrencyCommand(seedRequest(), entitled.mid, CurrencyCode("KRW"), EffectivePeriod(t0.plusSeconds(5)), evidence)), // D-MOPS-008 ②·C-40(B3-2): 시험 대상 호출을 seed 경로로 이동(C-40), 기대값 불변
+                "unknown" to entitlement.enableCurrency(EnableCurrencyCommand(seedRequest(), entitled.mid, CurrencyCode("EUR"), EffectivePeriod(t0), evidence)), // D-MOPS-008 ②·C-40(B3-2): 시험 대상 호출을 seed 경로로 이동(C-40), 기대값 불변
                 "retro end" to entitlement.endCurrencyEnablement(EndCurrencyEnablementCommand(request(), krw, t0.minusSeconds(1))),
             ).mapValues { (it.value as AdminCommandResult.Rejected).rejection } shouldBe mapOf(
                 "retro start" to MasterRejection.CURRENCY_ENABLEMENT_RETROACTIVE,

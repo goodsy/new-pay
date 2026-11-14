@@ -33,6 +33,35 @@ export const MERCHANT_REJECTIONS: Readonly<Record<string, string>> = {
   AGREEMENT_NOT_FOUND: '서비스 계약(CSA)을 찾을 수 없습니다',
 }
 
+/**
+ * B3-2 통화 활성화 고정 대상(근거 참조 없음 — §9.16·§9.26). [effectiveFromMode] `AT_EXECUTION`이면 [effectiveFrom] = null(MASTER 실행 시각으로 확정), `DATE`면 KST 날짜.
+ * [effectiveTo]는 KST 날짜(그 날 0시 종료, 미포함) 또는 null. 등록자 없음(1인 등록 단계 없음).
+ */
+export interface PinnedCurrency {
+  merchantId: string
+  merchantName: string
+  merchantAccountId: string
+  accountLifecycle: string
+  currency: string
+  effectiveFromMode: 'AT_EXECUTION' | 'DATE'
+  effectiveFrom: string | null
+  effectiveTo: string | null
+}
+
+export function pinnedCurrencyOf(value: unknown): PinnedCurrency | null {
+  const p = parsed(value)
+  if (!strings(p, ['merchantId', 'merchantAccountId', 'currency', 'effectiveFromMode'])) return null
+  const q = p as Record<string, unknown>
+  const dateOrNull = (v: unknown) => v === null || typeof v === 'string'
+  const modeOk = (q.effectiveFromMode === 'AT_EXECUTION' && q.effectiveFrom === null) || (q.effectiveFromMode === 'DATE' && typeof q.effectiveFrom === 'string')
+  return modeOk && dateOrNull(q.effectiveTo) ? (q as unknown as PinnedCurrency) : null
+}
+
+/** 승인 화면의 효력 시작 문구(D-MOPS-009 ② "승인 화면에 표시"). */
+export function currencyStartText(p: PinnedCurrency): string {
+  return p.effectiveFromMode === 'AT_EXECUTION' ? '효력 시작: 승인 실행 즉시(MASTER 실행 시각으로 확정)' : `효력 시작: ${p.effectiveFrom} 00:00 KST부터`
+}
+
 /** 고정 대상 모양이 다르면 null(표시하지 않는다). */
 export function pinnedContractOf(value: unknown): PinnedContractApproval | null {
   if (typeof value === 'string') {
@@ -127,6 +156,7 @@ const KIND_TEXT: Readonly<Record<string, { title: string; region: string; execut
   MERCHANT_FIRST_MID_ISSUANCE: { title: '첫 MID 발급', region: '첫 MID 발급 승인 상세', executed: '발급됨', evidence: '근거 참조' },
   MERCHANT_PAYMENT_METHOD_ACTIVATION: { title: '결제수단 개통 승인', region: '결제수단 개통 승인 상세', executed: '개통됨', evidence: '기관(카드사/VAN) 회신 참조' },
   MERCHANT_SITE_REVIEW_APPROVAL: { title: 'Site 심사 승인', region: 'Site 심사 승인 상세', executed: '심사 승인됨', evidence: 'PG 심사 근거' },
+  MERCHANT_CURRENCY_ENABLEMENT: { title: '통화 활성화', region: '통화 활성화 승인 상세', executed: '활성화됨', evidence: '기관(카드사/VAN) 회신 참조' },
 }
 const kindText = (kind: string) => KIND_TEXT[kind] ?? KIND_TEXT.MERCHANT_CONTRACT_APPROVAL!
 
@@ -192,8 +222,10 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
   const isMid = item.kind === 'MERCHANT_FIRST_MID_ISSUANCE'
   const isActivation = item.kind === 'MERCHANT_PAYMENT_METHOD_ACTIVATION'
   const isSiteReview = item.kind === 'MERCHANT_SITE_REVIEW_APPROVAL'
+  const isCurrency = item.kind === 'MERCHANT_CURRENCY_ENABLEMENT'
   const raw = g?.pinnedTarget ?? item.targetSnapshot
-  const pinned = isMid || isActivation || isSiteReview ? null : pinnedContractOf(raw)
+  const pinned = isMid || isActivation || isSiteReview || isCurrency ? null : pinnedContractOf(raw)
+  const currency = isCurrency ? pinnedCurrencyOf(raw) : null
   const mid = isMid ? pinnedMidOf(raw) : null
   const activation = isActivation ? pinnedActivationOf(raw) : null
   const siteReview = isSiteReview ? pinnedSiteReviewOf(raw) : null
@@ -276,6 +308,18 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
             <li>{`사유: ${siteReview.reasonCode === 'REVIEW_PASSED' ? '심사 통과' : siteReview.reasonCode}`}</li>
             <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
             <li>{'등록자: '}<span className="font-mono text-xs">{siteReview.registeredBy}</span></li>
+            {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
+            {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
+          </ul>
+        )}
+        {currency && (
+          <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            <li>{'가맹점: '}<span className="font-medium">{currency.merchantName}</span> <span className="font-mono text-xs">{currency.merchantId}</span></li>
+            <li>{'MID: '}<span className="font-mono text-xs">{currency.merchantAccountId}</span>{` (요청 시점 ${labelOf(currency.accountLifecycle)})`}</li>
+            <li>{`통화: ${currency.currency}`}</li>
+            <li className="font-medium">{currencyStartText(currency)}</li>
+            <li>{currency.effectiveTo === null ? '종료일: 없음' : `종료일(KST): ${currency.effectiveTo} — 이 날 0시 종료(미포함)`}</li>
+            <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
             {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
             {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
           </ul>

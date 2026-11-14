@@ -23,6 +23,8 @@ const SERVER_CODES = [
   'MERCHANT_FIRST_MID_ISSUANCE',
   // 목록 추가(B3-1 MERCHANT-OPS-002 §9.16): 결제수단 개통 승인·Site 심사 승인 종류(앱이 만드는 B3 종류만 — B3-2~4는 앱이 만들지 않는다).
   'MERCHANT_PAYMENT_METHOD_ACTIVATION', 'MERCHANT_SITE_REVIEW_APPROVAL',
+  // 목록 추가(B3-2 MERCHANT-OPS-002 §9.16): 통화 활성화 종류.
+  'MERCHANT_CURRENCY_ENABLEMENT',
   // OperatorCancelPurposeKind
   'INCIDENT_OR_RECON_CORRECTION', 'MERCHANT_TERMINATED_OBLIGATION',
   // ReconciliationFindingKind

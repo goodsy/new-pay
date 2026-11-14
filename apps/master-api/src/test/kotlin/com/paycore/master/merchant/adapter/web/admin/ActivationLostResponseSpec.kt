@@ -47,13 +47,16 @@ class ActivationLostResponseSpec(
     environment: Environment,
     private val container: MySQLContainer,
     private val onboarding: MerchantOnboardingUseCase,
+    private val clock: com.paycore.master.merchant.application.MutableMasterClock,
 ) : BehaviorSpec({
+
+    afterEach { clock.reset() }
 
     val port = environment.getRequiredProperty("local.server.port").toInt()
     fun count(sql: String, vararg args: Any?): Long = OnboardingFixture.runtime(container).use { it.scalar(sql, *args).toString().toLong() }
 
-    /** 첫 요청을 보내고 커밋 뒤 응답을 읽지 않고 끊은 다음, 같은 바이트를 다시 보내 응답 본문을 돌려준다. */
-    fun loseThenResend(path: String, body: ByteArray, key: String): Pair<Int, String> {
+    /** [loseThenResend]와 같고, 연결을 끊은 뒤·재전송 전에 [between]을 실행한다(B3-2: 재전송 시점의 MASTER 시각을 바꾼다). */
+    fun loseThenResendAfter(path: String, body: ByteArray, key: String, between: () -> Unit): Pair<Int, String> {
         val firstT = Instant.now().epochSecond
         Socket().use { socket ->
             socket.connect(InetSocketAddress("127.0.0.1", port), 5_000)
@@ -71,6 +74,7 @@ class ActivationLostResponseSpec(
                 Thread.sleep(50)
             }
         }
+        between()
         val response = HttpClient.newHttpClient().send(
             HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
                 .header("Content-Type", "application/json")
@@ -81,6 +85,9 @@ class ActivationLostResponseSpec(
         )
         return response.statusCode() to response.body()
     }
+
+    /** 첫 요청을 보내고 커밋 뒤 응답을 읽지 않고 끊은 다음, 같은 바이트를 다시 보내 응답 본문을 돌려준다. */
+    fun loseThenResend(path: String, body: ByteArray, key: String): Pair<Int, String> = loseThenResendAfter(path, body, key) {}
 
     Given("each new B3-1 handler whose response is lost after the MASTER commit") {
         Then("payment-method-activations (1 person): the resend replays the same act_; one admin_request row, one activation") {
@@ -125,6 +132,24 @@ class ActivationLostResponseSpec(
                 }
             }
             count("SELECT COUNT(*) FROM site_activation_confirmation WHERE activation_id = ?", ids.second.value) shouldBe 1L
+        }
+
+        Then("B3-2 currency-enablements (2 persons, AT_EXECUTION — §8.4 B3-2-4): the resend at a later MASTER time replays the same cur_; effective_from does not move") {
+            val mid = EntitlementCommandFixture.issuedWithActivation(onboarding).second.first.value
+            val a = Approval()
+            val bytes = CurrencyBodies.body(mid, a = a).toByteArray()
+            val first = Instant.parse("2026-10-09T02:00:05.000Z")
+            clock.set(first)
+            // 커밋 뒤 응답 유실 → 재전송 직전에 MASTER 시각이 흐른다(회복 재전송이 늦게 도착한 경우).
+            val (status, body) = loseThenResendAfter(CurrencyBodies.CURRENCY_ENABLEMENTS, bytes, a.idempotencyKey) { clock.set(first.plusSeconds(40)) }
+            val reference = OnboardingFixture.runtime(container).use { it.scalar("SELECT enablement_id FROM currency_enablement WHERE merchant_account_id = ?", mid) as String }
+            status shouldBe 200
+            body shouldBe """{"outcome":"SUCCEEDED","reference":"$reference","replayed":true}"""
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ?", a.idempotencyKey) shouldBe 1L
+            count("SELECT COUNT(*) FROM admin_approval_evidence WHERE approval_id = ?", a.approvalId) shouldBe 1L
+            count("SELECT COUNT(*) FROM currency_enablement WHERE merchant_account_id = ?", mid) shouldBe 1L
+            OnboardingFixture.runtime(container).use { it.scalar("SELECT CAST(effective_from AS CHAR) FROM currency_enablement WHERE merchant_account_id = ?", mid) }
+                .toString() shouldBe "2026-10-09 02:00:05.000"
         }
     }
 })

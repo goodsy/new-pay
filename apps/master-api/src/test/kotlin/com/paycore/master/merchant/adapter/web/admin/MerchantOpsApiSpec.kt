@@ -121,9 +121,11 @@ class MerchantOpsApiSpec(
                 "POST" to "/internal/v1/admin/merchant-operations/site-review-rejections",
                 "POST" to "/internal/v1/admin/merchant-operations/payment-method-activation-approvals",
                 "POST" to "/internal/v1/admin/merchant-operations/site-review-approvals",
+                // 기대값 변경(B3-2, 명세 §8.4 B3-2-8): 새 handler 1개(`currency-enablements`) = 18(401 검사 대상).
+                "POST" to "/internal/v1/admin/merchant-operations/currency-enablements",
             )
             // review n-c: 집합 비교는 같은 (method, path)가 두 handler에 중복 매핑돼도 하나로 합쳐 숨긴다 — 목록 크기를 따로 고정해 중복 매핑(모호한 handler)을 잡는다.
-            mapped.size shouldBe 17
+            mapped.size shouldBe 18
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {

@@ -60,6 +60,38 @@ class CurrencyEnablementSpec : BehaviorSpec({
         }
     }
 
+    Given("MERCHANT-OPS-002 §8.4 B3-2-1 (D-MOPS-009 ②): effective start boundaries — no new rule, the existing D-MD-018 `period.from < at` comparison") {
+        // 명시 시각(KST 자정 경계 — ContractSpec 표와 같은 방식): at = 2026-11-13 09:00 KST, 오늘 00:00 KST = 11-12T15:00Z, 내일 00:00 KST = 11-13T15:00Z.
+        val at = Instant.parse("2026-11-13T00:00:00.000Z")
+        val todayKst = Instant.parse("2026-11-12T15:00:00.000Z")
+        val tomorrowKst = Instant.parse("2026-11-13T15:00:00.000Z")
+
+        Then("AT_EXECUTION: from = at (the value the Application resolves from lockedNow) is allowed and starts exactly at the command time") {
+            val e = CurrencyEnablement.enable(EntitlementFixture.enablementId(), account, krw, EffectivePeriod(at), emptyList(), evidence, at, operator)
+            e.period.from shouldBe at
+            e.createdAt shouldBe at
+        }
+
+        Then("DATE: tomorrow 00:00 KST is allowed (a future start)") {
+            CurrencyEnablement.enable(EntitlementFixture.enablementId(), account, krw, EffectivePeriod(tomorrowKst), emptyList(), evidence, at, operator)
+                .period.from shouldBe tomorrowKst
+        }
+
+        Then("DATE: today 00:00 KST at 09:00 KST is a retroactive start (CURRENCY_ENABLEMENT_RETROACTIVE)") {
+            rejection {
+                CurrencyEnablement.enable(EntitlementFixture.enablementId(), account, krw, EffectivePeriod(todayKst), emptyList(), evidence, at, operator)
+            } shouldBe MasterRejection.CURRENCY_ENABLEMENT_RETROACTIVE
+        }
+
+        Then("DATE: midnight passed while the approval waited — at = tomorrow 00:00:00.001 KST, from = tomorrow 00:00 KST → CURRENCY_ENABLEMENT_RETROACTIVE") {
+            rejection {
+                CurrencyEnablement.enable(
+                    EntitlementFixture.enablementId(), account, krw, EffectivePeriod(tomorrowKst), emptyList(), evidence, tomorrowKst.plusMillis(1), operator,
+                )
+            } shouldBe MasterRejection.CURRENCY_ENABLEMENT_RETROACTIVE
+        }
+    }
+
     Given("currency units") {
         Then("minor unit is limited to ISO 4217 range 0..4") {
             shouldThrow<IllegalArgumentException> { CurrencyUnit(CurrencyCode("KRW"), 5) }

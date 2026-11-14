@@ -40,6 +40,37 @@ object MerchantOpsInputRules {
         else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
     }
 
+    /**
+     * B3-2 통화 활성화(§9.26 — D-MOPS-009 ②, C-41): merchantId·merchantAccountId·통화(KRW만 — `NOT_ALLOWED`)·`effectiveFromMode`(`AT_EXECUTION`·`DATE`, 그 밖 `NOT_ALLOWED`)·
+     * `effectiveFromDate`(DATE만 필수 `REQUIRED`, AT_EXECUTION이면 `NOT_ALLOWED`, `YYYY-MM-DD` 실재 날짜 `FORMAT`, [today](요청 시각 KST 날짜) 다음 날 이후 — 아니면 `NOT_FUTURE`)·
+     * `effectiveToDate`(선택, 같은 형식, 시작일(AT_EXECUTION이면 [today]) 뒤 — 아니면 `RANGE`, C-7 배타 끝)·근거 참조. 날짜 판정은 advisory(권위는 MASTER — 소급·빈 기간 거절).
+     */
+    @Suppress("LongParameterList", "CyclomaticComplexMethod")
+    fun currencyProblem(
+        merchantId: String, merchantAccountId: String, currency: String, effectiveFromMode: String, effectiveFromDate: String?, effectiveToDate: String?, evidenceRef: String,
+        today: java.time.LocalDate,
+    ): Pair<String, String>? {
+        val from = effectiveFromDate?.let(::isoDate)
+        val to = effectiveToDate?.let(::isoDate)
+        return when {
+            !ApprovalTarget.Merchant.MERCHANT_ID.matches(merchantId) -> "merchantId" to FORMAT
+            !PinnedActivationApprovalTarget.MERCHANT_ACCOUNT_ID.matches(merchantAccountId) -> "merchantAccountId" to FORMAT
+            currency !in PinnedCurrencyEnablementTarget.CURRENCIES -> "currency" to NOT_ALLOWED
+            effectiveFromMode !in PinnedCurrencyEnablementTarget.MODES -> "effectiveFromMode" to NOT_ALLOWED
+            effectiveFromMode == PinnedCurrencyEnablementTarget.AT_EXECUTION && effectiveFromDate != null -> "effectiveFromDate" to NOT_ALLOWED
+            effectiveFromMode == PinnedCurrencyEnablementTarget.DATE && effectiveFromDate == null -> "effectiveFromDate" to "REQUIRED"
+            effectiveFromDate != null && from == null -> "effectiveFromDate" to FORMAT
+            from != null && !from.isAfter(today) -> "effectiveFromDate" to "NOT_FUTURE"
+            effectiveToDate != null && to == null -> "effectiveToDate" to FORMAT
+            to != null && !to.isAfter(from ?: today) -> "effectiveToDate" to "RANGE"
+            else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
+        }
+    }
+
+    /** 정확히 `YYYY-MM-DD`이고 실재하는 날짜(ISO, 자동 보정 없음). */
+    private fun isoDate(text: String): java.time.LocalDate? =
+        if (ISO_DATE.matches(text)) runCatching { java.time.LocalDate.parse(text) }.getOrNull()?.takeIf { it.toString() == text } else null
+
     fun evidenceProblem(evidenceRef: String): String? = when {
         !ReacquisitionInputRules.EVIDENCE.matches(evidenceRef) -> FORMAT
         OperatorCancelInputRules.containsCardNumber(evidenceRef) -> OperatorCancelInputRules.CARD_NUMBER_PATTERN
@@ -47,4 +78,6 @@ object MerchantOpsInputRules {
     }
 
     private const val FORMAT = "FORMAT"
+    private const val NOT_ALLOWED = "NOT_ALLOWED"
+    private val ISO_DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 }

@@ -2,6 +2,7 @@ package com.paycore.admin.merchantops.application
 
 import com.paycore.admin.merchantops.application.provided.ActivationTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
+import com.paycore.admin.merchantops.application.provided.CurrencyTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTargetResult
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalClient
@@ -16,10 +17,12 @@ import com.paycore.admin.merchantops.application.required.MasterCallResult
 import com.paycore.admin.merchantops.application.required.MasterOpsGateway
 import com.paycore.admin.merchantops.domain.ActivationApprovalCommandBody
 import com.paycore.admin.merchantops.domain.ContractApprovalCommandBody
+import com.paycore.admin.merchantops.domain.CurrencyEnablementCommandBody
 import com.paycore.admin.merchantops.domain.FirstMidIssuanceCommandBody
 import com.paycore.admin.merchantops.domain.SiteReviewApprovalCommandBody
 import org.springframework.stereotype.Service
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * [MerchantApprovalClient]·[MerchantApprovalContract](MERCHANT-OPS-002 B2-2). MASTER 호출은 모두 [MasterOpsGateway](TX 안 호출 거부·permit·서명·응답 모양 검사)에 위임한다.
@@ -84,6 +87,24 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
 
     override fun siteReviewTarget(merchantId: String, merchantSiteId: String): MerchantTargetResult<SiteReviewTarget> =
         read(merchantId) { document -> siteReview(document, merchantId, merchantSiteId) }
+
+    override fun currencyTarget(merchantId: String, merchantAccountId: String, currency: String, now: Instant): MerchantTargetResult<CurrencyTarget> =
+        read(merchantId) { document -> currency(document, merchantId, merchantAccountId, currency, now) }
+
+    /**
+     * B3-2 통화 활성화 대상: MID 한 줄 → 같은 통화 기록 중 [now]에 끝나지 않은 것(종료 시각 없음 또는 now < 종료). 지난 기간만 있는 기록은 열린 기록이 아니다.
+     * ADMIN 미리 보기는 끝나지 않은 기록이 하나라도 있으면 부적격으로 본다(MASTER 중첩 판정보다 넓게 막을 수는 있어도 더 허용하지 않는다 — fail-closed).
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun currency(document: Map<String, Any?>, merchantId: String, merchantAccountId: String, currency: String, now: Instant): CurrencyTarget {
+        val merchant = document["merchant"] as Map<String, Any?>
+        check(merchant["merchantId"] == merchantId) { "detail of another merchant" }
+        val account = (document["accounts"] as List<Map<String, Any?>>).firstOrNull { it["merchantAccountId"] == merchantAccountId }
+        val open = (account?.get("currencies") as List<Map<String, Any?>>?).orEmpty().any {
+            it["currencyCode"] == currency && (it["effectiveTo"] as String?)?.let { to -> now.isBefore(Instant.parse(to)) } != false
+        }
+        return CurrencyTarget(merchantId, merchant["name"] as String, merchantAccountId, account?.get("lifecycle") as String?, currency, open)
+    }
 
     private fun <T> read(merchantId: String, extract: (Map<String, Any?>) -> T): MerchantTargetResult<T> = when (val found = gateway.detail(merchantId)) {
         MasterCallResult.NotFound -> MerchantTargetResult.MerchantNotFound
@@ -160,7 +181,27 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         return MerchantApprovalCommandOutput(body.fingerprint(), body.json())
     }
 
+    override fun currencyEnablement(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantAccountId: String, currency: String,
+        effectiveFromMode: String, effectiveFromDate: LocalDate?, effectiveToDate: LocalDate?,
+    ): MerchantApprovalCommandOutput {
+        // D-MOPS-009 ②: AT_EXECUTION은 문자열 그대로(확정 시각은 MASTER 실행 시각), DATE는 그 KST 날짜 00:00(C-7). 승인 시각으로 바꾸지 않는다.
+        val from = when (effectiveFromMode) {
+            CurrencyEnablementCommandBody.AT_EXECUTION -> {
+                require(effectiveFromDate == null) { "AT_EXECUTION has no start date" }
+                CurrencyEnablementCommandBody.AT_EXECUTION
+            }
+            DATE_MODE -> CurrencyEnablementCommandBody.startOfKstDay(requireNotNull(effectiveFromDate) { "DATE needs a start date" })
+            else -> throw IllegalArgumentException("effective start mode")
+        }
+        val body = CurrencyEnablementCommandBody(
+            approvalId, requestedBy, approvedBy, approvedAt, executeBefore, evidenceRef, merchantAccountId, currency, from, effectiveToDate?.let { CurrencyEnablementCommandBody.startOfKstDay(it) },
+        )
+        return MerchantApprovalCommandOutput(body.fingerprint(), body.json())
+    }
+
     private companion object {
+        const val DATE_MODE = "DATE"
         const val UNREADABLE = "RESPONSE_UNREADABLE"
 
         /** 심사 결정이 없는 Site(MASTER SiteReviewStatus PENDING). */

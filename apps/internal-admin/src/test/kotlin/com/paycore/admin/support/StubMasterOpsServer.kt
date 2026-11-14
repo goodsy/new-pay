@@ -138,6 +138,13 @@ object StubMasterOpsServer {
     const val PAYMENT_METHOD_ACTIVATION_APPROVALS = "/internal/v1/admin/merchant-operations/payment-method-activation-approvals"
     const val SITE_REVIEW_APPROVALS = "/internal/v1/admin/merchant-operations/site-review-approvals"
 
+    /** B3-2 통화 활성화(2인 — §9.14·§9.26). */
+    const val CURRENCY_ENABLEMENTS = "/internal/v1/admin/merchant-operations/currency-enablements"
+
+    /** B3-2 상세 통화 한 줄(기본 열린 KRW — [effectiveTo] null). */
+    fun currencyJson(enablementId: String, effectiveFrom: String = "2026-10-09T02:00:00.000Z", effectiveTo: String? = null, currencyCode: String = "KRW"): String =
+        """{"enablementId":"$enablementId","currencyCode":"$currencyCode","effectiveFrom":"$effectiveFrom","effectiveTo":${effectiveTo?.let { "\"$it\"" } ?: "null"},"endedAt":null}"""
+
     /** B3-1 Site·개통 등록자(상세 `sites[].registeredBy`·`paymentMethods[].registeredBy` — Demo 값, Revision 등록자와 다른 값). */
     const val SITE_REGISTRANT = "admin:adm_01JCSR0000000000000000SR01"
 
@@ -166,9 +173,11 @@ object StubMasterOpsServer {
      */
     fun detailJson(
         merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1), sites: String? = null, assignments: String? = null, paymentMethods: String? = null,
-        siteConfirmations: String? = null,
+        siteConfirmations: String? = null, currencies: String? = null,
     ): String {
         val ulid = merchantId.removePrefix("mer_")
+        // B3-2: [currencies]를 주면 그 목록 JSON(빈 문자열 = 통화 기록 없음), 기본은 기존 열린 KRW 한 줄.
+        val currencyList = currencies ?: currencyJson("cur_$ulid")
         val siteList = sites ?: siteJson("site_$ulid")
         val assignmentList = assignments ?: assignmentJson("asg_$ulid", "site_$ulid")
         val methodList = paymentMethods ?: paymentMethodJson("act_$ulid", "ACTIVE")
@@ -181,7 +190,7 @@ object StubMasterOpsServer {
             """"accounts":[{"merchantAccountId":"mid_$ulid","lifecycle":"ACTIVE","isDefault":true,"issuingContractId":"ctr_$ulid","issuingAgreementId":"csa_$ulid","issuingRevisionNo":1,"issuedAt":"2026-10-09T02:00:00.000Z",""" +
             """"assignments":[$assignmentList],""" +
             """"paymentMethods":[$methodList],""" +
-            """"currencies":[{"enablementId":"cur_$ulid","currencyCode":"KRW","effectiveFrom":"2026-10-09T02:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +
+            """"currencies":[$currencyList],""" +
             """"cardRoutes":[{"activationId":"cra_$ulid","paymentMethod":"CARD","acquirerCode":"SIMCARD01","routeRef":"SIMVAN01","status":"ACTIVE","registeredAt":"2026-10-09T02:00:00.000Z"$routeExtra}],""" +
             """"siteConfirmations":[$confirmationList]}],""" +
             """"limits":[{"policyId":"tlp_$ulid","scopeKind":"CSA_DEFAULT","agreementId":"csa_$ulid","merchantAccountId":null,"currencyCode":"KRW","perTxKind":"LIMITED","perTxAmount":1000000,"dailyKind":"LIMITED","dailyAmount":5000000,"effectiveFrom":"2026-10-09T15:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +

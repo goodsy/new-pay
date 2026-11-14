@@ -74,4 +74,9 @@ export const ACTIVATION_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   MERCHANT_ACCOUNT_NOT_FOUND: 'MID를 찾을 수 없습니다',
   MERCHANT_ACCOUNT_NOT_ACTIVE: '활성 상태가 아닌 MID입니다',
   APPROVAL_EXPIRED: '실행 기한이 지나 처리되지 않았습니다 — 다시 요청하세요',
+  // B3-2 통화 활성화(§9.14·§9.26 — D-MOPS-009 ②)
+  CURRENCY_ENABLEMENT_RETROACTIVE: '효력 시작 시각이 이미 지났습니다 — 다시 요청하세요',
+  CURRENCY_ENABLEMENT_OVERLAP: '같은 통화의 활성화 기간이 이미 있습니다',
+  CURRENCY_UNKNOWN: '알 수 없는 통화입니다',
+  EFFECTIVE_PERIOD_EMPTY: '효력 기간이 비어 있습니다(종료일이 시작 이전) — 다시 요청하세요',
 }

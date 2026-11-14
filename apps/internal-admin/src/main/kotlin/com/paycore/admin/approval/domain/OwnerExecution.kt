@@ -128,17 +128,21 @@ class OwnerExecution private constructor(
         /** B3-1 Site 심사 결정 `site_<ULID>#<seq>`(seq 1..10자리 — MASTER 결정 행 순번). */
         private val SITE_REVIEW_REFERENCE = Regex("^site_[0-9A-HJKMNP-TV-Z]{26}#[1-9][0-9]{0,9}$")
 
+        /** B3-2 통화 활성화 기록 `cur_<ULID>`. */
+        private val CURRENCY_REFERENCE = Regex("^cur_[0-9A-HJKMNP-TV-Z]{26}$")
+
         /** 소유 참조: PAYMENT cancellationId, FINANCIAL 재매입 새 파일 ID(파일 계약 v1), MASTER 승인 Revision `ctr_…#n`(MERCHANT-OPS-002 B2-2). */
         private fun referenceFormat(reference: String): Boolean =
             CANCELLATION_REFERENCE.matches(reference) || FILE_REFERENCE.matches(reference) || CONTRACT_REVISION_REFERENCE.matches(reference) ||
-                MERCHANT_ACCOUNT_REFERENCE.matches(reference) || ACTIVATION_REFERENCE.matches(reference) || SITE_REVIEW_REFERENCE.matches(reference)
+                MERCHANT_ACCOUNT_REFERENCE.matches(reference) || ACTIVATION_REFERENCE.matches(reference) || SITE_REVIEW_REFERENCE.matches(reference) ||
+                CURRENCY_REFERENCE.matches(reference)
 
         /** 종류별 지문 접두(m-4). 소유 서비스 종류가 아니면 실행 행이 없다(fail-closed). */
         fun fingerprintPrefix(kind: ApprovalKind): String = when (kind) {
             ApprovalKind.OPERATOR_CORRECTION_CANCEL -> "oct1"
             ApprovalKind.ACQ_REACQUISITION -> "acd1"
             ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION,
-            ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL,
+            ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL, ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT,
             -> "mop1"
             else -> throw IllegalArgumentException("no owner execution for $kind")
         }
@@ -151,6 +155,7 @@ class OwnerExecution private constructor(
             ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE -> MERCHANT_ACCOUNT_REFERENCE.matches(reference)
             ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION -> ACTIVATION_REFERENCE.matches(reference)
             ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL -> SITE_REVIEW_REFERENCE.matches(reference)
+            ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT -> CURRENCY_REFERENCE.matches(reference)
             else -> false
         }
 

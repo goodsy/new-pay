@@ -50,6 +50,13 @@ enum class ApprovalKind(
      * 거절은 1인(화면 API `site-review-rejections`)이라 이 종류가 아니다. 승인자 ≠ pinned `registeredBy`(Site 등록자 — D-MOPS-009 ③·SUSPENDED 재승인 포함 D-MOPS-010 ②, TX1 403).
      */
     MERCHANT_SITE_REVIEW_APPROVAL(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * 통화 활성화(MERCHANT-OPS-002 B3-2 §9.16·§9.26 — D-MOPS-009 ②, C-41 KRW만) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER가 승인 근거·통화 규칙(MID ACTIVE·소급·중첩)을
+     * 재검사. 효력 시작 = `AT_EXECUTION`(MASTER 잠금 뒤 시각으로 확정) 또는 KST 날짜 00:00(내일 이후). 미해결 키 `MERCHANT:CURRENCY:<merchantId>`(C-35).
+     * 1인 등록 단계가 없어 등록자 규칙은 없다(§9.27 적용 범위 밖 — 요청자≠승인자만).
+     */
+    MERCHANT_CURRENCY_ENABLEMENT(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
     ;
 
     val approverRole: String get() = APPROVER
@@ -58,7 +65,7 @@ enum class ApprovalKind(
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
         TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE,
-        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL,
+        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL, MERCHANT_CURRENCY_ENABLEMENT,
         -> false
     }
 

@@ -69,7 +69,7 @@ object EntitlementCommandFixture {
         succeeded(entitlement.decideSiteReview(DecideSiteReviewCommand(seedRequest(), ready.siteId, SiteReviewStatus.APPROVED, reason, null)))
         succeeded(
             entitlement.enableCurrency(
-                EnableCurrencyCommand(request(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence),
+                EnableCurrencyCommand(seedRequest(), mid, CurrencyCode("KRW"), EffectivePeriod(OnboardingFixture.t0), evidence), // D-MOPS-008 ②·C-40(B3-2): seed 경로 행위자(준비 경로만)
             ),
         )
         return Entitled(ready, mid, activation)

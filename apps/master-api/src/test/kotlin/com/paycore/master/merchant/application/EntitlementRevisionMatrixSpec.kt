@@ -139,7 +139,7 @@ class EntitlementRevisionMatrixSpec(
                 entitlement.confirmSiteActivation(ConfirmSiteActivationCommand(request(), e.mid, e.siteId, PaymentMethod.CARD, evidence))
             }
             step("EnableCurrency") {
-                entitlement.enableCurrency(EnableCurrencyCommand(request(), e.mid, CurrencyCode("USD"), EffectivePeriod(OnboardingFixture.t0), evidence))
+                entitlement.enableCurrency(EnableCurrencyCommand(seedRequest(), e.mid, CurrencyCode("USD"), EffectivePeriod(OnboardingFixture.t0), evidence)) // D-MOPS-008 ②·C-40(B3-2): seed 경로 행위자(준비 경로만)
             }
             step("EndCurrency") { entitlement.endCurrencyEnablement(EndCurrencyEnablementCommand(request(), krw, OnboardingFixture.t0.plusSeconds(60))) }
             step("DecideSiteReview") {

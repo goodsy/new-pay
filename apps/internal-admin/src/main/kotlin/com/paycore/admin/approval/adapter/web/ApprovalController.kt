@@ -13,6 +13,7 @@ import com.paycore.admin.approval.application.provided.JustificationResult
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
+import com.paycore.admin.approval.application.provided.RequestMerchantCurrencyEnablement
 import com.paycore.admin.approval.application.provided.RequestMerchantPaymentMethodActivation
 import com.paycore.admin.approval.application.provided.RequestMerchantSiteReviewApproval
 import com.paycore.admin.approval.application.provided.OperatorCancelJustificationQuery
@@ -142,6 +143,24 @@ class ApprovalController(
             RequestMerchantSiteReviewApproval(
                 authentication.name, generation, body.merchantId.orEmpty(), body.merchantSiteId.orEmpty(), body.reasonCode.orEmpty(), body.evidenceRef.orEmpty(),
                 context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * B3-2 통화 활성화 요청(MERCHANT-OPS-002 §9.16·§9.26 — OPERATOR, 근거 참조 = 기관 회신 참조 필수, D-MOPS-009 ②): `effectiveFromMode`(`AT_EXECUTION`·`DATE`) + `effectiveFromDate`
+     * (DATE만, KST `YYYY-MM-DD` — 내일 이후) + `effectiveToDate`(선택). 응답은 계약 승인 요청과 같은 표.
+     */
+    @PostMapping("/merchant-currency-enablement")
+    fun requestMerchantCurrencyEnablement(
+        @RequestBody body: MerchantCurrencyEnablementBody, authentication: Authentication, request: HttpServletRequest,
+    ): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestCurrencyEnablement(
+            RequestMerchantCurrencyEnablement(
+                authentication.name, generation, body.merchantId.orEmpty(), body.merchantAccountId.orEmpty(), body.currency.orEmpty(), body.effectiveFromMode.orEmpty(),
+                body.effectiveFromDate, body.effectiveToDate, body.evidenceRef.orEmpty(), context(request),
             ),
         )
         return respond(outcome, request)
@@ -315,6 +334,13 @@ class ApprovalController(
 
     class MerchantSiteReviewApprovalBody(val merchantId: String?, val merchantSiteId: String?, val reasonCode: String?, val evidenceRef: String?) {
         override fun toString(): String = "MerchantSiteReviewApprovalBody(merchantId=$merchantId, merchantSiteId=$merchantSiteId)"
+    }
+
+    class MerchantCurrencyEnablementBody(
+        val merchantId: String?, val merchantAccountId: String?, val currency: String?, val effectiveFromMode: String?, val effectiveFromDate: String?,
+        val effectiveToDate: String?, val evidenceRef: String?,
+    ) {
+        override fun toString(): String = "MerchantCurrencyEnablementBody(merchantId=$merchantId, merchantAccountId=$merchantAccountId, mode=$effectiveFromMode)"
     }
 
     class TotpBody(val totpCode: String?) {

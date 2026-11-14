@@ -1,6 +1,7 @@
 package com.paycore.admin.approval.domain
 
-/** 가맹점 2인 승인의 요청 시점 고정 대상(MERCHANT-OPS-002 §9.5 pinned — 계약 승인 [PinnedContractApprovalTarget], 첫 MID 발급 [PinnedFirstMidTarget], B3-1 개통 승인 [PinnedActivationApprovalTarget]·Site 심사 승인 [PinnedSiteReviewApprovalTarget]). */
+/** 가맹점 2인 승인의 요청 시점 고정 대상(MERCHANT-OPS-002 §9.5 pinned — 계약 승인 [PinnedContractApprovalTarget], 첫 MID 발급 [PinnedFirstMidTarget], B3-1 개통 승인 [PinnedActivationApprovalTarget]·Site 심사 승인 [PinnedSiteReviewApprovalTarget],
+ * B3-2 통화 활성화 [PinnedCurrencyEnablementTarget]). */
 sealed interface PinnedMerchantTarget {
     val merchantId: String
 
