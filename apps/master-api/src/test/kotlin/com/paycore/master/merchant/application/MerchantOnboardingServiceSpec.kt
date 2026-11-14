@@ -131,7 +131,7 @@ class MerchantOnboardingServiceSpec(
 
         Then("a primary site of another Merchant of the same Business is rejected") {
             val ready = readyMerchant(service)
-            val sibling = succeeded(service.registerMerchant(RegisterMerchantCommand(request(), ready.businessId, DisplayName("Sibling"))))
+            val sibling = succeeded(service.registerMerchant(RegisterMerchantCommand(request(), ready.businessId, DisplayName("Sibling"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique())))
             val siblingSite = succeeded(
                 service.registerMerchantSite(
                     RegisterMerchantSiteCommand(request(), com.paycore.master.merchant.domain.MerchantId(sibling), ChannelType.WEB, OnboardingFixture.host()),
@@ -205,7 +205,7 @@ class MerchantOnboardingServiceSpec(
                 succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Future")))),
             )
             val merchant = com.paycore.master.merchant.domain.MerchantId(
-                succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Future Merchant")))),
+                succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Future Merchant"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))),
             )
             val site = com.paycore.master.merchant.domain.MerchantSiteId(
                 succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, OnboardingFixture.host()))),
@@ -231,7 +231,7 @@ class MerchantOnboardingServiceSpec(
         Then("a revision targeting another Merchant of the same Business is rejected (a new contract is required)") {
             val ready = readyMerchant(service)
             val sibling = com.paycore.master.merchant.domain.MerchantId(
-                succeeded(service.registerMerchant(RegisterMerchantCommand(request(), ready.businessId, DisplayName("Sibling")))),
+                succeeded(service.registerMerchant(RegisterMerchantCommand(request(), ready.businessId, DisplayName("Sibling"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))),
             )
             service.registerContractRevision(
                 RegisterContractRevisionCommand(request(), ready.contractId, ScopeInput(sibling), EffectivePeriod(t0)),

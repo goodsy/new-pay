@@ -89,6 +89,10 @@ enum class MasterRejection {
     // MERCHANT-OPS-002 §9.27(B3-1F — D-MOPS-009 ③, D-MOPS-010 ②): 1인 등록자 ≠ 2인 승인자. 근거 경로(`approveWithEvidence`)만 — seed 경로는 검사 없음(C-31 구조)
     APPROVER_IS_ACTIVATION_REGISTRANT,
     APPROVER_IS_SITE_REGISTRANT,
+
+    // MERCHANT-CODE-001 MC-1(§3.1·§3.3, C-2·C-18): 가맹점 코드 예약어(완전·접두 일치) / 배정 이력에 이미 있는 코드(사용 중·은퇴 구별 없음 — reference 없음, C-12)
+    MERCHANT_CODE_RESERVED,
+    MERCHANT_CODE_TAKEN,
 }
 
 /**

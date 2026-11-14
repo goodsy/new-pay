@@ -53,6 +53,11 @@ const typeIn = async (region: HTMLElement, label: string, value: string) => {
   await user.click(field)
   await user.paste(value)
 }
+/** MERCHANT-CODE-001 MC-1: 가맹점 카드는 가맹점명 + 가맹점 코드(필수 — 직접 입력)를 받는다. */
+const typeMerchant = async (region: HTMLElement, name: string, code = 'shopabcd12') => {
+  await typeIn(region, '가맹점명', name)
+  await typeIn(region, '가맹점 코드', code)
+}
 const click = async (region: HTMLElement, name: string) => user.click(within(region).getByRole('button', { name }))
 
 /** 단계 표시(1~4). */
@@ -160,13 +165,13 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
     expect(currentStep()).toBe('2. 가맹점·사이트')
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
     expect(await screen.findByRole('region', { name: '계약 초안' })).toBeInTheDocument()
     expect(currentStep()).toBe('3. 계약 초안·서비스 계약')
     expect(api.registerMerchant).toHaveBeenCalledTimes(1)
-    expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: sid(1), businessId: BIZ, displayName: '데모 가맹점' })
+    expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: sid(1), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' })
     expect(api.registerMerchantSite).toHaveBeenCalledTimes(1)
     expect(api.registerMerchantSite).toHaveBeenCalledWith({ submissionId: sid(2), merchantId: MER, channelType: 'WEB', channelIdentifier: 'demo-shop2.paycore.test' })
 
@@ -193,7 +198,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const onOpenLookup = vi.fn()
     const { container } = render(<MerchantRegistrationScreen api={api} onOpenLookup={onOpenLookup} newSubmissionId={ids()} todayKst={() => '2026-11-08'} />)
     await pickBusiness()
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
 
@@ -252,7 +257,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const merchant = step('가맹점')
     expect(merchantBusinessText()).toContain('선택한 사업자 없음')
     expect(within(merchant).queryByLabelText('사업자 ID')).toBeNull()
-    await typeIn(merchant, '가맹점명', '데모 가맹점')
+    await typeMerchant(merchant, '데모 가맹점')
     await click(merchant, '가맹점 등록')
     expect(within(merchant).getByText('사업자를 먼저 선택하세요(1단계).')).toBeInTheDocument()
     expect(api.registerMerchant).not.toHaveBeenCalled()
@@ -264,7 +269,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
       registerMerchantSite: vi.fn().mockResolvedValueOnce(rejected('SITE_CHANNEL_DUPLICATE')).mockResolvedValueOnce(succeeded(SITE)),
     })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
     expect(await within(step('Site')).findByRole('alert')).toHaveTextContent('이미 다른 Site가 쓰는 채널 식별값입니다')
@@ -284,7 +289,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const send = vi.fn().mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN')).mockResolvedValueOnce(succeeded(MER, true))
     const api = fakeApi({ registerMerchant: send, registerMerchantSite: vi.fn(async () => succeeded(SITE)) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
@@ -308,7 +313,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const api = fakeApi({ registerMerchant: vi.fn(async () => succeeded(MER)) })
     const memory = withBusiness()
     const first = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={memory} />)
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(MER)
     first.unmount()
@@ -333,7 +338,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
   it('"새 가맹점 등록 시작" is disabled while any step is waiting for a result check', async () => {
     const api = fakeApi({ registerMerchant: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
     await goTo('4. 검토·완료')
@@ -359,7 +364,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     return { send, resolve: (outcome: RegistrationOutcome) => act(async () => resolve(outcome)) }
   }
   async function fillMerchantAndSite(channel = 'demo-shop2.paycore.test') {
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', channel)
   }
 
@@ -474,7 +479,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const api = fakeApi({ registerMerchant: send })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
     const merchant = step('가맹점')
-    await typeIn(merchant, '가맹점명', '데모 가맹점')
+    await typeMerchant(merchant, '데모 가맹점')
     await click(merchant, '가맹점 등록')
     await within(merchant).findByRole('group', { name: '결과 확인 필요' })
     await click(merchant, '같은 내용 다시 보내기')
@@ -500,7 +505,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const api = fakeApi({ registerMerchant: send })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
     const merchant = step('가맹점')
-    await typeIn(merchant, '가맹점명', '데모 가맹점')
+    await typeMerchant(merchant, '데모 가맹점')
     await click(merchant, '가맹점 등록')
     await within(merchant).findByRole('group', { name: '결과 확인 필요' })
 
@@ -529,7 +534,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const api = fakeApi({ registerMerchant: send })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
     const merchant = step('가맹점')
-    await typeIn(merchant, '가맹점명', '데모 가맹점')
+    await typeMerchant(merchant, '데모 가맹점')
     await click(merchant, '가맹점 등록')
     await click(await within(merchant).findByRole('group', { name: '결과 확인 필요' }), '같은 내용 다시 보내기')
     expect(await within(merchant).findByRole('alert')).toHaveTextContent('화면 결함 신호')
@@ -776,7 +781,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await click(step('Site'), 'Site 등록')
     await within(step('Site')).findByRole('group', { name: '결과 확인 필요' })
 
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
 
@@ -793,7 +798,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await click(step('가맹점'), '같은 내용 다시 보내기')
     await within(step('가맹점')).findByText(MER2)
     expect(merchantSend.mock.calls[1]![0]).toEqual(merchantSend.mock.calls[0]![0])
-    expect(merchantSend.mock.calls[0]![0]).toEqual({ submissionId: sid(2), businessId: BIZ, displayName: '데모 가맹점' })
+    expect(merchantSend.mock.calls[0]![0]).toEqual({ submissionId: sid(2), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' })
     expect(within(step('Site')).getByLabelText('가맹점 ID')).toHaveValue(MER)
     await goTo('3. 계약 초안·서비스 계약')
     // 가맹점 성공 → 계약 당사자 = 그 가맹점의 사업자(잠기지 않은 카드), 대상 = 그 가맹점.
@@ -877,10 +882,10 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778*******')
     expect(view.container.textContent).not.toMatch(/biz_/)
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(MER)
-    expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: expect.stringMatching(/^[0-9a-f]{32}$/), businessId: BIZ, displayName: '데모 가맹점' })
+    expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: expect.stringMatching(/^[0-9a-f]{32}$/), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' })
     expect(storageIsEmpty()).toBe(true)
   })
 
@@ -904,7 +909,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
     await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(MER)
     await goTo('3. 계약 초안·서비스 계약')
@@ -936,7 +941,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     expect(partyText()).toContain('두번째 사업자')
     expect(within(step('계약 초안')).getByLabelText('가맹점 ID')).toHaveValue('')
     await goTo('2. 가맹점·사이트')
-    await typeIn(step('가맹점'), '가맹점명', '둘째 가맹점')
+    await typeMerchant(step('가맹점'), '둘째 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(id('mer', 8))
     expect(vi.mocked(api.registerMerchant).mock.calls[1]![0]).toMatchObject({ businessId: BIZ2, displayName: '둘째 가맹점' })
@@ -952,7 +957,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
     await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
-    await typeIn(step('가맹점'), '가맹점명', '데모 가맹점')
+    await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
 
@@ -1132,5 +1137,56 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
       expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점 조회'])
       view.unmount()
     }
+  })
+
+  describe('MERCHANT-CODE-001 MC-1 merchant code input (plain input only — preview/suggest is MC-2)', () => {
+    it('MC-1-9 the merchant card has a code field with the format hint; the code is sent as typed', async () => {
+      const api = fakeApi({ registerMerchant: vi.fn(async () => succeeded(MER)) })
+      render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
+      const merchant = step('가맹점')
+      expect(within(merchant).getByLabelText('가맹점 코드')).toBeInTheDocument()
+      expect(merchant).toHaveTextContent('영문 소문자로 시작, 영문 소문자·숫자 6~14자')
+      await typeMerchant(merchant, '데모 가맹점', 'myshop2026')
+      await click(merchant, '가맹점 등록')
+      expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: sid(1), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'myshop2026' })
+    })
+
+    it('MC-1-9 a missing or malformed code (upper case, hyphen, too short, leading digit) shows the format error and sends nothing — no normalization', async () => {
+      const api = fakeApi({ registerMerchant: vi.fn(async () => succeeded(MER)) })
+      render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
+      const merchant = step('가맹점')
+      await typeIn(merchant, '가맹점명', '데모 가맹점')
+      await click(merchant, '가맹점 등록')
+      expect(within(merchant).getByText('영문 소문자로 시작, 영문 소문자·숫자 6~14자로 입력하세요.')).toBeInTheDocument()
+      for (const bad of ['ShopAbcd12', 'shop-abcd', 'abcde', '1shopabc']) {
+        const field = within(merchant).getByLabelText('가맹점 코드')
+        await user.clear(field)
+        await typeIn(merchant, '가맹점 코드', bad)
+        await click(merchant, '가맹점 등록')
+        expect(within(merchant).getByLabelText('가맹점 코드')).toHaveValue(bad)
+      }
+      expect(api.registerMerchant).not.toHaveBeenCalled()
+    })
+
+    it('MC-1-9 MASTER MERCHANT_CODE_TAKEN / MERCHANT_CODE_RESERVED show their fixed messages', async () => {
+      const api = fakeApi({
+        registerMerchant: vi.fn().mockResolvedValueOnce(rejected('MERCHANT_CODE_TAKEN')).mockResolvedValueOnce(rejected('MERCHANT_CODE_RESERVED')),
+      })
+      render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
+      const merchant = step('가맹점')
+      await typeMerchant(merchant, '데모 가맹점', 'shopabcd12')
+      await click(merchant, '가맹점 등록')
+      expect(await within(merchant).findByText(/이미 사용 중이거나 사용했던 코드입니다/)).toBeInTheDocument()
+      // 리뷰 m-1: 거절은 확정 결과 — 코드를 고쳐 다시 제출하면 새 submissionId로 보내고 RESERVED 문구를 보인다.
+      const field = within(merchant).getByLabelText('가맹점 코드')
+      await user.clear(field)
+      await typeIn(merchant, '가맹점 코드', 'adminshop1')
+      await click(merchant, '가맹점 등록')
+      expect(await within(merchant).findByText(/사용할 수 없는 코드입니다/)).toBeInTheDocument()
+      expect(vi.mocked(api.registerMerchant).mock.calls.map(([input]) => input)).toEqual([
+        { submissionId: sid(1), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' },
+        { submissionId: sid(2), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'adminshop1' },
+      ])
+    })
   })
 })

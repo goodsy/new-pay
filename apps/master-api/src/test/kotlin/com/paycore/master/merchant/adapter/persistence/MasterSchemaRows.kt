@@ -34,12 +34,23 @@ object MasterSchemaRows {
         )
     }
 
-    fun merchant(c: Connection, businessId: String): String = id("mer").also {
+    /**
+     * MERCHANT-CODE-001 MC-1: 정상 그래프의 가맹점은 seq 1 코드 배정을 함께 갖는다(앱 읽기에서 배정 없음 = 결함 — 공유 DB의 다른 조회 시험이 이 행을 읽어도 정상 상태).
+     * [withCode] = false는 배정 표 제약 자체를 시험하는 경우만(배정 행을 시험이 직접 넣는다).
+     */
+    fun merchant(c: Connection, businessId: String, withCode: Boolean = true): String = id("mer").also {
         c.update(
             "INSERT INTO merchant (merchant_id, business_id, display_name, lifecycle, entitlement_revision, created_at, created_by, version) " +
                 "VALUES (?, ?, 'Demo merchant', 'ACTIVE', 0, ?, ?, 0)",
             it, businessId, ts(t0), ACTOR,
         )
+        if (withCode) {
+            c.update(
+                "INSERT INTO merchant_code_assignment (merchant_id, assignment_seq, merchant_code, replaces_code, source, approval_id, reason_code, assigned_at, assigned_by) " +
+                    "VALUES (?, 1, ?, NULL, 'REGISTRATION', NULL, NULL, ?, ?)",
+                it, "s" + id("x").substring(2).lowercase().take(13), ts(t0), ACTOR,
+            )
+        }
     }
 
     fun site(c: Connection, merchantId: String, identifier: String = channel(), type: String = "WEB"): String = id("site").also {

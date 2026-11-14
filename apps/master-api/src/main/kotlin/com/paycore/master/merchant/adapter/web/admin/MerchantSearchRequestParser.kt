@@ -4,6 +4,7 @@ import com.paycore.master.merchant.application.provided.MerchantSearchFilter
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.Lifecycle
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
@@ -22,7 +23,8 @@ object MerchantSearchRequestParser {
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
         .build()
 
-    private val FIELDS = setOf("merchantId", "businessId", "lifecycle", "registrationNumber", "after", "limit")
+    // MERCHANT-CODE-001 §3.8: `merchantCode`(형식 = Domain [MerchantCode] 값 객체 — 정규화 없음) — 단일 기준(다른 필터·cursor와 함께면 400, `limit`만 허용).
+    private val FIELDS = setOf("merchantId", "businessId", "lifecycle", "registrationNumber", "after", "limit", "merchantCode")
     private const val ULID = "[0-9A-HJKMNP-TV-Z]{26}"
     val MERCHANT_ID = Regex("^mer_$ULID$")
     private val BUSINESS_ID = Regex("^biz_$ULID$")
@@ -39,11 +41,15 @@ object MerchantSearchRequestParser {
             lifecycle = text(root, "lifecycle", LIFECYCLE)?.let(Lifecycle::valueOf),
             registrationNumber = text(root, "registrationNumber", REGISTRATION_NUMBER)?.let(::BusinessRegistrationNumber),
             after = text(root, "after", MERCHANT_ID)?.let(::MerchantId),
+            merchantCode = text(root, "merchantCode", ANY_TEXT)?.let(::MerchantCode),
             limit = limit,
         )
     }.getOrNull()
 
     private val LIFECYCLE = Regex("^(ACTIVE|TERMINATED)$")
+
+    /** 문자열이기만 하면 통과 — 형식은 값 객체가 검사한다(규칙 한 곳). */
+    private val ANY_TEXT = Regex("^.*$", RegexOption.DOT_MATCHES_ALL)
 
     /** 필드가 없으면 null, 있으면 문자열·형식 일치여야 한다(아니면 예외 → 전체 null). */
     private fun text(root: JsonNode, name: String, format: Regex): String? {

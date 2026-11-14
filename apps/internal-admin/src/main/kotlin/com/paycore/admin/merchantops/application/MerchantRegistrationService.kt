@@ -117,7 +117,9 @@ class MerchantRegistrationService(
         val key = "mo1.${actorId.removePrefix(ACCOUNT_PREFIX)}.${request.submissionId}"
         val (kind, fields) = when (request) {
             is RegistrationRequest.Business -> MasterCommandKind.REGISTER_BUSINESS to mapOf("registrationNumber" to request.registrationNumber, "displayName" to request.displayName)
-            is RegistrationRequest.Merchant -> MasterCommandKind.REGISTER_MERCHANT to mapOf("businessId" to request.businessId, "displayName" to request.displayName)
+            // MERCHANT-CODE-001 MC-1: 코드를 그대로 전달(형식은 위에서 검사 — 예약어·중복 판정은 MASTER).
+            is RegistrationRequest.Merchant -> MasterCommandKind.REGISTER_MERCHANT to
+                mapOf("businessId" to request.businessId, "displayName" to request.displayName, "merchantCode" to request.merchantCode)
             is RegistrationRequest.MerchantSite -> MasterCommandKind.REGISTER_MERCHANT_SITE to
                 mapOf("merchantId" to request.merchantId, "channelType" to request.channelType, "channelIdentifier" to request.channelIdentifier)
             // C-7: KST 날짜 → 그 날 00:00 KST의 UTC 시각(종료일은 배타). 시작 소급 판정은 MASTER Domain(§3.4) — 여기서는 바꾸거나 막지 않는다.

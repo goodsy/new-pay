@@ -22,6 +22,7 @@ import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EffectivePeriod
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.ServiceKind
@@ -53,7 +54,8 @@ object MerchantOperationsRequestParser {
     private const val ACTOR_PREFIX = "admin:"
     private val COMMON = setOf("idempotencyKey", "actor", "correlationId")
     private val BUSINESS = COMMON + setOf("registrationNumber", "displayName")
-    private val MERCHANT = COMMON + setOf("businessId", "displayName")
+    // MERCHANT-CODE-001 MC-1(§3.3·§4): `merchantCode` 필수 — 형식(§3.1)은 값 객체가 검사(위반 400, 정규화 없음). 예약어·중복은 Use Case의 저장된 거절.
+    private val MERCHANT = COMMON + setOf("businessId", "displayName", "merchantCode")
     private val SITE = COMMON + setOf("merchantId", "channelType", "channelIdentifier")
     private val CONTRACT = COMMON + setOf("partyBusinessId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom")
     private val CONTRACT_OPTIONAL = setOf("effectiveTo")
@@ -72,7 +74,9 @@ object MerchantOperationsRequestParser {
     }
 
     fun merchant(body: ByteArray): RegisterMerchantCommand? = parse(body, MERCHANT) { fields ->
-        RegisterMerchantCommand(request(fields), BusinessId(fields.getValue("businessId")), DisplayName(fields.getValue("displayName")))
+        RegisterMerchantCommand(
+            request(fields), BusinessId(fields.getValue("businessId")), DisplayName(fields.getValue("displayName")), MerchantCode(fields.getValue("merchantCode")),
+        )
     }
 
     fun site(body: ByteArray): RegisterMerchantSiteCommand? = parse(body, SITE) { fields ->

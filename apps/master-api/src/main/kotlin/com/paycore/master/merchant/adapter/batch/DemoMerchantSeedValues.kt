@@ -10,6 +10,7 @@ import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.InstitutionMerchantRef
 import com.paycore.master.merchant.domain.LimitValue
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.PolicyCode
 import com.paycore.master.merchant.domain.RouteRef
 
@@ -34,6 +35,8 @@ object DemoMerchantSeedValues {
         registrationNumber = BusinessRegistrationNumber("0000000000"),
         businessName = DisplayName("DEMO 사업자 (운영값 아님)"),
         merchantName = DisplayName("DEMO 가맹점 (운영값 아님)"),
+        // MERCHANT-CODE-001 C-6: 새 DB seed 코드. 예약어 접두 `demo`의 유일한 예외(MerchantCodeReservedWords.DEMO_SEED_CODES).
+        merchantCode = MerchantCode("demoshop01"),
         siteHost = SITE_HOST,
         evidence = EvidenceRef("DEMO-SEED-V1:NON-OPERATIONAL"),
         reason = DecisionReason("DEMO seed (not operational)"),

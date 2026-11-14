@@ -1,6 +1,7 @@
 package com.paycore.master.merchant.adapter.query
 
 import com.paycore.master.jooq.generated.Tables.BUSINESS
+import com.paycore.master.jooq.generated.Tables.MERCHANT_CODE_ASSIGNMENT
 import org.jooq.Field
 import org.jooq.impl.DSL
 import java.time.LocalDateTime
@@ -10,6 +11,15 @@ import java.time.LocalDateTime
  * TZ-FIX-001). 사업자등록번호는 SQL에서 앞 3자리 + `*` 7개로만 읽는다 — 평문이 애플리케이션 메모리로 오지 않는다(D-MD-008, `BusinessRegistrationNumber.masked()`와 같은 모양).
  */
 internal object MasterSqlText {
+    /** MERCHANT-CODE-001 §3.2·§3.8: 현재 가맹점 코드 = 가장 큰 assignment_seq 행의 코드(PK (merchant_id, seq) 범위 읽기 — 상관 부분 질의). */
+    fun currentMerchantCode(merchantId: Field<String?>): Field<String?> = DSL.field(
+        DSL.select(MERCHANT_CODE_ASSIGNMENT.MERCHANT_CODE)
+            .from(MERCHANT_CODE_ASSIGNMENT)
+            .where(MERCHANT_CODE_ASSIGNMENT.MERCHANT_ID.eq(merchantId))
+            .orderBy(MERCHANT_CODE_ASSIGNMENT.ASSIGNMENT_SEQ.desc())
+            .limit(1),
+    )
+
     private const val VISIBLE_DIGITS = 3
     private const val MASK = "*******"
 

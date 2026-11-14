@@ -35,6 +35,9 @@ export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   SERVICE_KIND_DUPLICATE: '이미 같은 서비스 종류의 계약이 있습니다',
   // B2-1 계약 Revision 등록(§9.2) — 대상 가맹점은 계약의 가맹점과 같아야 한다(D-MD-013).
   CONTRACT_MERCHANT_MISMATCH: '계약 대상 가맹점과 다른 가맹점입니다',
+  // MERCHANT-CODE-001 MC-1(§5.5 문구): 은퇴·사용 중 코드를 구별하지 않는다(C-18).
+  MERCHANT_CODE_TAKEN: '이미 사용 중이거나 사용했던 코드입니다',
+  MERCHANT_CODE_RESERVED: '사용할 수 없는 코드입니다',
 }
 
 /** 등록 화면 전용 문구 — 결과 감사 실패는 MASTER 효과가 확정된 뒤일 수 있다(§4.4-7). 조회 화면 문구(ERROR_MESSAGES)는 그대로. */

@@ -184,7 +184,8 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             kind, "mo1.01JC00000000000000000000V1.$sub", "admin:adm_01JC00000000000000000000V1", "mos.$sub",
             when (kind) {
                 MasterCommandKind.REGISTER_BUSINESS -> mapOf("registrationNumber" to "7781234560", "displayName" to "시험 사업자")
-                MasterCommandKind.REGISTER_MERCHANT -> mapOf("businessId" to "biz_01JC0000000000000000000001", "displayName" to "시험 가맹점")
+                // 기대값 변경(MERCHANT-CODE-001 MC-1 §4 ②): 가맹점 등록 필드에 merchantCode(필수 — 필드 증가, 완화 아님).
+                MasterCommandKind.REGISTER_MERCHANT -> mapOf("businessId" to "biz_01JC0000000000000000000001", "displayName" to "시험 가맹점", "merchantCode" to "shopabcd12")
                 MasterCommandKind.REGISTER_MERCHANT_SITE -> mapOf("merchantId" to "mer_01JC0000000000000000000001", "channelType" to "WEB", "channelIdentifier" to "demo-shop2.paycore.test")
                 MasterCommandKind.REGISTER_CONTRACT -> mapOf(
                     "partyBusinessId" to "biz_01JC0000000000000000000001", "scopeMerchantId" to "mer_01JC0000000000000000000001",
@@ -209,7 +210,7 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             val req = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).last()
             listOf(req.method, req.query, req.signatureValid) shouldBe listOf("POST", null, true)
             lastBody(StubMasterOpsServer.MERCHANTS) shouldBe """{"idempotencyKey":"mo1.01JC00000000000000000000V1.0123456789abcdef0123456789abcdef",""" +
-                """"actor":"admin:adm_01JC00000000000000000000V1","correlationId":"mos.0123456789abcdef0123456789abcdef","businessId":"biz_01JC0000000000000000000001","displayName":"시험 가맹점"}"""
+                """"actor":"admin:adm_01JC00000000000000000000V1","correlationId":"mos.0123456789abcdef0123456789abcdef","businessId":"biz_01JC0000000000000000000001","displayName":"시험 가맹점","merchantCode":"shopabcd12"}"""
             // C-9: golden 파일은 바꾸지 않는다 — 쓰기 경로 사례는 앱 시험에서 독립 HMAC(javax.crypto 직접)과 대조한다.
             val body = req.body
             val t = 1_767_000_000L

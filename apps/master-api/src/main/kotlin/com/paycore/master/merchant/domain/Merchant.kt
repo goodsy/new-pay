@@ -17,13 +17,25 @@ class Merchant private constructor(
     entitlementRevision: Long,
     val createdAt: Instant,
     val createdBy: ActorRef,
+    val codeAssignments: List<MerchantCodeAssignment>,
 ) {
     var entitlementRevision: Long = entitlementRevision
         private set
 
     init {
         require(entitlementRevision >= 0) { "entitlementRevision must not be negative" }
+        // MERCHANT-CODE-001 §3.2: 모든 가맹점은 seq 1 배정을 갖고(없으면 결함 — 등록 TX·V13 채우기가 보장), 최대 1회 변경(seq 2)은 같은 가맹점 seq 1 코드를 바꾼다.
+        // 위반은 입력 오류가 아니라 저장 상태의 결함 신호다 → IllegalState(check — §3.2 "앱 읽기는 seq 1 없음 = 결함").
+        check(codeAssignments.size in 1..MerchantCodeAssignment.CHANGE && codeAssignments.map { it.seq } == (1..codeAssignments.size).toList()) {
+            "a merchant has a seq-1 code assignment and at most one change"
+        }
+        check(codeAssignments.size < MerchantCodeAssignment.CHANGE || codeAssignments[1].replacesCode == codeAssignments[0].code) {
+            "the change replaces the first assignment of the same merchant"
+        }
     }
+
+    /** 현재 코드 = 가장 큰 seq의 코드(MERCHANT-CODE-001 §3.2). 은퇴 코드는 [codeAssignments]에 남는다. */
+    val currentCode: MerchantCode get() = codeAssignments.last().code
 
     fun requireActive() {
         if (lifecycle != Lifecycle.ACTIVE) throw MasterRuleViolation(MasterRejection.MERCHANT_NOT_ACTIVE)
@@ -37,11 +49,14 @@ class Merchant private constructor(
     override fun toString(): String = "Merchant(id=${id.value}, lifecycle=$lifecycle, entitlementRevision=$entitlementRevision)"
 
     companion object {
-        fun register(id: MerchantId, business: Business, displayName: DisplayName, at: Instant, by: ActorRef): Merchant {
+        /** B1 등록(MERCHANT-CODE-001 §3.3): 코드 필수 — 예약어면 `MERCHANT_CODE_RESERVED`, seq 1 `REGISTRATION` 배정 하나. 중복(배정 이력 존재)은 Application 사전 조회 + DB UNIQUE. */
+        fun register(id: MerchantId, business: Business, displayName: DisplayName, code: MerchantCode, at: Instant, by: ActorRef): Merchant {
             business.requireActive()
-            return Merchant(id, business.id, displayName, Lifecycle.ACTIVE, 0, at, by)
+            code.requireAssignable()
+            return Merchant(id, business.id, displayName, Lifecycle.ACTIVE, 0, at, by, listOf(MerchantCodeAssignment.registration(code, at, by)))
         }
 
+        @Suppress("LongParameterList")
         fun reconstitute(
             id: MerchantId,
             businessId: BusinessId,
@@ -50,6 +65,7 @@ class Merchant private constructor(
             entitlementRevision: Long,
             createdAt: Instant,
             createdBy: ActorRef,
-        ) = Merchant(id, businessId, displayName, lifecycle, entitlementRevision, createdAt, createdBy)
+            codeAssignments: List<MerchantCodeAssignment>,
+        ) = Merchant(id, businessId, displayName, lifecycle, entitlementRevision, createdAt, createdBy, codeAssignments)
     }
 }

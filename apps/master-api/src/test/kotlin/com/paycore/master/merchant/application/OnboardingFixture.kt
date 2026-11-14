@@ -107,7 +107,7 @@ object OnboardingFixture {
     /** [contractActor]: 계약(Revision 1) 등록자 — B2-3 "등록자 = 승인자여도 MID 발급은 통과" 시험이 승인자로 바꾼다(기본 [operator] — 기존 시험 불변). */
     fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true, contractActor: ActorRef = operator): ReadyMerchant {
         val business = BusinessId(succeeded(service.registerBusiness(RegisterBusinessCommand(request(), registrationNumber(), DisplayName("Demo Business")))))
-        val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant")))))
+        val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))
         val site = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val second = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val contract = ContractId(

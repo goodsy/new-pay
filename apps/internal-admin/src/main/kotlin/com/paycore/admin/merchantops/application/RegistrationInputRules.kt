@@ -17,6 +17,9 @@ internal object RegistrationInputRules {
     val REGISTRATION_NUMBER = Regex("^[0-9]{10}$")
     val BUSINESS_ID = Regex("^biz_$ULID$")
     val MERCHANT_ID = Regex("^mer_$ULID$")
+
+    /** MERCHANT-CODE-001 §3.1(MASTER `MerchantCode.FORMAT` 복제 — 정규화 없음). 예약어·중복은 MASTER의 저장된 거절(MERCHANT_CODE_RESERVED·MERCHANT_CODE_TAKEN). */
+    val MERCHANT_CODE = Regex("^[a-z][a-z0-9]{5,13}$")
     private val WEB_HOST = Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
     private val APP_ID = Regex("^[a-z0-9][a-z0-9_]*(\\.[a-z0-9_]+)+$")
     private val NUMERIC_LAST_LABEL = Regex("^([0-9]+|0x[0-9a-f]*)$")
@@ -37,7 +40,7 @@ internal object RegistrationInputRules {
 
     fun wellFormed(request: RegistrationRequest): Boolean = SUBMISSION_ID.matches(request.submissionId) && when (request) {
         is RegistrationRequest.Business -> REGISTRATION_NUMBER.matches(request.registrationNumber) && displayName(request.displayName)
-        is RegistrationRequest.Merchant -> BUSINESS_ID.matches(request.businessId) && displayName(request.displayName)
+        is RegistrationRequest.Merchant -> BUSINESS_ID.matches(request.businessId) && displayName(request.displayName) && MERCHANT_CODE.matches(request.merchantCode)
         is RegistrationRequest.MerchantSite -> MERCHANT_ID.matches(request.merchantId) && channel(request.channelType, request.channelIdentifier)
         is RegistrationRequest.Contract -> BUSINESS_ID.matches(request.partyBusinessId) && MERCHANT_ID.matches(request.scopeMerchantId) &&
             scopeSites(request.scopeSiteIds) && period(request.effectiveFromDate, request.effectiveToDate)

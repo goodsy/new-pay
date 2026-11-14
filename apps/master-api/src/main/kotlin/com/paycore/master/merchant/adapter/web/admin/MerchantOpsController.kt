@@ -30,7 +30,8 @@ class MerchantOpsController(private val query: MerchantOpsQuery, private val per
             ?: return@guarded AdminChannelResponses.error(request, BAD_REQUEST, AdminChannelResponses.REQUEST_MALFORMED)
         val page = query.search(filter)
         log.info("operation=MerchantSearch correlationId={} result=OK items={}", AdminChannelResponses.requestId(request), page.items.size)
-        AdminChannelResponses.json(request, OK, MerchantOpsJson.directory(page))
+        // MERCHANT-CODE-001 §3.8: 응답 모양은 요청 기준(코드 검색이면 matchedRetiredCode 포함).
+        AdminChannelResponses.json(request, OK, MerchantOpsJson.directory(page, byCode = filter.merchantCode != null))
     }
 
     @GetMapping("/merchants/{merchantId}")

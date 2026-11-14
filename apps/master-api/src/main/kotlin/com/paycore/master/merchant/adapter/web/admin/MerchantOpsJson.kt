@@ -10,13 +10,17 @@ import java.time.Instant
  */
 object MerchantOpsJson {
 
-    fun directory(page: MerchantDirectoryPage): Map<String, Any?> = linkedMapOf(
+    /**
+     * 목록·검색(MERCHANT-CODE-001 §3.8 — 응답 모양 분리): 항목 9키 + `merchantCode` = 10키. [byCode](= 요청이 코드 검색)일 때만 `matchedRetiredCode`를 더한 11키 —
+     * 목록·기존 검색 응답에 이 키가 섞이면 ADMIN `DIRECTORY`가 해석 불가(fail-closed)이므로 요청 기준으로 고른다(응답 값을 보고 고르지 않는다).
+     */
+    fun directory(page: MerchantDirectoryPage, byCode: Boolean = false): Map<String, Any?> = linkedMapOf(
         "items" to page.items.map {
-            linkedMapOf(
+            linkedMapOf<String, Any?>(
                 "merchantId" to it.merchantId, "merchantName" to it.merchantName, "businessId" to it.businessId, "businessName" to it.businessName,
                 "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision,
-                "midCount" to it.midCount, "createdAt" to time(it.createdAt),
-            )
+                "midCount" to it.midCount, "createdAt" to time(it.createdAt), "merchantCode" to it.merchantCode,
+            ).also { item -> if (byCode) item["matchedRetiredCode"] = checkNotNull(it.matchedRetiredCode) { "a code search item says whether a retired code matched" } }
         },
         "nextCursor" to page.nextCursor,
     )
@@ -33,7 +37,11 @@ object MerchantOpsJson {
 
     fun detail(v: MerchantDetailView): Map<String, Any?> = linkedMapOf(
         "merchant" to v.merchant.let {
-            linkedMapOf("merchantId" to it.merchantId, "name" to it.name, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision, "createdAt" to time(it.createdAt))
+            linkedMapOf(
+                "merchantId" to it.merchantId, "name" to it.name, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision, "createdAt" to time(it.createdAt),
+                // MERCHANT-CODE-001 §3.8: 현재 코드.
+                "merchantCode" to it.merchantCode,
+            )
         },
         "business" to v.business.let {
             linkedMapOf("businessId" to it.businessId, "name" to it.name, "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle)
@@ -71,6 +79,14 @@ object MerchantOpsJson {
                 "latestAckAt" to it.latestAckAt?.let(::time), "effectConfirmedAt" to it.effectConfirmedAt?.let(::time), "effectBasis" to it.effectBasis?.name,
             )
         },
+        // MERCHANT-CODE-001 §3.8: 코드 배정 이력(최대 2 — 승인 ID 없음)·변경 가능 여부(advisory). `registeredBy`는 두지 않는다(rev 0.3 철회).
+        "merchantCodeHistory" to v.merchantCodeHistory.map {
+            linkedMapOf(
+                "code" to it.code, "seq" to it.seq, "source" to it.source, "replacesCode" to it.replacesCode, "assignedAt" to time(it.assignedAt),
+                "assignedBy" to it.assignedBy, "reasonCode" to it.reasonCode,
+            )
+        },
+        "merchantCodeChangeable" to v.merchantCodeChangeable,
     )
 
     private fun account(a: MerchantDetailView.AccountDetail): Map<String, Any?> = linkedMapOf(

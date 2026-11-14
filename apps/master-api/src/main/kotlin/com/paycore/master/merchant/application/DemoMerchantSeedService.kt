@@ -32,6 +32,7 @@ import com.paycore.master.merchant.application.provided.ScopeInput
 import com.paycore.master.merchant.application.required.AdminRequestScope
 import com.paycore.master.merchant.application.required.AdminRequestStore
 import com.paycore.master.merchant.application.required.MasterClock
+import com.paycore.master.merchant.application.required.StoredAdminResult
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.CardRouteActivationId
 import com.paycore.master.merchant.domain.ChannelType
@@ -122,7 +123,20 @@ class DemoMerchantSeedService(
 
         private fun request(step: DemoSeedStep) = AdminRequest(step.key(c.keyPrefix), c.actor, c.correlationId)
 
+        /**
+         * MERCHANT-CODE-001 C-23(리뷰 MAJOR-2): Use Case를 부르기 **전에** 그 단계 키의 기록을 비잠금으로 읽어(precheck와 같은 `requests.find`) SUCCEEDED면 저장된 reference를 그대로 쓴다
+         * (재생 취급 — 새 효과 0, 지문 비교를 거치지 않으므로 MC-1 전 지문으로 seed된 DB의 재실행이 ContentConflict가 되지 않는다). 기록이 없거나 SUCCEEDED가 아니면 지금처럼 호출한다.
+         * C-27(rev 0.4.1 Coordinator 결정 — Q-MC1-1 채택): **T0를 싣는 단계(carriesEffectiveFrom)는 선확인하지 않고 호출한다** — 그 지문은 MC-1과 무관하게 같고, DEMO-SEED-001 I-7(같은 키 공간·다른 T0 =
+         * ContentConflict, 출력 effectiveFrom이 실제 저장 T0와 같아야 함)을 유지하기 위해서다.
+         */
+        private fun recordedSuccess(step: DemoSeedStep): String? {
+            if (step.carriesEffectiveFrom) return null
+            val stored = readOnly { requests.find(AdminRequestScope(step.operation, step.key(c.keyPrefix))) }?.result
+            return (stored as? StoredAdminResult.Succeeded)?.reference
+        }
+
         private fun step(step: DemoSeedStep, call: (AdminRequest) -> AdminCommandResult): String {
+            recordedSuccess(step)?.let { return it }
             val result = try {
                 call(request(step))
             } catch (_: AdminCommandFailure) {
@@ -144,7 +158,7 @@ class DemoMerchantSeedService(
         @Suppress("LongMethod")
         private fun run(): DemoMerchantSeedResult {
             val business = BusinessId(step(DemoSeedStep.REGISTER_BUSINESS) { onboarding.registerBusiness(RegisterBusinessCommand(it, v.registrationNumber, v.businessName)) })
-            val merchant = MerchantId(step(DemoSeedStep.REGISTER_MERCHANT) { onboarding.registerMerchant(RegisterMerchantCommand(it, business, v.merchantName)) })
+            val merchant = MerchantId(step(DemoSeedStep.REGISTER_MERCHANT) { onboarding.registerMerchant(RegisterMerchantCommand(it, business, v.merchantName, v.merchantCode)) })
             val site = MerchantSiteId(
                 step(DemoSeedStep.REGISTER_SITE) { onboarding.registerMerchantSite(RegisterMerchantSiteCommand(it, merchant, ChannelType.WEB, v.siteHost)) },
             )

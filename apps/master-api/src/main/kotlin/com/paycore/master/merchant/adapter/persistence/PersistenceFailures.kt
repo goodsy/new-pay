@@ -106,6 +106,11 @@ internal object PersistenceFailures {
         // MERCHANT-OPS-002 B2-2(V9): approvalId 1회 사용(업무 유일키 — 새 TX 판정 3으로 수렴, m-1), 요청 기록 ID는 서버 생성 UUID.
         "admin_approval_evidence.PRIMARY" to StoreConstraint.APPROVAL_EVIDENCE,
         "admin_approval_evidence.uk_admin_approval_evidence_request_record" to StoreConstraint.IDENTIFIER,
+        // MERCHANT-CODE-001 §3.2(V13, C-25): 코드 전역 유일 — 같은 가맹점·같은 코드 행은 uk_mca_code도 어기므로 어느 이름이 보고돼도 같은 분류. PK = 1회 변경, approvalId 1회 사용.
+        "merchant_code_assignment.uk_mca_code" to StoreConstraint.MERCHANT_CODE,
+        "merchant_code_assignment.uk_mca_merchant_code" to StoreConstraint.MERCHANT_CODE,
+        "merchant_code_assignment.PRIMARY" to StoreConstraint.MERCHANT_CODE_SEQ,
+        "merchant_code_assignment.uk_mca_approval" to StoreConstraint.MERCHANT_CODE_APPROVAL,
         "business.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant_site.PRIMARY" to StoreConstraint.IDENTIFIER,

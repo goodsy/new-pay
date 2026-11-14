@@ -18,6 +18,9 @@ import com.paycore.master.merchant.domain.Lifecycle
 import com.paycore.master.merchant.domain.Merchant
 import com.paycore.master.merchant.domain.MerchantAccount
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantCode
+import com.paycore.master.merchant.domain.MerchantCodeAssignment
+import com.paycore.master.merchant.domain.MerchantCodeSource
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSite
 import com.paycore.master.merchant.domain.MerchantSiteId
@@ -44,9 +47,20 @@ internal object MasterPersistenceMapper {
         b.id.value, b.registrationNumber.value, b.displayName.value, b.lifecycle.name, b.createdAt, b.createdBy.value,
     )
 
-    fun toMerchant(row: JpaMerchantEntity) = Merchant.reconstitute(
+    /** MERCHANT-CODE-001: 배정 행(seq 오름차순)을 함께 받아 조립한다 — 배정 없음은 Domain 불변식 위반(결함 신호, IllegalState). */
+    fun toMerchant(row: JpaMerchantEntity, assignments: List<JpaMerchantCodeAssignmentEntity>) = Merchant.reconstitute(
         MerchantId(row.merchantId), BusinessId(row.businessId), DisplayName(row.displayName), Lifecycle.valueOf(row.lifecycle),
         row.entitlementRevision, row.createdAt, ActorRef(row.createdBy),
+        assignments.map(::toCodeAssignment),
+    )
+
+    fun toCodeAssignment(row: JpaMerchantCodeAssignmentEntity) = MerchantCodeAssignment.reconstitute(
+        row.assignmentSeq, MerchantCode(row.merchantCode), row.replacesCode?.let { MerchantCode(it) },
+        MerchantCodeSource.valueOf(row.source), row.approvalId, row.reasonCode, row.assignedAt, ActorRef(row.assignedBy),
+    )
+
+    fun codeAssignmentRow(merchantId: MerchantId, a: MerchantCodeAssignment) = JpaMerchantCodeAssignmentEntity.newRow(
+        merchantId.value, a.seq, a.code.value, a.replacesCode?.value, a.source.name, a.approvalId, a.reasonCode, a.assignedAt, a.assignedBy.value,
     )
 
     fun merchantRow(m: Merchant) = JpaMerchantEntity.newRow(

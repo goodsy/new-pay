@@ -1,0 +1,106 @@
+{
+  "_comment": "MERCHANT-CODE-001 MC-1-9 (C-22): MASTER merchant-ops response bodies produced by MerchantOpsJson + the admin-channel JSON mapper for fixed Demo values (not operational). ADMIN reads a byte-identical copy (apps/internal-admin/src/test/resources/contracts/) with MasterResponseShape. list = merchant-searches without merchantCode (10 item keys), codeSearch = merchant-searches with merchantCode (11 item keys, matchedRetiredCode), detail = GET /merchants/{id} (+ merchant.merchantCode, merchantCodeHistory, merchantCodeChangeable).",
+  "list": {
+    "items": [
+      {
+        "merchantId": "mer_01JC0000000000000000000001",
+        "merchantName": "Demo Merchant",
+        "businessId": "biz_01JC0000000000000000000001",
+        "businessName": "Demo Business",
+        "registrationNumberMasked": "778*******",
+        "lifecycle": "ACTIVE",
+        "entitlementRevision": 5,
+        "midCount": 1,
+        "createdAt": "2026-10-09T02:00:00.000Z",
+        "merchantCode": "shopabcd12"
+      }
+    ],
+    "nextCursor": null
+  },
+  "codeSearch": {
+    "items": [
+      {
+        "merchantId": "mer_01JC0000000000000000000001",
+        "merchantName": "Demo Merchant",
+        "businessId": "biz_01JC0000000000000000000001",
+        "businessName": "Demo Business",
+        "registrationNumberMasked": "778*******",
+        "lifecycle": "ACTIVE",
+        "entitlementRevision": 5,
+        "midCount": 1,
+        "createdAt": "2026-10-09T02:00:00.000Z",
+        "merchantCode": "shopxyz789",
+        "matchedRetiredCode": true
+      }
+    ],
+    "nextCursor": null
+  },
+  "detail": {
+    "merchant": {
+      "merchantId": "mer_01JC0000000000000000000001",
+      "name": "Demo Merchant",
+      "lifecycle": "ACTIVE",
+      "entitlementRevision": 5,
+      "createdAt": "2026-10-09T02:00:00.000Z",
+      "merchantCode": "shopxyz789"
+    },
+    "business": {
+      "businessId": "biz_01JC0000000000000000000001",
+      "name": "Demo Business",
+      "registrationNumberMasked": "778*******",
+      "lifecycle": "ACTIVE"
+    },
+    "sites": [
+      {
+        "merchantSiteId": "site_01JC0000000000000000000001",
+        "channelType": "WEB",
+        "channelIdentifier": "demo-shop.paycore.test",
+        "lifecycle": "ACTIVE",
+        "review": null,
+        "registeredBy": "admin:adm_01JC00000000000000000000V1"
+      }
+    ],
+    "contracts": [
+      {
+        "contractId": "ctr_01JC0000000000000000000001",
+        "createdAt": "2026-10-09T02:00:00.000Z",
+        "revisions": [
+          {
+            "revisionNo": 1,
+            "scopeKind": "MERCHANT",
+            "effectiveFrom": "2026-10-09T15:00:00.000Z",
+            "effectiveTo": null,
+            "approvedAt": null,
+            "scopeSiteIds": [],
+            "registeredBy": "admin:adm_01JC00000000000000000000V1"
+          }
+        ],
+        "agreements": []
+      }
+    ],
+    "accounts": [],
+    "limits": [],
+    "propagation": null,
+    "merchantCodeHistory": [
+      {
+        "code": "shopabcd12",
+        "seq": 1,
+        "source": "REGISTRATION",
+        "replacesCode": null,
+        "assignedAt": "2026-10-09T02:00:00.000Z",
+        "assignedBy": "admin:adm_01JC00000000000000000000V1",
+        "reasonCode": null
+      },
+      {
+        "code": "shopxyz789",
+        "seq": 2,
+        "source": "CHANGE",
+        "replacesCode": "shopabcd12",
+        "assignedAt": "2026-10-09T03:00:00.000Z",
+        "assignedBy": "admin:adm_01JC00000000000000000000V2",
+        "reasonCode": "TYPO_CORRECTION"
+      }
+    ],
+    "merchantCodeChangeable": false
+  }
+}

@@ -251,7 +251,8 @@ class MerchantOpsApiSpec(
             res.response.getHeader("Cache-Control")!! shouldContain "no-store"
             val text = res.body()
             val node = json.readTree(text)
-            node.propertyNames().toList() shouldBe listOf("merchant", "business", "sites", "contracts", "accounts", "limits", "propagation")
+            // 기대값 변경(MERCHANT-CODE-001 MC-1 §3.8 — 응답 키 증가, 완화 아님): 최상위에 merchantCodeHistory·merchantCodeChangeable(MC-1-6 MerchantCodeApiSpec이 값·모양 확인).
+            node.propertyNames().toList() shouldBe listOf("merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable")
             node.get("business").get("registrationNumberMasked").asString() shouldBe brn.take(3) + "*******"
             node.get("accounts").get(0).get("cardRoutes").get(0).propertyNames().toList() shouldBe
                 listOf("activationId", "paymentMethod", "acquirerCode", "routeRef", "status", "registeredAt")

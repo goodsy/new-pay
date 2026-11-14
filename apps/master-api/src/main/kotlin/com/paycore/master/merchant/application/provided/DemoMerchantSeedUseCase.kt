@@ -11,6 +11,7 @@ import com.paycore.master.merchant.domain.InstitutionMerchantRef
 import com.paycore.master.merchant.domain.LimitValue
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PolicyCode
@@ -57,6 +58,8 @@ data class DemoMerchantValues(
     val registrationNumber: BusinessRegistrationNumber,
     val businessName: DisplayName,
     val merchantName: DisplayName,
+    /** MERCHANT-CODE-001 C-6: 새 DB seed의 가맹점 코드(Demo — 운영값 아님). */
+    val merchantCode: MerchantCode,
     val siteHost: String,
     val evidence: EvidenceRef,
     val reason: DecisionReason,

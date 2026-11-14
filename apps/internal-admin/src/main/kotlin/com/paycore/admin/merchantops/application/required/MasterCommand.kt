@@ -24,7 +24,8 @@ class MasterCommand(
 /** 명령 종류 → MASTER 경로(`/internal/v1/admin/merchant-operations/<path>`)·명령 필드 이름(순서 = 본문 순서)·선택 필드·문자열 배열 필드(그 밖은 문자열). */
 enum class MasterCommandKind(val path: String, val fields: Set<String>, val optional: Set<String> = emptySet(), val arrays: Set<String> = emptySet()) {
     REGISTER_BUSINESS("businesses", linkedSetOf("registrationNumber", "displayName")),
-    REGISTER_MERCHANT("merchants", linkedSetOf("businessId", "displayName")),
+    // MERCHANT-CODE-001 MC-1(§4 ②): 가맹점 코드 필수(MASTER 지문 입력).
+    REGISTER_MERCHANT("merchants", linkedSetOf("businessId", "displayName", "merchantCode")),
     REGISTER_MERCHANT_SITE("merchant-sites", linkedSetOf("merchantId", "channelType", "channelIdentifier")),
     REGISTER_CONTRACT(
         "contracts", linkedSetOf("partyBusinessId", "scopeMerchantId", "scopeSiteIds", "effectiveFrom", "effectiveTo"),

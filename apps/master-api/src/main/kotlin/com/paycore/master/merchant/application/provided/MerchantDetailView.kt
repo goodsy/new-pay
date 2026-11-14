@@ -14,8 +14,24 @@ data class MerchantDetailView(
     val accounts: List<AccountDetail>,
     val limits: List<LimitDetail>,
     val propagation: MerchantPropagationView?,
+    /** MERCHANT-CODE-001 §3.8: 코드 배정 이력(seq 오름차순, 최대 2 — 승인 ID 없음: 근거 조회는 ADMIN 근거 보기 경로). */
+    val merchantCodeHistory: List<CodeAssignmentDetail>,
+    /** §3.8 advisory(= seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE). 권위 판정은 변경 명령(MC-1b §3.7.3)이다. */
+    val merchantCodeChangeable: Boolean,
 ) {
-    data class MerchantSummary(val merchantId: String, val name: String, val lifecycle: String, val entitlementRevision: Long, val createdAt: Instant)
+    /** [merchantCode] = 현재 코드(가장 큰 seq — MERCHANT-CODE-001 §3.8). */
+    data class MerchantSummary(val merchantId: String, val name: String, val lifecycle: String, val entitlementRevision: Long, val createdAt: Instant, val merchantCode: String)
+
+    /** 배정 이력 한 행(§3.8 `{code, seq, source, replacesCode?, assignedAt, assignedBy, reasonCode?}`). */
+    data class CodeAssignmentDetail(
+        val code: String,
+        val seq: Int,
+        val source: String,
+        val replacesCode: String?,
+        val assignedAt: Instant,
+        val assignedBy: String,
+        val reasonCode: String?,
+    )
 
     data class BusinessSummary(val businessId: String, val name: String, val registrationNumberMasked: String, val lifecycle: String)
 

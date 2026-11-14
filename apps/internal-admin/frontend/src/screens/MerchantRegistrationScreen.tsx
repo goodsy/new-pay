@@ -28,7 +28,7 @@ import { validName } from './BusinessRegistrationScreen'
  *   사업자를 묶어 보이고 "선택". 사업자 등록 화면 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]). 새 서버 API 없음.
  *   한계: 가맹점이 하나도 없는 기존 사업자는 이 검색으로 찾을 수 없다(사업자 등록 직후 넘겨받는 경우만 가능 — Coordinator 보고 대상).
  * - 사업자 ID(biz_…)는 화면에 그리지 않는다(D-ADMIN-UI-004 ③) — 상호·마스킹 등록번호로 보이고, 내부 키는 가맹점·계약 초안 저장 본문에만 그대로 들어간다(API·감사 불변).
- *   가맹점 ID(mer_…)는 그대로 보인다(사람이 읽는 가맹점 코드는 MERCHANT-CODE-001 확정 뒤).
+ *   가맹점 ID(mer_…)는 아직 그대로 보인다. 가맹점 코드(MERCHANT-CODE-001)는 MC-1에서 가맹점 카드의 직접 입력만 생겼고, 미리보기·표시 교체(mer_ → 코드)는 MC-2.
  * - "다음 단계 →"는 그 단계의 **기존 저장 호출**을 카드 순서대로, 아직 확정 성공하지 않은 카드만 하나씩 보낸다(같은 body·submissionId·잠금). 하나라도 성공하지 못하면 멈춘다.
  * - "이전"·단계 표시는 이동만 한다. 성공한 카드는 읽기 전용 완료 상태(C-32) — "… 새로 입력" 뒤 다음 제출은 새 submissionId.
  * - MID 발급·개통은 마법사에 없다(계약 승인 2인 → 첫 MID 발급 2인 → 개통). 날짜는 Asia/Seoul(C-7), 소급 판정은 MASTER(§3.4).
@@ -84,6 +84,9 @@ const ALL_KEYS = [...STEP_KEYS[2], ...STEP_KEYS[3]]
 const ULID = '[0-9A-HJKMNP-TV-Z]{26}'
 const BUSINESS_ID = new RegExp(`^biz_${ULID}$`)
 const MERCHANT_ID = new RegExp(`^mer_${ULID}$`)
+/** MERCHANT-CODE-001 §3.1 가맹점 코드(MASTER와 같은 규칙 — 정규화 없음, 입력 그대로 보낸다). 미리보기·"다시 제안"은 MC-2. */
+const MERCHANT_CODE = /^[a-z][a-z0-9]{5,13}$/
+const MERCHANT_CODE_HINT = '영문 소문자로 시작, 영문 소문자·숫자 6~14자'
 const SITE_ID = new RegExp(`^site_${ULID}$`)
 const CONTRACT_ID = new RegExp(`^ctr_${ULID}$`)
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
@@ -281,7 +284,8 @@ export function MerchantRegistrationScreen({ api, onOpenLookup, onSessionEnded, 
   // ② 가맹점
   const [merchantBusiness] = useRemembered<BusinessRef | null>(memory, 'merchant.business', null)
   const [merchantName, setMerchantName] = useRemembered(memory, 'merchantName', '')
-  const [merchantErrors, setMerchantErrors] = useRemembered<{ business?: boolean; name?: boolean }>(memory, 'merchantErrors', NO_ERRORS)
+  const [merchantCode, setMerchantCode] = useRemembered(memory, 'merchantCode', '')
+  const [merchantErrors, setMerchantErrors] = useRemembered<{ business?: boolean; name?: boolean; code?: boolean }>(memory, 'merchantErrors', NO_ERRORS)
   const [createdMerchant, setCreatedMerchant] = useRemembered<SavedMerchant | null>(memory, 'createdMerchant', null)
   // ② Site
   const [siteMerchantId, setSiteMerchantId] = useRemembered(memory, 'siteMerchantId', '')
@@ -317,16 +321,17 @@ export function MerchantRegistrationScreen({ api, onOpenLookup, onSessionEnded, 
   const offeredSites = createdSites.filter((s) => s.merchantId === scopeMerchantId.trim())
   const endDateNoteId = 'merchant-registration-end-date-note'
 
-  const merchantSpec: StepSpec<{ businessId: string; displayName: string }> = {
+  const merchantSpec: StepSpec<{ businessId: string; displayName: string; merchantCode: string }> = {
     ...common,
     memoryKey: 'step.merchant',
     api: { send: (input) => api.registerMerchant(input) },
     collect: () => {
       const business = read<BusinessRef | null>('merchant.business', null)
       const name = read<string>('merchantName', '')
-      const errors = { business: business === null || !BUSINESS_ID.test(business.businessId), name: !validName(name) }
+      const code = read<string>('merchantCode', '')
+      const errors = { business: business === null || !BUSINESS_ID.test(business.businessId), name: !validName(name), code: !MERCHANT_CODE.test(code) }
       setMerchantErrors(errors)
-      return errors.business || errors.name || business === null ? null : { businessId: business.businessId, displayName: name }
+      return errors.business || errors.name || errors.code || business === null ? null : { businessId: business.businessId, displayName: name, merchantCode: code }
     },
     onSucceeded: (reference, payload) => {
       fillInto('step.site', () => setSiteMerchantId(reference))
@@ -499,7 +504,7 @@ export function MerchantRegistrationScreen({ api, onOpenLookup, onSessionEnded, 
             submitDisabled={advancing}
             submitLabel="가맹점 등록"
             succeeded={(reference) => <span>가맹점 ID <Mono>{reference}</Mono></span>}
-            completion={{ resetLabel: '가맹점 새로 입력', onReset: () => { setMerchantName(''); setMerchantErrors(NO_ERRORS); if (read<BusinessRef | null>('selectedBusiness', null)) memory.write('merchant.business', read('selectedBusiness', null)) } }}
+            completion={{ resetLabel: '가맹점 새로 입력', onReset: () => { setMerchantName(''); setMerchantCode(''); setMerchantErrors(NO_ERRORS); if (read<BusinessRef | null>('selectedBusiness', null)) memory.write('merchant.business', read('selectedBusiness', null)) } }}
           >
             {() => (
               <>
@@ -513,6 +518,11 @@ export function MerchantRegistrationScreen({ api, onOpenLookup, onSessionEnded, 
                 <Field label="가맹점명" error={merchantErrors.name ? '1~100자, 앞뒤 공백 없이 입력하세요.' : undefined}>
                   {(describedBy) => (
                     <Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} autoComplete="off" aria-describedby={describedBy} aria-invalid={merchantErrors.name || undefined} />
+                  )}
+                </Field>
+                <Field label="가맹점 코드" error={merchantErrors.code ? `${MERCHANT_CODE_HINT}로 입력하세요.` : undefined} hint={merchantErrors.code ? undefined : `${MERCHANT_CODE_HINT}. 한 번 쓴 코드는 다시 쓸 수 없습니다.`}>
+                  {(describedBy) => (
+                    <Input value={merchantCode} onChange={(e) => setMerchantCode(e.target.value)} autoComplete="off" spellCheck={false} aria-describedby={describedBy} aria-invalid={merchantErrors.code || undefined} className="font-mono" />
                   )}
                 </Field>
               </>

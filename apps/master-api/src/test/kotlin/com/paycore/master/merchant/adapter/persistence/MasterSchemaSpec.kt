@@ -34,7 +34,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
         "admin_approval_evidence", "admin_request", "business", "card_route_activation", "card_route_activation_event", "contract", "contract_revision",
         "contract_revision_approval", "contract_revision_scope_site", "contract_service_agreement", "currency_enablement", "currency_unit",
         "default_designation", "entitlement_snapshot_ack", "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account",
-        "merchant_account_site_assignment", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
+        // 기대값 변경(MERCHANT-CODE-001 MC-1 V13): 새 업무 표 `merchant_code_assignment`(append-only 코드 배정 이력) — DELETE 1142 검사 대상에도 들어간다(표 목록 증가, 완화 아님).
+        "merchant_account_site_assignment", "merchant_code_assignment", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
         "payment_method_activation_event", "policy_assignment", "policy_version", "site_activation_confirmation",
         "site_activation_confirmation_revocation", "transaction_limit_policy",
     )
@@ -295,6 +296,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "policy_version", "card_route_activation_event",
             // 기대값 변경(MERCHANT-OPS-002 B2-2 V10, 명세 §9.3·§8.2 B2-2-4): 승인 근거(append-only — SELECT, INSERT만).
             "admin_approval_evidence",
+            // 기대값 변경(MERCHANT-CODE-001 MC-1 V14): 코드 배정 이력(append-only — SELECT, INSERT만).
+            "merchant_code_assignment",
         )
 
         Then("UPDATE and locking reads on insert-only tables are denied (1142)") {
@@ -476,6 +479,7 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
             "policy_version" to "registered_by",
             "card_route_activation_event" to "actor_ref",
             "admin_approval_evidence" to "approved_by",
+            "merchant_code_assignment" to "assigned_by",
         )
 
         fun firstColumn(table: String): String = FIRST_COLUMNS.getValue(table)

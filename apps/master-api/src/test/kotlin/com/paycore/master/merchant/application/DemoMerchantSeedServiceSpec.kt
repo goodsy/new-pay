@@ -87,6 +87,8 @@ class DemoMerchantSeedServiceSpec(
                 registrationNumber = brn,
                 businessName = DisplayName("DEMO 사업자 (운영값 아님)"),
                 merchantName = DisplayName("DEMO 가맹점 (운영값 아님)"),
+                // MERCHANT-CODE-001 MC-1: 공유 DB — 시험마다 다른 코드(등록번호·host와 같은 이유).
+                merchantCode = com.paycore.master.merchant.domain.MerchantCodeFixtures.unique(),
                 siteHost = OnboardingFixture.host(),
                 evidence = EvidenceRef("DEMO-SEED-V1:NON-OPERATIONAL"),
                 reason = DecisionReason("DEMO seed (not operational)"),

@@ -68,6 +68,9 @@ internal sealed interface MasterResponseShape {
         private val INSTITUTION_CODE = Text(Regex("^[A-Z0-9]{1,32}$"))
         private val CURRENCY = Text(Regex("^[A-Z]{3}$"))
         private val ACTOR = Text(Regex("^[A-Za-z0-9._:@-]{1,64}$"))
+
+        /** MERCHANT-CODE-001 §3.1 가맹점 코드(MASTER `MerchantCode.FORMAT`과 같은 문법). */
+        private val MERCHANT_CODE = Text(Regex("^[a-z][a-z0-9]{5,13}$"))
         private val COUNT = Whole(0)
         private const val MAX_ITEMS = 1_000
 
@@ -75,14 +78,25 @@ internal sealed interface MasterResponseShape {
         private fun list(item: MasterResponseShape) = Arr(item, MAX_ITEMS)
         private fun opt(inner: MasterResponseShape) = Nullable(inner)
 
+        /** 목록·기존 검색 항목 9키 + `merchantCode`(MERCHANT-CODE-001 §3.8 — MASTER와 같은 배포 단위, C-22). */
+        private val DIRECTORY_ITEM_FIELDS: Array<Pair<String, MasterResponseShape>> = arrayOf(
+            "merchantId" to MERCHANT_ID, "merchantName" to NAME, "businessId" to BUSINESS_ID, "businessName" to NAME,
+            "registrationNumberMasked" to MASKED, "lifecycle" to CODE, "entitlementRevision" to COUNT, "midCount" to COUNT, "createdAt" to TIME,
+            "merchantCode" to MERCHANT_CODE,
+        )
+
+        /** 목록·기존 검색(10키). `matchedRetiredCode`가 오면 키 집합이 달라 해석 불가(fail-closed — 코드 검색 의미가 목록에 섞이지 않는다). */
         val DIRECTORY: MasterResponseShape = obj(
-            "items" to Arr(
-                obj(
-                    "merchantId" to MERCHANT_ID, "merchantName" to NAME, "businessId" to BUSINESS_ID, "businessName" to NAME,
-                    "registrationNumberMasked" to MASKED, "lifecycle" to CODE, "entitlementRevision" to COUNT, "midCount" to COUNT, "createdAt" to TIME,
-                ),
-                max = 50,
-            ),
+            "items" to Arr(obj(*DIRECTORY_ITEM_FIELDS), max = 50),
+            "nextCursor" to opt(MERCHANT_ID),
+        )
+
+        /**
+         * MERCHANT-CODE-001 §3.8 코드 검색(11키 = 10키 + `matchedRetiredCode`, 0 또는 1개). ADMIN이 **보낸 기준**(본문에 merchantCode)으로 이 모양을 고른다 — 응답을 보고 고르지 않는다.
+         * ADMIN 검색 parser의 `merchantCode`는 MC-2(이 배치는 모양만 — MASTER 응답 golden으로 고정).
+         */
+        val DIRECTORY_BY_CODE: MasterResponseShape = obj(
+            "items" to Arr(obj(*DIRECTORY_ITEM_FIELDS, "matchedRetiredCode" to Flag), max = 1),
             "nextCursor" to opt(MERCHANT_ID),
         )
 
@@ -182,7 +196,8 @@ internal sealed interface MasterResponseShape {
         )
 
         val DETAIL: MasterResponseShape = obj(
-            "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME),
+            // MERCHANT-CODE-001 §3.8: 현재 코드.
+            "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME, "merchantCode" to MERCHANT_CODE),
             "business" to obj("businessId" to BUSINESS_ID, "name" to NAME, "registrationNumberMasked" to MASKED, "lifecycle" to CODE),
             "sites" to list(
                 obj(
@@ -247,6 +262,15 @@ internal sealed interface MasterResponseShape {
                     "effectConfirmedAt" to opt(TIME), "effectBasis" to opt(CODE),
                 ),
             ),
+            // MERCHANT-CODE-001 §3.8: 코드 배정 이력(최대 2 — seq 1 등록·채우기, seq 2 유일한 변경; 승인 ID 없음)·변경 가능 여부(advisory).
+            "merchantCodeHistory" to Arr(
+                obj(
+                    "code" to MERCHANT_CODE, "seq" to Whole(1), "source" to Text(Regex("^(REGISTRATION|BACKFILL|CHANGE)$")), "replacesCode" to opt(MERCHANT_CODE),
+                    "assignedAt" to TIME, "assignedBy" to ACTOR, "reasonCode" to opt(CODE),
+                ),
+                max = 2,
+            ),
+            "merchantCodeChangeable" to Flag,
         )
     }
 }

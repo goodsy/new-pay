@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 @Transactional(propagation = Propagation.MANDATORY)
 class JpaEntitlementSourceStore(
+    private val merchants: JpaMerchantRepository,
     private val sites: MerchantSiteJpaRepository,
     private val accounts: MerchantAccountJpaRepository,
     private val assignments: SiteAssignmentJpaRepository,
@@ -36,9 +37,8 @@ class JpaEntitlementSourceStore(
     override fun load(merchantId: MerchantId): EntitlementSource? = translate(ENTITY) {
         val accountRows = accounts.findByMerchant(merchantId.value)
         if (accountRows.isEmpty()) return@translate null
-        val merchant = MasterPersistenceMapper.toMerchant(
-            checkNotNull(entityManager.find(JpaMerchantEntity::class.java, merchantId.value)) { "merchant must exist" },
-        )
+        // MERCHANT-CODE-001 MC-1: Merchant 조립(코드 배정 행 포함)은 Aggregate Repository 한 곳에서 — Snapshot은 MC-4 전까지 코드를 싣지 않는다.
+        val merchant = checkNotNull(merchants.find(merchantId)) { "merchant must exist" }
         val business = MasterPersistenceMapper.toBusiness(
             checkNotNull(entityManager.find(JpaBusinessEntity::class.java, merchant.businessId.value)) { "business must exist" },
         )

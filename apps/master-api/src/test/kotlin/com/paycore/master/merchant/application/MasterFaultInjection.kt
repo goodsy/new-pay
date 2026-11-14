@@ -43,6 +43,9 @@ enum class MasterFaultPoint {
 
     // MERCHANT-OPS-002 B2-2: 승인 근거 행 INSERT+flush 직후(같은 TX·commit 전).
     APPROVAL_EVIDENCE_RECORD,
+
+    // MERCHANT-CODE-001 MC-1-3(리뷰 m-2): 코드 사전 조회(findCodeOwner) 직후·가맹점+배정 INSERT(flush) — 경합 순서를 결정적으로 강제·1062 관찰.
+    MERCHANT_CODE_OWNER, MERCHANT_INSERT,
 }
 
 /**
@@ -311,6 +314,11 @@ class MasterFaultInjectionConfig {
 
         override fun update(merchant: Merchant, expectedVersion: Long): Long =
             f.around(MasterFaultPoint.MERCHANT_UPDATE) { real.update(merchant, expectedVersion) }
+
+        override fun findCodeOwner(code: com.paycore.master.merchant.domain.MerchantCode): com.paycore.master.merchant.domain.MerchantId? =
+            f.around(MasterFaultPoint.MERCHANT_CODE_OWNER) { real.findCodeOwner(code) }
+
+        override fun insert(merchant: Merchant) = f.around(MasterFaultPoint.MERCHANT_INSERT) { real.insert(merchant) }
     }
 
     @Bean

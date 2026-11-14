@@ -46,6 +46,12 @@ enum class StoreConstraint(val businessKey: Boolean) {
 
     // MERCHANT-OPS-002 §9.3(B2-2 V9): 승인 근거 PK(approvalId 1회 사용 — 동시 경합은 새 TX 판정 3 `APPROVAL_ID_ALREADY_USED`로 수렴, review m-1).
     APPROVAL_EVIDENCE(true),
+
+    // MERCHANT-CODE-001 §3.2(C-25 — V13 배정 표): 코드 전역 유일(현재·은퇴 — 경합 진 쪽은 새 TX 사전 조회로 `MERCHANT_CODE_TAKEN` 수렴), (merchant_id, seq) PK(1회 변경 — MC-1b),
+    // approvalId 1회 사용(MC-1b). 모두 업무 유일키 → 실행기 새 TX 재판정.
+    MERCHANT_CODE(true),
+    MERCHANT_CODE_SEQ(true),
+    MERCHANT_CODE_APPROVAL(true),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

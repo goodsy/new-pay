@@ -144,7 +144,7 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
     }
 
     fun business(s: String = sub(), number: String = brn, name: String = "시험 사업자") = RegistrationRequest.Business(s, number, name)
-    fun merchant(s: String = sub(), businessId: String = biz) = RegistrationRequest.Merchant(s, businessId, "시험 가맹점")
+    fun merchant(s: String = sub(), businessId: String = biz, code: String = "shopabcd12") = RegistrationRequest.Merchant(s, businessId, "시험 가맹점", code)
     fun site(s: String = sub(), merchantId: String = mer, type: String = "WEB", identifier: String = "demo-shop2.paycore.test") =
         RegistrationRequest.MerchantSite(s, merchantId, type, identifier)
 
@@ -222,6 +222,10 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             f.audits.last().detail shouldBe "brn=778*******"
             val before = f.audits.size
             listOf(merchant(businessId = "biz_1"), merchant(businessId = mer), merchant(s = "ABC")).forEach { f.service.register(operatorId, it, ctx) shouldBe MerchantRegistrationResult.InvalidInput }
+            // MERCHANT-CODE-001 MC-1-9(§4 ②, 추가 경계): 코드 형식(§3.1 복제 — 정규화 없음) 위반은 400, 감사 없음(가맹점 형식 오류와 같은 규칙), MASTER 미호출.
+            listOf("SHOPABCD12", "Shopabcd12", "shop-abcd12", "shop_abcd12", " shopabcd12", "abcde", "a" + "b".repeat(14), "1shopabcd", "", "mer_01JC0000000000000000000001").forEach { code ->
+                withClue(code) { f.service.register(operatorId, merchant(code = code), ctx) shouldBe MerchantRegistrationResult.InvalidInput }
+            }
             listOf(
                 site(identifier = "Shop.Example.test"), site(identifier = "10.0.0.1"), site(identifier = "shop.example.test:443"), site(identifier = "shop"),
                 site(type = "web"), site(type = "APP", identifier = "Upper.App"), site(merchantId = biz),
@@ -251,6 +255,12 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             c.fields shouldBe mapOf("registrationNumber" to brn, "displayName" to "시험 사업자")
             f.audits.forEach { it.remoteIp shouldBe "127.0.0.1" }
             f.metrics shouldBe listOf("command:BUSINESS:OK")
+        }
+        Then("MC-1-9 merchant registration sends merchantCode as a MASTER body field (MASTER fingerprints it — same submissionId with another code is MASTER 409)") {
+            val f = Fixture()
+            f.service.register(operatorId, merchant(code = "shopabcd12"), ctx)
+            f.commands.single().let { m -> (m.kind to m.fields) shouldBe (MasterCommandKind.REGISTER_MERCHANT to mapOf("businessId" to biz, "displayName" to "시험 가맹점", "merchantCode" to "shopabcd12")) }
+            MasterCommandKind.REGISTER_MERCHANT.fields.toList() shouldBe listOf("businessId", "displayName", "merchantCode")
         }
         Then("C-4: two accounts sending the same submissionId get different MASTER keys (no replay of another operator's result); a resend keeps key, correlation id and fields") {
             val f = Fixture()

@@ -120,7 +120,7 @@ object StubMasterOpsServer {
 
     fun directoryJson(merchantId: String, businessId: String, masked: String = "123*******"): String =
         """{"items":[{"merchantId":"$merchantId","merchantName":"Demo Merchant","businessId":"$businessId","businessName":"Demo Business",""" +
-            """"registrationNumberMasked":"$masked","lifecycle":"ACTIVE","entitlementRevision":5,"midCount":1,"createdAt":"2026-10-09T02:00:00.000Z"}],"nextCursor":null}"""
+            """"registrationNumberMasked":"$masked","lifecycle":"ACTIVE","entitlementRevision":5,"midCount":1,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"shopabcd12"}],"nextCursor":null}"""
 
     const val EMPTY_DIRECTORY = """{"items":[],"nextCursor":null}"""
 
@@ -182,7 +182,8 @@ object StubMasterOpsServer {
         val assignmentList = assignments ?: assignmentJson("asg_$ulid", "site_$ulid")
         val methodList = paymentMethods ?: paymentMethodJson("act_$ulid", "ACTIVE")
         val confirmationList = siteConfirmations ?: siteConfirmationJson("sac_$ulid", "site_$ulid", "act_$ulid")
-        return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z"},""" +
+        // MERCHANT-CODE-001 MC-1(§3.8): MASTER 상세 모양 변화(merchant.merchantCode + 최상위 merchantCodeHistory·merchantCodeChangeable)를 대역도 따른다.
+        return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"shopabcd12"},""" +
             """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumberMasked":"123*******","lifecycle":"ACTIVE"},""" +
             """"sites":[$siteList],""" +
             """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[$revisions],""" +
@@ -194,7 +195,9 @@ object StubMasterOpsServer {
             """"cardRoutes":[{"activationId":"cra_$ulid","paymentMethod":"CARD","acquirerCode":"SIMCARD01","routeRef":"SIMVAN01","status":"ACTIVE","registeredAt":"2026-10-09T02:00:00.000Z"$routeExtra}],""" +
             """"siteConfirmations":[$confirmationList]}],""" +
             """"limits":[{"policyId":"tlp_$ulid","scopeKind":"CSA_DEFAULT","agreementId":"csa_$ulid","merchantAccountId":null,"currencyCode":"KRW","perTxKind":"LIMITED","perTxAmount":1000000,"dailyKind":"LIMITED","dailyAmount":5000000,"effectiveFrom":"2026-10-09T15:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +
-            """"propagation":{"latestRevision":5,"latestRevisionIssuedAt":"2026-10-09T02:00:00.000Z","latestAckRevision":null,"latestAckAt":null,"effectConfirmedAt":null,"effectBasis":null}}"""
+            """"propagation":{"latestRevision":5,"latestRevisionIssuedAt":"2026-10-09T02:00:00.000Z","latestAckRevision":null,"latestAckAt":null,"effectConfirmedAt":null,"effectBasis":null},""" +
+            """"merchantCodeHistory":[{"code":"shopabcd12","seq":1,"source":"REGISTRATION","replacesCode":null,"assignedAt":"2026-10-09T02:00:00.000Z","assignedBy":"admin:adm_01JC00000000000000000000V1","reasonCode":null}],""" +
+            """"merchantCodeChangeable":false}"""
     }
 
     /** B3-1 상세 Site 한 줄(기본 심사 APPROVED — [review] null이면 심사 결정 없음 = PENDING). */

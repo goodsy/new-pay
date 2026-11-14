@@ -89,6 +89,13 @@ class DemoSeedCommandSpec(
             lines.toMap()["effectiveFrom"] shouldBe "2026-10-09T15:00:00Z"
             lines.toMap()["replayed"] shouldBe "false"
             seedRows() shouldBe 18
+            // MERCHANT-CODE-001 MC-1-10 대조군(C-6, 추가 단언): 새 DB의 운영 seed 가맹점 코드 = demoshop01(배정 seq 1 REGISTRATION 하나).
+            MasterDbAccounts.root(container).use { c ->
+                c.scalar(
+                    "SELECT GROUP_CONCAT(CONCAT(assignment_seq, ':', merchant_code, ':', source)) FROM paycore_master.merchant_code_assignment WHERE merchant_id = ?",
+                    lines.toMap()["merchantId"],
+                )
+            } shouldBe "1:demoshop01:REGISTRATION"
         }
 
         When("the same command runs again") {

@@ -7721,7 +7721,7 @@
     {
       "id": "MERCHANT-CODE-001",
       "title": "사람이 읽는 가맹점 코드(새 식별 키) 설계·질문",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "dependsOn": [],
       "questions": [
         "Q-MC-1",
@@ -7729,7 +7729,11 @@
         "Q-MC-3",
         "Q-MC-4",
         "Q-MC-5",
-        "Q-MC-6"
+        "Q-MC-6",
+        "Q-MC-7",
+        "Q-MC-8",
+        "Q-MC-9",
+        "Q-MC-10"
       ],
       "acceptanceCriteria": [
         "D-MCODE-001 기준 명세: 토스식 가맹점 코드(영문 소문자+숫자 ≤14, 상호 영문+랜덤 4자 미리보기, 운영자 직접 입력, 전체 고유), 외부 연동·정산서 노출 지점, 감사·승인 대상 전환과 기존 기록 연결, 불변·재사용 금지, 기존 가맹점 부여, 8대 원칙 증거",
@@ -7741,7 +7745,40 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "ADMIN-UI-MERCHANT-002 뒤 명세 작성(Implementer) → 남은 세부 질문 → 리뷰 → 구현"
+      "nextResumeAction": "MC-1 커밋 완료 → Demo E2E harness 이관 → MC-2(미리보기·다시 제안·목록/상세 코드 표시) → MC-1b → MC-3 → MC-4; 이후 MERCHANT-BIZ-LOOKUP-001",
+      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.1 sha256 d1c39cc126b78403902c6371974fd0ef14602b60dcb43f37105f870ac5d082f1",
+      "review": "spec rev0.3 REVIEW_FAIL(MAJOR-1 배포 단위, MAJOR-2 seed 재실행) → rev0.4 REVIEW_PASS (2026-11-14). C-20~C-26 Coordinator 채택",
+      "gateRuns": [
+        {
+          "tag": "MCODE-gate1",
+          "batch": "MC-1",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-14T061001Z.json",
+          "result": "GRADLE-CHECK 06:10:32Z..06:56:11Z(45m39s/4500s) exit 0; Kotlin 4549 / FRONTEND 338 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:395695567b54254b74dc66711747edf19256fcb82c3ebf2a1592310e162f3628",
+          "supplementary": "CVE-SCAN PASS 2026-11-14 ~16:25 KST(취약점 0, canary 전부) ~/gate-logs/MCODE-cve1.log"
+        }
+      ],
+      "evidence": {
+        "mc_1": {
+          "implementation": "MC-1 한 배포 단위(C-22): MASTER V13(merchant_code_assignment + 해시 채우기 + 근거 CHECK ChangeMerchantCode)·V14(SELECT, INSERT), MerchantCode/예약어/TAKEN·RESERVED, 1062 분류 4키, 등록 지문 코드 포함, 목록·코드 검색·상세 응답; ADMIN MasterResponseShape DIRECTORY/DIRECTORY_BY_CODE/DETAIL, 등록 본문·코드 입력칸; seed C-23 + C-27(T0 단계 제외)",
+          "tests": "MC-1-1..11 RED→GREEN ~/gate-logs/mcode-mc1/ (red-*/green-*, r2-*); MC-1-5 첫 RED는 시험 결함 섞임 → 변이 f로 보강",
+          "mutations": "a~j 전부 killed, restoredIdentical; 리뷰 수정 후 h·g 재실행 killed(muts2.out)",
+          "moduleChecks": "1차 master 724 중 4 실패(목록 시험 V13·V14·Entity·권한 누락 — 증가만 수정) / admin PASS; 수정 후 관련 Spec r2-master 139·Vitest 47·tsc 통과",
+          "review": "1차 REVIEW_FAIL(M-1 두 앱 Demo 증거 없음, m-1~m-3, n-1~n-4) → 수정 + Coordinator Demo E2E → 재리뷰 REVIEW_PASS(fingerprint 39569556… 조건, 게이트로 충족)",
+          "demo": "MC-1-9 두 앱 Demo 단계(실제 MASTER·ADMIN jar, Demo MySQL) 2026-11-14 11:58 KST 기동, ~/gate-logs/mcode-mc1/demo/mc1-demo-e2e.py 10단계 PASS(e2e-result.json, exit 0): 등록 mer_01M7BZW09CN0EA1V9VYQD4DD5W 코드 mcone3caee4, 재전송 replayed, 목록·상세 코드, TAKEN, RESERVED(admin1), 대문자 400, seed 가맹점 4곳 V13 해시 코드. 화면(브라우저)은 미확인 — HTTP 대체, 사용자 미검토",
+          "gate": "MCODE-gate1 PASS",
+          "status": "VERIFIED"
+        }
+      },
+      "followUps": [
+        "MC-1 MINOR: 명세 §13에 Coordinator Demo E2E 기록 행 추가(게이트 지문 보존 위해 tasks.json에만 기록) + \"seq 1 없음 = IllegalArgument\"가 n-4로 IllegalState로 바뀐 것 기록, §13 0.4.1-impl/0.4.1 행 순서 정리 — MC-2 명세 갱신 때",
+        "MC-1 MINOR: 두 앱 Demo E2E 절차를 저장소 harness(argv allowlist, Demo 전용)로 이관 — MC-1b/MC-2 시작 전",
+        "MC-1 NIT: MerchantOpsShapeGoldenSpec 시험 이름 \"bytes equal\" → \"compact JSON equals\"",
+        "MC-1 NIT: e2e 절차 docstring \"MASTER 미도달\" 과장, 로그인 roles 단언 보완(이관 때)",
+        "MC-1 NIT: r2-vitest result.json argv에 없는 RegistrationStep.test.tsx — 시험 수로 세지 않음",
+        "MC-1 NIT: MerchantRegistrationScreen.test.tsx RESERVED 재제출 뒤 이전 TAKEN 문구 사라짐 단언",
+        "MC-1 사용자 화면 검토 미완(외출) — 다음 Demo 기동 때 등록 화면 코드 입력칸·거절 문구 확인 요청"
+      ]
     },
     {
       "id": "MERCHANT-BIZ-LOOKUP-001",
@@ -7751,7 +7788,8 @@
         "ADMIN-UI-MERCHANT-002"
       ],
       "questions": [
-        "Q-ADMIN-UI-7"
+        "Q-ADMIN-UI-7",
+        "Q-BL-1"
       ],
       "acceptanceCriteria": [
         "정확 일치만, D-MOPS-003 감사·한도(매 시도 감사), 응답 상호·마스킹 번호·내부 키만(평문 번호 미노출)",
@@ -7766,7 +7804,9 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "ADMIN-UI-MERCHANT-002 뒤 명세 → 구현"
+      "nextResumeAction": "MERCHANT-CODE-001 MC-1 뒤(사용자 순서 \"차례로\") BL-1 → BL-2 → BL-3",
+      "spec": "docs/repository/MERCHANT-BIZ-LOOKUP-001-BUSINESS-LOOKUP.md rev 0.3 sha256 d42ce0069448db98bf522d6dbb7b9eb71a6e5ec62c473ecf4802599d5b4539f1",
+      "review": "spec rev0.2 REVIEW_PASS(minor) → rev0.3 REVIEW_PASS (2026-11-14)"
     }
   ]
 }

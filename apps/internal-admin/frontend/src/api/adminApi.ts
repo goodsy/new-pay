@@ -449,6 +449,8 @@ export interface MerchantRegistrationInput {
   submissionId: string
   businessId: string
   displayName: string
+  /** MERCHANT-CODE-001 MC-1: 가맹점 코드(필수 — `^[a-z][a-z0-9]{5,13}$`, 정규화 없음). 예약어·중복은 MASTER 거절. */
+  merchantCode: string
 }
 
 export interface SiteRegistrationInput {

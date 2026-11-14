@@ -14,7 +14,8 @@ sealed interface RegistrationRequest {
         override fun toString(): String = "RegistrationRequest.Business(registrationNumber=****)"
     }
 
-    class Merchant(override val submissionId: String, val businessId: String, val displayName: String) : RegistrationRequest {
+    /** MERCHANT-CODE-001 MC-1(§4 ②): [merchantCode] 필수 — 형식은 Use Case(§3.1 복제), 예약어·중복은 MASTER 판정. 공개값이지만 toString에는 넣지 않는다(기존 관례). */
+    class Merchant(override val submissionId: String, val businessId: String, val displayName: String, val merchantCode: String) : RegistrationRequest {
         override val kind = RegistrationKind.MERCHANT
 
         override fun toString(): String = "RegistrationRequest.Merchant(businessId=$businessId)"

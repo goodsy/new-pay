@@ -33,7 +33,7 @@ object MasterFixture {
     fun business(at: Instant = t0): Business = Business.register(businessId(), registrationNumber(), DisplayName("Demo Business"), at, operator)
 
     fun merchant(business: Business = business(), at: Instant = t0): Merchant =
-        Merchant.register(merchantId(), business, DisplayName("Demo Merchant"), at, operator)
+        Merchant.register(merchantId(), business, DisplayName("Demo Merchant"), MerchantCodeFixtures.unique(), at, operator)
 
     fun site(merchant: Merchant, channel: SiteChannel = webChannel(), at: Instant = t0): MerchantSite =
         MerchantSite.register(siteId(), merchant, channel, at, operator)
@@ -74,5 +74,8 @@ object MasterFixture {
      * Mapper가 쓰는 공식 복원 경로 [Merchant.reconstitute]로 저장 상태를 그대로 만든다 — 존재할 수 없는 상태가 아니다: DB lifecycle CHECK가 허용).
      */
     fun terminatedMerchantAsStored(business: Business): Merchant =
-        Merchant.reconstitute(merchantId(), business.id, DisplayName("Closed Merchant"), Lifecycle.TERMINATED, 3, t0, operator)
+        Merchant.reconstitute(
+            merchantId(), business.id, DisplayName("Closed Merchant"), Lifecycle.TERMINATED, 3, t0, operator,
+            listOf(MerchantCodeAssignment.registration(MerchantCodeFixtures.unique(), t0, operator)),
+        )
 }

@@ -10,6 +10,7 @@ import com.paycore.master.merchant.domain.ContractServiceAgreementId
 import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethod
@@ -67,7 +68,8 @@ data class RegisterBusinessCommand(
     val displayName: DisplayName,
 )
 
-data class RegisterMerchantCommand(val request: AdminRequest, val businessId: BusinessId, val displayName: DisplayName)
+/** MERCHANT-CODE-001 MC-1(§3.3): [merchantCode]는 등록 시 필수(형식은 값 객체, 예약어·중복은 Use Case 판정). */
+data class RegisterMerchantCommand(val request: AdminRequest, val businessId: BusinessId, val displayName: DisplayName, val merchantCode: MerchantCode)
 
 data class RegisterMerchantSiteCommand(
     val request: AdminRequest,

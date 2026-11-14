@@ -23,7 +23,8 @@ object MerchantRegistrationBodyParser {
 
     private val FIELDS: Map<RegistrationKind, Set<String>> = mapOf(
         RegistrationKind.BUSINESS to setOf("submissionId", "registrationNumber", "displayName"),
-        RegistrationKind.MERCHANT to setOf("submissionId", "businessId", "displayName"),
+        // MERCHANT-CODE-001 MC-1(§4 ②): 가맹점 등록 본문에 `merchantCode` 필수(없으면 400 INVALID_INPUT).
+        RegistrationKind.MERCHANT to setOf("submissionId", "businessId", "displayName", "merchantCode"),
         RegistrationKind.MERCHANT_SITE to setOf("submissionId", "merchantId", "channelType", "channelIdentifier"),
     )
     private const val SCOPE_SITE_IDS = "scopeSiteIds"
@@ -63,7 +64,7 @@ object MerchantRegistrationBodyParser {
                 RegistrationRequest.Business(it.getValue("submissionId"), it.getValue("registrationNumber"), it.getValue("displayName"))
             }
             RegistrationKind.MERCHANT -> text(root, FIELDS.getValue(kind))?.let {
-                RegistrationRequest.Merchant(it.getValue("submissionId"), it.getValue("businessId"), it.getValue("displayName"))
+                RegistrationRequest.Merchant(it.getValue("submissionId"), it.getValue("businessId"), it.getValue("displayName"), it.getValue("merchantCode"))
             }
             RegistrationKind.MERCHANT_SITE -> text(root, FIELDS.getValue(kind))?.let {
                 RegistrationRequest.MerchantSite(it.getValue("submissionId"), it.getValue("merchantId"), it.getValue("channelType"), it.getValue("channelIdentifier"))

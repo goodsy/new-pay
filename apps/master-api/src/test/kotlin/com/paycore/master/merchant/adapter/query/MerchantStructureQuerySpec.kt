@@ -121,7 +121,7 @@ class MerchantStructureQuerySpec(
                 succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Bulk")))),
             )
             RandomOnboardingFixture.validMerchants(count = 12, seed = 20261009L).forEach { shape ->
-                val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, shape.displayName))))
+                val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, shape.displayName, com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))
                 val hosts = (1..shape.siteCount).map { OnboardingFixture.host() }
                 hosts.forEach { succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, it))) }
 

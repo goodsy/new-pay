@@ -47,7 +47,8 @@ class MasterApiContextSmokeSpec(
         // + V5(승인 시작 조건 표)·V6(그 권한, MASTER-SNAPSHOT-002) + V7(기관 식별 코드 CHECK, INST-CODE-001) + 시험 전용 V900(probe)·V901(probe runtime 권한).
         // 기대값 변경(MERCHANT-OPS-002 B2-2, 명세 §9.3 C-21): + V9(승인 근거 schema)·V10(그 runtime 권한). V8은 의도적으로 비운다.
         // 기대값 변경(MERCHANT-OPS-002 B3-1, §9.22 C-42): + V11(승인 근거 operation CHECK 확장 — 권한 변경 없음, V12는 의도적으로 비운다).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "900", "901")
+        // 기대값 변경(MERCHANT-CODE-001 MC-1 — 목록 증가): + V13(가맹점 코드 배정 표)·V14(그 runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
@@ -83,6 +84,8 @@ class MasterApiContextSmokeSpec(
             "JpaCurrencyEnablementEntity", "JpaSiteReviewDecisionEntity", "JpaSnapshotIssueEntity", "JpaSnapshotAckEntity",
             // MASTER-SNAPSHOT-002
             "JpaTransactionLimitPolicyEntity", "JpaPolicyVersionEntity", "JpaPolicyAssignmentEntity", "JpaCardRouteActivationEntity", "JpaCardRouteEventEntity",
+            // 기대값 변경(MERCHANT-CODE-001 MC-1 — 목록 증가): 가맹점 코드 배정(@Immutable, append-only).
+            "JpaMerchantCodeAssignmentEntity",
         )
     }
 }

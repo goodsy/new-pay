@@ -30,7 +30,8 @@ class MasterApiMainMigrationsBootSpec(
         flyway.configuration.locations.map { it.descriptor } shouldBe listOf(MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES)
         // 기대값 변경(B2-2 V9·V10, MERCHANT-OPS-002 §9.3 C-21): 승인 근거 schema(V9)와 그 runtime 권한(V10). V8은 의도적으로 비운다.
         // 기대값 변경(MERCHANT-OPS-002 B3-1 V11, §9.22 C-42): 승인 근거 operation CHECK 확장(schema만 — 권한 변경 없음, V12는 의도적으로 비운다).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11")
+        // 기대값 변경(MERCHANT-CODE-001 MC-1 — 목록 증가): + V13(가맹점 코드 배정 schema)·V14(그 runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14")
     }
 
     test("the runtime account (role-only, no database-level privilege) connects to the MASTER database and reads business tables") {

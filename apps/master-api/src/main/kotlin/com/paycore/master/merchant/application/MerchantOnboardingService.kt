@@ -118,11 +118,18 @@ class MerchantOnboardingService(
         }
 
     override fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult =
-        executor.execute(AdminOperation.REGISTER_MERCHANT, command.request, listOf(command.businessId.value, command.displayName.value)) { work ->
+        // MERCHANT-CODE-001 §3.3·§3.6: 지문 [businessId, displayName, merchantCode](같은 키·다른 코드 409). 판정 순서: 형식(parser) → 예약어(Domain) → business 잠금 → lockedNow →
+        // 배정 이력 사전 조회(현재·은퇴 — 있으면 저장된 MERCHANT_CODE_TAKEN, reference 없음 C-12) → 등록(seq 1). 경합 진 쪽은 flush 1062 → StoreConstraint.MERCHANT_CODE(업무 유일키)
+        // → 실행기 새 TX 재판정에서 이 사전 조회가 커밋된 행을 보고 TAKEN으로 수렴한다(503 아님).
+        executor.execute(
+            AdminOperation.REGISTER_MERCHANT, command.request, listOf(command.businessId.value, command.displayName.value, command.merchantCode.value),
+        ) { work ->
+            command.merchantCode.requireAssignable()
             val business = businesses.lock(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
+            merchants.findCodeOwner(command.merchantCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
             val merchant = Merchant.register(
-                MerchantId(work.newId(MerchantId.PREFIX)), business, command.displayName, work.now, command.request.actor,
+                MerchantId(work.newId(MerchantId.PREFIX)), business, command.displayName, command.merchantCode, work.now, command.request.actor,
             )
             work.beginWrites()
             merchants.insert(merchant)
@@ -131,6 +138,8 @@ class MerchantOnboardingService(
                 mapOf(
                     "merchantId" to merchant.id.value, "businessId" to business.id.value, "displayName" to merchant.displayName.value,
                     "lifecycle" to merchant.lifecycle.name, "entitlementRevision" to merchant.entitlementRevision,
+                    // MERCHANT-CODE-001 §4: 이력 detail·Outbox에 코드(공개값 — 비밀 아님).
+                    "merchantCode" to merchant.currentCode.value,
                 ),
             )
             merchant.id.value

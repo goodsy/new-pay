@@ -3,6 +3,7 @@ package com.paycore.master.merchant.application.provided
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.Lifecycle
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import java.time.Instant
 
@@ -30,9 +31,17 @@ data class MerchantSearchFilter(
     val registrationNumber: BusinessRegistrationNumber? = null,
     val after: MerchantId? = null,
     val limit: Int = DEFAULT_LIMIT,
+    /**
+     * MERCHANT-CODE-001 §3.8: 코드 검색(정확 일치, **현재·은퇴 코드 모두**). 단일 기준 — 다른 필터·cursor와 함께 쓸 수 없다(parser 400, 여기서도 불변식).
+     * 결과 항목은 `matchedRetiredCode`를 갖는 별도 응답 모양이다.
+     */
+    val merchantCode: MerchantCode? = null,
 ) {
     init {
         require(limit in 1..MAX_LIMIT) { "limit must be within 1..$MAX_LIMIT" }
+        require(merchantCode == null || listOf(merchantId, businessId, lifecycle, registrationNumber, after).all { it == null }) {
+            "merchantCode is a single search criterion"
+        }
     }
 
     companion object {
@@ -54,4 +63,8 @@ data class MerchantDirectoryItem(
     val entitlementRevision: Long,
     val midCount: Long,
     val createdAt: Instant,
+    /** MERCHANT-CODE-001 §3.8: 현재 코드(가장 큰 seq). */
+    val merchantCode: String,
+    /** 코드 검색에서만 값이 있다 — 검색한 코드가 은퇴 코드면 true(현재 코드면 false). 목록·기존 검색 응답에는 키 자체가 없다. */
+    val matchedRetiredCode: Boolean? = null,
 )

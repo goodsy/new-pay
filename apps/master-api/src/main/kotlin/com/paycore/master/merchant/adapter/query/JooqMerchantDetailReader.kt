@@ -12,6 +12,7 @@ import com.paycore.master.jooq.generated.Tables.DEFAULT_DESIGNATION
 import com.paycore.master.jooq.generated.Tables.MERCHANT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT_SITE_ASSIGNMENT
+import com.paycore.master.jooq.generated.Tables.MERCHANT_CODE_ASSIGNMENT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE_REVIEW_DECISION
 import com.paycore.master.jooq.generated.Tables.SITE_ACTIVATION_CONFIRMATION
@@ -60,17 +61,41 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             .join(BUSINESS).on(BUSINESS.BUSINESS_ID.eq(MERCHANT.BUSINESS_ID))
             .where(MERCHANT.MERCHANT_ID.eq(id))
             .fetchOne() ?: return null
+        val history = codeHistory(id)
 
         return MerchantDetailView(
-            merchant = MerchantDetailView.MerchantSummary(head.value1(), head.value2(), head.value3(), head.value4(), Instant.parse(head.value5())),
+            merchant = MerchantDetailView.MerchantSummary(
+                head.value1(), head.value2(), head.value3(), head.value4(), Instant.parse(head.value5()),
+                checkNotNull(history.lastOrNull()) { "merchant without a code assignment" }.code,
+            ),
             business = MerchantDetailView.BusinessSummary(head.value6(), head.value7(), head.value8(), head.value9()),
             sites = sites(id),
             contracts = contracts(id),
             accounts = accounts(id),
             limits = limits(id),
             propagation = null,
+            merchantCodeHistory = history,
+            // §3.8 advisory: seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE(권위 판정은 MC-1b 변경 명령).
+            merchantCodeChangeable = history.size == 1 && head.value3() == "ACTIVE" && !contractApproved(id),
         )
     }
+
+    /** MERCHANT-CODE-001 §3.8: 배정 이력(seq 오름차순 — approval_id는 읽지 않는다). */
+    private fun codeHistory(merchantId: String): List<MerchantDetailView.CodeAssignmentDetail> =
+        dsl.select(
+            MERCHANT_CODE_ASSIGNMENT.MERCHANT_CODE, MERCHANT_CODE_ASSIGNMENT.ASSIGNMENT_SEQ, MERCHANT_CODE_ASSIGNMENT.SOURCE, MERCHANT_CODE_ASSIGNMENT.REPLACES_CODE,
+            MasterSqlText.instant(MERCHANT_CODE_ASSIGNMENT.ASSIGNED_AT), MERCHANT_CODE_ASSIGNMENT.ASSIGNED_BY, MERCHANT_CODE_ASSIGNMENT.REASON_CODE,
+        )
+            .from(MERCHANT_CODE_ASSIGNMENT)
+            .where(MERCHANT_CODE_ASSIGNMENT.MERCHANT_ID.eq(merchantId))
+            .orderBy(MERCHANT_CODE_ASSIGNMENT.ASSIGNMENT_SEQ)
+            .fetch { MerchantDetailView.CodeAssignmentDetail(it.value1(), it.value2().toInt(), it.value3(), it.value4(), Instant.parse(it.value5()), it.value6(), it.value7()) }
+
+    /** 그 가맹점 대상 계약에 승인 사실 행이 하나라도 있는가(§3.7.1 "첫 계약 승인" — advisory 표시용). */
+    private fun contractApproved(merchantId: String): Boolean = dsl.fetchExists(
+        dsl.selectOne().from(CONTRACT_REVISION_APPROVAL).join(CONTRACT).on(CONTRACT.CONTRACT_ID.eq(CONTRACT_REVISION_APPROVAL.CONTRACT_ID))
+            .where(CONTRACT.MERCHANT_ID.eq(merchantId)),
+    )
 
     private fun sites(merchantId: String): List<SiteDetail> {
         // 최신 심사 결정(사이트별 최대 seq) — 오래된 순으로 읽어 마지막 값이 남게 한다.

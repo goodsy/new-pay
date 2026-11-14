@@ -26,8 +26,13 @@ object MerchantOperationsBodies {
     fun registerBusiness(s: Submission = Submission(), brn: String = OnboardingFixture.registrationNumber().value, name: String = "시험 사업자"): String =
         obj(common(s) + listOf("registrationNumber" to brn, "displayName" to name))
 
-    fun registerMerchant(businessId: String, s: Submission = Submission(), name: String = "시험 가맹점"): String =
-        obj(common(s) + listOf("businessId" to businessId, "displayName" to name))
+    /** MERCHANT-CODE-001 MC-1: `merchantCode` 필수(공유 DB — 기본값은 시험마다 다른 형식 안 코드). */
+    fun registerMerchant(
+        businessId: String,
+        s: Submission = Submission(),
+        name: String = "시험 가맹점",
+        code: String = com.paycore.master.merchant.domain.MerchantCodeFixtures.unique().value,
+    ): String = obj(common(s) + listOf("businessId" to businessId, "displayName" to name, "merchantCode" to code))
 
     fun registerSite(merchantId: String, s: Submission = Submission(), type: String = "WEB", identifier: String = OnboardingFixture.host()): String =
         obj(common(s) + listOf("merchantId" to merchantId, "channelType" to type, "channelIdentifier" to identifier))

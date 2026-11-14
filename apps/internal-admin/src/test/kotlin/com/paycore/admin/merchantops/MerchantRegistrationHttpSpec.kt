@@ -65,7 +65,8 @@ class MerchantRegistrationHttpSpec(
     val mer = "mer_01JC0000000000000000000001"
     val existingCanary = "biz_01JC00000000000000000CANRY".replace("CANRY", "CNRY0")
     fun businessBody(s: String, number: String = brn) = obj("submissionId" to s, "registrationNumber" to number, "displayName" to "시험 사업자")
-    fun merchantBody(s: String) = obj("submissionId" to s, "businessId" to biz, "displayName" to "시험 가맹점")
+    // MERCHANT-CODE-001 MC-1: 가맹점 등록 본문에 `merchantCode` 필수.
+    fun merchantBody(s: String, code: String = "shopabcd12") = obj("submissionId" to s, "businessId" to biz, "displayName" to "시험 가맹점", "merchantCode" to code)
     fun siteBody(s: String) = obj("submissionId" to s, "merchantId" to mer, "channelType" to "WEB", "channelIdentifier" to "demo-shop2.paycore.test")
 
     Given("roles (OPERATOR only — D-MOPS-006 ①)") {
@@ -123,6 +124,26 @@ class MerchantRegistrationHttpSpec(
             )
             rows[1] shouldBe "MERCHANT_BUSINESS_REGISTER|OK|sub=${s1.take(8)};replayed=false;brn=778*******|biz_01JC0000000000000000000011|mos.$s1"
             rows[5] shouldBe "MERCHANT_SITE_REGISTER|OK|sub=${s3.take(8)};replayed=false;channel=WEB|site_01JC0000000000000000000011|mos.$s3"
+        }
+
+        Then("MC-1-9 merchant registration over HTTP: the signed MASTER body carries merchantCode; a missing or malformed code is 400 INVALID_INPUT without a MASTER call; MASTER TAKEN is a stored rejection") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("mer_01JC0000000000000000000011")))
+            register(client, "merchants", merchantBody(sub(), code = "shopabcd12")).status shouldBe 200
+            val sent = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).last()
+            sent.signatureValid shouldBe true
+            json.readTree(sent.body).let { n -> listOf(n.get("businessId").asString(), n.get("displayName").asString(), n.get("merchantCode").asString()) } shouldBe
+                listOf(biz, "시험 가맹점", "shopabcd12")
+            val before = StubMasterOpsServer.received.size
+            listOf(
+                merchantBody(sub(), code = "SHOPABCD12"), merchantBody(sub(), code = "shop-abcd12"), merchantBody(sub(), code = "abcde"),
+                obj("submissionId" to sub(), "businessId" to biz, "displayName" to "시험 가맹점"),
+                """{"submissionId":"${sub()}","businessId":"$biz","displayName":"x","merchantCode":null}""",
+            ).forEach { body -> withClue(body) { register(client, "merchants", body).let { (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT"}""") } } }
+            StubMasterOpsServer.received.size shouldBe before
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("MERCHANT_CODE_TAKEN")))
+            register(client, "merchants", merchantBody(sub(), code = "shopabcd12")).contentAsString shouldBe """{"outcome":"REJECTED","rejection":"MERCHANT_CODE_TAKEN","replayed":false}"""
         }
     }
 
