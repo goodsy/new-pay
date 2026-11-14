@@ -27,7 +27,10 @@ object MerchantSearchBodyParser {
 
     private const val REGISTRATION_NUMBER = "registrationNumber"
     private const val LIMIT = "limit"
-    private val TEXT_FIELDS = setOf("merchantId", "businessId", "lifecycle", REGISTRATION_NUMBER, "after")
+
+    /** MERCHANT-CODE-001 MC-2 코드 검색(JSON 문자열만 — 형식·단일 기준 검사는 Use Case). */
+    private const val MERCHANT_CODE = "merchantCode"
+    private val TEXT_FIELDS = setOf("merchantId", "businessId", "lifecycle", REGISTRATION_NUMBER, "after", MERCHANT_CODE)
 
     private val strict: JsonMapper = JsonMapper.builder()
         .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
@@ -52,7 +55,7 @@ object MerchantSearchBodyParser {
         val limit = root.get(LIMIT)
         if (limit != null && !(limit.isIntegralNumber && limit.canConvertToInt())) return null
         fun text(name: String): String? = root.get(name)?.asString()
-        return MerchantSearchCriteria(text("merchantId"), text("businessId"), text("lifecycle"), text(REGISTRATION_NUMBER), text("after"), limit?.asInt())
+        return MerchantSearchCriteria(text("merchantId"), text("businessId"), text("lifecycle"), text(REGISTRATION_NUMBER), text("after"), limit?.asInt(), text(MERCHANT_CODE))
     }
 
     /** 첫 최상위 객체의 직속 key에 `registrationNumber`가 있는가(문법 오류 지점까지). */

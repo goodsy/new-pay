@@ -54,8 +54,11 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         criteria.lifecycle?.let { body["lifecycle"] = it }
         criteria.registrationNumber?.let { body["registrationNumber"] = it }
         criteria.after?.let { body["after"] = it }
+        criteria.merchantCode?.let { body["merchantCode"] = it }
         criteria.limit?.let { body["limit"] = it }
-        return call("search", HttpMethod.POST, SEARCH_PATH, json.writeValueAsBytes(body), MasterResponseShape.DIRECTORY)
+        // MERCHANT-CODE-001 §3.8: 응답 모양은 **보낸 기준**으로 고른다(응답을 보고 고르지 않는다) — 코드 검색만 `matchedRetiredCode`가 있는 DIRECTORY_BY_CODE.
+        val shape = if (criteria.merchantCode != null) MasterResponseShape.DIRECTORY_BY_CODE else MasterResponseShape.DIRECTORY
+        return call("search", HttpMethod.POST, SEARCH_PATH, json.writeValueAsBytes(body), shape)
     }
 
     override fun detail(merchantId: String): MasterCallResult {

@@ -11,6 +11,8 @@ import { fakeApi } from '../test/fakeApi'
  * Named Fixture: 단계마다 업무 조건이 드러나게 만든다(Demo 식별자 — 업무 의미 없음).
  */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
+/** MC-2: 가맹점 코드 fixture(내부 키에서 결정적으로 — 화면은 mer_ 대신 이 코드를 보인다). */
+const codeOf = (merchantId: string) => `shop${merchantId.slice(-6)}`
 const MER1 = id('mer', 1)
 const SITE1 = id('site', 1)
 type Detail = MerchantDetail
@@ -20,7 +22,7 @@ type Account = Detail['accounts'][number]
 /** 사업자·가맹점만 등록(계약 없음). */
 function registeredOnly(patch: Partial<Detail> = {}): Detail {
   return {
-    merchant: { merchantId: MER1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
+    merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
     business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
     sites: [{ merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
     contracts: [], accounts: [], limits: [], propagation: null, pendingApprovals: [],
@@ -133,7 +135,7 @@ describe('serviceOpeningTimeline (ADMIN-UI-MERCHANT-001 — derived from the exi
 describe('MerchantsScreen detail — 서비스 개통 현황 sits above the existing panels (the 개통 점검표 stays)', () => {
   it('shows the timeline right after the detail heading, before 기본정보', async () => {
     const item: MerchantListItem = {
-      merchantId: MER1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+      merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
       entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
     }
     const api = fakeApi({
@@ -144,7 +146,7 @@ describe('MerchantsScreen detail — 서비스 개통 현황 sits above the exis
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} now={() => new Date('2026-11-11T03:00:00.000Z')} />)
     const user = userEvent.setup({ delay: null })
     await user.click(screen.getByRole('button', { name: '검색' }))
-    await user.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+    await user.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     const timeline = await screen.findByRole('region', { name: '서비스 개통 현황' })
     const basics = screen.getByRole('region', { name: '기본정보' })
     expect(timeline.compareDocumentPosition(basics) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

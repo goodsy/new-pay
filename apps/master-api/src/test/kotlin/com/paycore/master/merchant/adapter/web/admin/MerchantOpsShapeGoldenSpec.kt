@@ -27,7 +27,7 @@ class MerchantOpsShapeGoldenSpec : BehaviorSpec({
     val operator = "admin:adm_01JC00000000000000000000V1"
 
     Given("MC-1-9 fixed views serialized by the MASTER response generator") {
-        Then("MC-1-9 list (no merchantCode criterion): 10 item keys, no matchedRetiredCode — bytes equal the golden") {
+        Then("MC-1-9 list (no merchantCode criterion): 10 item keys, no matchedRetiredCode — compact JSON equals the golden") {
             val produced = mapper.writeValueAsString(MerchantOpsJson.directory(MerchantDirectoryPage(listOf(item("shopabcd12", null)), null)))
             produced shouldBe mapper.writeValueAsString(golden.get("list"))
             mapper.readTree(produced).get("items").get(0).propertyNames().toList() shouldBe listOf(
@@ -35,12 +35,12 @@ class MerchantOpsShapeGoldenSpec : BehaviorSpec({
             )
         }
 
-        Then("MC-1-9 code search: 11 item keys with matchedRetiredCode — bytes equal the golden") {
+        Then("MC-1-9 code search: 11 item keys with matchedRetiredCode — compact JSON equals the golden") {
             val produced = mapper.writeValueAsString(MerchantOpsJson.directory(MerchantDirectoryPage(listOf(item("shopxyz789", true)), null), byCode = true))
             produced shouldBe mapper.writeValueAsString(golden.get("codeSearch"))
         }
 
-        Then("MC-1-9 detail: merchant.merchantCode, merchantCodeHistory and merchantCodeChangeable — bytes equal the golden; no registeredBy on the merchant") {
+        Then("MC-1-9 detail: merchant.merchantCode, merchantCodeHistory and merchantCodeChangeable — compact JSON equals the golden; no registeredBy on the merchant") {
             val view = MerchantDetailView(
                 merchant = MerchantDetailView.MerchantSummary("mer_01JC0000000000000000000001", "Demo Merchant", "ACTIVE", 5, at("2026-10-09T02:00:00Z"), "shopxyz789"),
                 business = MerchantDetailView.BusinessSummary("biz_01JC0000000000000000000001", "Demo Business", "778*******", "ACTIVE"),

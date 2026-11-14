@@ -7,6 +7,8 @@ import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
 
 /** Demo 식별자(MASTER 형식 — 접두사 + Crockford base32 26자). 업무 의미 없는 고정값. */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
+/** MC-2: 가맹점 코드 fixture(내부 키에서 결정적으로 — 화면은 mer_ 대신 이 코드를 보인다). */
+const codeOf = (merchantId: string) => `shop${merchantId.slice(-6)}`
 const MER1 = id('mer', 1)
 const MER2 = id('mer', 2)
 const MER3 = id('mer', 3)
@@ -16,13 +18,13 @@ const MASKED = '123*******'
 const BRN = '1234567890'
 
 const item = (merchantId: string, name: string): MerchantListItem => ({
-  merchantId, merchantName: name, businessId: BIZ1, businessName: '데모 사업자', registrationNumberMasked: MASKED, lifecycle: 'ACTIVE',
+  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: BIZ1, businessName: '데모 사업자', registrationNumberMasked: MASKED, lifecycle: 'ACTIVE',
   entitlementRevision: 4, midCount: 2, createdAt: '2026-10-01T00:00:00.000Z',
 })
 
 /** 상세 한 건(MERCHANT-OPS-001 §3.2 모양 전부 — Site 둘(심사 결과 있음/없음), 계약 1(SITES 범위), MID 1(배정·결제수단·통화·카드 Route), 한도 2). */
 const detail: MerchantDetail = {
-  merchant: { merchantId: MER1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 4, createdAt: '2026-10-01T00:00:00.000Z' },
+  merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 4, createdAt: '2026-10-01T00:00:00.000Z' },
   business: { businessId: BIZ1, name: '데모 사업자', registrationNumberMasked: MASKED, lifecycle: 'ACTIVE' },
   sites: [
     { merchantSiteId: id('mst', 1), channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: { decision: 'APPROVED', decidedAt: '2026-10-02T00:00:00.000Z' } },
@@ -69,20 +71,24 @@ async function openDetail(overrides: Parameters<typeof fakeApi>[0]) {
   const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })), ...overrides })
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
   await search()
-  await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+  await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
   return api
 }
 
 describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant lookup)', () => {
-  it('search sends only the filled criteria (trimmed) and lists the masked registration number, MID count and entitlement revision', async () => {
+  it('search sends only the filled criteria and lists the masked registration number, MID count and entitlement revision', async () => {
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
-    await typeIn('가맹점 ID', `  ${MER1}  `)
+    // 기대값 변경(MERCHANT-CODE-001 MC-2, D-ADMIN-UI-004 ③): "가맹점 ID" 검색란이 "가맹점 코드"(단일 기준)로 바뀌었다 — 채운 조건만 보내는 규칙은 상태 조건으로 확인한다.
+    expect(screen.queryByLabelText('가맹점 ID')).toBeNull()
     await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
     await search()
-    expect(api.merchantSearch).toHaveBeenCalledWith({ merchantId: MER1, lifecycle: 'TERMINATED' })
-    const row = await screen.findByRole('row', { name: MER1 })
+    expect(api.merchantSearch).toHaveBeenCalledWith({ lifecycle: 'TERMINATED' })
+    const row = await screen.findByRole('row', { name: codeOf(MER1) })
     expect(row).toHaveTextContent('데모 가맹점')
+    // MC-2 표시 교체: 가맹점은 코드로(내부 키 mer_… 없음).
+    expect(row).toHaveTextContent(codeOf(MER1))
+    expect(row).not.toHaveTextContent('mer_')
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 화면에 보이지 않는다 — 사업자는 상호·마스킹 등록번호로 식별.
     expect(row).not.toHaveTextContent(BIZ1)
     expect(row).toHaveTextContent('데모 사업자')
@@ -113,13 +119,13 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(screen.queryByLabelText('사업자 ID')).toBeNull()
     await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
     await search()
-    await screen.findByRole('row', { name: MER2 })
+    await screen.findByRole('row', { name: codeOf(MER2) })
     // 검색 뒤 입력란을 바꿔도 다음 쪽은 검색한 조건 그대로(조건이 섞이지 않는다).
     await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
     await userEvent.click(screen.getByRole('button', { name: '다음' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { lifecycle: 'ACTIVE', after: MER2 })
-    expect(await screen.findByRole('row', { name: MER3 })).toBeInTheDocument()
-    expect(screen.queryByRole('row', { name: MER1 })).toBeNull()
+    expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: codeOf(MER1) })).toBeNull()
     expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
   })
 
@@ -166,7 +172,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     await typeIn('사업자등록번호', BRN)
     await search()
     expect(api.merchantSearch).toHaveBeenCalledWith({ registrationNumber: BRN })
-    expect(await screen.findByRole('row', { name: MER1 })).toHaveTextContent(MASKED)
+    expect(await screen.findByRole('row', { name: codeOf(MER1) })).toHaveTextContent(MASKED)
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.innerHTML).not.toContain(BRN)
     expect(container.innerHTML).not.toContain('123-45-67890')
@@ -218,7 +224,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
     await search()
-    await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     expect(api.merchantDetail).toHaveBeenCalledWith(MER1)
 
     const basic = await screen.findByRole('region', { name: '기본정보' })
@@ -301,5 +307,58 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.queryByRole('region', { name: '기본정보' })).toBeNull()
     expect(api.merchantHistory).not.toHaveBeenCalled()
+  })
+})
+
+describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code search (§3.8, D-ADMIN-UI-004 ③)', () => {
+  it('MC-2-3 code search: "가맹점 코드" sends {merchantCode} only (exact, unchanged) and lists the one match by its code', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [{ ...item(MER1, '데모 가맹점'), matchedRetiredCode: false }], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    await typeIn('가맹점 코드', codeOf(MER1))
+    await search()
+    expect(api.merchantSearch).toHaveBeenCalledWith({ merchantCode: codeOf(MER1) })
+    const row = await screen.findByRole('row', { name: codeOf(MER1) })
+    expect(row).toHaveTextContent(codeOf(MER1))
+    expect(row).not.toHaveTextContent('mer_')
+  })
+
+  it('MC-2-3 a malformed code (no normalisation — upper case, too short, spaces) or a code combined with another criterion is refused on screen without a call', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    for (const bad of ['ShopABCD12', 'abcde', ' shop00001 ']) {
+      await userEvent.clear(screen.getByLabelText('가맹점 코드'))
+      await typeIn('가맹점 코드', bad)
+      await search()
+      expect(screen.getByText('가맹점 코드는 영문 소문자로 시작, 영문 소문자·숫자 6~14자입니다.')).toBeInTheDocument()
+    }
+    await userEvent.clear(screen.getByLabelText('가맹점 코드'))
+    await typeIn('가맹점 코드', 'shopabcd12')
+    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
+    await search()
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByLabelText('상태'), '')
+    await typeIn('사업자등록번호', '1234567890')
+    await search()
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    expect(api.merchantSearch).not.toHaveBeenCalled()
+  })
+
+  it('MC-2-3 DOM: list, detail header, basic info and the merchant row of the history show the code — no mer_ in the screen text or accessible names; other aggregate keys stay', async () => {
+    const merchantEntry: MerchantHistoryEntry = { ...entry(20, 'REGISTERED'), operation: 'RegisterMerchant', aggregateType: 'Merchant', aggregateId: MER1 }
+    await openDetail({
+      merchantDetail: vi.fn(async () => detail),
+      merchantHistory: vi.fn(async () => ({ items: [merchantEntry, entry(21, 'SUSPENDED')], nextCursor: null })),
+    })
+    const history = await screen.findByRole('region', { name: '변경 이력' })
+    expect(await within(history).findByRole('row', { name: '20' })).toHaveTextContent(codeOf(MER1))
+    expect(within(history).getByRole('row', { name: '21' })).toHaveTextContent(id('cra', 1))
+    expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent(codeOf(MER1))
+    expect(screen.getByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER1)}`) })).toBeInTheDocument()
+    // 재리뷰 MAJOR-1: DOM 전체 — 텍스트와 모든 속성(value·placeholder·aria-*·title·data-* 포함, innerHTML) 및 입력란 value 프로퍼티에 mer_ 0건.
+    expect(document.body.innerHTML).not.toContain('mer_')
+    for (const el of Array.from(document.body.querySelectorAll('*'))) {
+      for (const attr of Array.from(el.attributes)) expect(`${el.tagName}@${attr.name}=${attr.value}`).not.toContain('mer_')
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) expect(el.value).not.toContain('mer_')
+    }
   })
 })

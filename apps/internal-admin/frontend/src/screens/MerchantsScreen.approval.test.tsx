@@ -10,13 +10,15 @@ import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
  * Demo 식별자(업무 의미 없는 고정값). 기준 시각 2026-11-10T09:00Z.
  */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
+/** MC-2: 가맹점 코드 fixture(내부 키에서 결정적으로 — 화면은 mer_ 대신 이 코드를 보인다). */
+const codeOf = (merchantId: string) => `shop${merchantId.slice(-6)}`
 const MER1 = id('mer', 1)
 const CTR1 = id('ctr', 1)
 const REGISTRANT = 'admin:adm_01JCRG0000000000000000RG01'
 const NOW = () => new Date('2026-11-10T09:00:00.000Z')
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
   entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 type Revision = MerchantDetail['contracts'][number]['revisions'][number]
@@ -27,7 +29,7 @@ const revision = (n: number, patch: Partial<Revision> = {}): Revision => ({
 const REVISIONS = [revision(1, { approvedAt: '2026-11-01T00:00:00.000Z' }), revision(2), revision(3, { effectiveFrom: '2026-10-01T15:00:00.000Z', effectiveTo: '2026-11-01T15:00:00.000Z' })]
 function detail(pending: MerchantDetail['pendingApprovals'] = []): MerchantDetail {
   return {
-    merchant: { merchantId: MER1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
+    merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
     business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
     sites: [], contracts: [{ contractId: CTR1, createdAt: '2026-11-01T00:00:00.000Z', revisions: REVISIONS, agreements: [] }], accounts: [], limits: [], propagation: null,
     pendingApprovals: pending,
@@ -43,7 +45,7 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
   })
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={canRequestApproval} onOpenApprovals={onOpenApprovals} now={NOW} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
-  await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+  await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
   await screen.findByRole('region', { name: '계약·CSA' })
   return api
 }

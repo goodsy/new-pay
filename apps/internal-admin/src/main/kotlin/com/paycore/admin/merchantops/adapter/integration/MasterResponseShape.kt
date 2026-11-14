@@ -93,7 +93,7 @@ internal sealed interface MasterResponseShape {
 
         /**
          * MERCHANT-CODE-001 §3.8 코드 검색(11키 = 10키 + `matchedRetiredCode`, 0 또는 1개). ADMIN이 **보낸 기준**(본문에 merchantCode)으로 이 모양을 고른다 — 응답을 보고 고르지 않는다.
-         * ADMIN 검색 parser의 `merchantCode`는 MC-2(이 배치는 모양만 — MASTER 응답 golden으로 고정).
+         * 사용처: MC-2 ADMIN 코드 검색(`HttpMasterOpsGateway.search` — 기준에 `merchantCode`가 있을 때만, MASTER 응답 golden으로 고정).
          */
         val DIRECTORY_BY_CODE: MasterResponseShape = obj(
             "items" to Arr(obj(*DIRECTORY_ITEM_FIELDS, "matchedRetiredCode" to Flag), max = 1),

@@ -85,7 +85,8 @@ class MerchantRegistrationHttpSpec(
                 StubMasterOpsServer.received.size shouldBe before
                 audits(account.account.id.value).map { it.substringBeforeLast('|') } shouldBe listOf(
                     "MERCHANT_BUSINESS_REGISTER|FORBIDDEN|sub=${s.take(8)};brn=778*******|-",
-                    "MERCHANT_REGISTER|FORBIDDEN|sub=${s.take(8)}|$biz",
+                    // MERCHANT-CODE-001 MC-2-2: 가맹점 등록 감사 detail에 코드(공개값).
+                    "MERCHANT_REGISTER|FORBIDDEN|sub=${s.take(8)};code=shopabcd12|$biz",
                     "MERCHANT_SITE_REGISTER|FORBIDDEN|sub=${s.take(8)};channel=WEB|$mer",
                 )
             }

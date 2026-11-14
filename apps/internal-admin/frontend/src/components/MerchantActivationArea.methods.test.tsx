@@ -14,6 +14,8 @@ vi.mock('../lib/paymentMethods', () => ({
 }))
 
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
+/** MC-2: 가맹점 코드 fixture(내부 키에서 결정적으로 — 화면은 mer_ 대신 이 코드를 보인다). */
+const codeOf = (merchantId: string) => `shop${merchantId.slice(-6)}`
 const NOW = new Date('2026-11-11T03:00:00.000Z')
 type Account = MerchantDetail['accounts'][number]
 /** Named Fixture: MID 활성, 대표 Site 하나, 결제수단 개통 없음. */
@@ -24,7 +26,7 @@ const account: Account = {
   paymentMethods: [], currencies: [], cardRoutes: [], siteConfirmations: [],
 }
 const detail: MerchantDetail = {
-  merchant: { merchantId: id('mer', 1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
+  merchant: { merchantId: id('mer', 1), merchantCode: codeOf(id('mer', 1)), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
   business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
   sites: [{ merchantSiteId: id('site', 1), channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
   contracts: [], accounts: [account], limits: [], propagation: null, pendingApprovals: [],

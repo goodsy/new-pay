@@ -132,7 +132,15 @@ class MerchantLookupService(
     private fun wellFormed(c: MerchantSearchCriteria): Boolean =
         (c.merchantId == null || MERCHANT_ID.matches(c.merchantId)) && (c.businessId == null || BUSINESS_ID.matches(c.businessId)) &&
             (c.lifecycle == null || c.lifecycle in LIFECYCLES) && (c.after == null || MERCHANT_ID.matches(c.after)) &&
-            (c.limit == null || c.limit in 1..MAX_LIMIT) && (c.registrationNumber == null || REGISTRATION_NUMBER.matches(c.registrationNumber))
+            (c.limit == null || c.limit in 1..MAX_LIMIT) && (c.registrationNumber == null || REGISTRATION_NUMBER.matches(c.registrationNumber)) &&
+            (c.merchantCode == null || codeSearchWellFormed(c))
+
+    /**
+     * MERCHANT-CODE-001 MC-2(§3.8): 코드 검색은 §3.1 형식(정규화 없음)이고 **단일 기준** — MASTER `MerchantSearchRequestParser`와 같이 `limit`만 함께 올 수 있다
+     * (다른 필터·cursor·등록번호와 함께면 MASTER 호출 전 400 — 은퇴 코드 일치 의미를 다른 조건과 섞지 않는다).
+     */
+    private fun codeSearchWellFormed(c: MerchantSearchCriteria): Boolean =
+        MERCHANT_CODE.matches(c.merchantCode!!) && c.merchantId == null && c.businessId == null && c.lifecycle == null && c.after == null && c.registrationNumber == null
 
     private fun rateLimited(kind: String): MerchantLookupResult {
         metrics.rateLimited(kind)
@@ -188,6 +196,9 @@ class MerchantLookupService(
         val MERCHANT_ID = Regex("^mer_$ULID$")
         val BUSINESS_ID = Regex("^biz_$ULID$")
         val REGISTRATION_NUMBER = Regex("^[0-9]{10}$")
+
+        /** MERCHANT-CODE-001 §3.1(등록 입력 규칙과 같은 정규식 — 한 곳). */
+        val MERCHANT_CODE = RegistrationInputRules.MERCHANT_CODE
         val LIFECYCLES = setOf("ACTIVE", "TERMINATED")
         const val MAX_LIMIT = 50
         const val VISIBLE_DIGITS = 3

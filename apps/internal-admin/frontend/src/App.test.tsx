@@ -90,7 +90,8 @@ describe('App (session, role menu, error mapping)', () => {
       const { view, api } = signedIn(roles)
       await userEvent.click((await signedInMenu()).getByRole('button', { name: '사업자·가맹점' }))
       expect(screen.getByRole('tab', { name: '가맹점 조회' })).toHaveAttribute('aria-selected', 'true')
-      expect(screen.getByLabelText('가맹점 ID')).toBeInTheDocument()
+      // MERCHANT-CODE-001 MC-2: 가맹점 조회 검색란은 "가맹점 코드"(내부 키 "가맹점 ID" 검색란 대체).
+      expect(screen.getByLabelText('가맹점 코드')).toBeInTheDocument()
       expect(screen.queryByLabelText('사업자등록번호') !== null).toBe(brn)
       // 화면을 연 것만으로는 조회하지 않는다(검색 버튼을 눌러야 — 목록 조회도 서버 속도 제한 대상).
       expect(api.merchantSearch).not.toHaveBeenCalled()

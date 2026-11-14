@@ -171,7 +171,8 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                 withClue(role) {
                     f.rows() shouldBe listOf(
                         listOf("MERCHANT_BUSINESS_REGISTER", "FORBIDDEN", "sub=${s.take(8)};brn=778*******", null, "req-1"),
-                        listOf("MERCHANT_REGISTER", "FORBIDDEN", "sub=${s.take(8)}", biz, "req-1"),
+                        // MC-2-2: 가맹점 등록 감사 detail에 코드(공개값, 형식이 맞을 때만).
+                        listOf("MERCHANT_REGISTER", "FORBIDDEN", "sub=${s.take(8)};code=shopabcd12", biz, "req-1"),
                         listOf("MERCHANT_SITE_REGISTER", "FORBIDDEN", "sub=${s.take(8)};channel=WEB", mer, "req-1"),
                     )
                     f.commands.shouldBeEmpty()
@@ -261,6 +262,21 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             f.service.register(operatorId, merchant(code = "shopabcd12"), ctx)
             f.commands.single().let { m -> (m.kind to m.fields) shouldBe (MasterCommandKind.REGISTER_MERCHANT to mapOf("businessId" to biz, "displayName" to "시험 가맹점", "merchantCode" to "shopabcd12")) }
             MasterCommandKind.REGISTER_MERCHANT.fields.toList() shouldBe listOf("businessId", "displayName", "merchantCode")
+        }
+        Then("MC-2-2 merchant registration audit rows carry the code (code=<merchantCode> — a public value, §3.1 format only) on REQUESTED and the result; a malformed code is never echoed") {
+            val f = Fixture()
+            val s = sub()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "MERCHANT_CODE_TAKEN", null, false) }
+            f.service.register(operatorId, merchant(s, code = "shopabcd12"), ctx)
+            f.rows() shouldBe listOf(
+                listOf("MERCHANT_REGISTER", "REQUESTED", "sub=${s.take(8)};code=shopabcd12", biz, "mos.$s"),
+                listOf("MERCHANT_REGISTER", "REJECTED", "sub=${s.take(8)};replayed=false;rejection=MERCHANT_CODE_TAKEN;code=shopabcd12", biz, "mos.$s"),
+            )
+            val bad = Fixture()
+            val s2 = sub()
+            bad.service.register(operatorId, merchant(s2, code = "Shop-ABCD"), ctx) shouldBe MerchantRegistrationResult.InvalidInput
+            bad.commands.shouldBeEmpty()
+            bad.audits.forEach { a -> listOf(a.detail, a.toString()).forEach { v -> (v ?: "").contains("Shop-ABCD") shouldBe false } }
         }
         Then("C-4: two accounts sending the same submissionId get different MASTER keys (no replay of another operator's result); a resend keeps key, correlation id and fields") {
             val f = Fixture()

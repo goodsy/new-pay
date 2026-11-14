@@ -22,6 +22,7 @@ import { NativeSelect } from '../components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
+import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
 
 const LIFECYCLES = ['ACTIVE', 'TERMINATED'] as const
 
@@ -130,7 +131,8 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
       <Panel name="기본정보">
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Item term="가맹점">
-            <span className="flex flex-col"><span className="font-medium">{merchant.name}</span><Mono>{merchant.merchantId}</Mono></span>
+            {/* MERCHANT-CODE-001 MC-2: 가맹점 내부 키(mer_…) 대신 가맹점 코드(D-ADMIN-UI-004 ③ — 내부 키는 호출에만). */}
+            <span className="flex flex-col"><span className="font-medium">{merchant.name}</span><Mono>{merchant.merchantCode}</Mono></span>
           </Item>
           <Item term="가맹점 상태"><StatusBadge code={merchant.lifecycle} /></Item>
           <Item term="권리 revision"><span className="font-mono">{merchant.entitlementRevision}</span></Item>
@@ -359,7 +361,8 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
 }
 
 /**
- * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). 검색(가맹점 ID·상태, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
+ * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). MERCHANT-CODE-001 MC-2: 가맹점은 **가맹점 코드**로 보이고 찾는다(목록·상세·이력 대상의 mer_… 표시 → 코드,
+ * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·상태, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
@@ -377,7 +380,9 @@ export function MerchantsScreen({
   const revisionMemory = injectedRevisionMemory ?? ownRevisionMemory
   /** 새 Revision 폼을 연 계약(B2-1 — 한 번에 하나). */
   const [revisionFor, setRevisionFor] = useState<string | null>(null)
-  const [merchantId, setMerchantId] = useState('')
+  /** MC-2 코드 검색 입력(정확 일치 — 정규화 없음, 다른 조건과 함께 쓰지 않는다). */
+  const [merchantCode, setMerchantCode] = useState('')
+  const [codeError, setCodeError] = useState<'format' | 'combined' | null>(null)
   const [lifecycle, setLifecycle] = useState('')
   const [registrationNumber, setRegistrationNumber] = useState('')
   const [registrationNumberError, setRegistrationNumberError] = useState(false)
@@ -427,8 +432,20 @@ export function MerchantsScreen({
       return
     }
     setRegistrationNumberError(false)
+    // MERCHANT-CODE-001 MC-2 코드 검색: §3.1 형식(고치지 않는다)·단일 기준(서버 규칙과 같이 다른 조건과 함께 보내지 않는다 — 은퇴 코드 일치 의미를 섞지 않음).
+    if (merchantCode !== '') {
+      if (!MERCHANT_CODE.test(merchantCode)) {
+        setCodeError('format')
+        return
+      }
+      if (lifecycle !== '' || brn !== '') {
+        setCodeError('combined')
+        return
+      }
+    }
+    setCodeError(null)
     const criteria: SentSearch['criteria'] = {}
-    if (merchantId.trim() !== '') criteria.merchantId = merchantId.trim()
+    if (merchantCode !== '') criteria.merchantCode = merchantCode
     if (lifecycle === 'ACTIVE' || lifecycle === 'TERMINATED') criteria.lifecycle = lifecycle
     // 번호는 이 요청 본문에만 — 보내는 즉시 입력란을 비운다(실패해도 다시 입력해야 한다).
     setRegistrationNumber('')
@@ -530,9 +547,22 @@ export function MerchantsScreen({
         <CardContent className="px-5">
           <form onSubmit={search} className="flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="가맹점 ID">
+              <Field
+                label="가맹점 코드"
+                error={codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.' : undefined}
+                hint={codeError ? undefined : '정확히 일치하는 코드 하나(예전에 쓰던 코드도 찾습니다).'}
+              >
                 {(describedBy) => (
-                  <Input value={merchantId} onChange={(e) => setMerchantId(e.target.value)} autoComplete="off" placeholder="mer_…" aria-describedby={describedBy} className="font-mono" />
+                  <Input
+                    value={merchantCode}
+                    onChange={(e) => setMerchantCode(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="demoshop01"
+                    aria-describedby={describedBy}
+                    aria-invalid={codeError !== null || undefined}
+                    className="font-mono"
+                  />
                 )}
               </Field>
               <Field label="상태">
@@ -586,8 +616,8 @@ export function MerchantsScreen({
             <TableBody>
               {page.items.length === 0 && <EmptyRow columns={8} message="조건에 맞는 가맹점이 없습니다." />}
               {page.items.map((row) => (
-                <TableRow key={row.merchantId} aria-label={row.merchantId} className={detail?.merchant.merchantId === row.merchantId ? 'bg-muted/50' : undefined}>
-                  <TableCell><span className="flex flex-col"><span className="font-medium">{row.merchantName}</span><Mono>{row.merchantId}</Mono></span></TableCell>
+                <TableRow key={row.merchantId} aria-label={row.merchantCode} className={detail?.merchant.merchantId === row.merchantId ? 'bg-muted/50' : undefined}>
+                  <TableCell><span className="flex flex-col"><span className="font-medium">{row.merchantName}</span><Mono>{row.merchantCode}</Mono></span></TableCell>
                   <TableCell>{row.businessName}</TableCell>
                   <TableCell className="font-mono">{row.registrationNumberMasked}</TableCell>
                   <TableCell><StatusBadge code={row.lifecycle} /></TableCell>
@@ -615,7 +645,7 @@ export function MerchantsScreen({
         <div className="flex flex-col gap-4">
           <h3 className="text-sm font-bold">
             {'가맹점 상세 '}
-            <span className="font-mono text-xs text-muted-foreground">{detail.merchant.merchantId}</span>
+            <span className="font-mono text-xs text-muted-foreground">{detail.merchant.merchantCode}</span>
           </h3>
           {/* ADMIN-UI-MERCHANT-001: 서비스 개통 현황(기존 상세 응답에서만 계산 — 참고용, 아래 개통 점검표 유지). */}
           <ServiceOpeningTimeline detail={detail} now={now()} />
@@ -727,7 +757,13 @@ export function MerchantsScreen({
                       <TableCell className="font-mono">{entry.seq}</TableCell>
                       <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
                       <TableCell><Mono>{entry.operation}</Mono></TableCell>
-                      <TableCell><span className="flex flex-col"><span>{entry.aggregateType}</span><Mono>{entry.aggregateId}</Mono></span></TableCell>
+                      {/* MC-2: 이 가맹점 자신이 대상이면 내부 키 대신 코드(다른 대상 — Site·계약·MID 등 — 은 각 키 그대로). */}
+                      <TableCell>
+                        <span className="flex flex-col">
+                          <span>{entry.aggregateType}</span>
+                          <Mono>{entry.aggregateId === detail.merchant.merchantId ? detail.merchant.merchantCode : entry.aggregateId}</Mono>
+                        </span>
+                      </TableCell>
                       <TableCell><KindLabel code={entry.changeType} /></TableCell>
                       <TableCell><Mono>{entry.actorRef}</Mono></TableCell>
                     </TableRow>

@@ -286,11 +286,19 @@ export interface MerchantSearchInput {
   registrationNumber?: string
   after?: string
   limit?: number
+  /**
+   * MERCHANT-CODE-001 MC-2 코드 검색(정확 일치 — 현재·은퇴 코드, §3.1 형식). 단일 기준: [limit] 말고 다른 조건과 함께 보내지 않는다(서버도 400).
+   */
+  merchantCode?: string
 }
 
-/** 목록 항목. 사업자등록번호는 마스킹 값만(D-MD-008). */
+/** 목록 항목. 사업자등록번호는 마스킹 값만(D-MD-008). [merchantId]는 내부 키(화면에 그리지 않음 — 상세 호출용, MC-2), 화면 표시는 [merchantCode]. */
 export interface MerchantListItem {
   merchantId: string
+  /** MERCHANT-CODE-001 가맹점 코드(현재 코드). */
+  merchantCode: string
+  /** 코드 검색 응답에만 있다 — 은퇴 코드로 찾았으면 true(표시는 MC-1b 뒤). */
+  matchedRetiredCode?: boolean
   merchantName: string
   businessId: string
   businessName: string
@@ -363,7 +371,8 @@ export interface MerchantCurrencyEnablementInput {
 
 /** 상세(§3.2 — 한 번의 일관 읽기). 카드 Route는 인수사 코드·Route 참조·상태 등만(기관 가맹점 번호 없음 — D-MS2-005). 시각은 UTC ISO. */
 export interface MerchantDetail {
-  merchant: { merchantId: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
+  /** [merchantCode] = 현재 가맹점 코드(MERCHANT-CODE-001 — 화면 표시용, 내부 키 merchantId는 호출에만). */
+  merchant: { merchantId: string; merchantCode: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
   business: { businessId: string; name: string; registrationNumberMasked: string; lifecycle: string }
   sites: {
     merchantSiteId: string

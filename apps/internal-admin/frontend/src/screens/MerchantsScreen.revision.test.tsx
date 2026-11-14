@@ -8,6 +8,8 @@ import { createScreenMemory } from '../lib/screenMemory'
 
 /** MERCHANT-OPS-002 §8.2 B2-1-6 — 조회 상세 "새 Revision 등록"(OPERATOR, 1인, 미승인). Demo 식별자(업무 의미 없는 고정값). */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
+/** MC-2: 가맹점 코드 fixture(내부 키에서 결정적으로 — 화면은 mer_ 대신 이 코드를 보인다). */
+const codeOf = (merchantId: string) => `shop${merchantId.slice(-6)}`
 const MER1 = id('mer', 1)
 const CTR1 = id('ctr', 1)
 const SITE1 = id('site', 1)
@@ -15,14 +17,14 @@ const SITE2 = id('site', 2)
 const SUB = '0123456789abcdef0123456789abcdef'
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
   entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 
 /** Named Fixture: 계약 하나(Revision 1 미승인), Site 둘(하나는 종료 — 범위 후보에서 빠진다), MID 없음. */
 function detailWithRevisions(revisions: MerchantDetail['contracts'][number]['revisions']): MerchantDetail {
   return {
-    merchant: { merchantId: MER1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
+    merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
     business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
     sites: [
       { merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null },
@@ -47,7 +49,7 @@ async function openDetail(canRegisterRevision: boolean, overrides: Parameters<ty
   })
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision={canRegisterRevision} newSubmissionId={() => SUB} todayKst={() => '2026-11-10'} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
-  await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+  await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
   await screen.findByRole('region', { name: '계약·CSA' })
   return api
 }
@@ -125,7 +127,7 @@ describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6
     })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision newSubmissionId={() => `${SUB.slice(0, 31)}${n++}`} todayKst={() => '2026-11-10'} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
-    await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     await userEvent.click(await screen.findByRole('button', { name: '새 Revision 등록' }))
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))
@@ -146,8 +148,8 @@ describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6
 describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form and switching merchants (review C-M1)', () => {
   const MER2 = id('mer', 2)
   const CTR2 = id('ctr', 2)
-  const item2: MerchantListItem = { ...item, merchantId: MER2, merchantName: '다른 가맹점' }
-  const detail2: MerchantDetail = { ...detailWithRevisions([REV1]), merchant: { ...detailWithRevisions([REV1]).merchant, merchantId: MER2, name: '다른 가맹점' } }
+  const item2: MerchantListItem = { ...item, merchantId: MER2, merchantCode: codeOf(MER2), merchantName: '다른 가맹점' }
+  const detail2: MerchantDetail = { ...detailWithRevisions([REV1]), merchant: { ...detailWithRevisions([REV1]).merchant, merchantId: MER2, merchantCode: codeOf(MER2), name: '다른 가맹점' } }
   detail2.contracts = [{ ...detail2.contracts[0]!, contractId: CTR2 }]
 
   function setup(memory?: ReturnType<typeof createScreenMemory>) {
@@ -174,7 +176,7 @@ describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form
     return { api, send, view }
   }
   const openMerchant = async (merchantId: string) =>
-    userEvent.click(within(await screen.findByRole('row', { name: merchantId })).getByRole('button', { name: '상세' }))
+    userEvent.click(within(await screen.findByRole('row', { name: codeOf(merchantId) })).getByRole('button', { name: '상세' }))
   const openRevisionForm = async () => userEvent.click(await screen.findByRole('button', { name: /새 Revision 등록/ }))
   const lockFirstMerchant = async () => {
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
@@ -261,7 +263,7 @@ describe('MerchantsScreen — B2-1 completed revision form (C-32)', () => {
     })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision newSubmissionId={() => `${SUB.slice(0, 31)}${n++}`} todayKst={() => '2026-11-10'} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
-    await userEvent.click(within(await screen.findByRole('row', { name: MER1 })).getByRole('button', { name: '상세' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     await userEvent.click(await screen.findByRole('button', { name: '새 Revision 등록' }))
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))

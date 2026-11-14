@@ -33,7 +33,7 @@ import java.time.temporal.ChronoUnit
  *
  * 감사 행 수: MASTER까지 간 시도 = 2행(REQUESTED → 결과), 호출 전 거절(403·400·429·시도 감사 실패 전) = 결과 1행. correlationId: MASTER로 가는 시도는 `mos.<submissionId>`(C-14 — 재전송마다 같아
  * MASTER 변경 이력·Outbox와 대조된다, MASTER 키가 아니다), 호출 전 거절은 ADMIN 요청 ID(n-4). detail은 고정 `key=value`(`sub=<submissionId 앞 8자>;replayed;rejection` + 사업자 `brn=앞3*******`
- * 또는 `brn=INVALID`, Site `channel=WEB|APP`) — 등록번호 평문·기존 businessId·이름·채널 식별값·MASTER 키 원문 없음. targetRef: 성공 = 만든 ID(`ctr_`·`csa_` 포함), 그 밖 = 입력의 상위 ID
+ * 또는 `brn=INVALID`, Site `channel=WEB|APP`, 가맹점 `code=<가맹점 코드>`(MERCHANT-CODE-001 MC-2-2 — 공개값, 형식이 맞을 때만)) — 등록번호 평문·기존 businessId·이름·채널 식별값·MASTER 키 원문 없음. targetRef: 성공 = 만든 ID(`ctr_`·`csa_` 포함), 그 밖 = 입력의 상위 ID
  * (가맹점 = 사업자, Site = 가맹점, 계약 = 대상 가맹점, CSA = 계약, Revision = 계약 — 성공도 계약 ID + detail `rev=<n>` C-22), 사업자는 성공만. 계약 날짜는 KST 날짜 → 그 날 00:00 KST의 UTC 시각(C-7)으로 바꿔 보내고 소급 판정은 MASTER에 맡긴다(§3.4).
  * 로그: 연산·결과 분류·상관 ID만(MASTER 키 원문 없음). 결과 불명은 WARN + `command_unknown` 지표.
  */
@@ -230,6 +230,9 @@ class MerchantRegistrationService(
 
         /** B3-1 Site 심사 거절 사유 코드(고정 목록 값만 — 근거 참조 값은 넣지 않는다). */
         private val reason = (request as? RegistrationRequest.SiteReviewRejection)?.reasonCode?.takeIf { it in RegistrationInputRules.REJECT_REASONS }?.let { "reason=$it" }
+
+        /** MERCHANT-CODE-001 MC-2-2: 가맹점 등록 코드(공개값 — 비밀·인증 근거 아님, L-5). §3.1 형식일 때만(형식 위반 입력은 감사에 옮기지 않는다). */
+        private val code = (request as? RegistrationRequest.Merchant)?.merchantCode?.takeIf { RegistrationInputRules.MERCHANT_CODE.matches(it) }?.let { "code=$it" }
         val parentRef: String? = when (request) {
             is RegistrationRequest.Business -> null
             is RegistrationRequest.Merchant -> request.businessId.takeIf { RegistrationInputRules.BUSINESS_ID.matches(it) }
@@ -245,7 +248,7 @@ class MerchantRegistrationService(
         }
 
         fun text(replayed: Boolean? = null, rejection: String? = null, revision: String? = null): String? = listOfNotNull(
-            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel, reason,
+            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel, reason, code,
         ).joinToString(";").ifEmpty { null }
     }
 
