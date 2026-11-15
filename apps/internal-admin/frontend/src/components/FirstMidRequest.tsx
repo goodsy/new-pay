@@ -26,7 +26,7 @@ export function issuableRevisions(detail: MerchantDetail, now: Date): { contract
 /** "첫 MID 발급 요청" 표시 조건(§9.6 — MID 0개, 승인 대기 없음, 발급 근거 Revision·그 계약의 CSA·ACTIVE Site가 있음). 표시만 — 판정·감사는 서버. */
 export function mayRequestFirstMid(detail: MerchantDetail, now: Date): boolean {
   // C-35(B3-1): 계약 승인·첫 MID 발급 그룹 대기만 막는다(MID 0개라 B3 대기는 생길 수 없지만 그룹 규칙을 한 곳에 맞춘다).
-  if (detail.accounts.length > 0 || (detail.pendingApprovals ?? []).some((p) => p.kind === 'MERCHANT_CONTRACT_APPROVAL' || p.kind === 'MERCHANT_FIRST_MID_ISSUANCE')) return false
+  if (detail.accounts.length > 0 || (detail.pendingApprovals ?? []).some((p) => p.kind === 'MERCHANT_CONTRACT_APPROVAL' || p.kind === 'MERCHANT_FIRST_MID_ISSUANCE' || p.kind === 'MERCHANT_CODE_CHANGE')) return false
   const candidates = issuableRevisions(detail, now)
   return candidates.some(({ contractId }) => (detail.contracts.find((c) => c.contractId === contractId)?.agreements.length ?? 0) > 0) &&
     detail.sites.some((s) => s.lifecycle === 'ACTIVE')

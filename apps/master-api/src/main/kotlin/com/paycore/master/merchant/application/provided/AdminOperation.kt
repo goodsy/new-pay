@@ -39,6 +39,9 @@ enum class AdminOperation(val code: String) {
 
     // MERCHANT-OPS-002 B3-1(§9.14, nit-1): 1인 Site 심사 거절 — 2인 `DecideSiteReview`(APPROVED)와 멱등 범위·지표 label·이력 operation을 분리한다.
     REJECT_SITE_REVIEW("RejectSiteReview"),
+
+    // MERCHANT-CODE-001 MC-1b(§3.7.2 — D-MCODE-002 Q-MC-7): 가맹점 코드 1회 변경(2인 근거 경로만 — 근거 없는 경로 없음, C-11). 근거 operation CHECK 값은 MC-1 V13에 선반영(C-20).
+    CHANGE_MERCHANT_CODE("ChangeMerchantCode"),
     ;
 
     companion object {

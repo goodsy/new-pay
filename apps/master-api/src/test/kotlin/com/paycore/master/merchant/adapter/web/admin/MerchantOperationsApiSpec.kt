@@ -129,6 +129,8 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/merchant-operations/site-review-approvals",
                 // 기대값 변경(B3-2, 명세 §8.4 B3-2-8·§8.3 B3-2-3): 2인 `currency-enablements`. 경로 목록 갱신이지 완화가 아니다 — Route·재개·재확인(B3-3·B3-4)·한도·정지 경로는 여전히 없다.
                 "POST /internal/v1/admin/merchant-operations/currency-enablements",
+                // 기대값 변경(MERCHANT-CODE-001 MC-1b-10): 2인 `merchant-code-changes`(경로 목록 갱신 — 완화 아님).
+                "POST /internal/v1/admin/merchant-operations/merchant-code-changes",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }
@@ -476,6 +478,7 @@ class MerchantOperationsApiSpec(
                 override fun addServiceAgreement(command: AddServiceAgreementCommand): AdminCommandResult = throw e
                 override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult = error("not used")
                 override fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult = error("not used")
+                override fun changeMerchantCodeWithEvidence(command: com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand): AdminCommandResult = error("not used")
             }
             val cases = listOf(
                 AdminCommandFailure.RequestInProgress(IllegalStateException(canary)) to "REQUEST_IN_PROGRESS",
@@ -555,6 +558,7 @@ class MerchantOperationsApiSpec(
                 override fun addServiceAgreement(command: AddServiceAgreementCommand): AdminCommandResult = error("not used")
                 override fun issueFirstDefaultMerchantAccount(command: IssueFirstDefaultMerchantAccountCommand): AdminCommandResult = error("not used")
                 override fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult = error("not used")
+                override fun changeMerchantCodeWithEvidence(command: com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand): AdminCommandResult = error("not used")
             }
             val cases = listOf(
                 AdminCommandFailure.RequestInProgress(IllegalStateException(canary)) to "REQUEST_IN_PROGRESS",

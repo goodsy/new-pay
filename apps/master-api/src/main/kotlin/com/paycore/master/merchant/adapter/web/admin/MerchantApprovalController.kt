@@ -72,6 +72,22 @@ class MerchantApprovalController(
             }
         }
 
+    /**
+     * MERCHANT-CODE-001 MC-1b 가맹점 코드 1회 변경(2인 — 근거 있는 경로만, C-11·§3.7.2). 성공 reference `mer_…`. 응답 §3.3 그대로(거절 reference 없음 — C-12).
+     * 이 컨트롤러가 `changeMerchantCodeWithEvidence`의 유일한 호출자다(ArchUnit MC-1b-10).
+     */
+    @PostMapping("/merchant-code-changes")
+    fun changeMerchantCode(request: HttpServletRequest): ResponseEntity<ByteArray> =
+        permits.write(CHANGE_CODE, { busy(request, AdminChannelResponses.ADMIN_WRITE_BUSY) }) {
+            val command = MerchantApprovalCommandParser.merchantCodeChange(request.inputStream.readAllBytes(), settings.window)
+                ?: return@write malformed(request, CHANGE_CODE)
+            guarded(request, CHANGE_CODE, command.request.correlationId) {
+                val result = onboarding.changeMerchantCodeWithEvidence(command)
+                observe(command, result, executed = true)
+                commandResponse(request, CHANGE_CODE, command.request.correlationId, result)
+            }
+        }
+
     /** 기한 확인 전용(§9.4 — 실행 본문 없음). */
     @PostMapping("/approval-deadline-confirmations")
     fun confirmDeadline(request: HttpServletRequest): ResponseEntity<ByteArray> =
@@ -201,6 +217,7 @@ class MerchantApprovalController(
 
         private const val EXECUTE = "ApproveContractRevision"
         private const val ISSUE = "IssueFirstDefaultMerchantAccount"
+        private const val CHANGE_CODE = "ChangeMerchantCode"
         private const val DEADLINE = "ConfirmApprovalDeadline"
         private const val DECISION = "ApprovalDecision"
         private const val DECISION_ENDPOINT = "approval-decision"

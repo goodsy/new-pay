@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MERCHANT-CODE-001 두 앱(ADMIN → MASTER) Demo E2E — MC-1-9 Demo 단계 + MC-2 코드 검색(GRADLE-CHECK 밖, Demo 스택에서 Coordinator가 실행).
+"""MERCHANT-CODE-001 두 앱(ADMIN → MASTER) Demo E2E — MC-1-9 Demo 단계 + MC-2 코드 검색 + MC-1b 코드 변경 2인(GRADLE-CHECK 밖, Demo 스택에서 Coordinator가 실행).
 
 원본: Coordinator가 2026-11-14 실제 Demo에서 10단계 PASS한 절차(~/gate-logs/mcode-mc1/demo/mc1-demo-e2e.py)를 저장소 harness로 옮겼다.
 저장소 밖 모듈을 읽지 않는다(로그인·TOTP·세션은 이 파일 안에서 표준 라이브러리로 구현 — RFC 6238 SHA-1 6자리).
@@ -9,12 +9,17 @@
   → 목록(businessId)·상세 200(코드·코드 이력 1건·변경 가능, 이력에 mer_ 없음) → [MC-2] ADMIN 코드 검색 = 1건(같은 가맹점, matchedRetiredCode=false, nextCursor=null)
   → [MC-2] 코드 + 다른 조건 = 400 → 같은 코드 새 submissionId = REJECTED MERCHANT_CODE_TAKEN(reference 없음) → 예약어 = MERCHANT_CODE_RESERVED
   → 형식 위반(대문자) = HTTP 400(이 E2E는 ADMIN 응답 상태만 본다 — MASTER 미호출 여부는 ADMIN 시험 MerchantRegistrationHttpSpec이 확인)
-  → seed 목록의 모든 항목에 코드(mer_ 아님). 어느 단계도 503·결과 불명(UNKNOWN) 0건.
+  → seed 목록의 모든 항목에 코드(mer_ 아님)
+  → [MC-1b] 승인자(두 번째 계정·별도 세션) 로그인(APPROVER) → 운영자가 그 가맹점 코드 변경 요청(201) → 승인자가 직전 TOTP로 승인(200 EXECUTED — 로그인에 쓴 TOTP 시간 칸이 지난 뒤)
+  → 상세 = 새 코드·이력 2건(seq 1 = 은퇴 코드)·변경 불가 → 은퇴 코드로 코드 검색 = 같은 가맹점·matchedRetiredCode=true → 은퇴 코드로 새 가맹점 등록 = MERCHANT_CODE_TAKEN
+  → 같은 가맹점 두 번째 변경 요청 = 409 TARGET_NOT_ELIGIBLE_ADVISORY → seed 가맹점(계약 승인 뒤) 상세 = 변경 불가 → 그 가맹점 변경 요청 = 409 TARGET_NOT_ELIGIBLE_ADVISORY
+  (MASTER `MERCHANT_CODE_LOCKED`는 ADMIN advisory가 먼저 막아 이 HTTP 절차로는 닿지 않는다 — MASTER 시험 MerchantCodeChangeApprovalSpec·ConcurrencySpec이 확인).
+  어느 단계도 503·결과 불명(UNKNOWN) 0건.
 기록하는 HTTP 상태는 모두 실제 응답 값이다(로그인 포함).
 
 사용(argv 고정 — 셸 문자열을 만들지 않는다):
   python3 -I harness/e2e/merchant_code_e2e.py --out <result.json> [--base-url http://127.0.0.1:8090] [--accounts-file ~/paycore-demo/admin-accounts.tsv]
-      [--login demo-operator] [--timeout-seconds 30]
+      [--login demo-operator] [--approver-login demo-approver] [--timeout-seconds 30]
 Demo 전용: --base-url은 http(s)://localhost | 127.0.0.1 | [::1] (+ 포트)만 받는다(경로·질의·사용자 정보 없음). 그 밖(운영·원격 endpoint)은 인자 오류 64.
   프록시를 쓰지 않고 redirect를 따라가지 않는다(세션 쿠키가 다른 곳으로 가지 않게).
 계정 파일: Demo `admin-accounts.tsv`(login\\trole\\tpassword\\ttotpSecret). 기본 경로 = 환경변수 PAYCORE_DEMO_ADMIN_ACCOUNTS 또는 ~/paycore-demo/admin-accounts.tsv.
@@ -53,7 +58,18 @@ STEPS = (
     "reserved word",
     "bad format uppercase",
     "seed merchant list",
+    # MERCHANT-CODE-001 MC-1b(§7 Demo — 계정 둘: 운영자 요청, 승인자 승인)
+    "approver login",
+    "code change request",
+    "code change approve",
+    "detail after code change",
+    "code search retired code",
+    "retired code registration",
+    "second code change request",
+    "seed merchant detail",
+    "seed merchant code change request",
 )
+SEED_CODE = "demoshop01"
 LOOPBACK_NAMES = {"localhost"}
 LOGIN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 MERCHANT_CODE = re.compile(r"^[a-z][a-z0-9]{5,13}$")
@@ -95,6 +111,7 @@ def parse_args(argv):
     p.add_argument("--base-url", default="http://127.0.0.1:8090")
     p.add_argument("--accounts-file", default=os.environ.get(ACCOUNTS_ENV) or DEFAULT_ACCOUNTS)
     p.add_argument("--login", default="demo-operator")
+    p.add_argument("--approver-login", default="demo-approver")
     p.add_argument("--timeout-seconds", type=int, default=30)
     a = p.parse_args(argv)
     try:
@@ -103,6 +120,8 @@ def parse_args(argv):
         p.error("--base-url: " + str(e))
     if not LOGIN.match(a.login):
         p.error("--login must match [a-z0-9][a-z0-9._-]{0,63}")
+    if not LOGIN.match(a.approver_login) or a.approver_login == a.login:
+        p.error("--approver-login must match [a-z0-9][a-z0-9._-]{0,63} and differ from --login (requester != approver)")
     if not 1 <= a.timeout_seconds <= 120:
         p.error("--timeout-seconds within 1..120")
     a.accounts_file = os.path.expanduser(a.accounts_file)
@@ -123,6 +142,7 @@ class Account:
 
     def __init__(self, login, role, password, secret):
         self.login, self.role, self._password, self._secret = login, role, password, secret
+        self.totp_counter = None
 
     def __repr__(self):
         return "Account(login=%r, role=%r)" % (self.login, self.role)
@@ -204,12 +224,81 @@ def now():
 
 # ---- 단계 판정(순수 함수 — harness 시험이 직접 부른다). 각 함수는 어긋남 목록을 돌려준다. 객체가 아닌 항목은 어긋남이다(예외로 끊기지 않는다). ----
 
-def check_login(status, me):
+def check_login(status, me, role="OPERATOR"):
     roles = me.get("roles") if isinstance(me, dict) else None
     problems = [] if status == 200 else ["login status %s" % status]
-    if not isinstance(roles, list) or "OPERATOR" not in roles:
-        problems.append("login roles lack OPERATOR")
+    if not isinstance(roles, list) or role not in roles:
+        problems.append("login roles lack %s" % role)
     return problems
+
+
+def check_detail_after_change(detail, old_code, new_code):
+    """MC-1b 변경 실행 뒤 상세: 현재 코드 = 새 코드, 이력 2건(seq 1 = 은퇴 코드·seq 2 = 새 코드, replacesCode = 은퇴 코드), 변경 불가, 이력에 mer_ 없음."""
+    if not isinstance(detail, dict):
+        return ["detail after change is not an object"]
+    problems = []
+    merchant = detail.get("merchant") if isinstance(detail.get("merchant"), dict) else {}
+    history = detail.get("merchantCodeHistory")
+    if merchant.get("merchantCode") != new_code:
+        problems.append("detail merchantCode is not the new code")
+    if not (isinstance(history, list) and len(history) == 2 and all(isinstance(h, dict) for h in history)):
+        problems.append("detail merchantCodeHistory is not 2 entries")
+    else:
+        first, second = history
+        if not (first.get("seq") == 1 and first.get("code") == old_code):
+            problems.append("history seq 1 is not the retired code")
+        if not (second.get("seq") == 2 and second.get("code") == new_code and second.get("replacesCode") == old_code and second.get("source") == "CHANGE"):
+            problems.append("history seq 2 is not the change to the new code")
+    if detail.get("merchantCodeChangeable") is not False:
+        problems.append("merchantCodeChangeable is not false after the change")
+    if "mer_" in json.dumps(history or [], ensure_ascii=False):
+        problems.append("code history exposes mer_")
+    return problems
+
+
+def check_retired_search(status, page, merchant_id, new_code):
+    """은퇴 코드로 코드 검색: 1건 = 같은 가맹점, 항목 코드 = 현재(새) 코드, matchedRetiredCode = true."""
+    if status != 200:
+        return ["retired code search status %s" % status]
+    items, problems = page_items("retired code search", page)
+    if problems:
+        return problems
+    if len(items) != 1:
+        return ["retired code search returned %d items (expected 1)" % len(items)]
+    item = items[0]
+    if item.get("merchantId") != merchant_id or item.get("merchantCode") != new_code:
+        problems.append("retired code search item is not the changed merchant with its current code")
+    if item.get("matchedRetiredCode") is not True:
+        problems.append("retired code search matchedRetiredCode is not true")
+    return problems
+
+
+def check_refused(name, status, body, code):
+    """ADMIN 거절 응답(상태 409·본문 error = [code])."""
+    problems = [] if status == 409 else ["%s: status %s (expected 409)" % (name, status)]
+    if not (isinstance(body, dict) and body.get("error") == code):
+        problems.append("%s: error is not %s" % (name, code))
+    return problems
+
+
+def pick_seed(items, own_codes):
+    """계약 승인 뒤 seed 가맹점 후보: 코드 `demoshop01`이 있으면 그것, 없으면 이 실행이 만든 코드가 아닌 첫 항목(채우기 코드 `m…` 포함)."""
+    for item in items:
+        if item.get("merchantCode") == SEED_CODE:
+            return item
+    for item in items:
+        if item.get("merchantCode") not in own_codes:
+            return item
+    return None
+
+
+def wait_for_next_totp_window(used_counter, clock=time.time, sleep=time.sleep, limit_seconds=40):
+    """승인 직전 TOTP는 로그인에 쓴 30초 칸이 지난 새 칸이어야 한다(같은 칸 재사용 거부 — ADMIN step-up). 최대 [limit_seconds] 기다린다."""
+    waited = 0.0
+    while int(clock()) // 30 <= used_counter and waited < limit_seconds:
+        sleep(0.5)
+        waited += 0.5
+    return int(clock()) // 30 > used_counter
 
 
 def page_items(name, page):
@@ -272,9 +361,9 @@ class Run:
     def __init__(self, session):
         self.session, self.steps, self.failures = session, [], []
 
-    def step(self, name, path, method="GET", body=None, expect=(200,), record_body=True):
+    def step(self, name, path, method="GET", body=None, expect=(200,), record_body=True, session=None):
         assert name in STEPS, name
-        status, payload = self.session.call(path, method, body)
+        status, payload = (session or self.session).call(path, method, body)
         self.steps.append({"step": name, "at": now(), "method": method, "path": path, "status": status, "body": payload if record_body else None})
         if status not in expect:
             self.failures.append("%s: status %s not in %s" % (name, status, list(expect)))
@@ -286,10 +375,11 @@ class Run:
             self.failures.append(message)
 
 
-def login(run, account):
-    """비밀번호 + TOTP 로그인. 단계 기록에는 실제 상태와 역할만 남긴다(비밀·쿠키 없음)."""
-    s = run.session
+def login(run, account, session=None, role="OPERATOR", step="login"):
+    """비밀번호 + TOTP 로그인. 단계 기록에는 실제 상태와 역할만 남긴다(비밀·쿠키 없음). [session]이 있으면 그 세션(MC-1b 승인자 — 쿠키 분리)."""
+    s = session or run.session
     statuses = []
+    account.totp_counter = int(time.time()) // 30
     for path, method, body in (
         ("/api/auth/csrf", "GET", None),
         ("/api/auth/password", "POST", {"loginName": account.login, "password": account._password}),
@@ -298,14 +388,14 @@ def login(run, account):
         status, payload = s.call(path, method, body)
         statuses.append(status)
         if status not in (200, 201, 204):
-            run.steps.append({"step": "login", "at": now(), "status": status, "statuses": statuses, "body": None})
+            run.steps.append({"step": step, "at": now(), "status": status, "statuses": statuses, "body": None})
             return None
     me = payload
     csrf_status, _ = s.call("/api/auth/csrf")
     statuses.append(csrf_status)
     roles = me.get("roles") if isinstance(me, dict) else None
-    run.steps.append({"step": "login", "at": now(), "status": statuses[2], "statuses": statuses, "body": {"roles": roles}})
-    run.failures.extend(check_login(statuses[2], me))
+    run.steps.append({"step": step, "at": now(), "status": statuses[2], "statuses": statuses, "body": {"roles": roles}})
+    run.failures.extend(check_login(statuses[2], me, role))
     return me
 
 
@@ -362,9 +452,51 @@ def scenario(run, facts):
     run.failures.extend(check_seed_list(seed))
     seed_items, _ = page_items("seed list", seed)
     facts["seedCodes"] = sorted(str(i.get("merchantCode")) for i in seed_items)
+    if facts.get("approver") is not None:
+        code_change(run, facts, seed_items, sid, suffix)
 
 
-def execute(run, account, out, base_url, started):
+def code_change(run, facts, seed_items, sid, suffix):
+    """MC-1b(§7 Demo): 운영자 요청 → 승인자(별도 세션·직전 TOTP) 승인 → 상세·은퇴 코드 검색·재사용 거절 → 두 번째 변경·계약 승인 뒤 가맹점 = advisory 409."""
+    approver, account = facts.pop("approver")
+    me = login(run, account, session=approver, role="APPROVER", step="approver login")
+    if me is None:
+        run.failures.append("approver login failed")
+        return
+    merchant_id, old_code = facts.get("merchantId"), facts.get("code")
+    new_code = facts["newCode"] = "mcnew" + suffix
+    status, created = run.step("code change request", "/api/approvals/merchant-code-change", "POST",
+                               {"merchantId": merchant_id, "newCode": new_code, "reasonCode": "TYPO_CORRECTION", "evidenceRef": "MC-E2E/" + suffix}, expect=(201,))
+    approval_id = facts["codeChangeApprovalId"] = created.get("approvalId") if isinstance(created, dict) else None
+    run.check(isinstance(approval_id, str) and approval_id.startswith("apr_"), "code change request has no approvalId")
+    run.check(wait_for_next_totp_window(account.totp_counter), "no fresh TOTP window for the approval step-up")
+    _, approved = run.step("code change approve", "/api/approvals/%s/approve" % urllib.parse.quote(str(approval_id), safe=""), "POST",
+                           {"totpCode": totp(account._secret)}, session=approver)
+    run.check(isinstance(approved, dict) and approved.get("status") == "EXECUTED", "code change approval not EXECUTED")
+    _, det = run.step("detail after code change", "/api/merchants/%s" % urllib.parse.quote(str(merchant_id), safe=""))
+    run.failures.extend(check_detail_after_change(det, old_code, new_code))
+    status, found = run.step("code search retired code", "/api/merchant-searches", "POST", {"merchantCode": old_code})
+    run.failures.extend(check_retired_search(status, found, merchant_id, new_code))
+    _, reuse = run.step("retired code registration", "/api/merchant-registrations/merchants", "POST",
+                        {"submissionId": sid(), "businessId": facts.get("businessId"), "displayName": "MC E2E 은퇴 " + suffix, "merchantCode": old_code})
+    run.check(isinstance(reuse, dict) and reuse.get("outcome") == "REJECTED" and reuse.get("rejection") == "MERCHANT_CODE_TAKEN", "retired code reuse not MERCHANT_CODE_TAKEN")
+    status, again = run.step("second code change request", "/api/approvals/merchant-code-change", "POST",
+                             {"merchantId": merchant_id, "newCode": "mcagain" + suffix, "reasonCode": "TYPO_CORRECTION", "evidenceRef": "MC-E2E/" + suffix}, expect=(409,))
+    run.failures.extend(check_refused("second code change request", status, again, "TARGET_NOT_ELIGIBLE_ADVISORY"))
+    seed = pick_seed(seed_items, {old_code, new_code})
+    seed_id = seed.get("merchantId") if isinstance(seed, dict) else None
+    facts["seedMerchantCode"] = seed.get("merchantCode") if isinstance(seed, dict) else None
+    _, seed_detail = run.step("seed merchant detail", "/api/merchants/%s" % urllib.parse.quote(str(seed_id), safe=""))
+    approved_contract = isinstance(seed_detail, dict) and any(
+        isinstance(r, dict) and r.get("approvedAt") for c in (seed_detail.get("contracts") or []) if isinstance(c, dict) for r in (c.get("revisions") or []))
+    run.check(approved_contract, "seed merchant has no approved contract revision")
+    run.check(isinstance(seed_detail, dict) and seed_detail.get("merchantCodeChangeable") is False, "seed merchant (contract approved) is changeable")
+    status, locked = run.step("seed merchant code change request", "/api/approvals/merchant-code-change", "POST",
+                              {"merchantId": seed_id, "newCode": "mcseed" + suffix, "reasonCode": "TYPO_CORRECTION", "evidenceRef": "MC-E2E/" + suffix}, expect=(409,))
+    run.failures.extend(check_refused("seed merchant code change request", status, locked, "TARGET_NOT_ELIGIBLE_ADVISORY"))
+
+
+def execute(run, account, out, base_url, started, approver=None):
     """로그인 → 시나리오. 로그인 전 실패 = 전제 미충족(2, 결과 파일 없음). 로그인 뒤 예외(연결 끊김·예상 밖 응답 등)는 verdict INCOMPLETE —
     그때까지의 steps·failures를 결과 파일에 쓰고 1. 정상 종료면 PASS(0)/FAIL(1)."""
     try:
@@ -375,7 +507,7 @@ def execute(run, account, out, base_url, started):
     if me is None:
         print(json.dumps({"result": "PRECONDITION", "error": "login failed", "steps": run.steps}))
         return 2
-    facts = {}
+    facts = {"approver": approver} if approver is not None else {}
     verdict = None
     try:
         scenario(run, facts)
@@ -386,7 +518,8 @@ def execute(run, account, out, base_url, started):
     if verdict is None and recorded != list(STEPS):
         run.failures.append("step order %s != %s" % (recorded, list(STEPS)))
     verdict = verdict or ("PASS" if not run.failures else "FAIL")
-    result = {"spec": "MERCHANT-CODE-001 MC-1-9 Demo + MC-2 code search (two apps)", "started": started, "ended": now(), "admin": base_url,
+    facts.pop("approver", None)
+    result = {"spec": "MERCHANT-CODE-001 MC-1-9 Demo + MC-2 code search + MC-1b code change (two apps)", "started": started, "ended": now(), "admin": base_url,
               **facts, "steps": run.steps, "failures": run.failures, "verdict": verdict}
     with open(out, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -401,10 +534,12 @@ def main(argv):
     started = now()
     try:
         account = load_account(a.accounts_file, a.login)
+        approver_account = load_account(a.accounts_file, a.approver_login)
     except (OSError, KeyError, UnicodeDecodeError) as e:
         print(json.dumps({"result": "PRECONDITION", "error": type(e).__name__, "accountsFile": a.accounts_file}))
         return 2
-    return execute(Run(Session(a.base_url, a.timeout_seconds)), account, a.out, a.base_url, started)
+    approver = (Session(a.base_url, a.timeout_seconds), approver_account)
+    return execute(Run(Session(a.base_url, a.timeout_seconds)), account, a.out, a.base_url, started, approver)
 
 
 if __name__ == "__main__":

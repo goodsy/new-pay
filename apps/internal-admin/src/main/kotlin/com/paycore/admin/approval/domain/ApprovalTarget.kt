@@ -12,6 +12,12 @@ sealed interface ApprovalTarget {
 
     val version: Long
 
+    /**
+     * MERCHANT-CODE-001 MC-1b(§5.1 — 리뷰 m-3): 가맹점 내부 키(`target_merchant_id`). 가맹점 대상만 값이 있다 — **모든 가맹점 대상 요청 생성 경로가 이 한 곳에서 채운다**(종류별 누락 방지).
+     * 미해결 키는 이 값 기준이다(`COALESCE(target_merchant_id, target_ref)` — 코드가 바뀌어도 같은 키).
+     */
+    val merchantKey: String? get() = null
+
     /** ADMIN 계정 대상(ADMIN 소유 6종). */
     data class AdminAccount(val actorId: String, val securityVersion: Long) : ApprovalTarget {
         init {
@@ -69,6 +75,7 @@ sealed interface ApprovalTarget {
         override val kind: ApprovalTargetKind get() = ApprovalTargetKind.MERCHANT
         override val ref: String get() = merchantId
         override val version: Long get() = 0
+        override val merchantKey: String get() = merchantId
 
         companion object {
             val MERCHANT_ID = Regex("^mer_[0-9A-HJKMNP-TV-Z]{26}$")

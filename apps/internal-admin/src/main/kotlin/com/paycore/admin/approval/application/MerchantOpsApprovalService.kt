@@ -11,6 +11,7 @@ import com.paycore.admin.account.application.provided.StepUpResult
 import com.paycore.admin.approval.application.provided.ApprovalOutcome
 import com.paycore.admin.approval.application.provided.DecideApproval
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
+import com.paycore.admin.approval.application.provided.RequestMerchantCodeChange
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
 import com.paycore.admin.approval.application.provided.RequestMerchantCurrencyEnablement
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
@@ -40,12 +41,14 @@ import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
 import com.paycore.admin.approval.domain.PinnedCurrencyEnablementTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
+import com.paycore.admin.approval.domain.PinnedMerchantCodeChangeTarget
 import com.paycore.admin.approval.domain.PinnedMerchantTarget
 import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
 import com.paycore.admin.approval.domain.ReconciliationFindingKind
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.merchantops.application.provided.ActivationTarget
+import com.paycore.admin.merchantops.application.provided.CodeChangeTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
 import com.paycore.admin.merchantops.application.provided.CurrencyTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTarget
@@ -116,6 +119,7 @@ class MerchantOpsApprovalService(
         ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION -> MerchantApprovalOperation.APPROVE_PAYMENT_METHOD_ACTIVATION
         ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL -> MerchantApprovalOperation.DECIDE_SITE_REVIEW
         ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT -> MerchantApprovalOperation.ENABLE_CURRENCY
+        ApprovalKind.MERCHANT_CODE_CHANGE -> MerchantApprovalOperation.CHANGE_MERCHANT_CODE
         else -> throw IllegalArgumentException("not a merchant approval kind: $kind")
     }
 
@@ -268,6 +272,16 @@ class MerchantOpsApprovalService(
             MerchantTargetResult.MerchantNotFound -> null
             is MerchantTargetResult.Unavailable -> throw Unreadable()
         }
+        // MC-1b(§5.3): 현재 = MASTER 현재 코드 + 요청 값(새 코드·사유는 pinned 그대로). 변경 불가(계약 승인·이미 변경·비활성)면 null(TARGET_CHANGED). 새 코드 사용 가능 여부는 보지 않는다(C-4).
+        is PinnedMerchantCodeChangeTarget -> when (val found = client.codeChangeTarget(pinned.merchantId)) {
+            is MerchantTargetResult.Found -> if (!found.target.changeable || found.target.changeCount != 0) {
+                null
+            } else {
+                runCatching { pinnedCodeChangeOf(found.target, pinned.newCode, pinned.reasonCode) }.getOrNull()
+            }
+            MerchantTargetResult.MerchantNotFound -> null
+            is MerchantTargetResult.Unavailable -> throw Unreadable()
+        }
     }
 
     private fun sameTarget(pinned: PinnedMerchantTarget, current: PinnedMerchantTarget?): Boolean = when (pinned) {
@@ -276,6 +290,7 @@ class MerchantOpsApprovalService(
         is PinnedActivationApprovalTarget -> current is PinnedActivationApprovalTarget && pinned.sameTargetAs(current)
         is PinnedSiteReviewApprovalTarget -> current is PinnedSiteReviewApprovalTarget && pinned.sameTargetAs(current)
         is PinnedCurrencyEnablementTarget -> current is PinnedCurrencyEnablementTarget && pinned.sameTargetAs(current)
+        is PinnedMerchantCodeChangeTarget -> current is PinnedMerchantCodeChangeTarget && pinned.sameTargetAs(current)
     }
 
     private class Unreadable : RuntimeException(null, null, false, false)
@@ -360,6 +375,35 @@ class MerchantOpsApprovalService(
     private fun pinnedCurrencyOf(t: CurrencyTarget, mode: String, from: LocalDate?, to: LocalDate?): PinnedCurrencyEnablementTarget? = runCatching {
         PinnedCurrencyEnablementTarget(t.merchantId, t.merchantName, t.merchantAccountId, requireNotNull(t.accountLifecycle), t.currency, mode, from, to)
     }.getOrNull()
+
+    /**
+     * MERCHANT-CODE-001 MC-1b 코드 변경 요청(§5.5 — D-MCODE-002 Q-MC-7): 입력 형식 → 세션 역할 OPERATOR → MASTER 상세(TX 밖) → 새 코드 = 현재 코드면 400 `INVALID_INPUT`(newCode·SAME_AS_CURRENT)
+     * → advisory `merchantCodeChangeable` false면 409(감사 reason = MERCHANT_CODE_NOT_CHANGEABLE) → 공통 요청 TX(승인 행 `target_merchant_id` = mer_ — 미해결 키 `MERCHANT:<mer_>` 그룹 공유 C-15).
+     * target_ref는 MC-1b 동안 mer_(C-21 — 코드 표기는 MC-3). 권위 판정(계약 승인 전·1회·중복)은 MASTER 실행 TX.
+     */
+    override fun requestMerchantCodeChange(command: RequestMerchantCodeChange): ApprovalOutcome = observed(REQUEST, CODE_KIND) {
+        MerchantOpsInputRules.codeChangeProblem(command.merchantId, command.newCode, command.reasonCode, command.evidenceRef)?.let { (field, reason) ->
+            return@observed ApprovalOutcome.Rejected(INVALID_INPUT, field, reason)
+        }
+        if (!holdsNow(command.requesterActorId, ApprovalParticipants.requesterRole(CODE_KIND))) return@observed ApprovalOutcome.Denied
+        val target = when (val found = client.codeChangeTarget(command.merchantId)) {
+            is MerchantTargetResult.Found -> found.target
+            MerchantTargetResult.MerchantNotFound -> return@observed refuseKind(CODE_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(MERCHANT_NOT_FOUND), MERCHANT_NOT_FOUND)
+            is MerchantTargetResult.Unavailable -> return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        }
+        if (target.currentCode == command.newCode) return@observed ApprovalOutcome.Rejected(INVALID_INPUT, "newCode", "SAME_AS_CURRENT")
+        if (!target.changeable || target.changeCount != 0) {
+            return@observed refuseKind(CODE_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(NOT_ELIGIBLE), "MERCHANT_CODE_NOT_CHANGEABLE")
+        }
+        val pinned = runCatching { pinnedCodeChangeOf(target, command.newCode, command.reasonCode) }.getOrNull() ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        requestPinned(
+            CODE_KIND, MerchantOpsCommandKind.MERCHANT_CODE_CHANGE, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
+            command.context,
+        )
+    }
+
+    private fun pinnedCodeChangeOf(t: CodeChangeTarget, newCode: String, reasonCode: String) =
+        PinnedMerchantCodeChangeTarget(t.merchantId, t.merchantName, t.currentCode, newCode, reasonCode, contractApproved = false, codeChangeCount = t.changeCount)
 
     /** B3 공통 요청 TX(B2와 같은 순서 — 승인 행 INSERT(그룹 미해결 키 C-35) → 요청자 잠금·재검사 → 명령 행 INSERT(pinned·근거) → 감사). */
     @Suppress("LongParameterList")
@@ -500,6 +544,8 @@ class MerchantOpsApprovalService(
         is PinnedSiteReviewApprovalTarget -> SITE_REVIEW_REFERENCE.matches(reference) && reference.substringBefore('#') == pinned.merchantSiteId
         // B3-2: 새 통화 기록 ID는 MASTER가 정한다(첫 MID와 같은 방식 — `cur_` 문법만).
         is PinnedCurrencyEnablementTarget -> CURRENCY_REFERENCE.matches(reference)
+        // MC-1b: 성공 reference = 그 가맹점 내부 키 그대로.
+        is PinnedMerchantCodeChangeTarget -> reference == pinned.merchantId
         null -> false
     }
 
@@ -539,7 +585,8 @@ class MerchantOpsApprovalService(
         val pinned = snapshot.pinnedTarget
         val pinnedKindMatches = (request.kind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL && pinned is PinnedContractApprovalTarget) ||
             (request.kind == MID_KIND && pinned is PinnedFirstMidTarget) || (request.kind == ACTIVATION_KIND && pinned is PinnedActivationApprovalTarget) ||
-            (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget) || (request.kind == CURRENCY_KIND && pinned is PinnedCurrencyEnablementTarget)
+            (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget) || (request.kind == CURRENCY_KIND && pinned is PinnedCurrencyEnablementTarget) ||
+            (request.kind == CODE_KIND && pinned is PinnedMerchantCodeChangeTarget)
         if (!pinnedKindMatches) throw IntegrityViolation("command_kind", merchantId, request.id)
         // D-MOPS-008 ③(C-27): Revision 등록자는 그 Revision을 승인할 수 없다 — TOTP를 쓰기 전에 거부(상태·TOTP 불변, 감사 APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT).
         // B2-3: 첫 MID 발급에는 적용하지 않는다(결정 범위가 "그 Revision을 승인" — §9.3 판정 5).
@@ -577,6 +624,11 @@ class MerchantOpsApprovalService(
                     request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantAccountId, pinned.currency,
                     pinned.effectiveFromMode, pinned.effectiveFrom, pinned.effectiveTo,
                 )
+                // MC-1b(§3.7.2): 명령 필드 merchantId, currentCode(요청 시점 고정 — A 단계 재조회와 같음을 확인한 값), newCode, reasonCode.
+                is PinnedMerchantCodeChangeTarget -> contract.merchantCodeChange(
+                    request.id, ACTOR_PREFIX + request.requestedBy, ACTOR_PREFIX + approverId, now, executeBefore, snapshot.evidenceRef, pinned.merchantId, pinned.currentCode,
+                    pinned.newCode, pinned.reasonCode,
+                )
             }
         } catch (_: IllegalArgumentException) {
             throw IntegrityViolation("command_body", merchantId, request.id)
@@ -604,6 +656,8 @@ class MerchantOpsApprovalService(
         is PinnedFirstMidTarget -> null
         // B3-2(§9.27 적용 범위 밖): 통화 활성화에는 1인 등록 단계가 없다 — 요청자≠승인자(참여자 규칙)만.
         is PinnedCurrencyEnablementTarget -> null
+        // D-MCODE-002 Q-MC-10(MERCHANT-CODE-001 MC-1b — 권장 반대 답): 코드 변경은 요청자 ≠ 승인자(참여자 규칙)만 — 원 가맹점 등록자도 승인할 수 있다(D-MOPS-009 ③ 확장 안 함).
+        is PinnedMerchantCodeChangeTarget -> null
     }
 
     private fun invalidate(locked: VersionedApproval, request: ApprovalRequest, approver: ParticipantView, code: String, now: Instant, context: AdminRequestContext): ApprovalOutcome {
@@ -801,7 +855,8 @@ class MerchantOpsApprovalService(
             AuditRecord(
                 occurredAt = now, actorKind = "ADMIN", actorId = actorId, actorDisplayName = actor?.displayName, action = action, resultCode = result,
                 correlationId = context.correlationId, executorActorId = executor, approvalId = request.id, remoteIp = context.remoteIp,
-                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail).joinToString(";"), targetRef = request.target.ref,
+                // MC-1b(§5.5 — D-MCODE-002 ⑤): 코드 변경 승인 건의 감사 행은 from=;to=;reason=(target_ref = mer_ — C-21).
+                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail, PinnedMerchantCodeChangeTarget.auditDetailOf(request)).joinToString(";"), targetRef = request.target.ref,
             ),
         )
     }
@@ -846,7 +901,8 @@ class MerchantOpsApprovalService(
         val ACTIVATION_KIND = ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION
         val SITE_REVIEW_KIND = ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL
         val CURRENCY_KIND = ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT
-        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ACTIVATION_KIND, SITE_REVIEW_KIND, CURRENCY_KIND)
+        val CODE_KIND = ApprovalKind.MERCHANT_CODE_CHANGE
+        val KINDS = setOf(ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ACTIVATION_KIND, SITE_REVIEW_KIND, CURRENCY_KIND, CODE_KIND)
         val CURRENCY_REFERENCE = Regex("^cur_[0-9A-HJKMNP-TV-Z]{26}$")
         val SEOUL: java.time.ZoneId = java.time.ZoneId.of("Asia/Seoul")
         val SITE_REVIEW_REFERENCE = Regex("^site_[0-9A-HJKMNP-TV-Z]{26}#[1-9][0-9]{0,9}$")

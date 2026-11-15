@@ -48,6 +48,22 @@ export interface PinnedCurrency {
   effectiveTo: string | null
 }
 
+/** MERCHANT-CODE-001 MC-1b 코드 변경 고정 대상(§5.3 — 등록자 키 없음). */
+export interface PinnedCodeChange {
+  merchantId: string
+  merchantName: string
+  currentCode: string
+  newCode: string
+  reasonCode: string
+}
+
+export function pinnedCodeChangeOf(value: unknown): PinnedCodeChange | null {
+  const p = parsed(value)
+  return strings(p, ['merchantId', 'merchantName', 'currentCode', 'newCode', 'reasonCode']) ? (p as unknown as PinnedCodeChange) : null
+}
+
+const CODE_CHANGE_REASON_TEXT: Readonly<Record<string, string>> = { TYPO_CORRECTION: '오타 수정', MERCHANT_REQUEST: '가맹점 요청', OTHER_POLICY: '그 밖의 정책 사유' }
+
 export function pinnedCurrencyOf(value: unknown): PinnedCurrency | null {
   const p = parsed(value)
   if (!strings(p, ['merchantId', 'merchantAccountId', 'currency', 'effectiveFromMode'])) return null
@@ -157,6 +173,7 @@ const KIND_TEXT: Readonly<Record<string, { title: string; region: string; execut
   MERCHANT_PAYMENT_METHOD_ACTIVATION: { title: '결제수단 개통 승인', region: '결제수단 개통 승인 상세', executed: '개통됨', evidence: '기관(카드사/VAN) 회신 참조' },
   MERCHANT_SITE_REVIEW_APPROVAL: { title: 'Site 심사 승인', region: 'Site 심사 승인 상세', executed: '심사 승인됨', evidence: 'PG 심사 근거' },
   MERCHANT_CURRENCY_ENABLEMENT: { title: '통화 활성화', region: '통화 활성화 승인 상세', executed: '활성화됨', evidence: '기관(카드사/VAN) 회신 참조' },
+  MERCHANT_CODE_CHANGE: { title: '가맹점 코드 변경', region: '가맹점 코드 변경 승인 상세', executed: '변경됨', evidence: '근거 참조' },
 }
 const kindText = (kind: string) => KIND_TEXT[kind] ?? KIND_TEXT.MERCHANT_CONTRACT_APPROVAL!
 
@@ -223,8 +240,10 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
   const isActivation = item.kind === 'MERCHANT_PAYMENT_METHOD_ACTIVATION'
   const isSiteReview = item.kind === 'MERCHANT_SITE_REVIEW_APPROVAL'
   const isCurrency = item.kind === 'MERCHANT_CURRENCY_ENABLEMENT'
+  const isCodeChange = item.kind === 'MERCHANT_CODE_CHANGE'
   const raw = g?.pinnedTarget ?? item.targetSnapshot
-  const pinned = isMid || isActivation || isSiteReview || isCurrency ? null : pinnedContractOf(raw)
+  const pinned = isMid || isActivation || isSiteReview || isCurrency || isCodeChange ? null : pinnedContractOf(raw)
+  const codeChange = isCodeChange ? pinnedCodeChangeOf(raw) : null
   const currency = isCurrency ? pinnedCurrencyOf(raw) : null
   const mid = isMid ? pinnedMidOf(raw) : null
   const activation = isActivation ? pinnedActivationOf(raw) : null
@@ -319,6 +338,17 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
             <li>{`통화: ${currency.currency}`}</li>
             <li className="font-medium">{currencyStartText(currency)}</li>
             <li>{currency.effectiveTo === null ? '종료일: 없음' : `종료일(KST): ${currency.effectiveTo} — 이 날 0시 종료(미포함)`}</li>
+            <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
+            {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
+            {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}
+          </ul>
+        )}
+        {/* MC-1b(§5.5): "현재 → 새 코드"(코드는 공개값). 내부 키(mer_…)는 그리지 않는다(D-ADMIN-UI-004 ③). 등록자 안내 없음(Q-MC-10). */}
+        {codeChange && (
+          <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            <li>{'가맹점: '}<span className="font-medium">{codeChange.merchantName}</span></li>
+            <li className="font-medium">{'코드: '}<span className="font-mono">{`${codeChange.currentCode} → ${codeChange.newCode}`}</span></li>
+            <li>{`사유: ${CODE_CHANGE_REASON_TEXT[codeChange.reasonCode] ?? codeChange.reasonCode}`}</li>
             <li>{'요청자: '}{item.requestedByDisplayName} <span className="font-mono text-xs">{item.requestedBy}</span></li>
             {g && <li title={g.executeBefore ?? undefined}>{`실행 기한: ${g.executeBefore ? formatKst(g.executeBefore) : '-'}`}</li>}
             {g && <li>{`마지막 실패 분류: ${g.lastFailure ?? '-'}`}</li>}

@@ -30,7 +30,7 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
         val row = JpaApprovalRequestEntity.newRow(
             request.id, request.kind.name, target.kind.name, (target as? ApprovalTarget.AdminAccount)?.actorId, target.ref.takeIf { target !is ApprovalTarget.AdminAccount },
             target.version, request.targetSnapshot, request.grantedRole, request.causeApprovalId, request.requestedBy, request.requestedByDisplayName,
-            request.requestedAt, request.expiresAt,
+            request.requestedAt, request.expiresAt, targetMerchantId = target.merchantKey,
         )
         copyDecision(request, row)
         entityManager.persist(row)
@@ -119,7 +119,8 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
             require(r.targetSecurityVersion == 0L) { "acquisition file target version column is 0" }
         }
         // MERCHANT-OPS-002 B2-2: 가맹점 대상도 대상 버전 0 고정(C-16 — pinned 비교 + MASTER 재판정).
-        ApprovalTargetKind.MERCHANT -> ApprovalTarget.Merchant(requireNotNull(r.targetRef) { "merchant target" }).also {
+        // MERCHANT-CODE-001 MC-1b: 내부 키는 target_merchant_id(새 행) 또는 target_ref(MC-1b 전 행 — mer_). CHECK ④가 두 값이 다른 가맹점을 가리키지 못하게 한다.
+        ApprovalTargetKind.MERCHANT -> ApprovalTarget.Merchant(requireNotNull(r.targetMerchantId ?: r.targetRef) { "merchant target" }).also {
             require(r.targetSecurityVersion == 0L) { "merchant target version column is 0" }
         }
     }

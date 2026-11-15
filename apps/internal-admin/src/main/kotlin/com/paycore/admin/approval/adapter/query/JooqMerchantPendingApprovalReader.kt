@@ -20,7 +20,8 @@ class JooqMerchantPendingApprovalReader(private val dsl: DSLContext) : MerchantP
             t.APPROVAL_ID, t.KIND, t.STATUS,
             DSL.field("CAST(JSON_EXTRACT({0}, '$.revisionNo') AS SIGNED)", Int::class.javaObjectType, t.TARGET_SNAPSHOT),
         ).from(t)
-            .where(t.TARGET_KIND.eq("MERCHANT").and(t.TARGET_REF.eq(merchantId)).and(t.STATUS.`in`("PENDING", "EXECUTING", "EXECUTION_UNKNOWN")))
+            // MERCHANT-CODE-001 MC-1b(§5.1): 대상 가맹점 = COALESCE(내부 키 열, target_ref) — MC-3 뒤 target_ref가 코드여도 내부 키로 찾는다.
+            .where(t.TARGET_KIND.eq("MERCHANT").and(DSL.coalesce(t.TARGET_MERCHANT_ID, t.TARGET_REF).eq(merchantId)).and(t.STATUS.`in`("PENDING", "EXECUTING", "EXECUTION_UNKNOWN")))
             .orderBy(t.REQUESTED_AT.desc(), t.APPROVAL_ID.desc())
             .limit(LIMIT)
             .fetch { MerchantPendingApprovalRow(it.value1()!!, it.value2()!!, it.value3()!!, it.value4().takeIf { _ -> it.value2() == "MERCHANT_CONTRACT_APPROVAL" }) }

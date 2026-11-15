@@ -162,6 +162,9 @@ internal sealed interface MasterResponseShape {
         /** B3-2 통화 활성화 기록 `cur_…`(§8.4 B3-2-5). */
         private val CURRENCY_REFERENCE = Text(Regex("^cur_$ULID$"))
 
+        /** MC-1b 코드 변경 성공 reference = 가맹점 내부 키 `mer_…`(§3.7.2). */
+        private val MERCHANT_REFERENCE = Text(Regex("^mer_$ULID$"))
+
         /**
          * operation code → 성공 reference 문법(계약 승인 `ctr_…#n` — C-30, 첫 MID `mid_…` — B2-3, B3-1 개통 승인 `act_…`·Site 심사 승인 `site_…#n` — minor-4).
          * 다른 문법이면 해석 불가(Unknown). **이 표의 키가 결정 조회 `operation` 허용 목록이다** — 목록 밖 operation은 해석 불가(fail-closed).
@@ -171,6 +174,8 @@ internal sealed interface MasterResponseShape {
             "ApprovePaymentMethodActivation" to ACTIVATION_REFERENCE, "DecideSiteReview" to SITE_REVIEW_REFERENCE,
             // B3-2(§8.4 B3-2-5): 통화 활성화 → `cur_`.
             "EnableCurrency" to CURRENCY_REFERENCE,
+            // MERCHANT-CODE-001 MC-1b(§3.7.2): 코드 변경 → 그 가맹점 `mer_…`.
+            "ChangeMerchantCode" to MERCHANT_REFERENCE,
         )
 
         /** 결정 조회 응답 `operation` 허용 목록(minor-4). */

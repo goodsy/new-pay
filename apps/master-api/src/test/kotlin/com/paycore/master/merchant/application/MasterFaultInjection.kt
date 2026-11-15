@@ -46,6 +46,9 @@ enum class MasterFaultPoint {
 
     // MERCHANT-CODE-001 MC-1-3(리뷰 m-2): 코드 사전 조회(findCodeOwner) 직후·가맹점+배정 INSERT(flush) — 경합 순서를 결정적으로 강제·1062 관찰.
     MERCHANT_CODE_OWNER, MERCHANT_INSERT,
+
+    // MERCHANT-CODE-001 MC-1b-12(리뷰 m-6): 계약 잠금·갱신 직후 — 계약 승인 경로의 잠금 순서(merchant → contract → update)를 순서 기록으로 고정.
+    CONTRACT_LOCK, CONTRACT_UPDATE,
 }
 
 /**
@@ -320,6 +323,17 @@ class MasterFaultInjectionConfig {
 
         override fun insert(merchant: Merchant) = f.around(MasterFaultPoint.MERCHANT_INSERT) { real.insert(merchant) }
     }
+
+    @Bean
+    @Primary
+    fun faultInjectingContractStore(real: com.paycore.master.merchant.adapter.persistence.JpaContractRepository, f: MasterFaultInjector):
+        com.paycore.master.merchant.application.required.ContractRepository =
+        object : com.paycore.master.merchant.application.required.ContractRepository by real {
+            override fun lock(id: com.paycore.master.merchant.domain.ContractId) = f.around(MasterFaultPoint.CONTRACT_LOCK) { real.lock(id) }
+
+            override fun update(contract: com.paycore.master.merchant.domain.Contract, expectedVersion: Long): Long =
+                f.around(MasterFaultPoint.CONTRACT_UPDATE) { real.update(contract, expectedVersion) }
+        }
 
     @Bean
     @Primary

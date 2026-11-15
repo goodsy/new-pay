@@ -359,6 +359,17 @@ export interface MerchantSiteReviewApprovalInput {
  * B3-2 2인 통화 활성화 요청(MERCHANT-OPS-002 §9.16·§9.26 — 근거 = 기관(카드사/VAN) 회신 참조 필수, KRW만 C-41). 효력 시작 `AT_EXECUTION`(MASTER 실행 시각으로 확정) 또는
  * `DATE`(`effectiveFromDate` = KST `YYYY-MM-DD`, 내일 이후). `effectiveToDate`(선택)는 그 날 0시 종료(미포함 — C-7).
  */
+/**
+ * MERCHANT-CODE-001 MC-1b 가맹점 코드 변경 요청(§5.5 — OPERATOR, 계약 승인 전 1회만): [merchantId]는 내부 키(호출에만 — 화면에 그리지 않는다), [newCode] §3.1 형식,
+ * [reasonCode] C-12 목록(Demo 값), [evidenceRef] 필수.
+ */
+export interface MerchantCodeChangeInput {
+  merchantId: string
+  newCode: string
+  reasonCode: 'TYPO_CORRECTION' | 'MERCHANT_REQUEST' | 'OTHER_POLICY'
+  evidenceRef: string
+}
+
 export interface MerchantCurrencyEnablementInput {
   merchantId: string
   merchantAccountId: string
@@ -431,6 +442,12 @@ export interface MerchantDetail {
   } | null
   /** ADMIN DB 미해결 승인(MERCHANT-OPS-002 C-24 — "승인 대기 중" 표시). 이전 서버 응답에는 없을 수 있다. */
   pendingApprovals?: PendingMerchantApproval[]
+  /**
+   * MERCHANT-CODE-001 §3.8: 코드 배정 이력(seq 1 = 첫 배정, seq 2 = 유일한 변경 — 은퇴 코드는 seq 1의 code)·변경 가능 여부(advisory — seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE).
+   * MASTER는 늘 보내지만 시험 Fixture가 생략할 수 있어 선택 필드다(없으면 변경 불가로 본다).
+   */
+  merchantCodeHistory?: { code: string; seq: number; source: string; replacesCode: string | null; assignedAt: string; assignedBy: string; reasonCode: string | null }[]
+  merchantCodeChangeable?: boolean
 }
 
 /** 변경 이력 항목(§3.3 — 감사 항목 투영, `detail` 없음). */
@@ -775,6 +792,8 @@ export interface AdminApi {
   requestMerchantPaymentMethodActivation(input: MerchantActivationApprovalInput): Promise<{ approvalId: string }>
   requestMerchantSiteReviewApproval(input: MerchantSiteReviewApprovalInput): Promise<{ approvalId: string }>
   requestMerchantCurrencyEnablement(input: MerchantCurrencyEnablementInput): Promise<{ approvalId: string }>
+  /** MERCHANT-CODE-001 MC-1b 가맹점 코드 변경 요청(201 승인 ID). */
+  requestMerchantCodeChange(input: MerchantCodeChangeInput): Promise<{ approvalId: string }>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -841,5 +860,6 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     requestMerchantPaymentMethodActivation: (input) => call('/api/approvals/merchant-payment-method-activation', 'POST', input),
     requestMerchantSiteReviewApproval: (input) => call('/api/approvals/merchant-site-review-approval', 'POST', input),
     requestMerchantCurrencyEnablement: (input) => call('/api/approvals/merchant-currency-enablement', 'POST', input),
+    requestMerchantCodeChange: (input) => call('/api/approvals/merchant-code-change', 'POST', input),
   }
 }

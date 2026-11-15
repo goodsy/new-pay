@@ -56,9 +56,12 @@ class MerchantCodeE2eScriptTest(unittest.TestCase):
             "login", "register business", "register merchant with code", "resend same submissionId", "merchant list (businessId)", "merchant detail",
             "code search (merchantCode)", "code search with another criterion", "duplicate code new submissionId", "reserved word", "bad format uppercase",
             "seed merchant list",
+            # 목록 확장(MERCHANT-CODE-001 MC-1b — §7 Demo 계정 둘): 승인자 로그인·요청·승인·변경 뒤 상세·은퇴 코드 검색·재사용 거절·두 번째 변경·계약 승인 뒤 가맹점.
+            "approver login", "code change request", "code change approve", "detail after code change", "code search retired code", "retired code registration",
+            "second code change request", "seed merchant detail", "seed merchant code change request",
         ))
         source = source_text()
-        for name in e2e.STEPS[1:]:
+        for name in [n for n in e2e.STEPS if n not in ("login", "approver login")]:
             self.assertIn('run.step("%s"' % name, source, name)
         # 재리뷰 NIT: HTTP E2E는 400만 확인한다 — "MASTER 미도달"을 이 절차의 증거로 주장하지 않는다.
         self.assertNotIn("MASTER 미도달", source)
@@ -240,6 +243,115 @@ class MerchantCodeE2eScriptTest(unittest.TestCase):
         self.assertEqual(result["businessId"], "biz_01M7BZW05BT001BT7PYAGRXNEA")
         self.assertEqual(result["failures"][-1], "interrupted after 2 steps: ConnectionResetError")
         self.assertNotIn("pw", [s.get("body") for s in result["steps"]])
+
+
+class MerchantCodeChangeE2eTest(unittest.TestCase):
+    """MERCHANT-CODE-001 MC-1b 단계(네트워크 없음): 인자·판정 함수·TOTP 새 칸 대기·요청자/승인자 세션 분리·전체 흐름(가짜 opener 두 개)."""
+
+    MER = "mer_01M7BZW09CN0EA1V9VYQD4DD5W"
+    SEED = "mer_01M7BZW09CN0EA1V9VYQD4DD5X"
+
+    def test_approver_login_is_required_valid_and_different_from_the_requester(self):
+        a = e2e.parse_args(["--out", "x.json"])
+        self.assertEqual((a.login, a.approver_login), ("demo-operator", "demo-approver"))
+        for bad in (["--approver-login", "demo-operator"], ["--approver-login", "Bad Login"]):
+            with self.assertRaises(SystemExit) as raised, open(os.devnull, "w") as sink:
+                import contextlib
+                with contextlib.redirect_stderr(sink):
+                    e2e.parse_args(["--out", "x.json"] + bad)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_detail_after_change_judgement(self):
+        history = [
+            {"code": "mce2eabc123", "seq": 1, "source": "REGISTRATION", "replacesCode": None},
+            {"code": "mcnewabc123", "seq": 2, "source": "CHANGE", "replacesCode": "mce2eabc123"},
+        ]
+        ok = {"merchant": {"merchantCode": "mcnewabc123"}, "merchantCodeHistory": history, "merchantCodeChangeable": False}
+        self.assertEqual(e2e.check_detail_after_change(ok, "mce2eabc123", "mcnewabc123"), [])
+        self.assertTrue(e2e.check_detail_after_change({**ok, "merchantCodeChangeable": True}, "mce2eabc123", "mcnewabc123"))
+        self.assertTrue(e2e.check_detail_after_change({**ok, "merchantCodeHistory": history[:1]}, "mce2eabc123", "mcnewabc123"))
+        self.assertTrue(e2e.check_detail_after_change({**ok, "merchant": {"merchantCode": "mce2eabc123"}}, "mce2eabc123", "mcnewabc123"))
+        swapped = [history[0], {**history[1], "replacesCode": "other00000"}]
+        self.assertTrue(e2e.check_detail_after_change({**ok, "merchantCodeHistory": swapped}, "mce2eabc123", "mcnewabc123"))
+        leaking = [history[0], {**history[1], "assignedBy": self.MER}]
+        self.assertIn("code history exposes mer_", e2e.check_detail_after_change({**ok, "merchantCodeHistory": leaking}, "mce2eabc123", "mcnewabc123"))
+        self.assertEqual(e2e.check_detail_after_change(None, "a", "b"), ["detail after change is not an object"])
+
+    def test_retired_code_search_and_refusal_judgements(self):
+        item = {"merchantId": self.MER, "merchantCode": "mcnewabc123", "matchedRetiredCode": True}
+        self.assertEqual(e2e.check_retired_search(200, {"items": [item], "nextCursor": None}, self.MER, "mcnewabc123"), [])
+        self.assertTrue(e2e.check_retired_search(200, {"items": [{**item, "matchedRetiredCode": False}]}, self.MER, "mcnewabc123"))
+        self.assertTrue(e2e.check_retired_search(200, {"items": []}, self.MER, "mcnewabc123"))
+        self.assertTrue(e2e.check_retired_search(200, {"items": [{**item, "merchantCode": "mce2eabc123"}]}, self.MER, "mcnewabc123"))
+        self.assertTrue(e2e.check_retired_search(503, None, self.MER, "mcnewabc123"))
+        self.assertEqual(e2e.check_refused("x", 409, {"error": "TARGET_NOT_ELIGIBLE_ADVISORY"}, "TARGET_NOT_ELIGIBLE_ADVISORY"), [])
+        self.assertEqual(len(e2e.check_refused("x", 201, {"approvalId": "apr_x"}, "TARGET_NOT_ELIGIBLE_ADVISORY")), 2)
+        items = [{"merchantId": self.MER, "merchantCode": "mce2eabc123"}, {"merchantId": self.SEED, "merchantCode": "demoshop01"}]
+        self.assertEqual(e2e.pick_seed(items, {"mce2eabc123"})["merchantId"], self.SEED)
+        self.assertEqual(e2e.pick_seed(items[:1] + [{"merchantId": self.SEED, "merchantCode": "m0123456789abc"}], {"mce2eabc123"})["merchantId"], self.SEED)
+        self.assertIsNone(e2e.pick_seed(items[:1], {"mce2eabc123"}))
+
+    def test_the_approval_totp_waits_for_a_new_30_second_window(self):
+        t = [60.0 * 30 + 29.0]
+        slept = []
+
+        def sleep(seconds):
+            slept.append(seconds)
+            t[0] += seconds
+        self.assertTrue(e2e.wait_for_next_totp_window(60, clock=lambda: t[0], sleep=sleep))
+        self.assertEqual(int(t[0]) // 30, 61)
+        self.assertTrue(slept)
+        frozen = [60.0 * 30]
+        self.assertFalse(e2e.wait_for_next_totp_window(60, clock=lambda: frozen[0], sleep=lambda s: None, limit_seconds=2))
+
+    def test_code_change_flow_uses_two_sessions_and_judges_every_step(self):
+        operator = e2e.Account("demo-operator", "OPERATOR", "pw-op", RFC_SECRET_B32)
+        approver = e2e.Account("demo-approver", "APPROVER", "pw-ap", RFC_SECRET_B32)
+        history = ('[{"code":"mce2eabc123","seq":1,"source":"REGISTRATION","replacesCode":null},'
+                   '{"code":"mcnewabc123","seq":2,"source":"CHANGE","replacesCode":"mce2eabc123"}]')
+        op_replies = [
+            (201, b'{"approvalId":"apr_01M7BZW09CN0EA1V9VYQD4DD5A"}', []),
+            (200, ('{"merchant":{"merchantCode":"mcnewabc123"},"merchantCodeHistory":%s,"merchantCodeChangeable":false}' % history).encode(), []),
+            (200, ('{"items":[{"merchantId":"%s","merchantCode":"mcnewabc123","matchedRetiredCode":true}],"nextCursor":null}' % self.MER).encode(), []),
+            (200, b'{"outcome":"REJECTED","rejection":"MERCHANT_CODE_TAKEN","replayed":false}', []),
+            (409, b'{"error":"TARGET_NOT_ELIGIBLE_ADVISORY"}', []),
+            (200, b'{"merchant":{"merchantCode":"demoshop01"},"contracts":[{"revisions":[{"approvedAt":"2026-11-01T00:00:00Z"}]}],"merchantCodeChangeable":false}', []),
+            (409, b'{"error":"TARGET_NOT_ELIGIBLE_ADVISORY"}', []),
+        ]
+        ap_opener = FakeOpener([(204, b"", []), (200, b"{}", []), (200, b'{"roles":["APPROVER"]}', []), (204, b"", []),
+                                (200, b'{"approvalId":"apr_01M7BZW09CN0EA1V9VYQD4DD5A","status":"EXECUTED"}', [])])
+        op_opener = FakeOpener(op_replies)
+        run = e2e.Run(e2e.Session("http://127.0.0.1:8090", 5, opener=op_opener))
+        facts = {"merchantId": self.MER, "code": "mce2eabc123", "businessId": "biz_01M7BZW05BT001BT7PYAGRXNEA",
+                 "approver": (e2e.Session("http://127.0.0.1:8090", 5, opener=ap_opener), approver)}
+        original = e2e.wait_for_next_totp_window
+        e2e.wait_for_next_totp_window = lambda counter: True
+        try:
+            e2e.code_change(run, facts, [{"merchantId": self.MER, "merchantCode": "mcnewabc123"}, {"merchantId": self.SEED, "merchantCode": "demoshop01"}],
+                            lambda: "s" * 32, "abc123")
+        finally:
+            e2e.wait_for_next_totp_window = original
+        self.assertEqual(run.failures, [])
+        self.assertEqual([st["step"] for st in run.steps], list(e2e.STEPS[e2e.STEPS.index("approver login"):]))
+        # 요청자 ≠ 승인자: 승인 POST는 승인자 세션(opener)으로만, 요청·조회는 운영자 세션으로만 간다.
+        self.assertEqual([r.full_url.rsplit("/", 1)[-1] for r in ap_opener.requests][-1], "approve")
+        self.assertTrue(all("/approve" not in r.full_url for r in op_opener.requests))
+        self.assertEqual(facts["newCode"], "mcnewabc123")
+        self.assertNotIn("pw-ap", repr(run.steps))
+        self.assertNotIn("approver", facts)
+        # 같은 흐름에서 MASTER 쪽 거절이 오면 판정이 잡는다(두 번째 변경이 201이면 실패).
+        op_replies2 = list(op_replies)
+        op_replies2[4] = (201, b'{"approvalId":"apr_01M7BZW09CN0EA1V9VYQD4DD5B"}', [])
+        ap2 = FakeOpener([(204, b"", []), (200, b"{}", []), (200, b'{"roles":["APPROVER"]}', []), (204, b"", []),
+                          (200, b'{"approvalId":"apr_01M7BZW09CN0EA1V9VYQD4DD5A","status":"EXECUTED"}', [])])
+        run2 = e2e.Run(e2e.Session("http://127.0.0.1:8090", 5, opener=FakeOpener(op_replies2)))
+        facts2 = {**facts, "approver": (e2e.Session("http://127.0.0.1:8090", 5, opener=ap2), approver)}
+        e2e.wait_for_next_totp_window = lambda counter: True
+        try:
+            e2e.code_change(run2, facts2, [{"merchantId": self.SEED, "merchantCode": "demoshop01"}], lambda: "s" * 32, "abc123")
+        finally:
+            e2e.wait_for_next_totp_window = original
+        self.assertTrue(any(f.startswith("second code change request") for f in run2.failures))
 
 
 class FakeResponse:

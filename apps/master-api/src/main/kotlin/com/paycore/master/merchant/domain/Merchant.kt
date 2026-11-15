@@ -17,8 +17,13 @@ class Merchant private constructor(
     entitlementRevision: Long,
     val createdAt: Instant,
     val createdBy: ActorRef,
-    val codeAssignments: List<MerchantCodeAssignment>,
+    codeAssignments: List<MerchantCodeAssignment>,
 ) {
+    private val assignments: MutableList<MerchantCodeAssignment> = codeAssignments.toMutableList()
+
+    /** 배정 이력(seq 오름차순 — 최대 2). 변경은 [changeCodeWithEvidence]가 seq 2를 덧붙이는 것뿐이다. */
+    val codeAssignments: List<MerchantCodeAssignment> get() = assignments.toList()
+
     var entitlementRevision: Long = entitlementRevision
         private set
 
@@ -35,7 +40,36 @@ class Merchant private constructor(
     }
 
     /** 현재 코드 = 가장 큰 seq의 코드(MERCHANT-CODE-001 §3.2). 은퇴 코드는 [codeAssignments]에 남는다. */
-    val currentCode: MerchantCode get() = codeAssignments.last().code
+    val currentCode: MerchantCode get() = assignments.last().code
+
+    /**
+     * MERCHANT-CODE-001 MC-1b(§3.7.3·§3.7.4 — D-MCODE-002 Q-MC-7): 가맹점 코드의 **유일한 변경 메서드**(근거 있는 2인 명령 전용 — 근거 없는 변경 메서드는 없다, C-11).
+     * 판정 순서 7 → 8 → 9 → 10 → 11(→ 12의 자기 코드 부분): 비활성 `MERCHANT_NOT_ACTIVE` → 이미 1회 변경 `MERCHANT_CODE_ALREADY_CHANGED` → 첫 계약 승인 뒤 `MERCHANT_CODE_LOCKED`
+     * → [expectedCurrent] ≠ 현재 코드 `MERCHANT_CODE_MISMATCH`(결함 신호) → 예약어 `MERCHANT_CODE_RESERVED` → 이 가맹점의 배정 코드(현재 코드 포함)와 같음 `MERCHANT_CODE_TAKEN`.
+     * 다른 가맹점·은퇴 코드 중복(판정 12)은 Application 사전 조회 + DB `UNIQUE(merchant_code)`가 본다.
+     * [contractApproved]는 Application이 merchant 잠금 **뒤** 읽은 "그 가맹점 대상 계약에 승인 사실 행 있음"(§3.7.1 — Domain은 계약 Aggregate를 모른다).
+     * [approver]는 seq 2 `assigned_by` 기록용이며 **판정 입력이 아니다**(D-MCODE-002 Q-MC-10 — 원 가맹점 등록자 [createdBy]와 비교하지 않는다. 요청자 ≠ 승인자는 실행기 공통 판정 1).
+     */
+    @Suppress("LongParameterList")
+    fun changeCodeWithEvidence(
+        newCode: MerchantCode,
+        expectedCurrent: MerchantCode,
+        contractApproved: Boolean,
+        reason: MerchantCodeChangeReason,
+        approvalId: String,
+        at: Instant,
+        approver: ActorRef,
+    ): MerchantCodeAssignment {
+        requireActive()
+        if (assignments.size >= MerchantCodeAssignment.CHANGE) throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_ALREADY_CHANGED)
+        if (contractApproved) throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_LOCKED)
+        if (expectedCurrent != currentCode) throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_MISMATCH)
+        newCode.requireAssignable()
+        if (assignments.any { it.code == newCode }) throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN)
+        val change = MerchantCodeAssignment.change(newCode, currentCode, approvalId, reason, at, approver)
+        assignments += change
+        return change
+    }
 
     fun requireActive() {
         if (lifecycle != Lifecycle.ACTIVE) throw MasterRuleViolation(MasterRejection.MERCHANT_NOT_ACTIVE)

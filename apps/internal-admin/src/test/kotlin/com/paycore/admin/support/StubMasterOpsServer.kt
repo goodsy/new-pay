@@ -173,7 +173,7 @@ object StubMasterOpsServer {
      */
     fun detailJson(
         merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1), sites: String? = null, assignments: String? = null, paymentMethods: String? = null,
-        siteConfirmations: String? = null, currencies: String? = null,
+        siteConfirmations: String? = null, currencies: String? = null, merchantCode: String = "shopabcd12", codeChangeable: Boolean = false, codeHistory: String? = null,
     ): String {
         val ulid = merchantId.removePrefix("mer_")
         // B3-2: [currencies]를 주면 그 목록 JSON(빈 문자열 = 통화 기록 없음), 기본은 기존 열린 KRW 한 줄.
@@ -183,7 +183,7 @@ object StubMasterOpsServer {
         val methodList = paymentMethods ?: paymentMethodJson("act_$ulid", "ACTIVE")
         val confirmationList = siteConfirmations ?: siteConfirmationJson("sac_$ulid", "site_$ulid", "act_$ulid")
         // MERCHANT-CODE-001 MC-1(§3.8): MASTER 상세 모양 변화(merchant.merchantCode + 최상위 merchantCodeHistory·merchantCodeChangeable)를 대역도 따른다.
-        return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"shopabcd12"},""" +
+        return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"$merchantCode"},""" +
             """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumberMasked":"123*******","lifecycle":"ACTIVE"},""" +
             """"sites":[$siteList],""" +
             """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[$revisions],""" +
@@ -196,9 +196,21 @@ object StubMasterOpsServer {
             """"siteConfirmations":[$confirmationList]}],""" +
             """"limits":[{"policyId":"tlp_$ulid","scopeKind":"CSA_DEFAULT","agreementId":"csa_$ulid","merchantAccountId":null,"currencyCode":"KRW","perTxKind":"LIMITED","perTxAmount":1000000,"dailyKind":"LIMITED","dailyAmount":5000000,"effectiveFrom":"2026-10-09T15:00:00.000Z","effectiveTo":null,"endedAt":null}],""" +
             """"propagation":{"latestRevision":5,"latestRevisionIssuedAt":"2026-10-09T02:00:00.000Z","latestAckRevision":null,"latestAckAt":null,"effectConfirmedAt":null,"effectBasis":null},""" +
-            """"merchantCodeHistory":[{"code":"shopabcd12","seq":1,"source":"REGISTRATION","replacesCode":null,"assignedAt":"2026-10-09T02:00:00.000Z","assignedBy":"admin:adm_01JC00000000000000000000V1","reasonCode":null}],""" +
-            """"merchantCodeChangeable":false}"""
+            // MERCHANT-CODE-001 MC-1b: [merchantCode]·[codeChangeable]·[codeHistory](이력 JSON — 기본 seq 1 하나)로 변경 가능·변경 뒤 상태를 만든다.
+            """"merchantCodeHistory":[${codeHistory ?: codeHistoryJson(merchantCode)}],""" +
+            """"merchantCodeChangeable":$codeChangeable}"""
     }
+
+    /** MC-1b 코드 이력 seq 1(등록). */
+    fun codeHistoryJson(code: String): String =
+        """{"code":"$code","seq":1,"source":"REGISTRATION","replacesCode":null,"assignedAt":"2026-10-09T02:00:00.000Z","assignedBy":"admin:adm_01JC00000000000000000000V1","reasonCode":null}"""
+
+    /** MC-1b 코드 이력 seq 1 + seq 2(변경 — [old] → [new]). */
+    fun changedHistoryJson(old: String, new: String): String = codeHistoryJson(old) + "," +
+        """{"code":"$new","seq":2,"source":"CHANGE","replacesCode":"$old","assignedAt":"2026-10-10T02:00:00.000Z","assignedBy":"admin:adm_01JCAP0000000000000000APR1","reasonCode":"TYPO_CORRECTION"}"""
+
+    /** MERCHANT-CODE-001 MC-1b 코드 변경 실행 경로(2인). */
+    const val MERCHANT_CODE_CHANGES = "/internal/v1/admin/merchant-operations/merchant-code-changes"
 
     /** B3-1 상세 Site 한 줄(기본 심사 APPROVED — [review] null이면 심사 결정 없음 = PENDING). */
     fun siteJson(

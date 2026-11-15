@@ -7745,8 +7745,8 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "MC-2 커밋 완료 → (사용자 화면 검토 때 MC-2b 방식 질문) → MC-1b(2인 승인 1회 코드 변경) → MC-3 → MC-4; 이후 MERCHANT-BIZ-LOOKUP-001",
-      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.3 sha256 d7446dfdc1d58629e9cf3af99ee14d84f808c8fd46f194c343d67072678db04a",
+      "nextResumeAction": "MC-1b 커밋 완료 → 사용자 화면 검토(MC-1·MC-2·MC-1b) + MC-2b 방식 질문 → MC-3(감사·승인 대상 코드 표기) → MC-4; 이후 MERCHANT-BIZ-LOOKUP-001",
+      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.4 sha256 a9eedfd3b1c80bb6e6ed924e1e94af183e8010932b05156bba4ea7f3e65956d0",
       "review": "spec rev0.3 REVIEW_FAIL(MAJOR-1 배포 단위, MAJOR-2 seed 재실행) → rev0.4 REVIEW_PASS (2026-11-14). C-20~C-26 Coordinator 채택",
       "gateRuns": [
         {
@@ -7764,6 +7764,22 @@
           "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-14T085645Z.json",
           "result": "사전 :apps:internal-admin:check PASS(9m03s); GRADLE-CHECK 08:57:11Z..09:35:23Z(38m12s/4500s) exit 0; Kotlin 4557 / FRONTEND 353 실패·errors·skip 0; HARNESS-SELFTEST PASS(minTests 198); fingerprint 전후 동일 sha256:7dcaa596456b2325cd43381ed2cee7f946d3196085ca99ca3e427cb4e633bb95",
           "supplementary": "MCODE-cve2 PASS(~/gate-logs/MCODE-cve2.log, 취약점 0, canary 전 모듈 검출)"
+        },
+        {
+          "tag": "MCODE-gate3",
+          "batch": "MC-1b",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-14T145909Z.json",
+          "result": "GRADLE-CHECK exit 1: master-api 757 중 1 실패 ContractSpec \"mapper guard\" — MasterRuleViolation MERCHANT_CODE_RESERVED. 원인: 시험 Fixture MerchantCodeFixtures.unique()가 \"t\"+임의 13자라 꼬리가 \"est…\"이면 예약어 test 접두 코드 생성(MC-1부터 있던 간헐 결함, 업무 코드 결함 아님). fp sha256:1e33ebd44ae08d1d8415b38832f1394c39d0f911c634035dec3d7f20f3770ebe",
+          "fix": "Fixture 접두 \"tx\"+임의 12자(UNIQUE_PREFIX) + MerchantCodeSpec에 접두·예약어 비겹침과 2000회 생성 비예약 단언 추가(기대값·기준 완화 없음). 대상 Spec r3-fixture.log ContractSpec 31·MerchantCodeSpec 10 통과"
+        },
+        {
+          "tag": "MCODE-gate4",
+          "batch": "MC-1b",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-14T230145Z.json",
+          "result": "GRADLE-CHECK 23:02:08Z..23:36:33Z(34m25s/4500s) exit 0; Kotlin 4615 / FRONTEND 361 실패·errors·skip 0; HARNESS-SELFTEST PASS(minTests 203); fingerprint 전후 동일 sha256:2ca40f511b0dc24216a668334f472b9eb9426c7adaa0d5af863c126d19428490",
+          "supplementary": "MCODE-cve3 PASS(~/gate-logs/MCODE-cve3.log, 취약점 0, canary 전 모듈 검출)"
         }
       ],
       "evidence": {
@@ -7785,6 +7801,15 @@
           "demo": "실제 MASTER·ADMIN jar Demo에서 merchant_code_e2e.py 12단계 PASS(e2e-result.json, e2e-result-r2.json). 브라우저 화면은 사용자 미검토",
           "gate": "MCODE-gate2 PASS",
           "status": "VERIFIED"
+        },
+        "mc_1b": {
+          "implementation": "MASTER ChangeMerchantCode 근거 경로(merchant 잠금 뒤 승인 계약 판정, seq 2 append, version +1, 이력·Outbox MerchantCodeChanged, 거절 ALREADY_CHANGED·LOCKED·MISMATCH, 사후 대사 질의), endpoint merchant-code-changes; ADMIN V13(MERCHANT_CODE_CHANGE 종류, target_merchant_id + CHECK ①~④, unresolved_key COALESCE), 단일 팩토리 merchantKey, pinned 7키(등록자 없음 — Q-MC-10), 감사 detail from=;to=;reason=, 화면 코드 변경 요청·코드 이력·승인함 표시(mer_ 미표시); MASTER migration 없음",
+          "tests": "RED는 컴파일 단계(red-master-compile 119 오류, red-admin-compile 17) ~/gate-logs/mcode-mc1b/; 모듈 check master 757·admin 978·Vitest 336·harness 203",
+          "mutations": "MC-1b-11 a~l 12종 killed(muts.json), 리뷰 후 drop-1-format·drop-3-present killed(muts-r2.json), 전부 restoredIdentical",
+          "review": "REVIEW_PASS(MAJOR 0) — MINOR-1 CHECK ①③ 개별 증명·MINOR-2 TOTP 미소비 대조·NIT-4 approve 호출 메서드 고정 수정(r2)",
+          "demo": "Demo(실제 MASTER·ADMIN jar, fp 20d3ef85… — 이후 변경은 시험·명세·Fixture만) merchant_code_e2e.py 21단계 PASS(~/gate-logs/mcode-mc1b/demo/e2e-result.json). 브라우저 화면 사용자 미검토",
+          "gate": "MCODE-gate3 FAIL(시험 Fixture 간헐 결함) → 수정 → MCODE-gate4 PASS",
+          "status": "VERIFIED"
         }
       },
       "followUps": [
@@ -7799,7 +7824,12 @@
         "MC-2 NIT-b: HARNESS-SELFTEST sideEffects 문구에 loopback 소켓 언급",
         "MC-2 NIT-c: 등록 화면 시험이 HTMLInputElement value 속성만 확인",
         "MC-2b(C-28): 등록 마법사 가맹점 입력칸 mer_ 숨김 방식 — 사용자 화면 검토 때 질문 ((가) 코드 입력→ADMIN 코드 검색으로 확인 표시 권장 / (나) 앞 단계 가맹점 자동 선택·칸 숨김)",
-        "MC-1·MC-2 사용자 화면 검토 미완 — 다음 Demo 기동 때 요청"
+        "MC-1·MC-2 사용자 화면 검토 미완 — 다음 Demo 기동 때 요청",
+        "MC-1b MINOR-3: target_merchant_id 생성자 시험은 요청 경로 있는 6종만 — 나머지 4종(Route·재개·재확인)은 B3-3·B3-4 수용 기준에 종류별 요청 경로 시험 추가",
+        "MC-1b NIT-1: 변이 (c)(e)는 MC-1b에서 등가라 스키마 단언으로 잡음 — MC-3에서 \"키를 코드로 계산하면 201\" 행동 대조군 재실행",
+        "MC-1b: MINOR-2 TOTP 재사용 시험은 30초 칸 경계에서 흔들릴 수 있음(관찰 필요)",
+        "MC-1b: 계약 승인 뒤 변경 거절은 E2E에서 ADMIN advisory 409로만 확인(MASTER LOCKED는 시험 계층에서 확인)",
+        "MC-1b: gate3 Fixture 수정 기록을 명세 §13에 다음 명세 갱신 때 추가(게이트 지문 보존 위해 tasks.json에만 기록)"
       ]
     },
     {

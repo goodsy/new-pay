@@ -37,6 +37,11 @@ class JpaApprovalRequestEntity protected constructor() {
     var targetRef: String? = null
         protected set
 
+    /** MERCHANT-CODE-001 MC-1b(V13): 가맹점 내부 키 — 생성 불변(updatable = false, 표 단위 INSERT 권한). 가맹점 대상만 값이 있다. */
+    @field:Column(name = "target_merchant_id", updatable = false, length = 30)
+    var targetMerchantId: String? = null
+        protected set
+
     @field:Column(name = "target_security_version", nullable = false, updatable = false)
     var targetSecurityVersion: Long = 0
         protected set
@@ -101,7 +106,9 @@ class JpaApprovalRequestEntity protected constructor() {
         fun newRow(
             approvalId: String, kind: String, targetKind: String, targetActorId: String?, targetRef: String?, targetSecurityVersion: Long, targetSnapshot: String,
             grantedRole: String?, causeApprovalId: String?, requestedBy: String, requestedByDisplayName: String, requestedAt: Instant, expiresAt: Instant,
+            targetMerchantId: String? = null,
         ) = JpaApprovalRequestEntity().also {
+            it.targetMerchantId = targetMerchantId
             it.approvalId = approvalId
             it.kind = kind
             it.targetKind = targetKind

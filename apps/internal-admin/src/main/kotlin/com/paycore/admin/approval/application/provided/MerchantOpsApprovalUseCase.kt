@@ -27,6 +27,25 @@ interface MerchantOpsApprovalUseCase {
      * (KST 날짜 — 요청 시각 기준 내일 이후, advisory). 미리 보기 적격(advisory): MID ACTIVE·같은 통화 끝나지 않은 기록 없음. 미해결 키 `MERCHANT:CURRENCY:<merchantId>`(C-35).
      */
     fun requestCurrencyEnablement(command: RequestMerchantCurrencyEnablement): ApprovalOutcome
+
+    /**
+     * MERCHANT-CODE-001 MC-1b 가맹점 코드 변경 요청(§5.5 — OPERATOR, 근거 참조 필수). 입력 형식 → 역할 → MASTER 상세(TX 밖) → 새 코드 = 현재 코드면 400 → advisory
+     * `merchantCodeChangeable` false면 409 `TARGET_NOT_ELIGIBLE_ADVISORY` → TX(승인 행 `target_merchant_id` = mer_, 미해결 키 `MERCHANT:<mer_>` → 요청자 재검사 → 명령 행 → 감사 `from=;to=;reason=`).
+     */
+    fun requestMerchantCodeChange(command: RequestMerchantCodeChange): ApprovalOutcome
+}
+
+/** MC-1b 코드 변경 요청 입력(서버는 자르거나 정규화하지 않는다). toString에 근거 참조가 없다. */
+data class RequestMerchantCodeChange(
+    val requesterActorId: String,
+    val sessionGeneration: Long,
+    val merchantId: String,
+    val newCode: String,
+    val reasonCode: String,
+    val evidenceRef: String,
+    val context: AdminRequestContext,
+) {
+    override fun toString(): String = "RequestMerchantCodeChange(requester=$requesterActorId, merchantId=$merchantId, reason=$reasonCode)"
 }
 
 /** B3-2 통화 활성화 요청 입력(서버는 자르거나 정규화하지 않는다 — 날짜는 `YYYY-MM-DD` KST 날짜 문자열). toString에 근거 참조가 없다. */

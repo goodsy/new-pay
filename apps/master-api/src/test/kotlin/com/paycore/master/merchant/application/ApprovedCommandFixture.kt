@@ -96,6 +96,25 @@ object ApprovedCommandFixture {
         )
     }
 
+    /**
+     * MERCHANT-CODE-001 MC-1b 근거 있는 코드 변경(명령 필드 merchantId, currentCode, newCode, reasonCode — §3.7.2). 기본 근거 참조는 가맹점 요청 문서 모양(Demo 값).
+     */
+    @Suppress("LongParameterList")
+    fun merchantCodeChange(
+        merchantId: com.paycore.master.merchant.domain.MerchantId,
+        currentCode: String,
+        newCode: String,
+        evidence: ApprovalEvidence = ApprovalEvidenceFixtures.distinctActors(evidenceRef = MERCHANT_REQUEST),
+        reason: com.paycore.master.merchant.domain.MerchantCodeChangeReason = com.paycore.master.merchant.domain.MerchantCodeChangeReason.TYPO_CORRECTION,
+        window: ApprovalWindow = ApprovalEvidenceFixtures.DEMO_WINDOW,
+    ): com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand {
+        val e = withFingerprint(evidence, AdminOperation.CHANGE_MERCHANT_CODE, listOf(merchantId.value, currentCode, newCode, reason.name))
+        return com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand(
+            requestOf(e), e, window, merchantId, com.paycore.master.merchant.domain.MerchantCode(currentCode), com.paycore.master.merchant.domain.MerchantCode(newCode), reason,
+        )
+    }
+
+    const val MERCHANT_REQUEST = "MERCHANT-REQ/2026-0001"
     const val INSTITUTION_REPLY = "VAN-REPLY/2026-0001"
     const val PG_REVIEW = "PG-REVIEW/2026-0001"
 
@@ -143,7 +162,8 @@ object ApprovedCommandFixture {
             "(SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id)) " +
             // B3-2: + EnableCurrency(불변식 대상 확장 — 완화 아님).
             "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount', 'ApprovePaymentMethodActivation', 'DecideSiteReview', " +
-            "'EnableCurrency') " +
+            // MERCHANT-CODE-001 MC-1b: + ChangeMerchantCode(불변식 대상 확장 — 완화 아님).
+            "'EnableCurrency', 'ChangeMerchantCode') " +
             "AND r.idempotency_key LIKE 'mop1.%' " +
             "AND r.result_kind <> 'PENDING' AND (" +
             "  (IFNULL(r.result_code, '') <> 'APPROVAL_ID_ALREADY_USED' AND (SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id) <> 1)" +

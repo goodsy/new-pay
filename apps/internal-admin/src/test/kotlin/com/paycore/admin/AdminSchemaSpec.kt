@@ -496,6 +496,108 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
             )
         }
 
+        Then("V13 (MERCHANT-CODE-001 MC-1b §5.1 — C-25): MERCHANT_CODE_CHANGE kind/command kind accepted, target_merchant_id CHECK ①~④ each 3819, key = COALESCE(target_merchant_id, target_ref)") {
+            val merchant = merchantId()
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                fun insert(kind: String, targetKind: String, targetRef: String?, targetMerchant: String?, targetActor: String? = null): Int? = c.errorCodeOf(
+                    "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_actor_id, target_ref, target_merchant_id, target_security_version, target_snapshot, " +
+                        "requested_by, requested_by_display_name, requested_at, expires_at, status, version) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, 'REJECTED', 0)",
+                    id("apr_"), kind, targetKind, targetActor, targetRef, targetMerchant,
+                )
+                val ok = id("apr_")
+                val accepted = listOf(
+                    c.errorCodeOf(
+                        "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_ref, target_merchant_id, target_security_version, target_snapshot, requested_by, " +
+                            "requested_by_display_name, requested_at, expires_at, status, version) " +
+                            "VALUES (?, 'MERCHANT_CODE_CHANGE', 'MERCHANT', ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, 'PENDING', 0)",
+                        ok, merchant, merchant,
+                    ),
+                    // 기존 행 모양(target_merchant_id NULL, target_ref = mer_)도 그대로 받는다(③ — 기존 행 허용).
+                    insert("MERCHANT_SITE_REVIEW_APPROVAL", "MERCHANT", merchantId(), null),
+                )
+                val violations = mapOf(
+                    "① format" to insert("MERCHANT_CODE_CHANGE", "MERCHANT", merchantId(), "mer_lowercase00000000000000"),
+                    "② non-merchant target with value" to insert("ROLE_GRANT", "ADMIN_ACCOUNT", null, merchantId(), targetActor = actor),
+                    "③ merchant target, neither key" to insert("MERCHANT_CODE_CHANGE", "MERCHANT", "shopabcd12", null),
+                    "④ different merchant" to insert("MERCHANT_CODE_CHANGE", "MERCHANT", merchantId(), merchantId()),
+                )
+                val key = c.scalar("SELECT unresolved_key FROM admin_approval_request WHERE approval_id = ?", ok)
+                // 같은 가맹점의 계약 승인(같은 'MERCHANT:' 그룹 — C-15)은 1062, SITE_REVIEW 그룹은 공존.
+                val sameGroup = c.insertMerchantApproval(id("apr_"), merchant)
+                val otherGroup = c.insertMerchantApproval(id("apr_"), merchant, kind = "MERCHANT_SITE_REVIEW_APPROVAL")
+                fun command(kind: String): Int? {
+                    val approval = id("apr_")
+                    c.insertMerchantApproval(approval, merchantId(), status = "REJECTED")
+                    return c.errorCodeOf(
+                        "INSERT INTO admin_merchant_ops_command (approval_id, command_kind, merchant_id, pinned_target, evidence_ref, created_at) " +
+                            "VALUES (?, ?, 'mer_01JCME00000000000000000001', '{}', 'MERCHANT-REQ/2026-0001', UTC_TIMESTAMP(3))",
+                        approval, kind,
+                    )
+                }
+                listOf(accepted, violations, key, sameGroup, otherGroup, command("MERCHANT_CODE_CHANGE"), command("CODE_GUESS"))
+            } shouldBe listOf(
+                listOf(null, null),
+                mapOf("① format" to 3819, "② non-merchant target with value" to 3819, "③ merchant target, neither key" to 3819, "④ different merchant" to 3819),
+                "MERCHANT:$merchant", 1062, null, null, 3819,
+            )
+        }
+
+        Then("V13 CHECK ①~④ proven one by one (review MINOR-1): single-violation rows name their own CHECK; ①·③ (implied by ④ / the mer_-only target CHECK until MC-3) are pinned by their clauses") {
+            runtime().use { c ->
+                val actor = id("adm_")
+                c.insertAccount(actor)
+                /** 3819 메시지의 제약 이름(없으면 "accepted"). */
+                fun violated(kind: String, targetKind: String, targetRef: String?, targetMerchant: String?, targetActor: String? = null): String = try {
+                    c.prepareStatement(
+                        "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_actor_id, target_ref, target_merchant_id, target_security_version, target_snapshot, " +
+                            "requested_by, requested_by_display_name, requested_at, expires_at, status, version) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, 'REJECTED', 0)",
+                    ).use { ps ->
+                        listOf(id("apr_"), kind, targetKind, targetActor, targetRef, targetMerchant).forEachIndexed { i, v -> ps.setObject(i + 1, v) }
+                        ps.execute()
+                    }
+                    "accepted"
+                } catch (e: java.sql.SQLException) {
+                    "${e.errorCode}:" + (Regex("'(ck_[a-z_]+)'").find(e.message ?: "")?.groupValues?.get(1) ?: "?")
+                }
+                fun clause(name: String) = (c.scalar(
+                    "SELECT REPLACE(LOWER(CHECK_CLAUSE), ' ', '') FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = ?", name,
+                ) as String?)
+                listOf(
+                    // ② 단독 위반: 계정 대상 + 형식이 맞는 mer_ 값(①·④는 만족 — target_ref NULL).
+                    violated("ROLE_GRANT", "ADMIN_ACCOUNT", null, merchantId(), targetActor = actor),
+                    // ④ 단독 위반: 가맹점 대상, 형식이 맞는 서로 다른 두 mer_.
+                    violated("MERCHANT_CODE_CHANGE", "MERCHANT", merchantId(), merchantId()),
+                    // ① 위반 행(형식 틀린 값 — ④도 함께 어긴다).
+                    violated("MERCHANT_CODE_CHANGE", "MERCHANT", merchantId(), "mer_lowercase00000000000000"),
+                    // ①: 형식 CHECK 본문(값 있음 → mer_ 정규식). MySQL은 위 행에서 ① 이름을 보고하지만 ④도 함께 어기므로 본문도 고정한다.
+                    clause("ck_admin_approval_request_target_merchant_format")?.let { it.contains("(`target_merchant_id`isnull)or") && it.contains("regexp_like(`target_merchant_id`") },
+                    // ③: 가맹점 대상이면 값 있음 또는 target_ref mer_ — MC-3 전에는 대상 CHECK(target_ref mer_만)가 이를 함의해 단독 위반 행을 만들 수 없다 → 본문으로 고정.
+                    clause("ck_admin_approval_request_target_merchant_present")?.let {
+                        it.contains("`target_kind`<>") && it.contains("(`target_merchant_id`isnotnull)") && it.contains("regexp_like(`target_ref`")
+                    },
+                )
+            } shouldBe listOf(
+                "3819:ck_admin_approval_request_target_merchant_kind",
+                "3819:ck_admin_approval_request_target_merchant_same",
+                "3819:ck_admin_approval_request_target_merchant_format",
+                true,
+                true,
+            )
+        }
+
+        Then("V13 keeps the existing keys: a mer_-target row without target_merchant_id computes the same MERCHANT[:group]:<mer_> key (row hash before = after)") {
+            val merchant = merchantId()
+            runtime().use { c ->
+                val site = id("apr_")
+                c.insertMerchantApproval(site, merchant, kind = "MERCHANT_SITE_REVIEW_APPROVAL")
+                c.scalar("SELECT CONCAT(unresolved_key, '|', IFNULL(target_merchant_id, '-')) FROM admin_approval_request WHERE approval_id = ?", site)
+            } shouldBe "MERCHANT:SITE_REVIEW:$merchant|-"
+        }
+
         Then("V11 unresolved_key (C-35): one unresolved approval per target group per merchant — same group 1062, different groups coexist, B2 kinds keep MERCHANT:<id>") {
             val merchant = merchantId()
             runtime().use { c ->

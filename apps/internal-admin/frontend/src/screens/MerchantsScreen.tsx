@@ -8,6 +8,7 @@ import { ErrorNotice } from '../components/Notice'
 import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
 import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
+import { MerchantCodeChangeRequest, mayRequestCodeChange } from '../components/MerchantCodeChangeRequest'
 import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../components/MerchantActivationArea'
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
@@ -144,6 +145,26 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
           <Item term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></Item>
           <Item term="사업자 상태"><StatusBadge code={business.lifecycle} /></Item>
         </dl>
+        {/* MERCHANT-CODE-001 MC-1b(§3.8·§5.5): 코드 이력(seq 1·2 — 바뀐 뒤 옛 코드는 "은퇴 — 다시 쓸 수 없음") + 변경 가능 여부(advisory). */}
+        {(detail.merchantCodeHistory ?? []).length > 0 && (
+          <section aria-label="코드 이력" className="mt-3 flex flex-col gap-1 text-sm">
+            <h5 className="text-xs font-semibold text-muted-foreground">코드 이력</h5>
+            <ul className="flex flex-col gap-1">
+              {(detail.merchantCodeHistory ?? []).map((h) => (
+                <li key={h.seq} className="flex flex-wrap items-center gap-2">
+                  <Mono>{h.code}</Mono>
+                  <span>{h.seq === 1 ? '첫 배정' : '변경'}</span>
+                  {h.code !== merchant.merchantCode && <Badge variant="outline">은퇴 — 다시 쓸 수 없음</Badge>}
+                  {h.code === merchant.merchantCode && <Badge variant="secondary">현재</Badge>}
+                  <KstTime iso={h.assignedAt} />
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              {detail.merchantCodeChangeable === true ? '코드 변경 가능(계약 승인 전 1회)' : '코드 변경 불가(계약 승인 뒤이거나 이미 한 번 바꿨습니다)'}
+            </p>
+          </section>
+        )}
       </Panel>
 
       <Panel name="Site">
@@ -376,6 +397,7 @@ export function MerchantsScreen({
   const [requestResult, setRequestResult] = useState<{ approvalId: string; what: string } | null>(null)
   /** "첫 MID 발급 요청" 폼 열림(B2-3). */
   const [midOpen, setMidOpen] = useState(false)
+  const [codeOpen, setCodeOpen] = useState(false)
   const [ownRevisionMemory] = useState(createScreenMemory)
   const revisionMemory = injectedRevisionMemory ?? ownRevisionMemory
   /** 새 Revision 폼을 연 계약(B2-1 — 한 번에 하나). */
@@ -673,6 +695,30 @@ export function MerchantsScreen({
             ) : (
               <div className="flex justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={() => setMidOpen(true)}>첫 MID 발급 요청</Button>
+              </div>
+            )
+          )}
+          {/* MERCHANT-CODE-001 MC-1b: "코드 변경 요청"(OPERATOR — merchantCodeChangeable일 때만, 표시만; 판정·감사는 서버·MASTER). */}
+          {canRequestApproval && mayRequestCodeChange(detail) && (
+            codeOpen ? (
+              <div className="flex flex-col gap-2">
+                <MerchantCodeChangeRequest
+                  api={api}
+                  detail={detail}
+                  onRequested={(approvalId) => {
+                    setRequestResult({ approvalId, what: '가맹점 코드 변경' })
+                    setCodeOpen(false)
+                    void refreshDetail(detail.merchant.merchantId)
+                  }}
+                  onSessionEnded={onSessionEnded}
+                />
+                <div className="flex justify-end">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(false)}>닫기</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(true)}>코드 변경 요청</Button>
               </div>
             )
           )}

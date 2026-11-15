@@ -8,6 +8,7 @@ import com.paycore.master.merchant.domain.Merchant
 import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -15,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * MERCHANT-CODE-001 MC-1(§3.7.4): 가맹점 코드 배정 행은 `JpaMerchantEntity`의 컬렉션 매핑이 아니라 이 Repository가 따로 읽어(seq 오름차순) Mapper로 조립한다
  * (`JpaContractRepository`의 Revision·승인 행과 같은 방식 — merchant 갱신이 자식 행을 다시 저장하지 않는다). 등록은 merchant 행과 seq 1 행을 같은 TX에 persist하고 flush한다.
- * 이 배치에는 배정 행을 추가하는 갱신 경로가 없다(1회 변경은 MC-1b) — [update]는 배정 행 수가 저장된 그대로인지만 확인한다.
+ * MC-1b: [update]가 새 배정 행(seq 2 — 1회 변경)만 append하고 merchant version을 올린다(저장된 행은 바꾸지 않는다). PK·UNIQUE 1062는 flush에서 `StoreConstraint`로 번역된다.
  */
 @Component
 @Transactional(propagation = Propagation.MANDATORY)
@@ -48,9 +49,16 @@ class JpaMerchantRepository(private val entityManager: EntityManager) : Merchant
         if (row.version != expectedVersion) throw PersistenceFailure.OptimisticConflict(ENTITY)
         check(row.businessId == merchant.businessId.value) { "a merchant never changes its business" }
         check(merchant.entitlementRevision >= row.entitlementRevision) { "entitlement revision never decreases" }
-        check(assignments(merchant.id).size == merchant.codeAssignments.size) { "code assignments are not changed through this path" }
+        // MC-1b(§3.7.3): 배정 행은 append-only — 저장된 행은 그대로(접두 일치)이고 새 행(seq 2)만 persist한다.
+        val stored = assignments(merchant.id).map(MasterPersistenceMapper::toCodeAssignment)
+        val now = merchant.codeAssignments
+        check(now.size >= stored.size && now.take(stored.size).map { it.seq to it.code } == stored.map { it.seq to it.code }) { "code assignments are append-only" }
+        val appended = now.drop(stored.size)
+        appended.forEach { entityManager.persist(MasterPersistenceMapper.codeAssignmentRow(merchant.id, it)) }
         // 변경 감지: 관리되는 Entity의 필드만 바꾸면 flush 때 `UPDATE … WHERE version = ?`가 나간다(save 불필요).
         row.entitlementRevision = merchant.entitlementRevision
+        // 자식 행만 늘어도 merchant version을 올린다(같은 가맹점의 다른 쓰기와 직렬화 증거 — §3.7.3, JpaContractRepository와 같은 방식).
+        if (appended.isNotEmpty()) entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)
         entityManager.flush()
         checkNotNull(row.version)
     }

@@ -6,6 +6,7 @@ import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.Contract
 import com.paycore.master.merchant.domain.ContractId
+import com.paycore.master.merchant.domain.MerchantId
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
 import org.springframework.stereotype.Component
@@ -76,6 +77,14 @@ class JpaContractRepository(
         entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)
         entityManager.flush()
         checkNotNull(row.version)
+    }
+
+    override fun hasApprovedRevisionFor(merchantId: MerchantId): Boolean = translate(ENTITY) {
+        // JPQL은 영속성 컨텍스트를 거치지 않고 DB를 읽는다(잠금 뒤 호출 — READ COMMITTED 최신 커밋). 승인 사실 행은 append-only라 읽은 뒤 사라지지 않는다.
+        entityManager.createQuery(
+            "select count(a) from JpaContractRevisionApprovalEntity a, JpaContractEntity c where c.contractId = a.key.contractId and c.merchantId = :merchantId",
+            Long::class.javaObjectType,
+        ).setParameter("merchantId", merchantId.value).singleResult > 0
     }
 
     private fun appendRevision(contract: Contract, revision: com.paycore.master.merchant.domain.ContractRevision) {

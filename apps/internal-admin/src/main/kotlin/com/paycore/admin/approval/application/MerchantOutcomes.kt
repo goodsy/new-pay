@@ -40,5 +40,7 @@ internal object MerchantOutcomes {
     private val DEFECT_REJECTIONS = setOf(
         "APPROVAL_SAME_ACTOR", "APPROVAL_WINDOW_INVALID", "APPROVAL_ID_ALREADY_USED", "APPROVER_IS_REVISION_REGISTRANT",
         "APPROVER_IS_ACTIVATION_REGISTRANT", "APPROVER_IS_SITE_REGISTRANT",
+        // MERCHANT-CODE-001 MC-1b(§3.7.3 판정 10·§5.5): 요청 현재 코드 ≠ MASTER 현재 코드는 A 단계 재조회(INVALIDATED)가 먼저 막는다 — MASTER에서 나오면 결함(경보).
+        "MERCHANT_CODE_MISMATCH",
     )
 }

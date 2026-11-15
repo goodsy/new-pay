@@ -11,6 +11,7 @@ import com.paycore.admin.approval.application.provided.ApprovalView
 import com.paycore.admin.approval.application.provided.DecideApproval
 import com.paycore.admin.approval.application.provided.JustificationResult
 import com.paycore.admin.approval.application.provided.MerchantOpsApprovalUseCase
+import com.paycore.admin.approval.application.provided.RequestMerchantCodeChange
 import com.paycore.admin.approval.application.provided.RequestMerchantContractApproval
 import com.paycore.admin.approval.application.provided.RequestMerchantFirstMid
 import com.paycore.admin.approval.application.provided.RequestMerchantCurrencyEnablement
@@ -161,6 +162,22 @@ class ApprovalController(
             RequestMerchantCurrencyEnablement(
                 authentication.name, generation, body.merchantId.orEmpty(), body.merchantAccountId.orEmpty(), body.currency.orEmpty(), body.effectiveFromMode.orEmpty(),
                 body.effectiveFromDate, body.effectiveToDate, body.evidenceRef.orEmpty(), context(request),
+            ),
+        )
+        return respond(outcome, request)
+    }
+
+    /**
+     * MERCHANT-CODE-001 MC-1b 가맹점 코드 변경 요청(§5.5 — OPERATOR, 근거 참조 필수): 본문 `merchantId`, `newCode`, `reasonCode`, `evidenceRef` → 201 `{approvalId}`. 응답은 계약 승인 요청과 같은 표.
+     */
+    @PostMapping("/merchant-code-change")
+    fun requestMerchantCodeChange(
+        @RequestBody body: MerchantCodeChangeBody, authentication: Authentication, request: HttpServletRequest,
+    ): ResponseEntity<out Any> {
+        val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val outcome = merchants.requestMerchantCodeChange(
+            RequestMerchantCodeChange(
+                authentication.name, generation, body.merchantId.orEmpty(), body.newCode.orEmpty(), body.reasonCode.orEmpty(), body.evidenceRef.orEmpty(), context(request),
             ),
         )
         return respond(outcome, request)
@@ -341,6 +358,10 @@ class ApprovalController(
         val effectiveToDate: String?, val evidenceRef: String?,
     ) {
         override fun toString(): String = "MerchantCurrencyEnablementBody(merchantId=$merchantId, merchantAccountId=$merchantAccountId, mode=$effectiveFromMode)"
+    }
+
+    class MerchantCodeChangeBody(val merchantId: String?, val newCode: String?, val reasonCode: String?, val evidenceRef: String?) {
+        override fun toString(): String = "MerchantCodeChangeBody(merchantId=$merchantId, reasonCode=$reasonCode)"
     }
 
     class TotpBody(val totpCode: String?) {

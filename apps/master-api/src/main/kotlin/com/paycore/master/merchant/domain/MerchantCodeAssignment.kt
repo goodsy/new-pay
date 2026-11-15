@@ -3,8 +3,8 @@ package com.paycore.master.merchant.domain
 import java.time.Instant
 
 /**
- * 가맹점 코드 배정 한 행(MERCHANT-CODE-001 §3.2 — append-only `merchant_code_assignment`). seq 1 = 첫 배정(등록·채우기), seq 2 = 유일한 변경(MC-1b — 이 배치에는 만드는 경로가 없고
- * 저장된 행 복원만 받는다). 불변식은 V13 CHECK와 같다: seq ∈ {1, 2}, seq 1에는 변경 필드(`replacesCode`·`approvalId`·`reasonCode`)가 없고 source는 REGISTRATION·BACKFILL,
+ * 가맹점 코드 배정 한 행(MERCHANT-CODE-001 §3.2 — append-only `merchant_code_assignment`). seq 1 = 첫 배정(등록·채우기), seq 2 = 유일한 변경(MC-1b — [change], 근거 있는
+ * 2인 명령 `Merchant.changeCodeWithEvidence`에서만 만든다). 불변식은 V13 CHECK와 같다: seq ∈ {1, 2}, seq 1에는 변경 필드(`replacesCode`·`approvalId`·`reasonCode`)가 없고 source는 REGISTRATION·BACKFILL,
  * seq 2는 변경 필드가 모두 있고 source = CHANGE, 바꾸기 전 코드와 다르다. [assignedAt]·[assignedBy]는 잠금 뒤 시각·행위자다.
  */
 class MerchantCodeAssignment private constructor(
@@ -37,6 +37,11 @@ class MerchantCodeAssignment private constructor(
 
         /** B1 등록의 첫 배정(§3.3). */
         fun registration(code: MerchantCode, at: Instant, by: ActorRef) = MerchantCodeAssignment(FIRST, code, null, MerchantCodeSource.REGISTRATION, null, null, at, by)
+
+        /** MC-1b 유일한 변경(seq 2 `CHANGE` — §3.7.3 성공 행): 바꾸기 전 코드·2인 승인 ID·사유·잠금 뒤 시각·승인자(C-17). [Merchant.changeCodeWithEvidence]만 부른다. */
+        @Suppress("LongParameterList")
+        internal fun change(code: MerchantCode, replaces: MerchantCode, approvalId: String, reason: MerchantCodeChangeReason, at: Instant, by: ActorRef) =
+            MerchantCodeAssignment(CHANGE, code, replaces, MerchantCodeSource.CHANGE, approvalId, reason.name, at, by)
 
         /** 저장 행 복원(persistence Mapper). */
         @Suppress("LongParameterList")

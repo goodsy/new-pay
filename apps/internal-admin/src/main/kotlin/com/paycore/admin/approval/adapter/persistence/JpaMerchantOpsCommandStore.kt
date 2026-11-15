@@ -5,6 +5,7 @@ import com.paycore.admin.approval.domain.MerchantOpsCommandKind
 import com.paycore.admin.approval.domain.MerchantOpsRequestSnapshot
 import com.paycore.admin.approval.domain.PinnedContractApprovalTarget
 import com.paycore.admin.approval.domain.PinnedCurrencyEnablementTarget
+import com.paycore.admin.approval.domain.PinnedMerchantCodeChangeTarget
 import com.paycore.admin.approval.domain.PinnedActivationApprovalTarget
 import com.paycore.admin.approval.domain.PinnedFirstMidTarget
 import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
@@ -44,6 +45,7 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
                 MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION -> pinnedActivation(r.pinnedTarget)
                 MerchantOpsCommandKind.SITE_REVIEW_APPROVAL -> pinnedSiteReview(r.pinnedTarget)
                 MerchantOpsCommandKind.CURRENCY_ENABLEMENT -> pinnedCurrency(r.pinnedTarget)
+                MerchantOpsCommandKind.MERCHANT_CODE_CHANGE -> pinnedCodeChange(r.pinnedTarget)
             }
             MerchantOpsRequestSnapshot(r.approvalId, kind, r.merchantId, pinned, r.evidenceRef, r.createdAt)
         }
@@ -74,6 +76,17 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
             revisionNo = int(n, "revisionNo"), effectiveFrom = Instant.parse(text(n, "effectiveFrom")), effectiveTo = if (to.isNull) null else Instant.parse(text(n, "effectiveTo")),
             primarySiteId = text(n, "primarySiteId"), channelType = text(n, "channelType"), accountCount = int(n, "accountCount"),
             approved = n.required("approved").also { check(it.isBoolean) { "pinned_target approved" } }.asBoolean(),
+        )
+    }
+
+    /** MERCHANT-CODE-001 MC-1b 코드 변경 고정 대상(필드 7개 정확 일치 — 등록자 키 없음, 자료형 강제 변환 없음). */
+    private fun pinnedCodeChange(text: String): PinnedMerchantCodeChangeTarget {
+        val n = json.readTree(text)
+        check(n.isObject && n.propertyNames().toSet() == CODE_CHANGE_FIELDS) { "pinned_target shape (merchant code change)" }
+        return PinnedMerchantCodeChangeTarget(
+            merchantId = text(n, "merchantId"), merchantName = text(n, "merchantName"), currentCode = text(n, "currentCode"), newCode = text(n, "newCode"),
+            reasonCode = text(n, "reasonCode"), contractApproved = n.required("contractApproved").also { check(it.isBoolean) { "pinned_target contractApproved" } }.asBoolean(),
+            codeChangeCount = int(n, "codeChangeCount"),
         )
     }
 
@@ -114,6 +127,7 @@ class JpaMerchantOpsCommandStore(private val entityManager: EntityManager) : Mer
     private fun text(node: JsonNode, name: String): String = node.required(name).also { check(it.isString) { "pinned_target $name type" } }.asString()
 
     private companion object {
+        val CODE_CHANGE_FIELDS = setOf("merchantId", "merchantName", "currentCode", "newCode", "reasonCode", "contractApproved", "codeChangeCount")
         val ACTIVATION_FIELDS = setOf("merchantId", "merchantName", "merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy")
         val CURRENCY_FIELDS = setOf(
             "merchantId", "merchantName", "merchantAccountId", "accountLifecycle", "currency", "effectiveFromMode", "effectiveFrom", "effectiveTo",

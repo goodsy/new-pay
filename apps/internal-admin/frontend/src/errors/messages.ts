@@ -79,4 +79,10 @@ export const ACTIVATION_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   CURRENCY_ENABLEMENT_OVERLAP: '같은 통화의 활성화 기간이 이미 있습니다',
   CURRENCY_UNKNOWN: '알 수 없는 통화입니다',
   EFFECTIVE_PERIOD_EMPTY: '효력 기간이 비어 있습니다(종료일이 시작 이전) — 다시 요청하세요',
+  // MERCHANT-CODE-001 MC-1b 코드 변경(§5.5 문구 표) — MISMATCH는 결함 신호(서버 경보)
+  MERCHANT_CODE_TAKEN: '이미 사용 중이거나 사용했던 코드입니다',
+  MERCHANT_CODE_LOCKED: '계약 승인 뒤에는 코드를 바꿀 수 없습니다',
+  MERCHANT_CODE_ALREADY_CHANGED: '코드는 한 번만 바꿀 수 있습니다',
+  MERCHANT_CODE_RESERVED: '사용할 수 없는 코드입니다',
+  MERCHANT_CODE_MISMATCH: '시스템 점검 필요(관리자에게 알림)',
 }

@@ -67,6 +67,8 @@ class ApprovalDecisionTableSpec : BehaviorSpec({
                 ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL to Triple(ApprovalExecutionModel.OWNER_SERVICE, "OPERATOR", ApprovalTargetKind.MERCHANT),
                 // 목록 추가(B3-2 MERCHANT-OPS-002 §9.16 — D-MOPS-009 ②): 통화 활성화 — 같은 실행 모델·요청 역할·대상.
                 ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT to Triple(ApprovalExecutionModel.OWNER_SERVICE, "OPERATOR", ApprovalTargetKind.MERCHANT),
+                // 목록 확장(MERCHANT-CODE-001 MC-1b §5.5): 가맹점 코드 변경 — 소유 서비스, OPERATOR 요청, 가맹점 대상.
+                ApprovalKind.MERCHANT_CODE_CHANGE to Triple(ApprovalExecutionModel.OWNER_SERVICE, "OPERATOR", ApprovalTargetKind.MERCHANT),
             )
             ApprovalKind.entries.map { it.approverRole }.toSet() shouldBe setOf("APPROVER")
             ApprovalKind.OPERATOR_CORRECTION_CANCEL.let { listOf(it.needsGrantedRole, it.needsCause, it.escalatesPrivilege, it.issuesEnrollmentCode, it.mayActivatePrivilegedRole(null)) } shouldBe
@@ -239,6 +241,7 @@ class ApprovalDecisionTableSpec : BehaviorSpec({
                 ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL to false,
                 // 목록 추가(B3-2): 통화 활성화도 권한 역할을 활성화하지 않는다.
                 ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT to false,
+                ApprovalKind.MERCHANT_CODE_CHANGE to false,
             )
             ApprovalKind.ROLE_GRANT.mayActivatePrivilegedRole("VIEWER") shouldBe false
             ApprovalKind.entries.filter { it.issuesEnrollmentCode }.toSet() shouldBe setOf(ApprovalKind.TOTP_REENROLL, ApprovalKind.PASSWORD_RESET)

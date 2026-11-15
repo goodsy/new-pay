@@ -11,6 +11,7 @@ import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantCode
+import com.paycore.master.merchant.domain.MerchantCodeChangeReason
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethod
@@ -60,6 +61,37 @@ interface MerchantOnboardingUseCase {
     fun issueFirstDefaultMerchantAccountWithEvidence(command: ApprovedFirstDefaultIssuanceCommand): AdminCommandResult
 
     fun registerPaymentMethodActivation(command: RegisterPaymentMethodActivationCommand): AdminCommandResult
+
+    /**
+     * MERCHANT-CODE-001 MC-1b(§3.7 — D-MCODE-002 Q-MC-7·Q-MC-10): 가맹점 코드 1회 변경(2인 근거 경로만 — 근거 없는 변경 경로 없음 C-11, 호출자는 관리 채널 컨트롤러뿐).
+     * 근거 판정 1~3(요청자 ≠ 승인자·창·approvalId 1회) → 가맹점 없음 → **merchant 잠금** → 잠금 뒤 만료 훅 → 잠금 뒤 "계약 승인 사실" 읽기 → Domain 판정(비활성·이미 변경·계약 승인 뒤·현재 코드 불일치·예약어)
+     * → 배정 이력 사전 조회(`MERCHANT_CODE_TAKEN`) → seq 2 배정 행·merchant version +1·이력/Outbox `MerchantCodeChanged`·근거 EXECUTED 행이 MASTER 로컬 TX 하나. 원 가맹점 등록자 판정 없음(Q-MC-10).
+     * 성공 reference = merchantId(`mer_…`).
+     */
+    fun changeMerchantCodeWithEvidence(command: ApprovedMerchantCodeChangeCommand): AdminCommandResult
+}
+
+/**
+ * MC-1b 근거 있는 코드 변경(§3.7.2 `merchant-code-changes`): 명령 필드 `merchantId`, `currentCode`, `newCode`, `reasonCode`(§3.7.2 `mop1` 끝 줄 순서 = 요청 지문 입력).
+ * 등록자 관련 필드 없음(Q-MC-10). [request]의 actor = 승인자(C-17).
+ */
+@Suppress("LongParameterList")
+data class ApprovedMerchantCodeChangeCommand(
+    override val request: AdminRequest,
+    override val evidence: ApprovalEvidence,
+    override val window: ApprovalWindow,
+    val merchantId: MerchantId,
+    val currentCode: MerchantCode,
+    val newCode: MerchantCode,
+    val reason: MerchantCodeChangeReason,
+) : ApprovedCommand {
+    init {
+        require(request.actor == evidence.approvedBy) { "the executing actor is the approver (C-17)" }
+    }
+
+    override val operation: AdminOperation get() = AdminOperation.CHANGE_MERCHANT_CODE
+
+    override val commandFields: List<String> get() = listOf(merchantId.value, currentCode.value, newCode.value, reason.name)
 }
 
 data class RegisterBusinessCommand(

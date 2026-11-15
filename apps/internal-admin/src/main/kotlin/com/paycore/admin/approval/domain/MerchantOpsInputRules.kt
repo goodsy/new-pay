@@ -71,6 +71,17 @@ object MerchantOpsInputRules {
     private fun isoDate(text: String): java.time.LocalDate? =
         if (ISO_DATE.matches(text)) runCatching { java.time.LocalDate.parse(text) }.getOrNull()?.takeIf { it.toString() == text } else null
 
+    /**
+     * MERCHANT-CODE-001 MC-1b(§5.5): merchantId 형식, `newCode` §3.1 형식(정규화 없음 — 대문자·공백·하이픈 `FORMAT`), `reasonCode` C-12 목록(`NOT_ALLOWED`), 근거 참조 필수.
+     * "현재 코드와 같음"은 MASTER 상세를 읽은 뒤 서비스가 판정한다(`SAME_AS_CURRENT` — 현재 코드는 MASTER만 안다).
+     */
+    fun codeChangeProblem(merchantId: String, newCode: String, reasonCode: String, evidenceRef: String): Pair<String, String>? = when {
+        !ApprovalTarget.Merchant.MERCHANT_ID.matches(merchantId) -> "merchantId" to FORMAT
+        !PinnedMerchantCodeChangeTarget.CODE.matches(newCode) -> "newCode" to FORMAT
+        reasonCode !in PinnedMerchantCodeChangeTarget.REASONS -> "reasonCode" to NOT_ALLOWED
+        else -> evidenceProblem(evidenceRef)?.let { "evidenceRef" to it }
+    }
+
     fun evidenceProblem(evidenceRef: String): String? = when {
         !ReacquisitionInputRules.EVIDENCE.matches(evidenceRef) -> FORMAT
         OperatorCancelInputRules.containsCardNumber(evidenceRef) -> OperatorCancelInputRules.CARD_NUMBER_PATTERN

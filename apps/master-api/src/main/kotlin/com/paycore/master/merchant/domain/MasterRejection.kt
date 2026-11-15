@@ -93,6 +93,12 @@ enum class MasterRejection {
     // MERCHANT-CODE-001 MC-1(§3.1·§3.3, C-2·C-18): 가맹점 코드 예약어(완전·접두 일치) / 배정 이력에 이미 있는 코드(사용 중·은퇴 구별 없음 — reference 없음, C-12)
     MERCHANT_CODE_RESERVED,
     MERCHANT_CODE_TAKEN,
+
+    // MERCHANT-CODE-001 MC-1b(§3.7.3 판정 8~10 — D-MCODE-002 Q-MC-7): 이미 1회 변경 / 첫 계약 승인 뒤 불변 / 요청의 현재 코드 ≠ 저장된 현재 코드(정상 경로에서 불가능 — 결함 신호·ADMIN 경보).
+    // 원 가맹점 등록자 계열 거절은 만들지 않는다(D-MCODE-002 Q-MC-10 — 요청자≠승인자만).
+    MERCHANT_CODE_ALREADY_CHANGED,
+    MERCHANT_CODE_LOCKED,
+    MERCHANT_CODE_MISMATCH,
 }
 
 /**

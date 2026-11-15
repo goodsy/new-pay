@@ -1,6 +1,7 @@
 package com.paycore.admin.merchantops.application
 
 import com.paycore.admin.merchantops.application.provided.ActivationTarget
+import com.paycore.admin.merchantops.application.provided.CodeChangeTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
 import com.paycore.admin.merchantops.application.provided.CurrencyTarget
 import com.paycore.admin.merchantops.application.provided.FirstMidTarget
@@ -19,6 +20,7 @@ import com.paycore.admin.merchantops.domain.ActivationApprovalCommandBody
 import com.paycore.admin.merchantops.domain.ContractApprovalCommandBody
 import com.paycore.admin.merchantops.domain.CurrencyEnablementCommandBody
 import com.paycore.admin.merchantops.domain.FirstMidIssuanceCommandBody
+import com.paycore.admin.merchantops.domain.MerchantCodeChangeCommandBody
 import com.paycore.admin.merchantops.domain.SiteReviewApprovalCommandBody
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -104,6 +106,25 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
             it["currencyCode"] == currency && (it["effectiveTo"] as String?)?.let { to -> now.isBefore(Instant.parse(to)) } != false
         }
         return CurrencyTarget(merchantId, merchant["name"] as String, merchantAccountId, account?.get("lifecycle") as String?, currency, open)
+    }
+
+    override fun codeChangeTarget(merchantId: String): MerchantTargetResult<CodeChangeTarget> = read(merchantId) { document -> codeChange(document, merchantId) }
+
+    /** MC-1b: 상세(응답 모양 검사를 통과한 문서)의 `merchant.merchantCode`·`merchantCodeHistory`·`merchantCodeChangeable`. */
+    @Suppress("UNCHECKED_CAST")
+    private fun codeChange(document: Map<String, Any?>, merchantId: String): CodeChangeTarget {
+        val merchant = document["merchant"] as Map<String, Any?>
+        check(merchant["merchantId"] == merchantId) { "detail of another merchant" }
+        val history = document["merchantCodeHistory"] as List<Map<String, Any?>>
+        return CodeChangeTarget(merchantId, merchant["name"] as String, merchant["merchantCode"] as String, document["merchantCodeChangeable"] as Boolean, history.size - 1)
+    }
+
+    override fun merchantCodeChange(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantId: String, currentCode: String,
+        newCode: String, reasonCode: String,
+    ): MerchantApprovalCommandOutput {
+        val body = MerchantCodeChangeCommandBody(approvalId, requestedBy, approvedBy, approvedAt, executeBefore, evidenceRef, merchantId, currentCode, newCode, reasonCode)
+        return MerchantApprovalCommandOutput(body.fingerprint(), body.json())
     }
 
     private fun <T> read(merchantId: String, extract: (Map<String, Any?>) -> T): MerchantTargetResult<T> = when (val found = gateway.detail(merchantId)) {

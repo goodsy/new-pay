@@ -8,6 +8,7 @@ import com.paycore.master.merchant.application.provided.ApprovedCommand
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand
 import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand
+import com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand
 import com.paycore.master.merchant.application.provided.ApprovedPaymentMethodActivationApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedSiteReviewApprovalCommand
 import com.paycore.master.merchant.application.provided.CurrencyEffectiveStart
@@ -20,6 +21,8 @@ import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantCode
+import com.paycore.master.merchant.domain.MerchantCodeChangeReason
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PaymentMethodActivationId
@@ -60,6 +63,9 @@ object MerchantApprovalCommandParser {
 
     /** B3-2 필수 필드(선택 `effectiveTo`는 [currencyEnablement]가 따로 허용). */
     private val CURRENCY_ENABLEMENT = EVIDENCE_FIELDS + setOf("operation", "merchantAccountId", "currency", "effectiveFrom")
+
+    /** MERCHANT-CODE-001 MC-1b(§3.7.2): 근거 공통 9 + `operation` + 명령 필드 4(등록자 필드 없음 — Q-MC-10). */
+    private val MERCHANT_CODE_CHANGE = EVIDENCE_FIELDS + setOf("operation", "merchantId", "currentCode", "newCode", "reasonCode")
 
     /** C-41: 관리 채널 통화 활성화는 KRW만(실제 통화 범위 추가안은 사용자 채택 전). */
     private val ENABLED_CURRENCIES = setOf("KRW")
@@ -109,7 +115,7 @@ object MerchantApprovalCommandParser {
         // B3 본문은 `operation` 필드가 있어 B2 해석기(정확한 필드 집합)가 받지 않고, B2 본문은 B3 해석기가 받지 않는다(minor-4 — 정확히 하나).
         listOfNotNull<ApprovedCommand>(
             contractRevisionApproval(body, window), firstDefaultIssuance(body, window), paymentMethodActivationApproval(body, window), siteReviewApproval(body, window),
-            currencyEnablement(body, window),
+            currencyEnablement(body, window), merchantCodeChange(body, window),
         ).singleOrNull()
 
     /**
@@ -152,6 +158,23 @@ object MerchantApprovalCommandParser {
             val to = toText?.let(::kstMidnight)
             val (request, evidence) = approved(fields, AdminOperation.ENABLE_CURRENCY, listOf(mid.value, currencyText, fromText, toText ?: ""))
             ApprovedCurrencyEnablementCommand(request, evidence, window, mid, CurrencyCode(currencyText), from, to)
+        }
+
+    /**
+     * MERCHANT-CODE-001 MC-1b `merchant-code-changes`(§3.7.2 — D-MCODE-002 Q-MC-7): 근거 공통 9 + `operation` = `ChangeMerchantCode`(B3 본문 관례 C-39 — 기한 확인 본문 판별) + 명령 필드
+     * `merchantId`(`mer_`), `currentCode`·`newCode`(§3.1 형식 — 정규화 없음, 위반 400), `reasonCode`(C-12 고정 목록). `actor`·`registeredBy` 등 모르는 필드는 400(Q-MC-10 — 등록자 필드 없음).
+     * 예약어·중복·변경 가능 여부는 저장된 거절(Use Case 판정)이다.
+     */
+    fun merchantCodeChange(body: ByteArray, window: ApprovalWindow): ApprovedMerchantCodeChangeCommand? =
+        parse(body, MERCHANT_CODE_CHANGE) { fields ->
+            require(fields.getValue("operation") == AdminOperation.CHANGE_MERCHANT_CODE.code) { "operation" }
+            val merchantId = MerchantId(fields.getValue("merchantId"))
+            val currentCode = MerchantCode(fields.getValue("currentCode"))
+            val newCode = MerchantCode(fields.getValue("newCode"))
+            val reasonText = fields.getValue("reasonCode")
+            val reason = requireNotNull(MerchantCodeChangeReason.entries.firstOrNull { it.name == reasonText }) { "reasonCode" }
+            val (request, evidence) = approved(fields, AdminOperation.CHANGE_MERCHANT_CODE, listOf(merchantId.value, currentCode.value, newCode.value, reason.name))
+            ApprovedMerchantCodeChangeCommand(request, evidence, window, merchantId, currentCode, newCode, reason)
         }
 
     /** C-48: 정규 `…Z` ms 시각이면서 Asia/Seoul 00:00(`SeoulMidnight.startOfDay(x) == x`). */

@@ -57,6 +57,12 @@ enum class ApprovalKind(
      * 1인 등록 단계가 없어 등록자 규칙은 없다(§9.27 적용 범위 밖 — 요청자≠승인자만).
      */
     MERCHANT_CURRENCY_ENABLEMENT(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * 가맹점 코드 1회 변경(MERCHANT-CODE-001 MC-1b §5.5 — D-MCODE-002 Q-MC-7·Q-MC-10) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP, 실행은 MASTER `ChangeMerchantCode`가 승인 근거·코드 규칙
+     * (계약 승인 전·1회·은퇴 코드 영구 점유)을 재검사. 미해결 키는 계약 승인·첫 MID와 같은 `MERCHANT:<mer_>`(C-15). **등록자 규칙 없음**(요청자 ≠ 승인자만 — Q-MC-10, D-MOPS-009 ③ 확장 안 함).
+     */
+    MERCHANT_CODE_CHANGE(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
     ;
 
     val approverRole: String get() = APPROVER
@@ -65,7 +71,7 @@ enum class ApprovalKind(
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
         TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE,
-        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL, MERCHANT_CURRENCY_ENABLEMENT,
+        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL, MERCHANT_CURRENCY_ENABLEMENT, MERCHANT_CODE_CHANGE,
         -> false
     }
 

@@ -101,6 +101,8 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MERCHANT_SITE_REVIEW_APPROVAL: 'Site 심사 승인',
   // MERCHANT-OPS-002 B3-2 통화 활성화(ApprovalKind MERCHANT_CURRENCY_ENABLEMENT)
   MERCHANT_CURRENCY_ENABLEMENT: '통화 활성화',
+  // MERCHANT-CODE-001 MC-1b 가맹점 코드 1회 변경(ApprovalKind MERCHANT_CODE_CHANGE)
+  MERCHANT_CODE_CHANGE: '가맹점 코드 변경',
   // 보정 취소 목적(OperatorCancelPurposeKind)
   INCIDENT_OR_RECON_CORRECTION: '사고·대사 보정',
   MERCHANT_TERMINATED_OBLIGATION: '해지 가맹점 의무 이행',

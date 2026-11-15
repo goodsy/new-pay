@@ -106,4 +106,20 @@ class MerchantCodeSpec : BehaviorSpec({
                 MerchantCodeSource.BACKFILL
         }
     }
+
+    Given("the shared random-code fixture (MerchantCodeFixtures.unique — MCODE-gate3 flake: prefix `t` + random tail could start with reserved `test`)") {
+        Then("its fixed prefix is not a prefix of, nor prefixed by, any reserved word, so no generated code can ever be reserved") {
+            val prefix = MerchantCodeFixtures.UNIQUE_PREFIX
+            listOf("paycore", "admin", "system", "test", "live", "demo", "api", "root", "null", "undefined").forEach { word ->
+                word.startsWith(prefix) shouldBe false
+                prefix.startsWith(word) shouldBe false
+            }
+            prefix.startsWith("m") shouldBe false
+            repeat(2000) {
+                val code = MerchantCodeFixtures.unique()
+                code.value.length shouldBe 14
+                MerchantCodeReservedWords.isReserved(code.value) shouldBe false
+            }
+        }
+    }
 })

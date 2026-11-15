@@ -93,7 +93,8 @@ class ArchitectureSpec : FunSpec({
         callsFrom(classes, "com.paycore.master.merchant.adapter.web.admin.MerchantApprovalController")
             .filter { it.target.owner.simpleName in setOf("MerchantOnboardingUseCase", "ApprovalDecisionUseCase") }.map { it.target.name }.toSet() shouldBe
             // 기대값 변경(B2-3): 근거 있는 첫 MID 발급 명령을 더한다(근거 없는 두 메서드는 여전히 호출하지 않는다).
-            setOf("approveContractRevisionWithEvidence", "issueFirstDefaultMerchantAccountWithEvidence", "decision", "confirmDeadline")
+            // 기대값 변경(MERCHANT-CODE-001 MC-1b-10): + 근거 있는 코드 변경 `changeMerchantCodeWithEvidence`(근거 없는 변경 경로는 없다 — C-11).
+            setOf("approveContractRevisionWithEvidence", "issueFirstDefaultMerchantAccountWithEvidence", "changeMerchantCodeWithEvidence", "decision", "confirmDeadline")
     }
 
     test("MERCHANT-OPS-002 §8.3 B3-1-3: the activation controller calls only evidence commands, 1-person registrations and rejectSiteReview — no storage port or service") {

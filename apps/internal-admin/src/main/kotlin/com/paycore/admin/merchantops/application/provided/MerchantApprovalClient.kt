@@ -27,6 +27,9 @@ interface MerchantApprovalClient {
     /** B3-2 통화 활성화 대상 사실(MASTER 상세 — MID 생애·[now]에 끝나지 않은 같은 통화 기록 유무). 적격 판정은 호출자(advisory), 권위는 MASTER 실행 TX. */
     fun currencyTarget(merchantId: String, merchantAccountId: String, currency: String, now: Instant): MerchantTargetResult<CurrencyTarget>
 
+    /** MERCHANT-CODE-001 MC-1b 코드 변경 대상 사실(MASTER 상세 — 현재 코드·변경 횟수·`merchantCodeChangeable` advisory). 권위는 MASTER 실행 TX(§3.7.3). */
+    fun codeChangeTarget(merchantId: String): MerchantTargetResult<CodeChangeTarget>
+
     fun execute(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
 
     fun confirmDeadline(operation: MerchantApprovalOperation, body: ByteArray): MerchantApprovalResult
@@ -49,7 +52,16 @@ enum class MerchantApprovalOperation(val path: String, val code: String) {
 
     /** B3-2 통화 활성화(효력 시작 `AT_EXECUTION`/KST 00:00 — D-MOPS-009 ②, 성공 reference `cur_…`). */
     ENABLE_CURRENCY("currency-enablements", "EnableCurrency"),
+
+    /** MERCHANT-CODE-001 MC-1b 가맹점 코드 1회 변경(성공 reference `mer_…`). */
+    CHANGE_MERCHANT_CODE("merchant-code-changes", "ChangeMerchantCode"),
 }
+
+/**
+ * 코드 변경 대상 사실(MC-1b §5.3·§5.5). [changeable] = MASTER 상세 `merchantCodeChangeable`(seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE — advisory),
+ * [changeCount] = 코드 이력 행 수 − 1(0 또는 1).
+ */
+data class CodeChangeTarget(val merchantId: String, val merchantName: String, val currentCode: String, val changeable: Boolean, val changeCount: Int)
 
 /** B3 승인 대상 조회 결과(MASTER 상세 한 번의 읽기). */
 sealed interface MerchantTargetResult<out T> {
@@ -251,6 +263,13 @@ interface MerchantApprovalContract {
     fun currencyEnablement(
         approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantAccountId: String, currency: String,
         effectiveFromMode: String, effectiveFromDate: LocalDate?, effectiveToDate: LocalDate?,
+    ): MerchantApprovalCommandOutput
+
+    /** MERCHANT-CODE-001 MC-1b(§3.7.2): `operation` = ChangeMerchantCode, 명령 필드 merchantId, currentCode, newCode, reasonCode(등록자 필드 없음 — Q-MC-10). */
+    @Suppress("LongParameterList")
+    fun merchantCodeChange(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantId: String, currentCode: String,
+        newCode: String, reasonCode: String,
     ): MerchantApprovalCommandOutput
 }
 

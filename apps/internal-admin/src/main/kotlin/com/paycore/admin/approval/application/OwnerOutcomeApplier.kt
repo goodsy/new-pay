@@ -11,6 +11,7 @@ import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
 import com.paycore.admin.approval.domain.ApprovalTarget
 import com.paycore.admin.approval.domain.OwnerExecution
+import com.paycore.admin.approval.domain.PinnedMerchantCodeChangeTarget
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.PaymentOpsPolicy
@@ -187,7 +188,9 @@ class OwnerOutcomeApplier(
             AuditRecord(
                 occurredAt = now, actorKind = if (source is Source.Web) "ADMIN" else "SYSTEM_JOB", actorId = (source as? Source.Web)?.approverId, actorDisplayName = null,
                 action = action, resultCode = result, correlationId = correlation(source, request.id), executorActorId = executor, approvalId = request.id,
-                remoteIp = (source as? Source.Web)?.context?.remoteIp, detail = listOfNotNull("kind=${request.kind.name}", reasonDetail).joinToString(";"),
+                remoteIp = (source as? Source.Web)?.context?.remoteIp,
+                // MERCHANT-CODE-001 MC-1b(§5.5 — D-MCODE-002 ⑤): 코드 변경 승인 건의 감사 행은 모두 from=;to=;reason=(다른 종류는 null — 기존 detail 그대로).
+                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail, PinnedMerchantCodeChangeTarget.auditDetailOf(request)).joinToString(";"),
                 targetRef = ownerRef(request),
             ),
         )

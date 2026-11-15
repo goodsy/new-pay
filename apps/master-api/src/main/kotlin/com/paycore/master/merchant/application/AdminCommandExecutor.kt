@@ -404,6 +404,8 @@ internal class AdminCommandExecutor(
             MasterRejection.APPROVAL_SAME_ACTOR, MasterRejection.APPROVAL_ID_ALREADY_USED, MasterRejection.APPROVER_IS_REVISION_REGISTRANT,
             // MERCHANT-OPS-002 §9.27(B3-1F — D-MOPS-009 ③): ADMIN TX1이 먼저 막으므로 MASTER에서 나오면 2인 통제 우회 신호(경보 후보).
             MasterRejection.APPROVER_IS_ACTIVATION_REGISTRANT, MasterRejection.APPROVER_IS_SITE_REGISTRANT,
+            // MERCHANT-CODE-001 MC-1b(§3.7.3 판정 10·§9 Observability): 요청 현재 코드 ≠ 저장 현재 코드는 정상 경로에서 불가능 — 결함 신호(코드 값은 로그에 넣지 않는다).
+            MasterRejection.MERCHANT_CODE_MISMATCH,
         )
 
         /**

@@ -7,6 +7,7 @@ import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssuanceCommand
+import com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
@@ -406,6 +407,37 @@ class MerchantOnboardingService(
             )
             work.publishEntitlement(merchant.value)
             activation.id.value
+        }
+
+    /**
+     * MERCHANT-CODE-001 MC-1b(§3.7.3 — D-MCODE-002 Q-MC-7·Q-MC-10): 가맹점 코드 1회 변경(근거 경로만). 판정 순서: 근거 1~3(실행기) → 4 가맹점 없음(잠금 전 find) → 5 **merchant 잠금** →
+     * `lockedNow()`(만료 훅) → 6 잠금 **뒤** `contracts.hasApprovedRevisionFor`(계약 승인 `approveRevision`도 merchant를 먼저 잠그므로 직렬화 — 승인이 먼저 커밋하면 여기서 보인다)
+     * → 7~11 Domain([Merchant.changeCodeWithEvidence]) → 12 배정 이력 사전 조회(다른 가맹점·은퇴 코드 — 경합 진 쪽은 flush 1062 → 새 TX 재판정에서 여기서 수렴)
+     * → 쓰기: seq 2 배정 행 + merchant version +1 → 이력·Outbox `MerchantCodeChanged`(old·new·사유·approvalId) → 근거 EXECUTED 행(실행기). 잠금 순서 merchant → (contract는 읽기만) — 교착 없음.
+     * 원 가맹점 등록자 판정 없음(Q-MC-10 — `merchant.created_by` = 승인자여도 성공). 권리 Snapshot은 MC-4부터(지금은 Snapshot에 코드가 없다).
+     */
+    override fun changeMerchantCodeWithEvidence(command: ApprovedMerchantCodeChangeCommand): AdminCommandResult =
+        executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
+            merchants.find(command.merchantId) ?: throw MasterRuleViolation(MasterRejection.MERCHANT_NOT_FOUND)
+            val locked = merchants.lock(command.merchantId) ?: error("merchant must exist")
+            work.lockedNow()
+            val contractApproved = contracts.hasApprovedRevisionFor(command.merchantId)
+            val merchant = locked.value
+            val oldCode = merchant.currentCode
+            merchant.changeCodeWithEvidence(
+                command.newCode, command.currentCode, contractApproved, command.reason, command.evidence.approvalId, work.now, command.evidence.approvedBy,
+            )
+            merchants.findCodeOwner(command.newCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
+            work.beginWrites()
+            val version = merchants.update(merchant, locked.version)
+            work.record(
+                AGG_MERCHANT, merchant.id.value, version, "MerchantCodeChanged",
+                mapOf(
+                    "merchantId" to merchant.id.value, "oldCode" to oldCode.value, "newCode" to command.newCode.value, "reasonCode" to command.reason.name,
+                    "approvalId" to command.evidence.approvalId,
+                ),
+            )
+            merchant.id.value
         }
 
     /** 잠금 없이 소속 Business를 읽는다(불변 값) — 잠금 순서 business → merchant를 지키기 위해 먼저 안다. */

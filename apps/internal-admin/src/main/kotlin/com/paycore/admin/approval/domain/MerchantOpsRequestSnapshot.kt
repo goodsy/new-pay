@@ -23,7 +23,8 @@ data class MerchantOpsRequestSnapshot(
                 (commandKind == MerchantOpsCommandKind.FIRST_MID_ISSUANCE && pinnedTarget is PinnedFirstMidTarget) ||
                 (commandKind == MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION && pinnedTarget is PinnedActivationApprovalTarget) ||
                 (commandKind == MerchantOpsCommandKind.SITE_REVIEW_APPROVAL && pinnedTarget is PinnedSiteReviewApprovalTarget) ||
-                (commandKind == MerchantOpsCommandKind.CURRENCY_ENABLEMENT && pinnedTarget is PinnedCurrencyEnablementTarget),
+                (commandKind == MerchantOpsCommandKind.CURRENCY_ENABLEMENT && pinnedTarget is PinnedCurrencyEnablementTarget) ||
+                (commandKind == MerchantOpsCommandKind.MERCHANT_CODE_CHANGE && pinnedTarget is PinnedMerchantCodeChangeTarget),
         ) { "the pinned target kind matches the command kind" }
         require(MerchantOpsInputRules.evidenceProblem(evidenceRef) == null) { "evidence format" }
     }
@@ -50,4 +51,7 @@ enum class MerchantOpsCommandKind {
 
     /** B3-2 통화 활성화(효력 시작 AT_EXECUTION·DATE — D-MOPS-009 ②). */
     CURRENCY_ENABLEMENT,
+
+    /** MERCHANT-CODE-001 MC-1b 가맹점 코드 1회 변경(§5.5). */
+    MERCHANT_CODE_CHANGE,
 }
