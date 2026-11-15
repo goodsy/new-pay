@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantHistoryEntry, MerchantListItem } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { domOccurrences } from '../test/domScan'
 
 /** Demo 식별자(MASTER 형식 — 접두사 + Crockford base32 26자). 업무 의미 없는 고정값. */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
@@ -360,5 +361,29 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
       for (const attr of Array.from(el.attributes)) expect(`${el.tagName}@${attr.name}=${attr.value}`).not.toContain('mer_')
       if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) expect(el.value).not.toContain('mer_')
     }
+  })
+
+  it('MC-2b DOM (D-MCODE-003 ②): a registration-number search list and the detail render no biz_ anywhere (text, attributes, input values) and never the plaintext number — the business is name + masked number; the internal key goes only to calls', async () => {
+    const api = fakeApi({
+      merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })),
+      merchantDetail: vi.fn(async () => detail),
+      merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })),
+    })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    await typeIn('사업자등록번호', BRN)
+    await search()
+    const row = await screen.findByRole('row', { name: codeOf(MER1) })
+    expect(row).toHaveTextContent('데모 사업자')
+    expect(row).toHaveTextContent(MASKED)
+    expect(domOccurrences(document.body, 'biz_')).toEqual([])
+    expect(domOccurrences(document.body, BRN)).toEqual([])
+    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+    await userEvent.click(within(row).getByRole('button', { name: '상세' }))
+    expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(MASKED)
+    expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent('데모 사업자')
+    expect(domOccurrences(document.body, 'biz_')).toEqual([])
+    expect(domOccurrences(document.body, BRN)).toEqual([])
+    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+    expect(api.merchantDetail).toHaveBeenCalledWith(MER1)
   })
 })

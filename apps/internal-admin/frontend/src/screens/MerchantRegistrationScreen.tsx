@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi } from '../api/adminApi'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
@@ -14,7 +14,7 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { NativeSelect } from '../components/ui/native-select'
 import { RegistrationStep, stepLocked, stepReference, submitStep, type StepSpec, type StepStatus } from '../components/RegistrationStep'
-import { defaultSubmissionId, kstDate, type BusinessRef, type HandoffState } from '../lib/registration'
+import { defaultSubmissionId, kstDate, type BusinessRef, type HandoffState, type MerchantRef } from '../lib/registration'
 import { isRegistrationNumber } from '../lib/registrationNumber'
 import { SERVICE_KINDS, serviceKindLabel, type ServiceKindCode } from '../lib/paymentMethods'
 import { REVISION_AWAITING_APPROVAL } from '../lib/labels'
@@ -29,10 +29,13 @@ import { validName } from './BusinessRegistrationScreen'
  *   사업자를 묶어 보이고 "선택". 사업자 등록 화면 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]). 새 서버 API 없음.
  *   한계: 가맹점이 하나도 없는 기존 사업자는 이 검색으로 찾을 수 없다(사업자 등록 직후 넘겨받는 경우만 가능 — Coordinator 보고 대상).
  * - 사업자 ID(biz_…)는 화면에 그리지 않는다(D-ADMIN-UI-004 ③) — 상호·마스킹 등록번호로 보이고, 내부 키는 가맹점·계약 초안 저장 본문에만 그대로 들어간다(API·감사 불변).
+ *   사업자 표시는 "<상호> · <마스킹 등록번호>"(MERCHANT-CODE-001 MC-2b — D-MCODE-003 ②, 마스킹 값은 서버 응답·화면 계산 그대로, 평문 재노출 없음).
  *   가맹점은 **가맹점 코드**로 보인다(MERCHANT-CODE-001 MC-2 — 등록 결과·검토의 가맹점 ID(mer_…) 표시를 코드로 교체, 내부 키는 저장 본문에만). 가맹점 카드의 코드는
  *   "영문 상호"(저장 안 함)로 만든 미리보기(§3.4 — 상호 영문 + 랜덤 4자, `crypto.getRandomValues`)를 채우고 "다시 제안"으로 꼬리만 새로 뽑는다. 운영자가 고친 값은 그대로 보낸다.
  *   미리보기는 제안일 뿐 — 사용 가능 여부는 등록 시 MASTER가 판정한다(중복·은퇴 코드 = TAKEN, 예약어 = RESERVED).
- *   한계(MC-2): Site·계약 초안 카드의 "가맹점 ID" 입력란은 내부 키 입력이라 그대로다(앞 카드 성공 시 자동 채움 — 코드 입력으로 바꾸려면 코드 → 내부 키 해석 조회가 필요, Coordinator 보고).
+ *   MC-2b(D-MCODE-003 ①): Site·계약 초안 카드에 "가맹점 ID" 입력칸이 없다. 소속 가맹점은 맥락으로 정해진다 — 이 마법사 가맹점 카드의 성공 결과 또는 [offerMerchant]로 준 가맹점 —
+ *   그리고 읽기 전용 "소속 가맹점: <상호> · <가맹점 코드>"로 보인다. 내부 키(mer_…)는 저장 본문 `merchantId`·`scopeMerchantId`에만 그대로(API 불변). 소속 가맹점이 없으면 보내지 않는다.
+ *   "다른 Site 추가 입력"·"계약 초안 새로 입력"은 지금 맥락 가맹점(마지막으로 성공·제공된 가맹점)을 다시 가져온다.
  * - "다음 단계 →"는 그 단계의 **기존 저장 호출**을 카드 순서대로, 아직 확정 성공하지 않은 카드만 하나씩 보낸다(같은 body·submissionId·잠금). 하나라도 성공하지 못하면 멈춘다.
  * - "이전"·단계 표시는 이동만 한다. 성공한 카드는 읽기 전용 완료 상태(C-32) — "… 새로 입력" 뒤 다음 제출은 새 submissionId.
  * - MID 발급·개통은 마법사에 없다(계약 승인 2인 → 첫 MID 발급 2인 → 개통). 날짜는 Asia/Seoul(C-7), 소급 판정은 MASTER(§3.4).
@@ -68,7 +71,7 @@ interface SavedMerchant { id: string; name: string; code: string; business: Busi
 interface SavedContract { id: string; party: BusinessRef; merchantId: string; scopeSiteIds: string[]; from: string; to: string | null }
 const NO_SITES: readonly CreatedSite[] = Object.freeze([])
 const NO_IDS: readonly string[] = Object.freeze([])
-const NO_CODES: Readonly<Record<string, string>> = Object.freeze({})
+const NO_MERCHANTS: Readonly<Record<string, MerchantRef>> = Object.freeze({})
 const NO_BUSINESSES: readonly BusinessRef[] | null = null
 const IDLE: StepStatus = Object.freeze({ kind: 'idle' })
 const defaultTodayKst = () => kstDate(new Date())
@@ -107,6 +110,11 @@ const NO_ERRORS: Readonly<Record<never, boolean>> = Object.freeze({})
 
 /** 고른 사업자가 없을 때 가맹점·계약 초안 카드 오류 문구. */
 const PICK_BUSINESS_FIRST = '사업자를 먼저 선택하세요(1단계).'
+/** 소속 가맹점이 없을 때 Site·계약 초안 카드 오류 문구(MC-2b — 내부 키 형식 문구 대체, mer_ 없음). */
+const REGISTER_MERCHANT_FIRST_SITE = '가맹점을 먼저 등록하세요(가맹점 카드).'
+const REGISTER_MERCHANT_FIRST_CONTRACT = '가맹점을 먼저 등록하세요(2단계 가맹점 카드).'
+/** 계약 당사자 사업자 ≠ 소속 가맹점의 사업자(MC-2b 리뷰 MINOR-2 — 화면 가드, 판정은 MASTER `SCOPE_MERCHANT_OF_OTHER_BUSINESS`). */
+const PARTY_MERCHANT_MISMATCH = '계약 당사자와 소속 가맹점의 사업자가 다릅니다 — 소속 가맹점의 사업자를 1단계에서 다시 선택하세요.'
 
 function validChannel(type: string, identifier: string): boolean {
   if (identifier.length > 253) return false
@@ -115,13 +123,52 @@ function validChannel(type: string, identifier: string): boolean {
 }
 
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs break-all">{children}</span>
-/** 사업자 표시(상호 + 마스킹 등록번호 — 사업자 ID 없음). */
+/** 사업자 표시 "<상호> · <마스킹 등록번호>"(D-MCODE-003 ② — 사업자 ID 없음, 평문 번호 없음). */
 const BusinessText = ({ business }: { business: BusinessRef }) => (
-  <span className="flex flex-wrap items-baseline gap-x-2">
+  <span className="flex flex-wrap items-baseline gap-x-1.5">
     <span className="font-medium">{business.name}</span>
+    {' · '}
     <span className="font-mono text-xs text-muted-foreground">{business.masked}</span>
   </span>
 )
+
+/**
+ * 읽기 전용 값 묶음(사업자·계약 당사자·소속 가맹점 — MC-2b 리뷰 NIT-2): 접근 이름은 [label] 하나(보이는 제목은 aria-hidden — 두 번 읽지 않는다),
+ * 오류 문구는 aria-describedby로 묶음에 연결한다. [inline]이면 제목을 상자 안 앞에 "제목:"으로 붙인다(소속 가맹점).
+ */
+function ReadOnlyGroup({ label, inline = false, error, className, children }: { label: string; inline?: boolean; error?: string; className?: string; children: ReactNode }) {
+  const errorId = useId()
+  return (
+    <div role="group" aria-label={label} aria-describedby={error ? errorId : undefined} className={cn('flex flex-col gap-1.5 text-sm', className)}>
+      {!inline && <span aria-hidden="true" className="font-medium">{label}</span>}
+      <span className="flex min-h-10 flex-wrap items-center gap-x-1.5 rounded-md border border-dashed px-3">
+        {inline && <><span aria-hidden="true" className="font-medium">{`${label}:`}</span>{' '}</>}
+        {children}
+      </span>
+      {error && <p id={errorId} className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+/**
+ * 읽기 전용 소속 가맹점(MC-2b — D-MCODE-003 ①): "소속 가맹점: <상호> · <가맹점 코드>". 내부 키는 그리지 않는다.
+ * 소속 가맹점은 [offerMerchant]로만 정해지고 그때 상호·코드도 기억하므로, 기억에 없는 내부 키는 "아직 없음"과 같게 다룬다(저장도 막는다 — collect).
+ */
+function Affiliation({ merchant, error }: { merchant: MerchantRef | undefined; error?: string }) {
+  return (
+    <ReadOnlyGroup label="소속 가맹점" inline error={error} className="sm:col-span-2 lg:col-span-3">
+      {merchant ? (
+        <>
+          <span>{merchant.name}</span>
+          {' · '}
+          <span className="font-mono text-xs break-all">{merchant.code}</span>
+        </>
+      ) : (
+        <span className="text-muted-foreground">아직 없음</span>
+      )}
+    </ReadOnlyGroup>
+  )
+}
 
 /** 카드 하나의 상태 구독(단계 버튼 잠금·완료 표시용). */
 function useStatuses(memory: ScreenMemory): Record<string, StepStatus> {
@@ -147,6 +194,18 @@ export function offerBusiness(memory: ScreenMemory, business: BusinessRef) {
   if (fillable(memory, 'step.merchant')) memory.write('merchant.business', business)
   if (fillable(memory, 'step.contract')) memory.write('contract.party', business)
   if (!memory.has('wizard.step') || memory.read('wizard.step') === 1) memory.write('wizard.step', 2)
+}
+
+/**
+ * 소속 가맹점 맥락을 준다(MC-2b — D-MCODE-003 ①): 이 마법사 가맹점 카드가 성공하면 부르고, 다른 화면이 "지금 보는 가맹점"을 넘길 때도 같은 경로를 쓴다.
+ * 상호·코드를 기억하고(표시용), 맥락 가맹점으로 두고, Site·계약 초안 카드의 소속 가맹점(내부 키)을 채운다 — 그 카드가 잠김·완료면 건너뜀(리뷰 m-1).
+ */
+export function offerMerchant(memory: ScreenMemory, merchant: MerchantRef) {
+  const known = (memory.read('knownMerchants') as Readonly<Record<string, MerchantRef>> | undefined) ?? NO_MERCHANTS
+  memory.write('knownMerchants', { ...known, [merchant.merchantId]: merchant })
+  memory.write('contextMerchantId', merchant.merchantId)
+  if (fillable(memory, 'step.site')) memory.write('siteMerchantId', merchant.merchantId)
+  if (fillable(memory, 'step.contract')) memory.write('contract.scopeMerchantId', merchant.merchantId)
 }
 
 /** 사업자 등록 화면 "이 사업자로 가맹점 등록" 전에 본다(리뷰 MINOR-1 — 진행 중인 마법사에 다른 사업자가 섞이지 않게). */
@@ -301,8 +360,8 @@ export function MerchantRegistrationScreen({
   const [, setLastSuggestion] = useRemembered<string | null>(memory, 'merchantCodeSuggestion', null)
   const [merchantErrors, setMerchantErrors] = useRemembered<{ business?: boolean; name?: boolean; code?: boolean }>(memory, 'merchantErrors', NO_ERRORS)
   const [createdMerchant, setCreatedMerchant] = useRemembered<SavedMerchant | null>(memory, 'createdMerchant', null)
-  /** 이 마법사에서 성공한 가맹점의 코드(내부 키 → 코드 — 결과·검토·Site 행 표시용, MC-2 표시 교체). */
-  const [knownCodes, setKnownCodes] = useRemembered<Readonly<Record<string, string>>>(memory, 'knownMerchantCodes', NO_CODES)
+  /** 이 마법사에서 성공했거나 맥락으로 받은 가맹점의 상호·코드(내부 키 → 표시 — 결과·검토·Site 행·소속 가맹점 표시용, MC-2·MC-2b). */
+  const [knownMerchants] = useRemembered<Readonly<Record<string, MerchantRef>>>(memory, 'knownMerchants', NO_MERCHANTS)
   /** 영문 상호 입력: 운영자가 코드를 고치지 않았으면(빈 값이거나 마지막 제안 그대로) 같은 꼬리로 제안을 다시 만든다. */
   const changeEnglishName = (name: string) => {
     setEnglishName(name)
@@ -332,19 +391,24 @@ export function MerchantRegistrationScreen({
   const [siteMerchantId, setSiteMerchantId] = useRemembered(memory, 'siteMerchantId', '')
   const [channelType, setChannelType] = useRemembered<'WEB' | 'APP'>(memory, 'channelType', 'WEB')
   const [channelIdentifier, setChannelIdentifier] = useRemembered(memory, 'channelIdentifier', '')
-  const [siteErrors, setSiteErrors] = useRemembered<{ id?: boolean; channel?: boolean }>(memory, 'siteErrors', NO_ERRORS)
+  const [siteErrors, setSiteErrors] = useRemembered<{ merchant?: boolean; channel?: boolean }>(memory, 'siteErrors', NO_ERRORS)
   /** 이 마법사에서 만든 Site(계약 초안 SITES Scope 체크 후보 — 그 가맹점의 Site만 보인다). */
   const [createdSites, setCreatedSites] = useRemembered<readonly CreatedSite[]>(memory, 'createdSites', NO_SITES)
   // ③ 계약 초안(B1-2)
   const [party, setParty] = useRemembered<BusinessRef | null>(memory, 'contract.party', null)
   const [scopeMerchantId, setScopeMerchantId] = useRemembered(memory, 'contract.scopeMerchantId', '')
+  /** 지금 맥락 가맹점(마지막으로 성공·제공된 가맹점 — "다른 Site 추가 입력"·"계약 초안 새로 입력"이 다시 가져온다). */
+  const retakeContextMerchant = (set: (merchantId: string) => void) => {
+    const context = read<string | null>('contextMerchantId', null)
+    if (context !== null) set(context)
+  }
   const [scopeKind, setScopeKind] = useRemembered<ScopeKind>(memory, 'contract.scopeKind', 'MERCHANT')
   const [checkedSites, setCheckedSites] = useRemembered<readonly string[]>(memory, 'contract.checkedSites', NO_IDS)
   const [typedSites, setTypedSites] = useRemembered(memory, 'contract.typedSites', '')
   const [startDate, setStartDate] = useRemembered(memory, 'contract.startDate', '')
   const [endDate, setEndDate] = useRemembered(memory, 'contract.endDate', '')
   const [contractErrors, setContractErrors] = useRemembered<{
-    party?: boolean; merchant?: boolean; start?: boolean; end?: boolean; sites?: boolean; tooMany?: boolean; typedSites?: boolean
+    party?: boolean; merchant?: boolean; partyMismatch?: boolean; start?: boolean; end?: boolean; sites?: boolean; tooMany?: boolean; typedSites?: boolean
   }>(memory, 'contractErrors', NO_ERRORS)
   const [savedContract, setSavedContract] = useRemembered<SavedContract | null>(memory, 'savedContract', null)
   // ③ 서비스 계약(B1-2)
@@ -359,6 +423,8 @@ export function MerchantRegistrationScreen({
   const fillInto = (memoryKey: string, ...fills: (() => void)[]) => {
     if (fillable(memory, memoryKey)) for (const fill of fills) fill()
   }
+  /** 기억한 소속 가맹점(콜백 시점 값 — [offerMerchant]가 상호·코드·사업자와 함께 기억한다). */
+  const knownMerchantOf = (merchantId: string): MerchantRef | undefined => read<Readonly<Record<string, MerchantRef>>>('knownMerchants', NO_MERCHANTS)[merchantId]
   const offeredSites = createdSites.filter((s) => s.merchantId === scopeMerchantId.trim())
   const endDateNoteId = 'merchant-registration-end-date-note'
 
@@ -375,13 +441,12 @@ export function MerchantRegistrationScreen({
       return errors.business || errors.name || errors.code || business === null ? null : { businessId: business.businessId, displayName: name, merchantCode: code }
     },
     onSucceeded: (reference, payload) => {
-      fillInto('step.site', () => setSiteMerchantId(reference))
       const business = read<BusinessRef | null>('merchant.business', null)
       if (business) setCreatedMerchant({ id: reference, name: payload.displayName, code: payload.merchantCode, business })
-      setKnownCodes({ ...read<Readonly<Record<string, string>>>('knownMerchantCodes', NO_CODES), [reference]: payload.merchantCode })
       setLookupMerchantId(reference)
-      // 계약 초안 자동 채움: 계약 당사자 = 이 가맹점의 사업자, 대상 = 이 가맹점(잠김·완료면 건너뜀).
-      fillInto('step.contract', () => { if (business) setParty(business) }, () => setScopeMerchantId(reference))
+      // 계약 초안 자동 채움: 계약 당사자 = 이 가맹점의 사업자(잠김·완료면 건너뜀). 소속 가맹점(Site·계약 초안) = 이 가맹점 — [offerMerchant](MC-2b).
+      fillInto('step.contract', () => { if (business) setParty(business) })
+      offerMerchant(memory, { merchantId: reference, businessId: payload.businessId, name: payload.displayName, code: payload.merchantCode })
     },
   }
   const siteSpec: StepSpec<{ merchantId: string; channelType: 'WEB' | 'APP'; channelIdentifier: string }> = {
@@ -392,14 +457,15 @@ export function MerchantRegistrationScreen({
       const id = read<string>('siteMerchantId', '').trim()
       const type = read<'WEB' | 'APP'>('channelType', 'WEB')
       const identifier = read<string>('channelIdentifier', '')
-      const errors = { id: !MERCHANT_ID.test(id), channel: !validChannel(type, identifier) }
+      const errors = { merchant: !MERCHANT_ID.test(id) || knownMerchantOf(id) === undefined, channel: !validChannel(type, identifier) }
       setSiteErrors(errors)
-      return errors.id || errors.channel ? null : { merchantId: id, channelType: type, channelIdentifier: identifier }
+      return errors.merchant || errors.channel ? null : { merchantId: id, channelType: type, channelIdentifier: identifier }
     },
     onSucceeded: (reference, payload) => {
       setLookupMerchantId(payload.merchantId)
       setCreatedSites([...read('createdSites', NO_SITES), { ...payload, siteId: reference }])
-      fillInto('step.contract', () => setScopeMerchantId(payload.merchantId))
+      // MC-2b 리뷰 MINOR-1: 늦게 온 Site 성공(잠긴 Site를 가맹점 A로 재전송했는데 맥락은 이미 B)이 계약 초안의 소속 가맹점을 A로 되돌리지 않게 — 지금 맥락 가맹점일 때만 채운다.
+      if (payload.merchantId === read<string | null>('contextMerchantId', null)) fillInto('step.contract', () => setScopeMerchantId(payload.merchantId))
     },
   }
   const contractSpec: StepSpec<{ partyBusinessId: string; scopeMerchantId: string; scopeSiteIds: string[]; effectiveFromDate: string; effectiveToDate?: string }> = {
@@ -409,6 +475,7 @@ export function MerchantRegistrationScreen({
     collect: () => {
       const partyRef = read<BusinessRef | null>('contract.party', null)
       const merchant = read<string>('contract.scopeMerchantId', '').trim()
+      const affiliated = knownMerchantOf(merchant)
       const kind = read<ScopeKind>('contract.scopeKind', 'MERCHANT')
       const start = read<string>('contract.startDate', '')
       const end = read<string>('contract.endDate', '')
@@ -417,7 +484,9 @@ export function MerchantRegistrationScreen({
       const sites = kind === 'SITES' ? [...new Set([...read('contract.checkedSites', NO_IDS).filter((id) => offered.has(id)), ...typed])] : []
       const errors = {
         party: partyRef === null || !BUSINESS_ID.test(partyRef.businessId),
-        merchant: !MERCHANT_ID.test(merchant),
+        merchant: !MERCHANT_ID.test(merchant) || affiliated === undefined,
+        // MC-2b 리뷰 MINOR-2(화면 가드 — 판정은 MASTER): 계약 당사자 사업자와 소속 가맹점의 사업자가 다르면 보내지 않는다.
+        partyMismatch: partyRef !== null && affiliated !== undefined && partyRef.businessId !== affiliated.businessId,
         start: !DATE.test(start),
         end: end !== '' && (!DATE.test(end) || (DATE.test(start) && end <= start)),
         typedSites: kind === 'SITES' && typed.some((id) => !SITE_ID.test(id)),
@@ -545,7 +614,7 @@ export function MerchantRegistrationScreen({
             title="가맹점"
             submitDisabled={advancing}
             submitLabel="가맹점 등록"
-            succeeded={(reference) => <MerchantCodeText code={knownCodes[reference]} />}
+            succeeded={(reference) => <MerchantCodeText code={knownMerchants[reference]?.code} />}
             completion={{
               resetLabel: '가맹점 새로 입력',
               onReset: () => {
@@ -561,13 +630,9 @@ export function MerchantRegistrationScreen({
           >
             {() => (
               <>
-                <div role="group" aria-label="사업자" className="flex flex-col gap-1.5 text-sm">
-                  <span className="font-medium">사업자</span>
-                  <span className="flex min-h-10 items-center rounded-md border border-dashed px-3">
-                    {merchantBusiness ? <BusinessText business={merchantBusiness} /> : <span className="text-muted-foreground">선택한 사업자 없음</span>}
-                  </span>
-                  {merchantErrors.business && <p className="text-xs text-destructive">{PICK_BUSINESS_FIRST}</p>}
-                </div>
+                <ReadOnlyGroup label="사업자" error={merchantErrors.business ? PICK_BUSINESS_FIRST : undefined}>
+                  {merchantBusiness ? <BusinessText business={merchantBusiness} /> : <span className="text-muted-foreground">선택한 사업자 없음</span>}
+                </ReadOnlyGroup>
                 <Field label="가맹점명" error={merchantErrors.name ? '1~100자, 앞뒤 공백 없이 입력하세요.' : undefined}>
                   {(describedBy) => (
                     <Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} autoComplete="off" aria-describedby={describedBy} aria-invalid={merchantErrors.name || undefined} />
@@ -602,15 +667,15 @@ export function MerchantRegistrationScreen({
             submitDisabled={advancing}
             submitLabel="Site 등록"
             succeeded={(reference) => <span>Site ID <Mono>{reference}</Mono></span>}
-            completion={{ resetLabel: '다른 Site 추가 입력', onReset: () => { setChannelIdentifier(''); setSiteErrors(NO_ERRORS) } }}
+            completion={{
+              resetLabel: '다른 Site 추가 입력',
+              onReset: () => { setChannelIdentifier(''); setSiteErrors(NO_ERRORS); retakeContextMerchant(setSiteMerchantId) },
+            }}
           >
             {() => (
               <>
-                <Field label="가맹점 ID" error={siteErrors.id ? '가맹점 ID 형식(mer_…)이 아닙니다.' : undefined}>
-                  {(describedBy) => (
-                    <Input value={siteMerchantId} onChange={(e) => setSiteMerchantId(e.target.value)} autoComplete="off" placeholder="mer_…" aria-describedby={describedBy} className="font-mono" />
-                  )}
-                </Field>
+                {/* MC-2b(D-MCODE-003 ①): 가맹점 ID 입력칸 대신 읽기 전용 소속 가맹점 — 내부 키는 저장 본문에만. */}
+                <Affiliation merchant={knownMerchants[siteMerchantId]} error={siteErrors.merchant ? REGISTER_MERCHANT_FIRST_SITE : undefined} />
                 <Field label="채널">
                   {(describedBy) => (
                     <NativeSelect value={channelType} onChange={(e) => setChannelType(e.target.value as 'WEB' | 'APP')} aria-describedby={describedBy}>
@@ -649,22 +714,18 @@ export function MerchantRegistrationScreen({
             submitDisabled={advancing}
             submitLabel="계약 초안 등록"
             succeeded={(reference) => <span>계약 ID <Mono>{reference}</Mono> (Revision 1, {REVISION_AWAITING_APPROVAL})</span>}
-            completion={{ resetLabel: '계약 초안 새로 입력', onReset: () => setContractErrors(NO_ERRORS) }}
+            completion={{ resetLabel: '계약 초안 새로 입력', onReset: () => { setContractErrors(NO_ERRORS); retakeContextMerchant(setScopeMerchantId) } }}
           >
             {() => (
               <>
-                <div role="group" aria-label="계약 당사자" className="flex flex-col gap-1.5 text-sm">
-                  <span className="font-medium">계약 당사자</span>
-                  <span className="flex min-h-10 items-center rounded-md border border-dashed px-3">
-                    {party ? <BusinessText business={party} /> : <span className="text-muted-foreground">선택한 사업자 없음</span>}
-                  </span>
-                  {contractErrors.party && <p className="text-xs text-destructive">{PICK_BUSINESS_FIRST}</p>}
-                </div>
-                <Field label="가맹점 ID" error={contractErrors.merchant ? '가맹점 ID 형식(mer_…)이 아닙니다.' : undefined}>
-                  {(describedBy) => (
-                    <Input value={scopeMerchantId} onChange={(e) => setScopeMerchantId(e.target.value)} autoComplete="off" placeholder="mer_…" aria-describedby={describedBy} className="font-mono" />
-                  )}
-                </Field>
+                <ReadOnlyGroup
+                  label="계약 당사자"
+                  error={contractErrors.party ? PICK_BUSINESS_FIRST : contractErrors.partyMismatch ? PARTY_MERCHANT_MISMATCH : undefined}
+                >
+                  {party ? <BusinessText business={party} /> : <span className="text-muted-foreground">선택한 사업자 없음</span>}
+                </ReadOnlyGroup>
+                {/* MC-2b(D-MCODE-003 ①): 계약 대상 가맹점도 읽기 전용 소속 가맹점 — 내부 키는 저장 본문 scopeMerchantId에만. */}
+                <Affiliation merchant={knownMerchants[scopeMerchantId]} error={contractErrors.merchant ? REGISTER_MERCHANT_FIRST_CONTRACT : undefined} />
                 <fieldset className="flex flex-col gap-2 text-sm">
                   <legend className="mb-1 text-sm font-medium">범위</legend>
                   <label className="flex items-center gap-2">
@@ -784,10 +845,10 @@ export function MerchantRegistrationScreen({
                         <Mono>{s.siteId}</Mono>
                         <span className="text-xs text-muted-foreground">{s.channelType === 'WEB' ? '웹' : '앱'}</span>
                         <span className="font-mono text-xs">{s.channelIdentifier}</span>
-                        {/* 리뷰 NIT-4: 기존 가맹점에 붙인 Site도 섞일 수 있어 소유 가맹점을 행마다 보인다. */}
-                        {/* MC-2: 소유 가맹점은 코드로(이 마법사에서 만든 가맹점). 기존 가맹점에 붙인 Site는 코드를 모르므로 조회 안내만 — 내부 키를 그리지 않는다. */}
+                        {/* 리뷰 NIT-4: 여러 가맹점(이 마법사에서 만든 가맹점·맥락으로 받은 가맹점)의 Site가 섞일 수 있어 소유 가맹점을 행마다 보인다. */}
+                        {/* MC-2·MC-2b: 소유 가맹점은 코드로. Site의 가맹점은 [offerMerchant]로만 정해져 코드를 늘 안다 — 아래 조회 안내는 기억이 없을 때의 안전한 대체 문구일 뿐(내부 키를 그리지 않는다). */}
                         <span className="text-xs text-muted-foreground">
-                          {knownCodes[s.merchantId] ? <>가맹점 <Mono>{knownCodes[s.merchantId]}</Mono></> : '기존 가맹점(코드는 가맹점 조회에서 확인)'}
+                          {knownMerchants[s.merchantId] ? <>가맹점 <Mono>{knownMerchants[s.merchantId]!.code}</Mono></> : '기존 가맹점(코드는 가맹점 조회에서 확인)'}
                         </span>
                       </li>
                     ))}

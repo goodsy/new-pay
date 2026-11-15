@@ -7745,8 +7745,8 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "MC-1b 커밋 완료 → 사용자 화면 검토(MC-1·MC-2·MC-1b) + MC-2b 방식 질문 → MC-3(감사·승인 대상 코드 표기) → MC-4; 이후 MERCHANT-BIZ-LOOKUP-001",
-      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.4 sha256 a9eedfd3b1c80bb6e6ed924e1e94af183e8010932b05156bba4ea7f3e65956d0",
+      "nextResumeAction": "MC-2b 커밋 완료 → UI 참조 재현 리뷰 MINOR(M1 기본 빌드 제외·M2 docs 입력·M3 시험) 반영·재게이트·커밋 → Demo 재기동·화면 검토 → MC-3 → MC-4 → MERCHANT-BIZ-LOOKUP-001",
+      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.5 sha256 c3fd9787b501551e49c64fc53fd00b0ee298d2f794e0a2285942dea1c6b3b111",
       "review": "spec rev0.3 REVIEW_FAIL(MAJOR-1 배포 단위, MAJOR-2 seed 재실행) → rev0.4 REVIEW_PASS (2026-11-14). C-20~C-26 Coordinator 채택",
       "gateRuns": [
         {
@@ -7780,6 +7780,15 @@
           "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-14T230145Z.json",
           "result": "GRADLE-CHECK 23:02:08Z..23:36:33Z(34m25s/4500s) exit 0; Kotlin 4615 / FRONTEND 361 실패·errors·skip 0; HARNESS-SELFTEST PASS(minTests 203); fingerprint 전후 동일 sha256:2ca40f511b0dc24216a668334f472b9eb9426c7adaa0d5af863c126d19428490",
           "supplementary": "MCODE-cve3 PASS(~/gate-logs/MCODE-cve3.log, 취약점 0, canary 전 모듈 검출)"
+        },
+        {
+          "tag": "MCODE-gate5",
+          "batch": "MC-2b",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-15T040433Z.json",
+          "result": "GRADLE-CHECK 04:05:03Z..04:47:59Z(42m56s) exit 0; Kotlin 4615 / FRONTEND 377 실패·errors·skip 0; HARNESS-SELFTEST PASS(203); fingerprint 전후 동일 sha256:2bed03a391b5dad4d37694f2d57a683dc7e72062c2b473cc5c493fdb1ce13453",
+          "note": "게이트 작업 트리에는 미커밋 UI 참조 재현(src/uiref·ui-reference.html·vite.config.ts·build-logic)이 함께 있었음 — MC-2b 커밋은 그 부분집합. UI 참조는 리뷰 수정 뒤 별도 게이트",
+          "supplementary": "MCODE-cve4 PASS(~/gate-logs/MCODE-cve4.log, 취약점 0, canary 전 모듈 검출)"
         }
       ],
       "evidence": {
@@ -7810,6 +7819,15 @@
           "demo": "Demo(실제 MASTER·ADMIN jar, fp 20d3ef85… — 이후 변경은 시험·명세·Fixture만) merchant_code_e2e.py 21단계 PASS(~/gate-logs/mcode-mc1b/demo/e2e-result.json). 브라우저 화면 사용자 미검토",
           "gate": "MCODE-gate3 FAIL(시험 Fixture 간헐 결함) → 수정 → MCODE-gate4 PASS",
           "status": "VERIFIED"
+        },
+        "mc_2b": {
+          "decision": "D-MCODE-003(사용자 2026-11-15): 화면 표기 \"소속 가맹점: <상호> · <가맹점 코드>\", \"사업자: <상호> · <마스킹 사업자등록번호>\" — mer_/biz_ 내부 키는 화면 미표시",
+          "implementation": "등록 마법사 소속 가맹점·사업자 읽기 전용 표기(Affiliation/ReadOnlyGroup), contextMerchantId 가드, 계약 당사자≠소속 가맹점 사업자 오류 문구, aria-describedby; MerchantRef에 businessId; test/domScan(DOM 전체 textContent·속성 내부 키 검사)",
+          "tests": "RED/GREEN ~/gate-logs/mcode-mc2b/(red-1, green-1), Vitest 전체 345(r2b), tsc 통과",
+          "mutations": "muts.json·muts-r2.json 전부 killed, restoredIdentical",
+          "review": "REVIEW_PASS(r2) — MINOR-1 contextMerchantId 가드·MINOR-2 불일치 문구 수정",
+          "gate": "MCODE-gate5 PASS",
+          "status": "VERIFIED"
         }
       },
       "followUps": [
@@ -7829,7 +7847,8 @@
         "MC-1b NIT-1: 변이 (c)(e)는 MC-1b에서 등가라 스키마 단언으로 잡음 — MC-3에서 \"키를 코드로 계산하면 201\" 행동 대조군 재실행",
         "MC-1b: MINOR-2 TOTP 재사용 시험은 30초 칸 경계에서 흔들릴 수 있음(관찰 필요)",
         "MC-1b: 계약 승인 뒤 변경 거절은 E2E에서 ADMIN advisory 409로만 확인(MASTER LOCKED는 시험 계층에서 확인)",
-        "MC-1b: gate3 Fixture 수정 기록을 명세 §13에 다음 명세 갱신 때 추가(게이트 지문 보존 위해 tasks.json에만 기록)"
+        "MC-1b: gate3 Fixture 수정 기록을 명세 §13에 다음 명세 갱신 때 추가(게이트 지문 보존 위해 tasks.json에만 기록)",
+        "MC-2b MINOR-3: 가맹점 상세 \"이 가맹점에 Site·계약 추가\" 진입점(startWithMerchant + handoff 검사)"
       ]
     },
     {

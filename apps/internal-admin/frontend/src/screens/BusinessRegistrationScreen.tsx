@@ -96,7 +96,8 @@ export function BusinessRegistrationScreen({ api, onContinue, handoffState = () 
       {business && (
         <div className="flex flex-col gap-3 rounded-lg border border-dashed px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>{`${business.name}(${business.masked})에 가맹점을 등록하려면`}</span>
+            {/* MC-2b(D-MCODE-003 ②): 사업자는 "<상호> · <마스킹 번호>"로(사업자 ID·평문 번호 없음). */}
+            <span>{`${business.name} · ${business.masked}에 가맹점을 등록하려면`}</span>
             <Button
               type="button"
               onClick={() => {

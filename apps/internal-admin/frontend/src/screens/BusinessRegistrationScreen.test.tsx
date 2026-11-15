@@ -5,6 +5,7 @@ import { BusinessRegistrationScreen } from './BusinessRegistrationScreen'
 import type { RegistrationOutcome } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
 import { ERROR_MESSAGES } from '../errors/messages'
+import { domOccurrences } from '../test/domScan'
 
 /**
  * 사업자 등록 화면(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④: 기존 마법사 ① 사업자 카드를 화면으로 분리).
@@ -65,6 +66,18 @@ describe('BusinessRegistrationScreen (ADMIN-UI-MERCHANT-002 — business only; M
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     expect(onContinue).toHaveBeenCalledWith({ businessId: BIZ, name: '데모 사업자', masked: '778*******' })
     expect(storageIsEmpty()).toBe(true)
+  })
+
+  it('MC-2b DOM (D-MCODE-003 ②): after success the whole DOM (text, attributes, input values) has no biz_ and no plaintext number; the business shows as "<상호> · <마스킹 번호>"', async () => {
+    const api = fakeApi({ registerBusiness: vi.fn(async () => succeeded(BIZ)) })
+    const { container } = render(<BusinessRegistrationScreen api={api} onContinue={vi.fn()} newSubmissionId={ids()} />)
+    await fill()
+    await submit()
+    await within(card()).findByText('778*******')
+    expect(screen.getByText('데모 사업자 · 778*******에 가맹점을 등록하려면', { exact: false })).toBeInTheDocument()
+    expect(domOccurrences(container, 'biz_')).toEqual([])
+    expect(domOccurrences(container, BRN)).toEqual([])
+    expect(domOccurrences(container, BRN_SHOWN)).toEqual([])
   })
 
   it('the registration-number field keeps autocomplete off, is not a password field and is numeric', () => {

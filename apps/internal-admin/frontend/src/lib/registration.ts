@@ -26,3 +26,15 @@ export interface BusinessRef {
   name: string
   masked: string
 }
+
+/**
+ * 소속 가맹점(MERCHANT-CODE-001 MC-2b — D-MCODE-003 ①): 화면은 "소속 가맹점: <상호> · <가맹점 코드>"로만 가맹점을 보인다.
+ * [merchantId](mer_…)는 **화면에 그리지 않는** 내부 키 — Site·계약 초안 저장 호출 본문에만 그대로 들어간다(API·감사 불변).
+ */
+export interface MerchantRef {
+  merchantId: string
+  /** 그 가맹점의 사업자 내부 키(biz_… — 화면에 그리지 않음). 계약 당사자와 같은 사업자인지 화면에서 먼저 본다(MC-2b 리뷰 MINOR-2 — 판정은 MASTER). */
+  businessId: string
+  name: string
+  code: string
+}
