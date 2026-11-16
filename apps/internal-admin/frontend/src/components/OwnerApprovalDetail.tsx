@@ -4,11 +4,8 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst, formatMinor } from '../lib/format'
 import { labelOf } from '../lib/labels'
-import { StatusBadge } from './DataBits'
+import { tagClass } from '../lib/statusTone'
 import { ErrorNotice, WarningNote } from './Notice'
-import { Button } from './ui/button'
-import { Card, CardContent, CardHeader } from './ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 
 interface Props {
   api: AdminApi
@@ -69,24 +66,28 @@ function TargetComparison({ api, paymentId, amountMinor, pinned }: { api: AdminA
   ]
   return (
     <div className="flex flex-col gap-3">
-      <Table aria-label="고정 값과 현재 값">
-        <TableHeader>
-          <TableRow>
-            <TableHead>항목</TableHead>
-            <TableHead>고정 값(요청 시점)</TableHead>
-            <TableHead>현재 값</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map(([label, fixed, now]) => (
-            <TableRow key={label} className={fixed !== now && current !== null ? 'bg-warning/10' : undefined}>
-              <TableHead scope="row" className="text-foreground">{label}</TableHead>
-              <TableCell className="font-mono text-xs">{fixed}</TableCell>
-              <TableCell className="font-mono text-xs">{now}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {/* ADMIN-UI-WORKSPACE-001(승인함): 시안 표(.tablewrap). 다른 값 행 강조(bg-warning/10)는 그대로 — 행 머리 칸(th)은 시안 머리 배경이 덮지 않게 같은 강조를 받는다. */}
+      <div className="tablewrap">
+        <table aria-label="고정 값과 현재 값">
+          <thead>
+            <tr>
+              <th>항목</th><th>고정 값(요청 시점)</th><th>현재 값</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, fixed, now]) => {
+              const differs = fixed !== now && current !== null ? 'bg-warning/10' : undefined
+              return (
+                <tr key={label} className={differs}>
+                  <th scope="row" className={differs}>{label}</th>
+                  <td className="font-mono">{fixed}</td>
+                  <td className="font-mono">{now}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       {failed && <WarningNote>현재 값 확인 불가</WarningNote>}
       {changed && <WarningNote>승인 시 무효(TARGET_CHANGED) — TOTP가 소비됩니다</WarningNote>}
       {current?.inFlightCancel && <WarningNote>진행 중인 취소가 있어 지금 승인하면 TARGET_BUSY로 거절됩니다(TOTP는 소비되지 않음).</WarningNote>}
@@ -134,17 +135,16 @@ export function OwnerApprovalDetail({ api, item, viewer, onSessionEnded }: Props
   }
 
   return (
-    <Card as="section" role="region" aria-label="소유 서비스 실행 상세" className="gap-4 py-5">
-      <CardHeader className="px-5">
-        <h3 className="font-semibold">
-          승인 <span className="font-mono text-sm">{item.approvalId}</span>
-        </h3>
-        <div className="flex items-center gap-2 text-sm">
-          <StatusBadge code={item.status} />
+    // ADMIN-UI-WORKSPACE-001(승인함): 시안 상세 카드(.card > .cardtop h4 → .cardbody). 승인 ID는 승인함 .detailarea 제목(h3 small)에 있다. 문구·조건·버튼 표시 규칙은 그대로.
+    <section role="region" aria-label="소유 서비스 실행 상세" className="card">
+      <div className="cardtop">
+        <h4>{labelOf(item.kind)}</h4>
+      </div>
+      <div className="cardbody">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={tagClass(item.status)} title={item.status}>{labelOf(item.status)}</span>
           <p>{statusText(item)}</p>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
         {flags.length > 0 && <WarningNote>{`조사 필요 — 수동 종료 없음 (${flags.join(', ')})`}</WarningNote>}
         {owner && item.status === 'PENDING' && item.targetRef && pinnedOf(owner.pinnedTarget) && (
           <TargetComparison api={api} paymentId={item.targetRef} amountMinor={owner.amountMinor} pinned={pinnedOf(owner.pinnedTarget) as Pinned} />
@@ -160,20 +160,21 @@ export function OwnerApprovalDetail({ api, item, viewer, onSessionEnded }: Props
           </ul>
         )}
         {mayAsk && (
-          <Button type="button" variant="outline" size="sm" onClick={reveal} className="self-start">
+          <button type="button" className="btn self-start" onClick={reveal}>
             근거·사유 보기
-          </Button>
+          </button>
         )}
         {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
+        {/* 조회한 근거·사유는 시안 .notice 상자 — 글자는 본문 색(text-foreground: 원본 .notice 글자 #64748b는 #f6f8fb 바탕에서 4.47:1로 AA 미달). */}
         {justification && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md border bg-muted/50 p-3 text-sm">
-            <dt className="text-muted-foreground">근거 참조</dt>
+          <dl className="notice grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-foreground">
+            <dt className="font-medium">근거 참조</dt>
             <dd>{justification.purposeReference}</dd>
-            <dt className="text-muted-foreground">사유</dt>
+            <dt className="font-medium">사유</dt>
             <dd>{justification.reason}</dd>
           </dl>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

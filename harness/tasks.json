@@ -7930,9 +7930,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T175634Z.json",
           "result": "GRADLE-CHECK 17:57:06Z..18:47:59Z(50m53s) exit 0; Kotlin 4713 / FRONTEND 534 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:b14cea2b73125912ae770d44b6bf5adaca45412859b69746d5aec9dd78a23db4",
           "supplementary": "WS4-cve1 PASS(~/gate-logs/WS4-cve1.log)"
+        },
+        {
+          "tag": "WS5-gate1",
+          "verdict": "PASS",
+          "screen": "승인함·내 요청",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T192723Z.json",
+          "result": "GRADLE-CHECK 19:27:53Z..20:17:59Z(50m06s) exit 0; Kotlin 4713 / FRONTEND 539 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:5b7309680262fdd168635681c7c966976e162ddc78a6558a779dc7ac43444083",
+          "supplementary": "WS5-cve1 PASS(~/gate-logs/WS5-cve1.log)"
         }
       ],
-      "nextResumeAction": "남은 화면: 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
+      "nextResumeAction": "APPROVAL-TARGET-KEYS-001 → 남은 화면: 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -8021,6 +8029,59 @@
         "browserCheck": {
           "how": "Demo admin rebuild 번들 + 명시 Demo fixture mock API, headless Chrome CDP — scratchpad admin-ui-ws4/harness.mjs",
           "result": "1440·1280·1101·1024·390 × light·dark × (대사 발견·매입 목록·매입 상세(재매입 요청 카드 포함)) = 30화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성·<style> 0, 대비 4.5 미만 0(브랜드 로고 큰 글자 제외), 콘솔 오류 0; 체크박스 수정 전·후 캡처(shots-before·shots)"
+        }
+      },
+      "approvalsScreens": {
+        "status": "DONE(WS5-gate1)",
+        "scope": "내 업무 › 승인함(ApprovalsScreen view=pending)·내 요청(view=mine)과 상세 3종(OwnerApprovalDetail·ReacquisitionApprovalDetail·MerchantContractApprovalDetail) 모양만 시안 moduleView/detail 구조로 — 대사 발견(96608d3)·거래 조회(16cc494) 선례 그대로. API 호출·TOTP 6자리 입력 후 승인/거절·등록자 안내(표시만 — 서버 403이 권위)·철회·상세 대상 종류·고정 값 대 현재 값 비교·근거 조회 버튼 표시 규칙(APPROVER·요청자 — 서버 판정·감사, 화면 상태에만)·등록 코드 1회 표시·오류 문구·세션 종료·PayCore 브랜드 유지, 샘플 데이터 없음",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 approvals·mine 추가(탭 없는 메뉴 — section.card 바로 안)",
+          "ApprovalsScreen.tsx: PageHeader·shadcn Table/Badge/Button → .mapnote(h2 승인함|내 요청 + 설명 span — 기존 설명 문구) → (오류 시) .cardnote ErrorNotice → .tablewrap(table '승인 대기 목록'|'내 승인 요청 목록', 열 그대로 종류·역할·원인·대상·요청자·상태·작업; 종류 strong 이름 + small code, 역할 .tag(title=code), 상태 tagClass .tag(title=code), 빈 목록 .empty) → .tablebottom '표시 N건' → (상세) .detailarea(eyebrow '승인함|내 요청 / 상세', h3 '승인 상세' + small 승인 ID) + 종류별 상세 카드. 결정 칸: 인증 코드 Field·Input 그대로(도움말 aria-describedby), 승인 .btn.primary·거절/철회/상세 .btn, 등록자 안내 .subtle",
+          "OwnerApprovalDetail.tsx: Card → section.card(region 이름 그대로) > .cardtop h4(종류 이름) → .cardbody(상태 .tag + 문구, 경보 WarningNote, 고정/현재 비교표 .tablewrap — 다른 값 행 bg-warning/10은 th에도, 항목 ul 그대로, 근거·사유 보기 .btn, 조회 결과 dl.notice)",
+          "ReacquisitionApprovalDetail.tsx: 같은 카드 구조, 레코드 비교표 .tablewrap(금액 열 .amount, '현재 같음/현재 …'는 td small), 근거 보기 .btn, 근거 dl.notice, 표시용 안내 .subtle",
+          "MerchantContractApprovalDetail.tsx: 같은 카드 구조(제목 = 종류별 KIND_TEXT.title), 고정 대상 ul·등록자 안내 WarningNote 그대로, 근거 보기 .btn, 근거 dl.notice",
+          "workspace.css 변경 없음(기존 .mapnote·.cardnote·.tablewrap·.empty·.tablebottom·.detailarea·.cardtop h4·.cardbody·.tag·.btn·.notice·.subtle만 사용)",
+          "시험: ApprovalsScreen.workspace.test.tsx 새로 4건(App 경유 승인함 구조·결정 양식·상세 영역, 내 요청 철회·빈 목록, 오류 .cardnote, 재매입 상세 카드·.tablewrap·근거 .notice), noRuntimeStyles 승인함 시험에 인증 코드 입력·근거·사유 열람 뒤 검사 추가 + 내 요청(철회·가맹점 코드 변경 상세) 새 1건"
+        ],
+        "selectorChanges": "없음 — 기존 ApprovalsScreen.test 3·owner·acquiring·merchant·activation·currency·codeChange·OwnerApprovalDetail.compare·App/WorkspaceShell/HomeScreen 단언·선택자 변경 없이 통과",
+        "deviations": [
+          "상세는 시안 drawer 대신 화면 안 .detailarea(가맹점 조회·거래 조회·매입 현황 선례). 승인 ID는 상세 카드 제목에서 .detailarea h3 small로 옮김(카드 h4는 종류 이름 — 보정 취소 카드 제목 '승인' → labelOf(kind))",
+          "시안에 승인 목록 화면이 없어(정산 '지급 검증·승인' moduleView·detail이 가장 가까움) 조회 조건 없는 목록 구성은 대사 발견과 같게: .filters 줄·탭·검색·CSV 없음, 표 아래 '표시 N건' 추가",
+          "거절 버튼: shadcn destructive(빨강) → 시안 .btn(시안에 위험 버튼 class 없음 — 새 색 도입 안 함). 승인과 거절은 이름으로 구분, 동작·비활성 조건 동일",
+          "근거·사유 조회 결과 상자는 시안 .notice + text-foreground(원본 .notice 글자 #64748b는 #f6f8fb에서 4.47:1 — AA 미달이라 본문 색), 다크는 기존 .notice 배경 #18233a + 본문 token",
+          "인증 코드 Field·Input(shadcn), ErrorNotice·WarningNote, 등록 코드 1회 표시 dialog(OneTimeCode — 계정 관리와 공유)는 기존 구성요소 유지",
+          "고정 대상 항목 목록(ul '라벨: 값' 문자열)은 그대로 — 시안 .detailgrid(label/strong)로 바꾸면 기존 시험이 단언하는 연속 문구('명령 시도 기회 수(…): 3' 등)가 깨지므로 유지"
+        ],
+        "internalKeyFinding": "기존 표시(이번 변경 전과 같음): 가맹점 대상 승인(targetKind MERCHANT)의 목록 '대상' 칸은 targetRef(mer_…)를, 계약·첫 MID·개통·Site 심사·통화 상세는 pinned merchantId(mer_…)를 그린다(코드 변경 상세만 미표시). 기존 시험 ApprovalsScreen.merchant.test.tsx가 목록의 mer_ 표시를 단언(getByText(MER))하므로 '모양만' 범위에서 바꾸지 않음 — D-ADMIN-UI-004 ③와 충돌, 별도 작업(ADMIN-HISTORY-KEYS-001과 같은 방식: 상호 · 가맹점 코드) 필요 여부는 Coordinator 판단",
+        "evidence": "~/gate-logs/admin-ui-ws5: baseline.log(11파일 91 통과, exit 0), red.log(새 시험 4 실패 — 구조 없음, noRuntimeStyles 9 통과, exit 1), green1.log(13파일 148 통과, exit 0), tsc.log(npx tsc -b exit 0)·tsc-force.log(npx tsc -b --force exit 0), full.log(Vitest 56파일 514 통과·실패 0, exit 0), sha256.txt — 각 로그에 명령·UTC 시각·exit 기록",
+        "contrast": "새 색 없음. 새 조합은 .notice 바탕 + 본문 token 글자뿐(라이트 #f6f8fb/본문, 다크 #18233a/본문 — 4.5:1 이상으로 판단, 측정 미실행)",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·가로 넘침·대비 실측 미실행(Demo 실행 중 — gradle·빌드 미실행). 표 안 인증 코드 Field 높이·버튼 정렬, 390px에서 결정 칸이 있는 표의 가로 스크롤 모양은 jsdom으로 확인 불가. 독립 리뷰·게이트 미실행",
+        "gate": "미실행",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부) + Coordinator 헤드리스 캡처(1440/1280/1101/1024/390 × 라이트·다크 40화면 — 페이지 넘침·PAYMENT/계정 fixture mer_/biz_·style 속성·대비 0; 1101px 승인함 작업 칸에서 인증 코드 칸·도움말 잘림 = MINOR-2 확인)",
+          "changes": [
+            "MINOR-1: 거절 버튼 className 'btn border-destructive-solid bg-destructive-solid text-white'(기존 token — shadcn destructive와 같은 바탕, 다크 #b91c1c 흰 글자 6.47:1), 단언 추가",
+            "NIT-3: 승인·거절 사이 세로 구분선(span aria-hidden bg-border) 제거",
+            "MINOR-2: 결정 칸을 세로로 — 인증 코드 Field(w-44 기존 값 + whitespace-normal로 도움말 줄바꿈) 위, 버튼 줄(승인·거절·철회·상세, DOM 순서 그대로) 아래; 기존 pt-6 정렬 제거. 새 크기 값 없음",
+            "NIT-1: 상세를 연 행 tr.selected(기존 규칙). 초점: 변경 전 코드(HEAD)에 focus 이동 없음(grep focus 0건) → 그대로"
+          ],
+          "followUps": [
+            "NIT-2: 근거 상자(.notice + text-foreground)와 다른 화면 안내 상자 모양 혼재 — 후속 기록만"
+          ],
+          "evidence": "~/gate-logs/admin-ui-ws5: fix1-red.log(구조 시험 1 실패 — 거절 class 없음, exit 1), fix1-green.log(14파일 161 통과, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 56파일 514 통과·실패 0, exit 0), fix1-sha256.txt",
+          "selectorChanges": "없음(기존 시험 무변경), 새 시험 ApprovalsScreen.workspace.test.tsx에 단언 추가만",
+          "notVerified": "수정 후 실제 브라우저 1101px 재캡처 미실행(Coordinator 몫)"
+        },
+        "review": "독립 리뷰 2026-11-17 REVIEW_PASS(조건부) — MINOR-1 거절 버튼 위험 색, MINOR-2 표 안 인증 코드 도움말 넘침, NIT-1 연 행 표시, NIT-3 구분선 → reviewFix1 반영; NIT-2(알림 모양 혼재) 후속",
+        "coordinatorFix": {
+          "reason": "브라우저 실측: 1101·1024px에서 표가 감싸는 칸보다 44~60px 넓어 작업 열(인증 코드 칸)이 가려짐",
+          "change": "종류 칸 whitespace-normal + code small break-all, 인증 코드 칸 w-44 → w-36(기존 utility만); 새 workspace 시험의 클래스 구조 기대값 1곳 갱신(주석)",
+          "evidence": "~/gate-logs/admin-ui-ws5/fix2-tsc.log exit=0, fix3-green.log 10파일 65건, fix3-full.log 56파일 514건 exit=0"
+        },
+        "browserCheck": {
+          "how": "Demo admin rebuild 번들 + 명시 Demo fixture(PAYMENT 대상 보정 취소·계정 승인) mock API, headless Chrome CDP — scratchpad admin-ui-ws5/harness.mjs",
+          "result": "1440·1280·1101·1024·390 × light·dark × (승인함 목록·상세(인증 코드 입력·근거 보기)·내 요청 목록·상세) = 40화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성 0, 콘솔 오류 0; 표 감싸는 칸 넘침 1024px 이상 0(390px은 칸 안 가로 스크롤 — 다른 표와 같음); 대비: 측정 스크립트가 oklch 색을 읽지 못해 라이트 거절 버튼을 1:1로 오탐 — 실제 흰 글자 on #e7000b(oklch 0.577 0.245 27.325) 약 4.77:1, 다크 #b91c1c 6.47:1",
+          "excluded": "가맹점 대상 승인 fixture는 기존 mer_ 표시 결함(APPROVAL-TARGET-KEYS-001)이라 제외"
         }
       }
     },
@@ -8240,6 +8301,22 @@
           "supplementary": "HK-cve1 PASS(~/gate-logs/HK-cve1.log, 취약점 0)"
         }
       ]
+    },
+    {
+      "id": "APPROVAL-TARGET-KEYS-001",
+      "title": "승인함·내 요청에서 가맹점 대상 승인의 내부 key(mer_) 비노출",
+      "status": "READY",
+      "request": "D-ADMIN-UI-004 ③·D-MCODE-003 위반 발견(승인함 시안 적용 작업 중 구현자 보고 2026-11-17) — 확정 결정 적용, 재질문 불필요",
+      "finding": "ApprovalsScreen 목록 대상 칸이 targetRef(mer_…)·행 aria-label에 그리고, 계약·첫 MID·개통·Site 심사·통화 상세가 pinned merchantId(mer_…)를 그린다(코드 변경 상세만 숨김). 기존 시험 ApprovalsScreen.merchant.test.tsx가 목록 mer_ 표시를 단언",
+      "fixDirection": "ADMIN-HISTORY-KEYS-001처럼 \"<상호> · <가맹점 코드>\" 표시(필요하면 ADMIN 응답에 라벨 — MERCHANT-CODE-001 D-MCODE-001 Q-MC-4 승인 대상 코드 전환·MC-3/MC-4와 겹치는지 먼저 확인), 기대값 변경은 결정 근거 주석",
+      "dependsOn": [],
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "apps/internal-admin/src/**",
+        "docs/repository/**"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3
     }
   ]
 }

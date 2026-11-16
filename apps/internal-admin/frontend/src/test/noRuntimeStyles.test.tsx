@@ -77,12 +77,33 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     const api = fakeApi({
       approvals: vi.fn(async () => ({ approvals: [ownerApproval] })), approvalDetail: vi.fn(async () => ownerApproval),
       paymentTarget: vi.fn(async () => ({ ...target, balanceRevision: 4, inFlightCancel: true })),
+      justification: vi.fn(async () => ({ approvalId: 'apr_P', purposeReference: 'RECON-2026-0001', reason: 'duplicate charge' })),
     })
     render(<ApprovalsScreen api={api} view="pending" canDecide viewer={{ actorId: 'adm_A', roles: ['APPROVER'] }} />)
     const row = await screen.findByRole('row', { name: /PENDING/ })
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
     const panel = await screen.findByRole('region', { name: '소유 서비스 실행 상세' })
     expect(await within(panel).findByText('승인 시 무효(TARGET_CHANGED) — TOTP가 소비됩니다')).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    // ADMIN-UI-WORKSPACE-001 승인함: 시안 구조(.tablewrap·.detailarea·카드)로 옮긴 뒤 결정 양식(인증 코드 입력)에 값을 넣고 근거·사유(.notice)를 연 상태에서도 style 속성·런타임 <style>이 없다.
+    await userEvent.type(within(row).getByLabelText('인증 코드(6자리)'), '123456')
+    await userEvent.click(within(panel).getByRole('button', { name: '근거·사유 보기' }))
+    expect(await within(panel).findByText('RECON-2026-0001')).toBeInTheDocument()
+    expectNoRuntimeStyles()
+  })
+
+  it('my requests (내 요청) with withdraw and an opened merchant approval detail', async () => {
+    const mer = { merchantId: 'mer_x', merchantName: '데모 가맹점', merchantCode: 'demo01' }
+    const codeChange: ApprovalView = {
+      ...ownerApproval, approvalId: 'apr_MC', kind: 'MERCHANT_CODE_CHANGE', targetKind: 'MERCHANT', targetRef: null, owner: undefined,
+      targetSnapshot: JSON.stringify({ merchantId: mer.merchantId, merchantName: mer.merchantName, currentCode: mer.merchantCode, newCode: 'demo02', reasonCode: 'TYPO_CORRECTION' }),
+    }
+    const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [codeChange] })), approvalDetail: vi.fn(async () => codeChange) })
+    render(<ApprovalsScreen api={api} view="mine" canDecide={false} viewer={{ actorId: 'adm_R', roles: ['OPERATOR'] }} />)
+    const row = await screen.findByRole('row', { name: /MERCHANT_CODE_CHANGE/ })
+    expect(within(row).getByRole('button', { name: '철회' })).toBeInTheDocument()
+    await userEvent.click(within(row).getByRole('button', { name: '상세' }))
+    expect(await screen.findByRole('region', { name: '가맹점 코드 변경 승인 상세' })).toHaveTextContent('demo01 → demo02')
     expectNoRuntimeStyles()
   })
 

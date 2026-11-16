@@ -3,12 +3,10 @@ import type { AdminApi, ApprovalView, PinnedReacquisitionItem, ReacquisitionEvid
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst, formatMinor } from '../lib/format'
-import { StatusBadge } from './DataBits'
+import { labelOf } from '../lib/labels'
+import { tagClass } from '../lib/statusTone'
 import { ErrorNotice, WarningNote } from './Notice'
 import { REACQUISITION_REASONS, REFUSALS } from './ReacquisitionRequest'
-import { Button } from './ui/button'
-import { Card, CardContent, CardHeader } from './ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 
 /** 고정 레코드(`pinned_target.items`) 모양이 다르면 null(비교하지 않는다). */
 function pinnedOf(value: unknown): PinnedReacquisitionItem[] | null {
@@ -90,17 +88,16 @@ export function ReacquisitionApprovalDetail({ api, item, viewer, onSessionEnded 
   const flags = [a?.resendHaltedReason, a?.integrityFlag].filter((v): v is string => typeof v === 'string' && v !== '')
 
   return (
-    <Card as="section" role="region" aria-label="재매입 승인 상세" className="gap-4 py-5">
-      <CardHeader className="px-5">
-        <h3 className="font-semibold">
-          재매입 승인 <span className="font-mono text-sm">{item.approvalId}</span>
-        </h3>
-        <div className="flex items-center gap-2 text-sm">
-          <StatusBadge code={item.status} />
+    // ADMIN-UI-WORKSPACE-001(승인함): 시안 상세 카드(.card > .cardtop h4 → .cardbody), 레코드 비교 표 .tablewrap, 근거 .notice. 승인 ID는 승인함 .detailarea 제목에 있다.
+    <section role="region" aria-label="재매입 승인 상세" className="card">
+      <div className="cardtop">
+        <h4>재매입 승인</h4>
+      </div>
+      <div className="cardbody">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={tagClass(item.status)} title={item.status}>{labelOf(item.status)}</span>
           <p>{statusText(item)}</p>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
         {flags.length > 0 && <WarningNote>{`조사 필요 — 수동 종료 없음 (${flags.join(', ')})`}</WarningNote>}
         {a && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -111,61 +108,64 @@ export function ReacquisitionApprovalDetail({ api, item, viewer, onSessionEnded 
           </ul>
         )}
         {mayAsk && (
-          <Button type="button" variant="outline" size="sm" onClick={reveal} className="self-start">
+          <button type="button" className="btn self-start" onClick={reveal}>
             근거 보기
-          </Button>
+          </button>
         )}
         {evidenceError && <ErrorNotice>{ERROR_MESSAGES[evidenceError]}</ErrorNotice>}
+        {/* 조회한 근거는 시안 .notice 상자 — 글자는 본문 색(text-foreground: 원본 .notice 글자 #64748b는 #f6f8fb 바탕에서 4.47:1로 AA 미달). */}
         {evidence && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md border bg-muted/50 p-3 text-sm">
-            <dt className="text-muted-foreground">근거 참조</dt>
-            <dd className="font-mono text-xs">{evidence.evidenceRef}</dd>
+          <dl className="notice grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-foreground">
+            <dt className="font-medium">근거 참조</dt>
+            <dd className="font-mono">{evidence.evidenceRef}</dd>
           </dl>
         )}
         {pinned && (
-          <Table aria-label="재매입 레코드 고정 값과 현재 값">
-            <TableHeader>
-              <TableRow>
-                <TableHead>순번</TableHead><TableHead>거래</TableHead><TableHead>고정 값(요청 시점)</TableHead><TableHead>현재 값</TableHead><TableHead>원승인액</TableHead>
-                <TableHead>받은 취소</TableHead><TableHead>예상 순액(고정 · 현재, 표시용)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pinned.map((p) => {
-                const c = now(p.seq)
-                const nowText = !compare ? '-' : c === undefined ? (failed ? '확인 불가' : '…') : `${c.generation ?? '-'} · ${c.status ?? '-'}${c.eligible ? '' : ` (불가: ${REFUSALS[c.refusal ?? ''] ?? c.refusal ?? '-'})`}`
-                const differs = c !== undefined && (!c.eligible || c.generation !== p.generation || c.status !== p.status)
-                return (
-                  <TableRow key={p.seq} aria-label={`고정 레코드 ${p.seq}`} className={differs ? 'bg-warning/10' : undefined}>
-                    <TableCell className="font-mono text-xs">{p.seq}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.transactionId}</TableCell>
-                    <TableCell className="font-mono text-xs">{`${p.generation} · ${p.status}`}</TableCell>
-                    <TableCell className="font-mono text-xs">{nowText}</TableCell>
-                    <TableCell>{formatMinor(p.approvedAmountMinor, 'KRW')}</TableCell>
-                    <TableCell>{formatMinor(p.cancelledAmountMinor, 'KRW')}</TableCell>
-                    <TableCell>
-                      {/* B1-A 리뷰 n-5: 고정 값(요청 시점)을 그대로 두고 현재 값은 따로 적는다 — 현재 값으로 조용히 바꾸지 않는다. */}
-                      <span>{formatMinor(p.expectedNetMinor, 'KRW')}</span>
-                      {compare && (
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          {c === undefined
-                            ? (failed ? '현재 확인 불가' : '')
-                            : c.expectedNetMinor === null
-                              ? '현재 -'
-                              : c.expectedNetMinor === p.expectedNetMinor ? '현재 같음' : `현재 ${formatMinor(c.expectedNetMinor, 'KRW')}`}
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <div className="tablewrap">
+            <table aria-label="재매입 레코드 고정 값과 현재 값">
+              <thead>
+                <tr>
+                  <th>순번</th><th>거래</th><th>고정 값(요청 시점)</th><th>현재 값</th><th className="amount">원승인액</th>
+                  <th className="amount">받은 취소</th><th className="amount">예상 순액(고정 · 현재, 표시용)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pinned.map((p) => {
+                  const c = now(p.seq)
+                  const nowText = !compare ? '-' : c === undefined ? (failed ? '확인 불가' : '…') : `${c.generation ?? '-'} · ${c.status ?? '-'}${c.eligible ? '' : ` (불가: ${REFUSALS[c.refusal ?? ''] ?? c.refusal ?? '-'})`}`
+                  const differs = c !== undefined && (!c.eligible || c.generation !== p.generation || c.status !== p.status)
+                  return (
+                    <tr key={p.seq} aria-label={`고정 레코드 ${p.seq}`} className={differs ? 'bg-warning/10' : undefined}>
+                      <td className="font-mono">{p.seq}</td>
+                      <td className="font-mono">{p.transactionId}</td>
+                      <td className="font-mono">{`${p.generation} · ${p.status}`}</td>
+                      <td className="font-mono">{nowText}</td>
+                      <td className="amount">{formatMinor(p.approvedAmountMinor, 'KRW')}</td>
+                      <td className="amount">{formatMinor(p.cancelledAmountMinor, 'KRW')}</td>
+                      <td className="amount">
+                        {/* B1-A 리뷰 n-5: 고정 값(요청 시점)을 그대로 두고 현재 값은 따로 적는다 — 현재 값으로 조용히 바꾸지 않는다. */}
+                        <span>{formatMinor(p.expectedNetMinor, 'KRW')}</span>
+                        {compare && (
+                          <small>
+                            {c === undefined
+                              ? (failed ? '현재 확인 불가' : '')
+                              : c.expectedNetMinor === null
+                                ? '현재 -'
+                                : c.expectedNetMinor === p.expectedNetMinor ? '현재 같음' : `현재 ${formatMinor(c.expectedNetMinor, 'KRW')}`}
+                          </small>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {failed && <WarningNote>현재 값 확인 불가</WarningNote>}
         {changed && <WarningNote>승인 시 무효(TARGET_CHANGED) — TOTP가 소비됩니다</WarningNote>}
-        {compare && <p className="text-xs text-muted-foreground">예상 순액은 표시용입니다. 금액은 실행 시점에 매입 정보 서비스가 받은 취소를 모두 반영해 다시 계산합니다.</p>}
-      </CardContent>
-    </Card>
+        {compare && <p className="subtle">예상 순액은 표시용입니다. 금액은 실행 시점에 매입 정보 서비스가 받은 취소를 모두 반영해 다시 계산합니다.</p>}
+      </div>
+    </section>
   )
 }

@@ -4,10 +4,8 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst } from '../lib/format'
 import { labelOf } from '../lib/labels'
-import { StatusBadge } from './DataBits'
+import { tagClass } from '../lib/statusTone'
 import { ErrorNotice, WarningNote } from './Notice'
-import { Button } from './ui/button'
-import { Card, CardContent, CardHeader } from './ui/card'
 
 /** MASTER 거절 → 화면 문구(MERCHANT-OPS-002 §9.5 — 모르는 code는 일반 문구). */
 export const MERCHANT_REJECTIONS: Readonly<Record<string, string>> = {
@@ -269,17 +267,16 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
   }
 
   return (
-    <Card as="section" role="region" aria-label={text.region} className="gap-4 py-5">
-      <CardHeader className="px-5">
-        <h3 className="font-semibold">
-          {title} <span className="font-mono text-sm">{item.approvalId}</span>
-        </h3>
-        <div className="flex items-center gap-2 text-sm">
-          <StatusBadge code={item.status} />
+    // ADMIN-UI-WORKSPACE-001(승인함): 시안 상세 카드(.card > .cardtop h4 → .cardbody), 근거 .notice. 승인 ID는 승인함 .detailarea 제목에 있다. 고정 대상 항목·문구·등록자 안내 조건은 그대로.
+    <section role="region" aria-label={text.region} className="card">
+      <div className="cardtop">
+        <h4>{title}</h4>
+      </div>
+      <div className="cardbody">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={tagClass(item.status)} title={item.status}>{labelOf(item.status)}</span>
           <p>{statusText(item)}</p>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
         {flags.length > 0 && <WarningNote>{`조사 필요 — 수동 종료 없음 (${flags.join(', ')})`}</WarningNote>}
         {registrant && item.status === 'PENDING' && <WarningNote>등록자는 승인할 수 없습니다 — 다른 승인자가 처리해야 합니다.</WarningNote>}
         {pinned && (
@@ -355,18 +352,19 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
           </ul>
         )}
         {mayAsk && (
-          <Button type="button" variant="outline" size="sm" onClick={reveal} className="self-start">
+          <button type="button" className="btn self-start" onClick={reveal}>
             근거 보기
-          </Button>
+          </button>
         )}
         {evidenceError && <ErrorNotice>{ERROR_MESSAGES[evidenceError]}</ErrorNotice>}
+        {/* 조회한 근거는 시안 .notice 상자 — 글자는 본문 색(text-foreground: 원본 .notice 글자 #64748b는 #f6f8fb 바탕에서 4.47:1로 AA 미달). */}
         {evidence && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md border bg-muted/50 p-3 text-sm">
-            <dt className="text-muted-foreground">{text.evidence}</dt>
-            <dd className="font-mono text-xs">{evidence.evidenceRef}</dd>
+          <dl className="notice grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-foreground">
+            <dt className="font-medium">{text.evidence}</dt>
+            <dd className="font-mono">{evidence.evidenceRef}</dd>
           </dl>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
