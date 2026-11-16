@@ -27,10 +27,17 @@ internal sealed interface MasterResponseShape {
         }
     }
 
-    class Text(private val format: Regex) : MasterResponseShape {
+    /**
+     * 문자열: 형식 정규식 + (선택) code point 길이 1..[maxCodePoints](TXN-LIST-ENRICH-001 M-4 — 정규식 `{n}`은 UTF-16 단위라 보충 문자를 2로 센다, 길이는 따로 센다). 기본은 길이 검사 없음
+     * (기존 모양 동작 불변).
+     */
+    class Text(private val format: Regex, private val maxCodePoints: Int? = null) : MasterResponseShape {
         override fun read(node: JsonNode?): String {
             require(node != null && node.isString) { "string" }
-            return node.asString().also { require(format.matches(it)) { "format" } }
+            return node.asString().also {
+                require(format.matches(it)) { "format" }
+                if (maxCodePoints != null) require(it.codePointCount(0, it.length) in 1..maxCodePoints) { "length" }
+            }
         }
     }
 
@@ -73,6 +80,13 @@ internal sealed interface MasterResponseShape {
         private val MERCHANT_CODE = Text(Regex("^[a-z][a-z0-9]{5,13}$"))
         private val COUNT = Whole(0)
         private const val MAX_ITEMS = 1_000
+
+        /**
+         * TXN-LIST-ENRICH-001 M-4: 상호 = MASTER `DisplayName` 규칙과 같은 검사 — 1..100 **code point**, ISO 제어문자(U+0000..U+001F, U+007F..U+009F)만 금지(U+2028·U+2029 허용),
+         * 짝 없는 서로게이트 금지(올바른 UTF-16), 앞뒤 공백 금지.
+         */
+        private val DISPLAY_NAME = Text(Regex("^(?! )[^\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+(?<! )$"), maxCodePoints = 100)
+        private val MERCHANT_ACCOUNT_ID = Text(Regex("^mid_$ULID$"))
 
         private fun obj(vararg fields: Pair<String, MasterResponseShape>) = Obj(linkedMapOf(*fields))
         private fun list(item: MasterResponseShape) = Arr(item, MAX_ITEMS)
@@ -198,6 +212,14 @@ internal sealed interface MasterResponseShape {
         val DECISION_REJECTED: MasterResponseShape = obj(
             "decision" to Text(Regex("^DECIDED$")), "operation" to Text(Regex("^(" + APPROVAL_REFERENCES.keys.joinToString("|") + ")$")), "outcome" to Text(Regex("^REJECTED$")),
             "rejection" to REJECTION, "approvalFingerprint" to MOP1, "decidedVia" to DECIDED_VIA,
+        )
+
+        /**
+         * TXN-LIST-ENRICH-001 §4.2·§4.4 라벨 묶음: 항목 정확 3키(MID·상호·현재 코드), 50개 이하. 내부 키(`merchantId`·`businessId`)·사업자·lifecycle이 오면 키 집합이 달라 해석 불가.
+         * 이 요청의 답인지(보낸 MID의 부분집합·중복 없음·오름차순)는 gateway가 따로 본다.
+         */
+        val MERCHANT_ACCOUNT_LABELS: MasterResponseShape = obj(
+            "items" to Arr(obj("merchantAccountId" to MERCHANT_ACCOUNT_ID, "merchantName" to DISPLAY_NAME, "merchantCode" to MERCHANT_CODE), max = 50),
         )
 
         val DETAIL: MasterResponseShape = obj(

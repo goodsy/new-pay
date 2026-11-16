@@ -13,6 +13,7 @@ import java.io.File
  * MERCHANT-CODE-001 MC-1-9 ADMIN 쪽(C-22 — MC-1 배포 단위가 ADMIN을 깨지 않음): MASTER `MerchantOpsShapeGoldenSpec`이 실제 응답 생성기로 만든 바이트와 같은 golden
  * `merchant-ops-response-shapes-v1.golden.json`(이 모듈 사본 — MASTER 원본과 바이트 동일 단언)을 `MasterResponseShape`로 해석한다: 목록 → `DIRECTORY`, 코드 검색 → 새 `DIRECTORY_BY_CODE`,
  * 상세 → `DETAIL` 모두 성공. 대조군: 목록에 `matchedRetiredCode`가 오면 `DIRECTORY` 해석 실패, 키 하나 빠지면 실패, 코드 형식 위반·이력 3개 실패.
+ * TXN-LIST-ENRICH-001 T-E2-10(N-2): 라벨 `accountLabels` → `MERCHANT_ACCOUNT_LABELS` 성공(MASTER 원본과 함께 갱신 — 위 바이트 동일 단언), 대조군: 내부 키 추가·키 누락 실패.
  */
 class MerchantCodeShapeGoldenSpec : BehaviorSpec({
 
@@ -55,6 +56,16 @@ class MerchantCodeShapeGoldenSpec : BehaviorSpec({
             parses(MasterResponseShape.DETAIL, copy("detail").also { it.remove("merchantCodeHistory") }) shouldBe false
             parses(MasterResponseShape.DETAIL, copy("detail").also { it.remove("merchantCodeChangeable") }) shouldBe false
             parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("merchant") as ObjectNode).put("registeredBy", "admin:adm_01JC00000000000000000000V1") }) shouldBe false
+        }
+
+        Then("T-E2-10 account labels → MERCHANT_ACCOUNT_LABELS parses (3 keys per item); an internal key or a missing key fails") {
+            val labels = MasterResponseShape.MERCHANT_ACCOUNT_LABELS.read(golden.get("accountLabels")) as Map<*, *>
+            (labels["items"] as List<*>).map { (it as Map<*, *>).values.toList() } shouldBe listOf(
+                listOf("mid_01JC0000000000000000000001", "데모상점", "demoshop01"), listOf("mid_01JC0000000000000000000002", "Demo Merchant", "shopxyz789"),
+            )
+            parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, copy("accountLabels").also { firstItem(it).put("merchantId", "mer_01JC0000000000000000000001") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, copy("accountLabels").also { firstItem(it).remove("merchantCode") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, golden.get("list")) shouldBe false
         }
 
         Then("MC-1-9 control: a code outside ^[a-z][a-z0-9]{5,13}$, an unknown source and a third history row fail") {

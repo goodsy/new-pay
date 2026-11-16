@@ -320,6 +320,25 @@ class ArchitectureSpec : FunSpec({
             .allowEmptyShould(false).check(classes)
     }
 
+    test("TXN-LIST-ENRICH-001 §5 (N-5): the merchant label client is used only by TransactionLookupService and merchantops.application; paymentops reaches merchantops only via provided; merchantops never knows paymentops") {
+        noClasses().that().resideInAPackage("$BASE_PACKAGE..")
+            .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.paymentops.application.") + "TransactionLookupService(\\$.*)?$")
+            .and().resideOutsideOfPackage("$BASE_PACKAGE.merchantops.application..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.merchantops.application.provided.MerchantLabelClient")
+            .allowEmptyShould(false).check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.paymentops..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.merchantops.domain..", "$BASE_PACKAGE.merchantops.adapter..", "$BASE_PACKAGE.merchantops.application.required..",
+            )
+            .allowEmptyShould(false).check(classes)
+        noClasses().that().resideInAPackage("$BASE_PACKAGE.merchantops..")
+            .should().dependOnClassesThat().resideInAPackage("$BASE_PACKAGE.paymentops..")
+            .allowEmptyShould(false).check(classes)
+        // 대조군: 규칙 대상이 실제로 있다(TransactionLookupService가 라벨 client를 쓴다 — 오타로 빈 규칙 통과 금지).
+        classes.get("$BASE_PACKAGE.paymentops.application.TransactionLookupService").directDependenciesFromSelf.map { it.targetClass.simpleName }.toSet() shouldContainAll
+            setOf("MerchantLabelClient", "TransactionListEnricher")
+    }
+
     test("no cycles between modules") {
         // 대상 있음: security 패키지.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)

@@ -47,7 +47,8 @@ class JooqAdminPaymentReader(private val dsl: DSLContext) : AdminPaymentReader {
             criteria.merchantAccountId != null -> p.forceIndex(MID_INDEX)
             else -> p.forceIndex(PERIOD_INDEX)
         }
-        dsl.select(p.PAYMENT_ID, p.ENVIRONMENT, p.MERCHANT_ACCOUNT_ID, p.MERCHANT_ORDER_ID, preview, truncated, p.AMOUNT_MINOR, p.CURRENCY, p.STATUS, createdAt)
+        // TXN-LIST-ENRICH-001 §4.1: 결제수단 1열 추가(Payment 행 본문을 이미 읽는다 — WHERE·색인·정렬 불변, 계획 시험 그대로).
+        dsl.select(p.PAYMENT_ID, p.ENVIRONMENT, p.MERCHANT_ACCOUNT_ID, p.MERCHANT_ORDER_ID, preview, truncated, p.AMOUNT_MINOR, p.CURRENCY, p.PAYMENT_METHOD, p.STATUS, createdAt)
             .hint(AdminReadLimits.HINT)
             .from(table)
             .where(conditions(criteria))
@@ -57,7 +58,8 @@ class JooqAdminPaymentReader(private val dsl: DSLContext) : AdminPaymentReader {
                 AdminPaymentListItem(
                     paymentId = r.get(p.PAYMENT_ID), environment = r.get(p.ENVIRONMENT), merchantAccountId = r.get(p.MERCHANT_ACCOUNT_ID),
                     merchantOrderId = r.get(p.MERCHANT_ORDER_ID), orderNamePreview = r.get(preview), orderNameTruncated = r.get(truncated) == 1,
-                    amountMinor = r.get(p.AMOUNT_MINOR), currency = r.get(p.CURRENCY), status = r.get(p.STATUS), createdAt = Instant.parse(r.get(createdAt)),
+                    amountMinor = r.get(p.AMOUNT_MINOR), currency = r.get(p.CURRENCY), paymentMethod = r.get(p.PAYMENT_METHOD), status = r.get(p.STATUS),
+                    createdAt = Instant.parse(r.get(createdAt)),
                 )
             }
     }

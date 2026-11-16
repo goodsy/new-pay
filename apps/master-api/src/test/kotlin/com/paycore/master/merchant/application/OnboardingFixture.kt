@@ -105,9 +105,10 @@ object OnboardingFixture {
     fun succeeded(result: AdminCommandResult): String = result.shouldBeInstanceOf<AdminCommandResult.Succeeded>().reference
 
     /** [contractActor]: 계약(Revision 1) 등록자 — B2-3 "등록자 = 승인자여도 MID 발급은 통과" 시험이 승인자로 바꾼다(기본 [operator] — 기존 시험 불변). */
-    fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true, contractActor: ActorRef = operator): ReadyMerchant {
+    /** [merchantName]: 상호(TXN-LIST-ENRICH-001 라벨 시험이 가맹점마다 다른 이름을 준다 — 기본 "Demo Merchant", 기존 시험 불변). */
+    fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true, contractActor: ActorRef = operator, merchantName: String = "Demo Merchant"): ReadyMerchant {
         val business = BusinessId(succeeded(service.registerBusiness(RegisterBusinessCommand(request(), registrationNumber(), DisplayName("Demo Business")))))
-        val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))
+        val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName(merchantName), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))
         val site = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val second = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val contract = ContractId(

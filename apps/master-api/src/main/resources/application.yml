@@ -48,3 +48,10 @@ logging:
     # 구조화 로그(연산·상관 ID, 값 없음)를 남기므로 원문 로그는 끈다. Hibernate 7 범주(org.hibernate.orm.jdbc.error)와 이전 이름 모두.
     org.hibernate.orm.jdbc.error: "OFF"
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
+paycore:
+  master:
+    admin-channel:
+      # TXN-LIST-ENRICH-001 §3.6(M-1): 거래 목록 라벨 조회 전용 permit(조회·명령 permit과 별개, 대기 0) — **Demo 값 2, 운영값 아님**(LIVE Gate).
+      # admin-channel의 나머지 값(키·창·조회/명령 permit)은 여기 두지 않는다 — 배포 환경이 주고, 없으면 웹 프로세스가 기동하지 않는다(기본값 없음 유지).
+      label-permits: 2

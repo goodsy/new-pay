@@ -26,8 +26,9 @@ class MasterOpsConfiguration {
     fun merchantApprovalPolicy(approval: MerchantApprovalSettings, settings: MasterOpsSettings): MerchantApprovalPolicy =
         approval.policy(settings.connectTimeout, settings.readTimeout)
 
+    /** TXN-LIST-ENRICH-001: 같은 객체가 라벨 Port(`MasterLabelGateway`)도 구현한다 — 반환 타입이 구현 타입이라 두 Port로 주입된다(PaymentOpsConfiguration과 같은 방식). */
     @Bean
-    fun masterOpsGateway(settings: MasterOpsSettings, environment: Environment): MasterOpsGateway {
+    fun masterOpsGateway(settings: MasterOpsSettings, environment: Environment): HttpMasterOpsGateway {
         startupGuard(
             environment.getProperty("server.servlet.context-path"), environment.getProperty("paycore.admin.deployment-mode"), settings,
             environment.getProperty(PAYMENT_KEY_ID), environment.getProperty(PAYMENT_KEY),

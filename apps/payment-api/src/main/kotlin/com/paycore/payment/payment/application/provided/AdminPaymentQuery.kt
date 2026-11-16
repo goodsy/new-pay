@@ -62,7 +62,10 @@ data class AdminPaymentSearchCriteria(
 
 data class AdminPaymentPage(val items: List<AdminPaymentListItem>, val nextCursor: AdminPaymentCursor?)
 
-/** 목록 항목(§3.3). [orderNamePreview]는 앞 10자(없으면 null), [orderNameTruncated]는 10자를 넘는가. */
+/**
+ * 목록 항목(§3.3). [orderNamePreview]는 앞 10자(없으면 null), [orderNameTruncated]는 10자를 넘는가. [paymentMethod]는 Payment 행의 결제수단 코드(TXN-LIST-ENRICH-001 §4.1 —
+ * PAYMENT 소유 `payment.payment_method`, 지금은 `CARD` = 신용 + 체크; card type은 목록에 넣지 않는다).
+ */
 data class AdminPaymentListItem(
     val paymentId: String,
     val environment: String,
@@ -72,6 +75,7 @@ data class AdminPaymentListItem(
     val orderNameTruncated: Boolean,
     val amountMinor: Long,
     val currency: String,
+    val paymentMethod: String,
     val status: String,
     val createdAt: Instant,
 ) {

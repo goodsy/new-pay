@@ -24,7 +24,7 @@ class MasterApprovalGatewaySpec : BehaviorSpec({
 
     StubMasterOpsServer.start()
     fun settings(read: Duration = Duration.ofSeconds(2)) = MasterOpsSettings(
-        "http://127.0.0.1:${StubMasterOpsServer.PORT}", StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, 2, 30, 10, 2, 20,
+        "http://127.0.0.1:${StubMasterOpsServer.PORT}", StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, 2, 30, 10, 2, 20, 2, Duration.ofMillis(100), // TXN-LIST-ENRICH-001: 라벨 permit·timeout(시험 값)
     )
     val gateway = settings().let { s -> HttpMasterOpsGateway(s, MasterCallSigner(s.keyId, s.signingKey())) { Instant.now() } }
     val op = MerchantApprovalOperation.APPROVE_CONTRACT_REVISION

@@ -1,12 +1,17 @@
 package com.paycore.admin.merchantops.adapter.integration
 
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation
+import com.paycore.admin.merchantops.application.provided.MerchantLabel
+import com.paycore.admin.merchantops.application.provided.MerchantAccountIdRules
+import com.paycore.admin.merchantops.application.provided.MerchantLabelFailure
+import com.paycore.admin.merchantops.application.provided.MerchantLabelResult
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalResult
 import com.paycore.admin.merchantops.application.provided.MerchantSearchCriteria
 import com.paycore.admin.merchantops.application.required.MasterCallResult
 import com.paycore.admin.merchantops.application.required.MasterCommand
 import com.paycore.admin.merchantops.application.required.MasterCommandKind
 import com.paycore.admin.merchantops.application.required.MasterCommandResult
+import com.paycore.admin.merchantops.application.required.MasterLabelGateway
 import com.paycore.admin.merchantops.application.required.MasterOpsGateway
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpMethod
@@ -14,6 +19,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.client.RestClient
+import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.InputStream
@@ -33,19 +39,75 @@ import java.util.concurrent.Semaphore
  * 4 KiB, 200은 성공·거절 두 모양 중 하나와 **정확히** 같아야 한다(거절에 `reference`가 오면 해석 불가 — C-12 fail-closed). 409 `IDEMPOTENCY_KEY_REUSED` → KeyReused,
  * 503 `ADMIN_WRITE_BUSY` → Busy, 503 `REQUEST_IN_PROGRESS`·`OUTCOME_UNKNOWN`·`TEMPORARILY_UNAVAILABLE` → RetrySameKey, timeout·연결 끊김·해석 불가·그 밖 상태 → **Unknown**
  * (효과 유무를 모른다 — 효과 없음으로 단정하지 않는다). 로그에 MASTER 멱등 키·본문 값이 없다.
+ *
+ * 라벨 묶음([accountLabels] — TXN-LIST-ENRICH-001 §3.6·§4.2·§4.4): 같은 서명기·키, **라벨 전용 permit**(조회 permit과 별개 — 라벨 폭주가 승인 결정 조회·가맹점 화면을 막지 않는다, M-1),
+ * **라벨 전용 HTTP client**(같은 connect timeout·프록시 없음·redirect NEVER, read timeout만 `label-read-timeout` — M-2), 응답 상한 64 KiB, 중복 JSON 키 거부(N-3 — 라벨 경로만),
+ * 200은 [MasterResponseShape.MERCHANT_ACCOUNT_LABELS] + 이 요청의 답(보낸 MID의 부분집합·중복 없음·오름차순) — 하나라도 어긋나면 전부 UNREADABLE. 상한 초과는 §8대로 UNAVAILABLE `RESPONSE_TOO_LARGE`(리뷰 M-a). 로그는 분류·건수만.
  */
-class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val signer: MasterCallSigner, private val clock: () -> Instant) : MasterOpsGateway {
+class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val signer: MasterCallSigner, private val clock: () -> Instant) : MasterOpsGateway, MasterLabelGateway {
 
     private val json: JsonMapper = JsonMapper.builder().build()
+    private val labelJson: JsonMapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
     private val permits = Semaphore(settings.permits)
     private val writePermits = Semaphore(settings.writePermits)
-    private val client: RestClient = RestClient.builder()
+    private val labelPermits = Semaphore(settings.labelPermits)
+    private val client: RestClient = client(settings.readTimeout)
+    private val labelClient: RestClient = client(settings.labelReadTimeout)
+
+    private fun client(readTimeout: java.time.Duration): RestClient = RestClient.builder()
         .requestFactory(
             JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY).followRedirects(HttpClient.Redirect.NEVER).connectTimeout(settings.connectTimeout).build(),
-            ).apply { setReadTimeout(settings.readTimeout) },
+            ).apply { setReadTimeout(readTimeout) },
         )
         .build()
+
+    override fun accountLabels(merchantAccountIds: List<String>): MerchantLabelResult {
+        check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (TXN-LIST-ENRICH-001 §6)" }
+        require(merchantAccountIds.size in 1..MerchantAccountIdRules.MAX_PER_CALL) { "1..${MerchantAccountIdRules.MAX_PER_CALL} merchant account ids" }
+        require(merchantAccountIds.all { MerchantAccountIdRules.FORMAT.matches(it) } && merchantAccountIds.zipWithNext().all { (a, b) -> a < b }) { "distinct sorted MIDs" }
+        if (!labelPermits.tryAcquire()) return MerchantLabelResult.Unavailable(MerchantLabelFailure.BUSY, LABELS_BUSY).also(::logLabels)
+        try {
+            val body = json.writeValueAsBytes(linkedMapOf("merchantAccountIds" to merchantAccountIds))
+            val result = when (val response = exchange(HttpMethod.POST, LABELS_PATH, body, MasterOpsSettings.LABEL_RESPONSE_MAX_BYTES, labelClient)) {
+                is Raw.Failed -> MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, response.failure)
+                // 리뷰 M-a(§8): 응답 상한 초과(readLimited → null)는 상태와 무관하게 UNAVAILABLE — 본문을 끝까지 읽지 않아 모양을 판정하지 않았으므로 UNREADABLE이 아니다.
+                is Raw.Http -> if (response.body == null) MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, TOO_LARGE) else when (response.status) {
+                    OK -> labels(response.body, merchantAccountIds)?.let { MerchantLabelResult.Found(it) }
+                        ?: MerchantLabelResult.Unavailable(MerchantLabelFailure.UNREADABLE, UNREADABLE)
+                    SERVICE_UNAVAILABLE -> if (errorCode(response.body) == "ADMIN_READ_BUSY") {
+                        MerchantLabelResult.Unavailable(MerchantLabelFailure.BUSY, "ADMIN_READ_BUSY")
+                    } else {
+                        MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, "HTTP_503")
+                    }
+                    else -> MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, "HTTP_${response.status}")
+                }
+            }
+            logLabels(result)
+            return result
+        } finally {
+            labelPermits.release()
+        }
+    }
+
+    /** 모양 + 이 요청의 답(전부 아니면 전무). 위반이면 null. */
+    @Suppress("UNCHECKED_CAST")
+    private fun labels(body: ByteArray?, sent: List<String>): Map<String, MerchantLabel>? = runCatching {
+        val node = labelJson.readTree(body?.takeIf { it.isNotEmpty() } ?: return null)
+        val items = (MasterResponseShape.MERCHANT_ACCOUNT_LABELS.read(node) as Map<String, Any?>)["items"] as List<Map<String, Any?>>
+        val mids = items.map { it["merchantAccountId"] as String }
+        val requested = sent.toSet()
+        if (mids.size > sent.size || !mids.all { it in requested } || mids.zipWithNext().any { (a, b) -> a >= b }) return null
+        items.associate { (it["merchantAccountId"] as String) to MerchantLabel(it["merchantName"] as String, it["merchantCode"] as String) }
+    }.getOrNull()
+
+    private fun logLabels(result: MerchantLabelResult) {
+        val text = when (result) {
+            is MerchantLabelResult.Found -> "FOUND items=${result.labels.size}"
+            is MerchantLabelResult.Unavailable -> "${result.failure}:${result.reason}"
+        }
+        log.info("operation=master-ops-account-labels result={}", text)
+    }
 
     override fun search(criteria: MerchantSearchCriteria): MasterCallResult {
         val body = linkedMapOf<String, Any>()
@@ -251,8 +313,8 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         class Failed(val failure: String) : Raw
     }
 
-    private fun exchange(method: HttpMethod, path: String, body: ByteArray, maxBytes: Int = MasterOpsSettings.RESPONSE_MAX_BYTES): Raw = try {
-        val request = client.method(method).uri(settings.baseUrl.resolve(path))
+    private fun exchange(method: HttpMethod, path: String, body: ByteArray, maxBytes: Int = MasterOpsSettings.RESPONSE_MAX_BYTES, via: RestClient = client): Raw = try {
+        val request = via.method(method).uri(settings.baseUrl.resolve(path))
             .header(MasterCallSigner.HEADER, signer.header(method.name(), path, clock().epochSecond, body))
             .accept(MediaType.APPLICATION_JSON)
         if (method == HttpMethod.POST) request.contentType(MediaType.APPLICATION_JSON).body(body)
@@ -288,6 +350,9 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         const val SEARCH_PATH = "/internal/v1/admin/merchant-searches"
         const val MERCHANTS_PATH = "/internal/v1/admin/merchants"
         const val COMMANDS_PATH = "/internal/v1/admin/merchant-operations"
+        const val LABELS_PATH = "/internal/v1/admin/merchant-account-labels"
+        const val LABELS_BUSY = "MASTER_LABELS_BUSY"
+        const val TOO_LARGE = "RESPONSE_TOO_LARGE"
         const val CONFLICT = 409
         const val SERVICE_UNAVAILABLE = 503
         const val BUSY = "MASTER_OPS_BUSY"

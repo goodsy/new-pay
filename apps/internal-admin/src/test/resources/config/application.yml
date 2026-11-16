@@ -69,6 +69,9 @@ paycore:
       # MERCHANT-OPS-002(시험 값 — Demo 2·20, 운영값 아님): 등록 명령 permit(조회와 별개)·등록 버킷.
       write-permits: 2
       registrations-per-minute: 1000
+      # TXN-LIST-ENRICH-001 §3.6(시험 값 — Demo 2·2s, 운영값 아님): 라벨 전용 permit·짧은 read timeout(read-timeout 2s보다 짧게 — 지연 상한 시험 T-E3-3).
+      label-permits: 2
+      label-read-timeout: 500ms
     # MERCHANT-OPS-002 B2-2(시험 값 = Demo 값 — 운영값 아님).
     merchant-ops:
       approval:

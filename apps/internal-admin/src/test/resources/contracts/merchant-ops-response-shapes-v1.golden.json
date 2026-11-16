@@ -1,5 +1,5 @@
 {
-  "_comment": "MERCHANT-CODE-001 MC-1-9 (C-22): MASTER merchant-ops response bodies produced by MerchantOpsJson + the admin-channel JSON mapper for fixed Demo values (not operational). ADMIN reads a byte-identical copy (apps/internal-admin/src/test/resources/contracts/) with MasterResponseShape. list = merchant-searches without merchantCode (10 item keys), codeSearch = merchant-searches with merchantCode (11 item keys, matchedRetiredCode), detail = GET /merchants/{id} (+ merchant.merchantCode, merchantCodeHistory, merchantCodeChangeable).",
+  "_comment": "MERCHANT-CODE-001 MC-1-9 (C-22): MASTER merchant-ops response bodies produced by MerchantOpsJson + the admin-channel JSON mapper for fixed Demo values (not operational). ADMIN reads a byte-identical copy (apps/internal-admin/src/test/resources/contracts/) with MasterResponseShape. list = merchant-searches without merchantCode (10 item keys), codeSearch = merchant-searches with merchantCode (11 item keys, matchedRetiredCode), detail = GET /merchants/{id} (+ merchant.merchantCode, merchantCodeHistory, merchantCodeChangeable). TXN-LIST-ENRICH-001 E-2 (T-E2-10): accountLabels = POST /merchant-account-labels (items: merchantAccountId, merchantName, merchantCode - no mer_/biz_ keys).",
   "list": {
     "items": [
       {
@@ -102,5 +102,19 @@
       }
     ],
     "merchantCodeChangeable": false
+  },
+  "accountLabels": {
+    "items": [
+      {
+        "merchantAccountId": "mid_01JC0000000000000000000001",
+        "merchantName": "데모상점",
+        "merchantCode": "demoshop01"
+      },
+      {
+        "merchantAccountId": "mid_01JC0000000000000000000002",
+        "merchantName": "Demo Merchant",
+        "merchantCode": "shopxyz789"
+      }
+    ]
   }
 }

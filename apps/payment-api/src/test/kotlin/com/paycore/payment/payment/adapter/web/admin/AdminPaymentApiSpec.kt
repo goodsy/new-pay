@@ -110,8 +110,11 @@ class AdminPaymentApiSpec(
             list.json.get("nextCursor").isNull shouldBe true
             val item = list.json.get("items").single()
             item.propertyNames().toList() shouldBe listOf(
-                "paymentId", "environment", "merchantAccountId", "merchantOrderId", "orderNamePreview", "orderNameTruncated", "amountMinor", "currency", "status", "createdAt",
+                // TXN-LIST-ENRICH-001 T-E1-1(기대값 변경): 11키 — `paymentMethod`가 `currency` 뒤·`status` 앞.
+                "paymentId", "environment", "merchantAccountId", "merchantOrderId", "orderNamePreview", "orderNameTruncated", "amountMinor", "currency", "paymentMethod",
+                "status", "createdAt",
             )
+            item.get("paymentMethod").asString() shouldBe "CARD"
             item.get("paymentId").asString() shouldBe a.paymentId.value
             item.get("orderNamePreview").asString() shouldBe "가나다라마바사아자차"
             item.get("orderNameTruncated").asBoolean() shouldBe true

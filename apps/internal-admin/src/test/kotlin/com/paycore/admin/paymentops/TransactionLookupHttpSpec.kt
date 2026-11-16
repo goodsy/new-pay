@@ -11,6 +11,7 @@ import com.paycore.admin.paymentops.adapter.web.TransactionController
 import com.paycore.admin.support.AdminDbAccounts
 import com.paycore.admin.support.AdminDbTest
 import com.paycore.admin.support.AdminHttpClient
+import com.paycore.admin.support.StubMasterOpsServer
 import com.paycore.admin.support.StubPaymentOpsServer
 import com.paycore.admin.support.column
 import io.kotest.assertions.withClue
@@ -233,6 +234,49 @@ class TransactionLookupHttpSpec(
             val before = searches()
             client.perform(post("/api/payment-searches").contentType(MediaType.APPLICATION_JSON).content(byOrder), xsrf = false).status shouldBe 403
             searches() shouldBe before
+        }
+    }
+
+    Given("TXN-LIST-ENRICH-001 E-3 a PAYMENT page whose MIDs MASTER can label") {
+        StubMasterOpsServer.start()
+        val mid = "mid_01JE" + (++seq).toString().padStart(22, '0')
+        val labelOrder = "order-label-" + seq
+        StubPaymentOpsServer.search(labelOrder, StubPaymentOpsServer.Reply(200, TransactionJson.list(TransactionJson.item(paymentId(), orderId = labelOrder, mid = mid))))
+        val body = """{"merchantAccountId":"$mid","merchantOrderId":"$labelOrder"}"""
+
+        Then("T-E3-8 the screen list carries paymentMethod, merchant {name, code} and merchantLabels OK — no internal key; one signed MASTER call with the PAYMENT MID") {
+            StubMasterOpsServer.reply(StubMasterOpsServer.ACCOUNT_LABELS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.labelsJson(Triple(mid, "데모상점", "demoshop01"))))
+            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.ACCOUNT_LABELS).size
+            val viewer = loggedIn(withRole(AdminRole.VIEWER))
+            val list = search(viewer, body)
+            list.status shouldBe 200
+            val text = list.contentAsString
+            text shouldContain "\"paymentMethod\":\"CARD\""
+            text shouldContain "\"merchant\":{\"name\":\"데모상점\",\"code\":\"demoshop01\"}"
+            text shouldContain "\"merchantLabels\":\"OK\""
+            text shouldNotContain "mer_"
+            text shouldNotContain "biz_"
+            val sent = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.ACCOUNT_LABELS).drop(before).single()
+            sent.signatureValid shouldBe true
+            String(sent.body, Charsets.UTF_8) shouldBe """{"merchantAccountIds":["$mid"]}"""
+        }
+
+        Then("T-E3-3 (M-2) a slow MASTER: still 200 with the PAYMENT list, merchantLabels UNAVAILABLE, within the label timeout bound (not the general read timeout)") {
+            StubMasterOpsServer.reply(
+                StubMasterOpsServer.ACCOUNT_LABELS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.labelsJson(Triple(mid, "데모상점", "demoshop01")), delayMillis = 3_000),
+            )
+            val viewer = loggedIn(withRole(AdminRole.VIEWER))
+            val unavailableBefore = registry.find("paycore.admin.ops.transaction_merchant_labels").tag("result", "UNAVAILABLE").counter()?.count() ?: 0.0
+            val started = System.nanoTime()
+            val list = search(viewer, body)
+            val elapsed = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+            list.status shouldBe 200
+            list.contentAsString shouldContain "\"merchantLabels\":\"UNAVAILABLE\""
+            list.contentAsString shouldContain "\"merchant\":null"
+            list.contentAsString shouldContain labelOrder
+            withClue("elapsed=$elapsed") { (elapsed < 1_800) shouldBe true }
+            registry.find("paycore.admin.ops.transaction_merchant_labels").tag("result", "UNAVAILABLE").counter()!!.count() shouldBe unavailableBefore + 1.0
+            StubMasterOpsServer.reply(StubMasterOpsServer.ACCOUNT_LABELS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.labelsJson(Triple(mid, "데모상점", "demoshop01"))))
         }
     }
 

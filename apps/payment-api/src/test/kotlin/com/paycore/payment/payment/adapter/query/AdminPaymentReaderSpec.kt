@@ -226,6 +226,8 @@ class AdminPaymentReaderSpec(
                 Triple(ten.paymentId.value, "0123456789", false),
                 Triple(none.paymentId.value, null, false),
             )
+            // TXN-LIST-ENRICH-001 T-E1-1: 목록 항목에 결제수단(PAYMENT 소유 `payment.payment_method`).
+            items.map { it.paymentMethod } shouldBe listOf("CARD", "CARD", "CARD")
             // 목록 경로의 어떤 값에도 전체 이름이 없다(SQL LEFT로만 읽는다 — I-5).
             JsonMapper.builder().build().writeValueAsString(items) shouldNotContain "카타파하"
             // 상세(감사 대상)는 전체 이름.

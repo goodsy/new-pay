@@ -100,8 +100,9 @@ internal sealed interface PaymentResponseShape {
             "items" to Arr(
                 obj(
                     "paymentId" to PAYMENT_ID, "environment" to ENVIRONMENT, "merchantAccountId" to REF, "merchantOrderId" to REF,
-                    "orderNamePreview" to opt(ORDER_NAME_PREVIEW), "orderNameTruncated" to Flag, "amountMinor" to AMOUNT, "currency" to CURRENCY, "status" to CODE,
-                    "createdAt" to TIME,
+                    "orderNamePreview" to opt(ORDER_NAME_PREVIEW), "orderNameTruncated" to Flag, "amountMinor" to AMOUNT, "currency" to CURRENCY,
+                    // TXN-LIST-ENRICH-001 E-1(§4.4): 결제수단 코드(PAYMENT 소유 — 열거 고정 안 함, 형식만). PAYMENT와 같은 배포 단위(L-2 — 정확 키 집합).
+                    "paymentMethod" to CODE, "status" to CODE, "createdAt" to TIME,
                 ),
                 MAX_ITEMS,
             ),

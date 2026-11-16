@@ -5,6 +5,9 @@ import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionView
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
+import com.paycore.admin.merchantops.application.provided.MerchantLabel
+import com.paycore.admin.merchantops.application.provided.MerchantLabelClient
+import com.paycore.admin.merchantops.application.provided.MerchantLabelResult
 import com.paycore.admin.paymentops.application.provided.TransactionLookupResult
 import com.paycore.admin.paymentops.application.provided.TransactionLookupUseCase
 import com.paycore.admin.paymentops.application.provided.TransactionSearchCriteria
@@ -27,12 +30,16 @@ import java.util.concurrent.ConcurrentHashMap
  * 상세(D-TXOPS-002): PAYMENT가 답하면(FOUND·NOT_FOUND) `PAYMENT_VIEWED` 감사 1행(targetRef = paymentId)을 **로컬 TX로 먼저 기록하고** 결과를 돌려준다. 감사 실패 → AuditUnavailable(결과 미반환).
  * PAYMENT 불가는 본 것이 없어 감사하지 않는다. 검색(결제 ID 정확 조회 포함)은 감사하지 않는다.
  * 로그에는 연산·결과 분류만(MID·주문번호·결제 ID·주문명 없음).
+ * TXN-LIST-ENRICH-001 §3.2·§3.3(E-3): 검색 결과(PAYMENT FOUND)에 가맹점 라벨을 붙인다 — **PAYMENT 응답 항목의** 고유 MID(형식 맞는 것만, 정렬)를 MASTER에 한 번([MerchantLabelClient], DB TX 밖,
+ * 라벨 전용 permit·timeout). 0개면 부르지 않는다. 라벨 실패는 목록을 막지 않는다(`merchantLabels: "UNAVAILABLE"`, 항목 `merchant: null`). PAYMENT 실패면 MASTER를 부르지 않는다.
+ * 속도 창은 검색 1회분만(라벨 조회는 별도 창 없음 — C-4). 감사 없음. 상세(E-4 §4.5)도 PAYMENT FOUND일 때만 같은 방식으로 붙인 뒤 감사한다(NOT_FOUND·불가 → MASTER 미호출).
  */
 @Service
 class TransactionLookupService(
     transactionManager: PlatformTransactionManager,
     private val sessions: AdminSessionQuery,
     private val gateway: PaymentReadGateway,
+    private val labels: MerchantLabelClient,
     private val recorder: AdminAuditRecorder,
     private val timings: PaymentOpsTimings,
     private val metrics: TransactionOpsMetrics,
@@ -46,7 +53,9 @@ class TransactionLookupService(
         if (!wellFormed(criteria)) return TransactionLookupResult.InvalidInput
         if (!admit(viewerActorId)) return rateLimited()
         return when (val result = gateway.searchPayments(criteria)) {
-            is PaymentReadResult.Found -> TransactionLookupResult.Found(result.document)
+            is PaymentReadResult.Found -> TransactionLookupResult.Found(
+                TransactionListEnricher.list(result.document, labelsFor(TransactionListEnricher.listTargets(result.document))),
+            )
             PaymentReadResult.NotFound -> TransactionLookupResult.Unavailable(UNEXPECTED_NOT_FOUND)
             is PaymentReadResult.Unavailable -> TransactionLookupResult.Unavailable(result.reason)
         }.also { log.info("operation=transaction-search result={}", it.javaClass.simpleName) }
@@ -62,11 +71,31 @@ class TransactionLookupService(
         if (!PAYMENT_ID.matches(paymentId)) return TransactionLookupResult.InvalidInput
         if (!admit(viewerActorId)) return rateLimited()
         return when (val result = gateway.paymentDetail(paymentId)) {
-            is PaymentReadResult.Found -> audited(viewer, context, "OK", paymentId) { TransactionLookupResult.Found(result.document) }
+            // TXN-LIST-ENRICH-001 E-4(§4.5): FOUND만 라벨을 붙인다(실패해도 진행 — DB TX 밖) → 감사 → 반환. 감사 실패면 라벨·상세 모두 반환하지 않는다.
+            is PaymentReadResult.Found -> {
+                val labeled = TransactionListEnricher.detail(result.document, labelsFor(listOfNotNull(TransactionListEnricher.detailTarget(result.document))))
+                audited(viewer, context, "OK", paymentId) { TransactionLookupResult.Found(labeled) }
+            }
             PaymentReadResult.NotFound -> audited(viewer, context, "NOT_FOUND", paymentId) { TransactionLookupResult.NotFound }
             // PAYMENT가 답하지 않았다 — 본 것이 없어 감사하지 않는다(§5.1).
             is PaymentReadResult.Unavailable -> TransactionLookupResult.Unavailable(result.reason)
         }.also { log.info("operation=transaction-detail result={}", it.javaClass.simpleName) }
+    }
+
+    /**
+     * 라벨 조회(§3.3 — fail-open): 대상이 없으면 부르지 않고 빈 라벨(OK·SKIPPED). 실패면 null(UNAVAILABLE). 지표 분류만 남기고 MID·상호·코드는 로그·지표에 없다.
+     * fail-open은 Port가 **값으로 돌려준** [MerchantLabelResult.Unavailable]만 덮는다(gateway가 timeout·연결·상태·상한·모양 위반을 모두 값으로 바꾼다).
+     * 여기서 예외를 잡지 않는다 — 예기치 않은 예외(TX 안 호출 거부 `IllegalStateException`, 잘못된 MID 목록 `IllegalArgumentException` 등)는 프로그래밍 오류라 500으로 드러나야 한다.
+     */
+    private fun labelsFor(targets: List<String>): Map<String, MerchantLabel>? {
+        if (targets.isEmpty()) return emptyMap<String, MerchantLabel>().also { metrics.merchantLabels(SKIPPED) }
+        return when (val result = labels.labels(targets)) {
+            is MerchantLabelResult.Found -> result.labels.also { metrics.merchantLabels(TransactionListEnricher.OK) }
+            is MerchantLabelResult.Unavailable -> null.also {
+                metrics.merchantLabels(result.failure.name)
+                log.info("operation=transaction-merchant-labels result={} requested={}", result.failure, targets.size)
+            }
+        }
     }
 
     private fun viewer(actorId: String): AdminSessionView? =
@@ -159,5 +188,6 @@ class TransactionLookupService(
         const val MINUTE_MS = 60_000L
         const val VIEWED = "PAYMENT_VIEWED"
         const val UNEXPECTED_NOT_FOUND = "UNEXPECTED_NOT_FOUND"
+        const val SKIPPED = "SKIPPED"
     }
 }

@@ -6,6 +6,8 @@ import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionView
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
+import com.paycore.admin.merchantops.application.provided.MerchantLabelClient
+import com.paycore.admin.merchantops.application.provided.MerchantLabelResult
 import com.paycore.admin.paymentops.application.TransactionLookupService
 import com.paycore.admin.paymentops.application.provided.TransactionLookupResult
 import com.paycore.admin.paymentops.application.provided.TransactionSearchCriteria
@@ -69,6 +71,13 @@ class TransactionLookupServiceSpec : BehaviorSpec({
                     return detailReply
                 }
             },
+            // TXN-LIST-ENRICH-001 E-3: 라벨 client(이 시험의 결제 문서에는 MID 형식 값이 없어 부르지 않는다 — 부르면 기록된다).
+            object : MerchantLabelClient {
+                override fun labels(merchantAccountIds: List<String>): MerchantLabelResult {
+                    events += "labels"
+                    return MerchantLabelResult.Found(emptyMap())
+                }
+            },
             object : AdminAuditRecorder {
                 override fun record(record: AuditRecord) {
                     events += "audit"
@@ -93,6 +102,8 @@ class TransactionLookupServiceSpec : BehaviorSpec({
                 override fun rateLimited() {
                     rateLimited++
                 }
+
+                override fun merchantLabels(result: String) = Unit
             },
         )
         val actor get() = view.actorId

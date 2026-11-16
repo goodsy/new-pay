@@ -68,7 +68,8 @@ class AdminPaymentController(
     private fun item(v: AdminPaymentListItem) = linkedMapOf<String, Any?>(
         "paymentId" to v.paymentId, "environment" to v.environment, "merchantAccountId" to v.merchantAccountId, "merchantOrderId" to v.merchantOrderId,
         "orderNamePreview" to v.orderNamePreview, "orderNameTruncated" to v.orderNameTruncated, "amountMinor" to v.amountMinor, "currency" to v.currency,
-        "status" to v.status, "createdAt" to AdminChannelResponses.time(v.createdAt),
+        // TXN-LIST-ENRICH-001 §4.1: 11키 — `paymentMethod`는 `currency` 뒤·`status` 앞(순서 고정, golden admin-payment-list-v1). ADMIN과 같은 배포 단위(L-2).
+        "paymentMethod" to v.paymentMethod, "status" to v.status, "createdAt" to AdminChannelResponses.time(v.createdAt),
     )
 
     private fun detail(d: AdminPaymentDetail): Map<String, Any?> = linkedMapOf(

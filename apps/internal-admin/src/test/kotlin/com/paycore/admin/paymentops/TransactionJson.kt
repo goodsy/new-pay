@@ -8,10 +8,20 @@ object TransactionJson {
     const val ORDER_FULL = "가나다라마바사아자차카타파하"
     const val ORDER_PREVIEW = "가나다라마바사아자차"
 
-    fun item(paymentId: String, createdAt: String = "2026-11-01T01:02:03.456Z", preview: String? = ORDER_PREVIEW, truncated: Boolean = true, orderId: String = "order-77") =
-        "{\"paymentId\":\"$paymentId\",\"environment\":\"TEST\",\"merchantAccountId\":\"mid-demo-1\",\"merchantOrderId\":\"$orderId\"," +
-            "\"orderNamePreview\":${preview?.let { "\"$it\"" } ?: "null"},\"orderNameTruncated\":$truncated,\"amountMinor\":10000,\"currency\":\"KRW\",\"status\":\"AUTHORIZED\"," +
-            "\"createdAt\":\"$createdAt\"}"
+    /** 목록 항목(11키 — TXN-LIST-ENRICH-001 E-1: `paymentMethod`가 `currency` 뒤·`status` 앞). [mid]는 PAYMENT 응답 MID(기본은 형식 밖 값 — 라벨 조회 대상 아님). */
+    fun item(
+        paymentId: String,
+        createdAt: String = "2026-11-01T01:02:03.456Z",
+        preview: String? = ORDER_PREVIEW,
+        truncated: Boolean = true,
+        orderId: String = "order-77",
+        mid: String = "mid-demo-1",
+        paymentMethod: String = "CARD",
+        environment: String = "TEST",
+    ) =
+        "{\"paymentId\":\"$paymentId\",\"environment\":\"$environment\",\"merchantAccountId\":\"$mid\",\"merchantOrderId\":\"$orderId\"," +
+            "\"orderNamePreview\":${preview?.let { "\"$it\"" } ?: "null"},\"orderNameTruncated\":$truncated,\"amountMinor\":10000,\"currency\":\"KRW\"," +
+            "\"paymentMethod\":\"$paymentMethod\",\"status\":\"AUTHORIZED\",\"createdAt\":\"$createdAt\"}"
 
     fun list(vararg items: String, next: String? = null) =
         "{\"items\":[${items.joinToString(",")}],\"nextCursor\":${next?.let { "{\"createdAt\":\"2026-11-01T01:02:03.456Z\",\"paymentId\":\"$it\"}" } ?: "null"}}"

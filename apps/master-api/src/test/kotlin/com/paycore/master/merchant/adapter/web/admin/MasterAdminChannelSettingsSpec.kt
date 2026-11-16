@@ -50,21 +50,25 @@ class MasterAdminChannelSettingsSpec : BehaviorSpec({
     Given("settings validation (no defaults, Demo values are not operating values)") {
         val key = AdminChannelSettings.SigningKey(MasterAdminChannelFixture.K1, admin1)
         Then("key count, id format, key length, window range/whole seconds and permits are enforced") {
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(emptyList(), Duration.ofSeconds(300), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key, key, key), Duration.ofSeconds(300), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("bad id", admin1)), Duration.ofSeconds(300), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("k", "c2hvcnQ=")), Duration.ofSeconds(300), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMinutes(11), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMillis(1500), 4, 2) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 0, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(emptyList(), Duration.ofSeconds(300), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key, key, key), Duration.ofSeconds(300), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("bad id", admin1)), Duration.ofSeconds(300), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(AdminChannelSettings.SigningKey("k", "c2hvcnQ=")), Duration.ofSeconds(300), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMinutes(11), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofMillis(1500), 4, 2, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 0, 2, 2) }
             // MERCHANT-OPS-002 §3.1 C-1: 명령 permit 1..16(대기 0 — Demo 2).
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 0) }
-            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 17) }
-            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 16).writePermits shouldBe 16
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 0, 2) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 17, 2) }
+            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 16, 2).writePermits shouldBe 16
+            // TXN-LIST-ENRICH-001 §3.6(M-1): 라벨 permit 1..16(대기 0 — Demo 2, 조회·명령 permit과 별개).
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 2, 0) }
+            shouldThrow<IllegalArgumentException> { AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 2, 17) }
+            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 2, 16).labelPermits shouldBe 16
             shouldThrow<IllegalArgumentException> { AdminChannelSettings.SigningKey("k", "not base64 !") }.message!! shouldNotContain "not base64"
         }
         Then("toString never shows a secret") {
-            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 2).toString() shouldNotContain admin1
+            AdminChannelSettings(listOf(key), Duration.ofSeconds(300), 4, 2, 2).toString() shouldNotContain admin1
             key.toString() shouldNotContain admin1
         }
         Then("a context path is refused; the permits answer busy without waiting when exhausted") {
@@ -93,6 +97,7 @@ class MasterAdminChannelSettingsSpec : BehaviorSpec({
             "paycore.master.admin-channel.clock-window=PT300S",
             "paycore.master.admin-channel.read-permits=4",
             "paycore.master.admin-channel.write-permits=2",
+            "paycore.master.admin-channel.label-permits=2",
             "paycore.master.admin-channel.signing-keys[0].key-id=${MasterAdminChannelFixture.K1}",
             "paycore.master.admin-channel.signing-keys[0].secret=$admin1",
         )
@@ -114,6 +119,13 @@ class MasterAdminChannelSettingsSpec : BehaviorSpec({
             withoutWrite.size shouldBe base.size - 1
             web.withPropertyValues(*withoutWrite).run { it.startupFailure.shouldNotBeNull() }
             web.withPropertyValues(*withoutWrite, "paycore.master.admin-channel.write-permits=17").run { it.startupFailure.shouldNotBeNull() }
+            web.withPropertyValues(*base).run { it.startupFailure shouldBe null }
+        }
+        Then("TXN-LIST-ENRICH-001 §3.6: label-permits has no default — without it a servlet web context does not start; out of range does not start either") {
+            val withoutLabel = base.filterNot { it.startsWith("paycore.master.admin-channel.label-permits") }.toTypedArray()
+            withoutLabel.size shouldBe base.size - 1
+            web.withPropertyValues(*withoutLabel).run { it.startupFailure.shouldNotBeNull() }
+            web.withPropertyValues(*withoutLabel, "paycore.master.admin-channel.label-permits=17").run { it.startupFailure.shouldNotBeNull() }
             web.withPropertyValues(*base).run { it.startupFailure shouldBe null }
         }
         Then("a non-web context (one-shot command) needs no admin-channel settings") {

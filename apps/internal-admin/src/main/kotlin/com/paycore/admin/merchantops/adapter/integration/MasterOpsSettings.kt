@@ -14,6 +14,8 @@ import java.util.Base64
  * - permit: 전용 조회 permit(대기 0 — PAYMENT ops permit과 별개: MASTER 장애가 승인·결제 운영을 막지 않는다).
  * - 속도 제한: [lookupPerMinute](목록·상세·이력), [registrationNumberSearchesPerMinute](등록번호 검색 — oracle 방어, 사업자 등록 명령도 1회 예약 — MERCHANT-OPS-002 C-13),
  *   [registrationsPerMinute](등록 명령 — MERCHANT-OPS-002 §4.4). 등록 명령 permit [writePermits](조회와 별개 — C-1).
+ * - TXN-LIST-ENRICH-001 §3.6: 거래 목록 라벨 조회 전용 permit [labelPermits](조회 permit — 승인 결정 조회 포함 — 과 별개, 대기 0, 1..16 — M-1)와 라벨 전용 read timeout
+ *   [labelReadTimeout]([readTimeout] 이하 — M-2: MASTER 지연이 목록을 일반 read timeout까지 붙잡지 않는다). 둘 다 기본값 없음.
  * toString에 키가 없다.
  */
 @ConfigurationProperties(prefix = "paycore.admin.master-ops")
@@ -28,6 +30,8 @@ class MasterOpsSettings(
     registrationNumberSearchesPerMinute: Int?,
     writePermits: Int?,
     registrationsPerMinute: Int?,
+    labelPermits: Int?,
+    labelReadTimeout: Duration?,
 ) : MerchantOpsLimits {
     val baseUrl: URI = URI.create(required(baseUrl, "base-url"))
     val keyId: String = required(keyId, "key-id")
@@ -43,6 +47,12 @@ class MasterOpsSettings(
     val writePermits: Int = requireNotNull(writePermits) { "paycore.admin.master-ops.write-permits is required" }
     override val registrationsPerMinute: Int = requireNotNull(registrationsPerMinute) { "paycore.admin.master-ops.registrations-per-minute is required" }
 
+    /** 라벨 조회 전용 permit(TXN-LIST-ENRICH-001 §3.6 M-1 — 대기 0, 1..16). */
+    val labelPermits: Int = requireNotNull(labelPermits) { "paycore.admin.master-ops.label-permits is required" }
+
+    /** 라벨 조회 전용 read timeout(§3.6 M-2 — [readTimeout] 이하). */
+    val labelReadTimeout: Duration = positive(labelReadTimeout, "label-read-timeout")
+
     init {
         require(this.baseUrl.scheme == "http" || this.baseUrl.scheme == "https") { "paycore.admin.master-ops.base-url must be http(s)" }
         require(!this.baseUrl.host.isNullOrBlank()) { "paycore.admin.master-ops.base-url needs a host" }
@@ -56,6 +66,8 @@ class MasterOpsSettings(
         }
         require(this.writePermits in 1..MAX_WRITE_PERMITS) { "paycore.admin.master-ops.write-permits 1..$MAX_WRITE_PERMITS" }
         require(this.registrationsPerMinute in 1..MAX_RATE) { "paycore.admin.master-ops.registrations-per-minute 1..$MAX_RATE" }
+        require(this.labelPermits in 1..MAX_LABEL_PERMITS) { "paycore.admin.master-ops.label-permits 1..$MAX_LABEL_PERMITS" }
+        require(this.labelReadTimeout <= this.readTimeout) { "paycore.admin.master-ops.label-read-timeout must not exceed read-timeout" }
     }
 
     /** 서명 키 사본(바깥에서 바꿀 수 없다). */
@@ -64,13 +76,17 @@ class MasterOpsSettings(
     fun usesKey(candidateBase64: String): Boolean = runCatching { Base64.getDecoder().decode(candidateBase64) }.getOrNull()?.contentEquals(key) == true
 
     override fun toString(): String =
-        "MasterOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits, writePermits=$writePermits)"
+        "MasterOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits, writePermits=$writePermits, labelPermits=$labelPermits, labelReadTimeout=$labelReadTimeout)"
 
     companion object {
         const val RESPONSE_MAX_BYTES = 256 * 1024
 
         /** 명령 응답 읽기 상한(MERCHANT-OPS-002 §4.1 — 명령 응답은 작다). 넘으면 해석 불가 = Unknown. */
         const val COMMAND_RESPONSE_MAX_BYTES = 4 * 1024
+
+        /** 라벨 응답 읽기 상한(TXN-LIST-ENRICH-001 — 50항목 × 상호 100 code point 여유). 넘으면 해석 불가(UNREADABLE). */
+        const val LABEL_RESPONSE_MAX_BYTES = 64 * 1024
+        private const val MAX_LABEL_PERMITS = 16
         private const val MAX_WRITE_PERMITS = 16
         private const val MIN_KEY_BYTES = 32
         private const val MAX_PERMITS = 64

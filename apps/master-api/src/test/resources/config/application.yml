@@ -31,6 +31,8 @@ paycore:
       read-permits: 4
       # MERCHANT-OPS-002 §3.1 C-1: 명령 permit(조회와 별개, 대기 0) — Demo 값 2(운영값 LIVE Gate).
       write-permits: 2
+      # TXN-LIST-ENRICH-001 §3.6(M-1): 라벨 조회 전용 permit(조회·명령 permit과 별개, 대기 0) — Demo 값 2(운영값 LIVE Gate).
+      label-permits: 2
       # MERCHANT-OPS-002 §9.3 B2-2(C-19): 승인 근거 실행 창·시계 앞섬 — Demo 값(운영값 아님, LIVE Gate). 기본값 없음(없으면 웹 프로세스 기동 실패).
       approval:
         max-execution-window: PT24H

@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.adapter.web.admin
 
+import com.paycore.master.merchant.application.provided.MerchantAccountLabel
 import com.paycore.master.merchant.application.provided.MerchantDetailView
 import com.paycore.master.merchant.application.provided.MerchantDirectoryPage
 import com.paycore.master.merchant.application.provided.MerchantHistoryPage
@@ -23,6 +24,11 @@ object MerchantOpsJson {
             ).also { item -> if (byCode) item["matchedRetiredCode"] = checkNotNull(it.matchedRetiredCode) { "a code search item says whether a retired code matched" } }
         },
         "nextCursor" to page.nextCursor,
+    )
+
+    /** TXN-LIST-ENRICH-001 §4.2 라벨 묶음: 항목 3키(MID·상호·현재 코드) — 내부 키·사업자·lifecycle 없음(golden `accountLabels`). */
+    fun accountLabels(items: List<MerchantAccountLabel>): Map<String, Any?> = linkedMapOf(
+        "items" to items.map { linkedMapOf("merchantAccountId" to it.merchantAccountId, "merchantName" to it.merchantName, "merchantCode" to it.merchantCode) },
     )
 
     fun history(page: MerchantHistoryPage): Map<String, Any?> = linkedMapOf(

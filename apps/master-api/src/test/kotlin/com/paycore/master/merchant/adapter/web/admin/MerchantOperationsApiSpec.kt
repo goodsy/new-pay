@@ -131,6 +131,9 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/merchant-operations/currency-enablements",
                 // 기대값 변경(MERCHANT-CODE-001 MC-1b-10): 2인 `merchant-code-changes`(경로 목록 갱신 — 완화 아님).
                 "POST /internal/v1/admin/merchant-operations/merchant-code-changes",
+                // 기대값 변경(TXN-LIST-ENRICH-001 명세 §4.2): MID 묶음 라벨 조회 `merchant-account-labels`(읽기 전용 POST — 쓰기 효과·admin_request 없음, merchant-searches와 같은 형태).
+                // 경로 목록 갱신이지 완화가 아니다 — 개통·한도·정지 경로는 여전히 없다.
+                "POST /internal/v1/admin/merchant-account-labels",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }

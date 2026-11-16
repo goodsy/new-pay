@@ -28,7 +28,7 @@ class MasterApprovalGatewayB3Spec : BehaviorSpec({
 
     StubMasterOpsServer.start()
     val settings = MasterOpsSettings(
-        "http://127.0.0.1:${StubMasterOpsServer.PORT}", StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(2), 2, 30, 10, 2, 20,
+        "http://127.0.0.1:${StubMasterOpsServer.PORT}", StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(2), 2, 30, 10, 2, 20, 2, Duration.ofMillis(100), // TXN-LIST-ENRICH-001: 라벨 permit·timeout(시험 값)
     )
     val gateway = HttpMasterOpsGateway(settings, MasterCallSigner(settings.keyId, settings.signingKey())) { Instant.now() }
     val body = """{"approvalId":"apr_01JCZ8V3N6Q2R4T7W9XB5D1F3H","stored":"bytes"}""".toByteArray()

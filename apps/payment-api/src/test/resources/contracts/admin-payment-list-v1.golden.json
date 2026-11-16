@@ -1,0 +1,37 @@
+{
+  "_comment": "TXN-LIST-ENRICH-001 E-1 T-E1-4 (N-1): PAYMENT POST /internal/v1/admin/payment-searches response body produced by AdminPaymentController for fixed Demo values (not operational). 11 item keys - paymentMethod after currency, before status. ADMIN reads a byte-identical copy (apps/internal-admin/src/test/resources/contracts/) with PaymentResponseShape.LIST.",
+  "list": {
+    "items": [
+      {
+        "paymentId": "pay_01JC0000000000000000000002",
+        "environment": "LIVE",
+        "merchantAccountId": "mid_01JC0000000000000000000001",
+        "merchantOrderId": "order-0002",
+        "orderNamePreview": "가나다라마바사아자차",
+        "orderNameTruncated": true,
+        "amountMinor": 10000,
+        "currency": "KRW",
+        "paymentMethod": "CARD",
+        "status": "AUTHORIZED",
+        "createdAt": "2026-11-01T01:02:03.456Z"
+      },
+      {
+        "paymentId": "pay_01JC0000000000000000000001",
+        "environment": "TEST",
+        "merchantAccountId": "mid_01JC0000000000000000000002",
+        "merchantOrderId": "order-0001",
+        "orderNamePreview": null,
+        "orderNameTruncated": false,
+        "amountMinor": 2500,
+        "currency": "KRW",
+        "paymentMethod": "CARD",
+        "status": "FAILED",
+        "createdAt": "2026-11-01T01:00:00.000Z"
+      }
+    ],
+    "nextCursor": {
+      "createdAt": "2026-11-01T01:00:00.000Z",
+      "paymentId": "pay_01JC0000000000000000000001"
+    }
+  }
+}

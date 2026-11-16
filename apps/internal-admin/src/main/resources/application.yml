@@ -145,6 +145,10 @@ paycore:
       # 사업자 등록은 위 registration-number-searches-per-minute 버킷에서도 1회를 예약한다(C-13 — 중복 결과는 검색과 같은 정보).
       write-permits: 2
       registrations-per-minute: 20
+      # TXN-LIST-ENRICH-001 §3.6(Demo 값, 운영값 아님 — LIVE Gate, 기본값 없음): 거래 목록 라벨 조회 전용 permit(조회·승인 결정 조회 permit과 별개, 대기 0 — M-1)과
+      # 라벨 전용 짧은 read timeout(read-timeout 이하 — M-2: MASTER 지연이 목록을 10s까지 붙잡지 않는다. 목록 지연 상한 = PAYMENT + connect + 이 값).
+      label-permits: 2
+      label-read-timeout: 2s
     # MERCHANT-OPS-002 B2-2 가맹점 2인 승인(C-19 — **Demo 값, 운영값 아님**, LIVE Gate, 기본값 없음): 실행 창(승인 + 이 값 = 실행 기한, MASTER max-execution-window PT24H 이하),
     # 기한 확인 여유(MASTER max-clock-skew PT1M + read timeout 이상), 회복 다음 시도 간격(두 배씩 — 상한 PT30M). stale = master-ops connect + read + 30초.
     merchant-ops:
