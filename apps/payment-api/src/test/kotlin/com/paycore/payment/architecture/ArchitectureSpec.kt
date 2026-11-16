@@ -337,7 +337,12 @@ class ArchitectureSpec : FunSpec({
             "operatorCommandConstructedOnlyAtEntry" to listOf(
                 com.paycore.archfixture.operatorcancel.OperatorCommandFactory::class.java, com.paycore.archfixture.operatorcancel.OperatorCommandCopier::class.java,
             ),
-            "adminEntryControllersNotReferenced" to listOf(com.paycore.archfixture.operatorcancel.ControllerReferrer::class.java),
+            "adminEntryControllersNotReferenced" to listOf(
+                com.paycore.archfixture.operatorcancel.ControllerReferrer::class.java, com.paycore.archfixture.operatorcancel.HomeKpiControllerReferrer::class.java,
+            ),
+            // ADMIN-HOME-KPI-001 §5·T-K2-4: 운영 홈 KPI 조회 진입·집계 Port 사용처.
+            "homeKpiQueryOnlyFromAdminEntry" to listOf(com.paycore.archfixture.operatorcancel.HomeKpiQueryCaller::class.java),
+            "homeKpiReaderOnlyFromQueryService" to listOf(com.paycore.archfixture.operatorcancel.HomeKpiReaderCaller::class.java),
         )
         fixtures.forEach { (name, list) ->
             list.forEach { fixture ->
@@ -697,10 +702,10 @@ class ArchitectureSpec : FunSpec({
         private const val APP = "$BASE_PACKAGE.payment.application"
         private const val ADMIN_WEB = "$BASE_PACKAGE.payment.adapter.web.admin"
 
-        /** ADMIN-PAYMENT-OPS-001 §4.8: 인증된 ADMIN 진입 컨트롤러(정확 FQN) — 4개 + TXN-OPS-001 거래 조회 1개. */
+        /** ADMIN-PAYMENT-OPS-001 §4.8: 인증된 ADMIN 진입 컨트롤러(정확 FQN) — 4개 + TXN-OPS-001 거래 조회 1개 + ADMIN-HOME-KPI-001 운영 홈 KPI 1개. */
         val ADMIN_ENTRY_CONTROLLERS = listOf(
             "$ADMIN_WEB.OperatorCancelTargetController", "$ADMIN_WEB.AdminOperatorCancellationController", "$ADMIN_WEB.OperatorDecisionController",
-            "$ADMIN_WEB.OperatorDeadlineConfirmationController", "$ADMIN_WEB.AdminPaymentController",
+            "$ADMIN_WEB.OperatorDeadlineConfirmationController", "$ADMIN_WEB.AdminPaymentController", "$ADMIN_WEB.AdminHomeKpiController",
         )
 
         /** 정확 FQN 또는 그 Kotlin 합성 중첩 클래스(`<FQN>$…` — Companion·WhenMappings·람다)인가. */
@@ -737,6 +742,15 @@ class ArchitectureSpec : FunSpec({
             "adminPaymentQueryOnlyFromAdminEntry" to onlyFrom(
                 "$APP.provided.AdminPaymentQuery", listOf("$APP.AdminPaymentQueryService", "$ADMIN_WEB.AdminPaymentController"),
                 "only the authenticated admin entry adapter calls AdminPaymentQuery (TXN-OPS-001)",
+            ),
+            // ADMIN-HOME-KPI-001 §5: 운영 홈 KPI(비권위 집계)는 인증된 ADMIN 진입 adapter의 정확 FQN만 부르고, 집계 Port는 조회 서비스(asOf·정렬·실패 분류)만 쓴다(구현 adapter는 대상 자신과 같은 허용).
+            "homeKpiQueryOnlyFromAdminEntry" to onlyFrom(
+                "$APP.provided.HomeKpiQuery", listOf("$APP.HomeKpiQueryService", "$ADMIN_WEB.AdminHomeKpiController"),
+                "only the authenticated admin entry adapter calls HomeKpiQuery (ADMIN-HOME-KPI-001)",
+            ),
+            "homeKpiReaderOnlyFromQueryService" to onlyFrom(
+                "$APP.required.HomeKpiReader", listOf("$APP.HomeKpiQueryService", "$BASE_PACKAGE.payment.adapter.query.JooqHomeKpiReader"),
+                "only HomeKpiQueryService uses the HomeKpiReader port (ADMIN-HOME-KPI-001)",
             ),
             "operatorCancelMalformedRecorderOnlyFromAdminEntry" to onlyFrom(
                 "$APP.provided.OperatorCancelMalformedRecorder",

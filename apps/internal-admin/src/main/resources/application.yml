@@ -109,6 +109,8 @@ paycore:
         lookup: 4
         execution: 4
       lookup-per-minute: 30
+      # ADMIN-HOME-KPI-001 C-4: 운영 홈 KPI actor별 분당 상한(필수 — 기본값 없음, 거래 조회 lookup-per-minute 창과 별개, 화면 polling 없음 — Demo 값, 운영값 아님).
+      home-kpi-per-minute: 30
       execution-window: 24h
       # I-113: backoff-initial > connect + read(2s + 30s) — Demo 값(운영값 아님, LIVE Gate).
       backoff-initial: 40s

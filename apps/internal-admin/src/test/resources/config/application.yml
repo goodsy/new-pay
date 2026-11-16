@@ -37,6 +37,8 @@ paycore:
         lookup: 4
         execution: 4
       lookup-per-minute: 5
+      # ADMIN-HOME-KPI-001 C-4(시험 값): 운영 홈 KPI 창 — 거래 조회 lookup-per-minute(5)와 다른 값으로 두 창이 독립임을 시험한다(HomeKpiHttpSpec).
+      home-kpi-per-minute: 4
       execution-window: 24h
       backoff-initial: 30s
       backoff-max: 1m

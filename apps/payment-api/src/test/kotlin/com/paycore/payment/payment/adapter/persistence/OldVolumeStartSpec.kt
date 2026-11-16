@@ -60,7 +60,8 @@ class OldVolumeStartSpec(
                 c.createStatement().use { st ->
                     st.executeQuery("SELECT GROUP_CONCAT(version ORDER BY installed_rank), MIN(success) FROM flyway_schema_history WHERE version IS NOT NULL").use { rs ->
                         rs.next()
-                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34"
+                        // 기대값 변경(ADMIN-HOME-KPI-001 V35 색인 migration 추가 — 목록 끝에 35, 규칙 완화 아님)
+                        rs.getString(1) shouldBe "1,2,3,4,5,6,7,8,8.1,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35"
                         rs.getBoolean(2) shouldBe true
                     }
                 }

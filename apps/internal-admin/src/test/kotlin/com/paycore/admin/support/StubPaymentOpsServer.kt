@@ -40,6 +40,18 @@ object StubPaymentOpsServer {
     private val searches = java.util.concurrent.CopyOnWriteArrayList<Pair<String, Reply>>()
     private val details = ConcurrentHashMap<String, Reply>()
 
+    /** ADMIN-HOME-KPI-001 운영 홈 KPI 응답(전역 하나 — 시험마다 [homeKpi]로 바꾼다). 기본은 빈 날 문서. */
+    const val HOME_KPI_PATH = "/internal/v1/admin/home-kpis"
+    const val EMPTY_HOME_KPI = "{\"asOf\":\"2026-11-15T05:00:00.000Z\",\"businessDate\":\"2026-11-15\",\"timeZone\":\"Asia/Seoul\"," +
+        "\"from\":\"2026-11-14T15:00:00.000Z\",\"items\":[]}"
+
+    @Volatile
+    private var homeKpiReply: Reply = Reply(200, EMPTY_HOME_KPI)
+
+    fun homeKpi(reply: Reply) {
+        homeKpiReply = reply
+    }
+
     @Volatile
     private var defaultExecution: Reply = Reply(503, "{\"error\":\"TEMPORARILY_UNAVAILABLE\"}")
 
@@ -143,6 +155,7 @@ object StubPaymentOpsServer {
                 ex.requestMethod == "POST" && path == SEARCH_PATH -> body.toString(Charsets.UTF_8).let { text ->
                     searches.firstOrNull { text.contains(it.first) }?.second ?: Reply(200, "{\"items\":[],\"nextCursor\":null}")
                 }
+                ex.requestMethod == "GET" && path == HOME_KPI_PATH -> homeKpiReply
                 ex.requestMethod == "GET" && PAYMENT_DETAIL_PATH.matches(path) ->
                     details[path.substringAfterLast('/')] ?: Reply(404, "{\"error\":\"PAYMENT_NOT_FOUND\"}")
                 ex.requestMethod == "GET" && path.endsWith("/operator-cancel-target") ->

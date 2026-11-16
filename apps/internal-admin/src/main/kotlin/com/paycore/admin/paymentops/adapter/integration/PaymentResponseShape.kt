@@ -51,6 +51,17 @@ internal sealed interface PaymentResponseShape {
         }
     }
 
+    /**
+     * minor unit 정수의 10진 **문자열**(ADMIN-HOME-KPI-001 §4.1·§4.3 MINOR-7): `^(0|-?[1-9][0-9]{0,39})$` — `-0`·앞자리 0·소수점·지수·공백·JSON 숫자 거부, 최대 40자리. [signed]가
+     * 아니면 음수도 거부. 문자열 그대로 돌려준다(Long·float로 바꾸지 않는다 — 화면도 Number로 바꾸지 않는다).
+     */
+    class MinorDecimal(private val signed: Boolean) : PaymentResponseShape {
+        override fun read(node: JsonNode?): String {
+            require(node != null && node.isString) { "string" }
+            return node.asString().also { require((if (signed) SIGNED_DECIMAL else UNSIGNED_DECIMAL).matches(it)) { "minor decimal" } }
+        }
+    }
+
     class Nullable(private val inner: PaymentResponseShape) : PaymentResponseShape {
         override fun read(node: JsonNode?): Any? {
             require(node != null) { "missing" }
@@ -76,6 +87,11 @@ internal sealed interface PaymentResponseShape {
         private val NON_NEGATIVE = Whole(0)
         private const val MAX_ITEMS = 50
         private const val MAX_FACTS = 500
+        private val SIGNED_DECIMAL = Regex("^(0|-?[1-9][0-9]{0,39})$")
+        private val UNSIGNED_DECIMAL = Regex("^(0|[1-9][0-9]{0,39})$")
+
+        /** 운영 홈 KPI 행 상한(ADMIN-HOME-KPI-001 §4.3·L-5 — 환경 2 × 통화 32). */
+        private const val MAX_HOME_KPI_ITEMS = 64
 
         private fun obj(vararg fields: Pair<String, PaymentResponseShape>) = Obj(linkedMapOf(*fields))
         private fun opt(inner: PaymentResponseShape) = Nullable(inner)
@@ -90,6 +106,21 @@ internal sealed interface PaymentResponseShape {
                 MAX_ITEMS,
             ),
             "nextCursor" to opt(obj("createdAt" to TIME, "paymentId" to PAYMENT_ID)),
+        )
+
+        /** 운영 홈 오늘 KPI(ADMIN-HOME-KPI-001 §4.1 — timeZone은 리터럴 `Asia/Seoul`, 금액은 minor unit 10진 문자열, 건수는 정수 ≥ 0). 이 요청의 답 검사는 [HomeKpiAnswer]. */
+        val HOME_KPI: PaymentResponseShape = obj(
+            "asOf" to TIME,
+            "businessDate" to DATE,
+            "timeZone" to Text(Regex("^Asia/Seoul$")),
+            "from" to TIME,
+            "items" to Arr(
+                obj(
+                    "environment" to ENVIRONMENT, "currency" to CURRENCY, "approvedAmountMinor" to MinorDecimal(signed = false),
+                    "cancelledAmountMinor" to MinorDecimal(signed = false), "netApprovedAmountMinor" to MinorDecimal(signed = true), "approvedCount" to NON_NEGATIVE,
+                ),
+                MAX_HOME_KPI_ITEMS,
+            ),
         )
 
         val DETAIL: PaymentResponseShape = obj(

@@ -13,7 +13,7 @@ import java.time.Instant
  * 설정 값 범위·시간 순서 검사는 [PaymentOpsSettings] 생성 때.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(PaymentOpsSettings::class)
+@EnableConfigurationProperties(PaymentOpsSettings::class, HomeKpiSettings::class)
 class PaymentOpsConfiguration {
 
     @Bean

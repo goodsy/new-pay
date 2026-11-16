@@ -9,6 +9,7 @@ import com.paycore.admin.paymentops.application.provided.ExecutionResult
 import com.paycore.admin.paymentops.application.provided.PaymentTargetView
 import com.paycore.admin.paymentops.application.provided.TargetResult
 import com.paycore.admin.paymentops.application.provided.TransactionSearchCriteria
+import com.paycore.admin.paymentops.application.required.HomeKpiGateway
 import com.paycore.admin.paymentops.application.required.PaymentOpsGateway
 import com.paycore.admin.paymentops.application.required.PaymentReadGateway
 import com.paycore.admin.paymentops.application.required.PaymentReadResult
@@ -39,7 +40,7 @@ import java.util.concurrent.Semaphore
  * TXN-OPS-001: 거래 조회 Port([PaymentReadGateway])도 이 객체가 구현한다 — 같은 서명 키·같은 `lookup` permit·같은 timeout·응답 상한(새 채널·새 키 없음, R-3).
  */
 class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private val signer: AdminCallSigner, private val clock: () -> Instant) :
-    PaymentOpsGateway, PaymentReadGateway {
+    PaymentOpsGateway, PaymentReadGateway, HomeKpiGateway {
 
     // 리뷰 NIT: 응답의 중복 key는 어느 값을 믿을지 정할 수 없다 — 해석 오류(→ 해석 불가). 요청 본문 쓰기에는 영향 없음.
     private val json: JsonMapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
@@ -174,7 +175,22 @@ class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private va
         }
     }
 
-    private fun read(operation: String, method: HttpMethod, path: String, body: ByteArray, shape: PaymentResponseShape, belongs: (Map<String, Any?>) -> Boolean): PaymentReadResult {
+    /**
+     * 운영 홈 오늘 KPI(ADMIN-HOME-KPI-001 §4.2·§4.3 — 서명 GET, 본문·query 없음, 같은 키·`lookup` permit·timeout·응답 상한). 200은 [PaymentResponseShape.HOME_KPI] 모양 +
+     * [HomeKpiAnswer] 이 요청의 답 검사(위반 = 해석 불가). 이 경로에 결제 없음(404)은 의미가 없어 Unavailable `HTTP_404`로 두고, 로그도 그 실제 결과로 남긴다(리뷰 NIT-1).
+     */
+    override fun homeKpis(): PaymentReadResult =
+        read("home-kpi", HttpMethod.GET, HOME_KPI_PATH, ByteArray(0), PaymentResponseShape.HOME_KPI, paymentNotFoundMeaningful = false, belongs = HomeKpiAnswer::belongs)
+
+    private fun read(
+        operation: String,
+        method: HttpMethod,
+        path: String,
+        body: ByteArray,
+        shape: PaymentResponseShape,
+        paymentNotFoundMeaningful: Boolean = true,
+        belongs: (Map<String, Any?>) -> Boolean,
+    ): PaymentReadResult {
         outsideTransaction()
         if (!lookupPermits.tryAcquire()) return PaymentReadResult.Unavailable(BUSY).also { readLog(operation, it) }
         try {
@@ -182,7 +198,8 @@ class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private va
                 is Raw.Failed -> PaymentReadResult.Unavailable(response.failure)
                 is Raw.Http -> when (response.status) {
                     OK -> shaped(response.body, shape)?.takeIf { doc -> runCatching { belongs(doc) }.getOrDefault(false) }?.let { PaymentReadResult.Found(it) } ?: PaymentReadResult.Unavailable(UNREADABLE)
-                    NOT_FOUND -> if (errorCode(response.body) == "PAYMENT_NOT_FOUND") PaymentReadResult.NotFound else PaymentReadResult.Unavailable("HTTP_404")
+                    NOT_FOUND ->
+                        if (paymentNotFoundMeaningful && errorCode(response.body) == "PAYMENT_NOT_FOUND") PaymentReadResult.NotFound else PaymentReadResult.Unavailable("HTTP_404")
                     else -> PaymentReadResult.Unavailable("HTTP_${response.status}")
                 }
             }
@@ -320,6 +337,7 @@ class HttpPaymentOpsGateway(private val settings: PaymentOpsSettings, private va
         const val EXECUTE_PATH = "/internal/v1/admin/operator-cancellations"
         const val PAYMENT_SEARCH_PATH = "/internal/v1/admin/payment-searches"
         const val PAYMENTS_PATH = "/internal/v1/admin/payments"
+        const val HOME_KPI_PATH = "/internal/v1/admin/home-kpis"
         val PAYMENT_ID = Regex("^pay_[0-9A-HJKMNP-TV-Z]{26}$")
         const val DEFAULT_SEARCH_LIMIT = 20
         const val ORDER_NAME_PREVIEW = 10

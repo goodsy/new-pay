@@ -101,8 +101,10 @@ class CancelFixture(
         routeRef: String = ROUTE_C,
         order: com.paycore.payment.payment.domain.OrderKey = com.paycore.payment.payment.adapter.persistence.PersistenceTestData.newOrder(),
         paymentIdValue: String? = null,
+        /** ADMIN-HOME-KPI-001: 준비 시각 기준(기본 T0 — [ConfirmFixture.prepared]의 base). 확정 시각은 시험 시계가 정하므로 시계를 같은 값으로 맞춘 시험만 바꾼다. */
+        base: java.time.Instant = ConfirmFixture.T0,
     ): Authorized {
-        val p = confirmFixture.prepared(amount = amount, cardType = cardType, plan = plan, order = order, paymentIdValue = paymentIdValue)
+        val p = confirmFixture.prepared(amount = amount, cardType = cardType, plan = plan, order = order, paymentIdValue = paymentIdValue, base = base)
         admission.respondFor(p.order.merchantAccountId) { ScriptedAdmissionPort.admitted(it, routeRef = routeRef) }
         if (cardType != CardType.CREDIT) {
             val stub = checkNotNull(van) { "a non-credit fixture needs the stub VAN to echo the card type" }
