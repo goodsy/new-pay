@@ -32,9 +32,13 @@ const me = (roles: string[]) => ({ actorId: 'adm_1', displayName: '김 운영', 
 /** 고정 시각: 2026-11-15 10:30 KST. */
 const NOW = new Date('2026-11-15T01:30:00.000Z')
 const PAY = 'pay_01JC0000000000000000000001'
-const txn = (paymentId: string, status = 'AUTHORIZED'): TransactionListItem => ({
-  paymentId, environment: 'TEST', merchantAccountId: 'mid-demo-1', merchantOrderId: 'order-77', orderNamePreview: '데모 주문', orderNameTruncated: false,
-  amountMinor: 12000, currency: 'KRW', status, createdAt: '2026-11-15T00:10:00.000Z',
+const MID = 'mid_01JC0000000000000000000001'
+/** 목록 항목(TXN-LIST-ENRICH-001 — 결제수단·가맹점 라벨 포함, 기본 라벨 "데모상점 · demoshop01"). */
+const txn = (
+  paymentId: string, status = 'AUTHORIZED', merchant: TransactionListItem['merchant'] = { name: '데모상점', code: 'demoshop01' }, paymentMethod = 'CARD',
+): TransactionListItem => ({
+  paymentId, environment: 'LIVE', merchantAccountId: MID, merchantOrderId: 'order-77', orderNamePreview: '데모 주문', orderNameTruncated: false,
+  amountMinor: 12000, currency: 'KRW', paymentMethod, status, createdAt: '2026-11-15T00:10:00.000Z', merchant,
 })
 /**
  * KPI 한 행(ADMIN-HOME-KPI-001 §4.1 모양). 금액은 minor unit 10진 문자열 — 시험마다 net을 직접 적어 기대값이 보이게 한다(유효 행은 net = approved − cancelled를 지킨다).
@@ -46,7 +50,7 @@ const kpiItem = (environment: string, currency: string, approvedAmountMinor: str
 const kpiDoc = (items: HomeKpiItem[]): HomeKpis => ({
   asOf: '2026-11-15T01:30:00.000Z', businessDate: '2026-11-15', timeZone: 'Asia/Seoul', from: '2026-11-14T15:00:00.000Z', items,
 })
-const noRecent = () => vi.fn(async () => ({ items: [], nextCursor: null }))
+const noRecent = () => vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const }))
 
 function renderHome(roles: string[], api = fakeApi(), onOpen = vi.fn(), onSessionEnded = vi.fn()) {
   render(<HomeScreen api={api} me={me(roles)} menus={menusFor(roles)} onOpen={onOpen} onSessionEnded={onSessionEnded} now={() => NOW} />)
@@ -56,7 +60,7 @@ const stat = (name: string) => screen.getByRole('article', { name })
 
 describe('HomeScreen (운영 홈 — reference home layout, real values only, D-ADMIN-HOME-001)', () => {
   it('reference order: heading(eyebrow, greeting, description | date, 사업자 등록) → stats(4) → split(todo | settlement flow) → recent payments → quick links', async () => {
-    const { onOpen } = renderHome(['OPERATOR'], fakeApi({ approvals: vi.fn(async () => ({ approvals: [] })), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    const { onOpen } = renderHome(['OPERATOR'], fakeApi({ approvals: vi.fn(async () => ({ approvals: [] })), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(screen.getByRole('heading', { level: 1, name: '좋은 하루예요, 김 운영님' })).toBeInTheDocument()
     expect(screen.getByText('오늘 처리해야 할 업무와 결제 흐름을 한눈에 확인하세요.')).toBeInTheDocument()
     // 날짜 고르기 기능이 없어 오늘(KST) 날짜만 — 누르는 단추가 아니다.
@@ -76,7 +80,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
 
   // 기대값 변경(Coordinator Q1 — KPI 서버가 있으므로 404는 고장): 404를 "집계 준비 중"이 아니라 오류("불러오지 못했어요")로 본다.
   it('no fabricated numbers: KPI API 404 (the server exists — a fault) shows the error state, never "집계 준비 중"; 지급 예정액 shows "정산 기능 준비 전"; settlement flow steps are all "준비 전"', async () => {
-    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(await within(stat('오늘 순승인액')).findByText('불러오지 못했어요')).toBeInTheDocument()
     expect(within(stat('오늘 승인 건수')).getByText('불러오지 못했어요')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent('집계 준비 중')
@@ -95,18 +99,18 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
 
   // 기대값 변경(Coordinator Q1): 501도 "집계 준비 중"이 아니라 오류. 시험 이름은 본문(501 한 경우)에 맞췄다(리뷰 NIT — 다른 실패·세션 종료는 다음 시험).
   it('501 is an error too (no "집계 준비 중", no number)', async () => {
-    renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw new ApiError(501, 'RETRY_LATER') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw new ApiError(501, 'RETRY_LATER') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(await within(stat('오늘 순승인액')).findByText('불러오지 못했어요')).toBeInTheDocument()
     expect(stat('오늘 순승인액')).not.toHaveTextContent(/\d/)
     expect(document.body).not.toHaveTextContent('집계 준비 중')
   })
 
   it('other KPI failures show an error without a number', async () => {
-    renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw apiError(403, 'FORBIDDEN') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw apiError(403, 'FORBIDDEN') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(await within(stat('오늘 순승인액')).findByText('불러오지 못했어요')).toBeInTheDocument()
     expect(stat('오늘 순승인액')).toHaveTextContent(/권한/)
     expect(stat('오늘 승인 건수')).not.toHaveTextContent(/\d/)
-    const ended = renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw apiError(401, 'SESSION_EXPIRED') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    const ended = renderHome(['VIEWER'], fakeApi({ getHomeKpis: vi.fn(async () => { throw apiError(401, 'SESSION_EXPIRED') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     await vi.waitFor(() => expect(ended.onSessionEnded).toHaveBeenCalledWith('SESSION_EXPIRED'))
   })
 
@@ -230,7 +234,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     const api = fakeApi({
       approvals: vi.fn(async () => ({ approvals: [approval('apr_1', 'PENDING', MER), approval('apr_2', 'PENDING')] })),
       reconciliation: vi.fn(async () => overview(3)),
-      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })),
+      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })),
     })
     const { onOpen } = renderHome(['APPROVER'], api)
     const work = stat('확인이 필요한 업무')
@@ -254,7 +258,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
   it('OPERATOR: counts only PENDING among my requests; no inbox and no findings call; no banner for own requests', async () => {
     const api = fakeApi({
       approvals: vi.fn(async () => ({ approvals: [approval('apr_1', 'PENDING'), approval('apr_2', 'APPROVED'), approval('apr_3', 'WITHDRAWN')] })),
-      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })),
+      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })),
     })
     renderHome(['OPERATOR'], api)
     await vi.waitFor(() => expect(stat('확인이 필요한 업무')).toHaveTextContent('1건'))
@@ -267,7 +271,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
   })
 
   it('SECURITY_ADMIN: my requests and findings (not the inbox); nothing to do shows the empty line and no banner', async () => {
-    const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [] })), reconciliation: vi.fn(async () => overview(0)), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [] })), reconciliation: vi.fn(async () => overview(0)), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) })
     renderHome(['SECURITY_ADMIN'], api)
     await vi.waitFor(() => expect(stat('확인이 필요한 업무')).toHaveTextContent('0건'))
     expect(stat('확인이 필요한 업무')).toHaveTextContent('내 요청 0 · 대사 0')
@@ -278,8 +282,9 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     expect(screen.queryByRole('button', { name: '＋ 사업자 등록' })).toBeNull()
   })
 
-  it('VIEWER: no approval/findings call; work card says none for this role; quick links only to menus it can use', async () => {
-    const { api, onOpen } = renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+  // T-E5-7(VIEWER 쪽): VIEWER는 최근 거래(가맹점·결제수단 칸 포함)를 받는 역할 — 승인·대사 호출은 없다. 라벨 칸 표시 자체는 아래 T-E5-1·T-E5-7 시험.
+  it('T-E5-7 VIEWER: no approval/findings call; work card says none for this role; quick links only to menus it can use', async () => {
+    const { api, onOpen } = renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(within(stat('확인이 필요한 업무')).getByText('해당 없음')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: '지금 처리할 업무' })).getByText('이 역할에는 처리할 업무 목록이 없어요.')).toBeInTheDocument()
     const quick = screen.getByRole('group', { name: '바로가기' })
@@ -291,7 +296,8 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     expect(screen.queryByRole('button', { name: '＋ 사업자 등록' })).toBeNull()
   })
 
-  it('UNMASK only: no payment data call and no KPI/work/recent section — a single quick link to 계정·권한 (audit tab)', async () => {
+  // T-E5-7(UNMASK 쪽): UNMASK만 가진 계정은 거래 조회 권한이 없어 최근 거래 검색을 부르지 않는다 — 가맹점명·결제수단이 화면에 나타나지 않는다.
+  it('T-E5-7 UNMASK only: no payment data call and no KPI/work/recent section (no merchant label or payment method shown) — a single quick link to 계정·권한 (audit tab)', async () => {
     const { api, onOpen } = renderHome(['UNMASK'])
     expect(screen.queryAllByRole('article')).toHaveLength(0)
     expect(screen.queryByRole('region', { name: '최근 거래' })).toBeNull()
@@ -305,7 +311,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
 
   it('a list cut at the server limit (200 rows, no total) is shown as "200+", not as an exact count', async () => {
     const many = Array.from({ length: 200 }, (_, i) => approval(`apr_${i}`, 'PENDING'))
-    renderHome(['APPROVER'], fakeApi({ approvals: vi.fn(async () => ({ approvals: many })), reconciliation: vi.fn(async () => overview(0)), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    renderHome(['APPROVER'], fakeApi({ approvals: vi.fn(async () => ({ approvals: many })), reconciliation: vi.fn(async () => overview(0)), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     await vi.waitFor(() => expect(stat('확인이 필요한 업무')).toHaveTextContent('200+건'))
     expect(screen.getByText('승인을 기다리는 요청이 200건 이상 있어요')).toBeInTheDocument()
   })
@@ -316,7 +322,7 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     renderHome(['APPROVER'], fakeApi({
       approvals: vi.fn(async () => ({ approvals: [approval('apr_1', 'PENDING')] })),
       reconciliation: vi.fn(async () => { throw apiError(403, 'FORBIDDEN') }),
-      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })),
+      transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })),
     }))
     const work = stat('확인이 필요한 업무')
     expect(await within(work).findByText(/대사: .*권한/)).toBeInTheDocument()
@@ -329,17 +335,18 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     expect(within(todo).getByRole('button', { name: /역할 부여 승인 요청/ })).toBeInTheDocument()
     expect(todo.querySelector('.count')).toBeNull()
 
-    const ended = renderHome(['OPERATOR'], fakeApi({ approvals: vi.fn(async () => { throw apiError(401, 'SESSION_EXPIRED') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    const ended = renderHome(['OPERATOR'], fakeApi({ approvals: vi.fn(async () => { throw apiError(401, 'SESSION_EXPIRED') }), transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     await vi.waitFor(() => expect(ended.onSessionEnded).toHaveBeenCalledWith('SESSION_EXPIRED'))
   })
 
   it('recent payments: existing search for the last 7 days (KST), first 5 rows, link to 거래 조회; empty and error states', async () => {
     const items = Array.from({ length: 7 }, (_, i) => txn(`${PAY.slice(0, -1)}${i}`))
-    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items, nextCursor: null })) })
+    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items, nextCursor: null, merchantLabels: 'OK' as const })) })
     const { onOpen } = renderHome(['VIEWER'], api)
     const recent = screen.getByRole('region', { name: '최근 거래' })
     expect(await within(recent).findAllByRole('row', { name: /^pay_/ })).toHaveLength(5)
-    expect(api.transactionSearch).toHaveBeenCalledWith({ createdFrom: '2026-11-08T15:00:00.000Z', createdTo: '2026-11-15T15:00:00.000Z' })
+    // 기대값 변경(TXN-LIST-ENRICH-001 M-6 / T-E5-8): 운영 홈은 5건만 쓰므로 limit 5를 보낸다(전에는 limit 없이 서버 기본 20건을 받아 앞 5건만 표시).
+    expect(api.transactionSearch).toHaveBeenCalledWith({ createdFrom: '2026-11-08T15:00:00.000Z', createdTo: '2026-11-15T15:00:00.000Z', limit: 5 })
     const row = within(recent).getAllByRole('row', { name: /^pay_/ })[0]!
     expect(row.querySelector('strong')).toHaveTextContent('데모 주문')
     expect(row.querySelector('.tag.green')).toHaveTextContent('승인')
@@ -349,8 +356,47 @@ describe('HomeScreen (운영 홈 — reference home layout, real values only, D-
     expect(onOpen).toHaveBeenCalledWith('transactions')
   })
 
+  // T-E5-7(VIEWER 표시): 조회 전용 VIEWER에게도 가맹점 라벨·결제수단이 보인다.
+  it('T-E5-1·T-E5-7 (VIEWER) recent payments show "<상호> · <가맹점 코드>" with "환경 · MID" below, and the payment method label "카드"; columns in order', async () => {
+    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [txn(PAY)], nextCursor: null, merchantLabels: 'OK' as const })) }))
+    const recent = screen.getByRole('region', { name: '최근 거래' })
+    const row = (await within(recent).findAllByRole('row', { name: /^pay_/ }))[0]!
+    expect(within(recent).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['주문 / 결제 ID', '가맹점', '결제수단', '거래일시', '상태', '금액'])
+    const cells = within(row).getAllByRole('cell')
+    expect(cells[1]!.querySelector('strong')).toHaveTextContent('데모상점 · demoshop01')
+    expect(cells[1]!.querySelector('small')).toHaveTextContent(`LIVE · ${MID}`)
+    expect(cells[2]).toHaveTextContent('카드')
+    expect(recent).not.toHaveTextContent('가맹점 정보를 불러오지 못했어요')
+  })
+
+  it('T-E5-2 a MID without a label shows "가맹점 정보 없음" + MID; UNAVAILABLE labels show the MID only and one note under the table', async () => {
+    const { unmount } = render(<HomeScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [txn(PAY, 'AUTHORIZED', null)], nextCursor: null, merchantLabels: 'OK' as const })) })} me={me(['VIEWER'])} menus={menusFor(['VIEWER'])} onOpen={vi.fn()} onSessionEnded={vi.fn()} now={() => NOW} />)
+    let row = (await within(screen.getByRole('region', { name: '최근 거래' })).findAllByRole('row', { name: /^pay_/ }))[0]!
+    expect(within(row).getAllByRole('cell')[1]).toHaveTextContent(`가맹점 정보 없음LIVE · ${MID}`)
+    unmount()
+    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [txn(PAY, 'AUTHORIZED', null)], nextCursor: null, merchantLabels: 'UNAVAILABLE' as const })) }))
+    const recent = screen.getByRole('region', { name: '최근 거래' })
+    row = (await within(recent).findAllByRole('row', { name: /^pay_/ }))[0]!
+    expect(within(row).getAllByRole('cell')[1]).toHaveTextContent(`LIVE · ${MID}`)
+    expect(within(row).getAllByRole('cell')[1]).not.toHaveTextContent('가맹점 정보 없음')
+    expect(within(recent).getAllByText('가맹점 정보를 불러오지 못했어요')).toHaveLength(1)
+  })
+
+  it('T-E5-3·T-E5-5·T-E5-6 an unknown payment method is shown as its code; markup in a name is text; no internal key in the DOM', async () => {
+    renderHome(['VIEWER'], fakeApi({
+      transactionSearch: vi.fn(async () => ({ items: [txn(PAY, 'AUTHORIZED', { name: '<script>alert(1)</script>', code: 'demoshop01' }, 'BANK_TRANSFER')], nextCursor: null, merchantLabels: 'OK' as const })),
+    }))
+    const recent = screen.getByRole('region', { name: '최근 거래' })
+    const row = (await within(recent).findAllByRole('row', { name: /^pay_/ }))[0]!
+    expect(within(row).getAllByRole('cell')[2]).toHaveTextContent('BANK_TRANSFER')
+    expect(within(row).getAllByRole('cell')[1]).toHaveTextContent('<script>alert(1)</script> · demoshop01')
+    expect(document.querySelector('script')).toBeNull()
+    expect(domOccurrences(document.body, 'mer_')).toEqual([])
+    expect(domOccurrences(document.body, 'biz_')).toEqual([])
+  })
+
   it('recent payments empty / failed', async () => {
-    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })) }))
+    renderHome(['VIEWER'], fakeApi({ transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })) }))
     expect(await screen.findByText('최근 7일 동안의 거래가 없어요.')).toBeInTheDocument()
   })
 })

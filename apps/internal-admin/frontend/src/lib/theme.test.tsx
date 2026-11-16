@@ -21,7 +21,7 @@ function stubMatchMedia(dark: boolean) {
 function signedIn() {
   const api = fakeApi({
     me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '관리자', roles: ['VIEWER'] })),
-    transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null })),
+    transactionSearch: vi.fn(async () => ({ items: [], nextCursor: null, merchantLabels: 'OK' as const })),
   })
   return render(<App api={api} />)
 }
@@ -177,5 +177,69 @@ describe('independent review — contrast fixes (WCAG AA 4.5:1 for text)', () =>
 
   it('NIT: long KPI values wrap inside the stat card instead of overflowing', () => {
     expect(WORKSPACE).toMatch(/\.stat strong\{[^}]*overflow-wrap:anywhere/)
+  })
+})
+
+/**
+ * workspace.css에서 선택자 하나의 실제 글자색(같은 선택자는 뒤 규칙이 이긴다). 라이트 = 다크 블록 앞, 다크 = `:root[data-theme=dark]` 블록(더 구체적이라 라이트를 덮는다).
+ * 선택자는 파일에 적힌 그대로(쉼표 목록 안 한 항목) 찾는다 — 없으면 실패(조용한 통과 없음).
+ */
+const DARK_START = WORKSPACE.indexOf(':root[data-theme=dark]{')
+const cssColor = (block: string, selector: string, prop = 'color') => {
+  let found: string | null = null
+  for (const m of block.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = m[1]!.split(',').map((s) => s.trim())
+    const value = m[2]!.match(new RegExp(`(?:^|;)${prop}:#([0-9a-f]{6}|[0-9a-f]{3})(?![0-9a-f])`))
+    if (selectors.includes(selector) && value) found = value[1]!
+  }
+  if (found === null) throw new Error(`${prop} for ${selector} missing`)
+  return `#${found.length === 3 ? [...found].map((c) => c + c).join('') : found}`
+}
+
+describe('TXN-LIST-ENRICH-001 review NIT-5 — the new list cells meet WCAG AA (4.5:1) in light and dark', () => {
+  const row = (merchant: { name: string; code: string } | null) => ({
+    paymentId: 'pay_01JC0000000000000000000001', environment: 'LIVE', merchantAccountId: 'mid_01JC0000000000000000000001', merchantOrderId: 'order-77',
+    orderNamePreview: '데모 주문', orderNameTruncated: false, amountMinor: 12000, currency: 'KRW', paymentMethod: 'CARD', status: 'AUTHORIZED',
+    createdAt: new Date().toISOString(), merchant,
+  })
+  const renderRecent = (labels: 'OK' | 'UNAVAILABLE') => {
+    stubMatchMedia(false)
+    const api = fakeApi({
+      me: vi.fn(async () => ({ actorId: 'adm_1', displayName: '관리자', roles: ['VIEWER'] })),
+      transactionSearch: vi.fn(async () => ({ items: [row(labels === 'OK' ? { name: '데모상점', code: 'demoshop01' } : null)], nextCursor: null, merchantLabels: labels })),
+    })
+    return render(<App api={api} />)
+  }
+
+  it('the merchant cell renders as .card .tablewrap td strong / td small (label OK) and the UNAVAILABLE note as .card p.mapnote', async () => {
+    const view = renderRecent('OK')
+    const recent = await screen.findByRole('region', { name: '최근 거래' })
+    const cell = (await within(recent).findAllByRole('cell')).find((c) => c.textContent?.includes('데모상점 · demoshop01'))!
+    expect(cell.closest('.card .tablewrap')).not.toBeNull()
+    expect(cell.querySelector('strong')).toHaveTextContent('데모상점 · demoshop01')
+    expect(cell.querySelector('small')).toHaveTextContent('LIVE · mid_01JC0000000000000000000001')
+    view.unmount()
+    renderRecent('UNAVAILABLE')
+    const note = await within(await screen.findByRole('region', { name: '최근 거래' })).findByRole('note')
+    expect(note.tagName).toBe('P')
+    expect(note).toHaveClass('mapnote')
+    expect(note.closest('.card')).not.toBeNull()
+  })
+
+  it('light: td strong, td small, plain td (MID-only / 결제수단) and .mapnote on the white card >= 4.5:1', () => {
+    const light = WORKSPACE.slice(0, DARK_START)
+    const card = cssColor(light, '.card', 'background')
+    expect(card).toBe('#ffffff')
+    for (const sel of [':where(.tablewrap) td strong', ':where(.tablewrap) td small', ':where(.tablewrap) td', '.mapnote']) {
+      expect(ratio(rgb(cssColor(light, sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('dark: the same cells on the dark card >= 4.5:1', () => {
+    const dark = WORKSPACE.slice(DARK_START)
+    const card = cssColor(dark, ':root[data-theme=dark] .card', 'background')
+    for (const sel of [':root[data-theme=dark] .tablewrap td strong', ':root[data-theme=dark] .tablewrap td small', ':root[data-theme=dark] .tablewrap td', ':root[data-theme=dark] .mapnote']) {
+      expect(ratio(rgb(cssColor(dark, sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })

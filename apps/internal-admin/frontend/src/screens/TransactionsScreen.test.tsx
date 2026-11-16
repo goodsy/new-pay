@@ -13,10 +13,14 @@ const PAY2 = id('pay', 2)
 const NOW = Date.parse('2026-11-04T01:00:00.000Z')
 const FULL_NAME = '가나다라마바사아자차카타파하'
 
-const item = (paymentId: string, preview: string | null = '가나다라마바사아자차', truncated = true): TransactionListItem => ({
-  paymentId, environment: 'TEST', merchantAccountId: 'mid-demo-1', merchantOrderId: 'order-77', orderNamePreview: preview, orderNameTruncated: truncated,
-  amountMinor: 10000, currency: 'KRW', status: 'AUTHORIZED', createdAt: '2026-11-01T01:02:03.456Z',
+/** 목록 항목(TXN-LIST-ENRICH-001 — 결제수단·가맹점 라벨 포함; 기존 시험 MID는 형식 밖 값이라 라벨 없음). */
+const item = (
+  paymentId: string, preview: string | null = '가나다라마바사아자차', truncated = true, merchant: TransactionListItem['merchant'] = null, merchantAccountId = 'mid-demo-1',
+): TransactionListItem => ({
+  paymentId, environment: 'TEST', merchantAccountId, merchantOrderId: 'order-77', orderNamePreview: preview, orderNameTruncated: truncated,
+  amountMinor: 10000, currency: 'KRW', paymentMethod: 'CARD', status: 'AUTHORIZED', createdAt: '2026-11-01T01:02:03.456Z', merchant,
 })
+const MID = id('mid', 1)
 
 /** 상세 한 건(TXN-OPS-001 §3.4 — 승인 1, 거래 사실 2(승인·부분 취소), 취소 2(운영자 완료·가맹점 실패), 잔액, hold 있음). 금액은 서로 맞다(10,000 − 3,000). */
 const detail: TransactionDetail = {
@@ -50,10 +54,29 @@ const search = async () => userEvent.click(screen.getByRole('button', { name: '�
 const choose = async (label: string, value: string) => userEvent.selectOptions(screen.getByLabelText(label), value)
 
 describe('TransactionsScreen (TXN-OPS-001 §7 AC 10 — read-only transaction lookup)', () => {
+  it('T-E5-1·T-E5-4 (TXN-LIST-ENRICH-001) merchant and payment method columns; the label state is per page — an UNAVAILABLE page shows the MID and one note', async () => {
+    const transactionSearch = vi.fn()
+      .mockResolvedValueOnce({ items: [item(PAY1, null, false, { name: '데모상점', code: 'demoshop01' }, MID)], nextCursor: { createdAt: '2026-11-01T01:02:03.456Z', paymentId: PAY1 }, merchantLabels: 'OK' as const })
+      .mockResolvedValueOnce({ items: [item(PAY2, null, false, null, MID)], nextCursor: null, merchantLabels: 'UNAVAILABLE' as const })
+    render(<TransactionsScreen api={fakeApi({ transactionSearch })} now={() => NOW} />)
+    await search()
+    const row = await screen.findByRole('row', { name: PAY1 })
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toContain('가맹점')
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toContain('결제수단')
+    expect(within(row).getByText('데모상점 · demoshop01')).toBeInTheDocument()
+    expect(within(row).getByText('카드')).toBeInTheDocument()
+    expect(screen.queryByText('가맹점 정보를 불러오지 못했어요')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    const second = await screen.findByRole('row', { name: PAY2 })
+    expect(within(second).queryByText('가맹점 정보 없음')).toBeNull()
+    expect(within(second).getAllByText(MID).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('가맹점 정보를 불러오지 못했어요')).toHaveLength(1)
+  })
+
   it('a period search sends KST calendar days as UTC instants [from, next day) with the filters, lists 10-character names and pages with the cursor', async () => {
     const transactionSearch = vi.fn()
-      .mockResolvedValueOnce({ items: [item(PAY1)], nextCursor: { createdAt: '2026-11-01T01:02:03.456Z', paymentId: PAY1 } })
-      .mockResolvedValueOnce({ items: [item(PAY2, '짧은 이름', false)], nextCursor: null })
+      .mockResolvedValueOnce({ items: [item(PAY1)], nextCursor: { createdAt: '2026-11-01T01:02:03.456Z', paymentId: PAY1 }, merchantLabels: 'OK' as const })
+      .mockResolvedValueOnce({ items: [item(PAY2, '짧은 이름', false)], nextCursor: null, merchantLabels: 'OK' as const })
     const api = fakeApi({ transactionSearch })
     render(<TransactionsScreen api={api} now={() => NOW} />)
     expect(screen.getByLabelText('시작일(KST)')).toHaveValue('2026-10-29')
@@ -97,14 +120,14 @@ describe('TransactionsScreen (TXN-OPS-001 §7 AC 10 — read-only transaction lo
     // 31일(10-05 ~ 11-04)은 보낸다.
     await userEvent.clear(screen.getByLabelText('종료일(KST)'))
     await userEvent.type(screen.getByLabelText('종료일(KST)'), '2026-11-04')
-    vi.mocked(api.transactionSearch).mockResolvedValue({ items: [], nextCursor: null })
+    vi.mocked(api.transactionSearch).mockResolvedValue({ items: [], nextCursor: null, merchantLabels: 'OK' as const })
     await search()
     expect(api.transactionSearch).toHaveBeenCalledWith({ createdFrom: '2026-10-04T15:00:00.000Z', createdTo: '2026-11-04T15:00:00.000Z' })
     expect(await screen.findByText('조건에 맞는 거래가 없습니다.')).toBeInTheDocument()
   })
 
   it('the paymentId lookup sends only the id; the order lookup needs MID and order number and sends no period', async () => {
-    const transactionSearch = vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null }))
+    const transactionSearch = vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null, merchantLabels: 'OK' as const }))
     const api = fakeApi({ transactionSearch })
     render(<TransactionsScreen api={api} now={() => NOW} />)
     await choose('조회 방식', 'payment')
@@ -123,7 +146,7 @@ describe('TransactionsScreen (TXN-OPS-001 §7 AC 10 — read-only transaction lo
   })
 
   it('the detail shows the full order name, approval number, provider transaction id, cancel initiators (no reason), the balance and the hold', async () => {
-    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null })), transactionDetail: vi.fn(async () => detail) })
+    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null, merchantLabels: 'OK' as const })), transactionDetail: vi.fn(async () => detail) })
     render(<TransactionsScreen api={api} now={() => NOW} />)
     await search()
     await userEvent.click(within(await screen.findByRole('row', { name: PAY1 })).getByRole('button', { name: '상세' }))
@@ -146,7 +169,7 @@ describe('TransactionsScreen (TXN-OPS-001 §7 AC 10 — read-only transaction lo
 
   it('an audit failure shows the fixed message and no detail; a read failure says the payment service is unreachable (not "not saved")', async () => {
     const transactionDetail = vi.fn().mockRejectedValueOnce(apiError(503, 'AUDIT_UNAVAILABLE')).mockRejectedValueOnce(apiError(503, 'PAYMENT_UNAVAILABLE'))
-    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null })), transactionDetail })
+    const api = fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item(PAY1)], nextCursor: null, merchantLabels: 'OK' as const })), transactionDetail })
     render(<TransactionsScreen api={api} now={() => NOW} />)
     await search()
     const details = () => within(screen.getByRole('row', { name: PAY1 })).getByRole('button', { name: '상세' })

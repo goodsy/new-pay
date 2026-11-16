@@ -118,9 +118,9 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
   it('TXN-OPS-001: transaction lookup with a listed row', async () => {
     const item = {
       paymentId: PAY, environment: 'TEST', merchantAccountId: 'mid-demo-1', merchantOrderId: 'order-77', orderNamePreview: '주문', orderNameTruncated: false,
-      amountMinor: 10000, currency: 'KRW', status: 'AUTHORIZED', createdAt: '2026-11-01T00:00:00.000Z',
+      amountMinor: 10000, currency: 'KRW', paymentMethod: 'CARD', status: 'AUTHORIZED', createdAt: '2026-11-01T00:00:00.000Z', merchant: { name: '데모상점', code: 'demoshop01' },
     }
-    render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
+    render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null, merchantLabels: 'OK' as const })) })} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     expect(await screen.findByRole('row', { name: PAY })).toBeInTheDocument()
     expectNoRuntimeStyles()

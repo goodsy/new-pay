@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, TransactionDetail, TransactionSearchInput, TransactionSearchPage } from '../api/adminApi'
+import { MERCHANT_LABEL_MISSING, MERCHANT_LABELS_UNAVAILABLE, merchantLabelText, paymentMethodLabel } from '../lib/merchantLabel'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { SearchIcon } from '../components/icons'
@@ -397,17 +398,26 @@ export function TransactionsScreen({ api, onSessionEnded, now = Date.now }: Prop
           <Table aria-label="거래 목록">
             <TableHeader>
               <TableRow>
-                <TableHead>결제 ID</TableHead><TableHead>생성 시각</TableHead><TableHead>환경·MID</TableHead><TableHead>주문</TableHead><TableHead>금액</TableHead>
+                <TableHead>결제 ID</TableHead><TableHead>생성 시각</TableHead><TableHead>가맹점</TableHead><TableHead>결제수단</TableHead><TableHead>주문</TableHead><TableHead>금액</TableHead>
                 <TableHead>상태</TableHead><TableHead><span className="sr-only">작업</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {page.items.length === 0 && <EmptyRow columns={7} message="조건에 맞는 거래가 없습니다." />}
+              {page.items.length === 0 && <EmptyRow columns={8} message="조건에 맞는 거래가 없습니다." />}
               {page.items.map((row) => (
                 <TableRow key={row.paymentId} aria-label={row.paymentId} className={detail?.payment.paymentId === row.paymentId ? 'bg-muted/50' : undefined}>
                   <TableCell><Mono>{row.paymentId}</Mono></TableCell>
                   <TableCell><KstTime iso={row.createdAt} /></TableCell>
-                  <TableCell><span className="flex flex-col"><span className="font-mono text-xs">{row.environment}</span><Mono>{row.merchantAccountId}</Mono></span></TableCell>
+                  <TableCell>
+                    {/* TXN-LIST-ENRICH-001 §3.4: "<상호> · <가맹점 코드>" + 환경·MID. 쪽 라벨이 UNAVAILABLE이면 MID만(안내는 표 아래 1줄). */}
+                    <span className="flex flex-col">
+                      {page.merchantLabels !== 'UNAVAILABLE' && (
+                        <span className={row.merchant === null ? 'text-xs text-muted-foreground' : 'text-sm'}>{merchantLabelText(row.merchant) ?? MERCHANT_LABEL_MISSING}</span>
+                      )}
+                      <span className="font-mono text-xs">{row.environment}</span><Mono>{row.merchantAccountId}</Mono>
+                    </span>
+                  </TableCell>
+                  <TableCell>{paymentMethodLabel(row.paymentMethod)}</TableCell>
                   <TableCell>
                     <span className="flex flex-col">
                       <Mono>{row.merchantOrderId}</Mono>
@@ -425,6 +435,7 @@ export function TransactionsScreen({ api, onSessionEnded, now = Date.now }: Prop
               ))}
             </TableBody>
           </Table>
+          {page.merchantLabels === 'UNAVAILABLE' && page.items.length > 0 && <p role="note" className="text-xs text-muted-foreground">{MERCHANT_LABELS_UNAVAILABLE}</p>}
           <p className="text-xs text-muted-foreground">목록의 주문명은 앞 10자만 표시합니다. 전체 주문명·승인번호는 상세(감사 기록)에서 확인하세요.</p>
           {page.nextCursor !== null && (
             <div className="flex justify-end">

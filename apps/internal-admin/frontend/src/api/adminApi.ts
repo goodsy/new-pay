@@ -561,13 +561,27 @@ export interface TransactionListItem {
   orderNameTruncated: boolean
   amountMinor: number
   currency: string
+  /** 결제수단 코드(TXN-LIST-ENRICH-001 — PAYMENT 소유, 지금은 `CARD` = 신용 + 체크). 화면은 `labelOf`, 모르는 코드는 원문. */
+  paymentMethod: string
   status: string
   createdAt: string
+  /** 가맹점 라벨(상호·현재 가맹점 코드 — MASTER). 라벨이 없거나 불러오지 못하면 null. 내부 키(`mer_`·`biz_`)는 없다(D-MCODE-003). */
+  merchant: TransactionMerchant | null
 }
+
+/** 가맹점 표시 라벨 — 화면 표기 "<상호> · <가맹점 코드>"(D-ADMIN-UI-004 ③). */
+export interface TransactionMerchant {
+  name: string
+  code: string
+}
+
+/** 이 쪽의 라벨 상태(TXN-LIST-ENRICH-001 §3.3): OK(못 찾은 MID만 null) / UNAVAILABLE(MASTER 불가 — 모든 항목 null, 목록은 그대로). */
+export type MerchantLabelsState = 'OK' | 'UNAVAILABLE'
 
 export interface TransactionSearchPage {
   items: TransactionListItem[]
   nextCursor: TransactionCursor | null
+  merchantLabels: MerchantLabelsState
 }
 
 /**
@@ -578,7 +592,11 @@ export interface TransactionDetail {
   payment: {
     paymentId: string; environment: string; merchantAccountId: string; merchantSiteId: string; merchantOrderId: string; orderName: string | null
     amountMinor: number; currency: string; paymentMethod: string; status: string; createdAt: string
+    /** TXN-LIST-ENRICH-001 E-4(§4.5): 가맹점 라벨(없거나 불러오지 못하면 null). 선택 필드 — 이 화면 단계는 상세에 라벨을 아직 표시하지 않는다. */
+    merchant?: TransactionMerchant | null
   }
+  /** TXN-LIST-ENRICH-001 E-4(§4.5): 상세 라벨 상태. */
+  merchantLabels?: MerchantLabelsState
   onHold: boolean
   terminationEvidence: string[]
   authorization: {

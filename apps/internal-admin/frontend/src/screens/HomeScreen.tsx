@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AdminApi, ApprovalView, HomeKpiItem, HomeKpis, Me, TransactionListItem } from '../api/adminApi'
+import type { AdminApi, ApprovalView, HomeKpiItem, HomeKpis, Me, MerchantLabelsState, TransactionListItem } from '../api/adminApi'
+import { MERCHANT_LABEL_MISSING, MERCHANT_LABELS_UNAVAILABLE, environmentMid, merchantLabelText, paymentMethodLabel } from '../lib/merchantLabel'
 import { KstTime } from '../components/DataBits'
 import { WorkspaceHeader } from '../components/WorkspaceHeader'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
@@ -47,7 +48,7 @@ const QUICK: { menu: MenuId; label: string; page?: Page }[] = [
 
 type Count = { state: 'loading' } | { state: 'ok'; value: number; atLeast: boolean } | { state: 'error'; code: ConsoleErrorCode }
 type Kpis = { state: 'loading' } | { state: 'ok'; doc: HomeKpis } | { state: 'error'; code: ConsoleErrorCode }
-type Recent = { state: 'loading' } | { state: 'ok'; items: TransactionListItem[] } | { state: 'error'; code: ConsoleErrorCode }
+type Recent = { state: 'loading' } | { state: 'ok'; items: TransactionListItem[]; labels: MerchantLabelsState } | { state: 'error'; code: ConsoleErrorCode }
 
 const two = (n: number) => String(n).padStart(2, '0')
 function kstParts(now: Date) {
@@ -212,8 +213,9 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded, now = () =>
       )
       setRecent({ state: 'loading' })
       const at = today
-      api.transactionSearch({ createdFrom: kstDayStart(at, RECENT_DAYS - 1), createdTo: kstDayStart(at, -1) }).then(
-        (page) => alive && setRecent({ state: 'ok', items: page.items.slice(0, RECENT_ROWS) }),
+      // TXN-LIST-ENRICH-001 M-6: 표시할 5건만 요청한다(limit — PAYMENT·MASTER 읽기 낭비 방지).
+      api.transactionSearch({ createdFrom: kstDayStart(at, RECENT_DAYS - 1), createdTo: kstDayStart(at, -1), limit: RECENT_ROWS }).then(
+        (page) => alive && setRecent({ state: 'ok', items: page.items.slice(0, RECENT_ROWS), labels: page.merchantLabels }),
         (e: unknown) => {
           if (!alive) return
           const code = fail(e)
@@ -461,7 +463,8 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded, now = () =>
               <thead>
                 <tr>
                   <th>주문 / 결제 ID</th>
-                  <th>환경 / MID</th>
+                  <th>가맹점</th>
+                  <th>결제수단</th>
                   <th>거래일시</th>
                   <th>상태</th>
                   <th className="amount">금액</th>
@@ -476,9 +479,16 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded, now = () =>
                         <small>{row.paymentId}</small>
                       </td>
                       <td>
-                        {row.environment}
-                        <small>{row.merchantAccountId}</small>
+                        {recent.labels === 'UNAVAILABLE' ? (
+                          environmentMid(row.environment, row.merchantAccountId)
+                        ) : (
+                          <>
+                            <strong>{merchantLabelText(row.merchant) ?? MERCHANT_LABEL_MISSING}</strong>
+                            <small>{environmentMid(row.environment, row.merchantAccountId)}</small>
+                          </>
+                        )}
                       </td>
+                      <td>{paymentMethodLabel(row.paymentMethod)}</td>
                       <td><KstTime iso={row.createdAt} /></td>
                       <td><span className={tagClass(row.status)} title={row.status}>{labelOf(row.status)}</span></td>
                       <td className="amount">{Number.isSafeInteger(row.amountMinor) ? formatMinor(row.amountMinor, row.currency) : '표시할 수 없는 금액'}</td>
@@ -489,6 +499,7 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded, now = () =>
             {recent.state === 'loading' && <div className="empty">불러오는 중…</div>}
             {recent.state === 'error' && <div className="empty">{ERROR_MESSAGES[recent.code]}</div>}
             {recent.state === 'ok' && recent.items.length === 0 && <div className="empty">최근 7일 동안의 거래가 없어요.</div>}
+            {recent.state === 'ok' && recent.labels === 'UNAVAILABLE' && recent.items.length > 0 && <p className="mapnote" role="note">{MERCHANT_LABELS_UNAVAILABLE}</p>}
           </div>
           <div className="tablebottom">
             <span>{recent.state === 'ok' ? `최근 ${recent.items.length}건` : '최근 거래'}</span>
