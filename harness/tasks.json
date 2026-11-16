@@ -7916,7 +7916,14 @@
           "result": "GRADLE-CHECK 23:21:59Z..00:11:42Z(49m43s) exit 0; Kotlin 4665 / FRONTEND 471(admin 446 + payment 25) 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a4fd669f1fecd6ee6ff7130be5c2aa6dfe53e93daee79ec5636c2659b55acede"
         }
       ],
-      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 먼저)"
+      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 먼저)",
+      "uirefKitPort": {
+        "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
+        "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
+        "evidence": "~/gate-logs/uiref-kit: progress.txt, diff-table.md(GUIDE §8 형식), pixel-diff.md(Edge headless 1440/1000/600 38/38 캡처 0px 차이), 시험 UiRefKit 28·UiRefKitFlows 18·UiRefIsolation 10",
+        "constraints": "pg-workspace.css 원본 그대로(sha 36781c34…c7a9), 보정은 overrides.css 3규칙+주석; 권한·승인·지급은 시연용(실제 통제 없음); 의존성 메이저 변경 없음, react-router 미도입(해시 라우터)",
+        "gate": "ENRICH-gate9 PASS(TXN-LIST-ENRICH-001과 같은 실행)"
+      }
     },
     {
       "id": "ADMIN-HOME-KPI-001",
@@ -8025,8 +8032,8 @@
     {
       "id": "TXN-LIST-ENRICH-001",
       "title": "관리자 거래 목록에 가맹점명(상호 · 가맹점 코드)·결제수단 표시",
-      "status": "READY",
-      "spec": "docs/repository/TXN-LIST-ENRICH-001-TRANSACTION-LIST-LABELS.md rev 0.1 sha256 ad52b3eb3dd1023e4dbe2909b4349739b1d7b40fdd396da27f4a6ea9e022ba85 (리뷰 전)",
+      "status": "DONE",
+      "spec": "docs/repository/TXN-LIST-ENRICH-001-TRANSACTION-LIST-LABELS.md rev 0.1b sha256 8b69791cdaae0a70861a02587f24be10b0c12d28536add082f2c78a9820f2a84 (rev 0.1a에서 specReview M-1..M-6·N-1..N-5 반영, 0.1b 리뷰 M-b·NIT-1)",
       "request": "사용자 2026-11-15 \"가맹점명·결제수단 칸을 추가\"",
       "dependsOn": [
         "ADMIN-HOME-KPI-001",
@@ -8062,7 +8069,42 @@
           "N-5 서비스 이름·TransactionListEnricher 위치(application)·paymentops package-info 의존 설명, §3.4에 MERCHANT-CODE-001 L-6 참조, T-E3-1 사용자 입력 MID 미전달 단언"
         ],
         "nextAction": "rev 0.1a 반영은 E-1 착수 구현자가 함께(E-1은 rev 0.1로도 착수 가능, KPI K-3 커밋 뒤)"
-      }
+      },
+      "implementation": {
+        "batches": "E-1..E-5 구현(미커밋) 2026-11-16, 각 배치 RED→GREEN",
+        "evidence": "~/gate-logs/txn-enrich: E-1 admin 26·payment 20, E-2 master 8클래스(+수정 3클래스 16/16), E-2..E-4 admin 13클래스 130, E-5 frontend 90 + tsc 0 + build 0",
+        "configKeys": "ADMIN paycore.admin.master-ops.label-permits=2, label-read-timeout=2s(≤read-timeout); MASTER paycore.master.admin-channel.label-permits=2 (main yml Demo 값, 기본값 없음) — Demo env 변경 불필요(다음 기동 때 yml+SPRING_APPLICATION_JSON 병합 확인)",
+        "deviations": [
+          "별도 Port MasterLabelGateway(ISP)",
+          "MerchantAccountIdRules merchantops provided",
+          "MASTER FORCE INDEX(PRIMARY)(T-E2-7 RED 근거)",
+          "T-E2-12 permit 격리 수준 단언(명세 §5.1 기록)",
+          "상세 화면 라벨 미표시(API만)",
+          "TransactionsScreen 기존 utility class(아직 workspace 미이식 화면)"
+        ],
+        "paymentMethodLabel": "카드 (Coordinator, Q-TXENRICH-1)"
+      },
+      "codeReview": {
+        "verdict": "REVIEW_PASS 2026-11-16 — MAJOR 0, MINOR 3, NIT 6; 사용자 질문 없음",
+        "fixes": "~/gate-logs/txn-enrich-fix: M-a 상한 초과 → UNAVAILABLE(RESPONSE_TOO_LARGE) RED 1→GREEN, M-b·NIT-1 명세 rev 0.1b, NIT-2 latch, NIT-3 == null(RED), NIT-4 주석, NIT-5 대비 시험, NIT-6 T-E5-7 태그; GREEN admin 4클래스 33, frontend 5파일 84, tsc 0; M-c 이 기록",
+        "nextAction": "uiref 키트 이식 완료 뒤 전체 게이트(Demo 정지) → 커밋"
+      },
+      "gateRuns": [
+        {
+          "tag": "ENRICH-gate8",
+          "verdict": "FAIL",
+          "evidence": "build/harness-evidence/TXN-LIST-ENRICH-001-2026-11-16T122147Z.json",
+          "result": "GRADLE-CHECK exit 1: master-api 776 중 1 실패 MerchantOperationsApiSpec write-path inventory — 신규 읽기 전용 POST /internal/v1/admin/merchant-account-labels(명세 §4.2)가 목록에 없음. 수정: 목록에 경로 추가+근거 주석(완화 아님, 개통·한도·정지 경로 여전히 없음), 해당 클래스 18/18 GREEN(~/gate-logs/txn-enrich-fix/inventory.log)"
+        },
+        {
+          "tag": "ENRICH-gate9",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/TXN-LIST-ENRICH-001-2026-11-16T133654Z.json",
+          "result": "GRADLE-CHECK 13:37:19Z..14:20:03Z(42m44s) exit 0; Kotlin 4713 / FRONTEND 508 실패·errors·skip 0; HARNESS-SELFTEST PASS(203); fingerprint 전후 동일 sha256:648bc2abd0f799ac1eaf74d444dc18051689bfb5fe412018239826c57e5a1405",
+          "supplementary": "ENRICH-cve9 PASS(~/gate-logs/ENRICH-cve9.log, 취약점 0, canary 전 모듈); internal-admin jar static에 uiref/pg-workspace 내용 0건"
+        }
+      ],
+      "nextResumeAction": "완료 — Demo 재기동 후 MASTER label-permits(yml+SPRING_APPLICATION_JSON) 확인"
     },
     {
       "id": "ADMIN-HISTORY-KEYS-001",
