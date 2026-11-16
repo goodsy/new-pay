@@ -1,0 +1,343 @@
+/*
+ * ADMIN-UI-WORKSPACE-001 — 참고 시안 'pg-ops-workspace'(docs/ui-reference/reference/style.css, sha256 c0794c3a…fa24a)를 실제 관리자 콘솔에 입힌다.
+ *
+ * 1) 기준 CSS 전체를 원본 선언 순서 그대로 옮겼다(파일 끝 "Readable operations typography" 구역이 최종값). 선언 블록 `{…}`은 한 글자도 바꾸지 않는다
+ *    (WorkspaceShell.test.tsx가 원본의 모든 선언 블록이 같은 순서로 있는지 검사한다).
+ * 2) cascade layer `workspace`(styles.css가 순서를 정한다: theme, base, workspace, components, utilities):
+ *    - Tailwind preflight(base)보다 늦으므로 h1·button·table·svg·body 같은 전역 기본값은 기준 CSS가 이긴다.
+ *    - Tailwind utilities보다 앞이므로, 아직 시안으로 옮기지 않은 화면(utility class로 그린 shadcn 구성요소)은 지금 모양을 유지한다.
+ * 3) 원본의 입력란·표 요소 선택자(input·select·table·th·td)는 시안 컨테이너(.filters·.formrow·.modal·.rolebar·.matrix / .tablewrap) 안으로만 좁혔다.
+ *    `:where()`는 명시도 0이라 원본과 명시도·우선순위가 같다. 아직 옮기지 않은 화면의 입력란·표가 시안 값으로 반쯤 바뀌어 깨지지 않게 하려는 것이다.
+ * 4) 마지막 "PayCore 적응 규칙"은 실제 콘솔의 접근성·기능을 지키려고 더한 최소 규칙이다(새 글꼴·그림자·아이콘·색 없음 — 값은 원본에 있는 값만).
+ * 외부 글꼴·URL·다른 CSS 가져오기 없음(CSP style-src 'self'). 시안에는 다크 모드가 없어 콘솔도 밝은 화면 하나로 맞춘다(styles.css).
+ */
+@layer workspace {
+:root{--blue:#3182f6;--line:#edf0f4;--muted:#8b95a1}
+*{box-sizing:border-box}
+body{margin:0;background:#f7f9fc;color:#202938;font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer;background:none;border:0;color:inherit}
+button:focus-visible,a:focus-visible{outline:3px solid #aecfff}
+aside{position:fixed;width:236px;height:100vh;background:#fff;border-right:1px solid var(--line);padding:30px 18px;display:flex;flex-direction:column}
+.brand{font-size:21px;font-weight:800;letter-spacing:-.7px;text-decoration:none;color:#263445;display:flex;align-items:center;gap:9px}
+.brand i{display:grid;place-items:center;width:33px;height:33px;background:var(--blue);color:white;border-radius:11px;font-size:30px}
+.workspace{margin:32px 0 20px;padding:14px 12px;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;font-size:12px;font-weight:700}
+.workspace small{font-size:10px;color:#98a2b0;margin:0 9px}
+nav{overflow:auto}
+nav .label{font-size:10px;letter-spacing:1px;color:#a5afbb;padding:20px 14px 9px}
+nav button{display:flex;gap:12px;align-items:center;width:100%;padding:12px 14px;text-align:left;border-radius:8px;margin:3px 0;color:#687485;font-size:13px}
+nav button.active{background:#edf4ff;color:#2476e8;font-weight:700}
+nav svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}
+nav em{margin-left:auto;font-size:10px;background:#fff0ed;color:#ec7968;border-radius:4px;padding:2px 5px;font-style:normal}
+.bottom{margin-top:auto;padding-top:25px;color:#7e8998;font-size:12px}
+.bottom small{display:block;font-size:10px;margin-top:6px}
+.bottom hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+.shell{margin-left:236px}
+header{height:76px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 38px;color:#8b95a1;font-size:11px}
+.search{margin-left:auto;padding:11px 14px;background:#f5f7fa;border-radius:7px;font-size:11px;color:#929caa;width:275px;text-align:left}
+kbd{float:right;font-size:9px}
+main{max-width:1500px;margin:auto;padding:36px 38px 25px}
+.heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:27px}
+h1{font-size:28px;letter-spacing:-1px;margin:0 0 10px}
+p{line-height:1.7}
+.heading p{margin:0;color:#929cab;font-size:12px}
+.eyebrow{font-size:10px;letter-spacing:1.6px;color:#869dbb;margin-bottom:12px}
+.actions{display:flex;gap:8px}
+.btn{padding:10px 15px;border:1px solid #e3e8ef;border-radius:8px;background:white;font-size:12px;font-weight:600}
+.btn.primary{color:white;background:#3182f6;border-color:#3182f6}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.banner{display:flex;align-items:center;gap:15px;padding:18px 21px;background:#edf4ff;border:1px solid #e0ebfd;border-radius:11px;margin-bottom:24px}
+.symbol{background:white;border-radius:9px;color:#3182f6;width:36px;height:36px;display:grid;place-items:center;font-size:19px}
+.banner b{font-size:13px}
+.banner p{margin:5px 0 0;font-size:11px;color:#7b8da6}
+.banner button{margin-left:auto;color:#3182f6;font-size:12px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px}
+.stat{background:white;border:1px solid var(--line);border-radius:12px;padding:21px}
+.stitle{color:#8390a0;font-size:12px}
+.stat strong{display:block;font-size:29px;letter-spacing:-1px;margin:13px 0 11px}
+.stat strong small{font-size:14px;color:#8190a1;font-weight:400;margin-left:4px}
+.hint{font-size:10px;color:#9aa4b3}
+.positive{color:#3182f6}
+.split{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-bottom:24px}
+.card{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.cardtop{display:flex;justify-content:space-between;align-items:center;padding:22px 23px 17px}
+.cardtop h2{margin:0;font-size:15px}
+.cardtop button{font-size:11px;color:#8b95a1}
+.count{color:#3182f6;background:#edf4ff;border-radius:4px;padding:3px 6px;font-size:11px;margin-left:7px}
+.task{display:flex;align-items:center;gap:13px;padding:16px 23px;border-top:1px solid #f3f5f8;cursor:pointer}
+.task:hover,tr.clickable:hover{background:#f8fbff}
+.taskicon{width:34px;height:34px;background:#fff3ea;color:#e69758;border-radius:9px;display:grid;place-items:center}
+.taskicon.blue{color:#3182f6;background:#edf4ff}
+.task b{font-size:12px}
+.task small{display:block;color:#9ba6b3;font-size:10px;margin-top:6px}
+.task .tag{margin-left:auto}
+.tag{display:inline-block;white-space:nowrap;font-size:10px;border-radius:5px;background:#f1f4f8;color:#8492a3;padding:5px 7px}
+.tag.blue{color:#3182f6;background:#edf4ff}
+.tag.orange{color:#d7914c;background:#fff3e8}
+.tag.green{color:#34a37b;background:#ebf9f2}
+.tag.red{color:#e96c72;background:#fff0f1}
+.pipeline{padding:5px 24px 20px}
+.pipe{display:flex;gap:14px;align-items:center;padding:13px 0}
+.stepno{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#ebf6f0;color:#39a177;font-size:11px}
+.pipe b{font-size:12px}
+.pipe small{display:block;color:#9da7b4;font-size:10px;margin-top:5px}
+.pipe .tag{margin-left:auto}
+.tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);padding:0 23px;overflow:auto;white-space:nowrap}
+.tabs button{padding:14px 0;font-size:12px;color:#8b95a1}
+.tabs button.on{border-bottom:2px solid #3182f6;color:#3182f6;font-weight:700}
+.filters{display:flex;gap:9px;padding:20px 23px;align-items:center}
+:where(.filters,.formrow,.modal,.rolebar,.matrix) input,:where(.filters,.formrow,.modal,.rolebar,.matrix) select{padding:10px 12px;border:1px solid #e2e8ef;border-radius:7px;background:#fff;font-size:12px;color:#566577;min-width:0}
+.filters input{flex:1}
+:where(.filters,.formrow,.modal,.rolebar,.matrix) input:focus{outline:2px solid #bcd5ff}
+.tablewrap{overflow:auto}
+:where(.tablewrap) table{border-collapse:collapse;width:100%;white-space:nowrap;text-align:left}
+:where(.tablewrap) th{padding:13px 20px;color:#8b95a1;font-size:10px;font-weight:500;background:#f9fafc;border-bottom:1px solid var(--line)}
+:where(.tablewrap) td{padding:17px 20px;border-bottom:1px solid #f1f4f7;font-size:12px;color:#647183}
+:where(.tablewrap) td strong{font-weight:600;color:#3d495b}
+:where(.tablewrap) td small{display:block;font-size:10px;color:#a0aab8;margin-top:5px}
+tr.clickable{cursor:pointer}
+.amount{text-align:right;font-variant-numeric:tabular-nums}
+.tablebottom{padding:16px 22px;display:flex;justify-content:space-between;color:#a0a9b5;font-size:10px}
+.quick{display:flex;gap:12px;margin-top:22px}
+.quick button{flex:1;border:1px solid var(--line);border-radius:9px;background:white;padding:16px;text-align:left;font-size:11px;color:#718097}
+.quick span{float:right}
+footer{padding:12px 38px 24px;font-size:9px;color:#aab4c2}
+.overlay{position:fixed;inset:0;background:#18263d55;backdrop-filter:blur(2px);display:flex;justify-content:flex-end;z-index:10}
+.overlay[hidden]{display:none}
+.drawer{width:550px;max-width:100%;padding:32px;background:white;overflow:auto;box-shadow:-10px 0 40px #17325122}
+.close{float:right;font-size:26px;color:#98a3b3}
+.drawer h2{font-size:24px;margin:25px 0 10px}
+.subtle{font-size:12px;color:#98a3b2}
+.detailgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:30px 0}
+.detailgrid label{display:block;color:#9ca7b6;font-size:11px;margin-bottom:8px}
+.detailgrid strong{font-size:13px}
+.timeline{margin:25px 12px;border-left:2px solid #e8effb;padding-left:24px}
+.timeline p{font-size:13px;margin:24px 0}
+.timeline small{display:block;color:#9aa6b4;font-size:11px}
+.drawer .banner{margin-top:24px}
+.notice{padding:15px;background:#f6f8fb;border-radius:9px;color:#8491a3;font-size:12px;line-height:1.9}
+.formrow{margin:20px 0}
+.formrow label{display:block;font-size:12px;margin-bottom:9px;color:#7c8898}
+.formrow input,.formrow select{width:100%;padding:13px}
+.wizard{display:flex;gap:5px;margin:26px 0}
+.wizard span{flex:1;border-top:3px solid #eaf0f7;font-size:10px;padding-top:10px;color:#9da8b7}
+.wizard .current{border-color:#3182f6;color:#3182f6}
+.modal{background:white;margin:90px auto auto;width:650px;max-width:95%;padding:25px;border-radius:15px;max-height:75vh;overflow:auto}
+.modal input{width:90%;margin:10px 0 20px}
+.result{padding:15px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.empty{padding:40px;text-align:center;color:#8b95a1}
+.mapnote{padding:20px 23px;color:#8995a5;font-size:12px;line-height:1.9}
+.rolebar{padding:20px;display:flex;gap:12px;align-items:center}
+.matrix input{accent-color:#3182f6}
+.matrix td{text-align:center}
+.matrix td:first-child{text-align:left}
+#toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#293c53;color:white;padding:14px 22px;border-radius:10px;z-index:30;display:none;font-size:12px}
+@media(max-width:1100px){aside{width:205px}
+.shell{margin-left:205px}
+header,main{padding-left:23px;padding-right:23px}
+.split{grid-template-columns:1fr}
+.stat strong{font-size:24px}
+.stats{gap:10px}
+.stat{padding:16px}
+}
+@media(max-width:720px){aside{position:relative;width:100%;height:auto;padding:16px}
+.workspace,.bottom,nav .label{display:none}
+nav{display:flex;margin-top:14px}
+nav button{white-space:nowrap;width:auto}
+nav svg,nav em{display:none}
+.shell{margin-left:0}
+header{height:60px;padding:10px 15px}
+#crumb,header>.tag{display:none}
+.search{width:100%;margin:0}
+main{padding:25px 16px}
+.heading{align-items:flex-start;gap:12px}
+h1{font-size:24px}
+.actions{flex-direction:column}
+.stats{grid-template-columns:1fr 1fr}
+.banner p{display:none}
+.filters{flex-wrap:wrap}
+.quick{flex-wrap:wrap}
+.quick button{flex-basis:40%}
+footer{padding:15px;line-height:1.8}
+}
+
+/* Readable operations typography */
+:root{--muted:#64748b;--line:#e2e8f0}
+body{color:#334155;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR','Malgun Gothic',sans-serif;line-height:1.5}
+h1,h2,.brand,.stat strong,.drawer h2{color:#0f172a;font-weight:700}
+nav button{font-size:14px;font-weight:500;color:#475569}
+nav button.active{color:#1d4ed8;font-weight:700}
+nav .label,.workspace small,.bottom small,kbd{font-size:11px;color:#64748b}
+.workspace,.bottom,header,.search{font-size:13px;color:#475569}
+.heading p,.banner p,.hint,.task small,.pipe small,:where(.tablewrap) td small,.timeline small,.subtle,.tablebottom,.mapnote,.notice{color:#64748b;font-size:12px}
+.eyebrow{color:#526984;font-size:11px;font-weight:600}
+.btn,.banner button,.cardtop button,.quick button{font-size:13px;font-weight:600}
+.cardtop button,.quick button{color:#475569}
+.banner b,.task b,.pipe b,.stitle{font-size:14px;font-weight:600;color:#334155}
+.stat strong{font-variant-numeric:tabular-nums}
+.stat strong small{color:#64748b;font-weight:500}
+.cardtop h2{font-size:17px;font-weight:700}
+.tabs button{font-size:14px;font-weight:500;color:#475569}
+.tabs button.on{color:#1d4ed8;font-weight:700}
+:where(.filters,.formrow,.modal,.rolebar,.matrix) input,:where(.filters,.formrow,.modal,.rolebar,.matrix) select{font-size:14px;color:#334155}
+:where(.filters,.formrow,.modal,.rolebar,.matrix) input::placeholder{color:#64748b;opacity:1}
+:where(.tablewrap) th{font-size:13px;font-weight:600;color:#475569}
+:where(.tablewrap) td{font-size:14px;color:#334155}
+:where(.tablewrap) td strong,.detailgrid strong{color:#0f172a;font-weight:600}
+.amount{font-weight:600;font-variant-numeric:tabular-nums}
+.tag,.count{font-size:12px;font-weight:600}
+.tag{color:#475569}
+.tag.blue,.count,.positive{color:#1d4ed8}
+.tag.orange{color:#9a4c0c}
+.tag.green{color:#16734f}
+.tag.red,nav em{color:#b42339}
+.detailgrid label,.formrow label{font-size:13px;font-weight:500;color:#475569}
+.detailgrid strong,.timeline p{font-size:14px}
+.wizard span{font-size:12px;color:#64748b}
+.wizard .current{color:#1d4ed8;font-weight:600}
+.empty,.close{color:#64748b}
+footer{font-size:11px;color:#64748b}
+@media(max-width:720px){nav button{font-size:14px}
+.heading p{line-height:1.6}
+.banner{padding:16px}
+.banner b{font-size:13px}
+}
+}
+
+/*
+ * PayCore 적응 규칙(ADMIN-UI-WORKSPACE-001) — 원본에 없는 구조를 실제 콘솔이 쓰는 곳에만. 값은 원본에 이미 있는 값을 쓴다.
+ */
+@layer workspace {
+/* 원본 `button{border:0}` 단축 속성은 선 색을 currentColor로 되돌려, 아직 옮기지 않은 화면의 `border` utility 버튼(선 굵기만 지정)이 검은 선이 된다(실측: 운영 홈 바로가기·상세 outline 버튼).
+   선 색만 기본 선(--line)으로 되돌린다 — 굵기 0은 그대로라 시안 버튼 모양은 변하지 않는다. */
+button{border-color:var(--line)}
+/* 로그인 전 상단 바: 브랜드 안의 콘솔 이름(h1)은 브랜드 글자 크기 그대로(전역 h1 28px 아님). */
+.brand h1{margin:0;font-size:inherit;letter-spacing:inherit}
+/* 경로: 원본 `워크스페이스　/　메뉴`(전각 공백)를 목록 항목 사이 간격 1em으로 — 접근성 이름에 공백 문자를 넣지 않는다. */
+#crumb ol{display:flex;gap:1em}
+/* 사이드바 구역(role=group, 접근성 이름 = 구역 이름): 데스크톱은 block(원본의 평평한 label·button 흐름과 같은 배치), 모바일은 가로 메뉴에 이어 붙는다. */
+@media(max-width:720px){nav [role=group]{display:flex}}
+/* 아래 계정 영역의 로그아웃(원본에는 없음). 모바일에서도 로그아웃할 수 있게 계정 영역을 숨기지 않는다(구분선만 숨김). */
+.bottom .btn{display:block;margin-top:14px}
+@media(max-width:720px){.bottom{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:14px;padding-top:0}.bottom hr{display:none}.bottom small{margin-top:0}.bottom .btn{margin:0 0 0 auto}}
+/* 표 안 화면 낭독 전용 글자(.sr-only — position:absolute)가 표의 가로 스크롤 밖으로 나가 쪽 전체를 넓히지 않도록 기준 위치를 표 칸으로(390px 실측: 없으면 쪽 폭 870px). */
+.tablewrap{position:relative}
+/* 표 행 선택 표시(상세를 연 행) — 원본 hover 색. */
+tr.selected{background:#f8fbff}
+/* 카드 안 안내·오류 줄(검색 도움말·오류 알림): 카드 좌우 23px 정렬. 오류 글자는 원본 .tag.red 색. */
+.cardnote{padding:0 23px 20px;display:flex;flex-direction:column;gap:4px}
+.cardnote p{margin:0}
+.cardnote .error{font-size:12px;color:#b42339}
+/* 초점 표시 대비(리뷰 MINOR-3): 원본 #aecfff·#bcd5ff는 흰 바탕에서 약 1.5:1이라 선 굵기는 그대로 두고 색만 진한 파랑(#1d4ed8 — 원본 활성 메뉴 색, 흰 바탕 약 6.7:1)으로 바꾼다. */
+button:focus-visible,a:focus-visible{outline-color:#1d4ed8}
+/* 탭 막대는 overflow:auto라 바깥 초점선이 잘린다 — 안쪽으로 그린다. */
+.tabs button:focus-visible{outline-offset:-3px}
+:where(.filters,.formrow,.modal,.rolebar,.matrix) input:focus,:where(.filters,.formrow,.modal,.rolebar,.matrix) select:focus{outline:2px solid #1d4ed8}
+/* 좁은 화면 조회 조건(리뷰 MINOR-2): 원본은 flex:1·min-width:0이라 줄바꿈되지 않고 입력란이 몇 글자로 줄어든다. 720px 이하에서는 입력란·선택을 한 줄씩, 검색 버튼은 그 아래 오른쪽. */
+@media(max-width:720px){.filters input,.filters select{flex:1 1 100%}.filters .btn{margin-left:auto}}
+/* mapnote 안 제목(h2)은 줄 안에 굵게 — 원본 `<b>탭 이름</b> · 설명`과 같은 모양. */
+.mapnote h2{display:inline;margin:0;font-size:inherit}
+/* 가맹점 조회 상세(화면 안 영역 — drawer로 바꾸지 않음): 카드 아래 구분선 뒤에 원본 drawer 제목·카드 값. */
+.detailarea{border-top:1px solid var(--line);padding:24px 23px;display:flex;flex-direction:column;gap:16px}
+.detailarea h3{margin:0;font-size:24px;color:#0f172a;font-weight:700}
+.detailarea h3 small{font-size:12px;font-weight:400;color:#64748b;margin-left:8px}
+.cardtop h4{margin:0;font-size:17px;font-weight:700;color:#0f172a}
+.cardbody{padding:0 23px 20px;display:flex;flex-direction:column;gap:12px}
+/* 운영 홈(2단계): 할 일 행은 접근성을 위해 button(원본 div onclick) — 폭·정렬만 원본 div와 같게. */
+button.task{width:100%;text-align:left}
+/* 날짜 표시(날짜 고르기 기능이 없어 누르는 단추가 아니다 — .btn 모양만). */
+.datechip{cursor:default}
+/* 긴 KPI 값(40자리 금액 등)은 카드 밖으로 넘치지 않고 줄을 바꾼다(리뷰 NIT). */
+.stat strong{overflow-wrap:anywhere}
+/* KPI 값이 숫자가 아닌 상태 문구(불러오지 못했어요·정산 기능 준비 전 등)는 카드 제목 크기(원본 .cardtop h2 17px)로 — 29px 숫자처럼 보이지 않게. */
+.stat strong.pending{font-size:17px;letter-spacing:0;color:#475569}
+.hint.error{color:#b42339;margin:6px 0 0}
+/* 테마 선택(시스템·라이트·다크 — D-ADMIN-HOME-001): 원본 워크스페이스 상자·선택 메뉴 값. */
+.themetoggle{display:flex;gap:4px;margin-top:14px;padding:3px;background:#f6f8fb;border:1px solid var(--line);border-radius:9px}
+.themetoggle button{flex:1;padding:6px 8px;border-radius:7px;font-size:12px;color:#475569}
+.themetoggle button.on{background:#edf4ff;color:#1d4ed8;font-weight:700}
+/* 모바일(≤720): 원본은 계정 영역을 숨긴다 — 로그아웃·테마 선택만 한 줄로 남기고 이름·역할은 숨긴다(가로 메뉴 아래 한 줄). */
+@media(max-width:720px){.bottom b,.bottom small{display:none}.bottom{flex-wrap:nowrap}.themetoggle{margin-top:0;flex:1}.themetoggle button{white-space:nowrap;padding:6px 4px}}
+}
+
+/*
+ * 라이트 대비 보정(사용자 결정 2026-11-15 "기준에 맞게 조금 진하게"): 원본 값 중 WCAG 기준(글자 4.5:1, 장식 글리프·큰 글자 3:1)에 못 미치는 것만,
+ * 같은 색 계열에서 기준을 넘는 가장 작은 만큼 진하게(HSL 명도만 낮춤). 배경·크기·배치는 그대로. 원본 블록은 바꾸지 않는다(같은 명시도, 뒤에 와서 이긴다).
+ * 측정(흰 바탕/원본 배경 기준): 주 버튼 흰 글자 3.71 → 4.59, 안내 띠 단추 3.36 → 4.56, 보조 글자(워크스페이스 작은 글자·kbd·안내 띠 설명) 4.30~4.47 → 4.55 이상,
+ * 단계 번호 2.90 → 4.58, 주황 할 일 글리프(장식) 2.16 → 3.07. 파란 글리프(3.36)·안내 띠 기호(3.71)·로고(30px 굵은 글자 3.71)는 3:1 기준을 이미 넘어 그대로.
+ */
+@layer workspace {
+.btn.primary{background:#116ef5;border-color:#116ef5}
+.banner button{color:#0a67ec}
+.workspace small,kbd,.banner p{color:#617086}
+.stepno{color:#2c7c5c}
+.taskicon{color:#d77120}
+}
+
+/*
+ * 다크 테마(D-ADMIN-HOME-001 — 시안에 없어 새로 정한 slate 팔레트; styles.css 다크 token과 같은 값).
+ * 원본 블록은 그대로 두고, 원본이 색을 직접 적은 선택자를 `:root[data-theme=dark]` 아래에서 다시 칠한다(명시도가 높아 상태 선택자(.active·.on·.primary·.tag.*)도 여기서 함께 다시 정한다).
+ * 글자 대비(본문·보조·태그·버튼·입력·초점)는 4.5:1 이상으로 골랐다.
+ */
+@layer workspace {
+:root[data-theme=dark]{--line:#26324a;--blue:#3b82f6}
+:root[data-theme=dark] body{background:#0b1220;color:#dbe4f0}
+:root[data-theme=dark] aside{background:#111a2b;border-right-color:var(--line)}
+:root[data-theme=dark] .brand{color:#f1f5f9}
+:root[data-theme=dark] .workspace{background:#18233a;border-color:var(--line);color:#dbe4f0}
+:root[data-theme=dark] .workspace small,:root[data-theme=dark] nav .label,:root[data-theme=dark] .bottom small,:root[data-theme=dark] kbd{color:#9aa8bc}
+:root[data-theme=dark] nav button{color:#cbd5e1}
+:root[data-theme=dark] nav button.active{background:#172b4d;color:#7cb4ff}
+:root[data-theme=dark] .bottom{color:#cbd5e1}
+:root[data-theme=dark] .bottom hr{border-top-color:var(--line)}
+:root[data-theme=dark] header{background:#111a2b;border-bottom-color:var(--line);color:#cbd5e1}
+:root[data-theme=dark] .search{background:#18233a;color:#9aa8bc}
+:root[data-theme=dark] h1,:root[data-theme=dark] h2,:root[data-theme=dark] .stat strong,:root[data-theme=dark] .drawer h2,:root[data-theme=dark] .detailarea h3,:root[data-theme=dark] .cardtop h4{color:#f1f5f9}
+:root[data-theme=dark] .heading p,:root[data-theme=dark] .banner p,:root[data-theme=dark] .hint,:root[data-theme=dark] .task small,:root[data-theme=dark] .pipe small,:root[data-theme=dark] .tablewrap td small,:root[data-theme=dark] .timeline small,:root[data-theme=dark] .subtle,:root[data-theme=dark] .tablebottom,:root[data-theme=dark] .mapnote,:root[data-theme=dark] .notice,:root[data-theme=dark] .empty,:root[data-theme=dark] .close,:root[data-theme=dark] footer{color:#9aa8bc}
+:root[data-theme=dark] .eyebrow{color:#93a9c7}
+:root[data-theme=dark] .btn{background:#111a2b;border-color:#334155;color:#dbe4f0}
+:root[data-theme=dark] .btn.primary{background:#60a5fa;border-color:#60a5fa;color:#0b1220}
+:root[data-theme=dark] .banner{background:#172b4d;border-color:#23406e}
+:root[data-theme=dark] .banner b,:root[data-theme=dark] .task b,:root[data-theme=dark] .pipe b,:root[data-theme=dark] .stitle{color:#dbe4f0}
+:root[data-theme=dark] .symbol{background:#111a2b;color:#7cb4ff}
+:root[data-theme=dark] .banner button,:root[data-theme=dark] .positive{color:#7cb4ff}
+:root[data-theme=dark] .stat,:root[data-theme=dark] .card,:root[data-theme=dark] .quick button{background:#111a2b;border-color:var(--line)}
+:root[data-theme=dark] .stat strong small,:root[data-theme=dark] .stat strong.pending{color:#9aa8bc}
+:root[data-theme=dark] .cardtop button,:root[data-theme=dark] .quick button{color:#cbd5e1}
+:root[data-theme=dark] .count{background:#172b4d;color:#93c5fd}
+:root[data-theme=dark] .task{border-top-color:var(--line)}
+:root[data-theme=dark] .task:hover,:root[data-theme=dark] tr.clickable:hover,:root[data-theme=dark] tr.selected{background:#18233a}
+:root[data-theme=dark] .taskicon{background:#3a2410;color:#fbbf77}
+:root[data-theme=dark] .taskicon.blue{background:#172b4d;color:#93c5fd}
+:root[data-theme=dark] .tag{background:#18233a;color:#cbd5e1}
+:root[data-theme=dark] .tag.blue{background:#172b4d;color:#93c5fd}
+:root[data-theme=dark] .tag.orange{background:#3a2410;color:#fbbf77}
+:root[data-theme=dark] .tag.green{background:#0f2e24;color:#6ee7b7}
+:root[data-theme=dark] .tag.red{background:#3b1219;color:#fca5a5}
+:root[data-theme=dark] .stepno{background:#0f2e24;color:#6ee7b7}
+:root[data-theme=dark] .tabs{border-bottom-color:var(--line)}
+:root[data-theme=dark] .tabs button{color:#cbd5e1}
+:root[data-theme=dark] .tabs button.on{color:#7cb4ff;border-bottom-color:#7cb4ff}
+:root[data-theme=dark] :where(.filters,.formrow,.modal,.rolebar,.matrix) :is(input,select){background:#0b1220;border-color:#334155;color:#dbe4f0}
+:root[data-theme=dark] :where(.filters,.formrow,.modal,.rolebar,.matrix) input::placeholder{color:#94a3b8}
+:root[data-theme=dark] .tablewrap th{background:#18233a;color:#cbd5e1;border-bottom-color:var(--line)}
+:root[data-theme=dark] .tablewrap td{border-bottom-color:var(--line);color:#dbe4f0}
+:root[data-theme=dark] .tablewrap td strong,:root[data-theme=dark] .detailgrid strong{color:#f1f5f9}
+:root[data-theme=dark] .overlay{background:#000000aa}
+:root[data-theme=dark] .drawer,:root[data-theme=dark] .modal{background:#111a2b}
+:root[data-theme=dark] .result{border-bottom-color:var(--line)}
+:root[data-theme=dark] .notice{background:#18233a}
+:root[data-theme=dark] .detailgrid label,:root[data-theme=dark] .formrow label{color:#cbd5e1}
+:root[data-theme=dark] .timeline{border-left-color:var(--line)}
+:root[data-theme=dark] .wizard span{border-top-color:var(--line);color:#9aa8bc}
+:root[data-theme=dark] .wizard .current{border-color:#7cb4ff;color:#7cb4ff}
+:root[data-theme=dark] #toast{background:#e2e8f0;color:#0f172a}
+:root[data-theme=dark] .detailarea{border-top-color:var(--line)}
+:root[data-theme=dark] .detailarea h3 small{color:#9aa8bc}
+:root[data-theme=dark] .cardnote .error,:root[data-theme=dark] .hint.error{color:#fca5a5}
+:root[data-theme=dark] .themetoggle{background:#18233a;border-color:var(--line)}
+:root[data-theme=dark] .themetoggle button{color:#cbd5e1}
+:root[data-theme=dark] .themetoggle button.on{background:#172b4d;color:#7cb4ff}
+:root[data-theme=dark] button:focus-visible,:root[data-theme=dark] a:focus-visible{outline-color:#93c5fd}
+:root[data-theme=dark] :where(.filters,.formrow,.modal,.rolebar,.matrix) :is(input,select):focus{outline-color:#93c5fd}
+}

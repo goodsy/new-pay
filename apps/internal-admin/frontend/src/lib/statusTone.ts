@@ -18,3 +18,14 @@ const TONES: Record<string, BadgeVariant> = {
 export function statusTone(code: string): BadgeVariant {
   return TONES[code] ?? 'secondary'
 }
+
+/**
+ * 참고 시안 `.tag` 색 class(ADMIN-UI-WORKSPACE-001 — 시안 구조로 옮긴 화면용). 의미는 [statusTone]과 같다:
+ * 성공 green, 대기·진행 orange, 거절·실패·정지 red, 정보 blue, 종료·모름은 기본 회색(class 없음).
+ */
+const TAG_CLASS: Record<BadgeVariant, string> = { success: 'green', warning: 'orange', destructive: 'red', default: 'blue', secondary: '', outline: '' }
+
+export function tagClass(code: string): string {
+  const tone = TAG_CLASS[statusTone(code)]
+  return tone === '' ? 'tag' : `tag ${tone}`
+}

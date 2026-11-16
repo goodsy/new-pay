@@ -124,3 +124,16 @@ describe('createAdminApi — MERCHANT-OPS-001 §4.1 merchant lookup calls', () =
     ])
   })
 })
+
+describe('createAdminApi — ADMIN-HOME-KPI-001 §4.2 home KPI call', () => {
+  it('GET /api/home-kpis (spec path, not the provisional /api/home/kpis) with no body and no CSRF header; the document is passed through as-is', async () => {
+    const doc = { asOf: '2026-11-15T01:30:00.000Z', businessDate: '2026-11-15', timeZone: 'Asia/Seoul', from: '2026-11-14T15:00:00.000Z', items: [] }
+    const d = deps(jsonResponse(200, doc), `${XSRF_COOKIE}=tok-k`)
+    expect(await createAdminApi(d).getHomeKpis()).toEqual(doc)
+    const [path, init] = d.fetch.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/home-kpis')
+    expect(init.method).toBe('GET')
+    expect(init.body).toBeUndefined()
+    expect(headersOf(d.fetch).has(XSRF_HEADER)).toBe(false)
+  })
+})

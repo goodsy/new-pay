@@ -585,7 +585,8 @@ export function MerchantRegistrationScreen({
                 onClick={() => setWizardStep(no)}
                 className={cn(
                   'flex h-full w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60',
-                  current && 'border-primary bg-primary/5 font-bold text-primary hover:bg-primary/5',
+                  // 리뷰 MINOR-6: 5% tint 위 브랜드 글자는 4.30:1이라 한 단계 진한 info 글자색(라이트 #1d4ed8 · 다크 #93c5fd).
+                  current && 'border-primary bg-primary/5 font-bold text-chip-info-fg hover:bg-primary/5',
                 )}
               >
                 <span

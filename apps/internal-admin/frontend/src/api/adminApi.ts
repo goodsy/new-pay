@@ -727,8 +727,37 @@ export interface AcquisitionFileDetail {
  * 화면이 쓰는 서버 API(같은 출처 `/api/` — [apiFetch] 하나로). 등록 코드·TOTP 시크릿은 응답을 받은 화면 상태에만 잠깐 두고 저장소·URL에 쓰지 않는다.
  * 권한 판정은 서버가 한다.
  */
+/**
+ * 운영 홈 KPI 한 행(ADMIN-HOME-KPI-001 §4.1·§4.2 — 행 키 (environment, currency), LIVE·TEST 별도 행·통화 간 합산 없음 C-1·D-CP-002).
+ * 금액은 모두 **minor unit 정수의 10진 문자열**(`^(0|-?[1-9][0-9]{0,39})$` — 부동소수 변환 금지, 2^53 초과 가능).
+ * [approvedAmountMinor]·[cancelledAmountMinor] ≥ 0, [netApprovedAmountMinor] = approved − cancelled(음수 가능).
+ * [approvedCount] — 구간 안 승인 중 asOf까지 전액취소되지 않은 건수(부분취소 포함, §3.3).
+ */
+export interface HomeKpiItem {
+  environment: string
+  currency: string
+  approvedAmountMinor: string
+  cancelledAmountMinor: string
+  netApprovedAmountMinor: string
+  approvedCount: number
+}
+
+/**
+ * 운영 홈 오늘 KPI 문서(ADMIN-HOME-KPI-001 §4.2 `GET /api/home-kpis`) — 구간 [[from], [asOf]), 시각 원천 PG 확정 시각 `confirmed_at`(D-ADMIN-HOME-002 ③).
+ * 비권위 표시값(정산 금액 아님). 빈 날 = 빈 [items](C-3).
+ */
+export interface HomeKpis {
+  asOf: string
+  businessDate: string
+  timeZone: string
+  from: string
+  items: HomeKpiItem[]
+}
+
 export interface AdminApi {
   csrf(): Promise<void>
+  /** 운영 홈 오늘 KPI([HomeKpis]). 조회 전용. */
+  getHomeKpis(): Promise<HomeKpis>
   me(): Promise<Me>
   password(loginName: string, password: string): Promise<{ next: string }>
   totp(code: string): Promise<Me>
@@ -810,6 +839,8 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
   const call = <T,>(path: string, method = 'GET', body?: unknown) => apiFetch<T>(path, { method, body }, deps)
   return {
     csrf: () => call<void>('/api/auth/csrf'),
+    // ADMIN-HOME-KPI-001 §4.2. 조회 전용(polling 없음 — 진입·새로고침 때만).
+    getHomeKpis: () => call<HomeKpis>('/api/home-kpis'),
     me: () => call<Me>('/api/auth/me'),
     password: (loginName, password) => call('/api/auth/password', 'POST', { loginName, password }),
     totp: (code) => call<Me>('/api/auth/totp', 'POST', { code }),

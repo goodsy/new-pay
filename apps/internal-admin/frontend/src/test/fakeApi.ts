@@ -8,6 +8,9 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
   const notStubbed = (name: string) => vi.fn(async () => { throw new Error(`not stubbed: ${name}`) })
   const base: AdminApi = {
     csrf: vi.fn(async () => undefined),
+    // ADMIN-HOME-KPI-001 §4.2 `GET /api/home-kpis` — 시험 기본은 404. 기대값 변경(Coordinator Q1 — KPI 서버가 있으므로 404는 고장): 화면은 "집계 준비 중"이 아니라
+    // 오류("불러오지 못했어요")를 보인다. KPI 숫자를 보는 시험은 문서(HomeKpis)를 직접 넣는다.
+    getHomeKpis: vi.fn(async () => { throw new ApiError(404, 'NOT_FOUND') }),
     me: notStubbed('me'),
     password: notStubbed('password'),
     totp: notStubbed('totp'),

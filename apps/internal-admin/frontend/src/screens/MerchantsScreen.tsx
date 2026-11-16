@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, MerchantDetail, MerchantHistoryEntry, MerchantListItem, MerchantSearchInput } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { SearchIcon } from '../components/icons'
-import { EmptyRow, Field, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
+import { EmptyRow, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
@@ -12,16 +11,13 @@ import { MerchantCodeChangeRequest, mayRequestCodeChange } from '../components/M
 import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../components/MerchantActivationArea'
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
-import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { isRegistrationNumber } from '../lib/registrationNumber'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { NativeSelect } from '../components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
+import { tagClass } from '../lib/statusTone'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
 
@@ -71,23 +67,27 @@ function limitText(kind: string, amount: number | null, currency: string): strin
   return amount !== null && Number.isSafeInteger(amount) ? formatMinor(amount, currency) : '표시할 수 없는 금액'
 }
 
-/** 상세 패널 하나(`section` + 이름 → region). */
+/**
+ * 상세 패널 하나(`section` + 이름 → region). ADMIN-UI-WORKSPACE-001: 참고 시안 `.card` > `.cardtop`(제목 17px) 모양 — 이름은 접근성 이름 그대로.
+ * 제목은 상세 제목(h3) 아래 단계인 h4(시안 `.cardtop h2`와 같은 값 — workspace.css).
+ */
 function Panel({ name, children }: { name: string; children: ReactNode }) {
   return (
-    <Card as="section" aria-label={name} className="gap-3 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="text-sm">{name}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 px-4">{children}</CardContent>
-    </Card>
+    <section className="card" aria-label={name}>
+      <div className="cardtop">
+        <h4>{name}</h4>
+      </div>
+      <div className="cardbody">{children}</div>
+    </section>
   )
 }
 
+/** 항목 이름·값(시안 `.detailgrid` label 13px·500 #475569 / 값 14px — 정의 목록 의미는 유지). */
 function Item({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{term}</dt>
-      <dd className="text-sm">{children}</dd>
+    <div className="flex flex-col gap-2">
+      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
+      <dd className="text-sm text-heading">{children}</dd>
     </div>
   )
 }
@@ -432,17 +432,21 @@ export function MerchantsScreen({
     return code
   }
 
+  // 리뷰 MINOR-4: 목록 요청 순번 — 늦게 도착한 앞 요청의 응답·오류가 새 요청 결과를 덮지 않는다(버튼도 요청 중에는 disabled).
+  const listRequest = useRef(0)
   const runSearch = async (input: MerchantSearchInput, next: SentSearch) => {
+    const request = ++listRequest.current
     setListError(null)
     setListBusy(true)
     try {
       const result = await api.merchantSearch(input)
+      if (listRequest.current !== request) return
       setSent(next)
       setPage(result)
     } catch (e) {
-      setListError(failure(e))
+      if (listRequest.current === request) setListError(failure(e))
     } finally {
-      setListBusy(false)
+      if (listRequest.current === request) setListBusy(false)
     }
   }
 
@@ -558,274 +562,272 @@ export function MerchantsScreen({
     await loadHistory(detail.merchant.merchantId, history.nextCursor, openRequest.current)
   }
 
+  // ADMIN-UI-WORKSPACE-001: 참고 시안 업무 화면(app.js moduleView — 카드 안 탭 → .filters → .tablewrap → .tablebottom). 탭 막대·카드는 MenuCard(flush).
+  // 입력란 이름은 aria-label(시안처럼 보이는 label 없음 — placeholder로 무엇을 넣는지 보인다), 도움말·오류는 필터 아래 .cardnote에 두고 aria-describedby로 잇는다.
+  const codeNoteId = useId()
+  const registrationNoteId = useId()
+  const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.' : null
   return (
-    <section className="flex flex-col gap-6">
-      <PageHeader title="가맹점 조회" description="가맹점·사업자·MID 개통 상태를 조회합니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다." />
-
-      <Card className="gap-4 py-5">
-        <CardHeader className="px-5">
-          <CardTitle className="text-sm">검색</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5">
-          <form onSubmit={search} className="flex flex-col gap-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field
-                label="가맹점 코드"
-                error={codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.' : undefined}
-                hint={codeError ? undefined : '정확히 일치하는 코드 하나(예전에 쓰던 코드도 찾습니다).'}
-              >
-                {(describedBy) => (
-                  <Input
-                    value={merchantCode}
-                    onChange={(e) => setMerchantCode(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder="demoshop01"
-                    aria-describedby={describedBy}
-                    aria-invalid={codeError !== null || undefined}
-                    className="font-mono"
-                  />
-                )}
-              </Field>
-              <Field label="상태">
-                {(describedBy) => (
-                  <NativeSelect value={lifecycle} onChange={(e) => setLifecycle(e.target.value)} aria-describedby={describedBy}>
-                    <option value="">전체</option>
-                    {LIFECYCLES.map((value) => (
-                      <option key={value} value={value}>{labelOf(value)}</option>
-                    ))}
-                  </NativeSelect>
-                )}
-              </Field>
-              {canSearchRegistrationNumber && (
-                <Field
-                  label="사업자등록번호"
-                  error={registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : undefined}
-                  hint="검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만)."
-                >
-                  {(describedBy) => (
-                    <RegistrationNumberInput
-                      value={registrationNumber}
-                      onValueChange={setRegistrationNumber}
-                      aria-describedby={describedBy}
-                      aria-invalid={registrationNumberError || undefined}
-                    />
-                  )}
-                </Field>
-              )}
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" aria-busy={listBusy}>
-                {listBusy ? <Spinner active /> : <SearchIcon aria-hidden="true" />}
-                검색
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {listError && <ErrorNotice>{ERROR_MESSAGES[listError]}</ErrorNotice>}
+    <>
+      <div className="mapnote">
+        <h2>가맹점 조회</h2>
+        {' · 가맹점·사업자·MID 개통 상태를 조회합니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다.'}
+      </div>
+      <form className="filters" onSubmit={search}>
+        <input
+          aria-label="가맹점 코드"
+          value={merchantCode}
+          onChange={(e) => setMerchantCode(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="가맹점 코드 (예: demoshop01)"
+          aria-describedby={codeNoteId}
+          aria-invalid={codeError !== null || undefined}
+        />
+        <select aria-label="상태" value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
+          <option value="">전체 상태</option>
+          {LIFECYCLES.map((value) => (
+            <option key={value} value={value}>{labelOf(value)}</option>
+          ))}
+        </select>
+        {canSearchRegistrationNumber && (
+          <RegistrationNumberInput
+            plain
+            aria-label="사업자등록번호"
+            placeholder="사업자등록번호 000-00-00000"
+            value={registrationNumber}
+            onValueChange={setRegistrationNumber}
+            aria-describedby={registrationNoteId}
+            aria-invalid={registrationNumberError || undefined}
+          />
+        )}
+        <button type="submit" className="btn primary" disabled={listBusy} aria-busy={listBusy}>
+          검색
+        </button>
+      </form>
+      <div className="cardnote">
+        <p id={codeNoteId} className={codeMessage ? 'error' : 'subtle'}>{codeMessage ?? '가맹점 코드: 정확히 일치하는 코드 하나(예전에 쓰던 코드도 찾습니다).'}</p>
+        {canSearchRegistrationNumber && (
+          <p id={registrationNoteId} className={registrationNumberError ? 'error' : 'subtle'}>
+            {registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : '사업자등록번호: 검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만).'}
+          </p>
+        )}
+        {listError && <ErrorNotice>{ERROR_MESSAGES[listError]}</ErrorNotice>}
+      </div>
 
       {page && (
-        <div className="flex flex-col gap-3">
-          <Table aria-label="가맹점 목록">
-            <TableHeader>
-              <TableRow>
-                <TableHead>가맹점</TableHead><TableHead>사업자</TableHead><TableHead>사업자등록번호(마스킹)</TableHead><TableHead>상태</TableHead>
-                <TableHead>MID 수</TableHead><TableHead>권리 revision</TableHead><TableHead>등록일</TableHead><TableHead><span className="sr-only">작업</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.items.length === 0 && <EmptyRow columns={8} message="조건에 맞는 가맹점이 없습니다." />}
-              {page.items.map((row) => (
-                <TableRow key={row.merchantId} aria-label={row.merchantCode} className={detail?.merchant.merchantId === row.merchantId ? 'bg-muted/50' : undefined}>
-                  <TableCell><span className="flex flex-col"><span className="font-medium">{row.merchantName}</span><Mono>{row.merchantCode}</Mono></span></TableCell>
-                  <TableCell>{row.businessName}</TableCell>
-                  <TableCell className="font-mono">{row.registrationNumberMasked}</TableCell>
-                  <TableCell><StatusBadge code={row.lifecycle} /></TableCell>
-                  <TableCell data-col="midCount" className="font-mono">{row.midCount}</TableCell>
-                  <TableCell data-col="entitlementRevision" className="font-mono">{row.entitlementRevision}</TableCell>
-                  <TableCell><KstTime iso={row.createdAt} /></TableCell>
-                  <TableCell>
-                    <Button type="button" variant="outline" size="sm" onClick={() => open(row.merchantId)}>상세</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {page.nextCursor !== null && (
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={nextPage} aria-busy={listBusy}>다음</Button>
-            </div>
-          )}
-        </div>
+        <>
+          <div className="tablewrap">
+            <table aria-label="가맹점 목록">
+              <thead>
+                <tr>
+                  <th>가맹점</th><th>사업자</th><th>사업자등록번호(마스킹)</th><th>상태</th>
+                  <th>MID 수</th><th>권리 revision</th><th>등록일</th><th><span className="sr-only">작업</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {page.items.map((row) => (
+                  <tr key={row.merchantId} aria-label={row.merchantCode} className={detail?.merchant.merchantId === row.merchantId ? 'selected' : undefined}>
+                    <td>
+                      <strong>{row.merchantName}</strong>
+                      <small>{row.merchantCode}</small>
+                    </td>
+                    <td>{row.businessName}</td>
+                    <td>{row.registrationNumberMasked}</td>
+                    <td><span className={tagClass(row.lifecycle)} title={row.lifecycle}>{labelOf(row.lifecycle)}</span></td>
+                    <td data-col="midCount">{row.midCount}</td>
+                    <td data-col="entitlementRevision">{row.entitlementRevision}</td>
+                    <td><KstTime iso={row.createdAt} /></td>
+                    <td>
+                      <button type="button" className="btn" onClick={() => open(row.merchantId)}>상세</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {page.items.length === 0 && <div className="empty">조건에 맞는 가맹점이 없습니다.</div>}
+          </div>
+          <div className="tablebottom">
+            <span>{`이 쪽 ${page.items.length}건`}</span>
+            {page.nextCursor !== null && (
+              <button type="button" className="btn" onClick={nextPage} disabled={listBusy} aria-busy={listBusy}>다음</button>
+            )}
+          </div>
+        </>
       )}
 
-      {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
-      {detailError && <ErrorNotice>{ERROR_MESSAGES[detailError]}</ErrorNotice>}
-      {detail && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-bold">
-            {'가맹점 상세 '}
-            <span className="font-mono text-xs text-muted-foreground">{detail.merchant.merchantCode}</span>
-          </h3>
-          {/* ADMIN-UI-MERCHANT-001: 서비스 개통 현황(기존 상세 응답에서만 계산 — 참고용, 아래 개통 점검표 유지). */}
-          <ServiceOpeningTimeline detail={detail} now={now()} />
-          {requestResult && (
-            <section role="status" aria-label="승인 요청 결과" className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-              <span>{`승인 요청을 만들었습니다 — ${requestResult.what}`}</span>
-              <Mono>{requestResult.approvalId}</Mono>
-              {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
-              <Button type="button" variant="ghost" size="sm" onClick={() => setRequestResult(null)}>닫기</Button>
-            </section>
-          )}
-          {canRequestApproval && mayRequestFirstMid(detail, now()) && (
-            midOpen ? (
-              <FirstMidRequest
-                api={api}
-                detail={detail}
-                now={now()}
-                onRequested={(approvalId) => {
-                  setRequestResult({ approvalId, what: '첫 MID 발급' })
-                  setMidOpen(false)
-                  void refreshDetail(detail.merchant.merchantId)
-                }}
-                onSessionEnded={onSessionEnded}
-              />
-            ) : (
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => setMidOpen(true)}>첫 MID 발급 요청</Button>
+      {(detailBusy || detailError || detail) && (
+        <div className="detailarea">
+          {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
+          {detailError && <ErrorNotice>{ERROR_MESSAGES[detailError]}</ErrorNotice>}
+          {detail && (
+            <>
+              <div>
+                <div className="eyebrow" aria-hidden="true">사업자·가맹점 / 상세</div>
+                <h3>
+                  {'가맹점 상세 '}
+                  <small>{detail.merchant.merchantCode}</small>
+                </h3>
               </div>
-            )
-          )}
-          {/* MERCHANT-CODE-001 MC-1b: "코드 변경 요청"(OPERATOR — merchantCodeChangeable일 때만, 표시만; 판정·감사는 서버·MASTER). */}
-          {canRequestApproval && mayRequestCodeChange(detail) && (
-            codeOpen ? (
-              <div className="flex flex-col gap-2">
-                <MerchantCodeChangeRequest
-                  api={api}
-                  detail={detail}
-                  onRequested={(approvalId) => {
-                    setRequestResult({ approvalId, what: '가맹점 코드 변경' })
-                    setCodeOpen(false)
-                    void refreshDetail(detail.merchant.merchantId)
-                  }}
-                  onSessionEnded={onSessionEnded}
-                />
-                <div className="flex justify-end">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(false)}>닫기</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(true)}>코드 변경 요청</Button>
-              </div>
-            )
-          )}
-          <DetailPanels
-            detail={detail}
-            contractAction={canRegisterRevision ? (contractId) => (
-              revisionFor === contractId ? (
-                <div className="flex flex-col gap-2">
-                  <ContractRevisionForm
+              {/* ADMIN-UI-MERCHANT-001: 서비스 개통 현황(기존 상세 응답에서만 계산 — 참고용, 아래 개통 점검표 유지). */}
+              <ServiceOpeningTimeline detail={detail} now={now()} />
+              {requestResult && (
+                <section role="status" aria-label="승인 요청 결과" className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <span>{`승인 요청을 만들었습니다 — ${requestResult.what}`}</span>
+                  <Mono>{requestResult.approvalId}</Mono>
+                  {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setRequestResult(null)}>닫기</Button>
+                </section>
+              )}
+              {canRequestApproval && mayRequestFirstMid(detail, now()) && (
+                midOpen ? (
+                  <FirstMidRequest
                     api={api}
-                    memory={revisionMemory}
-                    contractId={contractId}
-                    merchantId={detail.merchant.merchantId}
-                    // 리뷰 n-4: ACTIVE Site만 후보로 보이는 것은 안내일 뿐이다 — 범위 판정의 권위는 MASTER(validScope: 다른 가맹점·비활성 Site 거절)다.
-                    siteIds={detail.sites.filter((site) => site.lifecycle === 'ACTIVE').map((site) => site.merchantSiteId)}
-                    onRegistered={() => void refreshDetail(detail.merchant.merchantId)}
+                    detail={detail}
+                    now={now()}
+                    onRequested={(approvalId) => {
+                      setRequestResult({ approvalId, what: '첫 MID 발급' })
+                      setMidOpen(false)
+                      void refreshDetail(detail.merchant.merchantId)
+                    }}
+                    onSessionEnded={onSessionEnded}
+                  />
+                ) : (
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setMidOpen(true)}>첫 MID 발급 요청</Button>
+                  </div>
+                )
+              )}
+              {/* MERCHANT-CODE-001 MC-1b: "코드 변경 요청"(OPERATOR — merchantCodeChangeable일 때만, 표시만; 판정·감사는 서버·MASTER). */}
+              {canRequestApproval && mayRequestCodeChange(detail) && (
+                codeOpen ? (
+                  <div className="flex flex-col gap-2">
+                    <MerchantCodeChangeRequest
+                      api={api}
+                      detail={detail}
+                      onRequested={(approvalId) => {
+                        setRequestResult({ approvalId, what: '가맹점 코드 변경' })
+                        setCodeOpen(false)
+                        void refreshDetail(detail.merchant.merchantId)
+                      }}
+                      onSessionEnded={onSessionEnded}
+                    />
+                    <div className="flex justify-end">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(false)}>닫기</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setCodeOpen(true)}>코드 변경 요청</Button>
+                  </div>
+                )
+              )}
+              <DetailPanels
+                detail={detail}
+                contractAction={canRegisterRevision ? (contractId) => (
+                  revisionFor === contractId ? (
+                    <div className="flex flex-col gap-2">
+                      <ContractRevisionForm
+                        api={api}
+                        memory={revisionMemory}
+                        contractId={contractId}
+                        merchantId={detail.merchant.merchantId}
+                        // 리뷰 n-4: ACTIVE Site만 후보로 보이는 것은 안내일 뿐이다 — 범위 판정의 권위는 MASTER(validScope: 다른 가맹점·비활성 Site 거절)다.
+                        siteIds={detail.sites.filter((site) => site.lifecycle === 'ACTIVE').map((site) => site.merchantSiteId)}
+                        onRegistered={() => void refreshDetail(detail.merchant.merchantId)}
+                        onSessionEnded={onSessionEnded}
+                        newSubmissionId={newSubmissionId}
+                        todayKst={todayKst}
+                      />
+                      <div className="flex justify-end">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setRevisionFor(null)}>닫기</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <RevisionButton memory={revisionMemory} contractId={contractId} onOpen={() => setRevisionFor(contractId)} />
+                  )
+                ) : undefined}
+                revisionAction={canRequestApproval ? (contractId, revision) => {
+                  const ended = revision.effectiveTo !== null && new Date(revision.effectiveTo).getTime() <= now().getTime()
+                  // C-35(B3-1): 같은 그룹(계약 승인·첫 MID 발급) 대기만 숨긴다 — 개통·Site 심사 대기는 다른 그룹.
+                  if (revision.approvedAt !== null || ended || pendingIn(detail, APPROVAL_GROUPS.CONTRACT)) return null
+                  const key = `${contractId}#${revision.revisionNo}`
+                  return approvalFor === key ? (
+                    <ContractApprovalRequest
+                      api={api}
+                      merchantId={detail.merchant.merchantId}
+                      contractId={contractId}
+                      revisionNo={revision.revisionNo}
+                      onRequested={(approvalId) => {
+                        setRequestResult({ approvalId, what: `계약 승인(Revision ${revision.revisionNo})` })
+                        setApprovalFor(null)
+                        void refreshDetail(detail.merchant.merchantId)
+                      }}
+                      onOpenApprovals={onOpenApprovals}
+                      onSessionEnded={onSessionEnded}
+                    />
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setApprovalFor(key)}>승인 요청</Button>
+                  )
+                } : undefined}
+                activation={(account) => (
+                  <MerchantActivationArea
+                    api={api}
+                    detail={detail}
+                    account={account}
+                    canOperate={canRequestApproval}
+                    now={now()}
+                    onChanged={() => void refreshDetail(detail.merchant.merchantId)}
+                    onRequested={(approvalId, what) => {
+                      setRequestResult({ approvalId, what })
+                      void refreshDetail(detail.merchant.merchantId)
+                    }}
                     onSessionEnded={onSessionEnded}
                     newSubmissionId={newSubmissionId}
-                    todayKst={todayKst}
                   />
-                  <div className="flex justify-end">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setRevisionFor(null)}>닫기</Button>
-                  </div>
-                </div>
-              ) : (
-                <RevisionButton memory={revisionMemory} contractId={contractId} onOpen={() => setRevisionFor(contractId)} />
-              )
-            ) : undefined}
-            revisionAction={canRequestApproval ? (contractId, revision) => {
-              const ended = revision.effectiveTo !== null && new Date(revision.effectiveTo).getTime() <= now().getTime()
-              // C-35(B3-1): 같은 그룹(계약 승인·첫 MID 발급) 대기만 숨긴다 — 개통·Site 심사 대기는 다른 그룹.
-              if (revision.approvedAt !== null || ended || pendingIn(detail, APPROVAL_GROUPS.CONTRACT)) return null
-              const key = `${contractId}#${revision.revisionNo}`
-              return approvalFor === key ? (
-                <ContractApprovalRequest
-                  api={api}
-                  merchantId={detail.merchant.merchantId}
-                  contractId={contractId}
-                  revisionNo={revision.revisionNo}
-                  onRequested={(approvalId) => {
-                    setRequestResult({ approvalId, what: `계약 승인(Revision ${revision.revisionNo})` })
-                    setApprovalFor(null)
-                    void refreshDetail(detail.merchant.merchantId)
-                  }}
-                  onOpenApprovals={onOpenApprovals}
-                  onSessionEnded={onSessionEnded}
-                />
-              ) : (
-                <Button type="button" variant="outline" size="sm" onClick={() => setApprovalFor(key)}>승인 요청</Button>
-              )
-            } : undefined}
-            activation={(account) => (
-              <MerchantActivationArea
-                api={api}
-                detail={detail}
-                account={account}
-                canOperate={canRequestApproval}
-                now={now()}
-                onChanged={() => void refreshDetail(detail.merchant.merchantId)}
-                onRequested={(approvalId, what) => {
-                  setRequestResult({ approvalId, what })
-                  void refreshDetail(detail.merchant.merchantId)
-                }}
-                onSessionEnded={onSessionEnded}
-                newSubmissionId={newSubmissionId}
+                )}
               />
-            )}
-          />
-          <Panel name="변경 이력">
-            {historyError && <ErrorNotice>{ERROR_MESSAGES[historyError]}</ErrorNotice>}
-            {history && (
-              <Table aria-label="변경 이력 목록">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>순번</TableHead><TableHead>시각</TableHead><TableHead>연산</TableHead><TableHead>대상</TableHead><TableHead>변경</TableHead><TableHead>행위자</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {history.items.length === 0 && <EmptyRow columns={6} message="변경 이력이 없습니다." />}
-                  {history.items.map((entry) => (
-                    <TableRow key={entry.seq} aria-label={String(entry.seq)}>
-                      <TableCell className="font-mono">{entry.seq}</TableCell>
-                      <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
-                      <TableCell><Mono>{entry.operation}</Mono></TableCell>
-                      {/* MC-2: 이 가맹점 자신이 대상이면 내부 키 대신 코드(다른 대상 — Site·계약·MID 등 — 은 각 키 그대로). */}
-                      <TableCell>
-                        <span className="flex flex-col">
-                          <span>{entry.aggregateType}</span>
-                          <Mono>{entry.aggregateId === detail.merchant.merchantId ? detail.merchant.merchantCode : entry.aggregateId}</Mono>
-                        </span>
-                      </TableCell>
-                      <TableCell><KindLabel code={entry.changeType} /></TableCell>
-                      <TableCell><Mono>{entry.actorRef}</Mono></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            {historyBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />이력을 불러오는 중입니다.</p>}
-            {history?.nextCursor != null && (
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={moreHistory} aria-busy={historyBusy}>이력 더 보기</Button>
-              </div>
-            )}
-          </Panel>
+              <Panel name="변경 이력">
+                {historyError && <ErrorNotice>{ERROR_MESSAGES[historyError]}</ErrorNotice>}
+                {history && (
+                  <Table aria-label="변경 이력 목록">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>순번</TableHead><TableHead>시각</TableHead><TableHead>연산</TableHead><TableHead>대상</TableHead><TableHead>변경</TableHead><TableHead>행위자</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {history.items.length === 0 && <EmptyRow columns={6} message="변경 이력이 없습니다." />}
+                      {history.items.map((entry) => (
+                        <TableRow key={entry.seq} aria-label={String(entry.seq)}>
+                          <TableCell className="font-mono">{entry.seq}</TableCell>
+                          <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
+                          <TableCell><Mono>{entry.operation}</Mono></TableCell>
+                          {/* MC-2: 이 가맹점 자신이 대상이면 내부 키 대신 코드(다른 대상 — Site·계약·MID 등 — 은 각 키 그대로). */}
+                          <TableCell>
+                            <span className="flex flex-col">
+                              <span>{entry.aggregateType}</span>
+                              <Mono>{entry.aggregateId === detail.merchant.merchantId ? detail.merchant.merchantCode : entry.aggregateId}</Mono>
+                            </span>
+                          </TableCell>
+                          <TableCell><KindLabel code={entry.changeType} /></TableCell>
+                          <TableCell><Mono>{entry.actorRef}</Mono></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                {historyBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />이력을 불러오는 중입니다.</p>}
+                {history?.nextCursor != null && (
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={moreHistory} aria-busy={historyBusy}>이력 더 보기</Button>
+                  </div>
+                )}
+              </Panel>
+            </>
+          )}
         </div>
       )}
-    </section>
+    </>
   )
 }

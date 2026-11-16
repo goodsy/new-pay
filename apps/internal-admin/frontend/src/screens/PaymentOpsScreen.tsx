@@ -48,7 +48,8 @@ const Steps = memo(function Steps({ current }: { current: 1 | 2 | 3 }) {
               className={cn(
                 'flex size-6 items-center justify-center rounded-full border text-xs font-semibold',
                 active && 'border-primary bg-primary text-primary-foreground',
-                done && 'border-primary text-primary',
+                // 리뷰 MINOR-6: 쪽 바탕 위 브랜드 글자 대신 한 단계 진한 info 글자색(4.5:1 이상, 다크 #93c5fd).
+                done && 'border-primary text-chip-info-fg',
                 !active && !done && 'text-muted-foreground',
               )}
             >

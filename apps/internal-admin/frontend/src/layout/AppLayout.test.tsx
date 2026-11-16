@@ -35,8 +35,10 @@ describe('AppLayout', () => {
     expect(within(nav).queryByRole('button', { name: '로그아웃' })).toBeNull()
     const banner = screen.getByRole('banner')
     expect(within(banner).getByRole('navigation', { name: '경로' })).toHaveTextContent('워크스페이스/운영 홈')
-    expect(within(banner).getByRole('searchbox', { name: '메뉴 검색' })).toBeInTheDocument()
+    // 구조 단언 변경(ADMIN-UI-WORKSPACE-001): 메뉴 검색은 참고 시안처럼 상단 바의 검색 버튼이 여는 modal이다(검색란은 modal 안 — 기능 단언은 App.test·WorkspaceShell.test).
+    expect(within(banner).getByRole('button', { name: '메뉴 검색' })).toBeInTheDocument()
     expect(within(banner).queryByRole('button', { name: '로그아웃' })).toBeNull()
-    expect(screen.getByRole('main')).toContainElement(screen.getByRole('heading', { level: 1, name: '안녕하세요, 감사자님' }))
+    // 구조 단언 변경(ADMIN-UI-WORKSPACE-001 2단계): 운영 홈 인사는 참고 시안 문구 "좋은 하루예요, …님".
+    expect(screen.getByRole('main')).toContainElement(screen.getByRole('heading', { level: 1, name: '좋은 하루예요, 감사자님' }))
   })
 })

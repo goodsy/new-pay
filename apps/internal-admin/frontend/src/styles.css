@@ -1,7 +1,13 @@
 /*
  * ADMIN-UI-001 shadcn/ui neutral 테마(Tailwind CSS v4). 빌드 때 정적 assets/*.css 한 파일로 나온다 — CSP style-src 'self'(inline style·<style> 없음).
- * 외부 CDN·원격 글꼴 없음(시스템 글꼴). 다크 모드는 OS 설정(prefers-color-scheme)만 따른다 — 선택을 브라우저 저장소에 남기지 않는다.
+ * 외부 CDN·원격 글꼴 없음(시스템 글꼴).
+ * D-ADMIN-HOME-001(2026-11-15 사용자 답 "다크 / 화이트 둘다"): 라이트 = 참고 시안 그대로, 다크 = 새 slate 팔레트(시안에 없음). 테마는 `<html data-theme>`
+ * (lib/theme.ts — OS 설정 기본, 사이드바 선택)로만 바뀐다. 아래 다크 token은 아직 시안으로 옮기지 않은 shadcn 화면용이고, 시안 class의 다크 색은 workspace.css 적응 구역.
+ *
+ * cascade layer 순서: 시안 CSS(workspace)는 Tailwind preflight(base)를 이기고 utilities에는 진다 — 시안 class로 옮긴 곳은 시안 값, 아직 옮기지 않은 화면은 utility 그대로.
+ * 이 선언은 바로 아래 tailwindcss 가져오기보다 앞에 있어야 순서가 정해진다(WorkspaceShell.test.tsx).
  */
+@layer theme, base, workspace, components, utilities;
 @import "tailwindcss";
 
 /*
@@ -9,7 +15,8 @@
  * rev 0.4(D-ADMIN-UI-003): 참고 시안 'pg workspace'(all.css)의 --blue #3182f6 계열.
  */
 :root {
-  --brand: #3182f6;
+  /* 라이트 대비 보정(2026-11-15 사용자 결정): 시안 #3182f6(흰 글자 3.71:1)을 같은 계열에서 4.5:1을 넘는 가장 작은 만큼 진하게 — workspace.css .btn.primary와 같은 값. */
+  --brand: #116ef5;
   --brand-dark: #4c95f7;
   --brand-foreground: #ffffff;
 }
@@ -38,6 +45,8 @@
   --accent: #f5f7fa;
   --accent-foreground: #263445;
   --destructive: oklch(0.577 0.245 27.325);
+  /* 흰 글자를 얹는 파괴 동작 버튼 바탕(리뷰 MINOR-1) — 라이트는 --destructive 그대로. */
+  --destructive-solid: var(--destructive);
   --success: oklch(0.527 0.154 150.069);
   --warning: oklch(0.666 0.179 58.318);
   --border: #e2e8f0;
@@ -60,47 +69,49 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: oklch(0.145 0 0);
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --heading: oklch(0.985 0 0);
-    --subtle: oklch(0.82 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: var(--brand-dark);
-    --primary-foreground: var(--brand-foreground);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --success: oklch(0.723 0.219 149.579);
-    --warning: oklch(0.769 0.188 70.08);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --table-head: oklch(0.235 0 0);
-    --chip-info-bg: color-mix(in oklab, var(--brand-dark) 20%, transparent);
-    --chip-info-fg: #9cc4fb;
-    --chip-success-bg: color-mix(in oklab, var(--success) 18%, transparent);
-    --chip-success-fg: var(--success);
-    --chip-warning-bg: color-mix(in oklab, var(--warning) 18%, transparent);
-    --chip-warning-fg: var(--warning);
-    --ring: var(--brand-dark);
-    --eyebrow: #93a9c7;
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.82 0 0);
-    --sidebar-label: oklch(0.68 0 0);
-    --sidebar-accent: color-mix(in oklab, var(--brand-dark) 20%, transparent);
-    --sidebar-accent-foreground: #9cc4fb;
-    --sidebar-border: oklch(1 0 0 / 10%);
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  /* 다크 slate 팔레트(본문 글자 대비 4.5:1 이상 — 실측 값은 ADMIN-UI-WORKSPACE-001 2단계 보고). workspace.css 다크 구역과 같은 값. */
+  --canvas: #0b1220;
+  --background: #0b1220;
+  --foreground: #dbe4f0;
+  --heading: #f1f5f9;
+  --subtle: #cbd5e1;
+  --card: #111a2b;
+  --card-foreground: #dbe4f0;
+  --popover: #111a2b;
+  --popover-foreground: #dbe4f0;
+  /* 주 버튼은 밝은 파랑 + 어두운 글자(7.4:1), 글자색으로 쓰일 때도 6.9:1. */
+  --primary: #60a5fa;
+  --primary-foreground: #0b1220;
+  --secondary: #18233a;
+  --secondary-foreground: #dbe4f0;
+  --muted: #18233a;
+  --muted-foreground: #9aa8bc;
+  --accent: #18233a;
+  --accent-foreground: #dbe4f0;
+  --destructive: #f87171;
+  /* 리뷰 MINOR-1: 다크 --destructive(#f87171)는 글자색(어두운 바탕 위)용이라 흰 글자 바탕으로는 2.77:1 — 버튼 바탕만 진한 빨강(흰 글자 6.47:1). */
+  --destructive-solid: #b91c1c;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --border: #26324a;
+  --input: #334155;
+  --table-head: #18233a;
+  --chip-info-bg: #172b4d;
+  --chip-info-fg: #93c5fd;
+  --chip-success-bg: #0f2e24;
+  --chip-success-fg: #6ee7b7;
+  --chip-warning-bg: #3a2410;
+  --chip-warning-fg: #fbbf77;
+  --ring: #93c5fd;
+  --eyebrow: #93a9c7;
+  --sidebar: #111a2b;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-label: #9aa8bc;
+  --sidebar-accent: #172b4d;
+  --sidebar-accent-foreground: #7cb4ff;
+  --sidebar-border: #26324a;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -137,6 +148,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-solid: var(--destructive-solid);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-border: var(--border);

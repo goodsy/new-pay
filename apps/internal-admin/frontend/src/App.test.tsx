@@ -144,7 +144,8 @@ describe('App (session, role menu, error mapping)', () => {
       })),
     })
     expect((await signedInMenu()).getByRole('button', { name: '운영 홈' })).toHaveAttribute('aria-current', 'page')
-    await userEvent.click(await screen.findByRole('button', { name: /승인을 기다리는 요청/ }))
+    // 구조 단언 변경(ADMIN-UI-WORKSPACE-001 2단계): 지금 처리할 업무는 승인 요청을 한 건씩 보인다(시안 task 행) — 행 이름은 "<종류> 승인 요청".
+    await userEvent.click(await screen.findByRole('button', { name: /역할 부여 승인 요청/ }))
     expect(sideMenu().getByRole('button', { name: '승인함' })).toHaveAttribute('aria-current', 'page')
     expect(breadcrumb()).toHaveTextContent('워크스페이스/승인함')
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -153,7 +154,9 @@ describe('App (session, role menu, error mapping)', () => {
 
   it('the top search finds only menus the role can see and jumps there (no transaction search)', async () => {
     signedIn(['OPERATOR'])
-    const search = await screen.findByRole('searchbox', { name: '메뉴 검색' })
+    // 구조 단언 변경(ADMIN-UI-WORKSPACE-001): 검색란은 상단 바 검색 버튼이 여는 modal 안에 있다(참고 시안) — 연 뒤의 기대값은 그대로.
+    await userEvent.click(await screen.findByRole('button', { name: '메뉴 검색' }))
+    const search = screen.getByRole('searchbox', { name: '메뉴 검색' })
     // 기대값 변경(ACQ-VIEW-001): OPERATOR는 이제 매입·대사(매입 현황 탭)를 보므로, 볼 수 없는 메뉴의 예로 '승인함'을 쓴다.
     await userEvent.type(search, '승인함')
     expect(screen.getByRole('status')).toHaveTextContent('찾는 메뉴가 없어요.')
@@ -169,7 +172,11 @@ describe('App (session, role menu, error mapping)', () => {
 
   it('TXN-OPS-001: a VIEWER opens 결제 관리 › 거래 조회 and sees the transaction search (no call until searched)', async () => {
     const { api } = signedIn(['VIEWER'])
-    await userEvent.click((await signedInMenu()).getByRole('button', { name: '결제 관리' }))
+    // 구조 단언 변경(ADMIN-UI-WORKSPACE-001 2단계): 운영 홈의 "최근 거래"가 기존 거래 조회를 한 번 부른다(시안 home 구성) — 거래 조회 화면을 연 것만으로는 더 부르지 않는다는 기대는 그대로.
+    const menu = await signedInMenu()
+    await vi.waitFor(() => expect(api.transactionSearch).toHaveBeenCalledTimes(1))
+    vi.mocked(api.transactionSearch).mockClear()
+    await userEvent.click(menu.getByRole('button', { name: '결제 관리' }))
     await userEvent.click(screen.getByRole('tab', { name: '거래 조회' }))
     expect(screen.getByRole('tab', { name: '거래 조회' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { name: '거래 조회' })).toBeInTheDocument()

@@ -8,6 +8,8 @@ type Props = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'type' | 'inpu
   value: string
   /** 숫자만 돌려준다. */
   onValueChange: (digits: string) => void
+  /** 참고 시안 구조(`.filters` 등)로 옮긴 화면: shadcn 모양 없이 브라우저 input 하나(모양은 시안 CSS) — 동작은 같다(ADMIN-UI-WORKSPACE-001). */
+  plain?: boolean
 }
 
 /**
@@ -17,7 +19,7 @@ type Props = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'type' | 'inpu
  * - maxLength를 두지 않는다 — 브라우저가 붙여넣은 글자를 잘라 10자리로 맞추는 일을 막는다.
  * - autoComplete off·type text(비밀번호 칸 아님 — 기존과 같다). 값은 메모리 상태에만(저장소 없음 — 호출자 규칙 그대로).
  */
-export function RegistrationNumberInput({ value, onValueChange, onKeyDown, autoComplete = 'off', className, ...rest }: Props) {
+export function RegistrationNumberInput({ value, onValueChange, onKeyDown, autoComplete = 'off', className, plain = false, ...rest }: Props) {
   const ref = useRef<HTMLInputElement>(null)
   /** 다음 렌더 뒤 커서를 둘 "앞 숫자 수"(없으면 건드리지 않는다). */
   const caret = useRef<number | null>(null)
@@ -58,18 +60,17 @@ export function RegistrationNumberInput({ value, onValueChange, onKeyDown, autoC
     }
   }
 
-  return (
-    <Input
-      {...rest}
-      ref={ref}
-      type="text"
-      inputMode="numeric"
-      autoComplete={autoComplete}
-      value={shown}
-      onChange={change}
-      onKeyDown={keyDown}
-      placeholder={rest.placeholder ?? '000-00-00000'}
-      className={cn('font-mono', className)}
-    />
-  )
+  const props = {
+    ...rest,
+    ref,
+    type: 'text',
+    inputMode: 'numeric' as const,
+    autoComplete,
+    value: shown,
+    onChange: change,
+    onKeyDown: keyDown,
+    placeholder: rest.placeholder ?? '000-00-00000',
+  }
+  if (plain) return <input {...props} className={className} />
+  return <Input {...props} className={cn('font-mono', className)} />
 }

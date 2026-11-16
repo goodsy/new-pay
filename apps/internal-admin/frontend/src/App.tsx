@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRightIcon, CreditCardIcon, HouseIcon, InboxIcon, LogOutIcon, PlusIcon, SendIcon, StoreIcon, UserRoundIcon, type LucideIcon } from './components/icons'
 import { createAdminApi, type AdminApi, type Me } from './api/adminApi'
 import { MenuCard } from './components/MenuCard'
 import { MenuSearch } from './components/MenuSearch'
+import { ThemeToggle } from './components/ThemeToggle'
 import { WorkspaceHeader } from './components/WorkspaceHeader'
-import { Button } from './components/ui/button'
 import { labelOf } from './lib/labels'
 import { createScreenMemory, hasUnresolvedRequest } from './lib/screenMemory'
-import { cn } from './lib/utils'
+import { useTheme } from './lib/theme'
 import type { ConsoleErrorCode } from './errors/errorCodes'
 import { AppLayout } from './layout/AppLayout'
 import { menuOf, menusFor, pagesOf, type Menu, type MenuId, type Page, type View } from './navigation'
@@ -25,11 +24,24 @@ import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
 import { TransactionsScreen } from './screens/TransactionsScreen'
 
-const ICONS: Record<MenuId, LucideIcon> = {
-  home: HouseIcon, approvals: InboxIcon, mine: SendIcon, merchants: StoreIcon, payments: CreditCardIcon, recon: ArrowLeftRightIcon, accounts: UserRoundIcon,
+/**
+ * 메뉴 아이콘(ADMIN-UI-WORKSPACE-001): 참고 시안 app.js menus의 SVG path만 쓴다(새 아이콘 없음). 시안과 같은 이름의 메뉴는 그 path,
+ * 시안에 없는 내 업무 두 메뉴는 시안 path 중 가까운 것 — 승인함 = '리스크 관리'(방패·확인 표시), 내 요청 = '원천사·기준정보'(문서 목록).
+ */
+const ICON_PATHS: Record<MenuId, string> = {
+  home: 'M3 10l9-7 9 7v11H3z M9 21v-8h6v8',
+  approvals: 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M12 7v6m0 3v1',
+  mine: 'M5 3h14v18H5z M8 7h8M8 11h8M8 15h5',
+  merchants: 'M4 21V4h16v17 M8 8h2m4 0h2M8 12h2m4 0h2M9 21v-5h6v5',
+  payments: 'M3 5h18v14H3z M3 10h18M6 15h4',
+  recon: 'M3 7h16m-4-4 4 4-4 4M21 17H5m4-4-4 4 4 4',
+  accounts: 'M16 7a4 4 0 1 1-8 0 4 4 0 1 1 8 0M4 21v-3c0-6 16-6 16 0v3',
 }
 
-/** 사이드바(rev 0.4): 운영 홈, 그 아래 구역 이름(내 업무·PAYMENT OPERATIONS·WORKSPACE)별 메뉴. 선택 메뉴는 `aria-current="page"`. */
+/**
+ * 사이드바(참고 시안 `nav#nav` 1단 메뉴): 운영 홈, 그 아래 구역 이름(내 업무·PAYMENT OPERATIONS·WORKSPACE)별 메뉴. 선택 메뉴는 class `active` + `aria-current="page"`.
+ * 구역은 `role="group"`(접근성 이름 = 구역 이름) 안에 시안의 `.label`(장식 — 스크린리더는 group 이름으로 읽는다)과 버튼을 둔다.
+ */
 function SideMenu({ menus, current, onOpen }: { menus: Menu[]; current: MenuId; onOpen: (menu: Menu) => void }) {
   const groups: { label: string | null; items: Menu[] }[] = []
   for (const menu of menus) {
@@ -39,33 +51,24 @@ function SideMenu({ menus, current, onOpen }: { menus: Menu[]; current: MenuId; 
     else groups.push({ label, items: [menu] })
   }
   const item = (menu: Menu) => {
-    const Icon = ICONS[menu.id]
     const active = menu.id === current
     return (
-      <button
-        key={menu.id}
-        type="button"
-        aria-current={active ? 'page' : undefined}
-        onClick={() => onOpen(menu)}
-        className={cn(
-          // 갱신된 시안 'pg-ops-workspace'(2026-11-13 사용자 재요청): 메뉴 항목 14px·500 #475569, 선택 항목 14px·700 #1d4ed8 + #edf4ff 배경, padding 12px 14px.
-          'my-[3px] flex w-full shrink-0 items-center gap-3 rounded-lg px-3.5 py-3 text-left text-sm font-medium whitespace-nowrap text-sidebar-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          active && 'bg-sidebar-accent font-bold text-sidebar-accent-foreground hover:bg-sidebar-accent',
-        )}
-      >
-        <Icon aria-hidden="true" className="size-[18px] stroke-[1.6]" />
+      <button key={menu.id} type="button" className={active ? 'active' : undefined} aria-current={active ? 'page' : undefined} onClick={() => onOpen(menu)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={ICON_PATHS[menu.id]} />
+        </svg>
         {menu.label}
       </button>
     )
   }
   return (
-    <nav aria-label="메뉴" className="flex gap-1 overflow-x-auto md:flex-col md:gap-0 md:overflow-visible">
+    <nav id="nav" aria-label="메뉴">
       {groups.map((group) =>
         group.label === null ? (
           group.items.map(item)
         ) : (
-          <div key={group.label} role="group" aria-label={group.label} className="flex gap-1 md:flex-col md:gap-0">
-            <div aria-hidden="true" className="hidden px-3.5 pt-5 pb-2 text-[11px] tracking-[1px] text-sidebar-label md:block">{group.label}</div>
+          <div key={group.label} role="group" aria-label={group.label}>
+            <div className="label" aria-hidden="true">{group.label}</div>
             {group.items.map(item)}
           </div>
         ),
@@ -81,6 +84,8 @@ function SideMenu({ menus, current, onOpen }: { menus: Menu[]; current: MenuId; 
  */
 export function App({ api: injected }: { api?: AdminApi } = {}) {
   const api = useMemo(() => injected ?? createAdminApi(), [injected])
+  // D-ADMIN-HOME-001: 라이트·다크 — 로그인 전에도 `<html data-theme>`를 맞춘다(선택 버튼은 로그인 뒤 사이드바 아래).
+  const [themePreference, setThemePreference] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const [checked, setChecked] = useState(false)
   const [mode, setMode] = useState<'login' | 'enroll'>('login')
@@ -166,29 +171,27 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
       sidebar={<SideMenu menus={menus} current={menu.id} onOpen={(m) => open(m.tabs[0]?.page ?? 'home')} />}
       topbar={
         <>
-          <nav aria-label="경로">
-            <ol className="flex items-center gap-2.5">
+          {/* 참고 시안 `#crumb`(워크스페이스　/　메뉴) — 경로 목록, 항목 사이 간격은 CSS(workspace.css). */}
+          <nav id="crumb" aria-label="경로">
+            <ol>
               <li>워크스페이스</li>
               <li aria-hidden="true">/</li>
-              <li aria-current="page" className="text-foreground">{menu.label}</li>
+              <li aria-current="page">{menu.label}</li>
             </ol>
           </nav>
           <MenuSearch menus={menus} onOpen={open} />
         </>
       }
       account={
-        <div className="flex items-center justify-between gap-3 md:flex-col md:items-stretch">
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-xs font-medium text-foreground">{me.displayName}</span>
-            <span className="mt-1.5 truncate text-[10px] text-muted-foreground" title={me.roles.join(', ')}>
-              {`역할: ${me.roles.map(labelOf).join(', ')}`}
-            </span>
-          </span>
-          <Button type="button" variant="outline" size="sm" onClick={logout}>
-            <LogOutIcon aria-hidden="true" />
+        // 참고 시안 `.bottom`: <b>이름</b><small>역할</small> — 그 아래 로그아웃(시안의 샘플 사용자·메뉴 개편 지도는 넣지 않는다).
+        <>
+          <b>{me.displayName}</b>
+          <small title={me.roles.join(', ')}>{`역할: ${me.roles.map(labelOf).join(', ')}`}</small>
+          <ThemeToggle value={themePreference} onChange={setThemePreference} />
+          <button type="button" className="btn" onClick={logout}>
             로그아웃
-          </Button>
-        </div>
+          </button>
+        </>
       }
     >
       {page === null ? (
@@ -202,16 +205,16 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
             action={
               // ADMIN-UI-MERCHANT-001: 쪽 머리 주요 버튼(이 역할에게 보일 때만 — menusFor). 그 화면을 연 뒤에는 첫 탭으로 돌아가는 버튼.
               menu.action === undefined ? undefined : page === menu.action.page ? (
-                <Button type="button" variant="outline" onClick={() => open(menu.tabs[0]?.page ?? 'home')}>{`${menu.tabs[0]?.label ?? '운영 홈'}로`}</Button>
+                <button type="button" className="btn" onClick={() => open(menu.tabs[0]?.page ?? 'home')}>{`${menu.tabs[0]?.label ?? '운영 홈'}로`}</button>
               ) : (
-                <Button type="button" onClick={() => open(menu.action!.page)}>
-                  <PlusIcon aria-hidden="true" />
-                  {menu.action.label}
-                </Button>
+                <button type="button" className="btn primary" onClick={() => open(menu.action!.page)}>
+                  {`＋ ${menu.action.label}`}
+                </button>
               )
             }
           />
-          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open}>
+          {/* ADMIN-UI-WORKSPACE-001 1단계: 가맹점 조회는 시안 목록 구조(.filters·.tablewrap)로 옮겨 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
+          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants'}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'merchants' && (
