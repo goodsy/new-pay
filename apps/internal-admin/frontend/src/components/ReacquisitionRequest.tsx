@@ -7,11 +7,8 @@ import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatMinor } from '../lib/format'
 import { Field } from './DataBits'
 import { ErrorNotice, WarningNote } from './Notice'
-import { Badge } from './ui/badge'
-import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { NativeSelect } from './ui/native-select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Textarea } from './ui/textarea'
 
 /** 사유 코드(C-9 고정 목록 — 서버 V7 CHECK와 같은 값). 이름은 화면 문구(가역). */
@@ -112,104 +109,110 @@ export function ReacquisitionRequest({ api, fileId, records, onSessionEnded }: P
   }
   const total = preview?.items.reduce((sum, i) => sum + (i.expectedNetMinor ?? 0), 0) ?? 0
 
+  // ADMIN-UI-WORKSPACE-001(매입·대사): 매입 파일 상세의 다른 패널과 같은 시안 .card > .cardtop(h4) → .cardbody, 미리 보기 표는 .tablewrap, 가능은 .tag.green, 버튼은 .btn.
+  // 입력 칸(사유 코드·근거 참조·사유)은 도움말·오류의 aria-describedby 연결을 지키려고 기존 Field 구성요소 그대로(1단계 가맹점 조회의 요청 양식과 같음).
   return (
-    <section aria-label="재매입 요청" className="flex flex-col gap-3 rounded-lg border border-dashed p-4">
-      <div className="flex flex-col gap-1">
-        <h4 className="text-sm font-semibold">재매입 요청</h4>
-        <p className="text-xs text-muted-foreground">거절된 레코드를 골라 같은 업무일의 새 버전 파일로 다시 보내도록 요청합니다. 2인 승인 뒤 매입 정보 서비스가 다시 확인하고 실행합니다.</p>
+    <section aria-label="재매입 요청" className="card">
+      <div className="cardtop">
+        <h4>재매입 요청</h4>
       </div>
-      <ul className="flex flex-col gap-1.5" aria-label="재매입 후보 레코드">
-        {candidates.map((r) => (
-          <li key={r.seq} className="flex flex-wrap items-center gap-2 text-sm">
-            {SELECTABLE.has(r.status) ? (
-              <label className="flex items-center gap-2">
-                {/* B1-A 리뷰 n-4: 미리 보기·요청 중에는 선택을 바꾸지 못한다(응답이 다른 선택에 붙지 않게). */}
-                <input type="checkbox" checked={selected.includes(r.seq)} onChange={() => toggle(r.seq)} disabled={busy || (!selected.includes(r.seq) && selected.length >= MAX_ITEMS)} />
-                <span className="font-mono text-xs">{`레코드 ${r.seq}`}</span>
-              </label>
-            ) : (
-              <span className="font-mono text-xs text-muted-foreground">{`레코드 ${r.seq}`}</span>
-            )}
-            <span className="font-mono text-xs">{r.transactionId}</span>
-            <span>{formatMinor(r.recordAmountMinor, r.currency)}</span>
-            {r.status === 'UNKNOWN' && <span className="text-xs text-muted-foreground">{REFUSALS.UNKNOWN_NOT_RECONCILED}</span>}
-          </li>
-        ))}
-      </ul>
-      <Button type="button" variant="outline" size="sm" className="self-start" disabled={selected.length === 0 || busy} onClick={check}>
-        대상 미리 보기
-      </Button>
-      {error && (
-        <ErrorNotice>
-          {error.code === 'DUPLICATE_UNRESOLVED' ? '이 파일에 아직 끝나지 않은 재매입 승인이 있습니다.' : error.problem ? describeInputProblem(error.problem) : ERROR_MESSAGES[error.code]}
-        </ErrorNotice>
-      )}
-      {created && (
-        <p role="status" className="text-sm">
-          {'재매입 승인 요청을 만들었습니다 '}
-          <span className="font-mono text-xs">{created}</span>
-          {'. 승인함에서 다른 관리자(APPROVER)가 인증 코드로 승인합니다.'}
-        </p>
-      )}
-      {preview && (
-        <>
-          <Table aria-label="재매입 대상 미리 보기">
-            <TableHeader>
-              <TableRow>
-                <TableHead>순번</TableHead><TableHead>거래</TableHead><TableHead>세대·상태</TableHead><TableHead>원승인액</TableHead><TableHead>받은 취소</TableHead>
-                <TableHead>예상 순액(표시용)</TableHead><TableHead>가능 여부</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {preview.items.map((i) => (
-                <TableRow key={i.seq} aria-label={`미리 보기 ${i.seq}`}>
-                  <TableCell className="font-mono text-xs">{i.seq}</TableCell>
-                  <TableCell className="font-mono text-xs">{i.transactionId ?? '-'}</TableCell>
-                  <TableCell className="font-mono text-xs">{i.generation === null ? '-' : `${i.generation} · ${i.status ?? '-'}`}</TableCell>
-                  <TableCell>{i.approvedAmountMinor === null ? '-' : formatMinor(i.approvedAmountMinor, 'KRW')}</TableCell>
-                  <TableCell>{i.cancelledAmountMinor === null ? '-' : formatMinor(i.cancelledAmountMinor, 'KRW')}</TableCell>
-                  <TableCell>{i.expectedNetMinor === null ? '-' : formatMinor(i.expectedNetMinor, 'KRW')}</TableCell>
-                  <TableCell>
-                    {i.eligible ? <Badge variant="success">가능</Badge> : <span className="text-xs" title={i.refusal ?? undefined}>{`불가: ${REFUSALS[i.refusal ?? ''] ?? i.refusal ?? '-'}`}</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {!allEligible && <WarningNote>재매입할 수 없는 레코드가 있습니다. 그 레코드를 빼고 다시 미리 보기 하세요(묶음 일부만 실행하지 않습니다).</WarningNote>}
-          {allEligible && (
-            <div className="flex flex-col gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="사유 코드">
-                  {(describedBy) => (
-                    <NativeSelect value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} aria-describedby={describedBy}>
-                      <option value="">선택</option>
-                      {Object.entries(REACQUISITION_REASONS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-                    </NativeSelect>
-                  )}
-                </Field>
-                <Field
-                  label="근거 참조"
-                  hint="매입사 문의 번호 등(영문·숫자·._:#/- 128자 이내). 카드 번호 금지 — 13~19자리로 이어진 숫자는 거부되니 구분 기호를 넣어 주세요(예: INQ-2026-1105-0001)."
-                  error={evidenceLooksLikeCard ? <span role="alert">{INPUT_REASONS.CARD_NUMBER_PATTERN}</span> : undefined}
-                >
-                  {(describedBy) => <Input value={evidenceRef} onChange={(e) => setEvidenceRef(e.target.value)} aria-describedby={describedBy} autoComplete="off" />}
-                </Field>
-              </div>
-              <Field label="사유" hint="ADMIN에만 저장되며 화면·감사에는 표시하지 않습니다(매입 정보 서비스로 보내지 않음). 앞뒤 공백·카드 번호는 넣지 마세요.">
-                {(describedBy) => <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} aria-describedby={describedBy} />}
-              </Field>
-              <WarningNote>
-                {`선택한 ${selected.length}건(예상 순액 합 ${formatMinor(total, 'KRW')})을 같은 업무일의 새 버전 파일로 다시 보냅니다. 금액은 실행 시점의 순액(원승인 − 받은 취소)으로 정해집니다. ` +
-                  '매입 확정은 매입사 결과로만 됩니다. 2인 승인 뒤 실행됩니다.'}
-              </WarningNote>
-              <Button type="button" className="self-start" disabled={!formReady || busy} onClick={submit}>
-                재매입 승인 요청
-              </Button>
+      <div className="cardbody">
+        <p className="subtle">거절된 레코드를 골라 같은 업무일의 새 버전 파일로 다시 보내도록 요청합니다. 2인 승인 뒤 매입 정보 서비스가 다시 확인하고 실행합니다.</p>
+        <ul className="flex flex-col gap-1.5" aria-label="재매입 후보 레코드">
+          {candidates.map((r) => (
+            <li key={r.seq} className="flex flex-wrap items-center gap-2">
+              {SELECTABLE.has(r.status) ? (
+                <label className="flex items-center gap-2">
+                  {/* B1-A 리뷰 n-4: 미리 보기·요청 중에는 선택을 바꾸지 못한다(응답이 다른 선택에 붙지 않게). */}
+                  <input type="checkbox" checked={selected.includes(r.seq)} onChange={() => toggle(r.seq)} disabled={busy || (!selected.includes(r.seq) && selected.length >= MAX_ITEMS)} />
+                  <span className="font-mono text-xs">{`레코드 ${r.seq}`}</span>
+                </label>
+              ) : (
+                <span className="subtle font-mono">{`레코드 ${r.seq}`}</span>
+              )}
+              <span className="font-mono text-xs">{r.transactionId}</span>
+              <span>{formatMinor(r.recordAmountMinor, r.currency)}</span>
+              {r.status === 'UNKNOWN' && <span className="subtle">{REFUSALS.UNKNOWN_NOT_RECONCILED}</span>}
+            </li>
+          ))}
+        </ul>
+        <button type="button" className="btn self-start" disabled={selected.length === 0 || busy} onClick={check}>
+          대상 미리 보기
+        </button>
+        {error && (
+          <ErrorNotice>
+            {error.code === 'DUPLICATE_UNRESOLVED' ? '이 파일에 아직 끝나지 않은 재매입 승인이 있습니다.' : error.problem ? describeInputProblem(error.problem) : ERROR_MESSAGES[error.code]}
+          </ErrorNotice>
+        )}
+        {created && (
+          <p role="status" className="text-sm">
+            {'재매입 승인 요청을 만들었습니다 '}
+            <span className="font-mono text-xs">{created}</span>
+            {'. 승인함에서 다른 관리자(APPROVER)가 인증 코드로 승인합니다.'}
+          </p>
+        )}
+        {preview && (
+          <>
+            <div className="tablewrap">
+              <table aria-label="재매입 대상 미리 보기">
+                <thead>
+                  <tr>
+                    <th>순번</th><th>거래</th><th>세대·상태</th><th className="amount">원승인액</th><th className="amount">받은 취소</th>
+                    <th className="amount">예상 순액(표시용)</th><th>가능 여부</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.items.map((i) => (
+                    <tr key={i.seq} aria-label={`미리 보기 ${i.seq}`}>
+                      <td>{i.seq}</td>
+                      <td>{i.transactionId ?? '-'}</td>
+                      <td>{i.generation === null ? '-' : `${i.generation} · ${i.status ?? '-'}`}</td>
+                      <td className="amount">{i.approvedAmountMinor === null ? '-' : formatMinor(i.approvedAmountMinor, 'KRW')}</td>
+                      <td className="amount">{i.cancelledAmountMinor === null ? '-' : formatMinor(i.cancelledAmountMinor, 'KRW')}</td>
+                      <td className="amount">{i.expectedNetMinor === null ? '-' : formatMinor(i.expectedNetMinor, 'KRW')}</td>
+                      <td>
+                        {i.eligible ? <span className="tag green">가능</span> : <span title={i.refusal ?? undefined}>{`불가: ${REFUSALS[i.refusal ?? ''] ?? i.refusal ?? '-'}`}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </>
-      )}
+            {!allEligible && <WarningNote>재매입할 수 없는 레코드가 있습니다. 그 레코드를 빼고 다시 미리 보기 하세요(묶음 일부만 실행하지 않습니다).</WarningNote>}
+            {allEligible && (
+              <div className="flex flex-col gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="사유 코드">
+                    {(describedBy) => (
+                      <NativeSelect value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} aria-describedby={describedBy}>
+                        <option value="">선택</option>
+                        {Object.entries(REACQUISITION_REASONS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                      </NativeSelect>
+                    )}
+                  </Field>
+                  <Field
+                    label="근거 참조"
+                    hint="매입사 문의 번호 등(영문·숫자·._:#/- 128자 이내). 카드 번호 금지 — 13~19자리로 이어진 숫자는 거부되니 구분 기호를 넣어 주세요(예: INQ-2026-1105-0001)."
+                    error={evidenceLooksLikeCard ? <span role="alert">{INPUT_REASONS.CARD_NUMBER_PATTERN}</span> : undefined}
+                  >
+                    {(describedBy) => <Input value={evidenceRef} onChange={(e) => setEvidenceRef(e.target.value)} aria-describedby={describedBy} autoComplete="off" />}
+                  </Field>
+                </div>
+                <Field label="사유" hint="ADMIN에만 저장되며 화면·감사에는 표시하지 않습니다(매입 정보 서비스로 보내지 않음). 앞뒤 공백·카드 번호는 넣지 마세요.">
+                  {(describedBy) => <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} aria-describedby={describedBy} />}
+                </Field>
+                <WarningNote>
+                  {`선택한 ${selected.length}건(예상 순액 합 ${formatMinor(total, 'KRW')})을 같은 업무일의 새 버전 파일로 다시 보냅니다. 금액은 실행 시점의 순액(원승인 − 받은 취소)으로 정해집니다. ` +
+                    '매입 확정은 매입사 결과로만 됩니다. 2인 승인 뒤 실행됩니다.'}
+                </WarningNote>
+                <button type="button" className="btn primary self-start" disabled={!formReady || busy} onClick={submit}>
+                  재매입 승인 요청
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </section>
   )
 }

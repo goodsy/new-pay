@@ -26,6 +26,11 @@ export function statusTone(code: string): BadgeVariant {
 const TAG_CLASS: Record<BadgeVariant, string> = { success: 'green', warning: 'orange', destructive: 'red', default: 'blue', secondary: '', outline: '' }
 
 export function tagClass(code: string): string {
-  const tone = TAG_CLASS[statusTone(code)]
-  return tone === '' ? 'tag' : `tag ${tone}`
+  return toneTagClass(statusTone(code))
+}
+
+/** 화면 고유 이름표(색 tone을 직접 정한 표 — 예: 매입 현황 3축 상태)의 tone → 시안 `.tag` class. 의미는 [tagClass]와 같다. */
+export function toneTagClass(tone: BadgeVariant): string {
+  const color = TAG_CLASS[tone]
+  return color === '' ? 'tag' : `tag ${color}`
 }

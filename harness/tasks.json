@@ -7922,9 +7922,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T163630Z.json",
           "result": "GRADLE-CHECK 16:36:59Z..17:27:36Z(50m37s) exit 0; Kotlin 4713 / FRONTEND 526 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:e4d7dab2370b6f8852f2bf804e70290bf50affd35c741681ffec2250e72cdd76",
           "supplementary": "WS3-cve1 PASS(~/gate-logs/WS3-cve1.log)"
+        },
+        {
+          "tag": "WS4-gate1",
+          "verdict": "PASS",
+          "screen": "매입·대사(대사 발견·매입 현황)",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T175634Z.json",
+          "result": "GRADLE-CHECK 17:57:06Z..18:47:59Z(50m53s) exit 0; Kotlin 4713 / FRONTEND 534 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:b14cea2b73125912ae770d44b6bf5adaca45412859b69746d5aec9dd78a23db4",
+          "supplementary": "WS4-cve1 PASS(~/gate-logs/WS4-cve1.log)"
         }
       ],
-      "nextResumeAction": "남은 화면: 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
+      "nextResumeAction": "남은 화면: 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -7975,6 +7983,44 @@
         "browserCheck": {
           "how": "빌드된 admin 번들(Demo rebuild) + 명시적 Demo fixture mock API, headless Chrome CDP — scratchpad admin-ui-ws3/harness.mjs",
           "result": "1440·1280·1101·1024·390 × light·dark × 목록·상세 = 20화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성·<style> 0, 대비 4.5 미만은 30px 굵은 브랜드 로고 \"P\"(3.7 — 큰 글자 기준 3:1 충족)만; 1101px 날짜 칸 잘림 해소 확인(전/후 캡처 shots-before·shots)"
+        }
+      },
+      "acquisitionsReconciliationScreens": {
+        "status": "DONE(WS4-gate1)",
+        "scope": "매입·대사 › 대사 발견(ReconciliationScreen.tsx)·매입 현황(AcquisitionsScreen.tsx 목록·상세·레코드·재매입 요청 ReacquisitionRequest.tsx) 모양만 시안 moduleView/detail 구조로 — 거래 조회(16cc494) 선례 그대로. API 호출·검색 조건·더 보기·레코드 필터/더 보기·늦은 응답 버리기·세션 종료·오류 문구·역할별 문구·재매입 2인 승인 요청(후보·미리 보기·전부 가능일 때만 사유/근거/카드 번호 차단)·PayCore 브랜드 유지, 샘플 데이터 없음",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 acquisitions·reconciliation 추가",
+          "ReconciliationScreen.tsx: PageHeader·shadcn Card/Table/Badge → .mapnote(h2 대사 발견 + 설명 span) → (오류 시) .cardnote ErrorNotice → .cardtop h3 '열린 대사 발견 N건' → .cardbody(ul '종류별 열린 발견' — .tag.orange 이름(title=code) + code: 수, 마지막 실행 안내 .subtle 또는 조사 필요 WarningNote, 200건 안내) → .tablewrap(table '대사 발견 목록', 종류 .tag.orange, 빈 표 .empty) → .tablebottom '표시 N건'. 해결·종료 버튼 없음 그대로",
+          "AcquisitionsScreen.tsx: .mapnote(h2 매입 현황 + 역할별 설명 span) → form.filters.many(조회 방식·업무일 시작/종료·매입사 코드·환경·전송/수신/결과 상태 select(aria-label, '전체 …' 선택지)·확인 필요만 checkbox label·btn primary 검색 / 파일 ID 방식은 조회 방식+파일 ID) → .cardnote(업무일 기간 안내 '업무일 기간(시작일 ~ 종료일): KST 달력일 기준, 최대 31일(Demo 기준).' 두 날짜 aria-describedby, 입력 오류 role=alert .error, 목록 오류) — 안내·오류 있을 때만 → .tablewrap(table '매입 파일 목록' 열 파일 / 매입사(strong fileId + small 매입사·환경·버전 + small 재매입 원 파일)·업무일·건수·전송·수신·결과(.tag 3개)·레코드 결과·표시(.tag)·순액 td.amount·작업 .btn 상세, 빈 목록 .empty) → .tablebottom(목록 N건 · 카드사 값 비표시 안내 + .btn 더 보기); 상세 .detailarea(eyebrow 매입·대사 / 상세, h3 매입 파일 상세 + small 파일 ID) + .card/.cardtop h4/.cardbody 패널(파일 요약·상태·레코드별 결과·[재매입 요청]·전송 시도·기관 응답 기록), 레코드 상태 선택은 시안 .rolebar(b 이름 aria-labelledby + select + .subtle 조회 시각), 표 3개 .tablewrap·빈 표 .empty, 상태 이름표는 toneTagClass .tag(색 의미 = 기존 Badge tone)",
+          "ReacquisitionRequest.tsx: section(region 재매입 요청)을 .card > .cardtop h4 → .cardbody로, 미리 보기 표 .tablewrap(금액 열 .amount), 가능 .tag.green, 버튼 .btn / .btn.primary. 입력 칸(사유 코드·근거 참조·사유)은 Field·NativeSelect·Input·Textarea 그대로(도움말·오류 aria-describedby 유지). 동작·상수·문구 변경 없음",
+          "lib/statusTone.ts: toneTagClass(tone) 추가(tagClass가 이를 사용 — 매핑 값 불변)",
+          "workspace.css(PayCore 적응 규칙 블록): `.cardtop h3{margin:0;font-size:17px;font-weight:700;color:#0f172a}`(기존 .cardtop h4 값), `.cardbody .rolebar{padding:0;flex-wrap:wrap}`, 다크 블록 제목 색 목록에 `.cardtop h3` 추가(기존 #f1f5f9). 새 색·크기 값 없음, 원본 블록 불변",
+          "시험: AcquisitionsScreen.workspace.test.tsx 4건·ReconciliationScreen.workspace.test.tsx 4건 새로(구조·필터 방식·빈 결과/오류·CSS 위치), noRuntimeStyles 매입 현황 시험에 OPERATOR 상세+재매입 요청 카드 연 뒤 검사 추가(대사 발견은 기존 시험이 이미 검사)"
+        ],
+        "selectorChanges": [
+          "AcquisitionsScreen.test.tsx 1곳: getByText('결과 대기', { selector: '[data-slot=\"badge\"]' }) → { selector: '.tag' } — shadcn Badge → 시안 .tag 마크업 변경 때문(문구·단언 그대로, '// 기대값 변경(ADMIN-UI-WORKSPACE-001 매입·대사)' 주석)",
+          "그 밖 기존 시험(AcquisitionsScreen.test 6·reacquisition 8·badge 3·ReconciliationScreen.test 3·noRuntimeStyles·App/WorkspaceShell) 단언·선택자 변경 없음"
+        ],
+        "deviations": [
+          "상세는 시안 drawer 대신 화면 안 .detailarea(가맹점 조회·거래 조회 선례)",
+          "재매입 요청은 '레코드별 결과' 카드 안(표와 '레코드 더 보기' 사이)에서 그 카드 바로 다음의 별도 카드로 옮김 — 카드 안 카드를 피하려는 배치 변경. 후보는 여전히 지금 불러온 레코드 쪽(records.items), 문구 '아래에서 재매입을 요청하면' 그대로 성립",
+          "시안 열 '원천사 / 배치번호·대상일·대상 건수·상태·차이 금액' 대신 실제 값 열(파일 / 매입사·업무일·건수·전송·수신·결과·레코드 결과·표시·순액·작업). 시안 탭 5개·검색어·초기화·CSV·'대사 실행 요청' 버튼 없음(실제 기능 없음 — 탭은 메뉴 카드의 실제 탭 2개)",
+          "대사 발견은 조회 조건이 없어 .filters 줄 없음 — 열린 발견 수를 시안 카드 제목 줄(.cardtop h3)로, 종류별 수를 .tag로",
+          "상태 선택 '전체' 선택지 문구 → '전체 환경/전체 전송 상태/전체 수신 상태/전체 결과 상태'(값 '' 동일), 검색 버튼 아이콘·스피너 제거(aria-busy 유지)",
+          "입력 칸 Field(재매입 요청 양식)·ErrorNotice·WarningNote·상세 불러오는 중 Spinner는 기존 구성요소 유지(선례와 같음)",
+          "확인 필요만 checkbox는 .filters 안 label(flex utility) — 시안에 checkbox 필터가 없어 utility class로 배치만"
+        ],
+        "evidence": "~/gate-logs/admin-ui-ws4: baseline.log(6파일 40 통과), red.log(새 시험 8 실패 — 구조·CSS 규칙 없음, noRuntimeStyles 9 통과), green1.log(새 CSS 시험의 검사 범위가 기존 초점 규칙까지 잡은 시험 오류 1 → 이번에 만든 규칙 2줄만 보도록 시험 수정), green2.log(7파일 37 통과), tsc.log(exit 0), full.log(Vitest 55파일 509 통과·실패 0), sha256.txt",
+        "contrast": "새 색 조합 없음(.cardtop h3 = 기존 .cardtop h4 라이트 #0f172a/다크 #f1f5f9, .tag·.rolebar select·.btn은 기존 규칙) — theme 대비 시험 확장 불필요로 판단",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·페이지 가로 넘침 실측 미실행(Demo 실행 중 — gradle·빌드 미실행), 체크박스·.rolebar 다크 표시·390px 필터 줄 모양은 jsdom으로 확인 불가. 독립 리뷰·게이트 미실행(Coordinator/Verifier 몫)",
+        "gate": "미실행",
+        "review": "독립 리뷰 2026-11-17 REVIEW_PASS(조건부) — MINOR-1 .filters 체크박스에 입력란 규칙 적용 → `.filters input[type=checkbox]{flex:none;padding:0}`(새 값 없음); MINOR-2 브라우저 실측 → browserCheck; NIT-1 tsc 종료 코드 기록(fix-tsc.log exit=0); NIT-2 reacquisition 시험 수 6→8 정정. 후속: NIT-3 필터·페이지 변경 시 보이지 않는 재매입 선택 유지(기존 동작), NIT-4 다크 테마 네이티브 체크박스 color-scheme(전 화면 영향 — 별도 검토)",
+        "coordinatorFix": {
+          "evidence": "~/gate-logs/admin-ui-ws4/fix-tsc.log(exit=0), fix-green.log 4파일 23건 통과"
+        },
+        "browserCheck": {
+          "how": "Demo admin rebuild 번들 + 명시 Demo fixture mock API, headless Chrome CDP — scratchpad admin-ui-ws4/harness.mjs",
+          "result": "1440·1280·1101·1024·390 × light·dark × (대사 발견·매입 목록·매입 상세(재매입 요청 카드 포함)) = 30화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성·<style> 0, 대비 4.5 미만 0(브랜드 로고 큰 글자 제외), 콘솔 오류 0; 체크박스 수정 전·후 캡처(shots-before·shots)"
         }
       }
     },

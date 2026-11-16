@@ -74,7 +74,8 @@ describe('AcquisitionsScreen (ACQ-VIEW-001 §4.6 — read-only acquisition statu
     const first = await screen.findByRole('row', { name: F1 })
     expect(within(first).getByText('전송 완료')).toBeInTheDocument()
     expect(within(first).getByText('수신 확인')).toBeInTheDocument()
-    expect(within(first).getByText('결과 대기', { selector: '[data-slot="badge"]' })).toBeInTheDocument()
+    // 기대값 변경(ADMIN-UI-WORKSPACE-001 매입·대사): 상태 이름표가 shadcn Badge(data-slot="badge")에서 시안 .tag로 바뀌어 선택자만 바꿨다 — 같은 행의 같은 "결과 대기" 이름표를 찾는다(문구·단언 그대로).
+    expect(within(first).getByText('결과 대기', { selector: '.tag' })).toBeInTheDocument()
     expect(within(first).getByText('확인 필요: 결과 지연')).toBeInTheDocument()
     expect(within(first).getByText('10,000원')).toBeInTheDocument()
     const second = screen.getByRole('row', { name: F2 })

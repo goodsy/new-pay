@@ -143,9 +143,23 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
       transmissionState: 'TRANSMITTED', receiptState: 'RECEIVED', resultState: 'AWAITING', sealedAt: '2026-10-20T14:05:00.000Z', transmittedAt: '2026-10-20T14:06:00.000Z',
       recordStatusCounts: { awaiting: 1, accepted: 0, rejected: 0, fileRejected: 0, unknown: 0, conflict: 0 }, attention: ['RESULT_OVERDUE'], reacquisitionCandidate: true, reacquisitionInProgress: false,
     }
-    render(<AcquisitionsScreen api={fakeApi({ acquisitionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })) })} />)
+    // ADMIN-UI-WORKSPACE-001 매입·대사: 시안 구조로 옮긴 상세(.detailarea — 카드·표·태그·.rolebar)와 재매입 요청 카드(OPERATOR)까지 연 뒤에도 style 속성·런타임 <style>이 없다.
+    const rejectedRecord = {
+      seq: 1, recordType: 'SALE', transactionId: 'ptx_ex1', originalTransactionId: null, merchantAccountId: 'demo-mid-001', institutionTransactionDate: '2026-10-20',
+      eventAt: '2026-10-20T01:00:00.000Z', currency: 'KRW', approvedAmountMinor: 10000, nettedCancelAmountMinor: 0, recordAmountMinor: 10000, generation: 0, reacquisitionOf: null,
+      status: 'REJECTED', results: [{ entryNo: 1, result: 'REJECTED', observedResult: null, reasonCode: '05', source: 'RESULT_FILE', responseRef: { kind: 'RESULT', sequenceNo: 1 }, recognizedAt: '2026-10-20T15:00:00.000Z' }],
+    }
+    const detail = {
+      file: { ...item, cutoffPolicyVersion: 'acq-cutoff-demo-1', cutoffAt: '2026-10-20T14:00:00.000Z', contentSha256: 'a'.repeat(64), contentBytes: 100, transmissionLeaseUntil: null, updatedAt: '2026-10-20T15:00:00.000Z' },
+      attempts: { total: 0, latest: [] }, responses: { total: 0, quarantined: 0, latest: [] },
+      records: { items: [rejectedRecord], nextCursor: null }, readAt: '2026-10-21T00:00:00.000Z',
+    }
+    render(<AcquisitionsScreen canRequest api={fakeApi({ acquisitionSearch: vi.fn(async () => ({ items: [item], nextCursor: null })), acquisitionDetail: vi.fn(async () => detail) })} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     expect(await screen.findByRole('row', { name: item.fileId })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    await userEvent.click(screen.getByRole('button', { name: '상세' }))
+    expect(await screen.findByRole('region', { name: '재매입 요청' })).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

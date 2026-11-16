@@ -247,6 +247,8 @@ button:focus-visible,a:focus-visible{outline-color:#1d4ed8}
 .tablebottom{gap:12px;align-items:center}
 /* 390px 캡처(Coordinator 확인 2026-11-17): 좁은 화면에서 "다음" 버튼 글자가 세로로 꺾여 버튼은 줄지 않고 한 줄 유지(새 값 없음). */
 .tablebottom .btn{flex:none;white-space:nowrap}
+/* 매입 현황 "확인 필요만"(리뷰 MINOR-1): .filters 안 체크박스에는 입력란 크기·여백 규칙을 적용하지 않는다(새 값 없음). */
+.filters input[type=checkbox]{flex:none;padding:0}
 /* mapnote 안 제목(h2)은 줄 안에 굵게 — 원본 `<b>탭 이름</b> · 설명`과 같은 모양. */
 .mapnote h2{display:inline;margin:0;font-size:inherit}
 /* 가맹점 조회 상세(화면 안 영역 — drawer로 바꾸지 않음): 카드 아래 구분선 뒤에 원본 drawer 제목·카드 값. */
@@ -255,6 +257,10 @@ button:focus-visible,a:focus-visible{outline-color:#1d4ed8}
 .detailarea h3 small{font-size:12px;font-weight:400;color:#64748b;margin-left:8px}
 .cardtop h4{margin:0;font-size:17px;font-weight:700;color:#0f172a}
 .cardbody{padding:0 23px 20px;display:flex;flex-direction:column;gap:12px}
+/* 매입·대사(ADMIN-UI-WORKSPACE-001): 대사 발견의 탭 패널 안 카드 제목 줄(.cardtop h3 — 탭 이름 h2 아래 단계)은 상세 패널 제목(h4)과 같은 값. */
+.cardtop h3{margin:0;font-size:17px;font-weight:700;color:#0f172a}
+/* 매입 파일 상세 레코드 상태 선택(시안 .rolebar — 원본 padding 20px): 카드 본문 여백(.cardbody) 안에서는 여백을 겹치지 않고, 좁은 폭에서 줄바꿈(새 값 없음). */
+.cardbody .rolebar{padding:0;flex-wrap:wrap}
 /* 운영 홈(2단계): 할 일 행은 접근성을 위해 button(원본 div onclick) — 폭·정렬만 원본 div와 같게. */
 button.task{width:100%;text-align:left}
 /* 날짜 표시(날짜 고르기 기능이 없어 누르는 단추가 아니다 — .btn 모양만). */
@@ -304,7 +310,7 @@ button.task{width:100%;text-align:left}
 :root[data-theme=dark] .bottom hr{border-top-color:var(--line)}
 :root[data-theme=dark] header{background:#111a2b;border-bottom-color:var(--line);color:#cbd5e1}
 :root[data-theme=dark] .search{background:#18233a;color:#9aa8bc}
-:root[data-theme=dark] h1,:root[data-theme=dark] h2,:root[data-theme=dark] .stat strong,:root[data-theme=dark] .drawer h2,:root[data-theme=dark] .detailarea h3,:root[data-theme=dark] .cardtop h4{color:#f1f5f9}
+:root[data-theme=dark] h1,:root[data-theme=dark] h2,:root[data-theme=dark] .stat strong,:root[data-theme=dark] .drawer h2,:root[data-theme=dark] .detailarea h3,:root[data-theme=dark] .cardtop h3,:root[data-theme=dark] .cardtop h4{color:#f1f5f9}
 :root[data-theme=dark] .heading p,:root[data-theme=dark] .banner p,:root[data-theme=dark] .hint,:root[data-theme=dark] .task small,:root[data-theme=dark] .pipe small,:root[data-theme=dark] .tablewrap td small,:root[data-theme=dark] .timeline small,:root[data-theme=dark] .subtle,:root[data-theme=dark] .tablebottom,:root[data-theme=dark] .mapnote,:root[data-theme=dark] .notice,:root[data-theme=dark] .empty,:root[data-theme=dark] .close,:root[data-theme=dark] footer{color:#9aa8bc}
 :root[data-theme=dark] .eyebrow{color:#93a9c7}
 :root[data-theme=dark] .btn{background:#111a2b;border-color:#334155;color:#dbe4f0}

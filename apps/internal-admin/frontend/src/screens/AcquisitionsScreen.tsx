@@ -1,20 +1,14 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type {
   AcquisitionFileDetail, AcquisitionFileItem, AcquisitionRecord, AcquisitionRecordPage, AcquisitionSearchInput, AcquisitionSearchPage, AdminApi,
 } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { SearchIcon } from '../components/icons'
-import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
+import { KstTime, Spinner } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
-import { PageHeader } from '../components/PageHeader'
-import { Badge, type BadgeVariant } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { NativeSelect } from '../components/ui/native-select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import type { BadgeVariant } from '../components/ui/badge'
 import { formatMinor } from '../lib/format'
+import { toneTagClass } from '../lib/statusTone'
 import { ReacquisitionRequest } from '../components/ReacquisitionRequest'
 
 /** 기간 상한(I-3 — Demo 값, 운영값 아님. 서버가 판정하고 화면은 미리 안내만 한다). */
@@ -99,45 +93,50 @@ function daysBefore(date: string, days: number): string {
 
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs break-all">{children}</span>
 
+/** 3축·레코드·결과 이름표 → 시안 `.tag`(색 의미는 표의 tone — StatusBadge와 같은 statusTone 규칙, 문구는 화면 고유 이름, title은 원래 code). */
 function Tone({ table, code }: { table: Named; code: string }) {
   const named = table[code]
-  return <Badge variant={named?.tone ?? 'secondary'} title={code}>{named?.label ?? code}</Badge>
+  return <span className={toneTagClass(named?.tone ?? 'secondary')} title={code}>{named?.label ?? code}</span>
 }
 
 function amount(minor: number, currency: string) {
   return Number.isSafeInteger(minor) ? formatMinor(minor, currency) : '표시할 수 없는 금액'
 }
 
+/**
+ * 상세 패널 하나(`section` + 이름 → region). ADMIN-UI-WORKSPACE-001(매입·대사): 거래 조회와 같은 시안 `.card` > `.cardtop`(h4 — 상세 제목 h3 아래 단계) → `.cardbody`.
+ */
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card as="section" aria-label={title} className="gap-3 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="text-sm">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 px-4">{children}</CardContent>
-    </Card>
+    <section className="card" aria-label={title}>
+      <div className="cardtop">
+        <h4>{title}</h4>
+      </div>
+      <div className="cardbody">{children}</div>
+    </section>
   )
 }
 
+/** 항목 이름·값(시안 `.detailgrid` label 13px·500 / 값 14px — 거래 조회 상세와 같은 값, 정의 목록 의미는 유지). */
 function Item({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{term}</dt>
-      <dd className="text-sm">{children}</dd>
+    <div className="flex flex-col gap-2">
+      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
+      <dd className="text-sm text-heading">{children}</dd>
     </div>
   )
 }
 
-/** 확인 필요 배지 + 재매입 검토 배지(목록·상세 공용). */
+/** 확인 필요 배지 + 재매입 검토 배지(목록·상세 공용). 색은 원래 Badge tone 그대로(확인 필요 warning → orange, 재매입 outline·secondary → 회색). */
 function Marks({ file }: { file: AcquisitionFileItem }) {
-  if (file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress) return <span className="text-xs text-muted-foreground">-</span>
+  if (file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress) return <span className="subtle">-</span>
   return (
     <span className="flex flex-wrap gap-1">
       {file.attention.map((code) => (
-        <Badge key={code} variant="warning" title={code}>{`확인 필요: ${ATTENTION[code]?.badge ?? code}`}</Badge>
+        <span key={code} className="tag orange" title={code}>{`확인 필요: ${ATTENTION[code]?.badge ?? code}`}</span>
       ))}
-      {file.reacquisitionCandidate && <Badge variant="outline" title="REACQUISITION_CANDIDATE">{REACQUISITION.badge}</Badge>}
-      {file.reacquisitionInProgress && <Badge variant="secondary" title="REACQUISITION_IN_PROGRESS">{REACQUISITION_IN_PROGRESS.badge}</Badge>}
+      {file.reacquisitionCandidate && <span className="tag" title="REACQUISITION_CANDIDATE">{REACQUISITION.badge}</span>}
+      {file.reacquisitionInProgress && <span className="tag" title="REACQUISITION_IN_PROGRESS">{REACQUISITION_IN_PROGRESS.badge}</span>}
     </span>
   )
 }
@@ -147,49 +146,45 @@ function Counts({ file }: { file: AcquisitionFileItem }) {
   const parts = [
     ['매입 확정', c.accepted], ['거절', c.rejected + c.fileRejected], ['결과 모름', c.unknown], ['상충', c.conflict], ['결과 대기', c.awaiting],
   ].filter(([, n]) => (n as number) > 0)
-  return <span className="text-xs whitespace-nowrap">{parts.length === 0 ? '레코드 없음' : parts.map(([label, n]) => `${label} ${n}`).join(' · ')}</span>
+  return <span>{parts.length === 0 ? '레코드 없음' : parts.map(([label, n]) => `${label} ${n}`).join(' · ')}</span>
 }
 
 function RecordRows({ records }: { records: AcquisitionRecord[] }) {
   return (
     <>
       {records.map((r) => (
-        <TableRow key={r.seq} aria-label={`레코드 ${r.seq}`}>
-          <TableCell className="font-mono text-xs">{r.seq}</TableCell>
-          <TableCell>
-            <span className="flex flex-col">
-              <span>{RECORD_TYPE[r.recordType] ?? r.recordType}{r.generation > 0 ? ` (재매입 ${r.generation}세대)` : ''}</span>
-              <Mono>{r.transactionId}</Mono>
-              {r.originalTransactionId !== null && <span className="text-xs text-muted-foreground">{`원거래 ${r.originalTransactionId}`}</span>}
-            </span>
-          </TableCell>
-          <TableCell><Mono>{r.merchantAccountId}</Mono></TableCell>
-          <TableCell>
-            <span className="flex flex-col">
-              <span>{amount(r.recordAmountMinor, r.currency)}</span>
-              {r.nettedCancelAmountMinor > 0 && <span className="text-xs text-muted-foreground">{`승인 ${amount(r.approvedAmountMinor, r.currency)} − 상계 ${amount(r.nettedCancelAmountMinor, r.currency)}`}</span>}
-            </span>
-          </TableCell>
-          <TableCell className="font-mono text-xs">{r.institutionTransactionDate}</TableCell>
-          <TableCell><Tone table={RECORD_STATUS} code={r.status} /></TableCell>
-          <TableCell>
+        <tr key={r.seq} aria-label={`레코드 ${r.seq}`}>
+          <td>{r.seq}</td>
+          <td>
+            <strong>{RECORD_TYPE[r.recordType] ?? r.recordType}{r.generation > 0 ? ` (재매입 ${r.generation}세대)` : ''}</strong>
+            <small>{r.transactionId}</small>
+            {r.originalTransactionId !== null && <small>{`원거래 ${r.originalTransactionId}`}</small>}
+          </td>
+          <td>{r.merchantAccountId}</td>
+          <td className="amount">
+            {amount(r.recordAmountMinor, r.currency)}
+            {r.nettedCancelAmountMinor > 0 && <small>{`승인 ${amount(r.approvedAmountMinor, r.currency)} − 상계 ${amount(r.nettedCancelAmountMinor, r.currency)}`}</small>}
+          </td>
+          <td>{r.institutionTransactionDate}</td>
+          <td><Tone table={RECORD_STATUS} code={r.status} /></td>
+          <td>
             {r.results.length === 0 ? (
-              <span className="text-xs text-muted-foreground">결과 없음</span>
+              <span className="subtle">결과 없음</span>
             ) : (
               <ol className="flex flex-col gap-1">
                 {r.results.map((x) => (
-                  <li key={x.entryNo} className="flex flex-wrap items-center gap-1 text-xs">
+                  <li key={x.entryNo} className="flex flex-wrap items-center gap-1">
                     <Tone table={RESULT_ROW} code={x.result} />
                     {x.observedResult !== null && <span>{`(관찰 ${x.observedResult})`}</span>}
                     {x.reasonCode !== null && <Mono>{x.reasonCode}</Mono>}
-                    <span className="text-muted-foreground">{x.responseRef === null ? '결과 마감' : `${x.responseRef.kind} ${x.responseRef.sequenceNo}회`}</span>
+                    <span className="subtle">{x.responseRef === null ? '결과 마감' : `${x.responseRef.kind} ${x.responseRef.sequenceNo}회`}</span>
                     <KstTime iso={x.recognizedAt} />
                   </li>
                 ))}
               </ol>
             )}
-          </TableCell>
-        </TableRow>
+          </td>
+        </tr>
       ))}
     </>
   )
@@ -197,7 +192,7 @@ function RecordRows({ records }: { records: AcquisitionRecord[] }) {
 
 function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRecords, recordsBusy, request }: {
   detail: AcquisitionFileDetail
-  /** 재매입 요청 패널(OPERATOR일 때만 — 표시만, 권한은 서버가 판정). */
+  /** 재매입 요청 패널(OPERATOR일 때만 — 표시만, 권한은 서버가 판정). 레코드별 결과 카드 바로 다음 카드로 그린다. */
   request?: ReactNode
   records: AcquisitionRecordPage
   recordStatus: string
@@ -206,6 +201,7 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
   recordsBusy: boolean
 }) {
   const { file, attempts, responses } = detail
+  const recordStatusLabelId = useId()
   return (
     <>
       <Panel title="파일 요약">
@@ -224,33 +220,33 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
       <Panel title="상태">
         <dl className="grid gap-3 sm:grid-cols-3">
           <Item term="전송">
-            <span className="flex flex-col gap-1">
+            <span className="flex flex-col items-start gap-1">
               <Tone table={TRANSMISSION} code={file.transmissionState} />
-              {file.transmittedAt !== null && <span className="text-xs">완료 <KstTime iso={file.transmittedAt} /></span>}
+              {file.transmittedAt !== null && <span className="subtle">완료 <KstTime iso={file.transmittedAt} /></span>}
             </span>
           </Item>
           <Item term="수신 확인(ACK)"><Tone table={RECEIPT} code={file.receiptState} /></Item>
           <Item term="결과"><Tone table={RESULT} code={file.resultState} /></Item>
         </dl>
         {file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress ? (
-          <p className="text-sm text-muted-foreground">확인할 일이 없습니다.</p>
+          <p className="subtle">확인할 일이 없습니다.</p>
         ) : (
           <ul aria-label="확인 필요 사유" className="flex flex-col gap-1.5">
             {file.attention.map((code) => (
-              <li key={code} className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="warning" title={code}>{ATTENTION[code]?.badge ?? code}</Badge>
+              <li key={code} className="flex flex-wrap items-center gap-2">
+                <span className="tag orange" title={code}>{ATTENTION[code]?.badge ?? code}</span>
                 <span>{ATTENTION[code]?.text ?? code}{code === 'RESPONSE_QUARANTINED' ? ` (${responses.quarantined}건)` : ''}</span>
               </li>
             ))}
             {file.reacquisitionCandidate && (
-              <li className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="outline">{REACQUISITION.badge}</Badge>
+              <li className="flex flex-wrap items-center gap-2">
+                <span className="tag">{REACQUISITION.badge}</span>
                 <span>{request ? REACQUISITION.operatorText : REACQUISITION.viewerText}</span>
               </li>
             )}
             {file.reacquisitionInProgress && (
-              <li className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="secondary">{REACQUISITION_IN_PROGRESS.badge}</Badge>
+              <li className="flex flex-wrap items-center gap-2">
+                <span className="tag">{REACQUISITION_IN_PROGRESS.badge}</span>
                 <span>{REACQUISITION_IN_PROGRESS.text}</span>
               </li>
             )}
@@ -259,77 +255,81 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
       </Panel>
 
       <Panel title="레코드별 결과">
-        <div className="flex items-end justify-between gap-3">
-          <Field label="레코드 상태">
-            {(describedBy) => (
-              <NativeSelect value={recordStatus} onChange={(e) => onRecordStatus(e.target.value)} aria-describedby={describedBy}>
-                <option value="">전체</option>
-                {Object.entries(RECORD_STATUS).map(([code, named]) => <option key={code} value={code}>{named.label}</option>)}
-              </NativeSelect>
-            )}
-          </Field>
-          <p className="text-xs text-muted-foreground">조회 시각 <KstTime iso={detail.readAt} /></p>
+        {/* 시안 .rolebar(계정·권한 화면 `<b>역할 선택</b><select>…<span class="subtle">`) — 선택의 이름은 굵은 글(aria-labelledby). */}
+        <div className="rolebar">
+          <b id={recordStatusLabelId}>레코드 상태</b>
+          <select aria-labelledby={recordStatusLabelId} value={recordStatus} onChange={(e) => onRecordStatus(e.target.value)}>
+            <option value="">전체</option>
+            {Object.entries(RECORD_STATUS).map(([code, named]) => <option key={code} value={code}>{named.label}</option>)}
+          </select>
+          <span className="subtle">조회 시각 <KstTime iso={detail.readAt} /></span>
         </div>
-        <Table aria-label="레코드 목록">
-          <TableHeader>
-            <TableRow>
-              <TableHead>순번</TableHead><TableHead>구분·거래</TableHead><TableHead>MID</TableHead><TableHead>레코드 금액</TableHead><TableHead>기관 거래일</TableHead>
-              <TableHead>현재 상태</TableHead><TableHead>결과 이력</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.items.length === 0 && <EmptyRow columns={7} message="조건에 맞는 레코드가 없습니다." />}
-            <RecordRows records={records.items} />
-          </TableBody>
-        </Table>
-        {request}
+        <div className="tablewrap">
+          <table aria-label="레코드 목록">
+            <thead>
+              <tr>
+                <th>순번</th><th>구분·거래</th><th>MID</th><th className="amount">레코드 금액</th><th>기관 거래일</th><th>현재 상태</th><th>결과 이력</th>
+              </tr>
+            </thead>
+            <tbody>
+              <RecordRows records={records.items} />
+            </tbody>
+          </table>
+          {records.items.length === 0 && <div className="empty">조건에 맞는 레코드가 없습니다.</div>}
+        </div>
         {records.nextCursor !== null && (
           <div className="flex justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={onMoreRecords} aria-busy={recordsBusy}>레코드 더 보기</Button>
+            <button type="button" className="btn" onClick={onMoreRecords} aria-busy={recordsBusy}>레코드 더 보기</button>
           </div>
         )}
       </Panel>
 
+      {request}
+
       <Panel title="전송 시도">
-        <Table aria-label="전송 시도 목록">
-          <TableHeader>
-            <TableRow><TableHead>시도</TableHead><TableHead>시작</TableHead><TableHead>결과</TableHead><TableHead>근거·사유</TableHead><TableHead>결과 상태</TableHead></TableRow>
-          </TableHeader>
-          <TableBody>
-            {attempts.latest.length === 0 && <EmptyRow columns={5} message="전송 시도가 없습니다." />}
-            {attempts.latest.map((a) => (
-              <TableRow key={a.attemptNo} aria-label={`전송 시도 ${a.attemptNo}`}>
-                <TableCell className="font-mono text-xs">{a.attemptNo}</TableCell>
-                <TableCell><KstTime iso={a.claimedAt} /></TableCell>
-                <TableCell><Mono>{a.outcome ?? '진행 중'}</Mono></TableCell>
-                <TableCell><Mono>{a.evidence ?? a.reason ?? '-'}</Mono></TableCell>
-                <TableCell>{a.resultingState === null ? '-' : <Tone table={TRANSMISSION} code={a.resultingState} />}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {attempts.total > attempts.latest.length && <p className="text-xs text-muted-foreground">{`최근 ${attempts.latest.length}건만 표시합니다(전체 ${attempts.total}건).`}</p>}
+        <div className="tablewrap">
+          <table aria-label="전송 시도 목록">
+            <thead>
+              <tr><th>시도</th><th>시작</th><th>결과</th><th>근거·사유</th><th>결과 상태</th></tr>
+            </thead>
+            <tbody>
+              {attempts.latest.map((a) => (
+                <tr key={a.attemptNo} aria-label={`전송 시도 ${a.attemptNo}`}>
+                  <td>{a.attemptNo}</td>
+                  <td><KstTime iso={a.claimedAt} /></td>
+                  <td>{a.outcome ?? '진행 중'}</td>
+                  <td>{a.evidence ?? a.reason ?? '-'}</td>
+                  <td>{a.resultingState === null ? '-' : <Tone table={TRANSMISSION} code={a.resultingState} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {attempts.latest.length === 0 && <div className="empty">전송 시도가 없습니다.</div>}
+        </div>
+        {attempts.total > attempts.latest.length && <p className="subtle">{`최근 ${attempts.latest.length}건만 표시합니다(전체 ${attempts.total}건).`}</p>}
       </Panel>
 
       <Panel title="기관 응답 기록">
-        <Table aria-label="응답 기록 목록">
-          <TableHeader>
-            <TableRow><TableHead>응답</TableHead><TableHead>처리</TableHead><TableHead>ACK 결과</TableHead><TableHead>근거·격리 사유</TableHead><TableHead>받은 시각</TableHead></TableRow>
-          </TableHeader>
-          <TableBody>
-            {responses.latest.length === 0 && <EmptyRow columns={5} message="받은 기관 응답이 없습니다." />}
-            {responses.latest.map((r) => (
-              <TableRow key={`${r.kind}-${r.sequenceNo}-${r.observedAt}`} aria-label={`${r.kind} ${r.sequenceNo}`}>
-                <TableCell className="font-mono text-xs">{`${r.kind} ${r.sequenceNo}회`}</TableCell>
-                <TableCell>{r.disposition === 'QUARANTINED' ? <Badge variant="destructive">격리</Badge> : <Badge variant="success">반영</Badge>}</TableCell>
-                <TableCell><Mono>{r.ackOutcome === null ? '-' : `${r.ackOutcome}${r.ackReasonCode ? ` (${r.ackReasonCode})` : ''}`}</Mono></TableCell>
-                <TableCell><Mono>{r.quarantineReason ?? r.evidence ?? '-'}</Mono></TableCell>
-                <TableCell><KstTime iso={r.observedAt} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {responses.total > responses.latest.length && <p className="text-xs text-muted-foreground">{`최근 ${responses.latest.length}건만 표시합니다(전체 ${responses.total}건).`}</p>}
+        <div className="tablewrap">
+          <table aria-label="응답 기록 목록">
+            <thead>
+              <tr><th>응답</th><th>처리</th><th>ACK 결과</th><th>근거·격리 사유</th><th>받은 시각</th></tr>
+            </thead>
+            <tbody>
+              {responses.latest.map((r) => (
+                <tr key={`${r.kind}-${r.sequenceNo}-${r.observedAt}`} aria-label={`${r.kind} ${r.sequenceNo}`}>
+                  <td>{`${r.kind} ${r.sequenceNo}회`}</td>
+                  <td>{r.disposition === 'QUARANTINED' ? <span className="tag red">격리</span> : <span className="tag green">반영</span>}</td>
+                  <td>{r.ackOutcome === null ? '-' : `${r.ackOutcome}${r.ackReasonCode ? ` (${r.ackReasonCode})` : ''}`}</td>
+                  <td>{r.quarantineReason ?? r.evidence ?? '-'}</td>
+                  <td><KstTime iso={r.observedAt} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {responses.latest.length === 0 && <div className="empty">받은 기관 응답이 없습니다.</div>}
+        </div>
+        {responses.total > responses.latest.length && <p className="subtle">{`최근 ${responses.latest.length}건만 표시합니다(전체 ${responses.total}건).`}</p>}
       </Panel>
     </>
   )
@@ -374,6 +374,7 @@ export function AcquisitionsScreen({ api, onSessionEnded, canRequest = false, no
   const [detailBusy, setDetailBusy] = useState(false)
   // 다른 행을 연 뒤 늦게 도착한 앞 행 응답은 버린다.
   const openRequest = useRef(0)
+  const periodNoteId = useId()
 
   const failure = (e: unknown): ConsoleErrorCode | null => {
     const code = codeOf(e)
@@ -479,170 +480,145 @@ export function AcquisitionsScreen({ api, onSessionEnded, canRequest = false, no
     }
   }
 
-  const stateSelect = (label: string, value: string, onChange: (v: string) => void, table: Named) => (
-    <Field label={label}>
-      {(describedBy) => (
-        <NativeSelect value={value} onChange={(e) => onChange(e.target.value)} aria-describedby={describedBy}>
-          <option value="">전체</option>
-          {Object.entries(table).map(([code, named]) => <option key={code} value={code}>{named.label}</option>)}
-        </NativeSelect>
-      )}
-    </Field>
+  const stateSelect = (label: string, allLabel: string, value: string, onChange: (v: string) => void, table: Named) => (
+    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{allLabel}</option>
+      {Object.entries(table).map(([code, named]) => <option key={code} value={code}>{named.label}</option>)}
+    </select>
   )
 
+  // ADMIN-UI-WORKSPACE-001(매입·대사 › 매입 현황): 거래 조회(16cc494)와 같은 참고 시안 업무 화면(app.js moduleView — 카드 안 탭 → .filters → .tablewrap → .tablebottom, 상세는 detail()의 eyebrow·제목·카드).
+  // MenuCard flush 탭 패널 바로 안에 그린다. 입력란 이름은 aria-label(placeholder·선택지 문구로 무엇인지 보인다), 기간 안내·입력 오류·목록 오류는 필터 아래 .cardnote(있을 때만).
+  // 조회 방식에 따라 입력란만 바뀌고 줄 모양은 같다(.filters.many — 좁은 폭에서 줄바꿈). 재매입 요청은 OPERATOR에게만, 레코드별 결과 카드 다음 카드로.
   return (
-    <section className="flex flex-col gap-6">
-      <PageHeader
-        title="매입 현황"
-        description={canRequest
-          ? "매입 파일의 전송·수신·결과 상태를 조회하고, 거절된 레코드의 재매입을 요청합니다. 파일 상세 조회는 감사 기록에 남습니다."
-          : "매입 파일의 전송·수신·결과 상태를 조회합니다. 파일 상세 조회는 감사 기록에 남습니다."}
-      />
-
-      <Card className="gap-4 py-5">
-        <CardHeader className="px-5">
-          <CardTitle className="text-sm">검색</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5">
-          <form onSubmit={search} className="flex flex-col gap-4">
-            <Field label="조회 방식">
-              {(describedBy) => (
-                <NativeSelect value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setInputError(null) }} aria-describedby={describedBy}>
-                  <option value="period">업무일·조건</option>
-                  <option value="file">파일 ID</option>
-                </NativeSelect>
-              )}
-            </Field>
-            {mode === 'file' ? (
-              <Field label="파일 ID">
-                {(describedBy) => (
-                  <Input value={fileId} onChange={(e) => setFileId(e.target.value)} autoComplete="off" placeholder="ACQ.…" aria-describedby={describedBy} className="font-mono" />
-                )}
-              </Field>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="업무일 시작(KST)" hint={`최대 ${MAX_PERIOD_DAYS}일(Demo 기준)`}>
-                  {(describedBy) => <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-describedby={describedBy} />}
-                </Field>
-                <Field label="업무일 종료(KST)">
-                  {(describedBy) => <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-describedby={describedBy} />}
-                </Field>
-                <Field label="매입사 코드">
-                  {(describedBy) => (
-                    <Input value={acquirerCode} onChange={(e) => setAcquirerCode(e.target.value)} autoComplete="off" aria-describedby={describedBy} className="font-mono" />
-                  )}
-                </Field>
-                <Field label="환경">
-                  {(describedBy) => (
-                    <NativeSelect value={environment} onChange={(e) => setEnvironment(e.target.value)} aria-describedby={describedBy}>
-                      <option value="">전체</option>
-                      <option value="TEST">TEST</option>
-                      <option value="LIVE">LIVE</option>
-                    </NativeSelect>
-                  )}
-                </Field>
-                {stateSelect('전송 상태', transmissionState, setTransmissionState, TRANSMISSION)}
-                {stateSelect('수신 상태', receiptState, setReceiptState, RECEIPT)}
-                {stateSelect('결과 상태', resultState, setResultState, RESULT)}
-                <label className="flex items-center gap-2 self-end pb-2 text-sm">
-                  <input type="checkbox" checked={needsAttention} onChange={(e) => setNeedsAttention(e.target.checked)} />
-                  확인 필요만
-                </label>
-              </div>
-            )}
-            {inputError && <p role="alert" className="text-sm text-destructive">{inputError}</p>}
-            <div className="flex justify-end">
-              <Button type="submit" aria-busy={listBusy}>
-                {listBusy ? <Spinner active /> : <SearchIcon aria-hidden="true" />}
-                검색
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {listError && <ErrorNotice>{message(listError)}</ErrorNotice>}
+    <>
+      <div className="mapnote">
+        <h2>매입 현황</h2>
+        {' · '}
+        <span>
+          {canRequest
+            ? '매입 파일의 전송·수신·결과 상태를 조회하고, 거절된 레코드의 재매입을 요청합니다. 파일 상세 조회는 감사 기록에 남습니다.'
+            : '매입 파일의 전송·수신·결과 상태를 조회합니다. 파일 상세 조회는 감사 기록에 남습니다.'}
+        </span>
+      </div>
+      <form className="filters many" onSubmit={search}>
+        <select aria-label="조회 방식" value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setInputError(null) }}>
+          <option value="period">업무일·조건</option>
+          <option value="file">파일 ID</option>
+        </select>
+        {mode === 'file' ? (
+          <input aria-label="파일 ID" value={fileId} onChange={(e) => setFileId(e.target.value)} autoComplete="off" spellCheck={false} placeholder="파일 ID (ACQ.…)" className="font-mono" />
+        ) : (
+          <>
+            <input type="date" aria-label="업무일 시작(KST)" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-describedby={periodNoteId} />
+            <input type="date" aria-label="업무일 종료(KST)" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-describedby={periodNoteId} />
+            <input aria-label="매입사 코드" value={acquirerCode} onChange={(e) => setAcquirerCode(e.target.value)} autoComplete="off" spellCheck={false} placeholder="매입사 코드" className="font-mono" />
+            <select aria-label="환경" value={environment} onChange={(e) => setEnvironment(e.target.value)}>
+              <option value="">전체 환경</option>
+              <option value="TEST">TEST</option>
+              <option value="LIVE">LIVE</option>
+            </select>
+            {stateSelect('전송 상태', '전체 전송 상태', transmissionState, setTransmissionState, TRANSMISSION)}
+            {stateSelect('수신 상태', '전체 수신 상태', receiptState, setReceiptState, RECEIPT)}
+            {stateSelect('결과 상태', '전체 결과 상태', resultState, setResultState, RESULT)}
+            <label className="flex items-center gap-2 whitespace-nowrap">
+              <input type="checkbox" checked={needsAttention} onChange={(e) => setNeedsAttention(e.target.checked)} />
+              확인 필요만
+            </label>
+          </>
+        )}
+        <button type="submit" className="btn primary" aria-busy={listBusy}>검색</button>
+      </form>
+      {/* 거래 조회 리뷰 NIT-1: 안내·오류가 있을 때만 그린다(파일 ID 방식에서 빈 여백 없음). 날짜 칸에는 placeholder가 없어 안내에 "시작일 ~ 종료일"을 쓴다(리뷰 MINOR-2). */}
+      {(mode === 'period' || inputError || listError) && (
+        <div className="cardnote">
+          {mode === 'period' && <p id={periodNoteId} className="subtle">{`업무일 기간(시작일 ~ 종료일): KST 달력일 기준, 최대 ${MAX_PERIOD_DAYS}일(Demo 기준).`}</p>}
+          {inputError && <p role="alert" className="error">{inputError}</p>}
+          {listError && <ErrorNotice>{message(listError)}</ErrorNotice>}
+        </div>
+      )}
 
       {page && (
-        <div className="flex flex-col gap-3">
-          <Table aria-label="매입 파일 목록">
-            <TableHeader>
-              <TableRow>
-                <TableHead>업무일</TableHead><TableHead>파일</TableHead><TableHead>건수·순액</TableHead><TableHead>전송·수신·결과</TableHead>
-                <TableHead>레코드 결과</TableHead><TableHead>표시</TableHead><TableHead><span className="sr-only">작업</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.items.length === 0 && <EmptyRow columns={7} message="조건에 맞는 매입 파일이 없습니다." />}
-              {page.items.map((row) => (
-                <TableRow key={row.fileId} aria-label={row.fileId} className={detail?.file.fileId === row.fileId ? 'bg-muted/50' : undefined}>
-                  <TableCell className="font-mono text-xs whitespace-nowrap">{row.businessDate}</TableCell>
-                  <TableCell>
-                    <span className="flex flex-col">
-                      <span className="font-mono text-xs whitespace-nowrap">{row.fileId}</span>
-                      <span className="text-xs text-muted-foreground">{`${row.acquirerCode} · ${row.environment} · v${row.fileVersion}`}</span>
-                      {row.originalFileId !== null && (
-                        <span className="text-xs text-muted-foreground" title={row.originalFileId}>{`재매입 · 원 파일 ${row.originalFileId}`}</span>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="flex flex-col">
-                      <span>{amount(row.netAmountMinor, row.currency)}</span>
-                      <span className="text-xs text-muted-foreground">{`매출 ${row.saleCount} · 취소 ${row.cancelCount}`}</span>
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex flex-col items-start gap-1">
-                      <Tone table={TRANSMISSION} code={row.transmissionState} />
-                      <Tone table={RECEIPT} code={row.receiptState} />
-                      <Tone table={RESULT} code={row.resultState} />
-                    </span>
-                  </TableCell>
-                  <TableCell><Counts file={row} /></TableCell>
-                  <TableCell><Marks file={row} /></TableCell>
-                  <TableCell>
-                    <Button type="button" variant="outline" size="sm" onClick={() => open(row.fileId)}>상세</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <p className="text-xs text-muted-foreground">승인번호·기관 거래번호·카드 정보는 이 화면에 표시하지 않습니다. 거래 ID로 거래 조회에서 확인하세요.</p>
-          {page.nextCursor !== null && (
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={more} aria-busy={listBusy}>더 보기</Button>
-            </div>
+        <>
+          <div className="tablewrap">
+            <table aria-label="매입 파일 목록">
+              <thead>
+                <tr>
+                  <th>파일 / 매입사</th><th>업무일</th><th>건수</th><th>전송·수신·결과</th><th>레코드 결과</th><th>표시</th><th className="amount">순액</th>
+                  <th><span className="sr-only">작업</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {page.items.map((row) => (
+                  <tr key={row.fileId} aria-label={row.fileId} className={detail?.file.fileId === row.fileId ? 'selected' : undefined}>
+                    <td>
+                      <strong>{row.fileId}</strong>
+                      <small>{`${row.acquirerCode} · ${row.environment} · v${row.fileVersion}`}</small>
+                      {row.originalFileId !== null && <small title={row.originalFileId}>{`재매입 · 원 파일 ${row.originalFileId}`}</small>}
+                    </td>
+                    <td>{row.businessDate}</td>
+                    <td>{`매출 ${row.saleCount} · 취소 ${row.cancelCount}`}</td>
+                    <td>
+                      <span className="flex flex-col items-start gap-1">
+                        <Tone table={TRANSMISSION} code={row.transmissionState} />
+                        <Tone table={RECEIPT} code={row.receiptState} />
+                        <Tone table={RESULT} code={row.resultState} />
+                      </span>
+                    </td>
+                    <td><Counts file={row} /></td>
+                    <td><Marks file={row} /></td>
+                    <td className="amount">{amount(row.netAmountMinor, row.currency)}</td>
+                    <td>
+                      <button type="button" className="btn" onClick={() => open(row.fileId)}>상세</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {page.items.length === 0 && <div className="empty">조건에 맞는 매입 파일이 없습니다.</div>}
+          </div>
+          <div className="tablebottom">
+            <span>{`목록 ${page.items.length}건 · 승인번호·기관 거래번호·카드 정보는 이 화면에 표시하지 않습니다. 거래 ID로 거래 조회에서 확인하세요.`}</span>
+            {page.nextCursor !== null && (
+              <button type="button" className="btn" onClick={more} aria-busy={listBusy}>더 보기</button>
+            )}
+          </div>
+        </>
+      )}
+
+      {(detailBusy || detailError || (detail && records)) && (
+        <div className="detailarea">
+          {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
+          {detailError && <ErrorNotice>{message(detailError)}</ErrorNotice>}
+          {detail && records && (
+            <>
+              <div>
+                <div className="eyebrow" aria-hidden="true">매입·대사 / 상세</div>
+                <h3>
+                  {'매입 파일 상세 '}
+                  <small>{detail.file.fileId}</small>
+                </h3>
+              </div>
+              <DetailPanels
+                detail={detail}
+                records={records}
+                recordStatus={recordStatus}
+                recordsBusy={recordsBusy}
+                request={canRequest ? (
+                  <ReacquisitionRequest key={detail.file.fileId} api={api} fileId={detail.file.fileId} records={records.items} onSessionEnded={onSessionEnded} />
+                ) : undefined}
+                onRecordStatus={(status) => {
+                  setRecordStatus(status)
+                  void loadRecords(status, 0, false)
+                }}
+                onMoreRecords={() => {
+                  if (records.nextCursor !== null) void loadRecords(recordStatus, records.nextCursor, true)
+                }}
+              />
+            </>
           )}
         </div>
       )}
-
-      {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
-      {detailError && <ErrorNotice>{message(detailError)}</ErrorNotice>}
-      {detail && records && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-bold">
-            {'매입 파일 상세 '}
-            <span className="font-mono text-xs text-muted-foreground">{detail.file.fileId}</span>
-          </h3>
-          <DetailPanels
-            detail={detail}
-            records={records}
-            recordStatus={recordStatus}
-            recordsBusy={recordsBusy}
-            request={canRequest ? (
-              <ReacquisitionRequest key={detail.file.fileId} api={api} fileId={detail.file.fileId} records={records.items} onSessionEnded={onSessionEnded} />
-            ) : undefined}
-            onRecordStatus={(status) => {
-              setRecordStatus(status)
-              void loadRecords(status, 0, false)
-            }}
-            onMoreRecords={() => {
-              if (records.nextCursor !== null) void loadRecords(recordStatus, records.nextCursor, true)
-            }}
-          />
-        </div>
-      )}
-    </section>
+    </>
   )
 }
