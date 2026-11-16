@@ -107,9 +107,11 @@ val frontendInstall = tasks.register<Exec>("frontendInstall") {
 
 // 최상위 *.html과 docs/(UI 참조 원본 — 재현 시험이 읽는다)도 입력이다. 관리자 콘솔의 ui-reference.html은 typecheck·test 입력일 뿐
 // 기본 빌드(frontendBuild)에는 들어가지 않는다(Vite mode 'uiref' 전용 — vite.config.ts).
+// 저장소 docs/pg-workspace-react-kit(PG Workspace React kit — UI 참조 미리보기 시험이 원본 CSS·legacy.json 해시를 대조한다)도 시험 입력이다.
 val frontendSources = files(
     frontendDir.dir("src"), fileTree(frontendDir) { include("*.html") }, frontendDir.dir("docs"), frontendDir.file("tsconfig.json"),
     frontendDir.file("vite.config.ts"), frontendDir.file("vitest.config.ts"),
+    rootProject.layout.projectDirectory.dir("docs/pg-workspace-react-kit"),
 )
 
 val frontendTypecheck = tasks.register<Exec>("frontendTypecheck") {

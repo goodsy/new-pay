@@ -1,31 +1,54 @@
-import { menus, roles } from '../data'
-import { useUi } from '../context'
-import { PageHeading } from '../components/common'
+import { useState } from 'react'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { PageHeading } from '../components/ui/PageHeading'
+import { Tabs } from '../components/ui/Tabs'
+import { MENUS } from '../data/menus'
+import { AccountsPanel, AuditPanel } from '../features/AccessPanels'
+import { useWorkspace } from '../store/WorkspaceProvider'
 
-const permCols = ['업무', '조회', '등록·수정', '승인', '내보내기'] as const
-const permLabels = ['조회', '등록 수정', '승인', '내보내기'] as const
+const ROLES = ['운영 담당자', '정산 담당자', '승인 관리자', '조회 전용'] as const
+const PERM_COLS = ['조회', '등록·수정', '승인', '내보내기'] as const
+const PERM_ARIA = ['조회', '등록 수정', '승인', '내보내기'] as const
 
-/** app.js accessView() — 권한 설정 UI 시연(실제 접근 통제 아님) */
+/** 기본 체크 규칙(원본): 조회는 전 역할 허용, 승인 관리자=승인, 정산 담당자=정산·지급 등록·수정 */
+const defaultChecked = (role: string, rowIdx: number, colIdx: number) =>
+  colIdx === 0 || (role === '승인 관리자' && colIdx === 2) || (role === '정산 담당자' && rowIdx === 4 && colIdx === 1)
+
+/**
+ * 계정·권한 (#access) — 권한 설정 UI 시연이다. 체크·저장은 메모리/토스트뿐이고 실제 접근 통제는 서버 책임이다.
+ * heading → card[ tabs(역할·권한 고정, 나머지 2개는 Drawer 오픈) → rolebar → 권한 매트릭스(table.matrix) → mapnote ]
+ * 매트릭스 행 = 업무 메뉴 8개(MENUS[1..8]), 열 = 조회/등록·수정/승인/내보내기
+ */
 export function AccessPage() {
-  const ui = useUi()
-  const role = ui.role
+  const { toast, openDrawer } = useWorkspace()
+  const [role, setRole] = useState<string>(ROLES[0])
+  const [perms, setPerms] = useState<Readonly<Record<string, boolean>>>({})
+
   return (
     <>
-      <PageHeading t="계정·권한" s="업무 역할, 조회 범위, 실행 권한을 구분해 관리하세요.">
-        <button className="btn primary" onClick={() => ui.toast('현재 탭의 데모 권한을 저장했어요. 실제 권한에는 반영되지 않습니다.')}>
-          데모 권한 저장
-        </button>
-      </PageHeading>
-      <div className="card">
-        <div className="tabs">
-          <button className="on">역할·권한</button>
-          <button onClick={() => ui.openPanel({ kind: 'accounts' })}>계정 관리</button>
-          <button onClick={() => ui.openPanel({ kind: 'audit' })}>접속·감사 이력</button>
-        </div>
+      <PageHeading
+        title="계정·권한"
+        description="업무 역할, 조회 범위, 실행 권한을 구분해 관리하세요."
+        actions={
+          <Button variant="primary" onClick={() => toast('현재 탭의 데모 권한을 저장했어요. 실제 권한에는 반영되지 않습니다.')}>
+            데모 권한 저장
+          </Button>
+        }
+      />
+      <Card as="div">
+        <Tabs
+          items={['역할·권한', '계정 관리', '접속·감사 이력']}
+          active={0}
+          onSelect={(i) => {
+            if (i === 1) openDrawer(<AccountsPanel />)
+            if (i === 2) openDrawer(<AuditPanel />)
+          }}
+        />
         <div className="rolebar">
           <b>역할 선택</b>
-          <select aria-label="역할 선택" value={role} onChange={(e) => ui.setRole(e.target.value)}>
-            {roles.map((r) => (
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            {ROLES.map((r) => (
               <option key={r}>{r}</option>
             ))}
           </select>
@@ -35,21 +58,25 @@ export function AccessPage() {
           <table className="matrix">
             <thead>
               <tr>
-                {permCols.map((s) => (
+                {['업무', ...PERM_COLS].map((s) => (
                   <th key={s}>{s}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {menus.slice(1, 9).map((m, i) => (
-                <tr key={m[0]}>
-                  <td>{m[1]}</td>
-                  {[0, 1, 2, 3].map((j) => {
-                    const key = role + i + j
-                    const checked = ui.perms[key] ?? (j === 0 || (role === '승인 관리자' && j === 2) || (role === '정산 담당자' && i === 4 && j === 1))
+              {MENUS.slice(1, 9).map((m, i) => (
+                <tr key={m.id}>
+                  <td>{m.label}</td>
+                  {PERM_ARIA.map((aria, j) => {
+                    const key = `${role}${i}${j}`
                     return (
-                      <td key={j}>
-                        <input type="checkbox" aria-label={`${m[1]} ${permLabels[j]}`} checked={checked} onChange={(e) => ui.setPerm(key, e.target.checked)} />
+                      <td key={aria}>
+                        <input
+                          type="checkbox"
+                          aria-label={`${m.label} ${aria}`}
+                          checked={perms[key] ?? defaultChecked(role, i, j)}
+                          onChange={(e) => setPerms((p) => ({ ...p, [key]: e.target.checked }))}
+                        />
                       </td>
                     )
                   })}
@@ -63,7 +90,7 @@ export function AccessPage() {
           <br />
           현재 화면은 권한 설정 UI 시연이며, 실제 접근 통제는 서버에서 적용해야 합니다.
         </div>
-      </div>
+      </Card>
     </>
   )
 }

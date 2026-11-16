@@ -7,11 +7,12 @@ import tailwindcss from '@tailwindcss/vite'
 //
 // UI 참조 재현(ui-reference.html, src/uiref/**)은 PC 로컬 미리보기 전용이다(사용자 결정 2026-11-15). 기본 빌드(Gradle frontendBuild →
 // 관리자 jar static/)에는 넣지 않고, `--mode uiref`일 때만 별도 출력(../build/uiref-dist)으로 빌드한다 — npm run build:uiref / preview:uiref.
+// uiref는 PG Workspace React kit(docs/pg-workspace-react-kit) 이식본이다 — 원본 CSS(pg-workspace.css)만 쓰므로 Tailwind plugin을 넣지 않는다.
 export default defineConfig(({ mode }) => {
   const uiref = mode === 'uiref'
   const input: Record<string, string> = uiref ? { uiref: 'ui-reference.html' } : { index: 'index.html' }
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: uiref ? [react()] : [react(), tailwindcss()],
     base: '/',
     build: {
       outDir: uiref ? '../build/uiref-dist' : '../build/frontend-dist',

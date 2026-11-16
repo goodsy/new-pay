@@ -1,0 +1,11 @@
+/*
+ * React 이식 시 추가/보정 스타일. pg-workspace.css 뒤에 import 한다.
+ * 원본에 없던 규칙만 둔다. 원본 값 변경이 필요하면 여기서 덮어쓰고 GUIDE.md 변경 이력에 남긴다.
+ */
+
+/* 원본은 #toast 를 display:none 으로 두고 JS 로 block 전환 → React 에서는 클래스로 제어 */
+#toast.show {
+  display: block;
+}
+
+/* 참고: .drawer h3 는 원본에서 스타일 없이 브라우저 기본값을 사용한다. 원본 동일성을 위해 정의하지 않는다. */

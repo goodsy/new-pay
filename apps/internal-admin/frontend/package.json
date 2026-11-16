@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:uiref": "vite --open /ui-reference.html",
+    "dev:uiref": "vite --mode uiref --open /ui-reference.html",
     "build:uiref": "vite build --mode uiref",
     "preview:uiref": "vite preview --mode uiref"
   },

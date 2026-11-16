@@ -1,0 +1,26 @@
+/*
+ * React 이식 보정 스타일 — pg-workspace.css(수정 금지, kit react-starter 사본) 뒤에 import 한다.
+ * 원본에 없던 규칙만 둔다. 새 색상·크기 값을 만들지 않는다(값은 원본 app.js/style.css에 있던 것만).
+ * 규칙마다 이유를 적는다. 원본과의 차이는 ~/gate-logs/uiref-kit/diff-table.md(GUIDE §8 형식)에 기록한다.
+ */
+
+/* kit overrides.css 그대로: 원본은 #toast 를 display:none 으로 두고 JS 가 style.display='block' 으로 전환한다 → React 에서는 .show 클래스로 제어 */
+#toast.show {
+  display: block;
+}
+
+/*
+ * 원본 detail(): <p class="subtle" style="margin-top:28px"> (상세 Drawer 마지막 고지 문단).
+ * kit 는 style 속성(inline style)을 쓰지만, 관리자 콘솔 관례(CSP style-src 'self', 런타임 style 속성 없음)에 맞춰
+ * 같은 값(28px)을 선택자로 옮긴다. Drawer 안에서 마지막 자식인 p.subtle 은 이 고지 문단뿐이다(원천사 등록 폼의 p.subtle 은 마지막 자식이 아님).
+ */
+.drawer > p.subtle:last-child {
+  margin-top: 28px;
+}
+
+/* 원본 wizard(): <div class="actions" style="margin-top:30px"> — 위와 같은 이유로 inline style 대신 선택자(.drawer 안 form 의 .actions 는 위저드뿐) */
+.drawer form > .actions {
+  margin-top: 30px;
+}
+
+/* 참고: .drawer h3 는 원본에서 스타일 없이 브라우저 기본값을 사용한다. 원본 동일성을 위해 정의하지 않는다(kit 주석 유지). */

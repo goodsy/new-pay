@@ -1,54 +1,24 @@
 import { useState } from 'react'
-import { destination, title, type LegacyRow } from '../data'
-import { useUi } from '../context'
-import { PageHeading } from '../components/common'
+import { Card } from '../components/ui/Card'
+import { PageHeading } from '../components/ui/PageHeading'
+import { TagButton } from '../components/ui/Tag'
+import { LEGACY_MENUS, legacyDestination } from '../data/legacy'
+import { pageTitle } from '../data/menus'
+import { useWorkspace } from '../store/WorkspaceProvider'
 
-function MapTable({ rows, note }: { rows: readonly LegacyRow[]; note?: string }) {
-  const ui = useUi()
-  return (
-    <div className="tablewrap">
-      <table>
-        <thead>
-          <tr>
-            <th>기존 메뉴 / MENU_ID</th>
-            <th>레벨</th>
-            <th>개편 후 업무</th>
-            <th>검토 사항</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.B}>
-              <td>
-                {r.A}
-                <small>{r.B}</small>
-              </td>
-              <td>{r.C}</td>
-              <td>
-                <button className="tag blue" onClick={() => ui.go(destination(r))}>
-                  {(r.C === '0' ? '공통 인증' : title(destination(r))) + ' →'}
-                </button>
-              </td>
-              <td>{r.G || '업무 기준 재배치 제안'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {/* 원본은 fetch 전·실패 시 빈 표만 보인다. 로딩·실패 상태 안내만 덧붙인다(성공 시 원본과 같은 DOM). */}
-      {note ? <div className="empty" role="status">{note}</div> : null}
-    </div>
-  )
-}
-
-/** app.js mapView() — legacy.json(레거시 메뉴 165개) 대응 지도 */
+/**
+ * 메뉴 개편 지도 (#map)
+ * 기존 관리자 메뉴 165개 → 새 업무 영역 매핑표. 검색은 메뉴명(트리 접두어 포함)+MENU_ID 부분일치(대소문자 구분, 원본 filterMap).
+ */
 export function MenuMapPage() {
-  const ui = useUi()
+  const { go } = useWorkspace()
   const [q, setQ] = useState('')
-  const legacy = ui.legacy
+  const rows = LEGACY_MENUS.filter((r) => (r.A + r.B).includes(q))
+
   return (
     <>
-      <PageHeading t="메뉴 개편 지도" s="첨부 파일의 내부 관리자 메뉴 165개를 보존하고 새 업무 영역으로 연결했습니다." />
-      <section className="card">
+      <PageHeading title="메뉴 개편 지도" description="첨부 파일의 내부 관리자 메뉴 165개를 보존하고 새 업무 영역으로 연결했습니다." />
+      <Card>
         <div className="mapnote">
           <b>3단계 메뉴 탐색 → 업무 영역 + 화면 탭 + 상세 패널</b>
           <br />
@@ -58,13 +28,38 @@ export function MenuMapPage() {
           <input aria-label="레거시 메뉴 검색" placeholder="기존 메뉴명 또는 MENU_ID 검색" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div id="maprows">
-          {legacy.state === 'ok' ? (
-            <MapTable rows={legacy.rows.filter((r) => (r.A + r.B).includes(q))} />
-          ) : (
-            <MapTable rows={[]} note={legacy.state === 'loading' ? '메뉴 지도 데이터를 불러오는 중이에요' : '메뉴 지도 데이터를 불러오지 못했어요. 새로고침해 주세요.'} />
-          )}
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>기존 메뉴 / MENU_ID</th>
+                  <th>레벨</th>
+                  <th>개편 후 업무</th>
+                  <th>검토 사항</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const dest = legacyDestination(r)
+                  return (
+                    <tr key={r.B}>
+                      <td>
+                        {r.A}
+                        <small>{r.B}</small>
+                      </td>
+                      <td>{r.C}</td>
+                      <td>
+                        <TagButton onClick={() => go(dest)}>{`${r.C === '0' ? '공통 인증' : pageTitle(dest)} →`}</TagButton>
+                      </td>
+                      <td>{r.G || '업무 기준 재배치 제안'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </section>
+      </Card>
     </>
   )
 }
