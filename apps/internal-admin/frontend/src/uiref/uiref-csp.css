@@ -1,0 +1,10 @@
+/*
+ * CSP(style-src 'self', inline style 금지) 대체 규칙 — 원본 app.js가 style 속성으로 준 값 3곳만 같은 값으로 옮긴다.
+ * style.css(원본) 뒤에 로드한다. 새 디자인 값을 넣지 않는다.
+ */
+/* detail(): <p class="subtle" style="margin-top:28px"> (drawer의 마지막 안내 문단). style.css에는 이 문단의 margin을 정하는 규칙이 없어 단일 class로 충분하다. */
+.uiref-drawer-note{margin-top:28px}
+/* wizard(): <div class="actions" style="margin-top:30px"> */
+.drawer form>.actions{margin-top:30px}
+/* toast(): $('#toast').style.display='block' */
+#toast[data-open]{display:block}
