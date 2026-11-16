@@ -1,20 +1,13 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, TransactionDetail, TransactionSearchInput, TransactionSearchPage } from '../api/adminApi'
 import { MERCHANT_LABEL_MISSING, MERCHANT_LABELS_UNAVAILABLE, merchantLabelText, paymentMethodLabel } from '../lib/merchantLabel'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { SearchIcon } from '../components/icons'
-import { EmptyRow, Field, KstTime, Spinner, StatusBadge } from '../components/DataBits'
+import { KstTime, Spinner } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
-import { PageHeader } from '../components/PageHeader'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { NativeSelect } from '../components/ui/native-select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
 import { labelOf } from '../lib/labels'
+import { tagClass } from '../lib/statusTone'
 
 /** 결제 상태(payment-api PaymentStatus — 서버도 다시 검사한다, TXN-OPS-001 §3.1). */
 const STATUSES = ['REQUESTED', 'AUTHORIZING', 'UNKNOWN', 'AUTHORIZED', 'FAILED', 'EXPIRED'] as const
@@ -49,25 +42,32 @@ function kstStart(date: string, plusDays = 0): string {
 
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs break-all">{children}</span>
 
+/**
+ * 상세 패널 하나(`section` + 이름 → region). ADMIN-UI-WORKSPACE-001(거래 조회): 가맹점 조회와 같은 시안 `.card` > `.cardtop`(h4 — 상세 제목 h3 아래 단계) → `.cardbody`.
+ */
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card as="section" aria-label={title} className="gap-3 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="text-sm">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 px-4">{children}</CardContent>
-    </Card>
+    <section className="card" aria-label={title}>
+      <div className="cardtop">
+        <h4>{title}</h4>
+      </div>
+      <div className="cardbody">{children}</div>
+    </section>
   )
 }
 
+/** 항목 이름·값(시안 `.detailgrid` label 13px·500 / 값 14px — 가맹점 조회 상세와 같은 값, 정의 목록 의미는 유지). */
 function Item({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{term}</dt>
-      <dd className="text-sm">{children}</dd>
+    <div className="flex flex-col gap-2">
+      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
+      <dd className="text-sm text-heading">{children}</dd>
     </div>
   )
 }
+
+/** 상태 code → 시안 `.tag`(색 의미는 StatusBadge와 같은 statusTone — 문구는 labelOf, title은 원래 code). */
+const StatusTag = ({ code }: { code: string }) => <span className={tagClass(code)} title={code}>{labelOf(code)}</span>
 
 function amount(minor: number, currency: string) {
   return Number.isSafeInteger(minor) ? formatMinor(minor, currency) : '표시할 수 없는 금액'
@@ -82,8 +82,8 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
           <Item term="결제 ID"><Mono>{payment.paymentId}</Mono></Item>
           <Item term="상태">
             <span className="flex flex-wrap items-center gap-2">
-              <StatusBadge code={payment.status} />
-              {detail.onHold && <Badge variant="destructive">보류(hold) 중</Badge>}
+              <StatusTag code={payment.status} />
+              {detail.onHold && <span className="tag red">보류(hold) 중</span>}
             </span>
           </Item>
           <Item term="금액">{amount(payment.amountMinor, payment.currency)}</Item>
@@ -92,21 +92,21 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
           <Item term="MID"><Mono>{payment.merchantAccountId}</Mono></Item>
           <Item term="Site"><Mono>{payment.merchantSiteId}</Mono></Item>
           <Item term="가맹점 주문번호"><Mono>{payment.merchantOrderId}</Mono></Item>
-          <Item term="주문명">{payment.orderName ?? <span className="text-muted-foreground">없음</span>}</Item>
+          <Item term="주문명">{payment.orderName ?? <span className="subtle">없음</span>}</Item>
           <Item term="결제수단">{labelOf(payment.paymentMethod)}</Item>
           <Item term="종료 근거">
-            {detail.terminationEvidence.length === 0 ? <span className="text-muted-foreground">-</span> : <Mono>{detail.terminationEvidence.join(', ')}</Mono>}
+            {detail.terminationEvidence.length === 0 ? <span className="subtle">-</span> : <Mono>{detail.terminationEvidence.join(', ')}</Mono>}
           </Item>
         </dl>
       </Panel>
 
       <Panel title="승인">
         {authorization === null ? (
-          <p className="text-sm text-muted-foreground">승인 시도가 없습니다.</p>
+          <p className="subtle">승인 시도가 없습니다.</p>
         ) : (
           <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Item term="승인 ID"><Mono>{authorization.authorizationId}</Mono></Item>
-            <Item term="승인 상태"><StatusBadge code={authorization.status} /></Item>
+            <Item term="승인 상태"><StatusTag code={authorization.status} /></Item>
             <Item term="할부">{authorization.planKind === 'INSTALLMENT' ? `${authorization.installmentMonths ?? '-'}개월 할부` : name(PLAN, authorization.planKind)}</Item>
             <Item term="카드 종류">{name(CARD_TYPE, authorization.cardType)}</Item>
             <Item term="시작 시각"><KstTime iso={authorization.openedAt} /></Item>
@@ -116,71 +116,68 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
       </Panel>
 
       <Panel title="거래 사실">
-        <Table aria-label="거래 사실 목록">
-          <TableHeader>
-            <TableRow>
-              <TableHead>구분</TableHead><TableHead>금액</TableHead><TableHead>승인번호</TableHead><TableHead>기관 거래번호</TableHead>
-              <TableHead>기관 거래일</TableHead><TableHead>확정 시각</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.length === 0 && <EmptyRow columns={6} message="확정된 거래가 없습니다." />}
-            {transactions.map((t) => (
-              <TableRow key={t.transactionId} aria-label={t.transactionId}>
-                <TableCell>
-                  <span className="flex flex-col">
-                    <span>{name(TRANSACTION_TYPE, t.type)}{t.cancelScope !== null ? ` (${name(SCOPE, t.cancelScope)})` : ''}</span>
-                    <Mono>{t.transactionId}</Mono>
-                  </span>
-                </TableCell>
-                <TableCell>{amount(t.amountMinor, t.currency)}</TableCell>
-                <TableCell><Mono>{t.approvalNumber ?? '-'}</Mono></TableCell>
-                <TableCell><Mono>{t.providerTransactionId}</Mono></TableCell>
-                <TableCell className="font-mono text-xs">{t.institutionTransactionDate}</TableCell>
-                <TableCell><KstTime iso={t.confirmedAt} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="tablewrap">
+          <table aria-label="거래 사실 목록">
+            <thead>
+              <tr>
+                <th>구분</th><th className="amount">금액</th><th>승인번호</th><th>기관 거래번호</th><th>기관 거래일</th><th>확정 시각</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((t) => (
+                <tr key={t.transactionId} aria-label={t.transactionId}>
+                  <td>
+                    <strong>{name(TRANSACTION_TYPE, t.type)}{t.cancelScope !== null ? ` (${name(SCOPE, t.cancelScope)})` : ''}</strong>
+                    <small>{t.transactionId}</small>
+                  </td>
+                  <td className="amount">{amount(t.amountMinor, t.currency)}</td>
+                  <td>{t.approvalNumber ?? '-'}</td>
+                  <td>{t.providerTransactionId}</td>
+                  <td>{t.institutionTransactionDate}</td>
+                  <td><KstTime iso={t.confirmedAt} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {transactions.length === 0 && <div className="empty">확정된 거래가 없습니다.</div>}
+        </div>
       </Panel>
 
       <Panel title="취소 이력">
-        <p className="text-xs text-muted-foreground">운영자 보정 취소의 사유·근거는 이 화면에 표시하지 않습니다(개시 주체만 표시).</p>
-        <Table aria-label="취소 이력 목록">
-          <TableHeader>
-            <TableRow>
-              <TableHead>취소</TableHead><TableHead>개시</TableHead><TableHead>범위</TableHead><TableHead>상태</TableHead><TableHead>금액</TableHead><TableHead>요청 시각</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cancellations.length === 0 && <EmptyRow columns={6} message="취소 이력이 없습니다." />}
-            {cancellations.map((c) => (
-              <TableRow key={c.cancellationId} aria-label={c.cancellationId}>
-                <TableCell>
-                  <span className="flex flex-col">
-                    <Mono>{c.cancellationId}</Mono>
-                    {c.merchantCancelId !== null && <span className="text-xs text-muted-foreground">{`가맹점 취소번호 ${c.merchantCancelId}`}</span>}
-                  </span>
-                </TableCell>
-                <TableCell>{name(INITIATOR, c.initiatorKind)}</TableCell>
-                <TableCell>{name(SCOPE, c.scope)}</TableCell>
-                <TableCell>
-                  <span className="flex flex-col gap-0.5">
+        <p className="subtle">운영자 보정 취소의 사유·근거는 이 화면에 표시하지 않습니다(개시 주체만 표시).</p>
+        <div className="tablewrap">
+          <table aria-label="취소 이력 목록">
+            <thead>
+              <tr>
+                <th>취소</th><th>개시</th><th>범위</th><th>상태</th><th className="amount">금액</th><th>요청 시각</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cancellations.map((c) => (
+                <tr key={c.cancellationId} aria-label={c.cancellationId}>
+                  <td>
+                    <strong>{c.cancellationId}</strong>
+                    {c.merchantCancelId !== null && <small>{`가맹점 취소번호 ${c.merchantCancelId}`}</small>}
+                  </td>
+                  <td>{name(INITIATOR, c.initiatorKind)}</td>
+                  <td>{name(SCOPE, c.scope)}</td>
+                  <td>
                     <span>{name(CANCEL_STATUS, c.status)}</span>
-                    {c.failureEvidence !== null && <Mono>{c.failureEvidence}</Mono>}
-                  </span>
-                </TableCell>
-                <TableCell>{amount(c.amountMinor, c.currency)}</TableCell>
-                <TableCell><KstTime iso={c.openedAt} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                    {c.failureEvidence !== null && <small>{c.failureEvidence}</small>}
+                  </td>
+                  <td className="amount">{amount(c.amountMinor, c.currency)}</td>
+                  <td><KstTime iso={c.openedAt} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {cancellations.length === 0 && <div className="empty">취소 이력이 없습니다.</div>}
+        </div>
       </Panel>
 
       <Panel title="반환 잔액">
         {returnBalance === null ? (
-          <p className="text-sm text-muted-foreground">반환 잔액 기록이 없습니다(취소가 시작된 적 없음).</p>
+          <p className="subtle">반환 잔액 기록이 없습니다(취소가 시작된 적 없음).</p>
         ) : (
           <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Item term="승인액">{amount(returnBalance.authorizedMinor, returnBalance.currency)}</Item>
@@ -227,6 +224,7 @@ export function TransactionsScreen({ api, onSessionEnded, now = Date.now }: Prop
   const [detailBusy, setDetailBusy] = useState(false)
   // 다른 행을 연 뒤 늦게 도착한 앞 행 응답은 버린다.
   const openRequest = useRef(0)
+  const periodNoteId = useId()
 
   const failure = (e: unknown): ConsoleErrorCode | null => {
     const code = codeOf(e)
@@ -309,154 +307,131 @@ export function TransactionsScreen({ api, onSessionEnded, now = Date.now }: Prop
     }
   }
 
+  // ADMIN-UI-WORKSPACE-001(거래 조회): 참고 시안 업무 화면(app.js moduleView — 카드 안 탭 → .filters → .tablewrap → .tablebottom, 상세는 detail()의 eyebrow·제목·카드).
+  // 가맹점 조회와 같이 MenuCard flush 탭 패널 바로 안에 그린다. 입력란 이름은 aria-label(시안처럼 보이는 label 없음 — placeholder·선택지로 무엇인지 보인다),
+  // 기간 안내·입력 오류·목록 오류는 필터 아래 .cardnote. 조회 방식에 따라 입력란만 바뀌고 줄 모양은 같다(.filters.many — 좁은 폭에서 줄바꿈).
   return (
-    <section className="flex flex-col gap-6">
-      <PageHeader title="거래 조회" description="결제 거래를 조회합니다. 조회 전용이며, 거래 상세 조회는 감사 기록에 남습니다." />
-
-      <Card className="gap-4 py-5">
-        <CardHeader className="px-5">
-          <CardTitle className="text-sm">검색</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5">
-          <form onSubmit={search} className="flex flex-col gap-4">
-            <Field label="조회 방식">
-              {(describedBy) => (
-                <NativeSelect value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setInputError(null) }} aria-describedby={describedBy}>
-                  <option value="period">기간·조건</option>
-                  <option value="payment">결제 ID</option>
-                  <option value="order">MID + 가맹점 주문번호</option>
-                </NativeSelect>
-              )}
-            </Field>
-            {mode === 'payment' ? (
-              <Field label="결제 ID">
-                {(describedBy) => (
-                  <Input value={paymentId} onChange={(e) => setPaymentId(e.target.value)} autoComplete="off" placeholder="pay_…" aria-describedby={describedBy} className="font-mono" />
-                )}
-              </Field>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {mode === 'period' && (
-                  <>
-                    <Field label="시작일(KST)" hint={`최대 ${MAX_PERIOD_DAYS}일(Demo 기준)`}>
-                      {(describedBy) => <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-describedby={describedBy} />}
-                    </Field>
-                    <Field label="종료일(KST)">
-                      {(describedBy) => <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-describedby={describedBy} />}
-                    </Field>
-                  </>
-                )}
-                <Field label="환경">
-                  {(describedBy) => (
-                    <NativeSelect value={environment} onChange={(e) => setEnvironment(e.target.value)} aria-describedby={describedBy}>
-                      <option value="">전체</option>
-                      <option value="TEST">TEST</option>
-                      <option value="LIVE">LIVE</option>
-                    </NativeSelect>
-                  )}
-                </Field>
-                <Field label="MID">
-                  {(describedBy) => (
-                    <Input value={merchantAccountId} onChange={(e) => setMerchantAccountId(e.target.value)} autoComplete="off" aria-describedby={describedBy} className="font-mono" />
-                  )}
-                </Field>
-                {mode === 'period' ? (
-                  <Field label="결제 상태">
-                    {(describedBy) => (
-                      <NativeSelect value={status} onChange={(e) => setStatus(e.target.value)} aria-describedby={describedBy}>
-                        <option value="">전체</option>
-                        {STATUSES.map((value) => (
-                          <option key={value} value={value}>{labelOf(value)}</option>
-                        ))}
-                      </NativeSelect>
-                    )}
-                  </Field>
-                ) : (
-                  <Field label="가맹점 주문번호">
-                    {(describedBy) => (
-                      <Input value={merchantOrderId} onChange={(e) => setMerchantOrderId(e.target.value)} autoComplete="off" aria-describedby={describedBy} className="font-mono" />
-                    )}
-                  </Field>
-                )}
-              </div>
+    <>
+      <div className="mapnote">
+        <h2>거래 조회</h2>
+        {' · 결제 거래를 조회합니다. 조회 전용이며, 거래 상세 조회는 감사 기록에 남습니다.'}
+      </div>
+      <form className="filters many" onSubmit={search}>
+        <select aria-label="조회 방식" value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setInputError(null) }}>
+          <option value="period">기간·조건</option>
+          <option value="payment">결제 ID</option>
+          <option value="order">MID + 가맹점 주문번호</option>
+        </select>
+        {mode === 'payment' ? (
+          <input aria-label="결제 ID" value={paymentId} onChange={(e) => setPaymentId(e.target.value)} autoComplete="off" spellCheck={false} placeholder="결제 ID (pay_…)" className="font-mono" />
+        ) : (
+          <>
+            {mode === 'period' && (
+              <>
+                <input type="date" aria-label="시작일(KST)" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-describedby={periodNoteId} />
+                <input type="date" aria-label="종료일(KST)" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-describedby={periodNoteId} />
+              </>
             )}
-            {inputError && <p role="alert" className="text-sm text-destructive">{inputError}</p>}
-            <div className="flex justify-end">
-              <Button type="submit" aria-busy={listBusy}>
-                {listBusy ? <Spinner active /> : <SearchIcon aria-hidden="true" />}
-                검색
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {listError && <ErrorNotice>{message(listError)}</ErrorNotice>}
+            <select aria-label="환경" value={environment} onChange={(e) => setEnvironment(e.target.value)}>
+              <option value="">전체 환경</option>
+              <option value="TEST">TEST</option>
+              <option value="LIVE">LIVE</option>
+            </select>
+            <input aria-label="MID" value={merchantAccountId} onChange={(e) => setMerchantAccountId(e.target.value)} autoComplete="off" spellCheck={false} placeholder="MID" className="font-mono" />
+            {mode === 'period' ? (
+              <select aria-label="결제 상태" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">전체 상태</option>
+                {STATUSES.map((value) => (
+                  <option key={value} value={value}>{labelOf(value)}</option>
+                ))}
+              </select>
+            ) : (
+              <input aria-label="가맹점 주문번호" value={merchantOrderId} onChange={(e) => setMerchantOrderId(e.target.value)} autoComplete="off" spellCheck={false} placeholder="가맹점 주문번호" className="font-mono" />
+            )}
+          </>
+        )}
+        <button type="submit" className="btn primary" aria-busy={listBusy}>검색</button>
+      </form>
+      {/* 리뷰 NIT-1: 안내·오류가 있을 때만 그린다(결제 ID·주문번호 방식에서 빈 여백 없음). 날짜 칸에는 placeholder가 없어 안내에 "시작일 ~ 종료일"을 쓴다(리뷰 MINOR-2). */}
+      {(mode === 'period' || inputError || listError) && (
+        <div className="cardnote">
+          {mode === 'period' && <p id={periodNoteId} className="subtle">{`조회 기간(시작일 ~ 종료일): KST 달력일 기준, 최대 ${MAX_PERIOD_DAYS}일(Demo 기준).`}</p>}
+          {inputError && <p role="alert" className="error">{inputError}</p>}
+          {listError && <ErrorNotice>{message(listError)}</ErrorNotice>}
+        </div>
+      )}
 
       {page && (
-        <div className="flex flex-col gap-3">
-          <Table aria-label="거래 목록">
-            <TableHeader>
-              <TableRow>
-                <TableHead>결제 ID</TableHead><TableHead>생성 시각</TableHead><TableHead>가맹점</TableHead><TableHead>결제수단</TableHead><TableHead>주문</TableHead><TableHead>금액</TableHead>
-                <TableHead>상태</TableHead><TableHead><span className="sr-only">작업</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.items.length === 0 && <EmptyRow columns={8} message="조건에 맞는 거래가 없습니다." />}
-              {page.items.map((row) => (
-                <TableRow key={row.paymentId} aria-label={row.paymentId} className={detail?.payment.paymentId === row.paymentId ? 'bg-muted/50' : undefined}>
-                  <TableCell><Mono>{row.paymentId}</Mono></TableCell>
-                  <TableCell><KstTime iso={row.createdAt} /></TableCell>
-                  <TableCell>
-                    {/* TXN-LIST-ENRICH-001 §3.4: "<상호> · <가맹점 코드>" + 환경·MID. 쪽 라벨이 UNAVAILABLE이면 MID만(안내는 표 아래 1줄). */}
-                    <span className="flex flex-col">
-                      {page.merchantLabels !== 'UNAVAILABLE' && (
-                        <span className={row.merchant === null ? 'text-xs text-muted-foreground' : 'text-sm'}>{merchantLabelText(row.merchant) ?? MERCHANT_LABEL_MISSING}</span>
+        <>
+          <div className="tablewrap">
+            <table aria-label="거래 목록">
+              <thead>
+                <tr>
+                  <th>주문 / 결제 ID</th><th>가맹점</th><th>결제수단</th><th>생성 시각</th><th>상태</th><th className="amount">금액</th>
+                  <th><span className="sr-only">작업</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {page.items.map((row) => (
+                  <tr key={row.paymentId} aria-label={row.paymentId} className={detail?.payment.paymentId === row.paymentId ? 'selected' : undefined}>
+                    <td>
+                      <strong>{row.merchantOrderId}</strong>
+                      <small data-col="orderName">{row.orderNamePreview === null ? '주문명 없음' : `${row.orderNamePreview}${row.orderNameTruncated ? '…' : ''}`}</small>
+                      <small>{row.paymentId}</small>
+                    </td>
+                    <td>
+                      {/* TXN-LIST-ENRICH-001 §3.4: "<상호> · <가맹점 코드>" + 환경·MID. 쪽 라벨이 UNAVAILABLE이면 환경·MID만(안내는 표 아래 1줄). MID는 따로 찾을 수 있게 자기 요소에. */}
+                      {page.merchantLabels === 'UNAVAILABLE' ? (
+                        <><span>{row.environment}</span>{' · '}<span>{row.merchantAccountId}</span></>
+                      ) : (
+                        <>
+                          <strong>{merchantLabelText(row.merchant) ?? MERCHANT_LABEL_MISSING}</strong>
+                          <small><span>{row.environment}</span>{' · '}<span>{row.merchantAccountId}</span></small>
+                        </>
                       )}
-                      <span className="font-mono text-xs">{row.environment}</span><Mono>{row.merchantAccountId}</Mono>
-                    </span>
-                  </TableCell>
-                  <TableCell>{paymentMethodLabel(row.paymentMethod)}</TableCell>
-                  <TableCell>
-                    <span className="flex flex-col">
-                      <Mono>{row.merchantOrderId}</Mono>
-                      <span data-col="orderName" className="text-xs">
-                        {row.orderNamePreview === null ? <span className="text-muted-foreground">주문명 없음</span> : `${row.orderNamePreview}${row.orderNameTruncated ? '…' : ''}`}
-                      </span>
-                    </span>
-                  </TableCell>
-                  <TableCell>{amount(row.amountMinor, row.currency)}</TableCell>
-                  <TableCell><StatusBadge code={row.status} /></TableCell>
-                  <TableCell>
-                    <Button type="button" variant="outline" size="sm" onClick={() => open(row.paymentId)}>상세</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {page.merchantLabels === 'UNAVAILABLE' && page.items.length > 0 && <p role="note" className="text-xs text-muted-foreground">{MERCHANT_LABELS_UNAVAILABLE}</p>}
-          <p className="text-xs text-muted-foreground">목록의 주문명은 앞 10자만 표시합니다. 전체 주문명·승인번호는 상세(감사 기록)에서 확인하세요.</p>
-          {page.nextCursor !== null && (
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={nextPage} aria-busy={listBusy}>다음</Button>
-            </div>
+                    </td>
+                    <td>{paymentMethodLabel(row.paymentMethod)}</td>
+                    <td><KstTime iso={row.createdAt} /></td>
+                    <td><StatusTag code={row.status} /></td>
+                    <td className="amount">{amount(row.amountMinor, row.currency)}</td>
+                    <td>
+                      <button type="button" className="btn" onClick={() => open(row.paymentId)}>상세</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {page.items.length === 0 && <div className="empty">조건에 맞는 거래가 없습니다.</div>}
+            {page.merchantLabels === 'UNAVAILABLE' && page.items.length > 0 && <p role="note" className="mapnote">{MERCHANT_LABELS_UNAVAILABLE}</p>}
+          </div>
+          <div className="tablebottom">
+            <span>{`이 쪽 ${page.items.length}건 · 목록의 주문명은 앞 10자만 표시합니다. 전체 주문명·승인번호는 상세(감사 기록)에서 확인하세요.`}</span>
+            {page.nextCursor !== null && (
+              <button type="button" className="btn" onClick={nextPage} aria-busy={listBusy}>다음</button>
+            )}
+          </div>
+        </>
+      )}
+
+      {(detailBusy || detailError || detail) && (
+        <div className="detailarea">
+          {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
+          {detailError && <ErrorNotice>{message(detailError)}</ErrorNotice>}
+          {detail && (
+            <>
+              <div>
+                <div className="eyebrow" aria-hidden="true">결제 관리 / 상세</div>
+                <h3>
+                  {'거래 상세 '}
+                  <small>{detail.payment.paymentId}</small>
+                </h3>
+              </div>
+              <DetailPanels detail={detail} />
+            </>
           )}
         </div>
       )}
-
-      {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
-      {detailError && <ErrorNotice>{message(detailError)}</ErrorNotice>}
-      {detail && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-bold">
-            {'거래 상세 '}
-            <span className="font-mono text-xs text-muted-foreground">{detail.payment.paymentId}</span>
-          </h3>
-          <DetailPanels detail={detail} />
-        </div>
-      )}
-    </section>
+    </>
   )
 }
 

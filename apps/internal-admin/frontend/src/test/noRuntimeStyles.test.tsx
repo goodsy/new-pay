@@ -120,9 +120,19 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
       paymentId: PAY, environment: 'TEST', merchantAccountId: 'mid-demo-1', merchantOrderId: 'order-77', orderNamePreview: '주문', orderNameTruncated: false,
       amountMinor: 10000, currency: 'KRW', paymentMethod: 'CARD', status: 'AUTHORIZED', createdAt: '2026-11-01T00:00:00.000Z', merchant: { name: '데모상점', code: 'demoshop01' },
     }
-    render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null, merchantLabels: 'OK' as const })) })} />)
+    // ADMIN-UI-WORKSPACE-001 거래 조회: 시안 구조로 옮긴 상세(.detailarea — 카드·표·태그)까지 연 뒤에도 style 속성·런타임 <style>이 없다.
+    const detail = {
+      payment: { ...item, merchantSiteId: 'demo-site-001', orderName: '주문' },
+      onHold: true, terminationEvidence: [],
+      authorization: { authorizationId: 'pau_01JC0000000000000000000001', status: 'AUTHORIZED', failureEvidence: null, planKind: 'LUMP_SUM', installmentMonths: null, cardType: 'CREDIT', openedAt: '2026-11-01T00:00:01.000Z' },
+      transactions: [], cancellations: [], returnBalance: null,
+    }
+    render(<TransactionsScreen api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null, merchantLabels: 'OK' as const })), transactionDetail: vi.fn(async () => detail) })} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     expect(await screen.findByRole('row', { name: PAY })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    await userEvent.click(screen.getByRole('button', { name: '상세' }))
+    expect(await screen.findByRole('region', { name: '반환 잔액' })).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

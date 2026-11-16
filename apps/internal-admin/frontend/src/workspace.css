@@ -235,6 +235,18 @@ button:focus-visible,a:focus-visible{outline-color:#1d4ed8}
 :where(.filters,.formrow,.modal,.rolebar,.matrix) input:focus,:where(.filters,.formrow,.modal,.rolebar,.matrix) select:focus{outline:2px solid #1d4ed8}
 /* 좁은 화면 조회 조건(리뷰 MINOR-2): 원본은 flex:1·min-width:0이라 줄바꿈되지 않고 입력란이 몇 글자로 줄어든다. 720px 이하에서는 입력란·선택을 한 줄씩, 검색 버튼은 그 아래 오른쪽. */
 @media(max-width:720px){.filters input,.filters select{flex:1 1 100%}.filters .btn{margin-left:auto}}
+/* 거래 조회(ADMIN-UI-WORKSPACE-001 3번째 화면): 조회 조건이 많은 필터 줄(.filters.many — 최대 6칸 + 검색). 원본(flex:1·min-width:0)처럼 한 줄에 다 넣으면 1101~1300px에서 날짜·MID 칸이 약 60px로 줄어 값이 잘린다(리뷰 MINOR-1).
+   모든 폭에서 줄바꿈을 허용하고, 입력란·선택은 최소 폭을 고유 폭(min-width:auto — CSS 초기값, 새 크기 값 아님)으로 되돌려 잘리기 전에 다음 줄로 넘긴다.
+   1100px 이하는 두 칸씩(원본 .quick 720px 규칙의 flex-basis 40%), 720px 이하는 위 규칙처럼 한 줄씩. 검색 버튼은 마지막 줄 오른쪽. 색·크기 새 값 없음. */
+.filters.many{flex-wrap:wrap}
+.filters.many input,.filters.many select{min-width:auto}
+.filters.many .btn{margin-left:auto}
+@media(max-width:1100px){.filters.many input,.filters.many select{flex:1 1 40%}}
+@media(max-width:720px){.filters.many input,.filters.many select{flex-basis:100%}}
+/* 표 아래 줄(리뷰 NIT-3): 왼쪽 글이 길어 줄을 바꿔도 오른쪽 버튼과 붙지 않게 간격 12px(원본 .quick·.rolebar gap 값), 세로 가운데. */
+.tablebottom{gap:12px;align-items:center}
+/* 390px 캡처(Coordinator 확인 2026-11-17): 좁은 화면에서 "다음" 버튼 글자가 세로로 꺾여 버튼은 줄지 않고 한 줄 유지(새 값 없음). */
+.tablebottom .btn{flex:none;white-space:nowrap}
 /* mapnote 안 제목(h2)은 줄 안에 굵게 — 원본 `<b>탭 이름</b> · 설명`과 같은 모양. */
 .mapnote h2{display:inline;margin:0;font-size:inherit}
 /* 가맹점 조회 상세(화면 안 영역 — drawer로 바꾸지 않음): 카드 아래 구분선 뒤에 원본 drawer 제목·카드 값. */

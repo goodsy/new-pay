@@ -7914,15 +7914,68 @@
           "evidence": "build/harness-evidence/ADMIN-HOME-KPI-001-2026-11-15T232122Z.json",
           "phases": "1단계(셸·테마)·2단계(운영 홈)·fix3·UI 참조 재현(로컬 미리보기 전용, jar 제외)",
           "result": "GRADLE-CHECK 23:21:59Z..00:11:42Z(49m43s) exit 0; Kotlin 4665 / FRONTEND 471(admin 446 + payment 25) 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a4fd669f1fecd6ee6ff7130be5c2aa6dfe53e93daee79ec5636c2659b55acede"
+        },
+        {
+          "tag": "WS3-gate1",
+          "verdict": "PASS",
+          "screen": "거래 조회",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T163630Z.json",
+          "result": "GRADLE-CHECK 16:36:59Z..17:27:36Z(50m37s) exit 0; Kotlin 4713 / FRONTEND 526 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:e4d7dab2370b6f8852f2bf804e70290bf50affd35c741681ffec2250e72cdd76",
+          "supplementary": "WS3-cve1 PASS(~/gate-logs/WS3-cve1.log)"
         }
       ],
-      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 완료)",
+      "nextResumeAction": "남은 화면: 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
         "evidence": "~/gate-logs/uiref-kit: progress.txt, diff-table.md(GUIDE §8 형식), pixel-diff.md(Edge headless 1440/1000/600 38/38 캡처 0px 차이), 시험 UiRefKit 28·UiRefKitFlows 18·UiRefIsolation 10",
         "constraints": "pg-workspace.css 원본 그대로(sha 36781c34…c7a9), 보정은 overrides.css 3규칙+주석; 권한·승인·지급은 시연용(실제 통제 없음); 의존성 메이저 변경 없음, react-router 미도입(해시 라우터)",
         "gate": "ENRICH-gate9 PASS(TXN-LIST-ENRICH-001과 같은 실행)"
+      },
+      "transactionsScreen": {
+        "status": "DONE(WS3-gate1)",
+        "scope": "결제 관리 › 거래 조회(TransactionsScreen.tsx 목록·상세) 모양만 시안 moduleView/detail 구조로 — 기능·API 호출·오류 처리·세션 종료·TXN-LIST-ENRICH-001 가맹점/결제수단 열·PayCore 브랜드 유지, 샘플 데이터 없음",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 transactions 추가(탭 패널 바로 안에 그림)",
+          "TransactionsScreen.tsx: PageHeader·shadcn Card/Field/Table/Badge → .mapnote(h2 거래 조회) → form.filters.many(aria-label 입력란, btn primary 검색) → .cardnote(기간 안내 aria-describedby·입력 오류 role=alert .error·목록 오류) → .tablewrap(table 거래 목록, 첫 칸 strong 주문번호 + small 주문명 10자·결제 ID, 가맹점 strong 상호·코드 + small 환경·MID, .tag 상태, td.amount 금액, .btn 상세) → .tablebottom(이 쪽 N건·주문명 안내·다음 .btn); 상세는 .detailarea(eyebrow 결제 관리 / 상세, h3 거래 상세 + small 결제 ID) + .card/.cardtop h4/.cardbody 패널 5개, 거래 사실·취소 이력 표는 .tablewrap, 빈 표는 .empty, hold는 .tag.red, 상태는 tagClass .tag",
+          "workspace.css(PayCore 적응 규칙 블록): .filters.many 1100px 이하 두 칸씩 줄바꿈(flex-basis 40% — 원본 .quick 값)·720px 이하 한 줄씩, 검색 버튼 오른쪽. 새 색·글꼴·그림자 없음, 원본 블록 불변",
+          "시험: TransactionsScreen.workspace.test.tsx 새로 4건(구조·조회 방식별 필터·라벨 UNAVAILABLE·CSS 위치), noRuntimeStyles 거래 조회 시험에 상세 연 뒤 검사 추가"
+        ],
+        "selectorChanges": "없음 — 기존 TransactionsScreen.test.tsx 7건·App.test·WorkspaceShell.test 단언·선택자 변경 없이 통과",
+        "deviations": [
+          "상세는 시안 drawer(overlay) 대신 화면 안 .detailarea(1단계 가맹점 조회 선례 — 감사 기록되는 상세를 목록과 함께 유지)",
+          "시안 열 '가맹점 / 거래번호·결제수단·거래일시·상태·금액' 대신 운영 홈 최근 거래(2단계)와 같은 '주문 / 결제 ID·가맹점·결제수단' + '생성 시각'(검색 기간이 생성 시각 기준이라 '거래일시'로 바꾸지 않음) + 작업(상세 버튼 — 시안 › 대신 접근 가능한 버튼, 행 클릭 없음)",
+          "시안 탭 6개·검색어 입력·초기화·CSV 버튼 없음(실제 기능 없음 — 탭은 메뉴 카드의 실제 탭 2개)",
+          "필터 줄은 조회 방식 선택 + 방식별 입력란(최대 6칸); 보이는 label 대신 aria-label, 환경 전체 선택지 문구 '전체' → '전체 환경'(값 동일)",
+          "검색 버튼의 아이콘·스피너 제거(aria-busy 유지, disabled 추가하지 않음 — 동작 변경 없음)",
+          "ErrorNotice(Alert)·상세 불러오는 중 Spinner는 기존 구성요소 유지(1단계와 같음)"
+        ],
+        "evidence": "~/gate-logs/admin-ui-ws3: baseline.log(4파일 47 통과), red.log(새 시험 4 실패 — 구조 없음, noRuntimeStyles 9 통과), green1.log(5파일 51 통과), tsc.log(exit 0), full.log(Vitest 53파일 501 통과·실패 0), sha256.txt",
+        "notVerified": "390/1024/1440px 실제 브라우저 캡처·가로 넘침 실측은 하지 않음(Demo 스택 실행 중 — gradle·빌드 미실행). jsdom 구조·CSS 규칙만 검증",
+        "gate": "미실행(Coordinator/Verifier 몫)",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부) — MINOR-1·MINOR-2·NIT-1·NIT-3·NIT-5 반영, NIT-2·NIT-4(기존 동작)는 후속",
+          "changes": [
+            "MINOR-1: workspace.css .filters.many{flex-wrap:wrap}을 미디어 조건 밖으로, 입력란·선택 min-width:auto(CSS 초기값 — 새 크기 값 없음)로 1101~1300px 날짜·MID 칸 잘림 대신 줄바꿈; flex:1 1 40%는 1100px 규칙 안 유지, 검색 버튼 margin-left:auto는 모든 폭",
+            "MINOR-2: 기간 안내 문구 '조회 기간(시작일 ~ 종료일): KST 달력일 기준, 최대 31일(Demo 기준).'",
+            "NIT-1: .cardnote는 안내·오류가 있을 때만 그림(결제 ID·주문번호 방식 빈 여백 없음)",
+            "NIT-3: .tablebottom{gap:12px;align-items:center}(12px = 원본 .quick·.rolebar gap)",
+            "NIT-5: 종료일 입력란 aria-describedby(접근성 설명) 단언 추가"
+          ],
+          "expectationChanges": "TransactionsScreen.workspace.test.tsx(이번 화면 새 시험)만: 기간 안내 문구 기대값(문구만 — '// 기대값 변경' 주석), CSS 문자열 기대값(줄바꿈 무조건·min-width:auto·tablebottom). 기존 TransactionsScreen.test.tsx는 기간 안내 문구를 단언하지 않아 변경 없음",
+          "evidence": "~/gate-logs/admin-ui-ws3: fix1-red.log(3 실패 — 빈 .cardnote 존재·CSS 규칙 없음·새 안내 문구 없음), fix1-green.log(6파일 64 통과), fix1-tsc.log(exit 0), fix1-full.log(Vitest 53파일 501 통과·실패 0), fix1-sha256.txt",
+          "followUps": [
+            "NIT-2(기존 동작 — 리뷰 기록 그대로 후속)",
+            "NIT-4(기존 동작 — 리뷰 기록 그대로 후속)"
+          ],
+          "notVerified": "실제 브라우저 폭별 실측(1101~1300·390px)은 여전히 미실행 — CSS 규칙·jsdom만"
+        },
+        "review": "독립 리뷰 2026-11-17 REVIEW_PASS(조건부) — MINOR-1 중간 폭 필터 찌그러짐, MINOR-2 날짜 칸 구분 문구, NIT-1·3·5 → reviewFix1 반영; NIT-2·NIT-4(기존 동작) 후속",
+        "coordinatorFix": "390px 캡처에서 \"다음\" 버튼 글자 세로 꺾임 → workspace.css `.tablebottom .btn{flex:none;white-space:nowrap}`(새 값 없음); 관련 시험 3파일 20건 통과(~/gate-logs/history-keys/ws3-fix2.log)",
+        "browserCheck": {
+          "how": "빌드된 admin 번들(Demo rebuild) + 명시적 Demo fixture mock API, headless Chrome CDP — scratchpad admin-ui-ws3/harness.mjs",
+          "result": "1440·1280·1101·1024·390 × light·dark × 목록·상세 = 20화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성·<style> 0, 대비 4.5 미만은 30px 굵은 브랜드 로고 \"P\"(3.7 — 큰 글자 기준 3:1 충족)만; 1101px 날짜 칸 잘림 해소 확인(전/후 캡처 shots-before·shots)"
+        }
       }
     },
     {

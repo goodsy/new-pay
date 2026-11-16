@@ -213,8 +213,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
               )
             }
           />
-          {/* ADMIN-UI-WORKSPACE-001 1단계: 가맹점 조회는 시안 목록 구조(.filters·.tablewrap)로 옮겨 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
-          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants'}>
+          {/* ADMIN-UI-WORKSPACE-001: 시안 목록 구조(.filters·.tablewrap)로 옮긴 화면(1단계 가맹점 조회, 거래 조회)은 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
+          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants' || page === 'transactions'}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'merchants' && (
