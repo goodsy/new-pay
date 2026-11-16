@@ -7878,6 +7878,206 @@
       "nextResumeAction": "MERCHANT-CODE-001 MC-1 뒤(사용자 순서 \"차례로\") BL-1 → BL-2 → BL-3",
       "spec": "docs/repository/MERCHANT-BIZ-LOOKUP-001-BUSINESS-LOOKUP.md rev 0.3 sha256 d42ce0069448db98bf522d6dbb7b9eb71a6e5ec62c473ecf4802599d5b4539f1",
       "review": "spec rev0.2 REVIEW_PASS(minor) → rev0.3 REVIEW_PASS (2026-11-14)"
+    },
+    {
+      "id": "ADMIN-UI-WORKSPACE-001",
+      "title": "관리자 콘솔에 사용자 제공 UI 디자인(zip 원본) 적용 — 화면 단위",
+      "status": "IN_PROGRESS",
+      "spec": "apps/internal-admin/frontend/docs/ui-reference/CLAUDE_IMPLEMENTATION_GUIDE.md + D-ADMIN-HOME-001",
+      "dependsOn": [],
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/**"
+      ],
+      "acceptanceCriteria": [
+        "원본 CSS·DOM·배치값 적용(1단계 공통 틀·가맹점 조회, 2단계 운영 홈·라이트/다크)",
+        "실제 메뉴·기능·브랜드 유지, 샘플 데이터·가짜 숫자 없음",
+        "내부 키 미표시·역할·2인 승인 동작 유지, 시험 약화 없음"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "decisions": [
+        "D-ADMIN-HOME-001"
+      ],
+      "reviewFix3": {
+        "review": "독립 리뷰 2026-11-16 CHANGES_REQUIRED(MAJOR 0, MINOR 8, NIT 10) → 전부 반영",
+        "evidence": "~/gate-logs/admin-ui-fix3: RED red.log 50 실패·red2-home.log 15 실패, GREEN 전체 Vitest 49파일 446, tsc 0, build 0, contrast.txt, sha256.txt",
+        "coordinatorDecisions": [
+          "Q1 KPI 404/501 → 오류 표시(\"불러오지 못했어요\") — 서버 구현 존재, 404는 장애",
+          "Q2 카드 제목 \"오늘 순승인액\"(명세 §0)"
+        ],
+        "limitation": "테마: module script defer라 JS 전 빈 화면 한 프레임은 라이트일 수 있음(CSP상 inline 스크립트 불가)"
+      },
+      "gateRuns": [
+        {
+          "tag": "KPI-gate7",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/ADMIN-HOME-KPI-001-2026-11-15T232122Z.json",
+          "phases": "1단계(셸·테마)·2단계(운영 홈)·fix3·UI 참조 재현(로컬 미리보기 전용, jar 제외)",
+          "result": "GRADLE-CHECK 23:21:59Z..00:11:42Z(49m43s) exit 0; Kotlin 4665 / FRONTEND 471(admin 446 + payment 25) 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a4fd669f1fecd6ee6ff7130be5c2aa6dfe53e93daee79ec5636c2659b55acede"
+        }
+      ],
+      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 먼저)"
+    },
+    {
+      "id": "ADMIN-HOME-KPI-001",
+      "title": "운영 홈 오늘 순승인액·승인 건수 집계 조회(PAYMENT → ADMIN)",
+      "status": "DONE",
+      "spec": "docs/repository/ADMIN-HOME-KPI-001-HOME-KPI.md rev 0.3a sha256 265f052c952cac4f9ac6f770a6f4bb80659e8a8851be1cbb26db3a64d988e6e1",
+      "dependsOn": [
+        "ADMIN-UI-WORKSPACE-001"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/internal-admin/**",
+        "docs/repository/**"
+      ],
+      "acceptanceCriteria": [
+        "정의 §3(D-ADMIN-HOME-001·002)",
+        "환경·통화 분리·정확 정수",
+        "VIEW 4역할·감사 없음·P-1 계획 시험"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "decisions": [
+        "D-ADMIN-HOME-001",
+        "D-ADMIN-HOME-002"
+      ],
+      "specReview": "rev 0.2 REVIEW_PASS (MAJOR 0, MINOR 7, NIT 8) 2026-11-15 → rev 0.3 반영은 구현자 K-1 착수와 함께",
+      "implementation": {
+        "batches": "K-1..K-3 구현(미커밋) 2026-11-15, 명세 rev 0.3 sha256 9c2829a50dfc31d79ac10f7d63f4ce0fd9b1f40af45d79b4fea4de3769d5c67c",
+        "evidence": "~/gate-logs/homekpi: RED payment 33 실패/admin 11 실패, GREEN payment 135·admin 76 exit 0, final payment 85·admin 12, P-1 plan p1-plan.txt, mutation 17/17 KILLED (muts.json)",
+        "deviations": [
+          "ADMIN 별도 Port HomeKpiGateway + HomeKpiSettings/HomeKpiLimits(같은 prefix) — 명세 §5 기록",
+          "T-K1-8 늦은 승인은 모듈 internal 전이 recordLateApprovalByReconciliation(명세 허용)",
+          "migration 목록 기대값 V35 추가(PaymentApiContextSmoke, CheckoutWindowCheckMigrationStrategy, DatabaseAccountSeparation) — Coordinator diff 확인: 추가만, 완화 없음"
+        ],
+        "configKey": "paycore.admin.payment-ops.home-kpi-per-minute (main application.yml Demo 값 30, test 4) — Demo 별도 설정 불필요"
+      },
+      "codeReview": {
+        "verdict": "REVIEW_PASS(조건부) 2026-11-15 — MAJOR 0, MINOR 3, NIT 7; 사용자 금융 질문 없음",
+        "conditions": [
+          "Verifier 등록 명령 실행 증거(실 MySQL 8.4, P-1 EXPLAIN)",
+          "기존 시험 diff 추가만 — Coordinator 확인 완료(ArchitectureSpec/CancelFixture/migration 목록 3개)",
+          "MINOR-1..3 수정 또는 §14 한계 기록"
+        ],
+        "minors": [
+          "MINOR-1 T-K1-6 취소 OPEN 사례 없음 → OPEN 만들어 row(10000,0,1) 단언 또는 한계 기록",
+          "MINOR-2 환경·통화 GROUP BY 키 DB 수준 단언 없음 → P-1 SQL 문자열로 group by p.environment, t.currency 단언",
+          "MINOR-3 T-K3-3 역방향(거래 조회 창 소진 → KPI 가능) 단언 추가"
+        ],
+        "nits": [
+          "N-1 home-kpi 404 readLog 분류",
+          "N-2 S2 CAST 검사",
+          "N-3 required Port가 provided DTO 반환 관례 기록",
+          "N-4 HomeKpiService 분 창 시계 주입",
+          "N-5 HomeKpiReaderSpec faults 미사용·무작위 날짜",
+          "N-6 ADMIN count<=approved 재검사(선택)",
+          "N-7 T-K2-2 timeout 증거 범위 명시"
+        ],
+        "nextAction": "K-4(프론트) 완료 → Demo 재빌드 → MINOR 수정 → Verifier 게이트"
+      },
+      "k4": {
+        "status": "구현(미커밋) 2026-11-15 — 프론트 /api/home-kpis 모양 정렬, 화면 fail-closed 문서 검사, BigInt/문자열 금액",
+        "evidence": "~/gate-logs/homekpi-k4: RED 46건 중 21 실패, GREEN 대상 46/46, 전체 Vitest 49파일 424 통과, tsc 0, vite build 0, 검사 제거 돌연변이 17건 실패, source-sha256.txt",
+        "coordinatorDecisions": [
+          "Q-K4-1 비KRW 표시: 표시 전용·가역 → 기존 formatMinor 관례(최소 단위 정수 + \"통화(최소 단위)\") 유지, 통화 소수 자리 표 확정 때 재검토",
+          "Q-K4-2 건수: 환경·통화 간 합산 없음, 행별 \"N건 · 통화\"(D-CPD-001 통화 분리, 명세 C-1)",
+          "빈 items는 \"오늘 완료된 승인 없음\" 문구(0 대신) — 표시 전용"
+        ],
+        "extraFile": "apps/internal-admin/frontend/src/api/client.test.ts 경로 시험 1건 추가"
+      },
+      "gateRuns": [
+        {
+          "tag": "KPI-gate7",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/ADMIN-HOME-KPI-001-2026-11-15T232122Z.json",
+          "result": "GRADLE-CHECK 23:21:59Z..00:11:42Z(49m43s) exit 0; Kotlin 4665 / FRONTEND 471(admin 446 + payment 25) 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a4fd669f1fecd6ee6ff7130be5c2aa6dfe53e93daee79ec5636c2659b55acede",
+          "prior": "KPI-gate6 FAIL(2026-11-15T222716Z): OldVolumeStartSpec migration 목록에 V35 누락 1건(2067 중 1) → 목록에 35 추가(기대값 변경 주석, 규칙 완화 아님) 후 재게이트",
+          "supplementary": "cve-scan PASS(취약점 0, canary 전 모듈·프론트 검출) 2026-11-16",
+          "scope": "작업 트리 = ADMIN-HOME-KPI-001 K-1..K-4 + 리뷰 수정 + ADMIN-UI-WORKSPACE-001 1·2단계 + 리뷰 수정(fix3) + UI 참조 재현(uiref) — 커밋은 작업별로 분리"
+        }
+      ],
+      "reviewFix": {
+        "evidence": "~/gate-logs/homekpi-fix: RED admin T-K3-4(NIT-1 result=NotFound), GREEN payment 86·admin 13",
+        "applied": "MINOR-1 T-K1-6 취소 OPEN(FaultInjector), MINOR-2 GROUP BY 키 단언, MINOR-3 T-K3-3 역방향, NIT-1 404 로그 HTTP_404, NIT-2 S2 CAST 검사, NIT-5 날짜 충돌 방지; NIT-3/4/6/7·golden 부재 §14 L-8..L-12",
+        "limitation": "MINOR-2 단언 단독 mutant kill 미증명(S1 environment 제거 mutant는 ONLY_FULL_GROUP_BY 1055로 먼저 실패, S2 mutant는 메모리 부족 중단 — 소스 복원 확인)"
+      }
+    },
+    {
+      "id": "ADMIN-HOME-ATTENTION-001",
+      "title": "운영 홈 \"확인이 필요한 업무\"에 결제 예외 건 집계 추가(UNKNOWN 승인·진행 중 취소·FORCED·활성 hold·종료 Payment 늦은 승인)",
+      "status": "BACKLOG",
+      "spec": "미작성 — D-ADMIN-HOME-002 ①②의 \"확인 필요로 셈\" 부분(ADMIN-HOME-KPI-001 C-6에서 분리)",
+      "dependsOn": [
+        "ADMIN-HOME-KPI-001"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/internal-admin/**",
+        "docs/repository/**"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "decisions": [
+        "D-ADMIN-HOME-002"
+      ]
+    },
+    {
+      "id": "TXN-LIST-ENRICH-001",
+      "title": "관리자 거래 목록에 가맹점명(상호 · 가맹점 코드)·결제수단 표시",
+      "status": "READY",
+      "spec": "docs/repository/TXN-LIST-ENRICH-001-TRANSACTION-LIST-LABELS.md rev 0.1 sha256 ad52b3eb3dd1023e4dbe2909b4349739b1d7b40fdd396da27f4a6ea9e022ba85 (리뷰 전)",
+      "request": "사용자 2026-11-15 \"가맹점명·결제수단 칸을 추가\"",
+      "dependsOn": [
+        "ADMIN-HOME-KPI-001",
+        "ADMIN-UI-WORKSPACE-001"
+      ],
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "apps/master-api/**",
+        "apps/internal-admin/**",
+        "harness/tests/**",
+        "docs/repository/TXN-LIST-ENRICH-001-*.md"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "notes": [
+        "PAYMENT V35는 ADMIN-HOME-KPI-001 색인이 사용 — MERCHANT-CODE-001 MC-4 명세 V35는 구현 때 다음 번호로 재조정"
+      ],
+      "specReview": {
+        "verdict": "REVIEW_PASS(조건부) 2026-11-15 rev 0.1 — MAJOR 0, MINOR 6, NIT 5; 사용자 금융·보안 질문 없음",
+        "mustFixBeforeBatch": [
+          "M-1 MASTER 조회 permit을 approvalDecision(2인 승인 결정 조회·회복)과 공유 → Coordinator 선택: 라벨 전용 permit(Demo 값) + \"라벨 busy가 승인 회복 상태 불변\" 시험 (E-2/E-3 전)",
+          "M-2 MASTER 지연이 목록을 read timeout(10s)까지 붙잡음 → Coordinator 선택: 라벨 전용 짧은 read timeout(Demo 값) + 지연 상한 단언 T-E2-8/T-E3-3 (E-2/E-3 전)",
+          "M-3 E-4 상세 응답 계약 §4.5 추가(payment.merchant + 최상위 merchantLabels, 실패 값) (E-4 전)",
+          "M-4 이름 검사 = MASTER DisplayName 규칙(ISO 제어문자만 금지, 1..100 code point; U+2028 허용) + 대조 시험, MasterResponseShape.Text code point 길이 인자 (E-2 전)",
+          "M-5 §1.3 정정: display_name UPDATE 권한은 있음(V2 runtime privilege) — \"변경 명령·Domain 경로 없음\"으로",
+          "M-6 운영 홈 요청은 limit 없이 기본 20건 → E-5에서 limit: 5, HomeScreen.test.tsx 호출 단언 변경 기록"
+        ],
+        "nits": [
+          "N-1 새 golden admin-payment-list-v1 PAYMENT·ADMIN 두 사본 바이트 동일 시험",
+          "N-2 MASTER golden 원본·ADMIN 사본 동시 갱신, MerchantOpsShapeGoldenSpec 문구",
+          "N-3 라벨 응답 경로 JsonMapper STRICT_DUPLICATE_DETECTION(라벨 경로만)",
+          "N-4 MID 정규식 단일 상수",
+          "N-5 서비스 이름·TransactionListEnricher 위치(application)·paymentops package-info 의존 설명, §3.4에 MERCHANT-CODE-001 L-6 참조, T-E3-1 사용자 입력 MID 미전달 단언"
+        ],
+        "nextAction": "rev 0.1a 반영은 E-1 착수 구현자가 함께(E-1은 rev 0.1로도 착수 가능, KPI K-3 커밋 뒤)"
+      }
+    },
+    {
+      "id": "ADMIN-HISTORY-KEYS-001",
+      "title": "가맹점 변경 이력 표에서 내부 key(biz_ 등 aggregateId) 비노출",
+      "status": "READY",
+      "request": "D-ADMIN-UI-004 ③ 위반 발견(독립 리뷰 2026-11-16) — 확정 결정 적용, 재질문 불필요",
+      "finding": "MerchantsScreen.tsx ~806 entry.aggregateId 그대로 표시; MASTER JooqMerchantHistoryReader가 Business(biz_…)·MerchantSite·Contract·MerchantAccount 등 aggregate 행 포함",
+      "fixDirection": "aggregateType 한글 라벨 + 사람이 읽는 식별(사업자: 상호·마스킹 번호 등) 또는 표시 생략; domOccurrences 내부 key 시험",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "apps/master-api/**",
+        "apps/internal-admin/src/**"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3
     }
   ]
 }

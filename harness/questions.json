@@ -3731,6 +3731,62 @@
       "humanAnswer": "내부 키 응답, 화면 미표시 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-14). 첫 응답은 되물음 \"사업자 번호를 id 대체 안돼?\" → 원문 노출 증가(요청 본문·ADMIN 요청 기록·재전송 바이트, D-MD-008 마스킹·D-MOPS-010 HMAC과 충돌)·정정 가능 값이라 내부 키 부적합 설명 후 재질문",
       "appliedSpec": "D-BIZLOOKUP-001"
+    },
+    {
+      "id": "Q-HOME-1",
+      "status": "ANSWERED",
+      "question": "운영 홈 오늘 승인 금액 기준",
+      "answer": "순승인액(취소 차감)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-001"
+    },
+    {
+      "id": "Q-HOME-2",
+      "status": "ANSWERED",
+      "question": "순승인액 취소 차감 기준",
+      "answer": "완료일 기준(Recommended)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-001"
+    },
+    {
+      "id": "Q-HOME-3",
+      "status": "ANSWERED",
+      "question": "오늘 승인 건수 기준",
+      "answer": "취소 안 된 건만",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-001"
+    },
+    {
+      "id": "Q-HOME-4",
+      "status": "ANSWERED",
+      "question": "지급 예정액 카드",
+      "answer": "준비 전 표시(Recommended)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-001"
+    },
+    {
+      "id": "Q-HOME-KPI-1",
+      "status": "ANSWERED",
+      "question": "종료 Payment 늦은 승인·보정 취소 포함 여부",
+      "answer": "빼고 확인 필요로(Recommended)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-002"
+    },
+    {
+      "id": "Q-HOME-KPI-2",
+      "status": "ANSWERED",
+      "question": "FORCED 늦은 취소 차감 여부",
+      "answer": "차감 안 하고 확인 필요로(Recommended)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-002"
+    },
+    {
+      "id": "Q-HOME-KPI-3",
+      "status": "ANSWERED",
+      "question": "오늘 완료 시각 원천",
+      "answer": "PG 확정 시각(Recommended)",
+      "answeredAt": "2026-11-15",
+      "decision": "D-ADMIN-HOME-002"
     }
   ]
 }
