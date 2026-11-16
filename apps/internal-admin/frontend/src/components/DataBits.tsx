@@ -30,11 +30,11 @@ export function RoleBadges({ roles, suspended = false }: { roles: string[]; susp
   )
 }
 
-/** 종류 code: 한국어 이름 위, 원래 code는 작은 mono 글씨로 아래. */
-export function KindLabel({ code }: { code: string }) {
+/** 종류 code: 한국어 이름 위, 원래 code는 작은 mono 글씨로 아래. [label]을 주면 `labelOf` 대신 그 이름(ADMIN-HISTORY-KEYS-001 — 이력 대상 종류 전용 맵). */
+export function KindLabel({ code, label }: { code: string; label?: string }) {
   return (
     <span className="flex flex-col gap-0.5">
-      <span className="font-medium">{labelOf(code)}</span>
+      <span className="font-medium">{label ?? labelOf(code)}</span>
       <span className="font-mono text-[11px] text-muted-foreground">{code}</span>
     </span>
   )

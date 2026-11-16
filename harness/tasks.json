@@ -7916,7 +7916,7 @@
           "result": "GRADLE-CHECK 23:21:59Z..00:11:42Z(49m43s) exit 0; Kotlin 4665 / FRONTEND 471(admin 446 + payment 25) 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a4fd669f1fecd6ee6ff7130be5c2aa6dfe53e93daee79ec5636c2659b55acede"
         }
       ],
-      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 먼저)",
+      "nextResumeAction": "남은 화면 순서: 거래 조회 → 매입·대사 → 승인함/내 요청 → 계정·권한 → 결제 보정 취소 → 등록 wizard → login (TXN-LIST-ENRICH-001·ADMIN-HISTORY-KEYS-001 완료)",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -8109,7 +8109,7 @@
     {
       "id": "ADMIN-HISTORY-KEYS-001",
       "title": "가맹점 변경 이력 표에서 내부 key(biz_ 등 aggregateId) 비노출",
-      "status": "READY",
+      "status": "DONE",
       "request": "D-ADMIN-UI-004 ③ 위반 발견(독립 리뷰 2026-11-16) — 확정 결정 적용, 재질문 불필요",
       "finding": "MerchantsScreen.tsx ~806 entry.aggregateId 그대로 표시; MASTER JooqMerchantHistoryReader가 Business(biz_…)·MerchantSite·Contract·MerchantAccount 등 aggregate 행 포함",
       "fixDirection": "aggregateType 한글 라벨 + 사람이 읽는 식별(사업자: 상호·마스킹 번호 등) 또는 표시 생략; domOccurrences 내부 key 시험",
@@ -8119,7 +8119,28 @@
         "apps/internal-admin/src/**"
       ],
       "owner": "Coordinator",
-      "maxRepairAttempts": 3
+      "maxRepairAttempts": 3,
+      "spec": "docs/repository/ADMIN-HISTORY-KEYS-001-HISTORY-TARGET-LABELS.md rev 0.1b sha256 e5aa32c9537cf593c52086d99819a1845b85b178ab723e294988c6c443c1a589",
+      "specReview": "REVIEW_PASS(조건부) 2026-11-17 — MAJOR-1(CODE_LABELS 대신 별도 맵·PolicyVersion 제외), MINOR-1·2, NIT-1·2 → rev 0.1a 반영",
+      "implementation": {
+        "scope": "frontend 전용: lib/historyTarget.ts(+test), components/DataBits.tsx KindLabel 선택 prop label, screens/MerchantsScreen.tsx 대상 열, MerchantsScreen.test.tsx(T-HK-2/3 신규 + MC-2b fixture에 Business 이력 행)",
+        "evidence": "~/gate-logs/history-keys: red-saved.log(2 실패 — T-HK-2/3, MC-2b가 실제 biz_ 노출로 RED; historyTarget 모듈 없음), green.log 36/36, tsc 0, full.log Vitest 52파일 497 통과",
+        "unchangedExpectations": "labels.test.ts·MC-2-3 단언 무변경"
+      },
+      "nextResumeAction": "완료",
+      "codeReview": {
+        "verdict": "REVIEW_PASS(조건부) 2026-11-17 — E-1 빌드 증거(npm build 스크립트 없음 → 명세 §8 문구를 Gradle 빌드로 정정, 게이트에서 확인), MINOR-1 MC-2b 이력 행 대기, NIT-1 종류 이름 exact 단언, NIT-2 ! 제거(?? —)",
+        "fixes": "모두 반영; green2.log 36/36, tsc-exit.txt tsc-exit=0"
+      },
+      "gateRuns": [
+        {
+          "tag": "HK-gate1",
+          "verdict": "PASS",
+          "evidence": "build/harness-evidence/ADMIN-HISTORY-KEYS-001-2026-11-16T152216Z.json",
+          "result": "GRADLE-CHECK 15:22:48Z..16:06:26Z(43m38s) exit 0; Kotlin 4713 / FRONTEND 522 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:5c4ad27cd42c78631b9d8a0ed116a81075da4ed1233f32d9b5758c15f7160601 (Gradle 프런트 번들 빌드 포함 — 코드 리뷰 E-1)",
+          "supplementary": "HK-cve1 PASS(~/gate-logs/HK-cve1.log, 취약점 0)"
+        }
+      ]
     }
   ]
 }

@@ -17,6 +17,7 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { formatMinor } from '../lib/format'
+import { historyTarget, historyTargetLabel } from '../lib/historyTarget'
 import { tagClass } from '../lib/statusTone'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
@@ -803,11 +804,11 @@ export function MerchantsScreen({
                           <TableCell className="font-mono">{entry.seq}</TableCell>
                           <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
                           <TableCell><Mono>{entry.operation}</Mono></TableCell>
-                          {/* MC-2: 이 가맹점 자신이 대상이면 내부 키 대신 코드(다른 대상 — Site·계약·MID 등 — 은 각 키 그대로). */}
+                          {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·마스킹 번호 — 내부 키 mer_·biz_ 미표시. 다른 대상(Site·계약·MID 등)은 각 식별자 그대로. */}
                           <TableCell>
-                            <span className="flex flex-col">
-                              <span>{entry.aggregateType}</span>
-                              <Mono>{entry.aggregateId === detail.merchant.merchantId ? detail.merchant.merchantCode : entry.aggregateId}</Mono>
+                            <span className="flex flex-col gap-1">
+                              <KindLabel code={entry.aggregateType} label={historyTargetLabel(entry.aggregateType)} />
+                              <span className="text-sm">{historyTarget(entry, detail)}</span>
                             </span>
                           </TableCell>
                           <TableCell><KindLabel code={entry.changeType} /></TableCell>

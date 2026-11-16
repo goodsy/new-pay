@@ -363,11 +363,38 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     }
   })
 
+  it('ADMIN-HISTORY-KEYS-001 T-HK-2/3: business and merchant history rows show name · masked number / name · code with Korean target names — no biz_/mer_ or plaintext number anywhere; other targets keep their identifier', async () => {
+    const rows: MerchantHistoryEntry[] = [
+      { ...entry(40, 'REGISTERED'), operation: 'RegisterBusiness', aggregateType: 'Business', aggregateId: BIZ1 },
+      { ...entry(41, 'REGISTERED'), operation: 'RegisterMerchant', aggregateType: 'Merchant', aggregateId: MER1 },
+      { ...entry(42, 'REGISTERED'), operation: 'RegisterMerchantSite', aggregateType: 'MerchantSite', aggregateId: id('site', 1) },
+      entry(43, 'SUSPENDED'),
+    ]
+    await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: rows, nextCursor: null })) })
+    const history = await screen.findByRole('region', { name: '변경 이력' })
+    const business = await within(history).findByRole('row', { name: '40' })
+    expect(within(business).getByText('사업자', { exact: true })).toBeInTheDocument()
+    expect(business).toHaveTextContent('Business')
+    expect(business).toHaveTextContent(`데모 사업자 · ${MASKED}`)
+    const merchant = within(history).getByRole('row', { name: '41' })
+    expect(within(merchant).getByText('가맹점', { exact: true })).toBeInTheDocument()
+    expect(merchant).toHaveTextContent(`데모 가맹점 · ${codeOf(MER1)}`)
+    expect(within(history).getByRole('row', { name: '42' })).toHaveTextContent(id('site', 1))
+    const route = within(history).getByRole('row', { name: '43' })
+    expect(route).toHaveTextContent('카드사 Route 개통')
+    expect(route).toHaveTextContent(id('cra', 1))
+    expect(domOccurrences(document.body, 'biz_')).toEqual([])
+    expect(domOccurrences(document.body, 'mer_')).toEqual([])
+    expect(domOccurrences(document.body, BRN)).toEqual([])
+    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+  })
+
   it('MC-2b DOM (D-MCODE-003 ②): a registration-number search list and the detail render no biz_ anywhere (text, attributes, input values) and never the plaintext number — the business is name + masked number; the internal key goes only to calls', async () => {
     const api = fakeApi({
       merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })),
       merchantDetail: vi.fn(async () => detail),
-      merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })),
+      // ADMIN-HISTORY-KEYS-001 MINOR-2: fixture 보강 — 빈 이력으로는 사업자 이력 행의 biz_ 노출을 못 잡았다(단언은 그대로).
+      merchantHistory: vi.fn(async () => ({ items: [{ ...entry(30, 'REGISTERED'), operation: 'RegisterBusiness', aggregateType: 'Business', aggregateId: BIZ1 }], nextCursor: null })),
     })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
     await typeIn('사업자등록번호', BRN)
@@ -381,6 +408,8 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
     expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(MASKED)
     expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent('데모 사업자')
+    // ADMIN-HISTORY-KEYS-001 코드 리뷰 MINOR-1: 이력 행이 그려진 뒤에 단언한다(대기만 추가 — 단언 무변경).
+    await within(screen.getByRole('region', { name: '변경 이력' })).findByRole('row', { name: '30' })
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
     expect(domOccurrences(document.body, BRN)).toEqual([])
     expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
