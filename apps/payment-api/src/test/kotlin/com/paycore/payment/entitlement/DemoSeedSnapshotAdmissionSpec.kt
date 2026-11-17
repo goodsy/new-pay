@@ -25,7 +25,7 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 
 /**
- * DEMO-SEED-001 I-10(PAYMENT 쪽): harness가 앱 코드와 독립으로 만든 Demo seed 최신 Snapshot golden(`contracts/demo-seed-snapshot-v3.golden.json` — MASTER
+ * DEMO-SEED-001 I-10(PAYMENT 쪽): harness가 앱 코드와 독립으로 만든 Demo seed 최신 Snapshot golden(`contracts/demo-seed-snapshot-v4.golden.json` — MASTER
  * `DemoSeedSnapshotGoldenSpec`이 같은 바이트를 확인)을 **실제 서명 Inbox**로 적용한 뒤 운영 승인 시작 판정 Port가 T0−1ms에는 `CONTRACT_NOT_EFFECTIVE`로 거절하고
  * T0에는 허용(한도 Resolved 1,000,000/5,000,000 — D-DEMO-003, Route SIMVAN01·매입사 SIMACQA, 정책 DEMO)하는지 본다. 값은 Demo — 운영값 아님.
  */
@@ -38,7 +38,8 @@ class DemoSeedSnapshotAdmissionSpec(
 ) : FunSpec({
 
     val mapper = JsonMapper.builder().build()
-    val golden = mapper.readTree(ClassPathResource("contracts/demo-seed-snapshot-v3.golden.json").inputStream)
+    // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): v3 → v4 golden(MASTER가 v4만 조립 — 최신 Snapshot에 seed 코드 demoshop01). 판정 기대값은 그대로.
+    val golden = mapper.readTree(ClassPathResource("contracts/demo-seed-snapshot-v4.golden.json").inputStream)
     fun g(name: String): String = golden.get(name).stringValue()
     val t0 = Instant.parse(g("effectiveFrom"))
     val tx = TransactionTemplate(transactionManager)

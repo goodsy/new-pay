@@ -7721,7 +7721,7 @@
     {
       "id": "MERCHANT-CODE-001",
       "title": "사람이 읽는 가맹점 코드(새 식별 키) 설계·질문",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "dependsOn": [],
       "questions": [
         "Q-MC-1",
@@ -7744,13 +7744,20 @@
         "apps/internal-admin/src/**",
         "apps/internal-admin/frontend/src/**",
         "apps/master-api/src/**",
-        "harness/tasks.json"
+        "harness/tasks.json",
+        "apps/payment-api/src/**",
+        "harness/tests/**",
+        "harness/commands.json",
+        "docs/repository/WEBHOOK-001-MERCHANT-WEBHOOK.md",
+        "docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md",
+        "docs/repository/CP-QUERY-001-PAYMENT-QUERY.md",
+        "docs/repository/CP-API-001-CREATE-PAYMENT-API.md"
       ],
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "MC-4(PAYMENT migration 번호 재확인 — V35 사용됨) → MERCHANT-BIZ-LOOKUP-001",
-      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.10 sha256 c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253",
+      "nextResumeAction": "완료 — 다음 BUSINESS-PROFILE-001(MERCHANT-BIZ-LOOKUP-001 합침)",
+      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.11 sha256 3a368f04c8537f91debad90b2a8d14eeaae58df0e400336bf871f5d6ac6f0c21",
       "review": "spec rev0.3 REVIEW_FAIL(MAJOR-1 배포 단위, MAJOR-2 seed 재실행) → rev0.4 REVIEW_PASS (2026-11-14). C-20~C-26 Coordinator 채택",
       "gateRuns": [
         {
@@ -7801,6 +7808,14 @@
           "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-17T004623Z.json",
           "result": "GRADLE-CHECK 00:46:52Z..01:37:55Z(51m03s) exit 0; Kotlin 4810 / FRONTEND 571 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:e8a370cde05138451d05d44c16d94a2c611de43e409bc4966737ee347672250e",
           "supplementary": "MC3-cve1 PASS(~/gate-logs/MC3-cve1.log, vulnerabilities 0)"
+        },
+        {
+          "tag": "MC4-gate1",
+          "verdict": "PASS",
+          "batch": "MC-4",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-17T063032Z.json",
+          "result": "GRADLE-CHECK 06:31:00Z..07:26:53Z(55m53s) exit 0; Kotlin 4853 / FRONTEND 571 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:05fed1ee9221e78d7652a346af1dded49e8cd1bb166c55803690778fa7c19cee",
+          "supplementary": "MC4-cve1 PASS(~/gate-logs/MC4-cve1.log, vulnerabilities 0)"
         }
       ],
       "evidence": {
@@ -7864,7 +7879,9 @@
         "계약 승인 상세가 계약 Revision 내부 키(ctr_…)를 그대로 표시(MC-3 범위 밖 기존 표시 — D-ADMIN-UI-004 ③ 적용 범위 확인 후 정리 후보)",
         "다크 1024px 등 긴 화면에서 사이드바 배경이 화면 높이에서 끝남(ADMIN-UI-WORKSPACE-001 후속 후보)",
         "MC-3b NIT-2(415·413 거절 지표), NIT-4(mer_ 정규식 사본 통합), NIT-5(MASTER 코드 없는 가맹점 503 실제 reader 시험)",
-        "명세 rev 0.4.9 사본이 없어 0.4.9→0.4.10 차이가 errata 2건뿐인지 diff로 확인 불가(리뷰어 확인: 두 errata 반영됨)"
+        "명세 rev 0.4.9 사본이 없어 0.4.9→0.4.10 차이가 errata 2건뿐인지 diff로 확인 불가(리뷰어 확인: 두 errata 반영됨)",
+        "MC-4 NIT-A: JpaMerchantRepository 강제 version 증가 조건을 \"변경 감지 대상 열 변경\" 일반화 또는 전제 주석·시험 고정",
+        "MC-4 NIT-B: Succeeded.merchantCode 기본값 제거 또는 생성 지점 아키텍처 시험"
       ],
       "mc3Plan": {
         "specRev": "0.4.6 (2026-11-17, APPROVAL-TARGET-KEYS-001 합침 — §5.6 화면 표시(새·기존 행), MASTER 라벨 endpoint merchant-labels, 감사 target_merchant_id·가상 키, C-29~C-34)",
@@ -8898,7 +8915,582 @@
         "note": "브라우저 확인은 reviewFix1(MAJOR-1) 전 번들 — EXECUTED 코드 변경 상세는 vitest(domOccurrences)로 확인"
       },
       "mc3Status": "DONE(MC3-gate1) — 리뷰 3회 조건부 PASS 조건 충족(재검증·게이트 PASS, MINOR·MAJOR 반영)",
-      "allowedWritePathsNote": "Coordinator 2026-11-17: MC-3 구현 범위(ADMIN·MASTER·frontend)를 등록 — MC-3a 구현자 보고 미결 2"
+      "allowedWritePathsNote": "Coordinator 2026-11-17: MC-3 구현 범위(ADMIN·MASTER·frontend)를 등록 — MC-3a 구현자 보고 미결 2",
+      "mc4": {
+        "batch": "MC-4 PAYMENT 투영·외부 필드(§6·§7 MC-4·§8 MC-4-1~6) — Snapshot v4(+merchantCode)·PAYMENT V36 entitlement_head.merchant_code·웹훅 merchantCode 가산 필드(schemaVersion 1 유지 — C-36(MC-4))·결제 생성/조회 응답 merchantCode(출력 전용)·경보 merchant_code_changed_with_mid·변경 명령 revision +1·v3→v4 승격(revision +1)",
+        "implementer": "paycore-implementer (2026-11-17) — 자기 완료 판정 아님, 커밋 없음, Demo 미조작, GRADLE-CHECK·모듈 전체 시험 미실행(Coordinator 게이트), Verifier·Reviewer 별도",
+        "baseHead": "80f6f96",
+        "spec": {
+          "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+          "revBefore": "0.4.10",
+          "sha256Before": "c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253",
+          "rev0411Sha256": "3a368f04c8537f91debad90b2a8d14eeaae58df0e400336bf871f5d6ac6f0c21",
+          "rev": "0.4.12",
+          "sha256": "50d27a43f62eb79d4b722c64284edae73ecf5bed3a4f8d52856fdc756932c79c"
+        },
+        "migration": {
+          "payment": "V36__entitlement_head_merchant_code.sql (schema — 문장 3개: entitlement_head.merchant_code INSTANT·CHECK COPY·idempotency_request.result_merchant_code INSTANT(C-37(MC-4)); V35는 ADMIN-HOME-KPI-001, 최신 privilege V34, V37 미사용)",
+          "privilege": "없음 — entitlement_head 표 단위 SELECT, INSERT, UPDATE(runtime-privilege/payment/V4…sql:8) 재확인",
+          "master": "없음",
+          "admin": "없음"
+        },
+        "changedFiles": [
+          {
+            "path": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaEntitlementSourceStore.kt",
+            "sha256": "14451f393618791b0bd263cff974eeecee0ad06d8274b38553087e7473227200"
+          },
+          {
+            "path": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaMerchantRepository.kt",
+            "sha256": "75826ed71db57d4259697c06fa7eab70ede48194ff2f7a400c17c48e7a117c1a"
+          },
+          {
+            "path": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantOnboardingService.kt",
+            "sha256": "60c1283014cc81080a7b759725796b6e875e613566078ef6b314e7187030122e"
+          },
+          {
+            "path": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/EntitlementSnapshot.kt",
+            "sha256": "17c5bcbe9196bbaf56e73458c949ec651719c8a323fb6b6a6694c68071e2a1a6"
+          },
+          {
+            "path": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/EntitlementSnapshotAssembler.kt",
+            "sha256": "af6f3c078550a7d6724b638ce27a32eafc75eade7dad69abb9d2efa9931e7791"
+          },
+          {
+            "path": "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/integration/EntitlementContractGoldenSpec.kt",
+            "sha256": "f07af359165d0f0df911861f9d64ed0de3c9b1fb7e6ce2912ff18005a996738c"
+          },
+          {
+            "path": "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/DemoSeedSnapshotGoldenSpec.kt",
+            "sha256": "edb59704a9ca96727f11d4240b96ce747bc92e42a963b2499837329f8d7e26f0"
+          },
+          {
+            "path": "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/MerchantCodeSnapshotSpec.kt",
+            "sha256": "e977f51dbbbec945a872f7690570610ab3fe51be8dd08f5510f6ffb86724d37e"
+          },
+          {
+            "path": "apps/master-api/src/test/kotlin/com/paycore/master/merchant/domain/EntitlementSnapshotSpec.kt",
+            "sha256": "71d9d411efe5c2fb67e0ff8862aa2eed514c8694fbcc9c7372ff42c3e4ffa33b"
+          },
+          {
+            "path": "apps/master-api/src/test/resources/contracts/demo-seed-snapshot-v4.golden.json",
+            "sha256": "1c7e9298aea519e8311e85cb6865a61704e9e13c42ed2733b4015aed0aad1249"
+          },
+          {
+            "path": "apps/master-api/src/test/resources/contracts/entitlement-snapshot-v4-currency-at-execution.golden.json",
+            "sha256": "f5aa26b946be4bc530d92d833f3e5f51e78c4a2208e60e6bbecfe601f6987787"
+          },
+          {
+            "path": "apps/master-api/src/test/resources/contracts/entitlement-snapshot-v4.golden.json",
+            "sha256": "2f406fdbeb8874d69b2985ca1d34bbdd97a949617ad56587fb6be71f4875c6d3"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/adapter/integration/MicrometerEntitlementMetrics.kt",
+            "sha256": "4eaf7e7f9d2ec7b4ff94bbff3b139c5e56d62f226efc64670fbfe1a98baa9294"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/adapter/persistence/JpaEntitlementHeadEntity.kt",
+            "sha256": "771696d81625ac8ea1a3f1d2d7c185d325b69d33bf9e34e0bea7cda78776e83c"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/adapter/persistence/JpaEntitlementProjectionStore.kt",
+            "sha256": "4a8a9b72834b1b11fd2bf72025708f5dd6fd08a915d1bc2ac0e2d8a23bceb845"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/application/EntitlementInboxService.kt",
+            "sha256": "0094e0d2cab367cea9d8dbdc5d27fc4571f5c407fc8e2283c6e7a992f5dc1573"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/application/MerchantCodeService.kt",
+            "sha256": "ba8b74dd9126dc1149d9b4db950c302376cf55f92a957f8b9334194e0a897299"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/application/provided/MerchantCodeQuery.kt",
+            "sha256": "67307f0089648eb14686f3b1e6d7fd9b5eb82e15c3020196600c3fe00ebd020e"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/application/required/EntitlementMetrics.kt",
+            "sha256": "7f0336343b3f13a1e04cda1fad92f4ef18aab54d12cdfc82445c635740889e7f"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/application/required/EntitlementProjectionStore.kt",
+            "sha256": "93e848ef8e19d6698b60bee7a55a24dc0b7a7934f6fad50f9660859b59e38215"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/domain/EntitlementHead.kt",
+            "sha256": "f209144d2a9afba9ceca9198af6fb7bdd1acb2b0eae903baa7d980f9a93859bd"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/domain/EntitlementSnapshot.kt",
+            "sha256": "ef84e66779ce1bf8793a1e5c01dc428d9f5181c5f456a147e5b56984075039ac"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/domain/SnapshotApplicationRule.kt",
+            "sha256": "bea04ccc3c1120548778c38d36a6f28ebf70c04411d2eaa315b79c0605b865e5"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/domain/SnapshotSchema.kt",
+            "sha256": "8596d9ad9402a8a3adbc45760734f6bda97fc1ac189845db1a80b8c480dc03e3"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/integration/EntitlementMerchantCodeAdapter.kt",
+            "sha256": "22f46107d3259cbbaca34e65a020378200bb9a1ea8195a20d2561e3e089fe4cf"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/persistence/JpaIdempotencyRecordStore.kt",
+            "sha256": "812b8236e3497d100839e05fbcc621c1c03e357ee1bde93a0918f5f47465c1d8"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/persistence/JpaIdempotencyRequestEntity.kt",
+            "sha256": "cc29b1389b97e3a78f5432141318a204063df8633d3c66946d96f29ab5a4fe98"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/persistence/MerchantWebhookBodyJson.kt",
+            "sha256": "15ad381f68466cb1cdc04e928f18c90edb7658ab7a102891d8a3b6a485b9d4c9"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/web/CreatePaymentController.kt",
+            "sha256": "53713ebc0888449ca6c1a8326f06143c38fa500857e12ce96436ba5707f7980c"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/adapter/web/GetPaymentController.kt",
+            "sha256": "c5398a5abfa2272e62090ddd817c465daf9c8f30e4c6422b61dafaab3d0c4073"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/CreatePaymentService.kt",
+            "sha256": "9a469a65623a312df5581ee20769af4cc55afd55b815e39adc8a379219853009"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/MerchantNotificationFanoutService.kt",
+            "sha256": "1918b6c2f4026d4f31f6fe1871becca3970832bd2ca7d2e35d79be975b6bee6f"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/PaymentStatusQueryService.kt",
+            "sha256": "b1abd65bb473aba85d6e44fadf28b88a51696916cc73af5fc07710d375cb6e77"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/provided/CreatePaymentResult.kt",
+            "sha256": "4affe7f7a1b11d7464afaced595f4686e993e3a4cfa7309b4dcf662c5b502baa"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/provided/PaymentStatusView.kt",
+            "sha256": "5477cf79687547f56cb3bb82918167607e5e29e11df4ceb3434a28edaee3c2fb"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/required/IdempotencyRecordStore.kt",
+            "sha256": "5fdde2007446ca378ca5820b099d9a839d2f387007845950da3f75d8292c403a"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/required/MerchantCodePort.kt",
+            "sha256": "c9555f53f2401fce63833ea7a3a2b37e906baee64e8c2f801b9d7c3aa056bf2c"
+          },
+          {
+            "path": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/required/MerchantWebhookEventStore.kt",
+            "sha256": "de850a44a74142196f199ba015400ef8ae03c7882ae2833ca8183bb0407ad137"
+          },
+          {
+            "path": "apps/payment-api/src/main/resources/db/migration/payment/V36__entitlement_head_merchant_code.sql",
+            "sha256": "09a4bfeefb0d230d33df5f5e7313951d655b45f0b973064e81beb1afcf55212d"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/PaymentApiContextSmokeSpec.kt",
+            "sha256": "c91f4b2add73a9752ff26b715c326412f0e44225d929ee908a1759acc7f17ef1"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/architecture/ArchitectureSpec.kt",
+            "sha256": "ba2ec2b0c46f13b401492125507b945284de77145dd3e714099e3b1b27d2300b"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/architecture/MerchantCodeExposureScanSpec.kt",
+            "sha256": "7bf52e700ece03c1eaeca78a007fe6af1b0875eec711a7e2c7c329877d395176"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/entitlement/DemoSeedSnapshotAdmissionSpec.kt",
+            "sha256": "9658dd6049c9f10fbea8916d5980effb154f9befcba76a0fc7992dece0b8893f"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/entitlement/EntitlementContractGoldenSpec.kt",
+            "sha256": "3b1a8d7c7ee50595ec936ac097ec9e985cce1ed819fa17780ca28134bc304518"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/entitlement/SchemaRolloutOrderV4Spec.kt",
+            "sha256": "d51c108a2a6820558294ef1b01e742573f73a02511df2f2cb1c1e0da1cc09928"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/entitlement/domain/EntitlementContentV4Spec.kt",
+            "sha256": "3411683e67ef5acf51808be597c7931cb07b903a48ae73dc88400d005f70619a"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/entitlement/domain/SnapshotFixture.kt",
+            "sha256": "5a778123761d882fc3e70c134fb54d6790e4e1c3fe34213bb05b7b8db6ef15e0"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/persistence/CheckoutWindowCheckMigrationStrategySpec.kt",
+            "sha256": "4c1f9bfefa5a8da20514d5954e78069877c9eadb4ccc46de07c0dbac0819896b"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/persistence/DatabaseAccountSeparationSpec.kt",
+            "sha256": "b48fffc7b7011c65e5a4d490aba914b2f1b1a15271999ffd3fc1c90bbf5b6776"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/persistence/MerchantWebhookBodyJsonSpec.kt",
+            "sha256": "02bd2a67c9beec74695da796a6551dcaa619e5f54674bd43b96b2debbbcd779f"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/persistence/OldVolumeStartSpec.kt",
+            "sha256": "4e74c0a1cc66813aa50fa56d56f9438a7aec774886d4e0e458cf9265bc9c9d51"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/persistence/PaymentStoreAdapterSpec.kt",
+            "sha256": "aad7e97d33cbfc4c3ba8229c9c7888ba50d9d65ed2485750e5b759abbc639cd5"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/adapter/web/CreatePaymentApiSpec.kt",
+            "sha256": "7d0054df7cff66b3277ad66469e875179163e8a9193ba086c9da94155ff2d302"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/MerchantCodeFixtures.kt",
+            "sha256": "61c95897f6aad7d03d6ff85f5f9bb7fb13047aa1175d5738362bfe2276f63388"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/MerchantNotificationFanoutDbSpec.kt",
+            "sha256": "d8c46ed8072484fc65e872b28d39cbde8d6f09ca2ad7c0b2f87d6b317476d68d"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/MerchantNotificationFanoutServiceSpec.kt",
+            "sha256": "8fa665b80ce993945c3ebd823f6b69a273e2c96628ec8f5acc58437a75e741d3"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/MerchantWebhookConsistencySpec.kt",
+            "sha256": "6e93799a0219a7cdcd7755d417d4c90a30e54525c8220833913773a9ce940255"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/MerchantWebhookDeliveryDbSpec.kt",
+            "sha256": "8758eb944dd0655c3995e88cb846d8f11f4dce1b7d1ccd0c5282ad95725e25f2"
+          },
+          {
+            "path": "apps/payment-api/src/test/kotlin/com/paycore/payment/payment/application/PaymentStatusQueryServiceSpec.kt",
+            "sha256": "b478e023bd40b45edba18c1029917663965f90b8fb6b27a5d8303cca84414a3f"
+          },
+          {
+            "path": "apps/payment-api/src/test/resources/contracts/demo-seed-snapshot-v4.golden.json",
+            "sha256": "1c7e9298aea519e8311e85cb6865a61704e9e13c42ed2733b4015aed0aad1249"
+          },
+          {
+            "path": "apps/payment-api/src/test/resources/contracts/entitlement-snapshot-v4-currency-at-execution.golden.json",
+            "sha256": "f5aa26b946be4bc530d92d833f3e5f51e78c4a2208e60e6bbecfe601f6987787"
+          },
+          {
+            "path": "apps/payment-api/src/test/resources/contracts/entitlement-snapshot-v4.golden.json",
+            "sha256": "2f406fdbeb8874d69b2985ca1d34bbdd97a949617ad56587fb6be71f4875c6d3"
+          },
+          {
+            "path": "docs/repository/CP-API-001-CREATE-PAYMENT-API.md",
+            "sha256": "92ec3c87c054f2b7c564f14d2392efb739a8f0bf6fea6e8a071a0b9f561d7d8d"
+          },
+          {
+            "path": "docs/repository/CP-CONTRACT-001-CREATE-PAYMENT.md",
+            "sha256": "a05867b9bcbc2130fe44b4f9d768db992fdc1653e62023dacd6d94fc3bd348cf"
+          },
+          {
+            "path": "docs/repository/CP-QUERY-001-PAYMENT-QUERY.md",
+            "sha256": "06a2ca3f8fdd55bb5488389f345e6074f08ac09f862fa0fcd7223e969a5d9e62"
+          },
+          {
+            "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+            "sha256": "50d27a43f62eb79d4b722c64284edae73ecf5bed3a4f8d52856fdc756932c79c"
+          },
+          {
+            "path": "docs/repository/WEBHOOK-001-MERCHANT-WEBHOOK.md",
+            "sha256": "515c33905fa1645ce305728a14a3646b300f3984630b7497731fe440196d06db"
+          },
+          {
+            "path": "harness/commands.json",
+            "sha256": "28ff5c8b71a901f25f053cf5433e98c666d5a00b3f4b9609a141844d9c684f1c"
+          },
+          {
+            "path": "harness/tests/test_demo_seed_golden.py",
+            "sha256": "6f76a4002db9a1af22f9442a8ca7b166cd3d3e836bb109ecfc6a76e788896d20"
+          },
+          {
+            "path": "harness/tests/test_entitlement_golden.py",
+            "sha256": "a395612f8e8f43380ae150e97e8baa3d79b12115e48d0e948cfe93fb0913e6b3"
+          },
+          {
+            "path": "harness/tests/test_institution_code_format.py",
+            "sha256": "c7a0d75bcbe05647260f71bc922cd875a63cd986b6965da89641f9e4c28f51b4"
+          }
+        ],
+        "deletedFiles": [
+          "apps/master-api/src/test/resources/contracts/demo-seed-snapshot-v3.golden.json",
+          "apps/master-api/src/test/resources/contracts/entitlement-snapshot-v3-currency-at-execution.golden.json",
+          "apps/master-api/src/test/resources/contracts/entitlement-snapshot-v3.golden.json",
+          "apps/payment-api/src/test/resources/contracts/demo-seed-snapshot-v3.golden.json"
+        ],
+        "sourceFingerprint": {
+          "algorithm": "sha256(정렬된 '경로\\0파일sha256\\n' 연결 + 'DELETED 경로\\n' 연결), 모든 파일 LF(CR 0건 단언)",
+          "value": "ef8744eb3d7a1445b5f006dd767cbe4a331ab3d8d259d3640e4b2a21b3ad7a65",
+          "fileCount": 71,
+          "recordedUtc": "2026-11-17T06:25Z"
+        },
+        "contracts": {
+          "snapshot": "schemaVersion 4 = v3 + 최상위 merchantCode(^[a-z][a-z0-9]{5,13}$). MASTER는 v4만 조립(현재 코드 = seq 최대), PAYMENT는 1~4 해석·v4에만 정확히 있음·형식 재확인",
+          "paymentHead": "entitlement_head.merchant_code VARCHAR(14) NULL + CHECK(NULL 또는 revision>=1·형식). APPLIED 때 내용 코드로 교체, 막힘·lease 연장은 그대로",
+          "webhook": "MerchantWebhookEnvelope.SCHEMA_VERSION 1 유지(C-36(MC-4) — WEBHOOK-001 §4.2.1 가산 규칙, V21 CHECK schema_version = 1 그대로), 봉투 최상위 merchantCode(merchantAccountId 바로 뒤) 가산, 코드 없는 MID는 키 생략. 저장된 이벤트는 그 바이트 재전송(WH-08)",
+          "api": "POST /v1/payments(201·재생)·GET /v1/payments/{id} 최상위 merchantCode — 출력 전용, 코드 없는 MID 생략, 요청 본문 merchantCode → 400 INVALID_REQUEST. 문서: CP-CONTRACT-001 v1.1·CP-QUERY-001 rev 0.4·CP-API-001 §4.5·WEBHOOK-001 rev 0.3",
+          "tx": "MASTER 코드 변경: 판정 뒤 recordEntitlementChange()·merchant update·이력(detail entitlementRevision)·Outbox·publishEntitlement 같은 로컬 TX(MID 없으면 발행 없음). PAYMENT 코드 조회는 호출자 TX 참여 또는 짧은 읽기 전용 TX(MerchantCodeService REQUIRED readOnly), 잠금 없음",
+          "alert": "paycore.payment.entitlement.merchant_code_changed_with_mid(label 없음) — 커밋된 APPLIED가 기존 코드를 다른 코드로 바꾸거나 없앨 때(code → null 포함, MINOR-1), ERROR 로그 kind=REPLACED|REMOVED(코드 값 없음)",
+          "keys": "멱등 키·주문 키·요청 지문·금액·상태 불변. create 응답 코드는 생성 결과와 같은 TX에 idempotency_request.result_merchant_code로 저장, 재생은 저장값만(C-37(MC-4) — D-CP-003). GET은 조회 시점 값. 코드는 요청 지문·Payment 행에 없음"
+        },
+        "red": [
+          {
+            "log": "~/gate-logs/mcode-mc4/red-harness-golden.log",
+            "command": "python3 -B -m unittest harness.tests.test_entitlement_golden harness.tests.test_demo_seed_golden",
+            "result": "exit=1, Ran 14, failures=2(MASTER v3 golden 존재) errors=3(v4·v4 변형·demo seed v4 파일 없음)",
+            "utc": "2026-11-17T01:59:55Z"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc4/red-payment-compile.log",
+            "command": "./gradlew :apps:payment-api:test --tests …EntitlementContentV4Spec",
+            "result": "exit=1 compileTestKotlin 실패 — MerchantCodePort·merchantCode·MERCHANT_CODE_SNAPSHOT_SCHEMA_VERSION 없음(컴파일 RED: 새 계약 표면)",
+            "utc": "2026-11-17T02:10:06Z"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc4/red-master-compile.log",
+            "command": "./gradlew :apps:master-api:test --tests …EntitlementSnapshotSpec",
+            "result": "exit=1 compileTestKotlin 실패 — EntitlementSnapshot.merchantCode 없음(컴파일 RED)"
+          }
+        ],
+        "green": [
+          {
+            "log": "~/gate-logs/mcode-mc4/green-master-1.log",
+            "module": "master-api",
+            "tests": "EntitlementSnapshotSpec 14·EntitlementContractGoldenSpec 5·MerchantCodeSnapshotSpec 6·DemoSeedSnapshotGoldenSpec 1",
+            "result": "exit=0, 26 tests, 0 failures/errors/skipped"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc4/green-payment-unit.log",
+            "module": "payment-api",
+            "tests": "entitlement.domain.* 8클래스 59(EntitlementContentV4Spec 6 포함)·EntitlementContractGoldenSpec 7·MerchantWebhookBodyJsonSpec 19·MerchantNotificationFanoutServiceSpec 13·PaymentStatusQueryServiceSpec 7·MerchantCodeExposureScanSpec 3·ArchitectureSpec 50",
+            "result": "exit=0, 158 tests, 0 failures/errors/skipped"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc4/green-payment-db1.log",
+            "module": "payment-api",
+            "tests": "SchemaRolloutOrderV4Spec 4·SchemaRolloutOrderV3Spec 2·DemoSeedSnapshotAdmissionSpec 1·EntitlementInboxSpec 15·PaymentApiContextSmokeSpec 5(V36 이력 포함)",
+            "result": "exit=0, 27 tests, 0 failures/errors/skipped"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc4/green-harness-selftest.log",
+            "command": "python3 -B -m unittest discover -s harness/tests -v",
+            "result": "exit=0, Ran 206, OK(skip 없음) — 203 → 206"
+          }
+        ],
+        "notRun": {
+          "reason": "reviewFix1에서 모두 실행 — 남은 미실행 없음(모듈 전체 시험·GRADLE-CHECK·Demo는 Coordinator 게이트)",
+          "tests": []
+        },
+        "mutations": {
+          "file": "~/gate-logs/mcode-mc4/muts.json",
+          "results": [
+            {
+              "id": "M1-webhook-code-missing",
+              "mutation": "웹훅 본문 직렬화에서 merchantCode 키 기록 제거(e.merchantCode?.let 줄 삭제)",
+              "red": true,
+              "restored": true,
+              "sha256": "f8e44e84fd10b6533856434f180a5daa9cb91fef17bfcd2b865138d472e8315d",
+              "failedCases": [
+                "Then: a MID with a code carries it right after merchantAccountId (exact bytes); every other byte equals the code-less body"
+              ]
+            },
+            {
+              "id": "M2",
+              "mutation": "MASTER 변경 명령의 merchant.recordEntitlementChange() 제거(MerchantOnboardingService.changeMerchantCodeWithEvidence)",
+              "file": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantOnboardingService.kt",
+              "red": true,
+              "restored": true,
+              "sha256": "60c1283014cc81080a7b759725796b6e875e613566078ef6b314e7187030122e",
+              "gradle": "start=2026-11-17T06:13:36Z end=2026-11-17T06:14:33Z exit=1",
+              "failedCases": [
+                "com.paycore.master.merchant.application.MerchantCodeSnapshotSpec :: Then: one MASTER local TX raises entitlement_revision by one and records it in the change history; no snapshot is issued (no MID)"
+              ],
+              "log": "scratchpad/mut-M2.log"
+            },
+            {
+              "id": "M3",
+              "mutation": "EntitlementLeaseService 승격 분기를 항상 거짓으로(조건 끝에 && latest.schemaVersion < 0 — 같은 revision 갱신 발행으로 감). 첫 시도 `false &&`는 smart cast 컴파일 오류라 무효 처리 후 재실행",
+              "file": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/EntitlementLeaseService.kt",
+              "red": true,
+              "restored": true,
+              "sha256": "b7902537e28aa763cbd7130724938fe5e55a527b2414586c3fe4641d43b02bdb",
+              "gradle": "start=2026-11-17T06:15:01Z end=2026-11-17T06:15:54Z exit=1",
+              "failedCases": [
+                "com.paycore.master.merchant.application.MerchantCodeSnapshotSpec :: Then: the lease renewal promotes it to v4 with revision + 1, leaseSeq 0, HIGH; no v4 issue at the old revision; one schema_version per (merchant, revision)"
+              ],
+              "log": "scratchpad/mut-M3.log"
+            },
+            {
+              "id": "M4",
+              "mutation": "CreatePaymentService.present의 merchantCode = result.merchantCode → merchantCodes.merchantCodeOf(...) (재생도 응답 시점 조회)",
+              "file": "apps/payment-api/src/main/kotlin/com/paycore/payment/payment/application/CreatePaymentService.kt",
+              "red": true,
+              "restored": true,
+              "sha256": "9a469a65623a312df5581ee20769af4cc55afd55b815e39adc8a379219853009",
+              "gradle": "start=2026-11-17T06:16:00Z end=2026-11-17T06:17:19Z exit=1",
+              "failedCases": [
+                "com.paycore.payment.payment.adapter.web.CreatePaymentApiSpec :: Then: created on a code-less (v3) head → the v4 promotion gives the MID a code → the same-key replay is byte-identical and still has no merchantCode",
+                "com.paycore.payment.payment.adapter.web.CreatePaymentApiSpec :: Then: created on a coded head → the replay returns the stored code as is (even if the head later holds another code — Invalid Fixture)"
+              ],
+              "log": "scratchpad/mut-M4.log"
+            },
+            {
+              "id": "M5",
+              "mutation": "SnapshotApplicationRule 경보 조건에 content.merchantCode != null 추가(코드 소실 제외)",
+              "file": "apps/payment-api/src/main/kotlin/com/paycore/payment/entitlement/domain/SnapshotApplicationRule.kt",
+              "red": true,
+              "restored": true,
+              "sha256": "bea04ccc3c1120548778c38d36a6f28ebf70c04411d2eaa315b79c0605b865e5",
+              "gradle": "start=2026-11-17T06:17:25Z end=2026-11-17T06:18:36Z exit=1",
+              "failedCases": [
+                "com.paycore.payment.entitlement.domain.EntitlementContentV4Spec :: MC-4-4 (review MINOR-1): a code that disappears at a higher revision (v4 head → v3 snapshot) applies but is flagged like a change (same alert counter)",
+                "com.paycore.payment.entitlement.SchemaRolloutOrderV4Spec :: Then: it applies (normal update, the head carries the new code) and merchant_code_changed_with_mid is incremented once; a same-code revision is not counted"
+              ],
+              "log": "scratchpad/mut-M5.log"
+            }
+          ],
+          "pending": []
+        },
+        "expectedValueChanges": [
+          "SnapshotFixture.UNSUPPORTED_SCHEMA_VERSION 4 → 5(§6 — PAYMENT v4 해석)",
+          "EntitlementSnapshotSpec·MASTER EntitlementContractGoldenSpec ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION 3 → 4, golden v3 → v4(§6·MC-4)",
+          "DemoSeedSnapshotGoldenSpec·DemoSeedSnapshotAdmissionSpec demo-seed-snapshot-v3 → v4(seed 코드 demoshop01, revision 12 그대로)",
+          "migration 이력 목록 …35 → …35,36·크기 36 → 37(PaymentApiContextSmokeSpec·CheckoutWindowCheckMigrationStrategySpec·OldVolumeStartSpec·DatabaseAccountSeparationSpec)",
+          "harness test_entitlement_golden: v3·v3 변형은 PAYMENT만(MASTER v3 파일 부재 단언 추가), v4·v4 변형 두 앱 + 시험 3개 추가",
+          "harness test_demo_seed_golden: v4 파일·merchantCode·seed 상수 단언 추가",
+          "harness test_institution_code_format: 권리 golden 대상 (payment v2, v3, master v3) → (payment v2, v3, v4, master v4)",
+          "harness/commands.json HARNESS-SELFTEST minTests 203 → 206(test_module_registry가 하한 = harness 시험 수를 강제 — 새 시험 3개, 완화 아님)",
+          "ArchitectureSpec: 캐시 금지 대상에 EntitlementMerchantCodeAdapter 추가 + MerchantCodePort 구현 위치 규칙 새 시험(확장)",
+          "MerchantWebhookBodyJsonSpec: schemaVersion 1 → 2 기대값 변경을 되돌림(C-36(MC-4) — 기존 기대값 1 유지), 봉투·GET 키 집합에 merchantCode 추가(가산)"
+        ],
+        "specDeviations": [
+          "PAYMENT migration 번호 V35 → V36(rev 0.4.11 정정)",
+          "demo-seed-snapshot golden도 v4로 대체(명세 §6은 entitlement-snapshot-v3*만 언급 — rev 0.4.11 errata ③)",
+          "MASTER 시험 자원의 v3 golden·v3 변형 삭제 → v4·v4 변형(v1·v2 선례)",
+          "코드 조회는 head 비잠금 읽기, 막힌 head여도 마지막 적용 코드 표시(판정은 막힘을 그대로 따름)",
+          "(rev 0.4.12 정정) 웹훅 schemaVersion 1 유지·merchantCode 가산(C-36(MC-4)) — 이전 1 → 2 기록 폐기",
+          "(rev 0.4.12 정정) create 응답 코드는 멱등 결과에 저장·재생은 저장값만(C-37(MC-4)) — 이전 \"응답 시점 조회\" 기록 폐기"
+        ],
+        "principles": {
+          "FinancialConsistency": "금액·권리 의미 불변 — v4 = v3 + 표시값(EntitlementContentV4Spec: 코드 제거 시 v3와 동일, golden v4−merchantCode = v3), Payment Domain·요청 지문에 코드 없음(MerchantCodeExposureScanSpec). 외부에 나간 코드 불변(MC-4-4): MID 있는 가맹점 변경 = LOCKED, MID 발급은 승인 사실 없이 REVISION_NOT_APPROVED(MerchantCodeSnapshotSpec)",
+          "TransactionSafety": "MASTER 변경 명령의 revision +1·이력·Outbox·Snapshot 발행이 한 로컬 TX(거절 시 revision 불변), PAYMENT head 코드 갱신은 Inbox 적용 TX 안. 외부 호출 추가 없음",
+          "Idempotency": "변경 명령 재전송 재생은 revision을 다시 올리지 않음(MerchantCodeSnapshotSpec), create 재생 바이트 동일(CreatePaymentApiSpec — 미실행), 멱등 지문 불변",
+          "ConcurrencyControl": "승격·변경은 기존 merchant 행 잠금 아래, PAYMENT 적용은 head FOR UPDATE, 코드 조회는 잠금 없음(판정 아님)",
+          "Recoverability": "역순 배포 = VERSION_UNSUPPORTED fail-closed, 정순 = 승격 APPLIED(SchemaRolloutOrderV4Spec), 같은 revision 재발행 = INTEGRITY_CONFLICT(대조), 기존 행 NULL로 시작해 승격이 채움",
+          "Reconciliation": "(merchant, revision)별 schema_version 하나·옛 revision v4 발행 0건(MC-4-5), 이력 detail entitlementRevision으로 변경·승인 순서 교차 확인",
+          "Auditability": "변경 이력 detail에 entitlementRevision, Snapshot issue 표 append-only 승격 기록, 막힌 head 사유 보존",
+          "Observability": "merchant_code_changed_with_mid 카운터(label 없음)·ERROR 로그(코드 값 없음), 승격 지표 SCHEMA_PROMOTIONS 기존 그대로"
+        },
+        "technology": {
+          "JPA": "JpaEntitlementHeadEntity.merchantCode — 일반 갱신 열(head는 적용마다 상태를 바꾸는 투영이라 updatable=false가 아님). 예: v4 APPLIED → 변경 감지가 @Version과 함께 같은 UPDATE에 merchant_code를 싣는다. 주의: 판정 head는 FOR SHARE/UPDATE로 읽고, 표시용 findHead는 EntityManager.find 비잠금 — 같은 TX 영속성 컨텍스트 값이 나올 수 있으나 코드는 MID 뒤 불변이라 안전. 순수 Domain(EntitlementHead·Content)과 JPA Entity는 분리 유지(toHead 매핑)",
+          "jOOQ": "변경 없음 — 결제 조회(GET)는 기존 jOOQ PaymentStatusReader 그대로, 코드는 권리 모듈 provided 조회(MerchantCodeQuery)로 따로 붙인다(모듈 간 직접 SQL 없음)",
+          "KafkaRedis": "도입하지 않음 — 코드 일관성은 MASTER UNIQUE·잠금·revision과 PAYMENT 무결성 규칙이 지킨다. 캐시는 코드 불변식을 대신하지 않으며 entitlement 캐시 금지 규칙에 새 adapter도 포함",
+          "BOM": "의존성 변경 없음(빌드 파일 무수정)"
+        },
+        "frontend": "변경 없음 — 관리자 화면 변화 불필요(코드는 MC-2·MC-3에서 이미 표시)",
+        "lfCheck": "grep -rlI $'\\r' apps/*/src docs/repository harness(build·node_modules 제외) = 1건 harness/EVIDENCE-TEMPLATE.json — 이번 작업 무변경 기존 파일(git 수정 없음). 변경 파일 CR 0건",
+        "allowedWritePathsNote": "reviewFix1(2026-11-17): Coordinator 지시로 allowedWritePaths에 apps/payment-api/src/**·harness/tests/**·harness/commands.json·계약 문서 4개 추가",
+        "review": {
+          "reviewer": "paycore-reviewer (2026-11-17) — REVIEW_FAIL",
+          "findings": {
+            "BLOCKER-1": "웹훅 schemaVersion 2가 V21 CHECK schema_version = 1과 충돌 — 모든 웹훅 이벤트 INSERT 3819 실패",
+            "MAJOR-1": "create 재생이 응답 시점 코드 조회 — v3 head에서 만든 결과가 승격 뒤 재생 바이트가 바뀜(D-CP-003 위반)",
+            "MINOR-1": "코드 소실(code → null)이 경보·지표에서 빠짐",
+            "MINOR-2": "운영 adapter 경유 웹훅 DB 시험 없음, 전환 구간 명세 없음",
+            "MINOR-3": "errata ①~⑥이 변경 이력 bullet 안에 있음, 외부 계약 문서 미갱신",
+            "MINOR-4": "DB 시험 미실행·변이 M2·M3 미실행",
+            "NIT-1": "SchemaRolloutOrderV4Spec 회복 단언 없음",
+            "NIT-2": "V36 CHECK DB 시험 없음",
+            "NIT-3": "MID 뒤 코드 불변 보장 수단(backstop) 명세 줄 없음"
+          }
+        },
+        "reviewFix1": {
+          "implementer": "paycore-implementer (2026-11-17, 두 세션 — 이전 수정 세션이 Batch 3 도중 중단, 이 세션이 이어서 완료) — 자기 완료 판정 아님, 커밋·스테이징 없음",
+          "coordinatorDecisions": [
+            "C-36(MC-4) 웹훅 schemaVersion 1 유지·merchantCode 가산",
+            "C-37(MC-4) create 재생은 저장된 생성 결과의 코드만"
+          ],
+          "fixes": {
+            "BLOCKER-1": "MerchantWebhookEnvelope.SCHEMA_VERSION 1 유지, merchantCode 가산(V21 무변경). 시험 MerchantWebhookDeliveryDbSpec C-36 묶음(운영 adapter fan-out·저장/수신 바이트·schema_version 1)",
+            "MAJOR-1": "StoredRequestResult.Succeeded.merchantCode(형식 require) + JpaIdempotencyRequestEntity.resultMerchantCode + V36 문장 (3) idempotency_request.result_merchant_code INSTANT. CreatePaymentService.withMerchantCode가 생성 TX에서 저장, present는 저장값만. 시험 CreatePaymentApiSpec C-37 3건",
+            "MINOR-1": "SnapshotApplicationRule merchantCodeChanged = head 코드 있음 && 내용 코드와 다름(null 포함), EntitlementInboxService ERROR 로그 kind=REPLACED|REMOVED. 시험 EntitlementContentV4Spec·SchemaRolloutOrderV4Spec",
+            "MINOR-2": "MerchantWebhookDeliveryDbSpec C-36 묶음(EntitlementMerchantCodeAdapter 실제 bean 단언) + 명세 §6 전환 구간 줄",
+            "MINOR-3": "명세 §6.1 errata 절(①·⑥ 정정), rev 0.4.12, WEBHOOK-001 rev 0.3·CP-CONTRACT-001 v1.1·CP-QUERY-001 rev 0.4·CP-API-001 §4.5",
+            "MINOR-4": "DB 시험 전부 실행(아래 tests), 변이 M2~M5 RED 확인·복원. 실행 중 회귀 1건 발견·수정: JpaMerchantRepository.update가 revision 변경(+1)과 FORCE_INCREMENT(+1)를 겹쳐 version +2 → 열 변경 없을 때만 강제 증가",
+            "NIT-1": "SchemaRolloutOrderV4Spec 막힘 → 같은 revision v4 재처리 → APPLIED·host/승인 회복·코드 노출",
+            "NIT-2": "SchemaRolloutOrderV4Spec V36 CHECK runtime 계정 3819 표 + SQL 문장별 ALGORITHM 고정",
+            "NIT-3": "명세 §6 MID 뒤 코드 불변 보장 수단 줄(MASTER 1차 방어선·PAYMENT 경보는 사후 backstop)"
+          },
+          "tests": [
+            {
+              "batch": "pA payment entitlement",
+              "result": "exit=0, 33 tests(EntitlementContractGoldenSpec 7·DemoSeedSnapshotAdmissionSpec 1·SchemaRolloutOrderV3Spec 2·SchemaRolloutOrderV4Spec 7·EntitlementContentV4Spec 7·SnapshotApplicationRuleSpec 9), 0 fail/err/skip",
+              "utc": "2026-11-17T05:56:15Z~05:57:49Z"
+            },
+            {
+              "batch": "pB payment web/app DB",
+              "result": "exit=0, 140 tests(CreatePaymentApiSpec 33·MerchantWebhookDeliveryDbSpec 17·MerchantNotificationFanoutDbSpec 15·MerchantNotificationFanoutServiceSpec 13·MerchantWebhookBodyJsonSpec 19·PaymentStoreAdapterSpec 17·GetPaymentApiSpec 10·PaymentStatusQueryServiceSpec 7·MerchantWebhookConsistencySpec 6·MerchantCodeExposureScanSpec 3), 0 fail/err/skip",
+              "utc": "2026-11-17T05:58:22Z~06:03:05Z"
+            },
+            {
+              "batch": "pC payment migration/architecture",
+              "result": "exit=0, 97 tests(ArchitectureSpec 50·DatabaseAccountSeparationSpec 17·EntitlementInboxSpec 15·CheckoutWindowCheckMigrationStrategySpec 6·PaymentApiContextSmokeSpec 5·OldVolumeStartSpec 4), 0 fail/err/skip",
+              "utc": "2026-11-17T06:03:16Z~06:07:41Z"
+            },
+            {
+              "batch": "mD master 회귀(첫 실행)",
+              "result": "exit=1, 65 tests, 1 failure — MerchantCodeChangeApprovalSpec MC-1b-3 version 기대 +1, 실제 +2(MC-4 회귀)",
+              "utc": "2026-11-17T06:07:50Z~06:10:01Z"
+            },
+            {
+              "batch": "mD2 master 회귀(JpaMerchantRepository 수정 뒤)",
+              "result": "exit=0, 65 tests(MerchantAuthorizationTermsServiceSpec 21·EntitlementSnapshotSpec 14·MerchantCodeChangeApprovalSpec 10·MerchantCodeSnapshotSpec 6·MerchantCodeChangeConcurrencySpec 6·EntitlementContractGoldenSpec 5·MerchantCodeChangeApiSpec 2·DemoSeedSnapshotGoldenSpec 1), 0 fail/err/skip",
+              "utc": "2026-11-17T06:10:56Z~06:13:28Z"
+            },
+            {
+              "batch": "변이 뒤 복원 확인",
+              "result": "payment exit=0 47 tests(SchemaRolloutOrderV4Spec 7·EntitlementContentV4Spec 7·CreatePaymentApiSpec 33), master exit=0 16 tests(MerchantCodeChangeApprovalSpec 10·MerchantCodeSnapshotSpec 6)",
+              "utc": "2026-11-17T06:18:47Z~06:21:27Z"
+            },
+            {
+              "batch": "HARNESS-SELFTEST",
+              "command": "python3 -B -m unittest discover -s harness/tests",
+              "result": "exit=0, Ran 206, OK(skip 없음) — harness/tests 이번 수정 없음",
+              "utc": "2026-11-17T06:21Z"
+            }
+          ],
+          "mutations": "mutations.results M2~M5 — 모두 RED·복원(sha256 일치)",
+          "lfCheck": "변경·신규 파일 75개(사용자 파일 제외) grep -lI $'\\r' = 0건",
+          "technology": {
+            "JPA": "JpaIdempotencyRequestEntity.resultMerchantCode — 일반 열(PENDING → 결과 한 번 쓰기, 만료 갱신 때만 NULL로 되돌림 — 다른 result_* 열과 같은 수명). 예: 생성 TX의 complete가 같은 관리 Entity에 결과와 코드를 함께 바꿔 한 UPDATE로 커밋. 주의: 재생은 이 열만 읽고 권리 투영을 다시 조회하지 않는다. JpaMerchantRepository: @Version 변경 감지와 PESSIMISTIC_FORCE_INCREMENT를 한 flush에 겹치면 version이 두 번 오른다 → 열 변경 없을 때만 강제 증가. 순수 Domain(StoredRequestResult·EntitlementHead)과 JPA Entity 분리 유지",
+            "jOOQ": "변경 없음 — GET은 기존 PaymentStatusReader, 코드는 provided MerchantCodeQuery",
+            "KafkaRedis": "도입하지 않음 — 재생 일관성은 PAYMENT 소유 DB의 같은 로컬 TX 저장, 캐시 없음",
+            "BOM": "의존성·빌드 파일 변경 없음"
+          },
+          "openIssues": [
+            "모듈 전체 시험·GRADLE-CHECK·VERIFY-GATE·Demo는 미실행(Coordinator 게이트 — 전체 모듈 실행은 OOM 위험으로 금지 지시)",
+            "WEBHOOK-001·CP-* 문서 갱신 내용은 Reviewer 확인 필요(계약 문서 표현)"
+          ]
+        },
+        "review2": {
+          "verdict": "REVIEW_PASS 조건부(2026-11-17, reviewFix1 이후) — BLOCKER 0 MAJOR 0; 이전 BLOCKER-1·MAJOR-1·MINOR-1~4·NIT-1~3 코드·시험으로 해결 확인; JpaMerchantRepository 강제 증가 조건 변경은 동시성 약화 없음(호출 경로 모두 merchants.lock 선행, 증가는 항상 +1)",
+          "conditions": "fingerprint·명세 sha Verifier 대조, GRADLE-CHECK·VERIFY-GATE 실행",
+          "newFindings": [
+            "MINOR-A 구 PAYMENT 바이너리 롤백 중 만료 키 갱신이 result_merchant_code를 남겨 재생 바이트 차이 가능 → Coordinator: 명세 L-14에 V36 이후 roll-forward만(구 바이너리 롤백 금지) 명시(rev 0.4.12 안 추가, 코드 변경 없음)",
+            "NIT-A JpaMerchantRepository 강제 증가 분기 조건이 entitlementRevision 열 하나에 묶임 → 후속",
+            "NIT-B StoredRequestResult.Succeeded.merchantCode 기본값 null → 후속(선택)"
+          ]
+        }
+      },
+      "mc4Status": "DONE(MC4-gate1) — 재리뷰 REVIEW_PASS 조건부(MINOR-A 명세 L-14 roll-forward 반영, NIT-A·B 후속)"
     },
     {
       "id": "MERCHANT-BIZ-LOOKUP-001",

@@ -41,7 +41,7 @@ class EntitlementInboxService(
     private val log = LoggerFactory.getLogger(EntitlementInboxService::class.java)
 
     override fun receive(envelope: InboundSnapshotEnvelope): ReceiveResult {
-        val result = try {
+        val (result, merchantCodeChanged) = try {
             transactions.execute(::isRetryable) { once(envelope) }
         } catch (e: EntitlementCommitOutcomeUnknownException) {
             throw ReceiveFailure("commit outcome unknown", e)
@@ -76,18 +76,29 @@ class EntitlementInboxService(
                 log.error("entitlement snapshot eventId reused with a different body eventId={} merchantId={}", EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId))
             }
         }
+        if (merchantCodeChanged) {
+            // MERCHANT-CODE-001 §6: 커밋된 적용에서만 센다(재시도·rollback된 시도는 세지 않는다). 코드 값은 로그·label에 넣지 않는다.
+            // 리뷰 MINOR-1: 다른 코드로 바뀜(REPLACED)과 사라짐(REMOVED — v4 head 뒤 v3 Snapshot)은 같은 카운터, 로그 kind로만 구분한다.
+            metrics.merchantCodeChangedWithMid()
+            log.error(
+                "merchant code changed for a merchant with a MID kind={} eventId={} merchantId={} revision={} (applied — an issued code must never change, check MASTER)",
+                if (s.content?.merchantCode == null) "REMOVED" else "REPLACED",
+                EntitlementLogValues.safe(s.eventId), EntitlementLogValues.safe(s.merchantId), s.revision,
+            )
+        }
         return result
     }
 
-    private fun once(envelope: InboundSnapshotEnvelope): ReceiveResult {
+    /** 한 TX의 결과와 그 TX가 적용한 "MID 있는 가맹점 코드 변경" 여부(경보는 커밋 뒤에만 — [receive]). */
+    private fun once(envelope: InboundSnapshotEnvelope): Pair<ReceiveResult, Boolean> {
         val s = envelope.snapshot
         val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
         val head = store.lockHeadForUpdate(s.merchantId)
         store.findInbox(CONSUMER, s.eventId)?.let { stored ->
             return if (stored.payloadSha256 == envelope.rawSha256) {
-                ReceiveResult.Stored(CONSUMER, InboxOutcome.DUPLICATE, head.revision, stored.outcome)
+                ReceiveResult.Stored(CONSUMER, InboxOutcome.DUPLICATE, head.revision, stored.outcome) to false
             } else {
-                ReceiveResult.EventIdConflict
+                ReceiveResult.EventIdConflict to false
             }
         }
         val decision = SnapshotApplicationRule.decide(head, s)
@@ -104,7 +115,7 @@ class EntitlementInboxService(
             store.recordMidOwners(s.merchantId, content.accounts.map { it.mid }, now)
         }
         decision.newHead?.let { store.updateHead(it, now) }
-        return ReceiveResult.Stored(CONSUMER, decision.outcome, after.revision)
+        return ReceiveResult.Stored(CONSUMER, decision.outcome, after.revision) to decision.merchantCodeChanged
     }
 
     private fun isRetryable(e: RuntimeException): Boolean =

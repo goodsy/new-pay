@@ -8,6 +8,7 @@ import com.paycore.payment.payment.adapter.persistence.DbAccess
 import com.paycore.payment.payment.adapter.persistence.JpaOrderPaymentControlRepository
 import com.paycore.payment.payment.adapter.persistence.JpaPaymentRepository
 import com.paycore.payment.payment.application.EligibilityCall
+import com.paycore.payment.payment.application.MerchantCodeProjection
 import com.paycore.payment.payment.application.RecordingEligibilityPort
 import com.paycore.payment.payment.application.provided.EligibilityUnavailableReason
 import com.paycore.payment.payment.application.provided.NotEligibleReason
@@ -100,6 +101,107 @@ class CreatePaymentApiSpec(
             event["payload"].toString() shouldNotContain body.get("paymentKey").stringValue()
             event["payload"].toString() shouldNotContain "주문명"
             event["causation_id"] shouldBe s.scalar("SELECT request_record_id FROM idempotency_request WHERE result_payment_id = ?", paymentId)
+        }
+    }
+
+    /** MERCHANT-CODE-001 MC-4-2 시험 준비: [mid]의 권리 투영 head(코드 [code], null이면 v3 head) — [MerchantCodeProjection]. */
+    fun projectMerchantCode(mid: String, code: String?): String = MerchantCodeProjection.project(db, mid, code)
+
+    Given("MERCHANT-CODE-001 MC-4-2: merchantCode is an output-only field of the create and query responses") {
+        Then("a MID with a code: 201 and the replay carry merchantCode, GET carries it; no internal key (mer_/biz_) in any body; amount/state/keys unchanged") {
+            val cred = TestCredentials.issue(db)
+            val merchantId = projectMerchantCode(cred.mid, "demoshop01")
+            val orderId = s.newOrderId()
+            val key = s.newKey()
+            val created = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            created.status shouldBe 201
+            val body = s.json(created.body)
+            // 기대값 확장(MERCHANT-CODE-001 §6): CP-01 고정 schema + merchantCode(코드 있는 MID만). 나머지 키·값 의미는 그대로.
+            body.properties().map { it.key }.toSet() shouldBe
+                setOf("paymentId", "paymentKey", "outcome", "lifecycleAtCreation", "paymentCreatedAt", "merchantOrderId", "amount", "currency", "merchantCode")
+            body.get("merchantCode").stringValue() shouldBe "demoshop01"
+            body.get("amount").longValue() shouldBe 10_000L
+            body.get("outcome").stringValue() shouldBe "CREATED"
+            val replay = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            replay.status shouldBe 200
+            replay.body shouldBe created.body
+            val paymentId = body.get("paymentId").stringValue()
+            val get = api.get("/v1/payments/$paymentId", cred.key)
+            get.status shouldBe 200
+            s.json(get.body).get("merchantCode").stringValue() shouldBe "demoshop01"
+            listOf(created.body, replay.body, get.body).forEach { text ->
+                text shouldNotContain "mer_"
+                text shouldNotContain "biz_"
+                text shouldNotContain merchantId
+            }
+        }
+        Then("a MID without a code: the field is omitted (not null) in the create and query responses") {
+            val cred = TestCredentials.issue(db)
+            val created = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId()), s.newKey())
+            created.status shouldBe 201
+            s.json(created.body).has("merchantCode") shouldBe false
+            val get = api.get("/v1/payments/${s.json(created.body).get("paymentId").stringValue()}", cred.key)
+            get.status shouldBe 200
+            s.json(get.body).has("merchantCode") shouldBe false
+        }
+        Then("Q-MC-8 output only: a request body carrying merchantCode is an unknown field → 400 INVALID_REQUEST and nothing is stored") {
+            val cred = TestCredentials.issue(db)
+            projectMerchantCode(cred.mid, "demoshop02")
+            val valid = CreatePaymentRequests.valid(mid = cred.mid, orderId = s.newOrderId())
+            listOf("demoshop02", "othershop01").forEach { code ->
+                val r = post(cred, valid.dropLast(1) + ",\"merchantCode\":\"$code\"}", s.newKey())
+                withClue(code) {
+                    r.status shouldBe 400
+                    s.json(r.body).get("error").get("code").stringValue() shouldBe "INVALID_REQUEST"
+                }
+            }
+            s.rows(cred.mid) shouldBe s.rows(payment = 0, control = 0, idempotency = 0, outbox = 0)
+        }
+    }
+
+    // C-37(MC-4 — D-CP-003 "저장된 생성 결과만", Q-CP-RESULT): create 재생 응답의 merchantCode는 생성 때 멱등 결과와 함께 저장한 값이다(응답 시점 조회 아님).
+    Given("MERCHANT-CODE-001 C-37: the create replay uses only the stored creation result for merchantCode") {
+        Then("created on a code-less (v3) head → the v4 promotion gives the MID a code → the same-key replay is byte-identical and still has no merchantCode") {
+            val cred = TestCredentials.issue(db)
+            val merchantId = projectMerchantCode(cred.mid, null)
+            val orderId = s.newOrderId()
+            val key = s.newKey()
+            val created = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            created.status shouldBe 201
+            s.json(created.body).has("merchantCode") shouldBe false
+            MerchantCodeProjection.promote(db, merchantId, "promoshop01")
+            val replay = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            replay.status shouldBe 200
+            replay.header("Idempotent-Replayed") shouldBe "true"
+            replay.body shouldBe created.body
+            s.json(replay.body).has("merchantCode") shouldBe false
+            // GET은 현재 조회(코드 있음) — 생성 결과는 생성 시점 값이다(D-CP-003).
+            val get = api.get("/v1/payments/${s.json(created.body).get("paymentId").stringValue()}", cred.key)
+            s.json(get.body).get("merchantCode").stringValue() shouldBe "promoshop01"
+        }
+        Then("created on a coded head → the replay returns the stored code as is (even if the head later holds another code — Invalid Fixture)") {
+            val cred = TestCredentials.issue(db)
+            val merchantId = projectMerchantCode(cred.mid, "firstshop01")
+            val orderId = s.newOrderId()
+            val key = s.newKey()
+            val created = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            created.status shouldBe 201
+            s.json(created.body).get("merchantCode").stringValue() shouldBe "firstshop01"
+            MerchantCodeProjection.promote(db, merchantId, "secondshop01")
+            val replay = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), key)
+            replay.status shouldBe 200
+            replay.body shouldBe created.body
+            s.json(replay.body).get("merchantCode").stringValue() shouldBe "firstshop01"
+        }
+        Then("EXISTING_ACTIVE_PAYMENT (another key, same order) answers with the code read at that request") {
+            val cred = TestCredentials.issue(db)
+            projectMerchantCode(cred.mid, "reuseshop01")
+            val orderId = s.newOrderId()
+            post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey()).status shouldBe 201
+            val reused = post(cred, CreatePaymentRequests.valid(mid = cred.mid, orderId = orderId), s.newKey())
+            reused.status shouldBe 200
+            s.json(reused.body).get("outcome").stringValue() shouldBe "EXISTING_ACTIVE_PAYMENT"
+            s.json(reused.body).get("merchantCode").stringValue() shouldBe "reuseshop01"
         }
     }
 

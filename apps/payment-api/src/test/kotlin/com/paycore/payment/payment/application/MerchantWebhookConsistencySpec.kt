@@ -131,7 +131,7 @@ class MerchantWebhookConsistencySpec(
         override val claimLease: Duration = Duration.ofSeconds(60)
         override val attemptBudget: Duration = Duration.ofSeconds(9)
     }
-    val fanout = MerchantNotificationFanoutService(transactionManager, fanoutStore, eventStore, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock)
+    val fanout = MerchantNotificationFanoutService(transactionManager, fanoutStore, eventStore, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock, NO_MERCHANT_CODE)
     fun delivery(maxAttempts: Int) =
         MerchantWebhookDeliveryService(transactionManager, deliveries, attempts, eventStore, directory, keys, HmacMerchantWebhookSigner(), sender, timings(maxAttempts), clock)
 

@@ -7,6 +7,8 @@
 - 시계: MASTER 시험 기본 시각 2026-10-09T02:00:00.000Z(11:00 KST), T0 = 다음 Seoul 자정 2026-10-09T15:00:00.000Z. PRIMARY 연결 효력 시작 = MID 발급 시각(소급 금지 D-MD-005).
 - revision 12(코드 분석): 업무 입력을 바꾸는 단계 03·05(MID 전 — 발행 없음)·07~12·15~18(발행 10건)이 각각 entitlement revision +1. 01·02·04·06·13·14는 revision 무관.
 - PAYMENT `DemoSeedSnapshotAdmissionSpec`이 같은 파일을 실제 Inbox로 적용해 T0−1ms 거절·T0 허용을 확인한다(I-10).
+- MERCHANT-CODE-001 MC-4: MASTER가 v4(v3 + 최상위 `merchantCode`)만 조립하므로 최신 Snapshot golden도 schemaVersion 4(`demo-seed-snapshot-v4`, seed 코드 `demoshop01`
+  — MERCHANT-CODE-001 C-6)로 대체했다. revision은 그대로(seed는 코드를 바꾸지 않는다).
 
 앱 사이 정적 정합(파일로만 읽는다 — Gradle 의존 없음):
 - seed 카드사 개통 매입사 = Simulator 가상 카드 카탈로그(VirtualCard.kt)의 매입사(전 카드 같은 값) — 하드코딩 drift 방지.
@@ -25,7 +27,8 @@ from collections import OrderedDict
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-NAME = "demo-seed-snapshot-v3.golden.json"
+# 기대값 변경(MERCHANT-CODE-001 §6·MC-4): v3 → v4 파일(MASTER v4 조립).
+NAME = "demo-seed-snapshot-v4.golden.json"
 TARGETS = [os.path.join(ROOT, "apps", app, "src", "test", "resources", "contracts", NAME) for app in ("master-api", "payment-api")]
 
 # §4.2 Demo 값(운영값 아님).
@@ -40,6 +43,8 @@ SETTLEMENT_CODE = "DEMO-SETTLEMENT"
 ISSUED_AT = "2026-10-09T02:00:00.000Z"
 T0 = "2026-10-09T15:00:00.000Z"
 REVISION = 12
+# MERCHANT-CODE-001 C-6 seed 고정 코드(Demo — 운영값 아님).
+MERCHANT_CODE = "demoshop01"
 
 
 def read(*parts):
@@ -93,15 +98,17 @@ def content():
         "party": {"businessLifecycle": "ACTIVE", "merchantLifecycle": "ACTIVE", "businessBlocked": False, "merchantBlocked": False},
         "sites": [{"siteId": i["siteId"], "lifecycle": "ACTIVE", "reviewStatus": "APPROVED", "channel": {"type": "WEB", "host": SITE_HOST}}],
         "accounts": [account],
+        "merchantCode": MERCHANT_CODE,
     }
 
 
 def golden_text():
     content_canonical = canon(content())
     golden = OrderedDict([
-        ("description", "DEMO-SEED-001 latest entitlement snapshot after the 18-step Demo merchant seed (schemaVersion 3; Demo values, NOT operational — "
-                        "D-DEMO-001/003). Generated independently of both apps from spec §4.2 literals and the §10 canonical rules of MASTER-SNAPSHOT-001."),
-        ("schemaVersion", 3), ("issuedAt", ISSUED_AT), ("effectiveFrom", T0), ("revision", REVISION),
+        ("description", "DEMO-SEED-001 latest entitlement snapshot after the 18-step Demo merchant seed (schemaVersion 4 — MERCHANT-CODE-001 MC-4 merchantCode; "
+                        "Demo values, NOT operational — D-DEMO-001/003). Generated independently of both apps from spec §4.2 literals and the §10 canonical rules "
+                        "of MASTER-SNAPSHOT-001."),
+        ("schemaVersion", 4), ("issuedAt", ISSUED_AT), ("effectiveFrom", T0), ("revision", REVISION),
     ])
     golden.update(ids())
     golden.update([
@@ -138,6 +145,7 @@ class DemoSeedGoldenTest(unittest.TestCase):
         self.assertEqual(re.findall(r"dailyLimit = LimitValue\.Limited\(([0-9_]+)\)", SEED_VALUES), ["5_000_000"])
         self.assertEqual(re.findall(r'feePolicyCode = PolicyCode\("([^"]*)"\)', SEED_VALUES), [FEE_CODE])
         self.assertEqual(re.findall(r'settlementPolicyCode = PolicyCode\("([^"]*)"\)', SEED_VALUES), [SETTLEMENT_CODE])
+        self.assertEqual(re.findall(r'merchantCode = MerchantCode\("([^"]*)"\)', SEED_VALUES), [MERCHANT_CODE])
 
     def test_seed_acquirer_is_the_simulator_catalog_acquirer(self):
         cards = {ref: acquirer for ref, _issuer, acquirer, _provider in CARD_ENTRY.findall(CATALOG)}

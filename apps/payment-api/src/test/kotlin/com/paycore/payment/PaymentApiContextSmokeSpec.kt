@@ -42,7 +42,8 @@ class PaymentApiContextSmokeSpec(
             listOf("classpath:db/migration/payment", "classpath:db/runtime-privilege/payment")
         flyway.info().pending().size shouldBe 0
         // 기대값 변경(ADMIN-HOME-KPI-001 V35 색인 migration 추가): … "34" → … "34", "35".
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35")
+        // 기대값 변경(MERCHANT-CODE-001 MC-4 V36 entitlement_head.merchant_code migration 추가): … "35" → … "35", "36".
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "8", "8.1", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36")
         flyway.info().applied().map { it.installedBy }.toSet() shouldBe setOf(PaymentDbAccounts.PAYMENT_MIGRATION_USER)
     }
 

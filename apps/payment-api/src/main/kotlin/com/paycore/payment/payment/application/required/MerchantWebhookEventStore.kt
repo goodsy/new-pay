@@ -9,8 +9,10 @@ import com.paycore.payment.payment.domain.PaymentId
 import java.time.Instant
 
 /**
- * 가맹점 Webhook 봉투 v1(WEBHOOK-001 §4.2.0 rev 0.2). [createdAt]은 가맹점 이벤트를 만든 시각(fan-out — 업무 시각 아님, WH-21). [sequence]는 그 Payment의 가맹점 이벤트 연속 순번.
+ * 가맹점 Webhook 봉투(WEBHOOK-001 §4.2.0 rev 0.2). [createdAt]은 가맹점 이벤트를 만든 시각(fan-out — 업무 시각 아님, WH-21). [sequence]는 그 Payment의 가맹점 이벤트 연속 순번.
  * 직렬화(바이트 고정)는 persistence adapter 책임이다(WH-08).
+ * [merchantCode](MERCHANT-CODE-001 §6, C-36(MC-4)): 그 MID 가맹점 코드 — 출력 전용 **가산 필드**, 코드 없는 MID는 null → 키 생략. schemaVersion은 1 그대로다
+ * (WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전" — V21 CHECK `schema_version = 1`). 이미 저장된 이벤트의 바이트는 그대로 재전송한다(WH-08).
  */
 data class MerchantWebhookEnvelope(
     val eventId: MerchantWebhookEventId,
@@ -23,6 +25,7 @@ data class MerchantWebhookEnvelope(
     val merchantOrderId: MerchantOrderId,
     val payment: NotifiedPayment,
     val facts: MerchantNotificationFacts,
+    val merchantCode: String? = null,
 ) {
     val schemaVersion: Int get() = SCHEMA_VERSION
 

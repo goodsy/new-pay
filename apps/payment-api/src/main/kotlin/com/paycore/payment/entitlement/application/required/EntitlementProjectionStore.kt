@@ -50,6 +50,12 @@ interface EntitlementProjectionStore {
 
     fun findMidOwner(mid: String): String?
 
+    /**
+     * 잠그지 않는 head 읽기(MERCHANT-CODE-001 MC-4 — 가맹점 코드 출력 전용 조회). 판정·적용에는 쓰지 않는다(판정은 [lockHeadForShare], 적용은 [lockHeadForUpdate]).
+     * 없으면 null.
+     */
+    fun findHead(merchantId: String): EntitlementHead?
+
     /** 잠근 head를 [head]로 바꾼다(revision은 줄지 않는다). */
     fun updateHead(head: EntitlementHead, appliedAt: Instant)
 }

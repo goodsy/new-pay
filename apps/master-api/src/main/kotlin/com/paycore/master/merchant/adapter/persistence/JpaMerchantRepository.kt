@@ -56,9 +56,12 @@ class JpaMerchantRepository(private val entityManager: EntityManager) : Merchant
         val appended = now.drop(stored.size)
         appended.forEach { entityManager.persist(MasterPersistenceMapper.codeAssignmentRow(merchant.id, it)) }
         // 변경 감지: 관리되는 Entity의 필드만 바꾸면 flush 때 `UPDATE … WHERE version = ?`가 나간다(save 불필요).
+        val revisionChanged = row.entitlementRevision != merchant.entitlementRevision
         row.entitlementRevision = merchant.entitlementRevision
         // 자식 행만 늘어도 merchant version을 올린다(같은 가맹점의 다른 쓰기와 직렬화 증거 — §3.7.3, JpaContractRepository와 같은 방식).
-        if (appended.isNotEmpty()) entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)
+        // MERCHANT-CODE-001 MC-4(리뷰 수정 1 — MINOR-4 DB 시험에서 발견): 코드 변경이 같은 TX에서 entitlement_revision도 올리면 그 변경 감지 UPDATE가 이미 version + 1을 한다.
+        // 그때 FORCE_INCREMENT를 더하면 version이 +2가 된다(MC-1b-3 "merchant version +1" 위반) → 열 변경이 없을 때만 강제 증가한다(어느 경우든 정확히 +1).
+        if (appended.isNotEmpty() && !revisionChanged) entityManager.lock(row, LockModeType.PESSIMISTIC_FORCE_INCREMENT)
         entityManager.flush()
         checkNotNull(row.version)
     }

@@ -106,4 +106,38 @@ class EntitlementContractGoldenSpec : FunSpec({
         val currency = content.accounts.single().currencies.single()
         listOf(currency.currency, currency.period.from.toString(), currency.period.to) shouldBe listOf("KRW", "2026-10-09T02:00:07.123Z", null)
     }
+
+    // MERCHANT-CODE-001 MC-4-1: schemaVersion 4 golden(MASTER 시험 자원과 같은 파일, harness 독립 생성) — v3 + 최상위 merchantCode(출력 전용 표시값). 값은 Demo.
+    val v4 = mapper.readTree(ClassPathResource("contracts/entitlement-snapshot-v4.golden.json").inputStream)
+    fun g4(name: String): String = v4.get(name).stringValue()
+    val body4 = g4("envelopeBody").toByteArray()
+
+    test("MC-4-1: the v4 golden envelope verifies, declares schemaVersion 4, and PAYMENT re-derives its canonical content and hash including the merchant code") {
+        val settings = EntitlementInboxSettings(listOf(EntitlementInboxSettings.SigningKey(g4("signingKeyId"), g4("signingKeyBase64"))))
+        EntitlementSignature.verify(settings, g4("signatureHeader"), body4) shouldBe true
+        val envelope = mapper.readTree(body4)
+        envelope.get("schemaVersion").intValue() shouldBe 4
+        val payload = WebJsonTree.toJsonValue(envelope.get("payload"))
+        val content = EntitlementContent.fromJson(payload, 4, allowLeaseFields = true)
+        listOf(content.canonical, content.contentHash, content.schemaVersion, content.merchantCode) shouldBe
+            listOf(g4("contentCanonical"), g4("contentHash"), 4, g4("merchantCode"))
+        // v4 = v3 + merchantCode: 코드를 빼면 v3 golden 내용과 같다(권리 의미 불변).
+        content.copy(schemaVersion = 3, merchantCode = null).canonical shouldBe g3("contentCanonical")
+        // v3 해석기로는 v4 내용을 받지 않는다(모르는 필드 거절 — 배포 순서: PAYMENT v4 해석 먼저, MS2 §5.4).
+        runCatching { EntitlementContent.fromJson(payload, 3, allowLeaseFields = true) }.exceptionOrNull()!!::class shouldBe SnapshotContractViolation::class
+    }
+
+    val atExecution4 = mapper.readTree(ClassPathResource("contracts/entitlement-snapshot-v4-currency-at-execution.golden.json").inputStream)
+    fun ga4(name: String): String = atExecution4.get(name).stringValue()
+
+    test("MC-4-1: the AT_EXECUTION currency-segment v4 golden verifies and PAYMENT re-derives its canonical content and hash") {
+        val bodyA4 = ga4("envelopeBody").toByteArray()
+        val settings = EntitlementInboxSettings(listOf(EntitlementInboxSettings.SigningKey(ga4("signingKeyId"), ga4("signingKeyBase64"))))
+        EntitlementSignature.verify(settings, ga4("signatureHeader"), bodyA4) shouldBe true
+        val envelope = mapper.readTree(bodyA4)
+        envelope.get("schemaVersion").intValue() shouldBe 4
+        val content = EntitlementContent.fromJson(WebJsonTree.toJsonValue(envelope.get("payload")), 4, allowLeaseFields = true)
+        listOf(content.canonical, content.contentHash, content.snapshotVersion, content.merchantCode) shouldBe
+            listOf(ga4("contentCanonical"), ga4("contentHash"), "es1:${ga4("merchantId")}:8", g4("merchantCode"))
+    }
 })

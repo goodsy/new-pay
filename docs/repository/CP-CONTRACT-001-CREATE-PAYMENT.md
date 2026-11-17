@@ -1,4 +1,7 @@
-# CP-CONTRACT-001 CreatePayment 확정 계약 v1.0
+# CP-CONTRACT-001 CreatePayment 확정 계약 v1.1
+
+> **v1.1(2026-11-17, MERCHANT-CODE-001 MC-4 — D-MCODE-001 Q-MC-1·D-MCODE-002 Q-MC-8, Coordinator 결정 C-37(MC-4), 업무 규칙 변경 없음)**: 응답(§5)에 출력 전용 가산 필드 `merchantCode`(사람이 읽는 가맹점 코드).
+> 요청 schema(§3)·고정 입력·OrderIntentFingerprint·멱등 요청 지문은 그대로다(요청 본문의 `merchantCode`는 §3.1 "알 수 없는 필드" → 400). 재생은 D-CP-003 "저장된 최초 결과만" 그대로 — 코드도 생성 결과와 함께 저장한 값이다(MERCHANT-CODE-001 §6.1⑥).
 
 작성 2026-10-06 KST. 기술 초안 `docs/baseline/PAYCORE-CREATE-PAYMENT-IMPLEMENTATION-CONTRACT-v0.1.md`(이하 "초안")를 사용자 결정으로 확정한 판이다. 초안의 업무 규칙은 바꾸지 않았다. 변경점은 §15.
 
@@ -78,6 +81,7 @@ merchantOrderId·멱등키 형식(D-CPC-002)은 domain 값 객체(`MerchantOrder
 | lifecycleAtCreation | string | Payment 생성 당시 상태. 항상 `REQUESTED` |
 | paymentCreatedAt | string(ISO-8601 UTC, ms) | Payment 생성 시각(서버 clock) |
 | merchantOrderId, amount, currency | | 요청 확인용 echo(가맹점 자신의 값, 민감정보 아님) |
+| merchantCode | string(선택, v1.1 가산) | 인증 MID 가맹점의 사람이 읽는 코드(MERCHANT-CODE-001 §6 — 출력 전용). 그 요청 때 PAYMENT 권리 투영에 코드가 있을 때만 있고 없으면 **키 생략**(null 아님). 생성 결과와 같은 TX로 멱등 기록에 저장되며 재생은 그 저장값만 쓴다(응답 시점 재조회 없음 — D-CP-003). Payment 값·판정 입력이 아니다 |
 
 - 같은 멱등키·같은 내용 재요청은 **최초 결과를 그대로**(같은 paymentId·outcome·시각) 반환하고 HTTP 200 + 헤더 `Idempotent-Replayed: true`(관례).
 - 응답에 **현재 상태를 넣지 않는다**. 현재 상태(AUTHORIZING/UNKNOWN/AUTHORIZED 등)는 GetPayment 조회 API로만 제공한다(D-CP-003). 생성 결과는 기관 성공을 뜻하지 않는다.

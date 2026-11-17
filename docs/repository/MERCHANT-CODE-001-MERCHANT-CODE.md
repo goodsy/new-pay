@@ -1,5 +1,13 @@
-# MERCHANT-CODE-001 사람이 읽는 가맹점 코드(토스식) 명세 (rev 0.4.10)
+# MERCHANT-CODE-001 사람이 읽는 가맹점 코드(토스식) 명세 (rev 0.4.12)
 
+- **rev 0.4.12** (2026-11-17, Implementer — MC-4 독립 리뷰 REVIEW_FAIL 반영, Coordinator 결정 **C-36(MC-4)·C-37(MC-4)** 적용 — 기존 사용자 결정(WEBHOOK-001 계약·D-CP-003)을 따르는 가역 구현 결정, 새 정책 없음, 자기 완료 판정 아님):
+  ① **웹훅 schemaVersion 1 유지**(C-36(MC-4)) — `merchantCode`는 가산 필드(WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전"). §6 표의 "schemaVersion 올림"은 계약과 충돌한 표기라 정정(V21 CHECK `schema_version = 1` 때문에 모든 웹훅 INSERT가 3819로 실패하던 BLOCKER-1 해소 — 큰 표 COPY migration 불필요).
+  ② **create 재생은 저장된 생성 결과의 코드만**(C-37(MC-4), D-CP-003 "저장된 생성 결과만" — Q-CP-RESULT): 생성 시점 코드를 멱등 결과 행(`idempotency_request.result_merchant_code`, PAYMENT V36 문장 (3) `ALGORITHM=INSTANT`)에 같은 TX로 저장하고 재생은 그 값만 쓴다(재생 경로 코드 조회 없음). MC-4 이전·코드 없던 기록은 생략.
+  ③ 경보 `merchant_code_changed_with_mid`가 코드 **소실**(code → null)도 같은 카운터로 센다(MINOR-1 — 근거 §6). ④ §6에 전환 구간 동작(MINOR-2)·불변 보장 수단(NIT-3) 한 줄씩. ⑤ rev 0.4.11 변경 이력 안의 설계 errata ①~⑥을 **§6.1**로 옮기고 ①·⑥의 잘못된 전제를 정정. ⑥ L-14에 PAYMENT V36 운영 적용 창. ⑦ §8 MC-4-7·8·9, 변이 M4·M5, §10 C-36(MC-4)·C-37(MC-4). 외부 계약 문서 갱신: WEBHOOK-001 rev 0.3, CP-CONTRACT-001 v1.1, CP-QUERY-001 rev 0.4, CP-API-001(§4.5 한 줄).
+  ⑧ MINOR-4 DB 시험 실행에서 회귀 1건 발견·수정: 코드 변경이 같은 TX에서 `entitlement_revision`도 올리자 `JpaMerchantRepository.update`의 변경 감지 UPDATE(+1)와 `PESSIMISTIC_FORCE_INCREMENT`(+1)가 겹쳐 merchant version이 +2(MC-1b-3 "version +1" 위반 — `MerchantCodeChangeApprovalSpec` RED) → 열 변경이 없을 때만 강제 증가(기대값 변경 없음).
+
+- **rev 0.4.11** (2026-11-17, Implementer — MC-4 착수 — PAYMENT migration 번호 정정(V35는 ADMIN-HOME-KPI-001 사용), 정책 변경 없음): §1.4 L77·L81, §6, §7 MC-4의 "PAYMENT V35" → **PAYMENT V36**(HEAD `80f6f96` 파일 목록 — schema 최신 `V35__payment_transaction_confirmed_index.sql`, privilege 최신 `V34`). `entitlement_head` 표 단위 `SELECT, INSERT, UPDATE`(`runtime-privilege/payment/V4…sql:8`) 재확인 → privilege migration 불필요 그대로.
+  **저장소 대조 errata ①~⑥**(구현 전 기록)은 rev 0.4.12에서 **§6.1 MC-4 착수 errata**로 옮겼다(①·⑥은 그곳에서 정정 — C-36(MC-4)·C-37(MC-4)).
 - **rev 0.4.10** (2026-11-17, Implementer — MC-3b 리뷰 errata — 정책 변경 없음): §5.6.3 ② 시험 설정 예시 999 → 600(C-35 범위 1..600과 맞춤 — `lookup-per-minute` 1000과 다른 값이라 두 창 독립 시험 의도 유지), §8 MC-3-17 ArchUnit 문구 "라벨 controller" → "라벨 controller 뒤 Use Case(MerchantTargetLabelUseCase→Service→client)".
 - **rev 0.4.9** (2026-11-17, Implementer — MC-3a 리뷰 반영 — 기존 확정 §5.1·C-32의 적용 목록 보완, 새 정책 아님. 문서만 — 정책·기대값·수용 기준 변경 없음, 자기 완료 판정 아님): §8 MC-3-20 Kotlin 목록에 "§5.1·C-32 저장값의 직접 결과"·"조회 조건 변경(기대값 그대로)" 두 범주, §5.6.4 회복 무결성 보고 줄 번호 정정(Payment L101·109 / 매입 L169·175 — 네 곳 모두 helper 경유), `OperatorCancelJustificationService` L80 분류 정정(가맹점 승인 근거 조회 감사 = 승인 행 표기 + `mer_`), MC-3-22 변이 배치 구분 한 줄.
 - **rev 0.4.8** (2026-11-17, Implementer — rev 0.4.7 재리뷰 **REVIEW_PASS(조건부)**, MAJOR 0 — MINOR-1·NIT-1 반영. 명세만 — 코드·migration·빌드·커밋 없음, 정책·기대값 완화 없음, 자기 완료 판정 아님).
@@ -74,11 +82,11 @@
 - **MASTER**: 최신 schema `V11__admin_approval_evidence_b3_operations.sql`, privilege `V10`, **V12 비움**(MERCHANT-OPS-002 C-42 — 이후 V12 추가 금지, outOfOrder 없음) → MC-1 **V13(schema)·V14(privilege)**.
   `ChangeMerchantCode` operation CHECK 값도 MC-1의 V13에 넣는다(**C-20** — C-42 선례: 앱은 MC-1b 전까지 그 operation 경로를 만들지 않는다) → MC-1b는 MASTER migration 없음.
 - **ADMIN**: 최신 schema `V11__merchant_ops_activation_approval.sql`, privilege `V10`, V12 비움 → **MC-1b = V13**(종류·대상·명령 종류 CHECK, `target_merchant_id`, 미해결 키 — `admin_approval_request`는 표 단위 `INSERT`라 새 열 권한 불필요 → **V14 비움**), **MC-3 = V15**(가맹점 대상 `target_ref` CHECK에 코드 허용 — V16 비움).
-- **PAYMENT**: 최신 `V34__outbox_publish_status_privileges.sql`(V33 `financial_fact_relay_privileges` — rev 0.1의 "V33"은 이미 쓰인 번호) → MC-4 **V35(schema)**. `entitlement_head` 권한은 표 단위 `SELECT, INSERT, UPDATE`(`runtime-privilege/payment/V4__entitlement_runtime_privileges.sql:8`) → **privilege migration 불필요**.
+- **PAYMENT**: 최신 `V34__outbox_publish_status_privileges.sql`(V33 `financial_fact_relay_privileges` — rev 0.1의 "V33"은 이미 쓰인 번호) → MC-4 ~~V35~~ **V36(schema)**(rev 0.4.11 정정 — V35는 ADMIN-HOME-KPI-001 사용). `entitlement_head` 권한은 표 단위 `SELECT, INSERT, UPDATE`(`runtime-privilege/payment/V4__entitlement_runtime_privileges.sql:8`) → **privilege migration 불필요**.
 - 다른 배치(MERCHANT-OPS-002 B3-3a·B3-3 — migration 없음 §8.4·§9.29)가 먼저 번호를 쓰면 착수 시 다시 확인한다(MERCHANT-OPS-002 C-21 관례 — 홀수 schema·짝수 privilege, 빈 번호 뒤 추가 금지).
 - **rev 0.4.6 재확인(HEAD `146b2ba`, 2026-11-17 — 파일 목록 기준)**: ADMIN schema `V1·V3·V5·V7·V9·V11·V13`(최신 `V13__merchant_code_change_approval.sql`), privilege `V2·V4·V6·V8·V10`, **V12·V14 비어 있음, V15·V16 미사용** → **MC-3a = ADMIN V15**(schema), **V16 비움**(`admin_approval_request`·`admin_audit_event` 모두 표 단위 `SELECT, INSERT` — `V2__admin_runtime_privileges.sql:10`, 새 열 권한 불필요).
   가맹점 대상 CHECK의 **현재 정의는 V13**(`V13…sql:17-33`, L33 `^mer_` — V11:28-33은 V13이 이미 재생성) → V15는 V13 정의를 그대로 옮기며 가맹점 분기 정규식만 넓힌다.
-  MASTER: 최신 schema `V13__merchant_code_assignment.sql`·privilege `V14` — **MC-3 MASTER migration 없음**(라벨 읽기는 기존 `merchant`·`merchant_code_assignment` SELECT). PAYMENT: TXN-LIST-ENRICH-001 §13 기록대로 V35는 ADMIN-HOME-KPI-001이 사용 → MC-4 번호는 MC-4 착수 때 재확인(이번 rev 범위 밖).
+  MASTER: 최신 schema `V13__merchant_code_assignment.sql`·privilege `V14` — **MC-3 MASTER migration 없음**(라벨 읽기는 기존 `merchant`·`merchant_code_assignment` SELECT). PAYMENT: TXN-LIST-ENRICH-001 §13 기록대로 V35는 ADMIN-HOME-KPI-001이 사용 → **MC-4 = PAYMENT V36**(rev 0.4.11 MC-4 착수 재확인 — HEAD `80f6f96`, privilege migration 불필요).
 
 ### 1.5 배포 경계·재실행·충돌 분류의 현재 동작(rev 0.4 추가 — 리뷰 MAJOR-1·2, m-4·m-5 근거)
 - **ADMIN 응답 모양은 키 집합 정확 일치**: `MasterResponseShape.Obj.read`가 `node.propertyNames().toSet() == fields.keys`를 요구한다(`MasterResponseShape.kt:15-20`, L18). 목록·검색 공용 `DIRECTORY`(L78-87), 상세 `DETAIL`(L184-250).
@@ -453,19 +461,37 @@ ADMIN migration: MC-1b **V13**(위 새 열·생성 열 재작성 — V11과 같�
 ## 6. 외부 노출(Q-MC-8 — 출력 전용)
 | 지점 | 필드 | 비고 |
 |---|---|---|
-| 웹훅(WEBHOOK-001) | `merchantCode` | schemaVersion 올림·호환 시험 |
-| 결제 생성·조회 응답 | `merchantCode` | 출력만. 요청 본문의 `merchantCode`는 모르는 필드(기존 엄격 해석 — 400) |
+| 웹훅(WEBHOOK-001) | `merchantCode` | ~~schemaVersion 올림~~ **가산 필드 — schemaVersion 1 유지**(rev 0.4.12 C-36(MC-4), WEBHOOK-001 rev 0.3)·호환 시험(저장 이벤트 바이트 그대로 재전송) |
+| 결제 생성·조회 응답 | `merchantCode` | 출력만. 요청 본문의 `merchantCode`는 모르는 필드(기존 엄격 해석 — 400). 생성 응답 재생 = 생성 때 저장한 값만(C-37(MC-4) — D-CP-003), 조회 = 조회 시점 값(CP-CONTRACT-001 v1.1·CP-QUERY-001 rev 0.4) |
 | 정산서(SETTLEMENT-001) | 코드 열 | 수용 기준만, 경로 C-8 |
 | 내부 유지 | `mer_`·`biz_`·Snapshot 키 | 외부 본문 0건 시험 |
 | Simulator/REAL | 없음 | 기관 전송 0건 시험 |
 
 - **외부에 나간 코드는 바뀌지 않는다**: 외부 노출은 MID가 있어야 생긴다(결제·웹훅·정산 모두 MID 단위) → 첫 MID는 승인된 Revision이 있어야 발급(`Contract.issuingBasis` `Contract.kt:96-99` — `REVISION_NOT_APPROVED`) → 그 시점부터 코드는 불변(§3.7.1). 따라서 가맹점 연동 측이 받은 코드가 바뀌는 경우는 없다(시험 MC-4-4).
-- PAYMENT 경로: Snapshot v4(+`merchantCode` — 지금 v3, golden `entitlement-snapshot-v3*.golden.json` 두 앱) → `entitlement_head.merchant_code`(**PAYMENT V35** NULL 허용, 권한 변경 없음 §1.4) → 웹훅·응답. 코드 없는 MID는 필드 생략.
+- PAYMENT 경로: Snapshot v4(+`merchantCode` — 지금 v3, golden `entitlement-snapshot-v3*.golden.json` 두 앱) → `entitlement_head.merchant_code`(**PAYMENT V36** NULL 허용, 권한 변경 없음 §1.4) → 웹훅·응답. 코드 없는 MID는 필드 생략.
 - **v3 → v4 승격(리뷰 m-4)**: 기존 승격 규칙 그대로 — lease 갱신 때 최근 issue의 schema_version(3) < 4이면 갱신이 아니라 **승격 발행**(같은 merchant 잠금 TX에서 `entitlement_revision + 1`, leaseSeq 0, HIGH — MASTER-SNAPSHOT-002 §5.2, AUTHN-001 §9.2, `EntitlementLeaseService` 경로).
   **같은 revision을 v4 내용으로 재발행하지 않는다** — PAYMENT `SnapshotApplicationRule.kt:40-42`가 같은 revision·다른 contentHash를 `INTEGRITY_CONFLICT`로 막아 head를 차단한다(코드 필드가 생기면 contentHash가 바뀐다).
-  배포 순서(MASTER-SNAPSHOT-002 §5.4): ① PAYMENT(v1~v4 해석 + V35) 먼저 ② MASTER(v4 조립·승격). 역순이면 PAYMENT가 v4를 `VERSION_UNSUPPORTED`로 받아 head가 막힌다(fail-closed이나 가용성 사고) → MC-4 시험 `SchemaRolloutOrderV4Spec`.
+  배포 순서(MASTER-SNAPSHOT-002 §5.4): ① PAYMENT(v1~v4 해석 + V36) 먼저 ② MASTER(v4 조립·승격). 역순이면 PAYMENT가 v4를 `VERSION_UNSUPPORTED`로 받아 head가 막힌다(fail-closed이나 가용성 사고) → MC-4 시험 `SchemaRolloutOrderV4Spec`.
 - 변경 명령은 MC-4 뒤 `recordEntitlementChange()`·Snapshot 발행(같은 TX — 다른 코드를 같은 revision으로 내보내지 않는다, MERCHANT-OPS-002 review M-2 원칙). 같은 revision·다른 코드는 기존 무결성 규칙대로 `INTEGRITY_CONFLICT`.
   revision이 오르며 코드가 바뀐 Snapshot은 정상 갱신이지만, 그 가맹점에 MID가 있으면 불가능한 상태 → PAYMENT 경보 지표(`merchant_code_changed_with_mid`).
+  **(rev 0.4.12 — 리뷰 MINOR-1)** 코드 **소실**(코드 있던 head → 더 높은 revision의 코드 없는 Snapshot, 예: MASTER 되돌림으로 v3 발행)도 같은 카운터로 센다 — 가맹점 쪽에서는 이미 받은 코드가 응답·웹훅에서 사라지는 것이라 "나간 코드의 변경"과 같은 불변식 위반이다.
+  지표는 label 없음 계약(§9 Observability)이라 사유 label을 두지 않고 ERROR 로그 `kind=REPLACED|REMOVED`로만 구분한다. 커밋된 적용에서만 센다(재시도·rollback 시도 제외). 코드가 처음 생기는 승격(null → 코드)은 변경이 아니다(시험 MC-4-9).
+- **전환 구간(rev 0.4.12 — 리뷰 MINOR-2)**: PAYMENT V36 배포 직후부터 MASTER v4 승격 발행이 각 가맹점에 적용될 때까지 기존 head는 `merchant_code` NULL(v3 head)이다 — 그 동안 만든 생성 응답·웹훅 이벤트·조회 응답은 `merchantCode` 키를 **생략**한다(오류·지연 아님, 판정 영향 없음).
+  승격(revision + 1)이 APPLIED되면 그 뒤 만든 응답·이벤트부터 코드가 붙는다. 이미 저장된 웹훅 이벤트는 코드 없이 그 바이트 그대로 재전송되고(WH-08), 전환 구간에 만든 생성 결과의 재생도 코드 없이 그대로다(C-37(MC-4) — D-CP-003). GET은 조회 시점 값이라 승격 뒤 코드가 보인다.
+  가맹점 안내: 같은 MID라도 승격 전후 이벤트의 `merchantCode` 유무가 다를 수 있다 — 연동 측은 이 필드를 선택 필드로 다뤄야 한다(시험 `MerchantWebhookDeliveryDbSpec` C-36 묶음·`CreatePaymentApiSpec` C-37 묶음).
+- **MID 뒤 코드 불변의 보장 수단(rev 0.4.12 — 리뷰 NIT-3)**: 1차 방어선은 MASTER — 코드 변경은 그 가맹점 대상 계약 승인 사실이 없을 때만(merchant 행 잠금 뒤 판정, `LOCKED` 거절 — §3.7.3), 배정 표 PK(seq)로 1회 한도, MID 발급은 승인된 Revision 필요(§3.7.1).
+  PAYMENT의 `merchant_code_changed_with_mid` 경보는 **사후 탐지 backstop**일 뿐 차단이 아니다(정상 적용 — Snapshot은 전체 상태이고 head를 막으면 결제 가용성 사고가 된다). 경보가 오르면 MASTER 배정 이력·감사로 원인을 대사한다(Reconciliation 수동 절차, 자동 보정 없음).
+
+### 6.1 MC-4 착수 errata(rev 0.4.11 저장소 대조 — rev 0.4.12에서 변경 이력 bullet로부터 옮김, ①·⑥ 정정)
+
+구현 전 기록이다(금융·보안·키·상태·기관 확정성 의미의 새 미결 없음). 정정은 취소선 뒤에 적는다(원문 보존).
+
+- ① ~~웹훅 schemaVersion 체계 = 봉투 `schemaVersion` 정수(현재 1, `MerchantWebhookEnvelope.SCHEMA_VERSION`) → MC-4는 **1 → 2**(v1 + 봉투 최상위 `merchantCode`, 코드 없는 MID는 키 생략 — 나머지 키·순서·값 불변, 저장된 v1 이벤트는 그 바이트 그대로 재전송), 위치는 `merchantAccountId` 바로 뒤(GET ⊇ Webhook 규칙: GET 최상위에도 `merchantCode`)~~ → **정정(rev 0.4.12, C-36(MC-4))**: 웹훅 봉투 `schemaVersion`(`MerchantWebhookEnvelope.SCHEMA_VERSION`)은 **1 그대로**다. `merchantCode`는 가산 필드(WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전")로 봉투 최상위 `merchantAccountId` 바로 뒤에 두고, 코드 없는 MID는 키를 생략한다(나머지 키·순서·값 불변, 저장된 이벤트는 그 바이트 그대로 재전송 — WH-08). GET 최상위에도 `merchantCode`(GET ⊇ Webhook). 원래 기록의 "1 → 2"는 V21 CHECK(`schema_version = 1`)와 충돌해 모든 웹훅 INSERT가 3819로 실패했다(리뷰 BLOCKER-1 — 시험 `MerchantWebhookDeliveryDbSpec` C-36 묶음·`MerchantWebhookBodyJsonSpec`).
+- ② Snapshot 현재 버전 = v3 확인(MASTER `ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION = 3`, PAYMENT 지원 {1,2,3}) — §6 서술과 같음.
+- ③ golden 위치: §6의 `entitlement-snapshot-v3*.golden.json` 두 앱 외에 **`demo-seed-snapshot-v3.golden.json`(두 앱, `harness/tests/test_demo_seed_golden.py`)**도 MASTER 최신 Snapshot이라 v4로 바뀐다 → `demo-seed-snapshot-v4.golden.json`(seed 코드 `demoshop01`, revision 12 그대로)으로 대체. MASTER는 v4만 조립하므로 v1·v2 선례대로 **MASTER 시험 자원의 v3 golden·v3 변형(currency-at-execution)은 v4 golden·v4 변형으로 대체**, PAYMENT는 v3·v3 변형을 남기고 v4·v4 변형을 더한다.
+- ④ PAYMENT 시험 상수 `SnapshotFixture.UNSUPPORTED_SCHEMA_VERSION`(해석 못 하는 첫 버전)은 4 → 5.
+- ⑤ 경보 지표 Micrometer 이름 `paycore.payment.entitlement.merchant_code_changed_with_mid`(label 없음 — 끝 토큰 = 명세 이름).
+- ⑥ ~~결제 생성·조회 응답의 코드는 응답 시점 조회(멱등 기록·요청 지문에 넣지 않음 — 코드는 MID 발급 뒤 불변이라 재생 바이트 동일)~~ → **정정(rev 0.4.12, C-37(MC-4) — D-CP-003 "저장된 생성 결과만", Q-CP-RESULT)**: 전제가 틀렸다. MID가 있어도 v3 head(코드 없음) 시점에 만든 생성 결과는 v4 승격(revision + 1) 뒤 코드가 생기므로, 응답 시점 조회는 같은 키 재생의 바이트를 바꾼다(D-CP-003 위반, 리뷰 MAJOR-1). 생성 시점 코드를 멱등 결과 행 `idempotency_request.result_merchant_code`(PAYMENT V36 문장 (3))에 결과와 같은 TX로 저장하고, 재생은 그 저장값만 쓴다(재생 경로 코드 조회 없음 → 조회 오류 503 경로도 없음). MC-4 이전·코드 없던 기록은 NULL → 재생도 생략. GET은 현재 조회(승격 뒤 코드 있음). Payment Domain·요청 지문(`RequestFingerprints`)에는 넣지 않는다(시험 `CreatePaymentApiSpec` C-37 묶음·`MerchantCodeExposureScanSpec`).
 
 ## 7. 배치(전달 순서 = Demo 순서, C-16)
 - **MC-1 MASTER 모델·등록 + ADMIN 최소 연결(한 배포 단위 — C-22, 리뷰 MAJOR-1)**: MASTER V13(배정 표·해시 채우기 + 근거 operation CHECK `ChangeMerchantCode` — C-20)·V14(권한), `MerchantCode`·`MerchantCodeAssignment`, 거절 `MERCHANT_CODE_RESERVED`·`MERCHANT_CODE_TAKEN`, 1062 분류, 등록 지문, 조회·코드 검색(은퇴 포함)·이력·Outbox, seed `demoshop01`·seed 성공 기록 선확인(C-23)
@@ -496,7 +522,7 @@ ADMIN migration: MC-1b **V13**(위 새 열·생성 열 재작성 — V11과 같�
   - **MC-3b 라벨 읽기(MASTER + ADMIN, migration 없음)**: MASTER `POST /internal/v1/admin/merchant-labels`(라벨 permit 공유), ADMIN `MasterLabelGateway.merchantLabels`·`MasterResponseShape.MERCHANT_LABELS`·`MerchantLabelClient.merchantLabels`·`POST /api/merchant-labels`·지표·라벨 분당 창 설정(rev 0.4.8 — §5.6.3 설정 위치 ①~③ 전부), golden(`merchant-ops-response-shapes-v1.golden.json`에 `merchantLabels` 표본 — MASTER 원본·ADMIN 사본 바이트 동일). 배포 순서: MASTER 먼저(ADMIN만 먼저 올라가면 MASTER 404 → UNAVAILABLE — 화면은 "—", 목록 영향 없음, fail-safe).
   - **MC-3c 화면(ADMIN frontend만)**: `lib/merchantTarget.ts`(§5.6.2 규칙 순수 함수)·`adminApi.merchantLabels`·`fakeApi`, 승인함·내 요청 목록 칸·행 접근 이름, 승인 상세 5종(요청 시 코드 → 현재 코드), 감사 화면 대상 칸·당시 표기·detail 방어 치환·"가맹점 코드" 조회칸(코드 검색 → `targetMerchantId`), 기존 시험 기대값 변경(§8 MC-3-20).
   Demo: 계약 승인 요청(MC-3 전 생성 행 1 + 후 생성 행 1)이 승인함에서 둘 다 "데모상점 · demoshop01"(브라우저 DOM·접근 이름에 `mer_` 0), 상세 "요청 시 코드 → 현재 코드"(계약 전 코드 변경 가맹점), 감사 화면 가맹점 코드로 조회 → 전환 전후 행 모두, MASTER 정지 중 → "—" + 안내 1줄·목록 정상.
-- **MC-4 PAYMENT 투영·외부 필드**(Q-MC-8): Snapshot v4(승격 = revision +1, §6), PAYMENT V35, 웹훅·응답, golden, 변경 명령의 revision +1. 배포는 PAYMENT 먼저, MASTER 뒤.
+- **MC-4 PAYMENT 투영·외부 필드**(Q-MC-8): Snapshot v4(승격 = revision +1, §6), PAYMENT V36, 웹훅·응답, golden, 변경 명령의 revision +1. 배포는 PAYMENT 먼저, MASTER 뒤.
 - SETTLEMENT-001: 수용 기준만.
 
 ## 8. 시험·수용 기준(배치별 — MERCHANT-OPS-002 §8.4 형식, Verifier 확인 항목)
@@ -610,6 +636,13 @@ Fixture: `MerchantCodeFixtures.VALID = "shopabcd12"`, 경계 `"abcdef"`(6)·`"a"
 5. **승격(리뷰 m-4)**: 최근 issue v3인 가맹점의 lease 갱신 → v4 승격 발행 = `entitlement_revision + 1`·HIGH, **같은 revision의 v4 발행 0건**(issue 표 `(merchant, revision)`별 schema_version 하나 단언), PAYMENT가 그 승격을 APPLIED(INTEGRITY_CONFLICT 0 — `SnapshotApplicationRule.kt:40-42` 대조: 같은 revision·v4 내용을 직접 넣으면 INTEGRITY_CONFLICT로 head 막힘을 재현).
    `SchemaRolloutOrderV4Spec`: 역순(PAYMENT v4 미지원) = head 막힘 확인, 정순 = 승격 APPLIED(V3 선례 `SchemaRolloutOrderV3Spec`).
 6. 변이: 웹훅 코드 누락 → 2 RED, 변경 명령의 revision +1 제거 → 4 RED, 승격을 같은 revision 재발행으로 → 5 RED.
+7. **(rev 0.4.12 — C-36(MC-4), 리뷰 BLOCKER-1·MINOR-2)** 웹훅 실제 DB 경로: 운영 Port 구현(`EntitlementMerchantCodeAdapter` → `MerchantCodeService` → head)으로 fan-out → 저장 본문·실제 HTTP 수신 바이트 단언.
+   v3 head 시점 이벤트는 코드 없이 저장·승격 뒤에도 그 바이트로 재전송, 승격 뒤 이벤트는 `merchantAccountId` 바로 뒤 `merchantCode`, 두 이벤트 모두 `schemaVersion` 1·`merchant_webhook_event.schema_version = 1`(V21 CHECK 통과), 본문 `mer_` 0건(`MerchantWebhookDeliveryDbSpec`).
+8. **(rev 0.4.12 — C-37(MC-4), 리뷰 MAJOR-1)** create 재생 = 저장 결과만: ① v3 head에서 생성(코드 없음) → 승격 → 같은 키 재생 본문 바이트 동일·코드 없음, GET은 코드 있음 ② 코드 있는 head에서 생성 → head 코드가 바뀐 Invalid Fixture → 재생은 저장 코드 그대로
+   ③ 다른 키·같은 주문(`EXISTING_ACTIVE_PAYMENT`)은 그 요청 때 코드(`CreatePaymentApiSpec` C-37 묶음). V36 문장 (3) `idempotency_request.result_merchant_code`(INSTANT)·저장 결과 형식 `require`(형식 밖 = 결함 fail-closed).
+9. **(rev 0.4.12 — 리뷰 MINOR-1·NIT-1·NIT-2)** 경보: 코드 교체 +1, 코드 소실(v4 head → 더 높은 revision의 v3) +1, 같은 코드 revision·첫 승격 0. 회복: 지원 밖 버전 막힘 → 같은 revision을 v4로 재처리 → APPLIED·host/승인 회복·코드 노출.
+   V36 CHECK를 runtime 계정으로: revision 0 + 코드·대문자·짧음·숫자 시작·밑줄·`mer_` 형식 = 3819, 정상 형식 저장. V36 SQL 원문 문장별 `ALGORITHM`(INSTANT·COPY·INSTANT) 고정(`SchemaRolloutOrderV4Spec`).
+10. **(rev 0.4.12) 변이 M4·M5**: M4 재생 경로가 저장값 대신 응답 시점 조회(`merchantCodes.merchantCodeOf`)를 쓰면 → 8 RED. M5 경보 조건에서 소실(code → null) 제외(`content.merchantCode != null` 추가) → 9 RED. 6의 MASTER DB 변이 M2(변경 명령의 `recordEntitlementChange()` 제거 → 4 RED)·M3(승격 분기를 같은 revision 갱신 발행으로 → 5 RED)도 이 배치에서 실행한다(M1 웹훅 코드 누락은 첫 구현 때 RED 확인). 결과는 `harness/tasks.json` MERCHANT-CODE-001 `mc4.reviewFix1`.
 
 ## 9. 8대 원칙
 
@@ -617,7 +650,7 @@ Fixture: `MerchantCodeFixtures.VALID = "shopabcd12"`, 경계 `"abcdef"`(6)·`"a"
 |---|---|---|
 | Financial Consistency | 금액·권리 의미 변화 없음. 외부에 나간 코드는 불변(MID ⊂ 계약 승인 뒤) | MC-4-4, MC-1b-4 |
 | Transaction Safety | 배정 행·merchant version·이력·Outbox·근거 행(·Snapshot)이 MASTER 로컬 TX 하나, 거절 시 업무 행 +0. ADMIN 참여자 거절은 TX1 TOTP 전. MASTER 호출은 DB TX 밖(§9.5 2-TX) | MC-1-2, MC-1b-3·7 |
-| Idempotency | 등록 지문에 코드, 변경은 `mop1.<approvalId>` 하나 = 명령 하나, 재전송 재생 | MC-1-2, MC-1b-3 |
+| Idempotency | 등록 지문에 코드, 변경은 `mop1.<approvalId>` 하나 = 명령 하나, 재전송 재생. PAYMENT create 재생은 생성 때 저장한 코드만(C-37(MC-4)), 웹훅 재시도는 저장 바이트 그대로 | MC-1-2, MC-1b-3, MC-4-7·8 |
 | Concurrency Control | merchant 잠금으로 계약 승인·변경 직렬화(READ COMMITTED 잠금 뒤 읽기 — 승인 사실 쓰기 경로의 잠금 순서를 시험으로 고정), UNIQUE(code)·PK(seq) DB 방어선 | MC-1-3, MC-1b-4·12 |
 | Recoverability | 응답 유실 → 결정 조회·기한 확인(§9.5 그대로), 1062 → 새 키별 분류 후 새 TX 재판정으로 저장된 거절 수렴, migration fail-closed(해시 충돌), 기존 seed DB 재실행 충돌 없음, 배포 경계 재전송은 Unknown → 조회 확인(L-3) | MC-1b-3·7, MC-1-5·10·11 |
 | Reconciliation | 코드 ↔ `mer_` 대응이 배정 행으로 영구, seq 2 ↔ 근거 행 1:1, "승인 뒤 변경" 사후 대사 질의 0건 | MC-1b-3·6, MC-3-4 |
@@ -654,6 +687,8 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 **C-34(rev 0.4.6)** 라벨 permit·timeout·상한은 TXN-LIST-ENRICH-001 §3.6 값·객체 공유(새 설정 키 없음), 화면은 50개씩 순차, ~~분당 창은 가맹점 조회 창 1 소비~~(rev 0.4.7 C-35로 대체), 캐시 없음.
 **C-35(rev 0.4.7 — Coordinator 결정, 리뷰 m-2)** 라벨 읽기는 가맹점 검색 창 `lookup-per-minute`를 소비하지 않는다. 별도 actor별 분당 창 `paycore.admin.master-ops.label-reads-per-minute`(rev 0.4.8 키 위치 정정, 새 설정 키, Demo 60 — 운영값 아님, LIVE Gate)를 HTTP 호출당 1 소비, 초과 429 → 화면은 UNAVAILABLE처럼 "—" + 안내 1줄(§5.6.2·§5.6.3, MC-3-19) /
 **C-36(rev 0.4.7 — 리뷰 MAJOR-1·m-1·m-5·n-2)** approval 감사 대상 열은 `ApprovalAuditTarget` 한 곳에서 만들고(소스 검사로 우회 금지), 가맹점 관련 감사 행은 예외 없이 `target_merchant_id = mer_`, 승인 행 없는 요청 단계 거절은 `mer_` 표기. `ApprovalTarget.Merchant` 코드 형식 `require`·새 요청 팩토리 코드 non-null. `IntegrityViolation.paymentId` → `ownerRef` 이름 변경 → **rev 0.4.8: 회복 무결성 보고도 `ApprovalAuditTarget?`를 넘김(문자열 금지, Payment 회복 경로에서 가맹점 키 생성 금지), 라벨 분당 창 키 = `paycore.admin.master-ops.label-reads-per-minute`(설정 위치 전부 §5.6.3)**.
+**C-36(MC-4)(rev 0.4.12 — Coordinator 결정, MC-4 리뷰 BLOCKER-1; 번호는 MC-4 리뷰 결정 표기 — 위 rev 0.4.7 C-36과 다른 결정)** 가맹점 웹훅 봉투 `schemaVersion`은 **1 유지**, `merchantCode`는 가산 필드(WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전", 기존 확정 계약 적용 — 새 정책 아님). `MerchantWebhookEnvelope.SCHEMA_VERSION = 1`, V21 CHECK `schema_version = 1` 변경 없음(웹훅 표 migration 없음) /
+**C-37(MC-4)(rev 0.4.12 — Coordinator 결정, MC-4 리뷰 MAJOR-1)** create 재생은 **저장된 생성 결과만**(D-CP-003·Q-CP-RESULT 적용 — 새 정책 아님): 생성 시점 코드를 생성 결과와 같은 PAYMENT 로컬 TX·같은 멱등 행(`idempotency_request.result_merchant_code`, PAYMENT V36 문장 (3))에 저장하고 재생은 그 값만 쓴다(재생 경로 코드 조회 0). 코드는 Payment 행·요청 지문·판정 입력에 넣지 않는다. 새 PAYMENT migration 번호를 쓰지 않고 미커밋 V36에 문장을 더했다(같은 배치·미배포 — 번호 V37 소비 없음).
 
 ## 11. 사용자 질문(모두 답변됨 — PENDING 없음)
 
@@ -684,6 +719,9 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 - **L-12(rev 0.4.6)** 라벨 permit을 거래 목록 라벨과 공유 — 동시 조회가 몰리면 라벨만 "—"(목록·승인·회복 영향 없음, 지표로 관찰). 화면 표시는 **현재** 상호·코드(TXN-LIST-ENRICH-001 L-3과 같은 성질) — 당시 코드는 상세·당시 표기로 보인다.
 - **L-13(rev 0.4.6)** 감사 화면의 사업자 대상은 "사업자"만 보인다(어느 사업자인지 화면에서 바로 알 수 없음). 사업자 라벨(상호·마스킹 번호) 읽기는 후속 작업 후보(MERCHANT-BIZ-LOOKUP-001 또는 별도 — 등록번호 조회 감사 D-MOPS-003과의 관계를 그때 명세).
 - **L-14(rev 0.4.7 — 리뷰 m-3)** ADMIN V15의 CHECK 추가·재생성 두 문장은 `ALGORITHM=COPY`(표 복사 — 그 동안 `admin_audit_event`·`admin_approval_request` **DML 차단**: 로그인·감사 기록·승인 요청이 멈춘다). Demo는 작은 표라 무시 가능하지만 **운영 적용은 유지보수 창이 필요**하다(LIVE Gate 항목 — 표 크기별 예상 시간 측정·창 공지·재기동 순서). 열 추가는 INSTANT, 색인은 INPLACE·LOCK=NONE(쓰기 허용, 시간은 표 크기 비례). 온라인 스키마 변경 도구 도입은 이번 범위 밖.
+  **(rev 0.4.12 — PAYMENT V36)** `entitlement_head` 열 추가·`idempotency_request.result_merchant_code` 열 추가는 `ALGORITHM=INSTANT`(메타데이터만 — 큰 멱등 표를 복사하지 않으려고 그 열에는 CHECK를 두지 않는다), `ck_entitlement_head_merchant_code` 추가는 `ALGORITHM=COPY`
+  (그 동안 `entitlement_head` DML 차단 — 권리 Snapshot 적용·결제 생성 판정의 head 읽기 잠금이 대기한다). head는 가맹점당 한 행이라 짧지만 운영 적용은 같은 유지보수 창 항목이다(LIVE Gate — 표 크기별 시간 측정, PAYMENT 먼저 배포 순서 §6). 웹훅 표는 바꾸지 않는다(C-36(MC-4) — V21 CHECK 그대로).
+  **(rev 0.4.12 — 재리뷰 MINOR-A)** V36 적용 뒤 PAYMENT 바이너리만 MC-4 이전으로 되돌리면, 구 바이너리의 만료 멱등 기록 갱신은 `result_merchant_code`를 지우지 않는다 → 다시 새 바이너리로 올린 뒤 그 키를 재생하면 원 응답에 없던 `merchantCode`가 붙을 수 있다(D-CP-003 바이트 차이 — 같은 MID 코드라 잘못된 가맹점 정보·금액·상태 영향은 없음). 그래서 V36 이후 PAYMENT는 **roll-forward만** 한다(구 바이너리 롤백 금지 — LIVE Gate 배포 절차 항목).
 
 ## 13. 기록
 | rev | 내용 |

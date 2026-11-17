@@ -3,6 +3,7 @@ package com.paycore.payment.payment.application
 import com.paycore.payment.payment.application.provided.FanOutMerchantNotificationsCommand
 import com.paycore.payment.payment.application.provided.FanOutMerchantNotificationsUseCase
 import com.paycore.payment.payment.application.provided.MerchantNotificationFanoutReport
+import com.paycore.payment.payment.application.required.MerchantCodePort
 import com.paycore.payment.payment.application.required.MerchantNotificationFacts
 import com.paycore.payment.payment.application.required.MerchantNotificationFanoutStore
 import com.paycore.payment.payment.application.required.MerchantWebhookDeliveryPlan
@@ -39,6 +40,7 @@ import java.time.temporal.ChronoUnit
  * 실패(이상 조합·해석 불가·사실 불일치·결함·저장 실패): 그 TX rollback → 새 TX로 그 행만 FANOUT_FAILED(비종결, 재시도 시각) → 같은 Payment의 뒤 행은 이번 회차에서 건너뜀
  * ```
  * 이상 조합은 절대 SUPPRESSED가 되지 않는다(fail-closed). 업무 TX를 바꾸지 않으며(WH-02) 외부 호출이 없다. 금융 상태를 바꾸지 않는다(D-WH-006).
+ * MERCHANT-CODE-001 MC-4: 봉투에 그 MID 가맹점 코드(출력 전용, [MerchantCodePort] — 같은 PAYMENT 로컬 TX의 권리 투영 읽기)를 싣는다. 코드 없는 MID는 키 생략.
  */
 @Service
 class MerchantNotificationFanoutService(
@@ -49,6 +51,7 @@ class MerchantNotificationFanoutService(
     private val endpoints: MerchantWebhookEndpointDirectory,
     private val ids: MerchantWebhookIdentifierGenerator,
     private val clock: PaymentClock,
+    private val merchantCodes: MerchantCodePort,
 ) : FanOutMerchantNotificationsUseCase {
 
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
@@ -125,6 +128,7 @@ class MerchantNotificationFanoutService(
         val endpoint = endpoints.find(subject.environment, subject.merchantAccountId)
         val envelope = MerchantWebhookEnvelope(
             eventId, type, subject.environment, subject.merchantAccountId, at, sequence, subject.paymentId, subject.merchantOrderId, payment, subject.facts,
+            merchantCode = merchantCodes.merchantCodeOf(subject.merchantAccountId),
         )
         val plan = if (endpoint != null) MerchantWebhookDeliveryPlan.DELIVER else MerchantWebhookDeliveryPlan.NO_ENDPOINT
         events.append(MerchantWebhookEventRecord(envelope, row.sourceEventId, plan, at))

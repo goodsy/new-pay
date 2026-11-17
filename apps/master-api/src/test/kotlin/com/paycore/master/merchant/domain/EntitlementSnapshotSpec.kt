@@ -58,7 +58,20 @@ class EntitlementSnapshotSpec : BehaviorSpec({
             val withApp = snapshot.copy(sites = listOf(app))
             withApp.canonicalContent shouldContain "\"channel\":{\"type\":\"APP\"}"
             withApp.canonicalContent shouldNotContain "com.example.shop_app"
-            ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 3
+            // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): 현재 조립 버전 3 → 4(v3 + merchantCode). channel 규칙은 그대로.
+            ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 4
+        }
+
+        Then("MERCHANT-CODE-001 MC-4-1: schemaVersion 4 carries the merchant's current code (top level) — never its internal key as a code, rights content unchanged") {
+            val source = EntitlementFixture.source()
+            val snapshot = EntitlementSnapshotAssembler.assemble(source, t0, 0, demoLease)
+            snapshot.merchantCode shouldBe source.merchant.currentCode
+            snapshot.canonicalContent shouldContain "\"merchantCode\":\"${source.merchant.currentCode.value}\""
+            ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 4
+            // 코드만 다르면 내용 hash가 다르다(같은 revision·다른 코드 = PAYMENT INTEGRITY_CONFLICT의 근거 — 변경 명령은 revision +1, §6).
+            val other = snapshot.copy(merchantCode = MerchantCode("othershop01"))
+            other.contentHash shouldNotBe snapshot.contentHash
+            other.canonicalContent.replace("othershop01", source.merchant.currentCode.value) shouldBe snapshot.canonicalContent
         }
 
         Then("a terminated site is still carried with its channel (content is a function of the source state only, MS1 §15-1)") {

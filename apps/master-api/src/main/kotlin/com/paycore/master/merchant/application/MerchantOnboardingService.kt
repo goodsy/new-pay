@@ -414,7 +414,9 @@ class MerchantOnboardingService(
      * `lockedNow()`(만료 훅) → 6 잠금 **뒤** `contracts.hasApprovedRevisionFor`(계약 승인 `approveRevision`도 merchant를 먼저 잠그므로 직렬화 — 승인이 먼저 커밋하면 여기서 보인다)
      * → 7~11 Domain([Merchant.changeCodeWithEvidence]) → 12 배정 이력 사전 조회(다른 가맹점·은퇴 코드 — 경합 진 쪽은 flush 1062 → 새 TX 재판정에서 여기서 수렴)
      * → 쓰기: seq 2 배정 행 + merchant version +1 → 이력·Outbox `MerchantCodeChanged`(old·new·사유·approvalId) → 근거 EXECUTED 행(실행기). 잠금 순서 merchant → (contract는 읽기만) — 교착 없음.
-     * 원 가맹점 등록자 판정 없음(Q-MC-10 — `merchant.created_by` = 승인자여도 성공). 권리 Snapshot은 MC-4부터(지금은 Snapshot에 코드가 없다).
+     * 원 가맹점 등록자 판정 없음(Q-MC-10 — `merchant.created_by` = 승인자여도 성공).
+     * MC-4(§3.7.3 마지막 줄·§6): 코드는 Snapshot v4 내용이라 **같은 TX에서** `recordEntitlementChange()`(revision +1)·Snapshot 발행 — 다른 코드를 같은 revision으로 내보내지 않는다
+     * (MERCHANT-OPS-002 review M-2 원칙. 변경은 계약 승인 전에만 가능하고 MID는 승인 뒤에만 있으므로 보통 발행할 Snapshot이 없다 — publisher가 MID 없음을 보고 건너뛴다).
      */
     override fun changeMerchantCodeWithEvidence(command: ApprovedMerchantCodeChangeCommand): AdminCommandResult =
         executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
@@ -428,15 +430,18 @@ class MerchantOnboardingService(
                 command.newCode, command.currentCode, contractApproved, command.reason, command.evidence.approvalId, work.now, command.evidence.approvedBy,
             )
             merchants.findCodeOwner(command.newCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
+            // MC-4: 판정이 모두 끝난 뒤(거절이면 revision 불변) 권리 입력 변경으로 기록 — 같은 merchant 잠금·같은 TX.
+            merchant.recordEntitlementChange()
             work.beginWrites()
             val version = merchants.update(merchant, locked.version)
             work.record(
                 AGG_MERCHANT, merchant.id.value, version, "MerchantCodeChanged",
                 mapOf(
                     "merchantId" to merchant.id.value, "oldCode" to oldCode.value, "newCode" to command.newCode.value, "reasonCode" to command.reason.name,
-                    "approvalId" to command.evidence.approvalId,
+                    "approvalId" to command.evidence.approvalId, "entitlementRevision" to merchant.entitlementRevision,
                 ),
             )
+            work.publishEntitlement(merchant)
             merchant.id.value
         }
 

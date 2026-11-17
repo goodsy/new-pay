@@ -9,7 +9,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * 가맹점 Webhook 본문 v1 직렬화(WEBHOOK-001 §4.2.0 rev 0.2). 필드 이름·순서는 계약이며 GET 응답의 엄격한 부분집합이다(m-1 — 시험 T-C2b). 금액은 JSON 정수, 시각은 UTC ms `Z`.
+ * 가맹점 Webhook 본문 v1 직렬화(WEBHOOK-001 §4.2.0 rev 0.3 — 봉투 `merchantCode`는 가산 필드, schemaVersion 1 유지: MERCHANT-CODE-001 §6·C-36(MC-4)). 필드 이름·순서는 계약이며 GET 응답의 엄격한 부분집합이다(m-1 — 시험 T-C2b). 금액은 JSON 정수, 시각은 UTC ms `Z`.
  * 같은 봉투는 항상 같은 바이트다(순서 고정 맵) — fan-out이 한 번 만든 바이트를 저장하고 재시도는 그 바이트를 그대로 보낸다(WH-08). 없는 값은 키를 생략한다(GET 관례).
  */
 internal object MerchantWebhookBodyJson {
@@ -32,10 +32,12 @@ internal object MerchantWebhookBodyJson {
             "schemaVersion" to e.schemaVersion,
             "environment" to e.environment.name,
             "merchantAccountId" to e.merchantAccountId.value,
-            "createdAt" to format(e.createdAt),
-            "sequence" to e.sequence,
-            "payment" to payment,
         )
+        // MERCHANT-CODE-001 §6: 출력 전용 가맹점 코드는 MID 바로 뒤. 코드 없는 MID는 키를 생략한다(GET 관례 — null을 쓰지 않는다).
+        e.merchantCode?.let { out["merchantCode"] = it }
+        out["createdAt"] = format(e.createdAt)
+        out["sequence"] = e.sequence
+        out["payment"] = payment
         when (facts) {
             is MerchantNotificationFacts.Authorized -> out["authorization"] = linkedMapOf<String, Any?>(
                 "authorizationId" to facts.authorizationId,

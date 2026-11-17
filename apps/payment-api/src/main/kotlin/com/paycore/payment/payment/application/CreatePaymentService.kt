@@ -19,6 +19,7 @@ import com.paycore.payment.payment.application.required.IdempotencyReservation
 import com.paycore.payment.payment.application.required.IdempotencyReservationOutcome
 import com.paycore.payment.payment.application.required.IdempotencyScope
 import com.paycore.payment.payment.application.required.IdempotentOperation
+import com.paycore.payment.payment.application.required.MerchantCodePort
 import com.paycore.payment.payment.application.required.OrderPaymentControlRepository
 import com.paycore.payment.payment.application.required.OutboxStore
 import com.paycore.payment.payment.application.required.PaymentCreationAttributes
@@ -68,6 +69,7 @@ class CreatePaymentService(
     private val eligibility: PaymentEligibilityPort,
     private val checkoutValidity: CheckoutValidityPolicy,
     private val closing: RequestedPaymentClosing,
+    private val merchantCodes: MerchantCodePort,
 ) : CreatePaymentUseCase {
 
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
@@ -116,7 +118,7 @@ class CreatePaymentService(
         }
 
         val snapshotVersion = admit(command, now)
-        val result = decideAndApply(command, now, snapshotVersion)
+        val result = withMerchantCode(command, decideAndApply(command, now, snapshotVersion))
         idempotency.complete(scope, result, now)
         return present(command, result, replayed = false)
     }
@@ -215,6 +217,16 @@ class CreatePaymentService(
         return StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, payment.id)
     }
 
+    /**
+     * MERCHANT-CODE-001 §6·C-37(MC-4 — D-CP-003 "저장된 생성 결과만"): 성공 결과에 이 요청 때 그 인증 MID(= 멱등 범위 MID)의 가맹점 코드를 붙여 **결과와 같은 TX에 저장**한다.
+     * 재생은 저장값만 쓴다(재생 경로는 코드를 조회하지 않는다 — 생성 뒤 승격으로 코드가 생겨도 재생 바이트는 최초 응답과 같다). 출력 전용: 판정·지문·Payment에 쓰지 않는다.
+     * 같은 PAYMENT 로컬 TX의 권리 투영 읽기(잠금 없음)라 실패는 다른 저장소 실패와 같이 전체 rollback → 503이다(저장 없음).
+     */
+    private fun withMerchantCode(command: CreatePaymentCommand, result: StoredRequestResult): StoredRequestResult = when (result) {
+        is StoredRequestResult.Succeeded -> result.copy(merchantCode = merchantCodes.merchantCodeOf(command.orderKey.merchantAccountId))
+        else -> result
+    }
+
     /** 저장된(또는 방금 쓴) 결과를 응답 값으로 만든다. Payment 값은 생성 시 불변 컬럼에서 읽는다(현재 상태 미포함, D-CP-003). */
     private fun present(command: CreatePaymentCommand, result: StoredRequestResult, replayed: Boolean): CreatePaymentResult =
         when (result) {
@@ -234,6 +246,8 @@ class CreatePaymentService(
                         paymentCreatedAt = record.attributes.createdAt,
                         merchantOrderId = record.orderKey.merchantOrderId,
                         money = record.attributes.money,
+                        // MERCHANT-CODE-001 §6·C-37(MC-4): 출력 전용 — 생성 결과와 함께 저장한 값만(재생 때 다시 조회하지 않는다, D-CP-003).
+                        merchantCode = result.merchantCode,
                     ),
                     replayed = replayed,
                 )

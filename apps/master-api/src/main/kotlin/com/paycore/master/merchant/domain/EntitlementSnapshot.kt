@@ -7,7 +7,7 @@ import java.util.HexFormat
 
 /*
  * 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3). Merchant 하나의 **전체 권리 상태**를 버전(entitlement_revision)·lease와 함께 PAYMENT에 보낸다.
- * 통합 계약 schemaVersion 3(2 + Site 채널, AUTHN-001 §9 — 2 = 1 + 승인 시작 조건, MASTER-SNAPSHOT-002)이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
+ * 통합 계약 schemaVersion 4(3 + 가맹점 코드, MERCHANT-CODE-001 §6 — 3 = 2 + Site 채널, AUTHN-001 §9 — 2 = 1 + 승인 시작 조건, MASTER-SNAPSHOT-002)이며 Domain Entity 직렬화가 아니다(A03). 판정은 PAYMENT가 한다(허용 §4.1 마지막 문단) — MASTER는 근거만 싣는다.
  *
  * 내용(content)은 **MASTER 원본 상태만의 함수**다: 발행 시각으로 지난 구간을 걸러내지 않는다(명세 §3.1 "to > issuedAt만" 문구와의 편차 —
  * 걸러내면 같은 revision의 lease 갱신이 다른 내용·다른 contentHash가 되어 PAYMENT가 INTEGRITY_CONFLICT로 막는다). 시각 경계 변화(n-5)는
@@ -17,9 +17,10 @@ import java.util.HexFormat
 /**
  * Snapshot 통합 계약 버전(봉투 schemaVersion). 2 = 1 + 승인 시작 조건(MASTER-SNAPSHOT-002 명세 §4: `accounts[].limitPolicies·policyAssignments·
  * cardRoutes`). 3 = 2 + `sites[].channel`(AUTHN-001 §9.1, D-AUTHN-002: WEB = 소문자 host, APP = type만 — 앱 식별값은 싣지 않는다). MASTER는 현재
- * 버전만 조립한다. PAYMENT는 1·2·3을 해석한다(배포 순서: PAYMENT 먼저 — MS2 명세 §5.4). 옛 버전 발행은 lease 갱신 때 revision +1로 승격된다.
+ * 버전만 조립한다. 4 = 3 + 최상위 `merchantCode`(MERCHANT-CODE-001 §6 — 가맹점 코드, 출력 전용 표시값: PAYMENT가 웹훅·결제 응답에 싣는다. 권리 판정 입력 아님).
+ * PAYMENT는 1·2·3·4를 해석한다(배포 순서: PAYMENT 먼저 — MS2 명세 §5.4). 옛 버전 발행은 lease 갱신 때 revision +1로 승격된다(같은 revision 재발행 금지 — 내용 hash가 달라진다).
  */
-const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 3
+const val ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION: Int = 4
 
 /** 발행 우선순위(명세 §3.4-1): revision이 바뀐 발행(변경)은 HIGH, 같은 revision의 lease 갱신은 LOW. 값은 Outbox priority 컬럼(큰 값 먼저). */
 enum class SnapshotPriority(val value: Int) { LOW(0), HIGH(10) }
@@ -117,6 +118,8 @@ data class AccountState(
 data class EntitlementSnapshot(
     val merchantId: MerchantId,
     val businessId: BusinessId,
+    /** v4: 그 가맹점의 현재 코드(배정 이력 seq 최대 — MERCHANT-CODE-001 §3.2). 모든 가맹점에 있다(seq 1 없음 = 결함). */
+    val merchantCode: MerchantCode,
     val revision: Long,
     val issuedAt: Instant,
     val leaseSeq: Long,
@@ -149,6 +152,7 @@ data class EntitlementSnapshot(
     private fun contentMap(): Map<String, Any?> = mapOf(
         "merchantId" to merchantId.value,
         "businessId" to businessId.value,
+        "merchantCode" to merchantCode.value,
         "revision" to revision,
         "party" to mapOf(
             "businessLifecycle" to party.businessLifecycle.name,

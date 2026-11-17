@@ -107,7 +107,8 @@ class InstitutionCodeFormat(unittest.TestCase):
                     for key, value in m.get("authentication", {}).items():
                         if key != "evidenceRef":
                             self.assertRegex(value, CODE, f"{contract} {name} {key}")
-        for app, version in (("payment-api", 2), ("payment-api", 3), ("master-api", 3)):
+        # 기대값 변경(MERCHANT-CODE-001 MC-4): MASTER는 v4만 조립(v3 golden → v4 golden). 대상 확장 — PAYMENT v4도 검사한다.
+        for app, version in (("payment-api", 2), ("payment-api", 3), ("payment-api", 4), ("master-api", 4)):
             g = golden(app, f"entitlement-snapshot-v{version}.golden.json")
             routes = [r for a in json.loads(g["contentCanonical"])["accounts"] for r in a["cardRoutes"]]
             self.assertTrue(routes, f"{app} v{version}")

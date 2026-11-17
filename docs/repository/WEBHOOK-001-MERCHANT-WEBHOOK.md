@@ -1,4 +1,9 @@
-# WEBHOOK-001 가맹점 서명 Webhook 전달 명세 (rev 0.2 — 질문 답변 D-WH-001~008·명세 검토 spec-1 반영)
+# WEBHOOK-001 가맹점 서명 Webhook 전달 명세 (rev 0.3 — rev 0.2 + MERCHANT-CODE-001 MC-4 가산 필드 `merchantCode`)
+
+> **rev 0.3 갱신(2026-11-17, MERCHANT-CODE-001 MC-4 — Coordinator 결정 C-36(MC-4), 새 정책 없음)**: 봉투 최상위에 출력 전용 **가산 필드 `merchantCode`**(사람이 읽는 가맹점 코드 — D-MCODE-001 Q-MC-1·D-MCODE-002 Q-MC-8)를
+> `merchantAccountId` 바로 뒤에 둔다. 코드가 전파되지 않은 MID(권리 Snapshot v1~v3 head·빈 head)는 **키를 생략**한다(null을 쓰지 않는다). **`schemaVersion`은 1 그대로**다 — §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전"
+> 규칙이며 V21 CHECK `schema_version = 1`도 그대로다. 나머지 키·순서·값 의미 불변, 이미 저장된 이벤트는 그 바이트 그대로 재전송한다(WH-08 — 승격 전에 만든 이벤트는 코드 없이 재전송).
+> 가맹점 수신 측은 모르는 키를 무시해야 한다(가산 규칙). 내부 키(`mer_`·`biz_`)는 본문에 없다. 근거·시험: MERCHANT-CODE-001 §6·§6.1①, `MerchantWebhookDeliveryDbSpec`(C-36 묶음)·`MerchantWebhookBodyJsonSpec`.
 
 > **rev 0.2 갱신(2026-10-21)**: §17 질문 8개(Q-WH-01~07 + 분할 Q-WH-08)는 모두 권장안으로 답변됐다 — **D-WH-001~008**(`docs/DECISIONS.md`). 명세 검토 spec-1(CHANGES_REQUIRED: H-1~H-3, m-1~m-9, n-1~n-8)과
 > Coordinator §18 판정을 반영했다. **이 머리말과 §4·§5·§17·§18·§21의 rev 0.2 문장이 rev 0.1 문장보다 우선한다.** 요점:
@@ -259,7 +264,7 @@ reviewRounds spec-1, WEBHOOK-ENDPOINT-001 신설, ADMIN-BOOT-001 AC 추가), `ha
 
 | 위치 | 키(정확 집합, 없는 값은 생략) | GET 대응(`GetPaymentController` 실제 출력) |
 |---|---|---|
-| 봉투 | `eventId`·`type`·`schemaVersion`·`environment`·`merchantAccountId`·`createdAt`(**가맹점 이벤트 생성 시각** = fan-out 시각 — 업무 시각 아님, 실패·만료 시각을 새로 드러내지 않는다)·`sequence` | Webhook 메타데이터(GET 사실 아님) |
+| 봉투 | `eventId`·`type`·`schemaVersion`·`environment`·`merchantAccountId`·`merchantCode`(rev 0.3 가산 — 코드 있는 MID만, `merchantAccountId` 바로 뒤, GET 최상위에도 같은 이름)·`createdAt`(**가맹점 이벤트 생성 시각** = fan-out 시각 — 업무 시각 아님, 실패·만료 시각을 새로 드러내지 않는다)·`sequence` | Webhook 메타데이터(GET 사실 아님) |
 | `payment` | `paymentId`·`merchantOrderId`·`amount`·`currency`(Payment 생성 금액 — 불변 Payment 행)·`status`(GET 공개 값: AUTHORIZED·FAILED·EXPIRED)·`failureCategory`(FAILED만) | GET 최상위 같은 이름 |
 | `authorization` | authorized: `authorizationId`·`status`·`approvedAmount`·`currency`·`plan`{`kind`,`months`?}·`cardType`·`approvalNumber`·`approvedAt` / failed: `authorizationId`·`status`·`failureCategory` / expired: 없음 | GET `authorization`(FAILED에도 `authorizationId`·`status`·`failureCategory`를 낸다) |
 | `cancellation` | cancelled: `cancellationId`·`initiator`·`merchantCancelId`(MERCHANT만)·`status`=COMPLETED·`amount`·`currency`·`cancelTransactionId`(**PayCore transactionId** — PTX 아님, n-5)·`cancelApprovalNumber`?·`cancelledAt` / cancel_failed: `cancellationId`·`initiator`·`merchantCancelId`(MERCHANT만)·`status`=FAILED·`amount`·`currency`·`failureCategory` | GET `cancellations[]` 항목 |

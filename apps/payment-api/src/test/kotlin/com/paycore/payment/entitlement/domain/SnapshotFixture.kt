@@ -67,8 +67,9 @@ object SnapshotFixture {
     fun incoming(content: EntitlementContent, lease: Lease = leaseAt(), eventId: String = UUID.randomUUID().toString()) =
         IncomingSnapshot(eventId, content.merchantId, content.revision, content.schemaVersion, content, content.contentHash, lease)
 
-    /** PAYMENT가 해석하지 않는 schemaVersion(지원 집합 {1, 2, 3} 밖 — AUTHN-001이 3을 지원하므로 첫 미지원 값은 4). */
-    const val UNSUPPORTED_SCHEMA_VERSION: Int = 4
+    /** PAYMENT가 해석하지 않는 schemaVersion(지원 집합 {1, 2, 3, 4} 밖 — MERCHANT-CODE-001 MC-4가 4를 지원하므로 첫 미지원 값은 5). */
+    // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): 4 → 5 — PAYMENT가 v4를 해석하게 되어 "해석 못 하는 첫 버전"이 5가 됐다(미지원 버전 fail-closed 규칙은 그대로).
+    const val UNSUPPORTED_SCHEMA_VERSION: Int = 5
 
     fun unsupported(merchantId: String, revision: Long, eventId: String = UUID.randomUUID().toString()) =
         IncomingSnapshot(eventId, merchantId, revision, UNSUPPORTED_SCHEMA_VERSION, null, null, null)
@@ -146,4 +147,12 @@ object SnapshotFixture {
         }
 
     fun EntitlementContent.mapSite(siteId: String, change: (SiteEntry) -> SiteEntry) = copy(sites = sites.map { if (it.siteId == siteId) change(it) else it })
+
+    // ── MERCHANT-CODE-001 MC-4 schemaVersion 4(v3 + 최상위 merchantCode — 출력 전용 표시값). 코드는 Demo 값 — 운영 가맹점 코드 아님. ─────────────────────
+
+    const val MERCHANT_CODE = "fixshop01"
+
+    /** v4 내용: [entitledWithChannels] + 가맹점 코드 [code]. 권리 판정 입력은 v3와 같다(코드는 금액·권리 의미 없음). */
+    fun entitledWithCode(ids: Ids = ids(), terms: TermsIds = termsIds(), revision: Long = 1, from: Instant = t0, code: String = MERCHANT_CODE): EntitlementContent =
+        entitledWithChannels(ids, terms, revision, from).copy(schemaVersion = MERCHANT_CODE_SNAPSHOT_SCHEMA_VERSION, merchantCode = code)
 }

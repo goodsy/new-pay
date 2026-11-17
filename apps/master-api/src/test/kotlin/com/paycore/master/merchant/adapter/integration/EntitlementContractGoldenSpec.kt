@@ -21,6 +21,7 @@ import com.paycore.master.merchant.domain.LimitPolicyState
 import com.paycore.master.merchant.domain.LimitScopeKind
 import com.paycore.master.merchant.domain.LimitValue
 import com.paycore.master.merchant.domain.MerchantAccountId
+import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.MerchantSiteId
 import com.paycore.master.merchant.domain.PartyState
@@ -55,10 +56,13 @@ import java.util.Base64
  * 정규 내용·contentHash·전송 payload·봉투 본문·서명이 golden과 바이트 단위로 같아야 한다. MASTER는 v2만 조립하므로 MASTER 쪽 v1 golden은 이 파일로
  * 대체했고, AUTHN-001부터 v3만 조립하므로 v2 golden도 이 v3 파일로 대체했다(v1·v2는 PAYMENT가 계속 해석 — PAYMENT 시험 자원에 남는다).
  * v3 = v2 + sites[].channel(WEB host / APP는 type만 — 앱 식별값은 싣지 않는다, D-AUTHN-002). 한도·정책·host 값은 Demo(운영값 아님).
+ * MERCHANT-CODE-001 MC-4: MASTER는 v4(v3 + 최상위 merchantCode — 출력 전용 표시값)만 조립하므로 MASTER 쪽 v3 golden·v3 변형은 v4 golden·v4 변형으로 대체했다
+ * (PAYMENT는 v3를 계속 해석 — PAYMENT 시험 자원에 남는다, v1·v2 선례).
  */
 class EntitlementContractGoldenSpec : FunSpec({
 
-    val golden = JsonMapper.builder().build().readTree(ClassPathResource("contracts/entitlement-snapshot-v3.golden.json").inputStream)
+    // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): v3 → v4 golden(MASTER 현재 조립 버전 4). 권리 내용 기대값은 같고 merchantCode만 더해진다.
+    val golden = JsonMapper.builder().build().readTree(ClassPathResource("contracts/entitlement-snapshot-v4.golden.json").inputStream)
     fun g(name: String): String = golden.get(name).stringValue()
     val t0 = Instant.parse("2026-10-09T02:00:00.000Z")
     val (s1, s2) = golden.get("siteIds").let { MerchantSiteId(it.get(0).stringValue()) to MerchantSiteId(it.get(1).stringValue()) }
@@ -68,6 +72,7 @@ class EntitlementContractGoldenSpec : FunSpec({
     val snapshot = EntitlementSnapshot(
         merchantId = MerchantId(g("merchantId")),
         businessId = BusinessId(g("businessId")),
+        merchantCode = MerchantCode(g("merchantCode")),
         revision = 7,
         issuedAt = Instant.parse(g("issuedAt")),
         leaseSeq = 0,
@@ -120,13 +125,14 @@ class EntitlementContractGoldenSpec : FunSpec({
         ),
     )
 
-    test("canonical content, content hash and wire payload equal the v3 golden") {
+    test("canonical content, content hash and wire payload equal the v4 golden (v3 rights content + merchantCode)") {
         listOf(snapshot.canonicalContent, snapshot.contentHash, snapshot.wirePayload()) shouldBe
             listOf(g("contentCanonical"), g("contentHash"), g("wirePayloadCanonical"))
     }
 
-    test("the v3 envelope body and its HMAC signature header equal the golden byte for byte") {
-        ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 3
+    test("the v4 envelope body and its HMAC signature header equal the golden byte for byte") {
+        // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): 3 → 4.
+        ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION shouldBe 4
         val body = EntitlementEnvelope.body(
             RelayEnvelope(
                 g("eventId"), "EntitlementSnapshot", ENTITLEMENT_SNAPSHOT_SCHEMA_VERSION, "master-api", g("merchantId"), 7, Instant.parse(g("issuedAt")), 0,
@@ -140,12 +146,13 @@ class EntitlementContractGoldenSpec : FunSpec({
     // MERCHANT-OPS-002 §8.3 B3-2-4(골든 확장, review MINOR-1): AT_EXECUTION 확정 시각(lockedNow — KST 자정 아님·ms 있음)이 통화 구간 `from`인 Snapshot.
     // 같은 v3 계약·같은 ID에 통화 구간(열린 구간)·revision·발행 시각만 다르다. harness 생성 절차가 두 앱과 독립적으로 만든다(값은 Demo).
     val atExecution = JsonMapper.builder().build()
-        .readTree(ClassPathResource("contracts/entitlement-snapshot-v3-currency-at-execution.golden.json").inputStream)
+        // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): v3 변형 → v4 변형(같은 B3-2 통화 구간 + merchantCode).
+        .readTree(ClassPathResource("contracts/entitlement-snapshot-v4-currency-at-execution.golden.json").inputStream)
     fun ga(name: String): String = atExecution.get(name).stringValue()
 
-    test("B3-2: a currency segment starting at an AT_EXECUTION lockedNow (non-midnight, milliseconds) equals its v3 golden byte for byte") {
+    test("B3-2: a currency segment starting at an AT_EXECUTION lockedNow (non-midnight, milliseconds) equals its v4 golden byte for byte") {
         val lockedNow = Instant.parse("2026-10-09T02:00:07.123Z")
-        listOf("merchantId", "businessId", "mid", "agreementId").forEach { ga(it) shouldBe g(it) }
+        listOf("merchantId", "businessId", "mid", "agreementId", "merchantCode").forEach { ga(it) shouldBe g(it) }
         val variant = snapshot.copy(
             revision = 8,
             issuedAt = Instant.parse(ga("issuedAt")),

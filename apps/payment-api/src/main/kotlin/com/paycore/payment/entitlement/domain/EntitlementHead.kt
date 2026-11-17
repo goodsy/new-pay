@@ -8,7 +8,8 @@ enum class InboxOutcome { APPLIED, LEASE_EXTENDED, STALE, DUPLICATE, INTEGRITY_C
 
 /**
  * Merchant별 현재 적용 상태(PAYMENT `entitlement_head`). revision 0 = "아직 없음"(IODKU로 만든 자리). [blockedRevision]은 막은 Snapshot의 revision
- * (지원하지 않는 더 새 버전, 또는 같은 revision·다른 내용).
+ * (지원하지 않는 더 새 버전, 또는 같은 revision·다른 내용). [merchantCode]는 적용한 Snapshot이 v4일 때의 가맹점 코드(MERCHANT-CODE-001 §6 — 웹훅·결제 응답 출력 전용,
+ * 판정 입력 아님). 막힘(INTEGRITY_CONFLICT·VERSION_UNSUPPORTED)·lease 연장은 적용 내용을 바꾸지 않으므로 코드도 그대로다.
  */
 data class EntitlementHead(
     val merchantId: String,
@@ -19,11 +20,13 @@ data class EntitlementHead(
     val sourceEventId: String?,
     val blocked: HeadBlock?,
     val blockedRevision: Long?,
+    val merchantCode: String? = null,
 ) {
     init {
         require(revision >= 0) { "head revision must not be negative" }
         require((revision == 0L) == (contentHash == null && lease == null && schemaVersion == null)) { "an empty head has no content; a filled head has all" }
         require((blocked == null) == (blockedRevision == null)) { "block reason and revision are recorded together" }
+        require(merchantCode == null || (revision >= 1 && isMerchantCodeFormat(merchantCode))) { "only a filled head carries a merchant code of the code format" }
     }
 
     val isEmpty: Boolean get() = revision == 0L

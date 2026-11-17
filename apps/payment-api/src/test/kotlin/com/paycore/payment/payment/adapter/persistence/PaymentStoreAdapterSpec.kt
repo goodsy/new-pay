@@ -307,6 +307,27 @@ class PaymentStoreAdapterSpec(
             }
         }
 
+        When("MERCHANT-CODE-001 C-37: a create result is stored with the merchant code read at that request") {
+            Then("the code is stored in the same row and read back with the result; a result without a code reads back null (pre-MC-4 rows too)") {
+                val coded = scope()
+                val plain = scope()
+                val paymentId = com.paycore.payment.payment.domain.PaymentId(unique("pay"))
+                inTx {
+                    idempotency.reserveOrLock(reservation(coded))
+                    idempotency.complete(coded, StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, paymentId, "storeshop01"), t0)
+                    idempotency.reserveOrLock(reservation(plain))
+                    idempotency.complete(plain, StoredRequestResult.Succeeded(CreatePaymentOutcome.EXISTING_ACTIVE_PAYMENT, paymentId), t0)
+                }
+                inTx { idempotency.reserveOrLock(reservation(coded)) }.shouldBeInstanceOf<IdempotencyReservationOutcome.Existing>().record.result shouldBe
+                    StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, paymentId, "storeshop01")
+                inTx { idempotency.reserveOrLock(reservation(plain)) }.shouldBeInstanceOf<IdempotencyReservationOutcome.Existing>().record.result shouldBe
+                    StoredRequestResult.Succeeded(CreatePaymentOutcome.EXISTING_ACTIVE_PAYMENT, paymentId, null)
+                db.withApp { c -> with(db) { c.scalar("SELECT result_merchant_code FROM idempotency_request WHERE idempotency_key = ?", coded.key.value) } } shouldBe "storeshop01"
+                // 형식 밖 값은 결과 타입이 받지 않는다(저장 결함이면 fail-closed).
+                shouldThrow<IllegalArgumentException> { StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, paymentId, "Bad_Code") }
+            }
+        }
+
         When("a business rejection is stored") {
             Then("it is read back as a rejection with its reference payment") {
                 val s = scope()
@@ -326,7 +347,8 @@ class PaymentStoreAdapterSpec(
                 val s = scope()
                 inTx {
                     idempotency.reserveOrLock(reservation(s))
-                    idempotency.complete(s, StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, com.paycore.payment.payment.domain.PaymentId("p-old")), t0)
+                    // MERCHANT-CODE-001 C-37: 옛 결과에 코드를 둬서 만료 갱신이 그 코드도 지우는지 함께 본다(아래 새 결과 기대값은 그대로 — 코드 없음).
+                    idempotency.complete(s, StoredRequestResult.Succeeded(CreatePaymentOutcome.CREATED, com.paycore.payment.payment.domain.PaymentId("p-old"), "oldshop01"), t0)
                 }
                 val later = t0.plus(Duration.ofDays(30))
                 val renewal = reservation(s, at = later, fingerprint = "c")

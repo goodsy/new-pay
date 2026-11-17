@@ -98,6 +98,14 @@ class JpaEntitlementProjectionStore(
 
     override fun findMidOwner(mid: String): String? = translate("entitlement_mid_owner") { owners.findById(mid).orElse(null)?.merchantId }
 
+    /**
+     * MC-4 비잠금 head 읽기(`EntityManager.find` — 잠금 없음). 같은 TX 영속성 컨텍스트에 이미 있는 행(예: CreatePayment가 판정에서 `FOR SHARE`로 읽은 head)은 그 값이다.
+     * 코드는 계약 승인 뒤 불변이라 오래된 읽기의 위험이 없다(출력 전용 — 판정에 쓰지 않는다).
+     */
+    override fun findHead(merchantId: String): EntitlementHead? = translate("entitlement_head") {
+        entityManager.find(JpaEntitlementHeadEntity::class.java, merchantId)?.let(::toHead)
+    }
+
     override fun updateHead(head: EntitlementHead, appliedAt: Instant): Unit = translate("entitlement_head") {
         val row = checkNotNull(entityManager.find(JpaEntitlementHeadEntity::class.java, head.merchantId)) { "head must be locked first" }
         check(head.revision >= row.revision) { "head revision never decreases" }
@@ -112,6 +120,7 @@ class JpaEntitlementProjectionStore(
         row.sourceEventId = head.sourceEventId
         row.blockedReason = head.blocked?.name
         row.blockedRevision = head.blockedRevision
+        row.merchantCode = head.merchantCode
         entityManager.flush()
     }
 
@@ -124,6 +133,7 @@ class JpaEntitlementProjectionStore(
         sourceEventId = row.sourceEventId,
         blocked = row.blockedReason?.let(HeadBlock::valueOf),
         blockedRevision = row.blockedRevision,
+        merchantCode = row.merchantCode,
     )
 
     /** DB/JPA 예외 → [EntitlementPersistenceFailure](payment 모듈 PersistenceFailures와 같은 규칙: MySQL vendor 코드·SQLState로 판단, 값 없음). */

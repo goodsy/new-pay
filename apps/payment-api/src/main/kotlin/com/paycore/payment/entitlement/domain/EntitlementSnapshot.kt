@@ -9,7 +9,7 @@ import java.time.format.DateTimeParseException
 import java.util.HexFormat
 
 /*
- * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1·2·3 — MASTER-SNAPSHOT-002, AUTHN-001)을 PAYMENT 자체 타입으로 해석한다 —
+ * PAYMENT 쪽 권리 Snapshot(MASTER-SNAPSHOT-001 명세 §3, §5). MASTER가 발행한 통합 계약(schemaVersion 1·2·3·4 — MASTER-SNAPSHOT-002, AUTHN-001, MERCHANT-CODE-001)을 PAYMENT 자체 타입으로 해석한다 —
  * MASTER 코드에 의존하지 않는다(앱 간 직접 의존 금지, 계약 일치는 golden 시험 S7). PAYMENT는 이 투영을 원본으로 취급하지 않는다(판정 입력).
  */
 
@@ -213,7 +213,7 @@ data class Lease(val issuedAt: Instant, val leaseSeq: Long, val leaseUntil: Inst
 }
 
 /**
- * 권리 내용(schemaVersion 1·2·3 — 2부터 MID별 승인 시작 조건 [AccountEntry.terms], 3부터 Site 채널 [SiteEntry.channel]). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
+ * 권리 내용(schemaVersion 1·2·3·4 — 2부터 MID별 승인 시작 조건 [AccountEntry.terms], 3부터 Site 채널 [SiteEntry.channel], 4부터 가맹점 코드 [merchantCode]). [contentHash]는 받은 값이 아니라 **이 내용으로 다시 계산한 값**이다(정규 JSON — MASTER와 같은 규칙).
  * 구성 시 구조 불변식(revision ≥ 1, MID 1개 이상, 식별자 유일)을 검사한다.
  */
 data class EntitlementContent(
@@ -223,8 +223,13 @@ data class EntitlementContent(
     val party: Party,
     val sites: List<SiteEntry>,
     val accounts: List<AccountEntry>,
-    /** 이 내용의 계약 버전(1·2·3). 2 이상이면 모든 MID에 승인 시작 조건이, 3이면 모든 Site에 채널이 있다. */
+    /** 이 내용의 계약 버전(1·2·3·4). 2 이상이면 모든 MID에 승인 시작 조건이, 3 이상이면 모든 Site에 채널이, 4이면 가맹점 코드가 있다. */
     val schemaVersion: Int = 1,
+    /**
+     * schemaVersion 4의 가맹점 코드(MERCHANT-CODE-001 §6 — 웹훅·결제 응답 출력 전용, 판정 입력 아님). 1~3이면 null. 형식은 수신 측이 다시 확인한다.
+     * 정규 내용·contentHash에 들어가므로 같은 revision·다른 코드는 기존 무결성 규칙(INTEGRITY_CONFLICT)이 막는다.
+     */
+    val merchantCode: String? = null,
 ) {
     init {
         if (!isSupportedSnapshotSchema(schemaVersion)) throw SnapshotContractViolation("unsupported snapshot schema version")
@@ -234,6 +239,10 @@ data class EntitlementContent(
         if (sites.any { (it.channel != null) != (schemaVersion >= CHANNEL_SNAPSHOT_SCHEMA_VERSION) }) {
             throw SnapshotContractViolation("site channels are carried exactly from schema version 3")
         }
+        if ((merchantCode != null) != (schemaVersion >= MERCHANT_CODE_SNAPSHOT_SCHEMA_VERSION)) {
+            throw SnapshotContractViolation("the merchant code is carried exactly from schema version 4")
+        }
+        if (merchantCode != null && !isMerchantCodeFormat(merchantCode)) throw SnapshotContractViolation("merchant code violates the code format")
         if (merchantId.isEmpty() || businessId.isEmpty()) throw SnapshotContractViolation("identifiers must not be empty")
         if (revision < 1) throw SnapshotContractViolation("revision starts at 1")
         if (accounts.isEmpty()) throw SnapshotContractViolation("a snapshot carries at least one MID")
@@ -292,7 +301,7 @@ data class EntitlementContent(
                 },
             ) + (a.terms?.let(::termsMap) ?: emptyMap())
         },
-    )
+    ) + (merchantCode?.let { mapOf("merchantCode" to it) } ?: emptyMap())
 
     private fun termsMap(t: AuthorizationTermsEntry): Map<String, Any?> = mapOf(
         "limitPolicies" to t.limitPolicies.sortedBy { it.policyId }.map {
@@ -331,14 +340,15 @@ data class EntitlementContent(
             "ec1:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(StandardCharsets.UTF_8)))
 
         /**
-         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 [schemaVersion](1·2·3) 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
+         * JSON 값 트리(adapter가 Jackson 노드를 [JsonValue]로 옮긴다)에서 [schemaVersion](1·2·3·4) 내용을 해석한다. 모르는 enum 값·빠진 필드·형식 오류는
          * [SnapshotContractViolation]. 추가 필드는 무시하지 않고 거절한다 — 내용 hash가 우리가 모르는 필드를 덮지 않게(fail-closed). v1 내용에 v2
          * 필드가 있거나 v2 내용에 v2 필드가 없어도 계약 위반이다.
          */
         fun fromJson(node: JsonValue, schemaVersion: Int, allowLeaseFields: Boolean): EntitlementContent {
             if (!isSupportedSnapshotSchema(schemaVersion)) throw SnapshotContractViolation("unsupported snapshot schema version")
             val o = node.obj("snapshot")
-            val known = CONTENT_KEYS + if (allowLeaseFields) LEASE_KEYS else emptySet()
+            val withCode = schemaVersion >= MERCHANT_CODE_SNAPSHOT_SCHEMA_VERSION
+            val known = CONTENT_KEYS + (if (withCode) setOf(MERCHANT_CODE_KEY) else emptySet()) + if (allowLeaseFields) LEASE_KEYS else emptySet()
             o.requireOnly(known, "snapshot")
             return EntitlementContent(
                 merchantId = o.string("merchantId"),
@@ -357,6 +367,7 @@ data class EntitlementContent(
                 },
                 accounts = o.array("accounts").map { account(it.obj("account"), schemaVersion) },
                 schemaVersion = schemaVersion,
+                merchantCode = if (withCode) o.string(MERCHANT_CODE_KEY) else null,
             )
         }
 
@@ -478,6 +489,7 @@ data class EntitlementContent(
         }
 
         private val CONTENT_KEYS = setOf("merchantId", "businessId", "revision", "party", "sites", "accounts")
+        private const val MERCHANT_CODE_KEY = "merchantCode"
         private val LEASE_KEYS = setOf("contentHash", "issuedAt", "leaseSeq", "leaseUntil")
     }
 }

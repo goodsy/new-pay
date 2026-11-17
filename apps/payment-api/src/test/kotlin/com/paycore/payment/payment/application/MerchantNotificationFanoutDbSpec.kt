@@ -87,10 +87,10 @@ class MerchantNotificationFanoutDbSpec(
     }
 
     fun service(events: MerchantWebhookEventStore = eventStore) =
-        MerchantNotificationFanoutService(transactionManager, store, events, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock)
+        MerchantNotificationFanoutService(transactionManager, store, events, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock, NO_MERCHANT_CODE)
 
     fun serviceWith(fanoutStore: MerchantNotificationFanoutStore, events: MerchantWebhookEventStore = eventStore) =
-        MerchantNotificationFanoutService(transactionManager, fanoutStore, events, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock)
+        MerchantNotificationFanoutService(transactionManager, fanoutStore, events, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock, NO_MERCHANT_CODE)
 
     afterEach { clock.reset() }
 

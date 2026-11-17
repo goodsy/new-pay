@@ -10,6 +10,7 @@ import java.time.Instant
  * - 차단 기록(D-MD-006)은 MASTER-LIFECYCLE-001 표가 생기기 전까지 false.
  * - 한도 정책: 이 MID 발급 CSA의 CSA 기본 + 이 MID의 Override(지난 구간 포함 — 내용은 원본 상태만의 함수, MS1 §15-1). 해석(Override 우선)은 PAYMENT.
  * - 카드사 개통: 종료 아닌 행만(종료 행은 판정에 쓸 일이 없다).
+ * - 가맹점 코드(v4, MERCHANT-CODE-001 §6): Merchant의 현재 코드(seq 최대). 판정 입력이 아니다(PAYMENT 출력 전용 표시값).
  */
 object EntitlementSnapshotAssembler {
     fun assemble(source: EntitlementSource, issuedAt: Instant, leaseSeq: Long, leaseDuration: Duration): EntitlementSnapshot {
@@ -21,6 +22,8 @@ object EntitlementSnapshotAssembler {
         return EntitlementSnapshot(
             merchantId = merchant.id,
             businessId = merchant.businessId,
+            // MERCHANT-CODE-001 §6(v4): 현재 코드. 계약 승인(= MID 발급 근거) 뒤에는 불변이라 외부에 나간 코드는 바뀌지 않는다(§3.7.1).
+            merchantCode = merchant.currentCode,
             revision = merchant.entitlementRevision,
             issuedAt = issuedAt,
             leaseSeq = leaseSeq,

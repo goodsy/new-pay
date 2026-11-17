@@ -37,7 +37,7 @@ class JpaEntitlementSourceStore(
     override fun load(merchantId: MerchantId): EntitlementSource? = translate(ENTITY) {
         val accountRows = accounts.findByMerchant(merchantId.value)
         if (accountRows.isEmpty()) return@translate null
-        // MERCHANT-CODE-001 MC-1: Merchant 조립(코드 배정 행 포함)은 Aggregate Repository 한 곳에서 — Snapshot은 MC-4 전까지 코드를 싣지 않는다.
+        // MERCHANT-CODE-001 MC-1: Merchant 조립(코드 배정 행 포함)은 Aggregate Repository 한 곳에서 — MC-4부터 Snapshot v4가 현재 코드를 싣는다(EntitlementSnapshotAssembler).
         val merchant = checkNotNull(merchants.find(merchantId)) { "merchant must exist" }
         val business = MasterPersistenceMapper.toBusiness(
             checkNotNull(entityManager.find(JpaBusinessEntity::class.java, merchant.businessId.value)) { "business must exist" },

@@ -28,7 +28,7 @@ class PaymentStatusQueryServiceSpec : BehaviorSpec({
     val mid = MerchantAccountId("mid-demo-a")
     val row = PaymentStatusRowFixture.authorized()
     val reader = RecordingReader(mapOf(Triple(Environment.TEST, mid, row.paymentId) to row))
-    val service = PaymentStatusQueryService(reader)
+    val service = PaymentStatusQueryService(reader, NO_MERCHANT_CODE)
 
     Given("the owner's environment and MID") {
         Then("the view is found and the scope is passed to the reader unchanged") {
@@ -69,7 +69,7 @@ class PaymentStatusQueryServiceSpec : BehaviorSpec({
             ).forEach { failure ->
                 val failing = PaymentStatusQueryService(object : PaymentStatusReader {
                     override fun find(environment: Environment, merchantAccountId: MerchantAccountId, paymentId: PaymentId): PaymentStatusRow? = throw failure
-                })
+                }, NO_MERCHANT_CODE)
                 failing.find(Environment.TEST, mid, row.paymentId.value) shouldBe
                     PaymentStatusResult.Unavailable(com.paycore.payment.payment.application.provided.FailureKind.DB_UNAVAILABLE)
             }
@@ -78,6 +78,25 @@ class PaymentStatusQueryServiceSpec : BehaviorSpec({
             val failing = PaymentStatusQueryService(object : PaymentStatusReader {
                 override fun find(environment: Environment, merchantAccountId: MerchantAccountId, paymentId: PaymentId): PaymentStatusRow? =
                     throw com.paycore.payment.payment.application.required.PersistenceFailure.Unavailable(RuntimeException("injected"))
+            }, NO_MERCHANT_CODE)
+            failing.find(Environment.TEST, mid, row.paymentId.value) shouldBe
+                PaymentStatusResult.Unavailable(com.paycore.payment.payment.application.provided.FailureKind.DB_UNAVAILABLE)
+        }
+    }
+    Given("MERCHANT-CODE-001 MC-4-2: the merchant code of the owner's MID (output only)") {
+        Then("a MID with a code shows it in the view; a MID without one has none (the API omits the field); the code is looked up by the authenticated MID only") {
+            val asked = mutableListOf<MerchantAccountId>()
+            val coded = PaymentStatusQueryService(reader, com.paycore.payment.payment.application.required.MerchantCodePort { asked += it; if (it == mid) "demoshop01" else null })
+            coded.find(Environment.TEST, mid, row.paymentId.value).shouldBeInstanceOf<PaymentStatusResult.Found>().view.merchantCode shouldBe "demoshop01"
+            asked shouldBe listOf(mid)
+            service.find(Environment.TEST, mid, row.paymentId.value).shouldBeInstanceOf<PaymentStatusResult.Found>().view.merchantCode shouldBe null
+            // 없음·범위 밖은 코드를 조회하지 않는다(존재 비노출 — NotFound 경로 불변).
+            coded.find(Environment.TEST, MerchantAccountId("mid-demo-b"), row.paymentId.value) shouldBe PaymentStatusResult.NotFound
+            asked shouldBe listOf(mid)
+        }
+        Then("a store failure while reading the code is the same Unavailable result (never a body without the code by accident)") {
+            val failing = PaymentStatusQueryService(reader, com.paycore.payment.payment.application.required.MerchantCodePort {
+                throw com.paycore.payment.payment.application.required.PersistenceFailure.Unavailable(RuntimeException("injected"))
             })
             failing.find(Environment.TEST, mid, row.paymentId.value) shouldBe
                 PaymentStatusResult.Unavailable(com.paycore.payment.payment.application.provided.FailureKind.DB_UNAVAILABLE)

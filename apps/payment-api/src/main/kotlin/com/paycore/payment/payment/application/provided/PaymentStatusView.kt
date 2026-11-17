@@ -50,6 +50,7 @@ data class CancellationHistoryItem(
  * - [authorization]: Authorization이 없으면 null. 승인 terms는 공개 상태가 AUTHORIZED일 때만.
  * - [returnSummary]·[cancellations]: AUTHORIZED일 때만(D-CPQ-002 — P1(FAILED/EXPIRED)의 늦은 승인·운영자 취소는 숨긴다).
  * - [onHold]: 그 Payment 자신의 활성 사고 보류(D-CPQ-001 — 사유 없음).
+ * - [merchantCode]: 그 MID 가맹점의 코드(MERCHANT-CODE-001 §6 — 출력 전용, 코드 없는 MID는 null → 필드 생략). 상태 판정과 무관하다.
  */
 data class PaymentStatusView(
     val paymentId: PaymentId,
@@ -62,6 +63,7 @@ data class PaymentStatusView(
     val authorization: AuthorizationView?,
     val returnSummary: ReturnSummaryView?,
     val cancellations: List<CancellationHistoryItem>,
+    val merchantCode: String? = null,
 ) {
     init {
         require((status == PaymentViewStatus.FAILED) == (failureCategory != null)) { "a failure category exists exactly for FAILED" }

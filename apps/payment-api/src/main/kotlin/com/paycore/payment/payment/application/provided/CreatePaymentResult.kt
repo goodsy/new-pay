@@ -7,7 +7,11 @@ import com.paycore.payment.payment.domain.PaymentKey
 import com.paycore.payment.payment.domain.PaymentStatus
 import java.time.Instant
 
-/** 생성 결과의 Payment 생성 시점 값(D-CP-003). 현재 상태는 넣지 않는다 — [lifecycleAtCreation]은 항상 REQUESTED. */
+/**
+ * 생성 결과의 Payment 생성 시점 값(D-CP-003). 현재 상태는 넣지 않는다 — [lifecycleAtCreation]은 항상 REQUESTED.
+ * [merchantCode]: 그 MID 가맹점의 코드(MERCHANT-CODE-001 §6 — 출력 전용, 코드 없는 MID는 null → 응답 필드 생략). 생성 결과와 함께 멱등 기록에 저장한 값이며 재생도 그 값이다
+ * (C-37(MC-4), D-CP-003). Payment 값이 아니다(Payment 행·요청 지문·판정에 없음).
+ */
 data class CreatedPayment(
     val paymentId: PaymentId,
     val paymentKey: PaymentKey,
@@ -15,6 +19,7 @@ data class CreatedPayment(
     val paymentCreatedAt: Instant,
     val merchantOrderId: MerchantOrderId,
     val money: Money,
+    val merchantCode: String? = null,
 )
 
 /**

@@ -60,6 +60,7 @@ class MerchantWebhookDeliveryDbSpec(
     private val clock: MutablePaymentClock,
     private val transactionManager: PlatformTransactionManager,
     private val db: DbAccess,
+    private val merchantCodes: com.paycore.payment.payment.application.required.MerchantCodePort,
 ) : BehaviorSpec({
 
     val receiver = ProgrammableMerchantReceiver.http()
@@ -94,14 +95,16 @@ class MerchantWebhookDeliveryDbSpec(
         c: com.paycore.payment.payment.application.required.PaymentClock = clock,
         s: com.paycore.payment.payment.application.required.MerchantWebhookSender = sender,
     ) = MerchantWebhookDeliveryService(transactionManager, deliveries, attempts, eventStore, directory, keys, HmacMerchantWebhookSigner(), s, t, c)
-    val fanout = MerchantNotificationFanoutService(transactionManager, fanoutStore, eventStore, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock)
+    val fanout = MerchantNotificationFanoutService(transactionManager, fanoutStore, eventStore, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock, NO_MERCHANT_CODE)
 
     fun rows(sql: String, vararg args: Any?): List<Map<String, Any?>> = db.withRoot { c -> with(db) { c.catalog = db.databaseName; c.rows(sql, *args) } }
     fun scalar(sql: String, vararg args: Any?): Any? = db.withRoot { c -> with(db) { c.catalog = db.databaseName; c.scalar(sql, *args) } }
 
     /** 이 시험의 TEST Payment 하나에 대한 가맹점 이벤트·전달 행(운영 fan-out). 다른 spec의 PENDING 전달 행과 섞이지 않게 claim은 [deliverUntilIdle]이 이 MID 행만 확인한다. */
-    fun scheduledDelivery(): Pair<String, String> {
-        val order = PersistenceTestData.newOrder()
+    fun scheduledDelivery(
+        f: MerchantNotificationFanoutService = fanout,
+        order: com.paycore.payment.payment.domain.OrderKey = PersistenceTestData.newOrder(),
+    ): Pair<String, String> {
         val created = createPayment.create(CreatePaymentFixture.command(order)).shouldBeInstanceOf<CreatePaymentResult.Accepted>()
         val pid = created.payment.paymentId.value
         db.withRoot { c -> c.catalog = db.databaseName; c.prepareStatement("UPDATE payment SET status = 'EXPIRED' WHERE payment_id = ?").use { it.setString(1, pid); it.executeUpdate() } }
@@ -123,7 +126,7 @@ class MerchantWebhookDeliveryDbSpec(
             }
         }
         endpoints[order.merchantAccountId.value] = MerchantWebhookEndpoint("ep-db", "http://127.0.0.1:${receiver.port}/webhooks")
-        repeat(20) { if (fanout.fanOut(FanOutMerchantNotificationsCommand(500, Duration.ofMinutes(1))).claimed == 0) return@repeat }
+        repeat(20) { if (f.fanOut(FanOutMerchantNotificationsCommand(500, Duration.ofMinutes(1))).claimed == 0) return@repeat }
         val row = rows(
             "SELECT d.delivery_id, e.webhook_event_id FROM merchant_webhook_delivery d JOIN merchant_webhook_event e ON e.webhook_event_id = d.webhook_event_id WHERE e.payment_id = ?", pid,
         ).single()
@@ -145,6 +148,58 @@ class MerchantWebhookDeliveryDbSpec(
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret.toByteArray(), "HmacSHA256")) }
         mac.update("$t.".toByteArray(Charsets.US_ASCII))
         return HexFormat.of().formatHex(mac.doFinal(body))
+    }
+
+    // MERCHANT-CODE-001 C-36(MC-4 — WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전") + 리뷰 MINOR-2: fan-out이 운영 Port 구현(EntitlementMerchantCodeAdapter →
+    // 권리 투영 head)으로 코드를 읽는다. 승격 전(v3 head)에 만든 이벤트는 코드 없이 저장되고 그 바이트 그대로 재전송된다(WH-08 — 저장 행을 다시 직렬화하지 않음).
+    Given("MERCHANT-CODE-001 C-36: field added, version kept — fan-out through the production merchant code adapter; a stored v1 row is resent byte for byte") {
+        val t0 = Instant.parse("2026-10-22T09:00:00Z")
+        clock.set(t0)
+        val realFanout = MerchantNotificationFanoutService(
+            transactionManager, fanoutStore, eventStore, deliveries, directory, SecureRandomMerchantWebhookIdentifierGenerator(), clock, merchantCodes,
+        )
+        val order = PersistenceTestData.newOrder()
+        val merchantId = MerchantCodeProjection.project(db, order.merchantAccountId.value, null)
+        // ① v3 head 시점(코드 없음): 이벤트 생성, 첫 전달은 500(미전달 — 재시도 예정).
+        receiver.respond { Behaviour.Status(500) }
+        val (firstDelivery, firstEvent) = scheduledDelivery(realFanout, order)
+        drainDeliveries()
+        val storedFirst = scalar("SELECT body FROM merchant_webhook_event WHERE webhook_event_id = ?", firstEvent) as ByteArray
+        // ② v4 승격 적용(같은 MID에 코드가 생김).
+        MerchantCodeProjection.promote(db, merchantId, "hookshop01")
+        // ③ 승격 뒤 같은 MID의 다른 주문 이벤트 + ①의 재시도.
+        receiver.respond { Behaviour.Status(200) }
+        val second = com.paycore.payment.payment.domain.OrderKey(
+            order.environment, order.merchantAccountId, com.paycore.payment.payment.domain.MerchantOrderId(DbAccess.unique("order")),
+        )
+        val (secondDelivery, secondEvent) = scheduledDelivery(realFanout, second)
+        clock.set(t0.plusSeconds(10))
+        drainDeliveries()
+        // afterEach가 Then마다 수신 기록을 지우므로 여기서 붙잡아 둔다.
+        val gotFirst = receiver.received.filter { it.headers["paycore-event-id"] == firstEvent }
+        val gotSecond = receiver.received.filter { it.headers["paycore-event-id"] == secondEvent }
+
+        Then("the merchant code port in the context is the production adapter (not a test double)") {
+            org.springframework.aop.support.AopUtils.getTargetClass(merchantCodes) shouldBe
+                com.paycore.payment.payment.adapter.integration.EntitlementMerchantCodeAdapter::class.java
+        }
+        Then("the event stored before the promotion is resent with exactly the stored bytes: no merchantCode, schemaVersion 1") {
+            gotFirst.size shouldBe 2
+            gotFirst.forEach { it.body.contentEquals(storedFirst) shouldBe true }
+            val text = String(storedFirst, Charsets.UTF_8)
+            text.contains("\"merchantCode\"") shouldBe false
+            text.contains("\"schemaVersion\":1,") shouldBe true
+            deliveryRow(firstDelivery)["status"] shouldBe "DELIVERED"
+        }
+        Then("the event fanned out after the promotion carries merchantCode right after merchantAccountId and still declares schemaVersion 1 (V21 CHECK holds)") {
+            val stored = String(scalar("SELECT body FROM merchant_webhook_event WHERE webhook_event_id = ?", secondEvent) as ByteArray, Charsets.UTF_8)
+            stored.contains("\"merchantAccountId\":\"${order.merchantAccountId.value}\",\"merchantCode\":\"hookshop01\",\"createdAt\":") shouldBe true
+            stored.contains("\"schemaVersion\":1,") shouldBe true
+            scalar("SELECT schema_version FROM merchant_webhook_event WHERE webhook_event_id = ?", secondEvent).toString() shouldBe "1"
+            gotSecond.single().body.contentEquals(stored.toByteArray(Charsets.UTF_8)) shouldBe true
+            deliveryRow(secondDelivery)["status"] shouldBe "DELIVERED"
+            stored.contains("mer_") shouldBe false
+        }
     }
 
     Given("T-D1 a merchant answering 200") {

@@ -203,6 +203,7 @@ PayCore-Request-Id: 6f1c…
 ```
 
 - 필드 집합 고정(시험이 정확한 키 집합 비교). `status`·현재 상태·merchantSiteId·orderName·eligibility 버전 없음.
+- (2026-11-17 MERCHANT-CODE-001 MC-4 — CP-CONTRACT-001 v1.1) 가산 필드 `merchantCode`: 코드가 있는 MID만 `currency` 뒤에 붙고 없으면 키 생략. 생성 결과와 함께 `idempotency_request.result_merchant_code`(PAYMENT V36)에 저장, 재생은 그 값만(C-37(MC-4) — D-CP-003). 요청 본문 `merchantCode`는 모르는 필드 400. 시험 `CreatePaymentApiSpec` MC-4-2·C-37 묶음.
 - `paymentCreatedAt`: UTC, ms 3자리 고정, `Z`(구현 결정 — 원문 형식 `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`).
 - amount는 JSON 정수(직렬화도 Long 그대로, D-CPC-009).
 - 재생은 최초 결과의 paymentId·outcome·시각을 그대로(같은 바이트 본문 — 시험).

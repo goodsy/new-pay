@@ -23,7 +23,7 @@ import java.util.UUID
 /**
  * DEMO-SEED-001 I-10(MASTER 쪽)·m7: 운영 Demo 값([DemoMerchantSeedValues] — 등록번호만 공유 시험 DB 중복을 피해 새 값, Snapshot에 없다)으로 18단계 seed를 고정 시계
  * ([MutableMasterClock] 기본 2026-10-09T02:00Z)·고정 ID([ScriptedIdGenerator.enqueue])로 돌린 뒤 최신 Snapshot이 harness가 **앱 코드와 독립으로** 만든
- * `contracts/demo-seed-snapshot-v3.golden.json`과 같은지 본다. contentHash는 MASTER가 자기 정규 바이트로 계산한 SHA-256이라 golden contentHash와 같으면
+ * `contracts/demo-seed-snapshot-v4.golden.json`과 같은지 본다. contentHash는 MASTER가 자기 정규 바이트로 계산한 SHA-256이라 golden contentHash와 같으면
  * 정규 내용이 바이트 단위로 같다. 같은 파일을 PAYMENT `DemoSeedSnapshotAdmissionSpec`이 실제 Inbox로 적용한다.
  *
  * 운영 host(`demo-shop.paycore.test`)는 Snapshot 내용이고 MASTER는 WEB host 중복을 거절한다(SITE_CHANNEL_DUPLICATE) — 공유 시험 DB에서는 `DemoSeedCommandSpec`이
@@ -38,7 +38,8 @@ class DemoSeedSnapshotGoldenSpec(
     private val container: MySQLContainer,
 ) : FunSpec({
 
-    val golden = JsonMapper.builder().build().readTree(ClassPathResource("contracts/demo-seed-snapshot-v3.golden.json").inputStream)
+    // 기대값 변경(MERCHANT-CODE-001 §6·MC-4): v3 → v4 golden(최신 Snapshot에 seed 코드 demoshop01 — revision·권리 내용 기대값은 그대로).
+    val golden = JsonMapper.builder().build().readTree(ClassPathResource("contracts/demo-seed-snapshot-v4.golden.json").inputStream)
     fun g(name: String): String = golden.get(name).stringValue()
 
     beforeSpec {

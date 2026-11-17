@@ -2,6 +2,7 @@ package com.paycore.payment.payment.application
 
 import com.paycore.payment.payment.application.provided.FanOutMerchantNotificationsCommand
 import com.paycore.payment.payment.application.required.MerchantNotificationFacts
+import com.paycore.payment.payment.application.required.MerchantCodePort
 import com.paycore.payment.payment.application.required.MerchantNotificationFanoutStore
 import com.paycore.payment.payment.application.required.MerchantWebhookDeliveryPlan
 import com.paycore.payment.payment.application.required.MerchantWebhookDeliveryRepository
@@ -57,6 +58,8 @@ class MerchantNotificationFanoutServiceSpec : BehaviorSpec({
         val events = mutableListOf<MerchantWebhookEventRecord>()
         val deliveries = mutableListOf<MerchantWebhookDelivery>()
         val endpoints = mutableMapOf<Pair<Environment, String>, MerchantWebhookEndpoint>()
+        /** MERCHANT-CODE-001 MC-4: MID → 가맹점 코드(권리 투영의 출력 전용 값). 없는 MID는 코드 없음. */
+        val codes = mutableMapOf<String, String>()
         /** 다른 인스턴스가 앞 행을 실패로 커밋한 상황을 시험이 지정한다(H-1). */
         val earlierOpen = mutableSetOf<Long>()
         var failEventAppendFor: String? = null
@@ -161,6 +164,7 @@ class MerchantNotificationFanoutServiceSpec : BehaviorSpec({
             tm, store, eventStore, deliveryRepository, directory, ids, object : PaymentClock {
                 override fun now(): Instant = t0
             },
+            MerchantCodePort { codes[it.value] },
         )
 
         fun add(r: PendingOutboxNotification) {
@@ -183,6 +187,7 @@ class MerchantNotificationFanoutServiceSpec : BehaviorSpec({
     Given("a mixed batch (creation, authorization, internal risk event, P1 operator cancel and cancel failure, LIVE expiry, operator cancel on AUTHORIZED)") {
         val f = Fakes()
         f.endpoints[Environment.TEST to midA.value] = MerchantWebhookEndpoint("ep-test-a", "https://merchant-a.example.test/webhooks")
+        f.codes[midA.value] = "demoshop01"
         listOf(
             row(1, "PaymentRequested", null),
             row(2, "PaymentAuthorized", subject("pay_A", PaymentStatus.AUTHORIZED, authorizedFacts)),
@@ -217,6 +222,11 @@ class MerchantNotificationFanoutServiceSpec : BehaviorSpec({
                 MerchantNotificationType.PAYMENT_CANCEL_FAILED,
             )
             (f.events[2].envelope.facts as MerchantNotificationFacts.Cancelled).initiator shouldBe "OPERATOR"
+        }
+        Then("MERCHANT-CODE-001 MC-4-2: each envelope carries its MID's merchant code (output only); a MID without a code has none (field omitted)") {
+            f.events.map { it.envelope.merchantAccountId.value to it.envelope.merchantCode } shouldBe listOf(
+                midA.value to "demoshop01", midLive.value to null, midA.value to "demoshop01", midA.value to "demoshop01",
+            )
         }
         Then("the envelope time is the fan-out time (never the business fact time — m-1), with the payment's own amount and a new public id") {
             val e = f.events[0].envelope

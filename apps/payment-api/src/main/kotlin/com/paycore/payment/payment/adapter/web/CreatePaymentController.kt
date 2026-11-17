@@ -152,7 +152,7 @@ class CreatePaymentController(
         return ApiResponses.error(error, requestId, headers)
     }
 
-    private fun successBody(outcome: String, payment: CreatedPayment): Map<String, Any> = linkedMapOf(
+    private fun successBody(outcome: String, payment: CreatedPayment): Map<String, Any> = linkedMapOf<String, Any>(
         "paymentId" to payment.paymentId.value,
         "paymentKey" to payment.paymentKey.value,
         "outcome" to outcome,
@@ -161,7 +161,10 @@ class CreatePaymentController(
         "merchantOrderId" to payment.merchantOrderId.value,
         "amount" to payment.money.amountMinor,
         "currency" to payment.money.currency.value,
-    )
+    ).also { body ->
+        // MERCHANT-CODE-001 §6(Q-MC-8): 출력 전용 가맹점 코드 — 코드 없는 MID는 키 생략. 요청 본문의 merchantCode는 모르는 필드(파서가 400).
+        payment.merchantCode?.let { body["merchantCode"] = it }
+    }
 
     private fun rejectionCode(rejection: CreatePaymentRejection): ApiErrorCode = when (rejection) {
         CreatePaymentRejection.FIXED_INTENT_CONFLICT -> ApiErrorCode.ORDER_INTENT_CONFLICT

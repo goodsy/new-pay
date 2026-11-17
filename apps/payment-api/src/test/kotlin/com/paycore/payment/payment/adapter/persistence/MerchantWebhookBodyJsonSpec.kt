@@ -19,6 +19,8 @@ import java.time.Instant
 
 /**
  * 가맹점 Webhook 본문 계약 v1(WEBHOOK-001 §4.2.0 rev 0.2 — T-C2 본문 바이트, T-C2b GET ⊇ Webhook). 기대 바이트는 명세 표에서 손으로 적는다.
+ * MERCHANT-CODE-001 MC-4(§6, D-MCODE-002 Q-MC-8, C-36(MC-4) — WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전"): schemaVersion은 **1 그대로**,
+ * 봉투 최상위 `merchantCode`는 가산 필드(출력 전용, 코드 없는 MID는 생략). 그 밖의 키·순서·값은 v1 그대로.
  * GET 키 집합은 `GetPaymentController`(CP-QUERY-001 §4.4)의 실제 출력 함수 `body`·`authorization`·`returnSummary`·`cancellation`이 만드는 키 전부다(API 수준 대조는 S5 T-V1).
  */
 class MerchantWebhookBodyJsonSpec : BehaviorSpec({
@@ -108,7 +110,11 @@ class MerchantWebhookBodyJsonSpec : BehaviorSpec({
         val getCancellation = setOf(
             "cancellationId", "initiator", "merchantCancelId", "status", "amount", "currency", "requestedAt", "cancelTransactionId", "cancelApprovalNumber", "cancelledAt", "failureCategory",
         )
-        val envelopeKeys = setOf("eventId", "type", "schemaVersion", "environment", "merchantAccountId", "createdAt", "sequence", "payment", "authorization", "cancellation", "returnSummary")
+        // 기대값 변경(MERCHANT-CODE-001 §6): GET 최상위·봉투 키에 merchantCode 추가(출력 전용 — GET ⊇ Webhook 규칙은 그대로).
+        val getTopWithCode = getTop + "merchantCode"
+        val envelopeKeys = setOf(
+            "eventId", "type", "schemaVersion", "environment", "merchantAccountId", "merchantCode", "createdAt", "sequence", "payment", "authorization", "cancellation", "returnSummary",
+        )
 
         fun keys(n: JsonNode?): Set<String> = n?.propertyNames()?.toSet() ?: emptySet()
 
@@ -117,6 +123,7 @@ class MerchantWebhookBodyJsonSpec : BehaviorSpec({
                 val root = mapper.readTree(MerchantWebhookBodyJson.serialize(e))
                 envelopeKeys shouldContainAll keys(root)
                 getTop shouldContainAll keys(root.get("payment"))
+                getTopWithCode shouldContainAll (keys(root) intersect setOf("merchantCode"))
                 getAuthorization shouldContainAll keys(root.get("authorization"))
                 getPlan shouldContainAll keys(root.get("authorization")?.get("plan"))
                 getReturnSummary shouldContainAll keys(root.get("returnSummary"))
@@ -127,6 +134,31 @@ class MerchantWebhookBodyJsonSpec : BehaviorSpec({
             listOf(failed, expired, cancelFailed).forEach { e ->
                 val t = text(e)
                 listOf("failedAt", "expiredAt", "requestedAt", "occurredAt").forEach { t.contains("\"$it\"") shouldBe false }
+            }
+        }
+    }
+    Given("MERCHANT-CODE-001 MC-4-2: the merchant code (additive field, schemaVersion stays 1 — output only, C-36(MC-4))") {
+        val coded = authorized.copy(merchantCode = "demoshop01")
+        Then("a MID with a code carries it right after merchantAccountId (exact bytes); every other byte equals the code-less body") {
+            text(coded) shouldBe """{"eventId":"whe_01JB0000000000000000000001","type":"payment.authorized","schemaVersion":1,"environment":"TEST","merchantAccountId":"mid_demo_1",""" +
+                """"merchantCode":"demoshop01","createdAt":"2026-10-21T01:00:00.000Z","sequence":1,"payment":{"paymentId":"pay_1","merchantOrderId":"order-1","amount":10000,""" +
+                """"currency":"KRW","status":"AUTHORIZED"},"authorization":{"authorizationId":"pau_1","status":"AUTHORIZED","approvedAmount":10000,"currency":"KRW",""" +
+                """"plan":{"kind":"LUMP_SUM"},"cardType":"CREDIT","approvalNumber":"12345678","approvedAt":"2026-10-21T00:59:55.123Z"}}"""
+            text(coded).replace(""""merchantCode":"demoshop01",""", "") shouldBe text(authorized)
+        }
+        Then("field added, version kept: a MID without a code omits the key (not null) and its bytes are the v1 contract bytes; both bodies declare schemaVersion 1") {
+            listOf(authorized, failed, expired, cancelled, operatorCancelled, cancelFailed).forEach { e ->
+                mapper.readTree(MerchantWebhookBodyJson.serialize(e)).has("merchantCode") shouldBe false
+                mapper.readTree(MerchantWebhookBodyJson.serialize(e)).get("schemaVersion").intValue() shouldBe 1
+            }
+            mapper.readTree(MerchantWebhookBodyJson.serialize(coded)).get("schemaVersion").intValue() shouldBe 1
+            // V21 CHECK(schema_version = 1)와 같은 값 — 가산 필드는 버전을 올리지 않는다(WEBHOOK-001 §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전").
+            MerchantWebhookEnvelope.SCHEMA_VERSION shouldBe 1
+        }
+        Then("no internal key (mer_ / biz_) appears in any webhook body") {
+            listOf(coded, authorized, failed, expired, cancelled, operatorCancelled, cancelFailed).forEach { e ->
+                text(e).contains("mer_") shouldBe false
+                text(e).contains("biz_") shouldBe false
             }
         }
     }

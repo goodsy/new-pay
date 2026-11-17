@@ -63,6 +63,13 @@ class JpaIdempotencyRequestEntity protected constructor() {
     @field:Column(name = "result_detail", length = 48)
     var resultDetail: String? = null
 
+    /**
+     * MERCHANT-CODE-001 C-37(MC-4) V36: CreatePayment 성공 결과를 만든 요청 때 읽은 가맹점 코드(재생 = 이 저장값 — D-CP-003). 코드 없는 MID·다른 operation·MC-4 이전 행은 NULL.
+     * 일반 열(결과는 PENDING → 결과 한 번만 쓰이고, 만료 갱신 때만 NULL로 되돌아간다 — 다른 result_* 열과 같은 수명).
+     */
+    @field:Column(name = "result_merchant_code", length = 14)
+    var resultMerchantCode: String? = null
+
     @field:Column(name = "created_at", nullable = false)
     lateinit var createdAt: Instant
 

@@ -60,6 +60,7 @@ class JpaIdempotencyRecordStore(
         row.resultAuthorizationId = null
         row.resultCancellationId = null
         row.resultDetail = null
+        row.resultMerchantCode = null
         row.createdAt = reservation.createdAt
         row.expiresAt = reservation.expiresAt
         row.updatedAt = reservation.createdAt
@@ -74,6 +75,8 @@ class JpaIdempotencyRecordStore(
                 row.resultKind = SUCCESS
                 row.resultCode = result.outcome.name
                 row.resultPaymentId = result.paymentId.value
+                // C-37(MC-4): 생성 결과와 같은 TX·같은 행에 그 요청 때의 가맹점 코드를 남긴다(재생은 이 값만 — 응답 시점 조회 없음).
+                row.resultMerchantCode = result.merchantCode
             }
             is StoredRequestResult.Rejected -> {
                 row.resultKind = REJECTED
@@ -137,7 +140,9 @@ class JpaIdempotencyRecordStore(
                     REJECTED -> StoredRequestResult.ConfirmRejected(ConfirmRejection.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)), row.resultDetail)
                     else -> error("unknown idempotency result kind")
                 }
-                row.resultKind == SUCCESS -> StoredRequestResult.Succeeded(CreatePaymentOutcome.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
+                row.resultKind == SUCCESS -> StoredRequestResult.Succeeded(
+                    CreatePaymentOutcome.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)), row.resultMerchantCode,
+                )
                 row.resultKind == REJECTED -> StoredRequestResult.Rejected(CreatePaymentRejection.valueOf(checkNotNull(row.resultCode)), PaymentId(checkNotNull(row.resultPaymentId)))
                 else -> error("unknown idempotency result kind")
             },

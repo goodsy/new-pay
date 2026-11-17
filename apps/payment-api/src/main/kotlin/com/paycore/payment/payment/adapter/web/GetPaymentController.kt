@@ -96,6 +96,8 @@ class GetPaymentController(
             "paymentCreatedAt" to CreatePaymentController.formatInstant(v.createdAt),
             "status" to v.status.name,
         )
+        // MERCHANT-CODE-001 §6(Q-MC-8): 출력 전용 가맹점 코드 — 코드 없는 MID는 키 생략(null을 쓰지 않는다).
+        v.merchantCode?.let { out["merchantCode"] = it }
         v.failureCategory?.let { out["failureCategory"] = it.name }
         out["onHold"] = v.onHold
         out["authorization"] = v.authorization?.let(::authorization)

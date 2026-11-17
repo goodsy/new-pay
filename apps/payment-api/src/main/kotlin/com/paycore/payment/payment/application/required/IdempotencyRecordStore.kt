@@ -46,7 +46,20 @@ data class IdempotencyReservation(
 
 /** 저장된(커밋된) 요청 결과. 재생 응답 값은 [paymentId]/[referencePaymentId]가 가리키는 Payment의 생성 시 불변 값에서 다시 읽는다. */
 sealed interface StoredRequestResult {
-    data class Succeeded(val outcome: CreatePaymentOutcome, val paymentId: PaymentId) : StoredRequestResult
+    /**
+     * CreatePayment 성공. [merchantCode](MERCHANT-CODE-001 §6·C-37(MC-4) — D-CP-003 "저장된 생성 결과만"): 이 결과를 처음 만든 요청 때 읽은 그 MID의 가맹점 코드(출력 전용).
+     * 재생은 이 저장값만 쓴다(응답 시점에 다시 조회하지 않는다). 코드 없는 MID·MC-4 이전 기록은 null → 응답 필드 생략. Payment 값·요청 지문·판정 입력이 아니다.
+     */
+    data class Succeeded(val outcome: CreatePaymentOutcome, val paymentId: PaymentId, val merchantCode: String? = null) : StoredRequestResult {
+        init {
+            require(merchantCode == null || MERCHANT_CODE.matches(merchantCode)) { "a stored merchant code has the merchant code format" }
+        }
+
+        private companion object {
+            /** MASTER V13·PAYMENT V36 entitlement_head CHECK와 같은 문법(저장 결과를 다시 읽을 때 형식 밖 값은 결함 — fail-closed). */
+            val MERCHANT_CODE = Regex("^[a-z][a-z0-9]{5,13}$")
+        }
+    }
 
     data class Rejected(val rejection: CreatePaymentRejection, val referencePaymentId: PaymentId) : StoredRequestResult
 

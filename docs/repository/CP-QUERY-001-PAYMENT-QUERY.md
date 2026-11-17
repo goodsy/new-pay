@@ -1,4 +1,7 @@
-# CP-QUERY-001 GetPayment(결제 현재 상태 조회) API 명세 (rev 0.3 — 중간 검토 #1 대응·D-CPQ-005·S3·S4)
+# CP-QUERY-001 GetPayment(결제 현재 상태 조회) API 명세 (rev 0.4 — rev 0.3 + MERCHANT-CODE-001 MC-4 가산 필드 `merchantCode`)
+
+> **rev 0.4 갱신(2026-11-17, MERCHANT-CODE-001 MC-4 — D-MCODE-001 Q-MC-1·D-MCODE-002 Q-MC-8, 새 정책 없음)**: §4.4 응답 최상위에 출력 전용 가산 필드 `merchantCode`(코드 있는 MID만, 없으면 키 생략 —
+> 조회 시점 값). 나머지 키·의미·상태 매핑·비노출 규칙 불변, 내부 키(`mer_`·`biz_`) 없음. GET ⊇ Webhook 규칙 유지(WEBHOOK-001 rev 0.3 봉투 `merchantCode`). 시험 `CreatePaymentApiSpec` MC-4-2·`PaymentStatusQueryServiceSpec`.
 
 > **rev 0.3 갱신(2026-10-20)**: 중간 검토 #1(PASS_WITH_FIXES, H 없음)의 m-1~m-4·n-1·n-4~n-8 대응과 사용자 답변 **D-CPQ-005**(U-1 — 반환 가능액은 FORCED를 뺀 권위 값, FORCED 추론 가능성은 허용된 추론)를 §18.6에,
 > S3(Controller·API 시험·P-1)을 §18.7에, S4(문서·전체 check)를 §18.8에 기록했다. "한 SELECT" 문구는 "두 문장, 한 REPEATABLE READ 읽기 전용 TX"로 정정(m-4). n-2·n-3은 RECON-CONTRACT-001 인계(기록만).
@@ -242,6 +245,7 @@ Cache-Control: no-store
 | 필드 | 규칙 | 표시 |
 |---|---|---|
 | `paymentId`·`merchantOrderId`·`amount`·`currency`·`paymentCreatedAt` | 생성 응답 echo 집합과 같음(amount JSON 정수 — D-CPC-009, 시각 UTC ms `Z` — CPA §4.5) | 확정(CPA §4.5) + CQ-03 |
+| `merchantCode` | (rev 0.4 가산) 인증 MID 가맹점의 사람이 읽는 코드(MERCHANT-CODE-001 §6 — 출력 전용). `status` 뒤·`failureCategory` 앞(`GetPaymentController`). **조회 시점** PAYMENT 권리 투영 값이며(생성 응답 재생과 달리 현재 값 — D-CP-003), 코드가 없으면 키 생략(null 아님). NotFound 경로는 코드를 읽지 않는다. 코드 읽기 저장소 실패는 503(코드 없는 본문을 내지 않는다). 상태 판정과 무관 | D-MCODE-001·002 + MERCHANT-CODE-001 §6 |
 | `status` | §5.1 매핑(6값) | 확정(AC1 §5.1·§10.1) |
 | `failureCategory` | `status=FAILED`일 때만 DECLINED·NOT_SENT·NO_EFFECT | 확정(AC1 §10.1) |
 | `notice` | `IN_PROGRESS`·`UNKNOWN`일 때 고정 문구("결과 확인 중 — 같은 Payment로 다시 조회하라. 새 키·새 Payment로 재시도하지 마라") | 확정(AC1 §10.1 "새 키·새 Payment로 재시도 금지 안내", 범위 §3-8) |

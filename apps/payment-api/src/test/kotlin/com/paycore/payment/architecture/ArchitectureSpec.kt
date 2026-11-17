@@ -45,13 +45,25 @@ class ArchitectureSpec : FunSpec({
             .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementAuthorizationAdmissionAdapter")
             // AUTHN-001: 결제창 반환 URL host Port 구현도 캐시하지 않는다(판정마다 head FOR SHARE).
             .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementSiteWebHostAdapter")
+            // MERCHANT-CODE-001 MC-4: 가맹점 코드 Port 구현도 캐시하지 않는다(조회마다 head — 규칙 대상 확장).
+            .or().haveFullyQualifiedName("$BASE_PACKAGE.payment.adapter.integration.EntitlementMerchantCodeAdapter")
             .should().dependOnClassesThat().resideInAnyPackage("org.springframework.cache..", "com.github.benmanes.caffeine..", "javax.cache..")
             .`as`("entitlement does not use Spring cache, Caffeine or JCache")
             .check(classes)
         classes.filter {
-            it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName in setOf("EntitlementEligibilityAdapter", "EntitlementAuthorizationAdmissionAdapter", "EntitlementSiteWebHostAdapter")
+            it.packageName.startsWith("$BASE_PACKAGE.entitlement") || it.simpleName in setOf("EntitlementEligibilityAdapter", "EntitlementAuthorizationAdmissionAdapter", "EntitlementSiteWebHostAdapter", "EntitlementMerchantCodeAdapter")
         }
             .flatMap { c -> c.methods.filter { m -> m.annotations.any { it.rawType.packageName.startsWith("org.springframework.cache") } } } shouldBe emptyList()
+    }
+
+    test("MERCHANT-CODE-001 MC-4: the merchant code port is implemented only in adapter.integration and reads only entitlement.application.provided") {
+        val port = "$BASE_PACKAGE.payment.application.required.MerchantCodePort"
+        classes.filter { c -> c.interfaces.any { it.name == port } && !c.isAnonymousClass }.map { it.simpleName } shouldBe listOf("EntitlementMerchantCodeAdapter")
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that().implement(port)
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "$BASE_PACKAGE.entitlement.domain..", "$BASE_PACKAGE.entitlement.application.required..", "$BASE_PACKAGE.entitlement.adapter..",
+            )
+            .check(classes)
     }
 
     test("authorization admission (MASTER-SNAPSHOT-002 §6.1) is implemented only in adapter.integration and reads only entitlement.application.provided") {
