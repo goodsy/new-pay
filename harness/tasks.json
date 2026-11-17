@@ -9585,9 +9585,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-16T192723Z.json",
           "result": "GRADLE-CHECK 19:27:53Z..20:17:59Z(50m06s) exit 0; Kotlin 4713 / FRONTEND 539 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:5b7309680262fdd168635681c7c966976e162ddc78a6558a779dc7ac43444083",
           "supplementary": "WS5-cve1 PASS(~/gate-logs/WS5-cve1.log)"
+        },
+        {
+          "tag": "WS6-gate1",
+          "verdict": "PASS",
+          "screen": "계정 관리",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-17T223643Z.json",
+          "result": "GRADLE-CHECK 22:37:14Z..23:41:17Z(64m03s) exit 0; Kotlin 5075 / FRONTEND 623 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:c52d61aae19d849823e19676d32306bd91c072c34a988edf8fb81a527f4d869e",
+          "supplementary": "WS6-cve1 PASS(~/gate-logs/WS6-cve1.log)"
         }
       ],
-      "nextResumeAction": "APPROVAL-TARGET-KEYS-001 → 남은 화면: 계정·권한 → 결제 보정 취소 → 등록 wizard → login",
+      "nextResumeAction": "남은 화면: 결제 보정 취소 → 등록 wizard → login (APPROVAL-TARGET-KEYS-001 후속 유지)",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -9729,6 +9737,55 @@
           "how": "Demo admin rebuild 번들 + 명시 Demo fixture(PAYMENT 대상 보정 취소·계정 승인) mock API, headless Chrome CDP — scratchpad admin-ui-ws5/harness.mjs",
           "result": "1440·1280·1101·1024·390 × light·dark × (승인함 목록·상세(인증 코드 입력·근거 보기)·내 요청 목록·상세) = 40화면: 페이지 가로 넘침 0, mer_/biz_ 0, style 속성 0, 콘솔 오류 0; 표 감싸는 칸 넘침 1024px 이상 0(390px은 칸 안 가로 스크롤 — 다른 표와 같음); 대비: 측정 스크립트가 oklch 색을 읽지 못해 라이트 거절 버튼을 1:1로 오탐 — 실제 흰 글자 on #e7000b(oklch 0.577 0.245 27.325) 약 4.77:1, 다크 #b91c1c 6.47:1",
           "excluded": "가맹점 대상 승인 fixture는 기존 mer_ 표시 결함(APPROVAL-TARGET-KEYS-001)이라 제외"
+        }
+      },
+      "accountsScreen": {
+        "status": "DONE(WS6-gate1)",
+        "scope": "계정·권한 › 계정 관리(AccountsScreen.tsx 목록·새 계정 만들기·행 작업 details) 모양만 시안 moduleView 구조로 — 대사 발견(96608d3)·승인함(WS5) 선례 그대로. API 호출(accounts·createAccount·suspend·reissue·revokeRole·requestApproval·reactivationCauses)·SECURITY_ADMIN 표시 조건(표시만 — 서버 판정)·2인 승인 요청 선택지·ROLE_REACTIVATE 원인 서버 후보만(Q-S7-2)·등록 코드 1회 표시(OneTimeCode 그대로)·500개 안내·오류 문구·세션 종료·로그인 이름 비표시(D-ADMIN1-017)·PayCore 브랜드 유지, 샘플 데이터 없음",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 accounts 추가(감사 이력 탭은 그대로 안쪽 여백 칸)",
+          "AccountsScreen.tsx: PageHeader·shadcn Card/Table/Badge/Button → .mapnote(h2 계정 관리 + 기존 설명 문구 span) → (오류·500개 안내 시) .cardnote(ErrorNotice·StatusNotice) → (canManage) .cardtop h3 '새 계정 만들기' + .cardbody(p.subtle 기존 안내 · form.rolebar(aria-label 새 계정 만들기, input aria-label 새 로그인 이름/표시명 + placeholder, .btn.primary 계정 만들기 aria-busy) · p.subtle 입력 도움말 2문장(각 input aria-describedby)) → .tablewrap(table '계정 목록', 열 그대로 로그인 이름·표시명·상태·활성 역할·정지 역할·작업; 표시명 strong, 상태 tagClass .tag(title=code), 역할 .tag(title=code, 정지 역할 .tag.line-through), 빈 목록 .empty) → .tablebottom '표시 N건'",
+          "행 작업 details: summary를 .btn(inline-flex·chevron size-4 — shadcn 버튼이 주던 크기 그대로), 승인 요청·재활성 승인 요청 .btn.primary, 재활성 원인 조회·등록 코드 재발급 .btn, 정지 'btn border-destructive-solid bg-destructive-solid text-white'(승인함 거절 reviewFix1 MINOR-1 token), 역할 회수 'btn border-destructive/40 text-destructive hover:…'(기존 class 그대로 .btn 위). 펼친 칸(rounded-lg border bg-muted/30)·Field·NativeSelect·위험 작업 구분선 그대로, 순서·조건 그대로",
+          "workspace.css 변경 없음(기존 .mapnote·.cardnote·.cardtop h3·.cardbody·.cardbody .rolebar·.tablewrap·.empty·.tablebottom·.tag·.btn만 사용)",
+          "시험: AccountsScreen.workspace.test.tsx 새로 4건(App 경유 flush 구조·새 계정 rolebar·표·행 작업 버튼 class·내부 키 비표시, 읽기 전용 구조·정지 역할 취소선, 오류/500개 .cardnote·빈 목록 .empty, 재활성·재발급 버튼 class), noRuntimeStyles 계정 시험에 새 계정 입력란 입력 뒤 검사 추가"
+        ],
+        "selectorChanges": "없음 — 기존 AccountsScreen.test 6·noRuntimeStyles·App.test·WorkspaceShell.test·OneTimeCode.test 단언·선택자 변경 없이 통과(noRuntimeStyles는 단계 추가만)",
+        "deviations": [
+          "시안 계정·권한(accessView)은 역할×권한 체크박스 표(.matrix)와 계정 관리 drawer(.timeline 샘플)뿐이라 실제 기능(계정 목록·생성·2인 승인 요청)에 맞는 구성은 대사 발견·승인함 선례(.mapnote → 카드 제목 줄 → 표 → .tablebottom)를 따름. 권한 매트릭스·'데모 권한 저장'·역할 선택 select는 없음(실제 기능 없음 — 역할 변경은 2인 승인 요청으로만)",
+          "새 계정 만들기는 시안 .rolebar 줄(이름 + 입력 + 버튼)을 .cardtop h3 + .cardbody 안에 둠(.cardbody .rolebar 기존 규칙 — 여백 0·줄바꿈). 보이는 label 대신 aria-label + placeholder(거래 조회 .filters 선례)",
+          "입력 도움말 문구: Field hint '로그인할 때 쓰는 이름입니다.'/'화면과 감사 기록에 보이는 이름입니다.' → 보이는 label이 없어 주어를 붙인 '로그인 이름은 로그인할 때 쓰는 이름입니다.'/'표시명은 화면과 감사 기록에 보이는 이름입니다.'(입력란 아래 한 줄, aria-describedby 연결 유지 — 기존 시험은 이 문구를 단언하지 않음)",
+          "계정 만들기 버튼의 UserPlus 아이콘·스피너 제거(aria-busy 유지, disabled 추가하지 않음 — 거래 조회·매입 현황 검색 버튼 선례)",
+          "빈 목록은 EmptyRow(아이콘 포함 표 행) → .tablewrap > .empty 한 줄(같은 문구), 표 아래 '표시 N건' 추가",
+          "행 작업 펼친 칸(details 안 rounded-lg border bg-muted/30 p-3)·승인 요청 종류/재활성 원인 Field·NativeSelect·'재활성할 원인이 없습니다' 문구·ErrorNotice·StatusNotice·OneTimeCode dialog는 기존 구성요소 유지(시안에 행 작업 메뉴가 없음 — 승인함 인증 코드 Field 선례)",
+          "역할 이름표는 공용 RoleBadges(DataBits — 다른 화면도 사용) 대신 화면 안 RoleTags(.tag)로 — 의미(한국어 이름·title code·정지 취소선·없으면 '-') 같음, 공용 구성요소 변경 없음"
+        ],
+        "internalKeyFinding": "없음 — actorId는 그리지 않음(행 이름·키·API 인자에만). 재활성 원인 선택지의 승인 ID(apr_…)·복구 회차는 기존과 같이 표시(서버 후보 값 — 승인 ID는 승인함 상세에도 표시되는 값). 새 시험에서 adm_·mer_·biz_ DOM 0건 확인",
+        "evidence": "~/gate-logs/admin-ui-ws6: baseline.log(5파일 50 통과, exit 0), red.log(새 시험 4 실패 — 구조 없음(section.flex…), noRuntimeStyles 11 통과, exit 1), green1.log(6파일 54 통과, exit 0), tsc.log(npx tsc -b --force exit 0), full.log(Vitest 62파일 597 통과·실패 0, exit 0), sha256.txt — 각 로그에 명령·UTC 시각·exit 기록. 실행 스크립트 ~/gate-logs/ws6.sh",
+        "contrast": "새 색 없음. 새 조합 1개: 역할 회수 글자 text-destructive on .btn 바탕 — 라이트 oklch(0.577 0.245 27.325)≈#e7000b on #fff 약 4.77:1, 다크 #f87171 on #111a2b 약 6.3:1(계산값, 브라우저 측정 미실행). 정지 버튼은 승인함 거절과 같은 조합(라이트 약 4.77:1·다크 6.47:1), .tag·.btn.primary·.subtle은 기존 규칙",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·페이지 가로 넘침·대비 실측 미실행(Demo 실행 중 — gradle·빌드 미실행). 펼친 행 작업 칸(min-w-72·nowrap 표 안)이 좁은 폭에서 .tablewrap 가로 스크롤로 보이는 모양, details summary .btn의 chevron 정렬, 390px에서 .rolebar 입력 줄바꿈은 jsdom으로 확인 불가. 독립 리뷰·게이트 미실행. npx tsc -b --force가 미추적 tsconfig.tsbuildinfo를 다시 씀(선례와 같음 — 커밋 대상 아님)",
+        "gate": "미실행",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부) + Coordinator 헤드리스 캡처(1440/1280/1101/1024/390 × 라이트·다크 — 페이지 넘침·키·style 속성·대비 0; 1101·1024px에서 펼친 행 작업 칸이 표 오른쪽 끝에서 잘림(tablewrap 스크롤 58/74px) — '승인 요청'·'재활성 승인 요청' 버튼·선택 글자 가려짐)",
+          "changes": [
+            "MINOR-1: workspace.css PayCore 적응 블록에 `summary:focus-visible{outline:3px solid #aecfff}`(원본 button·a 초점선과 같은 값 — 원본 블록은 그대로) 추가, 대비 보정 규칙 `button:focus-visible,a:focus-visible,summary:focus-visible{outline-color:#1d4ed8}`·다크 `:root[data-theme=dark] summary:focus-visible`(#93c5fd)를 기존 선택자 목록에 추가. 새 색 없음",
+            "MINOR-2: 새 계정 줄을 시안 .rolebar 모양 `<b id>새 로그인 이름</b><input aria-labelledby>` `<b id>표시명</b><input aria-labelledby>` + .btn.primary로(매입 현황 레코드 상태 선례). 접근 가능한 이름은 '새 로그인 이름'·'표시명' 그대로(보이는 글 = 이름 — label-in-name), placeholder 제거, 도움말 aria-describedby 유지. 원래 deviation '보이는 label 대신 aria-label + placeholder'는 이것으로 대체",
+            "캡처 결함(WS5 MINOR-2와 같은 방식): 승인 요청 칸·재활성 원인 칸을 세로로 — 선택 Field(self-stretch — 펼친 칸 폭에 맞춤, NativeSelect는 원래 w-full·min-w-0) 위, 버튼 아래. DOM 순서 그대로, 새 크기 값 없음(flex-1 → self-stretch, items-end → flex-col items-start). NIT-2(선택 h-8과 .btn 높이 차이)는 같은 줄에 있지 않게 되어 해소",
+            "NIT-1: 새 시험의 내부 키 검사를 'adm_A' → 'adm_' 접두어 전체로 넓힘(mer_·biz_는 원래 검사). 재활성 원인 선택지의 승인 ID(apr_…)·복구 회차(episode:…)는 기존처럼 서버 후보로 표시(internalKeyFinding 문구 그대로 성립)",
+            "NIT-3: 새 계정 입력란에 기존 Tailwind utility `grow`(flex-grow:1 — 고유 폭 기준, 줄바꿈 유지)를 붙여 1024~1101px에서 남는 폭만큼 늘어나게 함. 새 CSS 값 없음(.filters input{flex:1}은 basis 0이라 좁은 폭에서 줄바꿈 대신 찌그러져 쓰지 않음)"
+          ],
+          "selectorChanges": "없음 — 기존 시험 무변경. 새 시험 AccountsScreen.workspace.test.tsx에 단언 추가(rolebar 자식 b·input 순서와 aria-labelledby, 요청 칸 flex-col·버튼이 마지막, adm_ 접두어) + CSS 시험 1건 새로",
+          "evidence": "~/gate-logs/admin-ui-ws6: fix1-red.log(3 실패 — rolebar에 b 없음·요청 칸 flex-col 없음·summary 초점 규칙 없음, exit 1), fix1-green.log(10파일 71 통과 — 계정 관련 6파일 + 다른 workspace 시험 4파일, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 62파일 598 통과·실패 0, exit 0), fix1-sha256.txt",
+          "followUps": [
+            ".rolebar 줄이 좁은 폭에서 줄바꿈될 때 b 이름표가 입력란과 다른 줄로 떨어질 수 있음(묶는 wrapper를 더하지 않음 — 시안 DOM 유지). 재캡처에서 어색하면 후속",
+            "펼친 칸 안 긴 선택지 문구('역할 부여 · 보안 관리자 (SECURITY_ADMIN)')는 선택 상자 폭(펼친 칸 min-w-72)에서 잘려 보일 수 있음 — 선택은 가능, 재캡처로 확인"
+          ],
+          "notVerified": "수정 후 실제 브라우저 재캡처(1101·1024px 펼친 칸, summary 초점선, rolebar 줄바꿈) 미실행 — Coordinator 몫(번들 재빌드 포함)"
+        },
+        "coordinatorCapture": {
+          "method": "헤드리스 Chrome + 빌드 번들 + 고정 Demo fixture(계정 5개: 활성·다중 역할·정지 역할·등록 대기·정지), 5폭(1440/1280/1101/1024/390) × 라이트·다크 × 목록·작업 펼침 = 20화면",
+          "result": "페이지 가로 넘침 0, adm_/mer_/biz_ 노출 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0. 수정 전 1101·1024px 펼친 작업 칸 버튼 잘림 → reviewFix1 세로 배치로 해소",
+          "remaining": "1101px 58px·1024px 74px·390px: 펼친 작업 칸(min-w-72)이 .tablewrap 안 가로 스크롤로 넘침 — 버튼·선택 칸은 보이고 페이지 넘침 없음(후속 기록)",
+          "evidence": "scratchpad admin-ui-ws6/shots, results.json"
         }
       }
     },

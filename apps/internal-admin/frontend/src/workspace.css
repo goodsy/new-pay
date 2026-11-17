@@ -229,7 +229,9 @@ tr.selected{background:#f8fbff}
 .cardnote p{margin:0}
 .cardnote .error{font-size:12px;color:#b42339}
 /* 초점 표시 대비(리뷰 MINOR-3): 원본 #aecfff·#bcd5ff는 흰 바탕에서 약 1.5:1이라 선 굵기는 그대로 두고 색만 진한 파랑(#1d4ed8 — 원본 활성 메뉴 색, 흰 바탕 약 6.7:1)으로 바꾼다. */
-button:focus-visible,a:focus-visible{outline-color:#1d4ed8}
+/* 계정 관리 행 작업 summary(.btn — native details, 리뷰 MINOR-1): 원본 초점선(button·a와 같은 3px solid #aecfff)을 summary에도. 원본 블록은 그대로 두고 여기서 더한다. 색은 바로 아래 보정 규칙. */
+summary:focus-visible{outline:3px solid #aecfff}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline-color:#1d4ed8}
 /* 탭 막대는 overflow:auto라 바깥 초점선이 잘린다 — 안쪽으로 그린다. */
 .tabs button:focus-visible{outline-offset:-3px}
 :where(.filters,.formrow,.modal,.rolebar,.matrix) input:focus,:where(.filters,.formrow,.modal,.rolebar,.matrix) select:focus{outline:2px solid #1d4ed8}
@@ -356,6 +358,6 @@ button.task{width:100%;text-align:left}
 :root[data-theme=dark] .themetoggle{background:#18233a;border-color:var(--line)}
 :root[data-theme=dark] .themetoggle button{color:#cbd5e1}
 :root[data-theme=dark] .themetoggle button.on{background:#172b4d;color:#7cb4ff}
-:root[data-theme=dark] button:focus-visible,:root[data-theme=dark] a:focus-visible{outline-color:#93c5fd}
+:root[data-theme=dark] button:focus-visible,:root[data-theme=dark] a:focus-visible,:root[data-theme=dark] summary:focus-visible{outline-color:#93c5fd}
 :root[data-theme=dark] :where(.filters,.formrow,.modal,.rolebar,.matrix) :is(input,select):focus{outline-color:#93c5fd}
 }

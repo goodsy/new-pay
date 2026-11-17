@@ -1,19 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useState, type FormEvent } from 'react'
 import type { AccountView, AdminApi, ApprovalRequestInput, ReactivationCause } from '../api/adminApi'
 import { OneTimeCode } from '../components/OneTimeCode'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { ChevronDownIcon, UserPlusIcon } from '../components/icons'
-import { EmptyRow, Field, RoleBadges, Spinner, StatusBadge } from '../components/DataBits'
+import { ChevronDownIcon } from '../components/icons'
+import { Field } from '../components/DataBits'
 import { ErrorNotice, StatusNotice } from '../components/Notice'
-import { PageHeader } from '../components/PageHeader'
-import { Button, buttonVariants } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { labelOf } from '../lib/labels'
-import { cn } from '../lib/utils'
+import { tagClass } from '../lib/statusTone'
 
 /** 2인 승인 요청 선택지(ADMIN 소유 종류 — §4.7.1). ROLE_REACTIVATE는 원인이 필요해 별도 동작([ReactivationRequest] — 서버 원인 후보에서만 고른다, Q-S7-2). */
 const REQUESTS: { value: string; label: string; input: (target: string) => ApprovalRequestInput }[] = [
@@ -60,15 +55,16 @@ function ReactivationRequest({ load, onRequest, onFail }: {
   }
   if (causes === null) {
     return (
-      <Button type="button" variant="outline" size="sm" onClick={() => void fetchCauses()} className="self-start">
+      <button type="button" className="btn self-start" onClick={() => void fetchCauses()}>
         재활성 원인 조회
-      </Button>
+      </button>
     )
   }
   if (causes.length === 0) return <span className="text-xs text-muted-foreground">재활성할 원인이 없습니다</span>
   return (
-    <div className="flex items-end gap-2">
-      <Field label="재활성 원인" className="flex-1 text-xs">
+    // reviewFix1(1101·1024px 캡처 — 펼친 칸이 표 오른쪽 끝에서 잘림): 승인함 결정 칸(WS5 MINOR-2)과 같이 세로로 — 선택 Field 위, 버튼 아래(DOM 순서 그대로). 새 크기 값 없음.
+    <div className="flex flex-col items-start gap-2">
+      <Field label="재활성 원인" className="self-stretch text-xs">
         {(describedBy) => (
           <NativeSelect value={chosen} onChange={(e) => setChosen(e.target.value)} aria-describedby={describedBy} className="h-8">
             {causes.map((c) => (
@@ -79,10 +75,26 @@ function ReactivationRequest({ load, onRequest, onFail }: {
           </NativeSelect>
         )}
       </Field>
-      <Button type="button" size="sm" disabled={!chosen} onClick={() => onRequest(chosen)}>
+      <button type="button" className="btn primary" disabled={!chosen} onClick={() => onRequest(chosen)}>
         재활성 승인 요청
-      </Button>
+      </button>
     </div>
+  )
+}
+
+/**
+ * 역할 이름표(ADMIN-UI-WORKSPACE-001 계정 관리 — 기존 RoleBadges와 같은 의미): 시안 `.tag`(한국어 + title 원래 code). 정지 역할은 취소선, 없으면 '-'.
+ */
+function RoleTags({ roles, suspended = false }: { roles: string[]; suspended?: boolean }) {
+  if (roles.length === 0) return <span className="subtle">-</span>
+  return (
+    <span className="flex flex-wrap gap-1">
+      {roles.map((role) => (
+        <span key={role} className={suspended ? 'tag line-through' : 'tag'} title={role}>
+          {labelOf(role)}
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -101,22 +113,25 @@ function AccountRow({ account, canManage, showLogin, onAction, loadCauses, onFai
   const [request, setRequest] = useState(REQUESTS[0]!.value)
   const roleLess = account.activeRoles.length === 0 && account.suspendedRoles.length === 0
   return (
-    <TableRow aria-label={`${account.loginName ?? account.displayName} ${account.status}`}>
-      {showLogin && <TableCell className="font-mono text-xs">{account.loginName ?? ''}</TableCell>}
-      <TableCell className="font-medium">{account.displayName}</TableCell>
-      <TableCell><StatusBadge code={account.status} /></TableCell>
-      <TableCell><RoleBadges roles={account.activeRoles} /></TableCell>
-      <TableCell><RoleBadges roles={account.suspendedRoles} suspended /></TableCell>
+    // ADMIN-UI-WORKSPACE-001(계정 관리): 시안 표 칸 — 표시명은 strong, 상태·역할은 .tag(title = code, 색 의미는 기존 Badge tone), 작업 summary·버튼은 .btn.
+    // 표시·차단 조건(canManage·정지 여부·역할 유무·PENDING_ENROLLMENT)과 행 이름(aria-label)은 그대로. actor ID는 그리지 않는다(D-ADMIN-UI-004).
+    <tr aria-label={`${account.loginName ?? account.displayName} ${account.status}`}>
+      {showLogin && <td className="font-mono">{account.loginName ?? ''}</td>}
+      <td><strong>{account.displayName}</strong></td>
+      <td><span className={tagClass(account.status)} title={account.status}>{labelOf(account.status)}</span></td>
+      <td><RoleTags roles={account.activeRoles} /></td>
+      <td><RoleTags roles={account.suspendedRoles} suspended /></td>
       {canManage && (
-        <TableCell className="align-top">
+        <td className="align-top">
           <details className="group">
-            <summary className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
+            <summary className="btn inline-flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
               작업
-              <ChevronDownIcon aria-hidden="true" className="transition-transform group-open:rotate-180" />
+              <ChevronDownIcon aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
             </summary>
             <div className="mt-2 flex min-w-72 flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-              <div className="flex items-end gap-2">
-                <Field label="승인 요청 종류" className="flex-1 text-xs">
+              {/* reviewFix1: 요청 칸도 세로로 — 선택 Field 위(펼친 칸 폭에 맞춤), 승인 요청 버튼 아래. */}
+              <div className="flex flex-col items-start gap-2">
+                <Field label="승인 요청 종류" className="self-stretch text-xs">
                   {(describedBy) => (
                     <NativeSelect value={request} onChange={(e) => setRequest(e.target.value)} aria-describedby={describedBy} className="h-8">
                       {REQUESTS.map((r) => (
@@ -127,16 +142,16 @@ function AccountRow({ account, canManage, showLogin, onAction, loadCauses, onFai
                     </NativeSelect>
                   )}
                 </Field>
-                <Button
+                <button
                   type="button"
-                  size="sm"
+                  className="btn primary"
                   onClick={() => {
                     const choice = REQUESTS.find((r) => r.value === request)
                     if (choice) onAction({ type: 'request', request: choice.input(account.actorId) })
                   }}
                 >
                   승인 요청
-                </Button>
+                </button>
               </div>
               {account.suspendedRoles.length > 0 && (
                 <ReactivationRequest
@@ -146,40 +161,40 @@ function AccountRow({ account, canManage, showLogin, onAction, loadCauses, onFai
                 />
               )}
               {account.status === 'PENDING_ENROLLMENT' && roleLess && (
-                <Button type="button" variant="outline" size="sm" onClick={() => onAction({ type: 'reissue' })} className="self-start">
+                <button type="button" className="btn self-start" onClick={() => onAction({ type: 'reissue' })}>
                   등록 코드 재발급
-                </Button>
+                </button>
               )}
               {(account.status !== 'SUSPENDED' || account.activeRoles.length + account.suspendedRoles.length > 0) && (
                 <div className="flex flex-col gap-2 border-t pt-3">
                   <span className="text-xs font-medium text-destructive">위험 작업 — 바로 적용됩니다</span>
                   <div className="flex flex-wrap gap-1.5">
                     {account.status !== 'SUSPENDED' && (
-                      <Button type="button" variant="destructive" size="sm" onClick={() => onAction({ type: 'suspend' })}>
+                      // 정지: 승인함 거절(reviewFix1 MINOR-1)과 같은 파괴 동작 token — destructive-solid 바탕·선 + 흰 글자(라이트 약 4.77:1, 다크 #b91c1c 6.47:1).
+                      <button type="button" className="btn border-destructive-solid bg-destructive-solid text-white" onClick={() => onAction({ type: 'suspend' })}>
                         정지
-                      </Button>
+                      </button>
                     )}
                     {[...account.activeRoles, ...account.suspendedRoles].map((role, index) => (
-                      <Button
+                      // 역할 회수: 기존 빨간 테두리·글자(같은 token) 그대로 .btn 위에 — 글자 대비 라이트 흰 바탕 약 4.77:1, 다크 #f87171 on .btn #111a2b 약 6.3:1.
+                      <button
                         key={`${role}-${index}`}
                         type="button"
-                        variant="outline"
-                        size="sm"
                         title={`${labelOf(role)} 역할 회수`}
                         onClick={() => onAction({ type: 'revoke', role })}
-                        className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="btn border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         {role} 회수
-                      </Button>
+                      </button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
           </details>
-        </TableCell>
+        </td>
       )}
-    </TableRow>
+    </tr>
   )
 }
 
@@ -192,6 +207,7 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
   const [loginName, setLoginName] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [creating, setCreating] = useState(false)
+  const hintId = useId()
 
   const fail = useCallback((e: unknown) => {
     const code = codeOf(e)
@@ -258,60 +274,94 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
 
   const showLogin = accounts.some((a) => a.loginName !== null)
 
+  // ADMIN-UI-WORKSPACE-001(계정·권한 › 계정 관리): 대사 발견·승인함과 같이 MenuCard flush 탭 패널 바로 안에 시안 구성 — .mapnote(탭 이름 h2 + 설명) → (오류·500개 안내 시) .cardnote
+  // → (SECURITY_ADMIN) 카드 제목 줄 .cardtop h3 '새 계정 만들기' + .cardbody(안내 · 시안 accessView .rolebar 줄 = 입력 2칸 + .btn.primary · 입력 도움말) → .tablewrap(빈 목록 .empty) → .tablebottom(표시 건수).
+  // 등록 코드 1회 표시([OneTimeCode])는 body에 붙는 dialog라 카드 구조에 들어가지 않는다(그대로).
   return (
-    <section className="flex flex-col gap-6">
-      <PageHeader title="계정" description="관리자 계정과 역할을 확인합니다. 역할 부여·잠금 해제 같은 변경은 다른 관리자의 승인을 거쳐 적용됩니다." />
-      {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
-      {truncated && <StatusNotice>목록이 길어 앞의 500개만 보입니다.</StatusNotice>}
+    <>
+      <div className="mapnote">
+        <h2>계정 관리</h2>
+        {' · '}
+        <span>관리자 계정과 역할을 확인합니다. 역할 부여·잠금 해제 같은 변경은 다른 관리자의 승인을 거쳐 적용됩니다.</span>
+      </div>
+      {(error || truncated) && (
+        <div className="cardnote">
+          {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
+          {truncated && <StatusNotice>목록이 길어 앞의 500개만 보입니다.</StatusNotice>}
+        </div>
+      )}
       {oneTimeCode && <OneTimeCode code={oneTimeCode} onClose={() => setOneTimeCode(null)} />}
       {canManage && (
-        <Card className="gap-4 py-5">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">새 계정 만들기</CardTitle>
-            <CardDescription className="text-xs">만들면 등록 코드가 한 번만 표시됩니다. 역할은 만든 뒤 2인 승인으로 부여합니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-5">
-            <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row sm:items-start">
-              <Field label="새 로그인 이름" hint="로그인할 때 쓰는 이름입니다." className="flex-1">
-                {(describedBy) => <Input value={loginName} onChange={(e) => setLoginName(e.target.value)} aria-describedby={describedBy} required />}
-              </Field>
-              <Field label="표시명" hint="화면과 감사 기록에 보이는 이름입니다." className="flex-1">
-                {(describedBy) => <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-describedby={describedBy} required />}
-              </Field>
-              <Button type="submit" aria-busy={creating} className="sm:mt-6">
-                {creating ? <Spinner active /> : <UserPlusIcon aria-hidden="true" />}
+        <>
+          <div className="cardtop">
+            <h3>새 계정 만들기</h3>
+          </div>
+          <div className="cardbody">
+            <p className="subtle">만들면 등록 코드가 한 번만 표시됩니다. 역할은 만든 뒤 2인 승인으로 부여합니다.</p>
+            {/* 시안 .rolebar 줄(계정·권한 `<b>역할 선택</b><select>`): 보이는 이름은 굵은 글 b, 입력은 aria-labelledby(reviewFix1 MINOR-2 — 매입 현황 레코드 상태 선례).
+                입력은 고유 폭에서 남는 폭만큼 늘어난다(grow — 줄바꿈은 그대로, reviewFix1 NIT-3). 도움말은 아래 줄의 각 문장에 aria-describedby. 검색 버튼 선례처럼 아이콘·스피너 없이 aria-busy만. */}
+            <form onSubmit={create} className="rolebar" aria-label="새 계정 만들기">
+              <b id={`${hintId}-login-name`}>새 로그인 이름</b>
+              <input
+                aria-labelledby={`${hintId}-login-name`}
+                className="grow"
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                aria-describedby={`${hintId}-login`}
+                required
+              />
+              <b id={`${hintId}-display-name`}>표시명</b>
+              <input
+                aria-labelledby={`${hintId}-display-name`}
+                className="grow"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                aria-describedby={`${hintId}-display`}
+                required
+              />
+              <button type="submit" className="btn primary" aria-busy={creating}>
                 계정 만들기
-              </Button>
+              </button>
             </form>
-          </CardContent>
-        </Card>
+            <p className="subtle">
+              <span id={`${hintId}-login`}>로그인 이름은 로그인할 때 쓰는 이름입니다.</span>
+              {' '}
+              <span id={`${hintId}-display`}>표시명은 화면과 감사 기록에 보이는 이름입니다.</span>
+            </p>
+          </div>
+        </>
       )}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {showLogin && <TableHead>로그인 이름</TableHead>}
-            <TableHead>표시명</TableHead>
-            <TableHead>상태</TableHead>
-            <TableHead>활성 역할</TableHead>
-            <TableHead>정지 역할</TableHead>
-            {canManage && <TableHead>작업</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {accounts.map((account) => (
-            <AccountRow
-              key={account.actorId}
-              account={account}
-              canManage={canManage}
-              showLogin={showLogin}
-              onAction={onRowAction(account)}
-              loadCauses={async () => (await api.reactivationCauses(account.actorId)).causes}
-              onFail={fail}
-            />
-          ))}
-          {accounts.length === 0 && <EmptyRow columns={(showLogin ? 1 : 0) + 4 + (canManage ? 1 : 0)} message="표시할 계정이 없습니다." />}
-        </TableBody>
-      </Table>
-    </section>
+      <div className="tablewrap">
+        <table aria-label="계정 목록">
+          <thead>
+            <tr>
+              {showLogin && <th>로그인 이름</th>}
+              <th>표시명</th>
+              <th>상태</th>
+              <th>활성 역할</th>
+              <th>정지 역할</th>
+              {canManage && <th>작업</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((account) => (
+              <AccountRow
+                key={account.actorId}
+                account={account}
+                canManage={canManage}
+                showLogin={showLogin}
+                onAction={onRowAction(account)}
+                loadCauses={async () => (await api.reactivationCauses(account.actorId)).causes}
+                onFail={fail}
+              />
+            ))}
+          </tbody>
+        </table>
+        {accounts.length === 0 && <div className="empty">표시할 계정이 없습니다.</div>}
+      </div>
+      <div className="tablebottom">
+        <span>{`표시 ${accounts.length}건`}</span>
+      </div>
+    </>
   )
 }

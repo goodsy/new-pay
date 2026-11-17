@@ -75,6 +75,10 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     await userEvent.click(within(row).getByRole('button', { name: '재활성 원인 조회' }))
     expect(await within(row).findByLabelText('재활성 원인')).toBeInTheDocument()
     expectNoRuntimeStyles()
+    // ADMIN-UI-WORKSPACE-001 계정 관리: 시안 구조(.rolebar 새 계정 줄·.tablewrap·.tag)로 옮긴 뒤 새 계정 입력란에 값을 넣은 상태에서도 style 속성·런타임 <style>이 없다.
+    await userEvent.type(screen.getByLabelText('새 로그인 이름'), 'new-one')
+    await userEvent.type(screen.getByLabelText('표시명'), '신규')
+    expectNoRuntimeStyles()
   })
 
   it('approvals with the owner-service detail and the pinned/current comparison', async () => {
