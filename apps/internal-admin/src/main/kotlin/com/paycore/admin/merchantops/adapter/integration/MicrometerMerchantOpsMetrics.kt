@@ -1,5 +1,6 @@
 package com.paycore.admin.merchantops.adapter.integration
 
+import com.paycore.admin.merchantops.application.required.BusinessOpsMetrics
 import com.paycore.admin.merchantops.application.required.MerchantOpsMetrics
 import com.paycore.admin.merchantops.application.required.MerchantTargetLabelMetrics
 import io.micrometer.core.instrument.MeterRegistry
@@ -11,7 +12,19 @@ import org.springframework.stereotype.Component
  * [MerchantTargetLabelMetrics](MERCHANT-CODE-001 MC-3b): `paycore.admin.ops.merchant_target_labels{result}` — label 값은 고정 분류 6개뿐(그 밖 값은 거부 — 키·상호가 label로 새지 않게).
  */
 @Component
-class MicrometerMerchantOpsMetrics(private val registry: MeterRegistry) : MerchantOpsMetrics, MerchantTargetLabelMetrics {
+class MicrometerMerchantOpsMetrics(private val registry: MeterRegistry) : MerchantOpsMetrics, MerchantTargetLabelMetrics, BusinessOpsMetrics {
+    /** BUSINESS-PROFILE-001 §11: 번호 조회 결과(고정 분류만 — 그 밖 값은 거부). */
+    override fun lookup(result: String) {
+        require(result in BUSINESS_LOOKUP_RESULTS) { "business lookup result class" }
+        registry.counter(BUSINESS_LOOKUP, "result", result).increment()
+    }
+
+    /** BUSINESS-PROFILE-001 §7.2: ADMIN 복제 규칙 불일치 신호(operation = 고정 MASTER operation 이름). */
+    override fun ruleDrift(operation: String) {
+        require(operation in BUSINESS_OPERATIONS) { "business operation" }
+        registry.counter(BUSINESS_RULE_DRIFT, "operation", operation).increment()
+    }
+
     override fun rateLimited(kind: String) {
         registry.counter(RATE_LIMITED, "kind", kind).increment()
     }
@@ -34,6 +47,10 @@ class MicrometerMerchantOpsMetrics(private val registry: MeterRegistry) : Mercha
         const val COMMAND = "paycore.admin.merchant_ops.command"
         const val COMMAND_UNKNOWN = "paycore.admin.merchant_ops.command_unknown"
         const val TARGET_LABELS = "paycore.admin.ops.merchant_target_labels"
+        const val BUSINESS_LOOKUP = "paycore.admin.merchant_ops.business_lookup"
+        const val BUSINESS_RULE_DRIFT = "paycore.admin.merchant_ops.business_rule_drift"
+        val BUSINESS_LOOKUP_RESULTS = setOf("FORBIDDEN_FRONT", "FORBIDDEN", "INVALID_INPUT", "RATE_LIMITED", "OK", "UNAVAILABLE", "AUDIT_UNAVAILABLE")
+        val BUSINESS_OPERATIONS = setOf("CreateBusiness", "UpdateBusiness", "CompleteBusinessRegistration")
 
         /** 허용 분류. SKIPPED: 이 API는 0개 요청이 400이라 내보내지 않음(TXN-LIST-ENRICH-001 분류 집합과 맞추려고 남겨 둔다). */
         val TARGET_LABEL_RESULTS = setOf("OK", "SKIPPED", "BUSY", "UNAVAILABLE", "UNREADABLE", "RATE_LIMITED")

@@ -77,6 +77,8 @@ paycore:
       label-reads-per-minute: 600
     # MERCHANT-OPS-002 B2-2(시험 값 = Demo 값 — 운영값 아님).
     merchant-ops:
+      # BUSINESS-PROFILE-001 §7.1 m-2(시험 값 = Demo 값 30 — 운영값 아님): 사업자 조회 창(목록·상세·이력·번호 조회 공용). BIZ-3-2가 31번째 429를 이 값으로 시험한다.
+      business-reads-per-minute: 30
       approval:
         execution-window: 1h
         deadline-grace: 2m

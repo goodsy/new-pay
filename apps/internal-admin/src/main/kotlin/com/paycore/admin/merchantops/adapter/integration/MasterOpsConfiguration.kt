@@ -5,6 +5,7 @@ import com.paycore.admin.merchantops.application.required.MasterOpsGateway
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.DependsOn
 import org.springframework.core.env.Environment
 import java.security.MessageDigest
 import java.time.Instant
@@ -18,8 +19,17 @@ import java.util.Base64
  *   호출 권한이 되지 않게. paymentops 설정 타입에 의존하지 않고 Environment 속성만 읽는다(모듈 경계). 실패 메시지에 키·kid가 없다.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(MasterOpsSettings::class, MerchantApprovalSettings::class)
+@EnableConfigurationProperties(MasterOpsSettings::class, MerchantApprovalSettings::class, BusinessOpsSettings::class)
 class MasterOpsConfiguration {
+
+    /**
+     * BUSINESS-PROFILE-001 BIZ-3(§7.2 Gateway): 사업자 MASTER 호출 — 같은 설정·같은 서명 키(D-MOPS-005), 기동 검사는 [masterOpsGateway]가 같은 설정으로 이미 한다
+     * (`@DependsOn`으로 생성 순서를 고정 — 검사 통과 전에는 이 gateway도 만들지 않는다).
+     */
+    @Bean
+    @DependsOn("masterOpsGateway")
+    fun masterBusinessGateway(settings: MasterOpsSettings): HttpMasterBusinessGateway =
+        HttpMasterBusinessGateway(settings, MasterCallSigner(settings.keyId, settings.signingKey())) { Instant.now() }
 
     /** 가맹점 2인 승인 실행 시간 정책(MERCHANT-OPS-002 C-19 — Demo 값, 기본값 없음). stale = master-ops connect + read + 30초. */
     @Bean

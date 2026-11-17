@@ -1,0 +1,193 @@
+{
+  "list": {
+    "items": [
+      {
+        "businessId": "biz_01JC0000000000000000000001",
+        "businessName": "DEMO 사업자 (운영값 아님)",
+        "registrationNumberMasked": "000*******",
+        "businessType": "INDIVIDUAL",
+        "registrationStatus": "REGISTERED",
+        "verificationStatus": "NOT_CHECKED",
+        "representativeNameMasked": "D******",
+        "representativeCount": 1,
+        "merchantCount": 1,
+        "updatedAt": "2026-11-17T01:00:00.000Z"
+      },
+      {
+        "businessId": "biz_01JC0000000000000000000000",
+        "businessName": "DEMO 옛 사업자",
+        "registrationNumberMasked": "999*******",
+        "businessType": null,
+        "registrationStatus": "DRAFT",
+        "verificationStatus": "NOT_CHECKED",
+        "representativeNameMasked": null,
+        "representativeCount": 0,
+        "merchantCount": 0,
+        "updatedAt": "2026-10-09T02:00:00.000Z"
+      }
+    ],
+    "next": "biz_01JC0000000000000000000000"
+  },
+  "lookupFound": {
+    "items": [
+      {
+        "businessId": "biz_01JC0000000000000000000001",
+        "businessName": "DEMO 사업자 (운영값 아님)",
+        "registrationNumberMasked": "000*******",
+        "registrationStatus": "REGISTERED"
+      }
+    ]
+  },
+  "lookupNotFound": {
+    "items": []
+  },
+  "detail": {
+    "business": {
+      "businessId": "biz_01JC0000000000000000000001",
+      "businessName": "DEMO 사업자 (운영값 아님)",
+      "registrationNumberMasked": "000*******",
+      "businessType": "INDIVIDUAL",
+      "registrationStatus": "REGISTERED",
+      "verificationStatus": "NOT_CHECKED",
+      "lifecycle": "ACTIVE",
+      "version": 0,
+      "createdAt": "2026-11-17T01:00:00.000Z",
+      "updatedAt": "2026-11-17T01:00:00.000Z",
+      "merchantCount": 1
+    },
+    "registration": {
+      "corporateRegistrationNumber": null,
+      "openingDate": "2026-01-01",
+      "countryCode": "KR",
+      "englishName": null,
+      "phoneNumber": "0200000000",
+      "email": null
+    },
+    "representatives": [
+      {
+        "name": "DEMO 대표",
+        "representativeType": "SOLE"
+      }
+    ],
+    "categories": [
+      {
+        "categoryType": "BUSINESS_TYPE",
+        "name": "DEMO 업태"
+      },
+      {
+        "categoryType": "BUSINESS_ITEM",
+        "name": "DEMO 종목"
+      }
+    ],
+    "addresses": [
+      {
+        "addressType": "REGISTERED",
+        "postalCode": "00000",
+        "baseAddress": "DEMO 주소 (운영값 아님)",
+        "detailAddress": null
+      }
+    ],
+    "contacts": [
+      {
+        "name": "DEMO 담당",
+        "email": "demo@paycore.test",
+        "phoneNumber": "01000000000",
+        "primary": true
+      }
+    ]
+  },
+  "history": {
+    "items": [
+      {
+        "seq": 41,
+        "changeType": "BusinessCreated",
+        "actorRef": "admin:adm_01JC00000000000000000000V1",
+        "occurredAt": "2026-11-17T01:00:00.000Z",
+        "reason": null,
+        "changes": [
+          {
+            "field": "displayName",
+            "after": "DEMO 사업자 (운영값 아님)"
+          },
+          {
+            "field": "representatives",
+            "added": [
+              {
+                "name": "D******",
+                "type": "SOLE",
+                "order": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "seq": 42,
+        "changeType": "BusinessProfileUpdated",
+        "actorRef": "admin:adm_01JC00000000000000000000V1",
+        "occurredAt": "2026-11-17T02:00:00.000Z",
+        "reason": "DEMO 상호 정정",
+        "changes": [
+          {
+            "field": "displayName",
+            "before": "DEMO 사업자 (운영값 아님)",
+            "after": "DEMO 사업자"
+          },
+          {
+            "field": "contacts",
+            "ended": [
+              {
+                "name": "D******",
+                "email": "d***@p***.test",
+                "phoneNumber": "****0000",
+                "primary": true,
+                "order": 1
+              }
+            ],
+            "added": []
+          }
+        ]
+      }
+    ],
+    "nextAfter": null
+  },
+  "commandSucceeded": {
+    "outcome": "SUCCEEDED",
+    "reference": "biz_01JC0000000000000000000001",
+    "replayed": false
+  },
+  "commandReplayed": {
+    "outcome": "SUCCEEDED",
+    "reference": "biz_01JC0000000000000000000001",
+    "replayed": true
+  },
+  "duplicateRejected": {
+    "outcome": "REJECTED",
+    "rejection": "BUSINESS_REGISTRATION_NUMBER_DUPLICATE",
+    "replayed": false,
+    "existing": {
+      "businessId": "biz_01JC0000000000000000000001",
+      "businessName": "DEMO 사업자 (운영값 아님)",
+      "registrationNumberMasked": "000*******",
+      "registrationStatus": "REGISTERED"
+    }
+  },
+  "otherRejected": {
+    "outcome": "REJECTED",
+    "rejection": "BUSINESS_VERSION_CONFLICT",
+    "replayed": true
+  },
+  "validationFailed": {
+    "error": "BUSINESS_VALIDATION_FAILED",
+    "fieldErrors": [
+      {
+        "path": "contacts",
+        "code": "REQUIRED"
+      },
+      {
+        "path": "registration.corporateRegistrationNumber",
+        "code": "REQUIRED"
+      }
+    ]
+  }
+}

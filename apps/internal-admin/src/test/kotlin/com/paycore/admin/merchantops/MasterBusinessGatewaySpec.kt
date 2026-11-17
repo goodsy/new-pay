@@ -1,0 +1,237 @@
+package com.paycore.admin.merchantops
+
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.paycore.admin.merchantops.adapter.integration.HttpMasterBusinessGateway
+import com.paycore.admin.merchantops.adapter.integration.MasterCallSigner
+import com.paycore.admin.merchantops.adapter.integration.MasterOpsSettings
+import com.paycore.admin.merchantops.application.provided.BusinessFieldError
+import com.paycore.admin.merchantops.application.provided.BusinessProfileOperation
+import com.paycore.admin.merchantops.application.provided.BusinessSearchCriteria
+import com.paycore.admin.merchantops.application.required.MasterBusinessCommand
+import com.paycore.admin.merchantops.application.required.MasterBusinessCommandResult
+import com.paycore.admin.merchantops.application.required.MasterCallResult
+import com.paycore.admin.support.StubMasterOpsServer
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
+import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
+import org.slf4j.LoggerFactory
+import org.springframework.transaction.support.TransactionSynchronizationManager
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ObjectNode
+import java.time.Duration
+import java.time.Instant
+
+/**
+ * ADMIN → MASTER 사업자 호출(BUSINESS-PROFILE-001 §7.2 Gateway·§7.3 — 실제 HTTP 대역 [StubMasterOpsServer], 서명은 대역이 앱과 독립 검증):
+ * 경로·메서드·서명, **목록 검색 선택 필드는 JSON null 없이 생략**(BIZ-2 인계 ④), 번호는 POST 본문에만, 응답 모양(골든 그대로 통과 — 원문 번호 키·모르는 키는 해석 불가),
+ * 명령 응답 매핑(인계 ②: 400 `BUSINESS_VALIDATION_FAILED` → Invalid(효과 없음 확정), path 문법 위반 → Unknown / 인계 ③: 503 `TEMPORARILY_UNAVAILABLE` → RetrySameKey /
+ * 중복 거절 existing 필수·다른 거절 existing 금지 / 409 / timeout), DB TX 안 호출 거부, 로그·예외에 값 없음(BIZ-3-6).
+ */
+class MasterBusinessGatewaySpec : BehaviorSpec({
+
+    StubMasterOpsServer.start()
+    val json = JsonMapper.builder().build()
+    val golden: JsonNode = json.readTree(requireNotNull(javaClass.getResourceAsStream("/contracts/business-profile-response-shapes-v1.golden.json")).readAllBytes())
+    fun g(name: String): String = json.writeValueAsString(golden.get(name))
+
+    fun settings(read: Duration = Duration.ofSeconds(2)) = MasterOpsSettings(
+        "http://127.0.0.1:${StubMasterOpsServer.PORT}", StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, 2, 30, 10, 2, 20, 2,
+        minOf(read, Duration.ofMillis(500)), 60,
+    )
+    fun gateway(s: MasterOpsSettings = settings()) = HttpMasterBusinessGateway(s, MasterCallSigner(s.keyId, s.signingKey())) { Instant.now() }
+
+    val base = "/internal/v1/admin/businesses"
+    var seq = System.nanoTime() % 1_000_000L
+    fun businessId() = "biz_01JC" + (++seq).toString().padStart(22, '0')
+    fun command(op: BusinessProfileOperation, body: Map<String, Any?> = linkedMapOf("registrationStatus" to "DRAFT", "registrationNumber" to BusinessInputFixture.CANARY_NUMBER,
+        "registration" to linkedMapOf("corporateRegistrationNumber" to null, "countryCode" to "KR"))) =
+        MasterBusinessCommand(op, "mo1.01JC00000000000000000000V1." + "%032x".format(++seq), "admin:adm_01JC00000000000000000000V1", "mos.x", body)
+    fun reply(path: String, status: Int, body: String, delay: Long = 0) = StubMasterOpsServer.reply(path, StubMasterOpsServer.Reply(status, body, delay))
+
+    Given("queries") {
+        Then("search: signed POST to /businesses/searches; absent optional fields are omitted — never JSON null (BIZ-2 인계 ④); the golden list parses") {
+            reply("$base/searches", 200, g("list"))
+            val before = StubMasterOpsServer.requestsForPath("$base/searches").size
+            gateway().search(BusinessSearchCriteria()).shouldBeInstanceOf<MasterCallResult.Found>()
+            gateway().search(BusinessSearchCriteria(registrationStatus = "DRAFT", createdTo = "2026-11-17", limit = 5)).shouldBeInstanceOf<MasterCallResult.Found>()
+            val sent = StubMasterOpsServer.requestsForPath("$base/searches").drop(before)
+            sent.map { String(it.body, Charsets.UTF_8) } shouldBe listOf("{}", """{"registrationStatus":"DRAFT","createdTo":"2026-11-17","limit":5}""")
+            sent.forEach { listOf(it.method, it.query, it.signatureValid) shouldBe listOf("POST", null, true) }
+            sent.forEach { String(it.body, Charsets.UTF_8) shouldNotContain "null" }
+        }
+        Then("lookup: the number only in the POST body (never in the path); found/not-found golden parse; a plain registrationNumber key in the answer is unreadable (fail-closed)") {
+            reply("$base/registration-number-lookups", 200, g("lookupFound"))
+            val r = gateway().lookup("9120000001").shouldBeInstanceOf<MasterCallResult.Found>()
+            @Suppress("UNCHECKED_CAST")
+            ((r.document["items"] as List<Map<String, Any?>>).single()).keys shouldBe setOf("businessId", "businessName", "registrationNumberMasked", "registrationStatus")
+            val req = StubMasterOpsServer.requestsForPath("$base/registration-number-lookups").last()
+            String(req.body, Charsets.UTF_8) shouldBe """{"registrationNumber":"9120000001"}"""
+            req.path shouldNotContain "9120000001"
+            reply("$base/registration-number-lookups", 200, g("lookupNotFound"))
+            gateway().lookup("9120000001") shouldBe MasterCallResult.Found(linkedMapOf("items" to emptyList<Any>()))
+            val leaky = (golden.get("lookupFound").deepCopy() as ObjectNode).also { (it.get("items").get(0) as ObjectNode).put("registrationNumber", "9120000001") }
+            reply("$base/registration-number-lookups", 200, json.writeValueAsString(leaky))
+            gateway().lookup("9120000001") shouldBe MasterCallResult.Unavailable("RESPONSE_UNREADABLE")
+        }
+        Then("detail: GET without body; 404 BUSINESS_NOT_FOUND → NotFound, other 404 → Unavailable; unknown field → unreadable; over 32 KiB → unreadable; history uses /history/after/{seq}") {
+            val id = businessId()
+            reply("$base/$id", 200, g("detail"))
+            gateway().detail(id).shouldBeInstanceOf<MasterCallResult.Found>()
+            StubMasterOpsServer.requestsForPath("$base/$id").last().let { listOf(it.method, it.query, it.signatureValid, it.body.size) shouldBe listOf("GET", null, true, 0) }
+            reply("$base/$id", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
+            gateway().detail(id) shouldBe MasterCallResult.NotFound
+            reply("$base/$id", 404, """{"error":"MERCHANT_NOT_FOUND"}""")
+            gateway().detail(id) shouldBe MasterCallResult.Unavailable("HTTP_404")
+            reply("$base/$id", 200, g("detail").replaceFirst("\"merchantCount\":1", "\"merchantCount\":1,\"registrationNumber\":\"0000000000\""))
+            gateway().detail(id) shouldBe MasterCallResult.Unavailable("RESPONSE_UNREADABLE")
+            reply("$base/$id", 200, " ".repeat(HttpMasterBusinessGateway.QUERY_RESPONSE_MAX_BYTES + 1))
+            gateway().detail(id) shouldBe MasterCallResult.Unavailable("RESPONSE_UNREADABLE")
+            reply("$base/$id/history/after/41", 200, g("history"))
+            gateway().history(id, 41).shouldBeInstanceOf<MasterCallResult.Found>()
+            reply("$base/$id/history/after/0", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
+            gateway().history(id, 0) shouldBe MasterCallResult.NotFound
+        }
+    }
+
+    Given("commands (§6.7 mapping — BIZ-2 인계 ②③)") {
+        val create = "$base/commands/create"
+        Then("signed POST to /commands/{create|update|complete-registration}; common fields first, then the command body with JSON null kept for optional values") {
+            reply(create, 200, g("commandSucceeded"))
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe
+                MasterBusinessCommandResult.Decided(true, "biz_01JC0000000000000000000001", null, false, null)
+            val req = StubMasterOpsServer.requestsForPath(create).last()
+            req.signatureValid shouldBe true
+            json.readTree(req.body).propertyNames().toList() shouldBe listOf("idempotencyKey", "actor", "correlationId", "registrationStatus", "registrationNumber", "registration")
+            json.readTree(req.body).get("registration").get("corporateRegistrationNumber").isNull shouldBe true
+            listOf("update", "complete-registration").zip(listOf(BusinessProfileOperation.UPDATE, BusinessProfileOperation.COMPLETE_REGISTRATION)).forEach { (path, op) ->
+                reply("$base/commands/$path", 200, g("commandReplayed"))
+                gateway().command(command(op, linkedMapOf("businessId" to "biz_01JC0000000000000000000001"))) shouldBe
+                    MasterBusinessCommandResult.Decided(true, "biz_01JC0000000000000000000001", null, true, null)
+            }
+        }
+        Then("duplicate rejection carries existing (D-BIZ-003); a duplicate without existing, another rejection with existing or a reference on a rejection → Unknown(RESPONSE_UNREADABLE)") {
+            reply(create, 200, g("duplicateRejected"))
+            gateway().command(command(BusinessProfileOperation.CREATE)).shouldBeInstanceOf<MasterBusinessCommandResult.Decided>().existing shouldBe
+                linkedMapOf("businessId" to "biz_01JC0000000000000000000001", "businessName" to "DEMO 사업자 (운영값 아님)", "registrationNumberMasked" to "000*******",
+                    "registrationStatus" to "REGISTERED")
+            reply(create, 200, g("otherRejected"))
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Decided(false, null, "BUSINESS_VERSION_CONFLICT", true, null)
+            listOf(
+                """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","replayed":false}""",
+                g("otherRejected").replace("}", ",\"existing\":" + json.writeValueAsString(golden.get("duplicateRejected").get("existing")) + "}"),
+                """{"outcome":"REJECTED","rejection":"BUSINESS_VERSION_CONFLICT","reference":"biz_01JC0000000000000000000001","replayed":false}""",
+                """{"outcome":"SUCCEEDED","reference":"mer_01JC0000000000000000000001","replayed":false}""",
+            ).forEach { body ->
+                reply(create, 200, body)
+                withClue(body) { gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE") }
+            }
+        }
+        Then("인계 ② 400 BUSINESS_VALIDATION_FAILED → Invalid with the field errors (no effect — not Unknown), incl. categories TOO_MANY and representatives[i].type; a path outside §4.6 → Unknown; REQUEST_MALFORMED → Unknown(HTTP_400)") {
+            reply(create, 400, g("validationFailed"))
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Invalid(
+                listOf(BusinessFieldError("contacts", "REQUIRED"), BusinessFieldError("registration.corporateRegistrationNumber", "REQUIRED")),
+            )
+            reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"categories","code":"TOO_MANY"},{"path":"representatives[0].type","code":"FORMAT"}]}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe
+                MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("categories", "TOO_MANY"), BusinessFieldError("representatives[0].type", "FORMAT")))
+            reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"representatives[0].representativeType","code":"FORMAT"}]}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"displayName","code":"FORMAT","value":"x"}]}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            reply(create, 400, """{"error":"REQUEST_MALFORMED"}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("HTTP_400")
+        }
+        Then("인계 ③ 503 TEMPORARILY_UNAVAILABLE (existing-summary failure) / REQUEST_IN_PROGRESS / OUTCOME_UNKNOWN → RetrySameKey; ADMIN_WRITE_BUSY → Busy; 409 → KeyReused; timeout → Unknown(TIMEOUT)") {
+            listOf("TEMPORARILY_UNAVAILABLE", "REQUEST_IN_PROGRESS", "OUTCOME_UNKNOWN").forEach { code ->
+                reply(create, 503, """{"error":"$code"}""")
+                gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.RetrySameKey(code)
+            }
+            reply(create, 503, """{"error":"ADMIN_WRITE_BUSY"}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Busy("ADMIN_WRITE_BUSY")
+            reply(create, 503, """{"error":"OTHER"}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("HTTP_503")
+            reply(create, 409, """{"error":"IDEMPOTENCY_KEY_REUSED"}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.KeyReused
+            reply(create, 200, g("commandSucceeded"), delay = 1_500)
+            gateway(settings(read = Duration.ofMillis(300))).command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("TIMEOUT")
+            reply(create, 200, " ".repeat(HttpMasterBusinessGateway.COMMAND_RESPONSE_MAX_BYTES + 1))
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+        }
+        Then("a call inside a DB transaction is refused before any request") {
+            val before = StubMasterOpsServer.received.size
+            TransactionSynchronizationManager.setActualTransactionActive(true)
+            try {
+                shouldThrow<IllegalStateException> { gateway().command(command(BusinessProfileOperation.CREATE)) }
+                shouldThrow<IllegalStateException> { gateway().lookup("9120000001") }
+            } finally {
+                TransactionSynchronizationManager.setActualTransactionActive(false)
+            }
+            StubMasterOpsServer.received.size shouldBe before
+        }
+    }
+
+    Given("BIZ-3 review NIT-3·NIT-4·NIT-5 (fail-closed mapping and masked toString)") {
+        Then("NIT-4 400 BUSINESS_VALIDATION_FAILED with an empty fieldErrors list is a shape violation → Unknown(RESPONSE_UNREADABLE), not Invalid") {
+            reply("$base/commands/create", 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[]}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+        }
+        Then("NIT-3 a result value that violates its own invariant (not reachable through the shapes today) maps to Unknown(RESPONSE_UNREADABLE) instead of throwing") {
+            HttpMasterBusinessGateway.decidedOf(mapOf("outcome" to "SUCCEEDED", "reference" to null, "rejection" to "X", "replayed" to false, "existing" to null)) shouldBe
+                MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            HttpMasterBusinessGateway.decidedOf(mapOf("outcome" to "REJECTED", "reference" to "biz_01JC0000000000000000000001", "rejection" to "X", "replayed" to false)) shouldBe
+                MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            HttpMasterBusinessGateway.invalidOf(listOf(mapOf("path" to "registrationNumber.value", "code" to "FORMAT"))) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            HttpMasterBusinessGateway.invalidOf(emptyList()) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
+            // 대조: 정상 값은 그대로.
+            HttpMasterBusinessGateway.decidedOf(mapOf("outcome" to "SUCCEEDED", "reference" to "biz_01JC0000000000000000000001", "rejection" to null, "replayed" to true)) shouldBe
+                MasterBusinessCommandResult.Decided(true, "biz_01JC0000000000000000000001", null, true, null)
+            HttpMasterBusinessGateway.invalidOf(listOf(mapOf("path" to "contacts", "code" to "REQUIRED"))) shouldBe
+                MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("contacts", "REQUIRED")))
+        }
+        Then("NIT-5 results carrying PII or a trade name print *** instead of values") {
+            val doc = linkedMapOf<String, Any?>("contacts" to listOf(linkedMapOf("email" to BusinessInputFixture.CANARY_EMAIL, "name" to BusinessInputFixture.CANARY_REPRESENTATIVE)))
+            val existing = linkedMapOf<String, Any?>("businessName" to BusinessInputFixture.CANARY_NAME)
+            listOf(
+                com.paycore.admin.merchantops.application.provided.BusinessQueryResult.Found(doc).toString(),
+                MasterCallResult.Found(doc).toString(),
+                MasterBusinessCommandResult.Decided(false, null, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", false, existing).toString(),
+                com.paycore.admin.merchantops.application.provided.BusinessProfileResult.Decided("REJECTED", null, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", false, existing).toString(),
+            ).forEach { text ->
+                withClue(text) {
+                    listOf(BusinessInputFixture.CANARY_EMAIL, BusinessInputFixture.CANARY_REPRESENTATIVE, BusinessInputFixture.CANARY_NAME).forEach { text shouldNotContain it }
+                    text shouldContain "***"
+                }
+            }
+        }
+    }
+
+    Given("BIZ-3-6 gateway logs and exception messages") {
+        Then("log lines carry operation and result class only — no number, body value or MASTER key; argument errors carry no value") {
+            val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            root.addAppender(appender)
+            val cmd = command(BusinessProfileOperation.CREATE)
+            try {
+                reply("$base/commands/create", 200, g("duplicateRejected"))
+                gateway().command(cmd)
+                reply("$base/registration-number-lookups", 200, g("lookupFound"))
+                gateway().lookup(BusinessInputFixture.CANARY_NUMBER)
+            } finally {
+                root.detachAppender(appender)
+            }
+            val lines = appender.list.map { it.formattedMessage }
+            lines.any { "operation=master-ops-business-command-create" in it } shouldBe true
+            lines.forEach { line -> listOf(BusinessInputFixture.CANARY_NUMBER, cmd.idempotencyKey, "DEMO 사업자").forEach { withClue(line) { line.contains(it) shouldBe false } } }
+            shouldThrow<IllegalArgumentException> { gateway().lookup("731-90-24865") }.message!! shouldNotContain "731"
+            cmd.toString() shouldNotContain BusinessInputFixture.CANARY_NUMBER
+        }
+    }
+})
+

@@ -3889,6 +3889,19 @@
       "humanAnswer": "① 목록·상세·이력 OPERATOR·APPROVER, 등록·수정·완료 OPERATOR, 합친 번호 조회도 OPERATOR·APPROVER(MERCHANT-BIZ-LOOKUP-001 수용 기준 '권한 OPERATOR' 변경) ② 상세는 조회 역할에 개인정보(대표자·담당자 이름, 전화, 이메일, 주소, 법인등록번호) 원문, 상세 열람마다 감사 + 속도 제한, 사업자등록번호는 어디서나 마스킹, 로그·감사·이력은 항상 마스킹 ③ 번호 조회 응답에 registrationStatus 포함(D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위 확장), DRAFT 선택 시 '사업자 등록 완료 후 가맹점 등록 가능' + 상세 링크",
       "humanEvidence": "Claude Code 세션 사용자 응답 (2026-11-17, Coordinator 경유)",
       "appliedSpec": "D-BIZ-006; docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1 §2·§6.3·§6.4·§7.1·§8.4·§9"
+    },
+    {
+      "id": "Q-SEC-PICOMATCH-1",
+      "status": "OPEN",
+      "question": "프론트 개발 도구 의존성 picomatch 4.0.7 취약점(GHSA-fc5q-39xc-vjpf / CVE-2026-112366, 정규식 ReDoS, 2026-10-19 공개, 수정 버전 없음)으로 CVE 검사가 FAIL. vite·vitest·tinyglobby가 쓰는 devDependency이며 배포 번들에는 포함되지 않음. 예외(osv [[IgnoredVulns]]) 등록 여부",
+      "recommended": "만료일(예: 30일)과 사유를 단 한시 예외 등록 + 수정 버전 공개 시 즉시 갱신하는 후속 작업. 빌드 시 신뢰하지 않는 glob 입력이 없으므로 실제 위험 낮음",
+      "alternative": "예외 없이 CVE 검사 FAIL 상태 유지(수정 버전 대기, 그동안 모든 gate의 CVE 단계 FAIL) / picomatch를 취약 범위 밖 버전으로 overrides 고정(호환성 검증 필요)",
+      "impact": "harness CVE 검사 결과, 이후 모든 배치 커밋 전 검증",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001"
+      ],
+      "askedAt": "2026-11-18",
+      "origin": "BIZ3-gate2 이후 cve-scan.py (D-ADMIN1-007: 예외는 osv 설정 [[IgnoredVulns]]만)"
     }
   ]
 }

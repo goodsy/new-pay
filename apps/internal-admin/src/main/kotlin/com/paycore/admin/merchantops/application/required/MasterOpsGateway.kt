@@ -32,7 +32,10 @@ interface MasterOpsGateway {
 }
 
 sealed interface MasterCallResult {
-    data class Found(val document: Map<String, Any?>) : MasterCallResult
+    data class Found(val document: Map<String, Any?>) : MasterCallResult {
+        /** BUSINESS-PROFILE-001 BIZ-3 리뷰 NIT-5: 사업자 상세 문서(개인정보 원문)도 이 값으로 온다 — toString은 값을 가린다. */
+        override fun toString(): String = "Found(***)"
+    }
 
     data object NotFound : MasterCallResult
 

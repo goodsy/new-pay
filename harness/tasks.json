@@ -10029,7 +10029,7 @@
           "id": "BIZ-4",
           "title": "React 화면 + 전환(한 배포 단위)",
           "scope": "navigation(사업자 조회 OPERATOR·APPROVER, 사업자 등록 OPERATOR — D-BIZ-006 ①), BusinessesScreen(목록·번호 조회·상세 원문·이력), BusinessProfileFormScreen(섹션 1~6·8, 기존 BusinessRegistrationScreen 교체, 등록 모드 \"사업자등록번호는 저장 후 변경할 수 없습니다\" 안내 — D-BIZ-005), 가맹점 등록 ① BusinessPicker → 번호 조회(REGISTERED만 선택, DRAFT는 \"사업자 등록 완료 후 가맹점 등록 가능\" + 상세 링크 — D-BIZ-006 ③), adminApi·fakeApi, 문구 표. 전환: MASTER Merchant.register에 requireRegistered() 활성화(BUSINESS_NOT_REGISTERED), 옛 사업자 등록 경로 제거(MASTER merchant-operations/businesses·ADMIN /api/merchant-registrations/businesses·화면 registerBusiness), harness Demo E2E 갱신",
-          "doneCriteria": "명세 §14 BIZ-4-1~7 통과(DOM biz_ 0건·원문 번호 요청 범위·저장소/URL 0건·inline style 0·새 npm 의존성 0·D-BIZ-001 기존 가맹점 무영향·D-BIZ-005 안내·화면 중요 변경 감지(REGISTERED 대표자 추가만·순서만 → 사유 칸, r-6)·D-BIZ-006 ③ DRAFT 문구 결정 고정), 변이 (a)~(e) RED, Coordinator Demo 시나리오(명세 §14 끝) 확인"
+          "doneCriteria": "명세 §14 BIZ-4-1~7 통과(DOM biz_ 0건·원문 번호 요청 범위·저장소/URL 0건·inline style 0·새 npm 의존성 0·D-BIZ-001 기존 가맹점 무영향·D-BIZ-005 안내·화면 중요 변경 감지(REGISTERED 대표자 추가만·순서만 → 사유 칸, r-6)·D-BIZ-006 ③ DRAFT 문구 결정 고정), 변이 (a)~(e) RED, Coordinator Demo 시나리오(명세 §14 끝) 확인 + BIZ-3 리뷰 인계(2026-11-18): (리뷰 1) 목록 검색 본문은 null을 보내지 않고 필드를 생략한다(ADMIN·MASTER 모두 null 거부) / (리뷰 2) 명령 본문 = 모든 key 필수·선택 값 null, registration.countryCode \"KR\", version은 상세 business.version, update·등록 완료 본문에 registrationNumber·registrationStatus 없음 / (리뷰 3) 503 문구 구분 — MASTER_RETRY_SAME_KEY(같은 내용 다시 보내기), MASTER_OUTCOME_UNKNOWN(결과 확인 필요 — 같은 submissionId 재전송, 반복되면 문의: NIT-1 REQUEST_MALFORMED도 이렇게 보임), MASTER_BUSY(잠시 후), AUDIT_UNAVAILABLE(감사 기록 실패 — 결과 미확정) / (리뷰 4) 429 문구 — 사업자 조회 창 30/분(목록·상세·이력·번호 조회 공유)·사업자등록번호 버킷 10/분(번호 조회·가맹점 BRN 검색·사업자 생성 공유), 둘 다 Demo 값(운영값 아님 — L-14)"
         }
       ],
       "batchOrder": "BIZ-1(Domain·DB·Application) → BIZ-2(MASTER web) → BIZ-3(ADMIN) → BIZ-4(화면 + 전환 한 배포 단위, C-27). BIZ-1~3 사이 옛 화면·경로 그대로 동작(과도기 사업자 DRAFT·구분 NULL — M-7). Demo 확인은 BIZ-4 뒤",
@@ -10065,7 +10065,7 @@
       "maxRepairAttempts": 3,
       "spec": "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.3 sha256 01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e",
       "review": "spec rev0.1 독립 리뷰 조건부(MAJOR 7·MINOR 10·NIT 4) → rev0.2 REVIEW_PASS 조건부(r-1~r-7) → rev0.2.1 조건 반영(Coordinator 지시, 2026-11-17)",
-      "nextResumeAction": "BIZ-3: ADMIN /api/businesses API, roles VIEW/CREATE/UPDATE/COMPLETE (OPERATOR·APPROVER view), audit (reason=PRESENT), business-reads-per-minute window, RegistrationNumberBudget, golden byte copy + MasterResponseShape, handoff items in BIZ-3 doneCriteria",
+      "nextResumeAction": "BIZ-4: React BusinessesScreen/BusinessProfileFormScreen/detail/history, merchant registration ① BRN lookup hookup, C-27 transition (requireRegistered, remove legacy business registration path), handoff items in BIZ-4 doneCriteria; then Demo rebuild + screen check",
       "mergedTasks": [
         "MERCHANT-BIZ-LOOKUP-001 (D-BIZ-004 — 명세 §6.3·§7.2·§8.4가 rev 0.3 BL-1~BL-3을 대체, 수용 기준 권한·응답 범위는 D-BIZ-006 ①③으로 변경)"
       ],
@@ -10541,6 +10541,39 @@
             "skipped": 0
           },
           "cveScan": "PASS vulnerabilities=0"
+        },
+        {
+          "id": "BIZ3-gate1",
+          "batch": "BIZ-3",
+          "verdict": "FAIL",
+          "started": "2026-11-17T16:30:39Z",
+          "codeFingerprint": "sha256:a0ec1db290d0481055692fc274ddafb81216d72a633c58dc0b69b8858293012e",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T163039Z.json",
+          "cause": "ApprovalAuditTargetSourceSpec (MC-3-24 guard): new BusinessAudit.kt writes AuditRecord targetRef outside the allowed writer list. Fix (coordinator): BusinessAudit.record refuses any targetRef other than null or biz_<ULID> (fail-closed → audit failure), allowed list extended with BusinessAudit.kt (annotated 기대값 변경, C-14·D-BIZ-003), new source assertion + BusinessAuditTargetSpec; mutation 'remove guard' RED in both. Subset 57 tests pass."
+        },
+        {
+          "id": "BIZ3-gate2",
+          "batch": "BIZ-3",
+          "verdict": "PASS",
+          "started": "2026-11-17T17:06:30Z",
+          "finished": "2026-11-17T18:00:02Z",
+          "codeFingerprint": "sha256:dbb13ce9b831a33d2ba0133ff3fd3ac00ae7c6f37a4ed907846b24d3bcd5eb46",
+          "specRev": "0.2.7",
+          "specSha256": "d36132ddfa7242dca4a7c26dc57a14ffa6e83f0ba00eb368fbfa47c4caa6dc01",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T170630Z.json",
+          "kotlinTests": {
+            "total": 5071,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "frontendTests": {
+            "total": 571,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "cveScan": "FAIL — 1 real finding per frontend lockfile: picomatch 4.0.7 GHSA-fc5q-39xc-vjpf (CVE-2026-112366, ReDoS, published 2026-10-19, no fixed version), devDependency only (vite/vitest/tinyglobby); lockfiles unchanged since 2026-11-03, not introduced by BIZ-3. Q-SEC-PICOMATCH-1 opened; no ignore entry added."
         }
       ],
       "biz1Status": "DONE (review REVIEW_PASS conditional → m-1..m-4, n-1..n-5 applied; BIZ1-gate1 PASS)",
@@ -10940,7 +10973,759 @@
           "id": "FLAKY-FE-APPROVALS-LABELS",
           "note": "ApprovalsScreen.targetLabels.test.tsx MC-3-19 findAllByRole timed out (default 1000ms) under full-gate load in BIZ2-gate2. Consider explicit findAllByRole timeout (environment wait, not expectation) — review before change."
         }
-      ]
+      ],
+      "biz3": {
+        "recordedBy": "Implementer (BIZ-3)",
+        "recordedAt": "2026-11-18",
+        "baseHead": "5dab2e7",
+        "specRev": "0.2.7",
+        "specSha256": "d36132ddfa7242dca4a7c26dc57a14ffa6e83f0ba00eb368fbfa47c4caa6dc01",
+        "sourceFingerprint": "sha256:e68f0f14ffc1e9e3d9670dfee1c9eaa58ce869db987f9e74e8873c5345c03dd3 (sorted sha256sum of changed/new apps/internal-admin files → sha256, 리뷰 반영 후)",
+        "migration": "ADMIN migration 없음(감사 action·targetRef 형식 변경 없음 — §1.4, BIZ-3-8이 파일 8개·business 이름 0 단언). MASTER·PAYMENT·FINANCIAL 변경 없음",
+        "changedFiles": {
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/BusinessOpsSettings.kt": "6ad1e60766a76a855db085c4e4e749e2ef732964194f0c16e84800a80347b5f2",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterBusinessGateway.kt": "a4926b29090c65fca0d9b9b044d9573d3699cc99786a0cda23073084ec279c42",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterOpsConfiguration.kt": "647876b0ad93dc4d576a37eba093be36461b95abd05592b2147e0ecb70112b8b",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterResponseShape.kt": "311726dfae6e054676fa7df797988c15f27d140e5624ef20b9ea3eb9884e5c01",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MicrometerMerchantOpsMetrics.kt": "d92484562f9015d865fa9454802f4a949cab5c59eb88bb7ee04c7e100ab3ed82",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/BusinessCommandController.kt": "6f4a5dab824a7342479d5b1283bc7ec1abbb926f9431d8aa9bf55ab7edd09bd8",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/BusinessProfileBodyParser.kt": "0f335bf68a79ade0a1852787b17cb6cb83b0be57368b3637d822219d219b14c7",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/BusinessQueryController.kt": "37368c4ba5c1ad06735c68674256b9e03eeb47cb115d90e7d580ccbeac1e34c0",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/BusinessSearchBodyParser.kt": "f6cedc9ef331884f92b57fbbc7485f68a65d43468a875e273eaf7f08f2818ad7",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessAudit.kt": "94339eaf9e36d5224fb52bbb5f480f2306d67869e34e956f58bee66230351329",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessLookupService.kt": "ef645751065be5c739daa906efcef01f45c1b4bf337f72ec6377758e6daed5f6",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessPermissions.kt": "93756267ae34952c0e37381bb56aeb8a2bc8570ebe4ebcd9ba9c0c27c429e7b3",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileInputRules.kt": "0d3449194068a0deb03dad772ff364feced200c0b68d4ec0dfcaa826795e6789",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt": "91f2df3a9ccd555150ed38c550593ad745f03dc709b088d0b020cd7b1b0eea1e",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessQueryService.kt": "10c1c756b489904ddf2d5d4fa3d51b5348177c9632293c7b290fadec60d82894",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessReadWindow.kt": "a2913aaa0ca8f499337a6c9c0460bf7c8c6b7615d4520facb8465a824e5a711d",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessFieldError.kt": "04ce1c72d51984a654563f46fb3022ca25a55c955ed993bb8796775fbfee06ed",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessLookupUseCase.kt": "ff709002ec5051a95d5e861c77c4b3efe9fb0b7b32e31135aeb13c2408212cfb",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessProfileRequest.kt": "6f2a057cdfd1205a69d4912286c5af0d0558d9643381edd12b8e1314b2aae984",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessProfileResult.kt": "4bf941cbf3e20590427f0a73e4cc29756ede90827ba71ce8c28d2b3c876c7acb",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessProfileUseCase.kt": "71414e61c9967fc03fb2b4f3332e812204f1a3846897878e9d624d36ac8f213b",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessQueryUseCase.kt": "74d093f52346cd54173e4357a7271360c46b5ea537e8a1e61355bfe1e8646653",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/BusinessOpsMetrics.kt": "43f3dacd57105e1c9d3c93f12abc8fd50fff1c90fa411ae190d637ed96584ec9",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/BusinessReadLimits.kt": "348ece682b1701a3978280682f583aeccfd034104addcb2529bb61f94bd93186",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MasterBusinessGateway.kt": "4f78a1b31ab1fa146e877b5d75bcff4d3fff715ee2b91d99e4b049b5366f607c",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MasterOpsGateway.kt": "fca4041ff5d86552018a385a99483a8939f9dcb1a2ef3d931d3177e9a24368e1",
+          "apps/internal-admin/src/main/resources/application.yml": "29060b0aa0b1e55b0d6e469fe4b9739af340b9c9153b0a64b905a17cc38c6d47",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessHttpSpec.kt": "b6e8cbd372d041b814bf3fc55e0a1a907f4f96fb52672cd7b57cd6613c03c548",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessInputFixture.kt": "3315d4d0fb4e4965d748bdcc688cc2b7dabe561bf7dbaee562ae3844b00fae0c",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessOpsSettingsSpec.kt": "ba9e7e5889c6c4e77391563ee9f5456a33b6ca66a46f73731835bd3a65bc51d9",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessProfileServiceSpec.kt": "39b5fe9fa8a5bca92f9846e2dc0b8e882d25b5a7cabda9e6272acbe93b8a3ef1",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessQueryServiceSpec.kt": "338b8b26ffc00370ca668eca90842d7e3c4be9eb9f9dd7ce3b88879b312444fb",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/BusinessShapeGoldenSpec.kt": "f480ff84e145c97596f00127c7e1c52741e0d78d382edfd5eae0cd8bafa3e58e",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterBusinessGatewaySpec.kt": "078173003b004fab755ff2c41f4b09be6e4661939af3e074d67ca27c10745126",
+          "apps/internal-admin/src/test/resources/config/application.yml": "791b287d8a5df888a16d8b380401b9e1df1c3695bd4243f7f8b313cb4856be1b",
+          "apps/internal-admin/src/test/resources/contracts/business-profile-response-shapes-v1.golden.json": "fe984115df3c97cb181b80bc6ab9c60a0f27dbe5ecf0454ca68107ed5c5865a7",
+          "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md": "d36132ddfa7242dca4a7c26dc57a14ffa6e83f0ba00eb368fbfa47c4caa6dc01"
+        },
+        "notChangedByMe": "GUIDE.md·SCREENS.md(+Zone.Identifier)·apps/internal-admin/frontend/tsconfig.tsbuildinfo·pg-workspace-react-kit.zip — 작업 전부터 있던 사용자 미추적 파일(손대지 않음). STUDY.md 미변경",
+        "contracts": {
+          "adminEndpoints": [
+            "POST /api/businesses/searches",
+            "POST /api/businesses/registration-number-lookups",
+            "GET /api/businesses/{businessId}",
+            "GET /api/businesses/{businessId}/history?after=",
+            "POST /api/businesses",
+            "PUT /api/businesses/{businessId}",
+            "POST /api/businesses/{businessId}/registration"
+          ],
+          "masterEndpoints": "/internal/v1/admin/businesses/{searches,registration-number-lookups,{id},{id}/history/after/{seq},commands/{create,update,complete-registration}} — 서명 v1·기존 ADMIN_SERVICE 키",
+          "idempotencyKey": "mo1.<계정 ULID>.<submissionId>(계정 이름공간 C-4), correlationId mos.<submissionId>, 지문 m1:(MASTER — C-9, HMAC은 B3-3a)",
+          "audit": "BUSINESS_BRN_LOOKUP·BUSINESS_VIEWED·BUSINESS_CREATE·BUSINESS_UPDATE·BUSINESS_REGISTRATION_COMPLETE — MASTER까지 간 명령은 REQUESTED + 결과 2행, detail 고정 key=value(brn 마스킹·reason=PRESENT|ABSENT·version·status·sub), 사유 원문·이름·연락처·주소·상호 없음",
+          "rateLimits": "business-reads-per-minute(Demo 30 — 목록·상세·이력·번호 조회 공유), registration-number-searches-per-minute 공유 버킷(번호 조회·가맹점 BRN 검색·사업자 생성), registrations-per-minute(명령 3종) — 모두 Demo 값, 운영값 아님",
+          "responses": "200 MASTER 문서(모양 검사) / 명령 {outcome,reference?,rejection?,replayed,existing?} / 400 INVALID_INPUT(+fieldErrors) / 403 / 404 BUSINESS_NOT_FOUND / 409 IDEMPOTENCY_KEY_REUSED / 429 / 503 MASTER_UNAVAILABLE·MASTER_BUSY·MASTER_RETRY_SAME_KEY·MASTER_OUTCOME_UNKNOWN·AUDIT_UNAVAILABLE",
+          "golden": "apps/internal-admin/src/test/resources/contracts/business-profile-response-shapes-v1.golden.json = MASTER 골든 바이트 동일(BusinessShapeGoldenSpec 바이트 비교)",
+          "tx": "MASTER 호출은 ADMIN DB TX 밖(gateway가 TX 안 호출 거부), 감사 행마다 ADMIN 로컬 TX 하나"
+        },
+        "redGreen": [
+          {
+            "step": "RED",
+            "at": "2026-11-17T15:23:37Z",
+            "command": "./gradlew :apps:internal-admin:test --tests Business{ShapeGolden,ProfileService,QueryService,Http}Spec MasterBusinessGatewaySpec (새 production 파일 22개 제거 + 수정 4개 HEAD 복원 상태)",
+            "exit": 1,
+            "reason": "535 compile errors — Unresolved reference BusinessOpsSettings·BusinessCommandController·BusinessProfileContent·BusinessRegistrationInput·MasterBusinessGateway 등(시험이 아직 없는 production 타입·모양 참조). 파일 복원 확인(git status)"
+          },
+          {
+            "step": "GREEN",
+            "at": "2026-11-17T15:25:30Z",
+            "command": "unit 4 spec",
+            "exit": 0,
+            "tests": 52
+          },
+          {
+            "step": "GREEN(HTTP 1차 FAIL — 시험 코드 결함)",
+            "at": "2026-11-17T15:26:17Z",
+            "command": "BusinessHttpSpec",
+            "exit": 1,
+            "tests": 13,
+            "failures": 1,
+            "note": "응답은 기대대로였으나 시험 코드가 Jackson 3 ArrayNode에 Kotlin map을 써서 NPE(BIZ-2 기록과 같은 JsonNode 순회 결함) → 색인 순회로 고침(기대값 변경 없음)"
+          },
+          {
+            "step": "GREEN",
+            "at": "2026-11-17T15:32:51Z",
+            "command": "BusinessHttpSpec",
+            "exit": 0,
+            "tests": 13
+          }
+        ],
+        "testRuns": [
+          {
+            "command": "test --tests BusinessShapeGoldenSpec BusinessProfileServiceSpec BusinessQueryServiceSpec MasterBusinessGatewaySpec",
+            "started": "2026-11-17T15:25:30Z",
+            "exit": 0,
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests BusinessHttpSpec",
+            "started": "2026-11-17T15:26:17Z",
+            "exit": 1,
+            "tests": 13,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "note": "시험 코드 JsonNode 순회 결함(위)"
+          },
+          {
+            "command": "test --tests BusinessHttpSpec",
+            "started": "2026-11-17T15:32:51Z",
+            "exit": 0,
+            "tests": 13,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests ArchitectureSpec MasterOpsGatewaySpec MerchantCodeShapeGoldenSpec MerchantRegistrationServiceSpec MerchantLookupServiceSpec MerchantLabelGatewaySpec MerchantRegistrationHttpSpec MerchantLookupHttpSpec MerchantTargetLabelRateLimitHttpSpec (회귀 하위 집합)",
+            "started": "2026-11-17T15:35:06Z",
+            "exit": 0,
+            "tests": 163,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests (새 5 spec) ArchitectureSpec — 최종(불변식 시험 추가 뒤)",
+            "started": "2026-11-17T16:00:02Z",
+            "exit": 0,
+            "tests": 103,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "perSpec": {
+              "BusinessShapeGoldenSpec": 7,
+              "BusinessProfileServiceSpec": 24,
+              "BusinessQueryServiceSpec": 13,
+              "MasterBusinessGatewaySpec": 9,
+              "BusinessHttpSpec": 13,
+              "ArchitectureSpec": 37
+            }
+          }
+        ],
+        "mutations": [
+          {
+            "id": "a",
+            "what": "조회 역할에 VIEWER 추가",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessPermissions.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                1
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                1
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: VIEWER, SECURITY_ADMIN or UNMASK alone → 403 for list, detail, history and number lookup; MASTER not called",
+              "BusinessProfileServiceSpec :: Then: VIEW = {OPERATOR, APPROVER}, CREATE = UPDATE = COMPLETE = {OPERATOR}"
+            ]
+          },
+          {
+            "id": "b",
+            "what": "번호 조회 별도 버킷",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessLookupService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                2
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: shared bucket (C-3): 10 lookups → the 11th is 429 RATE_LIMITED; in the same minute a merchant BRN search and a business create are also refused ",
+              "BusinessQueryServiceSpec :: Then: control: merchant BRN searches and business creates drain the same bucket the lookup uses"
+            ]
+          },
+          {
+            "id": "c",
+            "what": "감사 실패 시 결과 반환",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessAudit.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                2
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                1
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: audit failure → AUDIT_UNAVAILABLE and the document is not returned",
+              "BusinessQueryServiceSpec :: Then: malformed body (null) and wrong formats are attempts: INVALID_INPUT `brn=INVALID`, before any bucket use; MASTER failure → UNAVAILABLE row; audi",
+              "BusinessProfileServiceSpec :: Then: attempt audit failure → AUDIT_UNAVAILABLE, MASTER not called, bucket refunded; result audit failure → AUDIT_UNAVAILABLE (MASTER effect may exist"
+            ]
+          },
+          {
+            "id": "e",
+            "what": "중복 targetRef 제거",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                1
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessProfileServiceSpec :: Then: D-BIZ-003 the response carries existing (상호·마스킹 번호·내부 키·등록 상태); audit targetRef = the existing businessId; the bucket stays consumed"
+            ]
+          },
+          {
+            "id": "g",
+            "what": "COMPLETE 상수에 APPROVER",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessPermissions.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                3
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessProfileServiceSpec :: Then: VIEW = {OPERATOR, APPROVER}, CREATE = UPDATE = COMPLETE = {OPERATOR}",
+              "BusinessProfileServiceSpec :: Then: APPROVER alone (D-BIZ-006 ① — view only) and VIEWER get 403 + FORBIDDEN for create, update and registration; MASTER is not called",
+              "BusinessProfileServiceSpec :: Then: create → audit brn=INVALID (INVALID_INPUT or FORBIDDEN by role); update / registration → 400 without audit unless forbidden"
+            ]
+          },
+          {
+            "id": "h",
+            "what": "중복 existing 조회 권한 판정 제거",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": false,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": []
+          },
+          {
+            "id": "i",
+            "what": "감사에 사유 원문(PRESENT 대신)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                2
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessProfileServiceSpec :: Then: APPROVER alone (D-BIZ-006 ① — view only) and VIEWER get 403 + FORBIDDEN for create, update and registration; MASTER is not called",
+              "BusinessProfileServiceSpec :: Then: update body: businessId·version·reason then content (no registrationNumber/status); audit reason=PRESENT|ABSENT only — the reason text is in no "
+            ]
+          },
+          {
+            "id": "l",
+            "what": "목록 검색 null 필드 전송",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterBusinessGateway.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "MasterBusinessGatewaySpec :: Then: search: signed POST to /businesses/searches; absent optional fields are omitted — never JSON null (BIZ-2 인계 ④); the golden list parses"
+            ]
+          },
+          {
+            "id": "m",
+            "what": "create 버킷 미예약",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                2
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                5
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: shared bucket (C-3): 10 lookups → the 11th is 429 RATE_LIMITED; in the same minute a merchant BRN search and a business create are also refused ",
+              "BusinessQueryServiceSpec :: Then: control: merchant BRN searches and business creates drain the same bucket the lookup uses",
+              "BusinessProfileServiceSpec :: Then: create only reserves the bucket: bucket exhausted → 429 + RATE_LIMITED for create while update still passes",
+              "BusinessProfileServiceSpec :: Then: BIZ-3-3 twenty concurrent creates against a bucket of 10 → exactly 10 reach MASTER (atomic reserve, duplicate results keep their reservation)",
+              "BusinessProfileServiceSpec :: Then: D-BIZ-003 the response carries existing (상호·마스킹 번호·내부 키·등록 상태); audit targetRef = the existing businessId; the bucket stays consumed",
+              "BusinessProfileServiceSpec :: Then: 인계 ③ MASTER 503 (TEMPORARILY_UNAVAILABLE incl. the existing-summary failure, m-1) → MASTER_RETRY_SAME_KEY, audit OUTCOME_UNKNOWN, bucket kept (n",
+              "BusinessProfileServiceSpec :: Then: timeout / unreadable → OUTCOME_UNKNOWN (bucket kept); Busy → MASTER_BUSY (kept); key reuse → KEY_REUSED (refunded)"
+            ]
+          },
+          {
+            "id": "n",
+            "what": "중복 거절 버킷 환불(확정 안 함)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                1
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                3
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: control: merchant BRN searches and business creates drain the same bucket the lookup uses",
+              "BusinessProfileServiceSpec :: Then: create only reserves the bucket: bucket exhausted → 429 + RATE_LIMITED for create while update still passes",
+              "BusinessProfileServiceSpec :: Then: BIZ-3-3 twenty concurrent creates against a bucket of 10 → exactly 10 reach MASTER (atomic reserve, duplicate results keep their reservation)",
+              "BusinessProfileServiceSpec :: Then: D-BIZ-003 the response carries existing (상호·마스킹 번호·내부 키·등록 상태); audit targetRef = the existing businessId; the bucket stays consumed"
+            ]
+          },
+          {
+            "id": "d",
+            "what": "감사 detail에 상호",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessProfileService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                3
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessHttpSpec": [
+                13,
+                8
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessProfileServiceSpec :: Then: APPROVER alone (D-BIZ-006 ① — view only) and VIEWER get 403 + FORBIDDEN for create, update and registration; MASTER is not called",
+              "BusinessProfileServiceSpec :: Then: create violation → 400 + fieldErrors + audit INVALID_INPUT (masked brn, or brn=INVALID for a malformed number); no MASTER call, no bucket use",
+              "BusinessProfileServiceSpec :: Then: REQUESTED → one MASTER call outside any TX → result row; key mo1.<ULID>.<sub>, actor admin:<id>, correlation mos.<sub>; MASTER body has every ke",
+              "BusinessHttpSpec :: Then: APPROVER → views 200 (detail audited BUSINESS_VIEWED before return) and create / update / registration 403 + FORBIDDEN; OPERATOR → all 200",
+              "BusinessHttpSpec :: Then: D-BIZ-003 duplicate → 200 REJECTED with existing (상호·마스킹·내부 키·상태); the audit row targets the existing businessId (C-14)",
+              "BusinessHttpSpec :: Then: 인계 ② MASTER 400 BUSINESS_VALIDATION_FAILED → 400 INVALID_INPUT + the same fieldErrors (no value); audit INVALID_INPUT, not OUTCOME_UNKNOWN",
+              "BusinessHttpSpec :: Then: 인계 ③ MASTER 503 TEMPORARILY_UNAVAILABLE (incl. the existing-summary failure) → 503 MASTER_RETRY_SAME_KEY",
+              "BusinessHttpSpec :: Then: ADMIN rule violation → 400 with fieldErrors and no MASTER call; strict parsing (unknown key, missing key, null for a required value, registratio",
+              "BusinessHttpSpec :: Then: read timeout → 503 MASTER_OUTCOME_UNKNOWN; resend → same MASTER key, correlation and body; replayed result; audit rows (REQUESTED, OUTCOME_UNKNO",
+              "BusinessHttpSpec :: Then: BIZ-3-7 the audit correlation of a successful create is the correlationId sent to MASTER (mos.<sub> — MASTER records it on master_change_history",
+              "BusinessHttpSpec :: Then: create/update/lookup/detail with canary values: every ADMIN string column (information_schema) has 0 hits; audit detail shows brn=731******* onl"
+            ]
+          },
+          {
+            "id": "f",
+            "what": "상세에서 조회 창 생략",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/BusinessQueryService.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                1
+              ],
+              "BusinessProfileServiceSpec": [
+                23,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                0
+              ],
+              "BusinessHttpSpec": [
+                13,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessQueryServiceSpec :: Then: 30 mixed reads pass; the 31st of each kind → 429 without MASTER; detail over the window is audited RATE_LIMITED once; the merchant window is unt",
+              "BusinessHttpSpec :: Then: 30 mixed reads pass; the 31st detail is 429 with one BUSINESS_VIEWED RATE_LIMITED row; the 31st list/history/lookup are 429; MASTER not called a"
+            ]
+          },
+          {
+            "id": "j",
+            "what": "MASTER 503 TEMPORARILY_UNAVAILABLE → OUTCOME_UNKNOWN",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterBusinessGateway.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                24,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                1
+              ],
+              "BusinessHttpSpec": [
+                13,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "MasterBusinessGatewaySpec :: Then: 인계 ③ 503 TEMPORARILY_UNAVAILABLE (existing-summary failure) / REQUEST_IN_PROGRESS / OUTCOME_UNKNOWN → RetrySameKey; ADMIN_WRITE_BUSY → Busy; 409",
+              "BusinessHttpSpec :: Then: 인계 ③ MASTER 503 TEMPORARILY_UNAVAILABLE (incl. the existing-summary failure) → 503 MASTER_RETRY_SAME_KEY"
+            ]
+          },
+          {
+            "id": "k",
+            "what": "MASTER 400 VALIDATION → OUTCOME_UNKNOWN",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterBusinessGateway.kt",
+            "red": true,
+            "results": {
+              "BusinessQueryServiceSpec": [
+                13,
+                0
+              ],
+              "BusinessProfileServiceSpec": [
+                24,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                9,
+                1
+              ],
+              "BusinessHttpSpec": [
+                13,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "MasterBusinessGatewaySpec :: Then: 인계 ② 400 BUSINESS_VALIDATION_FAILED → Invalid with the field errors (no effect — not Unknown), incl. categories TOO_MANY and representatives[i].",
+              "BusinessHttpSpec :: Then: 인계 ② MASTER 400 BUSINESS_VALIDATION_FAILED → 400 INVALID_INPUT + the same fieldErrors (no value); audit INVALID_INPUT, not OUTCOME_UNKNOWN"
+            ]
+          },
+          {
+            "id": "o",
+            "what": "NIT-4 fieldErrors 최소 1 제거",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterResponseShape.kt",
+            "red": true,
+            "results": {
+              "BusinessOpsSettingsSpec": [
+                3,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                12,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                1
+              ]
+            },
+            "failed": [
+              "BusinessShapeGoldenSpec :: Then: BIZ-3 인계 ② fieldErrors: categories TOO_MANY and representatives[i].type parse; a path outside §4.6, an unknown code or a value key fail"
+            ]
+          },
+          {
+            "id": "p",
+            "what": "NIT-3 decidedOf runCatching 제거",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterBusinessGateway.kt",
+            "red": true,
+            "results": {
+              "BusinessOpsSettingsSpec": [
+                3,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                12,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "MasterBusinessGatewaySpec :: Then: NIT-3 a result value that violates its own invariant (not reachable through the shapes today) maps to Unknown(RESPONSE_UNREADABLE) instead of th"
+            ]
+          },
+          {
+            "id": "q",
+            "what": "NIT-5 Found toString 가림 제거",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/BusinessQueryUseCase.kt",
+            "red": true,
+            "results": {
+              "BusinessOpsSettingsSpec": [
+                3,
+                0
+              ],
+              "MasterBusinessGatewaySpec": [
+                12,
+                1
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "MasterBusinessGatewaySpec :: Then: NIT-5 results carrying PII or a trade name print *** instead of values"
+            ]
+          },
+          {
+            "id": "r",
+            "what": "MINOR-2 설정 누락 시 기본값 30",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/BusinessOpsSettings.kt",
+            "red": true,
+            "results": {
+              "BusinessOpsSettingsSpec": [
+                3,
+                1
+              ],
+              "MasterBusinessGatewaySpec": [
+                12,
+                0
+              ],
+              "BusinessShapeGoldenSpec": [
+                7,
+                0
+              ]
+            },
+            "failed": [
+              "BusinessOpsSettingsSpec :: Then: a missing key fails context startup naming the key"
+            ]
+          }
+        ],
+        "mutationNotes": {
+          "specMap": "명세 변이 (a) 조회 역할 VIEWER → a, (b) 별도 버킷 → b, (c) 감사 실패 시 결과 반환 → c, (d) 감사 detail 상호 → d, (e) 중복 targetRef 제거 → e, (f) 상세 조회 창 생략 → f, (g) COMPLETE에 APPROVER → g. 추가: h(existing 조회 권한 판정 제거), i(사유 원문), j(503→OUTCOME_UNKNOWN), k(400→OUTCOME_UNKNOWN), l(검색 null 전송), m(create 버킷 미예약), n(중복 버킷 환불)",
+          "survived": "h — 동치 변이(CREATE ⊆ VIEW라 판정 경로 도달 불가, E-26). 불변식 시험 CREATE ⊆ VIEW 추가(BusinessProfileServiceSpec) — 상수가 바뀌면 그 역할의 existing 미노출 시험을 추가해야 함"
+        },
+        "expectedValueChanges": "없음 — 기존 ADMIN 시험 기대값 변경 0(회귀 하위 집합 163건 통과). 새 시험만 추가",
+        "specDeviations": "rev 0.2.6 E-17~E-27(§18): 설정 Port BusinessReadLimits(키 이름은 명세 그대로), 앞단 = 업무 조회 역할(감사 없음), 409 code 기존 IDEMPOTENCY_KEY_REUSED, 감사 detail 키 순서, MASTER 400 REQUEST_MALFORMED·문법 위반은 OUTCOME_UNKNOWN, update reference 대조, gateway 자체 permit, 상세 형식 위반 감사 없음, 목록 검색 null 거부, 동치 변이 (h), BIZ-3-7 범위",
+        "reversibleDecisions": [
+          "BusinessAudit(앞단 판정 + 감사 1행 공용 helper, application 내부)",
+          "BusinessReadWindow 공유 빈",
+          "HttpMasterBusinessGateway 자체 Semaphore",
+          "BusinessInputFixture Named Fixture(SecureRandom 번호 — 공유 DB 격리)",
+          "MasterResponseShape.AnyOf(이력 changes 항목)"
+        ],
+        "principlesEvidence": {
+          "FinancialConsistency": "금액·권리·정산 효과 없음(사업자 기준정보). ADMIN은 MASTER 판정을 바꾸지 않고 전달 — 중복은 MASTER DB UNIQUE가 권위, ADMIN 복제 규칙은 안내용(drift 지표)",
+          "TransactionSafety": "MASTER 호출은 DB TX 밖(TX 안 호출 거부 시험 — MasterBusinessGatewaySpec), 시도 감사 실패 → MASTER 미호출·버킷 환불, 결과 감사 실패 → 503(BIZ-3-4, BusinessProfileServiceSpec)",
+          "Idempotency": "같은 submissionId 재전송 = 같은 MASTER 키·상관 ID·본문, 재생 결과, 감사 2행씩(BIZ-3-5 서비스·HTTP 응답 유실), 계정 이름공간 키(C-4)",
+          "ConcurrencyControl": "등록번호 버킷 원자 예약 — 동시 create 20 → 10, 동시 번호 조회 20 → 10(BIZ-3-3)",
+          "Recoverability": "timeout → MASTER_OUTCOME_UNKNOWN(효과 단정 없음) → 같은 키 재전송, MASTER 503(중복 요약 실패 포함) → MASTER_RETRY_SAME_KEY·버킷 확정, MASTER 400 VALIDATION → 효과 없음 확정(OUTCOME_UNKNOWN 아님)",
+          "Reconciliation": "감사 correlationId mos.<sub> = MASTER로 보낸 correlationId(BIZ-3-7) — MASTER Outbox correlation 저장은 BIZ-2 MerchantOperationsLostResponseSpec이 고정",
+          "Auditability": "모든 번호 조회 시도·상세 열람(창 초과 포함)·명령 시도/결과 감사, 역할 부족 FORBIDDEN, 감사 실패 = 행위 실패, 사유는 reason=PRESENT|ABSENT(원문은 MASTER 이력)",
+          "Observability": "rate_limited{kind=BUSINESS_READ|REGISTRATION_NUMBER|REGISTRATION}, command{operation,result}, command_unknown, business_lookup{result}, business_rule_drift{operation}, business_body_rejected{reason} — label 고정 분류, canary 비노출(BIZ-3-6: ADMIN 전 문자열 열·로그·지표·오류 본문)"
+        },
+        "jpaNotes": "이번 배치는 JPA 변경 없음(ADMIN 감사는 기존 JpaAdminAuditStore 그대로 — 새 Entity·매핑 없음).",
+        "jooqNotes": "ADMIN jOOQ 변경 없음 — 사업자 조회(CQRS)는 MASTER JooqBusiness*Reader(BIZ-2)가 담당, ADMIN은 HTTP 모양 검사만.",
+        "versionsKafkaRedis": "의존성·BOM 변경 없음, Kafka/Redis 도입 없음(속도 제한은 기존 인스턴스 메모리 창 — L-9 LIVE Gate).",
+        "openIssues": [
+          "BIZ-4 인계: 화면 BusinessesScreen·BusinessProfileFormScreen·가맹점 등록 ① 번호 조회 연결(§8), 옛 경로 제거·Merchant.register requireRegistered 전환(C-27)",
+          "BIZ-4 인계: ADMIN 응답 — 명령 409 code는 IDEMPOTENCY_KEY_REUSED(E-19), 400 INVALID_INPUT은 fieldErrors 있을 때만 키 포함, 상세·목록·조회 응답은 MASTER 골든 모양 그대로(businessId 화면 미표시)",
+          "BIZ-4 인계: 옛 Demo DB의 DRAFT 사업자는 전환 뒤 BUSINESS_NOT_REGISTERED(L-7)",
+          "L-13 지문 HMAC 미적용(C-9 — LIVE 전 B3-3a 필수, 세 operation 포함) — 불변",
+          "L-14 사업자 조회 창 30·버킷 10·등록 창 20은 Demo 값(운영값 아님), 인스턴스 메모리 창",
+          "전체 게이트(ADMIN 전체·프런트엔드)는 Coordinator 실행(메모리 — 하위 집합만 실행함)",
+          "BIZ-4 인계(BIZ-3 리뷰 1): 목록 검색 본문은 null을 보내지 않고 필드를 생략한다(ADMIN·MASTER 모두 null 거부)",
+          "BIZ-4 인계(BIZ-3 리뷰 2): 명령 본문 = 모든 key 필수·선택 값 null, registration.countryCode \"KR\", version은 상세 business.version, update·등록 완료 본문에 registrationNumber·registrationStatus 없음",
+          "BIZ-4 인계(BIZ-3 리뷰 3): 503 문구 구분 — MASTER_RETRY_SAME_KEY(같은 내용 다시 보내기), MASTER_OUTCOME_UNKNOWN(결과 확인 필요 — 같은 submissionId 재전송, 반복되면 문의: NIT-1 REQUEST_MALFORMED도 이렇게 보임), MASTER_BUSY(잠시 후), AUDIT_UNAVAILABLE(감사 기록 실패 — 결과 미확정)",
+          "BIZ-4 인계(BIZ-3 리뷰 4): 429 문구 — 사업자 조회 창 30/분(목록·상세·이력·번호 조회 공유)·사업자등록번호 버킷 10/분(번호 조회·가맹점 BRN 검색·사업자 생성 공유), 둘 다 Demo 값(운영값 아님 — L-14)",
+          "NIT-2 결정 기록: 번호 조회 순서 형식 → 공유 버킷 → 조회 창 유지"
+        ],
+        "status": "IMPLEMENTED + REVIEW 반영 — Verifier·Coordinator 게이트 대기(자기 DONE 판정 아님)",
+        "reviewApplied": {
+          "review": "BIZ-3 독립 리뷰 REVIEW_PASS 조건부(BLOCKER·MAJOR 없음, E-17~E-27 수용) — Coordinator 지시 2026-11-18",
+          "MINOR-1": "BusinessHttpSpec 조회 창 시험: 분 남은 시간 < 20s면 다음 분 시작까지 대기(awaitFreshMinute — 저장소 관례), 기대값 불변",
+          "MINOR-2": "새 BusinessOpsSettingsSpec(ApplicationContextRunner — 실제 바인딩): 누락·0·10001 기동 실패, 30 기동 — 변이 r(누락 시 기본값 30) RED",
+          "NIT-1": "기록만(명세 rev 0.2.7·openIssues BIZ-4 인계): REQUEST_MALFORMED가 OUTCOME_UNKNOWN 반복으로 보임",
+          "NIT-2": "기록만: 번호 조회 순서 형식③ → 버킷④ → 창⑤ 유지(BIZ-LOOKUP 선례)",
+          "NIT-3": "HttpMasterBusinessGateway.decidedOf·invalidOf(runCatching — 불변식 위반도 Unknown(RESPONSE_UNREADABLE)) + 단위 시험 — 변이 p RED",
+          "NIT-4": "MasterResponseShape.Arr min, BUSINESS_VALIDATION_FAILED fieldErrors ≥ 1 + 골든·stub 시험 — 변이 o RED",
+          "NIT-5": "BusinessQueryResult.Found·MasterCallResult.Found toString Found(***), BusinessProfileResult.Decided·MasterBusinessCommandResult.Decided existing *** + 시험 — 변이 q RED",
+          "biz4Handoff": "리뷰 1~4를 openIssues와 BIZ-4 doneCriteria에 추가"
+        },
+        "reviewTestRuns": [
+          {
+            "command": "test --tests BusinessShapeGoldenSpec BusinessProfileServiceSpec BusinessQueryServiceSpec MasterBusinessGatewaySpec BusinessOpsSettingsSpec MasterOpsGatewaySpec MerchantLookupServiceSpec MerchantRegistrationServiceSpec MerchantLabelGatewaySpec",
+            "started": "2026-11-17T16:23:51Z",
+            "exit": 0,
+            "tests": 153,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests (새 6 spec) ArchitectureSpec MerchantLookupHttpSpec — 리뷰 반영 최종",
+            "started": "2026-11-17T16:27:04Z",
+            "exit": 0,
+            "tests": 121,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "perSpec": {
+              "BusinessShapeGoldenSpec": 7,
+              "BusinessProfileServiceSpec": 24,
+              "BusinessQueryServiceSpec": 13,
+              "MasterBusinessGatewaySpec": 12,
+              "BusinessOpsSettingsSpec": 3,
+              "BusinessHttpSpec": 13,
+              "ArchitectureSpec": 37,
+              "MerchantLookupHttpSpec": 12
+            }
+          }
+        ]
+      },
+      "biz3Status": "DONE (review conditional REVIEW_PASS → MINOR-1·2, NIT-1..5 applied; coordinator audit-target guard fix; BIZ3-gate2 PASS; CVE scan FAIL on pre-existing dev-only picomatch advisory → Q-SEC-PICOMATCH-1)"
     }
   ]
 }

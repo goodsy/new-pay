@@ -155,6 +155,9 @@ paycore:
     # MERCHANT-OPS-002 B2-2 가맹점 2인 승인(C-19 — **Demo 값, 운영값 아님**, LIVE Gate, 기본값 없음): 실행 창(승인 + 이 값 = 실행 기한, MASTER max-execution-window PT24H 이하),
     # 기한 확인 여유(MASTER max-clock-skew PT1M + read timeout 이상), 회복 다음 시도 간격(두 배씩 — 상한 PT30M). stale = master-ops connect + read + 30초.
     merchant-ops:
+      # BUSINESS-PROFILE-001 §7.1 m-2(Demo 값, 운영값 아님 — LIVE Gate L-14, 기본값 없음 1..10000): 사업자 조회 창 — actor별 분당, 목록·상세·이력·번호 조회 공용
+      # (가맹점 조회 창 master-ops.lookup-per-minute·라벨 창과 별개).
+      business-reads-per-minute: 30
       approval:
         execution-window: 1h
         deadline-grace: 2m

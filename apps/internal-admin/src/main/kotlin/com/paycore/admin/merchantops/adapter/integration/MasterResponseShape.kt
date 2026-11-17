@@ -1,5 +1,6 @@
 package com.paycore.admin.merchantops.adapter.integration
 
+import com.paycore.admin.merchantops.application.provided.BusinessFieldError
 import com.paycore.admin.merchantops.application.required.MasterCommandKind
 import tools.jackson.databind.JsonNode
 
@@ -20,9 +21,10 @@ internal sealed interface MasterResponseShape {
         }
     }
 
-    class Arr(private val item: MasterResponseShape, private val max: Int) : MasterResponseShape {
+    /** 배열: 길이 [min]..[max]([min] 기본 0 — 기존 모양 불변. BIZ-3 리뷰 NIT-4: 400 fieldErrors는 1 이상). */
+    class Arr(private val item: MasterResponseShape, private val max: Int, private val min: Int = 0) : MasterResponseShape {
         override fun read(node: JsonNode?): List<Any?> {
-            require(node != null && node.isArray && node.size() <= max) { "array" }
+            require(node != null && node.isArray && node.size() in min..max) { "array" }
             return node.iterator().asSequence().map { item.read(it) }.toList()
         }
     }
@@ -59,6 +61,17 @@ internal sealed interface MasterResponseShape {
         override fun read(node: JsonNode?): Any? {
             require(node != null) { "missing" }
             return if (node.isNull) null else inner.read(node)
+        }
+    }
+
+    /**
+     * BUSINESS-PROFILE-001(BIZ-3): 정해진 객체 모양 중 **하나와 정확히** 같아야 한다(사업자 이력 `changes` 항목 — 값 변경 `field·before·after`·행 변경 `field·ended·added`, 생성은
+     * before·ended 없음). 각 후보는 [Obj](키 집합 정확 일치 + `field` 값 문법)라 둘 이상이 맞지 않는다. 하나도 맞지 않으면 위반.
+     */
+    class AnyOf(private val options: List<MasterResponseShape>) : MasterResponseShape {
+        override fun read(node: JsonNode?): Any? {
+            options.forEach { option -> runCatching { option.read(node) }.onSuccess { return it } }
+            throw IllegalArgumentException("no matching shape")
         }
     }
 
@@ -228,6 +241,129 @@ internal sealed interface MasterResponseShape {
          */
         val MERCHANT_LABELS: MasterResponseShape = obj(
             "items" to Arr(obj("merchantId" to MERCHANT_ID, "merchantName" to DISPLAY_NAME, "merchantCode" to MERCHANT_CODE), max = 50),
+        )
+
+        // ---------------------------------------------------------------- BUSINESS-PROFILE-001 BIZ-3(§6.2~§6.8 — 골든 business-profile-response-shapes-v1, ADMIN 바이트 동일 사본)
+
+        /** 사업자 문자열(MASTER `BusinessTextRule`과 같은 문자 규칙 — 제어문자·짝 없는 서로게이트·앞뒤 공백 금지) + code point 상한. */
+        private fun plain(maxCodePoints: Int) = Text(Regex("^(?! )[^\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+(?<! )$"), maxCodePoints)
+        private fun oneOf(vararg values: String) = Text(Regex("^(" + values.joinToString("|") + ")$"))
+        private val BUSINESS_TYPE = oneOf("INDIVIDUAL", "CORPORATION")
+        private val REGISTRATION_STATUS = oneOf("DRAFT", "REGISTERED", "INACTIVE")
+
+        /** 진위확인 상태 — 이번 범위는 `NOT_CHECKED`만(TBD-06, DB CHECK). 다른 값이 오면 해석 불가(검증 성공 위조 방지). */
+        private val VERIFICATION_STATUS = oneOf("NOT_CHECKED")
+        private val BUSINESS_LIFECYCLE = oneOf("ACTIVE", "TERMINATED")
+        private val PERSON_NAME = plain(50)
+        private val CATEGORY_NAME = plain(50)
+        private val ADDRESS_LINE = plain(200)
+        private val CHANGE_REASON = plain(200)
+
+        /** 이력 마스킹 값(§9 — 상호·마스킹 이름·이메일·전화·주소·날짜·구분 등, 저장된 문자열 그대로). */
+        private val HISTORY_VALUE = plain(254)
+        private val DATE = Text(Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
+        private val PHONE = Text(Regex("^[0-9]{8,12}$"))
+        private val EMAIL = Text(Regex("^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{3,189}$"))
+        private const val HISTORY_PAGE = 20
+        private const val ROWS = 20
+
+        /** 중복 요약·번호 조회 항목(4키 — D-BIZ-003·D-BIZ-006 ③, 내부 키는 화면이 그리지 않는다). 원문 번호 키가 오면 키 집합이 달라 해석 불가. */
+        private val BUSINESS_SUMMARY = obj(
+            "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "registrationStatus" to REGISTRATION_STATUS,
+        )
+
+        /** 목록(§6.2 — 항목 10키, 50 이하, keyset `next`). 원문 번호·대표자 원문·연락처 없음. */
+        val BUSINESS_LIST: MasterResponseShape = obj(
+            "items" to Arr(
+                obj(
+                    "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "businessType" to opt(BUSINESS_TYPE),
+                    "registrationStatus" to REGISTRATION_STATUS, "verificationStatus" to VERIFICATION_STATUS, "representativeNameMasked" to opt(PERSON_NAME),
+                    "representativeCount" to COUNT, "merchantCount" to COUNT, "updatedAt" to TIME,
+                ),
+                max = 50,
+            ),
+            "next" to opt(BUSINESS_ID),
+        )
+
+        /** 번호 조회(§6.3 — 0/1, 찾음·못 찾음 같은 모양). */
+        val BUSINESS_LOOKUP: MasterResponseShape = obj("items" to Arr(BUSINESS_SUMMARY, max = 1))
+
+        /** 상세(§6.4 — 개인정보 원문, 사업자등록번호는 마스킹만 — D-BIZ-006 ②). 목록 상한 = MASTER 구조 상한(대표자 5·업태+종목 20·주소 2·담당자 5). */
+        val BUSINESS_DETAIL: MasterResponseShape = obj(
+            "business" to obj(
+                "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "businessType" to opt(BUSINESS_TYPE),
+                "registrationStatus" to REGISTRATION_STATUS, "verificationStatus" to VERIFICATION_STATUS, "lifecycle" to BUSINESS_LIFECYCLE, "version" to COUNT,
+                "createdAt" to TIME, "updatedAt" to TIME, "merchantCount" to COUNT,
+            ),
+            "registration" to obj(
+                "corporateRegistrationNumber" to opt(Text(Regex("^[0-9]{13}$"))), "openingDate" to opt(DATE), "countryCode" to oneOf("KR"),
+                "englishName" to opt(Text(Regex("^(?! )[ -~]{1,100}(?<! )$"))), "phoneNumber" to opt(PHONE), "email" to opt(EMAIL),
+            ),
+            "representatives" to Arr(obj("name" to PERSON_NAME, "representativeType" to oneOf("SOLE", "JOINT", "EACH")), max = 5),
+            "categories" to Arr(obj("categoryType" to oneOf("BUSINESS_TYPE", "BUSINESS_ITEM"), "name" to CATEGORY_NAME), max = 20),
+            "addresses" to Arr(
+                obj("addressType" to oneOf("REGISTERED", "ACTUAL"), "postalCode" to Text(Regex("^[0-9]{5}$")), "baseAddress" to ADDRESS_LINE, "detailAddress" to opt(ADDRESS_LINE)),
+                max = 2,
+            ),
+            "contacts" to Arr(obj("name" to PERSON_NAME, "email" to EMAIL, "phoneNumber" to PHONE, "primary" to Flag), max = 5),
+        )
+
+        /** 이력 행 항목(§5.6·E-6·E-11 — 저장된 마스킹 값). 필드별 키 집합이 정해져 있다(주소는 순서 키 없음). */
+        private val HISTORY_ROWS: Map<String, MasterResponseShape> = mapOf(
+            "representatives" to obj("name" to HISTORY_VALUE, "type" to oneOf("SOLE", "JOINT", "EACH"), "order" to Whole(1)),
+            "categories" to obj("type" to oneOf("BUSINESS_TYPE", "BUSINESS_ITEM"), "name" to HISTORY_VALUE, "order" to Whole(1)),
+            "addresses" to obj(
+                "type" to oneOf("REGISTERED", "ACTUAL"), "postalCode" to Text(Regex("^[0-9]{5}$")), "baseAddress" to HISTORY_VALUE, "detailAddress" to opt(HISTORY_VALUE),
+            ),
+            "contacts" to obj("name" to HISTORY_VALUE, "email" to HISTORY_VALUE, "phoneNumber" to HISTORY_VALUE, "primary" to Flag, "order" to Whole(1)),
+        )
+        private val HISTORY_VALUE_FIELDS = oneOf(
+            "registrationStatus", "displayName", "businessType", "registration\\.corporateRegistrationNumber", "registration\\.openingDate", "registration\\.englishName",
+            "registration\\.phoneNumber", "registration\\.email",
+        )
+
+        /** 이력 `changes` 항목: 값 변경(생성 = after만)·행 변경(생성 = added만). 그 밖 키·필드는 해석 불가. */
+        private val HISTORY_CHANGE = AnyOf(
+            listOf(
+                obj("field" to HISTORY_VALUE_FIELDS, "after" to opt(HISTORY_VALUE)),
+                obj("field" to HISTORY_VALUE_FIELDS, "before" to opt(HISTORY_VALUE), "after" to opt(HISTORY_VALUE)),
+            ) + HISTORY_ROWS.flatMap { (field, row) ->
+                listOf(
+                    obj("field" to oneOf(field), "added" to Arr(row, ROWS)),
+                    obj("field" to oneOf(field), "ended" to Arr(row, ROWS), "added" to Arr(row, ROWS)),
+                )
+            },
+        )
+
+        /** 이력(§6.5 — 쪽 20, `nextAfter` 순번). 옛 `BusinessRegistered` 행은 사유 null·changes 빈 목록. */
+        val BUSINESS_HISTORY: MasterResponseShape = obj(
+            "items" to Arr(
+                obj(
+                    "seq" to Whole(1), "changeType" to CODE, "actorRef" to ACTOR, "occurredAt" to TIME, "reason" to opt(CHANGE_REASON),
+                    "changes" to Arr(HISTORY_CHANGE, max = 16),
+                ),
+                max = HISTORY_PAGE,
+            ),
+            "nextAfter" to opt(Whole(1)),
+        )
+
+        /** 사업자 명령 성공(첫 응답·재생 같은 모양 — reference = `biz_`, C-18). */
+        val BUSINESS_COMMAND_SUCCEEDED: MasterResponseShape = obj("outcome" to oneOf("SUCCEEDED"), "reference" to BUSINESS_ID, "replayed" to Flag)
+
+        /** 중복 거절만 `existing`(D-BIZ-003·C-14). 다른 거절은 [COMMAND_REJECTED](existing·reference 없음 — C-12). */
+        val BUSINESS_DUPLICATE_REJECTED: MasterResponseShape = obj(
+            "outcome" to oneOf("REJECTED"), "rejection" to oneOf("BUSINESS_REGISTRATION_NUMBER_DUPLICATE"), "replayed" to Flag, "existing" to BUSINESS_SUMMARY,
+        )
+
+        /** 400 값 규칙 위반(§4.6 — path 문법·code 집합 밖이면 해석 불가, 최대 50, 값 없음). */
+        val BUSINESS_VALIDATION_FAILED: MasterResponseShape = obj(
+            "error" to oneOf("BUSINESS_VALIDATION_FAILED"),
+            "fieldErrors" to Arr(
+                obj("path" to Text(BusinessFieldError.PATH), "code" to oneOf(*BusinessFieldError.CODES.toTypedArray())),
+                max = BusinessFieldError.MAX,
+                // BIZ-3 리뷰 NIT-4: 값 규칙 위반 400에 오류가 하나도 없으면 모양 위반(fail-closed — OUTCOME_UNKNOWN).
+                min = 1,
+            ),
         )
 
         val DETAIL: MasterResponseShape = obj(

@@ -17,7 +17,9 @@ import java.io.File
 class ApprovalAuditTargetSourceSpec : FunSpec({
 
     val roots = listOf("src/main/kotlin/com/paycore/admin/approval/application", "src/main/kotlin/com/paycore/admin/merchantops/application").map(::File)
-    val allowed = setOf("ApprovalAuditTarget.kt", "MerchantLookupService.kt", "MerchantRegistrationService.kt")
+    // 기대값 변경(BUSINESS-PROFILE-001 BIZ-3 — C-14·D-BIZ-003): 사업자 관리 감사 `BusinessAudit.kt`를 작성 지점에 추가. 조건 = 대상 열은 `biz_` 사업자 ID나 null만
+    // (가맹점·승인 대상 표기 불가 — 아래 마지막 시험과 BusinessAuditTargetSpec), `targetMerchantId` 없음.
+    val allowed = setOf("ApprovalAuditTarget.kt", "MerchantLookupService.kt", "MerchantRegistrationService.kt", "BusinessAudit.kt")
 
     /** 주석(한 줄 `//`, KDoc·블록 `*`)을 뺀 코드 줄. */
     fun code(file: File): String = file.readLines().filterNot { val t = it.trimStart(); t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") }.joinToString("\n")
@@ -49,6 +51,14 @@ class ApprovalAuditTargetSourceSpec : FunSpec({
     test("no audit target written from a raw approval target reference (targetRef = ….target.ref)") {
         val pattern = Regex("""targetRef\s*=\s*[^,\n)]*\.target\.ref\b""")
         files.filter { pattern.containsMatchIn(code(it)) }.map { it.name }.shouldBeEmpty()
+    }
+
+    test("BusinessAudit.kt (BUSINESS-PROFILE-001) writes no targetMerchantId and guards targetRef to a business id before writing") {
+        val text = code(files.single { it.name == "BusinessAudit.kt" })
+        Regex("""\btargetMerchantId\s*=""").containsMatchIn(text) shouldBe false
+        text.contains("require(targetRef == null || BUSINESS_ID.matches(targetRef))") shouldBe true
+        text.indexOf("BUSINESS_ID.matches(targetRef)") shouldBeGreaterThan -1
+        (text.indexOf("BUSINESS_ID.matches(targetRef)") < text.indexOf("AuditRecord(")) shouldBe true
     }
 
     test("every approval-application audit record goes through the helper: no AuditRecord( constructor call outside ApprovalAuditTarget.kt in approval/application") {
