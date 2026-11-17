@@ -52,6 +52,11 @@ enum class StoreConstraint(val businessKey: Boolean) {
     MERCHANT_CODE(true),
     MERCHANT_CODE_SEQ(true),
     MERCHANT_CODE_APPROVAL(true),
+
+    // BUSINESS-PROFILE-001 §5.2 끝(M-4·C-34): 사업자 하위 표의 현재 행 UNIQUE 7개(등록정보 1:1·대표자/담당자 현재 순서·기본 담당자·주소 유형·업태/종목 순서·이름).
+    // **업무 유일키가 아니다** — Domain 규칙(§4.3)과 business FOR UPDATE 직렬화가 먼저 막으므로 위반은 diff·flush 순서 결함 또는 잠금 우회다.
+    // 결함 — 재시도·재판정 없음(실행기 새 TX 재판정 대상 아님 → 503 TEMPORARILY_UNAVAILABLE + 결함 로그(제약 이름만)).
+    BUSINESS_PROFILE_ROW(false),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

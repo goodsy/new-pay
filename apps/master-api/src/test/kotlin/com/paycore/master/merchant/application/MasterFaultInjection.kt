@@ -49,6 +49,9 @@ enum class MasterFaultPoint {
 
     // MERCHANT-CODE-001 MC-1b-12(리뷰 m-6): 계약 잠금·갱신 직후 — 계약 승인 경로의 잠금 순서(merchant → contract → update)를 순서 기록으로 고정.
     CONTRACT_LOCK, CONTRACT_UPDATE,
+
+    // BUSINESS-PROFILE-001 BIZ-1-5·7·9: 사업자 profile 포함 잠금 직후·profile 저장(insert·update — flush 직후, commit 전).
+    BUSINESS_LOCK_WITH_PROFILE, BUSINESS_PROFILE_INSERT, BUSINESS_PROFILE_UPDATE,
 }
 
 /**
@@ -284,6 +287,15 @@ class MasterFaultInjectionConfig {
     @Primary
     fun faultInjectingBusinessStore(real: JpaBusinessRepository, f: MasterFaultInjector): BusinessRepository = object : BusinessRepository by real {
         override fun insert(business: Business) = f.around(MasterFaultPoint.BUSINESS_INSERT) { real.insert(business) }
+
+        override fun insert(business: Business, profile: com.paycore.master.merchant.domain.BusinessProfile) =
+            f.around(MasterFaultPoint.BUSINESS_PROFILE_INSERT) { real.insert(business, profile) }
+
+        override fun lockWithProfile(id: com.paycore.master.merchant.domain.BusinessId) =
+            f.around(MasterFaultPoint.BUSINESS_LOCK_WITH_PROFILE) { real.lockWithProfile(id) }
+
+        override fun update(business: Business, before: com.paycore.master.merchant.domain.BusinessProfile, after: com.paycore.master.merchant.domain.BusinessProfile) =
+            f.around(MasterFaultPoint.BUSINESS_PROFILE_UPDATE) { real.update(business, before, after) }
     }
 
     @Bean

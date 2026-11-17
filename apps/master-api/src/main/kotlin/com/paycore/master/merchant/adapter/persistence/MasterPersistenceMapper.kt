@@ -4,6 +4,9 @@ import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.BusinessRegistrationStatus
+import com.paycore.master.merchant.domain.BusinessType
+import com.paycore.master.merchant.domain.BusinessVerificationStatus
 import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.Contract
 import com.paycore.master.merchant.domain.ContractId
@@ -38,13 +41,17 @@ import com.paycore.master.merchant.domain.SiteChannel
  */
 internal object MasterPersistenceMapper {
 
+    /** Root만 복원(하위 표를 읽지 않는다 — 가맹점·계약 등록·권리 원천 경로, BUSINESS-PROFILE-001 m-3). profile 포함 복원은 [BusinessPersistenceMapper]. */
     fun toBusiness(row: JpaBusinessEntity) = Business.reconstitute(
         BusinessId(row.businessId), BusinessRegistrationNumber(row.registrationNumber), DisplayName(row.displayName),
-        Lifecycle.valueOf(row.lifecycle), row.createdAt, ActorRef(row.createdBy),
+        row.businessType?.let(BusinessType::valueOf), BusinessRegistrationStatus.valueOf(row.registrationStatus),
+        BusinessVerificationStatus.valueOf(row.verificationStatus), Lifecycle.valueOf(row.lifecycle), row.createdAt, ActorRef(row.createdBy),
+        row.updatedAt, ActorRef(row.updatedBy), checkNotNull(row.version) { "stored business has no version" },
     )
 
     fun businessRow(b: Business) = JpaBusinessEntity.newRow(
         b.id.value, b.registrationNumber.value, b.displayName.value, b.lifecycle.name, b.createdAt, b.createdBy.value,
+        b.businessType?.name, b.registrationStatus.name, b.verificationStatus.name, b.updatedAt, b.updatedBy.value,
     )
 
     /** MERCHANT-CODE-001: 배정 행(seq 오름차순)을 함께 받아 조립한다 — 배정 없음은 Domain 불변식 위반(결함 신호, IllegalState). */

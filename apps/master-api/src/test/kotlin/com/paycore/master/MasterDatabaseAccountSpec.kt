@@ -209,6 +209,12 @@ class MasterDatabaseAccountSpec(
             "admin_approval_evidence" to "SELECT, INSERT",
             "admin_request" to "SELECT, INSERT, UPDATE",
             "business" to "SELECT, INSERT, UPDATE",
+            // 기대값 변경(BUSINESS-PROFILE-001 V16 — 목록 증가, 명세 §5.4): 사업자 하위 표 5개 — 종료 기록(effective_to·ended_by)·등록정보 제자리 수정용 UPDATE, DELETE 없음.
+            "business_address" to "SELECT, INSERT, UPDATE",
+            "business_category" to "SELECT, INSERT, UPDATE",
+            "business_contact" to "SELECT, INSERT, UPDATE",
+            "business_registration" to "SELECT, INSERT, UPDATE",
+            "business_representative" to "SELECT, INSERT, UPDATE",
             // MASTER-SNAPSHOT-002 V6: 카드사 개통 상태 전이(UPDATE, @Version)·이력(append-only).
             "card_route_activation" to "SELECT, INSERT, UPDATE",
             "card_route_activation_event" to "SELECT, INSERT",

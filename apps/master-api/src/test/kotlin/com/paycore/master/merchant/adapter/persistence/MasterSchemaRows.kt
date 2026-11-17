@@ -26,12 +26,26 @@ object MasterSchemaRows {
 
     private fun ts(at: Instant) = Timestamp.from(at)
 
+    /**
+     * BUSINESS-PROFILE-001 V15: NOT NULL 새 열(등록 상태·진위확인·갱신 시각/행위자 — 기본값 없음)을 함께 넣는다(migration 행과 같은 DRAFT·구분 NULL 형태).
+     * 행 작성 열 목록만 갱신 — 이 작성기를 쓰는 시험의 기대값은 바뀌지 않는다. 등록정보 1행(1:1 불변식)은 [businessRegistration]이 따로 넣는다(제약 시험이 직접 다룬다).
+     */
     fun business(c: Connection, regNo: String = registrationNumber()): String = id("biz").also {
         c.update(
-            "INSERT INTO business (business_id, registration_number, display_name, lifecycle, created_at, created_by, version) " +
-                "VALUES (?, ?, 'Demo business', 'ACTIVE', ?, ?, 0)",
-            it, regNo, ts(t0), ACTOR,
+            "INSERT INTO business (business_id, registration_number, display_name, lifecycle, created_at, created_by, version, " +
+                "registration_status, verification_status, updated_at, updated_by) " +
+                "VALUES (?, ?, 'Demo business', 'ACTIVE', ?, ?, 0, 'DRAFT', 'NOT_CHECKED', ?, ?)",
+            it, regNo, ts(t0), ACTOR, ts(t0), ACTOR,
         )
+    }
+
+    /** BUSINESS-PROFILE-001: 등록정보 1행(국가 KR, 선택 열 NULL). 생성된 registration_id. */
+    fun businessRegistration(c: Connection, businessId: String): Long {
+        c.update("INSERT INTO business_registration (business_id, country_code) VALUES (?, 'KR')", businessId)
+        return c.prepareStatement("SELECT registration_id FROM business_registration WHERE business_id = ?").use { ps ->
+            ps.setString(1, businessId)
+            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+        }
     }
 
     /**

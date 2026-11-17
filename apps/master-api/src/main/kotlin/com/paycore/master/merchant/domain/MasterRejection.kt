@@ -99,6 +99,14 @@ enum class MasterRejection {
     MERCHANT_CODE_ALREADY_CHANGED,
     MERCHANT_CODE_LOCKED,
     MERCHANT_CODE_MISMATCH,
+
+    // BUSINESS-PROFILE-001 §6.7(D-BIZ-001·C-12·M-1): 새 가맹점 등록은 REGISTERED 사업자만(호출은 BIZ-4 전환) / 등록 완료는 DRAFT만 / 요청 version ≠ 잠근 행 version(덮어쓰기 거부 — TC-14) /
+    // 중요정보 변경 + 사유 없음 / 수정 내용이 저장된 내용과 같음(update만 — 등록 완료에는 적용하지 않음). 모두 reference 없음.
+    BUSINESS_NOT_REGISTERED,
+    BUSINESS_NOT_DRAFT,
+    BUSINESS_VERSION_CONFLICT,
+    BUSINESS_CHANGE_REASON_REQUIRED,
+    BUSINESS_PROFILE_UNCHANGED,
 }
 
 /**

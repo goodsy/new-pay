@@ -167,6 +167,11 @@ internal class AdminCommandExecutor(
             metrics.adminIdentifierCollision(operation.code)
             return AdminCommandFailure.IdentifierCollision(e.constraint.name)
         }
+        if (e is PersistenceFailure.UniqueConflict && !e.constraint.businessKey) {
+            // BUSINESS-PROFILE-001 §5.2 끝(M-4): 업무 유일키도 서버 생성 ID도 아닌 UNIQUE 위반(예: BUSINESS_PROFILE_ROW — diff·flush 순서 결함)은 재판정하지 않는다.
+            // 결함 신호로 제약 분류 이름만 남긴다(키 값·입력 값 없음).
+            log.warn("admin command store constraint defect operation={} correlationId={} constraint={}", operation.code, request.correlationId, e.constraint)
+        }
         return AdminCommandFailure.TemporarilyUnavailable(e)
     }
 

@@ -48,7 +48,8 @@ class ContractSpec : BehaviorSpec({
 
         Then("a terminated party Business cannot register a contract") {
             val stored = Business.reconstitute(
-                MasterFixture.businessId(), MasterFixture.registrationNumber(), DisplayName("Closed"), Lifecycle.TERMINATED, t0, operator,
+                MasterFixture.businessId(), MasterFixture.registrationNumber(), DisplayName("Closed"), null, BusinessRegistrationStatus.DRAFT, // BUSINESS-PROFILE-001: 복원 인자 확장(기대값 불변)
+                BusinessVerificationStatus.NOT_CHECKED, Lifecycle.TERMINATED, t0, operator, t0, operator, 0,
             )
             violation {
                 Contract.register(MasterFixture.contractId(), stored, ContractScope.MerchantWide(merchant.id), EffectivePeriod(t0), t0, operator)
@@ -240,7 +241,8 @@ class ContractSpec : BehaviorSpec({
 
         Then("an inactive party is still rejected with BUSINESS_NOT_ACTIVE first (the retroactive check comes after party.requireActive)") {
             val closed = Business.reconstitute(
-                MasterFixture.businessId(), MasterFixture.registrationNumber(), DisplayName("Closed"), Lifecycle.TERMINATED, t0, operator,
+                MasterFixture.businessId(), MasterFixture.registrationNumber(), DisplayName("Closed"), null, BusinessRegistrationStatus.DRAFT, // BUSINESS-PROFILE-001: 복원 인자 확장(기대값 불변)
+                BusinessVerificationStatus.NOT_CHECKED, Lifecycle.TERMINATED, t0, operator, t0, operator, 0,
             )
             violation { registerStartingAt("2026-11-01T15:00:00Z", kstMidnightOfNov9, closed) } shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
         }

@@ -42,6 +42,11 @@ enum class AdminOperation(val code: String) {
 
     // MERCHANT-CODE-001 MC-1b(§3.7.2 — D-MCODE-002 Q-MC-7): 가맹점 코드 1회 변경(2인 근거 경로만 — 근거 없는 경로 없음, C-11). 근거 operation CHECK 값은 MC-1 V13에 선반영(C-20).
     CHANGE_MERCHANT_CODE("ChangeMerchantCode"),
+
+    // BUSINESS-PROFILE-001 §6.7(M-3): 사업자 기본정보 명령(생성 DRAFT|REGISTERED·수정·등록 완료). 옛 REGISTER_BUSINESS는 영속 값이라 유지(경로만 BIZ-4 전환에서 제거).
+    CREATE_BUSINESS("CreateBusiness"),
+    UPDATE_BUSINESS("UpdateBusiness"),
+    COMPLETE_BUSINESS_REGISTRATION("CompleteBusinessRegistration"),
     ;
 
     companion object {

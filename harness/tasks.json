@@ -9970,7 +9970,7 @@
     {
       "id": "BUSINESS-PROFILE-001",
       "title": "사업자 기본정보 관리(목록·검색·임시저장·등록 완료·상세·수정·중복확인·변경 이력) — MASTER Domain·DB·API + ADMIN API·감사 + React 화면, MERCHANT-BIZ-LOOKUP-001 합침",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "MERCHANT-CODE-001"
       ],
@@ -10017,7 +10017,7 @@
           "id": "BIZ-2",
           "title": "MASTER web",
           "scope": "POST /internal/v1/admin/businesses/searches · registration-number-lookups, GET /internal/v1/admin/businesses/{id} · {id}/history/after/{seq}, POST /internal/v1/admin/businesses/commands/create · update · complete-registration(서명 v1·ADMIN_SERVICE·permit), 엄격 parser·fieldErrors(400 BUSINESS_VALIDATION_FAILED, 저장 없음), JSON 응답, provided BusinessProfileQueryUseCase(목록·번호 조회·상세·이력·existingSummary) + required Jooq*Reader — web은 Use Case만 호출(r-2, ArchUnit webAdapterUsesOnlyApplication), 중복 거절 existing(D-BIZ-003)·existing 조회 실패 503 TEMPORARILY_UNAVAILABLE + 같은 키 재전송 재생·재조회(m-1), Demo seed 단계 1 CreateBusiness(기존 RegisterBusiness 기록 선확인), 응답 골든 business-profile-response-shapes-v1. Use Case·지문은 BIZ-1(M-3)",
-          "doneCriteria": "명세 §14 BIZ-2-1~10 통과(채널·create HTTP·parser + API 수준 fieldErrors TC-03/09/11·HTTP 멱등과 existing 실패 재전송·응답 유실 재생·complete HTTP·조회 endpoint·canary·seed 재실행·TC-20), 최대 유효 본문 ≤ 16 KiB, 변이 (a)~(e) RED, 옛 MASTER 사업자 등록 경로 동작 유지 대조 시험"
+          "doneCriteria": "명세 §14 BIZ-2-1~10 통과(채널·create HTTP·parser + API 수준 fieldErrors TC-03/09/11·HTTP 멱등과 existing 실패 재전송·응답 유실 재생·complete HTTP·조회 endpoint·canary·seed 재실행·TC-20), 최대 유효 본문 ≤ 16 KiB, 변이 (a)~(e) RED, 옛 MASTER 사업자 등록 경로 동작 유지 대조 시험 + BIZ-2-11(리뷰 m-1 Coordinator 결정 — BusinessProfileRuleViolation만 400 BUSINESS_VALIDATION_FAILED·fieldErrors(path만), IllegalArgumentException 전반 미포착 대조, 저장된 거절(사유 필요)이 규칙 위반보다 먼저, ADMIN은 효과 없음 확정)"
         },
         {
           "id": "BIZ-3",
@@ -10063,16 +10063,445 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "spec": "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1 sha256 2c75109a3f397688828724f606096f29c1d43490050e14cba5447d06bc00124f",
+      "spec": "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.3 sha256 01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e",
       "review": "spec rev0.1 독립 리뷰 조건부(MAJOR 7·MINOR 10·NIT 4) → rev0.2 REVIEW_PASS 조건부(r-1~r-7) → rev0.2.1 조건 반영(Coordinator 지시, 2026-11-17)",
-      "nextResumeAction": "BIZ-1 착수(MC-4 커밋 6ccb310 완료 — 줄 참조·MASTER migration 번호 V15·V16 재확인, RED 먼저)",
+      "nextResumeAction": "BIZ-2: MASTER web/parser/goldens/Demo seed, jOOQ Reader, BIZ-2-11 (BusinessProfileRuleViolation→400 BUSINESS_VALIDATION_FAILED), Named Fixtures withoutMerchants/withMerchant",
       "mergedTasks": [
         "MERCHANT-BIZ-LOOKUP-001 (D-BIZ-004 — 명세 §6.3·§7.2·§8.4가 rev 0.3 BL-1~BL-3을 대체, 수용 기준 권한·응답 범위는 D-BIZ-006 ①③으로 변경)"
       ],
       "coordinatorDecisions": [
         "C-9 (M-6): 새 사업자 명령 3종 지문 = 기존 AdminCommandExecutor m1: SHA-256, D-MOPS-010 ② HMAC 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령과 함께(새 키·.env 없음, L-13). LIVE 사용 전 B3-3a 적용 필수(LIVE Gate), B3-3a Demo legacy 비교(C-47)에 CreateBusiness·UpdateBusiness·CompleteBusinessRegistration 포함(r-4)",
         "M-7: D-BIZ-002 적용 시점 = BIZ-4 전환, BIZ-1~BIZ-4 사이 옛 경로 사업자는 DRAFT·business_type NULL(사용자에게 알림)"
-      ]
+      ],
+      "biz1": {
+        "recordedBy": "Implementer (자기 DONE 판정 아님 — Verifier·Reviewer 대상)",
+        "recordedAt": "2026-11-17T09:52Z",
+        "baseHead": "cbfed46",
+        "specRev": "0.2.3 sha256 01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e (0.2.1 → 0.2.2 errata E-1~E-8 → 0.2.3 리뷰 m-1~m-4·n-1~n-5)",
+        "migration": {
+          "master": "V15__business_profile.sql(schema — 10문장: INSTANT 열 → 백필 → COPY NOT NULL·CHECK → INPLACE 색인 → business_registration + 기존 행 1:1 백필 → 하위 4표), V16__business_profile_privileges.sql(5표 SELECT, INSERT, UPDATE — DELETE 없음). V15·V16 미사용 재확인(git log·migration 목록)",
+          "recovery": "apps/master-api/src/main/resources/db/recovery/master/business-profile-v15-{precheck,inspect,revert}.sql (L-8, 운영 실행은 LIVE Gate)",
+          "admin": "없음",
+          "payment": "없음",
+          "financial": "없음"
+        },
+        "changedFiles": {
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessAddressJpaRepository.kt": "82021f12c59ff9f1c710ce34d8b65e127c662f89e11d24f868d1df3d944fe61c",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessCategoryJpaRepository.kt": "d13e82a82a7185f5b123e3e1647a9fbcfd7cc06468357a2142d24ef6b93b6081",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessContactJpaRepository.kt": "b5701354b7cce86fc1d215016e61b9316b1428b699549c622d2f2cc386bd75f9",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessPersistenceMapper.kt": "258543af562aa23d7520891fcc0d6a1b933c05298de11a07a4cbcfe7aa9183b9",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessRegistrationJpaRepository.kt": "cfc4e35cf938a013927517309bcc8f52df2d5d03835f7932c657c46576592ef2",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessRepresentativeJpaRepository.kt": "3549f8de6da7627c720333cb738ca82da0a907da21e0a226aa2c8ee489635e8b",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessAddressEntity.kt": "2ed1df779de8b9c250e27c81514b6895f4565ae6e5de7b09fa8e640964d63792",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessCategoryEntity.kt": "1479bb2d149f83791071b45700c9eb929e5fb1d331a7a1d59b24f533767c6b63",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessContactEntity.kt": "e8c32a556a1670e2551fa6dcd3ecf114a867031d6fcad103c1ec80ef0aa9cbd7",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessEntity.kt": "f7a9cd57917fc660397965b5b5c4bf6ef64cf019e621541f38c6661344775f8f",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessRegistrationEntity.kt": "99e19051670fd25f678ce7f0026b24f6d201a9a516f1b886965e1c72e7361b32",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessRepository.kt": "bbc4c0b0529ee0a8eb8f80c9524ead9266ec78b213d6faab5733f8d9ed9cc9ac",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessRepresentativeEntity.kt": "23759cc0cfc3bb536b495968e222c941e059a24f3ed93d2b4f1433da50e04103",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/MasterPersistenceMapper.kt": "077320ddb4e722dbeeca191619a5c2c4f78211698c291a132ac68a1ba0d2102a",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/persistence/PersistenceFailures.kt": "5eeb7eb067964f0b1cab931929249948e45713601ff08dbcfbb2193fa15321ad",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/AdminCommandExecutor.kt": "a94f1328c0e5ca8c98721d3d90184f251154729c8099d08e36476ee2326d5d37",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/BusinessCommandFingerprintFields.kt": "6882d921b2dfdbc94b1646ad401a9ce2e35de68460b705cb407c450995436b26",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/BusinessProfileService.kt": "15d74cd1140a30eee9d04c34b67fb054e155409092a72c93319ebc4637d17385",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/AdminOperation.kt": "0d2d0b8c668d22feff1a1aea9de2ac5a1c1b478b254a98486392542dc855d56b",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/BusinessProfileCommandUseCase.kt": "302890a4618f85eda327dfe39d143b0a7a0a38727ed512c22845018fa9f512fe",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/BusinessRepository.kt": "1dad4ffc4807672d5e3709df725a0832b8bee28d980cd25fd52ad04d1ba6f657",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/PersistenceFailure.kt": "a536d530c51ad3c656c3279bbae8bc40f94bd5e964d3efe45a07f5d60ee6a769",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/AddressLine.kt": "5ed3aaef45b90940f001dae4872aac0341a0e828fd4c71546a90ae8dc12df44f",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/Business.kt": "f6737238495bcaabd454724664be87af5eaf0b441a39d8bf5d860e939e5c3c66",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessAddress.kt": "020caf9869ea98309b8c441538eaba57a9d384713ec12a6eb4c2ed76bd22d945",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessCategory.kt": "2350e83b5757c9a9838e9648c0689107aeeddffe231ead093799f8f99e1bfe5a",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessChangeReason.kt": "a4156d8274d1b3f80efb528a3bca35c216763f9721e5a3c172ba1f79dc3c0f12",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessContact.kt": "2b6ae92594614586752aaa741a00adf6c38a4f5efd2706ef39b64b6f4a8f91ff",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessFieldError.kt": "6d45a3b6e2ec7b460263f76cd57f167adb3f964aa7008aeab67d8d7ba32bc260",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessPiiMask.kt": "8db737c890e022880bf244eb9877baf805c500bdae946284688d13a076158f6b",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessProfile.kt": "7bd3d8a73381e9bb090389afcc58fdaa7a6d6a364bffc8a5d6cfd61025756861",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessProfileChange.kt": "4ee5170112ff3570649719cd64a7d097ac4fc43d39f400245c9bf3a3182319d5",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessProfileEdit.kt": "fcd3c1a2fa04a03e0054ab2ff218898087e4e95498a2bbab7c8a627837443bdd",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessProfileRules.kt": "945e02f2abf9f1871516806886009632139372a5d9eea13a9cdbbf22a54ccc27",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessRegistration.kt": "1a16c94e8e4fff1830443892b1a18b68b076542b6ce69f556c70e056cc8025d7",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessRegistrationStatus.kt": "2a8f2308671041acd3c359c1498eee0f170aae80967f71d4a701769b25aad09d",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessRepresentative.kt": "3bef04b1e8de3daf399f54cf307794f565a41d4c615b7d63bcd48b3c17b4acda",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessTextRule.kt": "6fab42ad69406d0e0ace2cbb36fb0d6b9ad99c6d7c0963247116c735dc503b1e",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessType.kt": "20bdf881a894be65ede960874dba3c71ad5bb8564c06f3bb5a2712530349ada6",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessVerificationStatus.kt": "c871f3f05e9a555eacec56606a01f5234d083fd6d24e78b1f26598172cb76b55",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/CategoryName.kt": "086095cbb5d7fdcf3bd8dd3b4e38bc3da0cb1481fa4174af9f228c2fbdc8d07a",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/CorporateRegistrationNumber.kt": "a2d5ee3b3232c2fc6485feafa2f9f14072c988f6f28f8ba81732103a12ab78f0",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/EmailAddress.kt": "37958d1f7aa36967ce07969654691a6bf40d8028a5e720296638be90df076a6e",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/EnglishBusinessName.kt": "160bda3597a8a96958a04f5c36d478c39c6013ca7ee510e1b43be9a9c17be1f7",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/MasterRejection.kt": "756a5668e6ef71107840e815048f44813f148fa1e0d2890a335644cd7f10c0e5",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/PersonName.kt": "bd1e46dbc1f561d1b636eff82d2423d243e8b8753638065e2853e614af2014db",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/PhoneNumber.kt": "b2d47924fb8e5b7c1612b28b9a77909b40ccc0bba6c3887b22c96b1ca9433e9f",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/PostalCode.kt": "b159e26c180e1c5406fa9018684a307c7098db69d467aa8e0aedb4f009fffbf6",
+          "apps/master-api/src/main/resources/db/migration/master/V15__business_profile.sql": "0d6e89e3286bfb5c0f6ec748d5d295e1d0292dbf70139670ea98407a06c32735",
+          "apps/master-api/src/main/resources/db/recovery/master/business-profile-v15-inspect.sql": "076911abb246e5f37151df36ed6bc19bc49debbc7f7d727b3cc11eaf99d7d7b2",
+          "apps/master-api/src/main/resources/db/recovery/master/business-profile-v15-precheck.sql": "f370d8afa2895f9cd9236ee04001abbf0d167fa0dd771ebc8affa46b03c36a2c",
+          "apps/master-api/src/main/resources/db/recovery/master/business-profile-v15-revert.sql": "f8b5f7fc23b6cf3c810328142d490fabe6454850c2d099162e570f9d5c47db92",
+          "apps/master-api/src/main/resources/db/runtime-privilege/master/V16__business_profile_privileges.sql": "784e63f754628c97d12cc316e82893eebc1fc68828cf9a933e01dafc9191a055",
+          "apps/master-api/src/test/kotlin/com/paycore/master/MasterApiContextSmokeSpec.kt": "64d95b13c3521d19126b24730c6acb5460e2e5e1128b82f59772ea89cbc3bc47",
+          "apps/master-api/src/test/kotlin/com/paycore/master/MasterApiMainMigrationsBootSpec.kt": "85e973f213f64040e1bdcfd8675dfe213490d77d5b66a6e6cde2cf5a29860b68",
+          "apps/master-api/src/test/kotlin/com/paycore/master/MasterDatabaseAccountSpec.kt": "a6c05770cbb8f5cac873d8ad3d5877c6ee17189ddcd8ceba172a6cb4ce87bbfb",
+          "apps/master-api/src/test/kotlin/com/paycore/master/architecture/BusinessProfileArchitectureSpec.kt": "5843714be468622d79334dd4718768fa3450b750521a03964ec5fc74fe229d56",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessPersistenceFailuresSpec.kt": "a03c1c7aa444dabc1d0615ccd6c38a48ed738b237336feacabdf87c18547674f",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessSchemaMigrationSpec.kt": "eabc62c95adc32ac080d8fbe2fdd07bf04f090c8ef6600430dcaf19b1434e538",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/BusinessSchemaSpec.kt": "7eb12316abaf7f39ab349902eef896170b06ef19a01874ad61a8e0bf6c50b0c1",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/JpaBusinessRepositorySpec.kt": "aa67de487113b12721ae97e0e2ecf66bbadc6c94ceac62f10ad5d0d3bdec49d1",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/MasterSchemaRows.kt": "4ec59e25e5df69986725b23af15e4cda4089e65c186c1de254cf95374ef70e36",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/MasterSchemaSpec.kt": "4f9b7c177649306260b20bc1e8b992fb86c302e6c4811e6ef2f906218e2de8a4",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/persistence/MasterSqlCapture.kt": "4b732168167b89893058d600c9f8cdd284d2cb64c9bb7eb9c79d9779900a2b11",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/BusinessProfileConcurrencySpec.kt": "9f920dd0089697cccdea588bc44b01935a5943c3cf3b13b550fc87aa8b992619",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/BusinessProfileServiceSpec.kt": "3450663fe8e6679d28a4b5a371c0d79901666b4b9a38d9e0ce7557c64f43d425",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/MasterFaultInjection.kt": "7f3afd7d53a09cf23bc6de7b15fdac7d0273155c8f6e6dc9505a448d57997d52",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/domain/BusinessFixtures.kt": "1f1c078904585f1f82d2d35a156328ce9e5e33008304e8932f88791056b72f2e",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/domain/BusinessProfileChangeSpec.kt": "ac374ecc38a67f8456581fdf16ac3f7e117329eb2f1356a344c2c644ba84de91",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/domain/BusinessProfileRulesSpec.kt": "8cc8782015ade8d4f1ba175fe6593963c073648969aacf26aef533910a9be35a",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/domain/ContractSpec.kt": "9f0e4b26fb08274e601965100feb32dc69febdc1dc7e9bc414b629ce716266c0",
+          "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md": "01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e"
+        },
+        "redGreen": [
+          {
+            "step": "Domain",
+            "red": "2026-11-17T08:47Z compileTestKotlin FAILED — BusinessProfileRulesSpec·BusinessProfileChangeSpec가 없는 Domain 타입 참조(Unresolved reference BusinessProfileRules·BusinessFieldError·createRegistered …)",
+            "green": "2026-11-17T08:52Z BusinessProfileChangeSpec 18·BusinessProfileRulesSpec 24 + ContractSpec 31·MasterValuesSpec 12 = 85 tests, exit 0"
+          },
+          {
+            "step": "Schema V15/V16",
+            "red": "2026-11-17T08:54Z BusinessSchemaSpec 컨텍스트 실패 — Hibernate validate \"Schema validation: missing column\" (V15 없음)",
+            "green": "2026-11-17T09:02Z BusinessSchemaSpec 9·MasterSchemaSpec 29·MasterDatabaseAccountSpec 10·PersistenceFailuresSpec 2, exit 0 (중간 1회 smallint 매핑 오류 수정)"
+          },
+          {
+            "step": "Repository·Application·동시성·복구·ArchUnit",
+            "red": "시험을 구현 직후 작성 — 업무 RED 증거는 변이 (a1)(a2)(b)(d)(e)(f)(g)(h)(i)(j)(k) 실행 결과(mutations)",
+            "green": "JpaBusinessRepositorySpec 6(09:07Z)·BusinessProfileServiceSpec 15(09:11Z, M-2 시험 보강 후 09:27Z)·BusinessProfileConcurrencySpec 5(09:14Z)·BusinessSchemaMigrationSpec 2(09:18Z)·BusinessProfileArchitectureSpec 4(09:19Z)"
+          }
+        ],
+        "testRuns": [
+          {
+            "command": "./gradlew :apps:master-api:test (전체)",
+            "result": "시스템 메모리 부족으로 Claude Code가 백그라운드 실행을 중단(killed — 시험 실패 아님, 결과 미생성). 지시대로 하위 집합으로 대체"
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests 'com.paycore.master.merchant.domain.*' --tests 'com.paycore.master.architecture.*' --tests 'com.paycore.master.merchant.adapter.persistence.*' --tests 'com.paycore.master.Master*' --tests MainConfigurationSpec --tests TestInfrastructureSpec",
+            "finished": "2026-11-17T09:41:30Z",
+            "exit": 1,
+            "tests": 368,
+            "failures": 3,
+            "note": "MasterApiContextSmokeSpec 2·MasterApiMainMigrationsBootSpec 1 — migration·Entity 목록 기대값(목록 증가) 미반영 → 기대값 변경 주석과 함께 갱신"
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests 'com.paycore.master.MasterApi*'",
+            "finished": "2026-11-17T09:43:29Z",
+            "exit": 0,
+            "tests": 8,
+            "failures": 0
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests application.Business* MerchantOnboarding* MerchantCode* Demo* AdminRequest* Approv*",
+            "finished": "2026-11-17T09:45:53Z",
+            "exit": 0,
+            "tests": 120,
+            "failures": 0
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests application.Activation* Currency* Entitlement* FirstDefault* MerchantAuthorization* MerchantEntitlement* + adapter.query.* adapter.integration.* adapter.batch.*",
+            "finished": "2026-11-17T09:49:01Z",
+            "exit": 0,
+            "tests": 165,
+            "failures": 0
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests 'com.paycore.master.merchant.adapter.web.*'",
+            "finished": "2026-11-17T09:51:34Z",
+            "exit": 0,
+            "tests": 233,
+            "failures": 0
+          },
+          {
+            "summary": "master-api 전 시험 클래스 하위 집합 합계 886 tests(목록 기대값 갱신 뒤 실패 0, skip 0). 환경: WSL Ubuntu, Testcontainers MySQL 8.4.11, Gradle 9.8.0"
+          }
+        ],
+        "mutations": [
+          {
+            "id": "c",
+            "red": true,
+            "exit": 1,
+            "testsRun": 24,
+            "started": "2026-11-17T09:20:21Z",
+            "failedTests": [
+              "BusinessProfileRulesSpec :: Then: REGISTERED requires exactly one primary contact (mutation (c)); more than one primary is rejec"
+            ]
+          },
+          {
+            "id": "g",
+            "red": true,
+            "exit": 1,
+            "testsRun": 33,
+            "started": "2026-11-17T09:20:27Z",
+            "failedTests": [
+              "BusinessProfileChangeSpec :: Then: M-2 REGISTERED: adding a representative only is important (mutation (g)), so is a type-only ch"
+            ]
+          },
+          {
+            "id": "f",
+            "red": true,
+            "exit": 1,
+            "testsRun": 15,
+            "started": "2026-11-17T09:21:13Z",
+            "failedTests": [
+              "BusinessProfileServiceSpec :: Then: DRAFT + the stored content + complete → SUCCEEDED, version +1, exactly one BusinessRegistratio",
+              "BusinessProfileServiceSpec :: Then: create → update → complete leave merchant/contract/MID/Default/entitlement rows unchanged; new"
+            ]
+          },
+          {
+            "id": "a",
+            "red": false,
+            "exit": 0,
+            "testsRun": 6,
+            "started": "2026-11-17T09:22:21Z",
+            "failedTests": []
+          },
+          {
+            "id": "b",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:23:12Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: kept rows keep id and effective_from; replaced rows are ended (effective_to, ended_by) and new",
+              "JpaBusinessRepositorySpec :: Then: M-4 order-only swaps (representatives and business types) end both rows and add both — no 1062"
+            ]
+          },
+          {
+            "id": "e",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:24:00Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: kept rows keep id and effective_from; replaced rows are ended (effective_to, ended_by) and new",
+              "JpaBusinessRepositorySpec :: Then: M-4 order-only swaps (representatives and business types) end both rows and add both — no 1062"
+            ]
+          },
+          {
+            "id": "h",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:24:56Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: M-4 order-only swaps (representatives and business types) end both rows and add both — no 1062"
+            ]
+          },
+          {
+            "id": "g",
+            "red": true,
+            "exit": 1,
+            "testsRun": 33,
+            "started": "2026-11-17T09:27:24Z",
+            "failedTests": [
+              "BusinessProfileServiceSpec :: Then: TC-13 important change without reason is rejected (no history); with reason it records the rea",
+              "BusinessProfileChangeSpec :: Then: M-2 REGISTERED: adding a representative only is important (mutation (g)), so is a type-only ch"
+            ]
+          },
+          {
+            "id": "a1",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:28:14Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: M-4 order-only swaps (representatives and business types) end both rows and add both — no 1062",
+              "JpaBusinessRepositorySpec :: Then: Root column change, child-only change at the same millisecond by the same actor, and DRAFT → R"
+            ]
+          },
+          {
+            "id": "a2",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:29:08Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: kept rows keep id and effective_from; replaced rows are ended (effective_to, ended_by) and new",
+              "JpaBusinessRepositorySpec :: Then: Root column change, child-only change at the same millisecond by the same actor, and DRAFT → R"
+            ]
+          },
+          {
+            "id": "i",
+            "red": true,
+            "exit": 1,
+            "testsRun": 6,
+            "started": "2026-11-17T09:30:03Z",
+            "failedTests": [
+              "JpaBusinessRepositorySpec :: Then: lock and find select only business; lockWithProfile reads the child tables (control); the enti"
+            ]
+          },
+          {
+            "id": "j",
+            "red": true,
+            "exit": 1,
+            "testsRun": 17,
+            "started": "2026-11-17T09:30:57Z",
+            "failedTests": [
+              "BusinessProfileServiceSpec :: Then: no new-TX re-decision (one attempt), TemporarilyUnavailable (503), a defect log with the const",
+              "BusinessPersistenceFailuresSpec :: Then: all seven V15 key names are the BUSINESS_PROFILE_ROW defect class (not a business key); the va"
+            ]
+          },
+          {
+            "id": "k",
+            "red": true,
+            "exit": 1,
+            "testsRun": 15,
+            "started": "2026-11-17T09:31:48Z",
+            "failedTests": [
+              "BusinessProfileServiceSpec :: Then: each succeeds with businessId; history BusinessCreated (masked number, no 'before'), Outbox pa",
+              "BusinessProfileServiceSpec :: Then: DRAFT + the stored content + complete → SUCCEEDED, version +1, exactly one BusinessRegistratio",
+              "BusinessProfileServiceSpec :: Then: complete with an important change and no reason → BUSINESS_CHANGE_REASON_REQUIRED (stays DRAFT",
+              "BusinessProfileServiceSpec :: Then: TC-12 a general-only change without a reason succeeds; history has masked before/after and no ",
+              "BusinessProfileServiceSpec :: Then: TC-13 important change without reason is rejected (no history); with reason it records the rea",
+              "BusinessProfileServiceSpec :: Then: X-1/X-10 a business from the legacy RegisterBusiness path is DRAFT with type NULL and one regi",
+              "BusinessProfileServiceSpec :: Then: a failure after the profile rows were flushed rolls back business, registration, child rows, h",
+              "BusinessProfileServiceSpec :: Then: create → update → complete leave merchant/contract/MID/Default/entitlement rows unchanged; new"
+            ]
+          },
+          {
+            "id": "d",
+            "red": true,
+            "exit": 1,
+            "testsRun": 9,
+            "started": "2026-11-17T09:32:43Z",
+            "failedTests": [
+              "BusinessSchemaSpec :: Then: current-row generated UNIQUE keys (mutation (d)): one current primary contact, one current row"
+            ]
+          },
+          {
+            "id": "m4",
+            "red": true,
+            "exit": 1,
+            "testsRun": 35,
+            "started": "2026-11-17T10:10:55Z",
+            "failedTests": [
+              "BusinessProfileServiceSpec :: Then: a server clock earlier than the stored updatedAt still succeeds (no 3819): updated_at stays, e",
+              "BusinessProfileChangeSpec :: Then: m-4 the transition time never goes back: a clock earlier than the stored updatedAt keeps updat"
+            ]
+          },
+          {
+            "id": "m2",
+            "red": true,
+            "exit": 1,
+            "testsRun": 2,
+            "started": "2026-11-17T10:11:50Z",
+            "failedTests": [
+              "BusinessSchemaMigrationSpec :: BIZ-1-2 / L-8 a V14 database with existing businesses: partial V15 failures are inspected, refused w"
+            ]
+          }
+        ],
+        "expectedValueChanges": [
+          "MasterSchemaSpec.businessTables: 사업자 표 5개 추가(목록 증가 — DELETE 1142 검사 대상 확대, 완화 아님) — 주석 \"기대값 변경(BUSINESS-PROFILE-001 V15…)\"",
+          "MasterDatabaseAccountSpec.MASTER_RUNTIME_TABLE_PRIVILEGES: 사업자 표 5개 \"SELECT, INSERT, UPDATE\" 추가(목록 증가) — 주석 \"기대값 변경(BUSINESS-PROFILE-001 V16…)\"",
+          "기대값 불변·행 작성만 갱신: MasterSchemaRows.business / MasterSchemaSpec 3819 INSERT(새 NOT NULL 열 포함), ContractSpec Business.reconstitute 인자 확장 2곳, MasterFaultInjection 장애 지점 3개·대역 메서드 추가"
+        ],
+        "specDeviations": [
+          "E-1~E-8(명세 §18 rev 0.2.2 행): 전제 점검 3 행 수 ∈ {0, business 수}, version +1 구현(Root 무변경 시만 PESSIMISTIC_FORCE_INCREMENT), 옛 경로 구분 NULL, 업태/종목 정규 순서, 주소 오류 code 세부, 이력 행 order 키, 변이 (a) 정의, BusinessProfileRuleViolation + 실행기 결함 WARN 로그"
+        ],
+        "reversibleDecisions": [
+          "BusinessContent(구분·상호·profile)을 변경 계산 입력 타입으로 둠",
+          "BusinessProfileEdit(business, canonical profile, change)를 생성·전이 공통 결과로 둠",
+          "Business에 version(spec §4.1) — Repository가 row.version == business.version-1 확인 후 저장, 저장 뒤 == business.version 확인",
+          "Port insert(business) 유지(옛 경로 — insert(business, EMPTY))",
+          "값 객체 companion errorOf(raw)(BIZ-2 parser용 — 생성자와 같은 판정)",
+          "SQL 포획 = performance_schema.events_statements_history_long(공유 시험 컨텍스트 설정 불변)",
+          "복구 스크립트 위치 db/recovery/master(Flyway locations 밖)"
+        ],
+        "principlesEvidence": {
+          "FinancialConsistency": "BIZ-1-14 BusinessProfileServiceSpec TC-19: merchant·site·contract*·merchant_account·assignment·default_designation·entitlement_snapshot_issue·payment_method_activation 행 수 불변, Outbox Business* 3종·payload 키 {businessId, registrationStatus, version, occurredAt}; 변이 (k) RED",
+          "TransactionSafety": "BIZ-1-7 하위 행 flush 뒤 실패·DB CHECK 3819·update diff 뒤 실패 → business·등록정보·하위 행·이력·Outbox·admin_request 0행, 같은 키 재시도 성공",
+          "Idempotency": "BIZ-1-11 재생 replayed=true·새 행 0, 목록 순서만 다른 같은 키 → IdempotencyKeyReused, 저장 지문 = m1: fingerprintOf(CREATE_BUSINESS, BusinessCommandFingerprintFields.of), 개수 접두 경계, canary 원문 0(지문·결과·이력·Outbox·로그). HMAC 미적용(C-9·L-13 — LIVE 전 B3-3a 필수)",
+          "ConcurrencyControl": "BIZ-1-8 같은 번호 2·4·8 연결 ×3회 → 1 OK + 나머지 저장된 DUPLICATE(reference = 승자), business 1행; BIZ-1-9 같은 version 동시 수정(진 쪽 실제 DB 잠금 대기 관찰) → OK + VERSION_CONFLICT·이력 1, 수정 vs 가맹점 등록 교착 없음 ×3; 현재 행 생성 열 UNIQUE(BusinessSchemaSpec, 변이 (d)); flush 순서(변이 (b))",
+          "Recoverability": "BIZ-1-2 V15 부분 실패 7지점(문장 1~6·9 뒤 Flyway 실패 기록) → 점검 SQL 판정·전제 점검·되돌림·V14 확인·repair·재실행; migration 밖 값 4종 + runtime 연결 → 되돌림 거부(1146, DROP 0); 1062 → 새 TX 재판정 수렴(BIZ-1-8); BUSINESS_PROFILE_ROW 결함은 재시도 0·503(BIZ-1-5)",
+          "Reconciliation": "금융 대사 대상 아님. business 1 : business_registration 1 불변식 — V14 행 백필 후 전 행 1:1(BIZ-1-2), 옛 경로·새 경로 모두 1행(JpaBusinessRepositorySpec·BusinessProfileServiceSpec footprint)",
+          "Auditability": "BIZ-1-13 master_change_history: 변경 항목·마스킹 전후·사유 원문·대표자 ended/added, 등록 완료 이력 1건(첫 항목 DRAFT→REGISTERED), 생성 detail registrationNumberMasked",
+          "Observability": "실행기 결함 WARN \"admin command store constraint defect … constraint=BUSINESS_PROFILE_ROW\"(값 없음 — BIZ-1-5 로그 포획), 기존 명령 지표 operation label 3종 추가(값 label 없음)"
+        },
+        "jpaNotes": [
+          "순수 Domain(Business·값 객체·BusinessProfile) ↔ Jpa*Entity 5종 + BusinessPersistenceMapper 분리, 연관 매핑 없음(종료 행 보존 — cascade/orphanRemoval 경로 0)",
+          "Root 전용 lock·find·권리 원천 경로는 하위 표 SELECT 0(SQL 포획, 변이 (i)), lockWithProfile만 하위 행 읽기",
+          "@Version + FOR UPDATE 명시 비교: Domain이 요청 version ≠ 잠근 version → BUSINESS_VERSION_CONFLICT, Repository가 stale 덮어쓰기 재확인",
+          "flush 순서: 종료 UPDATE → 명시 flush → 새 행 persist(IDENTITY 즉시 INSERT) — 변이 (b) 1062",
+          "updatable=false: 하위 행 내용·소속·effective_from·created_by, business.registration_number, registration.business_id·country_code — 실제 UPDATE SQL의 SET 열 = effective_to·ended_by만(BIZ-1-6)",
+          "version 정확히 +1(BIZ-1-4 — Root 변경 / 같은 ms 하위 행만 / 등록 완료 각 +1)",
+          "ddl-auto=validate: display_order SMALLINT ↔ columnDefinition \"smallint\""
+        ],
+        "jooqNotes": [
+          "BIZ-1은 jOOQ Reader 없음(조회는 BIZ-2). generateJooqMain이 V15 schema에서 재생성됨(빌드 입력 — 생성 코드 build/, commit 대상 아님)"
+        ],
+        "versionsKafkaRedis": "새 의존성 없음(Boot BOM 관리 Hibernate·Flyway·jOOQ 그대로, libs.versions.toml 변경 없음). Kafka/Redis 미도입 — 동시 생성 = 번호 UNIQUE, 동시 수정 = 행 잠금 + version, 원자성 = MASTER 로컬 TX",
+        "openIssues": [
+          "BIZ-2 대상: Named Fixture withoutMerchants·withMerchant는 Reader 시험(BIZ-2)에서 추가",
+          "L-13 지문 HMAC 미적용(C-9 — LIVE 전 B3-3a 필수, 세 operation 포함)",
+          "변이 (a) 원래 형태(첫 flush 뒤 무조건 PESSIMISTIC_FORCE_INCREMENT)는 RED가 아님 — Hibernate가 같은 TX에서 이미 올린 version을 다시 올리지 않음(관찰, 결과는 +1로 안전). a1·a2 변형으로 +2 회귀 검출 확인(E-7)",
+          "E-8은 m-1 Coordinator 결정으로 닫힘 — 구현은 BIZ-2(BIZ-2-11)"
+        ],
+        "status": "구현·관련 검증 완료(Implementer) — Verifier·Reviewer 대기. task status 변경 안 함",
+        "reviewApplied": {
+          "review": "BIZ-1 독립 리뷰 REVIEW_PASS 조건부(BLOCKER·MAJOR 없음) — Coordinator 지시로 반영, 2026-11-17",
+          "m-1": "Coordinator 결정(E-8): BIZ-2가 BusinessProfileRuleViolation만 400 BUSINESS_VALIDATION_FAILED + fieldErrors(path만)로 매핑, IllegalArgumentException 전반 미포착, ADMIN은 효과 없음 확정(OUTCOME_UNKNOWN 아님), 저장된 거절이 규칙 위반보다 먼저 — 명세 C-16 보충·§14 BIZ-2-11·§18, tasks BIZ-2 doneCriteria 추가. BIZ-1 코드 변경 없음",
+          "m-2": "precheck·revert에 전제 점검 5(flyway_schema_history: V15 행 하나·success=0·V16 없음) — flyway_state_mismatch 열. BusinessSchemaMigrationSpec: 부분 실패 지점마다 mismatch 0·ok 1, 완료된 V15+V16 DB는 ok 0·되돌림 1146 거부·inspect 불변(강화). 변이 m2(revert 합계에서 제외) RED",
+          "m-3": "명세 L-8·§13 LIVE Gate: V15 적용 전 MASTER 모든 인스턴스 정지(이전 버전 동시 운용 금지). 문서만",
+          "m-4": "Domain 수정: Business 전이 갱신 시각 = max(판정 시각, 저장 updatedAt)(monotonic). 시험: BusinessProfileChangeSpec(이른 시계 → updatedAt 유지, 앞선 시계는 그 시각), BusinessProfileServiceSpec(저장 시각보다 이른 서버 시계로 대표자 교체 성공·3819 없음·effective_to = effective_from). 변이 m4 RED. 이력·Outbox occurredAt은 판정 시각 그대로(재정렬 없음)",
+          "n-1": "BusinessSchemaMigrationSpec 부분 실패 지점 7·8 추가(총 1·2·3·4·5·6·7·8·9), 가맹점 주석 정정(가맹점 행은 넣지 않음)",
+          "n-2": "AdminCommandExecutor 결함 WARN은 UniqueConflict && !businessKey만",
+          "n-3": "명세 §14 Fixture 문구 → SecureRandom 번호(MasterFixture 관례). 기록만",
+          "n-4": "복구 스크립트 머리 주석: @runtime_user 환경 치환, 판정 블록 precheck·revert 이중 유지 — 함께 수정",
+          "n-5": "BusinessProfileServiceSpec TC-19: id > maxOutbox인 다른 aggregate Outbox 행 0 단언"
+        },
+        "reviewTestRuns": [
+          {
+            "command": "./gradlew :apps:master-api:test --tests domain.BusinessProfile* persistence.BusinessSchema* persistence.JpaBusinessRepositorySpec persistence.BusinessPersistenceFailuresSpec architecture.BusinessProfileArchitectureSpec",
+            "finished": "2026-11-17T10:09:18Z",
+            "exit": 0,
+            "tests": 66,
+            "failures": 0,
+            "skipped": 0
+          },
+          {
+            "command": "./gradlew :apps:master-api:test --tests application.BusinessProfile* AdminRequestFingerprintSpec MerchantOnboardingServiceSpec MerchantCodeRegistrationSpec ApprovedCommandAtomicitySpec FirstDefaultIssuanceAtomicitySpec",
+            "finished": "2026-11-17T10:10:41Z",
+            "exit": 0,
+            "tests": 90,
+            "failures": 0,
+            "skipped": 0
+          }
+        ]
+      },
+      "gateRuns": [
+        {
+          "id": "BIZ1-gate1",
+          "batch": "BIZ-1",
+          "verdict": "PASS",
+          "started": "2026-11-17T10:14:08Z",
+          "finished": "2026-11-17T11:06:09Z",
+          "codeFingerprint": "sha256:3d4bc30a0496f818379b5c992ae4a542ada28ce2aa1c4780af59cc2477abe492",
+          "specRev": "0.2.3",
+          "specSha256": "01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T101408Z.json",
+          "kotlinTests": {
+            "total": 4940,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "frontendTests": {
+            "total": 571,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "cveScan": "PASS vulnerabilities=0",
+          "note": "Demo stopped during gate; full GRADLE-CHECK 51m13s includes all master-api tests in one run (review condition 1)"
+        }
+      ],
+      "biz1Status": "DONE (review REVIEW_PASS conditional → m-1..m-4, n-1..n-5 applied; BIZ1-gate1 PASS)"
     }
   ]
 }
