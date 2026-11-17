@@ -1,4 +1,13 @@
-# MERCHANT-CODE-001 사람이 읽는 가맹점 코드(토스식) 명세 (rev 0.4.5)
+# MERCHANT-CODE-001 사람이 읽는 가맹점 코드(토스식) 명세 (rev 0.4.10)
+
+- **rev 0.4.10** (2026-11-17, Implementer — MC-3b 리뷰 errata — 정책 변경 없음): §5.6.3 ② 시험 설정 예시 999 → 600(C-35 범위 1..600과 맞춤 — `lookup-per-minute` 1000과 다른 값이라 두 창 독립 시험 의도 유지), §8 MC-3-17 ArchUnit 문구 "라벨 controller" → "라벨 controller 뒤 Use Case(MerchantTargetLabelUseCase→Service→client)".
+- **rev 0.4.9** (2026-11-17, Implementer — MC-3a 리뷰 반영 — 기존 확정 §5.1·C-32의 적용 목록 보완, 새 정책 아님. 문서만 — 정책·기대값·수용 기준 변경 없음, 자기 완료 판정 아님): §8 MC-3-20 Kotlin 목록에 "§5.1·C-32 저장값의 직접 결과"·"조회 조건 변경(기대값 그대로)" 두 범주, §5.6.4 회복 무결성 보고 줄 번호 정정(Payment L101·109 / 매입 L169·175 — 네 곳 모두 helper 경유), `OperatorCancelJustificationService` L80 분류 정정(가맹점 승인 근거 조회 감사 = 승인 행 표기 + `mer_`), MC-3-22 변이 배치 구분 한 줄.
+- **rev 0.4.8** (2026-11-17, Implementer — rev 0.4.7 재리뷰 **REVIEW_PASS(조건부)**, MAJOR 0 — MINOR-1·NIT-1 반영. 명세만 — 코드·migration·빌드·커밋 없음, 정책·기대값 완화 없음, 자기 완료 판정 아님).
+  MINOR-1 회복 무결성 보고 `reportIntegrity(approvalId, column, target: ApprovalAuditTarget?)`(호출자 `MerchantOpsApprovalService.kt:692·697`·`OwnerExecutionRecoveryService.kt:169·175` — Payment 회복 경로에서 문자열로 가맹점 키 생성 금지, 대사 발견 L756은 `mer_` 유지) + MC-3-23 회복 작업 무결성 시험(가맹점 코드 행·Payment 대조 행 × 명령 행 없음·실행 종류 불일치)·변이 (o) · NIT-1 라벨 분당 창 키 위치 정정(`paycore.admin.master-ops.label-reads-per-minute`)·필수 키 설정 위치 전부(§5.6.3)·변이 (p).
+- **rev 0.4.7** (2026-11-17, Implementer — rev 0.4.6 명세 리뷰 **REVIEW_FAIL**(MAJOR 1·MINOR 5·NIT 2) 반영 + Coordinator 결정 C-35·C-32 해석. 명세만 — 코드·migration·빌드·커밋 없음, 정책·기대값 완화 없음, 자기 완료 판정 아님).
+  MAJOR-1 감사 작성 지점 전수(§5.6.4 표 — `OwnerOutcomeApplier` L178·194, `ApprovalService` L327·402·425, `MerchantOpsApprovalService` L843·859 등) + `ApprovalAuditTarget` 한 곳 집중·소스 검사, 새 형식 행 전 경로 시험 MC-3-23·24, 변이 (i)·(j), Recoverability 증거 · m-1 C-32 표에 승인 행 유무별 저장값(가맹점 관련 감사 행은 예외 없이 `target_merchant_id`) · m-2 C-35 라벨 전용 분당 창(429 → UNAVAILABLE 표시) · m-3 V15 문장별 ALGORITHM·L-14 유지보수 창 · m-4 §11 C-32 해석 기록 · m-5 `ApprovalTarget.Merchant` 코드 형식·팩토리 non-null·변이 (k) · n-1 가상 열 REGEXP_LIKE · n-2 `paymentId` → `ownerRef`. C-36.
+- **rev 0.4.6** (2026-11-17, Implementer — 명세만. 코드·migration·빌드·커밋 없음, 자기 완료 판정 아님 — Reviewer 별도, 정책 변경 없음). **APPROVAL-TARGET-KEYS-001을 MC-3에 합친다**: 승인함·내 요청·승인 상세·감사 화면이 가맹점 대상을 `mer_`로 그리는 문제(D-ADMIN-UI-004 ③·D-MCODE-003 위반)를
+  **기존 행 포함** "<상호> · <가맹점 코드>"로 보이는 설계(새 §5.6 — MASTER 묶음 라벨 읽기·fail-closed 표시·감사 `target_merchant_id`·ref/key 분리 지점), MC-3을 MC-3a·MC-3b·MC-3c로 분할(§7), 시험 MC-3-8~MC-3-22(§8), C-29~C-34(§10), L-11~L-13(§12), migration 번호 재확인(§1.4 — ADMIN V15 비어 있음, MASTER migration 없음). 새 사용자 질문 없음(§11).
 
 - **rev 0.1** (2026-11-13, Implementer — 명세 초안. 코드·migration·빌드·커밋 없음). D-MCODE-001(Q-MC-1~6) 적용, 세부 질문 Q-MC-7~9 PENDING, C-1~C-8 권장. (0.1a: 사용자 답 D-MCODE-002 Q-MC-7~9 기록.)
 - **rev 0.2** (2026-11-14, Implementer — Q-MC-7 답(계약 승인 전 1회 변경)에 따른 재설계. 코드·migration·빌드·커밋 없음). 저장을 append-only 배정 이력 표로(§3.2), 코드 변경 2인 명령(§3.7·§5.5), 미해결 키 `mer_` 기준(§5.2), 외부 노출 불변 논증(§6), 배치 MC-1b, 새 질문 Q-MC-10.
@@ -28,7 +37,7 @@
 | 저장 | **append-only `merchant_code_assignment` 이력 표**(현재 코드 = 그 가맹점의 마지막 행). `merchant`에 코드 열을 두지 않는다. UNIQUE(code)가 은퇴 코드 예약을, `assignment_seq ∈ {1,2}`가 "최대 1회 변경"을 DB로 강제 |
 | 발급 | B1 가맹점 등록 시 필수. 화면이 "상호 영문 + 랜덤 4자" 미리보기, 운영자 수정·직접 입력, 중복이면 MASTER 거절 |
 | 내부 키 | `mer_` ULID는 **내부 키 유지**(FK·Snapshot 키·MASTER 명령 본문·`mop1`·**ADMIN 미해결 키**). 화면 표시는 코드 |
-| 감사·승인 | **MC-3부터 새 행**의 가맹점 대상 `target_ref` = 그 시점의 코드(Q-MC-4). 기존 행 불변·대응표로 연결(Q-MC-9). 변경 뒤에도 옛 코드 행은 옛 코드 그대로 — 코드 재사용이 없으므로 영원히 같은 가맹점 하나를 가리킨다 |
+| 감사·승인 | **MC-3부터 새 행**의 가맹점 대상 `target_ref` = 그 시점의 코드(Q-MC-4). 기존 행 불변·대응표로 연결(Q-MC-9). 변경 뒤에도 옛 코드 행은 옛 코드 그대로 — 코드 재사용이 없으므로 영원히 같은 가맹점 하나를 가리킨다. **화면 표시(rev 0.4.6 §5.6)**: 저장값과 무관하게 **기존 `mer_` 행까지** "<상호> · <현재 코드>"(MASTER 묶음 라벨, 실패 시 "—" — `mer_`는 어떤 경우에도 화면에 없음) |
 | 미해결 키 | 코드가 바뀔 수 있으므로 **`MERCHANT:…` 미해결 키는 `mer_` 기준**(새 열 `target_merchant_id`) — §5.2 |
 | 외부 노출 | 웹훅·결제 응답 `merchantCode` **출력 전용**(Q-MC-8 — 식별·인증은 MID·API 키). 외부 노출은 MID 개통 뒤 = 계약 승인 뒤라 **외부에 나간 코드는 바뀌지 않는다**(§6) |
 | 배치 | MC-1 MASTER 모델·등록 **+ ADMIN 응답 모양·등록 본문·최소 코드 입력(한 배포 단위 — C-22)** → MC-2 ADMIN 미리보기·표시 교체·코드 검색 → MC-1b 코드 변경 2인 명령 → MC-3 감사·승인 대상 표기 전환 → MC-4 PAYMENT 투영·외부 필드 (→ SETTLEMENT-001). 어느 배치 경계에서도 ADMIN이 깨지지 않는다(§1.5). **막힌 배치 없음**(질문 모두 답변됨) |
@@ -67,6 +76,9 @@
 - **ADMIN**: 최신 schema `V11__merchant_ops_activation_approval.sql`, privilege `V10`, V12 비움 → **MC-1b = V13**(종류·대상·명령 종류 CHECK, `target_merchant_id`, 미해결 키 — `admin_approval_request`는 표 단위 `INSERT`라 새 열 권한 불필요 → **V14 비움**), **MC-3 = V15**(가맹점 대상 `target_ref` CHECK에 코드 허용 — V16 비움).
 - **PAYMENT**: 최신 `V34__outbox_publish_status_privileges.sql`(V33 `financial_fact_relay_privileges` — rev 0.1의 "V33"은 이미 쓰인 번호) → MC-4 **V35(schema)**. `entitlement_head` 권한은 표 단위 `SELECT, INSERT, UPDATE`(`runtime-privilege/payment/V4__entitlement_runtime_privileges.sql:8`) → **privilege migration 불필요**.
 - 다른 배치(MERCHANT-OPS-002 B3-3a·B3-3 — migration 없음 §8.4·§9.29)가 먼저 번호를 쓰면 착수 시 다시 확인한다(MERCHANT-OPS-002 C-21 관례 — 홀수 schema·짝수 privilege, 빈 번호 뒤 추가 금지).
+- **rev 0.4.6 재확인(HEAD `146b2ba`, 2026-11-17 — 파일 목록 기준)**: ADMIN schema `V1·V3·V5·V7·V9·V11·V13`(최신 `V13__merchant_code_change_approval.sql`), privilege `V2·V4·V6·V8·V10`, **V12·V14 비어 있음, V15·V16 미사용** → **MC-3a = ADMIN V15**(schema), **V16 비움**(`admin_approval_request`·`admin_audit_event` 모두 표 단위 `SELECT, INSERT` — `V2__admin_runtime_privileges.sql:10`, 새 열 권한 불필요).
+  가맹점 대상 CHECK의 **현재 정의는 V13**(`V13…sql:17-33`, L33 `^mer_` — V11:28-33은 V13이 이미 재생성) → V15는 V13 정의를 그대로 옮기며 가맹점 분기 정규식만 넓힌다.
+  MASTER: 최신 schema `V13__merchant_code_assignment.sql`·privilege `V14` — **MC-3 MASTER migration 없음**(라벨 읽기는 기존 `merchant`·`merchant_code_assignment` SELECT). PAYMENT: TXN-LIST-ENRICH-001 §13 기록대로 V35는 ADMIN-HOME-KPI-001이 사용 → MC-4 번호는 MC-4 착수 때 재확인(이번 rev 범위 밖).
 
 ### 1.5 배포 경계·재실행·충돌 분류의 현재 동작(rev 0.4 추가 — 리뷰 MAJOR-1·2, m-4·m-5 근거)
 - **ADMIN 응답 모양은 키 집합 정확 일치**: `MasterResponseShape.Obj.read`가 `node.propertyNames().toSet() == fields.keys`를 요구한다(`MasterResponseShape.kt:15-20`, L18). 목록·검색 공용 `DIRECTORY`(L78-87), 상세 `DETAIL`(L184-250).
@@ -298,6 +310,7 @@ ADMIN migration: MC-1b **V13**(위 새 열·생성 열 재작성 — V11과 같�
 ### 5.4 기존 기록 연결(Q-MC-9)
 - 기존 행 수정 0. 감사 검색에서 입력이 코드면 MASTER 검색(§3.8 — 은퇴 코드 포함)으로 그 가맹점의 `mer_`와 **모든 코드**를 얻어 `target_ref IN (mer_, code1, code2)`로 조회, 각 행 옆에 "당시 대상 표기"(mer_·옛 코드·현재 코드)와 현재 코드를 함께 표시.
 - `mer_`로 찾아도 같은 집합. 대응표는 MASTER 하나(ADMIN에 사본 없음 — 소유권).
+- **rev 0.4.6 정정(D-MCODE-003 이후)**: 위 "당시 대상 표기(mer_·옛 코드·현재 코드)"에서 **`mer_`는 화면에 그리지 않는다**(D-ADMIN-UI-004 ③·D-MCODE-003 — Q-MC-9의 "대응 mer_ 행도 표시"는 그 **행**을 결과에 포함한다는 뜻). 당시 표기는 코드일 때만 보이고, 조회 방식은 `IN (mer_, code1, code2)` 대신 내부 키 하나(`target_merchant_key`)로 단순화한다 — §5.6.4.
 
 ### 5.5 ADMIN 변경 승인 종류(MC-1b — MERCHANT-OPS-002 §9.5 틀 그대로)
 - `ApprovalKind.MERCHANT_CODE_CHANGE(OWNER_SERVICE, OPERATOR, MERCHANT)` — 승인자 APPROVER + 직전 TOTP, `mayActivatePrivilegedRole` false. `OwnerExecution` 지문 `mop1`, 소유 참조 문법 `^mer_<ULID>$`.
@@ -314,6 +327,128 @@ ADMIN migration: MC-1b **V13**(위 새 열·생성 열 재작성 — V11과 같�
   `MERCHANT_CODE_RESERVED` "사용할 수 없는 코드입니다", `MERCHANT_CODE_MISMATCH` "시스템 점검 필요(관리자에게 알림)"(ADMIN 경로에서는 결함 — `MerchantOutcomes.kt:40-43` `DEFECT_REJECTIONS`에 추가해 경보).
 - 화면: 가맹점 상세 "코드" 옆 "코드 변경 요청"(OPERATOR, `merchantCodeChangeable`일 때만 — 표시만), 대화상자 "계약 승인 전 1회만, 옛 코드는 다시 쓸 수 없습니다", 새 코드 입력 + 미리보기 재사용 + 사유 선택 + 근거 참조.
   승인함 라벨 "가맹점 코드 변경", 상세 "현재 → 새 코드". 상세 패널 "코드 이력"(seq 1·2). **등록자 안내 없음**(rev 0.2 화면 항목 제거).
+
+### 5.6 화면 표시 — 기존 행 포함(rev 0.4.6, APPROVAL-TARGET-KEYS-001 합침)
+
+#### 5.6.1 문제(코드 확인 — HEAD `146b2ba`)
+- 승인함·내 요청 목록 "대상" 칸과 행 접근 이름이 `targetRef`를 그대로 그린다(`ApprovalsScreen.tsx:40` `target = targetActorId ?? targetRef`, L52 `aria-label`, 대상 칸). 가맹점 대상 승인은 `mer_…`.
+- 승인 상세(`MerchantContractApprovalDetail.tsx:284·297·309·321·333`)가 계약·첫 MID·개통·Site 심사·통화 pinned `merchantId`(`mer_…`)를 그린다(코드 변경 상세 L343-346만 숨김).
+- 감사 화면 대상 칸(`AuditScreen.tsx:90` `targetActorId ?? targetRef`)이 `mer_`(MERCHANT_VIEWED·가맹점 등록 성공·Site/계약 등록 요청·가맹점 대상 승인 감사)와 **`biz_`**(사업자 등록 성공·등록번호 조회 `MerchantLookupService.kt:96`·가맹점 등록 요청의 상위 `MerchantRegistrationService.kt:238`)를 그린다.
+- 기존 시험이 이를 단언한다: `ApprovalsScreen.merchant.test.tsx:41` `getByText(MER)`, `AuditScreen.test.tsx:34` `getByText('mer_01JC…')`.
+- MC-3이 새 행 `target_ref`를 코드로 바꿔도 **기존 행(`mer_`)·코드 없이 쓰이는 행**은 그대로 → 저장값 전환만으로는 화면 규칙을 지킬 수 없다. 화면 규칙은 **표시 시점 해석**으로 지킨다(저장값 수정 0 — Q-MC-9).
+
+#### 5.6.2 표시 규칙(모든 행 — 새·기존 공통, fail-closed)
+| 대상 | 표시 텍스트·접근 이름 |
+|---|---|
+| 가맹점 대상(키 = `targetMerchantId`, §5.6.3) + 라벨 있음 | **"<현재 상호> · <현재 코드>"**(`lib/merchantLabel.ts` `merchantLabelText` 재사용 — 거래 목록·이력과 같은 형식) |
+| 가맹점 대상 + 라벨 응답 OK인데 그 키 없음 | "가맹점 정보 없음" |
+| 가맹점 대상 + 라벨 UNAVAILABLE·라벨 429(분당 창 초과 — C-35)·라벨 호출 실패·불러오는 중 | "—" + 표 아래 1줄 "가맹점 정보를 불러오지 못했어요"(UNAVAILABLE·429·실패일 때만 — TXN-LIST-ENRICH-001 C-5와 같은 문구. 429는 화면 오류 알림·세션 종료 처리로 가지 않고 UNAVAILABLE과 같게 다룬다) |
+| 사업자 대상(`biz_`) | **"사업자"**(종류 단어만, 키 없음 — C-33. 사업자 라벨 읽기는 이번 범위 밖) |
+| 그 밖의 대상(`adm_`·`pay_`·`ctr_`·`site_`·`mid_`·ACQ 파일 등) | 지금 그대로(같은 화면·다른 패널이 이미 보이는 식별자 — ADMIN-HISTORY-KEYS-001 §3 1과 같은 기준) |
+| 위 어디에도 해당하지 않는데 값에 `mer_`·`biz_`가 들어 있음(방어 — 정상 경로에서 없음) | "—" |
+- **어떤 분기도 내부 키를 텍스트·`title`·`aria-*`·`data-*`·입력 value에 넣지 않는다**(ADMIN-HISTORY-KEYS-001 §3 3과 같음). 승인 목록 행 `aria-label` = `"<종류> <표시 텍스트> <상태>"`.
+- 감사 "요약"(detail) 칸: 지금 detail 문법(`AdminAuditEvent.DETAIL`)과 작성 지점에 내부 키 값은 없다(코드 확인 — `kind=`·`reason=`·`column=`·`code=`·`from=;to=` 등). 방어로 화면은 `(mer|biz)_[0-9A-HJKMNP-TV-Z]{26}` 토큰을 "—"로 바꿔 그린다(C-33, `title`도 같은 값).
+- 승인 상세(§5.3 "요청 시 코드 → 현재 코드"):
+  `요청 시 코드` = pinned `merchantCode`(MC-3a부터 새 pinned에 있음) → 없으면 `targetRef`가 코드 형식일 때 그 값 → 없으면 없음(기존 행).
+  표시 = `가맹점: <pinned 상호> · <요청 시 코드 ?? 현재 코드 ?? "—">`, 요청 시 코드와 현재 코드가 **둘 다 있고 다르면** 뒤에 ` → 현재 <현재 코드>`. pinned 상호는 요청 시점 값(봉인 근거)이라 그대로 두고, 현재 상호는 목록 칸에서 보인다.
+  코드 변경 상세(L343-346)는 지금처럼 "현재 → 새 코드"(pinned `currentCode`·`newCode`).
+- 감사 화면 "당시 표기"(§5.4): 행의 `targetRef`가 코드 형식이고 현재 코드와 다르면 표시 텍스트 뒤에 작은 글씨 `(당시 <코드>)`. `mer_` 행은 당시 표기 없음.
+
+#### 5.6.3 라벨 원천 — MASTER 묶음 라벨 읽기(MC-3b)
+대안 비교(C-29):
+| | (a) 기존 `merchant-account-labels`(MID 기준) 확장 | **(b) 새 `merchant-labels`(merchantId 기준) — 채택** | (c) ADMIN 응답마다 서버에서 붙이기 | (d) ADMIN 라벨 사본 표 |
+|---|---|---|---|---|
+| 키 | MID → 가맹점. 승인·감사 행은 MID가 없다(가맹점 대상 = `mer_`) | 승인·감사 행의 내부 키 그대로 | (b)와 같은 MASTER 읽기 필요 | — |
+| 모양 | 그 응답은 `merchantId`를 일부러 빼는 계약(TXN-LIST-ENRICH-001 §4.2) — 키 혼합 시 정확 모양 두 개 | 요청 `merchantIds` → 응답에 `merchantId`(ADMIN 대응용 — 화면 미표시, D-BIZLOOKUP-001 원칙) | 감사 조회는 `account`·`audit` 모듈 — `merchantops → account` 의존이 이미 있어 `account → merchantops`는 **순환**(Modulith 위반) | §5.4 "대응표는 MASTER 하나, ADMIN 사본 없음" 위반·동기화/대사 필요 |
+| 결론 | 기각 | **채택** | 기각(승인만 서버에서 붙이면 두 방식 공존) | 기각 |
+
+- **MASTER `POST /internal/v1/admin/merchant-labels`**(신규, `com.paycore.master.merchant` ADMIN 서명 v1 채널 — query 금지, 16 KiB).
+  요청(엄격): `{"merchantIds": ["mer_…", …]}` 1..50, 각 `^mer_[0-9A-HJKMNP-TV-Z]{26}$`(Domain `MerchantId` 한 곳), 중복 금지 → 위반 400 `REQUEST_MALFORMED`.
+  200: `{"items": [{"merchantId", "merchantName", "merchantCode"}]}` — merchantId 오름차순, 없는 키는 빠짐, TERMINATED 포함, 코드 = **현재 코드**(`MasterSqlText.currentMerchantCode` 재사용 — MC-1b 변경 가맹점은 새 코드). 넣지 않음: `businessId`·사업자 정보·lifecycle·등록번호·코드 이력.
+  SQL 1문장 RO·RR(`merchant` PK IN ≤ 50 → 현재 코드 상관 부분 질의). 코드 없는 가맹점 = 결함(§3.2 seq 1 없음) → 503. `no-store`, 로그는 분류·항목 수만.
+  **감사 없음**: 상세 조회가 아니라 목록 수준 표시값(D-MOPS-002 — 가맹점 목록·코드 검색과 같은 상호·코드, 같은 4역할). `MERCHANT_VIEWED` 0행 시험.
+- **permit·timeout(C-34 — TXN-LIST-ENRICH-001 §3.6 그대로 재사용)**: MASTER `AdminChannelPermits.labels("merchant_labels", …)`(기존 라벨 전용 `Semaphore` 공유 — Demo 2, read permit·`approval-decisions`와 분리), ADMIN `HttpMasterOpsGateway` 라벨 전용 permit(`label-permits` Demo 2, 대기 0)·라벨 전용 client(`label-read-timeout` Demo 2s)·응답 상한 64 KiB(50항목 × 최대 ≈ 0.6 KiB < 32 KiB)·`STRICT_DUPLICATE_DETECTION`·DB TX 안 호출 거부. 새 설정 키 없음(Demo 값, 운영값 아님 — LIVE Gate).
+  거래 목록 라벨과 같은 permit을 나눠 쓰므로 둘이 몰리면 **라벨만** UNAVAILABLE(L-12) — 승인·감사 목록 자체·승인 회복(`approvalDecision`)에는 영향 없음(T-E2-12와 같은 격리 시험을 이 endpoint로 반복 — MC-3-14).
+- **ADMIN**: required Port `MasterLabelGateway`에 `merchantLabels(ids)` 추가(같은 Port — 라벨 전용 Port의 두 번째 메서드, ISP 유지), `MasterResponseShape.MERCHANT_LABELS`(정확 키·`merchantId` 형식·코드 §3.1·이름 = `DisplayName` 규칙(TXN-LIST-ENRICH-001 §4.4 M-4)·items ≤ 50), 대응 검사(항목 ≤ 보낸 수, 모든 키 ∈ 보낸 집합, 중복 없음, 오름차순 — 위반 시 **그 묶음 전체** UNAVAILABLE, 틀린 상호가 다른 행에 붙지 않게).
+  provided `MerchantLabelClient.merchantLabels(ids): MerchantLabelResult`(Found·Unavailable — 기존 결과 타입 재사용).
+- **ADMIN 화면 API `POST /api/merchant-labels`**(merchantops web — 신규): 세션 ACTIVE + VIEW 4역할(`VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN` — 승인함·감사 화면을 볼 수 있는 역할 집합과 같음, 아니면 403·MASTER 미호출), CSRF, JSON만, 16 KiB, `{"merchantIds": [...]}` 1..50·형식·중복 금지(위반 400 `INVALID_INPUT`, MASTER 미호출).
+  **설정 위치(rev 0.4.8 — 재리뷰 NIT-1, 가역 구현 결정)**: 키는 라벨 permit·timeout과 같은 `MasterOpsSettings` 블록에 둔다 → 실제 키 이름 **`paycore.admin.master-ops.label-reads-per-minute`**(rev 0.4.7의 `merchant-ops.` 표기를 정정 — `merchant-ops:` 블록은 승인 실행 창 설정만 담는다, `application.yml` L154).
+  **필수 키(기본값 없음)이므로 값을 넣어야 하는 곳 전부**: ① `apps/internal-admin/src/main/resources/application.yml` `master-ops:` 블록(`lookup-per-minute: 30` L142 ~ `label-read-timeout: 2s` L151 — `label-read-timeout` 바로 뒤에 Demo 값 `60` + "Demo 값, 운영값 아님 — LIVE Gate" 주석),
+  ② `apps/internal-admin/src/test/resources/config/application.yml` `master-ops:` 블록(L60-, 시험 값 — `lookup-per-minute: 1000`과 **다른 값**(예: 600)으로 두어 두 창 독립을 시험),
+  ③ `MasterOpsSettings(`를 직접 생성하는 시험 5개 — `MerchantLabelGatewaySpec`·`MasterOpsGatewaySpec`·`MasterApprovalGatewaySpec`·`MasterApprovalGatewayB3Spec`·`MerchantCodeSearchSpec`(`apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/`) — 생성자 인자 추가.
+  같은 파일의 `payment-ops:`(L111)·`financial-ops:`(L173) 블록의 `lookup-per-minute`는 다른 창이라 **넣지 않는다**. 저장소의 다른 설정 파일(docker·env)에는 라벨 설정이 없다(검색 확인 — `label-permits`·`label-read-timeout` 사용처는 위 두 yml과 `MasterOpsSettings`·`HttpMasterOpsGateway`·`MerchantLabelGatewaySpec`뿐). 설정 시험: 키 누락·0·601 → 기동 실패(변이 (p)).
+  **분당 창(rev 0.4.7 — C-35, Coordinator 결정)**: 가맹점 조회 창 `lookup-per-minute`를 **쓰지 않는다**(라벨이 운영자의 실제 가맹점 검색 한도를 깎지 않게). 별도 actor별 분당 창 `paycore.admin.master-ops.label-reads-per-minute`(rev 0.4.8 키 위치 정정, 새 설정 키, **Demo 값 60**, 1..600, 기본값 없음 — `application.yml`에 Demo 값 기재·운영값 아님, LIVE Gate)를 **HTTP 호출 1회당 1** 소비(묶음 크기 무관 — 승인 목록 200행이면 최대 4). 별도 `ActorMinuteWindows` 인스턴스(`ActorMinuteWindows.kt` 재사용). 초과 → 429 `RATE_LIMITED`(MASTER 미호출, 지표 `merchant_target_labels{result="RATE_LIMITED"}`) → 화면은 UNAVAILABLE과 같게 "—" + 안내 1줄(§5.6.2).
+  200 `{"items": [{"merchantId", "name", "code"}], "labels": "OK" | "UNAVAILABLE"}`(UNAVAILABLE이면 items `[]`, **HTTP 200**). 감사 없음. 화면은 이 응답의 `merchantId`를 대응에만 쓰고 그리지 않는다.
+- 화면 묶음: 승인 목록은 최대 200행(`ApprovalQueryService.kt:60`), 감사는 기본 50·최대 200(`AuditFilter`) → 화면이 **고유 키를 정렬해 50개씩 순차** 호출(쪽당 최대 4회, 0개면 미호출). 묶음 하나가 UNAVAILABLE이면 그 묶음 행만 "—" + 안내 1줄.
+
+#### 5.6.4 ADMIN 응답·저장 변화(MC-3a)
+- **승인 응답**(`ApprovalController.kt:273` 목록·상세 공통 view): `targetMerchantId` 키 추가(`targetRef` 바로 뒤) = 가맹점 대상이면 `COALESCE(target_merchant_id, target_ref)`(V13 CHECK ③ — 언제나 `mer_`), 아니면 `null`. jOOQ 목록 reader(`JooqApprovalRequestListReader.kt:90-94` `select()`)가 열 하나를 더 고른다.
+- **감사 표 `admin_audit_event`(ADMIN V15)**: `target_merchant_id VARCHAR(30) NULL`(가맹점 대상 새 행의 내부 키) + **가상 생성 열** `target_merchant_key = COALESCE(target_merchant_id, CASE WHEN REGEXP_LIKE(target_ref, '^mer_[0-9A-HJKMNP-TV-Z]{26}$', 'c') THEN target_ref END)`(rev 0.4.7 n-1 — LIKE 대신 정확 형식. 생성 열 식에 REGEXP_LIKE가 거부되면 LIKE로 되돌리지 말고 Coordinator에 보고)(VIRTUAL — 기존 행 저장값 변화 없음, 기존 `mer_` 행도 같은 키) + 색인 `ix_admin_audit_event_target_merchant(target_merchant_key, event_id)`.
+  CHECK: ① `target_merchant_id IS NULL OR REGEXP_LIKE(target_merchant_id, '^mer_[0-9A-HJKMNP-TV-Z]{26}$', 'c')`
+  ② `target_merchant_id IS NULL OR target_ref = target_merchant_id OR REGEXP_LIKE(target_ref, '^[a-z][a-z0-9]{5,13}$', 'c')`(내부 키가 있으면 대상 표기는 같은 `mer_` 또는 코드)
+  ③ `target_ref IS NULL OR NOT REGEXP_LIKE(target_ref, '^[a-z][a-z0-9]{5,13}$', 'c') OR target_merchant_id IS NOT NULL`(코드 표기 행은 내부 키 필수 — 코드만 남은 행이 생기지 않게).
+  ②가 `target_ref`(NULL이면 비교 UNKNOWN → CHECK 통과)를 막지 못하는 경우는 Domain(`AdminAuditEvent` init: `targetMerchantId != null ⇒ targetRef != null`)이 막는다. 기존 행은 모든 CHECK를 만족(새 열 NULL, 코드 형식 `target_ref` 없음 — `_`를 포함한 기존 ID와 ACQ 참조는 코드 정규식과 겹치지 않음 §3.1).
+- **감사 응답**(`AuditController.kt:55`): `targetMerchantId` 키 추가(= `target_merchant_key`, `targetRef` 바로 뒤). **감사 필터** `targetMerchantId`(형식 `^mer_<ULID>$`, 위반 400) → `target_merchant_key = ?`(범위 규칙 D-ADMIN1-008 그대로 — VIEWER·OPERATOR는 자기 행위 행 안에서만). `AUDIT_VIEWED` detail은 값 없이 `targetMerchant=1` 형태(AdminAuditQueryService.kt:49 "값 자체는 넣지 않는다" 규칙).
+  → §5.4 연결 조회 = 화면이 코드 입력 → 기존 ADMIN 코드 검색(MC-2, 은퇴 코드 일치 포함·감사 없음)으로 내부 키 해석 → `targetMerchantId`로 감사 조회. **옛 코드·새 코드·`mer_` 어느 행이든 같은 키**라 `IN (…)` 목록·은퇴 코드 열거가 필요 없다(MC-3-4).
+  ADMIN은 이 열로 코드 → 가맹점을 **해석하지 않는다**(해석은 언제나 MASTER — C-30). 행에 남는 것은 "그 행이 어느 가맹점에 대한 것인가"라는 내부 사실뿐이다(승인 행 `target_merchant_id`와 같은 성질 — §5.1).
+- **target_ref 저장값(§5.1 표 구체화 — C-32)**:
+  | 감사·승인 행 | target_ref | target_merchant_id |
+  |---|---|---|
+  | 가맹점 대상 승인 요청 행(MC-3a 뒤 생성) | 요청 시점 MASTER 상세의 `merchantCode` | `mer_` |
+  | **승인 행이 저장된 뒤**의 그 승인 감사 행 전부 — 요청·승인·승인 단계 거절(`MerchantOpsApprovalService` L580-640 `APPROVAL_DENIED`·`APPROVAL_INTEGRITY_VIOLATION`·`APPROVER_IS_REGISTRANT` 등)·철회·거절(`ApprovalService` L307·L425)·만료(L327)·0단계 분리 감사(L402)·실행 결과(`OwnerOutcomeApplier` L93·99·105·111·122·126·146 `APPROVAL_EXECUTED`·`OWNER_REJECTED`·`EXECUTION_UNKNOWN`·무결성·`APPROVAL_RESEND_HALTED`)·적용기 무결성 위반(L178) | **그 승인 행의 표기**(`target.ref` — 새 행 코드, MC-3a 전 행 `mer_`) | `mer_`(언제나 — `target.merchantKey`) |
+  | **승인 행이 없는** 요청 단계 거절(분리 TX — `MerchantOpsApprovalService` `Refusal(…, command.merchantId)` L155·158·201·204·239·423·426·467·791: 미해결 중복·요청자 부적격·입력 등, 요청 TX는 rollback) | `mer_`(요청 본문의 내부 키 — 저장된 승인 표기가 없으므로 코드를 새로 정하지 않는다) | `mer_` |
+  | `MERCHANT_VIEWED`(FOUND) | 응답 `merchantCode` | `mer_` |
+  | `MERCHANT_VIEWED`(NOT_FOUND) | `mer_`(코드 없음 — §5.1) | `mer_` |
+  | 가맹점 등록 성공 | 등록한 코드(MASTER가 성공으로 확정한 요청 본문 값) | 응답 reference `mer_` |
+  | Site·계약 등록의 요청·거절 행(상위 = 입력 `mer_` — `MerchantRegistrationService.kt:239·241`) | `mer_` 그대로(ADMIN이 코드를 모름 — 감사 기록을 위해 MASTER를 한 번 더 부르지 않는다) | `mer_` |
+  | 사업자 대상(`biz_`)·그 밖 | 지금 그대로 | NULL |
+  **정리(rev 0.4.7 m-1)**: 가맹점과 관련된 감사 행은 **모두** `target_merchant_id = mer_`를 채운다(예외 없음 — "mer_ + NULL" 행을 새로 만들지 않는다). `target_ref`는 저장된 승인 행이 있으면 그 표기, 없으면 ADMIN이 그 시점에 확정 코드를 가진 경우(§위 MERCHANT_VIEWED·등록 성공)만 코드, 그 밖은 `mer_`.
+- **ref/key 분리(필수 수정 지점 — MC-3a)**: Domain `ApprovalTarget.Merchant(merchantId, code: String? = null)` — `ref` = `code ?: merchantId`(저장·감사 표기), `merchantKey` = `merchantId`(내부 키). 재구성 `JpaApprovalRequestRepository.kt:123` = `Merchant(targetMerchantId ?: targetRef, code = targetRef가 코드 형식이면 그 값)`.
+  (rev 0.4.7 m-5) `init`: `code == null || MerchantCode 형식(§3.1 ^[a-z][a-z0-9]{5,13}$)`. 새 요청 생성은 **`Merchant.forNewRequest(merchantId, code: String)`**(code non-null — MASTER 상세에 코드가 없으면 요청 거절이지 `mer_` 표기로 조용히 대체하지 않는다; MASTER 상세 모양이 이미 `merchantCode` 필수라 정상 경로에서 없음). `code = null`은 재구성(MC-3a 전 행)에서만. 대상 동등성 판단은 지금처럼 `is` 검사·`merchantKey` 비교만 쓰고 `data class` `equals`(코드 포함)를 상태 판정에 쓰지 않는다(`ApprovalService.kt:199` `target == null`은 null 검사라 무관).
+  지금 `target.ref`를 **내부 키로 쓰는 곳**은 모두 `merchantKey`로 바꾼다: `MerchantOpsApprovalService.kt:577`(MASTER 호출 merchantId), L692·697(무결성 보고), L756(대사 발견 `OWNER_UNRESOLVABLE` 대상 — 내부 기록은 `mer_` 유지), `OwnerExecutionRecoveryService.kt:101·109`(Payment 회복)·`L169·175`(매입 회복)(rev 0.4.9 정정 — 네 곳 모두 무결성 보고를 `ApprovalAuditTarget` helper로 넘긴다), `ApprovalService.kt:476-482` `auditTarget`(0단계 행의 `target_ref`로 `Merchant(targetRef)`를 만들면 코드 행에서 `require` 실패 → 감사 대상 유실 — 행의 `target_merchant_id`를 함께 읽는다), L434 무결성 비교는 ref끼리(둘 다 행에서 옴) 그대로.
+  MASTER 명령 본문·`mop1`은 이미 pinned/명령 행 `merchant_id` 기준 — 불변(MC-3-5).
+- **감사 대상 열 집중(rev 0.4.7 — 리뷰 MAJOR-1)**: rev 0.4.6은 감사 작성 지점을 L859 하나만 적었다. MC-3a 뒤 가맹점 승인의 `target.ref`는 코드이므로 `targetRef = …target.ref`만 넘기고 `target_merchant_id`를 빠뜨린 **모든** 작성 지점이 V15 CHECK ③(코드 표기 ⇒ 내부 키 필수)에서 3819로 실패한다 →
+  `OwnerOutcomeApplier` TX2·회복 작업이 영구 실패(MASTER는 실행했는데 승인이 EXECUTING/UNKNOWN에 남고 미해결 키 점유), 만료 작업이 그 행을 건너뜀(PENDING 영구), 철회·거절 500.
+  **저장소 전수 검색(HEAD `146b2ba`, `targetRef =`·`refOf(`·`ownerRef(`)으로 확인한 작성 지점**:
+  | 파일:줄 | 경로 | 지금 targetRef 원천 |
+  |---|---|---|
+  | `ApprovalService.kt:327` | 만료(`expireDue` — L336 실패 시 건너뜀) | `refOf(target)` |
+  | `ApprovalService.kt:402` | 0단계 분리 감사(`separateAudit`) | `refOf(target)`(`auditTarget` L476-482) |
+  | `ApprovalService.kt:425` | 철회(L307)·거절·결정 감사 | `refOf(request.target)` |
+  | `OwnerOutcomeApplier.kt:194` | 실행 결과 감사(L93·99·105·111·122·126 EXECUTED·OWNER_REJECTED·EXECUTION_UNKNOWN·INTEGRITY, L146 RESEND_HALTED) | `ownerRef(request)`(L200) |
+  | `OwnerOutcomeApplier.kt:178` | 적용기 무결성 위반 분리 감사(L81·86·89·90 `IntegrityViolation(…, paymentId)`) | `violation.paymentId`(실제로는 소유 참조 — 가맹점이면 코드) |
+  | `MerchantOpsApprovalService.kt:843` | 분리 TX 감사(`separateAudit` — `Refusal.targetRef`) | 요청 단계 `command.merchantId`, 승인 단계 `request.target.ref`(L577) |
+  | `MerchantOpsApprovalService.kt:859` | 승인 행 감사 | `request.target.ref` |
+  | `AcquiringOpsApprovalService.kt:332·347`, `OwnerServiceApprovalService.kt:369·391`, `OperatorDecisionReconciliationService.kt:207` | 매입 파일·Payment 대상(가맹점 아님) | 각 참조 — 열 집중 helper로 옮기되 값 불변(대조군) |
+  | `OperatorCancelJustificationService.kt:80`(rev 0.4.9 분류 정정) | 승인 근거 조회 감사(`APPROVAL_JUSTIFICATION_VIEWED`) — Payment·매입 원 파일·**가맹점 승인**(MERCHANT-OPS-002 B2-2) | Payment·매입 = 각 참조 값 불변(대조군), 가맹점 = 승인 행 감사 규칙(C-32) — 표기 = 승인 행 표기(코드), `target_merchant_id` = `mer_` |
+  | `OwnerExecutionRecoveryService.kt:101·109`(Payment 회복 — `process`), `L169·175`(매입 회복 — `processAcquiring`)(rev 0.4.9 줄 번호 정정 — rev 0.4.8은 L169·175를 Payment로 적었다) | 회복 작업 무결성 보고(`reportIntegrity`) | 네 곳 모두 helper 경유 — Payment = `ApprovalAuditTarget.of(Payment 대상)`/`ofPaymentRef`(`pay_` 표기만, 값 불변), 매입 = `of(request.target)`(원 파일 ID 표기만). 가맹점 회복은 `MerchantOpsApprovalService.kt:692·697` |
+  | `MerchantLookupService.kt:164`, `MerchantRegistrationService.kt:213` | merchantops(승인 밖) — C-32 표 행 | 각 Use Case가 `targetMerchantId`를 함께 넘김 |
+  `AdminAuditRecorderService.kt:34`는 기록기 자체(값 전달만 — `AuditRecord.targetMerchantId` 열 추가).
+  **설계**: approval 모듈에 **`ApprovalAuditTarget`**(값 `targetActorId`·`targetRef`·`targetMerchantId`) 한 곳 — `ApprovalAuditTarget.of(target: ApprovalTarget?)`(계정 → actorId만, Payment·파일 → ref만, 가맹점 → `ref` + `merchantKey`), `ApprovalAuditTarget.ofMerchantKey(merchantId)`(승인 행 없는 요청 단계 거절 — `mer_` + `mer_`), `ofPaymentRef(…)`(대사 서비스 형식 검사 값). 모든 approval 감사 작성은 이 값을 `AuditRecord`에 펼치는 helper 하나로만 만든다(`audit` 모듈은 approval을 모름 — 의존 방향 유지, `AuditRecord`에는 열 `targetMerchantId: String? = null`만 추가).
+  `Refusal`·`IntegrityViolation`은 문자열 대신 `ApprovalAuditTarget`을 들고 다닌다. `refOf`·`ownerRef`는 감사 용도에서 제거(소유 참조가 필요한 업무 판정은 그대로).
+  **(n-2)** `OwnerOutcomeApplier.reportIntegrity(…, paymentId)`·`IntegrityViolation.paymentId` → `ownerRef`로 이름 변경(가맹점·매입 파일도 오므로 — 동작 불변).
+  **(rev 0.4.8 — 재리뷰 MINOR-1, n-2를 대체)** 회복 경로의 무결성 보고도 **문자열을 넘기지 않는다**: 서명 `OwnerOutcomeApplier.reportIntegrity(approvalId: String, column: String, target: ApprovalAuditTarget?)`(`OwnerOutcomeApplier.kt:151`), `IntegrityViolation(column, target: ApprovalAuditTarget?)`.
+  호출자 `MerchantOpsApprovalService.kt:692·697`(가맹점 회복)·`OwnerExecutionRecoveryService.kt:169·175`(매입 회복 — rev 0.4.9 정정)는 `request?.let { ApprovalAuditTarget.of(it.target) }`를, Payment 회복 `OwnerExecutionRecoveryService.kt:101·109`는 `(request?.target as? Payment)?.let(ApprovalAuditTarget::of)`·`ofPaymentRef(command.paymentId)`를 넘긴다(네 곳 모두 helper 경유)(승인 행이 없으면 `null` → 감사 대상 열 모두 NULL — 지금 `request?.target?.ref`가 null인 경우와 같음).
+  `OwnerExecutionRecoveryService`는 **Payment 승인(`pay_`)도 회복**하므로 그 경로에서 문자열로 가맹점 키(`ofMerchantKey`)를 만들지 않는다 — 대상 종류는 언제나 승인 행의 `ApprovalTarget`이 정한다(Payment → `targetRef = pay_…`·`targetMerchantId` NULL, 가맹점 → 코드 표기 + `mer_`).
+  적용기 내부 `IntegrityViolation` 발생 지점(L81·86·89·90)도 같은 `ApprovalAuditTarget.of(request.target)`. 대사 발견(`MerchantOpsApprovalService.kt:756` `OWNER_UNRESOLVABLE`)은 감사가 아니라 내부 기록이므로 **`merchantKey`(`mer_`) 그대로**(C-31).
+  **고정 시험(소스 검사 — `harness`가 아닌 ADMIN 모듈 ArchUnit/소스 스캔 시험)**: `approval/application/**`·`merchantops/application/**`에서 `AuditRecord(` 호출의 `targetRef =`·`targetMerchantId =` 인자는 `ApprovalAuditTarget.kt`(approval)와 C-32 표의 두 merchantops 지점 밖에 없어야 한다(새 작성 지점이 helper를 우회하면 RED). 같은 시험이 `targetRef = …target.ref` 패턴 0건을 단언.
+- **pinned `merchantCode`(§5.3)**: 가맹점 대상 봉인 타입 5종(계약·첫 MID·개통·Site 심사·통화)에 `merchantCode` 추가 — **새 행 생성 시 필수, 저장된 기존 행 읽기에서는 선택**(MC-3 전 PENDING·회복 대상 행이 그대로 해석돼야 한다 — 회복 경로 fail-closed가 기존 행을 막지 않게). A 단계 비교 제외(C-19). 화면 파서(`MerchantContractApprovalDetail.tsx` `strings(…)`)는 선택 키로 둔다.
+
+#### 5.6.5 8대 원칙(MC-3 — 증거)
+| 원칙 | 적용 | 증거 |
+|---|---|---|
+| Financial Consistency | 금액·권리·명령 본문 의미 변화 없음. 라벨은 보조 표시값 | MC-3-5(MASTER 본문·`mop1` 벡터 불변) |
+| Transaction Safety | 쓰기는 기존 감사·승인 로컬 TX 그대로(열 하나 추가). 라벨 읽기는 ADMIN DB TX 밖·MASTER RO 1문장 | MC-3-11(TX 안 호출 거부), MC-3-12 |
+| Idempotency | 라벨 읽기는 멱등 조회. 승인 재전송·회복 경로의 내부 키는 `target_merchant_id`(코드 표기와 무관) | MC-3-9 |
+| Concurrency Control | 미해결 키는 MC-1b부터 `mer_` 기준 그대로 — 코드 표기 전환이 미해결 유일성을 바꾸지 않음. 라벨 permit 대기 0 | MC-3-10, MC-3-14 |
+| Recoverability | 기존 PENDING·회복 대상 행(pinned에 코드 없음·target_ref `mer_`)이 MC-3 배포 뒤에도 해석·실행·회복됨. **새 형식(코드 표기) 행의 회복·만료·결과 적용(TX2·회복 작업·만료 작업)이 감사 CHECK에 막히지 않고 상태 전이를 끝낸다**(rev 0.4.7 MAJOR-1). 라벨 실패 = 다음 조회에서 회복(값 저장 없음) | MC-3-9, MC-3-13, **MC-3-23** |
+| Reconciliation | 코드 ↔ 가맹점 대응은 MASTER 배정 행 하나. "새 가맹점 대상 행인데 `target_merchant_id` 없음" 0건 대사 질의(승인·감사 두 표) | MC-3-2, MC-3-15 |
+| Auditability | 기존 행 수정 0(해시 비교), 새 행 표기 = 코드(Q-MC-4), 화면은 모든 행을 현재 상호·코드로 연결(Q-MC-9), 당시 코드 표기 유지, 라벨 읽기·연결 조회의 감사 규칙 불변(D-MOPS-002·D-ADMIN1-008) | MC-3-2·3·4, MC-3-16·19 |
+| Observability | ADMIN counter `paycore.admin.ops.merchant_target_labels{result}`(OK·SKIPPED·BUSY·UNAVAILABLE·UNREADABLE — TXN-LIST-ENRICH-001 §8 분류 그대로 + rev 0.4.7 `RATE_LIMITED`(C-35)), MASTER `…admin_channel.busy{endpoint="merchant_labels"}`. label·로그에 `mer_`·상호·코드 없음(항목 수·분류만) | MC-3-17 |
+
+**기술 연결(MC-3에 한함)**: **JPA** — `JpaApprovalRequestEntity`의 `target_ref`·`target_merchant_id`는 `updatable = false`(표 단위 INSERT, 결정 열만 UPDATE — §9 기존 설명과 같음), 감사 Entity의 새 `target_merchant_id`도 `updatable = false`, 가상 생성 열 `target_merchant_key`는 Entity에 **매핑하지 않는다**(`insertable/updatable=false`로 매핑하면 Hibernate가 INSERT 문에 넣지 않지만, 읽을 일이 jOOQ 조회뿐이라 매핑 자체를 두지 않아 실수로 쓰는 경로를 없앤다).
+예: 코드 표기 승인 행을 회복 서비스가 다시 읽을 때 `ApprovalTarget.Merchant(target_merchant_id, code = target_ref)`로 조립 → MASTER 호출은 `merchantKey`. 주의: `ref`를 내부 키로 쓰는 남은 호출이 있으면 코드로 MASTER를 부르게 된다 → 변이 MC-3-22(b).
+**jOOQ(CQRS)** — 승인 목록 `targetMerchantId` 열, 감사 조회 `target_merchant_key` 필터(색인 사용 계획 시험), MASTER 라벨 SQL·대사 질의. **Kafka/Redis** — 도입하지 않는다(라벨 캐시 없음 — 코드 변경 직후 옛 코드가 남는 위험(L-9)을 늘리지 않는다).
 
 ## 6. 외부 노출(Q-MC-8 — 출력 전용)
 | 지점 | 필드 | 비고 |
@@ -348,6 +483,19 @@ ADMIN migration: MC-1b **V13**(위 새 열·생성 열 재작성 — V11과 같�
   ADMIN **V13**(종류·대상·명령 종류 CHECK, `target_merchant_id`, 미해결 키 `COALESCE` — **MC-3의 키 변경을 이 배치로 당긴다**: 변경이 가능해지는 순간부터 키가 `mer_` 기준이어야 하므로. MC-3은 target_ref 표기 전환만 남는다), V14 비움.
   Demo(계정 둘 — A OPERATOR 요청, B APPROVER 승인; **B가 그 가맹점 등록자여도 성공**): 계약 전 가맹점 코드 변경 → 상세 코드 이력 → 옛 코드로 새 가맹점 등록 시도 `TAKEN` → 계약 승인 뒤 "코드 변경" 버튼 없음·API 우회 시 `MERCHANT_CODE_LOCKED`.
 - **MC-3 감사·승인 대상 표기 전환**(Q-MC-4·Q-MC-9): ADMIN V15, target_ref = 코드(감사·승인 요청), `TARGET_REF` 정규식, pinned 표시, 감사 연결 조회.
+  **rev 0.4.6 — APPROVAL-TARGET-KEYS-001을 합쳐 셋으로 나눈다(§5.6, 순서 3a → 3b → 3c, 한 Implementer가 순차 — 같은 파일·migration 동시 수정 금지)**:
+  - **MC-3a ADMIN 저장·응답(ADMIN만, ADMIN V15·V16 비움, MASTER 무변경)**: V15(① 승인 가맹점 대상 CHECK 정규식 `^(mer_<ULID>|[a-z][a-z0-9]{5,13})$` — V13:17-33 정의를 한 ALTER 문으로 재생성 ② `admin_audit_event.target_merchant_id`·CHECK ①~③·가상 `target_merchant_key`·색인),
+    **V15 문장 분리(rev 0.4.7 m-3 — 기대 알고리즘을 문장마다 명시해 MySQL이 더 무거운 방식으로 조용히 바꾸지 못하게 한다)**:
+    (1) `admin_audit_event` `ADD COLUMN target_merchant_id …, ADD COLUMN target_merchant_key … VIRTUAL, ALGORITHM=INSTANT`(메타데이터만 — 행 재작성 없음)
+    (2) `ADD INDEX ix_admin_audit_event_target_merchant (target_merchant_key, event_id), ALGORITHM=INPLACE, LOCK=NONE`(가상 열 색인 생성 — 읽기·쓰기 허용, 표 크기에 비례하는 시간)
+    (3) `admin_audit_event` CHECK ①~③ `ADD CONSTRAINT …, ALGORITHM=COPY`(MySQL은 CHECK 추가 시 기존 행 검증을 위해 표 복사 — **DML 차단**)
+    (4) `admin_approval_request` `DROP CHECK ck_admin_approval_request_target, ADD CONSTRAINT …, ALGORITHM=COPY`(V13 선례와 같은 한 문장 — DML 차단).
+    migration 시험이 SQL 원문에서 문장별 `ALGORITHM` 절을 단언(누락·변경 = RED). MC-3-2 해시 비교(기존 행 값 불변)는 그대로. 운영 적용 시간·잠금은 L-14(LIVE Gate 유지보수 창).
+    Domain `TARGET_REF` + 코드·`AdminAuditEvent.targetMerchantId`, `ApprovalTarget.Merchant(merchantId, code)` ref/key 분리·수정 지점 전부(§5.6.4), pinned `merchantCode`(새 행 필수·기존 행 선택), target_ref 저장값 표(C-32), 승인·감사 응답 `targetMerchantId`, 감사 필터 `targetMerchantId`.
+    단독 배포 가능: 화면은 아직 `targetRef`를 그리므로 새 행은 코드·기존 행은 `mer_`(지금보다 나빠지지 않음 — 완전한 비노출은 3c). 배포 경계: MC-3a 배포 전에 만든 PENDING 승인(target_ref `mer_`, pinned 코드 없음)이 배포 뒤 승인·회복돼야 한다(MC-3-9).
+  - **MC-3b 라벨 읽기(MASTER + ADMIN, migration 없음)**: MASTER `POST /internal/v1/admin/merchant-labels`(라벨 permit 공유), ADMIN `MasterLabelGateway.merchantLabels`·`MasterResponseShape.MERCHANT_LABELS`·`MerchantLabelClient.merchantLabels`·`POST /api/merchant-labels`·지표·라벨 분당 창 설정(rev 0.4.8 — §5.6.3 설정 위치 ①~③ 전부), golden(`merchant-ops-response-shapes-v1.golden.json`에 `merchantLabels` 표본 — MASTER 원본·ADMIN 사본 바이트 동일). 배포 순서: MASTER 먼저(ADMIN만 먼저 올라가면 MASTER 404 → UNAVAILABLE — 화면은 "—", 목록 영향 없음, fail-safe).
+  - **MC-3c 화면(ADMIN frontend만)**: `lib/merchantTarget.ts`(§5.6.2 규칙 순수 함수)·`adminApi.merchantLabels`·`fakeApi`, 승인함·내 요청 목록 칸·행 접근 이름, 승인 상세 5종(요청 시 코드 → 현재 코드), 감사 화면 대상 칸·당시 표기·detail 방어 치환·"가맹점 코드" 조회칸(코드 검색 → `targetMerchantId`), 기존 시험 기대값 변경(§8 MC-3-20).
+  Demo: 계약 승인 요청(MC-3 전 생성 행 1 + 후 생성 행 1)이 승인함에서 둘 다 "데모상점 · demoshop01"(브라우저 DOM·접근 이름에 `mer_` 0), 상세 "요청 시 코드 → 현재 코드"(계약 전 코드 변경 가맹점), 감사 화면 가맹점 코드로 조회 → 전환 전후 행 모두, MASTER 정지 중 → "—" + 안내 1줄·목록 정상.
 - **MC-4 PAYMENT 투영·외부 필드**(Q-MC-8): Snapshot v4(승격 = revision +1, §6), PAYMENT V35, 웹훅·응답, golden, 변경 명령의 revision +1. 배포는 PAYMENT 먼저, MASTER 뒤.
 - SETTLEMENT-001: 수용 기준만.
 
@@ -415,6 +563,46 @@ Fixture: `MerchantCodeFixtures.VALID = "shopabcd12"`, 경계 `"abcdef"`(6)·`"a"
 **MC-3 감사·승인 대상 표기 전환**
 1. migration V15 CHECK(`mer_`·코드 둘 다 허용, 그 밖 3819). 2. 새 target_ref = 코드, 기존 행 해시 불변(전환 전후 전 행 `SHA2(CONCAT_WS…)` 비교). 3. 감사 target_ref 코드·대조군(사업자·계약 대상 불변), 코드 변경 승인 건은 요청 시점(옛) 코드. 4. 연결 조회: 옛 코드·새 코드·`mer_` 어느 것으로 찾아도 같은 행 집합. 5. MASTER 본문·`mop1` 불변(기존 벡터 그대로).
 6. `TARGET_REF` 정규식: 코드와 `xxx_<ULID>`·ACQ가 서로 오인되지 않음(표 시험). 7. 변이: (a) 감사 target_ref 되돌림 → 3 RED, (b) 연결 조회가 은퇴 코드 제외 → 4 RED.
+   (rev 0.4.6) 4의 연결 조회는 §5.6.4 방식(코드 → ADMIN 코드 검색 → `targetMerchantId` 필터 → `target_merchant_key`)으로 시험한다. 변이 (b)는 "연결 조회가 `target_merchant_id`만 보고 기존 `mer_` 행(`target_ref`)을 빼기" → 4 RED로 바꿔 적용한다(은퇴 코드 열거가 없어졌으므로 같은 의도의 변형 — 기대값 완화 아님).
+
+**MC-3 추가 시험(rev 0.4.6 — §5.6, APPROVAL-TARGET-KEYS-001 합침. RED 먼저: 각 배치의 첫 커밋 전 RED 로그를 남긴다)**
+
+*MC-3a(ADMIN Kotlin·실 MySQL 8.4·공식 경로 Named Fixture — Fixture Monkey 미사용)*
+8. V15 감사 CHECK ①~③을 **그 CHECK만 어기는 행**으로 하나씩 3819 + 보고된 제약 이름 단언(MC-1b r2 MINOR-1 방식), 기존 행 수 = 통과 행 수(migration 전후). V13 CHECK ③(`…_target_merchant_present`)은 MC-3부터 **단독 위반 행이 가능**(코드 target_ref + `target_merchant_id` NULL) → information_schema 본문 고정에서 3819 행 시험으로 강화(`// 기대값 변경` 아님 — 증명 강화).
+9. **배포 경계 회복**: V15 전 형태의 PENDING 계약 승인 행(target_ref `mer_`, `target_merchant_id` `mer_`, pinned에 `merchantCode` 없음)과 실행 중(OwnerExecution 결과 불명) 행을 Fixture로 둔 채 → 승인·회복이 성공하고 MASTER 호출 merchantId = `mer_`, 새 감사 행 target_ref = **그 승인 행의 target_ref**(`mer_` — 한 승인 건의 감사 표기는 승인 행을 따른다, §5.5 규칙).
+10. 새 가맹점 대상 승인 요청(계약·첫 MID·개통·Site 심사·통화·코드 변경 6종 — 앱에 요청 경로가 있는 종류, MC-1b 한계와 같음): 승인 행 target_ref = 요청 시점 코드, `target_merchant_id` = `mer_`, `unresolved_key` = `MERCHANT[:그룹]:<mer_>`(전환 전 행과 같은 키 — 같은 가맹점·그룹 전환 전 PENDING이 있으면 새 요청 1062 `DuplicateUnresolved`), 모든 감사 행 `target_merchant_id` = `mer_`(승인 행 감사 target_ref = 코드, 승인 행 없는 요청 단계 거절 감사 target_ref = `mer_` — §5.6.4 C-32 표, rev 0.4.7 m-1).
+    (rev 0.4.7 m-5) `ApprovalTarget.Merchant` 표 시험: `code` 형식 위반(대문자·`_`·5자·15자) → `require` 실패, 새 요청 팩토리에 코드 없음 → 컴파일 불가(타입 non-null) + MASTER 상세 대역이 코드 없는 응답을 주면 요청 거절(승인 행 0·`mer_` 표기 행 0).
+11. ref/key 분리: 코드 표기 승인 행의 실행·회복·무결성 보고·대사 발견이 모두 `mer_`를 쓴다(MASTER 대역이 받은 merchantId·발견 행 대상 단언). `ApprovalService.auditTarget` 경로(0단계 감사)가 코드 행에서도 대상 감사를 남긴다(대상 유실 0).
+12. target_ref 저장값 표(§5.6.4 C-32) 행별 단언: MERCHANT_VIEWED FOUND = 코드·NOT_FOUND = `mer_`, 가맹점 등록 성공 = 코드(+ `mer_`), Site·계약 등록 요청·거절 = `mer_`(+ `mer_`), 승인 행 없는 요청 단계 거절(미해결 중복·요청자 부적격) = `mer_`(+ `mer_`), 사업자 대상 = `biz_`·NULL(대조군 — 불변), Payment·매입 파일 대상 감사 = 지금 값 그대로·`target_merchant_id` NULL(helper 이전 대조군). **가맹점과 관련된 새 감사 행 중 `target_merchant_id` NULL = 0**(전 작성 지점 실행 후 표 전체 질의).
+13. pinned `merchantCode`: 새 행 5종 봉인 JSON에 있음, 기존 행(키 없음) 읽기 성공, A 단계에서 코드만 다른 MASTER 재조회 → INVALIDATED 아님(C-19 — 코드 변경 가맹점의 Site 심사 승인 성공).
+14. (MC-3b) 라벨 permit 격리: 라벨 permit을 모두 잡은 채 `approvalDecision`·가맹점 목록 정상, 역방향 read permit 소진 → 라벨 Found(TXN-LIST-ENRICH-001 T-E2-12 방식 — ADMIN gateway·MASTER API 두 수준).
+15. 대사 질의: "MC-3 배포 시각 뒤 생성된 가맹점 대상 승인 행·감사 행(코드 형식 target_ref) 중 `target_merchant_id` NULL" = 0(두 표 — CHECK ③과 V13 ③이 DB로도 막음을 함께 단언).
+16. 승인·감사 응답 `targetMerchantId`: 가맹점 대상 = `mer_`(기존 행·새 행 모두), 그 밖 = null. 감사 필터 `targetMerchantId`: 형식 위반 400, VIEWER·OPERATOR는 자기 행만(범위 규칙 불변), `AUDIT_VIEWED` detail에 값 없음, 계획 시험(`EXPLAIN` key = `ix_admin_audit_event_target_merchant`, type ≠ ALL — 표본 ≥ 5가맹점 공식 경로, ANALYZE TABLE).
+
+*MC-3b(MASTER·ADMIN Kotlin)*
+17. MASTER `merchant-labels`: 3 키 → 오름차순·이름·현재 코드(MC-1b 변경 가맹점은 새 코드), 없는 키 빠짐·TERMINATED 포함, 본문 엄격성 400(0개·51개·중복·형식·모르는 키·query), 401·busy 503 + 지표 `busy{endpoint="merchant_labels"}`, 응답 비노출(`businessId`·등록번호·코드 이력 없음 — 대조군), 쓰기 0·`MERCHANT_VIEWED` 0, 계획 P-1(type=ALL 없음). ADMIN gateway: 서명 golden, TX 안 호출 거부, permit busy·timeout(라벨 timeout 근처 — 상한 단언)·5xx·상한 초과·모양 위반·대응 위반(보낸 집합 밖·중복·순서) → Unavailable(분류 OK·BUSY·UNAVAILABLE·UNREADABLE), 이름 규칙 대조(TXN-LIST-ENRICH-001 §4.4 M-4 표 재사용). ADMIN `POST /api/merchant-labels`: 역할 4종 외 403·MASTER 0회, 형식·51개 400·MASTER 0회, 창 1 소비·초과 429, MASTER 실패 → 200 + `"UNAVAILABLE"`·items `[]`, 감사 0행, 로그·지표 label에 키·상호·코드 없음. golden 교차(원본·사본 바이트 동일), ArchUnit(`MerchantLabelClient` 사용처 = merchantops web 라벨 controller 뒤 Use Case(MerchantTargetLabelUseCase→Service→client)·`TransactionLookupService`, query adapter 쓰기 금지).
+
+*MC-3c(Vitest — 공용 `src/test/domScan.ts` `domOccurrences`)*
+18. `merchantTarget` 단위 표: 라벨 있음 → "<상호> · <코드>", OK·없음 → "가맹점 정보 없음", UNAVAILABLE·로딩 → "—", `biz_` → "사업자", 그 밖 원문, 분류 밖 `mer_`·`biz_` 포함 값 → "—". 어떤 분기 결과에도 `mer_`·`biz_` 없음(속성 시험 — 임의 라벨 상태 × 대상 값).
+19. 승인함·내 요청: 가맹점 대상 기존 행(target_ref `mer_`)·새 행(target_ref 코드) 둘 다 "데모상점 · demoshop01", 행 접근 이름 = "<종류> 데모상점 · demoshop01 <상태>", 라벨 호출 = 고유 키 정렬 1회(0개 → 미호출, 120개 → 50·50·20 순차 3회), UNAVAILABLE → "—" + 안내 1줄, **라벨 429 → UNAVAILABLE과 같은 표시**("—" + 안내 1줄, 오류 알림·세션 종료 처리 없음, 목록·승인 버튼 정상 — rev 0.4.7 C-35), 라벨 호출 실패(네트워크)도 같은 표시. (MC-3b 쪽 Kotlin) `POST /api/merchant-labels` 분당 창: 호출 1회당 1 소비(50개 묶음도 1), `label-reads-per-minute` 초과 → 429·MASTER 0회, **가맹점 검색 창 `lookup-per-minute` 소비 0**(라벨을 창 한도까지 부른 뒤에도 가맹점 목록 검색이 성공), 설정 키 누락·범위 밖 → 기동 실패. 상세 5종: pinned 상호 + 요청 시 코드, 다르면 "→ 현재 <코드>", 기존 행은 현재 코드만. 감사 화면: 가맹점 행 = 라벨, 당시 표기 `(당시 <옛 코드>)`, `biz_` 행 = "사업자", detail 안 `mer_…` 토큰 → "—"(`title` 포함), "가맹점 코드" 조회: 형식 위반 → 화면 오류·호출 0, 코드 검색 0건 → "없는 가맹점 코드"·감사 호출 0, 1건(은퇴 코드 일치 포함) → `audit({targetMerchantId})` 1회, 검색 실패 → 감사 호출 0.
+    모든 상태(목록·상세 열림·UNAVAILABLE·오류·빈 목록)에서 `domOccurrences(document.body, 'mer_')`·`'biz_'` = `[]`.
+20. **기존 시험 기대값 변경(목록 — 각 줄에 `// 기대값 변경: D-ADMIN-UI-004 ③·D-MCODE-003 ① — 화면에 내부 키 미표시(MERCHANT-CODE-001 rev 0.4.6 §5.6, APPROVAL-TARGET-KEYS-001 합침)` 주석)**:
+    `ApprovalsScreen.merchant.test.tsx:41` `getByText(MER)` → 라벨 텍스트 + DOM `mer_` 0건; `AuditScreen.test.tsx:34` `getByText('mer_01JC…')` → 라벨 텍스트(L-13 "비계정 대상이 대상 칸에 보인다"는 Payment·파일 대상으로 유지 — 대상 칸 존재 의도는 보존); `ApprovalsScreen.activation/currency/codeChange.test.tsx`·`MerchantContractApprovalDetail` 관련 시험 중 `mer_` 표시를 단언하는 줄(있으면 같은 주석). 응답 Fixture의 `MER`(내부 키)는 그대로 둔다(D-BIZLOOKUP-001 — 응답 포함·화면 미표시).
+    Kotlin: 승인·감사 응답 키 집합 단언(`targetMerchantId` 추가 — 근거 §5.6.4), pinned 봉인 키 집합(`merchantCode` 추가 — §5.3·§5.6.4), MC-1b의 "코드 변경 승인 target_ref = `mer_`(C-21)" 단언 → 요청 시점 코드(C-21은 "MC-3 전까지"였다 — 근거 §5.5 배치 경계), migration 목록 수 증가(Boot·Context spec — MC-1 수정 라운드 A와 같은 목록 증가),
+    **(rev 0.4.9)** §5.1·C-32 저장값의 직접 결과 — 가맹점 대상 승인 행·승인 감사·승인 근거 조회 감사 target_ref = 코드, MERCHANT_VIEWED FOUND = 코드, 가맹점 등록 성공 = 코드(+ target_merchant_id mer_),
+    **(rev 0.4.9)** 조회 조건 변경(기대값 그대로) — 시험 SQL `target_ref = mer_` → `target_merchant_key`/`COALESCE(target_merchant_id, target_ref)`. **완화 금지**: 다른 단언(본문·지문·`mop1`·권한·감사 행 수)은 바꾸지 않는다.
+21. `noRuntimeStyles`·tsc 0·새 의존성 없음. 새 색은 기존 workspace 토큰만.
+22. 변이(배치별, 전부 RED·원복 동일 기록 — `muts.json`): (a) 승인 목록 칸을 `targetRef`로 되돌림 → 19 RED, (b) `MerchantOpsApprovalService`의 MASTER 호출을 `target.ref`로 되돌림 → 11 RED, (c) 감사 CHECK ③ 제거 → 8 RED, (d) 가상 열 COALESCE에서 `target_ref` 분기 제거 → 4·16 RED, (e) 라벨 대응 검사 제거(보낸 집합 밖 키 허용) → 17 RED, (f) UNAVAILABLE에서 키를 대신 그리기 → 18·19 RED, (g) pinned `merchantCode`를 읽기에서도 필수로 → 9·13 RED, (h) 라벨 permit을 read permit으로 바꿈 → 14 RED,
+    **(rev 0.4.7)** (i) `OwnerOutcomeApplier` 감사가 `targetMerchantId`를 빼먹음 → 23 RED(3819 → TX2 실패·상태 EXECUTING 잔류), (j) 만료 작업 감사가 `targetMerchantId`를 빼먹음 → 23 RED(행 PENDING 잔류), (k) 새 요청 팩토리가 코드를 넣지 않음(`mer_` 표기) → 10 RED, (l) 라벨 API가 `lookup-per-minute` 창을 소비 → 19 RED, (m) V15 문장의 `ALGORITHM` 절 제거 → migration 원문 시험 RED, (n) approval 감사 작성 하나가 helper를 우회해 `targetRef = request.target.ref` → 24 RED,
+    **(rev 0.4.8)** (o) 회복 경로가 `reportIntegrity`에 대상 대신 문자열 `mer_`만 넘김(가맹점 키를 문자열에서 만들거나 코드 표기를 잃음) → 23 RED(회복 무결성 감사 행의 `target_ref`가 승인 행 표기(코드)와 다름, Payment 대조 행에 `target_merchant_id`가 생김), (p) `label-reads-per-minute` 설정 누락 시 기본값으로 기동 → MC-3b 설정 시험 RED.
+    **(rev 0.4.9 — 배치 구분)** MC-3a muts.json은 (b)(c)(d)(g)(i)(j)(k)(m)(n)(o)와 MC-3-7 (a)(b')만 기록한다. (e)(h)(l)(p)는 MC-3b, (a)(f)는 MC-3c 범위다(각 배치의 RED 증거로 기록).
+23. **(rev 0.4.7 MAJOR-1) 새 형식 행의 전 작성 지점**: MC-3a 뒤 만든 **코드 표기** 가맹점 승인 행(계약 승인 Fixture — 공식 요청 경로)으로 각각 실행해 상태 전이 성공 + 그 경로가 쓴 감사 행 `target_ref` = 코드·`target_merchant_id` = `mer_` 단언:
+    철회(→ WITHDRAWN), 거절(→ REJECTED), 만료 작업(→ EXPIRED — 건너뜀 0), 승인 단계 거절(승인자 부적격·`APPROVER_IS_REGISTRANT` → 분리 감사, 승인 행 PENDING 유지), 0단계 분리 감사(`ApprovalService.separateAudit` — 대상 유실 0), 실행 결과 EXECUTED(→ EXECUTED·미해결 키 해제)·OWNER_REJECTED·EXECUTION_UNKNOWN(→ 회복 작업이 다음 시도에서 해소)·`APPROVAL_RESEND_HALTED`, 적용기 무결성 위반(`IntegrityViolation` 분리 감사 — `ownerRef` = 코드, 내부 키 `mer_`).
+    회복 작업(시스템 행위자)·웹 승인 두 경로 모두. 대조: MC-3a 전 형식 행(target_ref `mer_`)도 같은 경로가 `mer_` + `mer_`로 성공(MC-3-9와 짝).
+    **(rev 0.4.8 — 재리뷰 MINOR-1) 회복 작업 무결성 보고**: ① 코드 표기 가맹점 승인 행과 ② **Payment 승인 대조 행**(`OPERATOR_CORRECTION_CANCEL`) 각각에 대해 "명령 행 없음"(`column=command` — 가맹점 `MerchantOpsApprovalService.kt:692`·Payment `OwnerExecutionRecoveryService.kt:101`)과 "실행 종류 불일치"(`column=execution_kind` — 가맹점 L697·Payment L109; rev 0.4.9 정정 — L169·175는 매입 회복 경로)를 Fixture로 만들고 회복 작업 실행 →
+    `APPROVAL_INTEGRITY_VIOLATION` 감사 행 값 단언: ① `target_ref` = 승인 행 코드·`target_merchant_id` = `mer_`, ② `target_ref` = `pay_…`·`target_merchant_id` NULL·`target_actor_id` NULL. 승인 행 자체가 없는 경우(`column=approval`)는 대상 열 모두 NULL(지금 동작과 같음). 대사 발견 행(L756)의 대상은 `mer_`(감사 아님 — 대조).
+24. 소스 검사(ArchUnit 또는 소스 스캔 시험): `approval/application/**`·`merchantops/application/**`의 `AuditRecord(` 호출에서 `targetRef =`·`targetMerchantId =` 인자는 `ApprovalAuditTarget.kt`와 `MerchantLookupService`·`MerchantRegistrationService`(C-32 표 지점) 밖 0건, `targetRef = …target.ref` 패턴 0건. 매입 파일·Payment 대상 감사 값은 helper 이전 전후 동일(대조군 — 기존 시험 그대로 통과).
+수용(MC-3a·3b·3c 각각): 위 해당 항목 + GRADLE-CHECK·HARNESS-SELFTEST·frontendTest PASS, skip·0건 없음, 기존 시험 약화 없음(20의 목록 밖 기대값 변경 0), source fingerprint·명세 sha256 기록, Coordinator Demo(§7 MC-3 Demo — 브라우저 DOM 확인 포함).
 
 **MC-4 PAYMENT 투영·외부 필드**
 1. Snapshot v4 golden(두 앱 + `harness/tests/test_entitlement_golden.py`)·재발행·같은 revision 다른 코드 → `INTEGRITY_CONFLICT`. 2. 웹훅·응답 필드·생략·`mer_`/`biz_` 0건, 요청 본문 `merchantCode` → 400(출력 전용). 3. Simulator 0건.
@@ -458,6 +646,14 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 **C-26(rev 0.4 — Coordinator 결정, 리뷰 m-7)** 채우기 코드 = `'m'` + `SHA2(merchant_id,256)` 소문자 16진 앞 13자(ULID 꼬리 아님 — 충돌은 migration 실패) /
 **C-27(rev 0.4.1 — Coordinator 결정, 구현 질문 Q-MC1-1)** C-23 선확인에서 T0를 싣는 단계 제외(기존 시험 DEMO-SEED-001 I-7 기대 유지 — 대안 "I-7 기대 변경"은 기존 기대 완화라 기각). Demo seed 한정·금융 효과 없음·가역.
 **C-28(rev 0.4.3 — Coordinator 결정, MC-2 리뷰 MAJOR-1)** MC-2-3 "화면 `mer_` 0건"을 둘로 나눈다: **MC-2** = 표시 텍스트·접근 이름·목록·상세·결과·검토 화면, **MC-2b** = 등록 마법사 Site·계약 카드의 가맹점 입력칸을 코드 입력 + ADMIN 코드 검색으로 내부 키 해석·이름/코드 확인 표시(또는 앞 카드 결과 자동 선택으로 칸 숨김). 방식은 사용자 화면 검토 때 결정(D-ADMIN-UI-004 ③ 완결 작업, §7·§8 MC-2b). 해석 축소가 아니라 범위 분리 — MC-2의 시험은 남는 자리를 목록으로 고정한다.
+**C-29(rev 0.4.6)** 가맹점 대상 표시 라벨 = 새 MASTER 묶음 읽기 `merchant-labels`(merchantId 기준, 현재 상호·코드, 감사 없음) + ADMIN 화면 API `POST /api/merchant-labels`를 화면이 부름(대안 (a) MID 라벨 확장·(c) 응답마다 서버에서 붙이기 — `account → merchantops` 모듈 순환·(d) ADMIN 사본 기각, §5.6.3) /
+**C-30(rev 0.4.6)** 감사 표에 `target_merchant_id` + 가상 `target_merchant_key`(기존 `mer_` 행 포함 하나의 키) — 연결 조회는 그 키 하나, ADMIN은 이 열로 코드를 해석하지 않음(해석은 MASTER 코드 검색) /
+**C-31(rev 0.4.6)** `ApprovalTarget.Merchant(merchantId, code)` — `ref`(표기) ≠ `merchantKey`(내부 키), 내부 키 용도의 `target.ref` 사용처 전부 교체(§5.6.4 목록), 대사 발견·무결성 보고 대상은 `mer_` 유지 /
+**C-32(rev 0.4.6)** target_ref 저장값 표(§5.6.4): ADMIN이 이미 코드를 가진 지점만 코드, 코드를 모르는 Site·계약 등록 요청·거절과 MERCHANT_VIEWED NOT_FOUND는 `mer_`(감사를 쓰려고 MASTER를 더 부르지 않음 — 감사 쓰기가 추가 외부 가용성에 묶이지 않게). 화면은 저장값과 무관하게 라벨로 보이므로 Q-MC-4의 화면 의미는 모든 행에 적용된다 /
+**C-33(rev 0.4.6)** 표시 fail-closed 규칙(§5.6.2): 라벨 실패 "—"·없음 "가맹점 정보 없음"·`biz_` 대상 "사업자"(사업자 라벨 읽기는 후속 — 새 사업자 정보 읽기 경로를 이번에 만들지 않음)·detail 안 `(mer|biz)_<ULID>` 토큰 "—" /
+**C-34(rev 0.4.6)** 라벨 permit·timeout·상한은 TXN-LIST-ENRICH-001 §3.6 값·객체 공유(새 설정 키 없음), 화면은 50개씩 순차, ~~분당 창은 가맹점 조회 창 1 소비~~(rev 0.4.7 C-35로 대체), 캐시 없음.
+**C-35(rev 0.4.7 — Coordinator 결정, 리뷰 m-2)** 라벨 읽기는 가맹점 검색 창 `lookup-per-minute`를 소비하지 않는다. 별도 actor별 분당 창 `paycore.admin.master-ops.label-reads-per-minute`(rev 0.4.8 키 위치 정정, 새 설정 키, Demo 60 — 운영값 아님, LIVE Gate)를 HTTP 호출당 1 소비, 초과 429 → 화면은 UNAVAILABLE처럼 "—" + 안내 1줄(§5.6.2·§5.6.3, MC-3-19) /
+**C-36(rev 0.4.7 — 리뷰 MAJOR-1·m-1·m-5·n-2)** approval 감사 대상 열은 `ApprovalAuditTarget` 한 곳에서 만들고(소스 검사로 우회 금지), 가맹점 관련 감사 행은 예외 없이 `target_merchant_id = mer_`, 승인 행 없는 요청 단계 거절은 `mer_` 표기. `ApprovalTarget.Merchant` 코드 형식 `require`·새 요청 팩토리 코드 non-null. `IntegrityViolation.paymentId` → `ownerRef` 이름 변경 → **rev 0.4.8: 회복 무결성 보고도 `ApprovalAuditTarget?`를 넘김(문자열 금지, Payment 회복 경로에서 가맹점 키 생성 금지), 라벨 분당 창 키 = `paycore.admin.master-ops.label-reads-per-minute`(설정 위치 전부 §5.6.3)**.
 
 ## 11. 사용자 질문(모두 답변됨 — PENDING 없음)
 
@@ -474,6 +670,8 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 | **Q-MC-10** | **요청자≠승인자만(권장 반대 — 권장은 원 가맹점 등록자 승인 금지), 2026-11-14** | D-MCODE-002 | §2·§3.7.3·§3.8·§5.3·§5.5, 결정 고정 시험 MC-1b-1·3·7, 변이 MC-1b-11(g). D-MOPS-009 ③·D-MOPS-010 ② 확장 없음 |
 
 새 질문 없음(rev 0.3 저장소 대조에서 금융·보안·키 동일성 미결을 새로 찾지 못함 — §5.5 target_ref 배치 경계는 기존 결정 Q-MC-4의 배포 순서 문제라 가역 C-21로 기록).
+**rev 0.4.6도 새 질문 없음**: 화면 비노출은 확정 결정(D-ADMIN-UI-004 ③·D-MCODE-003·D-BIZLOOKUP-001 원칙) 적용이고, 라벨 읽기가 보이는 값(상호·현재 코드)은 같은 4역할이 감사 없는 가맹점 목록에서 이미 보는 값이라 새 노출·감사 규칙 변경이 없다(D-MOPS-002). 기존 행은 수정하지 않는다(Q-MC-9). Coordinator 확인 권장 1건(질문 아님 — 가역): C-32의 "코드를 모르는 행은 `mer_` 저장"이 Q-MC-4 의도에 맞는지(화면은 모든 행이 코드로 보임).
+**C-32 해석 기록(rev 0.4.7 — Coordinator 결정, 리뷰 m-4)**: ADMIN이 코드를 모르는 지점(Site·계약 등록 요청·거절, MERCHANT_VIEWED NOT_FOUND, 승인 행 없는 요청 단계 거절)에 `mer_`를 저장하는 것은 rev 0.4 §5.1이 정한 전환 대상(MERCHANT_VIEWED·가맹점 등록 성공·가맹점 대상 승인 감사)과 **일치**한다 — Q-MC-4 범위를 줄이는 것이 아니다. 화면은 저장값과 무관하게 언제나 코드(현재 상호·코드)를 보이고, 그 행 시점의 코드는 MASTER 배정 이력(`merchant_code_assignment` — `assigned_at`·seq)으로 언제든 복원할 수 있다. 사용자에게는 Coordinator가 다음 보고에서 알린다(질문 아님).
 
 ## 12. 위험
 - L-1 Demo·운영 DB 간 중복 불가피(별도 DB). L-2 채우기 행은 이력 이벤트 없음(`source = BACKFILL`로 구별). L-3(rev 0.4 정정) 배포 경계 재전송: MC-1 배포 전 ADMIN 등록을 배포 뒤 재전송하면 MASTER 400 → ADMIN `Unknown`(`HttpMasterOpsGateway.kt:89`, rev 0.3의 "409"는 틀림) — Demo 한정, 운영자가 가맹점 조회로 확인. MASTER·ADMIN 한쪽만 배포된 상태는 지원하지 않는다(C-22). L-4 ADMIN CHECK가 `mer_`를 계속 허용 — 새 행 코드 강제는 앱·시험. L-5 코드는 공개값, 인증 근거 아님.
@@ -482,6 +680,10 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 - **L-8** 변경 승인과 계약 승인 요청이 같은 미해결 그룹 → 변경 대기 중에는 계약 승인 요청을 낼 수 없다(의도된 직렬화 — 화면 안내 "코드 변경 승인 대기 중").
 - **L-9** 변경 직후 짧은 시간 ADMIN 화면 캐시·열린 탭이 옛 코드를 보일 수 있다(표시만 — 명령은 `mer_`로 가므로 오작동 없음, 상세 재조회로 갱신).
 - **L-10(rev 0.3)** Q-MC-10 답에 따라 가맹점을 등록한 사람이 다른 OPERATOR의 코드 변경 요청을 승인할 수 있다(자기가 정한 코드를 바꾸는 승인). 통제는 요청자 ≠ 승인자·직전 TOTP·감사 old→new·1회 한도·계약 승인 전 한정이며, 사용자가 이 범위를 선택했다(D-MCODE-002). 등록자 승인 건은 감사(`APPROVAL_*` 행위자 vs MASTER 상세 등록자)로 사후 조회 가능.
+- **L-11(rev 0.4.6)** 응답 JSON에는 `mer_`(`targetRef` 기존 행·`targetMerchantId`·pinned·라벨 응답)·`biz_`(감사 `targetRef`)가 남는다 — 브라우저 개발자 도구에서 보인다(D-BIZLOOKUP-001 "응답 포함, 화면 미표시" 원칙, ADMIN-HISTORY-KEYS-001 §9와 같음).
+- **L-12(rev 0.4.6)** 라벨 permit을 거래 목록 라벨과 공유 — 동시 조회가 몰리면 라벨만 "—"(목록·승인·회복 영향 없음, 지표로 관찰). 화면 표시는 **현재** 상호·코드(TXN-LIST-ENRICH-001 L-3과 같은 성질) — 당시 코드는 상세·당시 표기로 보인다.
+- **L-13(rev 0.4.6)** 감사 화면의 사업자 대상은 "사업자"만 보인다(어느 사업자인지 화면에서 바로 알 수 없음). 사업자 라벨(상호·마스킹 번호) 읽기는 후속 작업 후보(MERCHANT-BIZ-LOOKUP-001 또는 별도 — 등록번호 조회 감사 D-MOPS-003과의 관계를 그때 명세).
+- **L-14(rev 0.4.7 — 리뷰 m-3)** ADMIN V15의 CHECK 추가·재생성 두 문장은 `ALGORITHM=COPY`(표 복사 — 그 동안 `admin_audit_event`·`admin_approval_request` **DML 차단**: 로그인·감사 기록·승인 요청이 멈춘다). Demo는 작은 표라 무시 가능하지만 **운영 적용은 유지보수 창이 필요**하다(LIVE Gate 항목 — 표 크기별 예상 시간 측정·창 공지·재기동 순서). 열 추가는 INSTANT, 색인은 INPLACE·LOCK=NONE(쓰기 허용, 시간은 표 크기 비례). 온라인 스키마 변경 도구 도입은 이번 범위 밖.
 
 ## 13. 기록
 | rev | 내용 |
@@ -502,3 +704,6 @@ C-1 최소 6자·첫 글자 영문 / C-2 예약어 코드 상수 / C-3 혼동 �
 | 0.4.4-impl MC-1b r2 | **MC-1b 리뷰(REVIEW_PASS, MAJOR 0) 후속 — 시험 강화만(정책·기대값 완화 없음, Implementer).** MINOR-1 `AdminSchemaSpec` V13 CHECK ①~④를 하나씩 증명: ②·④는 그 CHECK만 어기는 행으로 3819 + 메시지의 제약 이름(`…_target_merchant_kind`·`…_same`), ① 행은 ④도 어기지만 MySQL이 보고하는 이름 `…_target_merchant_format`을 단언하고 본문도 고정, ③은 MC-3 전까지 대상 CHECK(`target_ref` mer_만)가 함의해 단독 위반 행이 불가능 → `information_schema.CHECK_CONSTRAINTS` 본문 고정. 변이 ① 제거·③ 제거 각각 RED·원복 동일(`~/gate-logs/mcode-mc1b/muts-r2.json`). MINOR-2 요청자 = 승인자 대조군: `SELF_APPROVAL` 뒤 같은 계정이 **같은 TOTP 코드**로 다른 운영자의 코드 변경 요청을 승인 → EXECUTED(거절이 TOTP 소비 전임을 증명). NIT-4 `Contract.approve`·`approveWithEvidence` 호출자 고정을 클래스 → 메서드(`approveContractRevision`·`approveContractRevisionWithEvidence` — `approveRevision`에 넘기는 lambda)로 좁힘. Coordinator Demo E2E 21단계 PASS(fingerprint `20d3ef85…`, `~/gate-logs/mcode-mc1b/demo/e2e-result.json`) 기록. |
 | 0.4.5-impl MC-2b | **MC-2b 구현 기록(Implementer, 2026-11-15 — 사용자 결정 D-MCODE-003, 기준 HEAD `c4118c3`; 자기 완료 판정 아님 — Verifier·Reviewer 별도, 정책 변경 없음, 화면만 — ADMIN Kotlin·MASTER·API·migration 변화 없음).** **가맹점(D-MCODE-003 ①)**: `MerchantRegistrationScreen.tsx` Site·계약 초안 카드의 "가맹점 ID" 입력칸(value·placeholder `mer_…`·형식 오류 문구 `가맹점 ID 형식(mer_…)이 아닙니다.`) 제거 → 읽기 전용 `Affiliation`("소속 가맹점: <상호> · <코드>", 없으면 "아직 없음", 저장 시도 시 "가맹점을 먼저 등록하세요(가맹점 카드)." / "(2단계 가맹점 카드)." — 저장 호출 0). 맥락 = 새 `offerMerchant(memory, MerchantRef)`(가맹점 카드 성공 시 호출 — 상호·코드 기억 `knownMerchants`, 맥락 `contextMerchantId`, 잠김·완료가 아닌 Site·계약 초안에만 내부 키 채움 — 리뷰 m-1 규칙 그대로). "다른 Site 추가 입력"·"계약 초안 새로 입력"은 지금 맥락 가맹점을 다시 가져온다. 저장 본문 `merchantId`·`scopeMerchantId`는 내부 키 그대로. `lib/registration.ts` `MerchantRef` 추가. **사업자(②)**: `biz_`는 이미 화면에 없었다(ADMIN-UI-MERCHANT-002) — 표시 형식만 "<상호> · <마스킹 번호>"로 통일(마법사 `BusinessText`, `BusinessRegistrationScreen` 안내 문장). 마스킹 값은 서버 응답(`registrationNumberMasked`) 또는 기존 화면 계산(`maskRegistrationNumber`) 그대로 — 새 응답 필드·평문 노출 없음. **시험(Vitest)**: 공용 `src/test/domScan.ts` `domOccurrences`(텍스트·모든 속성·입력 value). MC-2의 `MC2B_ALLOWED` 6곳 → 빈 목록, 마법사 모든 단계·오류·잠김 상태 `mer_` 0건; `biz_`·평문 등록번호 DOM 0건(마법사 전 단계, 가맹점 조회 목록·상세, 사업자 등록). 기존 시험 중 "가맹점 ID" 칸에 입력하던 시험은 맥락 가맹점 fixture(`withMerchant` → `offerMerchant`)로, 형식 오류 시험은 "소속 가맹점 없음 → 보내지 않음"으로, 잠김 시 칸 disabled 단언은 "소속 표시 그대로"로 바꿨다(본문·submissionId·잠금 단언 불변). RED 21건(`~/gate-logs/mcode-mc2b/red-1.log`) → GREEN 3파일 85건, 전체 44파일 341건 + tsc exit 0. 변이 5종 전부 RED·복원 동일(`muts.json`). **남은 것**: ① 마법사 밖 기존 가맹점에 Site·계약 초안을 붙이는 경로는 이제 화면에 없다(MC-2 이후에도 `mer_`를 화면에서 볼 수 없어 사실상 쓸 수 없던 경로) — 가맹점 상세에서 `offerMerchant`로 넘기는 진입점은 별도 결정·배치. ② 사업자 선택의 가맹점 없는 사업자 조회는 MERCHANT-BIZ-LOOKUP-001(BL-1~3, 미구현). ③ 감사 화면 `targetRef`의 `mer_` 표기는 MC-3 범위. |
 | 0.4.5-impl MC-2b r2 | **MC-2b 리뷰(REVIEW_PASS, MAJOR 0) 후속(Implementer, 2026-11-15 — 시험 강화만, 정책·기대값 완화 없음, 화면만).** MINOR-1 늦게 온 Site 성공은 그 가맹점이 지금 맥락 가맹점일 때만 계약 초안 소속 가맹점을 채움(잠긴 Site 재전송이 계약 초안을 옛 가맹점으로 되돌리지 않음). MINOR-2 `MerchantRef.businessId` 추가, 계약 당사자 사업자 ≠ 소속 가맹점 사업자면 화면 오류·저장 호출 0(화면 가드 — 판정은 MASTER `SCOPE_MERCHANT_OF_OTHER_BUSINESS`). NIT-1 `domOccurrences`가 root 전체 텍스트(쪼개진 텍스트 노드)도 검사 + 자체 시험. NIT-2 사업자·계약 당사자·소속 가맹점 묶음 `ReadOnlyGroup`(접근 이름 하나 — 보이는 제목 aria-hidden, 오류는 aria-describedby). NIT-3 기억에 없는 내부 키는 "아직 없음"으로 보이고 저장 막음(도달 불가 조회 안내 분기 제거), ④ Site 행 대체 문구 주석 정정. MINOR-3(가맹점 상세 진입점)은 구현하지 않음 — Coordinator 후속. 시험: 대상 4파일 89건·전체 45파일 345건·tsc exit 0, 변이 5종(`muts-r2.json`) 전부 RED·복원 동일. |
+| 0.4.6 | **APPROVAL-TARGET-KEYS-001을 MC-3에 합침(Implementer, 2026-11-17 — 명세만, 기준 HEAD `146b2ba`; 정책 변경 없음, 자기 완료 판정 아님 — Reviewer 별도).** 발견: 승인함·내 요청 목록 대상 칸·행 접근 이름(`ApprovalsScreen.tsx:40·52`), 승인 상세 5종 pinned `merchantId`(`MerchantContractApprovalDetail.tsx:284·297·309·321·333`), 감사 화면 대상 칸(`AuditScreen.tsx:90` — `mer_`와 `biz_`)이 내부 키를 그림. MC-3 저장값 전환만으로는 기존 행이 남는다 → 새 §5.6(표시 시점 해석·fail-closed 규칙, MASTER `merchant-labels` 묶음 읽기 + ADMIN `POST /api/merchant-labels`, 감사 `target_merchant_id`·가상 `target_merchant_key`·연결 조회 단순화, ref/key 분리 수정 지점, target_ref 저장값 표, pinned 코드 선택 읽기, MC-3 8대 원칙·기술 연결). §5.4 정정(당시 표기에 `mer_` 없음). §7 MC-3a(ADMIN V15)·MC-3b(라벨)·MC-3c(화면). §8 MC-3-8~22(기존 기대값 변경 목록·근거 주석 문구, 변이 (a)~(h)). §1.4 migration 재확인(ADMIN V15 비어 있음·V16 비움, 현재 가맹점 대상 CHECK는 V13:17-33, MASTER 없음). C-29~C-34, L-11~L-13. 새 사용자 질문 없음 |
+| 0.4.7 | **rev 0.4.6 명세 리뷰 REVIEW_FAIL 반영(Implementer, 2026-11-17 — 명세만, 기준 HEAD `146b2ba`; 정책 변경·기대값 완화 없음, 자기 완료 판정 아님).** MAJOR-1: rev 0.4.6이 감사 작성 지점을 L859 하나만 적어, MC-3a 뒤 코드 표기 승인의 결과 적용(`OwnerOutcomeApplier` L194·178)·만료(`ApprovalService` L327)·철회/거절(L425)·0단계 분리 감사(L402)가 V15 CHECK ③에 막혀 승인이 EXECUTING/UNKNOWN·PENDING에 영구 잔류할 수 있었다 → `targetRef =`·`refOf(`·`ownerRef(` 전수 검색 표(§5.6.4), `ApprovalAuditTarget` 집중·`Refusal`/`IntegrityViolation`이 대상 값을 들고 다님·소스 검사 MC-3-24, 전 경로 시험 MC-3-23, 변이 (i)(j)(n), §5.6.5 Recoverability. m-1 C-32 표 승인 행 유무별 행 추가·MC-3-10·12 문구. m-2 C-35(라벨 분당 창 분리 `label-reads-per-minute` Demo 60, 429 → UNAVAILABLE 표시, 변이 (l)). m-3 V15 문장 4개·ALGORITHM 명시·원문 시험·변이 (m)·L-14. m-4 §11 C-32 해석 기록. m-5 `Merchant` 코드 `require`·`forNewRequest` non-null·`equals` 미사용·변이 (k). n-1 REGEXP_LIKE. n-2 `ownerRef`. C-36 |
+| 0.4.8 | **rev 0.4.7 재리뷰 REVIEW_PASS(조건부) 후속(Implementer, 2026-11-17 — 명세만, 기준 HEAD `146b2ba`; 정책 변경·기대값 완화 없음, 자기 완료 판정 아님).** MINOR-1: 회복 경로 무결성 보고가 여전히 문자열(`request?.target?.ref`)을 넘기던 설계 공백 → `reportIntegrity(…, target: ApprovalAuditTarget?)`·`IntegrityViolation(column, target)`, 호출자 4곳이 `request?.let { ApprovalAuditTarget.of(it.target) }`(승인 행 없으면 null), `OwnerExecutionRecoveryService`의 Payment 회복에서 가맹점 키를 만들지 않음, 대사 발견 L756은 `mer_` 유지(§5.6.4). MC-3-23에 회복 작업 무결성 시험(코드 표기 가맹점 행·Payment 대조 행 × `command`·`execution_kind`), 변이 (o). NIT-1: 키 = `paycore.admin.master-ops.label-reads-per-minute`(rev 0.4.7의 `merchant-ops.` 표기 정정 — 라벨 permit·timeout과 같은 `MasterOpsSettings` 블록), 필수 키 설정 위치 ①main `application.yml` master-ops 블록(L142-151) ②test `config/application.yml` master-ops 블록(L60-) ③`MasterOpsSettings(` 직접 생성 시험 5개, payment-ops(L111)·financial-ops(L173)는 해당 없음, 변이 (p). C-36 갱신 |

@@ -46,8 +46,8 @@ class MasterOpsGatewaySpec : BehaviorSpec({
     val json = JsonMapper.builder().build()
 
     fun settings(baseUrl: String = "http://127.0.0.1:${StubMasterOpsServer.PORT}", permits: Int = 2, read: Duration = Duration.ofSeconds(2), writePermits: Int = 2) = MasterOpsSettings(
-        // TXN-LIST-ENRICH-001 §3.6: 라벨 permit·라벨 read timeout(기본값 없음 — 시험 값).
-        baseUrl, StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30, 10, writePermits, 20, 2, minOf(read, Duration.ofMillis(500)),
+        // TXN-LIST-ENRICH-001 §3.6: 라벨 permit·라벨 read timeout(기본값 없음 — 시험 값). MERCHANT-CODE-001 C-35: 라벨 분당 창(기본값 없음 — Demo 60, 시험 값).
+        baseUrl, StubMasterOpsServer.KEY_ID, StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), read, permits, 30, 10, writePermits, 20, 2, minOf(read, Duration.ofMillis(500)), 60,
     )
 
     fun gateway(s: MasterOpsSettings = settings()) = HttpMasterOpsGateway(s, MasterCallSigner(s.keyId, s.signingKey())) { Instant.now() }
@@ -423,7 +423,7 @@ class MasterOpsGatewaySpec : BehaviorSpec({
 
     Given("settings and startup guard") {
         Then("MERCHANT-OPS-002: write-permits and registrations-per-minute have no default and are range-checked") {
-            fun s(write: Int?, regs: Int?) = MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, write, regs, 1, Duration.ofSeconds(1))
+            fun s(write: Int?, regs: Int?) = MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, write, regs, 1, Duration.ofSeconds(1), 60)
             shouldThrow<IllegalArgumentException> { s(null, 1) }
             shouldThrow<IllegalArgumentException> { s(1, null) }
             shouldThrow<IllegalArgumentException> { s(0, 1) }
@@ -432,10 +432,10 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             s(16, 10_000).writePermits shouldBe 16
         }
         Then("no defaults; base-url without path; key length; rates in range; toString hides the key") {
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings(null, "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1)) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h/x", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1)) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", "c2hvcnQ=", Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1)) }
-            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 0, 1, 1, 1, Duration.ofSeconds(1)) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings(null, "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1), 60) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h/x", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1), 60) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", "c2hvcnQ=", Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 1, 1, 1, 1, Duration.ofSeconds(1), 60) }
+            shouldThrow<IllegalArgumentException> { MasterOpsSettings("http://h", "k", StubMasterOpsServer.KEY_BASE64, Duration.ofSeconds(1), Duration.ofSeconds(1), 1, 1, 0, 1, 1, 1, Duration.ofSeconds(1), 60) }
             settings().toString() shouldNotContain StubMasterOpsServer.KEY_BASE64
         }
         Then("a master-ops key equal to the payment-ops key (bytes or kid) is refused; LIVE refuses a Demo key; a context path is refused") {

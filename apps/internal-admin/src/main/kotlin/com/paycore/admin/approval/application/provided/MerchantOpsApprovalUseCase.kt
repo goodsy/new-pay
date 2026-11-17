@@ -5,7 +5,8 @@ import com.paycore.admin.account.application.provided.AdminRequestContext
 /**
  * 가맹점 계약 승인 2인 요청(MERCHANT-OPS-002 B2-2 §9.5 — D-MOPS-004 요청 OPERATOR, D-MOPS-008 ① 근거 참조 필수). 입력 검사(TX 없음) → 세션 역할(비권위) → MASTER 상세 조회(TX 밖, 조회
  * permit — 미승인·끝나지 않은 Revision이어야, advisory) → TX(승인 행 INSERT — 같은 가맹점 미해결이면 `DUPLICATE_UNRESOLVED` → 요청자 잠금·재검사 → 명령 행 INSERT(pinned·근거) → 감사).
- * 승인은 [OwnerServiceApprovalUseCase.approve](종류 분기), 거절·철회·만료는 [ApprovalUseCase](같은 판정표, 감사 target_ref = merchantId).
+ * 승인은 [OwnerServiceApprovalUseCase.approve](종류 분기), 거절·철회·만료는 [ApprovalUseCase](같은 판정표). 감사 대상(MERCHANT-CODE-001 §5.6.4 C-32): 표기 target_ref = 승인 행 표기
+ * (MC-3a 뒤 새 행은 요청 시점 가맹점 코드, 그 전 행은 mer_), 내부 키 target_merchant_id = mer_.
  */
 interface MerchantOpsApprovalUseCase {
     fun requestContractApproval(command: RequestMerchantContractApproval): ApprovalOutcome

@@ -1,6 +1,7 @@
 package com.paycore.admin.merchantops.adapter.integration
 
 import com.paycore.admin.merchantops.application.required.MerchantOpsLimits
+import com.paycore.admin.merchantops.application.required.MerchantTargetLabelLimits
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.net.URI
 import java.time.Duration
@@ -16,6 +17,8 @@ import java.util.Base64
  *   [registrationsPerMinute](등록 명령 — MERCHANT-OPS-002 §4.4). 등록 명령 permit [writePermits](조회와 별개 — C-1).
  * - TXN-LIST-ENRICH-001 §3.6: 거래 목록 라벨 조회 전용 permit [labelPermits](조회 permit — 승인 결정 조회 포함 — 과 별개, 대기 0, 1..16 — M-1)와 라벨 전용 read timeout
  *   [labelReadTimeout]([readTimeout] 이하 — M-2: MASTER 지연이 목록을 일반 read timeout까지 붙잡지 않는다). 둘 다 기본값 없음.
+ * - MERCHANT-CODE-001 §5.6.3(MC-3b, C-35): 화면 가맹점 라벨 API의 actor별 분당 창 [labelReadsPerMinute](1..600, **기본값 없음** — 가맹점 검색 창 [lookupPerMinute]과 별개).
+ *   라벨 permit·timeout은 위 값을 그대로 공유한다(C-34).
  * toString에 키가 없다.
  */
 @ConfigurationProperties(prefix = "paycore.admin.master-ops")
@@ -32,7 +35,8 @@ class MasterOpsSettings(
     registrationsPerMinute: Int?,
     labelPermits: Int?,
     labelReadTimeout: Duration?,
-) : MerchantOpsLimits {
+    labelReadsPerMinute: Int?,
+) : MerchantOpsLimits, MerchantTargetLabelLimits {
     val baseUrl: URI = URI.create(required(baseUrl, "base-url"))
     val keyId: String = required(keyId, "key-id")
     private val key: ByteArray = decode(required(signingKey, "signing-key"))
@@ -53,6 +57,9 @@ class MasterOpsSettings(
     /** 라벨 조회 전용 read timeout(§3.6 M-2 — [readTimeout] 이하). */
     val labelReadTimeout: Duration = positive(labelReadTimeout, "label-read-timeout")
 
+    /** 화면 가맹점 라벨 API의 actor별 분당 창(MERCHANT-CODE-001 C-35 — HTTP 호출 1회당 1 소비, 1..600, 기본값 없음: 키가 빠지면 기동 실패 — 변이 (p)). */
+    override val labelReadsPerMinute: Int = requireNotNull(labelReadsPerMinute) { "paycore.admin.master-ops.label-reads-per-minute is required" }
+
     init {
         require(this.baseUrl.scheme == "http" || this.baseUrl.scheme == "https") { "paycore.admin.master-ops.base-url must be http(s)" }
         require(!this.baseUrl.host.isNullOrBlank()) { "paycore.admin.master-ops.base-url needs a host" }
@@ -68,6 +75,7 @@ class MasterOpsSettings(
         require(this.registrationsPerMinute in 1..MAX_RATE) { "paycore.admin.master-ops.registrations-per-minute 1..$MAX_RATE" }
         require(this.labelPermits in 1..MAX_LABEL_PERMITS) { "paycore.admin.master-ops.label-permits 1..$MAX_LABEL_PERMITS" }
         require(this.labelReadTimeout <= this.readTimeout) { "paycore.admin.master-ops.label-read-timeout must not exceed read-timeout" }
+        require(this.labelReadsPerMinute in 1..MAX_LABEL_READS) { "paycore.admin.master-ops.label-reads-per-minute 1..$MAX_LABEL_READS" }
     }
 
     /** 서명 키 사본(바깥에서 바꿀 수 없다). */
@@ -76,7 +84,7 @@ class MasterOpsSettings(
     fun usesKey(candidateBase64: String): Boolean = runCatching { Base64.getDecoder().decode(candidateBase64) }.getOrNull()?.contentEquals(key) == true
 
     override fun toString(): String =
-        "MasterOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits, writePermits=$writePermits, labelPermits=$labelPermits, labelReadTimeout=$labelReadTimeout)"
+        "MasterOpsSettings(baseUrl=$baseUrl, keyId=$keyId, signingKey=***, connectTimeout=$connectTimeout, readTimeout=$readTimeout, permits=$permits, writePermits=$writePermits, labelPermits=$labelPermits, labelReadTimeout=$labelReadTimeout, labelReadsPerMinute=$labelReadsPerMinute)"
 
     companion object {
         const val RESPONSE_MAX_BYTES = 256 * 1024
@@ -87,6 +95,9 @@ class MasterOpsSettings(
         /** 라벨 응답 읽기 상한(TXN-LIST-ENRICH-001 — 50항목 × 상호 100 code point 여유). 넘으면 해석 불가(UNREADABLE). */
         const val LABEL_RESPONSE_MAX_BYTES = 64 * 1024
         private const val MAX_LABEL_PERMITS = 16
+
+        /** C-35: 라벨 분당 창 상한(분당 600 = 초당 10 — 화면 쪽당 최대 4회 × 여유). */
+        private const val MAX_LABEL_READS = 600
         private const val MAX_WRITE_PERMITS = 16
         private const val MIN_KEY_BYTES = 32
         private const val MAX_PERMITS = 64

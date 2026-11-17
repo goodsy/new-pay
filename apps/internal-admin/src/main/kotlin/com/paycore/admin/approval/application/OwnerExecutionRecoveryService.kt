@@ -98,7 +98,8 @@ class OwnerExecutionRecoveryService(
         if (request == null || execution == null || command == null) {
             // S6 리뷰 L-2: 선점된 실행 행에 승인·명령 행이 없으면 내부 무결성 위반(조용히 건너뛰지 않는다).
             val column = if (request == null) "approval" else if (command == null) "command" else "execution"
-            applier.reportIntegrity(id, column, (request?.target as? com.paycore.admin.approval.domain.ApprovalTarget.Payment)?.paymentId)
+            // MERCHANT-CODE-001 MC-3a(rev 0.4.8 MINOR-1): 대상은 승인 행의 ApprovalTarget이 정한다(Payment 경로에서 가맹점 키를 문자열로 만들지 않는다 — 값 불변: pay_ 표기만).
+            applier.reportIntegrity(id, column, (request?.target as? com.paycore.admin.approval.domain.ApprovalTarget.Payment)?.let(ApprovalAuditTarget::of))
             return
         }
         val s = Snapshot(request, execution, command)
@@ -106,7 +107,7 @@ class OwnerExecutionRecoveryService(
         // ACQ-ADMIN-001 rev 0.6(B1-A 재검토 NIT — 재매입 분기와 대칭, I-25 ③): 지문 접두·기록 참조가 이 종류의 문법이 아니면 PAYMENT를 부르지 않고(결정 조회·기한 확인·재전송 없음)
         // 무결성 위반만 남긴다(행이 그대로면 backoff마다 감사 1행 반복 — 기존 reportIntegrity 선례).
         if (!s.execution.conformsTo(s.request.kind)) {
-            applier.reportIntegrity(id, "execution_kind", s.command.paymentId)
+            applier.reportIntegrity(id, "execution_kind", ApprovalAuditTarget.ofPaymentRef(s.command.paymentId))
             return
         }
         // 1. 기록 결정 조회.
@@ -166,13 +167,13 @@ class OwnerExecutionRecoveryService(
     private fun processAcquiring(id: String, now: Instant) {
         val (request, execution, command) = transactions.execute({ false }) { Triple(repository.find(id), executions.find(id), acquiringCommands.find(id)) }
         if (request == null || execution == null || command == null) {
-            applier.reportIntegrity(id, if (request == null) "approval" else if (command == null) "command" else "execution", request?.target?.ref)
+            applier.reportIntegrity(id, if (request == null) "approval" else if (command == null) "command" else "execution", request?.let { ApprovalAuditTarget.of(it.target) })
             return
         }
         if (request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) return
         // B1-A 리뷰 m-4: 지문 접두·기록 참조가 재매입 문법이 아니면 FINANCIAL을 부르지 않고(저장 본문 재전송 없음) 무결성 위반만 남긴다.
         if (!execution.conformsTo(request.kind)) {
-            applier.reportIntegrity(id, "execution_kind", request.target.ref)
+            applier.reportIntegrity(id, "execution_kind", ApprovalAuditTarget.of(request.target))
             return
         }
         when (val decision = acquiringClient.decision(id)) {

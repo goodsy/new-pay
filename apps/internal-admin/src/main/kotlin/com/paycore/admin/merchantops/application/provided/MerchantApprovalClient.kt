@@ -87,6 +87,8 @@ data class ActivationTarget(
     val status: String?,
     val registeredBy: String?,
     val primarySiteId: String?,
+    /** MERCHANT-CODE-001 MC-3a(§5.1·§5.3): MASTER 상세 `merchant.merchantCode`(요청 시점 현재 코드 — 승인 행 표기·pinned 표시값). */
+    val merchantCode: String,
 )
 
 /**
@@ -100,6 +102,8 @@ data class CurrencyTarget(
     val accountLifecycle: String?,
     val currency: String,
     val openRecord: Boolean,
+    /** MERCHANT-CODE-001 MC-3a(§5.1·§5.3): MASTER 상세 `merchant.merchantCode`(요청 시점 현재 코드 — 승인 행 표기·pinned 표시값). */
+    val merchantCode: String,
 )
 
 /** Site 심사 승인 대상 사실(B3-1 §9.16). Site가 없으면 [siteLifecycle] null. [reviewStatus] = 심사 결정(결정 없음 = `PENDING`). 채널 식별값 없음. */
@@ -111,6 +115,8 @@ data class SiteReviewTarget(
     val channelType: String?,
     val reviewStatus: String?,
     val registeredBy: String?,
+    /** MERCHANT-CODE-001 MC-3a(§5.1·§5.3): MASTER 상세 `merchant.merchantCode`(요청 시점 현재 코드 — 승인 행 표기·pinned 표시값). */
+    val merchantCode: String,
 )
 
 /**
@@ -128,6 +134,8 @@ data class ContractRevisionTarget(
     val effectiveTo: Instant?,
     val approved: Boolean,
     val registeredBy: String,
+    /** MERCHANT-CODE-001 MC-3a(§5.1·§5.3): MASTER 상세 `merchant.merchantCode`(요청 시점 현재 코드 — 승인 행 표기·pinned 표시값). */
+    val merchantCode: String,
 ) {
     fun endedAt(now: Instant): Boolean = effectiveTo != null && !now.isBefore(effectiveTo)
 }
@@ -219,6 +227,8 @@ data class FirstMidTarget(
     val siteLifecycle: String?,
     val siteChannelType: String?,
     val siteInScope: Boolean,
+    /** MERCHANT-CODE-001 MC-3a(§5.1·§5.3): MASTER 상세 `merchant.merchantCode`(요청 시점 현재 코드 — 승인 행 표기·pinned 표시값). */
+    val merchantCode: String,
 )
 
 sealed interface FirstMidTargetResult {

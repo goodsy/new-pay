@@ -44,6 +44,8 @@ data class ApprovalView(
     val acquiring: AcquiringDetailView? = null,
     /** 가맹점 승인 상세(MERCHANT-OPS-002 B2-2 — 고정 대상(등록자 포함)·실행 결과, 근거 참조 없음). 목록·다른 종류는 null. */
     val merchant: MerchantOpsDetailView? = null,
+    /** MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 대상의 내부 키(mer_ — 기존 행·새 행 모두), 그 밖 대상은 null. 화면은 라벨 대응에만 쓰고 그리지 않는다(MC-3c). */
+    val targetMerchantId: String? = null,
 )
 
 data class MerchantOpsDetailView(

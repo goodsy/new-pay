@@ -17,6 +17,7 @@ class JpaAdminAuditStore(private val entityManager: EntityManager) : AdminAuditS
             JpaAdminAuditEventEntity.newRow(
                 event.occurredAt, event.actorKind.name, event.actorId, event.actorDisplayName, event.executorActorId, event.action, event.targetActorId,
                 event.resultCode, event.approvalId, event.correlationId, event.remoteIp, event.loginNameHmac, event.detail, event.reason, event.targetRef,
+                event.targetMerchantId,
             ),
         )
         entityManager.flush()

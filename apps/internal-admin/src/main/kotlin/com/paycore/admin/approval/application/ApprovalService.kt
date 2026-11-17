@@ -27,7 +27,6 @@ import com.paycore.admin.approval.domain.ApprovalRequest
 import com.paycore.admin.approval.domain.ApprovalStatus
 import com.paycore.admin.approval.domain.ApprovalTarget
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
@@ -142,7 +141,7 @@ class ApprovalService(
         val before = repository.immutableColumns(command.approvalId) ?: return ApprovalOutcome.NotFound
         kind.value = ApprovalKind.entries.firstOrNull { it.name == before.kind }?.name ?: UNKNOWN
         // S5 리뷰 M-2: 무결성 위반 감사 행에 승인 ID와 0단계에서 읽은 대상(종류·식별자)을 남긴다.
-        val beforeTarget = auditTarget(before.targetKind, before.targetRef)
+        val beforeTarget = auditTarget(before.targetKind, before.targetRef, before.targetMerchantId)
         fun violation(column: String) = IntegrityViolation(column, command.approvalId, beforeTarget)
         val beforeKind = ApprovalKind.entries.firstOrNull { it.name == before.kind } ?: throw violation("kind")
         // ADMIN-PAYMENT-OPS-001 M-6: 소유 서비스 종류는 이 단일 TX 경로로 실행하지 않는다(컨트롤러가 0단계에서 2-TX 서비스로 보낸다 — 여기 오면 결함). TOTP 전에 끊는다.
@@ -320,11 +319,11 @@ class ApprovalService(
                         val now = now()
                         val next = current.value.expireIfDue(now) ?: return@execute null
                         repository.update(current, next)
+                        // MERCHANT-CODE-001 MC-3a(§5.6.4 — MAJOR-1): 대상 열은 ApprovalAuditTarget에서만(코드 표기 행도 내부 키와 함께 — 만료 작업이 그 행을 건너뛰지 않게).
                         recorder.record(
-                            AuditRecord(
+                            ApprovalAuditTarget.of(current.value.target).auditRecord(
                                 occurredAt = now, actorKind = "SYSTEM_JOB", actorId = null, actorDisplayName = null, action = "APPROVAL_EXPIRED",
-                                resultCode = "EXPIRED", correlationId = "job-expiry-$id", targetActorId = actorOf(current.value.target),
-                                approvalId = id, detail = "kind=${current.value.kind.name}", targetRef = refOf(current.value.target),
+                                resultCode = "EXPIRED", correlationId = "job-expiry-$id", approvalId = id, detail = "kind=${current.value.kind.name}",
                             ),
                         )
                         current.value.kind.name
@@ -396,10 +395,9 @@ class ApprovalService(
         transactions.execute({ false }) {
             val actor = executor.snapshot(actorId)
             recorder.record(
-                AuditRecord(
+                target?.let(ApprovalAuditTarget::of).auditRecord(
                     occurredAt = now(), actorKind = if (actor != null) "ADMIN" else "ANONYMOUS", actorId = actor?.actorId, actorDisplayName = actor?.displayName,
-                    action = action, resultCode = result, correlationId = context.correlationId, targetActorId = actorOf(target), approvalId = approvalId,
-                    remoteIp = context.remoteIp, detail = detail, targetRef = refOf(target),
+                    action = action, resultCode = result, correlationId = context.correlationId, approvalId = approvalId, remoteIp = context.remoteIp, detail = detail,
                 ),
             )
         }
@@ -419,10 +417,10 @@ class ApprovalService(
     ) {
         val kindDetail = "kind=${request.kind.name}" + (request.grantedRole?.let { ";role=$it" } ?: "")
         recorder.record(
-            AuditRecord(
+            ApprovalAuditTarget.of(request.target).auditRecord(
                 occurredAt = now, actorKind = "ADMIN", actorId = actorId, actorDisplayName = actor?.displayName, action = action, resultCode = result,
-                correlationId = context.correlationId, targetActorId = actorOf(request.target), executorActorId = executor, approvalId = request.id,
-                remoteIp = context.remoteIp, detail = listOfNotNull(kindDetail, reasonDetail).joinToString(";"), targetRef = refOf(request.target),
+                correlationId = context.correlationId, executorActorId = executor, approvalId = request.id,
+                remoteIp = context.remoteIp, detail = listOfNotNull(kindDetail, reasonDetail).joinToString(";"),
             ),
         )
     }
@@ -435,12 +433,6 @@ class ApprovalService(
         locked.grantedRole != grantedRole -> "granted_role"
         else -> null
     }
-
-    /** 감사 대상 열: 계정이면 target_actor_id, Payment면 target_ref(§4.10 — 모든 행). */
-    private fun actorOf(target: ApprovalTarget?): String? = (target as? ApprovalTarget.AdminAccount)?.actorId
-
-    /** 소유 서비스 대상(Payment·매입 원 파일 — ACQ-ADMIN-001 B1-A)의 참조는 target_ref, 계정 대상은 null. */
-    private fun refOf(target: ApprovalTarget?): String? = target?.takeIf { it !is ApprovalTarget.AdminAccount }?.ref
 
     private fun account(actorId: String): ApprovalTarget = ApprovalTarget.AdminAccount(actorId, 0)
 
@@ -472,12 +464,15 @@ class ApprovalService(
 
     private class IntegrityViolation(val column: String, val approvalId: String? = null, val target: ApprovalTarget? = null) : RuntimeException(null, null, false, false)
 
-    /** 0단계 비잠금 값의 대상(감사 열 선택용 — 형식이 맞지 않는 값도 감사는 남겨야 하므로 실패하면 null). */
-    private fun auditTarget(targetKind: String, targetRef: String): ApprovalTarget? = runCatching {
+    /**
+     * 0단계 비잠금 값의 대상(감사 열 선택용 — 형식이 맞지 않는 값도 감사는 남겨야 하므로 실패하면 null). MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점은 행의 `target_merchant_id`를
+     * 함께 읽는다(코드 표기 행에서 `Merchant(targetRef)`를 만들면 require 실패 → 감사 대상 유실).
+     */
+    private fun auditTarget(targetKind: String, targetRef: String, targetMerchantId: String?): ApprovalTarget? = runCatching {
         when (targetKind) {
             "PAYMENT" -> ApprovalTarget.Payment(targetRef, 0)
             "ACQUISITION_FILE" -> ApprovalTarget.AcquisitionFile(targetRef)
-            "MERCHANT" -> ApprovalTarget.Merchant(targetRef)
+            "MERCHANT" -> ApprovalTarget.Merchant.reconstitute(targetMerchantId, targetRef)
             else -> ApprovalTarget.AdminAccount(targetRef, 0)
         }
     }.getOrNull()

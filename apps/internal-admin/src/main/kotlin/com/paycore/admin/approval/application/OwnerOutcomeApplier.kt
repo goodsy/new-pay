@@ -13,7 +13,6 @@ import com.paycore.admin.approval.domain.ApprovalTarget
 import com.paycore.admin.approval.domain.OwnerExecution
 import com.paycore.admin.approval.domain.PinnedMerchantCodeChangeTarget
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.PaymentOpsPolicy
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
@@ -28,9 +27,10 @@ import java.time.temporal.ChronoUnit
  *   파생 409면 무결성 플래그. **시도 수는 바꾸지 않는다**(회복 선점만 +1).
  * - [contentMismatch](L-b, I-35): 기록 결정의 내용이 ADMIN과 다르면 `DECISION_CONTENT_MISMATCH` 플래그를 **먼저** 세우고(같은 TX) 감사 `APPROVAL_INTEGRITY_MISMATCH`를
  *   남긴 뒤 결정을 반영한다(조용한 EXECUTED 없음, 반영 보류 없음).
- * - 내부 무결성 위반(승인·실행 행 없음 등)은 rollback 뒤 지표 `integrity_violation{check}` + **별도 TX 감사(승인 ID·target_ref)**(S5 리뷰 L-A — 로그에 묻지 않음),
+ * - 내부 무결성 위반(승인·실행 행 없음 등)은 rollback 뒤 지표 `integrity_violation{check}` + **별도 TX 감사(승인 ID·대상 열)**(S5 리뷰 L-A — 로그에 묻지 않음),
  *   결과는 `Executing(EXECUTING)`(회복 job이 이어받음).
- * 감사 행위자: 웹은 승인자(ADMIN), 회복 job은 SYSTEM_JOB(실행자 = 원 승인자). 모두 target_ref = 소유 대상 참조(paymentId 또는 매입 원 파일 ID — ACQ-ADMIN-001 B1-A).
+ * 감사 행위자: 웹은 승인자(ADMIN), 회복 job은 SYSTEM_JOB(실행자 = 원 승인자). 감사 대상 열은 승인 행의 대상([ApprovalAuditTarget.of]): Payment = paymentId, 매입 = 원 파일 ID
+ * (ACQ-ADMIN-001 B1-A) — 표기만; 가맹점 = 표기 target_ref = 승인 행 표기(MC-3a 뒤 코드) + 내부 키 target_merchant_id = mer_(MERCHANT-CODE-001 §5.6.4 C-32).
  */
 @Component
 class OwnerOutcomeApplier(
@@ -77,17 +77,18 @@ class OwnerOutcomeApplier(
             val now = now()
             val locked = repository.lock(approvalId) ?: throw IntegrityViolation("approval", null)
             val request = locked.value
-            // ACQ-ADMIN-001 B1-A: 소유 서비스 대상(Payment·매입 파일)의 참조가 감사 target_ref다. 계정 대상이면 결함(fail-closed).
-            val paymentId = ownerRef(request) ?: throw IntegrityViolation("target_kind", null)
+            // ACQ-ADMIN-001 B1-A: 소유 서비스 대상(Payment·매입 파일·가맹점)의 참조가 감사 대상이다. 계정 대상이면 결함(fail-closed).
+            // MERCHANT-CODE-001 MC-3a(§5.6.4 — rev 0.4.8): 무결성 위반도 문자열이 아니라 승인 행의 대상(가맹점이면 표기 + 내부 키)을 들고 간다.
+            val target = ownerTarget(request) ?: throw IntegrityViolation("target_kind", null)
             if (request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) {
                 if (diverges(request, outcome)) opsMetrics.outcomeDivergence()
                 return@execute terminalOutcome(request)
             }
-            val row = executions.lock(approvalId) ?: throw IntegrityViolation("execution", paymentId)
+            val row = executions.lock(approvalId) ?: throw IntegrityViolation("execution", target)
             var execution = row.value
             // B1-A 리뷰 m-4: 실행 행 지문·기록 참조와 도착한 참조가 승인 종류의 문법인지 대조(행 형식 검사는 두 종류의 합집합) — 어긋나면 rollback + 무결성 위반.
-            if (!execution.conformsTo(request.kind)) throw IntegrityViolation("execution_kind", paymentId)
-            if (outcome is Outcome.Started && !OwnerExecution.referenceFits(request.kind, outcome.cancellationId)) throw IntegrityViolation("owner_reference", paymentId)
+            if (!execution.conformsTo(request.kind)) throw IntegrityViolation("execution_kind", target)
+            if (outcome is Outcome.Started && !OwnerExecution.referenceFits(request.kind, outcome.cancellationId)) throw IntegrityViolation("owner_reference", target)
             if (contentMismatch) {
                 execution = execution.flagIntegrity(DECISION_CONTENT_MISMATCH)
                 audit(now, source, "APPROVAL_INTEGRITY_MISMATCH", "FLAGGED", request, "reason=$DECISION_CONTENT_MISMATCH", execution.executorActorId)
@@ -147,9 +148,13 @@ class OwnerOutcomeApplier(
         true
     }
 
-    /** 회복 job이 찾은 내부 무결성 위반(예: 명령 행 없는 실행 행 — S6 리뷰 L-2): 지표 + 별도 TX 감사(SYSTEM_JOB, 승인 ID·target_ref). */
-    fun reportIntegrity(approvalId: String, column: String, paymentId: String?) {
-        guarded(approvalId, Source.Job) { throw IntegrityViolation(column, paymentId) }
+    /**
+     * 회복 job이 찾은 내부 무결성 위반(예: 명령 행 없는 실행 행 — S6 리뷰 L-2): 지표 + 별도 TX 감사(SYSTEM_JOB, 승인 ID·대상 열).
+     * MERCHANT-CODE-001 MC-3a(rev 0.4.8 MINOR-1): [target]은 승인 행의 대상(`ApprovalAuditTarget.of(request.target)`) — 승인 행이 없으면 null(대상 열 모두 NULL). 문자열을 받지 않는다
+     * (Payment 회복 경로에서 가맹점 키를 문자열로 만들거나 코드 표기를 잃지 않게).
+     */
+    fun reportIntegrity(approvalId: String, column: String, target: ApprovalAuditTarget?) {
+        guarded(approvalId, Source.Job) { throw IntegrityViolation(column, target) }
     }
 
     private fun diverges(request: ApprovalRequest, outcome: Outcome): Boolean = when (outcome) {
@@ -172,10 +177,10 @@ class OwnerOutcomeApplier(
         metrics.integrityViolation(violation.column)
         transactions.execute({ false }) {
             recorder.record(
-                AuditRecord(
+                violation.target.auditRecord(
                     occurredAt = now(), actorKind = if (source is Source.Web) "ADMIN" else "SYSTEM_JOB", actorId = (source as? Source.Web)?.approverId,
                     actorDisplayName = null, action = "APPROVAL_INTEGRITY_VIOLATION", resultCode = "FAILED", correlationId = correlation(source, approvalId),
-                    approvalId = approvalId, remoteIp = (source as? Source.Web)?.context?.remoteIp, detail = "column=${violation.column}", targetRef = violation.paymentId,
+                    approvalId = approvalId, remoteIp = (source as? Source.Web)?.context?.remoteIp, detail = "column=${violation.column}",
                 ),
             )
         }
@@ -185,25 +190,27 @@ class OwnerOutcomeApplier(
     @Suppress("LongParameterList")
     private fun audit(now: Instant, source: Source, action: String, result: String, request: ApprovalRequest, reasonDetail: String?, executor: String) {
         recorder.record(
-            AuditRecord(
+            ownerTarget(request).auditRecord(
                 occurredAt = now, actorKind = if (source is Source.Web) "ADMIN" else "SYSTEM_JOB", actorId = (source as? Source.Web)?.approverId, actorDisplayName = null,
                 action = action, resultCode = result, correlationId = correlation(source, request.id), executorActorId = executor, approvalId = request.id,
                 remoteIp = (source as? Source.Web)?.context?.remoteIp,
                 // MERCHANT-CODE-001 MC-1b(§5.5 — D-MCODE-002 ⑤): 코드 변경 승인 건의 감사 행은 모두 from=;to=;reason=(다른 종류는 null — 기존 detail 그대로).
                 detail = listOfNotNull("kind=${request.kind.name}", reasonDetail, PinnedMerchantCodeChangeTarget.auditDetailOf(request)).joinToString(";"),
-                targetRef = ownerRef(request),
             ),
         )
     }
 
-    /** 소유 서비스 대상 참조(Payment ID·매입 원 파일 ID). 계정 대상이면 null. */
-    private fun ownerRef(request: ApprovalRequest): String? = request.target.takeIf { it !is ApprovalTarget.AdminAccount }?.ref
+    /**
+     * 소유 서비스 대상(Payment·매입 원 파일 → 표기만, 가맹점 → 표기 + 내부 키 — MC-3a §5.6.4). 계정 대상이면 null(대상 열 없음 — 기존 동작과 같음).
+     */
+    private fun ownerTarget(request: ApprovalRequest): ApprovalAuditTarget? = request.target.takeIf { it !is ApprovalTarget.AdminAccount }?.let(ApprovalAuditTarget::of)
 
     private fun correlation(source: Source, approvalId: String): String = (source as? Source.Web)?.context?.correlationId ?: "job-recovery-$approvalId"
 
     private fun now(): Instant = environment.now().truncatedTo(ChronoUnit.MILLIS)
 
-    private class IntegrityViolation(val column: String, val paymentId: String?) : RuntimeException(null, null, false, false)
+    /** 무결성 위반(rev 0.4.8 — `paymentId` 문자열 대신 대상 값: Payment·매입 파일·가맹점이 모두 온다). */
+    private class IntegrityViolation(val column: String, val target: ApprovalAuditTarget?) : RuntimeException(null, null, false, false)
 
     private companion object {
         const val DECISION_CONTENT_MISMATCH = "DECISION_CONTENT_MISMATCH"

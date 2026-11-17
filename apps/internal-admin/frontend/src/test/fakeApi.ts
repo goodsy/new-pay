@@ -62,6 +62,8 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     requestMerchantSiteReviewApproval: notStubbed('requestMerchantSiteReviewApproval'),
     requestMerchantCurrencyEnablement: notStubbed('requestMerchantCurrencyEnablement'),
     requestMerchantCodeChange: notStubbed('requestMerchantCodeChange'),
+    // MERCHANT-CODE-001 MC-3c: 대역이 없으면 실패(= 라벨 호출 실패) — 화면은 "—" + 안내 1줄(fail-closed)로 그린다.
+    merchantLabels: notStubbed('merchantLabels'),
   } as AdminApi
   return { ...base, ...overrides }
 }

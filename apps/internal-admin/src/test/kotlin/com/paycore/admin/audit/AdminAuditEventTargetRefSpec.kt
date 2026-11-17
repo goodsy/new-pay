@@ -5,6 +5,7 @@ import com.paycore.admin.audit.domain.AuditActorKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import java.time.Instant
 
 /**
@@ -13,10 +14,10 @@ import java.time.Instant
  */
 class AdminAuditEventTargetRefSpec : FunSpec({
 
-    fun event(targetRef: String?, targetActorId: String? = null) = AdminAuditEvent(
+    fun event(targetRef: String?, targetActorId: String? = null, targetMerchantId: String? = null) = AdminAuditEvent(
         occurredAt = Instant.parse("2026-11-06T00:00:00Z"), actorKind = AuditActorKind.ADMIN, actorId = "adm_01JC00000000000000000000V1", actorDisplayName = "Viewer",
         executorActorId = null, action = "ACQUISITION_FILE_VIEWED", targetActorId = targetActorId, resultCode = "OK", approvalId = null, correlationId = "corr-1",
-        remoteIp = null, loginNameHmac = null, detail = null, targetRef = targetRef,
+        remoteIp = null, loginNameHmac = null, detail = null, targetRef = targetRef, targetMerchantId = targetMerchantId,
     )
 
     test("a payment id and an acquisition file id are accepted") {
@@ -38,5 +39,43 @@ class AdminAuditEventTargetRefSpec : FunSpec({
             "ACQ.SIMACQA.TEST.20261020.001.dat", "ACQ.${"A".repeat(33)}.TEST.20261020.001", "file 1", "x ACQ.SIMACQA.TEST.20261020.001",
         ).forEach { ref -> withClue(ref) { shouldThrow<IllegalArgumentException> { event(ref) } } }
         shouldThrow<IllegalArgumentException> { event("ACQ.SIMACQA.TEST.20261020.001", targetActorId = "adm_01JC00000000000000000000V2") }
+    }
+
+    // ------------------------------------------------------------------ MERCHANT-CODE-001 MC-3a(§5.1·§5.6.4 — MC-3-6, C-32·C-36)
+
+    val merchant = "mer_01JCME00000000000000000001"
+
+    test("MC-3-6 TARGET_REF table: a merchant code (§3.1) is a target reference; codes, xxx_<ULID> ids and ACQ file ids never match each other's shape") {
+        // 코드는 '_'·'.'가 없고 소문자 시작 6~14자 — 기존 ID(접두사 + '_' + ULID 26자)·ACQ(대문자 + '.')와 겹치지 않는다.
+        val code = Regex("^[a-z][a-z0-9]{5,13}$")
+        val id = Regex("^[a-z]{3,4}_[0-9A-HJKMNP-TV-Z]{26}$")
+        val file = Regex("^ACQ[.][A-Z0-9]{1,32}[.](TEST|LIVE)[.][0-9]{8}[.][0-9]{3}$")
+        val samples = listOf("shopabcd12", "a00000", "a0000000000000", merchant, "pay_01JC0000000000000000000001", "site_01JC0000000000000000000001", "ACQ.SIMACQA.TEST.20261020.001")
+        samples.map { s -> listOf(code, id, file).count { it.matches(s) } } shouldBe List(samples.size) { 1 }
+        samples.map { listOf(code.matches(it), id.matches(it), file.matches(it)) } shouldBe listOf(
+            listOf(true, false, false), listOf(true, false, false), listOf(true, false, false), listOf(false, true, false), listOf(false, true, false),
+            listOf(false, true, false), listOf(false, false, true),
+        )
+        event("shopabcd12", targetMerchantId = merchant)
+        event("a00000", targetMerchantId = merchant)
+        event("a0000000000000", targetMerchantId = merchant)
+        listOf("ShopAbcd12", "shop1", "a00000000000000", "1shopabcd", "shop-abcd12", "shop abcd").forEach { ref ->
+            withClue(ref) { shouldThrow<IllegalArgumentException> { event(ref, targetMerchantId = merchant) } }
+        }
+    }
+
+    test("MC-3a target_merchant_id rules (V15 CHECK ①~③ in Domain): mer_ format; needs a target reference that is the same mer_ or a code; a code reference needs the merchant key") {
+        event(merchant, targetMerchantId = merchant)
+        event("shopabcd12", targetMerchantId = merchant)
+        event(merchant)
+        event("pay_01JC0000000000000000000001")
+        listOf(
+            Triple("mer_lowercase00000000000000", "mer_lowercase00000000000000", "format"),
+            Triple(merchant, "mer_01JCME00000000000000000002", "different merchant"),
+            Triple("pay_01JC0000000000000000000001", merchant, "payment ref with a merchant key"),
+            Triple(null, merchant, "merchant key without a reference"),
+            Triple("shopabcd12", null, "code without the merchant key"),
+        ).forEach { (ref, key, why) -> withClue(why) { shouldThrow<IllegalArgumentException> { event(ref, targetMerchantId = key) } } }
+        shouldThrow<IllegalArgumentException> { event(null, targetActorId = "adm_01JC00000000000000000000V2", targetMerchantId = merchant) }
     }
 })

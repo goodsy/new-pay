@@ -92,7 +92,14 @@ class MerchantRegistrationService(
         val detail = pre.text(replayed = decided?.replayed, rejection = decided?.rejection, revision = revisionNo)
         // B3-1(§9.16): 개통 등록 targetRef = MID, Site 심사 거절 targetRef = siteId(성공 reference `site_…#n`은 targetRef 형식 밖) — 성공·거절 모두 입력의 대상.
         val targetRef = if (kind in TARGET_IS_INPUT) pre.parentRef else decided?.reference ?: pre.parentRef
-        if (!audited(view, context, correlationId, kind, resultCode, detail, targetRef)) {
+        // MERCHANT-CODE-001 MC-3a(§5.6.4 C-32): 가맹점 등록 성공 = MASTER가 성공으로 확정한 요청 본문의 코드 + 응답 reference(mer_).
+        val registered = (request as? RegistrationRequest.Merchant)?.takeIf { decided?.reference?.let(RegistrationInputRules.MERCHANT_ID::matches) == true }
+        val audited = if (registered != null) {
+            audited(view, context, correlationId, kind, resultCode, detail, registered.merchantCode, decided!!.reference)
+        } else {
+            audited(view, context, correlationId, kind, resultCode, detail, targetRef)
+        }
+        if (!audited) {
             return finish(kind, "AUDIT_UNAVAILABLE", MerchantRegistrationResult.AuditUnavailable, correlationId)
         }
         if (resultCode == OUTCOME_UNKNOWN) {
@@ -205,12 +212,15 @@ class MerchantRegistrationService(
         resultCode: String,
         detail: String?,
         targetRef: String?,
+        // MERCHANT-CODE-001 MC-3a(C-32): 대상이 가맹점(mer_)이면 내부 키도 같은 값(Site·계약 등록의 요청·거절 — ADMIN이 코드를 모르므로 mer_ 표기), 가맹점 등록 성공은 호출자가 코드 표기와 함께 준다.
+        targetMerchantId: String? = targetRef?.takeIf { RegistrationInputRules.MERCHANT_ID.matches(it) },
     ): Boolean = try {
         transactions.execute({ false }) {
             recorder.record(
                 AuditRecord(
                     occurredAt = Instant.now().truncatedTo(ChronoUnit.MILLIS), actorKind = "ADMIN", actorId = view.actorId, actorDisplayName = view.displayName,
                     action = kind.auditAction, resultCode = resultCode, correlationId = correlationId, remoteIp = context.remoteIp, detail = detail, targetRef = targetRef,
+                    targetMerchantId = targetMerchantId,
                 ),
             )
         }

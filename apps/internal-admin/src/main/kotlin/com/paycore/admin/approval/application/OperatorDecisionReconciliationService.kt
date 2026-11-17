@@ -16,7 +16,6 @@ import com.paycore.admin.approval.domain.ApprovalTarget
 import com.paycore.admin.approval.domain.OperatorDecisionReconciliation
 import com.paycore.admin.approval.domain.ReconciliationFindingKind
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.DecisionListItem
 import com.paycore.admin.paymentops.application.provided.DecisionPage
 import com.paycore.admin.paymentops.application.provided.PaymentDecisionListQuery
@@ -200,11 +199,12 @@ class OperatorDecisionReconciliationService(
         try {
             transactions.execute({ false }) {
                 findings.record(ReconciliationFindingRecord(kind, approvalId, paymentRef?.take(MAX_REF), detail, now))
+                // MERCHANT-CODE-001 MC-3a(§5.6.4 — C-36): 대상 열은 ApprovalAuditTarget에서만(형식 검사한 paymentId — 값 불변).
                 recorder.record(
-                    AuditRecord(
+                    ApprovalAuditTarget.ofPaymentRef(paymentRef?.takeIf { PAYMENT_ID.matches(it) }).auditRecord(
                         occurredAt = now, actorKind = "SYSTEM_JOB", actorId = null, actorDisplayName = null, action = "OPS_RECON_FINDING", resultCode = kind.name,
                         correlationId = "job-reconciliation", approvalId = approvalId.takeIf { APPROVAL_ID.matches(it) },
-                        detail = listOfNotNull("kind=${kind.name}", detail?.let { "detail=$it" }).joinToString(";"), targetRef = paymentRef?.takeIf { PAYMENT_ID.matches(it) },
+                        detail = listOfNotNull("kind=${kind.name}", detail?.let { "detail=$it" }).joinToString(";"),
                     ),
                 )
             }

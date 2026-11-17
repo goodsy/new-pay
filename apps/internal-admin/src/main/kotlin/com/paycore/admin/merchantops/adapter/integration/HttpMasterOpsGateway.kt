@@ -3,6 +3,7 @@ package com.paycore.admin.merchantops.adapter.integration
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalOperation
 import com.paycore.admin.merchantops.application.provided.MerchantLabel
 import com.paycore.admin.merchantops.application.provided.MerchantAccountIdRules
+import com.paycore.admin.merchantops.application.provided.MerchantIdRules
 import com.paycore.admin.merchantops.application.provided.MerchantLabelFailure
 import com.paycore.admin.merchantops.application.provided.MerchantLabelResult
 import com.paycore.admin.merchantops.application.provided.MerchantApprovalResult
@@ -66,14 +67,32 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (TXN-LIST-ENRICH-001 §6)" }
         require(merchantAccountIds.size in 1..MerchantAccountIdRules.MAX_PER_CALL) { "1..${MerchantAccountIdRules.MAX_PER_CALL} merchant account ids" }
         require(merchantAccountIds.all { MerchantAccountIdRules.FORMAT.matches(it) } && merchantAccountIds.zipWithNext().all { (a, b) -> a < b }) { "distinct sorted MIDs" }
-        if (!labelPermits.tryAcquire()) return MerchantLabelResult.Unavailable(MerchantLabelFailure.BUSY, LABELS_BUSY).also(::logLabels)
+        return labelCall(ACCOUNT_LABELS, merchantAccountIds)
+    }
+
+    /**
+     * MERCHANT-CODE-001 §5.6.3(MC-3b): 가맹점 내부 키 → 라벨. [accountLabels]와 **같은** 라벨 전용 permit·client(label-read-timeout)·64 KiB 상한·중복 JSON 키 거부(C-34 — 새 설정 키 없음),
+     * 200은 [MasterResponseShape.MERCHANT_LABELS] + 대응 검사(보낸 키의 부분집합·중복 없음·오름차순 — 위반이면 그 묶음 전체 UNREADABLE, 틀린 상호가 다른 행에 붙지 않게).
+     */
+    override fun merchantLabels(merchantIds: List<String>): MerchantLabelResult {
+        check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (MERCHANT-CODE-001 §5.6.3)" }
+        require(merchantIds.size in 1..MerchantIdRules.MAX_PER_CALL) { "1..${MerchantIdRules.MAX_PER_CALL} merchant ids" }
+        require(merchantIds.all { MerchantIdRules.FORMAT.matches(it) } && merchantIds.zipWithNext().all { (a, b) -> a < b }) { "distinct sorted merchant ids" }
+        return labelCall(MERCHANT_LABELS, merchantIds)
+    }
+
+    /** 라벨 묶음 한 종류(경로·본문 필드·응답 모양·항목 키 필드·로그 연산 이름). */
+    private class LabelKind(val operation: String, val path: String, val requestField: String, val shape: MasterResponseShape, val keyField: String)
+
+    private fun labelCall(kind: LabelKind, sent: List<String>): MerchantLabelResult {
+        if (!labelPermits.tryAcquire()) return MerchantLabelResult.Unavailable(MerchantLabelFailure.BUSY, LABELS_BUSY).also { logLabels(kind, it) }
         try {
-            val body = json.writeValueAsBytes(linkedMapOf("merchantAccountIds" to merchantAccountIds))
-            val result = when (val response = exchange(HttpMethod.POST, LABELS_PATH, body, MasterOpsSettings.LABEL_RESPONSE_MAX_BYTES, labelClient)) {
+            val body = json.writeValueAsBytes(linkedMapOf(kind.requestField to sent))
+            val result = when (val response = exchange(HttpMethod.POST, kind.path, body, MasterOpsSettings.LABEL_RESPONSE_MAX_BYTES, labelClient)) {
                 is Raw.Failed -> MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, response.failure)
                 // 리뷰 M-a(§8): 응답 상한 초과(readLimited → null)는 상태와 무관하게 UNAVAILABLE — 본문을 끝까지 읽지 않아 모양을 판정하지 않았으므로 UNREADABLE이 아니다.
                 is Raw.Http -> if (response.body == null) MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, TOO_LARGE) else when (response.status) {
-                    OK -> labels(response.body, merchantAccountIds)?.let { MerchantLabelResult.Found(it) }
+                    OK -> labels(kind, response.body, sent)?.let { MerchantLabelResult.Found(it) }
                         ?: MerchantLabelResult.Unavailable(MerchantLabelFailure.UNREADABLE, UNREADABLE)
                     SERVICE_UNAVAILABLE -> if (errorCode(response.body) == "ADMIN_READ_BUSY") {
                         MerchantLabelResult.Unavailable(MerchantLabelFailure.BUSY, "ADMIN_READ_BUSY")
@@ -83,7 +102,7 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
                     else -> MerchantLabelResult.Unavailable(MerchantLabelFailure.UNAVAILABLE, "HTTP_${response.status}")
                 }
             }
-            logLabels(result)
+            logLabels(kind, result)
             return result
         } finally {
             labelPermits.release()
@@ -92,21 +111,21 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
 
     /** 모양 + 이 요청의 답(전부 아니면 전무). 위반이면 null. */
     @Suppress("UNCHECKED_CAST")
-    private fun labels(body: ByteArray?, sent: List<String>): Map<String, MerchantLabel>? = runCatching {
+    private fun labels(kind: LabelKind, body: ByteArray?, sent: List<String>): Map<String, MerchantLabel>? = runCatching {
         val node = labelJson.readTree(body?.takeIf { it.isNotEmpty() } ?: return null)
-        val items = (MasterResponseShape.MERCHANT_ACCOUNT_LABELS.read(node) as Map<String, Any?>)["items"] as List<Map<String, Any?>>
-        val mids = items.map { it["merchantAccountId"] as String }
+        val items = (kind.shape.read(node) as Map<String, Any?>)["items"] as List<Map<String, Any?>>
+        val keys = items.map { it[kind.keyField] as String }
         val requested = sent.toSet()
-        if (mids.size > sent.size || !mids.all { it in requested } || mids.zipWithNext().any { (a, b) -> a >= b }) return null
-        items.associate { (it["merchantAccountId"] as String) to MerchantLabel(it["merchantName"] as String, it["merchantCode"] as String) }
+        if (keys.size > sent.size || !keys.all { it in requested } || keys.zipWithNext().any { (a, b) -> a >= b }) return null
+        items.associate { (it[kind.keyField] as String) to MerchantLabel(it["merchantName"] as String, it["merchantCode"] as String) }
     }.getOrNull()
 
-    private fun logLabels(result: MerchantLabelResult) {
+    private fun logLabels(kind: LabelKind, result: MerchantLabelResult) {
         val text = when (result) {
             is MerchantLabelResult.Found -> "FOUND items=${result.labels.size}"
             is MerchantLabelResult.Unavailable -> "${result.failure}:${result.reason}"
         }
-        log.info("operation=master-ops-account-labels result={}", text)
+        log.info("operation=master-ops-{} result={}", kind.operation, text)
     }
 
     override fun search(criteria: MerchantSearchCriteria): MasterCallResult {
@@ -350,7 +369,12 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         const val SEARCH_PATH = "/internal/v1/admin/merchant-searches"
         const val MERCHANTS_PATH = "/internal/v1/admin/merchants"
         const val COMMANDS_PATH = "/internal/v1/admin/merchant-operations"
-        const val LABELS_PATH = "/internal/v1/admin/merchant-account-labels"
+        val ACCOUNT_LABELS = LabelKind(
+            "account-labels", "/internal/v1/admin/merchant-account-labels", "merchantAccountIds", MasterResponseShape.MERCHANT_ACCOUNT_LABELS, "merchantAccountId",
+        )
+
+        /** MERCHANT-CODE-001 §5.6.3(MC-3b) — 배포는 MASTER 먼저(ADMIN만 먼저면 MASTER 404 → UNAVAILABLE — 화면 "—", 목록 영향 없음, fail-safe). */
+        val MERCHANT_LABELS = LabelKind("merchant-labels", "/internal/v1/admin/merchant-labels", "merchantIds", MasterResponseShape.MERCHANT_LABELS, "merchantId")
         const val LABELS_BUSY = "MASTER_LABELS_BUSY"
         const val TOO_LARGE = "RESPONSE_TOO_LARGE"
         const val CONFLICT = 409

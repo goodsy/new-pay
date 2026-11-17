@@ -40,6 +40,8 @@ data class ApprovalRow(
     val acquiring: AcquiringDetailRow? = null,
     /** 가맹점 승인의 명령·실행 행(상세에만 — MERCHANT-OPS-002 B2-2). 근거 참조는 넣지 않는다(D-MOPS-008 ① — APPROVER·요청자만 별도 조회). */
     val merchant: MerchantOpsDetailRow? = null,
+    /** MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 대상의 내부 키 `COALESCE(target_merchant_id, target_ref)`(V13 ③ — 언제나 mer_), 그 밖 대상은 null. */
+    val targetMerchantId: String? = null,
 )
 
 /** 가맹점 승인 명령 행(종류·가맹점·고정 대상 JSON) + 실행 행(승인 뒤에만). [ownerReference] = `ctr_…#n`, [ownerResultCode] = MASTER 거절 code. */

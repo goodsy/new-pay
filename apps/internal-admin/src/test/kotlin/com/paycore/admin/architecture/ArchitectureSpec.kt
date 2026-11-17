@@ -339,6 +339,22 @@ class ArchitectureSpec : FunSpec({
             setOf("MerchantLabelClient", "TransactionListEnricher")
     }
 
+    test("MERCHANT-CODE-001 MC-3-17: the merchant label client is used exactly by TransactionLookupService and the screen label use case (behind the merchantops web label controller); the controller reaches merchantops only via provided") {
+        val client = "$BASE_PACKAGE.merchantops.application.provided.MerchantLabelClient"
+        classes.filter { c -> c.directDependenciesFromSelf.any { it.targetClass.name == client } }.map { it.name.substringBefore('$') }.filter { it != client }.toSet() shouldBe setOf(
+            "$BASE_PACKAGE.paymentops.application.TransactionLookupService",
+            "$BASE_PACKAGE.merchantops.application.MerchantLabelService",
+            "$BASE_PACKAGE.merchantops.application.MerchantTargetLabelService",
+        )
+        noClasses().that().haveNameMatching("^" + Regex.escape("$BASE_PACKAGE.merchantops.adapter.web.MerchantTargetLabelController") + "(\\$.*)?$")
+            .should().dependOnClassesThat().resideInAnyPackage("$BASE_PACKAGE.merchantops.application.required..", "$BASE_PACKAGE.merchantops.adapter.integration..")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName(client)
+            .allowEmptyShould(false).check(classes)
+        // 대조군: 컨트롤러가 실제로 화면 라벨 Use Case(provided)를 쓴다(규칙 대상이 비어 통과하지 않는다).
+        classes.get("$BASE_PACKAGE.merchantops.adapter.web.MerchantTargetLabelController").directDependenciesFromSelf.map { it.targetClass.simpleName }.toSet() shouldContainAll
+            setOf("MerchantTargetLabelUseCase")
+    }
+
     test("no cycles between modules") {
         // 대상 있음: security 패키지.
         rules.modulesAreFreeOfCycles().allowEmptyShould(false).check(classes)

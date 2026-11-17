@@ -243,6 +243,13 @@ object StubMasterOpsServer {
     fun labelsJson(vararg items: Triple<String, String, String>): String =
         """{"items":[""" + items.joinToString(",") { (mid, name, code) -> """{"merchantAccountId":"$mid","merchantName":"$name","merchantCode":"$code"}""" } + "]}"
 
+    /** MERCHANT-CODE-001 MC-3b 가맹점 내부 키 라벨 묶음 조회 경로(§5.6.3 — 서명 POST). */
+    const val MERCHANT_LABELS = "/internal/v1/admin/merchant-labels"
+
+    /** 가맹점 라벨 응답(MASTER 계약 모양 — 항목 3키). [items]는 (merchantId, 상호, 코드). */
+    fun merchantLabelsJson(vararg items: Triple<String, String, String>): String =
+        """{"items":[""" + items.joinToString(",") { (mer, name, code) -> """{"merchantId":"$mer","merchantName":"$name","merchantCode":"$code"}""" } + "]}"
+
     fun historyJson(merchantId: String): String =
         """{"items":[{"seq":7,"occurredAt":"2026-10-09T02:00:00.000Z","operation":"RegisterMerchant","aggregateType":"Merchant","aggregateId":"$merchantId","changeType":"MerchantRegistered","actorRef":"operator-1"}],"nextCursor":null}"""
 }

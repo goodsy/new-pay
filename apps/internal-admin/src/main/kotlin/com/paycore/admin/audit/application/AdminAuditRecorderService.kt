@@ -32,6 +32,7 @@ class AdminAuditRecorderService(private val store: AdminAuditStore) : AdminAudit
                 detail = record.detail,
                 reason = record.reason,
                 targetRef = record.targetRef,
+                targetMerchantId = record.targetMerchantId,
             ),
         )
     }

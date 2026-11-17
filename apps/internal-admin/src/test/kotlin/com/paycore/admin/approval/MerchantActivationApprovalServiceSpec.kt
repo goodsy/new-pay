@@ -75,8 +75,10 @@ class MerchantActivationApprovalServiceSpec(
         ) as String?
     }
     fun audits(id: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(target_ref, '-'), '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE approval_id = ? ORDER BY event_id", id) }
-    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_ref = ? ORDER BY event_id", m) }
-    fun rowsFor(m: String) = root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE target_ref = ?", m) as Number).toLong() }
+    // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 감사 행은 내부 키 가상 열 `target_merchant_key = ?`로 찾는다(MC-3a 전 mer_ 표기 행 포함)
+    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_merchant_key = ? ORDER BY event_id", m) }
+    // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 승인 행은 `COALESCE(target_merchant_id, target_ref) = ?`로 찾는다
+    fun rowsFor(m: String) = root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE COALESCE(target_merchant_id, target_ref) = ?", m) as Number).toLong() }
     fun detailCalls(m: String) = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.merchantPath(m)).size
     fun posts(path: String, id: String) = StubMasterOpsServer.requestsForPath(path).filter { base.idOf(it.body) == id }
     fun row(id: String) = root().use {
@@ -92,11 +94,16 @@ class MerchantActivationApprovalServiceSpec(
     Given("MA-1 activation approval request (OPERATOR, evidence = institution reply reference required, C-35 group PM)") {
         Then("it stores the MERCHANT approval with MERCHANT:PM:<id>, command PAYMENT_METHOD_ACTIVATION with pinned (status, PRIMARY, registeredBy) and the evidence; one audit without it") {
             val (id, m) = f.requestedActivation()
-            row(id) shouldBe "MERCHANT_PAYMENT_METHOD_ACTIVATION|PENDING|MERCHANT|$m|0|MERCHANT:PM:$m|PAYMENT_METHOD_ACTIVATION|${MerchantActivationApprovalFixture.ACTIVATION_EVIDENCE}|1"
-            pinned(id).propertyNames().toSet() shouldBe setOf("merchantId", "merchantName", "merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            row(id) shouldBe "MERCHANT_PAYMENT_METHOD_ACTIVATION|PENDING|MERCHANT|${MerchantOpsApprovalFixture.DEFAULT_CODE}|0|MERCHANT:PM:$m|PAYMENT_METHOD_ACTIVATION|${MerchantActivationApprovalFixture.ACTIVATION_EVIDENCE}|1"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.3·§5.6.4 — 가맹점 대상 봉인 5종에 표시용 merchantCode 추가(새 행 필수, 기존 행 읽기 선택 — A 단계 비교 제외 C-19)
+            pinned(id).propertyNames().toSet() shouldBe setOf(
+                "merchantId", "merchantName", "merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy", "merchantCode",
+            )
             listOf("merchantAccountId", "activationId", "paymentMethod", "status", "primarySiteId", "registeredBy").map { pinned(id).get(it).asString() } shouldBe
                 listOf(f.midOf(m), f.activationOf(m), "CARD", "UNDER_REVIEW", f.primaryOf(m), StubMasterOpsServer.SITE_REGISTRANT)
-            audits(id) shouldBe listOf("APPROVAL_REQUESTED|$m|kind=MERCHANT_PAYMENT_METHOD_ACTIVATION")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(id) shouldBe listOf("APPROVAL_REQUESTED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|kind=MERCHANT_PAYMENT_METHOD_ACTIVATION")
             root().use { (it.scalar("SELECT COUNT(*) FROM admin_audit_event WHERE detail LIKE '%VAN-REPLY%'") as Number).toLong() } shouldBe 0L
             pinned(id).toString() shouldNotContain "VAN-REPLY"
         }
@@ -145,7 +152,8 @@ class MerchantActivationApprovalServiceSpec(
             base.detail(m)
             (base.request(base.operator(), m) is ApprovalOutcome.Created) shouldBe true
             rowsFor(m) shouldBe 3L
-            root().use { it.column("SELECT unresolved_key FROM admin_approval_request WHERE target_ref = ?", m) }.toSet() shouldBe
+            // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 승인 행은 내부 키 열 `target_merchant_id = ?`로 찾는다(이 시험이 만든 새 행은 모두 내부 키를 가진다)
+            root().use { it.column("SELECT unresolved_key FROM admin_approval_request WHERE target_merchant_id = ?", m) }.toSet() shouldBe
                 setOf("MERCHANT:$m", "MERCHANT:PM:$m", "MERCHANT:SITE_REVIEW:$m")
         }
     }
@@ -186,7 +194,8 @@ class MerchantActivationApprovalServiceSpec(
             base.approve(id, registrant) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
             listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.PAYMENT_METHOD_ACTIVATION_APPROVALS, id).size.toString(), account(registrant.account.id.value)) shouldBe
                 listOf("PENDING|-", "none", "0", before)
-            audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(id).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
             // 다른 APPROVER는 같은 승인을 처리할 수 있다.
             base.approve(id) shouldBe ApprovalOutcome.Executed(id)
         }
@@ -222,7 +231,8 @@ class MerchantActivationApprovalServiceSpec(
             listOf(status(wrongId), execution(wrongId) ?: "none", posts(StubMasterOpsServer.PAYMENT_METHOD_ACTIVATION_APPROVALS, wrongId).size.toString(), account(actor)) shouldBe
                 listOf("PENDING|-", "none", "0", before)
             authFailures(actor) shouldBe failuresBefore
-            audits(wrongId).last() shouldBe "APPROVAL_DENIED|$wrongM|reason=APPROVER_IS_REGISTRANT"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(wrongId).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
             // (2) 이미 쓴 step 코드: 같은 코드로 남의 개통을 먼저 승인(그 step 소비)한 뒤 자기 개통에 같은 코드 → 여전히 APPROVER_IS_REGISTRANT.
             val (otherId, other) = f.requestedActivation()
             base.executeReplies[otherId] = base.succeeded(f.activationOf(other))
@@ -233,7 +243,8 @@ class MerchantActivationApprovalServiceSpec(
             base.approve(usedId, registrant, totp = code) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
             listOf(status(usedId), execution(usedId) ?: "none", account(actor), authFailures(actor).toString()) shouldBe
                 listOf("PENDING|-", "none", consumed, failuresBefore.toString())
-            audits(usedId).last() shouldBe "APPROVAL_DENIED|$usedM|reason=APPROVER_IS_REGISTRANT"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(usedId).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
         }
         Then("MASTER returning the new registrant rejections (ADMIN check bypassed) → OWNER_REJECTED + integrity alert (DEFECT_REJECTIONS)") {
             listOf("APPROVER_IS_ACTIVATION_REGISTRANT", "APPROVER_IS_SITE_REGISTRANT").forEach { code ->
@@ -275,12 +286,15 @@ class MerchantActivationApprovalServiceSpec(
     Given("MS-1 site review approval request (evidence = PG review basis, reason REVIEW_PASSED only, C-35 group SITE_REVIEW)") {
         Then("it stores MERCHANT:SITE_REVIEW:<id>, command SITE_REVIEW_APPROVAL with pinned (channel, review status PENDING, reason, registeredBy) — no channel identifier, no evidence") {
             val (id, m) = f.requestedSiteReview()
-            row(id) shouldBe "MERCHANT_SITE_REVIEW_APPROVAL|PENDING|MERCHANT|$m|0|MERCHANT:SITE_REVIEW:$m|SITE_REVIEW_APPROVAL|${MerchantActivationApprovalFixture.SITE_EVIDENCE}|1"
-            pinned(id).propertyNames().toSet() shouldBe setOf("merchantId", "merchantName", "merchantSiteId", "channelType", "reviewStatus", "reasonCode", "registeredBy")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            row(id) shouldBe "MERCHANT_SITE_REVIEW_APPROVAL|PENDING|MERCHANT|${MerchantOpsApprovalFixture.DEFAULT_CODE}|0|MERCHANT:SITE_REVIEW:$m|SITE_REVIEW_APPROVAL|${MerchantActivationApprovalFixture.SITE_EVIDENCE}|1"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.3·§5.6.4 — 가맹점 대상 봉인 5종에 표시용 merchantCode 추가(새 행 필수, 기존 행 읽기 선택 — A 단계 비교 제외 C-19)
+            pinned(id).propertyNames().toSet() shouldBe setOf("merchantId", "merchantName", "merchantSiteId", "channelType", "reviewStatus", "reasonCode", "registeredBy", "merchantCode")
             listOf("merchantSiteId", "channelType", "reviewStatus", "reasonCode", "registeredBy").map { pinned(id).get(it).asString() } shouldBe
                 listOf(f.secondSiteOf(m), "WEB", "PENDING", "REVIEW_PASSED", StubMasterOpsServer.SITE_REGISTRANT)
             pinned(id).toString() shouldNotContain "second.example.test"
-            audits(id) shouldBe listOf("APPROVAL_REQUESTED|$m|kind=MERCHANT_SITE_REVIEW_APPROVAL")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(id) shouldBe listOf("APPROVAL_REQUESTED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|kind=MERCHANT_SITE_REVIEW_APPROVAL")
         }
         Then("a reject code is 400 reasonCode NOT_ALLOWED (C-40 — rejection is the 1-person channel); missing evidence 400; advisory 409 for APPROVED, REJECTED, inactive and unknown sites; SUSPENDED is eligible") {
             val operator = base.operator()
@@ -335,7 +349,8 @@ class MerchantActivationApprovalServiceSpec(
                 base.approve(id, registrant) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
                 listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.SITE_REVIEW_APPROVALS, id).size.toString(), account(registrant.account.id.value)) shouldBe
                     listOf("PENDING|-", "none", "0", before)
-                audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+                // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+                audits(id).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
                 base.approve(id) shouldBe ApprovalOutcome.Executed(id)
             }
         }
@@ -354,7 +369,8 @@ class MerchantActivationApprovalServiceSpec(
                 base.approve(id, registrant, totp = TestTotp.wrongCode(registrant.secret)) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
                 listOf(status(id), execution(id) ?: "none", posts(StubMasterOpsServer.SITE_REVIEW_APPROVALS, id).size.toString(), account(actor)) shouldBe
                     listOf("PENDING|-", "none", "0", before)
-                audits(id).last() shouldBe "APPROVAL_DENIED|$m|reason=APPROVER_IS_REGISTRANT"
+                // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+                audits(id).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
             }
             authFailures(actor) shouldBe failuresBefore
             val (otherId, other) = f.requestedSiteReview()
@@ -365,7 +381,8 @@ class MerchantActivationApprovalServiceSpec(
             val consumed = account(actor)
             base.approve(usedId, registrant, totp = code) shouldBe ApprovalOutcome.Refused("APPROVER_IS_REGISTRANT")
             listOf(status(usedId), account(actor), authFailures(actor).toString()) shouldBe listOf("PENDING|-", consumed, failuresBefore.toString())
-            audits(usedId).last() shouldBe "APPROVAL_DENIED|$usedM|reason=APPROVER_IS_REGISTRANT"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(usedId).last() shouldBe "APPROVAL_DENIED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|reason=APPROVER_IS_REGISTRANT"
         }
         Then("another approver: the site review approved meanwhile → INVALIDATED (kept from the former Q-MOPS-24 test)") {
             val (changed, m2) = f.requestedSiteReview()

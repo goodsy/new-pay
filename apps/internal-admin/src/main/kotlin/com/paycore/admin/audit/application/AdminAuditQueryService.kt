@@ -55,7 +55,8 @@ class AdminAuditQueryService(
         "range=" + (if (filter.from != null || filter.to != null) "set" else "none"),
         "page=" + (if (filter.beforeEventId != null) "next" else "first"),
         "limit=${filter.limit}",
-    ).joinToString(";")
+        // MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 필터는 값 없이 있음만(키가 있을 때만 — 기존 요약 문자열 불변).
+    ).plus(listOfNotNull(filter.targetMerchantId?.let { "targetMerchant=1" })).joinToString(";")
 
     private companion object {
         const val ACTION_AUDIT_VIEWED = "AUDIT_VIEWED"

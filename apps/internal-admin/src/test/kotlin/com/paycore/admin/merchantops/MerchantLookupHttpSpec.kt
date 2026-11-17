@@ -52,9 +52,13 @@ class MerchantLookupHttpSpec(
     fun merchantId() = "mer_01JC" + (++seq).toString().padStart(22, '0')
     fun loggedIn(account: LoginReadyAccounts.LoginReady) = AdminHttpClient(mockMvc).also { it.login(account.loginName, account.password, account.secret).status shouldBe 200 }
     fun withRole(role: AdminRole) = ready.withoutRoles().also { path.grant(it.account.id, role) }
+    /**
+     * action | result_code | detail | target_ref | target_merchant_id(MERCHANT-CODE-001 MC-3a 리뷰 MINOR-3 — 실제 MySQL 행의 내부 키 열도 단언: §5.6.4 C-32 표
+     * MERCHANT_VIEWED FOUND = 코드 + mer_, NOT_FOUND = mer_ + mer_, 사업자(등록번호 검색) 대상 = NULL).
+     */
     fun audits(actorId: String) = AdminDbAccounts.root(container).use {
         it.column(
-            "SELECT CONCAT(action, '|', result_code, '|', COALESCE(detail, '-'), '|', COALESCE(target_ref, '-')) FROM admin_audit_event " +
+            "SELECT CONCAT(action, '|', result_code, '|', COALESCE(detail, '-'), '|', COALESCE(target_ref, '-'), '|', COALESCE(target_merchant_id, '-')) FROM admin_audit_event " +
                 "WHERE actor_id = ? AND action LIKE 'MERCHANT_%' ORDER BY event_id",
             actorId,
         )
@@ -112,7 +116,7 @@ class MerchantLookupHttpSpec(
             val denied = search(viewer, """{"registrationNumber":"$brn"}""")
             denied.status shouldBe 403
             denied.contentAsString shouldBe """{"error":"FORBIDDEN"}"""
-            audits(viewerAccount.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=778*******|-")
+            audits(viewerAccount.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=778*******|-|-")
         }
         Then("detail is audited (MERCHANT_VIEWED, target merchant); history is not; the history cursor is a query parameter on the screen API only") {
             viewer.perform(get("/api/merchants/$mer")).let {
@@ -123,14 +127,15 @@ class MerchantLookupHttpSpec(
             }
             viewer.perform(get("/api/merchants/$mer/history")).status shouldBe 200
             viewer.perform(get("/api/merchants/$mer/history?after=x")).status shouldBe 400
-            audits(viewerAccount.account.id.value).last() shouldBe "MERCHANT_VIEWED|OK|-|$mer"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.9 §5.6.4 C-32 표 `MERCHANT_VIEWED`(FOUND) 행(Q-MC-4 — D-MCODE-001) — MC-3a부터 target_ref = 응답 merchantCode(현재 코드), target_merchant_id = mer_(내부 키)
+            audits(viewerAccount.account.id.value).last() shouldBe "MERCHANT_VIEWED|OK|-|shopabcd12|$mer"
             audits(viewerAccount.account.id.value).count { it.startsWith("MERCHANT_VIEWED") } shouldBe 1
             StubMasterOpsServer.requestsForPath(StubMasterOpsServer.historyPath(mer, 0)).last().signatureValid shouldBe true
         }
         Then("an unknown merchant is 404 MERCHANT_NOT_FOUND (audited NOT_FOUND); a malformed id is 400 without a MASTER call") {
             val unknown = merchantId()
             viewer.perform(get("/api/merchants/$unknown")).contentAsString shouldBe """{"error":"MERCHANT_NOT_FOUND"}"""
-            audits(viewerAccount.account.id.value).last() shouldBe "MERCHANT_VIEWED|NOT_FOUND|-|$unknown"
+            audits(viewerAccount.account.id.value).last() shouldBe "MERCHANT_VIEWED|NOT_FOUND|-|$unknown|$unknown"
             viewer.perform(get("/api/merchants/mer_bad")).status shouldBe 400
         }
         Then("MASTER unavailable is 503 MASTER_UNAVAILABLE (no cause in the body) and the detail is not audited (nothing was seen)") {
@@ -154,7 +159,7 @@ class MerchantLookupHttpSpec(
                 it.contentAsString shouldBe """{"error":"FORBIDDEN"}"""
             }
             search(viewer, """{"limit":"5"}""").status shouldBe 400
-            audits(viewerAccount.account.id.value) shouldBe before + "MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=INVALID|-"
+            audits(viewerAccount.account.id.value) shouldBe before + "MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=INVALID|-|-"
         }
     }
 
@@ -181,7 +186,7 @@ class MerchantLookupHttpSpec(
                     it.status shouldBe 400
                     it.contentAsString shouldBe """{"error":"INVALID_INPUT"}"""
                 }
-                audits(account.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|OK|brn=778*******;results=1|$biz", "MERCHANT_BRN_SEARCHED|INVALID_INPUT|brn=INVALID|-")
+                audits(account.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|OK|brn=778*******;results=1|$biz|-", "MERCHANT_BRN_SEARCHED|INVALID_INPUT|brn=INVALID|-|-")
             }
             AdminDbAccounts.root(container).use {
                 it.column("SELECT COUNT(*) FROM admin_audit_event WHERE CONCAT_WS('|', action, result_code, detail, target_ref, reason, correlation_id) LIKE ?", "%$brn%")
@@ -193,7 +198,7 @@ class MerchantLookupHttpSpec(
             val client = loggedIn(admin)
             search(client, "{}").status shouldBe 200
             search(client, """{"registrationNumber":"$brn"}""").status shouldBe 403
-            audits(admin.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=778*******|-")
+            audits(admin.account.id.value) shouldBe listOf("MERCHANT_BRN_SEARCHED|FORBIDDEN|brn=778*******|-|-")
         }
         Then("strict search body (Q-MOPS-07): malformed registration-number attempts are 400 INVALID_INPUT audited as brn=INVALID; other malformed bodies are 400 without audit; MASTER is not called") {
             val account = withRole(AdminRole.OPERATOR)
@@ -231,7 +236,7 @@ class MerchantLookupHttpSpec(
                     responses += res.contentAsString
                 }
             }
-            audits(account.account.id.value) shouldBe List(attempts.size) { "MERCHANT_BRN_SEARCHED|INVALID_INPUT|brn=INVALID|-" }
+            audits(account.account.id.value) shouldBe List(attempts.size) { "MERCHANT_BRN_SEARCHED|INVALID_INPUT|brn=INVALID|-|-" }
             StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).size shouldBe searchesBefore
             responses.filter { brn in it }.shouldBeEmpty()
             logs.filter { brn in it || "\"nested\"" in it }.shouldBeEmpty()

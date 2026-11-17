@@ -54,6 +54,7 @@ class ApprovalQueryService(private val sessions: AdminSessionQuery, private val 
                 m.integrityFlag, m.resendHaltedReason, m.ownerResultCode, m.ownerReference,
             )
         },
+        targetMerchantId = r.targetMerchantId,
     )
 
     private companion object {

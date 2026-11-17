@@ -7740,13 +7740,17 @@
         "명세 리뷰 PASS 후 TDD 구현(별도 배치)"
       ],
       "allowedWritePaths": [
-        "docs/repository/**"
+        "docs/repository/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/frontend/src/**",
+        "apps/master-api/src/**",
+        "harness/tasks.json"
       ],
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "MC-2b 커밋 완료 → UI 참조 재현 리뷰 MINOR(M1 기본 빌드 제외·M2 docs 입력·M3 시험) 반영·재게이트·커밋 → Demo 재기동·화면 검토 → MC-3 → MC-4 → MERCHANT-BIZ-LOOKUP-001",
-      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.5 sha256 c3fd9787b501551e49c64fc53fd00b0ee298d2f794e0a2285942dea1c6b3b111",
+      "nextResumeAction": "MC-4(PAYMENT migration 번호 재확인 — V35 사용됨) → MERCHANT-BIZ-LOOKUP-001",
+      "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.10 sha256 c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253",
       "review": "spec rev0.3 REVIEW_FAIL(MAJOR-1 배포 단위, MAJOR-2 seed 재실행) → rev0.4 REVIEW_PASS (2026-11-14). C-20~C-26 Coordinator 채택",
       "gateRuns": [
         {
@@ -7789,6 +7793,14 @@
           "result": "GRADLE-CHECK 04:05:03Z..04:47:59Z(42m56s) exit 0; Kotlin 4615 / FRONTEND 377 실패·errors·skip 0; HARNESS-SELFTEST PASS(203); fingerprint 전후 동일 sha256:2bed03a391b5dad4d37694f2d57a683dc7e72062c2b473cc5c493fdb1ce13453",
           "note": "게이트 작업 트리에는 미커밋 UI 참조 재현(src/uiref·ui-reference.html·vite.config.ts·build-logic)이 함께 있었음 — MC-2b 커밋은 그 부분집합. UI 참조는 리뷰 수정 뒤 별도 게이트",
           "supplementary": "MCODE-cve4 PASS(~/gate-logs/MCODE-cve4.log, 취약점 0, canary 전 모듈 검출)"
+        },
+        {
+          "tag": "MC3-gate1",
+          "verdict": "PASS",
+          "batch": "MC-3a·3b·3c",
+          "evidence": "build/harness-evidence/MERCHANT-CODE-001-2026-11-17T004623Z.json",
+          "result": "GRADLE-CHECK 00:46:52Z..01:37:55Z(51m03s) exit 0; Kotlin 4810 / FRONTEND 571 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:e8a370cde05138451d05d44c16d94a2c611de43e409bc4966737ee347672250e",
+          "supplementary": "MC3-cve1 PASS(~/gate-logs/MC3-cve1.log, vulnerabilities 0)"
         }
       ],
       "evidence": {
@@ -7848,8 +7860,1045 @@
         "MC-1b: MINOR-2 TOTP 재사용 시험은 30초 칸 경계에서 흔들릴 수 있음(관찰 필요)",
         "MC-1b: 계약 승인 뒤 변경 거절은 E2E에서 ADMIN advisory 409로만 확인(MASTER LOCKED는 시험 계층에서 확인)",
         "MC-1b: gate3 Fixture 수정 기록을 명세 §13에 다음 명세 갱신 때 추가(게이트 지문 보존 위해 tasks.json에만 기록)",
-        "MC-2b MINOR-3: 가맹점 상세 \"이 가맹점에 Site·계약 추가\" 진입점(startWithMerchant + handoff 검사)"
-      ]
+        "MC-2b MINOR-3: 가맹점 상세 \"이 가맹점에 Site·계약 추가\" 진입점(startWithMerchant + handoff 검사)",
+        "계약 승인 상세가 계약 Revision 내부 키(ctr_…)를 그대로 표시(MC-3 범위 밖 기존 표시 — D-ADMIN-UI-004 ③ 적용 범위 확인 후 정리 후보)",
+        "다크 1024px 등 긴 화면에서 사이드바 배경이 화면 높이에서 끝남(ADMIN-UI-WORKSPACE-001 후속 후보)",
+        "MC-3b NIT-2(415·413 거절 지표), NIT-4(mer_ 정규식 사본 통합), NIT-5(MASTER 코드 없는 가맹점 503 실제 reader 시험)",
+        "명세 rev 0.4.9 사본이 없어 0.4.9→0.4.10 차이가 errata 2건뿐인지 diff로 확인 불가(리뷰어 확인: 두 errata 반영됨)"
+      ],
+      "mc3Plan": {
+        "specRev": "0.4.6 (2026-11-17, APPROVAL-TARGET-KEYS-001 합침 — §5.6 화면 표시(새·기존 행), MASTER 라벨 endpoint merchant-labels, 감사 target_merchant_id·가상 키, C-29~C-34)",
+        "batches": "MC-3a ADMIN 저장·응답(V15, V16 비움) → MC-3b MASTER 라벨 endpoint + ADMIN gateway·화면 API(migration 없음, MASTER 먼저 배포) → MC-3c frontend(승인 목록·상세·감사 화면)",
+        "coordinatorReview": "C-32(코드를 모르는 행은 mer_ 저장 — 화면은 모두 코드)는 rev 0.4 리뷰 통과 §5.1 범위와 같아 채택; L-13 사업자 라벨은 후속 후보",
+        "specReview": "rev 0.4.6 REVIEW_FAIL(MAJOR-1 승인 뒤 감사 작성 지점 누락 → 새 CHECK 3819로 승인 영구 정체, m-1~m-5, n-1·2) → rev 0.4.7 재리뷰 REVIEW_PASS(조건부: MINOR-1 회복 무결성 보고 문자열 경로, NIT-1 필수 설정 위치) → rev 0.4.8 Coordinator 확인(조건 반영 grep 확인, Reviewer 지시대로 재리뷰 생략) 2026-11-17",
+        "coordinatorDecisions": "C-35 라벨 전용 분당 창 paycore.admin.master-ops.label-reads-per-minute(Demo 60, 운영값 아님) — 가맹점 검색 창과 분리, 429 → UNAVAILABLE; C-32 해석 §11(코드를 모르는 행 mer_ 저장 — rev 0.4 §5.1 범위, 화면은 항상 코드) — 사용자 보고에 한 줄 알림"
+      },
+      "mc3a": {
+        "batch": "MC-3a ADMIN 저장·응답(ADMIN V15, V16 비움, MASTER 무변경)",
+        "implementer": "paycore-implementer (2026-11-17) — 자기 완료 판정 아님, Verifier·Reviewer 별도",
+        "spec": {
+          "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+          "rev": "0.4.9",
+          "sha256": "920b02673c93407c17b11b87a2bd5fbabd69a9b433ddddbbf608a0c90500bd70"
+        },
+        "baseHead": "146b2ba",
+        "migration": "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql — 4문장: (1) audit ADD target_merchant_id + VIRTUAL target_merchant_key(COALESCE + REGEXP_LIKE — MySQL 8.4 수용, LIKE 대체 없음) ALGORITHM=INSTANT (2) ADD INDEX ix_admin_audit_event_target_merchant ALGORITHM=INPLACE, LOCK=NONE (3) audit CHECK ①~③ ALGORITHM=COPY (4) approval target CHECK 재생성(mer_|code) ALGORITHM=COPY. V16 없음, runtime 권한 변경 없음.",
+        "changedFiles": [
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/account/adapter/web/AuditController.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaApprovalRequestRepository.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaMerchantOpsCommandStore.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/query/JooqApprovalRequestListReader.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/web/ApprovalController.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/AcquiringOpsApprovalService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalAuditTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalQueryService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OperatorCancelJustificationService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OperatorDecisionReconciliationService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerExecutionRecoveryService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerOutcomeApplier.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerServiceApprovalService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/provided/ApprovalQuery.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/required/ApprovalRequestListReader.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/required/ImmutableApprovalColumns.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/ApprovalTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedActivationApprovalTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedContractApprovalTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedCurrencyEnablementTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedFirstMidTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedSiteReviewApprovalTarget.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/persistence/JpaAdminAuditEventEntity.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/persistence/JpaAdminAuditStore.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/query/JooqAdminAuditReader.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/AdminAuditQueryService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/AdminAuditRecorderService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AdminAuditQuery.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AdminAuditRecorder.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AuditFilter.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/domain/AdminAuditEvent.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantApprovalChannelService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLookupService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantRegistrationService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantApprovalClient.kt",
+          "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/AdminSchemaSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/ApprovalAuditTargetSourceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantActivationApprovalFixture.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantActivationApprovalServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantApprovalFlowHttpSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCodeChangeApprovalServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCodeTargetRefSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCurrencyApprovalServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantOpsApprovalFixture.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantOpsApprovalServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantTargetQuerySpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/OwnerExecutionRecoverySpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/domain/MerchantTargetCodeSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/audit/AdminAuditEventTargetRefSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/audit/AuditQueryHttpSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLookupHttpSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLookupServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantRegistrationServiceSpec.kt"
+        ],
+        "sourceFingerprint": {
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/account/adapter/web/AuditController.kt": "2b39c734485417abf75f42c1ba36a2009fbe96722ff28c17e301e0d7a2c8e9bb",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaApprovalRequestRepository.kt": "f696e717f86bcc7904cc0b02438cd919534e984f90f7d36f63d340b7fa84bbdc",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaMerchantOpsCommandStore.kt": "913fa183a4584c5206e1801fef88b3ee3089514d3d43d9470fde1801a920072c",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/query/JooqApprovalRequestListReader.kt": "99978ff7307f8af89394ac24f2b9acd435c39781dda16be73060c168ed14f9a3",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/web/ApprovalController.kt": "8364127ce9d49ce1df77c08928c1d5c47bbe23058196f9e20d4fd2e8d2fa8ab4",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/AcquiringOpsApprovalService.kt": "d96d1e3b1c21888ad07823c426004e41f080deb1a20fae8c0e97ba59cbea5594",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalAuditTarget.kt": "ede31e0c6e74fb62c14f0306d2d336401ec79310e91ef276fd19c2d092d7f720",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalQueryService.kt": "27752fab81ab2c9fa42d3953b3de5683e6e2e14affc27b8150d80fdd5b3ce707",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalService.kt": "e51c59c367eeca125b83bf05fa1a5af2da6ce08ac0d9d27eb20e6f828afe581e",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt": "47077afa2a4adf6695cc4b7fbce125533fd43bac59aa8fa6e0c4b0e4db729be9",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OperatorCancelJustificationService.kt": "baa000dcfbc93134482df3dfe76ce3fe57d35b4746450d8c9d43ccc2e144ec7d",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OperatorDecisionReconciliationService.kt": "f564cb2e410ff2d2d86acb2e9bf73a8862b7640e39700f34d52150ef6a205790",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerExecutionRecoveryService.kt": "623cc5d23f55f6eab9d7c3e947b885d7a905f00280b2c57cfaa79eac02b370c1",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerOutcomeApplier.kt": "7207846208a2ddef374c1149d5b63cbc544cf2852ca95d400bcdc7aaf00f2038",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerServiceApprovalService.kt": "78347e23d8321051fd02d7f23efa9257fff0d8863b17aaf5d2f0a33ccaf66098",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/provided/ApprovalQuery.kt": "25679880ae13f7b44c08cf557a89bbb03f3187967e57faed3b095d8215479930",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/required/ApprovalRequestListReader.kt": "eba9af85b833631739f96e5eff5748906eb92092bf25a68328cac03f1e6d9517",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/required/ImmutableApprovalColumns.kt": "f3ac119552943bb465cf08da6b4ab3dfe37d81ac9b5030fe3ab43f73cb97d7ae",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/ApprovalTarget.kt": "9552917e2bc85f3bd837a6119dc022a754ab01151af92dd7ec5acfc4399ab0a9",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedActivationApprovalTarget.kt": "6d03ec35f55b7ac6a1a0883bb3be0639e04acbf1e286e9cacbe213178b468e2b",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedContractApprovalTarget.kt": "cce1faad837b9a023c6dbfb7b82e9b54c97bab7a116112f52113415b6708d912",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedCurrencyEnablementTarget.kt": "2bf9969e866d2f8c0ba30608187c7f2301f1a8105247bae8d6aead04ddd09961",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedFirstMidTarget.kt": "de16b26f24ddc284d4228453c5bd162d89cc292c995a2e702192837487c811ce",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/PinnedSiteReviewApprovalTarget.kt": "4e590086f083e1f318d8eebfa21ac82ce6b7d5c251593e8380c2965a747951d3",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/persistence/JpaAdminAuditEventEntity.kt": "f3e27fe4237927c3948ea8ccb50d47b92842ca0ca23f15091f501550034fddf2",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/persistence/JpaAdminAuditStore.kt": "5c0cc5d7234ce76f738a20a6565b7b0fcfa1ddbb14cd114e466e7c2202e457c6",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/query/JooqAdminAuditReader.kt": "63f67a0d713426502755ded3d1985dafaa7decb1fdcbe53b9c7861051b15b1e8",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/AdminAuditQueryService.kt": "1d61474eae02fe73456fb359a90a87228591fbe1350422c8cfc17acfb5ca66fe",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/AdminAuditRecorderService.kt": "00329f1c4ececb33d573c05b1f65d20939b923f0f00d5daadfec6c7c81f7d81a",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AdminAuditQuery.kt": "3e00a374dac9bffe2892618471f1b3773b6d3c5fb53f921b2d2bda0fa6e6d78f",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AdminAuditRecorder.kt": "03d20e28b2887a0ee16a5788963e9827c5d84500e236e69b81237a8da111efdf",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AuditFilter.kt": "5bb7560e83e0856fa4a22d48bb170959920c3c75216553e6d8fda7fda6d63a5e",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/domain/AdminAuditEvent.kt": "8ff02df0f357707fce5e8199657cc5912d51863d2a0b45696308ab4850d89ae3",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantApprovalChannelService.kt": "0512222cc927e510ed0b7151d5f64d800173a528dbf5268e3ea67ea3dc822437",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLookupService.kt": "e00a8e7c7da94841350958a3da8f800e5a3b2baec739096228f47cbe4c8ed40e",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantRegistrationService.kt": "a933fd7dff6d78854a7c907b76aaf1695d9ef5d51062b9a47f98a56744156b9d",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantApprovalClient.kt": "32fa296be22a6dc6d6e1d10f46098c770dab61bfd4bda5e9cd2a9ac53e966868",
+          "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/AdminSchemaSpec.kt": "c7e12f198a53176d11b5c597fab32dd7518a8e17c59f2a9c4114cb7e5ebd66bd",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/ApprovalAuditTargetSourceSpec.kt": "f8e567366d0d4c9c495ee8babd990d14bcf865951dc8cf4fd43e487bb7095b0a",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantActivationApprovalFixture.kt": "0cd8860eb2aaf2320acf079f9727388bdc9eb29043ac1de5228c019446cd04ce",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantActivationApprovalServiceSpec.kt": "8c6097dcce2fc0a59b537d8dbf1c7e8d81262a1bb375bfd31720c74267df15e1",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantApprovalFlowHttpSpec.kt": "3d9678d442d50d496e91136a1dde22a80f8cb3b14600496d442643d16afdaae1",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCodeChangeApprovalServiceSpec.kt": "f8189426f647965ed7cfa489d30f426ca3a7faddf936acb7984f09ec50b8f193",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCodeTargetRefSpec.kt": "3fd84449e2c720b3fddd32dd1001f3552275de107ab1a29de3754cd995bcad5b",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCurrencyApprovalServiceSpec.kt": "d250f99588a2ed14a5e203faeebd2acb2c479ca7592147793e33f4e37ce501c8",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantOpsApprovalFixture.kt": "2a0868a99de0410d76817ac4d4ac2eca82c8a4f9d22302c32d1a2ffd714ea2cc",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantOpsApprovalServiceSpec.kt": "e7250d4297cbd4267176a7c4d86818c5dfd4ad82f7824a119e1765679bd24ad7",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantTargetQuerySpec.kt": "354344779eb8090bc68c0ea959f4a097d4a387b4141f000a7e0cfa3f094a3855",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/OwnerExecutionRecoverySpec.kt": "46e90c9c482fad5f92f4a1e266364dab25dd1d4da9e78eef78d73677f74b96fc",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/domain/MerchantTargetCodeSpec.kt": "9cc7b642c9a36e98d3e0abd11e820b4f5fa598ae65b8f5300e7834373d12cfa7",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/audit/AdminAuditEventTargetRefSpec.kt": "e1f701cb33dba65b6020abf0d28b0c0aee2b3f549845bf1a8943de88ac283503",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/audit/AuditQueryHttpSpec.kt": "0e47e882c6878c6eab22d2a4ad5f15ebbf9e6a0516388587f909649022120f03",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLookupHttpSpec.kt": "21c565f5462f6a51d6f6f10e066b8453cd97bf619096ad4a868afb5a8177d45f",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLookupServiceSpec.kt": "77ed1313963b8cd6777a43fc232053ebe541a86a4e700179c7ecd9a03e68c2ad",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantRegistrationServiceSpec.kt": "b20403935c00e0e83d559529def4bf5bfe76fe9f9bee9ec005083f2988030ceb",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/provided/MerchantOpsApprovalUseCase.kt": "6f25ae9563171dbf58c16e7fa456a40a0d083d6d8113bfdb594521d433911025",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/ApprovalTargetKind.kt": "451cbc6e44cef728aa49b6323c4df8f05c2b67cbe2d917222b52f83ed6479079",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantRegistrationHttpSpec.kt": "c2d17980f5408a3842cbc5c362aa6f68d13dcf0e8f84e38956abbbb1bb939880"
+        },
+        "red": [
+          {
+            "log": "~/gate-logs/mcode-mc3a/red-01-schema.log",
+            "what": "AdminSchemaSpec V15 시험 6건(V15 파일 임시 제외) — 46 중 6 실패(1054 unknown column·3819 ck_admin_approval_request_target·V15 classpath 없음·flyway target 15 없음)"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3a/red-02-domain.log",
+            "what": "컴파일 RED(새 API 부재: Merchant(code)·forNewRequest·reconstitute·AdminAuditEvent.targetMerchantId) — MerchantTargetCodeSpec·AdminAuditEventTargetRefSpec"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3a/red-03-targetref.log",
+            "what": "MerchantCodeTargetRefSpec 21 중 18 실패(target_ref = mer_, audit target_merchant_id 열 없음 등 행위 RED). 통과 3건은 회귀 고정(m-5 코드 없는 상세 거절·대사 발견 mer_·C-19)"
+          },
+          {
+            "what": "MerchantTargetQuerySpec·ApprovalAuditTargetSourceSpec·merchantops C-32 단위 시험은 구현 뒤 작성 — RED 증거는 변이 (a)(b')(d)(n) 결과로 대신(아래 mutations)"
+          }
+        ],
+        "green": [
+          {
+            "log": "~/gate-logs/mcode-mc3a/green-01-schema.log",
+            "result": "AdminSchemaSpec 46/46"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3a/green-02-domain.log",
+            "result": "MerchantTargetCodeSpec 4, AdminAuditEventTargetRefSpec 5, ApprovalTargetSpec 7 — 16/16"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3a/green-03-targetref.log",
+            "result": "MerchantCodeTargetRefSpec 21/21"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3a/full-01-internal-admin-test.log",
+            "result": ":apps:internal-admin:test 132 classes, 1067 tests, fail 0, skip 0, exit 0 (2026-11-16T22:03:58Z)"
+          }
+        ],
+        "mutations": [
+          {
+            "id": "a",
+            "what": "audit target_ref reverted to mer_ (helper writes merchantKey as the label)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalAuditTarget.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 12,
+            "restoredIdentical": true,
+            "sha256Before": "ede31e0c6e74fb62c14f0306d2d336401ec79310e91ef276fd19c2d092d7f720",
+            "sha256After": "ede31e0c6e74fb62c14f0306d2d336401ec79310e91ef276fd19c2d092d7f720",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-a.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: contract · first MID · activation · site review · currency · code change: row, unresolved key, request audit (code + mer_), pinned mer",
+              "MerchantCodeTargetRefSpec :: Then: first MID and code change bodies carry merchantId = mer_ (never the code)",
+              "MerchantCodeTargetRefSpec :: Then: the 0-stage separate audit of the single-TX path (ApprovalService) keeps the target on a code row (code + mer_ — no lost target)",
+              "MerchantCodeTargetRefSpec :: Then: withdraw → WITHDRAWN",
+              "MerchantCodeTargetRefSpec :: Then: reject → REJECTED",
+              "MerchantCodeTargetRefSpec :: Then: expiry job → EXPIRED (not skipped)",
+              "MerchantCodeTargetRefSpec :: Then: approval-stage refusal APPROVER_IS_REGISTRANT → separate audit, the approval stays PENDING",
+              "MerchantCodeTargetRefSpec :: Then: result EXECUTED (unresolved key released) · OWNER_REJECTED · EXECUTION_UNKNOWN then resolved by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: APPROVAL_RESEND_HALTED (requester lost OPERATOR) by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: applier integrity violation (TX2 finds an execution row of another kind) → separate audit with the code label and mer_ key",
+              "MerchantCodeTargetRefSpec :: Then: (rev 0.4.8 MINOR-1) recovery integrity reports on a code-labelled row: command row missing (column=command), execution kind mismatch (",
+              "MerchantCodeTargetRefSpec :: Then: no merchant-related audit row (mer_ or code target_ref) and no merchant approval row without target_merchant_id; DB CHECKs agree"
+            ]
+          },
+          {
+            "id": "b'",
+            "what": "link query reads target_merchant_id only (legacy mer_ rows dropped)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/adapter/query/JooqAdminAuditReader.kt",
+            "result": "RED",
+            "tests": 5,
+            "failed": 1,
+            "restoredIdentical": true,
+            "sha256Before": "bec295f735536adf4aa1312fc6b1586934bd74d2928aec2f6bcc57258b59c3d4",
+            "sha256After": "bec295f735536adf4aa1312fc6b1586934bd74d2928aec2f6bcc57258b59c3d4",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-bp.log",
+            "failedCases": [
+              "MerchantTargetQuerySpec :: Then: the link query by the internal key returns every row of the merchant: mer_ (legacy), old code, new code — all with targetMerchantId = "
+            ]
+          },
+          {
+            "id": "b",
+            "what": "MerchantOpsApprovalService merchant id back to target.ref",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 10,
+            "restoredIdentical": true,
+            "sha256Before": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "sha256After": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-b.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: an EXECUTION_UNKNOWN pre-MC-3a approval: the recovery job resends the stored bytes and closes it EXECUTED (mer_ + mer_ audit)",
+              "MerchantCodeTargetRefSpec :: Then: approve uses the merchant key: A-stage MASTER read on mer_, command-row merchant check passes, EXECUTED; the stored body is the mer_-k",
+              "MerchantCodeTargetRefSpec :: Then: first MID and code change bodies carry merchantId = mer_ (never the code)",
+              "MerchantCodeTargetRefSpec :: Then: the reconciliation finding of an unresolvable code-labelled approval names the merchant key (mer_ — internal record, C-31)",
+              "MerchantCodeTargetRefSpec :: Then: a MASTER re-read where only the code differs is not TARGET_CHANGED: contract approval and site review approval still execute",
+              "MerchantCodeTargetRefSpec :: Then: approval-stage refusal APPROVER_IS_REGISTRANT → separate audit, the approval stays PENDING",
+              "MerchantCodeTargetRefSpec :: Then: result EXECUTED (unresolved key released) · OWNER_REJECTED · EXECUTION_UNKNOWN then resolved by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: APPROVAL_RESEND_HALTED (requester lost OPERATOR) by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: applier integrity violation (TX2 finds an execution row of another kind) → separate audit with the code label and mer_ key",
+              "MerchantCodeTargetRefSpec :: Then: (rev 0.4.8 MINOR-1) recovery integrity reports on a code-labelled row: command row missing (column=command), execution kind mismatch ("
+            ]
+          },
+          {
+            "id": "c",
+            "what": "audit CHECK ③ (code label needs merchant key) removed",
+            "file": "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql",
+            "result": "RED",
+            "tests": 46,
+            "failed": 1,
+            "restoredIdentical": true,
+            "sha256Before": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "sha256After": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-c.log",
+            "failedCases": [
+              "AdminSchemaSpec :: Then: MC-3-8 V15 audit CHECK ①~③ one by one: each row breaks only its own CHECK and MySQL names it; legacy shapes and new shapes pass"
+            ]
+          },
+          {
+            "id": "d",
+            "what": "virtual key without the target_ref branch",
+            "file": "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql",
+            "result": "RED",
+            "tests": 51,
+            "failed": 3,
+            "restoredIdentical": true,
+            "sha256Before": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "sha256After": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-d.log",
+            "failedCases": [
+              "MerchantTargetQuerySpec :: Then: the link query by the internal key returns every row of the merchant: mer_ (legacy), old code, new code — all with targetMerchantId = ",
+              "AdminSchemaSpec :: Then: MC-3a V15 target_merchant_key: VIRTUAL, = COALESCE(target_merchant_id, mer_-format target_ref) — code rows, mer_ rows and legacy mer_ ",
+              "AdminSchemaSpec :: Then: MC-3-2·8 V15 upgrade keeps every existing row: rows written before V15 hash the same after V15 (row count before = after, all CHECKs p"
+            ]
+          },
+          {
+            "id": "g",
+            "what": "pinned merchantCode required when reading",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaMerchantOpsCommandStore.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 2,
+            "restoredIdentical": true,
+            "sha256Before": "220e8fc00c7ff56d79d28ff0b85501bc825863ea041f11537c017ed73bba1f09",
+            "sha256After": "220e8fc00c7ff56d79d28ff0b85501bc825863ea041f11537c017ed73bba1f09",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-g.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: a pending pre-MC-3a contract approval: approve → EXECUTED; MASTER read with mer_; new audit rows follow the approval row (mer_ + mer_)",
+              "MerchantCodeTargetRefSpec :: Then: an EXECUTION_UNKNOWN pre-MC-3a approval: the recovery job resends the stored bytes and closes it EXECUTED (mer_ + mer_ audit)"
+            ]
+          },
+          {
+            "id": "i",
+            "what": "OwnerOutcomeApplier audit without targetMerchantId",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerOutcomeApplier.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 10,
+            "restoredIdentical": true,
+            "sha256Before": "b51756cd7d90c83bef11f15748d0ec7a60a4b6405b5f22422fb0c88cb3018173",
+            "sha256After": "b51756cd7d90c83bef11f15748d0ec7a60a4b6405b5f22422fb0c88cb3018173",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-i.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: a pending pre-MC-3a contract approval: approve → EXECUTED; MASTER read with mer_; new audit rows follow the approval row (mer_ + mer_)",
+              "MerchantCodeTargetRefSpec :: Then: an EXECUTION_UNKNOWN pre-MC-3a approval: the recovery job resends the stored bytes and closes it EXECUTED (mer_ + mer_ audit)",
+              "MerchantCodeTargetRefSpec :: Then: approve uses the merchant key: A-stage MASTER read on mer_, command-row merchant check passes, EXECUTED; the stored body is the mer_-k",
+              "MerchantCodeTargetRefSpec :: Then: first MID and code change bodies carry merchantId = mer_ (never the code)",
+              "MerchantCodeTargetRefSpec :: Then: the reconciliation finding of an unresolvable code-labelled approval names the merchant key (mer_ — internal record, C-31)",
+              "MerchantCodeTargetRefSpec :: Then: a MASTER re-read where only the code differs is not TARGET_CHANGED: contract approval and site review approval still execute",
+              "MerchantCodeTargetRefSpec :: Then: result EXECUTED (unresolved key released) · OWNER_REJECTED · EXECUTION_UNKNOWN then resolved by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: APPROVAL_RESEND_HALTED (requester lost OPERATOR) by the recovery job",
+              "MerchantCodeTargetRefSpec :: Then: (rev 0.4.8 MINOR-1) recovery integrity reports on a code-labelled row: command row missing (column=command), execution kind mismatch (",
+              "MerchantCodeTargetRefSpec :: Then: no merchant-related audit row (mer_ or code target_ref) and no merchant approval row without target_merchant_id; DB CHECKs agree"
+            ]
+          },
+          {
+            "id": "j",
+            "what": "expiry job audit without targetMerchantId",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/ApprovalService.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 3,
+            "restoredIdentical": true,
+            "sha256Before": "2767f34f46a7d20a3e6324ad115c535dcdf383b8e977432e2422eb49fb280ca5",
+            "sha256After": "2767f34f46a7d20a3e6324ad115c535dcdf383b8e977432e2422eb49fb280ca5",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-j.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: expiry job → EXPIRED (not skipped)",
+              "MerchantCodeTargetRefSpec :: Then: control: a pre-MC-3a row through the same writers is mer_ + mer_ (MC-3-9 pair) — withdraw and expiry",
+              "MerchantCodeTargetRefSpec :: Then: no merchant-related audit row (mer_ or code target_ref) and no merchant approval row without target_merchant_id; DB CHECKs agree"
+            ]
+          },
+          {
+            "id": "k",
+            "what": "new request factory without the code (mer_ label)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 2,
+            "restoredIdentical": true,
+            "sha256Before": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "sha256After": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-k.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: contract · first MID · activation · site review · currency · code change: row, unresolved key, request audit (code + mer_), pinned mer",
+              "MerchantCodeTargetRefSpec :: Then: first MID and code change bodies carry merchantId = mer_ (never the code)"
+            ]
+          },
+          {
+            "id": "m",
+            "what": "V15 index statement without its ALGORITHM clause",
+            "file": "apps/internal-admin/src/main/resources/db/migration/admin/V15__merchant_code_target_ref.sql",
+            "result": "RED",
+            "tests": 46,
+            "failed": 1,
+            "restoredIdentical": true,
+            "sha256Before": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "sha256After": "dd3ad16539c88bcdbab5498104d318ae6e6cd057f462a817efd98f372acd7b2c",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-m.log",
+            "failedCases": [
+              "AdminSchemaSpec :: Then: MC-3a V15 SQL text (mutation (m)): four statements, each with its expected ALGORITHM clause (INSTANT columns, INPLACE/LOCK=NONE index,"
+            ]
+          },
+          {
+            "id": "n",
+            "what": "one approval audit bypasses the helper (targetRef = request.target.ref)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+            "result": "RED",
+            "tests": 4,
+            "failed": 3,
+            "restoredIdentical": true,
+            "sha256Before": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "sha256After": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-n.log",
+            "failedCases": [
+              "ApprovalAuditTargetSourceSpec :: AuditRecord target columns are passed only by ApprovalAuditTarget.kt and the two C-32 merchantops writers",
+              "ApprovalAuditTargetSourceSpec :: no audit target written from a raw approval target reference (targetRef = ….target.ref)",
+              "ApprovalAuditTargetSourceSpec :: every approval-application audit record goes through the helper: no AuditRecord( constructor call outside ApprovalAuditTarget.kt in approval"
+            ]
+          },
+          {
+            "id": "o",
+            "what": "recovery integrity report from a mer_ string (label lost)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+            "result": "RED",
+            "tests": 21,
+            "failed": 1,
+            "restoredIdentical": true,
+            "sha256Before": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "sha256After": "2ce8236ab612f85851ceda8dd98395a674732b4c9b424a1276417d5c3bdde792",
+            "log": "/home/sykim/gate-logs/mcode-mc3a/mut-o.log",
+            "failedCases": [
+              "MerchantCodeTargetRefSpec :: Then: (rev 0.4.8 MINOR-1) recovery integrity reports on a code-labelled row: command row missing (column=command), execution kind mismatch ("
+            ]
+          }
+        ],
+        "expectationChanges": "기존 시험 기대값 변경(모두 '// 기대값 변경:' 주석 + 근거): (1) MC-3-20 목록 안 — pinned 키 집합 +merchantCode(활성화·Site 심사·통화), 코드 변경 승인 target_ref = 요청 시점 코드(C-21 'MC-3 전까지'). (2) **MC-3-20 목록 밖이지만 §5.1·C-32가 직접 정하는 값**(Coordinator 확인 필요 — deviations 참조): 계약·첫 MID·개통·Site 심사·통화 승인 행/감사 target_ref mer_ → 코드(MerchantOpsApprovalServiceSpec·MerchantActivationApprovalServiceSpec·MerchantCurrencyApprovalServiceSpec·MerchantApprovalFlowHttpSpec), MERCHANT_VIEWED FOUND = 코드(MerchantLookupServiceSpec·MerchantLookupHttpSpec), 가맹점 등록 성공 = 코드(+mer_)(MerchantRegistrationServiceSpec). 조회 조건 변경(기대값 그대로): WHERE target_ref = mer_ → target_merchant_key / COALESCE(target_merchant_id, target_ref). 다른 단언(본문·지문·mop1·권한·감사 행 수) 변경 0. 강화: OwnerExecutionRecoverySpec Payment 대조 2건(target_merchant_id·target_actor_id NULL), MerchantApprovalFlowHttpSpec targetMerchantId 단언, AuditQueryHttpSpec 필터 400·키 순서.",
+        "deviations": [
+          "명세 §5.6.4 표의 OwnerExecutionRecoveryService L169·175는 실제로 매입(ACQ) 회복 경로이고 Payment 회복 무결성 보고는 L101·109 — 네 곳 모두 ApprovalAuditTarget로 전환(Payment는 값 불변 pay_ 표기만).",
+          "명세가 '가맹점 아님(대조군)'으로 분류한 OperatorCancelJustificationService L80은 B2-2 이후 가맹점 승인 근거 조회 감사도 쓴다 → 가맹점 종류는 승인 행 표기 + mer_(C-32 '승인 행 감사' 규칙), Payment·매입은 값 불변.",
+          "MC-3-23 '승인자 부적격' 거절은 세션 역할 선검사(holdsNow — 감사 없음) 때문에 TX1 분기 재현이 어려워 같은 Refusal 경로인 APPROVER_IS_REGISTRANT로 시험(승인 행 PENDING 유지·code+mer_ 분리 감사).",
+          "MC-3-23 '승인 행 자체가 없는(column=approval)' 경우는 기존 시험(OwnerExecutionRecoverySpec S6 L-2)과 동작 동일(target null → 대상 열 NULL) — 새 시험 추가 안 함.",
+          "변이 (o)는 가맹점 회복 경로(MerchantOpsApprovalService L692)에 적용. Payment 경로에 같은 변이(문자열 → 가맹점 키)는 ofMerchantKey가 pay_ 형식을 거부(require)해 컴파일·실행 형태가 달라 별도 적용 안 함 — Payment 대조 단언은 OwnerExecutionRecoverySpec에 추가.",
+          "MERCHANT_VIEWED FOUND 응답에 §3.1 형식 코드가 없으면 mer_ 표기로 남긴다(감사 유실 방지 — 정상 경로는 MASTER 상세 모양이 merchantCode 필수라 발생 안 함, 가역 결정).",
+          "AUDIT_VIEWED detail은 targetMerchantId 필터가 있을 때만 ';targetMerchant=1'을 덧붙인다(기존 요약 문자열 불변 — 가역 결정).",
+          "MC-3-1/8 V13 ③ 단독 위반 3819 시험은 기존 information_schema 본문 고정 시험을 지우지 않고 추가(증명 강화)."
+        ],
+        "openIssues": [
+          "harness/tasks.json MERCHANT-CODE-001.allowedWritePaths가 ['docs/repository/**']뿐 — 이번 배치는 Coordinator 지시로 apps/internal-admin 하위를 수정했다(경로 등록은 Coordinator 결정, 하네스 기준 미변경).",
+          "MC-3-20 목록 밖 기대값 변경(위 expectationChanges (2)) — 명세 §5.1·C-32 값의 직접 결과지만 '20의 목록 밖 기대값 변경 0' 수용 문구와 문자 그대로는 충돌. Coordinator/Reviewer 확인 필요(명세 MC-3-20 목록 보강 권장).",
+          "GRADLE-CHECK·HARNESS-SELFTEST·frontendTest는 Coordinator 게이트(미실행). MC-3b(라벨)·MC-3c(화면)는 범위 밖 — 화면은 아직 targetRef를 그리므로 새 행은 코드, 기존 행은 mer_ 표시(명세 §7 '지금보다 나빠지지 않음').",
+          "L-14: V15 (3)(4) ALGORITHM=COPY 운영 적용 유지보수 창(LIVE Gate)."
+        ],
+        "tech": "JPA: admin_audit_event.target_merchant_id updatable=false 매핑, 가상 열 target_merchant_key는 Entity 미매핑(jOOQ 조회 전용). Domain ApprovalTarget.Merchant(merchantId, code) ref/key 분리 — Spring/JPA 의존 없음. jOOQ: 승인 목록 CASE MERCHANT → COALESCE(target_merchant_id, target_ref), 감사 필터 target_merchant_key(EXPLAIN type=ref key=ix_admin_audit_event_target_merchant). Kafka/Redis 도입 없음. 새 의존성 없음.",
+        "review": "독립 리뷰 2026-11-17 조건부 PASS — MINOR-1(재검증·게이트), MINOR-2, MINOR-3, NIT-1~5",
+        "reviewFix1": {
+          "implementer": "paycore-implementer (2026-11-17) — 자기 완료 판정 아님, 커밋 없음, Demo 미기동, GRADLE-CHECK 미실행(Coordinator 게이트 MINOR-1)",
+          "changedFiles": [
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/MerchantOpsApprovalService.kt",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OperatorCancelJustificationService.kt",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/provided/MerchantOpsApprovalUseCase.kt",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLookupService.kt",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/domain/ApprovalTargetKind.kt",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/application/OwnerOutcomeApplier.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLookupHttpSpec.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantRegistrationHttpSpec.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantRegistrationServiceSpec.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantActivationApprovalServiceSpec.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCurrencyApprovalServiceSpec.kt",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/MerchantCodeTargetRefSpec.kt",
+            "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md"
+          ],
+          "minor2": "구현 뒤 쓴 시험의 RED 증거 — 변이 MC-3a-review(1)~(4) 모두 RED·원복 sha256 동일(새 시험 추가 불필요). muts.json 기존 12종에 name(출처) 추가(NIT-3).",
+          "minor3": "MerchantLookupHttpSpec audits 질의(실제 MySQL)에 target_merchant_id 추가 — VIEWED FOUND = shopabcd12|mer_, NOT_FOUND = mer_|mer_, 등록번호 검색 행 = NULL(열 추가에 따른 기대 문자열 확장, 완화 없음). MerchantRegistrationHttpSpec에 MERCHANT_REGISTER 행 실제 DB 단언(REQUESTED biz_|NULL, OK shopabcd12|mer_).",
+          "nit1": "KDoc·주석: MerchantOpsApprovalService(코드 변경 요청 KDoc·helpers 주석), OperatorCancelJustificationService(KDoc·가맹점 분기 주석), MerchantOpsApprovalUseCase, MerchantLookupService, ApprovalTargetKind.MERCHANT, OwnerOutcomeApplier — 표기 = 승인 행 표기(코드), 내부 키 = target_merchant_id.",
+          "nit2": "MerchantLookupHttpSpec·MerchantRegistrationServiceSpec // 기대값 변경 근거를 C-32 표 MERCHANT_VIEWED(FOUND) 행·가맹점 등록 성공 행으로 정정.",
+          "nit4": "MerchantActivationApprovalServiceSpec·MerchantCurrencyApprovalServiceSpec 조회 조건 주석을 실제 질의(target_merchant_key = ? / COALESCE(...) = ? / target_merchant_id = ?)에 맞춤.",
+          "verdict3": "MerchantCodeTargetRefSpec MC-3-23 APPROVER_IS_REGISTRANT 시험에 APPROVER_NOT_ELIGIBLE 대체 근거 주석.",
+          "verdict4": "MerchantCodeTargetRefSpec 회복 무결성 시험에 가맹점 회복 경로 column=approval → 대상 열 모두 NULL 단언 추가(MerchantOpsApprovalService.recover 직접 호출, 없는 승인 ID).",
+          "spec": "rev 0.4.9 — MC-3-20 Kotlin 목록 두 범주, §5.6.4 회복 무결성 보고 줄 번호(Payment L101·109 / 매입 L169·175, 네 곳 helper), OperatorCancelJustificationService L80 분류(가맹점 = 승인 행 표기 + mer_), MC-3-22 변이 배치 구분. 새 정책 없음.",
+          "logs": {
+            "changedClasses": "~/gate-logs/mcode-mc3a/rf1-01-changed.log (7 classes, 120 tests, fail 0, skip 0, exit 0)",
+            "mutations": [
+              "~/gate-logs/mcode-mc3a/mut-r1.log",
+              "~/gate-logs/mcode-mc3a/mut-r2.log",
+              "~/gate-logs/mcode-mc3a/mut-r3.log",
+              "~/gate-logs/mcode-mc3a/mut-r4.log"
+            ],
+            "full": "~/gate-logs/mcode-mc3a/full-02-internal-admin-test-rf1.log — 미완료: :apps:internal-admin:test 실행 중 호스트 메모리 부족으로 Claude Code가 중단(결과·exit 없음 — 성공도 실패도 아님). 재실행은 Coordinator 지시 필요. 직전 전체 실행 full-01(리뷰 반영 전) 1067/0/0."
+          },
+          "mutations": [
+            {
+              "name": "MC-3a-review(1)",
+              "what": "MerchantLookupService MERCHANT_VIEWED FOUND label back to merchantId (mer_)",
+              "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLookupService.kt",
+              "tests": 26,
+              "failed": 3,
+              "result": "RED",
+              "restoredIdentical": true,
+              "sha256Before": "e00a8e7c7da94841350958a3da8f800e5a3b2baec739096228f47cbe4c8ed40e",
+              "sha256After": "e00a8e7c7da94841350958a3da8f800e5a3b2baec739096228f47cbe4c8ed40e",
+              "log": "/home/sykim/gate-logs/mcode-mc3a/mut-r1.log"
+            },
+            {
+              "name": "MC-3a-review(2)",
+              "what": "MerchantRegistrationService merchant registration success audit with targetMerchantId = null",
+              "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantRegistrationService.kt",
+              "tests": 49,
+              "failed": 4,
+              "result": "RED",
+              "restoredIdentical": true,
+              "sha256Before": "a933fd7dff6d78854a7c907b76aaf1695d9ef5d51062b9a47f98a56744156b9d",
+              "sha256After": "a933fd7dff6d78854a7c907b76aaf1695d9ef5d51062b9a47f98a56744156b9d",
+              "log": "/home/sykim/gate-logs/mcode-mc3a/mut-r2.log"
+            },
+            {
+              "name": "MC-3a-review(3)",
+              "what": "AuditFilter init mer_ format check (regex require) removed",
+              "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/provided/AuditFilter.kt",
+              "tests": 10,
+              "failed": 2,
+              "result": "RED",
+              "restoredIdentical": true,
+              "sha256Before": "5bb7560e83e0856fa4a22d48bb170959920c3c75216553e6d8fda7fda6d63a5e",
+              "sha256After": "5bb7560e83e0856fa4a22d48bb170959920c3c75216553e6d8fda7fda6d63a5e",
+              "log": "/home/sykim/gate-logs/mcode-mc3a/mut-r3.log"
+            },
+            {
+              "name": "MC-3a-review(4)",
+              "what": "AUDIT_VIEWED detail records targetMerchant=<actual value>",
+              "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/audit/application/AdminAuditQueryService.kt",
+              "tests": 15,
+              "failed": 1,
+              "result": "RED",
+              "restoredIdentical": true,
+              "sha256Before": "1d61474eae02fe73456fb359a90a87228591fbe1350422c8cfc17acfb5ca66fe",
+              "sha256After": "1d61474eae02fe73456fb359a90a87228591fbe1350422c8cfc17acfb5ca66fe",
+              "log": "/home/sykim/gate-logs/mcode-mc3a/mut-r4.log"
+            }
+          ],
+          "crCheck": "grep -rl $'\r' apps/internal-admin/src docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md → 비어 있음"
+        },
+        "principles": {
+          "Financial Consistency": "MC-3-11 본문 merchantId=mer_·mop1 벡터 불변",
+          "Transaction Safety": "기존 로컬 TX 그대로",
+          "Idempotency": "MC-3-9",
+          "Concurrency Control": "MC-3-10 옛 행 1062→DUPLICATE_UNRESOLVED",
+          "Recoverability": "MC-3-9·23",
+          "Reconciliation": "MC-3-15·대사 발견 행 mer_",
+          "Auditability": "MC-3-2 해시·MC-3-4",
+          "Observability": "MC-3a 새 지표 없음(3b 범위)"
+        }
+      },
+      "mc3b": {
+        "batch": "MC-3b 라벨 읽기(MASTER + ADMIN, migration 없음) — MASTER POST /internal/v1/admin/merchant-labels, ADMIN MasterLabelGateway.merchantLabels·MasterResponseShape.MERCHANT_LABELS·MerchantLabelClient.merchantLabels·POST /api/merchant-labels·지표·라벨 분당 창(C-35)",
+        "implementer": "paycore-implementer (2026-11-17) — 자기 완료 판정 아님, 커밋 없음, Demo 미기동, GRADLE-CHECK·모듈 전체 시험 미실행(메모리 제약 — Coordinator 게이트), Verifier·Reviewer 별도",
+        "spec": {
+          "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+          "rev": "0.4.9",
+          "sha256": "920b02673c93407c17b11b87a2bd5fbabd69a9b433ddddbbf608a0c90500bd70",
+          "sha256AfterWork": "920b02673c93407c17b11b87a2bd5fbabd69a9b433ddddbbf608a0c90500bd70"
+        },
+        "baseHead": "146b2ba (+ MC-3a 미커밋 작업 트리 위)",
+        "migration": "없음(MASTER·ADMIN 모두). 배포 순서 MASTER 먼저 — ADMIN만 먼저면 MASTER 404 → 라벨 UNAVAILABLE(HTTP 200 \"labels\":\"UNAVAILABLE\", 화면 \"—\"), 목록 영향 없음(MerchantLabelGatewaySpec 404 → UNAVAILABLE, MerchantTargetLabelHttpSpec 404 → 200 UNAVAILABLE).",
+        "contract": {
+          "master": "POST /internal/v1/admin/merchant-labels — ADMIN 서명 v1 채널(query 400 QUERY_NOT_ALLOWED, 16 KiB), 본문 {\"merchantIds\":[mer_…]} 1..50·Domain MerchantId 형식·중복 금지·모르는 키/중복 키/뒤 토큰 거부 → 400 REQUEST_MALFORMED. 200 {\"items\":[{\"merchantId\",\"merchantName\",\"merchantCode\"}]} merchantId 오름차순·없는 키 빠짐·TERMINATED 포함·현재 코드(MasterSqlText.currentMerchantCode). jOOQ RO·RR 한 문장(merchant FORCE INDEX(PRIMARY) range → 배정 PK). 라벨 permit 공유(AdminChannelPermits.labels, busy 503 ADMIN_READ_BUSY + busy{endpoint=\"merchant_labels\"}), 저장소 실패·코드 없음 503 TEMPORARILY_UNAVAILABLE, 감사·쓰기 없음, no-store, 로그 분류·건수만.",
+          "admin": "POST /api/merchant-labels — 세션 + CSRF(SPA 체인), JSON만(415), 16 KiB(413), VIEW 4역할(VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN, 아니면 403·MASTER 미호출), {\"merchantIds\":[...]} 1..50·mer_ 형식·중복 금지(400 INVALID_INPUT·MASTER 미호출·창 미소비), 라벨 전용 actor별 분당 창 1 소비(label-reads-per-minute — lookup-per-minute 미사용, 초과 429 RATE_LIMITED·MASTER 미호출), 200 {\"items\":[{\"merchantId\",\"name\",\"code\"}],\"labels\":\"OK\"|\"UNAVAILABLE\"}(UNAVAILABLE이면 items [] HTTP 200), 감사 없음, no-store, 지표 paycore.admin.ops.merchant_target_labels{result∈OK·SKIPPED·BUSY·UNAVAILABLE·UNREADABLE·RATE_LIMITED}.",
+          "settings": "paycore.admin.master-ops.label-reads-per-minute(MasterOpsSettings, 기본값 없음, 1..600): main application.yml master-ops 블록 label-read-timeout 바로 뒤 Demo 60(운영값 아님 — LIVE Gate 주석), test config/application.yml 600(lookup-per-minute 1000과 다른 값), MasterOpsSettings( 직접 생성 시험 5개(MerchantLabelGatewaySpec·MasterOpsGatewaySpec·MasterApprovalGatewaySpec·MasterApprovalGatewayB3Spec·MerchantCodeSearchSpec) 인자 추가. payment-ops·financial-ops 블록·docker/env 설정에는 넣지 않음. label-permits·label-read-timeout은 그대로 공유(C-34 — 새 permit/timeout 키 없음).",
+          "stateKeysTx": "상태 전이·멱등 키·DB TX 변화 없음(읽기 전용). ADMIN은 DB TX 밖에서만 MASTER 호출(TX 안 호출 IllegalStateException — 시험), MASTER는 읽기 전용 REPEATABLE READ 한 문장.",
+          "golden": "merchant-ops-response-shapes-v1.golden.json에 merchantLabels 표본(MASTER 원본 = ADMIN 사본 바이트 동일, MerchantOpsShapeGoldenSpec·MerchantCodeShapeGoldenSpec)"
+        },
+        "changedFiles": [
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterOpsGateway.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterOpsSettings.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterResponseShape.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MicrometerMerchantOpsMetrics.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/MerchantLabelBodyParser.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/MerchantTargetLabelController.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLabelService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantTargetLabelService.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantIdRules.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantLabelClient.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantTargetLabelResult.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantTargetLabelUseCase.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MasterLabelGateway.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MerchantTargetLabelLimits.kt",
+          "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MerchantTargetLabelMetrics.kt",
+          "apps/internal-admin/src/main/resources/application.yml",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/architecture/ArchitectureSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterApprovalGatewayB3Spec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterApprovalGatewaySpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterOpsGatewaySpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantCodeSearchSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantCodeShapeGoldenSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLabelGatewaySpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelControllerSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelHttpSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionDetailLabelSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionListLabelSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionLookupServiceSpec.kt",
+          "apps/internal-admin/src/test/kotlin/com/paycore/admin/support/StubMasterOpsServer.kt",
+          "apps/internal-admin/src/test/resources/config/application.yml",
+          "apps/internal-admin/src/test/resources/contracts/merchant-ops-response-shapes-v1.golden.json",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqMerchantLabelReader.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelController.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelRequestParser.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsJson.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantLabelQueryService.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/MerchantLabel.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/MerchantLabelQuery.kt",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/MerchantLabelReader.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/architecture/MerchantLabelArchitectureSpec.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelApiSpec.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelControllerSpec.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOperationsApiSpec.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsApiSpec.kt",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsShapeGoldenSpec.kt",
+          "apps/master-api/src/test/resources/contracts/merchant-ops-response-shapes-v1.golden.json"
+        ],
+        "sourceFingerprint": {
+          "algorithm": "sha256 of LF file bytes (위 changedFiles 47개, 모든 파일 CR 0 확인)",
+          "files": {
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqMerchantLabelReader.kt": "4f566649a8c9adb40526ec3ab2d12c0dd376096311dd0a1cff374b0077e73b0c",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelController.kt": "dc121b8edb2b5a045463247f42a2a3c44a28a512093bc1ce525274e14883963d",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelRequestParser.kt": "f5cd58e5ec81fd04857ecfa6a6ad3e753a11b013e9acc2bb85da1714333a4e69",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsJson.kt": "0f8fdc88db637609be2a09031495fbcb408e53b4bd27b30eb443254a069ad4bd",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantLabelQueryService.kt": "573783d761d6ddecabf38e1570ae37c4b4abebd8a04f3274c2c2d825cb947df2",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/MerchantLabel.kt": "b762e4087aafbc93c5acbf0970e91830249c0e30b5fc17546b2c67c65016aa4d",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/MerchantLabelQuery.kt": "a3655e78a83da1817c1824a6f12d84a76e152c75abc6808ea2e5ef9d61785333",
+            "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/MerchantLabelReader.kt": "71d2e81fa25a8fe810ec2085332f40bdcbb63cce67baf2e7876f9ffab6006c72",
+            "apps/master-api/src/test/kotlin/com/paycore/master/architecture/MerchantLabelArchitectureSpec.kt": "e3d3e71ec5b17212519dcab178c6030e76f17d187a24e7df0302bd17cc8de2e6",
+            "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelApiSpec.kt": "7819689e0cc756c38b3564a3f4b2bd4a974d9a8ed680ff13f123f74f2590554b",
+            "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelControllerSpec.kt": "01708c6d18d849bc080755d159da38ea5a162b75646b9d6181a5630fae120dc9",
+            "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOperationsApiSpec.kt": "4135bf5264eea7cd0d8f595576f1702ec2a37870d40b2ebe7ce91fc21dbaee58",
+            "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsApiSpec.kt": "2d85ebd252c783c5ac1ad9c057622f0e317323eacd2a135316df8fc4cb90d349",
+            "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsShapeGoldenSpec.kt": "7d29cfe227b6dcb44db686d0c7c57422fa3ea74901a4a276bd1cfa82db9b67f3",
+            "apps/master-api/src/test/resources/contracts/merchant-ops-response-shapes-v1.golden.json": "51f9e8d75fedf62b293415e8ca6a5d599c4d433f628f3f69d7bb6936a27109f3",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterOpsGateway.kt": "57f305297bf182b15ae86bfdfb446314b56a589f67dfd79cea5e1d4230294735",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterOpsSettings.kt": "0a9c8662a1651d09b35f6e3deb3ba8f8e2486177bee740d40b393f495749db5e",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterResponseShape.kt": "8d5bd5fdf05e3e94b47c17b7df7a0f79ace73b858c2305f53c66270a57825454",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MicrometerMerchantOpsMetrics.kt": "a01d9a5e7f0b192f640cf139b382332602e706e2759c55c031a2b931bcd33a78",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/MerchantLabelBodyParser.kt": "ca378ce59a38a1dde972e4c376ff6fdbf019cf053eebc424d20b6018cf5fd4b4",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/web/MerchantTargetLabelController.kt": "19ca8161114e27fb2a2d4c0b571224cdb1e635eadf55096658ef2e4da0cfed20",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantLabelService.kt": "0876c06114a81ef0a97d85cbfebb7ac0745d8d8ad3a5afd2424880d0c2c601d1",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantTargetLabelService.kt": "06367a9abdb700fe6d549eb6bc2f81f64118705b410b21d12b63d448a0795828",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantIdRules.kt": "ee55f3f9a25604fa74f38f8620dd3de0bcb73f8bde99ab4997148e2a9d8beae5",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantLabelClient.kt": "e4af31e127c83b88ef23f32b963a428105dbc7ed4a2348a11db0a017515ac989",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantTargetLabelResult.kt": "1658b178496d86bba0ca74edb5f7cae6b63ff034def8760f9e438af24580c66a",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/provided/MerchantTargetLabelUseCase.kt": "5ddb8a3bb3d4bfb9013c131be47dac1b89db6aaffdc490a030242e0caa746719",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MasterLabelGateway.kt": "6a522902a8e7d94dea242015d210156ffc257f7a680b975a658b969e68005f22",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MerchantTargetLabelLimits.kt": "82ad0f60e1836d25686876dd244e9e3af40715db43d57c27e35b9c7e77b3ea0d",
+            "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/required/MerchantTargetLabelMetrics.kt": "1bd8bf3439e786802ed39b480906b3cfe4386214e344424aafbe72fba610131c",
+            "apps/internal-admin/src/main/resources/application.yml": "2ef625a1ef203708d19acff4e97e50161d13c5ce09b9292108bfe311adbfad25",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/architecture/ArchitectureSpec.kt": "89cde9e281d75b3ca93a3d19c379ac31c9ae2fac6c2e048fa1149fb1fb7b7e90",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterApprovalGatewayB3Spec.kt": "9c90d133df3f1d604286358f26fa889741247faaae68406381390a3d9018ca05",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterApprovalGatewaySpec.kt": "575ca30e16a46810f26088c3086d741763a305523c0bec3af03bff54c7719917",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MasterOpsGatewaySpec.kt": "fc2ec6d24f6df0a4cade97d2a8f2d0da5e04deb1446c8bbcce19f1becbf2360b",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantCodeSearchSpec.kt": "d42594226e15a17a1b913680e8d14e43eee7893f51284746437568bbda483c0d",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantCodeShapeGoldenSpec.kt": "1afa25bfe5f7eeddee0e33e3ad02d45532ac3b452630b1f8d766aa8eb93a8ced",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantLabelGatewaySpec.kt": "cc2fde4d87db473076eb8deb33f8866ab50f91e1c014948b143ad01d961cab86",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelControllerSpec.kt": "24fd7179a37ed39426f6e2834cbf501b26efcaa6e5c1e3c749ed731e90eadc32",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelHttpSpec.kt": "3242a9544d80fc7b3d7064c01a9f612b3139c005515bbcee873a586c0061cc37",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelServiceSpec.kt": "8eff907e7b95b2e8d80618a104053cb4f366642fbe04cfcf8ddda42c2781442b",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionDetailLabelSpec.kt": "834b6b9bf7a7fae1febc0312ca5ec58faf4b9792e3b8124bc76e772001b5badd",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionListLabelSpec.kt": "3893a439784a3336eb13976ef3d46c33e411543a08191d305efc9722be62e9ca",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/paymentops/TransactionLookupServiceSpec.kt": "fa058d512808166e6cb8da2de92239f51f5934b7ca61c9e909f32ac6fb8ed185",
+            "apps/internal-admin/src/test/kotlin/com/paycore/admin/support/StubMasterOpsServer.kt": "430d0b8c5a21dbfa1995812e64b47a3f6e28392eb40d7310f6fe717631b036ef",
+            "apps/internal-admin/src/test/resources/config/application.yml": "e112b54a9292c8d380f1a71be8aa8492be6da7eadd767e3cd9f73d488e5bc5db",
+            "apps/internal-admin/src/test/resources/contracts/merchant-ops-response-shapes-v1.golden.json": "51f9e8d75fedf62b293415e8ca6a5d599c4d433f628f3f69d7bb6936a27109f3"
+          }
+        },
+        "red": [
+          {
+            "log": "~/gate-logs/mcode-mc3b/red-01-master.log",
+            "what": "MASTER 구현 7개 파일 보류 + MerchantOpsJson HEAD 복원 상태에서 새 시험 4종 실행 → 컴파일 RED(Unresolved reference JooqMerchantLabelReader·MerchantLabelQuery·MerchantLabel·MerchantLabelController·statement), exit 1. 시험을 구현 전에 확정한 증거(행위 RED는 아래 변이 h-master)."
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3b/red-02-admin.log",
+            "what": "ADMIN 새 구현 8개 보류 + 수정 main 8개 HEAD 복원 상태에서 MerchantTargetLabelServiceSpec·ControllerSpec·MerchantLabelGatewaySpec·MerchantCodeShapeGoldenSpec 실행 → 컴파일 RED 86건(MasterOpsSettings 인자 13개 없음·MERCHANT_LABELS·merchantLabels·MerchantTargetLabel* 없음), exit 1. 행위 RED는 변이 e·h-admin·l·p."
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3b/green-03-admin-http.log",
+            "what": "구현 뒤 첫 HTTP 실행 RED(실제 결함 발견): 시험 설정 label-reads-per-minute 999가 1..600 기동 검사에 걸려 컨텍스트 기동 실패(MerchantTargetLabelHttpSpec·MerchantLookupHttpSpec) → 시험 값 600으로 수정(아래 deviations)."
+          }
+        ],
+        "green": [
+          {
+            "log": "~/gate-logs/mcode-mc3b/green-01-master.log",
+            "result": "MASTER 9 클래스 71 tests, fail 0, skip 0, exit 0 — MerchantLabelControllerSpec 4, MerchantLabelApiSpec 9(MySQL), MerchantLabelArchitectureSpec 4, MerchantOpsShapeGoldenSpec 5, MerchantOpsApiSpec 15, MerchantOperationsApiSpec 18, MerchantAccountLabelApiSpec 9, MerchantAccountLabelControllerSpec 4, MerchantAccountLabelArchitectureSpec 3"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3b/green-02-admin.log",
+            "result": "ADMIN 13 클래스 154 tests, fail 0, skip 0, exit 0 — MerchantTargetLabelServiceSpec 7, MerchantTargetLabelControllerSpec 4, MerchantLabelGatewaySpec 22, MerchantCodeShapeGoldenSpec 7, ArchitectureSpec 37, MasterOpsGatewaySpec 21, MasterApprovalGatewaySpec 8, MasterApprovalGatewayB3Spec 10, MerchantCodeSearchSpec 7, TransactionLookupServiceSpec 6, TransactionListLabelSpec 7, TransactionDetailLabelSpec 4, MerchantLookupServiceSpec 14"
+          },
+          {
+            "log": "~/gate-logs/mcode-mc3b/green-04-admin-http.log",
+            "result": "ADMIN 3 클래스 41 tests, fail 0, skip 0, exit 0 — MerchantTargetLabelHttpSpec 7(MySQL·실제 로그인), MerchantLookupHttpSpec 12, MerchantLabelGatewaySpec 22(시험 값 600 반영 재실행)"
+          },
+          {
+            "note": "모듈 전체 :apps:master-api:test·:apps:internal-admin:test·GRADLE-CHECK·HARNESS-SELFTEST는 Coordinator 지시(메모리)로 미실행 — Coordinator 게이트에서 확인 필요. 각 실행 뒤 ./gradlew --stop, 보고 시점 GradleDaemon 0."
+          }
+        ],
+        "mutations": [
+          {
+            "id": "e",
+            "what": "ADMIN gateway 라벨 대응 검사 제거 — 보낸 집합 밖 키 허용(!keys.all { it in requested } 삭제)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterOpsGateway.kt",
+            "exit": 1,
+            "result": "RED",
+            "tests": 22,
+            "failed": 2,
+            "compileRed": false,
+            "restoredIdentical": true,
+            "sha256Before": "57f305297bf182b15ae86bfdfb446314b56a589f67dfd79cea5e1d4230294735",
+            "sha256After": "57f305297bf182b15ae86bfdfb446314b56a589f67dfd79cea5e1d4230294735",
+            "log": "/home/sykim/gate-logs/mcode-mc3b/mut-e.log",
+            "failedCases": [
+              "MerchantLabelGatewaySpec :: Then: unknown or missing keys, internal keys, bad codes, ids not sent, duplicates, descending order, too many items and duplicate JSON keys are UNREADABLE",
+              "MerchantLabelGatewaySpec :: Then: shape and correspondence (all or nothing): unknown, missing or business keys, MID keys, bad codes, ids not sent, duplicates, descending order, too many items, duplicate JSON "
+            ],
+            "startedAt": "2026-11-16T23:49:39Z"
+          },
+          {
+            "id": "h-admin",
+            "what": "ADMIN gateway 라벨 호출이 라벨 permit 대신 조회(read) permit을 잡음",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/HttpMasterOpsGateway.kt",
+            "exit": 1,
+            "result": "RED",
+            "tests": 22,
+            "failed": 3,
+            "compileRed": false,
+            "restoredIdentical": true,
+            "sha256Before": "57f305297bf182b15ae86bfdfb446314b56a589f67dfd79cea5e1d4230294735",
+            "sha256After": "57f305297bf182b15ae86bfdfb446314b56a589f67dfd79cea5e1d4230294735",
+            "log": "/home/sykim/gate-logs/mcode-mc3b/mut-h-admin.log",
+            "failedCases": [
+              "MerchantLabelGatewaySpec :: Then: with every label permit held the label call is BUSY at once and MASTER is not called; approval-decision and merchant search still get their permit",
+              "MerchantLabelGatewaySpec :: Then: with the general lookup permit held (slow merchant search) labels still answer",
+              "MerchantLabelGatewaySpec :: Then: MC-3-14 permit isolation: with every label permit held the merchant label call is BUSY at once without a request; approval-decision and merchant search still answer; read per"
+            ],
+            "startedAt": "2026-11-16T23:50:15Z"
+          },
+          {
+            "id": "h-master",
+            "what": "MASTER merchant-labels 컨트롤러가 라벨 permit 대신 조회(read) permit을 잡음",
+            "file": "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantLabelController.kt",
+            "exit": 1,
+            "result": "RED",
+            "tests": 17,
+            "failed": 4,
+            "compileRed": false,
+            "restoredIdentical": true,
+            "sha256Before": "dc121b8edb2b5a045463247f42a2a3c44a28a512093bc1ce525274e14883963d",
+            "sha256After": "dc121b8edb2b5a045463247f42a2a3c44a28a512093bc1ce525274e14883963d",
+            "log": "/home/sykim/gate-logs/mcode-mc3b/mut-h-master.log",
+            "failedCases": [
+              "MerchantLabelControllerSpec :: Then: MC-3-14 with the shared label permit held the call is 503 ADMIN_READ_BUSY at once without calling the query, counted under merchant_labels; the read permit is untouched",
+              "MerchantLabelApiSpec :: Then: MC-3-17 unsigned is 401; with every label permit held the call is 503 ADMIN_READ_BUSY at once and counted under endpoint merchant_labels",
+              "MerchantLabelApiSpec :: Then: MC-3-14 label permits (shared with the transaction-list labels) and the read permit never block each other: labels busy leaves approval-decisions, detail and list working; re",
+              "MerchantLabelArchitectureSpec :: MC-3-14 the merchant label controller takes the label permit only (never the read permit shared with approval-decisions)"
+            ],
+            "startedAt": "2026-11-16T23:51:01Z"
+          },
+          {
+            "id": "l",
+            "what": "화면 라벨 API 창이 label-reads-per-minute 대신 가맹점 검색 창 값 lookup-per-minute을 소비",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/application/MerchantTargetLabelService.kt",
+            "exit": 1,
+            "result": "RED",
+            "tests": 7,
+            "failed": 3,
+            "compileRed": false,
+            "restoredIdentical": true,
+            "sha256Before": "06367a9abdb700fe6d549eb6bc2f81f64118705b410b21d12b63d448a0795828",
+            "sha256After": "06367a9abdb700fe6d549eb6bc2f81f64118705b410b21d12b63d448a0795828",
+            "log": "/home/sykim/gate-logs/mcode-mc3b/mut-l.log",
+            "failedCases": [
+              "MerchantTargetLabelServiceSpec :: Then: one slot per call whatever the batch size; past the window the call is RateLimited without a MASTER call (metric RATE_LIMITED); another actor is unaffected",
+              "MerchantTargetLabelServiceSpec :: Then: MC-3-19 the merchant search window (lookup-per-minute) is not spent by labels: after the label window is used up, the same actor's merchant search still succeeds (control: th",
+              "MerchantTargetLabelServiceSpec :: Then: no audit row in any branch, and the log lines carry only the classification and the request count"
+            ],
+            "startedAt": "2026-11-16T23:52:37Z"
+          },
+          {
+            "id": "p",
+            "what": "label-reads-per-minute 누락 시 기본값 60으로 기동(requireNotNull 제거)",
+            "file": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MasterOpsSettings.kt",
+            "exit": 1,
+            "result": "RED",
+            "tests": 22,
+            "failed": 1,
+            "compileRed": false,
+            "restoredIdentical": true,
+            "sha256Before": "0a9c8662a1651d09b35f6e3deb3ba8f8e2486177bee740d40b393f495749db5e",
+            "sha256After": "0a9c8662a1651d09b35f6e3deb3ba8f8e2486177bee740d40b393f495749db5e",
+            "log": "/home/sykim/gate-logs/mcode-mc3b/mut-p.log",
+            "failedCases": [
+              "MerchantLabelGatewaySpec :: Then: MC-3-19 label-reads-per-minute (C-35) has no default and is 1..600: missing, 0 and 601 fail at startup; 1 and 600 pass"
+            ],
+            "startedAt": "2026-11-16T23:53:35Z"
+          }
+        ],
+        "mutationNotes": "명세 MC-3-22 MC-3b 범위 (e)(h)(l)(p) 전부 RED(컴파일 RED 아님 — 행위 RED), 원복 sha256 동일. (h)는 ADMIN gateway·MASTER 컨트롤러 두 수준에 각각 적용(MC-3-14가 두 수준을 요구). (a)(f)는 MC-3c 범위.",
+        "expectationChanges": "모두 `// 기대값 변경(MERCHANT-CODE-001 명세 §5.6.3·§7 MC-3b): …` 주석 + 근거: (1) MASTER MerchantOpsApiSpec 401 검사 경로 집합에 POST /internal/v1/admin/merchant-labels 추가·mapped.size 20 → 21(중복 매핑 검사 의도 유지), (2) MASTER MerchantOperationsApiSpec 비 GET handler 전수 집합에 merchant-labels 추가(읽기 전용 — 쓰기 효과·admin_request 없음, 근거 시험 MerchantLabelApiSpec 전 표 checksum 불변·MerchantLabelArchitectureSpec 쓰기 호출 0). 완화 없음 — 다른 단언 불변. 기대값이 아닌 시험 코드 변경: MasterOpsSettings 생성자 인자 추가(5개 파일, 기존 음성 시험은 유효 값 60을 넣어 원래 거절 이유 유지), MerchantLabelClient 대역 3개(paymentops)에 merchantLabels = error(...) 추가(거래 조회가 가맹점 키 라벨을 부르면 실패 — 강화), golden 두 사본에 merchantLabels 항목·_comment 추가(기존 항목 바이트 불변).",
+        "deviations": [
+          "시험 설정 label-reads-per-minute: 명세 §5.6.3 ②의 예시 값 999는 같은 절의 범위 1..600(C-35) 밖이라 기동 실패 → 상한 600 사용(lookup-per-minute 1000과 다른 값이라는 의도 유지). 명세 예시 정정 권장.",
+          "명세 MC-3-17 ArchUnit 문구 \"MerchantLabelClient 사용처 = merchantops web 라벨 controller·TransactionLookupService\": 역할·창·지표 판정을 Application에 두기 위해(헥사고날 — 컨트롤러는 HTTP만) 컨트롤러 → provided MerchantTargetLabelUseCase → MerchantTargetLabelService → MerchantLabelClient로 구성. ArchUnit은 client 사용처 = {TransactionLookupService, MerchantLabelService(구현), MerchantTargetLabelService}, 컨트롤러는 required·adapter.integration·MerchantLabelClient 직접 의존 금지로 고정(가역 구현 결정, 기존 TXN-LIST-ENRICH-001 규칙 불변).",
+          "라벨 지표·한도 Port를 기존 MerchantOpsMetrics·MerchantOpsLimits에 더하지 않고 새 Port MerchantTargetLabelMetrics·MerchantTargetLabelLimits로 분리(ISP — 기존 조회·등록 서비스와 시험 대역 불변). 구현체는 기존 MicrometerMerchantOpsMetrics·MasterOpsSettings가 함께 구현(가역).",
+          "ADMIN 화면 API의 415·413은 역할 판정보다 먼저(가맹점 검색 API 선례와 같은 읽기 전 거절). 구조 해석 실패 본문은 null로 Use Case에 넘겨 역할 판정(403) 뒤 400 — 역할 밖 사용자에게 400/403 구분이 새지 않게.",
+          "MASTER 계획 시험 P-1: merchant 표 FORCE INDEX(PRIMARY) — merchant-account-labels(T-E2-7)와 같은 이유(작은 표에서 보조 색인 전체 스캔 선택 방지). 단언 = merchant range PRIMARY, 배정 PRIMARY, type=ALL 없음.",
+          "SKIPPED 분류는 허용 집합에만 있고 서버에서 내보내지 않음(0개 요청은 400 — 화면이 0개면 부르지 않는다 §5.6.3)."
+        ],
+        "lfCheck": "작업 대상 47개 파일 CR 0. `grep -rl $'\\r' apps/ docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md` 그대로 실행하면 14433건이지만 전부 apps/*/build/ 아래 컴파일 산출물(.class 등 바이너리 — 소스 아님). build·node_modules·.gradle 제외 텍스트 파일(grep -rlI) 결과 0건.",
+        "openIssues": [
+          "GRADLE-CHECK·모듈 전체 시험·HARNESS-SELFTEST 미실행(메모리 제약 지시) — Coordinator 게이트 필요.",
+          "명세 §5.6.3 ② 시험 설정 예시 999 ↔ 범위 1..600 불일치(위 deviations) — 명세 정정 여부 Coordinator 판단.",
+          "allowedWritePaths는 Coordinator 정리 대상(미변경).",
+          "MC-3c(화면 — adminApi.merchantLabels·fakeApi·merchantTarget.ts·429를 UNAVAILABLE과 같게 처리)는 범위 밖. 화면은 아직 이 API를 부르지 않는다.",
+          "L-12: 거래 목록 라벨과 permit 2개를 공유 — 동시에 몰리면 라벨만 UNAVAILABLE(목록·승인 회복 영향 없음, MC-3-14 시험). 다중 인스턴스 창 합산·운영값은 LIVE Gate."
+        ],
+        "tech": "JPA: 이번 배치는 Entity·영속화 변경 없음(읽기 전용 라벨 — JPA를 쓰지 않는 것이 맞는 경우: 쓰기 Aggregate가 아니고 표시용 투영이라 jOOQ CQRS 조회 측이 소유). jOOQ(CQRS): MASTER JooqMerchantLabelReader 한 문장 RO·RR(merchant PK IN ≤ 50 → 현재 코드 상관 부분 질의 — MasterSqlText 재사용, EXPLAIN 시험), 쓰기 DSL 호출 0(ArchUnit). Domain: MASTER MerchantId 값 객체로 형식 판정(해석기), Domain에 Spring/jOOQ 의존 추가 없음. Kafka/Redis: 도입하지 않음 — 라벨 캐시 없음(코드 변경 직후 옛 코드 잔존 위험 L-9를 늘리지 않음), 분당 창은 인스턴스 메모리(ActorMinuteWindows 재사용). 새 의존성·버전 변경 없음(Boot BOM 그대로).",
+        "principles": {
+          "Financial Consistency": "금액·권리·명령 본문 변화 없음 — 라벨은 표시용 보조값, 판정에 쓰지 않음(MerchantLabelClient KDoc·ArchUnit 사용처 고정). 틀린 상호가 다른 행에 붙지 않게 대응 검사 위반 시 묶음 전체 UNREADABLE(변이 e RED).",
+          "Transaction Safety": "ADMIN은 DB TX 밖에서만 MASTER 호출(TX 안 IllegalStateException — MerchantLabelGatewaySpec), MASTER는 읽기 전용 REPEATABLE READ 한 문장, 쓰기 0(MerchantLabelApiSpec 전 표 행 수·checksum 불변, ArchUnit 쓰기 DSL 0).",
+          "Idempotency": "멱등 조회 — 같은 요청 반복 시 같은 본문(MerchantLabelApiSpec reads only), 상태·키 저장 없음.",
+          "Concurrency Control": "라벨 permit 대기 0·조회 permit과 격리(MC-3-14 — ADMIN gateway·MASTER API 두 수준, 변이 h-admin·h-master RED), actor별 라벨 창은 확인·차감 한 동작(ActorMinuteWindows), 검색 창과 독립(변이 l RED).",
+          "Recoverability": "라벨 실패 = 값(Unavailable) — HTTP 200 UNAVAILABLE로 화면 목록 유지, 다음 조회에서 회복(저장 없음). MASTER 미배포(404)도 UNAVAILABLE(fail-safe 배포 순서).",
+          "Reconciliation": "코드 ↔ 가맹점 대응은 MASTER 배정 행 하나에서 읽음(ADMIN 사본·캐시 없음 — C-29 (d) 기각 유지). 응답 대응 검사(보낸 집합·중복·순서).",
+          "Auditability": "감사 규칙 불변 — 라벨 읽기는 감사 없음(D-MOPS-002, MERCHANT_VIEWED 0 — MerchantTargetLabelHttpSpec 감사 행 수 불변·Service 시험 audits 0).",
+          "Observability": "ADMIN paycore.admin.ops.merchant_target_labels{result}(6 분류, 그 밖 값 거부), MASTER paycore.master.admin_channel.busy{endpoint=\"merchant_labels\"}, 로그는 분류·요청/항목 수만 — 키·상호·코드·actor 없음(시험 3곳)."
+        },
+        "mutationScript": {
+          "driver": "scratchpad mut.py + muts.json(정확 문자열 1회 치환 → gradle --tests → 원복 → sha256 비교)",
+          "results": "~/gate-logs/mcode-mc3b/muts.json"
+        }
+      },
+      "mc3c": {
+        "batch": "MC-3c 화면(ADMIN frontend만) — lib/merchantTarget.ts(§5.6.2 순수 함수)·adminApi.merchantLabels·fakeApi, 승인함·내 요청 목록 칸·행 접근 이름, 승인 상세 5종(요청 시 코드 → 현재 코드), 감사 화면 대상 칸·당시 표기·detail 방어 치환·\"가맹점 코드\" 조회칸(코드 검색 → targetMerchantId), 기존 시험 기대값 변경(§8 MC-3-20)",
+        "implementer": "paycore-implementer (2026-11-17) — 자기 완료 판정 아님, 커밋 없음, Demo 미기동·rebuild 없음, GRADLE-CHECK·모듈 전체 시험 미실행(Coordinator 게이트), Verifier·Reviewer 별도",
+        "spec": {
+          "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+          "revBefore": "0.4.9",
+          "sha256Before": "920b02673c93407c17b11b87a2bd5fbabd69a9b433ddddbbf608a0c90500bd70",
+          "rev": "0.4.10",
+          "sha256": "c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253"
+        },
+        "mc3bReviewFix": {
+          "a_specErrata": "rev 0.4.10 — §5.6.3 ② 시험 설정 예시 999 → 600(C-35 범위 1..600), §8 MC-3-17 ArchUnit 문구 '라벨 controller' → '라벨 controller 뒤 Use Case(MerchantTargetLabelUseCase→Service→client)', 변경 이력 1줄 'MC-3b 리뷰 errata — 정책 변경 없음'. 그 밖 본문 변경 없음.",
+          "b_nit1": {
+            "test": "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelRateLimitHttpSpec.kt (@SpringBootTest(properties=[label-reads-per-minute=2]) — 같은 VIEWER 세션 3회: 1·2회 200 OK·MASTER +1씩, 3회 429 {\"error\":\"RATE_LIMITED\"}·MASTER 호출 수 불변·지표 RATE_LIMITED +1)",
+            "red": {
+              "log": "~/gate-logs/mcode-mc3c/nit1-red.log",
+              "how": "MerchantTargetLabelService.kt 창 검사를 `if (false && windows.tryReserve…)`로 임시 변이(시험이 기존 동작 고정 시험이라 변이로 RED 확인)",
+              "result": "exit=1, tests=1 failures=1 — expected:<429> but was:<200>"
+            },
+            "revert": "sed 역변환 — 33행 `if (windows.tryReserve(viewer.actorId) == null) {` 원문 복구, 'false &&' 0건 확인(원본 sha 파일은 기록 디렉터리가 변이 시점에 없어 저장 실패 — 문자열 원복으로 확인)",
+            "green": {
+              "log": "~/gate-logs/mcode-mc3c/nit1-green.log",
+              "command": "./gradlew :apps:internal-admin:test --tests com.paycore.admin.merchantops.MerchantTargetLabelRateLimitHttpSpec; ./gradlew --stop",
+              "result": "exit=0, tests=1 skipped=0 failures=0 errors=0"
+            }
+          },
+          "c_nit3": "MicrometerMerchantOpsMetrics.TARGET_LABEL_RESULTS KDoc — 'SKIPPED: 이 API는 0개 요청이 400이라 내보내지 않음'"
+        },
+        "changedFiles": [
+          {
+            "path": "apps/internal-admin/frontend/src/lib/merchantTarget.ts",
+            "sha256": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/lib/useMerchantTargetLabels.ts",
+            "sha256": "72900e85cecc06726ab00371a8a09f1c459d4ef5bcdc35a8fad202bbc6cea8b3"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/lib/merchantTarget.test.ts",
+            "sha256": "8c4fae5a8335218799f626166eaa112585f14ed811140567955ce32ba39b645d"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/api/adminApi.ts",
+            "sha256": "44ea350e2c80aa82ce94a437b29b9bbdc9a6c344187ed845cbc315c84faa0912"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/test/fakeApi.ts",
+            "sha256": "76200981d2681ce337f20938acf26ade6e58329ae48cd5dde2f5e66330fb56e5"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/ApprovalsScreen.tsx",
+            "sha256": "c2e2ad4e8e466fb87fe97de7b59d91802cbdc2b69297dee7c2063d50a2df3b0b"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/AuditScreen.tsx",
+            "sha256": "ba8359476200a70b8363a490ecedccf6734a6c98b64d2f602ab6a98ff5baba14"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/components/MerchantContractApprovalDetail.tsx",
+            "sha256": "e29d8be364dcc82fc0dbbd41e321d17aab50dc5978db3a33c1fd7b0812c2b8f6"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/ApprovalsScreen.targetLabels.test.tsx",
+            "sha256": "561332b014fbf1c6e32baa5dd4e19d67109bb099248cf551d835ec49e242e2ed"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/AuditScreen.targetLabels.test.tsx",
+            "sha256": "2b89cb403ee9975675f43e5f09d179915227e4c0047aaaed3994d461add3b32a"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/ApprovalsScreen.merchant.test.tsx",
+            "sha256": "6424a411094508279fa462aa2aded029df8898b454f975d79becc78c93fcff9a"
+          },
+          {
+            "path": "apps/internal-admin/frontend/src/screens/AuditScreen.test.tsx",
+            "sha256": "0692cc1c760e9c1fc58ee9a9a89a9eb417191b39a964fd70ab70455ee29c1ad3"
+          },
+          {
+            "path": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md",
+            "sha256": "c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253"
+          },
+          {
+            "path": "apps/internal-admin/src/main/kotlin/com/paycore/admin/merchantops/adapter/integration/MicrometerMerchantOpsMetrics.kt",
+            "sha256": "aabb07c5bf47ac3551d33e19aa356db5a05c65a263f2819cb69d2897fab13f3a"
+          },
+          {
+            "path": "apps/internal-admin/src/test/kotlin/com/paycore/admin/merchantops/MerchantTargetLabelRateLimitHttpSpec.kt",
+            "sha256": "d020b5f557bba43f752024fd0d1be9ee69002e67eebb69aecf7611d6fd33d9f2"
+          }
+        ],
+        "screenContract": {
+          "labelsApi": "POST /api/merchant-labels {merchantIds} — 고유 키 정렬·50개씩 순차(0개 미호출), 목록을 다시 읽을 때마다 1회 묶음(캐시 없음). OK → found/missing, UNAVAILABLE·429·그 밖 실패·응답 대응 위반(보낸 집합 밖·중복) → 그 묶음 unavailable",
+          "display": "가맹점 대상 = '<현재 상호> · <현재 코드>' / '가맹점 정보 없음' / '—'(+ 표 아래 role=note 1줄 '가맹점 정보를 불러오지 못했어요' — 불러오는 중은 안내 없음), biz_ → '사업자', 그 밖 원문, 분류 밖 mer_·biz_ 포함 → '—'. 승인 행 aria-label = '<종류> <표시 텍스트> <상태>'",
+          "approvalDetail": "계약·첫 MID·개통·Site 심사·통화: '가맹점: <pinned 상호> · <요청 시 코드 ?? 현재 코드 ?? —>'(+ 둘 다 있고 다르면 ' → 현재 <코드>'), 요청 시 코드 = pinned merchantCode → 코드 형식 targetRef → 없음. 코드 변경 상세는 그대로",
+          "audit": "대상 칸 라벨 + 코드 표기 행이 현재 코드와 다르면 '(당시 <코드>)', detail (mer|biz)_<ULID> → '—'(title 동일), '가맹점 코드' 조회 = 형식(§3.1) → merchantSearch({merchantCode}) → 정확히 1건이면 audit({..., targetMerchantId}) 1회, 0건 '없는 가맹점 코드'(감사 호출 0), 형식 위반 화면 오류(호출 0), 검색 실패 오류 알림(감사 호출 0)"
+        },
+        "red": {
+          "log": "~/gate-logs/mcode-mc3c/red-01.log",
+          "command": "bash ~/gate-logs/hk-vitest.sh ../mcode-mc3c/red-01 <5 files>",
+          "result": "exit=1 — 17 failed + lib/merchantTarget.test.ts 모듈 없음(구현 전: 승인 칸이 targetRef(mer_)를 그림, 감사 칸 mer_·biz_, 라벨 호출·상세 코드 줄·코드 조회칸 없음). 계약 타입·fakeApi 대역만 먼저 추가한 상태"
+        },
+        "green": {
+          "targeted": {
+            "log": "~/gate-logs/mcode-mc3c/green-02.log",
+            "result": "exit=0, 15 files, 104 tests passed (ApprovalsScreen*·AuditScreen*·merchantTarget·noRuntimeStyles·api·OwnerApprovalDetail.compare)"
+          },
+          "tsc": {
+            "log": "~/gate-logs/mcode-mc3c/tsc.log",
+            "result": "tsc -b exit=0"
+          },
+          "fullVitest": {
+            "log": "~/gate-logs/mcode-mc3c/full-02.log",
+            "result": "exit=0, Test Files 59 passed (59), Tests 537 passed (537), skip 0",
+            "note": "first full run (full-01) 1 failed: 120행 묶음 시험이 전체 동시 실행 부하에서 findBy 기본 1s를 넘김 → 그 시험의 findBy 대기 상한 10s·시험 상한 20s만 늘림(기대값 불변). Coordinator가 말한 '539건 이상'과 다름 — 이 작업 트리 실제 수 537(새 시험 24 포함), skip·0건 없음"
+          }
+        },
+        "mutations": [
+          {
+            "id": "a",
+            "file": "src/screens/ApprovalsScreen.tsx",
+            "desc": "MC-3-22(a) 승인 목록 칸을 targetRef로 되돌림 -> 19 RED",
+            "applied": true,
+            "vitestExit": 1,
+            "tests": "Tests 7 failed | 28 passed (35)",
+            "red": true,
+            "shaBefore": "c2e2ad4e8e466fb87fe97de7b59d91802cbdc2b69297dee7c2063d50a2df3b0b",
+            "shaAfterRestore": "c2e2ad4e8e466fb87fe97de7b59d91802cbdc2b69297dee7c2063d50a2df3b0b",
+            "restoredIdentical": true,
+            "log": "/home/sykim/gate-logs/mcode-mc3c/mut-a.log"
+          },
+          {
+            "id": "f",
+            "file": "src/lib/merchantTarget.ts",
+            "desc": "MC-3-22(f) UNAVAILABLE·로딩에서 키를 대신 그리기 -> 18·19 RED",
+            "applied": true,
+            "vitestExit": 1,
+            "tests": "Tests 5 failed | 30 passed (35)",
+            "red": true,
+            "shaBefore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "shaAfterRestore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "restoredIdentical": true,
+            "log": "/home/sykim/gate-logs/mcode-mc3c/mut-f.log"
+          },
+          {
+            "id": "x1",
+            "file": "src/lib/merchantTarget.ts",
+            "desc": "추가: 감사 detail 방어 치환 제거 -> 18·19 RED",
+            "applied": true,
+            "vitestExit": 1,
+            "tests": "Tests 7 failed | 28 passed (35)",
+            "red": true,
+            "shaBefore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "shaAfterRestore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "restoredIdentical": true,
+            "log": "/home/sykim/gate-logs/mcode-mc3c/mut-x1.log"
+          },
+          {
+            "id": "x2",
+            "file": "src/lib/merchantTarget.ts",
+            "desc": "추가: 라벨 묶음 정렬 제거 -> 18·19 RED",
+            "applied": true,
+            "vitestExit": 1,
+            "tests": "Tests 2 failed | 33 passed (35)",
+            "red": true,
+            "shaBefore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "shaAfterRestore": "f37c9419936a7ebded1a628a614bef61ef8dece03f536de8c3bd27410218c59b",
+            "restoredIdentical": true,
+            "log": "/home/sykim/gate-logs/mcode-mc3c/mut-x2.log"
+          }
+        ],
+        "specDeviations": [
+          "라벨 호출이 429 외 401 등 세션 오류를 받아도 세션 종료로 보내지 않고 UNAVAILABLE과 같게 '—' 처리(명세는 429·실패를 UNAVAILABLE로만 명시 — 목록 자체 호출이 세션 오류를 처리하므로 라벨 호출은 fail-closed 표시만, 가역 구현 결정)",
+          "화면 대응 검사 추가: 라벨 응답에 보낸 집합 밖 키·중복 키가 있으면 그 묶음 unavailable(서버 §5.6.3 대응 검사와 같은 기준의 방어 — 명세 화면 절에는 없음)",
+          "감사 '가맹점 코드' 조회에서 코드 검색 결과가 2건 이상이면(코드 전역 고유라 정상 경로에서 없음) '없는 가맹점 코드'와 같게 감사 호출 0(fail-closed)",
+          "승인 상세 MerchantLine이 pinned 상호에 mer_·biz_가 섞이면 '—'(방어)",
+          "추가 변이 x1(detail 치환 제거)·x2(묶음 정렬 제거) — 명세 MC-3c 범위는 (a)(f)뿐, 증거 보강용"
+        ],
+        "principles": {
+          "FinancialConsistency": "금액·권리·명령 본문 변화 없음 — 화면 표시만(라벨은 보조 표시값)",
+          "TransactionSafety": "쓰기 없음. 라벨 읽기는 서버 측 ADMIN DB TX 밖·MASTER RO(MC-3b) — 화면은 조회만",
+          "Idempotency": "라벨·코드 검색·감사 조회 모두 멱등 조회. 승인 버튼 경로 불변(라벨 실패에도 승인 동작 정상 — MC-3-19 시험)",
+          "ConcurrencyControl": "라벨 묶음 순차 호출(동시 1 — 시험 maxInFlight=1), 늦게 온 이전 목록 결과 폐기(useMerchantTargetLabels live 플래그·rows 동일성)",
+          "Recoverability": "라벨 실패 = 다음 목록 읽기에서 회복(값 저장·캐시 없음), 429도 같은 경로",
+          "Reconciliation": "코드 → 가맹점 해석은 언제나 MASTER(코드 검색 — C-30), 화면은 내부 키를 대응에만 사용",
+          "Auditability": "기존 감사 행 수정 0, 모든 행을 현재 상호·코드로 연결 + 당시 코드 표기 유지, 연결 조회는 targetMerchantId 필터(서버 감사 AUDIT_VIEWED 규칙 불변), 라벨 읽기 감사 없음(D-MOPS-002)",
+          "Observability": "화면 안내 1줄(role=note)로 라벨 불가 상태를 드러냄, 서버 지표 merchant_target_labels{result}(MC-3b) 그대로 — 화면 로그·저장소에 키·상호 없음",
+          "technology": "React 19·TS strict·Tailwind 4 기존 utility/workspace.css 클래스(mapnote·font-mono 등)만, inline style 0(noRuntimeStyles PASS), 새 의존성 없음. JPA·jOOQ·Kafka·Redis 변경 없음(frontend만 — 라벨 캐시를 두지 않아 코드 변경 직후 옛 코드 위험 L-9를 늘리지 않음)"
+        },
+        "sourceFingerprint": {
+          "tool": "harness/scripts/fingerprint.sh (LF 파일 기준, tasks.json 기록 전 계산)",
+          "headRevision": "146b2baf2cdd1b7f65b3eba98c09e121be279d8a",
+          "dirty": "true",
+          "files": "3032",
+          "codeFingerprint": "sha256:aa5d7cc36ec0965d16761b2b00b674c51c04a22257a6a40846d0964fbd123f39"
+        },
+        "lfCheck": "grep -rlI $'\\r' apps/*/src apps/internal-admin/frontend/src docs/repository (build·node_modules 제외) → 0건",
+        "notRun": "GRADLE-CHECK·모듈 전체 시험·frontendTest(gradle)·HARNESS-SELFTEST·Demo(브라우저 DOM) — Coordinator 게이트/Demo 범위",
+        "reviewFix1": {
+          "review": "독립 리뷰 2026-11-17 조건부 PASS — MAJOR-1 EXECUTED 코드 변경 상세 mer_, MINOR-1·2, NIT-1·4",
+          "spec": "docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md rev 0.4.10 sha256 c2b9d90609badb1e388672f06e5edf692ac6d2eae61e410278a64f6b8fe3a253 (변경 없음)",
+          "fixes": {
+            "MAJOR-1": "MerchantContractApprovalDetail statusText: MERCHANT_CODE_CHANGE EXECUTED = '변경됨 — <pinned newCode>'(새 코드 없으면 '변경됨'), 전체 문구 hasInternalKey면 참조 부분 '—'(마지막 방어). 그 밖 종류 참조(ctr_·mid_·act_·site_·cur_)는 그대로",
+            "MINOR-1": "AuditScreen 코드 형식 오류·없는 코드는 Field error(text-destructive, aria-describedby 연결) + 표 비움(entries []), audit 미호출. 코드 검색 실패도 표 비움(같은 오독 방지 — 구현 결정)",
+            "MINOR-2": "AuditScreen 조회 순번 ref — 옛 순번의 merchantSearch·audit 결과·오류·loading 버림, 코드 검색 중 loading(aria-busy) 켬",
+            "NIT-1": "sanitizeAuditDetail: 치환 뒤에도 mer_·biz_가 남으면 요약 전체 '—'(텍스트·title 같은 값)",
+            "NIT-4": "ApprovalsScreen.activation/currency/codeChange 시험 fixture에 targetMerchantId(MC-3a 응답 모양) 추가 — 기대값 불변(주석 'Fixture 변경(…)')"
+          },
+          "changedFiles": [
+            "apps/internal-admin/frontend/src/components/MerchantContractApprovalDetail.tsx",
+            "apps/internal-admin/frontend/src/screens/AuditScreen.tsx",
+            "apps/internal-admin/frontend/src/lib/merchantTarget.ts",
+            "apps/internal-admin/frontend/src/lib/merchantTarget.test.ts",
+            "apps/internal-admin/frontend/src/screens/ApprovalsScreen.codeChange.test.tsx",
+            "apps/internal-admin/frontend/src/screens/AuditScreen.targetLabels.test.tsx",
+            "apps/internal-admin/frontend/src/screens/ApprovalsScreen.activation.test.tsx",
+            "apps/internal-admin/frontend/src/screens/ApprovalsScreen.currency.test.tsx"
+          ],
+          "red": {
+            "log": "~/gate-logs/mcode-mc3c/rf1-red.log",
+            "result": "exit=1, 5 files 37 tests: 8 failed / 29 passed — MAJOR-1 3건('변경됨 — mer_000…01' 표시), NIT-1 2건(소문자·짧은 토큰 그대로), MINOR-1 1건(text-muted-foreground hint), MINOR-2 2건(aria-busy false·늦은 audit 응답이 표를 1행으로 덮음)"
+          },
+          "green": {
+            "tsc": "~/gate-logs/mcode-mc3c/rf1-tsc.log exit 0",
+            "log": "~/gate-logs/mcode-mc3c/rf1-green.log",
+            "result": "exit=0, 7 files 51 tests passed"
+          },
+          "full": {
+            "log": "~/gate-logs/mcode-mc3c/rf1-full.log",
+            "result": "exit=0, Test Files 59 passed, Tests 546 passed(이전 537 + 새 9), 실패 0·skip 0",
+            "at": "2026-11-17T09:45+09:00"
+          },
+          "lfCheck": "grep -rlI $'\r' apps/internal-admin/frontend/src → 없음",
+          "notRun": "Gradle·Demo·커밋 미실행(지시). 자기 DONE 판정 아님 — Verifier·Reviewer 별도"
+        }
+      },
+      "mc3BrowserCheck": {
+        "how": "frontendBuild 번들 + 명시 Demo fixture mock API, headless Chrome CDP — scratchpad admin-mc3c/harness.mjs (Demo 실제 데이터 아님)",
+        "result": "1440·1280·1101·1024·390 × light·dark × 라벨 OK·UNAVAILABLE × (승인함 목록·상세·감사) + 감사 코드 필터 형식 오류 = 62화면: 페이지 가로 넘침 0, 문서 전체 outerHTML mer_/biz_ 0, style 속성 0; 표 감싸는 칸 넘침 1024px 이상 0(390px은 칸 안 가로 스크롤 — 다른 표와 같음); 콘솔 오류는 mock 미정의 home-kpis·payment-searches 404뿐",
+        "note": "브라우저 확인은 reviewFix1(MAJOR-1) 전 번들 — EXECUTED 코드 변경 상세는 vitest(domOccurrences)로 확인"
+      },
+      "mc3Status": "DONE(MC3-gate1) — 리뷰 3회 조건부 PASS 조건 충족(재검증·게이트 PASS, MINOR·MAJOR 반영)",
+      "allowedWritePathsNote": "Coordinator 2026-11-17: MC-3 구현 범위(ADMIN·MASTER·frontend)를 등록 — MC-3a 구현자 보고 미결 2"
     },
     {
       "id": "MERCHANT-BIZ-LOOKUP-001",
@@ -8305,7 +9354,7 @@
     {
       "id": "APPROVAL-TARGET-KEYS-001",
       "title": "승인함·내 요청에서 가맹점 대상 승인의 내부 key(mer_) 비노출",
-      "status": "READY",
+      "status": "DONE",
       "request": "D-ADMIN-UI-004 ③·D-MCODE-003 위반 발견(승인함 시안 적용 작업 중 구현자 보고 2026-11-17) — 확정 결정 적용, 재질문 불필요",
       "finding": "ApprovalsScreen 목록 대상 칸이 targetRef(mer_…)·행 aria-label에 그리고, 계약·첫 MID·개통·Site 심사·통화 상세가 pinned merchantId(mer_…)를 그린다(코드 변경 상세만 숨김). 기존 시험 ApprovalsScreen.merchant.test.tsx가 목록 mer_ 표시를 단언",
       "fixDirection": "ADMIN-HISTORY-KEYS-001처럼 \"<상호> · <가맹점 코드>\" 표시(필요하면 ADMIN 응답에 라벨 — MERCHANT-CODE-001 D-MCODE-001 Q-MC-4 승인 대상 코드 전환·MC-3/MC-4와 겹치는지 먼저 확인), 기대값 변경은 결정 근거 주석",
@@ -8316,7 +9365,9 @@
         "docs/repository/**"
       ],
       "owner": "Coordinator",
-      "maxRepairAttempts": 3
+      "maxRepairAttempts": 3,
+      "mergedInto": "MERCHANT-CODE-001 MC-3 (spec rev 0.4.6 §5.6·§7·§8 MC-3-8~22) — 이 항목은 MC-3 DONE 때 함께 닫는다",
+      "closedBy": "MERCHANT-CODE-001 MC-3 (MC3-gate1 PASS 2026-11-17)"
     }
   ]
 }

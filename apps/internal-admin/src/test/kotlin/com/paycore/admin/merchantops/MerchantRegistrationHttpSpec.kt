@@ -125,6 +125,15 @@ class MerchantRegistrationHttpSpec(
             )
             rows[1] shouldBe "MERCHANT_BUSINESS_REGISTER|OK|sub=${s1.take(8)};replayed=false;brn=778*******|biz_01JC0000000000000000000011|mos.$s1"
             rows[5] shouldBe "MERCHANT_SITE_REGISTER|OK|sub=${s3.take(8)};replayed=false;channel=WEB|site_01JC0000000000000000000011|mos.$s3"
+            // MERCHANT-CODE-001 MC-3a 리뷰 MINOR-3(§5.6.4 C-32 표 "가맹점 등록 성공" 행): 실제 MySQL 행의 target_ref = 등록한 코드, target_merchant_id = 응답 reference(mer_).
+            // 대조: 같은 등록의 요청(REQUESTED) 행 대상은 상위 사업자(biz_ — 사업자 대상, 내부 키 NULL).
+            AdminDbAccounts.root(container).use {
+                it.column(
+                    "SELECT CONCAT(action, '|', result_code, '|', COALESCE(target_ref, '-'), '|', COALESCE(target_merchant_id, '-')) FROM admin_audit_event " +
+                        "WHERE actor_id = ? AND action = 'MERCHANT_REGISTER' ORDER BY event_id",
+                    operator.account.id.value,
+                )
+            } shouldBe listOf("MERCHANT_REGISTER|REQUESTED|$biz|-", "MERCHANT_REGISTER|OK|shopabcd12|mer_01JC0000000000000000000011")
         }
 
         Then("MC-1-9 merchant registration over HTTP: the signed MASTER body carries merchantCode; a missing or malformed code is 400 INVALID_INPUT without a MASTER call; MASTER TAKEN is a stored rejection") {

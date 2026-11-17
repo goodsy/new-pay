@@ -18,6 +18,11 @@ data class PinnedCurrencyEnablementTarget(
     val effectiveFromMode: String,
     val effectiveFrom: LocalDate?,
     val effectiveTo: LocalDate?,
+    /**
+     * MERCHANT-CODE-001 MC-3a(§5.3·§5.6.4 — C-19): 요청 시점 가맹점 코드(**표시용**). 새 행 생성 시 필수(요청 경로가 MASTER 상세 코드를 넣는다), 저장된 기존 행 읽기에서는 선택
+     * (MC-3a 전 PENDING·회복 대상 행이 그대로 해석돼야 한다). A 단계 비교에서 뺀다 — 코드 변경 때문에 승인이 INVALIDATED되지 않게.
+     */
+    val merchantCode: String? = null,
 ) : PinnedMerchantTarget {
     init {
         require(ApprovalTarget.Merchant.MERCHANT_ID.matches(merchantId)) { "merchant id format" }
@@ -28,16 +33,20 @@ data class PinnedCurrencyEnablementTarget(
         require(effectiveFromMode in MODES) { "effective start mode" }
         require((effectiveFromMode == DATE) == (effectiveFrom != null)) { "a start date exactly in the DATE mode" }
         require(effectiveTo == null || effectiveFrom == null || effectiveTo.isAfter(effectiveFrom)) { "end after start" }
+        require(merchantCode == null || ApprovalTarget.Merchant.CODE.matches(merchantCode)) { "merchant code format (§3.1)" }
     }
 
-    fun sameTargetAs(current: PinnedCurrencyEnablementTarget): Boolean = copy(merchantName = current.merchantName) == current
+    fun sameTargetAs(current: PinnedCurrencyEnablementTarget): Boolean = copy(merchantName = current.merchantName, merchantCode = current.merchantCode) == current
 
     override fun toSnapshotJson(): String =
-        "{\"merchantId\":\"$merchantId\",\"merchantName\":${PinnedContractApprovalTarget.quote(merchantName)},\"merchantAccountId\":\"$merchantAccountId\"," +
+        "{\"merchantId\":\"$merchantId\",\"merchantName\":${PinnedContractApprovalTarget.quote(merchantName)}${codeJson()},\"merchantAccountId\":\"$merchantAccountId\"," +
             "\"accountLifecycle\":\"$accountLifecycle\",\"currency\":\"$currency\",\"effectiveFromMode\":\"$effectiveFromMode\"," +
             "\"effectiveFrom\":${date(effectiveFrom)},\"effectiveTo\":${date(effectiveTo)}}"
 
     private fun date(value: LocalDate?): String = value?.let { "\"$it\"" } ?: "null"
+
+    /** 코드 키는 값이 있을 때만(MC-3a 전 행의 결정적 JSON은 그대로 — 기존 행 바이트 불변). */
+    private fun codeJson(): String = merchantCode?.let { ",\"merchantCode\":\"$it\"" } ?: ""
 
     companion object {
         const val AT_EXECUTION = "AT_EXECUTION"

@@ -10,6 +10,9 @@ import { Field } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import { Input } from '../components/ui/input'
 import { labelOf } from '../lib/labels'
+import { MERCHANT_LABELS_UNAVAILABLE } from '../lib/merchantLabel'
+import { anyLabelUnavailable, merchantTargetLabel, merchantTargetText } from '../lib/merchantTarget'
+import { useMerchantTargetLabels } from '../lib/useMerchantTargetLabels'
 import { tagClass } from '../lib/statusTone'
 
 const TOTP = /^[0-9]{6}$/
@@ -24,8 +27,10 @@ interface Props {
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }
 
-function Row({ item, canDecide, mine, registrant, selected, onApprove, onReject, onWithdraw, onDetail }: {
+function Row({ item, target, canDecide, mine, registrant, selected, onApprove, onReject, onWithdraw, onDetail }: {
   item: ApprovalView
+  /** 대상 표시 텍스트(MERCHANT-CODE-001 §5.6.2 — 가맹점 = "<상호> · <코드>"/"가맹점 정보 없음"/"—", 내부 키 없음). */
+  target: string
   canDecide: boolean
   /** 이 승인의 상세가 열려 있음(표시만). */
   selected: boolean
@@ -37,7 +42,6 @@ function Row({ item, canDecide, mine, registrant, selected, onApprove, onReject,
   onWithdraw: (id: string) => Promise<void>
   onDetail: (id: string) => Promise<void>
 }) {
-  const target = item.targetActorId ?? item.targetRef ?? ''
   const [totp, setTotp] = useState('')
   const valid = TOTP.test(totp)
   const decide = async (action: (id: string, totp: string) => Promise<void>) => {
@@ -146,6 +150,8 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
   // ADMIN-UI-WORKSPACE-001(승인함·내 요청): 대사 발견(96608d3)과 같이 MenuCard flush 카드 바로 안에 시안 구성 — .mapnote(h2 화면 이름 + 설명) → (오류 시) .cardnote
   // → .tablewrap(빈 목록 .empty) → .tablebottom(표시 건수) → (상세를 열면) .detailarea(eyebrow·h3 승인 상세 + small 승인 ID, 종류별 상세 카드). 조회 조건이 없어 .filters 줄은 없다.
   // 등록 코드 1회 표시([OneTimeCode])는 body에 붙는 dialog라 카드 구조에 들어가지 않는다(그대로).
+  // MERCHANT-CODE-001 §5.6.2·§5.6.3(MC-3c): 목록을 읽을 때마다 가맹점 대상 라벨을 고유 키 정렬 묶음으로 한 번 부른다(0개면 미호출). 실패·429는 "—" + 표 아래 안내 1줄.
+  const labels = useMerchantTargetLabels(api, items)
   const name = view === 'pending' ? '승인함' : '내 요청'
   return (
     <>
@@ -172,6 +178,7 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
               <Row
                 key={item.approvalId}
                 item={item}
+                target={merchantTargetText(item, labels)}
                 canDecide={canDecide && view === 'pending'}
                 registrant={isRegistrant(item, viewer?.actorId)}
                 selected={detail?.approvalId === item.approvalId}
@@ -192,6 +199,7 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
           </tbody>
         </table>
         {items.length === 0 && <div className="empty">{view === 'pending' ? '승인 대기 중인 요청이 없습니다.' : '내가 만든 승인 요청이 없습니다.'}</div>}
+        {anyLabelUnavailable(items, labels) && <p role="note" className="mapnote">{MERCHANT_LABELS_UNAVAILABLE}</p>}
       </div>
       <div className="tablebottom">
         <span>{`표시 ${items.length}건`}</span>
@@ -206,7 +214,9 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
             </h3>
           </div>
           {detail.targetKind === 'ACQUISITION_FILE' && <ReacquisitionApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
-          {detail.targetKind === 'MERCHANT' && <MerchantContractApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
+          {detail.targetKind === 'MERCHANT' && (
+            <MerchantContractApprovalDetail key={detail.approvalId} api={api} item={detail} currentLabel={merchantTargetLabel(detail, labels)} viewer={viewer} onSessionEnded={onSessionEnded} />
+          )}
           {detail.targetKind !== 'ACQUISITION_FILE' && detail.targetKind !== 'MERCHANT' && <OwnerApprovalDetail key={detail.approvalId} api={api} item={detail} viewer={viewer} onSessionEnded={onSessionEnded} />}
         </div>
       )}

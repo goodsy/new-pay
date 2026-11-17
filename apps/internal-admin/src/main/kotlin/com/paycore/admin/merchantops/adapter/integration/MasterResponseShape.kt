@@ -222,6 +222,14 @@ internal sealed interface MasterResponseShape {
             "items" to Arr(obj("merchantAccountId" to MERCHANT_ACCOUNT_ID, "merchantName" to DISPLAY_NAME, "merchantCode" to MERCHANT_CODE), max = 50),
         )
 
+        /**
+         * MERCHANT-CODE-001 §5.6.3(MC-3b) 가맹점 라벨 묶음: 항목 정확 3키(merchantId `mer_` 형식 — ADMIN 대응용, 상호 = `DisplayName` 규칙(TXN-LIST-ENRICH-001 M-4), 코드 §3.1), 50개 이하.
+         * 사업자 키·lifecycle·코드 이력이 오면 키 집합이 달라 해석 불가. 이 요청의 답인지(보낸 키의 부분집합·중복 없음·오름차순)는 gateway가 따로 본다.
+         */
+        val MERCHANT_LABELS: MasterResponseShape = obj(
+            "items" to Arr(obj("merchantId" to MERCHANT_ID, "merchantName" to DISPLAY_NAME, "merchantCode" to MERCHANT_CODE), max = 50),
+        )
+
         val DETAIL: MasterResponseShape = obj(
             // MERCHANT-CODE-001 §3.8: 현재 코드.
             "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME, "merchantCode" to MERCHANT_CODE),

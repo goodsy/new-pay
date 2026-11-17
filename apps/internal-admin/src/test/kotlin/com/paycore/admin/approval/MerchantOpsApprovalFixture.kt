@@ -76,11 +76,14 @@ class MerchantOpsApprovalFixture(
     /** MASTER 상세: Revision 1 승인됨 + Revision 2(승인 전 — [approvedAt]·[effectiveTo]·[registeredBy]로 무효 조건을 만든다). */
     fun detail(
         merchantId: String, registeredBy: String = StubMasterOpsServer.REGISTRANT, approvedAt: String? = null, effectiveTo: String? = null,
-        effectiveFrom: String = "2026-11-10T15:00:00.000Z",
+        effectiveFrom: String = "2026-11-10T15:00:00.000Z", merchantCode: String? = DEFAULT_CODE,
     ) {
         val revisions = StubMasterOpsServer.revisionJson(1) + "," +
             StubMasterOpsServer.revisionJson(2, approvedAt = approvedAt, effectiveFrom = effectiveFrom, effectiveTo = effectiveTo, registeredBy = registeredBy)
-        StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(merchantId), Reply(200, StubMasterOpsServer.detailJson(merchantId, revisions = revisions)))
+        // MERCHANT-CODE-001 MC-3a: [merchantCode]로 현재 코드를 바꾼다(C-19 — 코드만 다른 재조회), null이면 상세에서 merchantCode 키를 뺀 Invalid 응답(모양 위반 — 요청 거절 시험).
+        var json = StubMasterOpsServer.detailJson(merchantId, revisions = revisions, merchantCode = merchantCode ?: DEFAULT_CODE)
+        if (merchantCode == null) json = json.replace(",\"merchantCode\":\"$DEFAULT_CODE\"}", "}")
+        StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(merchantId), Reply(200, json))
     }
 
     fun operator(): AdminAccount = path.withRolesViaApproval(AdminRole.OPERATOR)
@@ -143,5 +146,8 @@ class MerchantOpsApprovalFixture(
     companion object {
         const val EVIDENCE = "CONTRACT-2026/0001#p1"
         const val MID_EVIDENCE = "MID-2026/0001#p1"
+
+        /** MASTER 대역 상세의 기본 현재 코드(StubMasterOpsServer.detailJson 기본값과 같다 — Demo 값). */
+        const val DEFAULT_CODE = "shopabcd12"
     }
 }

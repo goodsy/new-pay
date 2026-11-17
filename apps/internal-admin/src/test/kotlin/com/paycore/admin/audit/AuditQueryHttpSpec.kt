@@ -62,6 +62,23 @@ class AuditQueryHttpSpec(
             c.login(admin.loginName, admin.password, admin.secret).status shouldBe 200
             actorsIn(c.perform(get("/api/audit").param("actorId", other)).contentAsString) shouldBe listOf(other)
         }
+        Then("MERCHANT-CODE-001 MC-3-16: targetMerchantId filter — malformed is 400 (no read); a well-formed key returns entries whose keys carry targetMerchantId right after targetRef") {
+            val admin = ready.bootstrapped(AdminRole.SECURITY_ADMIN)
+            val merchant = "mer_01JCME0000000000000000QH16"
+            storage.inTx {
+                recorder.record(
+                    AuditRecord(Instant.now().truncatedTo(ChronoUnit.MILLIS), "ADMIN", other, "다른 관리자", "MERCHANT_VIEWED", "OK", "corr-mc3a", targetRef = "shopqh1600", targetMerchantId = merchant),
+                )
+            }
+            val c = AdminHttpClient(mockMvc)
+            c.login(admin.loginName, admin.password, admin.secret).status shouldBe 200
+            listOf("shopqh1600", "mer_lowercase00000000000000", "biz_01JC0000000000000000000001").map {
+                c.perform(get("/api/audit").param("targetMerchantId", it)).let { r -> r.status to r.contentAsString }
+            } shouldBe List(3) { 400 to """{"error":"BAD_REQUEST"}""" }
+            val body = c.perform(get("/api/audit").param("targetMerchantId", merchant)).contentAsString
+            Regex("\"targetRef\":\"([^\"]+)\",\"targetMerchantId\":\"([^\"]+)\"").findAll(body).map { it.groupValues[1] + "|" + it.groupValues[2] }.toList() shouldBe
+                listOf("shopqh1600|$merchant")
+        }
         Then("an account without any viewing role gets 403 and no rows") {
             val roleless = ready.withoutRoles()
             val c = AdminHttpClient(mockMvc)

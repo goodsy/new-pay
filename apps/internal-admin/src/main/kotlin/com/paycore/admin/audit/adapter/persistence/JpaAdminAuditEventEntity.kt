@@ -53,6 +53,15 @@ class JpaAdminAuditEventEntity protected constructor() {
     var targetRef: String? = null
         protected set
 
+    /**
+     * V15(MERCHANT-CODE-001 MC-3a §5.6.4): 가맹점과 관련된 행의 내부 키(mer_). INSERT 뒤 바뀌지 않는다(`updatable = false` — 표 단위 SELECT, INSERT 권한, append-only).
+     * 가상 생성 열 `target_merchant_key`는 **매핑하지 않는다**: `insertable/updatable = false`로 매핑하면 Hibernate가 INSERT에 넣지는 않지만, 읽는 곳이 jOOQ 조회뿐이라
+     * 매핑 자체를 두지 않아 실수로 쓰는 경로를 없앤다(MySQL은 가상 열에 값을 쓰면 3105로 거부).
+     */
+    @field:Column(name = "target_merchant_id", updatable = false, length = 30)
+    var targetMerchantId: String? = null
+        protected set
+
     @field:Column(name = "result_code", nullable = false, updatable = false, length = 48)
     lateinit var resultCode: String
         protected set
@@ -92,9 +101,10 @@ class JpaAdminAuditEventEntity protected constructor() {
         fun newRow(
             occurredAt: Instant, actorKind: String, actorId: String?, actorDisplayName: String?, executorActorId: String?, action: String,
             targetActorId: String?, resultCode: String, approvalId: String?, correlationId: String, remoteIp: String?, loginNameHmac: ByteArray?, detail: String?, reason: String? = null,
-            targetRef: String? = null,
+            targetRef: String? = null, targetMerchantId: String? = null,
         ) = JpaAdminAuditEventEntity().also {
             it.targetRef = targetRef
+            it.targetMerchantId = targetMerchantId
             it.occurredAt = occurredAt
             it.actorKind = actorKind
             it.actorId = actorId

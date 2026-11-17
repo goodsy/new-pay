@@ -68,6 +68,20 @@ class MerchantCodeShapeGoldenSpec : BehaviorSpec({
             parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, golden.get("list")) shouldBe false
         }
 
+        Then("MC-3-17 merchant labels → MERCHANT_LABELS parses (3 keys per item); a business key, lifecycle, a missing key, a MID key or the account-label body fails") {
+            val labels = MasterResponseShape.MERCHANT_LABELS.read(golden.get("merchantLabels")) as Map<*, *>
+            (labels["items"] as List<*>).map { (it as Map<*, *>).values.toList() } shouldBe listOf(
+                listOf("mer_01JC0000000000000000000001", "데모상점", "demoshop01"), listOf("mer_01JC0000000000000000000002", "Demo Merchant", "shopxyz789"),
+            )
+            parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).put("businessId", "biz_01JC0000000000000000000001") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).put("lifecycle", "ACTIVE") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).remove("merchantCode") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).put("merchantId", "mid_01JC0000000000000000000001") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).put("merchantCode", "DEMOSHOP01") }) shouldBe false
+            parses(MasterResponseShape.MERCHANT_LABELS, golden.get("accountLabels")) shouldBe false
+            parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, golden.get("merchantLabels")) shouldBe false
+        }
+
         Then("MC-1-9 control: a code outside ^[a-z][a-z0-9]{5,13}$, an unknown source and a third history row fail") {
             parses(MasterResponseShape.DIRECTORY, copy("list").also { firstItem(it).put("merchantCode", "SHOPABCD12") }) shouldBe false
             parses(MasterResponseShape.DIRECTORY, copy("list").also { firstItem(it).put("merchantCode", "mer_01JC0000000000000000000001") }) shouldBe false

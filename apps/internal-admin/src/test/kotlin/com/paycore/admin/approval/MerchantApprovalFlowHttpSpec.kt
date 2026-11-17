@@ -135,7 +135,10 @@ class MerchantApprovalFlowHttpSpec(
             json.readTree(approve(loggedIn(approver), approver, id).contentAsByteArray).get("status").asString() shouldBe "EXECUTED"
             // L-13(Demo 개선 C-3): 감사 화면 API가 계정이 아닌 대상(가맹점)을 targetRef로 내보낸다.
             val audit = json.readTree(loggedIn(ready.bootstrapped(AdminRole.SECURITY_ADMIN)).perform(get("/api/audit?action=APPROVAL_EXECUTED")).contentAsByteArray).get("entries")
-            (0 until audit.size()).map { audit.get(it) }.single { it.get("approvalId").asString() == id }.get("targetRef").asString() shouldBe m
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            (0 until audit.size()).map { audit.get(it) }.single { it.get("approvalId").asString() == id }.get("targetRef").asString() shouldBe MerchantOpsApprovalFixture.DEFAULT_CODE
+            // MERCHANT-CODE-001 MC-3-16: 같은 행의 내부 키(targetMerchantId = mer_ — 응답 포함·화면 미표시).
+            (0 until audit.size()).map { audit.get(it) }.single { it.get("approvalId").asString() == id }.get("targetMerchantId").asString() shouldBe m
         }
     }
 

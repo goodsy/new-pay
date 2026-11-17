@@ -65,8 +65,10 @@ class MerchantCurrencyApprovalServiceSpec(
     fun storedBody(id: String) = root().use { it.scalar("SELECT request_body FROM admin_owner_execution WHERE approval_id = ?", id) as ByteArray }
     fun fingerprint(id: String) = root().use { it.scalar("SELECT fingerprint FROM admin_owner_execution WHERE approval_id = ?", id) as String }
     fun audits(id: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(target_ref, '-'), '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE approval_id = ? ORDER BY event_id", id) }
-    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_ref = ? ORDER BY event_id", m) }
-    fun rowsFor(m: String) = root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE target_ref = ?", m) as Number).toLong() }
+    // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 감사 행은 내부 키 가상 열 `target_merchant_key = ?`로 찾는다(MC-3a 전 mer_ 표기 행 포함)
+    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_merchant_key = ? ORDER BY event_id", m) }
+    // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 승인 행은 `COALESCE(target_merchant_id, target_ref) = ?`로 찾는다
+    fun rowsFor(m: String) = root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE COALESCE(target_merchant_id, target_ref) = ?", m) as Number).toLong() }
     fun detailCalls(m: String) = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.merchantPath(m)).size
     fun posts(id: String) = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.CURRENCY_ENABLEMENTS).filter { base.idOf(it.body) == id }
     fun row(id: String) = root().use {
@@ -101,14 +103,17 @@ class MerchantCurrencyApprovalServiceSpec(
     Given("MC-1 currency enablement request (OPERATOR, evidence = institution reply reference required, C-35 group CURRENCY)") {
         Then("AT_EXECUTION: MERCHANT:CURRENCY:<id>, command CURRENCY_ENABLEMENT with pinned (MID ACTIVE, KRW, mode, no start date, no end) and the evidence; one audit without it") {
             val (id, m) = f.requested()
-            row(id) shouldBe "MERCHANT_CURRENCY_ENABLEMENT|PENDING|MERCHANT|$m|0|MERCHANT:CURRENCY:$m|CURRENCY_ENABLEMENT|${MerchantCurrencyApprovalFixture.EVIDENCE}|1"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            row(id) shouldBe "MERCHANT_CURRENCY_ENABLEMENT|PENDING|MERCHANT|${MerchantOpsApprovalFixture.DEFAULT_CODE}|0|MERCHANT:CURRENCY:$m|CURRENCY_ENABLEMENT|${MerchantCurrencyApprovalFixture.EVIDENCE}|1"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.3·§5.6.4 — 가맹점 대상 봉인 5종에 표시용 merchantCode 추가(새 행 필수, 기존 행 읽기 선택 — A 단계 비교 제외 C-19)
             pinned(id).propertyNames().toSet() shouldBe setOf(
-                "merchantId", "merchantName", "merchantAccountId", "accountLifecycle", "currency", "effectiveFromMode", "effectiveFrom", "effectiveTo",
+                "merchantId", "merchantName", "merchantAccountId", "accountLifecycle", "currency", "effectiveFromMode", "effectiveFrom", "effectiveTo", "merchantCode",
             )
             listOf("merchantAccountId", "accountLifecycle", "currency", "effectiveFromMode").map { pinned(id).get(it).asString() } shouldBe
                 listOf(f.midOf(m), "ACTIVE", "KRW", "AT_EXECUTION")
             listOf(pinned(id).get("effectiveFrom").isNull, pinned(id).get("effectiveTo").isNull) shouldBe listOf(true, true)
-            audits(id) shouldBe listOf("APPROVAL_REQUESTED|$m|kind=MERCHANT_CURRENCY_ENABLEMENT")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 가맹점 대상 새 승인 행·그 감사 행의 target_ref = 요청 시점 가맹점 코드(내부 키는 target_merchant_id = mer_)
+            audits(id) shouldBe listOf("APPROVAL_REQUESTED|${MerchantOpsApprovalFixture.DEFAULT_CODE}|kind=MERCHANT_CURRENCY_ENABLEMENT")
             pinned(id).toString() shouldNotContain "VAN-REPLY"
         }
         Then("DATE: pinned keeps the KST dates (start tomorrow or later, exclusive end)") {
@@ -164,7 +169,8 @@ class MerchantCurrencyApprovalServiceSpec(
             merchantAudits(m).last() shouldBe "APPROVAL_DENIED|kind=MERCHANT_CURRENCY_ENABLEMENT;reason=DUPLICATE_UNRESOLVED"
             base.detail(m)
             (base.request(base.operator(), m) is ApprovalOutcome.Created) shouldBe true
-            root().use { it.column("SELECT unresolved_key FROM admin_approval_request WHERE target_ref = ?", m) }.toSet() shouldBe setOf("MERCHANT:$m", "MERCHANT:CURRENCY:$m")
+            // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.9 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 승인 행은 내부 키 열 `target_merchant_id = ?`로 찾는다(이 시험이 만든 새 행은 모두 내부 키를 가진다)
+            root().use { it.column("SELECT unresolved_key FROM admin_approval_request WHERE target_merchant_id = ?", m) }.toSet() shouldBe setOf("MERCHANT:$m", "MERCHANT:CURRENCY:$m")
         }
     }
 

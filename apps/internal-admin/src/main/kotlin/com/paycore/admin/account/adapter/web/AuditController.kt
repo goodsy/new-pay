@@ -34,9 +34,14 @@ class AuditController(private val audit: AuditViewUseCase) {
         @RequestParam(required = false) to: String?,
         @RequestParam(required = false) before: Long?,
         @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) targetMerchantId: String?,
     ): ResponseEntity<out Any> {
         val filter = try {
-            AuditFilter(actorId, targetActorId, action, from?.let(Instant::parse), to?.let(Instant::parse), before, limit ?: AuditFilter.DEFAULT_LIMIT)
+            AuditFilter(
+                actorId, targetActorId, action, from?.let(Instant::parse), to?.let(Instant::parse), before, limit ?: AuditFilter.DEFAULT_LIMIT,
+                // MERCHANT-CODE-001 MC-3a(§5.6.4): 형식 위반(mer_ + ULID 아님) → 400(조회·감사 없음).
+                targetMerchantId = targetMerchantId,
+            )
         } catch (_: RuntimeException) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(CacheControl.noStore()).body(mapOf("error" to "BAD_REQUEST"))
         }
@@ -53,6 +58,8 @@ class AuditController(private val audit: AuditViewUseCase) {
                             "correlationId" to it.correlationId, "detail" to it.detail, "reason" to it.reason,
                             // L-13(MERCHANT-OPS-002 B2-2 Demo 개선 C-3): 계정이 아닌 대상(가맹점·Payment·매입 파일·계약 등)도 화면 "대상" 열에 보이게.
                             "targetRef" to it.targetRef,
+                            // MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 관련 행의 내부 키(target_merchant_key — 응답 포함·화면 미표시), targetRef 바로 뒤.
+                            "targetMerchantId" to it.targetMerchantId,
                         )
                     },
                 ),

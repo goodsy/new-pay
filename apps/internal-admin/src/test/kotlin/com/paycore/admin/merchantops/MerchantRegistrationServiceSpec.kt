@@ -288,7 +288,8 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             val (a, b, again) = f.commands
             a.idempotencyKey shouldNotBe b.idempotencyKey
             listOf(again.idempotencyKey, again.correlationId, again.fields) shouldBe listOf(a.idempotencyKey, a.correlationId, a.fields)
-            f.audits.filter { it.resultCode == "OK" }.map { it.targetRef } shouldBe List(3) { "mer_01JC0000000000000000000009" }
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.9 §5.6.4 C-32 표 "가맹점 등록 성공" 행(Q-MC-4 — D-MCODE-001) — MC-3a부터 target_ref = 등록한 코드(MASTER가 성공으로 확정한 요청 본문 값), target_merchant_id = 응답 reference(mer_)
+            f.audits.filter { it.resultCode == "OK" }.map { it.targetRef to it.targetMerchantId } shouldBe List(3) { "shopabcd12" to "mer_01JC0000000000000000000009" }
         }
         Then("result classes: REJECTED (no reference), KEY_REUSED, BUSY and OUTCOME_UNKNOWN (Unknown and RetrySameKey) are audited; unknown outcomes are counted and logged without the MASTER key") {
             val cases = listOf(
@@ -716,6 +717,38 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                     f.metrics shouldContain "unknown:SITE_REVIEW_REJECTION"
                 }
             }
+        }
+    }
+
+    Given("MERCHANT-CODE-001 MC-3-12 target_ref stored values (§5.6.4 C-32 — registration audit rows)") {
+        Then("merchant registration success = the registered code + the response mer_; its REQUESTED / rejected rows stay biz_ (no merchant key)") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, mer, false) }
+            f.service.register(operatorId, merchant(code = "shopabcd12"), ctx)
+            val g = Fixture()
+            g.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "MERCHANT_CODE_TAKEN", null, false) }
+            g.service.register(operatorId, merchant(code = "shopabcd12"), ctx)
+            (f.audits + g.audits).map { listOf(it.resultCode, it.targetRef, it.targetMerchantId) } shouldBe listOf(
+                listOf("REQUESTED", biz, null), listOf("OK", "shopabcd12", mer), listOf("REQUESTED", biz, null), listOf("REJECTED", biz, null),
+            )
+        }
+        Then("site and contract registrations under a merchant: request / refusal rows = mer_ + mer_ (ADMIN does not know the code — no extra MASTER call); the created site_ / ctr_ success row has no merchant key") {
+            val f = Fixture()
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "MERCHANT_NOT_ACTIVE", null, false) }
+            f.service.register(operatorId, site(), ctx)
+            f.service.register(operatorId, RegistrationRequest.Contract(sub(), biz, mer, emptyList(), "2026-11-09", null), ctx)
+            val ok = Fixture()
+            ok.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "site_01JC0000000000000000000001", false) }
+            ok.service.register(operatorId, site(), ctx)
+            (f.audits + ok.audits).map { listOf(it.resultCode, it.targetRef, it.targetMerchantId) } shouldBe listOf(
+                listOf("REQUESTED", mer, mer), listOf("REJECTED", mer, mer), listOf("REQUESTED", mer, mer), listOf("REJECTED", mer, mer),
+                listOf("REQUESTED", mer, mer), listOf("OK", "site_01JC0000000000000000000001", null),
+            )
+        }
+        Then("control: business registration rows keep biz_ / NULL") {
+            val f = Fixture()
+            f.service.register(operatorId, business(), ctx)
+            f.audits.map { listOf(it.targetRef, it.targetMerchantId) } shouldBe listOf(listOf(null, null), listOf("biz_01JC0000000000000000000009", null))
         }
     }
 })

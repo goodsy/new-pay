@@ -67,18 +67,38 @@ sealed interface ApprovalTarget {
      * MASTER 가맹점 대상(`MERCHANT_CONTRACT_APPROVAL` — MERCHANT-OPS-002 B2-2 §9.5). 대상 버전 열은 0 고정(C-16): 명령 필드 자체(`contractId#revisionNo`)가 고정값이고, 승인 TX1이
      * 명령 행 `pinned_target`과 MASTER 재조회 값을 비교하며(INVALIDATED), MASTER가 실행 TX에서 업무 규칙을 다시 판정한다.
      */
-    data class Merchant(val merchantId: String) : ApprovalTarget {
+    /**
+     * MERCHANT-CODE-001 MC-3a(§5.6.4 — C-31·C-36, rev 0.4.7 m-5): [ref](저장·감사 표기) = 요청 시점 가맹점 코드 [code], 없으면 내부 키(MC-3a 전 행). [merchantKey](내부 키) = [merchantId] —
+     * MASTER 호출·명령 본문·미해결 키·대사 발견은 언제나 이 값을 쓴다(코드로 MASTER를 부르지 않는다). 상태 판정의 대상 동일성은 `is` 검사 + [merchantKey] 비교만 쓰고
+     * data class `equals`(코드 포함)를 쓰지 않는다. 새 요청은 [forNewRequest](코드 non-null — MASTER 상세에 코드가 없으면 요청 거절이지 mer_ 표기로 대체하지 않는다),
+     * `code = null`은 저장 행 재구성([reconstitute] — MC-3a 전 행)에서만.
+     */
+    data class Merchant(val merchantId: String, val code: String? = null) : ApprovalTarget {
         init {
             require(MERCHANT_ID.matches(merchantId)) { "merchant id format (mer_ + ULID)" }
+            require(code == null || CODE.matches(code)) { "merchant code format (§3.1 ^[a-z][a-z0-9]{5,13}$)" }
         }
 
         override val kind: ApprovalTargetKind get() = ApprovalTargetKind.MERCHANT
-        override val ref: String get() = merchantId
+        override val ref: String get() = code ?: merchantId
         override val version: Long get() = 0
         override val merchantKey: String get() = merchantId
 
         companion object {
             val MERCHANT_ID = Regex("^mer_[0-9A-HJKMNP-TV-Z]{26}$")
+
+            /** 가맹점 코드 형식(MERCHANT-CODE-001 §3.1 — 정규화 없음, `_` 없음 → `xxx_<ULID>`·ACQ 참조와 겹치지 않는다). */
+            val CODE = Regex("^[a-z][a-z0-9]{5,13}$")
+
+            /** 새 가맹점 대상 요청(MC-3a 뒤): 표기 = 요청 시점 MASTER 상세의 현재 코드(필수). */
+            fun forNewRequest(merchantId: String, code: String): Merchant = Merchant(merchantId, code)
+
+            /**
+             * 저장 행 재구성: 내부 키 = `target_merchant_id`(MC-1b 뒤 행) 또는 `target_ref`(MC-1b 전 행 — mer_), 코드 = `target_ref`가 코드 형식일 때만(MC-3a 뒤 행).
+             * 코드 표기인데 내부 키가 없는 행은 재구성 실패(fail-closed — ADMIN은 코드로 가맹점을 해석하지 않는다, C-30; DB는 V13 ③이 막는다).
+             */
+            fun reconstitute(targetMerchantId: String?, targetRef: String): Merchant =
+                Merchant(targetMerchantId ?: targetRef, code = targetRef.takeIf { CODE.matches(it) })
         }
     }
 }

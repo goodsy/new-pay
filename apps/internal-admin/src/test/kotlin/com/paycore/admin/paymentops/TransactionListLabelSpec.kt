@@ -80,6 +80,8 @@ class TransactionListLabelSpec : BehaviorSpec({
                     labelInTx += TransactionSynchronizationManager.isActualTransactionActive()
                     return labelReply
                 }
+                // MERCHANT-CODE-001 MC-3b: 거래 조회는 가맹점 내부 키 라벨을 부르지 않는다(대역 메서드 추가 — 부르면 실패).
+                override fun merchantLabels(merchantIds: List<String>): MerchantLabelResult = error("transaction lookup never asks merchant-key labels")
             },
             object : AdminAuditRecorder {
                 override fun record(record: AuditRecord) {

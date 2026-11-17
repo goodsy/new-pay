@@ -32,7 +32,8 @@ const item = (kind: string, status: string, patch: Partial<MerchantApprovalDetai
   const activation = kind === 'MERCHANT_PAYMENT_METHOD_ACTIVATION'
   const pinned = activation ? activationPinned : sitePinned
   return {
-    approvalId: `apr_${activation ? 'ACT' : 'SRV'}_${status}`, kind, targetKind: 'MERCHANT', targetActorId: null, targetRef: MER, targetSnapshot: JSON.stringify(pinned),
+    // Fixture 변경(MERCHANT-CODE-001 §5.6.2·MC-3a 응답 모양 — 리뷰 NIT-4): 승인 응답에 `targetMerchantId`(가맹점 대상 = mer_, §5.6.4 승인 응답)가 있다. 기대값은 바뀌지 않았다(완화 없음).
+    approvalId: `apr_${activation ? 'ACT' : 'SRV'}_${status}`, kind, targetKind: 'MERCHANT', targetActorId: null, targetRef: MER, targetMerchantId: MER, targetSnapshot: JSON.stringify(pinned),
     grantedRole: null, causeApprovalId: null, requestedBy: 'adm_REQ', requestedByDisplayName: '운영자', requestedAt: '2026-11-10T00:00:00Z', expiresAt: '2026-11-11T00:00:00Z',
     status, decidedBy: status === 'PENDING' ? null : 'adm_A', decidedByDisplayName: null, decidedAt: null, resultCode,
     merchant: merchant(activation ? 'PAYMENT_METHOD_ACTIVATION' : 'SITE_REVIEW_APPROVAL', pinned, patch),

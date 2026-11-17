@@ -270,7 +270,9 @@ class ApprovalController(
     private fun context(request: HttpServletRequest) = AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(45))
 
     private fun json(v: ApprovalView): MutableMap<String, Any?> = linkedMapOf<String, Any?>(
-        "approvalId" to v.approvalId, "kind" to v.kind, "targetKind" to v.targetKind, "targetActorId" to v.targetActorId, "targetRef" to v.targetRef, "targetSnapshot" to v.targetSnapshot, "grantedRole" to v.grantedRole,
+        "approvalId" to v.approvalId, "kind" to v.kind, "targetKind" to v.targetKind, "targetActorId" to v.targetActorId, "targetRef" to v.targetRef,
+        // MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 대상 내부 키(mer_ — 응답 포함·화면 미표시 D-BIZLOOKUP-001), 그 밖 null. targetRef 바로 뒤.
+        "targetMerchantId" to v.targetMerchantId, "targetSnapshot" to v.targetSnapshot, "grantedRole" to v.grantedRole,
         "causeApprovalId" to v.causeApprovalId, "requestedBy" to v.requestedBy, "requestedByDisplayName" to v.requestedByDisplayName,
         "requestedAt" to v.requestedAt.toString(), "expiresAt" to v.expiresAt.toString(), "status" to v.status, "decidedBy" to v.decidedBy,
         "decidedByDisplayName" to v.decidedByDisplayName, "decidedAt" to v.decidedAt?.toString(), "resultCode" to v.resultCode,

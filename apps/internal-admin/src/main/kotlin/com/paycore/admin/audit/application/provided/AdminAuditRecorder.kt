@@ -32,8 +32,10 @@ data class AuditRecord(
     val reason: String? = null,
     /** 계정이 아닌 대상(ADMIN-PAYMENT-OPS-001 §4.10 — 소유 서비스 승인의 paymentId). [targetActorId]와 함께 쓰지 않는다. */
     val targetRef: String? = null,
+    /** MERCHANT-CODE-001 MC-3a(§5.6.4 — C-32): 가맹점과 관련된 행의 내부 키(mer_). 대상 표기 [targetRef]는 같은 mer_ 또는 그 시점의 가맹점 코드. */
+    val targetMerchantId: String? = null,
 ) {
-    override fun equals(other: Any?): Boolean = other is AuditRecord && toString() == other.toString()
+    override fun equals(other: Any?): Boolean = other is AuditRecord && toString() == other.toString() && targetMerchantId == other.targetMerchantId
 
     override fun hashCode(): Int = toString().hashCode()
 

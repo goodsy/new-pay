@@ -46,7 +46,6 @@ import com.paycore.admin.approval.domain.PinnedMerchantTarget
 import com.paycore.admin.approval.domain.PinnedSiteReviewApprovalTarget
 import com.paycore.admin.approval.domain.ReconciliationFindingKind
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.merchantops.application.provided.ActivationTarget
 import com.paycore.admin.merchantops.application.provided.CodeChangeTarget
 import com.paycore.admin.merchantops.application.provided.ContractRevisionTarget
@@ -78,7 +77,7 @@ import java.time.temporal.ChronoUnit
  *   TOTP 소비·요청자 재검사·pinned vs 현재(다르면 INVALIDATED(TARGET_CHANGED) — MASTER 미호출)·본문·`mop1` 지문·EXECUTING) → C 저장 바이트 POST → TX2([OwnerOutcomeApplier] — 회복 job과 같은 규칙).
  * - 회복([recover] — PAYMENT·FINANCIAL과 같은 순서, C-18·C-28): 결정 조회 → 기한 + 여유 뒤 기한 확인만(실행 POST 없음) → 참여자 재검사 → 무결성 플래그면 조회만 → 같은 저장 바이트 재전송.
  *   기한 뒤에도 확정할 수 없으면(NONE + 기한 확인 400·413·409) `OWNER_UNRESOLVABLE` finding 1회·경보, 자동 종결 없음.
- * 감사 target_ref = merchantId. 근거 참조·본문·MASTER 키 원문은 감사·로그·지표에 없다(키 = `mop1.<approvalId>`는 승인 ID에서 유도되지만 원문을 쓰지 않는다).
+ * 감사 대상: MERCHANT-CODE-001 MC-3a부터 승인 행의 표기(요청 시점 코드 — MC-3a 전 행은 mer_) + 내부 키 target_merchant_id(mer_) — [ApprovalAuditTarget]. 근거 참조·본문·MASTER 키 원문은 감사·로그·지표에 없다(키 = `mop1.<approvalId>`는 승인 ID에서 유도되지만 원문을 쓰지 않는다).
  * Kafka/Redis 없음 — 미해결 하나는 ADMIN UNIQUE, 최초 실행은 MASTER `admin_request` UNIQUE·근거 PK·업무 잠금이 지킨다.
  *
  * B3-1(§9.16): 결제수단 개통 승인([ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION] — `ApprovePaymentMethodActivation`, 소유 참조 = pinned `act_…`)·Site 심사 승인
@@ -146,16 +145,19 @@ class MerchantOpsApprovalService(
             transactions.execute({ false }) {
                 val now = now()
                 val request = ApprovalRequest.create(
-                    environment.newApprovalId(), kind, ApprovalTarget.Merchant(command.merchantId), pinned.toSnapshotJson(), null, null, command.requesterActorId,
-                    snapshotName(command.requesterActorId), now, environment.validity,
+                    // MERCHANT-CODE-001 MC-3a(§5.1 — Q-MC-4): 표기 = 요청 시점 MASTER 상세의 현재 코드, 내부 키 = mer_(미해결 키·MASTER 호출).
+                    environment.newApprovalId(), kind, ApprovalTarget.Merchant.forNewRequest(command.merchantId, target.merchantCode), pinned.toSnapshotJson(), null, null,
+                    command.requesterActorId, snapshotName(command.requesterActorId), now, environment.validity,
                 )
                 try {
                     repository.insert(request)
                 } catch (_: ApprovalPersistenceFailure.DuplicateUnresolved) {
-                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, command.merchantId)
+                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, ApprovalAuditTarget.ofMerchantKey(command.merchantId))
                 }
                 val requester = executor.lockParticipants(listOf(command.requesterActorId))[command.requesterActorId]
-                if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(kind))) throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, command.merchantId)
+                if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(kind))) {
+                    throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, ApprovalAuditTarget.ofMerchantKey(command.merchantId))
+                }
                 if (requester.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
                 commands.insert(MerchantOpsRequestSnapshot(request.id, MerchantOpsCommandKind.CONTRACT_APPROVAL, command.merchantId, pinned, command.evidenceRef, now))
                 audit(now, requester, "APPROVAL_REQUESTED", "SUCCESS", command.context, request, null)
@@ -166,7 +168,9 @@ class MerchantOpsApprovalService(
 
     /** MASTER 상세 한 줄 → 고정 대상. MASTER 값이 Domain 형식에 맞지 않으면 null(해석 불가 — 요청·승인 모두 503). */
     private fun pinnedOf(t: ContractRevisionTarget): PinnedContractApprovalTarget? = runCatching {
-        PinnedContractApprovalTarget(t.merchantId, t.merchantName, t.contractId, t.revisionNo, t.scopeKind, t.scopeSiteIds, t.effectiveFrom, t.effectiveTo, t.registeredBy, t.approved)
+        PinnedContractApprovalTarget(
+            t.merchantId, t.merchantName, t.contractId, t.revisionNo, t.scopeKind, t.scopeSiteIds, t.effectiveFrom, t.effectiveTo, t.registeredBy, t.approved, t.merchantCode,
+        )
     }.getOrNull()
 
     // ------------------------------------------------------------------ request (B2-3 첫 Default MID 발급)
@@ -192,16 +196,18 @@ class MerchantOpsApprovalService(
             transactions.execute({ false }) {
                 val now = now()
                 val request = ApprovalRequest.create(
-                    environment.newApprovalId(), MID_KIND, ApprovalTarget.Merchant(command.merchantId), pinned.toSnapshotJson(), null, null, command.requesterActorId,
-                    snapshotName(command.requesterActorId), now, environment.validity,
+                    environment.newApprovalId(), MID_KIND, ApprovalTarget.Merchant.forNewRequest(command.merchantId, target.merchantCode), pinned.toSnapshotJson(), null, null,
+                    command.requesterActorId, snapshotName(command.requesterActorId), now, environment.validity,
                 )
                 try {
                     repository.insert(request)
                 } catch (_: ApprovalPersistenceFailure.DuplicateUnresolved) {
-                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, command.merchantId)
+                    throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, ApprovalAuditTarget.ofMerchantKey(command.merchantId))
                 }
                 val requester = executor.lockParticipants(listOf(command.requesterActorId))[command.requesterActorId]
-                if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(MID_KIND))) throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, command.merchantId)
+                if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(MID_KIND))) {
+                    throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, ApprovalAuditTarget.ofMerchantKey(command.merchantId))
+                }
                 if (requester.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
                 commands.insert(MerchantOpsRequestSnapshot(request.id, MerchantOpsCommandKind.FIRST_MID_ISSUANCE, command.merchantId, pinned, command.evidenceRef, now))
                 audit(now, requester, "APPROVAL_REQUESTED", "SUCCESS", command.context, request, null)
@@ -231,12 +237,12 @@ class MerchantOpsApprovalService(
         val r = requireNotNull(t.revision)
         PinnedFirstMidTarget(
             t.merchantId, t.merchantName, t.contractId, t.agreementId, r.revisionNo, r.effectiveFrom, r.effectiveTo, t.primarySiteId, requireNotNull(t.siteChannelType),
-            accountCount = t.accountCount, approved = r.approved,
+            accountCount = t.accountCount, approved = r.approved, merchantCode = t.merchantCode,
         )
     }.getOrNull()
 
     private fun refuseMid(command: RequestMerchantFirstMid, outcome: ApprovalOutcome, reason: String): ApprovalOutcome {
-        separateAudit(command.context, command.requesterActorId, "APPROVAL_DENIED", "DENIED", command.merchantId, null, "kind=${MID_KIND.name};reason=$reason")
+        separateAudit(command.context, command.requesterActorId, "APPROVAL_DENIED", "DENIED", ApprovalAuditTarget.ofMerchantKey(command.merchantId), null, "kind=${MID_KIND.name};reason=$reason")
         return outcome
     }
 
@@ -312,8 +318,8 @@ class MerchantOpsApprovalService(
         }
         val pinned = pinnedActivationOf(target) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
         requestPinned(
-            ACTIVATION_KIND, MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
-            command.context,
+            ACTIVATION_KIND, MerchantOpsCommandKind.PAYMENT_METHOD_ACTIVATION, command.requesterActorId, command.sessionGeneration, command.merchantId, target.merchantCode, pinned,
+            command.evidenceRef, command.context,
         )
     }
 
@@ -332,8 +338,8 @@ class MerchantOpsApprovalService(
         }
         val pinned = pinnedSiteReviewOf(target, command.reasonCode) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
         requestPinned(
-            SITE_REVIEW_KIND, MerchantOpsCommandKind.SITE_REVIEW_APPROVAL, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
-            command.context,
+            SITE_REVIEW_KIND, MerchantOpsCommandKind.SITE_REVIEW_APPROVAL, command.requesterActorId, command.sessionGeneration, command.merchantId, target.merchantCode, pinned,
+            command.evidenceRef, command.context,
         )
     }
 
@@ -359,8 +365,8 @@ class MerchantOpsApprovalService(
             target, command.effectiveFromMode, command.effectiveFromDate?.let(LocalDate::parse), command.effectiveToDate?.let(LocalDate::parse),
         ) ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
         requestPinned(
-            CURRENCY_KIND, MerchantOpsCommandKind.CURRENCY_ENABLEMENT, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
-            command.context,
+            CURRENCY_KIND, MerchantOpsCommandKind.CURRENCY_ENABLEMENT, command.requesterActorId, command.sessionGeneration, command.merchantId, target.merchantCode, pinned,
+            command.evidenceRef, command.context,
         )
     }
 
@@ -373,13 +379,13 @@ class MerchantOpsApprovalService(
     }
 
     private fun pinnedCurrencyOf(t: CurrencyTarget, mode: String, from: LocalDate?, to: LocalDate?): PinnedCurrencyEnablementTarget? = runCatching {
-        PinnedCurrencyEnablementTarget(t.merchantId, t.merchantName, t.merchantAccountId, requireNotNull(t.accountLifecycle), t.currency, mode, from, to)
+        PinnedCurrencyEnablementTarget(t.merchantId, t.merchantName, t.merchantAccountId, requireNotNull(t.accountLifecycle), t.currency, mode, from, to, t.merchantCode)
     }.getOrNull()
 
     /**
      * MERCHANT-CODE-001 MC-1b 코드 변경 요청(§5.5 — D-MCODE-002 Q-MC-7): 입력 형식 → 세션 역할 OPERATOR → MASTER 상세(TX 밖) → 새 코드 = 현재 코드면 400 `INVALID_INPUT`(newCode·SAME_AS_CURRENT)
      * → advisory `merchantCodeChangeable` false면 409(감사 reason = MERCHANT_CODE_NOT_CHANGEABLE) → 공통 요청 TX(승인 행 `target_merchant_id` = mer_ — 미해결 키 `MERCHANT:<mer_>` 그룹 공유 C-15).
-     * target_ref는 MC-1b 동안 mer_(C-21 — 코드 표기는 MC-3). 권위 판정(계약 승인 전·1회·중복)은 MASTER 실행 TX.
+     * 표기 target_ref = 요청 시점(옛) 가맹점 코드(MC-3a — C-21 "MC-3 전까지 mer_"는 끝남, §5.5·§5.6.4 C-32), 내부 키 = target_merchant_id(mer_). 권위 판정(계약 승인 전·1회·중복)은 MASTER 실행 TX.
      */
     override fun requestMerchantCodeChange(command: RequestMerchantCodeChange): ApprovalOutcome = observed(REQUEST, CODE_KIND) {
         MerchantOpsInputRules.codeChangeProblem(command.merchantId, command.newCode, command.reasonCode, command.evidenceRef)?.let { (field, reason) ->
@@ -396,9 +402,10 @@ class MerchantOpsApprovalService(
             return@observed refuseKind(CODE_KIND, command.context, command.requesterActorId, command.merchantId, ApprovalOutcome.Rejected(NOT_ELIGIBLE), "MERCHANT_CODE_NOT_CHANGEABLE")
         }
         val pinned = runCatching { pinnedCodeChangeOf(target, command.newCode, command.reasonCode) }.getOrNull() ?: return@observed ApprovalOutcome.Unavailable(MASTER_UNAVAILABLE)
+        // MC-3a(§5.5 배치 경계): 코드 변경 승인 건의 표기 = 요청 시점(옛) 코드 — 이 건의 모든 감사 행이 같은 표기(old→new는 detail from=;to=).
         requestPinned(
-            CODE_KIND, MerchantOpsCommandKind.MERCHANT_CODE_CHANGE, command.requesterActorId, command.sessionGeneration, command.merchantId, pinned, command.evidenceRef,
-            command.context,
+            CODE_KIND, MerchantOpsCommandKind.MERCHANT_CODE_CHANGE, command.requesterActorId, command.sessionGeneration, command.merchantId, target.currentCode, pinned,
+            command.evidenceRef, command.context,
         )
     }
 
@@ -408,22 +415,24 @@ class MerchantOpsApprovalService(
     /** B3 공통 요청 TX(B2와 같은 순서 — 승인 행 INSERT(그룹 미해결 키 C-35) → 요청자 잠금·재검사 → 명령 행 INSERT(pinned·근거) → 감사). */
     @Suppress("LongParameterList")
     private fun requestPinned(
-        kind: ApprovalKind, commandKind: MerchantOpsCommandKind, requesterId: String, sessionGeneration: Long, merchantId: String, pinned: PinnedMerchantTarget, evidenceRef: String,
-        context: AdminRequestContext,
+        kind: ApprovalKind, commandKind: MerchantOpsCommandKind, requesterId: String, sessionGeneration: Long, merchantId: String, merchantCode: String, pinned: PinnedMerchantTarget,
+        evidenceRef: String, context: AdminRequestContext,
     ): ApprovalOutcome = guarded(context, requesterId, merchantId, kind) {
         transactions.execute({ false }) {
             val now = now()
             val request = ApprovalRequest.create(
-                environment.newApprovalId(), kind, ApprovalTarget.Merchant(merchantId), pinned.toSnapshotJson(), null, null, requesterId, snapshotName(requesterId), now,
-                environment.validity,
+                environment.newApprovalId(), kind, ApprovalTarget.Merchant.forNewRequest(merchantId, merchantCode), pinned.toSnapshotJson(), null, null, requesterId,
+                snapshotName(requesterId), now, environment.validity,
             )
             try {
                 repository.insert(request)
             } catch (_: ApprovalPersistenceFailure.DuplicateUnresolved) {
-                throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, merchantId)
+                throw Refusal(ApprovalOutcome.Rejected(DUPLICATE_UNRESOLVED), DUPLICATE_UNRESOLVED, ApprovalAuditTarget.ofMerchantKey(merchantId))
             }
             val requester = executor.lockParticipants(listOf(requesterId))[requesterId]
-            if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(kind))) throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, merchantId)
+            if (requester == null || !requester.holds(ApprovalParticipants.requesterRole(kind))) {
+                throw Refusal(ApprovalOutcome.Denied, REQUESTER_NOT_ELIGIBLE, ApprovalAuditTarget.ofMerchantKey(merchantId))
+            }
             if (requester.sessionGeneration != sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
             commands.insert(MerchantOpsRequestSnapshot(request.id, commandKind, merchantId, pinned, evidenceRef, now))
             audit(now, requester, "APPROVAL_REQUESTED", "SUCCESS", context, request, null)
@@ -452,19 +461,19 @@ class MerchantOpsApprovalService(
     private fun pinnedActivationOf(t: ActivationTarget): PinnedActivationApprovalTarget? = runCatching {
         PinnedActivationApprovalTarget(
             t.merchantId, t.merchantName, t.merchantAccountId, t.activationId, requireNotNull(t.paymentMethod), requireNotNull(t.status), requireNotNull(t.primarySiteId),
-            requireNotNull(t.registeredBy),
+            requireNotNull(t.registeredBy), t.merchantCode,
         )
     }.getOrNull()
 
     private fun pinnedSiteReviewOf(t: SiteReviewTarget, reasonCode: String): PinnedSiteReviewApprovalTarget? = runCatching {
         PinnedSiteReviewApprovalTarget(
-            t.merchantId, t.merchantName, t.merchantSiteId, requireNotNull(t.channelType), requireNotNull(t.reviewStatus), reasonCode, requireNotNull(t.registeredBy),
+            t.merchantId, t.merchantName, t.merchantSiteId, requireNotNull(t.channelType), requireNotNull(t.reviewStatus), reasonCode, requireNotNull(t.registeredBy), t.merchantCode,
         )
     }.getOrNull()
 
     @Suppress("LongParameterList")
     private fun refuseKind(kind: ApprovalKind, context: AdminRequestContext, actorId: String, merchantId: String, outcome: ApprovalOutcome, reason: String): ApprovalOutcome {
-        separateAudit(context, actorId, "APPROVAL_DENIED", "DENIED", merchantId, null, "kind=${kind.name};reason=$reason")
+        separateAudit(context, actorId, "APPROVAL_DENIED", "DENIED", ApprovalAuditTarget.ofMerchantKey(merchantId), null, "kind=${kind.name};reason=$reason")
         return outcome
     }
 
@@ -574,25 +583,27 @@ class MerchantOpsApprovalService(
             }
             ApprovalDecision.Proceed -> Unit
         }
-        val merchantId = request.target.ref
+        // MERCHANT-CODE-001 MC-3a(§5.6.4 — C-31): 표기(target.ref)는 코드일 수 있다 — 명령 행 대조·MASTER 호출은 내부 키(merchantKey = mer_), 감사는 표기 + 내부 키.
+        val audited = ApprovalAuditTarget.of(request.target)
+        val merchantId = request.target.merchantKey ?: throw IntegrityViolation("target_kind", audited, request.id)
         val participants = executor.lockParticipants(listOf(request.requestedBy, approverId))
         val approver = participants[approverId]
-        if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", merchantId, request.id)
+        if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", audited, request.id)
         if (approver.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
         // 명령 행은 INSERT-only — 잠그지 않고 읽는다. 권위 고정 값 = pinned_target.
-        val snapshot = commands.find(request.id) ?: throw IntegrityViolation("command", merchantId, request.id)
-        if (snapshot.merchantId != merchantId) throw IntegrityViolation("target_ref", merchantId, request.id)
+        val snapshot = commands.find(request.id) ?: throw IntegrityViolation("command", audited, request.id)
+        if (snapshot.merchantId != merchantId) throw IntegrityViolation("target_ref", audited, request.id)
         val pinned = snapshot.pinnedTarget
         val pinnedKindMatches = (request.kind == ApprovalKind.MERCHANT_CONTRACT_APPROVAL && pinned is PinnedContractApprovalTarget) ||
             (request.kind == MID_KIND && pinned is PinnedFirstMidTarget) || (request.kind == ACTIVATION_KIND && pinned is PinnedActivationApprovalTarget) ||
             (request.kind == SITE_REVIEW_KIND && pinned is PinnedSiteReviewApprovalTarget) || (request.kind == CURRENCY_KIND && pinned is PinnedCurrencyEnablementTarget) ||
             (request.kind == CODE_KIND && pinned is PinnedMerchantCodeChangeTarget)
-        if (!pinnedKindMatches) throw IntegrityViolation("command_kind", merchantId, request.id)
+        if (!pinnedKindMatches) throw IntegrityViolation("command_kind", audited, request.id)
         // D-MOPS-008 ③(C-27): Revision 등록자는 그 Revision을 승인할 수 없다 — TOTP를 쓰기 전에 거부(상태·TOTP 불변, 감사 APPROVAL_DENIED reason=APPROVER_IS_REGISTRANT).
         // B2-3: 첫 MID 발급에는 적용하지 않는다(결정 범위가 "그 Revision을 승인" — §9.3 판정 5).
         // B3-1F(D-MOPS-009 ③·D-MOPS-010 ②, §9.27): 개통·Site 심사 승인도 같은 줄에서 대상 등록자(pinned registeredBy — 요청 시점 고정 값)와 비교한다.
         registrantOf(pinned)?.let { registrant ->
-            if (registrant == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, merchantId, request.id)
+            if (registrant == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, audited, request.id)
         }
         if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
             status.setRollbackOnly()
@@ -631,13 +642,13 @@ class MerchantOpsApprovalService(
                 )
             }
         } catch (_: IllegalArgumentException) {
-            throw IntegrityViolation("command_body", merchantId, request.id)
+            throw IntegrityViolation("command_body", audited, request.id)
         }
         val body = built.body()
         val execution = try {
             OwnerExecution.start(request.kind, request.id, body, built.fingerprint, now, executeBefore, approverId, now.plus(policy.staleAfter))
         } catch (_: IllegalArgumentException) {
-            throw IntegrityViolation("fingerprint", merchantId, request.id)
+            throw IntegrityViolation("fingerprint", audited, request.id)
         }
         executions.insert(execution)
         repository.update(locked, request.beginExecution(approverId, approver.displayName, now))
@@ -689,12 +700,13 @@ class MerchantOpsApprovalService(
     internal fun recover(id: String, now: Instant) {
         val (request, execution, command) = transactions.execute({ false }) { Triple(repository.find(id), executions.find(id), commands.find(id)) }
         if (request == null || execution == null || command == null) {
-            applier.reportIntegrity(id, if (request == null) "approval" else if (command == null) "command" else "execution", request?.target?.ref)
+            // rev 0.4.8 MINOR-1: 문자열이 아니라 승인 행의 대상(표기 + 내부 키) — 승인 행이 없으면 null(대상 열 모두 NULL).
+            applier.reportIntegrity(id, if (request == null) "approval" else if (command == null) "command" else "execution", request?.let { ApprovalAuditTarget.of(it.target) })
             return
         }
         if (request.status !in ApprovalStatus.OWNER_SERVICE_ONLY) return
         if (!execution.conformsTo(request.kind)) {
-            applier.reportIntegrity(id, "execution_kind", request.target.ref)
+            applier.reportIntegrity(id, "execution_kind", ApprovalAuditTarget.of(request.target))
             return
         }
         val job = OwnerOutcomeApplier.Source.Job
@@ -753,7 +765,9 @@ class MerchantOpsApprovalService(
     private fun unresolvable(id: String, request: ApprovalRequest, code: String, now: Instant) {
         val detail = code.takeIf { FINDING_DETAIL.matches(it) } ?: MerchantOutcomes.OWNER_MALFORMED
         try {
-            transactions.execute({ false }) { findings.record(ReconciliationFindingRecord(ReconciliationFindingKind.OWNER_UNRESOLVABLE, id, request.target.ref, detail, now)) }
+            // MC-3a(C-31): 대사 발견은 감사가 아니라 내부 기록 — 대상은 내부 키(mer_) 그대로(코드 표기 행도).
+            val ref = request.target.merchantKey ?: request.target.ref
+            transactions.execute({ false }) { findings.record(ReconciliationFindingRecord(ReconciliationFindingKind.OWNER_UNRESOLVABLE, id, ref, detail, now)) }
             opsMetrics.reconFinding(ReconciliationFindingKind.OWNER_UNRESOLVABLE.name)
             opsMetrics.integrityAlert(ReconciliationFindingKind.OWNER_UNRESOLVABLE.name)
             log.warn("operation=merchant-recovery approvalId={} result=owner-unresolvable code={}", id, detail)
@@ -781,14 +795,15 @@ class MerchantOpsApprovalService(
         }
     }
 
-    // ------------------------------------------------------------------ helpers (AcquiringOpsApprovalService와 같은 규칙 — target_ref = merchantId)
+    // ------------------------------------------------------------------ helpers (AcquiringOpsApprovalService와 같은 틀 — 감사 대상은 ApprovalAuditTarget: 승인 행이 있으면 표기 = 승인 행 표기(코드),
+    // 내부 키 = target_merchant_id(mer_); 승인 행 없는 요청 단계 거절은 mer_ + mer_ — MERCHANT-CODE-001 §5.6.4 C-32)
 
     private fun holdsNow(actorId: String, role: String): Boolean = sessions.current(actorId)?.let { it.isActive && role in it.roles } == true
 
     private fun snapshotName(actorId: String): String = sessions.current(actorId)?.displayName ?: actorId
 
     private fun refuseAudited(command: RequestMerchantContractApproval, outcome: ApprovalOutcome, reason: String): ApprovalOutcome {
-        separateAudit(command.context, command.requesterActorId, "APPROVAL_DENIED", "DENIED", command.merchantId, null, "kind=${kind.name};reason=$reason")
+        separateAudit(command.context, command.requesterActorId, "APPROVAL_DENIED", "DENIED", ApprovalAuditTarget.ofMerchantKey(command.merchantId), null, "kind=${kind.name};reason=$reason")
         return outcome
     }
 
@@ -796,11 +811,13 @@ class MerchantOpsApprovalService(
         val outcome = try {
             retryLater { transactions.execute({ false }, block) }
         } catch (refusal: Refusal) {
-            refusal.auditReason?.let { separateAudit(command.context, command.approverActorId, "APPROVAL_DENIED", "DENIED", refusal.targetRef, refusal.approvalId, "reason=$it") }
+            refusal.auditReason?.let { separateAudit(command.context, command.approverActorId, "APPROVAL_DENIED", "DENIED", refusal.target, refusal.approvalId, "reason=$it") }
             return Tx1.Done(refusal.outcome)
         } catch (violation: IntegrityViolation) {
             metrics.integrityViolation(violation.column)
-            separateAudit(command.context, command.approverActorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", violation.targetRef, violation.approvalId ?: command.approvalId, "column=${violation.column}")
+            separateAudit(
+                command.context, command.approverActorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", violation.target, violation.approvalId ?: command.approvalId, "column=${violation.column}",
+            )
             return Tx1.Done(ApprovalOutcome.IntegrityViolation)
         } catch (_: AdminRetryLaterException) {
             return Tx1.Done(ApprovalOutcome.RetryLater)
@@ -809,14 +826,18 @@ class MerchantOpsApprovalService(
         return outcome
     }
 
-    private fun guarded(context: AdminRequestContext, actorId: String, targetRef: String, auditKind: ApprovalKind = kind, block: () -> ApprovalOutcome): ApprovalOutcome = try {
+    /** 요청 단계 공통 예외 처리: 승인 행이 없는(요청 TX rollback) 감사의 대상은 요청 본문의 내부 키 [merchantId](mer_ + mer_ — C-32 표). */
+    private fun guarded(context: AdminRequestContext, actorId: String, merchantId: String, auditKind: ApprovalKind = kind, block: () -> ApprovalOutcome): ApprovalOutcome = try {
         retryLater(block)
     } catch (refusal: Refusal) {
-        refusal.auditReason?.let { separateAudit(context, actorId, "APPROVAL_DENIED", "DENIED", refusal.targetRef, refusal.approvalId, "kind=${auditKind.name};reason=$it") }
+        refusal.auditReason?.let { separateAudit(context, actorId, "APPROVAL_DENIED", "DENIED", refusal.target, refusal.approvalId, "kind=${auditKind.name};reason=$it") }
         refusal.outcome
     } catch (violation: IntegrityViolation) {
         metrics.integrityViolation(violation.column)
-        separateAudit(context, actorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", violation.targetRef ?: targetRef, violation.approvalId, "column=${violation.column}")
+        separateAudit(
+            context, actorId, "APPROVAL_INTEGRITY_VIOLATION", "FAILED", violation.target ?: ApprovalAuditTarget.ofMerchantKey(merchantId), violation.approvalId,
+            "column=${violation.column}",
+        )
         ApprovalOutcome.IntegrityViolation
     } catch (_: AdminRetryLaterException) {
         ApprovalOutcome.RetryLater
@@ -833,14 +854,13 @@ class MerchantOpsApprovalService(
     }
 
     @Suppress("LongParameterList")
-    private fun separateAudit(context: AdminRequestContext, actorId: String, action: String, result: String, targetRef: String?, approvalId: String?, detail: String) {
+    private fun separateAudit(context: AdminRequestContext, actorId: String, action: String, result: String, target: ApprovalAuditTarget?, approvalId: String?, detail: String) {
         transactions.execute({ false }) {
             val actor = executor.snapshot(actorId)
             recorder.record(
-                AuditRecord(
+                target.auditRecord(
                     occurredAt = now(), actorKind = if (actor != null) "ADMIN" else "ANONYMOUS", actorId = actor?.actorId, actorDisplayName = actor?.displayName,
-                    action = action, resultCode = result, correlationId = context.correlationId, approvalId = approvalId, remoteIp = context.remoteIp,
-                    detail = detail, targetRef = targetRef,
+                    action = action, resultCode = result, correlationId = context.correlationId, approvalId = approvalId, remoteIp = context.remoteIp, detail = detail,
                 ),
             )
         }
@@ -852,11 +872,11 @@ class MerchantOpsApprovalService(
         actorId: String? = actor?.actorId, executor: String? = null,
     ) {
         recorder.record(
-            AuditRecord(
+            // MC-3a(§5.6.4 C-32): 승인 행 감사 = 그 승인 행의 표기(새 행 코드, MC-3a 전 행 mer_) + 내부 키 mer_. 코드 변경 건은 detail from=;to=;reason=(D-MCODE-002 ⑤).
+            ApprovalAuditTarget.of(request.target).auditRecord(
                 occurredAt = now, actorKind = "ADMIN", actorId = actorId, actorDisplayName = actor?.displayName, action = action, resultCode = result,
                 correlationId = context.correlationId, executorActorId = executor, approvalId = request.id, remoteIp = context.remoteIp,
-                // MC-1b(§5.5 — D-MCODE-002 ⑤): 코드 변경 승인 건의 감사 행은 from=;to=;reason=(target_ref = mer_ — C-21).
-                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail, PinnedMerchantCodeChangeTarget.auditDetailOf(request)).joinToString(";"), targetRef = request.target.ref,
+                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail, PinnedMerchantCodeChangeTarget.auditDetailOf(request)).joinToString(";"),
             ),
         )
     }
@@ -875,10 +895,11 @@ class MerchantOpsApprovalService(
         return outcome
     }
 
-    private class Refusal(val outcome: ApprovalOutcome, val auditReason: String?, val targetRef: String?, val approvalId: String? = null) :
+    /** rollback할 거절 — 감사 대상은 문자열이 아니라 [ApprovalAuditTarget](MC-3a C-36 — 승인 행이 있으면 그 표기 + 내부 키, 없으면 mer_ + mer_). */
+    private class Refusal(val outcome: ApprovalOutcome, val auditReason: String?, val target: ApprovalAuditTarget?, val approvalId: String? = null) :
         RuntimeException(null, null, false, false)
 
-    private class IntegrityViolation(val column: String, val targetRef: String? = null, val approvalId: String? = null) : RuntimeException(null, null, false, false)
+    private class IntegrityViolation(val column: String, val target: ApprovalAuditTarget? = null, val approvalId: String? = null) : RuntimeException(null, null, false, false)
 
     private companion object {
         val log = LoggerFactory.getLogger(MerchantOpsApprovalService::class.java)

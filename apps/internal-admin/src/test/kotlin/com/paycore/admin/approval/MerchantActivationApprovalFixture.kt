@@ -50,6 +50,7 @@ class MerchantActivationApprovalFixture(
         merchantId: String, activationStatus: String? = "UNDER_REVIEW", accountLifecycle: String = "ACTIVE", primary: Boolean = true,
         activationRegistrant: String = StubMasterOpsServer.SITE_REGISTRANT, secondReview: String? = null, secondLifecycle: String = "ACTIVE",
         siteRegistrant: String = StubMasterOpsServer.SITE_REGISTRANT, primarySite: String = primaryOf(merchantId),
+        merchantCode: String = MerchantOpsApprovalFixture.DEFAULT_CODE,
     ) {
         val u = ulid(merchantId)
         val sites = StubMasterOpsServer.siteJson(primaryOf(merchantId), review = null) + "," +
@@ -61,7 +62,7 @@ class MerchantActivationApprovalFixture(
         }
         var json = StubMasterOpsServer.detailJson(
             merchantId, sites = sites, assignments = assignments, paymentMethods = StubMasterOpsServer.paymentMethodJson(activationOf(merchantId), activationStatus, activationRegistrant),
-            siteConfirmations = "",
+            siteConfirmations = "", merchantCode = merchantCode,
         )
         if (accountLifecycle != "ACTIVE") json = json.replace(""""merchantAccountId":"mid_$u","lifecycle":"ACTIVE"""", """"merchantAccountId":"mid_$u","lifecycle":"$accountLifecycle"""")
         StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(merchantId), Reply(200, json))

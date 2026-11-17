@@ -54,7 +54,7 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
                 merchantId = merchant["merchantId"] as String, merchantName = merchant["name"] as String, contractId = contractId, revisionNo = revisionNo,
                 scopeKind = revision["scopeKind"] as String, scopeSiteIds = (revision["scopeSiteIds"] as List<String>).sorted(),
                 effectiveFrom = Instant.parse(revision["effectiveFrom"] as String), effectiveTo = (revision["effectiveTo"] as String?)?.let(Instant::parse),
-                approved = revision["approvedAt"] != null, registeredBy = revision["registeredBy"] as String,
+                approved = revision["approvedAt"] != null, registeredBy = revision["registeredBy"] as String, merchantCode = merchant["merchantCode"] as String,
             ).also { check(it.merchantId == merchantId) { "detail of another merchant" } },
         )
     }
@@ -79,7 +79,7 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         return FirstMidTargetResult.Found(
             FirstMidTarget(
                 merchantId, merchant["name"] as String, (document["accounts"] as List<*>).size, contractId, agreementId, agreementExists, revision, primarySiteId,
-                site?.get("lifecycle") as String?, site?.get("channelType") as String?, inScope,
+                site?.get("lifecycle") as String?, site?.get("channelType") as String?, inScope, merchant["merchantCode"] as String,
             ),
         )
     }
@@ -105,7 +105,7 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         val open = (account?.get("currencies") as List<Map<String, Any?>>?).orEmpty().any {
             it["currencyCode"] == currency && (it["effectiveTo"] as String?)?.let { to -> now.isBefore(Instant.parse(to)) } != false
         }
-        return CurrencyTarget(merchantId, merchant["name"] as String, merchantAccountId, account?.get("lifecycle") as String?, currency, open)
+        return CurrencyTarget(merchantId, merchant["name"] as String, merchantAccountId, account?.get("lifecycle") as String?, currency, open, merchant["merchantCode"] as String)
     }
 
     override fun codeChangeTarget(merchantId: String): MerchantTargetResult<CodeChangeTarget> = read(merchantId) { document -> codeChange(document, merchantId) }
@@ -151,7 +151,7 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         }?.singleOrNull()
         return ActivationTarget(
             merchantId, merchant["name"] as String, merchantAccountId, account?.get("lifecycle") as String?, activationId, method?.get("paymentMethod") as String?,
-            method?.get("status") as String?, method?.get("registeredBy") as String?, primary?.get("merchantSiteId") as String?,
+            method?.get("status") as String?, method?.get("registeredBy") as String?, primary?.get("merchantSiteId") as String?, merchant["merchantCode"] as String,
         )
     }
 
@@ -163,7 +163,7 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         val review = site?.get("review") as Map<String, Any?>?
         return SiteReviewTarget(
             merchantId, merchant["name"] as String, merchantSiteId, site?.get("lifecycle") as String?, site?.get("channelType") as String?,
-            site?.let { (review?.get("decision") as String?) ?: PENDING }, site?.get("registeredBy") as String?,
+            site?.let { (review?.get("decision") as String?) ?: PENDING }, site?.get("registeredBy") as String?, merchant["merchantCode"] as String,
         )
     }
 

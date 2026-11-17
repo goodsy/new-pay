@@ -13,7 +13,6 @@ import com.paycore.admin.approval.application.required.OwnerOpsMetrics
 import com.paycore.admin.approval.domain.ApprovalKind
 import com.paycore.admin.approval.domain.ApprovalParticipants
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
@@ -27,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
  * (`AUDIT_UNAVAILABLE`). 없는 승인·다른 종류는 404(감사 없음 — 조회할 문구가 없다).
  * ACQ-ADMIN-001 rev 0.6(D-ACQA-005): 재매입 승인(`ACQ_REACQUISITION`)의 근거 참조도 **같은 endpoint·같은 판정(APPROVER 또는 요청자 본인, ACTIVE)·같은 감사 action·같은 속도 제한 창**으로
  * 돌려준다([JustificationResult.EvidenceFound] — 사유 문구 없음, 감사 target_ref = 원 파일 ID). 일반 상세·목록에는 근거 참조가 없다.
+ * 가맹점 승인 근거 조회(MERCHANT-OPS-002 B2-2)의 감사 대상은 MERCHANT-CODE-001 MC-3a(§5.6.4 C-32)부터 표기 target_ref = 승인 행 표기(새 행은 코드, MC-3a 전 행은 mer_),
+ * 내부 키 target_merchant_id = mer_([ApprovalAuditTarget.of]).
  */
 @Service
 class OperatorCancelJustificationService(
@@ -57,27 +58,30 @@ class OperatorCancelJustificationService(
             transactions.execute({ false }) {
                 val request = repository.find(approvalId) ?: return@execute JustificationResult.NotFound
                 // 종류별 문구(같은 판정·감사): 운영자 보정 취소 = 근거 참조 + 사유 문구(D-OPS-010), 재매입 = 근거 참조만(D-ACQA-005 — 사유 문구는 계속 ADMIN 밖으로 내지 않는다, I-4).
-                val (targetRef, found) = when (request.kind) {
+                // MERCHANT-CODE-001 MC-3a(§5.6.4 — C-32·C-36): 가맹점 승인 근거 조회 감사도 승인 행 감사 — 그 승인 행의 표기(새 행 코드) + 내부 키(mer_).
+                // Payment·매입 파일은 명령 행의 참조 그대로(값 불변).
+                val (target, found) = when (request.kind) {
                     ApprovalKind.OPERATOR_CORRECTION_CANCEL -> commands.find(approvalId)?.let { c ->
-                        c.paymentId to JustificationResult.Found(approvalId, c.purposeReference, c.reason)
+                        ApprovalAuditTarget.ofPaymentRef(c.paymentId) to JustificationResult.Found(approvalId, c.purposeReference, c.reason)
                     }
                     ApprovalKind.ACQ_REACQUISITION -> acquiringCommands.find(approvalId)?.let { c ->
-                        c.originalFileId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
+                        ApprovalAuditTarget.ofFileRef(c.originalFileId) to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
                     }
-                    // MERCHANT-OPS-002 B2-2(D-MOPS-008 ①): 가맹점 승인도 근거 참조만, 같은 판정(APPROVER·요청자)·같은 감사(target_ref = merchantId).
+                    // MERCHANT-OPS-002 B2-2(D-MOPS-008 ①): 가맹점 승인도 근거 참조만, 같은 판정(APPROVER·요청자)·같은 감사 action.
+                    // 감사 대상(MERCHANT-CODE-001 §5.6.4 C-32): 표기 = 승인 행 표기(코드), 내부 키 = target_merchant_id(mer_).
                     ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE, ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION,
                     ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL, ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT, ApprovalKind.MERCHANT_CODE_CHANGE,
                     -> merchantCommands.find(approvalId)?.let { c ->
-                        c.merchantId to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
+                        ApprovalAuditTarget.of(request.target) to JustificationResult.EvidenceFound(approvalId, c.evidenceRef)
                     }
                     else -> null
                 } ?: return@execute JustificationResult.NotFound
                 val allowed = allowedRole || (viewer != null && viewer.isActive && request.requestedBy == viewerActorId)
                 recorder.record(
-                    AuditRecord(
+                    target.auditRecord(
                         occurredAt = Instant.now().truncatedTo(ChronoUnit.MILLIS), actorKind = "ADMIN", actorId = viewerActorId, actorDisplayName = viewer?.displayName,
                         action = ACTION, resultCode = if (allowed) "OK" else "FORBIDDEN", correlationId = context.correlationId, approvalId = approvalId,
-                        remoteIp = context.remoteIp, targetRef = targetRef,
+                        remoteIp = context.remoteIp,
                     ),
                 )
                 if (allowed) found else JustificationResult.Forbidden

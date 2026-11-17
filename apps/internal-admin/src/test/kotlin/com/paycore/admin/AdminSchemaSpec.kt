@@ -598,6 +598,174 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
             } shouldBe "MERCHANT:SITE_REVIEW:$merchant|-"
         }
 
+        // ------------------------------------------------------------------ V15 (MERCHANT-CODE-001 MC-3a §5.1·§5.6.4 — rev 0.4.8)
+
+        /** 감사 행을 대상 열 조합 그대로 넣는다(V15 CHECK 시험용 Invalid Fixture — 대상 표기·내부 키를 시험이 명시한다). 결과는 "accepted" 또는 "<errno>:<제약 이름>". */
+        fun Connection.auditRow(targetRef: String?, targetMerchantId: String?): String = try {
+            prepareStatement(
+                "INSERT INTO admin_audit_event (occurred_at, actor_kind, action, result_code, correlation_id, target_ref, target_merchant_id) " +
+                    "VALUES (UTC_TIMESTAMP(3), 'SYSTEM_JOB', 'APPROVAL_EXPIRED', 'EXPIRED', 'mc3a-schema', ?, ?)",
+            ).use { ps ->
+                ps.setObject(1, targetRef)
+                ps.setObject(2, targetMerchantId)
+                ps.execute()
+            }
+            "accepted"
+        } catch (e: java.sql.SQLException) {
+            "${e.errorCode}:" + (Regex("'(ck_[a-z_]+)'").find(e.message ?: "")?.groupValues?.get(1) ?: "?")
+        }
+
+        /** 가맹점 대상 승인 행(대상 표기·내부 키 명시). 결과는 "accepted" 또는 "<errno>:<제약 이름>". */
+        fun Connection.merchantTargetRow(kind: String, targetRef: String?, targetMerchantId: String?): String = try {
+            prepareStatement(
+                "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_ref, target_merchant_id, target_security_version, target_snapshot, requested_by, " +
+                    "requested_by_display_name, requested_at, expires_at, status, version) " +
+                    "VALUES (?, ?, 'MERCHANT', ?, ?, 0, '{}', 'adm_requester', 'Requester', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 1 DAY, 'REJECTED', 0)",
+            ).use { ps ->
+                listOf(id("apr_"), kind, targetRef, targetMerchantId).forEachIndexed { i, v -> ps.setObject(i + 1, v) }
+                ps.execute()
+            }
+            "accepted"
+        } catch (e: java.sql.SQLException) {
+            "${e.errorCode}:" + (Regex("'(ck_[a-z_]+)'").find(e.message ?: "")?.groupValues?.get(1) ?: "?")
+        }
+
+        Then("MC-3-1 V15 approval merchant target CHECK: target_ref mer_ or code (§3.1 ^[a-z][a-z0-9]{5,13}\$) with target_merchant_id, anything else 3819") {
+            val merchant = merchantId()
+            runtime().use { c ->
+                listOf(
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "shopabcd12", merchant),
+                    c.merchantTargetRow("MERCHANT_SITE_REVIEW_APPROVAL", merchant, merchant),
+                    // 기존 행 모양(mer_ + NULL)도 그대로.
+                    c.merchantTargetRow("MERCHANT_CODE_CHANGE", merchantId(), null),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "a00000", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "a0000000000000", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "ShopAbcd12", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "shop_abcd12", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "shop1", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "a00000000000000", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "1shopabcd", merchant),
+                    c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "pay_" + merchant.removePrefix("mer_"), merchant),
+                )
+            } shouldBe listOf("accepted", "accepted", "accepted", "accepted", "accepted") + List(6) { "3819:ck_admin_approval_request_target" }
+        }
+
+        Then("MC-3-8 V13 CHECK ③ (target_merchant_present) now has a single-violation row: code target_ref + NULL target_merchant_id → 3819 naming ③ (proof strengthened, not an expectation change)") {
+            runtime().use { c -> c.merchantTargetRow("MERCHANT_CONTRACT_APPROVAL", "shopabcd12", null) } shouldBe "3819:ck_admin_approval_request_target_merchant_present"
+        }
+
+        Then("MC-3-8 V15 audit CHECK ①~③ one by one: each row breaks only its own CHECK and MySQL names it; legacy shapes and new shapes pass") {
+            val a = merchantId()
+            val b = merchantId()
+            runtime().use { c ->
+                listOf(
+                    // ① 형식만 위반(같은 값 — ② 만족, ③ 해당 없음).
+                    c.auditRow("mer_lowercase00000000000000", "mer_lowercase00000000000000"),
+                    // ② 만 위반: 서로 다른 두 mer_, Payment 표기 + mer_.
+                    c.auditRow(a, b),
+                    c.auditRow("pay_" + a.removePrefix("mer_"), a),
+                    // ③ 만 위반: 코드 표기인데 내부 키 없음.
+                    c.auditRow("shopabcd12", null),
+                    // 통과: 새 형식(코드 + mer_), 내부 키 표기(mer_ + mer_), 기존 형식(mer_ + NULL·biz_·pay_·ACQ·NULL).
+                    c.auditRow("shopabcd12", a), c.auditRow(a, a), c.auditRow(b, null), c.auditRow("biz_" + a.removePrefix("mer_"), null),
+                    c.auditRow("pay_" + a.removePrefix("mer_"), null), c.auditRow("ACQ.SIMACQA.TEST.20261105.001", null), c.auditRow(null, null),
+                )
+            } shouldBe listOf(
+                "3819:ck_admin_audit_event_target_merchant_format", "3819:ck_admin_audit_event_target_merchant_ref", "3819:ck_admin_audit_event_target_merchant_ref",
+                "3819:ck_admin_audit_event_code_ref_merchant",
+            ) + List(7) { "accepted" }
+        }
+
+        Then("MC-3a V15 target_merchant_key: VIRTUAL, = COALESCE(target_merchant_id, mer_-format target_ref) — code rows, mer_ rows and legacy mer_ rows share one key, other targets NULL; index (key, event_id)") {
+            val a = merchantId()
+            val key = { ref: String?, mer: String? ->
+                runtime().use { c ->
+                    c.auditRow(ref, mer) shouldBe "accepted"
+                    c.scalar("SELECT IFNULL(target_merchant_key, '-') FROM admin_audit_event WHERE event_id = LAST_INSERT_ID()") as String
+                }
+            }
+            val keys = listOf(key("shopabcd12", a), key(a, a), key(a, null), key("biz_" + a.removePrefix("mer_"), null), key("pay_" + a.removePrefix("mer_"), null), key(null, null))
+            val meta = root().use { c ->
+                listOf(
+                    c.column(
+                        "SELECT CONCAT(column_name, ':', column_type, ':', is_nullable, ':', extra) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'admin_audit_event' " +
+                            "AND column_name IN ('target_merchant_id', 'target_merchant_key') ORDER BY ordinal_position",
+                        ADMIN_DATABASE,
+                    ).joinToString(","),
+                    (c.scalar(
+                        "SELECT LOWER(generation_expression) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'admin_audit_event' AND column_name = 'target_merchant_key'",
+                        ADMIN_DATABASE,
+                    ) as String).let { it.contains("regexp_like") && it.contains("coalesce") && !it.contains(" like ") },
+                    c.column(
+                        "SELECT column_name FROM information_schema.statistics WHERE table_schema = ? AND table_name = 'admin_audit_event' " +
+                            "AND index_name = 'ix_admin_audit_event_target_merchant' ORDER BY seq_in_index",
+                        ADMIN_DATABASE,
+                    ).joinToString(","),
+                )
+            }
+            keys shouldBe listOf(a, a, a, "-", "-", "-")
+            meta shouldBe listOf("target_merchant_id:varchar(30):YES:,target_merchant_key:varchar(30):YES:VIRTUAL GENERATED", true, "target_merchant_key,event_id")
+        }
+
+        Then("MC-3-2·8 V15 upgrade keeps every existing row: rows written before V15 hash the same after V15 (row count before = after, all CHECKs pass), legacy mer_ rows get the mer_ key") {
+            val schema = "paycore_admin_v15_upgrade"
+            root().use { c ->
+                c.update("DROP DATABASE IF EXISTS $schema")
+                c.update("CREATE DATABASE $schema DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin")
+            }
+            fun flyway(target: String) = org.flywaydb.core.Flyway.configure()
+                .dataSource(AdminDbAccounts.urlFor(container, schema), "root", container.password)
+                .locations(AdminDbAccounts.MAIN_MIGRATIONS).target(target).load().migrate()
+            val legacyMerchant = "mer_01JCME00000000000000000001"
+            val auditHash = "SELECT CONCAT(COUNT(*), ':', SHA2(GROUP_CONCAT(CONCAT_WS('|', event_id, occurred_at, actor_kind, action, result_code, correlation_id, " +
+                "IFNULL(target_ref, '-'), IFNULL(target_actor_id, '-'), IFNULL(approval_id, '-'), IFNULL(detail, '-')) ORDER BY event_id SEPARATOR ';'), 256)) FROM admin_audit_event"
+            val approvalHash = "SELECT CONCAT(COUNT(*), ':', SHA2(GROUP_CONCAT(CONCAT_WS('|', approval_id, kind, target_kind, IFNULL(target_ref, '-'), IFNULL(target_merchant_id, '-'), " +
+                "IFNULL(unresolved_key, '-'), status) ORDER BY approval_id SEPARATOR ';'), 256)) FROM admin_approval_request"
+            flyway("13")
+            val before = AdminDbAccounts.root(container, schema).use { c ->
+                listOf(legacyMerchant, "biz_01JCBZ00000000000000000001", "pay_01JCPA00000000000000000001", "ACQ.SIMACQA.TEST.20261105.001", null).forEach { ref ->
+                    c.update(
+                        "INSERT INTO admin_audit_event (occurred_at, actor_kind, action, result_code, correlation_id, target_ref) " +
+                            "VALUES ('2026-11-10 01:00:00.000', 'SYSTEM_JOB', 'APPROVAL_EXPIRED', 'EXPIRED', 'mc3a-upgrade', ?)",
+                        ref,
+                    )
+                }
+                listOf(null, legacyMerchant).forEachIndexed { i, mer ->
+                    c.update(
+                        "INSERT INTO admin_approval_request (approval_id, kind, target_kind, target_ref, target_merchant_id, target_security_version, target_snapshot, requested_by, " +
+                            "requested_by_display_name, requested_at, expires_at, status, version) " +
+                            "VALUES (?, ?, 'MERCHANT', ?, ?, 0, '{}', 'adm_requester', 'Requester', '2026-11-10 01:00:00.000', '2026-11-11 01:00:00.000', 'PENDING', 0)",
+                        "apr_01JCAP0000000000000000000$i", if (i == 0) "MERCHANT_SITE_REVIEW_APPROVAL" else "MERCHANT_CONTRACT_APPROVAL", legacyMerchant, mer,
+                    )
+                }
+                listOf(c.scalar(auditHash), c.scalar(approvalHash))
+            }
+            flyway("15")
+            val after = AdminDbAccounts.root(container, schema).use { c ->
+                listOf(c.scalar(auditHash), c.scalar(approvalHash)) + listOf(
+                    c.column("SELECT IFNULL(target_merchant_key, '-') FROM admin_audit_event ORDER BY event_id").joinToString(","),
+                    c.column("SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank").last(),
+                )
+            }
+            root().use { it.update("DROP DATABASE $schema") }
+            after shouldBe before + listOf("$legacyMerchant,-,-,-,-", "15")
+        }
+
+        Then("MC-3a V15 SQL text (mutation (m)): four statements, each with its expected ALGORITHM clause (INSTANT columns, INPLACE/LOCK=NONE index, COPY for both CHECK statements)") {
+            val text = checkNotNull(javaClass.classLoader.getResource("db/migration/admin/V15__merchant_code_target_ref.sql")) { "V15 migration on the classpath" }.readText()
+            val statements = text.lines().filterNot { it.trimStart().startsWith("--") }.joinToString("\n").split(';').map { it.trim().replace(Regex("\\s+"), " ") }.filter { it.isNotEmpty() }
+            statements.map { s ->
+                val head = when {
+                    s.startsWith("ALTER TABLE admin_audit_event ADD COLUMN target_merchant_id") && s.contains("ADD COLUMN target_merchant_key") && s.contains("VIRTUAL") -> "audit-columns"
+                    s.startsWith("ALTER TABLE admin_audit_event ADD INDEX ix_admin_audit_event_target_merchant (target_merchant_key, event_id)") -> "audit-index"
+                    s.startsWith("ALTER TABLE admin_audit_event ADD CONSTRAINT") -> "audit-checks"
+                    s.startsWith("ALTER TABLE admin_approval_request DROP CHECK ck_admin_approval_request_target, ADD CONSTRAINT ck_admin_approval_request_target") -> "approval-target"
+                    else -> "unexpected"
+                }
+                head + ":" + Regex("ALGORITHM=[A-Z]+(, LOCK=[A-Z]+)?$").find(s)?.value
+            } shouldBe listOf("audit-columns:ALGORITHM=INSTANT", "audit-index:ALGORITHM=INPLACE, LOCK=NONE", "audit-checks:ALGORITHM=COPY", "approval-target:ALGORITHM=COPY")
+        }
+
         Then("V11 unresolved_key (C-35): one unresolved approval per target group per merchant — same group 1062, different groups coexist, B2 kinds keep MERCHANT:<id>") {
             val merchant = merchantId()
             runtime().use { c ->

@@ -134,6 +134,10 @@ class MerchantOperationsApiSpec(
                 // 기대값 변경(TXN-LIST-ENRICH-001 명세 §4.2): MID 묶음 라벨 조회 `merchant-account-labels`(읽기 전용 POST — 쓰기 효과·admin_request 없음, merchant-searches와 같은 형태).
                 // 경로 목록 갱신이지 완화가 아니다 — 개통·한도·정지 경로는 여전히 없다.
                 "POST /internal/v1/admin/merchant-account-labels",
+                // 기대값 변경(MERCHANT-CODE-001 명세 §5.6.3·§7 MC-3b): 가맹점 내부 키 묶음 라벨 조회 `merchant-labels`(읽기 전용 POST — 쓰기 효과·admin_request 없음:
+                // jOOQ RO·RR 한 문장, 라벨 permit, 감사 없음 — MerchantLabelApiSpec 전 표 checksum 불변·MerchantLabelArchitectureSpec 쓰기 호출 0, merchant-account-labels와 같은 형태).
+                // 경로 목록 갱신이지 완화가 아니다 — 개통·한도·정지 경로는 여전히 없다.
+                "POST /internal/v1/admin/merchant-labels",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }

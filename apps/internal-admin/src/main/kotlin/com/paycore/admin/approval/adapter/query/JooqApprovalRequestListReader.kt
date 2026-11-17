@@ -91,6 +91,8 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
         t.APPROVAL_ID, t.KIND, t.TARGET_KIND, t.TARGET_ACTOR_ID, t.TARGET_REF, DSL.field("CAST({0} AS CHAR)", String::class.java, t.TARGET_SNAPSHOT).`as`(SNAPSHOT), t.GRANTED_ROLE,
         t.CAUSE_APPROVAL_ID, t.REQUESTED_BY, t.REQUESTED_BY_DISPLAY_NAME, time(t.REQUESTED_AT, REQUESTED_AT), time(t.EXPIRES_AT, EXPIRES_AT), t.STATUS,
         t.DECIDED_BY, t.DECIDED_BY_DISPLAY_NAME, time(t.DECIDED_AT, DECIDED_AT), t.RESULT_CODE,
+        // MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 대상의 내부 키(기존 행은 target_ref = mer_, 새 행은 target_merchant_id) — 그 밖 대상은 NULL.
+        DSL.`when`(t.TARGET_KIND.eq(MERCHANT), DSL.coalesce(t.TARGET_MERCHANT_ID, t.TARGET_REF)).`as`(TARGET_MERCHANT),
     ).from(t)
 
     private fun time(field: org.jooq.Field<*>, alias: String) = DSL.field("DATE_FORMAT({0}, '%Y-%m-%dT%H:%i:%s.%fZ')", String::class.java, field).`as`(alias)
@@ -103,11 +105,13 @@ class JooqApprovalRequestListReader(private val dsl: DSLContext) : ApprovalReque
         requestedByDisplayName = r.get(t.REQUESTED_BY_DISPLAY_NAME)!!, requestedAt = Instant.parse(r.get(REQUESTED_AT, String::class.java)),
         expiresAt = Instant.parse(r.get(EXPIRES_AT, String::class.java)), status = r.get(t.STATUS)!!, decidedBy = r.get(t.DECIDED_BY),
         decidedByDisplayName = r.get(t.DECIDED_BY_DISPLAY_NAME), decidedAt = r.get(DECIDED_AT, String::class.java)?.let(Instant::parse),
-        resultCode = r.get(t.RESULT_CODE),
+        resultCode = r.get(t.RESULT_CODE), targetMerchantId = r.get(TARGET_MERCHANT, String::class.java),
     )
 
     private companion object {
         const val SNAPSHOT = "target_snapshot_text"
+        const val TARGET_MERCHANT = "target_merchant_key"
+        const val MERCHANT = "MERCHANT"
         const val REQUESTED_AT = "requested_at_text"
         const val EXPIRES_AT = "expires_at_text"
         const val DECIDED_AT = "decided_at_text"

@@ -48,6 +48,8 @@ export interface ApprovalView {
   targetKind?: string
   targetActorId: string | null
   targetRef?: string | null
+  /** MERCHANT-CODE-001 §5.6.4(MC-3a): 가맹점 대상의 내부 키(`mer_` — 언제나), 그 밖 null. 라벨 대응에만 쓰고 화면에 그리지 않는다(D-ADMIN-UI-004 ③). */
+  targetMerchantId?: string | null
   targetSnapshot: string
   grantedRole: string | null
   causeApprovalId: string | null
@@ -71,6 +73,8 @@ export interface ApprovalView {
 export interface PinnedContractApproval {
   merchantId: string
   merchantName: string
+  /** MERCHANT-CODE-001 §5.3·§5.6.4(MC-3a): 요청 시점 가맹점 코드(표시용) — 새 행에만 있고 기존 행에는 없다(선택 키). */
+  merchantCode?: string
   contractId: string
   revisionNo: number
   scopeKind: string
@@ -267,12 +271,22 @@ export interface AuditEntry {
   reason: string | null
   /** 계정이 아닌 대상(가맹점·Payment·매입 파일 등 — L-13). 이전 서버 응답에는 없을 수 있다. */
   targetRef?: string | null
+  /** MERCHANT-CODE-001 §5.6.4(MC-3a): 가맹점 관련 행의 내부 키(`target_merchant_key` — 기존 `mer_` 행 포함), 그 밖 null. 라벨 대응에만 쓰고 그리지 않는다. */
+  targetMerchantId?: string | null
 }
 
 export interface AuditFilterInput {
   actorId?: string
   targetActorId?: string
   action?: string
+  /** MERCHANT-CODE-001 §5.6.4 감사 필터(`^mer_<ULID>$` — 서버가 형식 위반 400). 화면은 코드 입력 → 코드 검색으로 해석한 값만 보낸다. */
+  targetMerchantId?: string
+}
+
+/** `POST /api/merchant-labels` 응답(MERCHANT-CODE-001 §5.6.3 MC-3b): merchantId 오름차순(대응용 — 화면 미표시), UNAVAILABLE이면 items `[]`(HTTP 200). */
+export interface MerchantTargetLabelPage {
+  items: { merchantId: string; name: string; code: string }[]
+  labels: MerchantLabelsState
 }
 
 /**
@@ -841,6 +855,8 @@ export interface AdminApi {
   requestMerchantCurrencyEnablement(input: MerchantCurrencyEnablementInput): Promise<{ approvalId: string }>
   /** MERCHANT-CODE-001 MC-1b 가맹점 코드 변경 요청(201 승인 ID). */
   requestMerchantCodeChange(input: MerchantCodeChangeInput): Promise<{ approvalId: string }>
+  /** MERCHANT-CODE-001 §5.6.3 MC-3b: 가맹점 대상 라벨 묶음(1..50 — 화면이 고유 키를 정렬해 50개씩 순차, 0개면 부르지 않는다). 429는 UNAVAILABLE과 같게 다룬다. */
+  merchantLabels(merchantIds: string[]): Promise<MerchantTargetLabelPage>
 }
 
 const segment = (value: string) => encodeURIComponent(value)
@@ -910,5 +926,6 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     requestMerchantSiteReviewApproval: (input) => call('/api/approvals/merchant-site-review-approval', 'POST', input),
     requestMerchantCurrencyEnablement: (input) => call('/api/approvals/merchant-currency-enablement', 'POST', input),
     requestMerchantCodeChange: (input) => call('/api/approvals/merchant-code-change', 'POST', input),
+    merchantLabels: (merchantIds) => call('/api/merchant-labels', 'POST', { merchantIds }),
   }
 }

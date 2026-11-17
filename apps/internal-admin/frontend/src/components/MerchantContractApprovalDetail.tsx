@@ -4,8 +4,36 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst } from '../lib/format'
 import { labelOf } from '../lib/labels'
+import { MERCHANT_CODE } from '../lib/merchantCode'
+import { hasInternalKey, TARGET_HIDDEN, type MerchantTargetLabel } from '../lib/merchantTarget'
 import { tagClass } from '../lib/statusTone'
 import { ErrorNotice, WarningNote } from './Notice'
+
+/**
+ * MERCHANT-CODE-001 §5.6.2 승인 상세 "요청 시 코드": pinned `merchantCode`(MC-3a부터 새 pinned에 있음) → 없으면 `targetRef`가 코드 형식일 때 그 값 → 없으면 없음(기존 행).
+ */
+export function requestCodeOf(pinnedCode: string | undefined, targetRef: string | null | undefined): string | undefined {
+  if (typeof pinnedCode === 'string' && MERCHANT_CODE.test(pinnedCode)) return pinnedCode
+  return typeof targetRef === 'string' && MERCHANT_CODE.test(targetRef) ? targetRef : undefined
+}
+
+/**
+ * 가맹점 줄(§5.6.2): `가맹점: <pinned 상호> · <요청 시 코드 ?? 현재 코드 ?? "—">`, 요청 시 코드와 현재 코드가 둘 다 있고 다르면 ` → 현재 <현재 코드>`.
+ * pinned 상호는 요청 시점 값(봉인 근거)이라 그대로 둔다. 내부 키(`mer_`)는 그리지 않는다(D-ADMIN-UI-004 ③·D-MCODE-003).
+ */
+function MerchantLine({ name, requestCode, current }: { name: string; requestCode: string | undefined; current: MerchantTargetLabel | undefined }) {
+  const currentCode = current?.state === 'found' ? current.label.code : undefined
+  const shown = requestCode ?? currentCode ?? TARGET_HIDDEN
+  const safeName = hasInternalKey(name) ? TARGET_HIDDEN : name
+  return (
+    <li>
+      {'가맹점: '}<span className="font-medium">{safeName}</span>{' · '}<span className="font-mono">{hasInternalKey(shown) ? TARGET_HIDDEN : shown}</span>
+      {requestCode !== undefined && currentCode !== undefined && requestCode !== currentCode && !hasInternalKey(currentCode) && (
+        <span className="font-medium">{` → 현재 ${currentCode}`}</span>
+      )}
+    </li>
+  )
+}
 
 /** MASTER 거절 → 화면 문구(MERCHANT-OPS-002 §9.5 — 모르는 code는 일반 문구). */
 export const MERCHANT_REJECTIONS: Readonly<Record<string, string>> = {
@@ -38,6 +66,7 @@ export const MERCHANT_REJECTIONS: Readonly<Record<string, string>> = {
 export interface PinnedCurrency {
   merchantId: string
   merchantName: string
+  merchantCode?: string
   merchantAccountId: string
   accountLifecycle: string
   currency: string
@@ -96,6 +125,7 @@ export function pinnedContractOf(value: unknown): PinnedContractApproval | null 
 export interface PinnedFirstMid {
   merchantId: string
   merchantName: string
+  merchantCode?: string
   accountCount: number
   contractId: string
   agreementId: string
@@ -122,6 +152,7 @@ export function pinnedMidOf(value: unknown): PinnedFirstMid | null {
 export interface PinnedActivation {
   merchantId: string
   merchantName: string
+  merchantCode?: string
   merchantAccountId: string
   activationId: string
   paymentMethod: string
@@ -134,6 +165,7 @@ export interface PinnedActivation {
 export interface PinnedSiteReview {
   merchantId: string
   merchantName: string
+  merchantCode?: string
   merchantSiteId: string
   channelType: string
   reviewStatus: string
@@ -197,26 +229,53 @@ export function isRegistrant(item: ApprovalView, viewerActorId: string | undefin
   return registeredBy !== undefined && registeredBy === `admin:${viewerActorId}`
 }
 
-function statusText(item: ApprovalView): string {
+/** 코드 변경 pinned의 새 코드(코드 형식일 때만 — 나머지 pinned 키가 없어도 읽는다). 없으면 undefined. */
+function pinnedNewCodeOf(item: ApprovalView): string | undefined {
+  const p = parsed(item.merchant?.pinnedTarget ?? item.targetSnapshot)
+  const code = p?.newCode
+  return typeof code === 'string' && MERCHANT_CODE.test(code) ? code : undefined
+}
+
+/** 상태 문구 = 머리말 + (있으면) " — " 뒤 참조/사유. */
+function statusParts(item: ApprovalView): { head: string; ref?: string } {
   const g = item.merchant
   switch (item.status) {
     case 'PENDING':
-      return '승인 대기 중'
+      return { head: '승인 대기 중' }
     case 'EXECUTING':
-      return '실행 요청 중 — 결과를 자동으로 확인합니다.'
+      return { head: '실행 요청 중 — 결과를 자동으로 확인합니다.' }
     case 'EXECUTION_UNKNOWN':
-      return '결과 확인 중(자동 재확인) — 수동 종료 없음'
-    case 'EXECUTED':
-      return `${kindText(item.kind).executed} — ${g?.ownerReference ?? '-'}`
+      return { head: '결과 확인 중(자동 재확인) — 수동 종료 없음' }
+    case 'EXECUTED': {
+      const head = kindText(item.kind).executed
+      // reviewFix1 MAJOR-1(§5.6.2·MC-3-19·D-ADMIN-UI-004 ③): 코드 변경의 소유 참조는 `^mer_<ULID>$`(OwnerExecution) — 참조 대신 pinned 새 코드(공개값), 없으면 머리말만.
+      // 그 밖 종류(ctr_·mid_·act_·site_·cur_ 참조)는 §5.6.2 "그 밖 대상은 지금 그대로".
+      if (item.kind === 'MERCHANT_CODE_CHANGE') {
+        const newCode = pinnedNewCodeOf(item)
+        return newCode === undefined ? { head } : { head, ref: newCode }
+      }
+      return { head, ref: g?.ownerReference ?? '-' }
+    }
     case 'OWNER_REJECTED': {
       const code = g?.ownerResultCode ?? item.resultCode ?? ''
-      return `가맹점 정보 서비스가 거절했습니다: ${MERCHANT_REJECTIONS[code] ?? ACTIVATION_REJECTION_MESSAGES[code] ?? code ?? '-'}`
+      return { head: '가맹점 정보 서비스가 거절했습니다:', ref: MERCHANT_REJECTIONS[code] ?? ACTIVATION_REJECTION_MESSAGES[code] ?? code ?? '-' }
     }
     case 'INVALIDATED':
-      return '요청 뒤 대상이 바뀌어 무효'
+      return { head: '요청 뒤 대상이 바뀌어 무효' }
     default:
-      return `상태: ${labelOf(item.status)}`
+      return { head: `상태: ${labelOf(item.status)}` }
   }
+}
+
+/**
+ * 상세 상태 문구. 마지막 방어(reviewFix1 MAJOR-1 — §5.6.2 "어떤 분기도 내부 키를 텍스트에 넣지 않는다"): 결과에 내부 키(`mer_`·`biz_`)가 있으면 참조 부분을 "—"로 바꾼다.
+ */
+export function statusText(item: ApprovalView): string {
+  const { head, ref } = statusParts(item)
+  const sep = item.status === 'OWNER_REJECTED' ? ' ' : ' — '
+  const text = ref === undefined ? head : `${head}${sep}${ref}`
+  if (!hasInternalKey(text)) return text
+  return hasInternalKey(head) ? TARGET_HIDDEN : `${head}${sep}${TARGET_HIDDEN}`
 }
 
 /** Asia/Seoul 날짜(시각은 그 날 00:00 KST — 계약 기간 입력 규칙 C-7). */
@@ -227,9 +286,11 @@ const kstDate = (iso: string) => formatKst(iso).slice(0, 10)
  * (D-MOPS-008 ③ — 본인이 등록자면 "등록자는 승인할 수 없습니다"), 상태별 문구, 실행 기한·마지막 실패. 근거 참조는 상세 응답에 없고 APPROVER·요청자에게만 "근거 보기"(서버가 판정·감사).
  * 조회한 근거는 이 화면 상태에만 둔다(저장소·URL 없음).
  */
-export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnded }: {
+export function MerchantContractApprovalDetail({ api, item, currentLabel, viewer, onSessionEnded }: {
   api: AdminApi
   item: ApprovalView
+  /** 목록이 불러온 이 대상의 현재 라벨(MERCHANT-CODE-001 §5.6.2 — "→ 현재 <코드>"). 없거나 불러오지 못했으면 undefined/unavailable. */
+  currentLabel?: MerchantTargetLabel
   viewer?: { actorId: string; roles: string[] }
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }) {
@@ -281,7 +342,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         {registrant && item.status === 'PENDING' && <WarningNote>등록자는 승인할 수 없습니다 — 다른 승인자가 처리해야 합니다.</WarningNote>}
         {pinned && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            <li>{'가맹점: '}<span className="font-medium">{pinned.merchantName}</span> <span className="font-mono text-xs">{pinned.merchantId}</span></li>
+            <MerchantLine name={pinned.merchantName} requestCode={requestCodeOf(pinned.merchantCode, item.targetRef)} current={currentLabel} />
             <li>{'계약 · Revision: '}<span className="font-mono text-xs">{`${pinned.contractId} #${pinned.revisionNo}`}</span></li>
             <li>{`범위: ${labelOf(pinned.scopeKind)}`}{pinned.scopeSiteIds.length > 0 && <span className="ml-1 font-mono text-xs">{pinned.scopeSiteIds.join(', ')}</span>}</li>
             <li title={pinned.effectiveFrom}>{`시작일(KST): ${kstDate(pinned.effectiveFrom)}`}</li>
@@ -294,7 +355,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         )}
         {mid && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            <li>{'가맹점: '}<span className="font-medium">{mid.merchantName}</span> <span className="font-mono text-xs">{mid.merchantId}</span></li>
+            <MerchantLine name={mid.merchantName} requestCode={requestCodeOf(mid.merchantCode, item.targetRef)} current={currentLabel} />
             <li>{'계약 · Revision: '}<span className="font-mono text-xs">{`${mid.contractId} #${mid.revisionNo}`}</span></li>
             <li>{`CSA: ${mid.agreementId}`}</li>
             <li>{`PRIMARY Site: ${mid.primarySiteId} (${labelOf(mid.channelType)})`}</li>
@@ -306,7 +367,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         )}
         {activation && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            <li>{'가맹점: '}<span className="font-medium">{activation.merchantName}</span> <span className="font-mono text-xs">{activation.merchantId}</span></li>
+            <MerchantLine name={activation.merchantName} requestCode={requestCodeOf(activation.merchantCode, item.targetRef)} current={currentLabel} />
             <li>{'MID: '}<span className="font-mono text-xs">{activation.merchantAccountId}</span></li>
             <li>{'개통: '}<span className="font-mono text-xs">{activation.activationId}</span>{` (${labelOf(activation.paymentMethod)} · 요청 시점 ${labelOf(activation.status)})`}</li>
             <li>{'대표(PRIMARY) Site: '}<span className="font-mono text-xs">{activation.primarySiteId}</span></li>
@@ -318,7 +379,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         )}
         {siteReview && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            <li>{'가맹점: '}<span className="font-medium">{siteReview.merchantName}</span> <span className="font-mono text-xs">{siteReview.merchantId}</span></li>
+            <MerchantLine name={siteReview.merchantName} requestCode={requestCodeOf(siteReview.merchantCode, item.targetRef)} current={currentLabel} />
             <li>{'Site: '}<span className="font-mono text-xs">{siteReview.merchantSiteId}</span>{` (${labelOf(siteReview.channelType)})`}</li>
             <li>{`요청 시점 심사 상태: ${labelOf(siteReview.reviewStatus)}`}</li>
             <li>{`사유: ${siteReview.reasonCode === 'REVIEW_PASSED' ? '심사 통과' : siteReview.reasonCode}`}</li>
@@ -330,7 +391,7 @@ export function MerchantContractApprovalDetail({ api, item, viewer, onSessionEnd
         )}
         {currency && (
           <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            <li>{'가맹점: '}<span className="font-medium">{currency.merchantName}</span> <span className="font-mono text-xs">{currency.merchantId}</span></li>
+            <MerchantLine name={currency.merchantName} requestCode={requestCodeOf(currency.merchantCode, item.targetRef)} current={currentLabel} />
             <li>{'MID: '}<span className="font-mono text-xs">{currency.merchantAccountId}</span>{` (요청 시점 ${labelOf(currency.accountLifecycle)})`}</li>
             <li>{`통화: ${currency.currency}`}</li>
             <li className="font-medium">{currencyStartText(currency)}</li>

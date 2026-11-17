@@ -327,6 +327,10 @@ class OwnerExecutionRecoverySpec(
             (counter("paycore.admin.ops.resend", "result", "ERROR") - errors) shouldBe 1.0
             root().use { it.column("SELECT CONCAT(actor_kind, '|', detail, '|', target_ref) FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_INTEGRITY_VIOLATION'", missing.id) } shouldBe
                 listOf("SYSTEM_JOB|column=command|${missing.paymentId}")
+            // MERCHANT-CODE-001 MC-3-23(rev 0.4.8 MINOR-1) Payment 대조: 회복 무결성 보고가 승인 행 대상(pay_)만 — 가맹점 키·계정 대상 열은 없다(문자열로 가맹점 키를 만들지 않음).
+            root().use {
+                it.column("SELECT CONCAT(IFNULL(target_merchant_id, '-'), '|', IFNULL(target_actor_id, '-')) FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_INTEGRITY_VIOLATION'", missing.id)
+            } shouldBe listOf("-|-")
             listOf(decisionGets(healthy.id), posts(healthy.id)) shouldBe listOf(1, 2)
         }
     }
@@ -344,6 +348,10 @@ class OwnerExecutionRecoverySpec(
             root().use {
                 it.column("SELECT CONCAT(actor_kind, '|', detail, '|', target_ref) FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_INTEGRITY_VIOLATION'", u.id)
             } shouldBe listOf("SYSTEM_JOB|column=execution_kind|${u.paymentId}")
+            // MERCHANT-CODE-001 MC-3-23(rev 0.4.8 MINOR-1) Payment 대조: execution_kind 보고도 pay_ 표기만(가맹점 키·계정 대상 없음).
+            root().use {
+                it.column("SELECT CONCAT(IFNULL(target_merchant_id, '-'), '|', IFNULL(target_actor_id, '-')) FROM admin_audit_event WHERE approval_id = ? AND action = 'APPROVAL_INTEGRITY_VIOLATION'", u.id)
+            } shouldBe listOf("-|-")
         }
     }
 

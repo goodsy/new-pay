@@ -4,6 +4,7 @@ import com.paycore.master.merchant.application.provided.MerchantAccountLabel
 import com.paycore.master.merchant.application.provided.MerchantDetailView
 import com.paycore.master.merchant.application.provided.MerchantDirectoryItem
 import com.paycore.master.merchant.application.provided.MerchantDirectoryPage
+import com.paycore.master.merchant.application.provided.MerchantLabel
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import tools.jackson.databind.JsonNode
@@ -53,6 +54,19 @@ class MerchantOpsShapeGoldenSpec : BehaviorSpec({
             )
             produced shouldBe mapper.writeValueAsString(golden.get("accountLabels"))
             mapper.readTree(produced).get("items").get(0).propertyNames().toList() shouldBe listOf("merchantAccountId", "merchantName", "merchantCode")
+        }
+
+        Then("MC-3-17 merchant labels: items with exactly merchantId, merchantName, merchantCode (no businessId, lifecycle or code history) — compact JSON equals the golden") {
+            val produced = mapper.writeValueAsString(
+                MerchantOpsJson.merchantLabels(
+                    listOf(
+                        MerchantLabel("mer_01JC0000000000000000000001", "데모상점", "demoshop01"),
+                        MerchantLabel("mer_01JC0000000000000000000002", "Demo Merchant", "shopxyz789"),
+                    ),
+                ),
+            )
+            produced shouldBe mapper.writeValueAsString(golden.get("merchantLabels"))
+            mapper.readTree(produced).get("items").get(0).propertyNames().toList() shouldBe listOf("merchantId", "merchantName", "merchantCode")
         }
 
         Then("MC-1-9 detail: merchant.merchantCode, merchantCodeHistory and merchantCodeChangeable — compact JSON equals the golden; no registeredBy on the merchant") {

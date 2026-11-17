@@ -219,16 +219,33 @@ class MerchantLookupServiceSpec : BehaviorSpec({
         }
     }
 
+    Given("MERCHANT-CODE-001 MC-3-12 target_ref stored values (§5.6.4 C-32 — MERCHANT_VIEWED, registration-number search)") {
+        Then("MERCHANT_VIEWED FOUND = the code in the response + mer_ key; NOT_FOUND = mer_ + mer_ (no code); a registration-number search keeps biz_ with no merchant key") {
+            val f = Fixture(setOf("OPERATOR"))
+            f.detailReply = MasterCallResult.Found(mapOf("merchant" to mapOf("merchantId" to mer, "merchantCode" to "shopabcd12")))
+            f.service.detail(f.actor, mer, ctx).shouldBeInstanceOf<MerchantLookupResult.Found>()
+            f.detailReply = MasterCallResult.NotFound
+            f.service.detail(f.actor, mer, ctx) shouldBe MerchantLookupResult.NotFound
+            f.searchReply = MasterCallResult.Found(mapOf("items" to listOf(mapOf("businessId" to biz)), "nextCursor" to null))
+            f.service.search(f.actor, MerchantSearchCriteria(registrationNumber = brn), ctx)
+            f.audits.map { listOf(it.action, it.targetRef, it.targetMerchantId) } shouldBe listOf(
+                listOf("MERCHANT_VIEWED", "shopabcd12", mer), listOf("MERCHANT_VIEWED", mer, mer), listOf("MERCHANT_BRN_SEARCHED", biz, null),
+            )
+        }
+    }
+
     Given("detail views (D-MOPS-002)") {
         Then("FOUND and NOT_FOUND are audited as MERCHANT_VIEWED with the merchant as target; MASTER unavailable is not audited") {
             val f = Fixture(setOf("VIEWER"))
-            f.detailReply = MasterCallResult.Found(mapOf("merchant" to mapOf("merchantId" to mer)))
+            // MASTER 상세 모양(merchant.merchantCode 필수 — MC-1)과 같은 대역 문서.
+            f.detailReply = MasterCallResult.Found(mapOf("merchant" to mapOf("merchantId" to mer, "merchantCode" to "shopabcd12")))
             f.service.detail(f.actor, mer, ctx).shouldBeInstanceOf<MerchantLookupResult.Found>()
             f.detailReply = MasterCallResult.NotFound
             f.service.detail(f.actor, mer, ctx) shouldBe MerchantLookupResult.NotFound
             f.detailReply = MasterCallResult.Unavailable("HTTP_503")
             f.service.detail(f.actor, mer, ctx) shouldBe MerchantLookupResult.Unavailable("HTTP_503")
-            f.auditRows() shouldBe listOf(listOf("MERCHANT_VIEWED", "OK", null, mer), listOf("MERCHANT_VIEWED", "NOT_FOUND", null, mer))
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §5.1·§5.6.4 C-32(Q-MC-4 — D-MCODE-001) — MC-3a부터 MERCHANT_VIEWED FOUND의 대상 표기 = 응답의 현재 코드(내부 키는 target_merchant_id), NOT_FOUND는 mer_ 그대로.
+            f.auditRows() shouldBe listOf(listOf("MERCHANT_VIEWED", "OK", null, "shopabcd12"), listOf("MERCHANT_VIEWED", "NOT_FOUND", null, mer))
         }
         Then("an audit failure withholds the detail") {
             val f = Fixture()

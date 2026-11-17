@@ -149,6 +149,9 @@ paycore:
       # 라벨 전용 짧은 read timeout(read-timeout 이하 — M-2: MASTER 지연이 목록을 10s까지 붙잡지 않는다. 목록 지연 상한 = PAYMENT + connect + 이 값).
       label-permits: 2
       label-read-timeout: 2s
+      # MERCHANT-CODE-001 §5.6.3 C-35(Demo 값, 운영값 아님 — LIVE Gate, 기본값 없음 1..600): 승인함·감사 화면 가맹점 라벨 API의 actor별 분당 창(HTTP 호출 1회당 1 소비 —
+      # 가맹점 검색 창 lookup-per-minute과 별개, 라벨 permit·timeout은 위 두 값을 공유 C-34).
+      label-reads-per-minute: 60
     # MERCHANT-OPS-002 B2-2 가맹점 2인 승인(C-19 — **Demo 값, 운영값 아님**, LIVE Gate, 기본값 없음): 실행 창(승인 + 이 값 = 실행 기한, MASTER max-execution-window PT24H 이하),
     # 기한 확인 여유(MASTER max-clock-skew PT1M + read timeout 이상), 회복 다음 시도 간격(두 배씩 — 상한 PT30M). stale = master-ops connect + read + 30초.
     merchant-ops:

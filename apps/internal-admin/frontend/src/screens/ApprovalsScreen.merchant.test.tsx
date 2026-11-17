@@ -5,6 +5,7 @@ import { ApprovalsScreen } from './ApprovalsScreen'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
 import type { ApprovalView, MerchantApprovalDetail } from '../api/adminApi'
 import { hasUnresolvedRequest, createScreenMemory } from '../lib/screenMemory'
+import { domOccurrences } from '../test/domScan'
 
 /**
  * 승인함의 가맹점 계약 승인(MERCHANT-OPS-002 §8.2 B2-2-12 — §9.6): 종류 라벨, 상세(Scope·KST 날짜·"0시 종료(미포함)"·Revision 등록자), 등록자 본인이면 승인 버튼 대신 안내,
@@ -22,13 +23,16 @@ const merchant = (patch: Partial<MerchantApprovalDetail> = {}): MerchantApproval
   lastFailure: null, integrityFlag: null, resendHaltedReason: null, ownerResultCode: null, ownerReference: null, ...patch,
 })
 const item = (status: string, patch: Partial<MerchantApprovalDetail> = {}, resultCode: string | null = null): ApprovalView => ({
-  approvalId: `apr_MOP_${status}`, kind: 'MERCHANT_CONTRACT_APPROVAL', targetKind: 'MERCHANT', targetActorId: null, targetRef: MER, targetSnapshot: JSON.stringify(pinnedTarget),
+  // 응답 Fixture: MC-3a 서버 응답의 targetMerchantId(내부 키 — 응답 포함·화면 미표시, D-BIZLOOKUP-001). 기대값 아님.
+  approvalId: `apr_MOP_${status}`, kind: 'MERCHANT_CONTRACT_APPROVAL', targetKind: 'MERCHANT', targetActorId: null, targetRef: MER, targetMerchantId: MER, targetSnapshot: JSON.stringify(pinnedTarget),
   grantedRole: null, causeApprovalId: null, requestedBy: 'adm_REQ', requestedByDisplayName: '운영자', requestedAt: '2026-11-10T00:00:00Z', expiresAt: '2026-11-11T00:00:00Z',
   status, decidedBy: status === 'PENDING' ? null : 'adm_A', decidedByDisplayName: null, decidedAt: null, resultCode, merchant: merchant(patch),
 })
 
 async function open(view: ApprovalView, viewer = { actorId: 'adm_A', roles: ['APPROVER'] }, extra: Parameters<typeof fakeApi>[0] = {}) {
-  const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [view] })), approvalDetail: vi.fn(async () => view), ...extra })
+  // MC-3c: 화면이 가맹점 대상 라벨을 묶음 호출한다(POST /api/merchant-labels) — 현재 상호·코드 대역.
+  const merchantLabels = vi.fn(async (ids: string[]) => ({ items: ids.map((merchantId) => ({ merchantId, name: '데모상점', code: 'demoshop01' })), labels: 'OK' as const }))
+  const api = fakeApi({ approvals: vi.fn(async () => ({ approvals: [view] })), approvalDetail: vi.fn(async () => view), merchantLabels, ...extra })
   render(<ApprovalsScreen api={api} view="pending" canDecide viewer={viewer} />)
   const row = await screen.findByRole('row', { name: new RegExp(view.status) })
   return { api, row }
@@ -38,7 +42,9 @@ describe('ApprovalsScreen — merchant contract approvals (MERCHANT-OPS-002 §9.
   it('lists "가맹점 계약 승인" with the merchant; the detail shows scope, KST dates with the exclusive end note, requester and the revision registrant; no evidence in the detail', async () => {
     const { row } = await open(item('PENDING'))
     expect(within(row).getByText('가맹점 계약 승인')).toBeInTheDocument()
-    expect(within(row).getByText(MER)).toBeInTheDocument()
+    // 기대값 변경(MERCHANT-CODE-001 §8 MC-3-20·§5.6.2): D-ADMIN-UI-004 ③·D-MCODE-003 ① — 화면에 내부 키 미표시(rev 0.4.6 §5.6, APPROVAL-TARGET-KEYS-001 합침). getByText(MER) → 라벨 텍스트 + DOM mer_ 0건.
+    expect(await within(row).findByText('데모상점 · demoshop01')).toBeInTheDocument()
+    expect(domOccurrences(document.body, 'mer_')).toEqual([])
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
     const panel = await screen.findByRole('region', { name: '가맹점 계약 승인 상세' })
     expect(panel).toHaveTextContent(`${CTR} #2`)

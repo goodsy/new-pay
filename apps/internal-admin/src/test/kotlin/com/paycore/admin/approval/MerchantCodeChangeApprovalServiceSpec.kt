@@ -71,7 +71,8 @@ class MerchantCodeChangeApprovalServiceSpec(
     fun root() = AdminDbAccounts.root(container)
     fun status(id: String) = root().use { it.scalar("SELECT CONCAT(status, '|', COALESCE(result_code, '-')) FROM admin_approval_request WHERE approval_id = ?", id) as String }
     fun audits(id: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(target_ref, '-'), '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE approval_id = ? ORDER BY event_id", id) }
-    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_ref = ? ORDER BY event_id", m) }
+    // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.8 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 행은 내부 키(target_merchant_key·COALESCE(target_merchant_id, target_ref))로 찾는다
+    fun merchantAudits(m: String) = root().use { it.column("SELECT CONCAT(action, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE target_merchant_key = ? ORDER BY event_id", m) }
     fun targetMerchant(id: String) = root().use { it.scalar("SELECT IFNULL(target_merchant_id, '-') FROM admin_approval_request WHERE approval_id = ?", id) as String }
     fun storedBody(id: String) = root().use { it.scalar("SELECT request_body FROM admin_owner_execution WHERE approval_id = ?", id) as ByteArray }
     fun fingerprint(id: String) = root().use { it.scalar("SELECT fingerprint FROM admin_owner_execution WHERE approval_id = ?", id) as String }
@@ -97,11 +98,13 @@ class MerchantCodeChangeApprovalServiceSpec(
                     "SELECT CONCAT(r.kind, '|', r.status, '|', r.target_ref, '|', r.target_merchant_id, '|', r.unresolved_key, '|', c.command_kind, '|', c.evidence_ref) " +
                         "FROM admin_approval_request r JOIN admin_merchant_ops_command c ON c.approval_id = r.approval_id WHERE r.approval_id = ?", id,
                 )
-            } shouldBe "MERCHANT_CODE_CHANGE|PENDING|$m|$m|MERCHANT:$m|MERCHANT_CODE_CHANGE|${MerchantCodeChangeApprovalFixture.EVIDENCE}"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.5 배치 경계 — C-21(코드 변경 승인 target_ref = mer_)은 "MC-3 전까지"였다: MC-3a부터 요청 시점(옛) 코드(내부 키 target_merchant_id = mer_)
+            } shouldBe "MERCHANT_CODE_CHANGE|PENDING|$CURRENT|$m|MERCHANT:$m|MERCHANT_CODE_CHANGE|${MerchantCodeChangeApprovalFixture.EVIDENCE}"
             pinned(id).propertyNames().toSet() shouldBe setOf("merchantId", "merchantName", "currentCode", "newCode", "reasonCode", "contractApproved", "codeChangeCount")
             listOf(pinned(id).get("currentCode").asString(), pinned(id).get("newCode").asString(), pinned(id).get("contractApproved").asBoolean(), pinned(id).get("codeChangeCount").asInt()) shouldBe
                 listOf(CURRENT, NEW, false, 0)
-            audits(id) shouldBe listOf("APPROVAL_REQUESTED|$m|kind=MERCHANT_CODE_CHANGE;$DETAIL")
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.5 배치 경계 — C-21(코드 변경 승인 target_ref = mer_)은 "MC-3 전까지"였다: MC-3a부터 요청 시점(옛) 코드(내부 키 target_merchant_id = mer_)
+            audits(id) shouldBe listOf("APPROVAL_REQUESTED|$CURRENT|kind=MERCHANT_CODE_CHANGE;$DETAIL")
         }
         Then("400 before MASTER: uppercase / short code, unknown reason, missing evidence; new = current is 400 after the detail read; non-OPERATOR denied") {
             val operator = base.operator()
@@ -114,7 +117,8 @@ class MerchantCodeChangeApprovalServiceSpec(
                 ApprovalOutcome.Rejected("INVALID_INPUT", "reasonCode", "NOT_ALLOWED"), ApprovalOutcome.Rejected("INVALID_INPUT", "evidenceRef", "FORMAT"),
                 ApprovalOutcome.Rejected("INVALID_INPUT", "newCode", "SAME_AS_CURRENT"), ApprovalOutcome.Denied,
             )
-            root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE target_ref = ?", m) as Number).toLong() } shouldBe 0
+            // 조회 조건 변경(기대값 그대로): MERCHANT-CODE-001 rev 0.4.8 §5.6.4 — target_ref가 코드 표기가 되어 가맹점 행은 내부 키(target_merchant_key·COALESCE(target_merchant_id, target_ref))로 찾는다
+            root().use { (it.scalar("SELECT COUNT(*) FROM admin_approval_request WHERE COALESCE(target_merchant_id, target_ref) = ?", m) as Number).toLong() } shouldBe 0
         }
         Then("advisory 409 TARGET_NOT_ELIGIBLE_ADVISORY: after the first contract approval (changeable false), already changed once; 404 unknown; 503 MASTER down") {
             val operator = base.operator()
@@ -157,7 +161,9 @@ class MerchantCodeChangeApprovalServiceSpec(
             post.body.contentEquals(storedBody(id)) shouldBe true
             status(id) shouldBe "EXECUTED|-"
             audits(id) shouldBe listOf(
-                "APPROVAL_REQUESTED|$m|kind=MERCHANT_CODE_CHANGE;$DETAIL", "APPROVAL_EXECUTING|$m|kind=MERCHANT_CODE_CHANGE;$DETAIL", "APPROVAL_EXECUTED|$m|kind=MERCHANT_CODE_CHANGE;$DETAIL",
+                // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.5 배치 경계 — C-21(코드 변경 승인 target_ref = mer_)은 "MC-3 전까지"였다: MC-3a부터 요청 시점(옛) 코드(내부 키 target_merchant_id = mer_)
+                "APPROVAL_REQUESTED|$CURRENT|kind=MERCHANT_CODE_CHANGE;$DETAIL", "APPROVAL_EXECUTING|$CURRENT|kind=MERCHANT_CODE_CHANGE;$DETAIL",
+                "APPROVAL_EXECUTED|$CURRENT|kind=MERCHANT_CODE_CHANGE;$DETAIL",
             )
         }
         Then("D-MCODE-002 Q-MC-10 pinning: the approver is the merchant registrant (≠ requester) → TX1 passes, one MASTER call, EXECUTED (no 403 APPROVER_IS_REGISTRANT)") {
@@ -195,7 +201,8 @@ class MerchantCodeChangeApprovalServiceSpec(
             StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(m4), Reply(503, "{\"error\":\"ADMIN_READ_BUSY\"}"))
             base.approve(down) shouldBe ApprovalOutcome.Unavailable("MASTER_UNAVAILABLE")
             listOf(codeMoved, locked, gone, down).sumOf { posts(it).size } shouldBe 0
-            audits(codeMoved).last() shouldBe "APPROVAL_INVALIDATED|$m1|kind=MERCHANT_CODE_CHANGE;reason=TARGET_CHANGED;$DETAIL"
+            // 기대값 변경: MERCHANT-CODE-001 rev 0.4.8 §8 MC-3-20·§5.5 배치 경계 — C-21(코드 변경 승인 target_ref = mer_)은 "MC-3 전까지"였다: MC-3a부터 요청 시점(옛) 코드(내부 키 target_merchant_id = mer_)
+            audits(codeMoved).last() shouldBe "APPROVAL_INVALIDATED|$CURRENT|kind=MERCHANT_CODE_CHANGE;reason=TARGET_CHANGED;$DETAIL"
         }
         Then("MASTER TAKEN / LOCKED / ALREADY_CHANGED → OWNER_REJECTED; MISMATCH → OWNER_REJECTED + integrity alert; a foreign mer_ reference → EXECUTION_UNKNOWN") {
             listOf("MERCHANT_CODE_TAKEN", "MERCHANT_CODE_LOCKED", "MERCHANT_CODE_ALREADY_CHANGED").forEach { code ->

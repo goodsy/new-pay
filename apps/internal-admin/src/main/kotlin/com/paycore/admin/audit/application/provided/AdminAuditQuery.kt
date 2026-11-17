@@ -31,6 +31,8 @@ data class AuditEntry(
     val reason: String? = null,
     /** 계정이 아닌 대상(Payment — ADMIN-PAYMENT-OPS-001 §4.10). */
     val targetRef: String? = null,
+    /** MERCHANT-CODE-001 MC-3a(§5.6.4): 가맹점 관련 행의 내부 키(`target_merchant_key` — 기존 mer_ 행 포함), 그 밖 null. */
+    val targetMerchantId: String? = null,
 )
 
 class AuditUnavailable(cause: Throwable) : RuntimeException("audit view could not be recorded; results are withheld", cause)

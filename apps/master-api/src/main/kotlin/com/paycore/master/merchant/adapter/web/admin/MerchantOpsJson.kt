@@ -4,6 +4,7 @@ import com.paycore.master.merchant.application.provided.MerchantAccountLabel
 import com.paycore.master.merchant.application.provided.MerchantDetailView
 import com.paycore.master.merchant.application.provided.MerchantDirectoryPage
 import com.paycore.master.merchant.application.provided.MerchantHistoryPage
+import com.paycore.master.merchant.application.provided.MerchantLabel
 import java.time.Instant
 
 /**
@@ -29,6 +30,14 @@ object MerchantOpsJson {
     /** TXN-LIST-ENRICH-001 §4.2 라벨 묶음: 항목 3키(MID·상호·현재 코드) — 내부 키·사업자·lifecycle 없음(golden `accountLabels`). */
     fun accountLabels(items: List<MerchantAccountLabel>): Map<String, Any?> = linkedMapOf(
         "items" to items.map { linkedMapOf("merchantAccountId" to it.merchantAccountId, "merchantName" to it.merchantName, "merchantCode" to it.merchantCode) },
+    )
+
+    /**
+     * MERCHANT-CODE-001 §5.6.3(MC-3b) 가맹점 라벨 묶음: 항목 3키(merchantId — ADMIN 대응용·화면 미표시, 상호, 현재 코드) — 사업자·lifecycle·등록번호·코드 이력 없음
+     * (golden `merchantLabels`).
+     */
+    fun merchantLabels(items: List<MerchantLabel>): Map<String, Any?> = linkedMapOf(
+        "items" to items.map { linkedMapOf("merchantId" to it.merchantId, "merchantName" to it.merchantName, "merchantCode" to it.merchantCode) },
     )
 
     fun history(page: MerchantHistoryPage): Map<String, Any?> = linkedMapOf(

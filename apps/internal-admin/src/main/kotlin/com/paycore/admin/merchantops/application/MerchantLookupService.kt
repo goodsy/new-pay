@@ -28,7 +28,8 @@ import java.util.concurrent.ConcurrentHashMap
  *   targetRef = businessId — 평문 없음 §5.4).
  * - 엄격 해석에 실패한 검색 본문(Q-MOPS-07): adapter가 판정한 등록번호 검색 시도면 같은 순서(등록번호 역할 → 형식)로 `FORBIDDEN`·`INVALID_INPUT` 감사(detail 고정 `brn=INVALID`),
  *   아니면 감사 없는 InvalidInput. 본문 원문은 받지 않는다.
- * - 상세(§5.1): MASTER가 답하면(FOUND·NOT_FOUND) `MERCHANT_VIEWED` 감사(targetRef = merchantId). 목록(등록번호 없음)·이력은 감사하지 않는다(D-MOPS-002).
+ * - 상세(§5.1): MASTER가 답하면(FOUND·NOT_FOUND) `MERCHANT_VIEWED` 감사 — 대상(MERCHANT-CODE-001 §5.6.4 C-32): FOUND는 표기 targetRef = 응답 merchantCode(현재 코드),
+ *   NOT_FOUND는 코드가 없으므로 mer_; 내부 키 targetMerchantId = merchantId(mer_)는 둘 다. 목록(등록번호 없음)·이력은 감사하지 않는다(D-MOPS-002).
  * - 감사 쓰기 실패 → [MerchantLookupResult.AuditUnavailable]이고 **결과를 돌려주지 않는다**(감사 실패 = 행위 실패).
  * 로그에는 연산·결과 분류만(등록번호·입력 값 없음).
  */
@@ -64,7 +65,7 @@ class MerchantLookupService(
         // §5.2 순서(Q-MOPS-07): 등록번호 역할 → 형식. 본문에서 아무것도 꺼내지 않는다 — detail은 고정 값 brn=INVALID.
         val resultCode = if (viewer.roles.none { it in REGISTRATION_NUMBER_ROLES }) "FORBIDDEN" else "INVALID_INPUT"
         val outcome = if (resultCode == "FORBIDDEN") MerchantLookupResult.Forbidden else MerchantLookupResult.InvalidInput
-        return audited(viewer, context, BRN_SEARCHED, resultCode, INVALID_NUMBER, null) { outcome }.also {
+        return audited(viewer, context, BRN_SEARCHED, resultCode, INVALID_NUMBER, null, null) { outcome }.also {
             log.info("operation=merchant-brn-search result={} audit={} body=MALFORMED", it.javaClass.simpleName, resultCode)
         }
     }
@@ -74,7 +75,7 @@ class MerchantLookupService(
         val numberWellFormed = REGISTRATION_NUMBER.matches(number)
         val masked = if (numberWellFormed) "brn=" + number.take(VISIBLE_DIGITS) + "*".repeat(MASKED_DIGITS) else INVALID_NUMBER
         fun audit(resultCode: String, detail: String = masked, targetRef: String? = null, outcome: () -> MerchantLookupResult) =
-            audited(viewer, context, BRN_SEARCHED, resultCode, detail, targetRef, outcome).also {
+            audited(viewer, context, BRN_SEARCHED, resultCode, detail, targetRef, null, outcome).also {
                 log.info("operation=merchant-brn-search result={} audit={}", it.javaClass.simpleName, resultCode)
             }
 
@@ -107,8 +108,10 @@ class MerchantLookupService(
         if (!MERCHANT_ID.matches(merchantId)) return MerchantLookupResult.InvalidInput
         if (!admit(lookupWindows, viewerActorId, limits.lookupPerMinute)) return rateLimited(LOOKUP)
         return when (val result = gateway.detail(merchantId)) {
-            is MasterCallResult.Found -> audited(viewer, context, VIEWED, "OK", null, merchantId) { MerchantLookupResult.Found(result.document) }
-            MasterCallResult.NotFound -> audited(viewer, context, VIEWED, "NOT_FOUND", null, merchantId) { MerchantLookupResult.NotFound }
+            // MERCHANT-CODE-001 MC-3a(§5.6.4 C-32): FOUND = 응답의 현재 코드 표기 + 내부 키, NOT_FOUND = 코드가 없으므로 mer_ + mer_.
+            is MasterCallResult.Found ->
+                audited(viewer, context, VIEWED, "OK", null, codeOf(result.document) ?: merchantId, merchantId) { MerchantLookupResult.Found(result.document) }
+            MasterCallResult.NotFound -> audited(viewer, context, VIEWED, "NOT_FOUND", null, merchantId, merchantId) { MerchantLookupResult.NotFound }
             // MASTER가 답하지 않았다 — 본 것이 없어 감사하지 않는다(§5.1).
             is MasterCallResult.Unavailable -> MerchantLookupResult.Unavailable(result.reason)
         }.also { log.info("operation=merchant-detail result={}", it.javaClass.simpleName) }
@@ -147,6 +150,13 @@ class MerchantLookupService(
         return MerchantLookupResult.RateLimited
     }
 
+    /**
+     * MC-3a(C-32): 상세 응답(모양 검사 통과 — `merchant.merchantCode` 필수)의 현재 코드. §3.1 형식이 아니면 null(호출자는 mer_ 표기 — 감사를 잃지 않는다, 가역 결정).
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun codeOf(document: Map<String, Any?>): String? =
+        ((document["merchant"] as? Map<String, Any?>)?.get("merchantCode") as? String)?.takeIf { MERCHANT_CODE.matches(it) }
+
     @Suppress("LongParameterList")
     private fun audited(
         viewer: AdminSessionView,
@@ -155,6 +165,7 @@ class MerchantLookupService(
         resultCode: String,
         detail: String?,
         targetRef: String?,
+        targetMerchantId: String?,
         outcome: () -> MerchantLookupResult,
     ): MerchantLookupResult = try {
         transactions.execute({ false }) {
@@ -162,6 +173,8 @@ class MerchantLookupService(
                 AuditRecord(
                     occurredAt = Instant.now().truncatedTo(ChronoUnit.MILLIS), actorKind = "ADMIN", actorId = viewer.actorId, actorDisplayName = viewer.displayName,
                     action = action, resultCode = resultCode, correlationId = context.correlationId, remoteIp = context.remoteIp, detail = detail, targetRef = targetRef,
+                    // MERCHANT-CODE-001 MC-3a(C-32): 가맹점 관련 행은 내부 키 필수(사업자 등록번호 조회 행은 null — biz_ 대상).
+                    targetMerchantId = targetMerchantId,
                 ),
             )
         }

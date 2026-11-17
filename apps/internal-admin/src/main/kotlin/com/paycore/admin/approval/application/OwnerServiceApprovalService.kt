@@ -31,7 +31,6 @@ import com.paycore.admin.approval.domain.OperatorCancelRequestSnapshot
 import com.paycore.admin.approval.domain.OwnerExecution
 import com.paycore.admin.approval.domain.PinnedPaymentTarget
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.paymentops.application.provided.CallPurpose
 import com.paycore.admin.paymentops.application.provided.ExecutionBodyInput
 import com.paycore.admin.paymentops.application.provided.ExecutionResult
@@ -362,11 +361,11 @@ class OwnerServiceApprovalService(
     private fun separateAudit(context: AdminRequestContext, actorId: String, action: String, result: String, paymentId: String?, approvalId: String?, detail: String) {
         transactions.execute({ false }) {
             val actor = executor.snapshot(actorId)
+            // MERCHANT-CODE-001 MC-3a(§5.6.4 — C-36): 대상 열은 ApprovalAuditTarget에서만(paymentId — 값 불변).
             recorder.record(
-                AuditRecord(
+                ApprovalAuditTarget.ofPaymentRef(paymentId).auditRecord(
                     occurredAt = now(), actorKind = if (actor != null) "ADMIN" else "ANONYMOUS", actorId = actor?.actorId, actorDisplayName = actor?.displayName,
-                    action = action, resultCode = result, correlationId = context.correlationId, approvalId = approvalId, remoteIp = context.remoteIp,
-                    detail = detail, targetRef = paymentId,
+                    action = action, resultCode = result, correlationId = context.correlationId, approvalId = approvalId, remoteIp = context.remoteIp, detail = detail,
                 ),
             )
         }
@@ -385,10 +384,10 @@ class OwnerServiceApprovalService(
         executor: String? = null,
     ) {
         recorder.record(
-            AuditRecord(
+            ApprovalAuditTarget.of(request.target as ApprovalTarget.Payment).auditRecord(
                 occurredAt = now, actorKind = "ADMIN", actorId = actorId, actorDisplayName = actor?.displayName, action = action, resultCode = result,
                 correlationId = context.correlationId, executorActorId = executor, approvalId = request.id, remoteIp = context.remoteIp,
-                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail).joinToString(";"), targetRef = (request.target as ApprovalTarget.Payment).paymentId,
+                detail = listOfNotNull("kind=${request.kind.name}", reasonDetail).joinToString(";"),
             ),
         )
     }
