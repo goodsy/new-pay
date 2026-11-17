@@ -52,6 +52,9 @@ enum class MasterFaultPoint {
 
     // BUSINESS-PROFILE-001 BIZ-1-5·7·9: 사업자 profile 포함 잠금 직후·profile 저장(insert·update — flush 직후, commit 전).
     BUSINESS_LOCK_WITH_PROFILE, BUSINESS_PROFILE_INSERT, BUSINESS_PROFILE_UPDATE,
+
+    // BUSINESS-PROFILE-001 BIZ-2-4(m-1): 중복 거절 요약 읽기(BusinessDetailReader.summary — 명령 commit 뒤·TX 밖) 직후 — 요약 실패 503·재전송 재생 시험.
+    BUSINESS_EXISTING_SUMMARY,
 }
 
 /**
@@ -110,8 +113,12 @@ class JooqStatementRecorder : org.jooq.ExecuteListener {
     var recording: Boolean = false
     val observations: MutableList<Observation> = java.util.concurrent.CopyOnWriteArrayList()
 
+    /** BUSINESS-PROFILE-001 BIZ-2-7: [recording] 동안 실행된 SQL 문자열(SELECT 목록 단언용 — 바인드 값은 `?`). */
+    val statements: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
+
     override fun executeStart(ctx: org.jooq.ExecuteContext) {
         if (!recording) return
+        ctx.sql()?.let { statements += it }
         observations += Observation(
             org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive(),
             org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly(),
@@ -297,6 +304,18 @@ class MasterFaultInjectionConfig {
         override fun update(business: Business, before: com.paycore.master.merchant.domain.BusinessProfile, after: com.paycore.master.merchant.domain.BusinessProfile) =
             f.around(MasterFaultPoint.BUSINESS_PROFILE_UPDATE) { real.update(business, before, after) }
     }
+
+    /** BIZ-2-4(m-1): 중복 거절 요약 읽기 실패 주입(상세 읽기는 그대로 — 요약만 hook을 거친다). */
+    @Bean
+    @Primary
+    fun faultInjectingBusinessDetailReader(
+        real: com.paycore.master.merchant.adapter.query.JooqBusinessDetailReader,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.BusinessDetailReader =
+        object : com.paycore.master.merchant.application.required.BusinessDetailReader by real {
+            override fun summary(businessId: com.paycore.master.merchant.domain.BusinessId) =
+                f.around(MasterFaultPoint.BUSINESS_EXISTING_SUMMARY) { real.summary(businessId) }
+        }
 
     @Bean
     @Primary

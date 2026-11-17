@@ -4,7 +4,10 @@ import com.paycore.master.jooq.generated.Tables.BUSINESS
 import com.paycore.master.jooq.generated.Tables.MERCHANT_CODE_ASSIGNMENT
 import org.jooq.Field
 import org.jooq.impl.DSL
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * 조회 adapter 공용 SQL 표현(MERCHANT-OPS-001). 시각은 저장 UTC 벽시계를 ISO `…Z` 문자열로 읽는다(JVM·driver 시간대 변환 없음 — JooqMerchantStructureReader KDoc,
@@ -26,4 +29,16 @@ internal object MasterSqlText {
     fun instant(field: Field<LocalDateTime?>): Field<String?> = DSL.field("DATE_FORMAT({0}, '%Y-%m-%dT%H:%i:%s.%fZ')", String::class.java, field)
 
     fun maskedRegistrationNumber(): Field<String> = DSL.concat(DSL.left(BUSINESS.REGISTRATION_NUMBER, VISIBLE_DIGITS), DSL.inline(MASK))
+
+    /**
+     * BUSINESS-PROFILE-001 §6.2·§9: 사람 이름 마스킹을 SQL에서(원문이 메모리로 오지 않는다) — 첫 code point + 나머지 `*`(1글자면 `김*`). Domain `BusinessPiiMask.name`과 같은 모양
+     * (utf8mb4 `LEFT`·`CHAR_LENGTH`는 문자(code point) 단위 — BusinessReaderSpec이 두 결과를 대조한다).
+     */
+    fun maskedPersonName(name: Field<String?>): Field<String?> =
+        DSL.field("CONCAT(LEFT({0}, 1), REPEAT('*', GREATEST(1, CHAR_LENGTH({0}) - 1)))", String::class.java, name)
+
+    /** UTC 순간 비교 값: `CAST('yyyy-MM-dd HH:mm:ss.SSS' AS DATETIME(3))` 리터럴(LocalDateTime 바인딩은 JVM 시간대로 해석된다 — JooqEntitlementPropagationReader 관례). */
+    fun utcLiteral(at: Instant): Field<LocalDateTime?> = DSL.field("CAST({0} AS DATETIME(3))", LocalDateTime::class.java, DSL.inline(UTC_WALL_CLOCK.format(at)))
+
+    private val UTC_WALL_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS").withZone(ZoneOffset.UTC)
 }

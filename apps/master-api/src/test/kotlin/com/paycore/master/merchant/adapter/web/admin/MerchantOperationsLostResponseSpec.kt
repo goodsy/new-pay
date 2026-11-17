@@ -103,6 +103,54 @@ class MerchantOperationsLostResponseSpec(environment: Environment, private val c
         }
     }
 
+    Given("BUSINESS-PROFILE-001 BIZ-2-5: a signed business create whose response is lost after the MASTER commit (same real-HTTP context — no extra container)") {
+        Then("resending the same key and body (new t, new signature) replays the committed result; exactly one admin_request, business, history and Outbox row") {
+            val target = BusinessBodies.CREATE
+            val s = Submission()
+            val brn = com.paycore.master.merchant.domain.BusinessFixtures.registrationNumber().value
+            val body = BusinessBodies.create(s, number = brn, content = BusinessBodies.corporation(name = "응답 유실 법인")).toByteArray(Charsets.UTF_8)
+            val firstT = Instant.now().epochSecond
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress("127.0.0.1", port), 5_000)
+                val header = MasterAdminChannelFixture.springHeader("POST", target, body, t = firstT)
+                val head = "POST $target HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\n" +
+                    "${AdminCallSignature.HEADER}: $header\r\nConnection: close\r\n\r\n"
+                socket.getOutputStream().apply {
+                    write(head.toByteArray(Charsets.US_ASCII))
+                    write(body)
+                    flush()
+                }
+                val deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos()
+                while (count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ? AND result_kind = 'SUCCESS'", s.idempotencyKey) == 0L) {
+                    check(System.nanoTime() < deadline) { "the first request did not commit in time" }
+                    Thread.sleep(50)
+                }
+                // 응답을 한 바이트도 읽지 않고 끊는다.
+            }
+            val response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$target"))
+                    .header("Content-Type", "application/json")
+                    .header(AdminCallSignature.HEADER, MasterAdminChannelFixture.springHeader("POST", target, body, t = firstT + 1))
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build(),
+                HttpResponse.BodyHandlers.ofString(),
+            )
+            response.statusCode() shouldBe 200
+            val node = JsonMapper.builder().build().readTree(response.body())
+            node.get("outcome").asString() shouldBe "SUCCEEDED"
+            node.get("replayed").asBoolean() shouldBe true
+            val businessId = node.get("reference").asString()
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ?", s.idempotencyKey) shouldBe 1L
+            count("SELECT COUNT(*) FROM business WHERE registration_number = ?", brn) shouldBe 1L
+            count("SELECT COUNT(*) FROM business_representative WHERE business_id = ?", businessId) shouldBe 2L
+            count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", businessId) shouldBe 1L
+            count("SELECT COUNT(*) FROM outbox_event WHERE aggregate_id = ?", businessId) shouldBe 1L
+            OnboardingFixture.runtime(container).use {
+                it.scalar("SELECT correlation_id FROM outbox_event WHERE aggregate_id = ?", businessId)
+            } shouldBe s.correlationId
+        }
+    }
+
     Given("B1-2: a signed registerContract whose response is lost after the MASTER commit (§8.1 B1-2-1 — same property as B1-1-6a)") {
         val json = JsonMapper.builder().build()
         fun send(target: String, bytes: ByteArray, t: Long = Instant.now().epochSecond): HttpResponse<String> = HttpClient.newHttpClient().send(

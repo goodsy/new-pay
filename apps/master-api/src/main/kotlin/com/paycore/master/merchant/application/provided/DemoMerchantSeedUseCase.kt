@@ -2,7 +2,9 @@ package com.paycore.master.merchant.application.provided
 
 import com.paycore.master.merchant.domain.AcquirerCode
 import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.BusinessProfile
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.BusinessType
 import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.DisplayName
@@ -57,6 +59,9 @@ data class DemoMerchantSeedCommand(
 data class DemoMerchantValues(
     val registrationNumber: BusinessRegistrationNumber,
     val businessName: DisplayName,
+    /** BUSINESS-PROFILE-001 C-24: 새 DB seed 단계 1(`CreateBusiness` REGISTERED)의 사업체 구분·내용(Demo — 운영값 아님, REGISTERED 필수값 충족). */
+    val businessType: BusinessType,
+    val businessProfile: BusinessProfile,
     val merchantName: DisplayName,
     /** MERCHANT-CODE-001 C-6: 새 DB seed의 가맹점 코드(Demo — 운영값 아님). */
     val merchantCode: MerchantCode,
@@ -73,9 +78,20 @@ data class DemoMerchantValues(
     val institutionMerchantRef: InstitutionMerchantRef,
 )
 
-/** seed 단계(번호는 멱등키의 일부 — 첫 배포 뒤 바꾸지 않는다). [carriesEffectiveFrom] = 효력 시작에 T0를 쓰는 단계(사전 검사 대상). */
-enum class DemoSeedStep(val number: Int, val slug: String, val operation: AdminOperation, val carriesEffectiveFrom: Boolean = false) {
-    REGISTER_BUSINESS(1, "register-business", AdminOperation.REGISTER_BUSINESS),
+/**
+ * seed 단계(번호는 멱등키의 일부 — 첫 배포 뒤 바꾸지 않는다). [carriesEffectiveFrom] = 효력 시작에 T0를 쓰는 단계(사전 검사 대상).
+ * [legacyOperation] = 같은 키로 예전에 기록됐을 수 있는 operation(BUSINESS-PROFILE-001 C-24 — 단계 1은 BIZ-2부터 `CreateBusiness`(REGISTERED)이고, BIZ-2 전 seed DB의
+ * `RegisterBusiness` 성공 기록이 있으면 그 사업자를 재사용한다 — 멱등 범위는 (operation, key)라 두 기록은 충돌하지 않는다).
+ */
+enum class DemoSeedStep(
+    val number: Int,
+    val slug: String,
+    val operation: AdminOperation,
+    val carriesEffectiveFrom: Boolean = false,
+    val legacyOperation: AdminOperation? = null,
+) {
+    // 키(`01-register-business`)는 그대로 둔다(첫 배포 뒤 바꾸지 않는다 — 옛 기록 선확인이 같은 키로 찾는다).
+    REGISTER_BUSINESS(1, "register-business", AdminOperation.CREATE_BUSINESS, legacyOperation = AdminOperation.REGISTER_BUSINESS),
     REGISTER_MERCHANT(2, "register-merchant", AdminOperation.REGISTER_MERCHANT),
     REGISTER_SITE(3, "register-site", AdminOperation.REGISTER_MERCHANT_SITE),
     REGISTER_CONTRACT(4, "register-contract", AdminOperation.REGISTER_CONTRACT, carriesEffectiveFrom = true),

@@ -16,8 +16,14 @@ value class BusinessRegistrationNumber(val value: String) {
 
     override fun toString(): String = "BusinessRegistrationNumber(${masked()})"
 
-    private companion object {
-        const val LENGTH = 10
-        const val VISIBLE = 3
+    companion object {
+        private const val LENGTH = 10
+        private const val VISIBLE = 3
+
+        /**
+         * 입력 해석기(BUSINESS-PROFILE-001 BIZ-2 parser — 필드 오류 `registrationNumber`)용 판정: 생성자와 같은 집합(빈 값 REQUIRED, 그 밖 10 ASCII 숫자 아님 FORMAT).
+         * null = 통과. 값은 오류에 담지 않는다.
+         */
+        fun errorOf(raw: String): BusinessFieldErrorCode? = BusinessTextRule.digitsErrorOf(raw, LENGTH)
     }
 }

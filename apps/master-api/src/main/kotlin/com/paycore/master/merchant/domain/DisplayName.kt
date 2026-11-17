@@ -20,7 +20,13 @@ value class DisplayName(val value: String) {
         }
     }
 
-    private companion object {
-        const val MAX_CODE_POINTS = 100
+    companion object {
+        private const val MAX_CODE_POINTS = 100
+
+        /**
+         * 입력 해석기(BUSINESS-PROFILE-001 BIZ-2 — 상호 `displayName`·검색 접두)용 판정: 생성자와 같은 집합(빈 값 REQUIRED, 제어문자·짝 없는 서로게이트·앞뒤 공백 FORMAT,
+         * 100 code point 초과 TOO_LONG — [BusinessTextRule]). null = 통과.
+         */
+        fun errorOf(raw: String): BusinessFieldErrorCode? = BusinessTextRule.errorOf(raw, MAX_CODE_POINTS)
     }
 }

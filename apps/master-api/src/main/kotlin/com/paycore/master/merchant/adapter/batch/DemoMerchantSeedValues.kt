@@ -3,16 +3,33 @@ package com.paycore.master.merchant.adapter.batch
 import com.paycore.master.merchant.application.provided.DemoMerchantValues
 import com.paycore.master.merchant.domain.AcquirerCode
 import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.AddressLine
+import com.paycore.master.merchant.domain.BusinessAddress
+import com.paycore.master.merchant.domain.BusinessAddressType
+import com.paycore.master.merchant.domain.BusinessCategory
+import com.paycore.master.merchant.domain.BusinessCategoryType
+import com.paycore.master.merchant.domain.BusinessContact
+import com.paycore.master.merchant.domain.BusinessProfile
+import com.paycore.master.merchant.domain.BusinessRegistration
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.BusinessRepresentative
+import com.paycore.master.merchant.domain.BusinessType
+import com.paycore.master.merchant.domain.CategoryName
 import com.paycore.master.merchant.domain.CurrencyCode
 import com.paycore.master.merchant.domain.DecisionReason
 import com.paycore.master.merchant.domain.DisplayName
+import com.paycore.master.merchant.domain.EmailAddress
 import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.InstitutionMerchantRef
 import com.paycore.master.merchant.domain.LimitValue
 import com.paycore.master.merchant.domain.MerchantCode
+import com.paycore.master.merchant.domain.PersonName
+import com.paycore.master.merchant.domain.PhoneNumber
 import com.paycore.master.merchant.domain.PolicyCode
+import com.paycore.master.merchant.domain.PostalCode
+import com.paycore.master.merchant.domain.RepresentativeType
 import com.paycore.master.merchant.domain.RouteRef
+import java.time.LocalDate
 
 /**
  * `demo-seed` 명령의 Demo 값(DEMO-SEED-001 명세 §4.2·§4.11). **모두 Demo — 운영값 아님.** 시험 Fixture가 아니라 DEMO 배포 전용 명령의 상수다
@@ -34,6 +51,21 @@ object DemoMerchantSeedValues {
     val VALUES = DemoMerchantValues(
         registrationNumber = BusinessRegistrationNumber("0000000000"),
         businessName = DisplayName("DEMO 사업자 (운영값 아님)"),
+        // BUSINESS-PROFILE-001 C-24: REGISTERED Demo 사업자(개인) — REGISTERED 필수값만 채운 Demo 값(운영값 아님). 우편번호 `00000`·전화 `02…`/`010…` 0 채움은 형식만 맞춘 값.
+        businessType = BusinessType.INDIVIDUAL,
+        businessProfile = BusinessProfile(
+            registration = BusinessRegistration(
+                corporateRegistrationNumber = null, openingDate = LocalDate.parse("2026-01-01"), countryCode = BusinessRegistration.KOREA, englishName = null,
+                phoneNumber = PhoneNumber("0200000000"), email = null,
+            ),
+            representatives = listOf(BusinessRepresentative(PersonName("DEMO 대표"), RepresentativeType.SOLE)),
+            categories = listOf(
+                BusinessCategory(BusinessCategoryType.BUSINESS_TYPE, CategoryName("DEMO 업태")),
+                BusinessCategory(BusinessCategoryType.BUSINESS_ITEM, CategoryName("DEMO 종목")),
+            ),
+            addresses = listOf(BusinessAddress(BusinessAddressType.REGISTERED, PostalCode("00000"), AddressLine("DEMO 주소 (운영값 아님)"), null)),
+            contacts = listOf(BusinessContact(PersonName("DEMO 담당"), EmailAddress("demo@paycore.test"), PhoneNumber("01000000000"), primary = true)),
+        ),
         merchantName = DisplayName("DEMO 가맹점 (운영값 아님)"),
         // MERCHANT-CODE-001 C-6: 새 DB seed 코드. 예약어 접두 `demo`의 유일한 예외(MerchantCodeReservedWords.DEMO_SEED_CODES).
         merchantCode = MerchantCode("demoshop01"),

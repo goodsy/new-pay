@@ -10023,7 +10023,7 @@
           "id": "BIZ-3",
           "title": "ADMIN API·감사",
           "scope": "/api/businesses/searches · registration-number-lookups · GET /api/businesses/{id} · GET {id}/history · POST /api/businesses · PUT /api/businesses/{id} · POST {id}/registration, BusinessQueryService·BusinessLookupService·BusinessProfileService·BusinessProfileInputRules, BusinessPermissions 분리 상수 VIEW·CREATE·UPDATE·COMPLETE(D-BIZ-006 ①, m-6), 사업자 조회 창 paycore.admin.merchant-ops.business-reads-per-minute(목록·상세·이력·번호 조회 공용, Demo 30 — m-2), MasterBusinessGateway(HttpMasterBusinessGateway — 기존 서명기 재사용), MasterResponseShape 사업자 모양, 감사 BUSINESS_BRN_LOOKUP·BUSINESS_VIEWED(RATE_LIMITED 포함)·BUSINESS_CREATE·BUSINESS_UPDATE·BUSINESS_REGISTRATION_COMPLETE, 공유 RegistrationNumberBudget, 골든 바이트 동일 사본. ADMIN migration 없음",
-          "doneCriteria": "명세 §14 BIZ-3-1~8 통과(권한 상수·역할 행렬 TC-15·사업자 조회 창·감사 행렬·버킷 공유·동시 20 → 한도·실패 경로·canary ADMIN 전 표·감사↔MASTER 대조), 변이 (a)~(g) RED, 기존 ADMIN 시험 기대값 변경 0"
+          "doneCriteria": "명세 §14 BIZ-3-1~8 통과(권한 상수·역할 행렬 TC-15·사업자 조회 창·감사 행렬·버킷 공유·동시 20 → 한도·실패 경로·canary ADMIN 전 표·감사↔MASTER 대조), 변이 (a)~(g) RED, 기존 ADMIN 시험 기대값 변경 0 + BIZ-2 리뷰 인계(MINOR-3·NIT-3, 2026-11-17): ① apps/internal-admin/src/test/resources/contracts/business-profile-response-shapes-v1.golden.json = MASTER 골든 바이트 동일 사본(바이트 비교 시험) + MasterResponseShape 사업자 모양 시험(10개 모양 키 집합 정확 일치), ② MASTER 400 BUSINESS_VALIDATION_FAILED는 효과 없음 확정(OUTCOME_UNKNOWN 아님 — categories TOO_MANY·representatives[i].type path 포함, fieldErrors 문법 검사), ③ MASTER 503 TEMPORARILY_UNAVAILABLE(existing 요약 실패 포함)은 MASTER_RETRY_SAME_KEY·버킷 확정, ④ 목록 검색 선택 필드는 JSON null을 보내지 않고 생략, ⑤ 옛 Demo DRAFT 사업자는 BIZ-4 전환 뒤 BUSINESS_NOT_REGISTERED(화면 안내 — L-7)"
         },
         {
           "id": "BIZ-4",
@@ -10065,7 +10065,7 @@
       "maxRepairAttempts": 3,
       "spec": "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.3 sha256 01d88cd9a370cea19483463efa42f083dc78945273f67dbcd6e415fce1eb2c7e",
       "review": "spec rev0.1 독립 리뷰 조건부(MAJOR 7·MINOR 10·NIT 4) → rev0.2 REVIEW_PASS 조건부(r-1~r-7) → rev0.2.1 조건 반영(Coordinator 지시, 2026-11-17)",
-      "nextResumeAction": "BIZ-2: MASTER web/parser/goldens/Demo seed, jOOQ Reader, BIZ-2-11 (BusinessProfileRuleViolation→400 BUSINESS_VALIDATION_FAILED), Named Fixtures withoutMerchants/withMerchant",
+      "nextResumeAction": "BIZ-3: ADMIN /api/businesses API, roles VIEW/CREATE/UPDATE/COMPLETE (OPERATOR·APPROVER view), audit (reason=PRESENT), business-reads-per-minute window, RegistrationNumberBudget, golden byte copy + MasterResponseShape, handoff items in BIZ-3 doneCriteria",
       "mergedTasks": [
         "MERCHANT-BIZ-LOOKUP-001 (D-BIZ-004 — 명세 §6.3·§7.2·§8.4가 rev 0.3 BL-1~BL-3을 대체, 수용 기준 권한·응답 범위는 D-BIZ-006 ①③으로 변경)"
       ],
@@ -10499,9 +10499,448 @@
           },
           "cveScan": "PASS vulnerabilities=0",
           "note": "Demo stopped during gate; full GRADLE-CHECK 51m13s includes all master-api tests in one run (review condition 1)"
+        },
+        {
+          "id": "BIZ2-gate1",
+          "batch": "BIZ-2",
+          "verdict": "FAIL",
+          "started": "2026-11-17T12:36:51Z",
+          "codeFingerprint": "sha256:25f0aa10deb1b926e52c2225121ca8d3366062dffb7652c51dac126f6e296818",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T123651Z.json",
+          "cause": "test isolation: BusinessProfileServiceSpec BIZ-1-11 and BusinessProfileApiSpec BIZ-2-8 both created a business with fixed CANARY_NUMBER in the shared Testcontainers DB; order-dependent DUPLICATE. Fix (coordinator): ServiceSpec uses a fresh random number as its canary (canary assertions unchanged in strength). Both specs re-run together: 21+16+19 tests pass."
+        },
+        {
+          "id": "BIZ2-gate2",
+          "batch": "BIZ-2",
+          "verdict": "FAIL",
+          "started": "2026-11-17T13:20:07Z",
+          "codeFingerprint": "sha256:8f84b2205708395530d0e7a96a4a25a315c82bfc8e14533912980e90c389af64",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T132007Z.json",
+          "cause": "flaky existing frontend test ApprovalsScreen.targetLabels.test.tsx (MC-3-19) — findAllByRole accessible-name lookup exceeded default 1000ms under gate load; no internal-admin file changed in BIZ-2; isolated 5/5 pass. Re-ran gate unchanged."
+        },
+        {
+          "id": "BIZ2-gate3",
+          "batch": "BIZ-2",
+          "verdict": "PASS",
+          "started": "2026-11-17T13:54:53Z",
+          "finished": "2026-11-17T14:49:20Z",
+          "codeFingerprint": "sha256:8f84b2205708395530d0e7a96a4a25a315c82bfc8e14533912980e90c389af64",
+          "specRev": "0.2.5",
+          "specSha256": "672997cdb5a0bc43de6129cfc2935d79623a82adf112f2ef8cb39d15a3ec2d0d",
+          "evidence": "build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T135453Z.json",
+          "kotlinTests": {
+            "total": 4996,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "frontendTests": {
+            "total": 571,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          "cveScan": "PASS vulnerabilities=0"
         }
       ],
-      "biz1Status": "DONE (review REVIEW_PASS conditional → m-1..m-4, n-1..n-5 applied; BIZ1-gate1 PASS)"
+      "biz1Status": "DONE (review REVIEW_PASS conditional → m-1..m-4, n-1..n-5 applied; BIZ1-gate1 PASS)",
+      "biz2": {
+        "recordedBy": "Implementer (자기 DONE 판정 아님 — Verifier·Reviewer 대상)",
+        "recordedAt": "2026-11-17T12:12Z",
+        "baseHead": "2821dc6",
+        "specRev": "0.2.5 sha256 672997cdb5a0bc43de6129cfc2935d79623a82adf112f2ef8cb39d15a3ec2d0d (0.2.4 E-9~E-16 → 0.2.5 리뷰 MINOR-1~5·NIT-1~3)",
+        "sourceFingerprint": "sha256:8dbdd474ff53171868d0a426bfca33e8b0f41fc589eb402e9ed20493cfec2a55 (sorted sha256sum of changed/new apps/master-api files → sha256, 리뷰 반영 후)",
+        "migration": {
+          "master": "없음(V15·V16은 BIZ-1)",
+          "admin": "없음",
+          "payment": "없음",
+          "financial": "없음"
+        },
+        "changedFiles": {
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/batch/DemoMerchantSeedValues.kt": "257d190c6b4cfe313a3481efcd31201bb8fd43600cc848533458f7b34b5d6fc4",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqBusinessDetailReader.kt": "edc9e05d055be9c219af95dddc0aa642050b8d8be2938ed53c75c5174f4d74d3",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqBusinessDirectoryReader.kt": "aba644fe30da43ef84c5ba0ac9fb20cac5095f493e97677098f81cc0198b4f93",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqBusinessHistoryReader.kt": "77c2cc2b7014ca1e548541332e712cd76ca1dbbb4194ddbd53cddeaa64feba73",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/JooqBusinessLookupReader.kt": "fb157651ce16c9aa7b6bc6e48ec66af9068bcd483e4fc454c93cd92adbdb2ad4",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/query/MasterSqlText.kt": "dcf841825eceb4ca0c7bcc9c12eb3b496287870986dc31db29a163230de4ecb1",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/AdminChannelResponses.kt": "75ee12d2e278f4d62d59e84955b567b32e9e586418a1e72cd6dd7abd84508164",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessCommandController.kt": "6de788455cdd29c2ffe540697793aec09d82d8b8aade44c22e02278cf5c58880",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessLookupRequestParser.kt": "b580ce8f3b28196c6a3c643988cb8cebf8d2140d595672f673e76bf1cc931982",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessProfileJson.kt": "f93c9112024846d622f103cbeddc7ab2bf498fe06279bb5bbe547c77fdcd58a7",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessProfileRequestParser.kt": "43afd5e23ffdd9eef6f05b5b737eafbe2a70d4b247d743ef0cadfda3f3056bf8",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessQueryController.kt": "8bdbc9d997f266e94f5e25ecef8a287de5960cb203aeb952eca10a40e2325100",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessSearchRequestParser.kt": "c84aa92eaef6cf04b33e2d01bca630fabe37226398a866076ee0cd69eb5fcdf7",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/BusinessProfileQueryService.kt": "ce8d51c1156beefd3f68ea873d4f77c250ec1fe7710f328470078577f3e7227b",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/DemoMerchantSeedService.kt": "04acc2733ec2d8d64d1d936dc341f493ef693c769db1bae2acf3af2a08da3f5a",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/BusinessDetailView.kt": "3c7e5925e963221ad0c641bfbf3abcd74468a625ff0ca8ae4fcbd112216ba454",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/BusinessHistoryPage.kt": "f5e7b0adad692d995eefe3aa439c93c1b45f80147fb4787b36d9fd7feded3cea",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/BusinessProfileQueryUseCase.kt": "eb6df6ab1df149cd80342b33011a83d4194223476a320ff4127cf3141185f033",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/provided/DemoMerchantSeedUseCase.kt": "56939ff79b4d4dbdaf06fcba0dd5a2bf4f1b98d15334966de0fc460d1e79c243",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/BusinessDetailReader.kt": "87eb010439b18c267a1ac76d1f1ba5092d253edec17bf0822f56730120bbb1ab",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/BusinessDirectoryReader.kt": "9f7d5ee7fcb07474d7e6b70eaded5bf2e616aff82345722b15b84c81597f67d8",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/BusinessHistoryReader.kt": "5aee7483db17d098f309cb4b556afcee158b4eb8c2e7fe1819d586f44d5cd0dd",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/required/BusinessLookupReader.kt": "8450e3b0713111b8eb3f4545dac1c6bbfa136a0bb2dfe21ca835b40998d0bf56",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessRegistrationNumber.kt": "5d696fe9bf5231dd713e2e0e9f969005aba936b26e84c42c246b76bdd12c91e0",
+          "apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/DisplayName.kt": "42a2783c0f2b20aa1c773bfb34bda65c4448f37286d6c8ab4f4daece4c84ace7",
+          "apps/master-api/src/test/kotlin/com/paycore/master/architecture/NoLegacyImsDependencySpec.kt": "b33666d4092681f64c0472bc068d097f253a916adda9385e951973a5f158d724",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/query/BusinessReaderSpec.kt": "1edae941e45944205aaa66db8c9e6dd1c399140eb2fd087b4e0a4331192d5084",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessBodies.kt": "83d9aa075318b5ab77b7f54f5f21cd3f9b4b9b996bfffce9f5fae225215ed163",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessProfileApiSpec.kt": "2bcdab9ff21b7037a7adcc0fa2f07ce253a78dbbf91055319ca081a16c9ea33e",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessProfileRequestParserSpec.kt": "1cd02730a6fdea81a07aaf3bc79bfb6535fc1f6c56a3f6773882b29b8bd4c79c",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/BusinessProfileShapeGoldenSpec.kt": "1f0856e2cca8c74cb25852c593fdb21c613476a9cb3d5986a89d87b2a96ab163",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOperationsApiSpec.kt": "0b95a7eef0aa2601bee23fe1f87dce4ed63f09fbfd332b33d9558e6313f13c48",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOperationsLostResponseSpec.kt": "1df419971107005cf6efe474eadbe99cef6ecaae2d774b1724ce40b4e5d18ee7",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/adapter/web/admin/MerchantOpsApiSpec.kt": "99bcd6645f199960a11c6c64b71898e3d85ff354a0833cab66335c2e5ab3818a",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/BusinessCommandFixture.kt": "df058f7422255beb7edd9a5ca4ec03bc43fe89811486050d04b48cb59e511362",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/BusinessDemoSeedSpec.kt": "1d05997c5e8ca4c4b7e51ce5bde08e3a990a016c129b63d63b01470671d1684e",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/BusinessLegacySeedMigrationSpec.kt": "a9cf4ff935439a0d3380592a74fb2918a0556fcad360c5a4c5bf5f66f6ff4346",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/DemoMerchantSeedServiceSpec.kt": "71bd7387daec5cd540c65bc6c18cfb83d98a17494a3c42b2acd30a9407b06f49",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/MasterFaultInjection.kt": "18aac7098c3c93ad48d56f546d963adf12208b0c14d16313469be037fdb573b9",
+          "apps/master-api/src/test/kotlin/com/paycore/master/merchant/application/MerchantCodeSeedRerunSpec.kt": "64a05854ffcbe54315e06c2543e29369ff879c90a30157cfe12af0e23f940018",
+          "apps/master-api/src/test/resources/contracts/business-profile-response-shapes-v1.golden.json": "fe984115df3c97cb181b80bc6ab9c60a0f27dbe5ecf0454ca68107ed5c5865a7",
+          "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md": "672997cdb5a0bc43de6129cfc2935d79623a82adf112f2ef8cb39d15a3ec2d0d"
+        },
+        "contracts": {
+          "endpoints": "POST /internal/v1/admin/businesses/searches · registration-number-lookups(조회 permit), GET /internal/v1/admin/businesses/{id} · {id}/history/after/{seq}(조회 permit), POST /internal/v1/admin/businesses/commands/create · update · complete-registration(쓰기 permit) — 서명 v1·ADMIN_SERVICE·16 KiB·query 금지 기존 체인",
+          "responses": "성공 {outcome,reference,replayed}; 거절 {outcome,rejection,replayed}(reference 없음 — C-12) / 중복만 +existing{businessId,businessName,registrationNumberMasked,registrationStatus}(D-BIZ-003); 요약 실패 503 TEMPORARILY_UNAVAILABLE(m-1); 400 REQUEST_MALFORMED | 400 {error:BUSINESS_VALIDATION_FAILED, fieldErrors[{path,code}]}; 404 BUSINESS_NOT_FOUND; 409 IDEMPOTENCY_KEY_REUSED",
+          "golden": "apps/master-api/src/test/resources/contracts/business-profile-response-shapes-v1.golden.json(ADMIN 바이트 동일 사본은 BIZ-3 — E-16)",
+          "fingerprint": "m1: 불변(BIZ-1 BusinessCommandFingerprintFields — HMAC 전환은 B3-3a, L-13)",
+          "tx": "web은 TX 없음 — 명령 = BIZ-1 MASTER 로컬 TX 하나(AdminCommandExecutor), 조회 = jOOQ 읽기 전용 REPEATABLE READ TX, existingSummary = 명령 commit 뒤 별도 RO TX",
+          "keys": "새 키·설정·.env 없음"
+        },
+        "redGreen": [
+          {
+            "step": "RED",
+            "at": "2026-11-17T11:39:34Z",
+            "command": "./gradlew :apps:master-api:compileTestKotlin (새 production 파일 18개를 임시로 치운 상태)",
+            "exit": 1,
+            "reason": "336 compile errors — Unresolved reference BusinessProfileQueryUseCase·BusinessSearchFilter·BusinessProfileRequestParser·JooqBusinessDetailReader·DemoMerchantValues.businessType 등(시험이 아직 없는 production 타입 참조). 파일 복원 확인(git status)"
+          },
+          {
+            "step": "GREEN-compile",
+            "at": "2026-11-17T11:41:37Z",
+            "command": "./gradlew :apps:master-api:compileTestKotlin",
+            "exit": 0
+          },
+          {
+            "step": "GREEN-first-run",
+            "note": "db1에서 1건 실패 = 시험 코드 결함(Jackson 3 JsonNode Kotlin map 순회) → 인덱스 접근으로 수정, production 변경 없음. web 회귀에서 MerchantOpsApiSpec 경로 목록 1건 → 기대값 확장(주석)"
+          },
+          {
+            "step": "behaviour RED",
+            "note": "업무 RED 증거는 mutations a~i(모두 RED)"
+          }
+        ],
+        "testRuns": [
+          {
+            "command": "test --tests *BusinessProfileRequestParserSpec *BusinessProfileShapeGoldenSpec *NoLegacyImsDependencySpec",
+            "finished": "2026-11-17T11:42:19Z",
+            "exit": 0,
+            "tests": 16,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests *BusinessProfileApiSpec *BusinessReaderSpec",
+            "finished": "2026-11-17T11:43:37Z",
+            "exit": 1,
+            "tests": 28,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "note": "시험 코드 JsonNode 순회 결함(위)"
+          },
+          {
+            "command": "test --tests *BusinessProfileApiSpec *BusinessDemoSeedSpec *DemoMerchantSeedServiceSpec *MerchantCodeSeedRerunSpec *DemoSeedSnapshotGoldenSpec",
+            "finished": "2026-11-17T11:46:22Z",
+            "exit": 0,
+            "tests": 45,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests 'com.paycore.master.merchant.adapter.web.*'",
+            "finished": "2026-11-17T11:49:05Z",
+            "exit": 1,
+            "tests": 267,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "note": "MerchantOpsApiSpec 경로 목록 21 → 28 기대값 확장 필요(주석 추가 후 reg2에서 통과)"
+          },
+          {
+            "command": "test --tests *MerchantOpsApiSpec architecture.* adapter.query.* adapter.batch.* MasterApi*",
+            "finished": "2026-11-17T11:52:10Z",
+            "exit": 0,
+            "tests": 125,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests application.Business* *MerchantOnboardingServiceSpec *AdminRequestFingerprintSpec domain.Business*",
+            "finished": "2026-11-17T11:53:46Z",
+            "exit": 0,
+            "tests": 94,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "FINAL1 test --tests *BusinessProfileRequestParserSpec *BusinessProfileShapeGoldenSpec *NoLegacyImsDependencySpec *BusinessProfileApiSpec *BusinessReaderSpec *MerchantOpsApiSpec *MerchantOperationsApiSpec *BusinessProfileArchitectureSpec architecture.ArchitectureSpec *MerchantOpsShapeGoldenSpec (변이 복원 뒤)",
+            "finished": "2026-11-17T12:07:40Z",
+            "exit": 0,
+            "tests": 118,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "FINAL2 test --tests *BusinessDemoSeedSpec *DemoMerchantSeedServiceSpec *MerchantCodeSeedRerunSpec *DemoSeedSnapshotGoldenSpec *MerchantOperationsLostResponseSpec *DemoSeedCommandSpec *DemoMerchantSeedValuesSpec",
+            "finished": "2026-11-17T12:09:58Z",
+            "exit": 0,
+            "tests": 44,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "python3 -m unittest harness.tests.test_demo_seed_golden",
+            "exit": 0,
+            "tests": 5,
+            "note": "DemoMerchantSeedValues.kt 상수 교차 확인"
+          },
+          {
+            "command": "test --tests *NoLegacyImsDependencySpec (TC-20 대상 기록)",
+            "exit": 0,
+            "tests": 2,
+            "note": "TC-20 scan targets: modules=6 catalog=1 buildFiles=8 dependencyLines=136 configFiles=5 datasourceLines=76 packages=164; patterns=[(?i)\\bims\\b, (?i)legacy, (?i)(ims|legacy)[-_.]?(migration|import|sync)]"
+          },
+          {
+            "summary": "전체 master-api 실행은 하지 않음(지시 — 메모리, Coordinator 게이트). 환경: WSL Ubuntu, Testcontainers MySQL 8.4.11, Gradle 9.8.0. 마지막에 ./gradlew --stop"
+          }
+        ],
+        "mutations": [
+          {
+            "id": "a",
+            "what": "중복 거절 existing 제거",
+            "red": true,
+            "testsRun": 19,
+            "failed": [
+              "BusinessProfileApiSpec TC-06 duplicate existing",
+              "BusinessProfileApiSpec m-1 resend existing"
+            ]
+          },
+          {
+            "id": "b",
+            "what": "모든 거절에 existing",
+            "red": true,
+            "testsRun": 19,
+            "failed": [
+              "C-12 control",
+              "BIZ-2-6 BUSINESS_NOT_DRAFT",
+              "BIZ-2-11 order"
+            ]
+          },
+          {
+            "id": "c",
+            "what": "fieldErrors path에 입력 값 포함",
+            "red": true,
+            "testsRun": 30,
+            "failed": [
+              "ParserSpec value formats",
+              "ParserSpec update DRAFT rules",
+              "ApiSpec BIZ-2-8 canary (400 body)"
+            ]
+          },
+          {
+            "id": "d",
+            "what": "existing 조회 실패 시 existing 없는 REJECTED 200",
+            "red": true,
+            "testsRun": 19,
+            "failed": [
+              "ApiSpec m-1 503"
+            ]
+          },
+          {
+            "id": "e",
+            "what": "목록 SELECT에 원문 registration_number 추가",
+            "red": true,
+            "testsRun": 9,
+            "failed": [
+              "ReaderSpec §6.2 SELECT list"
+            ]
+          },
+          {
+            "id": "f",
+            "what": "BusinessProfileRuleViolation catch 제거",
+            "red": true,
+            "testsRun": 19,
+            "failed": [
+              "ApiSpec BIZ-2-11 PRIMARY_REQUIRED 400",
+              "ApiSpec control rule → 400"
+            ],
+            "note": "첫 정의(NoSuchElementException 교체)는 컴파일 실패 = 변이 정의 오류(결과 아님) → catch 제거로 재정의"
+          },
+          {
+            "id": "g",
+            "what": "IllegalArgumentException 전반을 400으로",
+            "red": true,
+            "testsRun": 19,
+            "failed": [
+              "ApiSpec control plain IAE stays 503"
+            ]
+          },
+          {
+            "id": "h",
+            "what": "seed 단계 1을 옛 registerBusiness로",
+            "red": true,
+            "testsRun": 5,
+            "failed": [
+              "BusinessDemoSeedSpec step 1 CreateBusiness",
+              "rerun"
+            ]
+          },
+          {
+            "id": "i",
+            "what": "LIKE 이스케이프에서 % _ 제외",
+            "red": true,
+            "testsRun": 9,
+            "failed": [
+              "ReaderSpec C-5 literal prefix"
+            ]
+          },
+          {
+            "id": "e (재실행 — MINOR-1)",
+            "what": "목록 SELECT에 원문 registration_number 추가",
+            "red": true,
+            "testsRun": 30,
+            "started": "2026-11-17T12:28:58Z",
+            "failed": [
+              "BusinessReaderSpec §6.2 SELECT list (BIZ-2-7)",
+              "BusinessProfileApiSpec canary SQL capture (BIZ-2-8)"
+            ]
+          },
+          {
+            "id": "j",
+            "what": "seed 선확인에서 legacyOperation(RegisterBusiness) 제외",
+            "red": true,
+            "testsRun": 7,
+            "started": "2026-11-17T12:30:05Z",
+            "failed": [
+              "BusinessDemoSeedSpec legacy reuse·rerun (2)",
+              "BusinessLegacySeedMigrationSpec V14 seed reuse"
+            ]
+          }
+        ],
+        "expectedValueChanges": [
+          "MerchantOperationsApiSpec 쓰기 경로 전수: + POST businesses/searches·registration-number-lookups·commands/create·update·complete-registration(목록 확장 — 주석 '기대값 변경(BUSINESS-PROFILE-001 BIZ-2…)')",
+          "MerchantOpsApiSpec 401 경로 집합: + 사업자 handler 7개, 크기 21 → 28(확장 — 주석)",
+          "행 작성만 확장(기대값 불변): DemoMerchantSeedServiceSpec·MerchantCodeSeedRerunSpec의 DemoMerchantValues에 businessType·businessProfile(운영 Demo 상수 값)",
+          "MasterFaultInjection: 장애 지점 BUSINESS_EXISTING_SUMMARY·BusinessDetailReader 대역(@Primary, hook 없으면 실제)·JooqStatementRecorder.statements(SQL 포획) 추가 — 기존 단언 불변"
+        ],
+        "specDeviations": [
+          "E-9~E-16(명세 §18 rev 0.2.4): 컨트롤러 분리·해석 세부·응답 key 순서·SQL 이름 마스킹 = BusinessPiiMask.name·BIZ-2-9 옛 seed DB 재현 방식·응답 유실 시험 위치·Named Fixture 위치·ADMIN 골든 사본 BIZ-3"
+        ],
+        "reversibleDecisions": [
+          "BusinessQueryController / BusinessCommandController 분리, 명령 경로 /commands/*",
+          "parser: 형식 오류가 있으면 규칙 판정 생략, 열거 값 빈 문자열 REQUIRED·모르는 값 FORMAT, registrationStatus 위반 MALFORMED",
+          "update/complete 해석의 규칙 함수 번호 인자 = 자리 값(본문에 번호 없음 — 판정에 쓰이지 않음)",
+          "이력 Reader: JSON_EXTRACT($.reason/$.changes)만, key 순서 정렬",
+          "DemoSeedStep.REGISTER_BUSINESS 이름·키 유지 + operation CREATE_BUSINESS + legacyOperation REGISTER_BUSINESS",
+          "Named Fixture BusinessCommandFixture.withoutMerchants/withMerchant(application 시험 패키지)",
+          "DisplayName.errorOf·BusinessRegistrationNumber.errorOf(생성자와 같은 판정)"
+        ],
+        "principlesEvidence": {
+          "FinancialConsistency": "금액·권리·정산 효과 없음. BIZ-2는 web·조회만 — 명령 효과는 BIZ-1 Use Case(TC-19 BIZ-1-14). Demo seed 새 DB 사업자 REGISTERED(BusinessDemoSeedSpec), demo-seed-snapshot-v4 골든 불변(DemoSeedSnapshotGoldenSpec 통과)",
+          "TransactionSafety": "web은 TX를 열지 않음. BusinessProfileRuleViolation 400은 이미 rollback된 TX(admin_request 0행·version·이력 불변 — BIZ-2-11), existing 요약은 commit 뒤 별도 RO TX",
+          "Idempotency": "HTTP 재생 = 첫 응답 + replayed:true, 같은 키·다른 본문 409(BIZ-2-4), 400(형식·규칙)은 저장 없음, m1: 지문 불변",
+          "ConcurrencyControl": "조회·쓰기 permit 독립(ADMIN_READ_BUSY·ADMIN_WRITE_BUSY, 쓰기 소진 중 조회 200 — BIZ-2-1). 동시 생성·수정은 BIZ-1(번호 UNIQUE·행 잠금+version)",
+          "Recoverability": "응답 유실 → 같은 키 재전송 재생(BIZ-2-5 실제 HTTP·원시 소켓), 중복 요약 실패 503 → 같은 키 재전송 = 저장 거절 재생 + 요약 재조회(BIZ-2-4 m-1, 변이 d), seed 재실행 재생·옛 RegisterBusiness 기록 재사용(BIZ-2-9)",
+          "Reconciliation": "금융 대사 대상 아님. Outbox correlationId = 제출 correlationId(BIZ-2-5), 상세가 business 1 : 등록정보 1 불변식 위반이면 결함(빈 값 생성 안 함)",
+          "Auditability": "이력 조회(§6.5) — 사유 원문·마스킹 변경 항목·actorRef·seq 쪽 20(BusinessReaderSpec). ADMIN 감사는 BIZ-3",
+          "Observability": "기존 지표 paycore.master.admin_channel.command{operation=CreateBusiness|UpdateBusiness|CompleteBusinessRegistration,outcome}·permit busy{endpoint}, 로그는 operation·결과·상관 ID·오류 개수·예외 클래스만(canary 0 — BIZ-2-8, 변이 c)"
+        },
+        "jpaNotes": [
+          "BIZ-2는 JPA 변경 없음 — 조회는 jOOQ DTO만(Entity 직렬화·OSIV 없음). 명령은 BIZ-1의 JPA 경로(Root 전용 lock/find + lockWithProfile·insert·update) 그대로"
+        ],
+        "jooqNotes": [
+          "JooqBusinessDirectoryReader: business 출발(가맹점 0개 포함), business_id DESC keyset limit+1, LIKE ? ESCAPE '!', KST 날짜 → UTC 리터럴 CAST 비교, 대표자 이름 SQL 마스킹·현재 수·가맹점 수 상관 부분 질의 — SELECT 목록 SQL 포획 단언(변이 e)",
+          "JooqBusinessLookupReader: registration_number = ?(바인드) → 마스킹·상태만 SELECT",
+          "JooqBusinessDetailReader: 한 RO REPEATABLE READ TX(관찰 단언), 현재 행만·FIELD() 순서, summary(existing)",
+          "JooqBusinessHistoryReader: aggregate_type='Business' AND aggregate_id=? AND id > seq, 쪽 20, JSON_EXTRACT reason/changes"
+        ],
+        "versionsKafkaRedis": "새 의존성 없음(Boot BOM 그대로, libs.versions.toml 불변). Kafka/Redis 미도입 — 이 배치의 정확성은 DB 제약·행 잠금·admin_request 멱등이 맡고 메시징·캐시가 대신하지 않는다",
+        "openIssues": [
+          "BIZ-3 인계(doneCriteria에 추가됨): ADMIN 골든 바이트 동일 사본 + MasterResponseShape 사업자 모양 시험",
+          "BIZ-3 인계: MASTER 400 BUSINESS_VALIDATION_FAILED = 효과 없음 확정(OUTCOME_UNKNOWN 아님) — categories TOO_MANY(업태/종목 유형별 10 초과, 전체 20 이하) 포함, 대표자 유형 path는 representatives[i].type(본문 key representativeType)",
+          "BIZ-3 인계: MASTER 503(existing 요약 실패·summary 없음 포함) = MASTER_RETRY_SAME_KEY, 버킷 확정(환불 없음)",
+          "BIZ-3 인계: 목록 검색 선택 필드에 JSON null을 보내지 않는다(MASTER parser는 필드 생략만 허용 — null은 400)",
+          "BIZ-4 인계: 옛 Demo DB의 DRAFT 사업자(seed 재사용)는 전환 뒤 새 가맹점 등록에서 BUSINESS_NOT_REGISTERED(L-7 — 등록 완료 후 사용)",
+          "L-13 지문 HMAC 미적용(C-9 — LIVE 전 B3-3a 필수, 세 operation 포함) — 불변",
+          "L-11 상호 접두 검색 filesort — LIVE Gate에서 EXPLAIN 기록",
+          "전체 master-api 시험·게이트는 Coordinator(OOM 방지 — 하위 집합만 실행)"
+        ],
+        "status": "리뷰 조건 반영·관련 검증 완료(Implementer) — Verifier·Reviewer 재확인 대기. task status 변경 안 함",
+        "reviewApplied": {
+          "review": "BIZ-2 독립 리뷰 REVIEW_PASS 조건부(BLOCKER·MAJOR 없음) — Coordinator 지시로 반영, 2026-11-17",
+          "MINOR-1": "BusinessProfileApiSpec BIZ-2-8에 jOOQ SQL 포획 단언(목록·번호 조회·상세·중복 요약 SELECT의 registration_number는 LEFT( 안 또는 ' = ?' 바인드만, 포획 ≥3 대조). 변이 (e) 재실행 → BIZ-2-7(ReaderSpec)·BIZ-2-8(ApiSpec) 둘 다 RED",
+          "MINOR-2": "E-10 ③ 유지·고정: 업태 11 + 종목 9 → 400 BUSINESS_VALIDATION_FAILED [categories TOO_MANY](ParserSpec — 21행 MALFORMED 대조, ApiSpec — admin_request 0행). BIZ-3 인계",
+          "MINOR-3": "tasks.json BIZ-3 doneCriteria에 ADMIN 골든 바이트 동일 사본·MasterResponseShape 사업자 모양 시험·인계 항목 추가",
+          "MINOR-4": "BusinessLegacySeedMigrationSpec 신설: 새 컨테이너 V14까지 migrate → business V14 행 + admin_request SUCCESS RegisterBusiness(key demo-seed-v1:01-register-business) SQL 삽입 → 앱 Flyway가 V15·V16 적용 → 운영 Demo 상수로 seed = 그 사업자 재사용(CreateBusiness 기록 0, DRAFT·구분 NULL 유지), 재실행 재생. V14 사전 상태가 필요해 공유 컨텍스트 재사용 불가 — 전용 컨텍스트 @DirtiesContext AFTER_CLASS. 변이 (j) RED. 명세 E-13 갱신(rev 0.2.5)",
+          "MINOR-5": "BusinessProfileApiSpec: 대역 query.existingSummary → null → 503 TEMPORARILY_UNAVAILABLE(본문에 outcome·existing 없음), 로그 stage=EXISTING_SUMMARY failure=MISSING",
+          "NIT-1": "골든 최상위 key = §6.8 10개 정확히(_comment 제거)",
+          "NIT-2": "BusinessProfileRequestParser 규칙 번호 자리 값 0000000000 → 0009999999(+주석, Demo 번호와 다름)",
+          "NIT-3": "인계 목록만(BIZ-3 doneCriteria·biz2.openIssues)"
+        },
+        "reviewTestRuns": [
+          {
+            "command": "test --tests *BusinessProfileRequestParserSpec *BusinessProfileShapeGoldenSpec *BusinessProfileApiSpec",
+            "finished": "2026-11-17T12:27:52Z",
+            "exit": 0,
+            "tests": 37,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "test --tests *BusinessLegacySeedMigrationSpec",
+            "finished": "2026-11-17T12:28:45Z",
+            "exit": 0,
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "FINAL-R1 test --tests *BusinessProfileRequestParserSpec *BusinessProfileShapeGoldenSpec *BusinessProfileApiSpec *BusinessReaderSpec *MerchantOpsApiSpec *MerchantOperationsApiSpec architecture.* (변이 복원 뒤)",
+            "finished": "2026-11-17T12:33:54Z",
+            "exit": 0,
+            "tests": 129,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          },
+          {
+            "command": "FINAL-R2 test --tests *BusinessDemoSeedSpec *DemoMerchantSeedServiceSpec *MerchantCodeSeedRerunSpec *BusinessLegacySeedMigrationSpec",
+            "finished": "2026-11-17T12:35:34Z",
+            "exit": 0,
+            "tests": 27,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        ]
+      },
+      "biz2Status": "DONE (review conditional REVIEW_PASS → MINOR-1..5, NIT-1..3 applied; coordinator canary-isolation fix in BusinessProfileServiceSpec after biz2.changedFiles hashes; BIZ2-gate3 PASS)",
+      "followUps": [
+        {
+          "id": "FLAKY-FE-APPROVALS-LABELS",
+          "note": "ApprovalsScreen.targetLabels.test.tsx MC-3-19 findAllByRole timed out (default 1000ms) under full-gate load in BIZ2-gate2. Consider explicit findAllByRole timeout (environment wait, not expectation) — review before change."
+        }
+      ]
     }
   ]
 }

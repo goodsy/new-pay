@@ -7,6 +7,8 @@ import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApproveCardRouteActivationCommand
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
 import com.paycore.master.merchant.application.provided.ApprovePaymentMethodActivationCommand
+import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
+import com.paycore.master.merchant.application.provided.CreateBusinessCommand
 import com.paycore.master.merchant.application.provided.AssignPolicyCommand
 import com.paycore.master.merchant.application.provided.DecideSiteReviewCommand
 import com.paycore.master.merchant.application.provided.DemoMerchantSeedCommand
@@ -20,7 +22,6 @@ import com.paycore.master.merchant.application.provided.LimitTargetInput
 import com.paycore.master.merchant.application.provided.MerchantAuthorizationTermsUseCase
 import com.paycore.master.merchant.application.provided.MerchantEntitlementUseCase
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterCardRouteActivationCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
@@ -34,6 +35,7 @@ import com.paycore.master.merchant.application.required.AdminRequestStore
 import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.StoredAdminResult
 import com.paycore.master.merchant.domain.BusinessId
+import com.paycore.master.merchant.domain.BusinessRegistrationStatus
 import com.paycore.master.merchant.domain.CardRouteActivationId
 import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.ContractId
@@ -67,6 +69,7 @@ import java.time.Duration
 // 일반 웹 컨텍스트에는 seed 조정자가 없다. application은 Spring Boot 조건 annotation에 의존하지 않는다(ArchUnit allowlist 유지 — payment `DemoCredentialIssueService`와 같은 방식).
 class DemoMerchantSeedService(
     private val onboarding: MerchantOnboardingUseCase,
+    private val businesses: BusinessProfileCommandUseCase,
     private val entitlement: MerchantEntitlementUseCase,
     private val terms: MerchantAuthorizationTermsUseCase,
     private val requests: AdminRequestStore,
@@ -131,8 +134,11 @@ class DemoMerchantSeedService(
          */
         private fun recordedSuccess(step: DemoSeedStep): String? {
             if (step.carriesEffectiveFrom) return null
-            val stored = readOnly { requests.find(AdminRequestScope(step.operation, step.key(c.keyPrefix))) }?.result
-            return (stored as? StoredAdminResult.Succeeded)?.reference
+            // BUSINESS-PROFILE-001 C-24: 현재 operation의 성공 기록 → 없으면 옛 operation(단계 1의 RegisterBusiness)의 성공 기록. 옛 사업자는 DRAFT로 남는다(가맹점은 이미 등록됨).
+            return listOfNotNull(step.operation, step.legacyOperation).firstNotNullOfOrNull { operation ->
+                val stored = readOnly { requests.find(AdminRequestScope(operation, step.key(c.keyPrefix))) }?.result
+                (stored as? StoredAdminResult.Succeeded)?.reference
+            }
         }
 
         private fun step(step: DemoSeedStep, call: (AdminRequest) -> AdminCommandResult): String {
@@ -157,7 +163,14 @@ class DemoMerchantSeedService(
 
         @Suppress("LongMethod")
         private fun run(): DemoMerchantSeedResult {
-            val business = BusinessId(step(DemoSeedStep.REGISTER_BUSINESS) { onboarding.registerBusiness(RegisterBusinessCommand(it, v.registrationNumber, v.businessName)) })
+            // BUSINESS-PROFILE-001 C-24: 새 DB는 REGISTERED Demo 사업자(CreateBusiness — BIZ-4 전환 뒤 새 가맹점 등록 조건 D-BIZ-001을 만족).
+            val business = BusinessId(
+                step(DemoSeedStep.REGISTER_BUSINESS) {
+                    businesses.create(
+                        CreateBusinessCommand(it, BusinessRegistrationStatus.REGISTERED, v.businessType, v.registrationNumber, v.businessName, v.businessProfile),
+                    )
+                },
+            )
             val merchant = MerchantId(step(DemoSeedStep.REGISTER_MERCHANT) { onboarding.registerMerchant(RegisterMerchantCommand(it, business, v.merchantName, v.merchantCode)) })
             val site = MerchantSiteId(
                 step(DemoSeedStep.REGISTER_SITE) { onboarding.registerMerchantSite(RegisterMerchantSiteCommand(it, merchant, ChannelType.WEB, v.siteHost)) },

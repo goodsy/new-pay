@@ -138,6 +138,13 @@ class MerchantOperationsApiSpec(
                 // jOOQ RO·RR 한 문장, 라벨 permit, 감사 없음 — MerchantLabelApiSpec 전 표 checksum 불변·MerchantLabelArchitectureSpec 쓰기 호출 0, merchant-account-labels와 같은 형태).
                 // 경로 목록 갱신이지 완화가 아니다 — 개통·한도·정지 경로는 여전히 없다.
                 "POST /internal/v1/admin/merchant-labels",
+                // 기대값 변경(BUSINESS-PROFILE-001 BIZ-2, 명세 §6.1): 사업자 조회 POST 2개(`searches`·`registration-number-lookups` — 읽기 전용, admin_request 없음, 조회 permit)와
+                // 사업자 명령 3개(`commands/create`·`update`·`complete-registration` — 1인 OPERATOR 명령, D-BIZ-006 ①). 경로 목록 갱신이지 완화가 아니다 — 개통·한도·정지 경로는 여전히 없다.
+                "POST /internal/v1/admin/businesses/searches",
+                "POST /internal/v1/admin/businesses/registration-number-lookups",
+                "POST /internal/v1/admin/businesses/commands/create",
+                "POST /internal/v1/admin/businesses/commands/update",
+                "POST /internal/v1/admin/businesses/commands/complete-registration",
             )
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
         }

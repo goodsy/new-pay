@@ -1,0 +1,85 @@
+package com.paycore.master.merchant.adapter.web.admin
+
+import com.paycore.master.merchant.application.provided.BusinessDetailView
+import com.paycore.master.merchant.application.provided.BusinessDirectoryPage
+import com.paycore.master.merchant.application.provided.BusinessHistoryPage
+import com.paycore.master.merchant.application.provided.BusinessSummary
+import com.paycore.master.merchant.domain.BusinessFieldError
+
+/**
+ * 사업자 MASTER 내부 응답 모양(BUSINESS-PROFILE-001 §6.2~§6.7 — 골든 `business-profile-response-shapes-v1`). 필드 이름·순서 고정, 값 없는 필드는 `null`.
+ * view에 없는 값(원문 사업자등록번호·이력 detail의 다른 키)은 여기서도 만들 수 없다. 시각은 `…T…Z` ms 3자리, 날짜는 `yyyy-MM-dd`.
+ */
+object BusinessProfileJson {
+
+    fun directory(page: BusinessDirectoryPage): Map<String, Any?> = linkedMapOf(
+        "items" to page.items.map {
+            linkedMapOf(
+                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumberMasked" to it.registrationNumberMasked,
+                "businessType" to it.businessType, "registrationStatus" to it.registrationStatus, "verificationStatus" to it.verificationStatus,
+                "representativeNameMasked" to it.representativeNameMasked, "representativeCount" to it.representativeCount, "merchantCount" to it.merchantCount,
+                "updatedAt" to AdminChannelResponses.time(it.updatedAt),
+            )
+        },
+        "next" to page.next,
+    )
+
+    /** 번호 조회(§6.3): 찾음·못 찾음 같은 모양(`items` 길이만 다르다 — 404 없음). */
+    fun lookup(items: List<BusinessSummary>): Map<String, Any?> = linkedMapOf("items" to items.map(::summary))
+
+    /** 상세(§6.4 — 개인정보 원문, 사업자등록번호 마스킹). */
+    fun detail(v: BusinessDetailView): Map<String, Any?> = linkedMapOf(
+        "business" to v.business.let {
+            linkedMapOf(
+                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumberMasked" to it.registrationNumberMasked,
+                "businessType" to it.businessType, "registrationStatus" to it.registrationStatus, "verificationStatus" to it.verificationStatus,
+                "lifecycle" to it.lifecycle, "version" to it.version, "createdAt" to AdminChannelResponses.time(it.createdAt),
+                "updatedAt" to AdminChannelResponses.time(it.updatedAt), "merchantCount" to it.merchantCount,
+            )
+        },
+        "registration" to v.registration.let {
+            linkedMapOf(
+                "corporateRegistrationNumber" to it.corporateRegistrationNumber, "openingDate" to it.openingDate?.toString(), "countryCode" to it.countryCode,
+                "englishName" to it.englishName, "phoneNumber" to it.phoneNumber, "email" to it.email,
+            )
+        },
+        "representatives" to v.representatives.map { linkedMapOf("name" to it.name, "representativeType" to it.representativeType) },
+        "categories" to v.categories.map { linkedMapOf("categoryType" to it.categoryType, "name" to it.name) },
+        "addresses" to v.addresses.map {
+            linkedMapOf("addressType" to it.addressType, "postalCode" to it.postalCode, "baseAddress" to it.baseAddress, "detailAddress" to it.detailAddress)
+        },
+        "contacts" to v.contacts.map { linkedMapOf("name" to it.name, "email" to it.email, "phoneNumber" to it.phoneNumber, "primary" to it.primary) },
+    )
+
+    /** 이력(§6.5 — 저장된 마스킹 값 그대로). */
+    fun history(page: BusinessHistoryPage): Map<String, Any?> = linkedMapOf(
+        "items" to page.items.map {
+            linkedMapOf(
+                "seq" to it.seq, "changeType" to it.changeType, "actorRef" to it.actorRef, "occurredAt" to AdminChannelResponses.time(it.occurredAt),
+                "reason" to it.reason, "changes" to it.changes,
+            )
+        },
+        "nextAfter" to page.nextAfter,
+    )
+
+    /** 명령 성공(§6.7 — 첫 응답·재생 같은 모양, 상태·version 없음 — C-18). */
+    fun succeeded(reference: String, replayed: Boolean): Map<String, Any?> =
+        linkedMapOf("outcome" to "SUCCEEDED", "reference" to reference, "replayed" to replayed)
+
+    /** 명령 거절(C-12 — reference 키 없음). [existing]은 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`일 때만(D-BIZ-003·C-14). */
+    fun rejected(rejection: String, replayed: Boolean, existing: BusinessSummary? = null): Map<String, Any?> =
+        linkedMapOf<String, Any?>("outcome" to "REJECTED", "rejection" to rejection, "replayed" to replayed).also { body ->
+            if (existing != null) body["existing"] = summary(existing)
+        }
+
+    /** 값 규칙 위반 400(§4.6 — path·code만, 값 없음). */
+    fun validationFailed(errors: List<BusinessFieldError>): Map<String, Any?> = linkedMapOf(
+        "error" to AdminChannelResponses.BUSINESS_VALIDATION_FAILED,
+        "fieldErrors" to errors.map { linkedMapOf("path" to it.path, "code" to it.code.name) },
+    )
+
+    private fun summary(s: BusinessSummary): Map<String, Any?> = linkedMapOf(
+        "businessId" to s.businessId, "businessName" to s.businessName, "registrationNumberMasked" to s.registrationNumberMasked,
+        "registrationStatus" to s.registrationStatus,
+    )
+}

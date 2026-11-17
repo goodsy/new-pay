@@ -73,6 +73,9 @@ class MerchantCodeSeedRerunSpec(
         values = DemoMerchantValues(
             registrationNumber = brn,
             businessName = DisplayName("DEMO 사업자 (운영값 아님)"),
+            // BUSINESS-PROFILE-001 C-24(BIZ-2): 단계 1 = CreateBusiness(REGISTERED) — 사업자 구분·내용은 운영 Demo 상수와 같은 값(운영값 아님). 행 작성만 확장(기대값 불변).
+            businessType = com.paycore.master.merchant.adapter.batch.DemoMerchantSeedValues.VALUES.businessType,
+            businessProfile = com.paycore.master.merchant.adapter.batch.DemoMerchantSeedValues.VALUES.businessProfile,
             merchantName = DisplayName("DEMO 가맹점 (운영값 아님)"),
             merchantCode = MerchantCodeFixtures.unique(),
             siteHost = OnboardingFixture.host(),

@@ -32,6 +32,10 @@ object AdminChannelResponses {
     const val REQUEST_IN_PROGRESS = "REQUEST_IN_PROGRESS"
     const val OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
 
+    // BUSINESS-PROFILE-001 §6.1·§6.6(BIZ-2): 없는 사업자(조회 404), 값 규칙 위반 400(`fieldErrors` — path·code만, 값 없음, 저장 안 함 — C-16).
+    const val BUSINESS_NOT_FOUND = "BUSINESS_NOT_FOUND"
+    const val BUSINESS_VALIDATION_FAILED = "BUSINESS_VALIDATION_FAILED"
+
     private const val REQUEST_ID_ATTRIBUTE = "paycore.master.admin.requestId"
     private val mapper: JsonMapper = JsonMapper.builder().build()
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)

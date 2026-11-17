@@ -177,7 +177,9 @@ class BusinessProfileServiceSpec(
 
         Then("the stored fingerprint is m1: SHA-256 of the flattened fields; list counts prefix rows (1 vs 2 rows never collide); no canary value is stored or logged") {
             val k = key()
-            val command = create(BusinessFixtures.canaryProfile(), number = BusinessRegistrationNumber(BusinessFixtures.CANARY_NUMBER), k = k)
+            // 공유 DB: BIZ-2 ApiSpec(BIZ-2-8)이 고정 캔어리 번호를 먼저 쓸 수 있다(실행 순서 비결정) — 이 시험은 매번 새 번호를 캔어리로 쓴다.
+            val canaryNumber = BusinessFixtures.registrationNumber()
+            val command = create(BusinessFixtures.canaryProfile(), number = canaryNumber, k = k)
             val logs = CapturedLogs()
             val id = logs.use { succeeded(service.create(command)) }
             val stored = text("SELECT request_fingerprint FROM admin_request WHERE operation = 'CreateBusiness' AND idempotency_key = ?", k.value)!!
@@ -189,7 +191,7 @@ class BusinessProfileServiceSpec(
             (BusinessCommandFingerprintFields.of(oneRow) == BusinessCommandFingerprintFields.of(twoRows)) shouldBe false
 
             val canaries = listOf(
-                BusinessFixtures.CANARY_NUMBER, BusinessFixtures.CANARY_REPRESENTATIVE, BusinessFixtures.CANARY_EMAIL, BusinessFixtures.CANARY_PHONE,
+                canaryNumber.value, BusinessFixtures.CANARY_REPRESENTATIVE, BusinessFixtures.CANARY_EMAIL, BusinessFixtures.CANARY_PHONE,
                 BusinessFixtures.CANARY_DETAIL_ADDRESS,
             )
             val storedTexts = listOf(
