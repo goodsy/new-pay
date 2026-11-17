@@ -7440,7 +7440,8 @@
         "HARNESS-TIMEOUT-KILLTREE: verify-gate.py가 GRADLE-CHECK timeout(-9) 때 Gradle 하위 JVM(GradleWrapperMain·test worker)을 남김(MOPS-gate10·gate11, 2026-11-12) — 프로세스 그룹 종료 필요",
         "B3-1F MINOR-B: mutate.py에 b-site(SiteReviewRules 등록자 검사를 decide 뒤로) 변이 추가. NIT-A: 경합 ⑦⑧ lockWaiters()를 data_locks OBJECT_NAME=merchant로 한정",
         "B3-2 UI: 가맹점 상세 통화 시각에 KST 표기 없음(다른 시각과 같은 형식) — 화면 정비 때 일괄",
-        "B3-2 NIT-2: ADMIN 통화 시험이 실제 시계 사용(KST 자정 경계 흔들림 위험 낮음) — 고정 시계 주입 선택"
+        "B3-2 NIT-2: ADMIN 통화 시험이 실제 시계 사용(KST 자정 경계 흔들림 위험 낮음) — 고정 시계 주입 선택",
+        "B3-3a(BUSINESS-PROFILE-001 C-9·L-13, 2026-11-17): 새 사업자 명령 CreateBusiness·UpdateBusiness·CompleteBusinessRegistration도 기존 m1: 지문 — B3-3a hmac1 전환 대상에 포함, Demo legacy 지문 비교(C-47)에 세 operation 포함 필수. LIVE 사용 전 B3-3a 적용 필수(LIVE Gate)"
       ],
       "notes": [
         "2026-11-12 사용자 결정 \"제한 4500s로 올리기\"(선택지: 4500s / 속도 개선 먼저 / 모듈별 분할): GRADLE-CHECK timeoutSeconds 3300→4500. minTests·보고서·출력 규칙·시험 기대값 불변. VERIFY-GATE 5400 ≥ 단계 합(120+4500+60×5)"
@@ -9495,7 +9496,7 @@
     {
       "id": "MERCHANT-BIZ-LOOKUP-001",
       "title": "사업자등록번호 정확 일치 사업자 조회(가맹점 0개 사업자 선택용) — MASTER 조회 API + ADMIN 조회·감사 + 가맹점 등록 ① 연결",
-      "status": "READY",
+      "status": "BACKLOG",
       "dependsOn": [
         "ADMIN-UI-MERCHANT-002"
       ],
@@ -9516,9 +9517,14 @@
       "owner": "Coordinator",
       "attempts": 0,
       "maxRepairAttempts": 3,
-      "nextResumeAction": "MERCHANT-CODE-001 MC-1 뒤(사용자 순서 \"차례로\") BL-1 → BL-2 → BL-3",
+      "nextResumeAction": "실행하지 않음 — BUSINESS-PROFILE-001에 합침(D-BIZ-004). BUSINESS-PROFILE-001 DONE 때 status DONE + closedBy 기록",
       "spec": "docs/repository/MERCHANT-BIZ-LOOKUP-001-BUSINESS-LOOKUP.md rev 0.3 sha256 d42ce0069448db98bf522d6dbb7b9eb71a6e5ec62c473ecf4802599d5b4539f1",
-      "review": "spec rev0.2 REVIEW_PASS(minor) → rev0.3 REVIEW_PASS (2026-11-14)"
+      "review": "spec rev0.2 REVIEW_PASS(minor) → rev0.3 REVIEW_PASS (2026-11-14)",
+      "mergedInto": "BUSINESS-PROFILE-001 (D-BIZ-004, 2026-11-17 — 명세 rev 0.2 §6.3 MASTER 번호 조회·§7.2 ADMIN BusinessLookupService·§8.4 가맹점 등록 ① 연결이 BL-1~BL-3을 대체. 차이: 조회 역할 OPERATOR → OPERATOR·APPROVER(D-BIZ-006 ① — 사용자 결정), 응답에 registrationStatus 추가(D-BIZ-006 ③ — 사용자 결정), 감사 action MERCHANT_BUSINESS_BRN_LOOKUP → BUSINESS_BRN_LOOKUP(C-25)) — 이 항목은 BUSINESS-PROFILE-001 DONE 때 함께 닫는다",
+      "decisions": [
+        "D-BIZ-004",
+        "D-BIZ-006"
+      ]
     },
     {
       "id": "ADMIN-UI-WORKSPACE-001",
@@ -9960,6 +9966,113 @@
       "maxRepairAttempts": 3,
       "mergedInto": "MERCHANT-CODE-001 MC-3 (spec rev 0.4.6 §5.6·§7·§8 MC-3-8~22) — 이 항목은 MC-3 DONE 때 함께 닫는다",
       "closedBy": "MERCHANT-CODE-001 MC-3 (MC3-gate1 PASS 2026-11-17)"
+    },
+    {
+      "id": "BUSINESS-PROFILE-001",
+      "title": "사업자 기본정보 관리(목록·검색·임시저장·등록 완료·상세·수정·중복확인·변경 이력) — MASTER Domain·DB·API + ADMIN API·감사 + React 화면, MERCHANT-BIZ-LOOKUP-001 합침",
+      "status": "READY",
+      "dependsOn": [
+        "MERCHANT-CODE-001"
+      ],
+      "questions": [
+        "Q-BIZ-1",
+        "Q-BIZ-2",
+        "Q-BIZ-3",
+        "Q-BIZ-4",
+        "Q-BIZ-5",
+        "Q-BIZ-6"
+      ],
+      "decisions": [
+        "D-BIZ-001",
+        "D-BIZ-002",
+        "D-BIZ-003",
+        "D-BIZ-004",
+        "D-BIZ-005",
+        "D-BIZ-006"
+      ],
+      "sources": [
+        "docs/baseline/PayCore-사업자관리-업무정의-정책서-v1.1.md (PC-BIZ-POL-001) sha256 be4876ed7bcb11161f4beede1912a1ade83cd246450980b4137910bfc34e70aa",
+        "docs/baseline/PayCore-사업자관리-개발지침서-v1.1.md (PC-BIZ-DEV-001) sha256 abc047d916ec085bf664abf4992eb7511d31557458226dcc8726cb534a0fb751"
+      ],
+      "acceptanceCriteria": [
+        "PC-BIZ-POL-001 §9 수용 기준 1~8: 개인·법인 등록(법인등록번호 조건부 필수), DRAFT/REGISTERED 필수값 차이(D-BIZ-002), 동일 사업자등록번호 DB 수준 중복 방지(동시 등록 1건만 — 실제 MySQL), 복수 대표자·복수 업태/종목·등록 담당자, 조회·수정·변경 사유·마스킹 전후 이력, 진위확인 NOT_CHECKED('미검증') 고정, KYB·계약·MID·정산·Snapshot 데이터 생성 없음, 기존 IMS 연동·이관·의존성 없음",
+        "D-BIZ-001: 기존 사업자 DRAFT 이관, 새 가맹점 등록은 REGISTERED 사업자만(MASTER BUSINESS_NOT_REGISTERED — BIZ-4 전환부터), 기존 가맹점·계약·MID 무영향. D-BIZ-002: DRAFT 최소 = 구분+번호+상호(전체 강제는 BIZ-4 전환, 과도기 행 DRAFT·구분 NULL). Demo seed 새 DB는 REGISTERED Demo fixture(C-24 — Coordinator 선택)",
+        "D-BIZ-003: 중복 시 조회 권한자에게 기존 사업자 상호·마스킹 번호·상세 링크(내부 키 화면 미표시), 매 시도 감사·공유 등록번호 버킷",
+        "D-BIZ-004·D-BIZ-006 ③(합친 MERCHANT-BIZ-LOOKUP-001): 사업자등록번호 정확 일치 조회(가맹점 0개 사업자 포함, 매 시도 감사·공유 버킷, 응답 상호·마스킹 번호·내부 키·registrationStatus, 평문 번호는 조회 요청에서만 — D-BIZLOOKUP-001), 가맹점 등록 ① 사업자 선택 연결(DRAFT는 \"사업자 등록 완료 후 가맹점 등록 가능\" + 상세 링크)",
+        "D-BIZ-006 ①②: 조회(목록·번호 조회·상세·이력) OPERATOR·APPROVER, 등록·수정·등록 완료 OPERATOR(서버 인가 — 분리 상수 VIEW·CREATE·UPDATE·COMPLETE), 상세 개인정보 원문 + 열람마다 감사 BUSINESS_VIEWED + 사업자 조회 창(Demo 30/분), 목록·이력 미감사",
+        "낙관적 잠금(version 충돌 덮어쓰기 거부), 중요정보(상호·대표자·개업일·법인등록번호·구분) 변경 시 사유 필수 — REGISTERED 사업자는 현재 대표자 집합의 모든 변경(추가·종료·유형·순서), 0명에서 첫 입력만 면제(M-2). update 같은 내용은 BUSINESS_PROFILE_UNCHANGED, 등록 완료는 같은 내용도 성공(version +1·이력 1 — M-1). 하위 행 동일성 = 내용 + 순서(M-4). 사업자등록번호 생성 후 변경 불가(TBD-04·D-BIZ-005 — 등록 화면 사전 안내)",
+        "Business·등록정보·하위 행·변경 이력·Outbox·멱등 결과 MASTER 로컬 TX 하나(중간 실패 전체 rollback), MASTER 호출 ADMIN TX 밖, 감사 실패 = 행위 실패",
+        "사업자등록번호는 목록·상세·감사·로그·이력 모두 마스킹, 개인정보 원문은 상세·수정 화면에서만(D-BIZ-006 ②, 명세 §9), 로그·감사·이력 항상 마스킹, canary 비노출 시험. 멱등 지문은 기존 m1:(C-9 — HMAC은 B3-3a, L-13)",
+        "8대 원칙 원칙별 증거(명세 §11), JPA adapter 분리·jOOQ 조회·BOM 관리 버전 그대로·Kafka/Redis 미도입(명세 §5.5·§12)",
+        "TBD-01~10은 구현하지 않음(명세 §3.3), P1(F-009 증빙·F-010 진위확인·F-011 사용중지) 제외"
+      ],
+      "batches": [
+        {
+          "id": "BIZ-1",
+          "title": "MASTER Domain·DB·Application",
+          "scope": "MASTER V15(schema: business 새 열·백필 DRAFT·CHECK·색인, business_registration 1:1 + 기존 행 백필, business_representative·business_category·business_address·business_contact 유효기간 행) + V16(runtime 표 단위 권한, DELETE 없음), 순수 Domain(값 객체·BusinessProfile·BusinessProfileRules·전이·변경 계산 표(M-1·M-2·M-4)·BusinessPiiMask·requireRegistered 메서드 — 호출은 BIZ-4), Jpa*Entity·Spring Data·Mapper·JpaBusinessRepository 확장(Root 전용 lock·find 유지 + lockWithProfile·insert·update — m-3, 종료 → flush → 추가, version +1), PersistenceFailures 새 UNIQUE 7개 → StoreConstraint.BUSINESS_PROFILE_ROW(businessKey=false, M-4), Application Use Case BusinessProfileService(create·update·complete — 기존 AdminCommandExecutor·m1: 지문 필드 평탄화, 새 거절·AdminOperation 3종, 이력·Outbox — M-3), 옛 registerBusiness 과도기 저장(DRAFT·구분 NULL·등록정보 1행), jOOQ 재생성",
+          "doneCriteria": "명세 §14 BIZ-1-1~14 통과(TC-07 동시 생성·TC-14 동시 수정·TC-17 rollback·TC-18 1:1·멱등 m1:·TC-16 + 같은 내용 complete SUCCEEDED/version+1/이력 1·변경 계산 표·TC-19 — 실제 MySQL, Use Case 수준), 빈 DB·기존 행 있는 V14 상태 DB 모두 migration 적용, L-8 부분 실패 복구 전제 점검표·점검·되돌림 SQL 검증(migration 밖 값 → 되돌림 거부, r-1), 변이 (a)~(k) RED 확인, 기존 MASTER 시험 기대값 변경 0(목록 보고)"
+        },
+        {
+          "id": "BIZ-2",
+          "title": "MASTER web",
+          "scope": "POST /internal/v1/admin/businesses/searches · registration-number-lookups, GET /internal/v1/admin/businesses/{id} · {id}/history/after/{seq}, POST /internal/v1/admin/businesses/commands/create · update · complete-registration(서명 v1·ADMIN_SERVICE·permit), 엄격 parser·fieldErrors(400 BUSINESS_VALIDATION_FAILED, 저장 없음), JSON 응답, provided BusinessProfileQueryUseCase(목록·번호 조회·상세·이력·existingSummary) + required Jooq*Reader — web은 Use Case만 호출(r-2, ArchUnit webAdapterUsesOnlyApplication), 중복 거절 existing(D-BIZ-003)·existing 조회 실패 503 TEMPORARILY_UNAVAILABLE + 같은 키 재전송 재생·재조회(m-1), Demo seed 단계 1 CreateBusiness(기존 RegisterBusiness 기록 선확인), 응답 골든 business-profile-response-shapes-v1. Use Case·지문은 BIZ-1(M-3)",
+          "doneCriteria": "명세 §14 BIZ-2-1~10 통과(채널·create HTTP·parser + API 수준 fieldErrors TC-03/09/11·HTTP 멱등과 existing 실패 재전송·응답 유실 재생·complete HTTP·조회 endpoint·canary·seed 재실행·TC-20), 최대 유효 본문 ≤ 16 KiB, 변이 (a)~(e) RED, 옛 MASTER 사업자 등록 경로 동작 유지 대조 시험"
+        },
+        {
+          "id": "BIZ-3",
+          "title": "ADMIN API·감사",
+          "scope": "/api/businesses/searches · registration-number-lookups · GET /api/businesses/{id} · GET {id}/history · POST /api/businesses · PUT /api/businesses/{id} · POST {id}/registration, BusinessQueryService·BusinessLookupService·BusinessProfileService·BusinessProfileInputRules, BusinessPermissions 분리 상수 VIEW·CREATE·UPDATE·COMPLETE(D-BIZ-006 ①, m-6), 사업자 조회 창 paycore.admin.merchant-ops.business-reads-per-minute(목록·상세·이력·번호 조회 공용, Demo 30 — m-2), MasterBusinessGateway(HttpMasterBusinessGateway — 기존 서명기 재사용), MasterResponseShape 사업자 모양, 감사 BUSINESS_BRN_LOOKUP·BUSINESS_VIEWED(RATE_LIMITED 포함)·BUSINESS_CREATE·BUSINESS_UPDATE·BUSINESS_REGISTRATION_COMPLETE, 공유 RegistrationNumberBudget, 골든 바이트 동일 사본. ADMIN migration 없음",
+          "doneCriteria": "명세 §14 BIZ-3-1~8 통과(권한 상수·역할 행렬 TC-15·사업자 조회 창·감사 행렬·버킷 공유·동시 20 → 한도·실패 경로·canary ADMIN 전 표·감사↔MASTER 대조), 변이 (a)~(g) RED, 기존 ADMIN 시험 기대값 변경 0"
+        },
+        {
+          "id": "BIZ-4",
+          "title": "React 화면 + 전환(한 배포 단위)",
+          "scope": "navigation(사업자 조회 OPERATOR·APPROVER, 사업자 등록 OPERATOR — D-BIZ-006 ①), BusinessesScreen(목록·번호 조회·상세 원문·이력), BusinessProfileFormScreen(섹션 1~6·8, 기존 BusinessRegistrationScreen 교체, 등록 모드 \"사업자등록번호는 저장 후 변경할 수 없습니다\" 안내 — D-BIZ-005), 가맹점 등록 ① BusinessPicker → 번호 조회(REGISTERED만 선택, DRAFT는 \"사업자 등록 완료 후 가맹점 등록 가능\" + 상세 링크 — D-BIZ-006 ③), adminApi·fakeApi, 문구 표. 전환: MASTER Merchant.register에 requireRegistered() 활성화(BUSINESS_NOT_REGISTERED), 옛 사업자 등록 경로 제거(MASTER merchant-operations/businesses·ADMIN /api/merchant-registrations/businesses·화면 registerBusiness), harness Demo E2E 갱신",
+          "doneCriteria": "명세 §14 BIZ-4-1~7 통과(DOM biz_ 0건·원문 번호 요청 범위·저장소/URL 0건·inline style 0·새 npm 의존성 0·D-BIZ-001 기존 가맹점 무영향·D-BIZ-005 안내·화면 중요 변경 감지(REGISTERED 대표자 추가만·순서만 → 사유 칸, r-6)·D-BIZ-006 ③ DRAFT 문구 결정 고정), 변이 (a)~(e) RED, Coordinator Demo 시나리오(명세 §14 끝) 확인"
+        }
+      ],
+      "batchOrder": "BIZ-1(Domain·DB·Application) → BIZ-2(MASTER web) → BIZ-3(ADMIN) → BIZ-4(화면 + 전환 한 배포 단위, C-27). BIZ-1~3 사이 옛 화면·경로 그대로 동작(과도기 사업자 DRAFT·구분 NULL — M-7). Demo 확인은 BIZ-4 뒤",
+      "migrations": {
+        "master": "V15 schema(BIZ-1), V16 runtime privilege(BIZ-1) — V8·V12 비움 유지, 착수 시 번호 재확인",
+        "admin": "없음",
+        "payment": "없음",
+        "financial": "없음"
+      },
+      "allowedWritePaths": [
+        "apps/master-api/src/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
+        "docs/repository/MERCHANT-BIZ-LOOKUP-001-BUSINESS-LOOKUP.md",
+        "docs/repository/ARCHITECTURE-CONVENTIONS.md",
+        "docs/merchant-onboarding/**",
+        "harness/tests/**",
+        "harness/commands.json"
+      ],
+      "forbiddenPaths": [
+        "docker/**",
+        "apps/payment-api/**",
+        "apps/financial-batch/**",
+        "docs/baseline/**",
+        "docs/DECISIONS.md",
+        "harness/questions.json",
+        "harness/tasks.json",
+        "STUDY.md"
+      ],
+      "owner": "Coordinator",
+      "attempts": 0,
+      "maxRepairAttempts": 3,
+      "spec": "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1 sha256 2c75109a3f397688828724f606096f29c1d43490050e14cba5447d06bc00124f",
+      "review": "spec rev0.1 독립 리뷰 조건부(MAJOR 7·MINOR 10·NIT 4) → rev0.2 REVIEW_PASS 조건부(r-1~r-7) → rev0.2.1 조건 반영(Coordinator 지시, 2026-11-17)",
+      "nextResumeAction": "BIZ-1 착수(MC-4 커밋 6ccb310 완료 — 줄 참조·MASTER migration 번호 V15·V16 재확인, RED 먼저)",
+      "mergedTasks": [
+        "MERCHANT-BIZ-LOOKUP-001 (D-BIZ-004 — 명세 §6.3·§7.2·§8.4가 rev 0.3 BL-1~BL-3을 대체, 수용 기준 권한·응답 범위는 D-BIZ-006 ①③으로 변경)"
+      ],
+      "coordinatorDecisions": [
+        "C-9 (M-6): 새 사업자 명령 3종 지문 = 기존 AdminCommandExecutor m1: SHA-256, D-MOPS-010 ② HMAC 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령과 함께(새 키·.env 없음, L-13). LIVE 사용 전 B3-3a 적용 필수(LIVE Gate), B3-3a Demo legacy 비교(C-47)에 CreateBusiness·UpdateBusiness·CompleteBusinessRegistration 포함(r-4)",
+        "M-7: D-BIZ-002 적용 시점 = BIZ-4 전환, BIZ-1~BIZ-4 사이 옛 경로 사업자는 DRAFT·business_type NULL(사용자에게 알림)"
+      ]
     }
   ]
 }

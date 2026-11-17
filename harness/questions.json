@@ -2711,7 +2711,8 @@
       "origin": "MERCHANT-OPS-002 명세 rev 0.1",
       "humanAnswer": "중복이라고만 표시",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-08)",
-      "appliedSpec": "D-MOPS-006"
+      "appliedSpec": "D-MOPS-006",
+      "supersededBy": "D-BIZ-003 (Q-BIZ-3, 2026-11-17) — 중복 시 조회 권한자에게 기존 사업자 상호·마스킹 번호·상세 링크"
     },
     {
       "id": "Q-MOPS-13",
@@ -3730,7 +3731,8 @@
       "origin": "MERCHANT-BIZ-LOOKUP-001 명세 초안",
       "humanAnswer": "내부 키 응답, 화면 미표시 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-14). 첫 응답은 되물음 \"사업자 번호를 id 대체 안돼?\" → 원문 노출 증가(요청 본문·ADMIN 요청 기록·재전송 바이트, D-MD-008 마스킹·D-MOPS-010 HMAC과 충돌)·정정 가능 값이라 내부 키 부적합 설명 후 재질문",
-      "appliedSpec": "D-BIZLOOKUP-001"
+      "appliedSpec": "D-BIZLOOKUP-001",
+      "amendedBy": "D-BIZ-006 ③ (Q-BIZ-6, 2026-11-17) — 번호 조회 응답에 registrationStatus 추가, 조회 역할 OPERATOR·APPROVER"
     },
     {
       "id": "Q-HOME-1",
@@ -3787,6 +3789,106 @@
       "answer": "PG 확정 시각(Recommended)",
       "answeredAt": "2026-11-15",
       "decision": "D-ADMIN-HOME-002"
+    },
+    {
+      "id": "Q-BIZ-1",
+      "status": "ANSWERED",
+      "question": "사업자 상태 모델: 기존 생명주기(ACTIVE/TERMINATED)와 새 등록 상태(DRAFT/REGISTERED/INACTIVE)의 관계, 기존 사업자 이관, 가맹점 등록 조건",
+      "recommended": "생명주기는 별도 축으로 유지 + registration_status 추가, 기존 사업자 → DRAFT, 새 가맹점 등록은 REGISTERED 사업자만(MASTER 거절), 기존 가맹점·계약 무영향",
+      "alternative": "생명주기를 등록 상태로 대체 / 기존 사업자 REGISTERED 간주 / 가맹점 등록 조건 없음",
+      "impact": "MASTER business 열·migration·Demo seed·가맹점 등록 판정",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 착수 검토(PC-BIZ-POL-001 v1.1 · PC-BIZ-DEV-001 v1.1)",
+      "humanAnswer": "생명주기 별도 축 유지 + 등록 상태 추가 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-17)",
+      "appliedSpec": "D-BIZ-001; docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1"
+    },
+    {
+      "id": "Q-BIZ-2",
+      "status": "ANSWERED",
+      "question": "DRAFT(임시저장) 최초 생성의 최소 입력 항목(TBD-05 일부)",
+      "recommended": "사업체 구분 + 사업자등록번호(10자리) + 상호. 만료·삭제는 TBD 유지",
+      "alternative": "사업자등록번호만 / 아무 항목 없이 생성",
+      "impact": "DRAFT 생성 검증·번호 UNIQUE 점유 시점",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 착수 검토(PC-BIZ-POL-001 §10 TBD-05)",
+      "humanAnswer": "구분 + 번호 + 상호 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-17)",
+      "appliedSpec": "D-BIZ-002([Coordinator 적용 메모 — 사용자 알림 2026-11-17] 적용 시점 BIZ-4 전환 — 과도기 행 DRAFT·구분 미입력); docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1"
+    },
+    {
+      "id": "Q-BIZ-3",
+      "status": "ANSWERED",
+      "question": "사업자 등록 시 사업자등록번호 중복이면 무엇을 보여 주는가(D-MOPS-006 ③ 변경 여부)",
+      "recommended": "조회 권한자에게 기존 사업자 상호·마스킹 번호·상세 링크 표시, 모든 시도 감사·등록번호 버킷 공유",
+      "alternative": "기존대로 '이미 등록된 번호'만 표시(D-MOPS-006 ③ 유지)",
+      "impact": "MASTER 중복 거절 응답·ADMIN 감사 targetRef·등록 화면",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001",
+        "MERCHANT-OPS-002"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 착수 검토(PC-BIZ-POL-001 POL-001 '기존 Business 조회를 안내')",
+      "humanAnswer": "조회 권한자에게 기존 사업자 안내 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-17)",
+      "appliedSpec": "D-BIZ-003(D-MOPS-006 ③ 변경); docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1"
+    },
+    {
+      "id": "Q-BIZ-4",
+      "status": "ANSWERED",
+      "question": "작업 순서와 MERCHANT-BIZ-LOOKUP-001(사업자 조회)과의 관계",
+      "recommended": "MERCHANT-CODE-001 MC-4 먼저, MERCHANT-BIZ-LOOKUP-001은 BUSINESS-PROFILE-001에 합침",
+      "alternative": "BUSINESS-PROFILE-001 먼저 / MERCHANT-BIZ-LOOKUP-001 별도 선행",
+      "impact": "작업 순서·tasks.json 상태·가맹점 등록 ① 사업자 선택",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001",
+        "MERCHANT-BIZ-LOOKUP-001",
+        "MERCHANT-CODE-001"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 착수 검토",
+      "humanAnswer": "MC-4 먼저, 사업자 조회 작업 합침 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-17)",
+      "appliedSpec": "D-BIZ-004; docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1"
+    },
+    {
+      "id": "Q-BIZ-5",
+      "status": "ANSWERED",
+      "question": "DRAFT 사업자에 사업자등록번호를 잘못 입력해 임시저장한 경우의 정정·해제(TBD-04·TBD-05 관련) — 번호 변경·DRAFT 삭제가 모두 없어 잘못 입력한 번호가 점유된다",
+      "recommended": "이번에는 변경·삭제 없음 유지(TBD 준수) + 등록 화면에 '번호는 저장 후 바꿀 수 없습니다' 안내, 정정 절차는 TBD-04/05 결정 후 별도 작업",
+      "alternative": "가맹점 0개·REGISTERED 이력 없는 DRAFT에 한해 OPERATOR 1인 + 사유로 번호 정정 / 그런 DRAFT 폐기(번호 해제 — UNIQUE 재설계)",
+      "impact": "V15 UNIQUE 설계·명령·화면·감사 추가 여부(금융 효과 없음)",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 명세 rev 0.1 §16.2 제안 → 독립 리뷰 M-5",
+      "humanAnswer": "이번 작업은 그대로 둔다(변경·삭제 없음), 등록 화면에 저장 후 번호 변경 불가 안내, 정정 정책은 TBD-04/05 유지",
+      "humanEvidence": "Claude Code 세션 사용자 응답 (2026-11-17, Coordinator 경유)",
+      "appliedSpec": "D-BIZ-005; docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1 §3.3·§8.3"
+    },
+    {
+      "id": "Q-BIZ-6",
+      "status": "ANSWERED",
+      "question": "사업자 조회·명령 역할, 상세 화면 개인정보 노출 범위, 사업자등록번호 조회 응답 범위(MERCHANT-BIZ-LOOKUP-001 수용 기준·D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001과의 차이)",
+      "recommended": "조회 OPERATOR·APPROVER / 명령 OPERATOR, 상세 원문 + 열람 감사, 번호 조회 응답에 등록 상태 포함",
+      "alternative": "번호 조회 OPERATOR만 유지 / 상세 개인정보 마스킹 + UNMASK 절차 / 등록 상태 미포함(MASTER 거절에만 의존)",
+      "impact": "ADMIN 권한 상수·감사·속도 제한, MASTER 상세·번호 조회 응답, 가맹점 등록 ① 화면",
+      "dependentTasks": [
+        "BUSINESS-PROFILE-001",
+        "MERCHANT-BIZ-LOOKUP-001"
+      ],
+      "askedAt": "2026-11-17",
+      "origin": "BUSINESS-PROFILE-001 명세 rev 0.1 C-4·C-15·L-2 → 독립 리뷰 M-5",
+      "humanAnswer": "① 목록·상세·이력 OPERATOR·APPROVER, 등록·수정·완료 OPERATOR, 합친 번호 조회도 OPERATOR·APPROVER(MERCHANT-BIZ-LOOKUP-001 수용 기준 '권한 OPERATOR' 변경) ② 상세는 조회 역할에 개인정보(대표자·담당자 이름, 전화, 이메일, 주소, 법인등록번호) 원문, 상세 열람마다 감사 + 속도 제한, 사업자등록번호는 어디서나 마스킹, 로그·감사·이력은 항상 마스킹 ③ 번호 조회 응답에 registrationStatus 포함(D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위 확장), DRAFT 선택 시 '사업자 등록 완료 후 가맹점 등록 가능' + 상세 링크",
+      "humanEvidence": "Claude Code 세션 사용자 응답 (2026-11-17, Coordinator 경유)",
+      "appliedSpec": "D-BIZ-006; docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md rev 0.2.1 §2·§6.3·§6.4·§7.1·§8.4·§9"
     }
   ]
 }

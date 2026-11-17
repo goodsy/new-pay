@@ -9,7 +9,7 @@
 - [실제 결제 허용과 가상 기관](baseline/PayCore-결제허용-기관연동-권장안.md): 사용자가 4·5 권장안 채택. 실제 기관은 가상 기관으로 개발.
 - [정산·선지급·대사](baseline/PayCore-Settlement-Control-Policy-v0.1.md): 사용자 채택 원문과 정합성 보완. Seed 예시 숫자는 운영 승인 아님.
 - [도메인·Seed·MID–Site](baseline/PayCore-v0.1-도메인구조-Seed-MID-Site-확정.md): 사용자 채택. 구조와 실제 운영 숫자 분리.
-- [사업자 기본정보 관리 업무정의·정책서 PC-BIZ-POL-001 v1.1](baseline/PayCore-사업자관리-업무정의-정책서-v1.1.md)과 [개발 지침서 PC-BIZ-DEV-001 v1.1](baseline/PayCore-사업자관리-개발지침서-v1.1.md): 사용자 제공 2026-11-17, 개발 기준으로 지정. 문서 안 **[확정]** 항목만 확정이고 **[제안]**은 설계 권장, **[TBD]**는 임의 구현 금지. 개발 지침서의 `01_PayCore_사업자관리_업무정의_정책서.md`는 위 정책서 파일을 뜻한다. 기존 MASTER `Business`·확정 결정(D-MCODE-003 등)과 충돌하면 질문한다.
+- [사업자 기본정보 관리 업무정의·정책서 PC-BIZ-POL-001 v1.1](baseline/PayCore-사업자관리-업무정의-정책서-v1.1.md)과 [개발 지침서 PC-BIZ-DEV-001 v1.1](baseline/PayCore-사업자관리-개발지침서-v1.1.md): 사용자 제공 2026-11-17, 개발 기준으로 지정. 문서 안 **[확정]** 항목만 확정이고 **[제안]**은 설계 권장, **[TBD]**는 임의 구현 금지. 개발 지침서의 `01_PayCore_사업자관리_업무정의_정책서.md`는 위 정책서 파일을 뜻한다. 기존 MASTER `Business`·확정 결정(D-MCODE-003 등)과 충돌하면 질문한다. 구현 명세: [BUSINESS-PROFILE-001](repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md)(D-BIZ-001~006).
 
 ## 구현 검토용 초안
 
