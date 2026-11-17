@@ -10,7 +10,6 @@ import com.paycore.master.merchant.application.provided.ApprovedFirstDefaultIssu
 import com.paycore.master.merchant.application.provided.ApprovedMerchantCodeChangeCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
@@ -32,7 +31,6 @@ import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
 import com.paycore.master.merchant.domain.ActorRef
-import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.Contract
 import com.paycore.master.merchant.domain.ContractId
@@ -90,48 +88,20 @@ class MerchantOnboardingService(
     private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
     private val log = LoggerFactory.getLogger(MerchantOnboardingService::class.java)
 
-    override fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult =
-        executor.execute(
-            AdminOperation.REGISTER_BUSINESS, command.request, listOf(command.registrationNumber.value, command.displayName.value),
-        ) { work ->
-            work.lockedNow() // 잡을 직렬화 잠금이 없다(동시 등록은 UNIQUE 충돌 → 재판정)
-            // D-MD-008: 국내 사업자등록번호로 Business 하나. 동시 등록 경합은 UNIQUE 충돌 → 새 TX에서 이 판정이 기존 행을 보고 거절로 수렴.
-            businesses.findIdByRegistrationNumber(command.registrationNumber)?.let {
-                throw MasterRuleViolation(MasterRejection.BUSINESS_REGISTRATION_NUMBER_DUPLICATE, it.value)
-            }
-            val business = Business.register(
-                BusinessId(work.newId(BusinessId.PREFIX)), command.registrationNumber, command.displayName, work.now, command.request.actor,
-            )
-            work.beginWrites()
-            businesses.insert(business)
-            work.record(
-                AGG_BUSINESS, business.id.value, 0, "BusinessRegistered",
-                payload = mapOf("businessId" to business.id.value, "lifecycle" to business.lifecycle.name),
-                // 감사 이력에는 마스킹 값만(D-MD-008). 이벤트에는 넣지 않는다.
-                historyDetail = mapOf(
-                    "businessId" to business.id.value,
-                    "registrationNumberMasked" to business.registrationNumber.masked(),
-                    "displayName" to business.displayName.value,
-                    "lifecycle" to business.lifecycle.name,
-                ),
-            )
-            business.id.value
-        }
-
     override fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult =
         // MERCHANT-CODE-001 §3.3·§3.6: 지문 [businessId, displayName, merchantCode](같은 키·다른 코드 409). 판정 순서: 형식(parser) → 예약어(Domain) → business 잠금 → lockedNow →
-        // 배정 이력 사전 조회(현재·은퇴 — 있으면 저장된 MERCHANT_CODE_TAKEN, reference 없음 C-12) → 등록(seq 1). 경합 진 쪽은 flush 1062 → StoreConstraint.MERCHANT_CODE(업무 유일키)
-        // → 실행기 새 TX 재판정에서 이 사전 조회가 커밋된 행을 보고 TAKEN으로 수렴한다(503 아님).
+        // Domain 등록 판정(사업자 생명주기 → 등록 상태 — BUSINESS-PROFILE-001 §4.4·C-27, D-BIZ-001: REGISTERED만) → 배정 이력 사전 조회(현재·은퇴 — 있으면 저장된 MERCHANT_CODE_TAKEN,
+        // reference 없음 C-12) → 저장(seq 1). 경합 진 쪽은 flush 1062 → StoreConstraint.MERCHANT_CODE(업무 유일키) → 실행기 새 TX 재판정에서 이 사전 조회가 커밋된 행을 보고 TAKEN으로 수렴한다(503 아님).
         executor.execute(
             AdminOperation.REGISTER_MERCHANT, command.request, listOf(command.businessId.value, command.displayName.value, command.merchantCode.value),
         ) { work ->
             command.merchantCode.requireAssignable()
             val business = businesses.lock(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
-            merchants.findCodeOwner(command.merchantCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
             val merchant = Merchant.register(
                 MerchantId(work.newId(MerchantId.PREFIX)), business, command.displayName, command.merchantCode, work.now, command.request.actor,
             )
+            merchants.findCodeOwner(command.merchantCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
             work.beginWrites()
             merchants.insert(merchant)
             work.record(
@@ -483,7 +453,6 @@ class MerchantOnboardingService(
     private companion object {
         /** Demo seed 행위자(DEMO-SEED-001 — `DemoMerchantSeedValues.ACTOR`와 같은 값). 이 이름은 Application의 진입 관문에만 있다(Domain은 모른다 — C-31). */
         val DEMO_SEED_ACTOR = ActorRef("system:demo-seed")
-        const val AGG_BUSINESS = "Business"
         const val AGG_MERCHANT = "Merchant"
         const val AGG_SITE = "MerchantSite"
         const val AGG_CONTRACT = "Contract"

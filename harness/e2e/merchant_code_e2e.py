@@ -5,7 +5,7 @@
 저장소 밖 모듈을 읽지 않는다(로그인·TOTP·세션은 이 파일 안에서 표준 라이브러리로 구현 — RFC 6238 SHA-1 6자리).
 
 한 줄기(STEPS 순서 고정):
-  ADMIN 로그인(비밀번호 + TOTP, 역할에 OPERATOR 단언) → 사업자 등록 → 코드 입력 가맹점 등록 성공 → 같은 submissionId 재전송 = replayed
+  ADMIN 로그인(비밀번호 + TOTP, 역할에 OPERATOR 단언) → 사업자 등록(`POST /api/businesses` REGISTERED — BUSINESS-PROFILE-001 C-27) → 코드 입력 가맹점 등록 성공 → 같은 submissionId 재전송 = replayed
   → 목록(businessId)·상세 200(코드·코드 이력 1건·변경 가능, 이력에 mer_ 없음) → [MC-2] ADMIN 코드 검색 = 1건(같은 가맹점, matchedRetiredCode=false, nextCursor=null)
   → [MC-2] 코드 + 다른 조건 = 400 → 같은 코드 새 submissionId = REJECTED MERCHANT_CODE_TAKEN(reference 없음) → 예약어 = MERCHANT_CODE_RESERVED
   → 형식 위반(대문자) = HTTP 400(이 E2E는 ADMIN 응답 상태만 본다 — MASTER 미호출 여부는 ADMIN 시험 MerchantRegistrationHttpSpec이 확인)
@@ -207,6 +207,25 @@ class Session:
         return status, payload
 
 
+def business_body(submission_id, number, name):
+    """REGISTERED 개인 사업자 생성 본문(BUSINESS-PROFILE-001 §6.6 — 모든 key, 선택 값 null). Demo 값(운영값 아님)."""
+    return {
+        "submissionId": submission_id,
+        "registrationStatus": "REGISTERED",
+        "registrationNumber": number,
+        "businessType": "INDIVIDUAL",
+        "displayName": name,
+        "registration": {
+            "corporateRegistrationNumber": None, "openingDate": "2026-01-01", "countryCode": "KR",
+            "englishName": None, "phoneNumber": "0200000000", "email": None,
+        },
+        "representatives": [{"name": "DEMO 대표", "representativeType": "SOLE"}],
+        "categories": [{"categoryType": "BUSINESS_TYPE", "name": "DEMO 업태"}, {"categoryType": "BUSINESS_ITEM", "name": "DEMO 종목"}],
+        "addresses": [{"addressType": "REGISTERED", "postalCode": "00000", "baseAddress": "DEMO 주소 (운영값 아님)", "detailAddress": None}],
+        "contacts": [{"name": "DEMO 담당", "email": "demo@paycore.test", "phoneNumber": "01000000000", "primary": True}],
+    }
+
+
 def brn():
     """Demo 사업자등록번호(체크섬이 맞는 무작위 값 — 실제 번호 아님)."""
     weights = [1, 3, 7, 1, 3, 7, 1, 3, 5]
@@ -405,8 +424,9 @@ def scenario(run, facts):
     suffix = secrets.token_hex(3)
     code = "mce2e" + suffix  # 11자, §3.1 형식
     facts["code"] = code
-    _, biz = run.step("register business", "/api/merchant-registrations/businesses", "POST",
-                      {"submissionId": sid(), "registrationNumber": brn(), "displayName": "MC E2E 사업자 " + suffix})
+    # BUSINESS-PROFILE-001 BIZ-4 C-27: 옛 `/api/merchant-registrations/businesses` 제거 — 새 사업자 생성 `POST /api/businesses`(REGISTERED, D-BIZ-001 — 새 가맹점 등록 조건).
+    # 본문 = 모든 key 필수·선택 값 null, countryCode "KR"(명세 §6.6·§7.1). 값은 Demo 값(운영값 아님 — D-DEMO-001).
+    _, biz = run.step("register business", "/api/businesses", "POST", business_body(sid(), brn(), "MC E2E 사업자 " + suffix))
     run.check(isinstance(biz, dict) and biz.get("outcome") == "SUCCEEDED", "business not SUCCEEDED")
     business_id = facts["businessId"] = biz.get("reference") if isinstance(biz, dict) else None
 

@@ -3,15 +3,12 @@ package com.paycore.master.merchant.application
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.adapter.batch.DemoMerchantSeedValues
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
-import com.paycore.master.merchant.application.provided.AdminCommandResult
-import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase
 import com.paycore.master.merchant.application.provided.DemoMerchantSeedCommand
 import com.paycore.master.merchant.application.provided.DemoMerchantSeedResult
 import com.paycore.master.merchant.application.provided.DemoMerchantSeedUseCase
 import com.paycore.master.merchant.application.provided.DemoSeedStep
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessFixtures
 import com.paycore.master.merchant.domain.BusinessId
@@ -34,9 +31,8 @@ import java.util.UUID
 
 /**
  * BUSINESS-PROFILE-001 BIZ-2-9(C-24 — Demo seed 단계 1 전환, 실제 MySQL): 새 DB(새 키 공간) seed → 사업자 **REGISTERED**·REGISTERED 필수값 충족·단계 1 operation
- * `CreateBusiness`, seed 재실행 = 재생(행 +0), **옛 `RegisterBusiness` 기록이 있는 DB** 재실행 → 그 기록 재사용(`ContentConflict`·`StepRejected` 없음)·사업자 DRAFT·구분 NULL 유지.
- * 옛 seed DB의 재현(명세 BIZ-2-9의 "V14 상태에서 seed 후 V15 적용"): 지금 코드는 V14 schema에 쓸 수 없으므로, 같은 키 공간의 단계 1 키로 옛 등록 경로
- * (`RegisterBusiness` — 과도기 저장이 V15가 V14 행을 바꾼 모양과 같은 DRAFT·구분 NULL·등록정보 1행임은 BIZ-1 X-10 시험이 확인)를 먼저 실행한 상태다.
+ * `CreateBusiness`, seed 재실행 = 재생(행 +0), **옛 `RegisterBusiness` 기록이 있는 DB** 재실행 → 단계 1은 그 기록 재사용(`ContentConflict` 없음)·사업자 DRAFT·구분 NULL 유지.
+ * 옛 seed DB의 재현: 같은 키 공간의 단계 1 키로 옛 seed가 남긴 행·기록을 SQL로 넣은 상태(BIZ-4 C-27 — 옛 등록 경로 제거 뒤. V14 → V15 실제 migration 재현은 BusinessLegacySeedMigrationSpec).
  * 운영 Demo 값(`DemoMerchantSeedValues.VALUES`)은 운영값이 아니다(D-DEMO-001). 공유 DB라 시험마다 번호·코드·host·키 공간을 새로 만든다.
  */
 @MasterDbTest
@@ -119,26 +115,55 @@ class BusinessDemoSeedSpec(
         }
     }
 
-    Given("BIZ-2-9 a database seeded before BIZ-2 (step 1 recorded as the legacy RegisterBusiness)") {
+    Given("BIZ-2-9 a database seeded before BIZ-2 (step 1 recorded as the legacy RegisterBusiness), after the BIZ-4 C-27 transition") {
+        // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27 — D-BIZ-001·L-7): 옛 등록 경로가 제거돼 단계 1 기록은 옛 seed가 남긴 모양(V15 백필 DRAFT·구분 NULL 사업자 + 등록정보 1행 +
+        // `admin_request` SUCCESS `RegisterBusiness`)을 SQL로 넣는다. 단계 1은 여전히 그 기록을 재사용하지만(ContentConflict 없음, CreateBusiness 기록 0), 전환 뒤 DRAFT 사업자에는 **새**
+        // 가맹점을 만들 수 없으므로 단계 2가 저장된 `BUSINESS_NOT_REGISTERED`로 멈춘다(L-7 — 가맹점 단계까지 기록된 실제 옛 Demo DB의 재실행 성공은 BusinessLegacySeedMigrationSpec).
         val c = command()
-        val legacy = onboarding.registerBusiness(
-            RegisterBusinessCommand(AdminRequest(DemoSeedStep.REGISTER_BUSINESS.key(c.keyPrefix), c.actor, c.correlationId), c.values.registrationNumber, c.values.businessName),
-        ).shouldBeInstanceOf<AdminCommandResult.Succeeded>().reference
+        val legacy = "biz_" + com.paycore.master.merchant.domain.MasterFixture.ulid()
+        com.paycore.master.MasterDbAccounts.root(container).use { root ->
+            val at = java.sql.Timestamp.from(Instant.parse("2026-10-01T00:00:00.000Z"))
+            root.prepareStatement(
+                "INSERT INTO business (business_id, registration_number, display_name, lifecycle, created_at, created_by, version, business_type, registration_status, " +
+                    "verification_status, updated_at, updated_by) VALUES (?, ?, ?, 'ACTIVE', ?, ?, 0, NULL, 'DRAFT', 'NOT_CHECKED', ?, ?)",
+            ).use { ps ->
+                ps.setString(1, legacy); ps.setString(2, c.values.registrationNumber.value); ps.setString(3, c.values.businessName.value)
+                ps.setTimestamp(4, at); ps.setString(5, c.actor.value); ps.setTimestamp(6, at); ps.setString(7, c.actor.value)
+                ps.executeUpdate()
+            }
+            root.prepareStatement("INSERT INTO business_registration (business_id, country_code) VALUES (?, 'KR')").use { ps -> ps.setString(1, legacy); ps.executeUpdate() }
+            root.prepareStatement(
+                "INSERT INTO admin_request (operation, idempotency_key, request_record_id, request_fingerprint, actor_ref, result_kind, result_code, result_reference, " +
+                    "created_at, updated_at, version) VALUES ('RegisterBusiness', ?, ?, ?, ?, 'SUCCESS', NULL, ?, ?, ?, 1)",
+            ).use { ps ->
+                ps.setString(1, DemoSeedStep.REGISTER_BUSINESS.key(c.keyPrefix).value)
+                ps.setString(2, "req_" + UUID.randomUUID().toString().replace("-", "").take(26))
+                ps.setString(
+                    3,
+                    AdminCommandExecutor.fingerprintOf(
+                        com.paycore.master.merchant.application.provided.AdminOperation.REGISTER_BUSINESS, listOf(c.values.registrationNumber.value, c.values.businessName.value),
+                    ),
+                )
+                ps.setString(4, c.actor.value); ps.setString(5, legacy); ps.setTimestamp(6, at); ps.setTimestamp(7, at)
+                ps.executeUpdate()
+            }
+        }
         val first = seed.seed(c)
         val again = seed.seed(c)
 
-        Then("the seed reuses the recorded business (no ContentConflict, no StepRejected, no CreateBusiness row); the business stays DRAFT with type NULL") {
-            val done = first.shouldBeInstanceOf<DemoMerchantSeedResult.Done>()
-            businessOf(done.merchantId.value) shouldBe legacy
+        Then("step 1 reuses the recorded business (no ContentConflict, no CreateBusiness row); step 2 stops at the stored BUSINESS_NOT_REGISTERED (L-7); the business stays DRAFT with type NULL") {
+            first shouldBe DemoMerchantSeedResult.StepRejected(DemoSeedStep.REGISTER_MERCHANT, com.paycore.master.merchant.domain.MasterRejection.BUSINESS_NOT_REGISTERED)
             stepOneOperations(c.keyPrefix) shouldBe listOf("RegisterBusiness")
+            count("SELECT COUNT(*) FROM merchant WHERE business_id = ?", legacy) shouldBe 0L
             val d = query.detail(BusinessId(legacy)).shouldNotBeNull()
             d.business.registrationStatus shouldBe "DRAFT"
             d.business.businessType.shouldBeNull()
             count("SELECT COUNT(*) FROM business WHERE registration_number = ?", c.values.registrationNumber.value) shouldBe 1L
         }
 
-        Then("a further rerun replays (Done, replayed)") {
-            again.shouldBeInstanceOf<DemoMerchantSeedResult.Done>().replayed shouldBe true
+        Then("a further rerun replays the same stored rejection (no new rows)") {
+            again shouldBe DemoMerchantSeedResult.StepRejected(DemoSeedStep.REGISTER_MERCHANT, com.paycore.master.merchant.domain.MasterRejection.BUSINESS_NOT_REGISTERED)
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key LIKE ?", "${c.keyPrefix}:%") shouldBe 2L
         }
     }
 })

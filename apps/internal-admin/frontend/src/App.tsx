@@ -6,6 +6,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { WorkspaceHeader } from './components/WorkspaceHeader'
 import { labelOf } from './lib/labels'
 import { createScreenMemory, hasUnresolvedRequest } from './lib/screenMemory'
+import type { BusinessRef } from './lib/registration'
 import { useTheme } from './lib/theme'
 import type { ConsoleErrorCode } from './errors/errorCodes'
 import { AppLayout } from './layout/AppLayout'
@@ -17,7 +18,8 @@ import { AuditScreen } from './screens/AuditScreen'
 import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LoginScreen } from './screens/LoginScreen'
-import { BusinessRegistrationScreen } from './screens/BusinessRegistrationScreen'
+import { BusinessProfileFormScreen } from './screens/BusinessProfileFormScreen'
+import { BusinessesScreen, openBusinessIn } from './screens/BusinessesScreen'
 import { MerchantRegistrationScreen, registrationHandoffState, startWithBusiness } from './screens/MerchantRegistrationScreen'
 import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
@@ -93,8 +95,10 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const [view, setView] = useState<View>('home')
   // 가맹점 등록 화면 상태(결과 불명 잠금·submissionId·입력) — 탭을 바꿔도 유지, 메모리에만(MERCHANT-OPS-002 §5.3, 리뷰 m-1). 세션마다 새로.
   const [registrationMemory, setRegistrationMemory] = useState(createScreenMemory)
-  // 사업자 등록 화면 상태(ADMIN-UI-MERCHANT-002 — 화면 분리, 같은 규칙: 메모리에만, 세션마다 새로).
+  // 사업자 등록 화면 상태(ADMIN-UI-MERCHANT-002 — 화면 분리, 같은 규칙: 메모리에만, 세션마다 새로). BIZ-4: 새 등록 폼(BusinessProfileFormScreen)이 쓴다.
   const [businessMemory, setBusinessMemory] = useState(createScreenMemory)
+  // 사업자 조회 탭 상태(BUSINESS-PROFILE-001 §8.1 — 선택한 사업자 키·목록·상세·수정 폼). 키(biz_)는 이 메모리에만 — URL·브라우저 저장소 없음. 세션마다 새로.
+  const [businessesMemory, setBusinessesMemory] = useState(createScreenMemory)
   // 조회 상세 Revision 폼 상태(B2-1 — 결과 불명 잠금·submissionId, 리뷰 C-M1). 등록 화면과 같이 세션마다 새로.
   const [revisionMemory, setRevisionMemory] = useState(createScreenMemory)
   // "가맹점 조회에서 보기"로 열 가맹점 — 조회 화면이 한 번 열면 비운다(리뷰 m-3).
@@ -109,6 +113,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setView('home')
     setRegistrationMemory(createScreenMemory())
     setBusinessMemory(createScreenMemory())
+    setBusinessesMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
   }, [])
@@ -125,12 +130,13 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setMe(null)
     setMode('login')
     setNotice(code)
-    setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, revisionMemory))
+    setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, businessesMemory, revisionMemory))
     setRegistrationMemory(createScreenMemory())
     setBusinessMemory(createScreenMemory())
+    setBusinessesMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
     setLookupMerchantId(null)
-  }, [registrationMemory, businessMemory, revisionMemory])
+  }, [registrationMemory, businessMemory, businessesMemory, revisionMemory])
 
   const logout = async () => {
     try {
@@ -138,9 +144,10 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     } finally {
       setMe(null)
       setMode('login')
-      setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, revisionMemory))
+      setUnresolvedNotice(hasUnresolvedRequest(registrationMemory, businessMemory, businessesMemory, revisionMemory))
       setRegistrationMemory(createScreenMemory())
       setBusinessMemory(createScreenMemory())
+      setBusinessesMemory(createScreenMemory())
       setRevisionMemory(createScreenMemory())
       setLookupMerchantId(null)
     }
@@ -164,6 +171,15 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const visible = (target: View) => target === 'home' || menus.some((m) => pagesOf(m).some((t) => t.page === target))
   const open = (target: View) => setView(visible(target) ? target : 'home')
   const menu = menus.find((m) => m.id === menuOf(view)) ?? menus[0]!
+  /** 사업자 상세 링크(중복 안내 D-BIZ-003·가맹점 등록 ① DRAFT D-BIZ-006 ③·등록 성공 뒤 재조회 C-18): 사업자 조회 탭 + 메모리 선택(URL 없음). */
+  const openBusiness = (businessId: string) => {
+    openBusinessIn(businessesMemory, businessId)
+    open('businesses')
+  }
+  /** "이 사업자로 가맹점 등록"(REGISTERED만 — D-BIZ-001): 내부 키는 가맹점 등록 메모리로만(D-ADMIN-UI-004 ③), 잠긴 카드가 있으면 넘기지 않는다(리뷰 MINOR-1). */
+  const continueToMerchantRegistration = (business: BusinessRef) => {
+    if (startWithBusiness(registrationMemory, business)) open('merchantRegistration')
+  }
   const page: Page | null = view === 'home' ? null : view
 
   return (
@@ -230,18 +246,19 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 onOpenedMerchant={() => setLookupMerchantId(null)}
               />
             )}
-            {page === 'businessRegistration' && (
-              <BusinessRegistrationScreen
+            {page === 'businesses' && (
+              <BusinessesScreen
                 api={api}
-                memory={businessMemory}
+                memory={businessesMemory}
+                canEdit={me.roles.includes('OPERATOR')}
                 handoffState={() => registrationHandoffState(registrationMemory)}
-                onContinue={(business) => {
-                  // 내부 키(biz_…)는 화면에 그리지 않고 가맹점 등록 메모리로만 넘긴다(D-ADMIN-UI-004 ③).
-                  // 리뷰 MINOR-1: 진행 중인 마법사와 섞지 않는다 — 비운 뒤 이 사업자로 새로 시작(잠긴 카드가 있으면 넘기지 않음).
-                  if (startWithBusiness(registrationMemory, business)) open('merchantRegistration')
-                }}
+                onContinue={continueToMerchantRegistration}
                 onSessionEnded={sessionEnded}
               />
+            )}
+            {page === 'businessRegistration' && (
+              // BUSINESS-PROFILE-001 BIZ-4(C-27): 옛 번호·상호 두 칸 화면을 새 등록 폼으로 교체. 성공하면 사업자 조회 상세로(다시 읽기 — C-18).
+              <BusinessProfileFormScreen api={api} mode={{ kind: 'create' }} memory={businessMemory} onSaved={openBusiness} onOpenBusiness={openBusiness} onSessionEnded={sessionEnded} />
             )}
             {page === 'merchantRegistration' && (
               <MerchantRegistrationScreen
@@ -251,6 +268,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                   setLookupMerchantId(merchantId)
                   open('merchants')
                 }}
+                onOpenBusiness={openBusiness}
                 onSessionEnded={sessionEnded}
               />
             )}

@@ -99,8 +99,7 @@ object StubMasterOpsServer {
 
     const val SEARCH = "/internal/v1/admin/merchant-searches"
 
-    /** MERCHANT-OPS-002 B1-1 명령 경로(서명 본문에 ID — C-2). */
-    const val BUSINESSES = "/internal/v1/admin/merchant-operations/businesses"
+    /** MERCHANT-OPS-002 B1-1 명령 경로(서명 본문에 ID — C-2). 옛 사업자 등록 `businesses`는 BUSINESS-PROFILE-001 C-27 전환에서 제거. */
     const val MERCHANTS = "/internal/v1/admin/merchant-operations/merchants"
     const val SITES = "/internal/v1/admin/merchant-operations/merchant-sites"
 

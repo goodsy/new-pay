@@ -1,6 +1,9 @@
 package com.paycore.master
 
 import com.paycore.master.merchant.application.MasterFaultInjectionConfig
+import com.paycore.master.merchant.application.OnboardingFixture
+import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
+import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.testsupport.MySqlTestContainerConfig
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -32,6 +35,11 @@ class MasterDbTestConfig {
 
     @Bean
     fun masterMySqlContainer(): MySQLContainer = MasterDbAccounts.newContainer()
+
+    /** BUSINESS-PROFILE-001 C-27: 시험 준비 함수가 같은 컨텍스트의 사업자 생성 Use Case를 찾게 짝짓는다([OnboardingFixture.bind] — 시험 전용). */
+    @Bean
+    fun onboardingFixtureBinding(onboarding: MerchantOnboardingUseCase, businesses: BusinessProfileCommandUseCase): OnboardingFixture.Binding =
+        OnboardingFixture.Binding(onboarding, businesses).also(OnboardingFixture::bind)
 
     @Bean
     fun masterDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->

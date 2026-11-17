@@ -23,18 +23,17 @@ import java.time.temporal.ChronoUnit
 
 /**
  * [MerchantRegistrationUseCase](MERCHANT-OPS-002 §4.4·§6). 순서·감사:
- * 1. 역할: 계정 현재 행 ACTIVE + OPERATOR(D-MOPS-006 ①). 아니면 403 + 감사 `FORBIDDEN`(5종 모두 — B1-2 계약 초안·CSA 포함).
- * 2. 형식([RegistrationInputRules] — C-10). 위반 400, MASTER 미호출. 사업자 등록만 감사 `INVALID_INPUT`(등록번호가 오간 모든 시도 — D-MOPS-006 ④), 다른 종류는 지표만.
- * 3. 등록 버킷(actor별 분당) 초과 → 429 + 감사 `RATE_LIMITED`. 사업자 등록은 **등록번호 버킷 1회를 원자적으로 예약**(C-13 — 남은 횟수 0이면 429 + 감사).
- * 4. 시도 감사 행 `REQUESTED`를 ADMIN 로컬 TX로 커밋 — 실패하면 503 `AUDIT_UNAVAILABLE`, MASTER 미호출, 예약 환불.
+ * 1. 역할: 계정 현재 행 ACTIVE + OPERATOR(D-MOPS-006 ①). 아니면 403 + 감사 `FORBIDDEN`(모든 종류 — B1-2 계약 초안·CSA 포함).
+ * 2. 형식([RegistrationInputRules] — C-10). 위반 400, MASTER 미호출, 지표만(등록번호가 오가던 옛 사업자 등록은 BUSINESS-PROFILE-001 C-27 전환에서 제거 — 사업자 생성의
+ *    `INVALID_INPUT` 감사·등록번호 버킷 예약은 `BusinessProfileService`).
+ * 3. 등록 버킷(actor별 분당) 초과 → 429 + 감사 `RATE_LIMITED`.
+ * 4. 시도 감사 행 `REQUESTED`를 ADMIN 로컬 TX로 커밋 — 실패하면 503 `AUDIT_UNAVAILABLE`, MASTER 미호출.
  * 5. MASTER 호출(DB TX 밖 — gateway가 TX 안 호출을 거부).
- * 6. 등록번호 예약: 중복 거절·결과 불명(Unknown·RetrySameKey)·Busy(503)는 **확정**(중복이었을 수 있다 — 보수적), 성공·다른 거절·키 재사용(409)은 **환불**(같은 창에서만, 0 아래 없음).
- * 7. 결과 감사 행 → 응답. 실패하면 503 `AUDIT_UNAVAILABLE`(MASTER 효과는 이미 커밋됐을 수 있다 — 같은 submissionId 재전송이 재생 결과로 감사를 다시 시도한다).
+ * 6. 결과 감사 행 → 응답. 실패하면 503 `AUDIT_UNAVAILABLE`(MASTER 효과는 이미 커밋됐을 수 있다 — 같은 submissionId 재전송이 재생 결과로 감사를 다시 시도한다).
  *
  * 감사 행 수: MASTER까지 간 시도 = 2행(REQUESTED → 결과), 호출 전 거절(403·400·429·시도 감사 실패 전) = 결과 1행. correlationId: MASTER로 가는 시도는 `mos.<submissionId>`(C-14 — 재전송마다 같아
- * MASTER 변경 이력·Outbox와 대조된다, MASTER 키가 아니다), 호출 전 거절은 ADMIN 요청 ID(n-4). detail은 고정 `key=value`(`sub=<submissionId 앞 8자>;replayed;rejection` + 사업자 `brn=앞3*******`
- * 또는 `brn=INVALID`, Site `channel=WEB|APP`, 가맹점 `code=<가맹점 코드>`(MERCHANT-CODE-001 MC-2-2 — 공개값, 형식이 맞을 때만)) — 등록번호 평문·기존 businessId·이름·채널 식별값·MASTER 키 원문 없음. targetRef: 성공 = 만든 ID(`ctr_`·`csa_` 포함), 그 밖 = 입력의 상위 ID
- * (가맹점 = 사업자, Site = 가맹점, 계약 = 대상 가맹점, CSA = 계약, Revision = 계약 — 성공도 계약 ID + detail `rev=<n>` C-22), 사업자는 성공만. 계약 날짜는 KST 날짜 → 그 날 00:00 KST의 UTC 시각(C-7)으로 바꿔 보내고 소급 판정은 MASTER에 맡긴다(§3.4).
+ * MASTER 변경 이력·Outbox와 대조된다, MASTER 키가 아니다), 호출 전 거절은 ADMIN 요청 ID(n-4). detail은 고정 `key=value`(`sub=<submissionId 앞 8자>;replayed;rejection` + Site `channel=WEB|APP`, 가맹점 `code=<가맹점 코드>`(MERCHANT-CODE-001 MC-2-2 — 공개값, 형식이 맞을 때만)) — 등록번호 평문·기존 businessId·이름·채널 식별값·MASTER 키 원문 없음. targetRef: 성공 = 만든 ID(`ctr_`·`csa_` 포함), 그 밖 = 입력의 상위 ID
+ * (가맹점 = 사업자, Site = 가맹점, 계약 = 대상 가맹점, CSA = 계약, Revision = 계약 — 성공도 계약 ID + detail `rev=<n>` C-22). 옛 사업자 등록 종류(성공만 targetRef)는 BUSINESS-PROFILE-001 C-27로 제거. 계약 날짜는 KST 날짜 → 그 날 00:00 KST의 UTC 시각(C-7)으로 바꿔 보내고 소급 판정은 MASTER에 맡긴다(§3.4).
  * 로그: 연산·결과 분류·상관 ID만(MASTER 키 원문 없음). 결과 불명은 WARN + `command_unknown` 지표.
  */
 @Service
@@ -45,7 +44,6 @@ class MerchantRegistrationService(
     private val recorder: AdminAuditRecorder,
     limits: MerchantOpsLimits,
     private val metrics: MerchantOpsMetrics,
-    private val registrationNumbers: RegistrationNumberBudget,
 ) : MerchantRegistrationUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -59,32 +57,18 @@ class MerchantRegistrationService(
             finish(kind, resultCode, if (audited(view, context, context.correlationId, kind, resultCode, pre.text(), pre.parentRef)) outcome else MerchantRegistrationResult.AuditUnavailable, context.correlationId)
 
         if (!view.isActive || OPERATOR !in view.roles) return reject("FORBIDDEN", MerchantRegistrationResult.Forbidden)
-        if (!RegistrationInputRules.wellFormed(request)) {
-            if (kind != RegistrationKind.BUSINESS) return finish(kind, "INVALID_INPUT", MerchantRegistrationResult.InvalidInput, context.correlationId)
-            return reject("INVALID_INPUT", MerchantRegistrationResult.InvalidInput)
-        }
+        if (!RegistrationInputRules.wellFormed(request)) return finish(kind, "INVALID_INPUT", MerchantRegistrationResult.InvalidInput, context.correlationId)
         if (registrations.tryReserve(actorId) == null) {
             metrics.rateLimited(REGISTRATION)
             return reject("RATE_LIMITED", MerchantRegistrationResult.RateLimited)
         }
-        val reservation = if (kind == RegistrationKind.BUSINESS) {
-            registrationNumbers.reserve(actorId) ?: run {
-                metrics.rateLimited(REGISTRATION_NUMBER)
-                return reject("RATE_LIMITED", MerchantRegistrationResult.RateLimited)
-            }
-        } else {
-            null
-        }
-
         val correlationId = CORRELATION_PREFIX + request.submissionId
         if (!audited(view, context, correlationId, kind, "REQUESTED", pre.text(), pre.parentRef)) {
-            reservation?.let(registrationNumbers::refund)
             return finish(kind, "AUDIT_UNAVAILABLE", MerchantRegistrationResult.AuditUnavailable, correlationId)
         }
 
         val result = gateway.command(command(actorId, request, correlationId)).let { checkedReference(request, it) }
 
-        if (reservation != null && !confirmsRegistrationNumber(result)) registrationNumbers.refund(reservation)
         val (resultCode, outcome) = classify(result)
         val decided = result as? MasterCommandResult.Decided
         // C-22(B2-1): Revision 성공 reference `ctr_…#<n>`은 감사 targetRef 형식 밖 → targetRef = 계약 ID, detail에 `rev=<n>`.
@@ -109,21 +93,14 @@ class MerchantRegistrationService(
         return finish(kind, resultCode, outcome, correlationId)
     }
 
-    override fun rejectMalformed(actorId: String, kind: RegistrationKind, registrationNumberAttempt: Boolean, context: AdminRequestContext): MerchantRegistrationResult {
-        if (kind != RegistrationKind.BUSINESS || !registrationNumberAttempt) return finish(kind, "INVALID_INPUT", MerchantRegistrationResult.InvalidInput, context.correlationId)
-        val view = sessions.current(actorId) ?: return finish(kind, "FORBIDDEN", MerchantRegistrationResult.Forbidden, context.correlationId)
-        // 본문에서 아무것도 꺼내지 않는다 — detail은 고정 brn=INVALID(M-1: 해석 실패면 403이어도 INVALID).
-        val (resultCode, outcome) = if (!view.isActive || OPERATOR !in view.roles) "FORBIDDEN" to MerchantRegistrationResult.Forbidden else "INVALID_INPUT" to MerchantRegistrationResult.InvalidInput
-        val audited = audited(view, context, context.correlationId, kind, resultCode, INVALID_NUMBER, null)
-        return finish(kind, resultCode, if (audited) outcome else MerchantRegistrationResult.AuditUnavailable, context.correlationId)
-    }
+    override fun rejectMalformed(actorId: String, kind: RegistrationKind, context: AdminRequestContext): MerchantRegistrationResult =
+        finish(kind, "INVALID_INPUT", MerchantRegistrationResult.InvalidInput, context.correlationId)
 
     private fun command(actorId: String, request: RegistrationRequest, correlationId: String): MasterCommand {
         check(ACCOUNT_ID.matches(actorId)) { "session actor id format" }
         // C-4: 계정별 이름공간 — 다른 운영자가 같은 submissionId를 보내도 MASTER 키가 다르다(남의 결과를 재생받지 않는다). 63자.
         val key = "mo1.${actorId.removePrefix(ACCOUNT_PREFIX)}.${request.submissionId}"
         val (kind, fields) = when (request) {
-            is RegistrationRequest.Business -> MasterCommandKind.REGISTER_BUSINESS to mapOf("registrationNumber" to request.registrationNumber, "displayName" to request.displayName)
             // MERCHANT-CODE-001 MC-1: 코드를 그대로 전달(형식은 위에서 검사 — 예약어·중복 판정은 MASTER).
             is RegistrationRequest.Merchant -> MasterCommandKind.REGISTER_MERCHANT to
                 mapOf("businessId" to request.businessId, "displayName" to request.displayName, "merchantCode" to request.merchantCode)
@@ -172,13 +149,6 @@ class MerchantRegistrationService(
             else -> return result
         }
         return if (result.reference?.let(own::matches) == true) result else MasterCommandResult.Unknown(REFERENCE_MISMATCH)
-    }
-
-    /** C-13: 중복 거절은 "그 번호가 있다"는 검색 결과와 같은 정보 → 확정. 결과 불명·503도 확정(중복이었을 수 있다). */
-    private fun confirmsRegistrationNumber(result: MasterCommandResult): Boolean = when (result) {
-        is MasterCommandResult.Decided -> result.rejection == DUPLICATE_NUMBER
-        MasterCommandResult.KeyReused -> false
-        is MasterCommandResult.Busy, is MasterCommandResult.RetrySameKey, is MasterCommandResult.Unknown -> true
     }
 
     private fun classify(result: MasterCommandResult): Pair<String, MerchantRegistrationResult> = when (result) {
@@ -233,9 +203,6 @@ class MerchantRegistrationService(
     /** 입력에서 감사에 남겨도 되는 값만 고른다(형식이 맞을 때만 — 자유 문구·평문 없음). */
     private class PreDetail(request: RegistrationRequest) {
         private val sub = request.submissionId.takeIf { RegistrationInputRules.SUBMISSION_ID.matches(it) }?.take(SUB_PREFIX)
-        private val brn = (request as? RegistrationRequest.Business)?.registrationNumber?.let {
-            if (RegistrationInputRules.REGISTRATION_NUMBER.matches(it)) "brn=" + it.take(VISIBLE_DIGITS) + "*".repeat(MASKED_DIGITS) else INVALID_NUMBER
-        }
         private val channel = (request as? RegistrationRequest.MerchantSite)?.channelType?.takeIf { it in CHANNEL_TYPES }?.let { "channel=$it" }
 
         /** B3-1 Site 심사 거절 사유 코드(고정 목록 값만 — 근거 참조 값은 넣지 않는다). */
@@ -244,7 +211,6 @@ class MerchantRegistrationService(
         /** MERCHANT-CODE-001 MC-2-2: 가맹점 등록 코드(공개값 — 비밀·인증 근거 아님, L-5). §3.1 형식일 때만(형식 위반 입력은 감사에 옮기지 않는다). */
         private val code = (request as? RegistrationRequest.Merchant)?.merchantCode?.takeIf { RegistrationInputRules.MERCHANT_CODE.matches(it) }?.let { "code=$it" }
         val parentRef: String? = when (request) {
-            is RegistrationRequest.Business -> null
             is RegistrationRequest.Merchant -> request.businessId.takeIf { RegistrationInputRules.BUSINESS_ID.matches(it) }
             is RegistrationRequest.MerchantSite -> request.merchantId.takeIf { RegistrationInputRules.MERCHANT_ID.matches(it) }
             // 계약의 상위 = 운영자가 입력한 대상 가맹점(조회 화면이 가맹점 중심), CSA의 상위 = 입력한 계약.
@@ -258,7 +224,7 @@ class MerchantRegistrationService(
         }
 
         fun text(replayed: Boolean? = null, rejection: String? = null, revision: String? = null): String? = listOfNotNull(
-            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, brn, channel, reason, code,
+            sub?.let { "sub=$it" }, replayed?.let { "replayed=$it" }, rejection?.let { "rejection=$it" }, revision?.let { "rev=$it" }, channel, reason, code,
         ).joinToString(";").ifEmpty { null }
     }
 
@@ -269,15 +235,10 @@ class MerchantRegistrationService(
         val ACCOUNT_ID = Regex("^adm_[0-9A-HJKMNP-TV-Z]{26}$")
         const val ACTOR_PREFIX = "admin:"
         const val CORRELATION_PREFIX = "mos."
-        const val DUPLICATE_NUMBER = "BUSINESS_REGISTRATION_NUMBER_DUPLICATE"
         const val OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
         const val REFERENCE_MISMATCH = "REFERENCE_MISMATCH"
-        const val INVALID_NUMBER = "brn=INVALID"
         const val REGISTRATION = "REGISTRATION"
-        const val REGISTRATION_NUMBER = "REGISTRATION_NUMBER"
         const val SUB_PREFIX = 8
-        const val VISIBLE_DIGITS = 3
-        const val MASKED_DIGITS = 7
         val CHANNEL_TYPES = setOf("WEB", "APP")
         val TARGET_IS_INPUT = setOf(RegistrationKind.CONTRACT_REVISION, RegistrationKind.PAYMENT_METHOD_ACTIVATION, RegistrationKind.SITE_REVIEW_REJECTION)
     }

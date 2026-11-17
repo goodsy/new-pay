@@ -5,10 +5,11 @@ import { MerchantRegistrationScreen, offerBusiness, offerMerchant } from './Merc
 import { kstDate, type BusinessRef, type MerchantRef } from '../lib/registration'
 import { domOccurrences } from '../test/domScan'
 import { App } from '../App'
-import type { MerchantDetail, MerchantListItem, Me, RegistrationOutcome } from '../api/adminApi'
-import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import type { MerchantDetail, Me, RegistrationOutcome } from '../api/adminApi'
+import { apiError, callsContaining, fakeApi, leakedCalls, storageIsEmpty } from '../test/fakeApi'
 import { ERROR_MESSAGES } from '../errors/messages'
 import { createScreenMemory } from '../lib/screenMemory'
+import { draftMinimalDetail, individualRegisteredDetail } from '../test/businessFixtures'
 
 /**
  * 가맹점 등록 마법사(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④ 화면 분리: ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료).
@@ -40,9 +41,12 @@ const BRN = '7781234560'
 const BUSINESS: BusinessRef = { businessId: BIZ, name: '데모 사업자', masked: '778*******' }
 const succeeded = (reference: string, replayed = false): RegistrationOutcome => ({ outcome: 'SUCCEEDED', reference, replayed })
 const rejected = (rejection: string, replayed = false): RegistrationOutcome => ({ outcome: 'REJECTED', rejection, replayed })
-const listItem = (merchantId: string, businessId = BIZ, businessName = '데모 사업자'): MerchantListItem => ({
-  merchantId, merchantCode: codeOf(merchantId), merchantName: '기존 가맹점', businessId, businessName, registrationNumberMasked: '778*******', lifecycle: 'ACTIVE', entitlementRevision: 1, midCount: 0,
-  createdAt: '2026-10-01T00:00:00.000Z',
+/**
+ * BUSINESS-PROFILE-001 BIZ-4(§8.4 — 합친 MERCHANT-BIZ-LOOKUP-001, D-BIZ-004): ① 사업자 선택은 사업자등록번호 조회 API(0/1건 + registrationStatus — D-BIZ-006 ③)를 쓴다.
+ * 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.4): ① 시험의 대역을 가맹점 검색(merchantSearch — 가맹점 0개 사업자를 못 찾음)에서 번호 조회로 바꿨다. 보내는 body·선택 뒤 흐름 단언은 그대로.
+ */
+const lookupOf = (businessId: string, businessName = '데모 사업자', registrationStatus: 'DRAFT' | 'REGISTERED' = 'REGISTERED') => ({
+  items: [{ businessId, businessName, registrationNumberMasked: '778*******', registrationStatus }],
 })
 
 /** 제출마다 다른 고정 submissionId(32 hex). */
@@ -107,9 +111,14 @@ const affiliation = (region: string) => within(step(region)).getByRole('group', 
 const OWN_AFFILIATION = `소속 가맹점: 데모 가맹점 · ${CODE}`
 const CONTEXT_AFFILIATION = `소속 가맹점: 기존 가맹점 · ${codeOf(MER)}`
 
-describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', () => {
-  it('① finds the business with the existing registration-number search (number cleared, never rendered), shows name + masked number only, and "선택" moves to ② with the business filled', async () => {
-    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [listItem(MER), listItem(id('mer', 8))], nextCursor: null })) })
+// 실행 시간 상한만 20초(BIZ4-gate2에서 ①→④ 전체 흐름이 gate 부하로 5.1초 — App wiring·ApprovalsScreen 선례). 단언·findBy 대기는 그대로.
+describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', { timeout: 20_000 }, () => {
+  it('① BIZ-4-4 (D-BIZ-004): finds the business with the registration-number lookup (merchantSearch not called — a business without merchants is found), number cleared and never rendered; name + masked only; "선택" moves to ②', async () => {
+    const api = fakeApi({
+      lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
+      registerMerchant: vi.fn(async () => succeeded(MER)),
+      registerMerchantSite: vi.fn(async () => succeeded(SITE)),
+    })
     const { container } = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
     expect(screen.getByRole('heading', { name: '가맹점 등록' })).toBeInTheDocument()
     expect(within(stepper()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([...STEPS])
@@ -120,13 +129,14 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await typeIn(picker, '사업자등록번호', BRN)
     expect(within(picker).getByLabelText('사업자등록번호')).toHaveValue('778-12-34560')
     await click(picker, '찾기')
-    // 기존 조회 API 그대로(정확 일치, POST 본문에만 — 숫자 10자리).
-    expect(api.merchantSearch).toHaveBeenCalledWith({ registrationNumber: BRN })
+    // 합친 번호 조회(정확 일치, POST 본문에만 — 숫자 10자리). 가맹점 검색은 쓰지 않는다(가맹점 0개 사업자도 찾는다 — D-BIZ-004).
+    expect(api.lookupBusinessByRegistrationNumber).toHaveBeenCalledWith(BRN)
+    expect(api.merchantSearch).not.toHaveBeenCalled()
     const found = await within(picker).findByRole('list', { name: '찾은 사업자' })
-    // 같은 사업자의 가맹점 두 건은 사업자 하나로 묶인다.
     expect(within(found).getAllByRole('listitem')).toHaveLength(1)
     expect(found).toHaveTextContent('데모 사업자')
     expect(found).toHaveTextContent('778*******')
+    expect(found).toHaveTextContent('등록 완료')
     expect(within(picker).getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.textContent).not.toMatch(/biz_/)
     expect(container.innerHTML).not.toContain(BRN)
@@ -136,12 +146,40 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778*******')
-    expect(container.textContent).not.toMatch(/biz_/)
+    expect(domOccurrences(container, 'biz_')).toEqual([])
     expect(storageIsEmpty()).toBe(true)
+    // 리뷰 MINOR-3: 원문 번호는 번호 조회 요청에만 — 가맹점 등록 본문 등 다른 호출에 없다.
+    await typeMerchant(step('가맹점'), '데모 가맹점')
+    await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
+    await next()
+    await screen.findByRole('region', { name: '계약 초안' })
+    expect(callsContaining(api, BRN)).toEqual(['lookupBusinessByRegistrationNumber'])
+    expect(leakedCalls(api, BRN)).toEqual([])
   })
 
-  it('① "다음 단계 →" without a selected business stays on ① and sends nothing; an empty search says so; a malformed number is not sent', async () => {
-    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+  it('① BIZ-4-4 (D-BIZ-006 ③ 결정 고정): a DRAFT business cannot be selected — "사업자 등록 완료 후 가맹점 등록 가능" + 사업자 상세 보기 (memory link, no biz_ in the DOM)', async () => {
+    const onOpenBusiness = vi.fn()
+    const api = fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ, '임시 사업자', 'DRAFT')) })
+    const { container } = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} onOpenBusiness={onOpenBusiness} newSubmissionId={ids()} />)
+    const picker = step('사업자 선택')
+    await typeIn(picker, '사업자등록번호', BRN)
+    await click(picker, '찾기')
+    const found = await within(picker).findByRole('list', { name: '찾은 사업자' })
+    expect(found).toHaveTextContent('임시 사업자')
+    expect(found).toHaveTextContent('사업자 등록 완료 후 가맹점 등록 가능')
+    expect(within(found).queryByRole('button', { name: '선택' })).toBeNull()
+    await user.click(within(found).getByRole('button', { name: '사업자 상세 보기' }))
+    expect(onOpenBusiness).toHaveBeenCalledWith(BIZ)
+    expect(currentStep()).toBe('1. 사업자 선택')
+    expect(within(picker).queryByRole('group', { name: '선택한 사업자' })).toBeNull()
+    expect(domOccurrences(container, 'biz_')).toEqual([])
+    await next()
+    expect(currentStep()).toBe('1. 사업자 선택')
+    expect(api.registerMerchant).not.toHaveBeenCalled()
+  })
+
+  it('① "다음 단계 →" without a selected business stays on ① and sends nothing; no business for the number says to register it first; a malformed number is not sent', async () => {
+    const api = fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
     await next()
     expect(currentStep()).toBe('1. 사업자 선택')
@@ -150,18 +188,18 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await typeIn(picker, '사업자등록번호', '778-12-345')
     await click(picker, '찾기')
     expect(within(picker).getByText('사업자등록번호는 숫자 10자리입니다.')).toBeInTheDocument()
-    expect(api.merchantSearch).not.toHaveBeenCalled()
+    expect(api.lookupBusinessByRegistrationNumber).not.toHaveBeenCalled()
     await user.clear(within(picker).getByLabelText('사업자등록번호'))
     await typeIn(picker, '사업자등록번호', BRN)
     await click(picker, '찾기')
-    expect(await within(picker).findByText('찾은 사업자가 없습니다(가맹점이 있는 사업자만 찾습니다).')).toBeInTheDocument()
+    expect(await within(picker).findByText('이 번호로 등록된 사업자가 없습니다. 사업자 등록에서 먼저 등록하세요.')).toBeInTheDocument()
     expect(api.registerMerchant).not.toHaveBeenCalled()
   })
 
-  it('① a refused or failed search shows the fixed message and still clears the number; a session end hands control back', async () => {
+  it('① a refused or failed lookup shows the fixed message (429 = shared BRN budget, Demo value) and still clears the number; a session end hands control back', async () => {
     const onSessionEnded = vi.fn()
     const api = fakeApi({
-      merchantSearch: vi.fn()
+      lookupBusinessByRegistrationNumber: vi.fn()
         .mockRejectedValueOnce(apiError(403, 'FORBIDDEN'))
         .mockRejectedValueOnce(apiError(429, 'RATE_LIMITED'))
         .mockRejectedValueOnce(apiError(401, 'SESSION_EXPIRED')),
@@ -174,12 +212,11 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(within(picker).getByLabelText('사업자등록번호')).toHaveValue('')
     await typeIn(picker, '사업자등록번호', BRN)
     await click(picker, '찾기')
-    expect(await within(picker).findByText(/너무 잦습니다/)).toBeInTheDocument()
+    expect(await within(picker).findByText(/사업자등록번호 10회\/분/)).toHaveTextContent('Demo 값')
     await typeIn(picker, '사업자등록번호', BRN)
     await click(picker, '찾기')
     await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledWith('SESSION_EXPIRED'))
   })
-
   it('② "다음 단계 →" sends the merchant (with the selected business id) then the Site once each; "이전" then "다음 단계 →" resends neither', async () => {
     const api = fakeApi({
       registerMerchant: vi.fn(async () => succeeded(MER)),
@@ -211,7 +248,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
 
   it('①→④: the whole flow sends each save once with the same bodies; ④ shows the business by name + masked number (no business id), points to the real next steps and opens the lookup', async () => {
     const api = fakeApi({
-      merchantSearch: vi.fn(async () => ({ items: [listItem(id('mer', 9))], nextCursor: null })),
+      lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
       registerMerchantSite: vi.fn(async () => succeeded(SITE)),
       registerContract: vi.fn(async () => succeeded(CTR)),
@@ -809,7 +846,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
       .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
       .mockResolvedValueOnce(succeeded(SITE, true))
     const api = fakeApi({
-      merchantSearch: vi.fn(async () => ({ items: [listItem(id('mer', 9), BIZ2, '다른 사업자')], nextCursor: null })),
+      lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ2, '다른 사업자')),
       registerMerchant: merchantSend,
       registerMerchantSite: siteSend,
     })
@@ -870,7 +907,20 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
   })
 })
 
-describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; ADMIN-UI-MERCHANT-002 separate 사업자 등록 / 가맹점 등록 tabs)', () => {
+/**
+ * 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 — C-27 옛 사업자 등록 경로 제거, §8.1·§8.3): "사업자 등록" 탭의 화면이 번호·상호 두 칸 카드(BusinessRegistrationScreen)에서
+ * 새 사업자 등록 폼(BusinessProfileFormScreen — 섹션 1~6·임시저장/등록 완료)으로 바뀌었고, 새 "사업자 조회" 탭이 생겼다(OPERATOR·APPROVER — D-BIZ-006 ①).
+ * "이 사업자로 가맹점 등록"은 등록 완료 뒤 사업자 조회 상세(성공 뒤 상세 재조회 — C-18)에서 누른다(REGISTERED만 — D-BIZ-001). 같은 동작 단언(넘겨주기·잠금 유지·
+ * 같은 submissionId 재전송·세션 경계 초기화·평문 번호 비보관·탭 표시)은 새 경로에서 그대로 유지한다.
+ */
+// 부하 대응(BIZ-4): 새 등록 폼은 REGISTERED 필수 칸을 모두 채우므로(사업자 두 개를 만드는 시험 포함) 전체 게이트 부하에서 기본 5초를 넘을 수 있다 — 시간 상한만 넓힌다(단언 불변,
+// ApprovalsScreen.targetLabels 20초 선례).
+describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — 사업자 조회 / 사업자 등록 / 가맹점 등록 tabs, display only)', { timeout: 20_000 }, () => {
+  const BIZ2 = id('biz', 8)
+  const detailFor = (businessId: string) =>
+    businessId === BIZ2
+      ? { ...individualRegisteredDetail(8, '두번째 사업자'), business: { ...individualRegisteredDetail(8, '두번째 사업자').business, businessId: BIZ2, registrationNumberMasked: '123*******' } }
+      : { ...individualRegisteredDetail(7, '데모 사업자'), business: { ...individualRegisteredDetail(7, '데모 사업자').business, businessId } }
   function signedInWithApi(roles: string[], overrides: Parameters<typeof fakeApi>[0] = {}) {
     const api = fakeApi({
       me: vi.fn(async (): Promise<Me> => ({ actorId: 'adm_01JC00000000000000000000V1', displayName: '운영자', roles })),
@@ -878,6 +928,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
       reconciliation: vi.fn(async () => ({ openCounts: {}, openTotal: 0, findings: [], truncated: false, lastRunAt: null, lastFullScanAt: null, lastResult: null })),
       accounts: vi.fn(async () => ({ accounts: [] })),
       audit: vi.fn(async () => ({ entries: [] })),
+      businessDetail: vi.fn(async (businessId: string) => detailFor(businessId)),
       ...overrides,
     })
     return { view: render(<App api={api} />), api }
@@ -885,72 +936,105 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
   const signedIn = (roles: string[], overrides: Parameters<typeof fakeApi>[0] = {}) => signedInWithApi(roles, overrides).view
   const openMerchants = async () =>
     user.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
-  const openTab = async (name: '가맹점 조회' | '사업자 등록' | '가맹점 등록') => user.click(screen.getByRole('tab', { name }))
-  const businessCard = () => screen.getByRole('region', { name: '사업자' })
-  async function registerBusinessOnScreen() {
-    await typeIn(businessCard(), '사업자등록번호', BRN)
-    await typeIn(businessCard(), '사업자명', '데모 사업자')
-    await click(businessCard(), '사업자 등록')
+  const openTab = async (name: '가맹점 조회' | '사업자 조회' | '사업자 등록' | '가맹점 등록') => user.click(screen.getByRole('tab', { name }))
+  const page = () => document.body
+  const formCard = () => screen.getByRole('region', { name: '사업자 기본' })
+  /** 사업자 등록 폼의 최소(임시저장) 칸. */
+  async function fillDraftBusiness(number = BRN, name = '데모 사업자') {
+    await user.click(screen.getByRole('radio', { name: '개인' }))
+    await typeIn(page(), '사업자등록번호', number)
+    await typeIn(page(), '상호', name)
   }
+  /** 사업자 등록 폼에서 REGISTERED 사업자를 만든다(등록 완료 → 사업자 조회 상세 — C-18 재조회). */
+  async function registerBusinessOnScreen(number = BRN, name = '데모 사업자') {
+    await fillDraftBusiness(number, name)
+    for (const [label, value] of [
+      ['개업일', '2026-01-01'], ['업태 1', '도소매'], ['종목 1', '전자상거래'], ['사업장 우편번호', '04524'], ['사업장 기본주소', '서울특별시 중구 세종대로 110'],
+      ['대표자 1 이름', '홍길동'], ['사업체 전화', '0212345678'], ['담당자 1 이름', '김담당'], ['담당자 1 이메일', 'contact.demo@example.test'], ['담당자 1 전화', '01012345678'],
+    ] as const) await typeIn(page(), label, value)
+    await user.click(screen.getByRole('button', { name: '등록 완료' }))
+  }
+  const detailRegion = () => screen.findByRole('region', { name: '사업자 상세' })
 
-  it('an OPERATOR sees the 가맹점 조회, 사업자 등록 and 가맹점 등록 tabs (no header action); each tab opens its own screen', async () => {
-    signedIn(['OPERATOR'])
+  it('an OPERATOR sees 가맹점 조회, 사업자 조회, 사업자 등록 and 가맹점 등록 tabs (no header action); each tab opens its own screen', async () => {
+    signedIn(['OPERATOR'], { searchBusinesses: vi.fn(async () => ({ items: [], next: null })) })
     await openMerchants()
     expect(screen.getByRole('heading', { level: 1, name: '사업자·가맹점' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점 조회', '사업자 등록', '가맹점 등록'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점 조회', '사업자 조회', '사업자 등록', '가맹점 등록'])
     await openTab('사업자 등록')
     expect(screen.getByRole('tab', { name: '사업자 등록' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByRole('region', { name: '사업자' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '등록 단계' })).toBeNull()
-    expect(screen.getAllByRole('button', { name: '사업자 등록' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '등록 완료' })).toHaveLength(1)
+    await openTab('사업자 조회')
+    expect(await screen.findByRole('heading', { name: '사업자 조회' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '사업자 기본' })).toBeNull()
     await openTab('가맹점 등록')
     expect(within(stepper()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([...STEPS])
     expect(screen.getByRole('region', { name: '사업자 선택' })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: '사업자' })).toBeNull()
     expect(screen.queryByRole('button', { name: '가맹점 조회로' })).toBeNull()
   })
 
-  it('"이 사업자로 가맹점 등록" opens 가맹점 등록 on ② with that business (name + masked only) and the merchant body carries its business id', async () => {
+  it('등록 완료 opens the 사업자 조회 detail (re-read); "이 사업자로 가맹점 등록" opens 가맹점 등록 on ② with that business (name + masked only) and the merchant body carries its business id', async () => {
     const { api, view } = signedInWithApi(['OPERATOR'], {
-      registerBusiness: vi.fn(async () => succeeded(BIZ)),
+      createBusiness: vi.fn(async () => succeeded(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
     })
     await openMerchants()
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
-    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    expect(await detailRegion()).toHaveTextContent('등록 완료')
+    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    expect(api.businessDetail).toHaveBeenCalledWith(BIZ)
+    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     expect(screen.getByRole('tab', { name: '가맹점 등록' })).toHaveAttribute('aria-selected', 'true')
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778*******')
-    expect(view.container.textContent).not.toMatch(/biz_/)
+    expect(domOccurrences(view.container, 'biz_')).toEqual([])
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(CODE)
     expect(api.registerMerchant).toHaveBeenCalledWith({ submissionId: expect.stringMatching(/^[0-9a-f]{32}$/), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' })
+    expect(window.location.href).not.toContain('biz_')
     expect(storageIsEmpty()).toBe(true)
   })
 
-  /** 사업자 등록 화면에서 두 번째 사업자(B)를 등록한다(앞 사업자 완료 카드를 "사업자 새로 입력"으로 비운 뒤). */
+  it('BIZ-4-4 (D-BIZ-006 ③): a DRAFT business found in 가맹점 등록 ① links to its 사업자 조회 detail (memory only — no biz_ in the URL or DOM)', async () => {
+    const draft = { ...draftMinimalDetail(7, '임시 사업자'), business: { ...draftMinimalDetail(7, '임시 사업자').business, businessId: BIZ } }
+    const { api, view } = signedInWithApi(['OPERATOR'], {
+      lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ, '임시 사업자', 'DRAFT')),
+      businessDetail: vi.fn(async () => draft),
+    })
+    await openMerchants()
+    await openTab('가맹점 등록')
+    await typeIn(step('사업자 선택'), '사업자등록번호', BRN)
+    await click(step('사업자 선택'), '찾기')
+    await user.click(await within(step('사업자 선택')).findByRole('button', { name: '사업자 상세 보기' }))
+    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    expect(await detailRegion()).toHaveTextContent('임시저장 사업자에는 새 가맹점을 등록할 수 없습니다')
+    expect(api.businessDetail).toHaveBeenCalledWith(BIZ)
+    expect(domOccurrences(view.container, 'biz_')).toEqual([])
+    expect(window.location.href).not.toContain('biz_')
+  })
+
+  /** 사업자 등록 탭에서 두 번째 사업자(B)를 등록하고 그 상세로 간다. */
   async function registerSecondBusiness() {
     await openTab('사업자 등록')
-    await click(businessCard(), '사업자 새로 입력')
-    await typeIn(businessCard(), '사업자등록번호', '1234567890')
-    await typeIn(businessCard(), '사업자명', '두번째 사업자')
-    await click(businessCard(), '사업자 등록')
-    await within(businessCard()).findByText('123*******')
+    await registerBusinessOnScreen('1234567890', '두번째 사업자')
+    expect(await detailRegion()).toHaveTextContent('두번째 사업자')
   }
 
   it('review MINOR-1: handing a second business to a 가맹점 등록 in progress asks first; 취소 keeps the wizard as is, 새로 시작 clears it and opens ② with only the new business', async () => {
-    const BIZ2 = id('biz', 8)
     const { api } = signedInWithApi(['OPERATOR'], {
-      registerBusiness: vi.fn().mockResolvedValueOnce(succeeded(BIZ)).mockResolvedValueOnce(succeeded(BIZ2)),
+      createBusiness: vi.fn().mockResolvedValueOnce(succeeded(BIZ)).mockResolvedValueOnce(succeeded(BIZ2)),
       registerMerchant: vi.fn().mockResolvedValueOnce(succeeded(MER)).mockResolvedValueOnce(succeeded(id('mer', 8))),
     })
     await openMerchants()
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
-    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    await detailRegion()
+    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(CODE)
@@ -960,17 +1044,16 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     await registerSecondBusiness()
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     const confirm = screen.getByRole('group', { name: '가맹점 등록 새로 시작 확인' })
-    expect(screen.getByRole('tab', { name: '사업자 등록' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
     await click(confirm, '취소')
     expect(screen.queryByRole('group', { name: '가맹점 등록 새로 시작 확인' })).toBeNull()
-    // 취소: 진행 중인 마법사는 그대로(계약 초안 당사자가 조용히 바뀌지 않는다).
     await openTab('가맹점 등록')
     expect(currentStep()).toBe('3. 계약 초안·서비스 계약')
     expect(partyText()).toContain('데모 사업자')
     expect(partyText()).not.toContain('두번째 사업자')
 
-    await openTab('사업자 등록')
-    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    await openTab('사업자 조회')
+    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await click(screen.getByRole('group', { name: '가맹점 등록 새로 시작 확인' }), '새로 시작')
     expect(screen.getByRole('tab', { name: '가맹점 등록' })).toHaveAttribute('aria-selected', 'true')
     expect(currentStep()).toBe('2. 가맹점·사이트')
@@ -978,7 +1061,6 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     expect(merchantBusinessText()).not.toContain('데모 사업자')
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toHaveValue('')
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toBeEnabled()
-    expect(within(step('가맹점')).queryByText(CODE)).toBeNull()
     await goTo('3. 계약 초안·서비스 계약')
     expect(partyText()).toContain('두번째 사업자')
     expect(affiliation('계약 초안')).toHaveTextContent('소속 가맹점: 아직 없음')
@@ -990,15 +1072,15 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
   })
 
   it('review MINOR-1: while a 가맹점 등록 card waits for a result check, "이 사업자로 가맹점 등록" warns and hands nothing over', async () => {
-    const BIZ2 = id('biz', 8)
     signedIn(['OPERATOR'], {
-      registerBusiness: vi.fn().mockResolvedValueOnce(succeeded(BIZ)).mockResolvedValueOnce(succeeded(BIZ2)),
+      createBusiness: vi.fn().mockResolvedValueOnce(succeeded(BIZ)).mockResolvedValueOnce(succeeded(BIZ2)),
       registerMerchant: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }),
     })
     await openMerchants()
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
-    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    await detailRegion()
+    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
@@ -1007,34 +1089,34 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     expect(screen.getByText(/가맹점 등록에 결과 확인이 필요한 단계가 있습니다/)).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: '가맹점 등록 새로 시작 확인' })).toBeNull()
-    expect(screen.getByRole('tab', { name: '사업자 등록' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
     await openTab('가맹점 등록')
     expect(within(step('가맹점')).getByRole('group', { name: '결과 확인 필요' })).toBeInTheDocument()
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).not.toContain('두번째 사업자')
   })
 
-  it('review m-1: an unknown outcome on 사업자 등록 survives switching to 가맹점 조회 and back — still locked, the resend reuses the same submissionId', async () => {
+  it('review m-1: an unknown outcome on 사업자 등록 survives switching to 가맹점 조회 and back — still locked, the resend reuses the same submissionId and body', async () => {
     const send = vi.fn()
       .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
       .mockResolvedValueOnce(succeeded(BIZ, true))
-    signedIn(['OPERATOR'], { registerBusiness: send })
+    signedIn(['OPERATOR'], { createBusiness: send })
     await openMerchants()
     await openTab('사업자 등록')
-    await registerBusinessOnScreen()
-    await within(businessCard()).findByRole('group', { name: '결과 확인 필요' })
+    await fillDraftBusiness()
+    await user.click(screen.getByRole('button', { name: '임시저장' }))
+    await screen.findByRole('group', { name: '결과 확인 필요' })
 
     await openTab('가맹점 조회')
-    expect(screen.queryByRole('region', { name: '사업자' })).toBeNull()
+    expect(screen.queryByRole('region', { name: '사업자 기본' })).toBeNull()
     await openTab('사업자 등록')
 
-    const business = businessCard()
-    expect(within(business).getByRole('group', { name: '결과 확인 필요' })).toBeInTheDocument()
-    expect(within(business).getByLabelText('사업자명')).toBeDisabled()
-    expect(within(business).getByLabelText('사업자명')).toHaveValue('데모 사업자')
-    expect(within(business).getByRole('button', { name: '사업자 등록' })).toBeDisabled()
-    await click(business, '같은 내용 다시 보내기')
-    expect(await within(businessCard()).findByText('778*******')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '결과 확인 필요' })).toBeInTheDocument()
+    expect(within(formCard()).getByLabelText('상호')).toBeDisabled()
+    expect(within(formCard()).getByLabelText('상호')).toHaveValue('데모 사업자')
+    expect(screen.getByRole('button', { name: '임시저장' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '같은 내용 다시 보내기' }))
+    expect(await detailRegion()).toHaveTextContent('데모 사업자')
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[1]![0]).toEqual(send.mock.calls[0]![0])
     expect(storageIsEmpty()).toBe(true)
@@ -1047,17 +1129,17 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
       sites: [], contracts: [], accounts: [], limits: [], propagation: null,
     }
     const { api } = signedInWithApi(['OPERATOR'], {
-      registerBusiness: vi.fn(async () => succeeded(BIZ)),
+      createBusiness: vi.fn(async () => succeeded(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
       registerMerchantSite: vi.fn(async () => succeeded(SITE)),
       merchantDetail: vi.fn(async () => detail),
       merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })),
     })
-    // MC-2b: Site의 가맹점은 입력칸이 아니라 맥락(이 마법사에서 등록한 가맹점)으로 정해진다 — 사업자 → 가맹점 → Site 순서로 만든다.
     await openMerchants()
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
-    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    await detailRegion()
+    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(CODE)
@@ -1068,7 +1150,6 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     await click(step('등록 결과'), '가맹점 조회에서 보기')
 
     expect(screen.getByRole('tab', { name: '가맹점 조회' })).toHaveAttribute('aria-selected', 'true')
-    // MC-2: 상세 제목은 가맹점 코드(조회 호출은 내부 키 그대로 — 아래 merchantDetail 인자).
     expect(await screen.findByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER)}`) })).toBeInTheDocument()
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
     expect(api.merchantDetail).toHaveBeenCalledWith(MER)
@@ -1079,14 +1160,14 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
   })
 
-  /** 사업자 등록을 결과 불명(잠금) 상태로 만든다 — 사업자명 '데모 사업자'가 입력된 채로 잠긴다. */
+  /** 사업자 등록을 결과 불명(잠금) 상태로 만든다 — 상호 '데모 사업자'가 입력된 채로 잠긴다. */
   const lockBusinessStep = async () => {
     await openMerchants()
     await openTab('사업자 등록')
-    await registerBusinessOnScreen()
-    const business = businessCard()
-    await within(business).findByRole('group', { name: '결과 확인 필요' })
-    expect(within(business).getByLabelText('사업자명')).toHaveValue('데모 사업자')
+    await fillDraftBusiness()
+    await user.click(screen.getByRole('button', { name: '임시저장' }))
+    await screen.findByRole('group', { name: '결과 확인 필요' })
+    expect(within(formCard()).getByLabelText('상호')).toHaveValue('데모 사업자')
   }
   const signInAgain = async () => {
     await user.type(await screen.findByLabelText('로그인 이름'), 'op-demo')
@@ -1099,13 +1180,13 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
   const expectFreshRegistration = async () => {
     await openMerchants()
     await openTab('사업자 등록')
-    const business = await screen.findByRole('region', { name: '사업자' })
-    expect(within(business).queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
+    const form = await screen.findByRole('region', { name: '사업자 기본' })
+    expect(screen.queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
     expect(screen.queryByRole('button', { name: '같은 내용 다시 보내기' })).toBeNull()
-    expect(within(business).getByLabelText('사업자명')).toHaveValue('')
-    expect(within(business).getByLabelText('사업자명')).toBeEnabled()
-    expect(within(business).getByLabelText('사업자등록번호')).toHaveValue('')
-    expect(within(business).getByRole('button', { name: '사업자 등록' })).toBeEnabled()
+    expect(within(form).getByLabelText('상호')).toHaveValue('')
+    expect(within(form).getByLabelText('상호')).toBeEnabled()
+    expect(within(form).getByLabelText('사업자등록번호')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '임시저장' })).toBeEnabled()
     await openTab('가맹점 등록')
     expect(currentStep()).toBe('1. 사업자 선택')
     expect(within(step('사업자 선택')).queryByRole('group', { name: '선택한 사업자' })).toBeNull()
@@ -1116,7 +1197,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
   const loginStubs = (account: Me) => ({ password: vi.fn(async () => ({ next: 'TOTP' as const })), totp: vi.fn(async () => account) })
 
   it('review MINOR-1: logout resets the registration memories — after signing in again there is no lock, no resend, no typed input and no selected business', async () => {
-    signedIn(['OPERATOR'], { registerBusiness: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }), ...loginStubs(OPERATOR) })
+    signedIn(['OPERATOR'], { createBusiness: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }), ...loginStubs(OPERATOR) })
     await lockBusinessStep()
     await user.click(screen.getByRole('button', { name: '로그아웃' }))
     await signInAgain()
@@ -1127,9 +1208,9 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     const send = vi.fn()
       .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
       .mockRejectedValueOnce(apiError(401, 'SESSION_EXPIRED'))
-    signedIn(['OPERATOR'], { registerBusiness: send, ...loginStubs(OPERATOR) })
+    signedIn(['OPERATOR'], { createBusiness: send, ...loginStubs(OPERATOR) })
     await lockBusinessStep()
-    await click(businessCard(), '같은 내용 다시 보내기')
+    await user.click(screen.getByRole('button', { name: '같은 내용 다시 보내기' }))
     expect(await screen.findByRole('status')).toHaveTextContent(ERROR_MESSAGES.SESSION_EXPIRED)
     expect(screen.getByRole('note', { name: '결과 확인 필요' })).toHaveTextContent('결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요')
     await signInAgain()
@@ -1142,13 +1223,13 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
       .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
       .mockRejectedValueOnce(apiError(401, 'SESSION_EXPIRED'))
     signedIn(['OPERATOR'], {
-      registerBusiness: vi.fn(async () => succeeded(BIZ)), registerMerchant: vi.fn(async () => succeeded(MER)), registerMerchantSite: send, ...loginStubs(OPERATOR),
+      createBusiness: vi.fn(async () => succeeded(BIZ)), registerMerchant: vi.fn(async () => succeeded(MER)), registerMerchantSite: send, ...loginStubs(OPERATOR),
     })
-    // MC-2b: Site의 가맹점은 맥락(이 마법사에서 등록한 가맹점)으로 정해진다 — 사업자 → 가맹점 → Site.
     await openMerchants()
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
-    await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
+    await detailRegion()
+    await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(CODE)
@@ -1160,7 +1241,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
   })
 
   it('review MINOR-1: signing in as another account starts with fresh registration memories', async () => {
-    signedIn(['OPERATOR'], { registerBusiness: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }), ...loginStubs(OTHER_OPERATOR) })
+    signedIn(['OPERATOR'], { createBusiness: vi.fn(async () => { throw apiError(503, 'MASTER_OUTCOME_UNKNOWN') }), ...loginStubs(OTHER_OPERATOR) })
     await lockBusinessStep()
     await user.click(screen.getByRole('button', { name: '로그아웃' }))
     await signInAgain()
@@ -1172,28 +1253,27 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     signedIn(['OPERATOR'])
     await openMerchants()
     await openTab('사업자 등록')
-    await typeIn(businessCard(), '사업자등록번호', BRN)
-    await typeIn(businessCard(), '사업자명', '데모 사업자')
-    expect(within(businessCard()).getByLabelText('사업자등록번호')).toHaveValue('778-12-34560')
+    await typeIn(page(), '사업자등록번호', BRN)
+    await typeIn(page(), '상호', '데모 사업자')
+    expect(within(formCard()).getByLabelText('사업자등록번호')).toHaveValue('778-12-34560')
 
     await openTab('가맹점 조회')
     await openTab('사업자 등록')
-    expect(within(businessCard()).getByLabelText('사업자등록번호')).toHaveValue('')
-    expect(within(businessCard()).getByLabelText('사업자명')).toHaveValue('데모 사업자')
+    expect(within(formCard()).getByLabelText('사업자등록번호')).toHaveValue('')
+    expect(within(formCard()).getByLabelText('상호')).toHaveValue('데모 사업자')
     expect(storageIsEmpty()).toBe(true)
   })
 
-  it('VIEWER, APPROVER and SECURITY_ADMIN have no 사업자 등록 / 가맹점 등록 tab (and no header action)', async () => {
-    for (const role of ['VIEWER', 'APPROVER', 'SECURITY_ADMIN']) {
+  it('D-BIZ-006 ①: VIEWER and SECURITY_ADMIN see only 가맹점 조회; APPROVER also sees 사업자 조회 (view only); none of them has 사업자 등록 / 가맹점 등록', async () => {
+    for (const [role, tabs] of [['VIEWER', ['가맹점 조회']], ['APPROVER', ['가맹점 조회', '사업자 조회']], ['SECURITY_ADMIN', ['가맹점 조회']]] as const) {
       const view = signedIn([role])
       await openMerchants()
-      expect(screen.queryByRole('button', { name: '사업자 등록' })).toBeNull()
-      expect(screen.queryByRole('button', { name: '가맹점 등록' })).toBeNull()
-      expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점 조회'])
+      expect(screen.queryByRole('tab', { name: '사업자 등록' })).toBeNull()
+      expect(screen.queryByRole('tab', { name: '가맹점 등록' })).toBeNull()
+      expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([...tabs])
       view.unmount()
     }
   })
-
   describe('MERCHANT-CODE-001 MC-1 merchant code input (direct input — preview/suggest below in MC-2)', () => {
     it('MC-1-9 the merchant card has a code field with the format hint; the code is sent as typed', async () => {
       const api = fakeApi({ registerMerchant: vi.fn(async () => succeeded(MER)) })
@@ -1422,7 +1502,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
     it('MC-2b-4 (review MINOR-2 — screen guard, MASTER still decides): when the contract party business differs from the business of the affiliated merchant, the 계약 초안 shows an error and is not sent', async () => {
       const BIZ2 = id('biz', 8)
       const api = fakeApi({
-        merchantSearch: vi.fn(async () => ({ items: [listItem(id('mer', 9), BIZ2, '다른 사업자')], nextCursor: null })),
+        lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ2, '다른 사업자')),
         registerMerchant: vi.fn(async () => succeeded(MER)),
         registerContract: vi.fn(async () => succeeded(CTR)),
       })
@@ -1466,7 +1546,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 — OPERATOR only, display only; AD
 
     it('MC-2b-3 business (② — D-MCODE-003): the wizard shows "<상호> · <마스킹 번호>" for the business and no biz_ anywhere in the DOM at any step; the plaintext number never appears', async () => {
       const api = fakeApi({
-        merchantSearch: vi.fn(async () => ({ items: [listItem(id('mer', 9))], nextCursor: null })),
+        lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
         registerMerchant: vi.fn(async () => succeeded(MER)),
         registerMerchantSite: vi.fn(async () => succeeded(SITE)),
         registerContract: vi.fn(async () => succeeded(CTR)),

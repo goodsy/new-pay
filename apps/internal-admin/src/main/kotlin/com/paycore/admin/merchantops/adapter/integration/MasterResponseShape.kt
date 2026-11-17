@@ -139,14 +139,13 @@ internal sealed interface MasterResponseShape {
         )
 
         /**
-         * MERCHANT-OPS-002 §3.3 명령 성공(저장된 판정). `reference`는 **명령 종류의 접두사**여야 한다(사업자 `biz_`·가맹점 `mer_`·Site `site_`·계약 `ctr_`·CSA `csa_` — 리뷰 n-3):
+         * MERCHANT-OPS-002 §3.3 명령 성공(저장된 판정). `reference`는 **명령 종류의 접두사**여야 한다(가맹점 `mer_`·Site `site_`·계약 `ctr_`·CSA `csa_` — 리뷰 n-3):
          * 다른 종류의 ID가 오면 다른 모양 위반과 같이 해석 불가(Unknown)로 둔다.
          */
         fun commandSucceeded(kind: MasterCommandKind): MasterResponseShape = COMMAND_SUCCEEDED.getValue(kind)
 
         private val COMMAND_SUCCEEDED: Map<MasterCommandKind, MasterResponseShape> = MasterCommandKind.entries.associateWith { kind ->
             val prefix = when (kind) {
-                MasterCommandKind.REGISTER_BUSINESS -> "biz"
                 MasterCommandKind.REGISTER_MERCHANT -> "mer"
                 MasterCommandKind.REGISTER_MERCHANT_SITE -> "site"
                 MasterCommandKind.REGISTER_CONTRACT -> "ctr"

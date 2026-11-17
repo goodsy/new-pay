@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.EntitlementCommandFixture.issuesOf
 import com.paycore.master.merchant.application.EntitlementCommandFixture.latestSnapshot
@@ -13,7 +14,6 @@ import com.paycore.master.merchant.application.provided.DemoMerchantValues
 import com.paycore.master.merchant.application.provided.DemoSeedStep
 import com.paycore.master.merchant.application.provided.EffectiveFromRefusal
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.required.AdminRequestScope
 import com.paycore.master.merchant.application.required.AdminRequestStore
 import com.paycore.master.merchant.domain.AcquirerCode
@@ -278,7 +278,7 @@ class DemoMerchantSeedServiceSpec(
 
     Given("a business with the same registration number already exists (I-12)") {
         val brn = OnboardingFixture.registrationNumber()
-        onboarding.registerBusiness(RegisterBusinessCommand(OnboardingFixture.request(), brn, DisplayName("existing"))).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
+        OnboardingFixture.registeredBusiness(onboarding, brn, "existing").shouldBeInstanceOf<AdminCommandResult.Succeeded>()
         val c = command(brn = brn)
         Then("the seed stops at step 01 with the stored rejection") {
             val r = seed.seed(c).shouldBeInstanceOf<DemoMerchantSeedResult.StepRejected>()

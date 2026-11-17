@@ -9,11 +9,12 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.collections.shouldNotContain
 import java.time.Instant
 
 /**
  * MERCHANT-OPS-002 §3.2·§8(B1-1) 명령 본문 엄격 해석(단위 — Spring 없음): 정상 본문 → Use Case 명령, 모르는 key·빠진 key·중복 key·뒤따르는 토큰·자료형 강제 변환·`null`·`actor` 접두 위반·
- * Domain 값 규칙 위반(하이픈 등록번호·대문자 host·IP host·앞뒤 공백 이름·형식 아닌 ID) → null(400 — 어느 필드인지 말하지 않는다).
+ * Domain 값 규칙 위반(대문자 host·IP host·앞뒤 공백 이름·형식 아닌 ID — 사업자등록번호 형식은 새 생성 경로 BusinessProfileRequestParserSpec) → null(400 — 어느 필드인지 말하지 않는다).
  */
 class MerchantOperationsRequestParserSpec : BehaviorSpec({
 
@@ -24,14 +25,19 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
     fun bytes(s: String) = s.toByteArray(Charsets.UTF_8)
 
     Given("well-formed command bodies (what ADMIN sends — C-4·C-14)") {
-        Then("business: the key, admin actor, correlation id and Domain values come through unchanged") {
+        // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 사업자 등록 명령(`business`)이 제거돼 공통 필드·구조 시험의 운반 본문을 가맹점 명령으로 옮겼다(같은 단언).
+        // 사업자등록번호 형식(하이픈·자릿수·전각)은 새 생성 경로 BusinessProfileRequestParserSpec(registrationNumber FORMAT)·값 객체 MasterValuesSpec이 고정한다.
+        Then("merchant: the key, admin actor, correlation id and Domain values come through unchanged") {
             val s = Submission()
-            val c = MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.registerBusiness(s, brn = "7781234560", name = "시험 사업자"))).shouldNotBeNull()
+            val c = MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.registerMerchant(biz, s, name = "시험 가맹점"))).shouldNotBeNull()
             listOf(c.request.idempotencyKey.value, c.request.actor.value, c.request.correlationId) shouldBe listOf(s.idempotencyKey, s.actor, s.correlationId)
-            c.registrationNumber.value shouldBe "7781234560"
-            c.displayName.value shouldBe "시험 사업자"
+            c.businessId.value shouldBe biz
+            c.displayName.value shouldBe "시험 가맹점"
             s.idempotencyKey.length shouldBe 63
             s.correlationId.length shouldBe 36
+        }
+        Then("C-27: the legacy business command parser no longer exists (no `business` entry point)") {
+            MerchantOperationsRequestParser::class.java.declaredMethods.map { it.name } shouldNotContain "business"
         }
         Then("merchant and site: ids, channel type and the lower-case identifier") {
             MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.registerMerchant(biz))).shouldNotBeNull().businessId.value shouldBe biz
@@ -42,7 +48,7 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
     }
 
     Given("malformed bodies (400 REQUEST_MALFORMED before the use case — nothing stored)") {
-        val good = MerchantOperationsBodies.registerBusiness(brn = "7781234560")
+        val good = MerchantOperationsBodies.registerMerchant(biz, code = "shopabcd12")
         Then("structure: unknown, missing or duplicate keys, trailing tokens, non-object roots and empty bodies") {
             listOf(
                 good.dropLast(1) + ",\"unknown\":\"x\"}",
@@ -53,26 +59,27 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
                 "\"text\"",
                 "",
                 "{}",
-            ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.business(bytes(body)).shouldBeNull() } }
+            ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.merchant(bytes(body)).shouldBeNull() } }
+            MerchantOperationsRequestParser.merchant(bytes(good)).shouldNotBeNull() // 대조
         }
         Then("types: numbers, booleans, arrays, objects and null are not coerced to strings") {
             listOf(
-                good.replace("\"7781234560\"", "7781234560"),
-                good.replace("\"7781234560\"", "null"),
-                good.replace("\"7781234560\"", "[\"7781234560\"]"),
-                good.replace("\"7781234560\"", "{\"v\":\"7781234560\"}"),
-                good.replace("\"7781234560\"", "true"),
-            ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.business(bytes(body)).shouldBeNull() } }
+                good.replace("\"shopabcd12\"", "123456"),
+                good.replace("\"shopabcd12\"", "null"),
+                good.replace("\"shopabcd12\"", "[\"shopabcd12\"]"),
+                good.replace("\"shopabcd12\"", "{\"v\":\"shopabcd12\"}"),
+                good.replace("\"shopabcd12\"", "true"),
+            ).forEach { body -> withClue(body) { MerchantOperationsRequestParser.merchant(bytes(body)).shouldBeNull() } }
         }
         Then("actor namespace (§3.1): only admin:<id> — no other namespace, no bare prefix") {
             listOf("system:demo-seed", "operator-1", "admin:", "Admin:adm_x", "admin:has space").forEach { actor ->
-                withClue(actor) { MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.withActor(actor))).shouldBeNull() }
+                withClue(actor) { MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.withActor(actor))).shouldBeNull() }
             }
-            MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.withActor("admin:adm_01JC00000000000000000000V2"))).shouldNotBeNull()
+            MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.withActor("admin:adm_01JC00000000000000000000V2"))).shouldNotBeNull()
         }
         Then("common fields: idempotency key and correlation id formats") {
             val s = Submission()
-            val body = MerchantOperationsBodies.registerBusiness(s)
+            val body = MerchantOperationsBodies.registerMerchant(biz, s)
             listOf(
                 body.replace(s.idempotencyKey, "has space"),
                 body.replace(s.idempotencyKey, "k".repeat(65)),
@@ -80,15 +87,11 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
                 body.replace(s.correlationId, "c".repeat(129)),
                 body.replace(s.correlationId, "상관"),
                 body.replace(s.correlationId, ""),
-            ).forEach { b -> withClue(b) { MerchantOperationsRequestParser.business(bytes(b)).shouldBeNull() } }
+            ).forEach { b -> withClue(b) { MerchantOperationsRequestParser.merchant(bytes(b)).shouldBeNull() } }
         }
-        Then("Domain value rules: hyphenated or short numbers, padded names, malformed ids, upper-case or IP hosts, unknown channel types") {
-            MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.withHyphenatedBrn())).shouldBeNull()
-            listOf("778123456", "77812345601", "778123456O", "７７８1234560").forEach { brn ->
-                withClue(brn) { MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.registerBusiness(brn = brn))).shouldBeNull() }
-            }
+        Then("Domain value rules: padded names, malformed ids, upper-case or IP hosts, unknown channel types") {
             listOf(" 시험", "시험 ", "", "a".repeat(101)).forEach { name ->
-                withClue(name) { MerchantOperationsRequestParser.business(bytes(MerchantOperationsBodies.registerBusiness(name = name))).shouldBeNull() }
+                withClue(name) { MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.registerMerchant(biz, name = name))).shouldBeNull() }
             }
             listOf("biz_1", mer, "biz_01jc0000000000000000000001").forEach { id ->
                 withClue(id) { MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.registerMerchant(id))).shouldBeNull() }
@@ -101,8 +104,8 @@ class MerchantOperationsRequestParserSpec : BehaviorSpec({
             MerchantOperationsRequestParser.site(bytes(MerchantOperationsBodies.registerSite(biz))).shouldBeNull()
         }
         Then("a body for one command is not accepted by another (field sets are exact)") {
-            MerchantOperationsRequestParser.merchant(bytes(good)).shouldBeNull()
-            MerchantOperationsRequestParser.site(bytes(MerchantOperationsBodies.registerMerchant(biz))).shouldBeNull()
+            MerchantOperationsRequestParser.site(bytes(good)).shouldBeNull()
+            MerchantOperationsRequestParser.merchant(bytes(MerchantOperationsBodies.registerSite(mer))).shouldBeNull()
             MerchantOperationsRequestParser.contract(bytes(MerchantOperationsBodies.addServiceAgreement(ctr))).shouldBeNull()
             MerchantOperationsRequestParser.serviceAgreement(bytes(MerchantOperationsBodies.registerContract(biz, mer))).shouldBeNull()
         }

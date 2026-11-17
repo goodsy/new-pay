@@ -4,12 +4,11 @@ import com.paycore.master.merchant.application.OnboardingFixture
 import java.util.UUID
 
 /**
- * MERCHANT-OPS-002 B1-1 명령 본문 Named Fixture(src/test 전용 — Test Fixture Policy: 업무 조건이 이름에 드러나게, 무효 Fixture는 의도를 이름에). 값은 시험 값이다(실제 사업자·도메인 아님).
+ * MERCHANT-OPS-002 B1-1 명령 본문 Named Fixture(옛 사업자 등록 본문은 BUSINESS-PROFILE-001 C-27 전환에서 제거 — 사업자 생성은 BusinessBodies)(src/test 전용 — Test Fixture Policy: 업무 조건이 이름에 드러나게, 무효 Fixture는 의도를 이름에). 값은 시험 값이다(실제 사업자·도메인 아님).
  * ADMIN이 보내는 모양 그대로: 키 `mo1.<계정 ULID>.<submissionId>`, actor `admin:<계정 ID>`, correlationId `mos.<submissionId>`(C-4·C-14).
  */
 object MerchantOperationsBodies {
     const val ACCOUNT = "adm_01JC00000000000000000000V1"
-    const val BUSINESSES = "/internal/v1/admin/merchant-operations/businesses"
     const val MERCHANTS = "/internal/v1/admin/merchant-operations/merchants"
     const val SITES = "/internal/v1/admin/merchant-operations/merchant-sites"
     const val CONTRACTS = "/internal/v1/admin/merchant-operations/contracts"
@@ -22,9 +21,6 @@ object MerchantOperationsBodies {
         val actor = "admin:$account"
         val correlationId = "mos.$submissionId"
     }
-
-    fun registerBusiness(s: Submission = Submission(), brn: String = OnboardingFixture.registrationNumber().value, name: String = "시험 사업자"): String =
-        obj(common(s) + listOf("registrationNumber" to brn, "displayName" to name))
 
     /** MERCHANT-CODE-001 MC-1: `merchantCode` 필수(공유 DB — 기본값은 시험마다 다른 형식 안 코드). */
     fun registerMerchant(
@@ -86,14 +82,11 @@ object MerchantOperationsBodies {
     fun withTooManyScopeSites(partyBusinessId: String, scopeMerchantId: String): String =
         registerContract(partyBusinessId, scopeMerchantId, (1..51).map { "site_01JC" + it.toString().padStart(22, '0') })
 
-    /** 무효: 하이픈 표기 등록번호(D-MD-008 — 정규화하지 않고 거절). */
-    fun withHyphenatedBrn(): String = registerBusiness(brn = "778-12-34560")
-
     /** 무효: 대문자 host(D-MD-009 — 소문자 정규형만, 자동 정규화 없음). */
     fun withUpperCaseHost(merchantId: String): String = registerSite(merchantId, identifier = "Shop.Example.test")
 
     /** 무효: ADMIN 이름공간이 아닌 actor(§3.1 — `admin:` 접두만 채널로). */
-    fun withActor(actor: String): String = registerBusiness().replace("\"actor\":\"admin:$ACCOUNT\"", "\"actor\":\"$actor\"")
+    fun withActor(actor: String): String = registerMerchant("biz_01JC0000000000000000000001", code = "shopabcd12").replace("\"actor\":\"admin:$ACCOUNT\"", "\"actor\":\"$actor\"")
 
     private fun common(s: Submission) = listOf("idempotencyKey" to s.idempotencyKey, "actor" to s.actor, "correlationId" to s.correlationId)
 

@@ -12,7 +12,6 @@ import com.paycore.master.merchant.application.provided.BusinessSearchFilter
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.MerchantOpsQuery
 import com.paycore.master.merchant.application.provided.MerchantSearchFilter
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.UpdateBusinessCommand
 import com.paycore.master.merchant.domain.BusinessChangeReason
 import com.paycore.master.merchant.domain.BusinessFixtures
@@ -22,6 +21,7 @@ import com.paycore.master.merchant.domain.BusinessProfile
 import com.paycore.master.merchant.domain.BusinessRegistrationStatus
 import com.paycore.master.merchant.domain.BusinessType
 import com.paycore.master.merchant.domain.DisplayName
+import org.testcontainers.mysql.MySQLContainer
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -47,7 +47,31 @@ class BusinessReaderSpec(
     private val merchantOps: MerchantOpsQuery,
     private val recorder: JooqStatementRecorder,
     private val clock: MutableMasterClock,
+    private val container: MySQLContainer,
 ) : BehaviorSpec({
+
+    /** 옛 `RegisterBusiness`가 남긴 사업자 한 건(V15 백필 모양 — DRAFT·구분 NULL·등록정보 1행·`BusinessRegistered` 이력, 과거 데이터 재현 — BIZ-4 C-27). */
+    fun insertLegacyRegistered(): BusinessId {
+        val id = "biz_" + com.paycore.master.merchant.domain.MasterFixture.ulid()
+        val number = BusinessFixtures.registrationNumber().value
+        com.paycore.master.MasterDbAccounts.root(container).use { c ->
+            fun exec(sql: String, vararg args: Any?) = c.prepareStatement(sql).use { ps -> args.forEachIndexed { i, a -> ps.setObject(i + 1, a) }; ps.executeUpdate() }
+            val at = "2026-10-09 02:00:00.000"
+            exec(
+                "INSERT INTO business (business_id, registration_number, display_name, lifecycle, created_at, created_by, version, business_type, registration_status, " +
+                    "verification_status, updated_at, updated_by) VALUES (?, ?, '옛 경로', 'ACTIVE', ?, 'operator-1', 0, NULL, 'DRAFT', 'NOT_CHECKED', ?, 'operator-1')",
+                id, number, at, at,
+            )
+            exec("INSERT INTO business_registration (business_id, country_code) VALUES (?, 'KR')", id)
+            exec(
+                "INSERT INTO master_change_history (request_record_id, operation, aggregate_type, aggregate_id, change_type, actor_ref, occurred_at, detail) " +
+                    "VALUES (?, 'RegisterBusiness', 'Business', ?, 'BusinessRegistered', 'operator-1', ?, JSON_OBJECT('businessId', ?, 'registrationNumberMasked', ?, " +
+                    "'displayName', '옛 경로', 'lifecycle', 'ACTIVE'))",
+                "req-legacy-" + java.util.UUID.randomUUID(), id, at, id, number.take(3) + "*******",
+            )
+        }
+        return BusinessId(id)
+    }
 
     afterAny { clock.reset(); recorder.recording = false }
 
@@ -258,7 +282,9 @@ class BusinessReaderSpec(
             second.items.map { it.reason } shouldBe listOf("상호 정정 20", "상호 정정 21")
             second.nextAfter.shouldBeNull()
 
-            val legacy = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), BusinessFixtures.registrationNumber(), DisplayName("옛 경로")))))
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 RegisterBusiness 경로가 제거돼 과거 데이터(옛 경로가 남긴 business·등록정보·`BusinessRegistered` 이력 행 — V15 백필 모양)를
+            // 그대로 넣어 같은 단언을 한다(Reader가 옛 detail 모양을 읽는다).
+            val legacy = insertLegacyRegistered()
             query.history(legacy, 0).shouldNotBeNull().items.single().let {
                 it.changeType shouldBe "BusinessRegistered"
                 it.reason.shouldBeNull()

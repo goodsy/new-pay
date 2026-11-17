@@ -131,7 +131,7 @@ class BusinessProfileService(
     }
 
     private companion object {
-        /** 옛 RegisterBusiness 이력과 같은 aggregate_type(MerchantOnboardingService.AGG_BUSINESS — 그쪽은 private). */
+        /** 옛 RegisterBusiness 이력과 같은 aggregate_type(옛 등록 경로는 C-27 전환에서 제거 — 과거 이력 행은 그대로). */
         const val AGG_BUSINESS = "Business"
         const val CREATED = "BusinessCreated"
         const val UPDATED = "BusinessProfileUpdated"

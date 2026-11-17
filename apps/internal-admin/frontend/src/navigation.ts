@@ -3,7 +3,7 @@
  * 서버 기능이 있는 화면([Page])만 업무 메뉴의 탭으로 둔다(기존 6개 + MERCHANT-OPS-001 가맹점 조회 + TXN-OPS-001 거래 조회). 서버 기능이 없는 메뉴·탭은 만들지 않는다(별도 작업).
  * 표시만 정한다 — 권한 판정은 서버가 매 요청 계정 현재 행으로 한다(§4.5.1).
  */
-export type Page = 'approvals' | 'mine' | 'merchants' | 'businessRegistration' | 'merchantRegistration' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
+export type Page = 'approvals' | 'mine' | 'merchants' | 'businesses' | 'businessRegistration' | 'merchantRegistration' | 'paymentOps' | 'transactions' | 'acquisitions' | 'accounts' | 'reconciliation' | 'audit'
 export type View = 'home' | Page
 export type MenuId = 'home' | 'approvals' | 'mine' | 'merchants' | 'payments' | 'recon' | 'accounts'
 
@@ -46,6 +46,8 @@ export function pagesFor(roles: string[]): Page[] {
   if (has('SECURITY_ADMIN') || has('OPERATOR')) pages.push('mine')
   // MERCHANT-OPS-001 §4.1: 가맹점 조회는 VIEW_MASKED(조회 4역할). 서버 기능이 생겨 메뉴를 연다(D-ADMIN-UI-003).
   if (roles.some((r) => VIEW_ROLES.includes(r))) pages.push('merchants')
+  // BUSINESS-PROFILE-001 §8.1(D-BIZ-006 ①): 사업자 조회(목록·상세·이력·번호 조회)는 OPERATOR·APPROVER — 표시만, 서버가 판정(BusinessPermissions.VIEW).
+  if (has('OPERATOR') || has('APPROVER')) pages.push('businesses')
   // MERCHANT-OPS-002 §5.1(D-MOPS-006 ①): 가맹점 등록은 OPERATOR에게만 보인다(서버 기능이 생겨 화면을 연다 — D-ADMIN-UI-003, 판정은 서버).
   // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ④ "화면만 분리, 권한은 그대로"): 사업자 등록·가맹점 등록을 두 화면(탭)으로 나눈다 — 둘 다 OPERATOR만.
   if (has('OPERATOR')) pages.push('businessRegistration', 'merchantRegistration')
@@ -78,7 +80,11 @@ const MENUS: Menu[] = [
   {
     // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ④, 사용자 Demo 피드백 2026-11-13 "담당자별 업무가 다름"): 쪽 머리 '＋ 사업자 등록' 버튼(한 마법사) → 사업자 등록·가맹점 등록 두 탭. 표시 규칙(pagesFor)은 OPERATOR만 그대로.
     id: 'merchants', label: '사업자·가맹점', section: PAYMENT_OPERATIONS, tabbed: true,
-    tabs: [{ page: 'merchants', label: '가맹점 조회' }, { page: 'businessRegistration', label: '사업자 등록' }, { page: 'merchantRegistration', label: '가맹점 등록' }],
+    // BUSINESS-PROFILE-001 §8.1(C-26): 가맹점 조회 · 사업자 조회(새) · 사업자 등록(새 폼으로 교체 — C-27) · 가맹점 등록.
+    tabs: [
+      { page: 'merchants', label: '가맹점 조회' }, { page: 'businesses', label: '사업자 조회' }, { page: 'businessRegistration', label: '사업자 등록' },
+      { page: 'merchantRegistration', label: '가맹점 등록' },
+    ],
     description: '사업자 등록부터 서비스 개통까지, 가맹점의 전체 여정을 관리하세요(조회·등록 — 계약 승인·MID 발급·개통 요청은 가맹점 상세에서).',
   },
   {

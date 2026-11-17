@@ -14,7 +14,6 @@ import com.paycore.master.merchant.application.provided.ApproveContractRevisionC
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
@@ -48,7 +47,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * MERCHANT-OPS-002 §3·§8·§8.1 B1-1(실제 보안 필터 체인 + MVC + MySQL — 공용 시험 컨텍스트에 MockMvc): 새 명령 handler의 서명 강제(무서명·다른 키·오래된 시각 401), 쓰기 경로 전수(m-5),
+ * MERCHANT-OPS-002 §3·§8·§8.1 B1-1(실제 보안 필터 체인 + MVC + MySQL — 공용 시험 컨텍스트에 MockMvc). 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 사업자 등록 handler
+ * (`merchant-operations/businesses`)가 제거돼 쓰기 경로 목록에서 빠지고, 그 handler를 운반체로 쓰던 채널 공통 시험(성공 모양·재생·409·같은 서명 재전송·permit 소진·실패 분류·로그 비노출)은
+ * 가맹점 등록 handler로 옮겼다(같은 단언). 준비용 사업자는 새 생성 경로(REGISTERED — D-BIZ-001). 옛 경로 전용 C-12 중복 번호 비노출 시험은 D-BIZ-003으로 대체된 동작이라 제거 —
+ * 새 경로 중복 거절(existing)은 BusinessProfileApiSpec BIZ-2-2, 다른 거절의 reference 비노출(C-12)은 아래 채널 중복 시험이 그대로 고정. 새 명령 handler의 서명 강제(무서명·다른 키·오래된 시각 401), 쓰기 경로 전수(m-5),
  * 성공 응답 모양·재생·키 재사용 409, 업무 거절 200 + 재생, **거절 reference 비노출(C-12 — 대조군: 같은 DB `admin_request`에는 기존 ID가 있다)**, 같은 서명 바이트 재전송 무변화(m-3),
  * 쓰기 permit 소진 503(조회 permit과 독립), Use Case 실패 분류·예외 문구 비로그, 로그 비노출(서명 키·서명·MASTER 멱등 키·등록번호·채널 식별값), 지표, Site 등록의 권리 revision(MID 없음 → 발행 0).
  */
@@ -95,15 +97,16 @@ class MerchantOperationsApiSpec(
     fun commandCount(operation: String, outcome: String) =
         registry.find(MerchantOperationsController.COMMAND_METRIC).tags("operation", operation, "outcome", outcome).counter()?.count() ?: 0.0
 
+    /** 준비용 사업자(새 생성 경로 REGISTERED — D-BIZ-001, BIZ-4 C-27). */
     fun registerBusiness(brn: String = OnboardingFixture.registrationNumber().value): String =
-        post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(brn = brn)).also { it.response.status shouldBe 200 }.field("reference")
+        post(BusinessBodies.CREATE, BusinessBodies.create(number = brn)).also { it.response.status shouldBe 200 }.field("reference")
 
     fun registerMerchant(businessId: String): String =
         post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId)).also { it.response.status shouldBe 200 }.field("reference")
 
     Given("the signed admin channel in front of the new command handlers") {
         val paths = listOf(
-            MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.SITES,
+            MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.SITES,
             MerchantOperationsBodies.CONTRACTS, MerchantOperationsBodies.AGREEMENTS, MerchantOperationsBodies.CONTRACT_REVISIONS,
         )
 
@@ -146,13 +149,15 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/businesses/commands/update",
                 "POST /internal/v1/admin/businesses/commands/complete-registration",
             )
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 `merchant-operations/businesses` 제거 — 쓰기 경로가 하나 줄었다(완화 아님, 사업자 생성은 위 `businesses/commands/create`).
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals
+            nonGet.filter { it.contains("merchant-operations/businesses") } shouldBe emptyList()
         }
 
         Then("unsigned, foreign-key and stale calls are 401 UNAUTHENTICATED without reaching the use case (no admin_request row)") {
             val before = count("SELECT COUNT(*) FROM admin_request")
             paths.forEach { path ->
-                val body = MerchantOperationsBodies.registerBusiness()
+                val body = MerchantOperationsBodies.registerMerchant("biz_01JC0000000000000000000001")
                 val bytes = body.toByteArray(Charsets.UTF_8)
                 listOf(
                     null,
@@ -173,11 +178,11 @@ class MerchantOperationsApiSpec(
 
         Then("malformed bodies are 400 REQUEST_MALFORMED without echoing the input and are not stored") {
             val before = count("SELECT COUNT(*) FROM admin_request")
-            val r = post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.withHyphenatedBrn())
+            val r = post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant("biz_1"))
             r.response.status shouldBe 400
             r.body() shouldBe """{"error":"REQUEST_MALFORMED"}"""
             post(MerchantOperationsBodies.SITES, MerchantOperationsBodies.withUpperCaseHost("mer_01JC0000000000000000000001")).body() shouldBe """{"error":"REQUEST_MALFORMED"}"""
-            post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.withActor("system:demo-seed")).response.status shouldBe 400
+            post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.withActor("system:demo-seed")).response.status shouldBe 400
             // B1-2: Site 51개(C-2 상한 초과)·형식 아닌 시작 시각·모르는 서비스 종류도 400(저장 없음).
             val biz = "biz_01JC0000000000000000000001"
             val mer = "mer_01JC0000000000000000000001"
@@ -190,33 +195,31 @@ class MerchantOperationsApiSpec(
 
     Given("business → merchant → site registration through the signed channel") {
         Then("each step answers 200 SUCCEEDED with the documented shape; replay is replayed=true with the same reference; a reused key is 409") {
-            val okBefore = commandCount("RegisterBusiness", "SUCCEEDED")
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 사업자는 새 생성 경로(REGISTERED), 성공 모양·재생·409 단언은 가맹점 단계로 옮겼다(사업자 명령의 같은 단언은 BusinessProfileApiSpec BIZ-2-4).
+            val businessId = registerBusiness()
+            val okBefore = commandCount("RegisterMerchant", "SUCCEEDED")
             val s = Submission()
-            val body = MerchantOperationsBodies.registerBusiness(s)
-            val first = post(MerchantOperationsBodies.BUSINESSES, body)
-            first.response.status shouldBe 200
-            first.response.getHeader("Cache-Control")!! shouldContain "no-store"
-            first.response.getHeader(AdminChannelResponses.REQUEST_ID_HEADER) shouldNotBe null
-            json.readTree(first.body()).propertyNames().toList() shouldBe listOf("outcome", "reference", "replayed")
-            first.field("outcome") shouldBe "SUCCEEDED"
-            val businessId = first.field("reference")
-            businessId shouldMatch Regex("^biz_[0-9A-HJKMNP-TV-Z]{26}$")
-            json.readTree(first.body()).get("replayed").asBoolean() shouldBe false
-
-            val replay = post(MerchantOperationsBodies.BUSINESSES, body)
-            replay.body() shouldBe """{"outcome":"SUCCEEDED","reference":"$businessId","replayed":true}"""
-            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ?", s.idempotencyKey) shouldBe 1L
-
-            val reused = post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(s, name = "다른 이름"))
-            reused.response.status shouldBe 409
-            reused.body() shouldBe """{"error":"IDEMPOTENCY_KEY_REUSED"}"""
-            commandCount("RegisterBusiness", "SUCCEEDED") shouldBe okBefore + 2.0
-            commandCount("RegisterBusiness", "KEY_REUSED") shouldNotBe 0.0
-
-            val merchant = post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId))
+            val code = com.paycore.master.merchant.domain.MerchantCodeFixtures.unique().value
+            val body = MerchantOperationsBodies.registerMerchant(businessId, s, code = code)
+            val merchant = post(MerchantOperationsBodies.MERCHANTS, body)
+            merchant.response.status shouldBe 200
+            merchant.response.getHeader("Cache-Control")!! shouldContain "no-store"
+            merchant.response.getHeader(AdminChannelResponses.REQUEST_ID_HEADER) shouldNotBe null
+            json.readTree(merchant.body()).propertyNames().toList() shouldBe listOf("outcome", "reference", "replayed")
             merchant.field("outcome") shouldBe "SUCCEEDED"
             val merchantId = merchant.field("reference")
             merchantId shouldMatch Regex("^mer_[0-9A-HJKMNP-TV-Z]{26}$")
+            json.readTree(merchant.body()).get("replayed").asBoolean() shouldBe false
+
+            val replay = post(MerchantOperationsBodies.MERCHANTS, body)
+            replay.body() shouldBe """{"outcome":"SUCCEEDED","reference":"$merchantId","replayed":true}"""
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ?", s.idempotencyKey) shouldBe 1L
+
+            val reused = post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId, s, name = "다른 이름", code = code))
+            reused.response.status shouldBe 409
+            reused.body() shouldBe """{"error":"IDEMPOTENCY_KEY_REUSED"}"""
+            commandCount("RegisterMerchant", "SUCCEEDED") shouldBe okBefore + 2.0
+            commandCount("RegisterMerchant", "KEY_REUSED") shouldNotBe 0.0
             val revisionBefore = count("SELECT entitlement_revision FROM merchant WHERE merchant_id = ?", merchantId)
 
             val site = post(MerchantOperationsBodies.SITES, MerchantOperationsBodies.registerSite(merchantId))
@@ -229,21 +232,6 @@ class MerchantOperationsApiSpec(
             OnboardingFixture.runtime(container).use { c ->
                 c.scalar("SELECT actor_ref FROM master_change_history WHERE aggregate_id = ?", merchantId)
             } shouldBe "admin:${MerchantOperationsBodies.ACCOUNT}"
-        }
-
-        Then("C-12: a duplicate registration number is 200 REJECTED without a reference key or the existing business id; the stored admin_request result still has it (control)") {
-            val brn = OnboardingFixture.registrationNumber().value
-            val existing = registerBusiness(brn)
-            val s = Submission()
-            val body = MerchantOperationsBodies.registerBusiness(s, brn = brn)
-            val rejected = post(MerchantOperationsBodies.BUSINESSES, body)
-            rejected.response.status shouldBe 200
-            rejected.body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","replayed":false}"""
-            rejected.body() shouldNotContain "reference"
-            rejected.body() shouldNotContain existing
-            rejected.body() shouldNotContain brn
-            adminRequestReference(s.idempotencyKey) shouldBe existing
-            post(MerchantOperationsBodies.BUSINESSES, body).body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","replayed":true}"""
         }
 
         Then("C-12: a duplicate channel (another merchant's site) is 200 REJECTED without the other site id; the stored result has it (control)") {
@@ -267,12 +255,13 @@ class MerchantOperationsApiSpec(
         }
 
         Then("m-3: the same signed header and bytes replayed within the clock window add no rows and change no table (replayed=true)") {
-            val body = MerchantOperationsBodies.registerBusiness()
-            val header = MasterAdminChannelFixture.springHeader("POST", MerchantOperationsBodies.BUSINESSES, body.toByteArray(Charsets.UTF_8))
-            val first = post(MerchantOperationsBodies.BUSINESSES, body, header)
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 운반 명령을 가맹점 등록으로(같은 단언).
+            val body = MerchantOperationsBodies.registerMerchant(registerBusiness())
+            val header = MasterAdminChannelFixture.springHeader("POST", MerchantOperationsBodies.MERCHANTS, body.toByteArray(Charsets.UTF_8))
+            val first = post(MerchantOperationsBodies.MERCHANTS, body, header)
             first.field("outcome") shouldBe "SUCCEEDED"
             val before = snapshot()
-            val second = post(MerchantOperationsBodies.BUSINESSES, body, header)
+            val second = post(MerchantOperationsBodies.MERCHANTS, body, header)
             second.body() shouldBe """{"outcome":"SUCCEEDED","reference":"${first.field("reference")}","replayed":true}"""
             snapshot() shouldBe before
         }
@@ -481,7 +470,6 @@ class MerchantOperationsApiSpec(
         Then("use-case failures of the two new commands map to the same 503 codes; logs carry the mos. correlation id but never the MASTER key; metrics per operation") {
             val canary = "CANARY-B1-2-DRIVER-TEXT"
             fun failing(e: RuntimeException) = object : MerchantOnboardingUseCase {
-                override fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult = error("not used")
                 override fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult = error("not used")
                 override fun registerMerchantSite(command: RegisterMerchantSiteCommand): AdminCommandResult = error("not used")
                 override fun registerContract(command: RegisterContractCommand): AdminCommandResult = throw e
@@ -534,6 +522,7 @@ class MerchantOperationsApiSpec(
     Given("bulkhead and failure classification") {
         Then("C-1: with every write permit held a signed command is 503 ADMIN_WRITE_BUSY at once (no row), while a read call still runs") {
             val writes = MasterAdminChannelFixture.springSettings().writePermits
+            val busyBusiness = registerBusiness()
             val held = CountDownLatch(writes)
             val release = CountDownLatch(1)
             val pool = Executors.newFixedThreadPool(writes)
@@ -542,7 +531,8 @@ class MerchantOperationsApiSpec(
                 repeat(writes) { pool.submit { permits.write("hold", { error("permit expected") }) { held.countDown(); release.await(10, TimeUnit.SECONDS) } } }
                 held.await(5, TimeUnit.SECONDS) shouldBe true
                 val started = System.nanoTime()
-                val busy = post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness())
+                // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 운반 명령을 가맹점 등록으로(같은 단언).
+                val busy = post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(busyBusiness))
                 busy.response.status shouldBe 503
                 busy.body() shouldBe """{"error":"ADMIN_WRITE_BUSY"}"""
                 (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 2_000) shouldBe true
@@ -554,14 +544,13 @@ class MerchantOperationsApiSpec(
                 pool.awaitTermination(10, TimeUnit.SECONDS)
             }
             count("SELECT COUNT(*) FROM admin_request") shouldBe before
-            (registry.find(AdminChannelPermits.BUSY_METRIC).tags("endpoint", "RegisterBusiness").counter()?.count() ?: 0.0) shouldNotBe 0.0
-            post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness()).response.status shouldBe 200
+            (registry.find(AdminChannelPermits.BUSY_METRIC).tags("endpoint", "RegisterMerchant").counter()?.count() ?: 0.0) shouldNotBe 0.0
+            post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(busyBusiness)).response.status shouldBe 200
         }
 
         Then("use-case failures map to 503 codes (same key again); an unexpected exception's message (possibly bind values) is never logged") {
             val canary = "9988776655"
             fun failing(e: RuntimeException) = object : MerchantOnboardingUseCase {
-                override fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult = throw e
                 override fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult = throw e
                 override fun registerMerchantSite(command: RegisterMerchantSiteCommand): AdminCommandResult = throw e
                 override fun registerContract(command: RegisterContractCommand): AdminCommandResult = error("not used")
@@ -585,10 +574,11 @@ class MerchantOperationsApiSpec(
             val lines = CapturedLogs().use { logs ->
                 cases.forEach { (e, code) ->
                     val controller = MerchantOperationsController(failing(e), AdminChannelPermits(MasterAdminChannelFixture.springSettings(), metrics), metrics)
-                    val request = MockHttpServletRequest("POST", MerchantOperationsBodies.BUSINESSES).apply {
-                        setContent(MerchantOperationsBodies.registerBusiness(brn = canary).toByteArray(Charsets.UTF_8))
+                    // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 운반 명령을 가맹점 등록으로(같은 단언 — 예외 문구의 canary는 어디에도 기록되지 않는다).
+                    val request = MockHttpServletRequest("POST", MerchantOperationsBodies.MERCHANTS).apply {
+                        setContent(MerchantOperationsBodies.registerMerchant("biz_01JC0000000000000000000001", name = "가맹점 $canary").toByteArray(Charsets.UTF_8))
                     }
-                    val response = controller.registerBusiness(request)
+                    val response = controller.registerMerchant(request)
                     withClue(code) {
                         response.statusCode.value() shouldBe 503
                         String(response.body!!, Charsets.UTF_8) shouldBe """{"error":"$code"}"""
@@ -596,9 +586,9 @@ class MerchantOperationsApiSpec(
                 }
                 logs.lines()
             }
-            lines.count { "operation=RegisterBusiness" in it && "correlationId=mos." in it } shouldBe cases.size
+            lines.count { "operation=RegisterMerchant" in it && "correlationId=mos." in it } shouldBe cases.size
             lines.filter { canary in it }.shouldBeEmpty()
-            metrics.find(MerchantOperationsController.COMMAND_METRIC).tags("operation", "RegisterBusiness", "outcome", "FAILED").counter()!!.count() shouldBe cases.size.toDouble()
+            metrics.find(MerchantOperationsController.COMMAND_METRIC).tags("operation", "RegisterMerchant", "outcome", "FAILED").counter()!!.count() shouldBe cases.size.toDouble()
         }
     }
 
@@ -614,17 +604,20 @@ class MerchantOperationsApiSpec(
                 return post(path, body, header)
             }
             val lines = CapturedLogs().use { logs ->
+                // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 사업자는 새 생성 경로(번호가 오가는 명령 — 로그에 번호 없음 단언 유지), 재생·거절 운반은 가맹점·Site 명령으로(같은 5건).
+                val businessId = signedPost(BusinessBodies.CREATE, BusinessBodies.create(Submission().also { submissions += it }, number = brn)).field("reference")
                 val s1 = Submission().also { submissions += it }
-                val businessId = signedPost(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(s1, brn = brn)).field("reference")
-                signedPost(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(s1, brn = brn)).field("outcome") shouldBe "SUCCEEDED"
-                signedPost(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(Submission().also { submissions += it }, brn = brn)).field("outcome") shouldBe "REJECTED"
-                val merchantId = signedPost(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId, Submission().also { submissions += it })).field("reference")
+                val merchantBody = MerchantOperationsBodies.registerMerchant(businessId, s1)
+                val merchantId = signedPost(MerchantOperationsBodies.MERCHANTS, merchantBody).field("reference")
+                signedPost(MerchantOperationsBodies.MERCHANTS, merchantBody).field("outcome") shouldBe "SUCCEEDED"
+                val other = signedPost(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId, Submission().also { submissions += it })).field("reference")
                 signedPost(MerchantOperationsBodies.SITES, MerchantOperationsBodies.registerSite(merchantId, Submission().also { submissions += it }, identifier = host)).field("outcome") shouldBe "SUCCEEDED"
-                post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(brn = brn), MasterAdminChannelFixture.header("POST", MerchantOperationsBodies.BUSINESSES, ByteArray(0)))
+                signedPost(MerchantOperationsBodies.SITES, MerchantOperationsBodies.registerSite(other, Submission().also { submissions += it }, identifier = host)).field("outcome") shouldBe "REJECTED"
+                post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId), MasterAdminChannelFixture.header("POST", MerchantOperationsBodies.MERCHANTS, ByteArray(0)))
                     .response.status shouldBe 401
                 logs.lines()
             }
-            lines.count { "correlationId=mos." in it } shouldBe 5
+            lines.count { "correlationId=mos." in it && ("operation=RegisterMerchant" in it || "operation=RegisterMerchantSite" in it) } shouldBe 5
             val secrets = listOf(MasterAdminChannelFixture.SPRING_SECRET, MasterAdminChannelFixture.secret(MasterAdminChannelFixture.K1))
             val v1s = headers.map { it.substringAfter("v1=") }
             (secrets + headers + v1s + submissions.map { it.idempotencyKey } + brn + host).forEach { s -> lines.filter { s in it }.shouldBeEmpty() }

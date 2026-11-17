@@ -55,6 +55,12 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   // MERCHANT-OPS-002 §9.18(B3-1 — 1인 명령)
   MERCHANT_PAYMENT_METHOD_ACTIVATION_REGISTER: '결제수단 개통 등록',
   MERCHANT_SITE_REVIEW_REJECT: 'Site 심사 거절',
+  // BUSINESS-PROFILE-001 §7.4(admin.merchantops — 사업자 관리, C-25). 옛 MERCHANT_BUSINESS_REGISTER는 기존 행 표시용으로 남는다(경로는 C-27로 제거).
+  BUSINESS_BRN_LOOKUP: '사업자등록번호 조회',
+  BUSINESS_VIEWED: '사업자 상세 조회',
+  BUSINESS_CREATE: '사업자 생성',
+  BUSINESS_UPDATE: '사업자 수정',
+  BUSINESS_REGISTRATION_COMPLETE: '사업자 등록 완료',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
   // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)

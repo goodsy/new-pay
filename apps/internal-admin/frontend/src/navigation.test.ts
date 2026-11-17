@@ -12,10 +12,11 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     // 기대값 변경(TXN-OPS-001): 조회 4역할에 거래 조회('transactions')가 더해졌다 — 나머지 화면은 그대로.
     // 기대값 변경(ACQ-VIEW-001, D-ACQV-001): 조회 4역할에 매입 현황('acquisitions')이 더해졌다 — 나머지 화면은 그대로.
     expect(pagesFor(['SECURITY_ADMIN'])).toEqual(['mine', 'merchants', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'reconciliation', 'audit'])
-    expect(pagesFor(['APPROVER'])).toEqual(['approvals', 'merchants', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'reconciliation', 'audit'])
+    // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.1, D-BIZ-006 ①): 사업자 조회('businesses')는 OPERATOR·APPROVER — 나머지 화면은 그대로.
+    expect(pagesFor(['APPROVER'])).toEqual(['approvals', 'merchants', 'businesses', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'reconciliation', 'audit'])
     // 기대값 변경(MERCHANT-OPS-002 §5.1, D-MOPS-006 ①): OPERATOR에게 가맹점 등록('merchantRegistration')이 더해졌다 — 나머지 역할은 그대로.
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ④): 사업자 등록('businessRegistration')·가맹점 등록('merchantRegistration') 화면 분리 — 둘 다 OPERATOR만(권한 그대로).
-    expect(pagesFor(['OPERATOR'])).toEqual(['mine', 'merchants', 'businessRegistration', 'merchantRegistration', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'audit'])
+    expect(pagesFor(['OPERATOR'])).toEqual(['mine', 'merchants', 'businesses', 'businessRegistration', 'merchantRegistration', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'audit'])
     expect(pagesFor(['VIEWER'])).toEqual(['merchants', 'paymentOps', 'transactions', 'acquisitions', 'accounts', 'audit'])
     expect(pagesFor(['UNMASK'])).toEqual(['audit'])
   })
@@ -35,7 +36,8 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(tree(['APPROVER'])).toEqual([
       ['운영 홈', []],
       ['승인함', ['승인함']],
-      ['사업자·가맹점', ['가맹점 조회']],
+      // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.1, D-BIZ-006 ①): 사업자 조회 탭(조회만 — 명령 버튼은 서버·화면 모두 OPERATOR).
+      ['사업자·가맹점', ['가맹점 조회', '사업자 조회']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['대사 발견', '매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
@@ -47,7 +49,8 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
       ['운영 홈', []],
       ['내 요청', ['내 요청']],
       // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ④): 쪽 머리 '＋ 사업자 등록' 버튼(한 마법사) → '사업자 등록'·'가맹점 등록' 탭으로 분리(담당자별 업무 — 둘 다 OPERATOR).
-      ['사업자·가맹점', ['가맹점 조회', '사업자 등록', '가맹점 등록']],
+      // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.1): 가맹점 조회 · 사업자 조회(새) · 사업자 등록(교체) · 가맹점 등록.
+      ['사업자·가맹점', ['가맹점 조회', '사업자 조회', '사업자 등록', '가맹점 등록']],
       ['결제 관리', ['결제 보정 취소', '거래 조회']],
       ['매입·대사', ['매입 현황']],
       ['계정·권한', ['계정 관리', '접속·감사 이력']],
@@ -91,11 +94,13 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
   it('MERCHANT-OPS-001 (AC 11): 사업자·가맹점 is shown to the four view roles only (server function exists now — D-ADMIN-UI-003)', () => {
     // 기대값 변경(MERCHANT-OPS-002 §5.1): OPERATOR의 가맹점 관리에는 가맹점 등록 화면이 더해졌다(다음 시험).
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ④): 등록 화면은 사업자 등록·가맹점 등록 두 탭(쪽 머리 버튼 없음) — OPERATOR만.
-    for (const role of ['VIEWER', 'APPROVER', 'SECURITY_ADMIN']) {
+    // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.1, D-BIZ-006 ①): APPROVER·OPERATOR에 사업자 조회('businesses') 탭.
+    for (const role of ['VIEWER', 'SECURITY_ADMIN']) {
       expect(pagesOf(menusFor([role]).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants'])
     }
-    expect(pagesOf(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants', 'businessRegistration', 'merchantRegistration'])
-    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.page)).toEqual(['merchants', 'businessRegistration', 'merchantRegistration'])
+    expect(pagesOf(menusFor(['APPROVER']).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants', 'businesses'])
+    expect(pagesOf(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')!).map((t) => t.page)).toEqual(['merchants', 'businesses', 'businessRegistration', 'merchantRegistration'])
+    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.page)).toEqual(['merchants', 'businesses', 'businessRegistration', 'merchantRegistration'])
     expect(menusFor(['UNMASK']).some((m) => m.id === 'merchants')).toBe(false)
     expect(menusFor([]).some((m) => m.id === 'merchants')).toBe(false)
     expect(menuOf('merchants')).toBe('merchants')
@@ -117,7 +122,7 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
 
   it('MERCHANT-OPS-002 §5.1 (D-MOPS-006 ①) + ADMIN-UI-MERCHANT-002 (D-ADMIN-UI-004 ④): 사업자 등록 and 가맹점 등록 are separate 사업자·가맹점 tabs for OPERATOR only; the menu description says 조회·등록', () => {
     // 기대값 변경(ADMIN-UI-MERCHANT-002, 사용자 Demo 피드백 2026-11-13): 쪽 머리 '＋ 사업자 등록' 버튼(한 마법사) → 사업자 등록·가맹점 등록 두 화면(탭). 보이는 역할은 OPERATOR만 그대로(D-MOPS-006 ① — 권한 불변).
-    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.label)).toEqual(['가맹점 조회', '사업자 등록', '가맹점 등록'])
+    expect(menusFor(['OPERATOR']).find((m) => m.id === 'merchants')?.tabs.map((t) => t.label)).toEqual(['가맹점 조회', '사업자 조회', '사업자 등록', '가맹점 등록'])
     for (const roles of [['OPERATOR'], ['OPERATOR', 'APPROVER'], ['VIEWER'], ['APPROVER'], ['SECURITY_ADMIN'], ['UNMASK'], [], ['APPROVER', 'SECURITY_ADMIN', 'VIEWER']]) expect(actions(roles)).toEqual([])
     for (const roles of [['VIEWER'], ['APPROVER'], ['SECURITY_ADMIN'], ['UNMASK'], [], ['APPROVER', 'SECURITY_ADMIN', 'VIEWER']]) {
       expect(pagesFor(roles)).not.toContain('merchantRegistration')
@@ -164,5 +169,20 @@ describe('ADMIN-UI-001 rev 0.4 (D-ADMIN-UI-003): role → sidebar menus and tabs
     expect(pagesFor([])).not.toContain('acquisitions')
     expect(menuOf('acquisitions')).toBe('recon')
     expect(searchMenus(menusFor(['VIEWER']), '매입 현황').map((r) => [r.path, r.target])).toEqual([['매입·대사 › 매입 현황', 'acquisitions']])
+  })
+})
+
+describe('BUSINESS-PROFILE-001 BIZ-4-7 (D-BIZ-006 ①): 사업자 조회 = OPERATOR·APPROVER, 사업자 등록 = OPERATOR (display only — the server decides)', () => {
+  it('pagesFor / menusFor / searchMenus', () => {
+    expect(pagesFor(['OPERATOR'])).toContain('businesses')
+    expect(pagesFor(['APPROVER'])).toContain('businesses')
+    for (const roles of [['VIEWER'], ['SECURITY_ADMIN'], ['UNMASK'], []]) {
+      expect(pagesFor(roles)).not.toContain('businesses')
+      expect(pagesFor(roles)).not.toContain('businessRegistration')
+    }
+    expect(pagesFor(['APPROVER'])).not.toContain('businessRegistration')
+    expect(menuOf('businesses')).toBe('merchants')
+    expect(searchMenus(menusFor(['APPROVER']), '사업자 조회').map((r) => [r.path, r.target])).toEqual([['사업자·가맹점 › 사업자 조회', 'businesses']])
+    expect(searchMenus(menusFor(['VIEWER']), '사업자 조회')).toEqual([])
   })
 })

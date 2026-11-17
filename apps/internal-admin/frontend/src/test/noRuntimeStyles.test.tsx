@@ -9,6 +9,8 @@ import { AccountsScreen } from '../screens/AccountsScreen'
 import { AcquisitionsScreen } from '../screens/AcquisitionsScreen'
 import { ApprovalsScreen } from '../screens/ApprovalsScreen'
 import { AuditScreen } from '../screens/AuditScreen'
+import { BusinessProfileFormScreen } from '../screens/BusinessProfileFormScreen'
+import { BusinessesScreen } from '../screens/BusinessesScreen'
 import { EnrollmentScreen } from '../screens/EnrollmentScreen'
 import { LoginScreen } from '../screens/LoginScreen'
 import { MerchantsScreen } from '../screens/MerchantsScreen'
@@ -17,6 +19,8 @@ import { ReconciliationScreen } from '../screens/ReconciliationScreen'
 import { TransactionsScreen } from '../screens/TransactionsScreen'
 import type { ApprovalView, PaymentTargetView } from '../api/adminApi'
 import { fakeApi } from './fakeApi'
+import { HISTORY, individualRegisteredDetail, listItemOf } from './businessFixtures'
+import { createScreenMemory } from '../lib/screenMemory'
 
 /**
  * ADMIN-UI-001 CSP 회귀 방지(style-src 'self', 'unsafe-inline' 없음): 화면이 런타임에 <style> 요소·style 속성·외부 link/script를 만들지 않는다.
@@ -181,6 +185,32 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     expectNoRuntimeStyles()
     await userEvent.click(screen.getByRole('button', { name: '상세' }))
     expect(await screen.findByRole('region', { name: '재매입 요청' })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+  })
+
+  it('BUSINESS-PROFILE-001 BIZ-4-6: business registration form, business list, detail and history', async () => {
+    const detail = individualRegisteredDetail()
+    const form = render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'create' }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
+    await userEvent.click(screen.getByRole('radio', { name: '법인' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: '실사업장이 사업장과 다름' }))
+    expect(screen.getByLabelText('법인등록번호')).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    form.unmount()
+    const edit = render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'edit', detail }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
+    await userEvent.clear(screen.getByLabelText('상호'))
+    expect(screen.getByLabelText('변경 사유')).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    edit.unmount()
+    render(<BusinessesScreen api={fakeApi({
+      searchBusinesses: vi.fn(async () => ({ items: [listItemOf(detail)], next: null })),
+      businessDetail: vi.fn(async () => detail),
+      businessHistory: vi.fn(async () => ({ items: HISTORY, nextAfter: null })),
+    })} memory={createScreenMemory()} canEdit onContinue={vi.fn()} />)
+    await userEvent.click(await screen.findByRole('button', { name: '데모 사업자 상세' }))
+    expect(await screen.findByRole('region', { name: '사업자 상세' })).toBeInTheDocument()
+    expectNoRuntimeStyles()
+    await userEvent.click(screen.getByRole('tab', { name: '변경 이력' }))
+    expect(await screen.findByRole('table', { name: '변경 이력' })).toBeInTheDocument()
     expectNoRuntimeStyles()
   })
 

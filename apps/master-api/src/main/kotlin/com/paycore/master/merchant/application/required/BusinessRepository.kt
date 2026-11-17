@@ -11,9 +11,6 @@ import com.paycore.master.merchant.domain.BusinessRegistrationNumber
  * - **profile 포함**([lockWithProfile]) — 사업자 명령(BusinessProfileService) 전용.
  */
 interface BusinessRepository {
-    /** 옛 등록 경로(과도기 — X-10): Root + 등록정보 1행(국가 KR, 하위 행 없음). [insert](business, [BusinessProfile.EMPTY])와 같다. */
-    fun insert(business: Business)
-
     /** Root + 등록정보 1행 + 현재 하위 행(입력 순서). 번호 중복은 flush에서 `BUSINESS_REGISTRATION_NUMBER`(업무 유일키)로 드러난다. */
     fun insert(business: Business, profile: BusinessProfile)
 

@@ -9,7 +9,6 @@ import com.paycore.master.merchant.application.provided.RegisterPaymentMethodAct
 import com.paycore.master.merchant.application.provided.AddServiceAgreementCommand
 import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminRequest
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
@@ -17,7 +16,6 @@ import com.paycore.master.merchant.application.provided.RegisterMerchantSiteComm
 import com.paycore.master.merchant.application.provided.ScopeInput
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessId
-import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.DisplayName
@@ -53,7 +51,6 @@ object MerchantOperationsRequestParser {
 
     private const val ACTOR_PREFIX = "admin:"
     private val COMMON = setOf("idempotencyKey", "actor", "correlationId")
-    private val BUSINESS = COMMON + setOf("registrationNumber", "displayName")
     // MERCHANT-CODE-001 MC-1(§3.3·§4): `merchantCode` 필수 — 형식(§3.1)은 값 객체가 검사(위반 400, 정규화 없음). 예약어·중복은 Use Case의 저장된 거절.
     private val MERCHANT = COMMON + setOf("businessId", "displayName", "merchantCode")
     private val SITE = COMMON + setOf("merchantId", "channelType", "channelIdentifier")
@@ -68,10 +65,6 @@ object MerchantOperationsRequestParser {
     const val MAX_SCOPE_SITES = 50
     private val INSTANT_TEXT = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")
     private val INSTANT_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
-
-    fun business(body: ByteArray): RegisterBusinessCommand? = parse(body, BUSINESS) { fields ->
-        RegisterBusinessCommand(request(fields), BusinessRegistrationNumber(fields.getValue("registrationNumber")), DisplayName(fields.getValue("displayName")))
-    }
 
     fun merchant(body: ByteArray): RegisterMerchantCommand? = parse(body, MERCHANT) { fields ->
         RegisterMerchantCommand(

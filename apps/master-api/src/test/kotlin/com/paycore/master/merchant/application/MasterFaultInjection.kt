@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** 장애 주입 지점(Port가 SQL을 실행·flush한 **직후**, 같은 TX 안·commit 전). */
 enum class MasterFaultPoint {
-    ADMIN_RESERVE, ADMIN_COMPLETE, BUSINESS_INSERT, SITE_INSERT, MERCHANT_LOCK, MERCHANT_UPDATE, FIRST_DEFAULT_INSERT, CHANGE_LOG_APPEND,
+    ADMIN_RESERVE, ADMIN_COMPLETE, SITE_INSERT, MERCHANT_LOCK, MERCHANT_UPDATE, FIRST_DEFAULT_INSERT, CHANGE_LOG_APPEND,
     OUTBOX_APPEND,
 
     // MASTER-SNAPSHOT-001
@@ -293,8 +293,6 @@ class MasterFaultInjectionConfig {
     @Bean
     @Primary
     fun faultInjectingBusinessStore(real: JpaBusinessRepository, f: MasterFaultInjector): BusinessRepository = object : BusinessRepository by real {
-        override fun insert(business: Business) = f.around(MasterFaultPoint.BUSINESS_INSERT) { real.insert(business) }
-
         override fun insert(business: Business, profile: com.paycore.master.merchant.domain.BusinessProfile) =
             f.around(MasterFaultPoint.BUSINESS_PROFILE_INSERT) { real.insert(business, profile) }
 

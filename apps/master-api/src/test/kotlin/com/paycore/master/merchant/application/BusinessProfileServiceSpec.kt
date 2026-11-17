@@ -280,11 +280,19 @@ class BusinessProfileServiceSpec(
         }
 
         Then("X-1/X-10 a business from the legacy RegisterBusiness path is DRAFT with type NULL and one registration row; its first update sets the type without a reason; DRAFT 0 → 1 representative is general") {
-            val id = succeeded(
-                onboarding.registerBusiness(
-                    com.paycore.master.merchant.application.provided.RegisterBusinessCommand(request(), BusinessFixtures.registrationNumber(), DisplayName("옛 경로 사업자")),
-                ),
-            )
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 RegisterBusiness 경로 제거 — 그 경로·V15 백필이 남긴 행 모양(DRAFT·구분 NULL·등록정보 1행, version 0)을 SQL로 넣어 같은 단언을 한다.
+            val id = "biz_" + com.paycore.master.merchant.domain.MasterFixture.ulid()
+            runtime(container).use { c ->
+                c.prepareStatement(
+                    "INSERT INTO business (business_id, registration_number, display_name, lifecycle, created_at, created_by, version, business_type, registration_status, " +
+                        "verification_status, updated_at, updated_by) VALUES (?, ?, '옛 경로 사업자', 'ACTIVE', ?, 'operator-1', 0, NULL, 'DRAFT', 'NOT_CHECKED', ?, 'operator-1')",
+                ).use { ps ->
+                    val at = java.sql.Timestamp.from(OnboardingFixture.t0)
+                    ps.setString(1, id); ps.setString(2, BusinessFixtures.registrationNumber().value); ps.setTimestamp(3, at); ps.setTimestamp(4, at)
+                    ps.executeUpdate()
+                }
+                c.prepareStatement("INSERT INTO business_registration (business_id, country_code) VALUES (?, 'KR')").use { ps -> ps.setString(1, id); ps.executeUpdate() }
+            }
             listOf(status(id), text("SELECT IFNULL(business_type, 'NULL') FROM business WHERE business_id = ?", id), footprint(id).take(2)) shouldBe
                 listOf("DRAFT", "NULL", listOf(1L, 1L))
             service.update(update(id, 0, BusinessProfile.EMPTY, name = "옛 경로 사업자")) shouldBe AdminCommandResult.Succeeded(id, replayed = false)

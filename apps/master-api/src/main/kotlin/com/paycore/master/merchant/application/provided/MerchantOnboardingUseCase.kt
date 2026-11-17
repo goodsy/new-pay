@@ -3,7 +3,6 @@ package com.paycore.master.merchant.application.provided
 import com.paycore.master.merchant.domain.ApprovalEvidence
 import com.paycore.master.merchant.domain.ApprovalWindow
 import com.paycore.master.merchant.domain.BusinessId
-import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
@@ -27,8 +26,6 @@ import com.paycore.master.merchant.domain.ServiceKind
  * 권리 Snapshot 발행(Outbox)을 함께 커밋한다(MID가 있는 Merchant만 발행).
  */
 interface MerchantOnboardingUseCase {
-    fun registerBusiness(command: RegisterBusinessCommand): AdminCommandResult
-
     fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult
 
     fun registerMerchantSite(command: RegisterMerchantSiteCommand): AdminCommandResult
@@ -93,12 +90,6 @@ data class ApprovedMerchantCodeChangeCommand(
 
     override val commandFields: List<String> get() = listOf(merchantId.value, currentCode.value, newCode.value, reason.name)
 }
-
-data class RegisterBusinessCommand(
-    val request: AdminRequest,
-    val registrationNumber: BusinessRegistrationNumber,
-    val displayName: DisplayName,
-)
 
 /** MERCHANT-CODE-001 MC-1(§3.3): [merchantCode]는 등록 시 필수(형식은 값 객체, 예약어·중복은 Use Case 판정). */
 data class RegisterMerchantCommand(val request: AdminRequest, val businessId: BusinessId, val displayName: DisplayName, val merchantCode: MerchantCode)

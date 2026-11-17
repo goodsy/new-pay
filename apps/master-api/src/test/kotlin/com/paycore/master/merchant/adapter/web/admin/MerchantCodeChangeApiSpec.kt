@@ -6,7 +6,6 @@ import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.merchant.application.OnboardingFixture.request
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.DisplayName
@@ -48,7 +47,7 @@ class MerchantCodeChangeApiSpec(
     }
     fun executed() = registry.find(MerchantApprovalController.APPROVAL_EXECUTED_METRIC).tags("operation", "ChangeMerchantCode").counter()?.count() ?: 0.0
     fun merchant(): Pair<String, String> {
-        val business = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Demo Business")))))
+        val business = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Demo Business")))
         val code = MerchantCodeFixtures.unique().value
         val id = succeeded(onboarding.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), com.paycore.master.merchant.domain.MerchantCode(code))))
         return id to code

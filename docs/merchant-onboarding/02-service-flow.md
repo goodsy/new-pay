@@ -65,3 +65,19 @@ sequenceDiagram
 | 503 · timeout | EXECUTION_UNKNOWN | backoff(Demo 30초 → 최대 30분)로 회복 순서 반복 |
 
 기한 뒤에도 확정할 수 없는 건(조회 NONE + 기한 확인 400 지속·409)은 자동 종결하지 않고 `OWNER_UNRESOLVABLE` finding 1회와 경보를 남긴다(C-28).
+
+## 사업자 명령(BUSINESS-PROFILE-001)
+
+사업자 생성·수정·등록 완료는 1인 명령이다(승인함 없음). 화면 → ADMIN(권한·형식·속도 제한·감사) → MASTER(한 TX: 멱등 예약 → 판정 → 사업자·하위 행·변경 이력·Outbox).
+
+| 구분 | ADMIN endpoint | MASTER endpoint |
+|---|---|---|
+| 목록·번호 조회 | `POST /api/businesses/searches` · `…/registration-number-lookups` | `POST /internal/v1/admin/businesses/searches` · `…/registration-number-lookups` |
+| 상세·이력 | `GET /api/businesses/{id}` · `…/{id}/history?after=` | `GET …/businesses/{id}` · `…/{id}/history/after/{seq}` |
+| 생성·수정·등록 완료 | `POST /api/businesses` · `PUT /api/businesses/{id}` · `POST /api/businesses/{id}/registration` | `POST …/businesses/commands/{create,update,complete-registration}` |
+
+- 멱등 키 `mo1.<계정>.<submissionId>` — 화면은 결과가 확정될 때까지 같은 submissionId·같은 본문으로만 다시 보낸다. 같은 키에 다른 내용은 409 `IDEMPOTENCY_KEY_REUSED`.
+- 결과 불명(503 `MASTER_OUTCOME_UNKNOWN`·`MASTER_RETRY_SAME_KEY`·`AUDIT_UNAVAILABLE`)이면 화면이 폼을 잠그고 "같은 내용 다시 보내기"만 허용한다. `MASTER_BUSY`는 처리되지 않은 것이라 잠그지 않는다.
+- 성공 응답에는 상태·version이 없다 — 화면은 성공 뒤 상세를 다시 읽는다(C-18).
+- 옛 사업자 등록 경로(`/api/merchant-registrations/businesses` → MASTER `merchant-operations/businesses`, 번호·상호만)는 BIZ-4 전환에서 제거됐다(C-27). 기존 감사 행(`MERCHANT_BUSINESS_REGISTER`)·MASTER 기록(`RegisterBusiness`)은 그대로 남는다.
+

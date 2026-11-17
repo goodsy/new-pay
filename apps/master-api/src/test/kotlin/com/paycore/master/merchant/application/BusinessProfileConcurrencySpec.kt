@@ -144,13 +144,15 @@ class BusinessProfileConcurrencySpec(
         }
 
         Then("a profile update and a merchant registration on the same business do not deadlock (same lock order: business first)") {
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 새 가맹점 등록은 REGISTERED 사업자만(D-BIZ-001 — requireRegistered 활성화). 교착 검사 대상을
+            // DRAFT 사업자에서 REGISTERED 사업자로 바꾸고, 수정은 같은 잠금 경로의 일반정보 변경(담당자 이메일 — 사유 불필요)으로 둔다. 단언(OK, OK — 교착 없음)은 그대로.
             repeat(3) { round ->
-                val id = succeeded(service.create(CreateBusinessCommand(request(), BusinessRegistrationStatus.DRAFT, BusinessType.INDIVIDUAL,
-                    BusinessFixtures.registrationNumber(), DisplayName("가맹점 있는 사업자"), BusinessProfile.EMPTY)))
+                val id = succeeded(service.create(CreateBusinessCommand(request(), BusinessRegistrationStatus.REGISTERED, BusinessType.INDIVIDUAL,
+                    BusinessFixtures.registrationNumber(), DisplayName("가맹점 있는 사업자"), BusinessFixtures.individualProfile())))
                 val results = concurrently(2) { i ->
                     if (i == 0) {
                         service.update(UpdateBusinessCommand(request(), BusinessId(id), 0, null, BusinessType.INDIVIDUAL, DisplayName("가맹점 있는 사업자"),
-                            BusinessProfile.EMPTY.copy(representatives = listOf(BusinessFixtures.joint("첫대표")))))
+                            BusinessFixtures.individualProfile().copy(contacts = listOf(BusinessFixtures.contact(email = "changed@example.test")))))
                     } else {
                         onboarding.registerMerchant(RegisterMerchantCommand(request(), BusinessId(id), DisplayName("동시 가맹점"), MerchantCodeFixtures.unique()))
                     }

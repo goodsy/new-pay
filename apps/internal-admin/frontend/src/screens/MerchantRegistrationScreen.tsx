@@ -14,20 +14,21 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { NativeSelect } from '../components/ui/native-select'
 import { RegistrationStep, stepLocked, stepReference, submitStep, type StepSpec, type StepStatus } from '../components/RegistrationStep'
-import { defaultSubmissionId, kstDate, type BusinessRef, type HandoffState, type MerchantRef } from '../lib/registration'
+import { defaultSubmissionId, kstDate, validName, type BusinessRef, type HandoffState, type MerchantRef } from '../lib/registration'
 import { isRegistrationNumber } from '../lib/registrationNumber'
 import { SERVICE_KINDS, serviceKindLabel, type ServiceKindCode } from '../lib/paymentMethods'
 import { REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { cn } from '../lib/utils'
 import { codePrefix, composeMerchantCode, cryptoRandomBytes, MERCHANT_CODE, MERCHANT_CODE_HINT, randomTail, type RandomBytes } from '../lib/merchantCode'
-import { validName } from './BusinessRegistrationScreen'
+import { BRN_RATE_LIMITED, labelIn, REGISTRATION_STATUS_LABELS } from '../lib/businessProfile'
+import type { BusinessLookupItem } from '../api/adminApi'
 
 /**
  * 가맹점 등록 마법사(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④: 사업자 등록과 화면 분리, 권한 그대로 OPERATOR만. 저장은 MERCHANT-OPS-002 §5 B1 그대로 — 표시만, 판정·감사는 서버).
  * 단계: ① 사업자 선택(저장 없음) ② 가맹점·사이트(가맹점 → Site) ③ 계약 초안·서비스 계약(계약 초안 → 서비스 계약) ④ 검토·완료.
- * - ① 사업자는 **기존 조회 기능**으로 고른다: 사업자등록번호 정확 일치 가맹점 검색(MERCHANT-OPS-001 §5 `merchantSearch` — 매 시도 감사·속도 제한은 서버, D-MOPS-003)의 결과에서
- *   사업자를 묶어 보이고 "선택". 사업자 등록 화면 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]). 새 서버 API 없음.
- *   한계: 가맹점이 하나도 없는 기존 사업자는 이 검색으로 찾을 수 없다(사업자 등록 직후 넘겨받는 경우만 가능 — Coordinator 보고 대상).
+ * - ① 사업자는 **사업자등록번호 조회**로 고른다(BUSINESS-PROFILE-001 §8.4 — 합친 MERCHANT-BIZ-LOOKUP-001, D-BIZ-004: 가맹점이 없는 사업자도 찾는다. 매 시도 감사·공유 번호 버킷은
+ *   서버). 결과 0/1건 + 등록 상태(D-BIZ-006 ③): REGISTERED만 "선택", DRAFT는 "사업자 등록 완료 후 가맹점 등록 가능" + [사업자 상세 보기](선택 불가 — MASTER도
+ *   `BUSINESS_NOT_REGISTERED`로 거절, D-BIZ-001), 없음은 "사업자 등록에서 먼저 등록". 사업자 조회 상세 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]).
  * - 사업자 ID(biz_…)는 화면에 그리지 않는다(D-ADMIN-UI-004 ③) — 상호·마스킹 등록번호로 보이고, 내부 키는 가맹점·계약 초안 저장 본문에만 그대로 들어간다(API·감사 불변).
  *   사업자 표시는 "<상호> · <마스킹 등록번호>"(MERCHANT-CODE-001 MC-2b — D-MCODE-003 ②, 마스킹 값은 서버 응답·화면 계산 그대로, 평문 재노출 없음).
  *   가맹점은 **가맹점 코드**로 보인다(MERCHANT-CODE-001 MC-2 — 등록 결과·검토의 가맹점 ID(mer_…) 표시를 코드로 교체, 내부 키는 저장 본문에만). 가맹점 카드의 코드는
@@ -47,6 +48,8 @@ interface Props {
   api: AdminApi
   /** "가맹점 조회에서 보기" — 조회 탭에서 이 가맹점 상세를 연다(기존 상세 조회 경로 — 감사는 그 화면·서버, 리뷰 m-3). */
   onOpenLookup: (merchantId: string) => void
+  /** ① DRAFT 사업자의 "사업자 상세 보기"(D-BIZ-006 ③ — 사업자 조회 탭 상세, 메모리 라우팅·URL 없음). 없으면 링크를 그리지 않는다. */
+  onOpenBusiness?: (businessId: string) => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
   /** 시험 주입용(기본 = crypto.randomUUID 하이픈 제거). */
   newSubmissionId?: () => string
@@ -72,7 +75,7 @@ interface SavedContract { id: string; party: BusinessRef; merchantId: string; sc
 const NO_SITES: readonly CreatedSite[] = Object.freeze([])
 const NO_IDS: readonly string[] = Object.freeze([])
 const NO_MERCHANTS: Readonly<Record<string, MerchantRef>> = Object.freeze({})
-const NO_BUSINESSES: readonly BusinessRef[] | null = null
+const NO_FOUND: readonly BusinessLookupItem[] | null = null
 const IDLE: StepStatus = Object.freeze({ kind: 'idle' })
 const defaultTodayKst = () => kstDate(new Date())
 
@@ -240,14 +243,19 @@ const MerchantCodeText = ({ code }: { code: string | undefined }) => (
 )
 const NotSaved = () => <span className="text-xs text-muted-foreground">이 마법사에서 저장하지 않음</span>
 
-/** ① 사업자 선택: 사업자등록번호로 찾기(기존 가맹점 검색 — 정확 일치, 매 시도 감사) → 결과의 사업자 "선택". */
-function BusinessPicker({ api, memory, onSessionEnded, disabled }: { api: AdminApi; memory: ScreenMemory; onSessionEnded?: (code: ConsoleErrorCode) => void; disabled: boolean }) {
+/**
+ * ① 사업자 선택(§8.4 — D-BIZ-004·D-BIZ-006 ③): 사업자등록번호 조회(정확 일치 0/1건, 매 시도 감사·공유 번호 버킷 — 서버) → REGISTERED만 "선택".
+ * DRAFT는 선택 불가 + "사업자 등록 완료 후 가맹점 등록 가능" + 사업자 상세 보기(조회 역할 — OPERATOR는 항상 보유). 내부 키는 그리지 않는다.
+ */
+function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled }: {
+  api: AdminApi; memory: ScreenMemory; onSessionEnded?: (code: ConsoleErrorCode) => void; onOpenBusiness?: (businessId: string) => void; disabled: boolean
+}) {
   // 평문 번호는 화면 자체 상태 — 보낸 즉시 비우고 메모리·저장소·URL에 남기지 않는다(MERCHANT-OPS-001 R-3와 같다).
   const [number, setNumber] = useState('')
   const [formatError, setFormatError] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ConsoleErrorCode | null>(null)
-  const [found, setFound] = useRemembered<readonly BusinessRef[] | null>(memory, 'search.found', NO_BUSINESSES)
+  const [found, setFound] = useRemembered<readonly BusinessLookupItem[] | null>(memory, 'search.found', NO_FOUND)
   const [selected] = useRemembered<BusinessRef | null>(memory, 'selectedBusiness', null)
   const [selectError] = useRemembered(memory, 'selectError', false)
 
@@ -264,12 +272,8 @@ function BusinessPicker({ api, memory, onSessionEnded, disabled }: { api: AdminA
     setNumber('')
     setBusy(true)
     try {
-      const page = await api.merchantSearch({ registrationNumber })
-      const byId = new Map<string, BusinessRef>()
-      for (const item of page.items) {
-        if (!byId.has(item.businessId)) byId.set(item.businessId, { businessId: item.businessId, name: item.businessName, masked: item.registrationNumberMasked })
-      }
-      setFound([...byId.values()])
+      const result = await api.lookupBusinessByRegistrationNumber(registrationNumber)
+      setFound(result.items)
     } catch (e) {
       const code = codeOf(e)
       if (SESSION_ENDING.includes(code) && onSessionEnded) onSessionEnded(code)
@@ -294,7 +298,7 @@ function BusinessPicker({ api, memory, onSessionEnded, disabled }: { api: AdminA
           <ErrorNotice>사업자를 선택하세요.</ErrorNotice>
         ) : null}
         <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="사업자등록번호" className="sm:max-w-xs sm:flex-1" error={formatError ? '사업자등록번호는 숫자 10자리입니다.' : undefined} hint={formatError ? undefined : '검색은 감사 기록에 남습니다.'}>
+          <Field label="사업자등록번호" className="sm:max-w-xs sm:flex-1" error={formatError ? '사업자등록번호는 숫자 10자리입니다.' : undefined} hint={formatError ? undefined : '조회는 감사 기록에 남습니다.'}>
             {(describedBy) => (
               <RegistrationNumberInput value={number} onValueChange={setNumber} disabled={disabled} aria-describedby={describedBy} aria-invalid={formatError || undefined} />
             )}
@@ -306,20 +310,37 @@ function BusinessPicker({ api, memory, onSessionEnded, disabled }: { api: AdminA
             </Button>
           </div>
         </form>
-        {error && <ErrorNotice>{ERROR_MESSAGES[error]}</ErrorNotice>}
+        {error && <ErrorNotice>{error === 'RATE_LIMITED' ? BRN_RATE_LIMITED : ERROR_MESSAGES[error]}</ErrorNotice>}
         {found && (
           found.length === 0 ? (
-            <p className="text-sm text-muted-foreground">찾은 사업자가 없습니다(가맹점이 있는 사업자만 찾습니다).</p>
+            <p className="text-sm text-muted-foreground">이 번호로 등록된 사업자가 없습니다. 사업자 등록에서 먼저 등록하세요.</p>
           ) : (
             <ul aria-label="찾은 사업자" className="flex flex-col gap-2">
-              {found.map((business) => (
-                <li key={business.businessId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2.5">
-                  <BusinessText business={business} />
-                  <Button type="button" size="sm" disabled={disabled || selected?.businessId === business.businessId} onClick={() => offerBusiness(memory, business)}>
-                    {selected?.businessId === business.businessId ? '선택됨' : '선택'}
-                  </Button>
-                </li>
-              ))}
+              {found.map((item) => {
+                const business: BusinessRef = { businessId: item.businessId, name: item.businessName, masked: item.registrationNumberMasked }
+                return (
+                  <li key={item.businessId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2.5">
+                    <span className="flex flex-wrap items-baseline gap-x-1.5">
+                      <BusinessText business={business} />
+                      <span className="text-xs text-muted-foreground">{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</span>
+                    </span>
+                    {item.registrationStatus === 'REGISTERED' ? (
+                      <Button type="button" size="sm" disabled={disabled || selected?.businessId === item.businessId} onClick={() => offerBusiness(memory, business)}>
+                        {selected?.businessId === item.businessId ? '선택됨' : '선택'}
+                      </Button>
+                    ) : (
+                      // D-BIZ-006 ③: REGISTERED가 아니면 고를 수 없다 — MASTER가 어차피 BUSINESS_NOT_REGISTERED로 거절(D-BIZ-001). 문구는 DRAFT = 결정 문구,
+                      // INACTIVE(전이 경로 없음 — TBD-08)는 등록 완료로 풀 수 없으므로 다른 문구(리뷰 NIT-4).
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-warning">
+                          {item.registrationStatus === 'DRAFT' ? '사업자 등록 완료 후 가맹점 등록 가능' : '비활성(사용중지) 사업자 — 가맹점 등록 불가'}
+                        </span>
+                        {onOpenBusiness && <Button type="button" size="sm" variant="outline" onClick={() => onOpenBusiness(item.businessId)}>사업자 상세 보기</Button>}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )
         )}
@@ -329,7 +350,7 @@ function BusinessPicker({ api, memory, onSessionEnded, disabled }: { api: AdminA
 }
 
 export function MerchantRegistrationScreen({
-  api, onOpenLookup, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, todayKst = defaultTodayKst, randomBytes = cryptoRandomBytes,
+  api, onOpenLookup, onOpenBusiness, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, todayKst = defaultTodayKst, randomBytes = cryptoRandomBytes,
 }: Props) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -606,7 +627,7 @@ export function MerchantRegistrationScreen({
         })}
       </ol>
 
-      {wizardStep === 1 && <BusinessPicker api={api} memory={memory} onSessionEnded={onSessionEnded} disabled={advancing} />}
+      {wizardStep === 1 && <BusinessPicker api={api} memory={memory} onSessionEnded={onSessionEnded} onOpenBusiness={onOpenBusiness} disabled={advancing} />}
 
       {wizardStep === 2 && (
         <>

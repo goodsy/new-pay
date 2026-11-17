@@ -1,4 +1,5 @@
 import { type ConsoleErrorCode, errorCodeFrom } from '../errors/errorCodes'
+import { parseFieldErrors, type FieldError } from '../errors/fieldErrors'
 import { parseInputProblem } from '../errors/inputProblems'
 
 /** 서버가 세션 저장 CSRF 토큰을 전달하는 쿠키(HttpOnly 아님)와, 상태 변경 요청에서 돌려보내는 헤더(D-10). */
@@ -17,13 +18,16 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: ConsoleErrorCode
   readonly detail?: InputProblem
+  /** BUSINESS-PROFILE-001 §7.3: 사업자 명령 400의 필드 오류(path·code만 — 문법·code 집합 밖이면 없음). */
+  readonly fieldErrors?: FieldError[]
 
-  constructor(status: number, code: ConsoleErrorCode, detail?: InputProblem) {
+  constructor(status: number, code: ConsoleErrorCode, detail?: InputProblem, fieldErrors?: FieldError[]) {
     super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     if (detail) this.detail = detail
+    if (fieldErrors) this.fieldErrors = fieldErrors
   }
 }
 
@@ -79,5 +83,10 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}, deps: 
   }
   const body: unknown = await response.json().catch(() => null)
   const code = errorCodeFrom(response.status, body)
-  throw new ApiError(response.status, code, code === 'INVALID_INPUT' ? parseInputProblem(body) : undefined)
+  throw new ApiError(
+    response.status,
+    code,
+    code === 'INVALID_INPUT' ? parseInputProblem(body) : undefined,
+    code === 'INVALID_INPUT' ? parseFieldErrors(body) : undefined,
+  )
 }

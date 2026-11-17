@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.OnboardingFixture.concurrently
@@ -10,7 +11,6 @@ import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.AdminCommandFailure
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantSiteCommand
 import com.paycore.master.merchant.application.required.AdminReservationOutcome
 import com.paycore.master.merchant.application.required.PersistenceFailure
@@ -22,7 +22,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.MasterRejection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
@@ -284,7 +283,8 @@ class FirstDefaultIssuanceAtomicitySpec(
             val number = OnboardingFixture.registrationNumber()
             val holding = CountDownLatch(1)
             val held = AtomicBoolean(false)
-            faults.after(MasterFaultPoint.BUSINESS_INSERT) {
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 Root 전용 insert 경로 제거 — 사업자 생성은 profile 포함 insert(fault point BUSINESS_PROFILE_INSERT). 같은 경합·같은 단언.
+            faults.after(MasterFaultPoint.BUSINESS_PROFILE_INSERT) {
                 if (held.compareAndSet(false, true)) {
                     holding.countDown()
                     awaitLockWaiters(1)
@@ -293,16 +293,16 @@ class FirstDefaultIssuanceAtomicitySpec(
             val pool = Executors.newFixedThreadPool(2)
             try {
                 CapturedLogs().use { logs ->
-                    val first = pool.submit<AdminCommandResult> { service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("First"))) }
+                    val first = pool.submit<AdminCommandResult> { OnboardingFixture.registeredBusiness(service, number, "First") }
                     holding.await()
-                    val second = pool.submit<AdminCommandResult> { service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("Second"))) }
+                    val second = pool.submit<AdminCommandResult> { OnboardingFixture.registeredBusiness(service, number, "Second") }
                     val created = succeeded(first.get(30, TimeUnit.SECONDS))
                     second.get(30, TimeUnit.SECONDS) shouldBe
                         AdminCommandResult.Rejected(MasterRejection.BUSINESS_REGISTRATION_NUMBER_DUPLICATE, created, replayed = false)
 
                     // 경합이 실제로 일어났다: 두 번째 TX의 INSERT가 1062 → UniqueConflict(BUSINESS_REGISTRATION_NUMBER)로 분류되고 재판정됐다.
                     faults.failures.map { (point, e) -> point to (e as? PersistenceFailure.UniqueConflict)?.constraint } shouldBe
-                        listOf(MasterFaultPoint.BUSINESS_INSERT to StoreConstraint.BUSINESS_REGISTRATION_NUMBER)
+                        listOf(MasterFaultPoint.BUSINESS_PROFILE_INSERT to StoreConstraint.BUSINESS_REGISTRATION_NUMBER)
                     logs.lines().filter { it.contains(number.value) } shouldBe emptyList()
                 }
             } finally {
@@ -391,27 +391,29 @@ class FirstDefaultIssuanceAtomicitySpec(
         }
 
         Then("a server-generated id that collides with an existing row is IdentifierCollision (not retried, nothing stored, logged without values)") {
-            val existing = succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Existing"))))
+            val existing = succeeded(OnboardingFixture.registeredBusiness(service, OnboardingFixture.registrationNumber(), "Existing"))
             ids.forceNext(BusinessId.PREFIX, existing)
             val number = OnboardingFixture.registrationNumber()
-            val command = RegisterBusinessCommand(request(), number, DisplayName("Collides"))
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 RegisterBusiness 제거 — 같은 서버 생성 ID 충돌을 새 생성 명령(CreateBusiness REGISTERED)으로 시험한다(operation 이름만 다름).
+            val command = OnboardingFixture.request()
+            fun create() = OnboardingFixture.registeredBusiness(service, number, "Collides", command)
             CapturedLogs().use { logs ->
-                shouldThrow<AdminCommandFailure.IdentifierCollision> { service.registerBusiness(command) }.kind shouldBe "IDENTIFIER"
+                shouldThrow<AdminCommandFailure.IdentifierCollision> { create() }.kind shouldBe "IDENTIFIER"
                 logs.lines().filter { it.contains("identifier collision") } shouldBe listOf(
                     "com.paycore.master.merchant.application.AdminCommandExecutor admin command generated identifier collision " +
-                        "operation=RegisterBusiness correlationId=${command.request.correlationId} constraint=IDENTIFIER",
+                        "operation=CreateBusiness correlationId=${command.correlationId} constraint=IDENTIFIER",
                 )
                 logs.lines().filter { it.contains(number.value) || it.contains(existing) } shouldBe emptyList()
             }
             // 같은 키 재요청은 새 ID로 정상 처리된다(충돌한 요청은 아무것도 남기지 않았다).
-            succeeded(service.registerBusiness(command)) shouldNotBe existing
+            succeeded(create()) shouldNotBe existing
         }
     }
 
     Given("$n different keys register the same business registration number at once (UNIQUE race)") {
         Then("one Business is created; every other request converges to the duplicate rejection referencing it") {
             val number = OnboardingFixture.registrationNumber()
-            val results = concurrently(n) { service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("Race"))) }
+            val results = concurrently(n) { OnboardingFixture.registeredBusiness(service, number, "Race") }
                 .map { it.getOrThrow() }
             val created = results.filterIsInstance<AdminCommandResult.Succeeded>()
             created shouldHaveSize 1

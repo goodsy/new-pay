@@ -45,8 +45,6 @@ class JpaBusinessRepository(
     private val entityManager: EntityManager,
 ) : BusinessRepository {
 
-    override fun insert(business: Business): Unit = insert(business, BusinessProfile.EMPTY)
-
     override fun insert(business: Business, profile: BusinessProfile): Unit = translate(ENTITY) {
         val row = MasterPersistenceMapper.businessRow(business)
         entityManager.persist(row)

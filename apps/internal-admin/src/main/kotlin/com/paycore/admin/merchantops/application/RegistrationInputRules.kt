@@ -7,14 +7,13 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * 등록 입력 형식(MERCHANT-OPS-002 C-10 — MASTER Domain 값 객체 `BusinessRegistrationNumber`·`DisplayName`·`BusinessId`·`MerchantId`·`SiteChannel`과 B1-2 `ContractId`·`MerchantSiteId`·
+ * 등록 입력 형식(MERCHANT-OPS-002 C-10 — MASTER Domain 값 객체 `DisplayName`·`BusinessId`·`MerchantId`·`SiteChannel`과 B1-2 `ContractId`·`MerchantSiteId`·
  * `EffectivePeriod`(끝 > 시작)·`ServiceKind`·Scope Site 상한과 **같은 규칙을 복제**한다. 코드 공유 없음 —
  * 모듈·서비스 경계. 화면 즉시 안내용이고 권위는 MASTER다). 경계 사례 표는 양쪽 시험(MASTER `MerchantOperationsRequestParserSpec`, ADMIN `MerchantRegistrationServiceSpec`)에 있다.
  */
 internal object RegistrationInputRules {
     private const val ULID = "[0-9A-HJKMNP-TV-Z]{26}"
     val SUBMISSION_ID = Regex("^[0-9a-f]{32}$")
-    val REGISTRATION_NUMBER = Regex("^[0-9]{10}$")
     val BUSINESS_ID = Regex("^biz_$ULID$")
     val MERCHANT_ID = Regex("^mer_$ULID$")
 
@@ -39,7 +38,6 @@ internal object RegistrationInputRules {
     private val MASTER_INSTANT_TEXT = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")
 
     fun wellFormed(request: RegistrationRequest): Boolean = SUBMISSION_ID.matches(request.submissionId) && when (request) {
-        is RegistrationRequest.Business -> REGISTRATION_NUMBER.matches(request.registrationNumber) && displayName(request.displayName)
         is RegistrationRequest.Merchant -> BUSINESS_ID.matches(request.businessId) && displayName(request.displayName) && MERCHANT_CODE.matches(request.merchantCode)
         is RegistrationRequest.MerchantSite -> MERCHANT_ID.matches(request.merchantId) && channel(request.channelType, request.channelIdentifier)
         is RegistrationRequest.Contract -> BUSINESS_ID.matches(request.partyBusinessId) && MERCHANT_ID.matches(request.scopeMerchantId) &&

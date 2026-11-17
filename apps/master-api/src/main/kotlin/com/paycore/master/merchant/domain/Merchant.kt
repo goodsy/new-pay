@@ -83,9 +83,14 @@ class Merchant private constructor(
     override fun toString(): String = "Merchant(id=${id.value}, lifecycle=$lifecycle, entitlementRevision=$entitlementRevision)"
 
     companion object {
-        /** B1 등록(MERCHANT-CODE-001 §3.3): 코드 필수 — 예약어면 `MERCHANT_CODE_RESERVED`, seq 1 `REGISTRATION` 배정 하나. 중복(배정 이력 존재)은 Application 사전 조회 + DB UNIQUE. */
+        /**
+         * B1 등록(MERCHANT-CODE-001 §3.3): 코드 필수 — 예약어면 `MERCHANT_CODE_RESERVED`, seq 1 `REGISTRATION` 배정 하나. 중복(배정 이력 존재)은 Application 사전 조회 + DB UNIQUE.
+         * BUSINESS-PROFILE-001 C-27 전환(D-BIZ-001): 새 가맹점은 REGISTERED 사업자만 — 판정 순서 `BUSINESS_NOT_ACTIVE` → `BUSINESS_NOT_REGISTERED` → 코드 예약어(§4.4).
+         * 기존 가맹점의 Site·계약·MID·개통 명령은 사업자 등록 상태를 보지 않는다(D-BIZ-001 "기존 무영향").
+         */
         fun register(id: MerchantId, business: Business, displayName: DisplayName, code: MerchantCode, at: Instant, by: ActorRef): Merchant {
             business.requireActive()
+            business.requireRegistered()
             code.requireAssignable()
             return Merchant(id, business.id, displayName, Lifecycle.ACTIVE, 0, at, by, listOf(MerchantCodeAssignment.registration(code, at, by)))
         }

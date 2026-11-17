@@ -107,7 +107,7 @@ MASTER Use Case 시그니처·migration은 바꾸지 않는다(B1은 대부분 a
 
 | 경로(`/internal/v1/admin/merchant-operations/…`) | 명령 필드 | Use Case | 성공 reference |
 |---|---|---|---|
-| `businesses` | `registrationNumber`(ASCII 숫자 10자리), `displayName` | registerBusiness | `biz_…` |
+| ~~`businesses`~~ **제거됨**(BUSINESS-PROFILE-001 C-27 — 사업자 생성은 `/internal/v1/admin/businesses/commands/create`) | ~~`registrationNumber`, `displayName`~~ | ~~registerBusiness~~ | — |
 | `merchants` | `businessId`, `displayName` | registerMerchant | `mer_…` |
 | `merchant-sites` | `merchantId`, `channelType`(WEB·APP), `channelIdentifier` | registerMerchantSite | `site_…` |
 | `contracts` | `partyBusinessId`, `scopeMerchantId`, `scopeSiteIds`(배열, 비면 MERCHANT Scope, 최대 50 — C-2), `effectiveFrom`(`…Z` ms), `effectiveTo`(`…Z` ms 또는 생략) | registerContract | `ctr_…`(Revision 1) |
@@ -177,7 +177,7 @@ MASTER Use Case 시그니처·migration은 바꾸지 않는다(B1은 대부분 a
 
 | 메서드·경로 | 본문 | 응답 |
 |---|---|---|
-| `POST /api/merchant-registrations/businesses` | `submissionId, registrationNumber, displayName` | 200 `{outcome, reference?(성공만), rejection?, replayed}` — 거절에 reference 없음 |
+| ~~`POST /api/merchant-registrations/businesses`~~ **제거됨**(BUSINESS-PROFILE-001 C-27 — BIZ-4 전환. 사업자 생성은 `POST /api/businesses`, MASTER `merchant-operations/businesses`도 제거. 기존 감사 행 `MERCHANT_BUSINESS_REGISTER`·MASTER 기록 `RegisterBusiness`는 영속 값으로 남음) | ~~`submissionId, registrationNumber, displayName`~~ | — |
 | `POST /api/merchant-registrations/merchants` | `submissionId, businessId, displayName` | 〃 |
 | `POST /api/merchant-registrations/merchant-sites` | `submissionId, merchantId, channelType, channelIdentifier` | 〃 |
 | `POST /api/merchant-registrations/contracts` | `submissionId, partyBusinessId, scopeMerchantId, scopeSiteIds[], effectiveFromDate, effectiveToDate?`(Asia/Seoul 날짜 `YYYY-MM-DD` — C-7) | 〃 |

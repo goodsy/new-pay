@@ -8,14 +8,18 @@ import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
 import com.paycore.master.merchant.application.provided.IssueFirstDefaultMerchantAccountCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
+import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
+import com.paycore.master.merchant.application.provided.CreateBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantSiteCommand
 import com.paycore.master.merchant.application.provided.ScopeInput
 import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.BusinessFixtures
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.BusinessRegistrationStatus
+import com.paycore.master.merchant.domain.BusinessType
 import com.paycore.master.merchant.domain.ChannelType
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
@@ -30,6 +34,7 @@ import java.security.SecureRandom
 import java.sql.Connection
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -104,10 +109,40 @@ object OnboardingFixture {
 
     fun succeeded(result: AdminCommandResult): String = result.shouldBeInstanceOf<AdminCommandResult.Succeeded>().reference
 
+    /**
+     * BUSINESS-PROFILE-001 C-27 전환(D-BIZ-001 — 새 가맹점은 REGISTERED 사업자만): 시험 준비의 사업자는 공식 사업자 생성 Use Case(`CreateBusiness` REGISTERED, 개인 필수값 Named Fixture)로 만든다.
+     * 옛 `registerBusiness`(번호 + 상호 → DRAFT)는 제거됐다. 가맹점 명령 Use Case만 받는 기존 시험 준비 함수([readyMerchant] 등)가 같은 컨텍스트의 사업자 Use Case를 찾도록
+     * 시험 구성([com.paycore.master.MasterDbTestConfig])이 두 빈을 짝지어 [bind]한다(컨텍스트마다 — 다른 컨텍스트의 빈과 섞이지 않게 인스턴스 동일성으로 찾는다).
+     */
+    private val businessUseCases = ConcurrentHashMap<MerchantOnboardingUseCase, BusinessProfileCommandUseCase>()
+
+    class Binding(val onboarding: MerchantOnboardingUseCase, val businesses: BusinessProfileCommandUseCase)
+
+    fun bind(binding: Binding) {
+        businessUseCases[binding.onboarding] = binding.businesses
+    }
+
+    fun businessesOf(service: MerchantOnboardingUseCase): BusinessProfileCommandUseCase =
+        checkNotNull(businessUseCases[service]) { "no BusinessProfileCommandUseCase bound for this context (MasterDbTestConfig.onboardingFixtureBinding)" }
+
+    /** REGISTERED 개인 사업자(D-BIZ-001 — 가맹점 등록 가능). 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 DRAFT 등록 대신 새 생성 경로. */
+    fun registeredBusiness(
+        service: MerchantOnboardingUseCase,
+        number: BusinessRegistrationNumber = registrationNumber(),
+        name: String = "Demo Business",
+        adminRequest: AdminRequest = request(),
+    ): AdminCommandResult = businessesOf(service).create(
+        CreateBusinessCommand(adminRequest, BusinessRegistrationStatus.REGISTERED, BusinessType.INDIVIDUAL, number, DisplayName(name), BusinessFixtures.individualProfile()),
+    )
+
+    fun registeredBusinessId(service: MerchantOnboardingUseCase, number: BusinessRegistrationNumber = registrationNumber(), name: String = "Demo Business"): BusinessId =
+        BusinessId(succeeded(registeredBusiness(service, number, name)))
+
     /** [contractActor]: 계약(Revision 1) 등록자 — B2-3 "등록자 = 승인자여도 MID 발급은 통과" 시험이 승인자로 바꾼다(기본 [operator] — 기존 시험 불변). */
     /** [merchantName]: 상호(TXN-LIST-ENRICH-001 라벨 시험이 가맹점마다 다른 이름을 준다 — 기본 "Demo Merchant", 기존 시험 불변). */
     fun readyMerchant(service: MerchantOnboardingUseCase, approved: Boolean = true, contractActor: ActorRef = operator, merchantName: String = "Demo Merchant"): ReadyMerchant {
-        val business = BusinessId(succeeded(service.registerBusiness(RegisterBusinessCommand(request(), registrationNumber(), DisplayName("Demo Business")))))
+        // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 사업자 = REGISTERED(D-BIZ-001 — 새 가맹점 등록 조건). 나머지 구조·값은 그대로.
+        val business = registeredBusinessId(service)
         val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName(merchantName), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))
         val site = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))
         val second = MerchantSiteId(succeeded(service.registerMerchantSite(RegisterMerchantSiteCommand(request(), merchant, ChannelType.WEB, host()))))

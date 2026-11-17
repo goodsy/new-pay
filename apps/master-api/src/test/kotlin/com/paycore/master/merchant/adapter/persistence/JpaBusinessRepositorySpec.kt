@@ -94,9 +94,11 @@ class JpaBusinessRepositorySpec(
             query("SELECT COUNT(*) FROM business_registration WHERE business_id = ?", created.business.id.value).single()[0] shouldBe "1"
         }
 
-        Then("the legacy registration path stores the migration-row shape: DRAFT, type NULL, one registration row (KR), no child rows") {
+        // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 등록 경로의 Root 전용 insert가 제거됐다 — migration 행 모양(DRAFT·구분 NULL·하위 정보 없음)을 profile 포함 insert(빈 profile)로
+        // 저장·재조회해 같은 행 모양을 단언한다(adapter가 구분 NULL 행을 그대로 쓰고 읽는다).
+        Then("a migration-shaped business (DRAFT, type NULL, empty profile) is stored as one registration row (KR) with no child rows and reads back EMPTY") {
             val legacy = BusinessFixtures.legacyDraft()
-            tx { repository.insert(legacy) }
+            tx { repository.insert(legacy, com.paycore.master.merchant.domain.BusinessProfile.EMPTY) }
             query(
                 "SELECT b.registration_status, IFNULL(b.business_type, 'NULL'), b.verification_status, r.country_code, IFNULL(r.phone_number, 'NULL') " +
                     "FROM business b JOIN business_registration r ON r.business_id = b.business_id WHERE b.business_id = ?",

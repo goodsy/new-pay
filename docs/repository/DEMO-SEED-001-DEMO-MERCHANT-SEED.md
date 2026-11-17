@@ -66,7 +66,7 @@ T0 = argv `--effective-from`(Asia/Seoul 00:00). 효력 구간은 모두 `[T0, �
 
 | NN | Use Case | 입력(Demo 값) | 결과 | T0 | Snapshot 발행 |
 |---|---|---|---|---|---|
-| 01 | `registerBusiness` | 등록번호 `0000000000`, `DEMO 사업자 (운영값 아님)` | businessId | | |
+| 01 | `registerBusiness` → BUSINESS-PROFILE-001부터 `CreateBusiness`(REGISTERED, 옛 `RegisterBusiness` 성공 기록은 재사용 — C-24·C-27) | 등록번호 `0000000000`, `DEMO 사업자 (운영값 아님)` | businessId | | |
 | 02 | `registerMerchant` | `DEMO 가맹점 (운영값 아님)` | merchantId | | |
 | 03 | `registerMerchantSite` | WEB `demo-shop.paycore.test` | siteId | | (MID 없음 — 없음) |
 | 04 | `registerContract` | 당사자 business, Scope MERCHANT, `[T0,∞)` | contractId(Revision 1) | ● | |

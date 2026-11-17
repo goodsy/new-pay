@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.ApprovedCommandFixture.contractApproval
@@ -13,7 +14,6 @@ import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.ApprovalEvidenceFixtures
 import com.paycore.master.merchant.domain.BusinessId
@@ -56,7 +56,7 @@ class MerchantCodeChangeConcurrencySpec(
     fun change(m: MerchantId, newCode: String = MerchantCodeFixtures.unique().value) =
         merchantCodeChange(m, code(m), newCode, ApprovalEvidenceFixtures.distinctActors(evidenceRef = ApprovedCommandFixture.MERCHANT_REQUEST))
     fun registered(): MerchantId {
-        val business = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Demo Business")))))
+        val business = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Demo Business")))
         return MerchantId(succeeded(onboarding.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), MerchantCodeFixtures.unique()))))
     }
     fun label(r: AdminCommandResult): String = when (r) {
@@ -161,7 +161,7 @@ class MerchantCodeChangeConcurrencySpec(
             repeat(3) { run ->
                 val target = MerchantCodeFixtures.unique().value
                 val changeCommand = change(registered(), target)
-                val business = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Demo Business")))))
+                val business = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Demo Business")))
                 val registration = RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), MerchantCode(target))
                 val results = concurrently(2) {
                     if (it == 0) onboarding.changeMerchantCodeWithEvidence(changeCommand) else onboarding.registerMerchant(registration)

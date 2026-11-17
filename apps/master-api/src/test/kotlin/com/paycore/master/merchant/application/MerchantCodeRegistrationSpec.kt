@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.OnboardingFixture.concurrently
 import com.paycore.master.merchant.application.OnboardingFixture.request
@@ -9,7 +10,6 @@ import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.StoreConstraint
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.DisplayName
@@ -54,7 +54,7 @@ class MerchantCodeRegistrationSpec(
         }
     }
 
-    fun business(): BusinessId = BusinessId(succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Code Business")))))
+    fun business(): BusinessId = BusinessId(succeeded(OnboardingFixture.registeredBusiness(service, OnboardingFixture.registrationNumber(), "Code Business")))
     fun assignments(code: MerchantCode) = count("SELECT COUNT(*) FROM merchant_code_assignment WHERE merchant_code = ?", code.value)
     fun merchantsOf(business: BusinessId) = count("SELECT COUNT(*) FROM merchant WHERE business_id = ?", business.value)
 

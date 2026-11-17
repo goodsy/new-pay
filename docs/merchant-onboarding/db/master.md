@@ -92,6 +92,7 @@
 - CHECK: `ck_business_id`(`^biz_<ULID>$`), `ck_business_registration_number`(`^[0-9]{10}$`), `ck_business_lifecycle`(ACTIVE, TERMINATED), `ck_business_version`(≥0)
 - FK: 없음
 - 권한(runtime): SELECT, INSERT, UPDATE (V2:13 — INSERT = persist, UPDATE = `lockById` FOR UPDATE 직렬화)
+- **V15·V16 이후(BUSINESS-PROFILE-001 — 이 문서의 HEAD `1b5538d` 대조 범위 밖, 정본은 명세 §5)**: `business`에 `business_type`(INDIVIDUAL·CORPORATION, DRAFT만 NULL 허용)·`registration_status`(DRAFT·REGISTERED·INACTIVE — 기존 행 DRAFT)·`verification_status`(NOT_CHECKED만)·`updated_at`·`updated_by` 열과 목록 색인 3개가 추가됐고, 하위 표 `business_registration`(1:1)·`business_representative`·`business_category`·`business_address`·`business_contact`(유효기간 행 — 종료 = `effective_to`, 물리 삭제 없음)가 생겼다. runtime 권한은 하위 표 SELECT·INSERT·UPDATE(DELETE 없음 — V16).
 
 ### merchant
 

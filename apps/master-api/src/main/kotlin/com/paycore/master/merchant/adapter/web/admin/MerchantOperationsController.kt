@@ -14,7 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * ADMIN 가맹점 등록 명령(MERCHANT-OPS-002 §3 — B1-1: 사업자·가맹점·Site, B1-2: 계약 초안·CSA, B2-1: 계약 Revision 등록 §9.2). ADMIN 서명 채널(서명 v1·본문 16 KiB·query 금지·`ADMIN_SERVICE` — D-MOPS-005: 조회 키 하나로 서명) 뒤에서만
+ * ADMIN 가맹점 등록 명령(MERCHANT-OPS-002 §3 — B1-1: 가맹점·Site(옛 사업자 등록 `POST …/businesses`는 BUSINESS-PROFILE-001 C-27 전환에서 제거 — 사업자 생성은
+ * `/internal/v1/admin/businesses/commands/create`), B1-2: 계약 초안·CSA, B2-1: 계약 Revision 등록 §9.2). ADMIN 서명 채널(서명 v1·본문 16 KiB·query 금지·`ADMIN_SERVICE` — D-MOPS-005: 조회 키 하나로 서명) 뒤에서만
  * 열리고, ID는 경로가 아니라 **서명된 본문**에 있다(C-2). 명령 실행은 [MerchantOnboardingUseCase](MASTER 로컬 TX 하나 — 멱등 기록·업무 변경·변경 이력·Outbox·권리 Snapshot 같은 TX).
  * 이 컨트롤러는 TX를 열지 않고 저장 Port를 직접 부르지 않는다.
  *
@@ -39,11 +40,6 @@ class MerchantOperationsController(
     private val registry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(MerchantOperationsController::class.java)
-
-    @PostMapping("/businesses")
-    fun registerBusiness(request: HttpServletRequest): ResponseEntity<ByteArray> = command(request, "RegisterBusiness") {
-        MerchantOperationsRequestParser.business(it)?.let { c -> c.request to { onboarding.registerBusiness(c) } }
-    }
 
     @PostMapping("/merchants")
     fun registerMerchant(request: HttpServletRequest): ResponseEntity<ByteArray> = command(request, "RegisterMerchant") {

@@ -12,7 +12,6 @@ import com.paycore.master.merchant.application.provided.MerchantEntitlementUseCa
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.MerchantOpsQuery
 import com.paycore.master.merchant.application.provided.MerchantSearchFilter
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.application.required.MerchantDetailReader
 import com.paycore.master.merchant.domain.BusinessId
@@ -180,7 +179,7 @@ class MerchantOpsReaderSpec(
             query.search(MerchantSearchFilter(merchantId = full.merchantId, lifecycle = Lifecycle.ACTIVE)).items.single().merchantName shouldBe "Demo Merchant"
             query.search(MerchantSearchFilter(merchantId = full.merchantId, lifecycle = Lifecycle.TERMINATED)).items shouldBe emptyList()
 
-            val other = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Other")))))
+            val other = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Other")))
             val unknown = (0..9).map { ((brn[it] - '0' + 5) % 10).digitToChar() }.joinToString("")
             val notFound = query.search(MerchantSearchFilter(registrationNumber = BusinessRegistrationNumber(unknown)))
             notFound.items shouldBe emptyList()

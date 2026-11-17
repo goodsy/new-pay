@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * 화면 가맹점 등록 API(MERCHANT-OPS-002 §4.3 — B1-1: 사업자·가맹점·Site, B1-2: 계약 초안·CSA, B2-1: 계약 Revision §9.2). 세션 + CSRF(보안 체인), 모두 `no-store`, 오류 본문 `{"error":"<CODE>"}`만(입력 값 없음).
+ * 화면 가맹점 등록 API(MERCHANT-OPS-002 §4.3 — B1-1: 가맹점·Site(옛 사업자 등록 `/api/merchant-registrations/businesses`는 BUSINESS-PROFILE-001 C-27 전환에서 제거 — 사업자 생성은
+ * `POST /api/businesses`), B1-2: 계약 초안·CSA, B2-1: 계약 Revision §9.2). 세션 + CSRF(보안 체인), 모두 `no-store`, 오류 본문 `{"error":"<CODE>"}`만(입력 값 없음).
  * 읽기 전 거절(감사 없음 — MERCHANT-OPS-001 Q-MOPS-08과 같은 규칙): JSON이 아닌 Content-Type 415 `UNSUPPORTED_MEDIA_TYPE`(본문을 읽지 않는다), 16 KiB 초과 413 `REQUEST_TOO_LARGE`
  * (상한 + 1바이트까지만 읽는다). 그 뒤 [MerchantRegistrationBodyParser] 엄격 해석 → Use Case.
  *
@@ -25,9 +26,6 @@ import java.util.UUID
  */
 @RestController
 class MerchantRegistrationController(private val registrations: MerchantRegistrationUseCase, private val registry: MeterRegistry) {
-
-    @PostMapping("/api/merchant-registrations/businesses")
-    fun registerBusiness(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> = handle(RegistrationKind.BUSINESS, authentication, request)
 
     @PostMapping("/api/merchant-registrations/merchants")
     fun registerMerchant(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> = handle(RegistrationKind.MERCHANT, authentication, request)
@@ -69,7 +67,7 @@ class MerchantRegistrationController(private val registrations: MerchantRegistra
         return respond(
             when (val parsed = MerchantRegistrationBodyParser.parse(kind, body)) {
                 is MerchantRegistrationBodyParser.Parsed.Request -> registrations.register(authentication.name, parsed.request, context)
-                is MerchantRegistrationBodyParser.Parsed.Malformed -> registrations.rejectMalformed(authentication.name, kind, parsed.registrationNumberAttempt, context)
+                MerchantRegistrationBodyParser.Parsed.Malformed -> registrations.rejectMalformed(authentication.name, kind, context)
             },
         )
     }

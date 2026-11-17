@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.OnboardingFixture.runtime
@@ -13,7 +14,6 @@ import com.paycore.master.merchant.application.provided.DemoMerchantSeedUseCase
 import com.paycore.master.merchant.application.provided.DemoMerchantValues
 import com.paycore.master.merchant.application.provided.DemoSeedStep
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.AcquirerCode
 import com.paycore.master.merchant.domain.ActorRef
@@ -176,7 +176,7 @@ class MerchantCodeSeedRerunSpec(
 
     Given("MC-1-10 control: a step whose record is not SUCCEEDED (stored rejection)") {
         val brn = OnboardingFixture.registrationNumber()
-        onboarding.registerBusiness(RegisterBusinessCommand(OnboardingFixture.request(), brn, DisplayName("existing"))).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
+        OnboardingFixture.registeredBusiness(onboarding, brn, "existing").shouldBeInstanceOf<AdminCommandResult.Succeeded>()
         val c = command(brn)
         val first = seed.seed(c)
         var again: DemoMerchantSeedResult? = null

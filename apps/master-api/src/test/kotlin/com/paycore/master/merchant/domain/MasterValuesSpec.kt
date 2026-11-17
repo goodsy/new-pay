@@ -57,8 +57,7 @@ class MasterValuesSpec : BehaviorSpec({
             val number = BusinessRegistrationNumber("1234567890")
             number.masked() shouldBe "123*******"
             number.toString() shouldNotContain "4567890"
-            Business.register(MasterFixture.businessId(), number, DisplayName("B"), MasterFixture.t0, MasterFixture.operator)
-                .toString() shouldNotContain "4567890"
+            BusinessFixtures.legacyDraft(number).toString() shouldNotContain "4567890"
         }
     }
 

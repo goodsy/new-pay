@@ -38,6 +38,12 @@ export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   // MERCHANT-CODE-001 MC-1(§5.5 문구): 은퇴·사용 중 코드를 구별하지 않는다(C-18).
   MERCHANT_CODE_TAKEN: '이미 사용 중이거나 사용했던 코드입니다',
   MERCHANT_CODE_RESERVED: '사용할 수 없는 코드입니다',
+  // BUSINESS-PROFILE-001 §8.5(BIZ-4): 사업자 명령 거절 + 가맹점 등록의 새 거절(C-27 — D-BIZ-001 새 가맹점은 REGISTERED 사업자만).
+  BUSINESS_NOT_REGISTERED: '등록 완료된 사업자만 가맹점을 등록할 수 있습니다',
+  BUSINESS_NOT_DRAFT: '이미 등록 완료된 사업자입니다',
+  BUSINESS_VERSION_CONFLICT: '다른 사용자가 먼저 수정했습니다. 다시 불러온 뒤 수정하세요',
+  BUSINESS_CHANGE_REASON_REQUIRED: '중요정보를 바꾸려면 변경 사유가 필요합니다',
+  BUSINESS_PROFILE_UNCHANGED: '바뀐 내용이 없습니다',
 }
 
 /** 등록 화면 전용 문구 — 결과 감사 실패는 MASTER 효과가 확정된 뒤일 수 있다(§4.4-7). 조회 화면 문구(ERROR_MESSAGES)는 그대로. */

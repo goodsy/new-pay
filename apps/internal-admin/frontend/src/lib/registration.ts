@@ -5,6 +5,9 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 /** [at]의 Asia/Seoul 날짜 `YYYY-MM-DD`(KST는 일광절약시간 없음 — UTC+9 고정). 시작일 선택기 최솟값(안내)에 쓴다. */
 export const kstDate = (at: Date) => new Date(at.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10)
 
+/** 가맹점명·옛 사업자명 공통 이름 규칙(1~100 code point, 앞뒤 공백·제어문자 없음 — MASTER DisplayName). BIZ-4: 옛 BusinessRegistrationScreen에서 옮김(C-27). */
+export const validName = (value: string) => value.length > 0 && [...value].length <= 100 && value === value.trim() && !/\p{Cc}/u.test(value)
+
 /** 폼 제출 단위 submissionId(UUID v4 소문자 hex 32자 — 하이픈 제거, §4.2). */
 export const defaultSubmissionId = () => globalThis.crypto.randomUUID().replace(/-/g, '')
 

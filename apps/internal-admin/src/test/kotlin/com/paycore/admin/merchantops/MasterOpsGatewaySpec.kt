@@ -181,10 +181,10 @@ class MasterOpsGatewaySpec : BehaviorSpec({
     }
 
     Given("MERCHANT-OPS-002 §4.1 registration commands (B1-1)") {
-        fun command(kind: MasterCommandKind = MasterCommandKind.REGISTER_BUSINESS, sub: String = java.util.UUID.randomUUID().toString().replace("-", "")) = MasterCommand(
+        // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 REGISTER_BUSINESS 종류 제거 — 공통 시험의 기본 운반 명령을 Site 등록으로(같은 단언).
+        fun command(kind: MasterCommandKind = MasterCommandKind.REGISTER_MERCHANT_SITE, sub: String = java.util.UUID.randomUUID().toString().replace("-", "")) = MasterCommand(
             kind, "mo1.01JC00000000000000000000V1.$sub", "admin:adm_01JC00000000000000000000V1", "mos.$sub",
             when (kind) {
-                MasterCommandKind.REGISTER_BUSINESS -> mapOf("registrationNumber" to "7781234560", "displayName" to "시험 사업자")
                 // 기대값 변경(MERCHANT-CODE-001 MC-1 §4 ②): 가맹점 등록 필드에 merchantCode(필수 — 필드 증가, 완화 아님).
                 MasterCommandKind.REGISTER_MERCHANT -> mapOf("businessId" to "biz_01JC0000000000000000000001", "displayName" to "시험 가맹점", "merchantCode" to "shopabcd12")
                 MasterCommandKind.REGISTER_MERCHANT_SITE -> mapOf("merchantId" to "mer_01JC0000000000000000000001", "channelType" to "WEB", "channelIdentifier" to "demo-shop2.paycore.test")
@@ -222,22 +222,22 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             MasterCallSigner(StubMasterOpsServer.KEY_ID, java.util.Base64.getDecoder().decode(StubMasterOpsServer.KEY_BASE64)).header("POST", StubMasterOpsServer.MERCHANTS, t, body) shouldBe expected
         }
         Then("200 shapes are fail-closed: a rejection carrying a reference (C-12), unknown fields, wrong types or an unknown outcome are Unknown(RESPONSE_UNREADABLE)") {
-            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("BUSINESS_REGISTRATION_NUMBER_DUPLICATE", replayed = true)))
-            gateway().command(command()) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", null, true)
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("SITE_CHANNEL_DUPLICATE", replayed = true)))
+            gateway().command(command()) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "SITE_CHANNEL_DUPLICATE", null, true)
             listOf(
-                """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","reference":"biz_01JC0000000000000000000001","replayed":false}""",
-                """{"outcome":"REJECTED","rejection":"BUSINESS_REGISTRATION_NUMBER_DUPLICATE","reference":null,"replayed":false}""",
-                """{"outcome":"SUCCEEDED","reference":"biz_01JC0000000000000000000001","replayed":false,"extra":1}""",
-                """{"outcome":"SUCCEEDED","reference":"biz_01JC0000000000000000000001","replayed":"false"}""",
+                """{"outcome":"REJECTED","rejection":"SITE_CHANNEL_DUPLICATE","reference":"site_01JC0000000000000000000001","replayed":false}""",
+                """{"outcome":"REJECTED","rejection":"SITE_CHANNEL_DUPLICATE","reference":null,"replayed":false}""",
+                """{"outcome":"SUCCEEDED","reference":"site_01JC0000000000000000000001","replayed":false,"extra":1}""",
+                """{"outcome":"SUCCEEDED","reference":"site_01JC0000000000000000000001","replayed":"false"}""",
                 """{"outcome":"SUCCEEDED","reference":"not an id","replayed":false}""",
                 """{"outcome":"SUCCEEDED","replayed":false}""",
                 """{"outcome":"MAYBE","replayed":false}""",
                 """[]""", "", "not json",
             ).forEach { reply ->
-                StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, reply))
+                StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, reply))
                 io.kotest.assertions.withClue(reply) { gateway().command(command()) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
             }
-            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001") + " ".repeat(MasterOpsSettings.COMMAND_RESPONSE_MAX_BYTES)))
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("site_01JC0000000000000000000001") + " ".repeat(MasterOpsSettings.COMMAND_RESPONSE_MAX_BYTES)))
             gateway().command(command()) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE")
         }
         Then("B1-2: the contract body carries scopeSiteIds as a JSON array and omits an absent effectiveTo; the agreement body is two strings; both are signed and verified") {
@@ -274,16 +274,14 @@ class MasterOpsGatewaySpec : BehaviorSpec({
                 }
             }
         }
-        Then("review n-3: a SUCCEEDED reference must carry the prefix of the command kind (business→biz_, merchant→mer_, site→site_, contract→ctr_, agreement→csa_); any other prefix is Unknown(RESPONSE_UNREADABLE)") {
+        Then("review n-3: a SUCCEEDED reference must carry the prefix of the command kind (merchant→mer_, site→site_, contract→ctr_, agreement→csa_); any other prefix is Unknown(RESPONSE_UNREADABLE)") {
             val paths = mapOf(
-                MasterCommandKind.REGISTER_BUSINESS to StubMasterOpsServer.BUSINESSES,
                 MasterCommandKind.REGISTER_MERCHANT to StubMasterOpsServer.MERCHANTS,
                 MasterCommandKind.REGISTER_MERCHANT_SITE to StubMasterOpsServer.SITES,
                 MasterCommandKind.REGISTER_CONTRACT to StubMasterOpsServer.CONTRACTS,
                 MasterCommandKind.ADD_SERVICE_AGREEMENT to StubMasterOpsServer.AGREEMENTS,
             )
             val own = mapOf(
-                MasterCommandKind.REGISTER_BUSINESS to "biz_01JC0000000000000000000001",
                 MasterCommandKind.REGISTER_MERCHANT to "mer_01JC0000000000000000000001",
                 MasterCommandKind.REGISTER_MERCHANT_SITE to "site_01JC0000000000000000000001",
                 MasterCommandKind.REGISTER_CONTRACT to "ctr_01JC0000000000000000000001",
@@ -292,7 +290,7 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             paths.forEach { (kind, path) ->
                 StubMasterOpsServer.reply(path, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(own.getValue(kind))))
                 gateway().command(command(kind)) shouldBe MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, own.getValue(kind), false)
-                (own.filterKeys { it != kind }.values + "mst_01JC0000000000000000000001").forEach { foreign ->
+                (own.filterKeys { it != kind }.values + "mst_01JC0000000000000000000001" + "biz_01JC0000000000000000000001").forEach { foreign ->
                     StubMasterOpsServer.reply(path, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded(foreign)))
                     io.kotest.assertions.withClue("$kind $foreign") { gateway().command(command(kind)) shouldBe MasterCommandResult.Unknown("RESPONSE_UNREADABLE") }
                 }
@@ -339,17 +337,17 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("site_01JC0000000000000000000001")))
             gateway().command(command(MasterCommandKind.REGISTER_MERCHANT_SITE)).shouldBeInstanceOf<MasterCommandResult.Decided>().reference shouldBe "site_01JC0000000000000000000001"
         }
-        Then("inside a DB transaction the command is refused before any HTTP call; logs never carry the MASTER key, the number, the channel identifier or the signature") {
-            val c = command()
-            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size
+        Then("inside a DB transaction the command is refused before any HTTP call; logs never carry the MASTER key, the channel identifier or the signature") {
+            val c = command(MasterCommandKind.REGISTER_MERCHANT)
+            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size
             TransactionSynchronizationManager.setActualTransactionActive(true)
             try {
                 shouldThrow<IllegalStateException> { gateway().command(c) }
             } finally {
                 TransactionSynchronizationManager.setActualTransactionActive(false)
             }
-            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size shouldBe before
-            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001")))
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size shouldBe before
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("mer_01JC0000000000000000000001")))
             val site = command(MasterCommandKind.REGISTER_MERCHANT_SITE)
             StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("SITE_CHANNEL_DUPLICATE")))
             val lines = captureLogs {
@@ -358,14 +356,14 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             }
             lines.count { "operation=master-ops-command-" in it } shouldBe 2
             val signatures = StubMasterOpsServer.received.takeLast(2).mapNotNull { it.signature }
-            (listOf(c.idempotencyKey, site.idempotencyKey, "7781234560", "demo-shop2.paycore.test", StubMasterOpsServer.KEY_BASE64) + signatures).forEach { s -> lines.filter { s in it }.shouldBeEmpty() }
+            (listOf(c.idempotencyKey, site.idempotencyKey, "demo-shop2.paycore.test", StubMasterOpsServer.KEY_BASE64) + signatures).forEach { s -> lines.filter { s in it }.shouldBeEmpty() }
             c.toString() shouldNotContain c.idempotencyKey
-            c.toString() shouldNotContain "7781234560"
+            site.toString() shouldNotContain "demo-shop2.paycore.test"
         }
         Then("C-1: the write permit is separate from the lookup permit — a held lookup permit does not block a command, a held write permit answers Busy at once without calling MASTER") {
             val slow = merchantId()
             StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(slow), StubMasterOpsServer.Reply(200, StubMasterOpsServer.detailJson(slow), delayMillis = 1_200))
-            StubMasterOpsServer.reply(StubMasterOpsServer.BUSINESSES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("biz_01JC0000000000000000000001")))
+            StubMasterOpsServer.reply(StubMasterOpsServer.SITES, StubMasterOpsServer.Reply(200, StubMasterOpsServer.succeeded("site_01JC0000000000000000000001")))
             val g = gateway(settings(permits = 1, writePermits = 1))
             val lookup = CompletableFuture.supplyAsync { g.detail(slow) }
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
@@ -379,9 +377,9 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             val deadline2 = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
             val merchantsBefore = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size
             while (StubMasterOpsServer.requestsForPath(StubMasterOpsServer.MERCHANTS).size == merchantsBefore && System.nanoTime() < deadline2) Thread.sleep(20)
-            val businessesBefore = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size
+            val sitesBefore = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SITES).size
             g.command(command()) shouldBe MasterCommandResult.Busy("MASTER_OPS_BUSY")
-            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.BUSINESSES).size shouldBe businessesBefore
+            StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SITES).size shouldBe sitesBefore
             g.detail(merchantId()) shouldBe MasterCallResult.NotFound
             holder.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<MasterCommandResult.Decided>()
         }

@@ -30,7 +30,9 @@ object MasterFixture {
 
     fun webChannel(host: String = "shop-${ulid().lowercase()}.example.test") = SiteChannel(ChannelType.WEB, host)
 
-    fun business(at: Instant = t0): Business = Business.register(businessId(), registrationNumber(), DisplayName("Demo Business"), at, operator)
+    /** 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 `Business.register`(DRAFT) 제거 — 가맹점을 둘 수 있는 REGISTERED 개인 사업자(D-BIZ-001, 개인 필수값 Named Fixture). */
+    fun business(at: Instant = t0): Business =
+        Business.createRegistered(businessId(), BusinessType.INDIVIDUAL, registrationNumber(), DisplayName("Demo Business"), BusinessFixtures.individualProfile(), at, operator).business
 
     fun merchant(business: Business = business(), at: Instant = t0): Merchant =
         Merchant.register(merchantId(), business, DisplayName("Demo Merchant"), MerchantCodeFixtures.unique(), at, operator)

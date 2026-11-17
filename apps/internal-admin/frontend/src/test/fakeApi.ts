@@ -40,7 +40,14 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     merchantSearch: notStubbed('merchantSearch'),
     merchantDetail: notStubbed('merchantDetail'),
     merchantHistory: notStubbed('merchantHistory'),
-    registerBusiness: notStubbed('registerBusiness'),
+    // BUSINESS-PROFILE-001 BIZ-4: 사업자 관리 API(옛 registerBusiness는 C-27로 제거).
+    searchBusinesses: notStubbed('searchBusinesses'),
+    lookupBusinessByRegistrationNumber: notStubbed('lookupBusinessByRegistrationNumber'),
+    businessDetail: notStubbed('businessDetail'),
+    businessHistory: notStubbed('businessHistory'),
+    createBusiness: notStubbed('createBusiness'),
+    updateBusiness: notStubbed('updateBusiness'),
+    completeBusinessRegistration: notStubbed('completeBusinessRegistration'),
     registerMerchant: notStubbed('registerMerchant'),
     registerMerchantSite: notStubbed('registerMerchantSite'),
     registerContract: notStubbed('registerContract'),
@@ -76,3 +83,21 @@ export function apiError(status: number, code: ConsoleErrorCode): ApiError {
 export function storageIsEmpty(): boolean {
   return localStorage.length === 0 && sessionStorage.length === 0
 }
+
+/** 원문 사업자등록번호를 받을 수 있는 호출(BUSINESS-PROFILE-001 §8.3·§9, D-BIZLOOKUP-001 — 번호 조회·사업자 생성 요청 본문에만). */
+export const BRN_ALLOWED_CALLS: readonly string[] = ['lookupBusinessByRegistrationNumber', 'createBusiness']
+
+/**
+ * 기록된 모든 대역 호출 인수에서 [needle](원문 번호 등)이 나온 메서드 이름(리뷰 MINOR-3 — fakeApi 호출 인수 전수 검사).
+ * 화면 시험은 이 목록에서 허용 호출을 뺀 나머지가 빈 목록인지 단언한다.
+ */
+export function callsContaining(api: AdminApi, needle: string): string[] {
+  return Object.entries(api)
+    .filter(([, fn]) => vi.isMockFunction(fn) && fn.mock.calls.some((args: unknown[]) => JSON.stringify(args).includes(needle)))
+    .map(([name]) => name)
+    .sort()
+}
+
+/** [needle]이 허용 호출(번호 조회·사업자 생성) 밖으로 나간 메서드 이름. */
+export const leakedCalls = (api: AdminApi, needle: string) => callsContaining(api, needle).filter((name) => !BRN_ALLOWED_CALLS.includes(name))
+

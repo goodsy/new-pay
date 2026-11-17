@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.OnboardingFixture.readyMerchant
 import com.paycore.master.merchant.application.OnboardingFixture.request
@@ -10,7 +11,6 @@ import com.paycore.master.merchant.application.provided.AddServiceAgreementComma
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.ApproveContractRevisionCommand
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterContractCommand
 import com.paycore.master.merchant.application.provided.RegisterContractRevisionCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
@@ -202,7 +202,7 @@ class MerchantOnboardingServiceSpec(
     Given("a Merchant whose only approved revision starts in the future (pre-issuance, D-MD-015)") {
         Then("the first Default MID is issued now on that revision; nothing applies yet, so payment eligibility stays a separate decision") {
             val business = com.paycore.master.merchant.domain.BusinessId(
-                succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Future")))),
+                succeeded(OnboardingFixture.registeredBusiness(service, OnboardingFixture.registrationNumber(), "Future")),
             )
             val merchant = com.paycore.master.merchant.domain.MerchantId(
                 succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Future Merchant"), com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))),
@@ -285,14 +285,14 @@ class MerchantOnboardingServiceSpec(
     Given("registration and contract commands") {
         Then("a duplicate registration number is rejected with the existing Business as reference (D-MD-008)") {
             val number = OnboardingFixture.registrationNumber()
-            val first = succeeded(service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("First"))))
-            service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("Second"))) shouldBe
+            val first = succeeded(OnboardingFixture.registeredBusiness(service, number, "First"))
+            OnboardingFixture.registeredBusiness(service, number, "Second") shouldBe
                 AdminCommandResult.Rejected(MasterRejection.BUSINESS_REGISTRATION_NUMBER_DUPLICATE, first, replayed = false)
         }
 
         Then("the registration number appears only masked in the audit history and never in the outbox payload (D-MD-008)") {
             val number = OnboardingFixture.registrationNumber()
-            val business = succeeded(service.registerBusiness(RegisterBusinessCommand(request(), number, DisplayName("Masked"))))
+            val business = succeeded(OnboardingFixture.registeredBusiness(service, number, "Masked"))
             val history = scalar("SELECT CAST(detail AS CHAR) FROM master_change_history WHERE aggregate_id = ?", business).toString()
             val payload = scalar("SELECT CAST(payload AS CHAR) FROM outbox_event WHERE aggregate_id = ?", business).toString()
             history shouldNotContain number.value

@@ -478,13 +478,8 @@ export interface MerchantHistoryEntry {
 /**
  * 가맹점 등록(MERCHANT-OPS-002 §4.3 — B1-1, OPERATOR만). [submissionId] = 폼 제출 단위 UUID v4 소문자 hex 32자(결과가 확정될 때까지 재전송에 같은 값).
  * 응답은 저장된 판정만 200 — 성공은 reference, 거절은 rejection(기존 ID 없음 — D-MOPS-006 ③).
+ * BUSINESS-PROFILE-001 BIZ-4(C-27): 옛 사업자 등록(`BusinessRegistrationInput` — 번호·상호만)은 제거됐다. 사업자는 [BusinessCreateInput]으로 만든다.
  */
-export interface BusinessRegistrationInput {
-  submissionId: string
-  registrationNumber: string
-  displayName: string
-}
-
 export interface MerchantRegistrationInput {
   submissionId: string
   businessId: string
@@ -537,6 +532,141 @@ export interface RegistrationOutcome {
   reference?: string
   rejection?: string
   replayed: boolean
+}
+
+/**
+ * 사업자 관리(BUSINESS-PROFILE-001 §6·§7 — BIZ-4 화면). 응답은 MASTER 문서 그대로(ADMIN 모양 검사 통과분).
+ * [businessId](biz_…)는 **화면에 그리지 않는** 내부 키(D-ADMIN-UI-004 ③·X-4) — 상세·명령 호출 경로에만 쓴다. 사업자등록번호는 어디서나 마스킹 값만(D-BIZ-006 ②).
+ */
+export type BusinessType = 'INDIVIDUAL' | 'CORPORATION'
+export type BusinessRegistrationStatus = 'DRAFT' | 'REGISTERED' | 'INACTIVE'
+
+/** 목록 검색 조건(§6.2 — 모두 선택). **빈 값은 보내지 않는다**(키 생략 — JSON null은 ADMIN·MASTER 모두 400, BIZ-3 리뷰 1). 번호 검색 필드는 없다(C-6 — 번호 조회만). */
+export interface BusinessSearchInput {
+  displayNamePrefix?: string
+  businessType?: BusinessType
+  registrationStatus?: BusinessRegistrationStatus
+  /** KST 날짜 `yyyy-MM-dd`(from ≤ to, to는 그 날 끝 포함 — 서버 변환). */
+  createdFrom?: string
+  createdTo?: string
+  after?: string
+  limit?: number
+}
+
+export interface BusinessListItem {
+  businessId: string
+  businessName: string
+  registrationNumberMasked: string
+  businessType: BusinessType | null
+  registrationStatus: BusinessRegistrationStatus
+  verificationStatus: string
+  representativeNameMasked: string | null
+  representativeCount: number
+  merchantCount: number
+  updatedAt: string
+}
+
+export interface BusinessSearchPage {
+  items: BusinessListItem[]
+  next: string | null
+}
+
+/** 번호 정확 일치 조회 결과 0/1건(§6.3 — 합친 MERCHANT-BIZ-LOOKUP-001, D-BIZ-006 ③ registrationStatus). */
+export interface BusinessLookupItem {
+  businessId: string
+  businessName: string
+  registrationNumberMasked: string
+  registrationStatus: BusinessRegistrationStatus
+}
+
+export interface BusinessDetail {
+  business: {
+    businessId: string
+    businessName: string
+    registrationNumberMasked: string
+    businessType: BusinessType | null
+    registrationStatus: BusinessRegistrationStatus
+    verificationStatus: string
+    lifecycle: string
+    version: number
+    createdAt: string
+    updatedAt: string
+    merchantCount: number
+  }
+  registration: {
+    corporateRegistrationNumber: string | null
+    openingDate: string | null
+    countryCode: string
+    englishName: string | null
+    phoneNumber: string | null
+    email: string | null
+  }
+  representatives: { name: string; representativeType: string }[]
+  categories: { categoryType: string; name: string }[]
+  addresses: { addressType: string; postalCode: string; baseAddress: string; detailAddress: string | null }[]
+  contacts: { name: string; email: string; phoneNumber: string; primary: boolean }[]
+}
+
+/** 이력 항목의 바뀐 값(저장 시점 마스킹 값 그대로 — §9). 행 목록 항목은 `ended`·`added`. */
+export interface BusinessHistoryChange {
+  field: string
+  before?: unknown
+  after?: unknown
+  ended?: Record<string, unknown>[]
+  added?: Record<string, unknown>[]
+}
+
+export interface BusinessHistoryEntry {
+  seq: number
+  changeType: string
+  actorRef: string
+  occurredAt: string
+  reason: string | null
+  changes: BusinessHistoryChange[]
+}
+
+export interface BusinessHistoryPage {
+  items: BusinessHistoryEntry[]
+  nextAfter: number | null
+}
+
+/**
+ * 명령 내용(§6.6 — **모든 key 필수, 선택 값은 null**, BIZ-3 리뷰 2). `registration.countryCode`는 항상 "KR"(TBD-10).
+ * 사업자등록번호·상태는 생성([BusinessCreateInput])에만 있다(수정·등록 완료 본문에 없음 — TBD-04).
+ */
+export interface BusinessProfileContent {
+  businessType: string
+  displayName: string
+  registration: {
+    corporateRegistrationNumber: string | null
+    openingDate: string | null
+    countryCode: 'KR'
+    englishName: string | null
+    phoneNumber: string | null
+    email: string | null
+  }
+  representatives: { name: string; representativeType: string }[]
+  categories: { categoryType: string; name: string }[]
+  addresses: { addressType: string; postalCode: string; baseAddress: string; detailAddress: string | null }[]
+  contacts: { name: string; email: string; phoneNumber: string; primary: boolean }[]
+}
+
+export interface BusinessCreateInput extends BusinessProfileContent {
+  submissionId: string
+  registrationStatus: 'DRAFT' | 'REGISTERED'
+  registrationNumber: string
+}
+
+/** 수정·등록 완료(같은 본문 — 대상 businessId는 경로). [version] = 상세 `business.version`(낙관적 잠금 기대값). */
+export interface BusinessChangeInput extends BusinessProfileContent {
+  submissionId: string
+  version: number
+  reason: string | null
+}
+
+/** 명령 결과(§7.3): [existing]은 중복 거절 + 조회 권한일 때만(D-BIZ-003 — 기존 사업자 상호·마스킹 번호·상세 링크용 내부 키). */
+export interface BusinessCommandOutcome extends RegistrationOutcome {
+  existing?: BusinessLookupItem
 }
 
 export interface MerchantHistoryPage {
@@ -824,8 +954,18 @@ export interface AdminApi {
   merchantDetail(merchantId: string): Promise<MerchantDetail>
   /** [after] 없으면 첫 쪽. */
   merchantHistory(merchantId: string, after?: number): Promise<MerchantHistoryPage>
-  /** MERCHANT-OPS-002 §4.3 B1-1(OPERATOR만 — 서버가 판정·감사). */
-  registerBusiness(input: BusinessRegistrationInput): Promise<RegistrationOutcome>
+  /**
+   * BUSINESS-PROFILE-001 §7.1(BIZ-4 화면): 목록·번호 조회·상세·이력 = 조회 역할(OPERATOR·APPROVER — D-BIZ-006 ①), 명령 = OPERATOR. 판정·감사·속도 제한은 서버.
+   * 번호 조회는 POST 본문(번호가 URL·로그에 없음 — C-6), 상세는 서버가 열람마다 감사(BUSINESS_VIEWED).
+   */
+  searchBusinesses(input: BusinessSearchInput): Promise<BusinessSearchPage>
+  lookupBusinessByRegistrationNumber(registrationNumber: string): Promise<{ items: BusinessLookupItem[] }>
+  businessDetail(businessId: string): Promise<BusinessDetail>
+  /** [after] 없으면 첫 쪽(`?after=<seq>`). */
+  businessHistory(businessId: string, after?: number): Promise<BusinessHistoryPage>
+  createBusiness(input: BusinessCreateInput): Promise<BusinessCommandOutcome>
+  updateBusiness(businessId: string, input: BusinessChangeInput): Promise<BusinessCommandOutcome>
+  completeBusinessRegistration(businessId: string, input: BusinessChangeInput): Promise<BusinessCommandOutcome>
   registerMerchant(input: MerchantRegistrationInput): Promise<RegistrationOutcome>
   registerMerchantSite(input: SiteRegistrationInput): Promise<RegistrationOutcome>
   /** MERCHANT-OPS-002 §4.3 B1-2(OPERATOR만). 시작일 소급 판정은 MASTER(§3.4 — 화면 최솟값은 안내일 뿐). */
@@ -869,6 +1009,18 @@ export function auditQuery(filter: AuditFilterInput): string {
   return text ? `?${text}` : ''
 }
 
+/**
+ * 사업자 목록 검색 본문(BIZ-3 리뷰 1 — 인계 ④): 값이 없거나 빈 문자열인 필드는 **키를 생략**한다(null·빈 문자열을 보내지 않는다 — 서버는 null을 400으로 거부).
+ */
+export function businessSearchBody(input: BusinessSearchInput): Record<string, string | number> {
+  const body: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(input) as [string, unknown][]) {
+    if (typeof value === 'string' && value !== '') body[key] = value
+    else if (typeof value === 'number' && Number.isInteger(value)) body[key] = value
+  }
+  return body
+}
+
 export function createAdminApi(deps?: ApiDeps): AdminApi {
   const call = <T,>(path: string, method = 'GET', body?: unknown) => apiFetch<T>(path, { method, body }, deps)
   return {
@@ -904,7 +1056,13 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     merchantSearch: (input) => call('/api/merchant-searches', 'POST', input),
     merchantDetail: (merchantId) => call(`/api/merchants/${segment(merchantId)}`),
     merchantHistory: (merchantId, after) => call(`/api/merchants/${segment(merchantId)}/history${after === undefined ? '' : `?after=${after}`}`),
-    registerBusiness: (input) => call('/api/merchant-registrations/businesses', 'POST', input),
+    searchBusinesses: (input) => call('/api/businesses/searches', 'POST', businessSearchBody(input)),
+    lookupBusinessByRegistrationNumber: (registrationNumber) => call('/api/businesses/registration-number-lookups', 'POST', { registrationNumber }),
+    businessDetail: (businessId) => call(`/api/businesses/${segment(businessId)}`),
+    businessHistory: (businessId, after) => call(`/api/businesses/${segment(businessId)}/history${after === undefined ? '' : `?after=${after}`}`),
+    createBusiness: (input) => call('/api/businesses', 'POST', input),
+    updateBusiness: (businessId, input) => call(`/api/businesses/${segment(businessId)}`, 'PUT', input),
+    completeBusinessRegistration: (businessId, input) => call(`/api/businesses/${segment(businessId)}/registration`, 'POST', input),
     registerMerchant: (input) => call('/api/merchant-registrations/merchants', 'POST', input),
     registerMerchantSite: (input) => call('/api/merchant-registrations/merchant-sites', 'POST', input),
     registerContract: (input) => call('/api/merchant-registrations/contracts', 'POST', input),

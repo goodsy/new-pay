@@ -11,18 +11,17 @@ import tools.jackson.databind.json.JsonMapper
 /**
  * 화면 등록 본문 엄격 해석(MERCHANT-OPS-002 §4.3·§4.4 0 — MASTER `MerchantOperationsRequestParser`와 같은 규칙의 자료형 부분): JSON 객체 하나, **정해진 필드 전부**(선택 필드는 B1-2 계약의 `effectiveToDate` 하나 — 없음 또는 `null`, 배열은 계약 `scopeSiteIds` 하나 — 문자열만),
  * 모르는 필드·중복 key·뒤따르는 토큰·자료형 강제 변환·`null` 거부. 값의 **형식**(10자리·ID 모양·host 규칙)은 Use Case가 검사한다(감사 순서 유지 — 역할이 형식보다 먼저).
- * 해석 실패면 [Parsed.Malformed]이고 사업자 등록의 **등록번호 시도 여부**만 넘긴다(본문 원문·값 없음 — Q-MOPS-07 규칙: 첫 최상위 객체의 직속 key `registrationNumber`).
+ * 해석 실패면 [Parsed.Malformed](본문 원문·값 없음). 등록번호가 오가는 옛 사업자 등록 종류는 BUSINESS-PROFILE-001 C-27 전환에서 제거됐다(사업자 생성 본문은 `BusinessProfileBodyParser`).
  */
 object MerchantRegistrationBodyParser {
 
     sealed interface Parsed {
         data class Request(val request: RegistrationRequest) : Parsed
 
-        data class Malformed(val registrationNumberAttempt: Boolean) : Parsed
+        data object Malformed : Parsed
     }
 
     private val FIELDS: Map<RegistrationKind, Set<String>> = mapOf(
-        RegistrationKind.BUSINESS to setOf("submissionId", "registrationNumber", "displayName"),
         // MERCHANT-CODE-001 MC-1(§4 ②): 가맹점 등록 본문에 `merchantCode` 필수(없으면 400 INVALID_INPUT).
         RegistrationKind.MERCHANT to setOf("submissionId", "businessId", "displayName", "merchantCode"),
         RegistrationKind.MERCHANT_SITE to setOf("submissionId", "merchantId", "channelType", "channelIdentifier"),
@@ -60,9 +59,6 @@ object MerchantRegistrationBodyParser {
             RegistrationKind.SERVICE_AGREEMENT -> text(root, AGREEMENT)?.let {
                 RegistrationRequest.ServiceAgreement(it.getValue("submissionId"), it.getValue("contractId"), it.getValue("serviceKind"))
             }
-            RegistrationKind.BUSINESS -> text(root, FIELDS.getValue(kind))?.let {
-                RegistrationRequest.Business(it.getValue("submissionId"), it.getValue("registrationNumber"), it.getValue("displayName"))
-            }
             RegistrationKind.MERCHANT -> text(root, FIELDS.getValue(kind))?.let {
                 RegistrationRequest.Merchant(it.getValue("submissionId"), it.getValue("businessId"), it.getValue("displayName"), it.getValue("merchantCode"))
             }
@@ -74,8 +70,7 @@ object MerchantRegistrationBodyParser {
             }
             RegistrationKind.SITE_REVIEW_REJECTION -> siteRejection(root)
         }
-        // 해석 실패: 등록번호 시도 여부는 사업자 등록만(감사 brn=INVALID 판정용 — 본문 값은 넘기지 않는다).
-        return request?.let { Parsed.Request(it) } ?: Parsed.Malformed(kind == RegistrationKind.BUSINESS && MerchantSearchBodyParser.namesRegistrationNumber(body))
+        return request?.let { Parsed.Request(it) } ?: Parsed.Malformed
     }
 
     /**

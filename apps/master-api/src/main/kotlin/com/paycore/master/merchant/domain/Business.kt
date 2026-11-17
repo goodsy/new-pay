@@ -36,7 +36,7 @@ class Business private constructor(
         if (lifecycle != Lifecycle.ACTIVE) throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_ACTIVE)
     }
 
-    /** D-BIZ-001: 새 가맹점 등록은 REGISTERED 사업자만. 호출(`Merchant.register` — `requireActive()` 다음)은 BIZ-4 전환에서 활성화한다(C-27). */
+    /** D-BIZ-001: 새 가맹점 등록은 REGISTERED 사업자만. `Merchant.register`가 `requireActive()` 다음에 부른다(BIZ-4 전환 — C-27). */
     fun requireRegistered() {
         if (registrationStatus != BusinessRegistrationStatus.REGISTERED) throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_REGISTERED)
     }
@@ -113,16 +113,6 @@ class Business private constructor(
         "Business(id=${id.value}, registrationNumber=${registrationNumber.masked()}, lifecycle=$lifecycle, registrationStatus=$registrationStatus)"
 
     companion object {
-        /**
-         * 옛 등록 경로(번호 + 상호만 — `RegisterBusiness`, MerchantOnboardingService). 과도기(X-10·M-7 — D-BIZ-002 전면 적용 = BIZ-4 전환) 동안 migration 행과 같은
-         * 형태로 만든다: DRAFT·구분 NULL·하위 정보 없음(등록정보 1행은 저장 adapter가 만든다). BIZ-4 전환에서 경로와 함께 제거한다(C-27).
-         */
-        fun register(id: BusinessId, registrationNumber: BusinessRegistrationNumber, displayName: DisplayName, at: Instant, by: ActorRef) =
-            Business(
-                id, registrationNumber, displayName, null, BusinessRegistrationStatus.DRAFT, BusinessVerificationStatus.NOT_CHECKED, Lifecycle.ACTIVE,
-                at, by, at, by, 0,
-            )
-
         /** 임시저장 생성(D-BIZ-002 — 구분 + 번호 + 상호 필수, 그 밖 선택). */
         @Suppress("LongParameterList")
         fun createDraft(

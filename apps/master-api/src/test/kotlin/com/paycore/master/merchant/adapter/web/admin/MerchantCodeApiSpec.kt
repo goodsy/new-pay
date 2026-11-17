@@ -7,7 +7,6 @@ import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.merchant.application.OnboardingFixture.request
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.DisplayName
@@ -68,7 +67,7 @@ class MerchantCodeApiSpec(
     )
 
     Given("MC-1-6 a merchant registered with a code, then (as MC-1b would) changed once") {
-        val business = succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Code Business"))))
+        val business = succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Code Business"))
         val retired = MerchantCodeFixtures.unique()
         val current = MerchantCodeFixtures.unique()
         val merchantId = succeeded(onboarding.registerMerchant(RegisterMerchantCommand(request(), BusinessId(business), DisplayName("Code Merchant"), retired)))

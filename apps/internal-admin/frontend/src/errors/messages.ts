@@ -27,6 +27,7 @@ export const ERROR_MESSAGES: Record<ConsoleErrorCode, string> = {
   RATE_LIMITED: '조회가 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
   PAYMENT_UNAVAILABLE: '결제 서비스에 연결할 수 없어 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
   MERCHANT_NOT_FOUND: '가맹점을 찾을 수 없습니다.',
+  BUSINESS_NOT_FOUND: '사업자를 찾을 수 없습니다.',
   MASTER_UNAVAILABLE: '가맹점 정보 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   IDEMPOTENCY_KEY_REUSED: '같은 제출 번호로 다른 내용이 전송되었습니다(화면 결함 신호). 새로 입력해 다시 등록해 주세요.',
   MASTER_BUSY: '가맹점 정보 서비스가 바빠 처리하지 않았습니다. 잠시 후 다시 시도해 주세요.',

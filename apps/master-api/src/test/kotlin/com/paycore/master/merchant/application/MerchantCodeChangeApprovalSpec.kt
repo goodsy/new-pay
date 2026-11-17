@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.application
 
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.ApprovedCommandFixture.evidenceRow
@@ -13,7 +14,6 @@ import com.paycore.master.merchant.application.provided.ApprovalDecisionUseCase
 import com.paycore.master.merchant.application.provided.DeadlineConfirmationResult
 import com.paycore.master.merchant.application.provided.MerchantCodeReconciliationQuery
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ApprovalEvidenceFixtures
@@ -72,7 +72,7 @@ class MerchantCodeChangeApprovalSpec(
     val mine = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     fun registered(by: ActorRef = OnboardingFixture.operator): MerchantId {
-        val business = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Demo Business")))))
+        val business = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Demo Business")))
         return MerchantId(succeeded(onboarding.registerMerchant(RegisterMerchantCommand(request(actor = by), business, DisplayName("Demo Merchant"), MerchantCodeFixtures.unique()))))
             .also { mine += it.value }
     }
@@ -196,7 +196,7 @@ class MerchantCodeChangeApprovalSpec(
             val m = registered()
             val old = code(m)
             onboarding.changeMerchantCodeWithEvidence(change(m)).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
-            val business = BusinessId(succeeded(onboarding.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Demo Business")))))
+            val business = BusinessId(succeeded(OnboardingFixture.registeredBusiness(onboarding, OnboardingFixture.registrationNumber(), "Demo Business")))
             rejected(onboarding.registerMerchant(RegisterMerchantCommand(request(), business, DisplayName("Demo Merchant"), MerchantCode(old)))) shouldBe MasterRejection.MERCHANT_CODE_TAKEN
             val other = registered()
             rejected(onboarding.changeMerchantCodeWithEvidence(change(other, newCode = old))) shouldBe MasterRejection.MERCHANT_CODE_TAKEN

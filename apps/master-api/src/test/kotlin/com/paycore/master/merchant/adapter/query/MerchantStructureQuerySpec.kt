@@ -9,13 +9,11 @@ import com.paycore.master.merchant.application.RandomOnboardingFixture
 import com.paycore.master.merchant.application.provided.AssignmentView
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.application.provided.MerchantStructureQuery
-import com.paycore.master.merchant.application.provided.RegisterBusinessCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantCommand
 import com.paycore.master.merchant.application.provided.RegisterMerchantSiteCommand
 import com.paycore.master.merchant.application.provided.RegisterPaymentMethodActivationCommand
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.ChannelType
-import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantId
 import com.paycore.master.merchant.domain.PaymentMethod
@@ -118,7 +116,7 @@ class MerchantStructureQuerySpec(
     Given("12 generated Merchants with 1..3 sites each (Fixture Monkey behind RandomOnboardingFixture, fixed seed)") {
         Then("each structure reads back exactly what the commands stored (no MID yet, all sites ACTIVE)") {
             val business = BusinessId(
-                succeeded(service.registerBusiness(RegisterBusinessCommand(request(), OnboardingFixture.registrationNumber(), DisplayName("Bulk")))),
+                succeeded(OnboardingFixture.registeredBusiness(service, OnboardingFixture.registrationNumber(), "Bulk")),
             )
             RandomOnboardingFixture.validMerchants(count = 12, seed = 20261009L).forEach { shape ->
                 val merchant = MerchantId(succeeded(service.registerMerchant(RegisterMerchantCommand(request(), business, shape.displayName, com.paycore.master.merchant.domain.MerchantCodeFixtures.unique()))))

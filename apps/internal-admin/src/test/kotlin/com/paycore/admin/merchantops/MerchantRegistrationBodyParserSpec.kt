@@ -56,7 +56,7 @@ class MerchantRegistrationBodyParserSpec : BehaviorSpec({
                 revision.dropLast(1) + ",\"partyBusinessId\":\"biz_01JC0000000000000000000001\"}",
                 revision.replace("[\"site_01JC0000000000000000000001\"]", "\"site_01JC0000000000000000000001\""),
                 revision.replace("\"2026-11-09\"", "20261109"),
-            ).forEach { body -> withClue(body) { parse(RegistrationKind.CONTRACT_REVISION, body) shouldBe Parsed.Malformed(false) } }
+            ).forEach { body -> withClue(body) { parse(RegistrationKind.CONTRACT_REVISION, body) shouldBe Parsed.Malformed } }
         }
     }
 
@@ -78,10 +78,10 @@ class MerchantRegistrationBodyParserSpec : BehaviorSpec({
                 agreement.replace(",\"serviceKind\":\"CARD_PG_PAYMENT\"", ""),
             ).forEach { body ->
                 val kind = if ("contractId" in body) RegistrationKind.SERVICE_AGREEMENT else RegistrationKind.CONTRACT
-                withClue(body) { parse(kind, body) shouldBe Parsed.Malformed(false) }
+                withClue(body) { parse(kind, body) shouldBe Parsed.Malformed }
             }
-            parse(RegistrationKind.CONTRACT, agreement) shouldBe Parsed.Malformed(false)
-            parse(RegistrationKind.SERVICE_AGREEMENT, contract) shouldBe Parsed.Malformed(false)
+            parse(RegistrationKind.CONTRACT, agreement) shouldBe Parsed.Malformed
+            parse(RegistrationKind.SERVICE_AGREEMENT, contract) shouldBe Parsed.Malformed
         }
     }
 
@@ -109,7 +109,7 @@ class MerchantRegistrationBodyParserSpec : BehaviorSpec({
                 RegistrationKind.PAYMENT_METHOD_ACTIVATION to activation.dropLast(1) + ",\"extra\":\"x\"}",
                 RegistrationKind.PAYMENT_METHOD_ACTIVATION to activation.replace("\"CARD\"", "null"),
                 RegistrationKind.PAYMENT_METHOD_ACTIVATION to rejection,
-            ).forEach { (kind, body) -> withClue(body) { parse(kind, body) shouldBe Parsed.Malformed(false) } }
+            ).forEach { (kind, body) -> withClue(body) { parse(kind, body) shouldBe Parsed.Malformed } }
         }
     }
 })

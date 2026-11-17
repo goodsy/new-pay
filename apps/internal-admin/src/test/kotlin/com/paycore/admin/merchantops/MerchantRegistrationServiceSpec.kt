@@ -26,7 +26,7 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldMatch
@@ -37,13 +37,12 @@ import org.springframework.transaction.support.DefaultTransactionStatus
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration
 import java.util.Collections
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.CyclicBarrier
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 /**
- * 가맹점 등록 Use Case 판정·감사 표(MERCHANT-OPS-002 §4.4·§6·§8 — 대역 Port, Spring 없음):
+ * 가맹점 등록 Use Case 판정·감사 표(MERCHANT-OPS-002 §4.4·§6·§8 — 대역 Port, Spring 없음).
+ * 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 사업자 등록 종류(`RegistrationRequest.Business`)가 제거돼 그 종류 전용 사례(brn 감사 행렬 M-1·번호 형식·등록번호 버킷 예약/확정/환불 C-13·
+ * 동시 예약)는 새 사업자 생성 Use Case 시험(BusinessProfileServiceSpec — create brn 감사·버킷 확정/환불·동시 20 → 10·시도 감사 실패 환불)으로 대체됐다. 이 Use Case는 등록번호 버킷을 쓰지 않는다(아래 단언).
+ * 공통 판정(시도 행 → MASTER → 결과 행, 비노출)은 가맹점·Site 종류로 그대로 단언한다. 원래 범위:
  * OPERATOR만(VIEWER·APPROVER·SECURITY_ADMIN 403 + 감사 FORBIDDEN, 사업자 brn 행렬 M-1), 형식 400(MASTER 미호출, 사업자만 감사), 등록 버킷, **등록번호 버킷 예약·확정·환불(C-13)**,
  * 시도 행 → 결과 행 순서·TX 경계, 시도 감사 실패 → MASTER 미호출, 결과 감사 실패 503, 결과 분류(Unknown·RetrySameKey·Busy·KeyReused), correlationId `mos.<submissionId>`(C-14)와
  * 사전 거절의 ADMIN 요청 ID(n-4), MASTER 키 파생(계정 이름공간 C-4)과 감사·로그 비노출.
@@ -52,7 +51,6 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
 
     val operatorId = "adm_01JC00000000000000000000V1"
     val otherOperatorId = "adm_01JC00000000000000000000V2"
-    val brn = "7781234560"
     val biz = "biz_01JC0000000000000000000001"
     val mer = "mer_01JC0000000000000000000001"
     val ctx = AdminRequestContext("req-1", "127.0.0.1")
@@ -87,6 +85,7 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             override val registrationNumberSearchesPerMinute = brnPerMinute
             override val registrationsPerMinute = registrationsPerMinute
         }
+        /** 같은 한도 설정의 공유 등록번호 버킷 — 이 Use Case가 건드리지 않음을 단언하는 대조용(C-27 뒤 예약 주체는 번호 조회·가맹점 BRN 검색·사업자 생성). */
         val budget = RegistrationNumberBudget(limits) { now }
         val service = MerchantRegistrationService(
             tx,
@@ -137,13 +136,11 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                     metrics += "unknown:$operation"
                 }
             },
-            budget,
         )
 
         fun rows() = audits.map { listOf(it.action, it.resultCode, it.detail, it.targetRef, it.correlationId) }
     }
 
-    fun business(s: String = sub(), number: String = brn, name: String = "시험 사업자") = RegistrationRequest.Business(s, number, name)
     fun merchant(s: String = sub(), businessId: String = biz, code: String = "shopabcd12") = RegistrationRequest.Merchant(s, businessId, "시험 가맹점", code)
     fun site(s: String = sub(), merchantId: String = mer, type: String = "WEB", identifier: String = "demo-shop2.paycore.test") =
         RegistrationRequest.MerchantSite(s, merchantId, type, identifier)
@@ -161,16 +158,14 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
     }
 
     Given("roles (D-MOPS-006 ①: OPERATOR only)") {
-        Then("VIEWER, APPROVER and SECURITY_ADMIN are 403 for all three kinds, audited FORBIDDEN with the ADMIN request id; MASTER is never called") {
+        Then("VIEWER, APPROVER and SECURITY_ADMIN are 403 for both kinds, audited FORBIDDEN with the ADMIN request id; MASTER is never called") {
             listOf("VIEWER", "APPROVER", "SECURITY_ADMIN").forEach { role ->
                 val f = Fixture(setOf(role))
                 val s = sub()
-                f.service.register(operatorId, business(s), ctx) shouldBe MerchantRegistrationResult.Forbidden
                 f.service.register(operatorId, merchant(s), ctx) shouldBe MerchantRegistrationResult.Forbidden
                 f.service.register(operatorId, site(s), ctx) shouldBe MerchantRegistrationResult.Forbidden
                 withClue(role) {
                     f.rows() shouldBe listOf(
-                        listOf("MERCHANT_BUSINESS_REGISTER", "FORBIDDEN", "sub=${s.take(8)};brn=778*******", null, "req-1"),
                         // MC-2-2: 가맹점 등록 감사 detail에 코드(공개값, 형식이 맞을 때만).
                         listOf("MERCHANT_REGISTER", "FORBIDDEN", "sub=${s.take(8)};code=shopabcd12", biz, "req-1"),
                         listOf("MERCHANT_SITE_REGISTER", "FORBIDDEN", "sub=${s.take(8)};channel=WEB", mer, "req-1"),
@@ -178,13 +173,6 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                     f.commands.shouldBeEmpty()
                 }
             }
-        }
-        Then("M-1 brn matrix for 403: a well-formed number is masked, a malformed number is INVALID; a strict-parse failure is INVALID too (rejectMalformed)") {
-            val f = Fixture(setOf("VIEWER"))
-            f.service.register(operatorId, business(number = "778-12-34560"), ctx) shouldBe MerchantRegistrationResult.Forbidden
-            f.service.register(operatorId, business(number = brn, name = " 공백"), ctx) shouldBe MerchantRegistrationResult.Forbidden
-            f.service.rejectMalformed(operatorId, RegistrationKind.BUSINESS, registrationNumberAttempt = true, context = ctx) shouldBe MerchantRegistrationResult.Forbidden
-            f.audits.map { it.detail!!.substringAfterLast(';') } shouldBe listOf("brn=INVALID", "brn=778*******", "brn=INVALID")
         }
         Then("an inactive OPERATOR is 403 and audited; an unknown account is 403 without an audit row") {
             val f = Fixture(setOf("OPERATOR"), status = "SUSPENDED")
@@ -196,32 +184,23 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
     }
 
     Given("strict-parse failures (§4.4 0)") {
-        Then("a business registration-number attempt by an OPERATOR is INVALID_INPUT audited brn=INVALID; non-attempts and other kinds are 400 without audit") {
+        Then("a strict-parse failure is 400 INVALID_INPUT without an audit row and without a MASTER call (C-27 — no registration-number kind remains)") {
             val f = Fixture()
-            f.service.rejectMalformed(operatorId, RegistrationKind.BUSINESS, true, ctx) shouldBe MerchantRegistrationResult.InvalidInput
-            f.service.rejectMalformed(operatorId, RegistrationKind.BUSINESS, false, ctx) shouldBe MerchantRegistrationResult.InvalidInput
-            f.service.rejectMalformed(operatorId, RegistrationKind.MERCHANT, true, ctx) shouldBe MerchantRegistrationResult.InvalidInput
-            f.service.rejectMalformed(operatorId, RegistrationKind.MERCHANT_SITE, false, ctx) shouldBe MerchantRegistrationResult.InvalidInput
-            f.rows() shouldBe listOf(listOf("MERCHANT_BUSINESS_REGISTER", "INVALID_INPUT", "brn=INVALID", null, "req-1"))
+            f.service.rejectMalformed(operatorId, RegistrationKind.MERCHANT, ctx) shouldBe MerchantRegistrationResult.InvalidInput
+            f.service.rejectMalformed(operatorId, RegistrationKind.MERCHANT_SITE, ctx) shouldBe MerchantRegistrationResult.InvalidInput
+            f.audits.shouldBeEmpty()
             f.commands.shouldBeEmpty()
+            RegistrationKind.entries.map { it.auditAction } shouldNotContain "MERCHANT_BUSINESS_REGISTER"
         }
     }
 
     Given("value formats (C-10 — same rules as MASTER Domain, MASTER not called)") {
-        Then("business: malformed numbers audit brn=INVALID, a bad name with a good number audits the masked number; merchant/site format errors are not audited") {
+        Then("merchant/site format errors are 400 without an audit row and without a MASTER call") {
             val f = Fixture()
-            listOf("778-12-34560", "778123456", "77812345601", "778123456O", "７７８1234560").forEach { number ->
-                withClue(number) { f.service.register(operatorId, business(number = number), ctx) shouldBe MerchantRegistrationResult.InvalidInput }
-            }
-            listOf(" 시험", "시험 ", "", "a".repeat(101), "줄\n바꿈").forEach { name ->
-                withClue(name) { f.service.register(operatorId, business(name = name), ctx) shouldBe MerchantRegistrationResult.InvalidInput }
-            }
-            f.service.register(operatorId, business(s = "NOT-A-SUBMISSION-ID"), ctx) shouldBe MerchantRegistrationResult.InvalidInput
-            f.audits.map { it.resultCode }.toSet() shouldBe setOf("INVALID_INPUT")
-            f.audits.take(5).map { it.detail!!.substringAfterLast(';') } shouldBe List(5) { "brn=INVALID" }
-            f.audits.drop(5).take(5).map { it.detail!!.substringAfterLast(';') } shouldBe List(5) { "brn=778*******" }
-            f.audits.last().detail shouldBe "brn=778*******"
             val before = f.audits.size
+            listOf(" 시험", "시험 ", "", "a".repeat(101), "줄\n바꿈").forEach { name ->
+                withClue(name) { f.service.register(operatorId, RegistrationRequest.Merchant(sub(), biz, name, "shopabcd12"), ctx) shouldBe MerchantRegistrationResult.InvalidInput }
+            }
             listOf(merchant(businessId = "biz_1"), merchant(businessId = mer), merchant(s = "ABC")).forEach { f.service.register(operatorId, it, ctx) shouldBe MerchantRegistrationResult.InvalidInput }
             // MERCHANT-CODE-001 MC-1-9(§4 ②, 추가 경계): 코드 형식(§3.1 복제 — 정규화 없음) 위반은 400, 감사 없음(가맹점 형식 오류와 같은 규칙), MASTER 미호출.
             listOf("SHOPABCD12", "Shopabcd12", "shop-abcd12", "shop_abcd12", " shopabcd12", "abcde", "a" + "b".repeat(14), "1shopabcd", "", "mer_01JC0000000000000000000001").forEach { code ->
@@ -241,21 +220,23 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
         Then("attempt row REQUESTED → MASTER call (outside a transaction) → result row OK; both rows carry mos.<submissionId>; the MASTER key is mo1.<account ULID>.<submissionId>") {
             val f = Fixture()
             val s = sub()
-            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "biz_01JC0000000000000000000009", false) }
-            f.service.register(operatorId, business(s), ctx) shouldBe MerchantRegistrationResult.Decided("SUCCEEDED", "biz_01JC0000000000000000000009", null, false)
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 운반 명령을 사업자 등록에서 가맹점 등록으로(같은 단언 — 사업자 생성의 같은 순서는 BusinessProfileServiceSpec).
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "mer_01JC0000000000000000000009", false) }
+            f.service.register(operatorId, merchant(s), ctx) shouldBe MerchantRegistrationResult.Decided("SUCCEEDED", "mer_01JC0000000000000000000009", null, false)
             f.events shouldBe listOf("audit:REQUESTED", "call", "audit:OK")
             f.callInTx shouldBe listOf(false)
             f.auditInTx shouldBe listOf(true, true)
             f.rows() shouldBe listOf(
-                listOf("MERCHANT_BUSINESS_REGISTER", "REQUESTED", "sub=${s.take(8)};brn=778*******", null, "mos.$s"),
-                listOf("MERCHANT_BUSINESS_REGISTER", "OK", "sub=${s.take(8)};replayed=false;brn=778*******", "biz_01JC0000000000000000000009", "mos.$s"),
+                listOf("MERCHANT_REGISTER", "REQUESTED", "sub=${s.take(8)};code=shopabcd12", biz, "mos.$s"),
+                listOf("MERCHANT_REGISTER", "OK", "sub=${s.take(8)};replayed=false;code=shopabcd12", "shopabcd12", "mos.$s"),
             )
             val c = f.commands.single()
             listOf(c.idempotencyKey, c.actor, c.correlationId) shouldBe listOf("mo1.01JC00000000000000000000V1.$s", "admin:$operatorId", "mos.$s")
             c.idempotencyKey.length shouldBe 63
-            c.fields shouldBe mapOf("registrationNumber" to brn, "displayName" to "시험 사업자")
+            c.fields shouldBe mapOf("businessId" to biz, "displayName" to "시험 가맹점", "merchantCode" to "shopabcd12")
             f.audits.forEach { it.remoteIp shouldBe "127.0.0.1" }
-            f.metrics shouldBe listOf("command:BUSINESS:OK")
+            f.metrics shouldBe listOf("command:MERCHANT:OK")
+            f.budget.admit(operatorId) shouldBe true // C-27: 가맹점 등록은 등록번호 버킷을 쓰지 않는다(대조 — 한도 100)
         }
         Then("MC-1-9 merchant registration sends merchantCode as a MASTER body field (MASTER fingerprints it — same submissionId with another code is MASTER 409)") {
             val f = Fixture()
@@ -330,17 +311,19 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             g.commands.size shouldBe 1
             g.rows().map { it[1] } shouldBe listOf("REQUESTED")
         }
-        Then("non-exposure: no audit field carries the MASTER key, the plain number or the display name") {
+        Then("non-exposure: no audit field carries the MASTER key, the channel identifier or the display name") {
+            // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 운반 명령을 Site·가맹점 등록으로(같은 비노출 단언 — 사업자 생성의 번호·상호 비노출은 BusinessProfileServiceSpec·BusinessHttpSpec canary).
             val f = Fixture()
-            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", null, false) }
-            f.service.register(operatorId, business(), ctx) shouldBe MerchantRegistrationResult.Decided("REJECTED", null, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", false)
-            val key = f.commands.single().idempotencyKey
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "SITE_CHANNEL_DUPLICATE", null, false) }
+            f.service.register(operatorId, site(), ctx) shouldBe MerchantRegistrationResult.Decided("REJECTED", null, "SITE_CHANNEL_DUPLICATE", false)
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "MERCHANT_CODE_TAKEN", null, false) }
+            f.service.register(operatorId, merchant(), ctx) shouldBe MerchantRegistrationResult.Decided("REJECTED", null, "MERCHANT_CODE_TAKEN", false)
+            val keys = f.commands.map { it.idempotencyKey }
             f.audits.forEach { a ->
                 listOf(a.detail, a.targetRef, a.correlationId, a.toString()).forEach { v ->
-                    listOf(key, brn, "4560", "시험 사업자").forEach { secret -> (v?.contains(secret) ?: false) shouldBe false }
+                    (keys + listOf("demo-shop2.paycore.test", "시험 가맹점")).forEach { secret -> (v?.contains(secret) ?: false) shouldBe false }
                 }
             }
-            f.audits.last().targetRef shouldBe null
         }
     }
 
@@ -453,7 +436,7 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             sent["effectiveTo"] shouldBe "9999-12-30T15:00:00.000Z"
         }
 
-        Then("the registration-number budget is not touched by contracts or agreements (only business registration reserves it — C-13)") {
+        Then("the registration-number budget is not touched by contracts or agreements (C-27 — no registration kind reserves it)") {
             val f = Fixture(brnPerMinute = 1)
             f.reply = { MasterCommandResult.Unknown("TIMEOUT") }
             f.service.register(operatorId, contract(), ctx) shouldBe MerchantRegistrationResult.OutcomeUnknown
@@ -473,76 +456,14 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
             f.metrics.count { it == "rate:REGISTRATION" } shouldBe 1
             f.commands.size shouldBe 2
         }
-        Then("C-13: successes, other rejections and 409 refund the number reservation; a duplicate, Unknown, RetrySameKey and Busy confirm it; an exhausted bucket is 429 before MASTER") {
-            val f = Fixture(brnPerMinute = 2)
-            val refunds = listOf<MasterCommandResult>(
-                MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "biz_01JC0000000000000000000009", false),
-                MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_NOT_ACTIVE", null, false),
-                MasterCommandResult.KeyReused,
-            )
-            repeat(3) { round -> refunds.forEach { r -> f.reply = { r }; withClue("$round $r") { (f.service.register(operatorId, business(), ctx) == MerchantRegistrationResult.RateLimited) shouldBe false } } }
-            f.budget.admit(operatorId) shouldBe true
-            f.budget.admit(operatorId) shouldBe true
-            f.budget.admit(operatorId) shouldBe false
-            listOf<MasterCommandResult>(
-                MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", null, false),
-                MasterCommandResult.Unknown("TIMEOUT"),
-                MasterCommandResult.RetrySameKey("OUTCOME_UNKNOWN"),
-                MasterCommandResult.Busy("ADMIN_WRITE_BUSY"),
-            ).forEach { r ->
-                val g = Fixture(brnPerMinute = 1)
-                g.reply = { r }
-                g.service.register(operatorId, business(), ctx)
-                withClue(r) {
-                    g.service.register(operatorId, business(), ctx) shouldBe MerchantRegistrationResult.RateLimited
-                    g.rows().map { it[1] }.last() shouldBe "RATE_LIMITED"
-                    g.metrics.count { it == "rate:REGISTRATION_NUMBER" } shouldBe 1
-                    g.commands.size shouldBe 1
-                    // 같은 버킷을 조회(등록번호 검색)도 쓴다 — 확정된 1회 뒤 검색도 한도에 걸린다.
-                    g.budget.admit(operatorId) shouldBe false
-                }
-            }
-        }
-        Then("an attempt-audit failure refunds the reservation; a refund never goes below zero and is skipped after the window changed") {
+        Then("C-27: no registration kind reserves the shared registration-number budget — with a budget of 1 every kind still reaches MASTER and the budget stays available") {
             val f = Fixture(brnPerMinute = 1)
-            f.failAuditAt = 0
-            f.service.register(operatorId, business(), ctx) shouldBe MerchantRegistrationResult.AuditUnavailable
-            f.failAuditAt = null
-            f.reply = { MasterCommandResult.Unknown("TIMEOUT") }
-            f.service.register(operatorId, business(), ctx) shouldBe MerchantRegistrationResult.OutcomeUnknown
-            f.service.register(operatorId, business(), ctx) shouldBe MerchantRegistrationResult.RateLimited
-
-            val g = Fixture(brnPerMinute = 1, now = 59_000L)
-            val sync = CountDownLatch(1)
-            val release = CountDownLatch(1)
-            g.reply = {
-                sync.countDown()
-                release.await(5, TimeUnit.SECONDS)
-                MasterCommandResult.Decided(MasterCommandResult.Outcome.SUCCEEDED, null, "biz_01JC0000000000000000000009", false)
-            }
-            val pool = Executors.newSingleThreadExecutor()
-            val pending = pool.submit<MerchantRegistrationResult> { g.service.register(operatorId, business(), ctx) }
-            sync.await(5, TimeUnit.SECONDS) shouldBe true
-            g.now = 61_000L // 다음 창 — 환불하지 않는다(0 아래로도 내려가지 않는다).
-            g.budget.admit(operatorId) shouldBe true
-            release.countDown()
-            pending.get(5, TimeUnit.SECONDS).let { it::class shouldBe MerchantRegistrationResult.Decided::class }
-            pool.shutdown()
-            g.budget.admit(operatorId) shouldBe false
-        }
-        Then("C-13 concurrency: two simultaneous business registrations by one actor cannot both use the last remaining number reservation") {
-            repeat(5) { round ->
-                val f = Fixture(brnPerMinute = 1)
-                val barrier = CyclicBarrier(2)
-                f.reply = { Thread.sleep(50); MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", null, false) }
-                val pool = Executors.newFixedThreadPool(2)
-                val results = (1..2).map { pool.submit<MerchantRegistrationResult> { barrier.await(5, TimeUnit.SECONDS); f.service.register(operatorId, business(), ctx) } }.map { it.get(10, TimeUnit.SECONDS) }
-                pool.shutdown()
-                withClue("round $round") {
-                    results.map { it::class.simpleName } shouldContainExactlyInAnyOrder listOf("Decided", "RateLimited")
-                    f.commands.size shouldBe 1
-                }
-            }
+            f.reply = { MasterCommandResult.Decided(MasterCommandResult.Outcome.REJECTED, "MERCHANT_NOT_FOUND", null, false) }
+            repeat(3) { f.service.register(operatorId, merchant(), ctx).let { it::class shouldBe MerchantRegistrationResult.Decided::class } }
+            repeat(3) { f.service.register(operatorId, site(), ctx).let { it::class shouldBe MerchantRegistrationResult.Decided::class } }
+            f.metrics.filter { it.startsWith("rate:") }.shouldBeEmpty()
+            f.commands.size shouldBe 6
+            f.budget.admit(operatorId) shouldBe true
         }
     }
 
@@ -744,11 +665,6 @@ class MerchantRegistrationServiceSpec : BehaviorSpec({
                 listOf("REQUESTED", mer, mer), listOf("REJECTED", mer, mer), listOf("REQUESTED", mer, mer), listOf("REJECTED", mer, mer),
                 listOf("REQUESTED", mer, mer), listOf("OK", "site_01JC0000000000000000000001", null),
             )
-        }
-        Then("control: business registration rows keep biz_ / NULL") {
-            val f = Fixture()
-            f.service.register(operatorId, business(), ctx)
-            f.audits.map { listOf(it.targetRef, it.targetMerchantId) } shouldBe listOf(listOf(null, null), listOf("biz_01JC0000000000000000000009", null))
         }
     }
 })

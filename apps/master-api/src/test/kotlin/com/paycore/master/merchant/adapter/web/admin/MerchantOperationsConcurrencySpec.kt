@@ -22,6 +22,8 @@ import tools.jackson.databind.json.JsonMapper
  * MERCHANT-OPS-002 §7 Concurrency Control·§8.1 B1-1-3(실제 MySQL — 서명 채널 + 실제 Use Case, 요청마다 다른 DB 연결, 시작을 `CountDownLatch`로 맞춘다):
  * 같은 등록번호·다른 키 동시 → 1 성공 1 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`, 같은 채널 동시 → 1 성공 1 `SITE_CHANNEL_DUPLICATE`, 같은 키·같은 본문 동시 → 업무 행 1개·`admin_request` 1행
  * (다른 쪽은 `replayed=true` 또는 503 `REQUEST_IN_PROGRESS` 뒤 재전송 시 재생 — m-4). 동시 수는 시험 설정 쓰기 permit(2) 안이다.
+ * 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 `merchant-operations/businesses`가 제거돼 사업자 경합 두 시험은 새 생성 명령(`businesses/commands/create` REGISTERED)으로 같은 단언을 한다
+ * (중복 거절은 D-BIZ-003으로 `existing`이 붙지만 `rejection` code는 같다). 가맹점 준비용 사업자도 새 경로(REGISTERED — D-BIZ-001).
  */
 @MasterDbTest
 class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private val container: MySQLContainer) : BehaviorSpec({
@@ -47,7 +49,7 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
         Then("same registration number, different keys (3 rounds): exactly one SUCCEEDED and one BUSINESS_REGISTRATION_NUMBER_DUPLICATE, one business row") {
             repeat(3) { round ->
                 val brn = OnboardingFixture.registrationNumber().value
-                val results = OnboardingFixture.concurrently(2) { post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness(Submission(), brn = brn)) }
+                val results = OnboardingFixture.concurrently(2) { post(BusinessBodies.CREATE, BusinessBodies.create(Submission(), number = brn)) }
                     .map { it.getOrThrow() }
                 withClue("round $round") {
                     results.map { it.first } shouldBe listOf(200, 200)
@@ -59,7 +61,7 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
 
         Then("same channel on two merchants: exactly one SUCCEEDED and one SITE_CHANNEL_DUPLICATE, one active site row") {
             fun merchant(): String {
-                val biz = reference(post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness()).second)
+                val biz = reference(post(BusinessBodies.CREATE, BusinessBodies.create(number = OnboardingFixture.registrationNumber().value)).second)
                 return reference(post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(biz)).second)
             }
             val merchants = listOf(merchant(), merchant())
@@ -73,12 +75,12 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
         Then("m-4: the same key and body twice at once leave one business row and one admin_request row; the other answer is a replay (or in-progress, then a replay on resend)") {
             val s = Submission()
             val brn = OnboardingFixture.registrationNumber().value
-            val body = MerchantOperationsBodies.registerBusiness(s, brn = brn)
-            val results = OnboardingFixture.concurrently(2) { post(MerchantOperationsBodies.BUSINESSES, body) }.map { it.getOrThrow() }
+            val body = BusinessBodies.create(s, number = brn)
+            val results = OnboardingFixture.concurrently(2) { post(BusinessBodies.CREATE, body) }.map { it.getOrThrow() }
             val settled = results.map { (status, text) ->
                 if (status == 503) {
                     text shouldBe """{"error":"REQUEST_IN_PROGRESS"}"""
-                    post(MerchantOperationsBodies.BUSINESSES, body).also { it.first shouldBe 200 }.second
+                    post(BusinessBodies.CREATE, body).also { it.first shouldBe 200 }.second
                 } else {
                     status shouldBe 200
                     text
@@ -94,7 +96,7 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
 
     Given("B1-2: two operators racing on the same contract (§8.1 B1-2-1 — same matrix as B1-1)") {
         fun merchantOf(biz: String): String = reference(post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(biz)).second)
-        fun business(): String = reference(post(MerchantOperationsBodies.BUSINESSES, MerchantOperationsBodies.registerBusiness()).second)
+        fun business(): String = reference(post(BusinessBodies.CREATE, BusinessBodies.create(number = OnboardingFixture.registrationNumber().value)).second)
 
         /** 같은 키·같은 본문 동시 2건 → 503 REQUEST_IN_PROGRESS면 같은 본문 재전송으로 결과를 받는다. */
         fun settle(path: String, body: String, results: List<Pair<Int, String>>): List<String> = results.map { (status, text) ->
