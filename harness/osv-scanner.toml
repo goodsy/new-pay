@@ -1,2 +1,10 @@
-# osv-scanner 설정(CVE-SCAN이 --config로 고정 사용). 무시 목록을 두지 않는다.
+# osv-scanner 설정(CVE-SCAN이 --config로 고정 사용).
 # 취약점을 예외로 두려면 이 파일에 [[IgnoredVulns]]를 추가하고 사유·만료일·승인 근거를 함께 기록한다(fingerprint 대상).
+
+# Q-SEC-PICOMATCH-1 (사용자 응답 2026-11-18): picomatch 4.0.7 ReDoS(CVE-2026-112366), 수정 버전 미공개.
+# vite·vitest·tinyglobby가 쓰는 devDependency, 배포 번들 미포함, 빌드에 신뢰하지 않는 glob 입력 없음.
+# 한시 예외 — 만료일 이후 자동으로 다시 FAIL. 수정 버전이 공개되면 즉시 올리고 이 항목을 삭제한다(후속 SEC-PICOMATCH-UPGRADE).
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-18
+reason = "Q-SEC-PICOMATCH-1: dev-only picomatch 4.0.7 ReDoS, no fixed version yet; time-boxed until 2026-12-18, upgrade when fix is released"

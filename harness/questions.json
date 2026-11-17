@@ -3892,7 +3892,7 @@
     },
     {
       "id": "Q-SEC-PICOMATCH-1",
-      "status": "OPEN",
+      "status": "ANSWERED",
       "question": "프론트 개발 도구 의존성 picomatch 4.0.7 취약점(GHSA-fc5q-39xc-vjpf / CVE-2026-112366, 정규식 ReDoS, 2026-10-19 공개, 수정 버전 없음)으로 CVE 검사가 FAIL. vite·vitest·tinyglobby가 쓰는 devDependency이며 배포 번들에는 포함되지 않음. 예외(osv [[IgnoredVulns]]) 등록 여부",
       "recommended": "만료일(예: 30일)과 사유를 단 한시 예외 등록 + 수정 버전 공개 시 즉시 갱신하는 후속 작업. 빌드 시 신뢰하지 않는 glob 입력이 없으므로 실제 위험 낮음",
       "alternative": "예외 없이 CVE 검사 FAIL 상태 유지(수정 버전 대기, 그동안 모든 gate의 CVE 단계 FAIL) / picomatch를 취약 범위 밖 버전으로 overrides 고정(호환성 검증 필요)",
@@ -3901,7 +3901,10 @@
         "BUSINESS-PROFILE-001"
       ],
       "askedAt": "2026-11-18",
-      "origin": "BIZ3-gate2 이후 cve-scan.py (D-ADMIN1-007: 예외는 osv 설정 [[IgnoredVulns]]만)"
+      "origin": "BIZ3-gate2 이후 cve-scan.py (D-ADMIN1-007: 예외는 osv 설정 [[IgnoredVulns]]만)",
+      "humanAnswer": "사유와 만료일(30일)을 붙인 한시 예외로 두고, 고친 버전이 나오면 바로 올린다",
+      "humanEvidence": "Claude Code 세션 사용자 응답 (2026-11-18, Coordinator 경유)",
+      "appliedSpec": "harness/osv-scanner.toml [[IgnoredVulns]] GHSA-fc5q-39xc-vjpf ignoreUntil 2026-12-18; 후속 SEC-PICOMATCH-UPGRADE"
     }
   ]
 }

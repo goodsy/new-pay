@@ -11013,6 +11013,10 @@
         {
           "id": "FLAKY-FE-APPROVALS-LABELS",
           "note": "ApprovalsScreen.targetLabels.test.tsx MC-3-19 findAllByRole timed out (default 1000ms) under full-gate load in BIZ2-gate2. Consider explicit findAllByRole timeout (environment wait, not expectation) — review before change."
+        },
+        {
+          "id": "SEC-PICOMATCH-UPGRADE",
+          "note": "Q-SEC-PICOMATCH-1 answered 2026-11-18: time-boxed osv [[IgnoredVulns]] GHSA-fc5q-39xc-vjpf until 2026-12-18 (harness/osv-scanner.toml). When a fixed picomatch is published, upgrade (lockfile/overrides), rerun FE tests + CVE scan, and delete the ignore entry. After expiry the CVE step fails again by design."
         }
       ],
       "biz3": {
@@ -12434,7 +12438,7 @@
         ]
       },
       "biz4Status": "DONE (review conditional REVIEW_PASS → MINOR-1..3, NIT-1..6 applied; BIZ4-gate3 PASS)",
-      "doneNote": "All batches BIZ-1..4 implemented, independently reviewed and gated (BIZ1-gate1, BIZ2-gate3, BIZ3-gate2, BIZ4-gate3 PASS). Open: Q-SEC-PICOMATCH-1 (CVE scan, dev-only, pre-existing), L-13 HMAC (B3-3a before LIVE), L-14 Demo values, FLAKY-FE-APPROVALS-LABELS. Demo walkthrough pending after Demo rebuild."
+      "doneNote": "All batches BIZ-1..4 implemented, independently reviewed and gated (BIZ1-gate1, BIZ2-gate3, BIZ3-gate2, BIZ4-gate3 PASS). Q-SEC-PICOMATCH-1 answered 2026-11-18 (time-boxed ignore until 2026-12-18, follow-up SEC-PICOMATCH-UPGRADE). Open: L-13 HMAC (B3-3a before LIVE), L-14 Demo values, FLAKY-FE-APPROVALS-LABELS. Demo walkthrough pending after Demo rebuild."
     }
   ]
 }
