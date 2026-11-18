@@ -263,6 +263,11 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline-color:#1d4ed8
 .cardtop h3{margin:0;font-size:17px;font-weight:700;color:#0f172a}
 /* 매입 파일 상세 레코드 상태 선택(시안 .rolebar — 원본 padding 20px): 카드 본문 여백(.cardbody) 안에서는 여백을 겹치지 않고, 좁은 폭에서 줄바꿈(새 값 없음). */
 .cardbody .rolebar{padding:0;flex-wrap:wrap}
+/* 결제 보정 취소 진행 단계(시안 사업자 등록 .wizard — 원본 margin 26px 0은 drawer 안쪽 여백 기준): 탭 패널 바로 안(flush)에서는 .mapnote 아래에 카드 좌우 23px 정렬(.cardnote·.cardbody 값). 위아래 간격은 .mapnote 아래 여백·.cardtop 위 여백으로. 새 값 없음. */
+.mapnote + .wizard{margin:0 23px}
+/* 결제 보정 취소 조회 값(리뷰 MINOR-2): 시안 .detailgrid의 label·strong 자리를 정의 목록 dt·dd로(입력과 연결되지 않는 label을 쓰지 않음). 값은 원본 최종값 그대로 — 이름 = .detailgrid label(13px·500·#475569·아래 8px), 값 = .detailgrid strong(14px·600·#0f172a). */
+.detailgrid dt{margin-bottom:8px;font-size:13px;font-weight:500;color:#475569}
+.detailgrid dd{margin:0;font-size:14px;font-weight:600;color:#0f172a}
 /* 운영 홈(2단계): 할 일 행은 접근성을 위해 button(원본 div onclick) — 폭·정렬만 원본 div와 같게. */
 button.task{width:100%;text-align:left}
 /* 날짜 표시(날짜 고르기 기능이 없어 누르는 단추가 아니다 — .btn 모양만). */
@@ -348,6 +353,8 @@ button.task{width:100%;text-align:left}
 :root[data-theme=dark] .result{border-bottom-color:var(--line)}
 :root[data-theme=dark] .notice{background:#18233a}
 :root[data-theme=dark] .detailgrid label,:root[data-theme=dark] .formrow label{color:#cbd5e1}
+:root[data-theme=dark] .detailgrid dt{color:#cbd5e1}
+:root[data-theme=dark] .detailgrid dd{color:#f1f5f9}
 :root[data-theme=dark] .timeline{border-left-color:var(--line)}
 :root[data-theme=dark] .wizard span{border-top-color:var(--line);color:#9aa8bc}
 :root[data-theme=dark] .wizard .current{border-color:#7cb4ff;color:#7cb4ff}

@@ -9593,9 +9593,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-17T223643Z.json",
           "result": "GRADLE-CHECK 22:37:14Z..23:41:17Z(64m03s) exit 0; Kotlin 5075 / FRONTEND 623 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:c52d61aae19d849823e19676d32306bd91c072c34a988edf8fb81a527f4d869e",
           "supplementary": "WS6-cve1 PASS(~/gate-logs/WS6-cve1.log)"
+        },
+        {
+          "tag": "WS7-gate1",
+          "verdict": "PASS",
+          "screen": "결제 보정 취소",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-18T001008Z.json",
+          "result": "GRADLE-CHECK 00:10:38Z..01:05:42Z(55m04s) exit 0; Kotlin 5075 / FRONTEND 628 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:17527c9e9f8c98ea791bef50e381703ee4163e4defb61f0b72b47ee6e45d6fb8",
+          "supplementary": "WS7-cve1 PASS(~/gate-logs/WS7-cve1.log)"
         }
       ],
-      "nextResumeAction": "남은 화면: 결제 보정 취소 → 등록 wizard → login (APPROVAL-TARGET-KEYS-001 후속 유지)",
+      "nextResumeAction": "남은 화면: 등록 wizard → login (후속 PAYOPS-DOUBLE-SUBMIT 사용자 결정 필요, APPROVAL-TARGET-KEYS-001)",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -9786,6 +9794,51 @@
           "result": "페이지 가로 넘침 0, adm_/mer_/biz_ 노출 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0. 수정 전 1101·1024px 펼친 작업 칸 버튼 잘림 → reviewFix1 세로 배치로 해소",
           "remaining": "1101px 58px·1024px 74px·390px: 펼친 작업 칸(min-w-72)이 .tablewrap 안 가로 스크롤로 넘침 — 버튼·선택 칸은 보이고 페이지 넘침 없음(후속 기록)",
           "evidence": "scratchpad admin-ui-ws6/shots, results.json"
+        }
+      },
+      "paymentOpsScreen": {
+        "status": "DONE(WS7-gate1)",
+        "scope": "결제 관리 › 결제 보정 취소(PaymentOpsScreen.tsx — 진행 단계 Steps·대상 조회·조회 값 TargetSummary·요청 작성 양식·결과 안내) 모양만 시안 구조로 — 거래 조회(WS3)·계정 관리(WS6) 선례 그대로. API 호출(paymentTarget·requestOperatorCancel)·금액 기본값(반환 가능액 전액)·안전 정수 검사(조회 값 표시 오류·입력 허용 범위)·진행 중 취소/취소 불가 차단·보류 안내(막지 않음 — D-CANCEL-001)·목적/근거/사유 앞뒤 공백 정리·OPERATOR 표시 조건(표시만 — 서버 판정)·2인 승인 요청·오류 문구(I-111 입력 거부 이유)·세션 종료·PayCore 브랜드 유지, 샘플 데이터 없음",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 paymentOps 추가(결제 관리 탭 패널 바로 안 — 거래 조회와 같은 카드)",
+          "PaymentOpsScreen.tsx: section.flex·PageHeader·shadcn Card/Button → .mapnote(h2 결제 보정 취소 + 기존 설명 span) → 진행 단계 시안 .wizard(div role=list aria-label '진행 단계' > span role=listitem '1. 대상 조회'·'2. 요청 작성'·'3. 승인 대기', 현재 .current + aria-current=step, 끝난 단계 'border-primary text-chip-info-fg'(기존 MINOR-6 token·theme.test 단언 그대로)) → [대상 조회] .cardtop h3 '1. 대상 조회' + .cardbody(p.subtle 기존 안내 · 시안 .rolebar `<b id>결제 ID</b><input aria-labelledby grow font-mono placeholder pay_…>` + 대상 조회 .btn.primary(조회 전)/.btn(조회 뒤 — 기존 default/outline 전환) · 비어 있을 때만 도움말 p.subtle(aria-describedby) · ErrorNotice · 조회 값 시안 .detailgrid(div > label 원래 문장 '반환 가능액: 7000 KRW' 등 + strong 읽기 쉬운 값) · 보류/차단 WarningNote) → (조회 뒤, OPERATOR 아님) .cardnote > p.subtle 운영자 안내 | (OPERATOR) .cardtop h3 '2. 요청 작성' + .cardbody(p.subtle 기존 안내 · form(Field 금액·목적·근거·사유 그대로) · 카드 정보 경고 p.subtle · 승인 요청 .btn.primary(aria-busy, 비활성 조건 그대로) · 대기 이유 p.subtle) → (요청 뒤) .cardnote > StatusNotice",
+          "workspace.css(PayCore 적응 규칙 블록): `.mapnote + .wizard{margin:0 23px}`(원본 .wizard margin 26px 0은 drawer 안 기준 — flush 탭 패널에서 카드 좌우 23px 정렬, 기존 .cardnote·.cardbody 값). 새 색·크기 값 없음, 원본 블록 불변",
+          "시험: PaymentOpsScreen.workspace.test.tsx 새로 4건(App 경유 flush 구조·.wizard 단계/aria-current·.rolebar 보이는 이름·도움말·버튼 class 전환·.detailgrid·요청 카드·결과 .cardnote·내부 키 mer_/biz_/adm_ 0, 운영자 아님 .cardnote, 보류·진행 중·조회 오류가 조회 카드 본문 안, CSS 규칙 위치)"
+        ],
+        "selectorChanges": "없음 — 기존 PaymentOpsScreen.test 7·noRuntimeStyles(보정 취소 요청 양식까지 연 뒤 검사 — 기존 단계 그대로)·theme.test(MINOR-6 `done && 'border-primary text-chip-info-fg'` 소스 단언)·App.test·navigation.test·WorkspaceShell 단언·선택자 변경 없이 통과",
+        "deviations": [
+          "시안에 보정 취소 화면이 없어 가장 가까운 시안 두 곳을 합침: 사업자 등록 wizard의 단계 띠(.wizard)와 정산 상세의 요청 흐름(값 .detailgrid → 사유 입력 → .btn.primary 요청). 시안 drawer 대신 탭 패널 안(거래 조회·매입 현황 상세 선례)",
+          "진행 단계: 기존 ol/li + 번호 원·완료 체크 아이콘·연결선 → 시안 .wizard div/span(목록 의미는 role list/listitem·aria-current=step 유지). 단계 글자는 시안처럼 '1. 대상 조회'(접근 가능한 이름에 번호 포함 — 이를 단언하는 기존 시험 없음). 끝난 단계는 체크 아이콘 대신 파란 위 선 + info 글자(시안은 끝난·현재 단계 모두 .current — 기존 MINOR-6 대비 token 단언을 지키려 끝난 단계에는 그 class를 둠)",
+          "조회 값 4칸(rounded border 상자 4열·반환 가능액 상자 브랜드 강조 bg-primary/5·text-primary·text-lg) → 시안 .detailgrid 2열(label + strong 14px). 반환 가능액만의 강조색 없음(시안 .detailgrid에 강조 규칙 없음 — 새 색 도입 안 함), 잔액 revision 값 font-mono 유지. label 요소는 시안 DOM 그대로(입력과 연결되지 않은 이름표 — 기존 시험이 읽는 원래 문장 텍스트 그대로)",
+          "결제 ID 입력: Field(Label 감싸기) → 시안 .rolebar `<b id>` + input aria-labelledby(계정 관리 reviewFix1 MINOR-2 선례). 접근 가능한 이름 '결제 ID'·도움말 문구·aria-describedby 조건(비었을 때만)·placeholder 'pay_…'·autoComplete off 그대로. 도움말은 줄 아래 p.subtle",
+          "대상 조회·승인 요청 버튼의 SearchIcon·Spinner 제거(aria-busy 유지, 비활성 조건 그대로 — 거래 조회·매입 현황·계정 관리 검색/생성 버튼 선례)",
+          "요청 양식의 입력 칸(취소 금액 Field·목적 NativeSelect·근거 Input·사유 Textarea)·ErrorNotice·WarningNote·StatusNotice는 기존 구성요소 유지(재매입 요청·승인함 인증 코드 선례 — 시안 .formrow에는 여러 줄 입력란 규칙이 없고 Field의 오류·aria-invalid·도움말 연결을 그대로 지키려고). 카드 정보 경고·대기 이유는 text-xs muted → p.subtle(같은 12px 보조 글자)",
+          "운영자 아님 안내·결과 안내는 flush 탭 패널 안 좌우 여백을 위해 .cardnote로 감쌈(기존 .cardnote 선례). 두 카드(대상 조회·요청 작성)는 같은 탭 패널 안 .cardtop/.cardbody 쌍 두 개(카드 안 카드 없음, 구분선 없음)"
+        ],
+        "internalKeyFinding": "기존 표시(이번 변경 전과 같음): 이 화면은 결제 ID(pay_…)를 조회 키로 운영자가 직접 입력한다 — 입력란 값·placeholder 'pay_…'·도움말 '결제 ID(pay_…)를 입력하면…'에 pay_ 형식이 보인다. 서버 응답의 paymentId는 그리지 않고 요청 인자로만 쓴다. 요청 성공 안내는 승인 ID(apr_…)를 그대로 표시(승인함 상세·내 요청에도 보이는 값). 결제 ID 대신 주문번호·가맹점 코드로 찾는 방식은 기능 변경이라 '모양만' 범위 밖 — D-ADMIN-UI-004 ③와의 관계(운영자 입력 키 pay_ 표시 허용 여부)는 Coordinator 판단. 새 시험에서 mer_·biz_·adm_ DOM 0건 확인",
+        "evidence": "~/gate-logs/admin-ui-ws7: baseline.log(7파일 80 통과, exit 0), red.log(새 시험 4 실패 — 구조 없음(section.flex…)·CSS 규칙 없음, noRuntimeStyles 11 통과, exit 1), green1.log(새 시험 자체의 .detailgrid 자식 모양 기대값이 strong.font-mono class를 빠뜨린 시험 오류 1 → 태그 이름만 보도록 새 시험 수정, exit 1), green2.log(13파일 105 통과 — 관련 7 + 다른 workspace 시험 5 + 새 시험, exit 0), tsc.log(npx tsc -b --force exit 0), full.log(Vitest 63파일 602 통과·실패 0, exit 0), sha256.txt(변경 4파일 + 로그) — 각 로그에 명령·UTC 시각·exit 기록. 실행 스크립트 ~/gate-logs/ws7.sh",
+        "contrast": "새 색 없음. 새로 쓰는 기존 규칙 조합: .wizard span #64748b on 카드 #fff 약 4.76:1, .wizard .current #1d4ed8 on #fff 약 6.7:1(다크 .wizard span #9aa8bc·.current #7cb4ff on #111a2b — 기존 다크 규칙), 끝난 단계 text-chip-info-fg(theme.test MINOR-6 대비 검사 대상 token), .detailgrid label #475569·strong #0f172a(다크 #cbd5e1·#f1f5f9), .rolebar input·.btn·.btn.primary·.subtle은 기존 규칙. 계산값 — 브라우저 측정 미실행",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·페이지 가로 넘침·대비 실측 미실행(Demo 실행 중 — gradle·빌드 미실행, vite build 미실행). .detailgrid 원본 margin 30px 0이 .cardbody gap과 겹친 세로 간격, 390px에서 .rolebar(b·입력·버튼) 줄바꿈 모양, .wizard 3칸 글자 줄바꿈, 끝난 단계 위 선 색(border-primary — 3px 위 선만 보이는지)은 jsdom으로 확인 불가. 독립 리뷰·게이트 미실행. npx tsc -b --force가 미추적 tsconfig.tsbuildinfo를 다시 씀(선례와 같음 — 커밋 대상 아님)",
+        "gate": "미실행",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부) + Coordinator 헤드리스 캡처(5폭 × 라이트·다크 × 처음·요청·완료 = 30화면 — 페이지 넘침 0, 내부 키 0(입력 pay_·성공 안내 apr_는 기존 표시 확인), style 속성 0, 대비 미달 0, 콘솔 오류 0)",
+          "changes": [
+            "MINOR-1: 스피너 제거로 보이는 진행 표시가 없던 문제 — 대상 조회 버튼 뒤(.rolebar 안)·승인 요청 버튼 아래에 늘 있는 `span.subtle aria-live=polite`, 진행 중에만 '조회 중…'/'요청 중…'. 버튼 글자·접근 가능한 이름·aria-busy·비활성 조건은 그대로(진행 중 비활성화·성공 뒤 양식 잠금은 동작 변경이라 하지 않음 → 후속 PAYOPS-DOUBLE-SUBMIT)",
+            "MINOR-2: 조회 값 .detailgrid를 입력과 연결되지 않는 label/strong 대신 정의 목록 `dl.detailgrid > div > dt + dd`(거래 조회·가맹점 조회 상세의 dl 의미). 문구 그대로. workspace.css PayCore 적응 블록 `.detailgrid dt{margin-bottom:8px;font-size:13px;font-weight:500;color:#475569}`·`.detailgrid dd{margin:0;font-size:14px;font-weight:600;color:#0f172a}`(원본 .detailgrid label·strong 최종값), 다크 블록 `.detailgrid dt{color:#cbd5e1}`·`.detailgrid dd{color:#f1f5f9}`(기존 label·strong 다크 값). 새 값 없음",
+            "NIT-3: App.tsx MenuCard flush 주석의 화면 목록에 '결제 보정 취소' 추가"
+          ],
+          "selectorChanges": "없음 — 기존 시험 무변경. 이번 화면 새 시험 PaymentOpsScreen.workspace.test.tsx만: .rolebar 자식 기대값에 진행 표시 span 추가, .detailgrid 기대값 label/strong → dl·dt/dd(문구 그대로, dd 값·짝 없는 label 0건 단언 추가), 진행 표시 시험 1건 새로, CSS 시험에 dt/dd·다크 규칙 단언 추가(각 '기대값 변경' 주석)",
+          "evidence": "~/gate-logs/admin-ui-ws7: fix1-red.log(3 실패 — .rolebar에 진행 표시 span 없음·진행 표시 영역 null·dt/dd CSS 규칙 없음, exit 1), fix1-green.log(13파일 106 통과, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 63파일 603 통과·실패 0, exit 0), fix1-sha256.txt",
+          "followUps": [
+            "PAYOPS-DOUBLE-SUBMIT: 승인 요청 버튼이 진행 중에도 눌려(기존 동작) 응답이 느리면 2인 승인 요청이 중복될 수 있음 — 진행 중 비활성화·성공 뒤 양식 잠금 여부는 동작 변경이라 Coordinator가 별도 제기",
+            "NIT-1·NIT-2·NIT-4: 기록만(캡처상 배치 문제 없음 — 리뷰 원문 그대로 후속)"
+          ],
+          "notVerified": "수정 후 실제 브라우저 재캡처(진행 표시 글자 위치·.rolebar 끝 빈 span 간격, dt/dd 모양 라이트·다크) 미실행 — Coordinator 몫(번들 재빌드 포함)"
+        },
+        "coordinatorCapture": {
+          "method": "헤드리스 Chrome + 빌드 번들 + 고정 Demo fixture(대상 결제 1건, 다크는 보류 중), 5폭 × 라이트·다크 × 조회 전·요청 작성·요청 완료 = 30화면, reviewFix1 뒤 재캡처",
+          "result": "페이지 가로 넘침 0, mer_/biz_ 노출 0(pay_ 입력값·apr_ 성공 안내는 기존 표시), style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0",
+          "evidence": "scratchpad admin-ui-ws7/shots, results.json"
         }
       }
     },
