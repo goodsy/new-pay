@@ -7,7 +7,7 @@ import { ErrorNotice, WarningNote } from '../components/Notice'
 import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { REJECTION_MESSAGES } from '../components/RegistrationStep'
-import { Button } from '../components/ui/button'
+import { ActionButton } from '../components/ActionButton'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
@@ -33,6 +33,9 @@ import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/scr
  * - 결과 불명(503 MASTER_RETRY_SAME_KEY·MASTER_OUTCOME_UNKNOWN·AUDIT_UNAVAILABLE)은 폼 잠금 + 같은 submissionId·같은 본문 재전송(기존 RegistrationStep 규칙 — 재전송 중에는 409만 확정).
  *   문구는 code별로 다르다(BIZ-3 리뷰 3). MASTER_BUSY(첫 전송)는 처리 안 됨 — 잠그지 않는다.
  * - 성공하면 [onSaved](reference) — 호출자가 상세를 다시 읽는다(C-18: 성공 응답에 상태·version이 없다). 사업자 ID(biz_)는 그리지 않는다(D-ADMIN-UI-004 ③).
+ * - ADMIN-UI-WORKSPACE-001(WS8 — "모양만", [workspace]): 사업자 등록 탭(MenuCard flush)에서는 참고 시안 구성 — .mapnote(h2 + 설명) → .cardnote(필수 안내) →
+ *   form(섹션마다 section > .cardtop h3 + .cardbody · 저장 줄 .cardbody) → (있으면) 결과 안내 .cardnote. 버튼은 .btn/.btn.primary, 스피너 대신 보이는 진행 글자.
+ *   [workspace]가 없으면(사업자 조회 상세 안의 수정 폼 — 아직 옮기지 않은 화면) 지금 카드 모양 그대로. 동작·조건·문구·호출은 두 모양 모두 같다.
  */
 export type BusinessFormMode = { kind: 'create' } | { kind: 'edit'; detail: BusinessDetail }
 
@@ -58,6 +61,8 @@ interface Props {
   memory?: ScreenMemory
   /** 메모리 키 접두사(`<prefix>.form`·`<prefix>.cmd.status`…). */
   memoryKey?: string
+  /** 참고 시안 모양(사업자 등록 탭 — MenuCard flush 안). 없으면 지금 카드 모양. */
+  workspace?: boolean
 }
 
 type CommandKind = 'createDraft' | 'createRegistered' | 'update' | 'complete'
@@ -102,7 +107,7 @@ const MAX_CONTACTS = 5
 const DRAFT_HINT = '사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요.'
 
 export function BusinessProfileFormScreen({
-  api, mode, onSaved, onOpenBusiness, onCancel, onReload, onAbandon, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, memoryKey = 'form',
+  api, mode, onSaved, onOpenBusiness, onCancel, onReload, onAbandon, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, memoryKey = 'form', workspace = false,
 }: Props) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -301,28 +306,43 @@ export function BusinessProfileFormScreen({
           <Field label={`${label} ${i + 1}`} error={err(`${list}[${i}]`)} className="flex-1">
             {(describedBy) => <Input value={name} autoComplete="off" onChange={(e) => setRow(list, i, e.target.value)} aria-describedby={describedBy} aria-invalid={!!err(`${list}[${i}]`) || undefined} />}
           </Field>
-          <Button type="button" variant="outline" size="sm" onClick={() => update({ [list]: form[list].filter((_, j) => j !== i) } as Partial<BusinessForm>)}>{`${label} ${i + 1} 삭제`}</Button>
+          <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => update({ [list]: form[list].filter((_, j) => j !== i) } as Partial<BusinessForm>)}>{`${label} ${i + 1} 삭제`}</ActionButton>
         </div>
       ))}
       <div>
-        <Button type="button" variant="outline" size="sm" disabled={form[list].length >= MAX_CATEGORIES_PER_TYPE} onClick={() => update({ [list]: [...form[list], ''] } as Partial<BusinessForm>)}>{`${label} 추가`}</Button>
+        <ActionButton workspace={workspace} type="button" variant="outline" size="sm" disabled={form[list].length >= MAX_CATEGORIES_PER_TYPE} onClick={() => update({ [list]: [...form[list], ''] } as Partial<BusinessForm>)}>{`${label} 추가`}</ActionButton>
       </div>
     </div>
   )
 
-  return (
-    <section className="flex flex-col gap-6">
-      <PageHeader
-        title={title}
-        description={detail ? `${detail.business.businessName} · ${detail.business.registrationNumberMasked} (${REGISTRATION_STATUS_LABELS[detail.business.registrationStatus] ?? detail.business.registrationStatus})` : '사업자 기본정보를 입력합니다. 임시저장 뒤 이어서 입력할 수 있습니다.'}
-      />
-      <p className="text-xs text-muted-foreground">
-        임시저장은 사업체 구분·사업자등록번호·상호만 있으면 됩니다. 등록 완료에는 개업일·사업장 주소·사업체 전화·대표자·업태·종목·등록 담당자(기본 1명)가 필요하고, 법인은 법인등록번호도 필요합니다.
-        등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.
-      </p>
-      <form noValidate onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
-        <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
-          <Section label="사업자 기본" no={1}>
+  const description = detail ? `${detail.business.businessName} · ${detail.business.registrationNumberMasked} (${REGISTRATION_STATUS_LABELS[detail.business.registrationStatus] ?? detail.business.registrationStatus})` : '사업자 기본정보를 입력합니다. 임시저장 뒤 이어서 입력할 수 있습니다.'
+  const requirements = (
+    <p className={workspace ? 'subtle' : 'text-xs text-muted-foreground'}>
+      임시저장은 사업체 구분·사업자등록번호·상호만 있으면 됩니다. 등록 완료에는 개업일·사업장 주소·사업체 전화·대표자·업태·종목·등록 담당자(기본 1명)가 필요하고, 법인은 법인등록번호도 필요합니다.
+      등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.
+    </p>
+  )
+  const reasonFields = (
+    <>
+      {showReason && (
+        <Field label="변경 사유" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
+          {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
+        </Field>
+      )}
+      {showOptionalReason && (
+        <Field label="변경 사유(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
+          {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
+        </Field>
+      )}
+    </>
+  )
+  const hasNotice = status.kind === 'invalid' || status.kind === 'failed' || status.kind === 'unknown' || (status.kind === 'decided' && status.outcome.outcome === 'REJECTED')
+
+  const formNode = (
+      <form noValidate onSubmit={(e) => e.preventDefault()} className={workspace ? undefined : 'flex flex-col gap-4'}>
+        {/* WS8: 시안 구성에서는 섹션(section > .cardtop + .cardbody)이 위아래 여백을 가지므로 fieldset 간격을 두지 않는다. */}
+        <fieldset disabled={locked} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'm-0 flex min-w-0 flex-col gap-4 border-0 p-0'}>
+          <Section workspace={workspace} label="사업자 기본" no={1}>
             <div role="radiogroup" aria-label="사업체 구분" aria-describedby={err('businessType') ? typeErrorId : undefined} className="flex flex-col gap-1.5 text-sm sm:col-span-3">
               <span aria-hidden="true" className="font-medium">사업체 구분</span>
               <span className="flex gap-4">
@@ -346,16 +366,18 @@ export function BusinessProfileFormScreen({
                 <Field label="사업자등록번호" error={numberError} hint={DRAFT_HINT}>
                   {(describedBy) => <RegistrationNumberInput value={number} onValueChange={changeNumber} aria-describedby={describedBy} aria-invalid={!!numberError || undefined} />}
                 </Field>
-                <div>
-                  <Button type="button" variant="outline" size="sm" onClick={checkDuplicate} aria-busy={dupBusy}>
-                    <Spinner active={dupBusy} />
+                <div className={workspace ? 'flex items-center gap-2' : undefined}>
+                  <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={checkDuplicate} aria-busy={dupBusy}>
+                    {!workspace && <Spinner active={dupBusy} />}
                     중복 확인
-                  </Button>
+                  </ActionButton>
+                  {/* WS8: 스피너 대신 보이는 진행 글자(버튼 이름 그대로 — 결제 보정 취소 reviewFix1 MINOR-1 선례). */}
+                  {workspace && <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>}
                 </div>
                 {dupCheck?.kind === 'taken' && (
                   <div role="status" aria-label="중복 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
                     <span>{`이미 등록된 사업자: ${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
-                    <span><Button type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>기존 사업자 상세 보기</Button></span>
+                    <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>기존 사업자 상세 보기</ActionButton></span>
                   </div>
                 )}
                 {dupCheck?.kind === 'free' && (
@@ -388,12 +410,12 @@ export function BusinessProfileFormScreen({
             </Field>
           </Section>
 
-          <Section label="사업 내용" no={2} error={err('categories')}>
+          <Section workspace={workspace} label="사업 내용" no={2} error={err('categories')}>
             {categoryRows('businessTypes', '업태')}
             {categoryRows('businessItems', '종목')}
           </Section>
 
-          <Section label="주소" no={3} error={err('addresses')}>
+          <Section workspace={workspace} label="주소" no={3} error={err('addresses')}>
             {addressFields('registeredAddress', '사업장')}
             <label className="flex items-center gap-2 text-sm sm:col-span-3">
               <input type="checkbox" checked={form.actualDifferent} onChange={(e) => update({ actualDifferent: e.target.checked })} />
@@ -402,7 +424,7 @@ export function BusinessProfileFormScreen({
             {form.actualDifferent && addressFields('actualAddress', '실사업장')}
           </Section>
 
-          <Section label="대표자" no={4} error={err('representatives')}>
+          <Section workspace={workspace} label="대표자" no={4} error={err('representatives')}>
             <div className="flex flex-col gap-2 sm:col-span-3">
               {form.representatives.map((r, i) => (
                 <div key={i} className="flex flex-wrap items-end gap-2">
@@ -420,17 +442,17 @@ export function BusinessProfileFormScreen({
                       </NativeSelect>
                     )}
                   </Field>
-                  <Button type="button" variant="outline" size="sm" onClick={() => update({ representatives: form.representatives.filter((_, j) => j !== i) })}>{`대표자 ${i + 1} 삭제`}</Button>
+                  <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => update({ representatives: form.representatives.filter((_, j) => j !== i) })}>{`대표자 ${i + 1} 삭제`}</ActionButton>
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">단독 대표는 1명일 때만, 2명 이상이면 공동·각자를 고르세요.</p>
               <div>
-                <Button type="button" variant="outline" size="sm" disabled={form.representatives.length >= MAX_REPRESENTATIVES} onClick={() => update({ representatives: [...form.representatives, { name: '', type: 'JOINT' }] })}>대표자 추가</Button>
+                <ActionButton workspace={workspace} type="button" variant="outline" size="sm" disabled={form.representatives.length >= MAX_REPRESENTATIVES} onClick={() => update({ representatives: [...form.representatives, { name: '', type: 'JOINT' }] })}>대표자 추가</ActionButton>
               </div>
             </div>
           </Section>
 
-          <Section label="사업체 연락" no={5}>
+          <Section workspace={workspace} label="사업체 연락" no={5}>
             <Field label="사업체 전화" error={err('registration.phoneNumber')} hint="등록 완료 시 필수">
               {(describedBy) => (
                 <DigitsInput value={form.phoneNumber} onValueChange={(v) => update({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err('registration.phoneNumber') || undefined} />
@@ -441,7 +463,7 @@ export function BusinessProfileFormScreen({
             </Field>
           </Section>
 
-          <Section label="등록 담당자" no={6} error={err('contacts')}>
+          <Section workspace={workspace} label="등록 담당자" no={6} error={err('contacts')}>
             <div className="flex flex-col gap-3 sm:col-span-3">
               {form.contacts.map((c, i) => {
                 const setContact = (patch: Partial<typeof c>) => update({ contacts: form.contacts.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
@@ -464,52 +486,48 @@ export function BusinessProfileFormScreen({
                           onChange={() => update({ contacts: form.contacts.map((x, j) => ({ ...x, primary: j === i })) })} />
                         기본 담당자
                       </label>
-                      <Button type="button" variant="outline" size="sm" onClick={() => update({ contacts: form.contacts.filter((_, j) => j !== i) })}>{`담당자 ${i + 1} 삭제`}</Button>
+                      <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => update({ contacts: form.contacts.filter((_, j) => j !== i) })}>{`담당자 ${i + 1} 삭제`}</ActionButton>
                     </span>
                   </div>
                 )
               })}
               <div>
-                <Button type="button" variant="outline" size="sm" disabled={form.contacts.length >= MAX_CONTACTS}
-                  onClick={() => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] })}>담당자 추가</Button>
+                <ActionButton workspace={workspace} type="button" variant="outline" size="sm" disabled={form.contacts.length >= MAX_CONTACTS}
+                  onClick={() => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] })}>담당자 추가</ActionButton>
               </div>
             </div>
           </Section>
 
-          {showReason && (
-            <Field label="변경 사유" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
-              {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
-            </Field>
-          )}
-          {showOptionalReason && (
-            <Field label="변경 사유(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
-              {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
-            </Field>
-          )}
+          {workspace ? (showReason || showOptionalReason) && <div className="cardbody">{reasonFields}</div> : reasonFields}
         </fieldset>
 
-        <div className="flex flex-col items-end gap-2">
-          {!detail && <p className="text-xs text-muted-foreground">사업자등록번호는 저장 후 변경할 수 없습니다.</p>}
+        {/* WS8: 저장 줄은 .cardbody(카드 좌우 23px) 안 오른쪽 — 안내 p.subtle · 저장 group · 보이는 진행 글자. */}
+        <div className={workspace ? 'cardbody items-end' : 'flex flex-col items-end gap-2'}>
+          {!detail && <p className={workspace ? 'subtle' : 'text-xs text-muted-foreground'}>사업자등록번호는 저장 후 변경할 수 없습니다.</p>}
           <div role="group" aria-label="저장" className="flex flex-wrap justify-end gap-2">
             {(!detail || detail.business.registrationStatus === 'DRAFT') ? (
               <>
-                <Button type="button" variant="outline" disabled={locked} aria-busy={status.kind === 'busy'} onClick={() => submit(detail ? 'update' : 'createDraft')}>임시저장</Button>
-                <Button type="button" disabled={locked} onClick={() => submit(detail ? 'complete' : 'createRegistered')}>
-                  <Spinner active={status.kind === 'busy'} />
+                <ActionButton workspace={workspace} type="button" variant="outline" disabled={locked} aria-busy={status.kind === 'busy'} onClick={() => submit(detail ? 'update' : 'createDraft')}>임시저장</ActionButton>
+                <ActionButton workspace={workspace} type="button" disabled={locked} onClick={() => submit(detail ? 'complete' : 'createRegistered')}>
+                  {!workspace && <Spinner active={status.kind === 'busy'} />}
                   등록 완료
-                </Button>
+                </ActionButton>
               </>
             ) : (
-              <Button type="button" disabled={locked} aria-busy={status.kind === 'busy'} onClick={() => submit('update')}>
-                <Spinner active={status.kind === 'busy'} />
+              <ActionButton workspace={workspace} type="button" disabled={locked} aria-busy={status.kind === 'busy'} onClick={() => submit('update')}>
+                {!workspace && <Spinner active={status.kind === 'busy'} />}
                 저장
-              </Button>
+              </ActionButton>
             )}
-            <Button type="button" variant="ghost" disabled={locked} onClick={() => (detail ? onCancel?.() : clearAll())}>취소</Button>
+            <ActionButton workspace={workspace} type="button" variant="ghost" disabled={locked} onClick={() => (detail ? onCancel?.() : clearAll())}>취소</ActionButton>
           </div>
+          {workspace && <span className="subtle" aria-live="polite">{status.kind === 'busy' ? '저장 중…' : ''}</span>}
         </div>
       </form>
+  )
 
+  const notices = (
+    <>
       {status.kind === 'invalid' && <ErrorNotice>입력을 확인하세요 — 표시한 칸을 고친 뒤 다시 저장하세요.</ErrorNotice>}
       {status.kind === 'failed' && (
         <ErrorNotice>
@@ -531,11 +549,11 @@ export function BusinessProfileFormScreen({
               <span className="flex flex-wrap items-center gap-2">
                 {/* D-BIZ-003: 기존 사업자 상호·마스킹 번호·상세 링크(내부 키는 그리지 않는다). */}
                 <span>{existingText(status.outcome.existing)}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(status.outcome.existing!.businessId)}>기존 사업자 상세 보기</Button>
+                <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(status.outcome.existing!.businessId)}>기존 사업자 상세 보기</ActionButton>
               </span>
             )}
             {status.outcome.rejection === 'BUSINESS_VERSION_CONFLICT' && onReload && (
-              <span><Button type="button" variant="outline" size="sm" onClick={onReload}>다시 불러오기</Button></span>
+              <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={onReload}>다시 불러오기</ActionButton></span>
             )}
           </span>
         </ErrorNotice>
@@ -544,25 +562,65 @@ export function BusinessProfileFormScreen({
         <div role="group" aria-label="결과 확인 필요" className="flex flex-col gap-3">
           <ErrorNotice>{`결과 확인 필요 — ${UNKNOWN_MESSAGES[status.code] ?? ERROR_MESSAGES[status.code]} 입력은 잠겨 있습니다.`}</ErrorNotice>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" onClick={resend}>같은 내용 다시 보내기</Button>
-            <Button type="button" variant="outline" onClick={() => setConfirmAbandon(true)}>취소하고 새로 입력</Button>
+            <ActionButton workspace={workspace} type="button" onClick={resend}>같은 내용 다시 보내기</ActionButton>
+            <ActionButton workspace={workspace} type="button" variant="outline" onClick={() => setConfirmAbandon(true)}>취소하고 새로 입력</ActionButton>
           </div>
           {confirmAbandon && (
             <div className="flex flex-col gap-2">
               <WarningNote>앞 요청이 이미 처리됐을 수 있습니다 — 사업자 조회로 먼저 확인하세요(같은 번호로 다시 만들면 중복 안내가 나옵니다).</WarningNote>
               <div className="flex justify-end">
-                <Button type="button" variant="destructive" onClick={abandon}>그래도 새로 입력</Button>
+                <ActionButton workspace={workspace} type="button" variant="destructive" onClick={abandon}>그래도 새로 입력</ActionButton>
               </div>
             </div>
           )}
         </div>
       )}
+    </>
+  )
+
+  if (workspace) {
+    // WS8: Fragment라 탭 패널 바로 아래 자식 — .mapnote → .cardnote(필수 안내) → form → (있으면) 결과 안내 .cardnote.
+    return (
+      <>
+        <div className="mapnote">
+          <h2>{title}</h2>
+          {' · '}
+          <span>{description}</span>
+        </div>
+        <div className="cardnote">{requirements}</div>
+        {formNode}
+        {hasNotice && <div className="cardnote">{notices}</div>}
+      </>
+    )
+  }
+  return (
+    <section className="flex flex-col gap-6">
+      <PageHeader title={title} description={description} />
+      {requirements}
+      {formNode}
+      {notices}
     </section>
   )
 }
 
-/** 섹션 카드(번호 + 이름 — 접근 이름은 이름만). [error]는 목록 전체 오류(예: categories TOO_MANY). */
-function Section({ label, no, error, children }: { label: string; no: number; error?: string; children: ReactNode }) {
+/**
+ * 섹션 카드(번호 + 이름 — 접근 이름은 이름만). [error]는 목록 전체 오류(예: categories TOO_MANY).
+ * [workspace](WS8): section > 시안 카드 제목 줄(.cardtop h3 `n. 이름`) + 본문(.cardbody — 칸 배치 grid는 기존 utility 그대로).
+ */
+function Section({ label, no, error, workspace, children }: { label: string; no: number; error?: string; workspace: boolean; children: ReactNode }) {
+  if (workspace) {
+    return (
+      <section aria-label={label}>
+        <div className="cardtop">
+          <h3>{`${no}. ${label}`}</h3>
+        </div>
+        <div className="cardbody grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {children}
+          {error && <p className="text-xs text-destructive sm:col-span-3">{error}</p>}
+        </div>
+      </section>
+    )
+  }
   return (
     <Card as="section" aria-label={label} className="gap-4 py-5">
       <CardHeader className="px-5">

@@ -3,13 +3,10 @@ import type { AdminApi } from '../api/adminApi'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { Field, Spinner } from '../components/DataBits'
+import { Field } from '../components/DataBits'
 import { ErrorNotice, WarningNote } from '../components/Notice'
-import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
-import { CheckIcon, SearchIcon } from '../components/icons'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { CheckIcon } from '../components/icons'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { NativeSelect } from '../components/ui/native-select'
@@ -43,6 +40,8 @@ import type { BusinessLookupItem } from '../api/adminApi'
  * - submissionId는 결과 확정(200·409)까지 재전송에 같은 값. 결과 불명이면 폼 잠금 + "같은 내용 다시 보내기"(§5.3, 리뷰 M-1) — [RegistrationStep].
  * - 단계·상태·입력은 [memory](App 메모리)에 둔다(화면 전환에도 유지, 세션 경계마다 새로 — 리뷰 m-1·MINOR-1). 검색 입력란의 평문 등록번호는 화면 자체 상태이고 보낸 즉시 비운다.
  * - 앞 카드 성공 값이 다음 카드에 자동으로 채워진다 — 그 카드가 잠겨 있거나 이미 성공해 읽기 전용이면 채우지 않는다(리뷰 m-1).
+ * - ADMIN-UI-WORKSPACE-001(WS8 — "모양만"): 참고 시안 사업자 등록 wizard 구성 — MenuCard flush 탭 패널 바로 안에 .mapnote(h2 + 설명) → 단계 띠 .wizard →
+ *   단계 카드(section > .cardtop h3 + .cardbody — [RegistrationStep] workspace) → .cardnote(안내 + 시안 .actions 이전·다음 단계). 동작·조건·문구·호출은 그대로.
  */
 interface Props {
   api: AdminApi
@@ -228,12 +227,12 @@ export function startWithBusiness(memory: ScreenMemory, business: BusinessRef): 
   return true
 }
 
-/** 검토 목록 한 줄(label/value). */
+/** 검토 목록 한 칸(시안 .detailgrid 칸 — 이름 dt · 값 dd, 값 글자는 workspace.css `.detailgrid dt/dd`). 값이 여러 줄이면 세로로 쌓는다. */
 function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-b py-2.5 last:border-b-0 sm:grid-cols-[180px_1fr]">
-      <dt className="text-xs text-muted-foreground">{term}</dt>
-      <dd className="flex flex-col gap-0.5 text-sm">{children}</dd>
+    <div className="min-w-0">
+      <dt>{term}</dt>
+      <dd className="flex flex-col gap-0.5">{children}</dd>
     </div>
   )
 }
@@ -258,6 +257,7 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
   const [found, setFound] = useRemembered<readonly BusinessLookupItem[] | null>(memory, 'search.found', NO_FOUND)
   const [selected] = useRemembered<BusinessRef | null>(memory, 'selectedBusiness', null)
   const [selectError] = useRemembered(memory, 'selectError', false)
+  const numberNoteId = useId()
 
   const search = async (event: FormEvent) => {
     event.preventDefault()
@@ -283,12 +283,13 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
     }
   }
 
+  // WS8: section(region 이름 그대로) > 시안 카드 제목 줄(.cardtop h3) + 본문(.cardbody). 찾기는 보조 버튼(.btn — 기존 outline), 스피너 대신 옆에 보이는 진행 글자.
   return (
-    <Card as="section" aria-label="사업자 선택" className="gap-4 py-5">
-      <CardHeader className="px-5">
-        <CardTitle className="text-sm">사업자 선택</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
+    <section aria-label="사업자 선택">
+      <div className="cardtop">
+        <h3>사업자 선택</h3>
+      </div>
+      <div className="cardbody">
         {selected ? (
           <div role="group" aria-label="선택한 사업자" className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2.5 text-sm">
             <CheckIcon aria-hidden="true" className="size-4 text-primary" />
@@ -297,18 +298,24 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
         ) : selectError ? (
           <ErrorNotice>사업자를 선택하세요.</ErrorNotice>
         ) : null}
-        <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="사업자등록번호" className="sm:max-w-xs sm:flex-1" error={formatError ? '사업자등록번호는 숫자 10자리입니다.' : undefined} hint={formatError ? undefined : '조회는 감사 기록에 남습니다.'}>
-            {(describedBy) => (
-              <RegistrationNumberInput value={number} onValueChange={setNumber} disabled={disabled} aria-describedby={describedBy} aria-invalid={formatError || undefined} />
-            )}
-          </Field>
-          <div className="sm:pb-7">
-            <Button type="submit" variant="outline" disabled={disabled} aria-busy={busy}>
-              {busy ? <Spinner active /> : <SearchIcon aria-hidden="true" />}
+        {/*
+          리뷰 reviewFix1 캡처 (a): 찾기 버튼을 입력란과 같은 줄에 두고 아래끝 맞춤(items-end) — 도움말·형식 오류는 그 줄 아래(Field와 같은 label 감싸기·aria-describedby·문구).
+          Field는 도움말을 입력과 같은 칸 안에 두어 버튼을 입력 아래끝에 맞출 수 없어 같은 구성을 풀어 썼다(이름·설명·aria-invalid 그대로).
+        */}
+        <form onSubmit={search} className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-end gap-2">
+            <Label className="min-w-0 grow sm:max-w-xs">
+              <span>사업자등록번호</span>
+              <RegistrationNumberInput value={number} onValueChange={setNumber} disabled={disabled} aria-describedby={numberNoteId} aria-invalid={formatError || undefined} />
+            </Label>
+            <button type="submit" className="btn" disabled={disabled} aria-busy={busy}>
               찾기
-            </Button>
+            </button>
+            <span className="subtle" aria-live="polite">{busy ? '찾는 중…' : ''}</span>
           </div>
+          <p id={numberNoteId} className={formatError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+            {formatError ? '사업자등록번호는 숫자 10자리입니다.' : '조회는 감사 기록에 남습니다.'}
+          </p>
         </form>
         {error && <ErrorNotice>{error === 'RATE_LIMITED' ? BRN_RATE_LIMITED : ERROR_MESSAGES[error]}</ErrorNotice>}
         {found && (
@@ -325,9 +332,9 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
                       <span className="text-xs text-muted-foreground">{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</span>
                     </span>
                     {item.registrationStatus === 'REGISTERED' ? (
-                      <Button type="button" size="sm" disabled={disabled || selected?.businessId === item.businessId} onClick={() => offerBusiness(memory, business)}>
+                      <button type="button" className="btn primary" disabled={disabled || selected?.businessId === item.businessId} onClick={() => offerBusiness(memory, business)}>
                         {selected?.businessId === item.businessId ? '선택됨' : '선택'}
-                      </Button>
+                      </button>
                     ) : (
                       // D-BIZ-006 ③: REGISTERED가 아니면 고를 수 없다 — MASTER가 어차피 BUSINESS_NOT_REGISTERED로 거절(D-BIZ-001). 문구는 DRAFT = 결정 문구,
                       // INACTIVE(전이 경로 없음 — TBD-08)는 등록 완료로 풀 수 없으므로 다른 문구(리뷰 NIT-4).
@@ -335,7 +342,7 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
                         <span className="text-sm font-medium text-warning">
                           {item.registrationStatus === 'DRAFT' ? '사업자 등록 완료 후 가맹점 등록 가능' : '비활성(사용중지) 사업자 — 가맹점 등록 불가'}
                         </span>
-                        {onOpenBusiness && <Button type="button" size="sm" variant="outline" onClick={() => onOpenBusiness(item.businessId)}>사업자 상세 보기</Button>}
+                        {onOpenBusiness && <button type="button" className="btn" onClick={() => onOpenBusiness(item.businessId)}>사업자 상세 보기</button>}
                       </span>
                     )}
                   </li>
@@ -344,8 +351,8 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
             </ul>
           )
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
@@ -588,16 +595,27 @@ export function MerchantRegistrationScreen({
   }
   const reviewBusiness = createdMerchant?.business ?? selectedBusiness
 
+  // ADMIN-UI-WORKSPACE-001(WS8): Fragment라 탭 패널 바로 아래 자식이 된다 — .mapnote → .wizard → 단계 카드(section) → .cardnote.
   return (
-    <section className="flex flex-col gap-6">
-      <PageHeader title="가맹점 등록" description="등록된 사업자를 골라 가맹점·사이트·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인)." />
+    <>
+      <div className="mapnote">
+        <h2>가맹점 등록</h2>
+        {' · '}
+        <span>등록된 사업자를 골라 가맹점·사이트·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).</span>
+      </div>
 
-      <ol aria-label="등록 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/*
+        단계 띠: 시안 .wizard(span마다 `n. 단계 이름`, 현재 단계 .current — 위 선·글자 파랑, 결제 보정 취소 선례). 목록 의미는 role(list·listitem).
+        단계 이동 버튼(aria-label·aria-current·진행 중 비활성)은 span 안에 그대로 — 보이는 글자 = 이름. 끝난 단계는 번호 원 대신 파란 위 선 + MINOR-6 info 글자 token
+        + 기존 체크 아이콘(aria-hidden — 색만으로 구분하지 않게, 리뷰 reviewFix1 MINOR-1 WCAG 1.4.1). 버튼은 단계 칸 전체 폭(block w-full — 현재 단계 tint가 글자 폭만
+        칠해지지 않게, 캡처 (b)), 누르는 칸은 py-1(NIT-1).
+      */}
+      <div role="list" aria-label="등록 단계" className="wizard">
         {STEPS.map(({ no, label }) => {
           const current = no === wizardStep
           const done = no === 1 ? selectedBusiness !== null : STEP_KEYS[no].length > 0 && STEP_KEYS[no].every((key) => isDone(statuses[key]))
           return (
-            <li key={no}>
+            <span key={no} role="listitem" className={cn(current && 'current', done && !current && 'border-primary text-chip-info-fg') || undefined}>
               <button
                 type="button"
                 aria-label={`${no}. ${label}`}
@@ -605,27 +623,18 @@ export function MerchantRegistrationScreen({
                 disabled={advancing}
                 onClick={() => setWizardStep(no)}
                 className={cn(
-                  'flex h-full w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60',
+                  'block w-full py-1 text-left disabled:opacity-60',
                   // 리뷰 MINOR-6: 5% tint 위 브랜드 글자는 4.30:1이라 한 단계 진한 info 글자색(라이트 #1d4ed8 · 다크 #93c5fd).
                   current && 'border-primary bg-primary/5 font-bold text-chip-info-fg hover:bg-primary/5',
                 )}
               >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
-                    current && 'border-primary bg-primary text-primary-foreground',
-                    done && !current && 'border-success text-success',
-                  )}
-                >
-                  {done && !current ? <CheckIcon className="size-3.5" /> : no}
-                </span>
-                <span aria-hidden="true">{label}</span>
+                {done && !current && <CheckIcon aria-hidden="true" className="mr-1 inline size-3.5 align-middle" />}
+                {`${no}. ${label}`}
               </button>
-            </li>
+            </span>
           )
         })}
-      </ol>
+      </div>
 
       {wizardStep === 1 && <BusinessPicker api={api} memory={memory} onSessionEnded={onSessionEnded} onOpenBusiness={onOpenBusiness} disabled={advancing} />}
 
@@ -635,6 +644,7 @@ export function MerchantRegistrationScreen({
             {...merchantSpec}
             title="가맹점"
             submitDisabled={advancing}
+            workspace
             submitLabel="가맹점 등록"
             succeeded={(reference) => <MerchantCodeText code={knownMerchants[reference]?.code} />}
             completion={{
@@ -676,7 +686,7 @@ export function MerchantRegistrationScreen({
                       )}
                   </Field>
                   <div>
-                    <Button type="button" variant="outline" size="sm" onClick={suggestAgain}>다시 제안</Button>
+                    <button type="button" className="btn" onClick={suggestAgain}>다시 제안</button>
                   </div>
                 </div>
               </>
@@ -687,6 +697,7 @@ export function MerchantRegistrationScreen({
             {...siteSpec}
             title="Site"
             submitDisabled={advancing}
+            workspace
             submitLabel="Site 등록"
             succeeded={(reference) => <span>Site ID <Mono>{reference}</Mono></span>}
             completion={{
@@ -734,6 +745,7 @@ export function MerchantRegistrationScreen({
             {...contractSpec}
             title="계약 초안"
             submitDisabled={advancing}
+            workspace
             submitLabel="계약 초안 등록"
             succeeded={(reference) => <span>계약 ID <Mono>{reference}</Mono> (Revision 1, {REVISION_AWAITING_APPROVAL})</span>}
             completion={{ resetLabel: '계약 초안 새로 입력', onReset: () => { setContractErrors(NO_ERRORS); retakeContextMerchant(setScopeMerchantId) } }}
@@ -817,6 +829,7 @@ export function MerchantRegistrationScreen({
             {...agreementSpec}
             title="서비스 계약"
             submitDisabled={advancing}
+            workspace
             submitLabel="서비스 계약 추가"
             succeeded={(reference) => <span>서비스 계약 ID <Mono>{reference}</Mono></span>}
             completion={{ resetLabel: '서비스 계약 새로 입력', onReset: () => setAgreementErrors(NO_ERRORS) }}
@@ -841,13 +854,17 @@ export function MerchantRegistrationScreen({
         </>
       )}
 
+      {/*
+        ④ 검토(WS8): section(region 이름 그대로) > .cardtop h3 + .cardbody — 시안 wizard 검토 단계처럼 저장 값은 .detailgrid(정의 목록 dt/dd — 결제 보정 취소 reviewFix1 MINOR-2),
+        다음 안내는 시안 .notice. 좁은 폭(<640px)에서는 한 열(utility — 새 값 없음), 그 위는 원본 2열.
+      */}
       {wizardStep === 4 && (
-        <Card as="section" aria-label="등록 결과" className="gap-3 py-5">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">검토 — 저장된 내용</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 px-5 text-sm">
-            <dl className="flex flex-col">
+        <section aria-label="등록 결과">
+          <div className="cardtop">
+            <h3>검토 — 저장된 내용</h3>
+          </div>
+          <div className="cardbody">
+            <dl className="detailgrid grid-cols-1 sm:grid-cols-2">
               <Row term="사업자">
                 {reviewBusiness ? <BusinessText business={reviewBusiness} /> : <span className="text-xs text-muted-foreground">선택하지 않음</span>}
               </Row>
@@ -897,8 +914,9 @@ export function MerchantRegistrationScreen({
                 ) : <NotSaved />}
               </Row>
             </dl>
-            <div className="flex flex-col gap-2 rounded-md bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">다음: 가맹점 조회 상세에서 계약 승인 → 첫 MID 발급을 요청하세요. 결제수단·Route 개통 전까지 결제는 아직 할 수 없습니다.</p>
+            {/* 시안 .notice 글자(#64748b)는 .notice 바탕(#f6f8fb)에서 4.47:1이라 기존 본문 글자 token(text-foreground — 라이트 #334155 · 다크 #dbe4f0)으로. 새 색 없음. */}
+            <div className="notice flex flex-col gap-2 text-foreground">
+              <p>다음: 가맹점 조회 상세에서 계약 승인 → 첫 MID 발급을 요청하세요. 결제수단·Route 개통 전까지 결제는 아직 할 수 없습니다.</p>
               <ol aria-label="다음 단계" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
                 {/* 화살표는 CSS 내용(::before)이라 목록 항목 글자에 섞이지 않는다. */}
                 {['가맹점 조회 상세', '계약 승인 요청 (2인)', '첫 MID 발급 (2인)', '개통'].map((label) => (
@@ -910,26 +928,27 @@ export function MerchantRegistrationScreen({
             </div>
             {anyLocked && <WarningNote>결과 확인이 필요한 단계가 있습니다 — 그 단계에서 '같은 내용 다시 보내기'로 먼저 확인하세요.</WarningNote>}
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" disabled={anyLocked} onClick={startOver}>새 가맹점 등록 시작</Button>
-              {lookupMerchantId && <Button type="button" onClick={() => onOpenLookup(lookupMerchantId)}>가맹점 조회에서 보기</Button>}
+              <button type="button" className="btn" disabled={anyLocked} onClick={startOver}>새 가맹점 등록 시작</button>
+              {lookupMerchantId && <button type="button" className="btn primary" onClick={() => onOpenLookup(lookupMerchantId)}>가맹점 조회에서 보기</button>}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        <p className="text-xs text-muted-foreground">
+      {/* 아래 줄(WS8): 안내 p.subtle + 시안 wizard .actions(이전 .btn · 다음 단계 → .btn.primary — 원본 순서·왼쪽 정렬). 조건·비활성·aria-busy 그대로. */}
+      <div className="cardnote">
+        <p className="subtle">
           {wizardStep < 4 ? '단계 표시를 누르면 저장하지 않고 이동합니다.' : '이 마법사는 MID를 발급하지 않습니다.'}
         </p>
-        <div className="flex gap-2">
+        <div className="actions">
           {wizardStep > 1 && (
-            <Button type="button" variant="outline" disabled={advancing} onClick={() => setWizardStep((wizardStep - 1) as WizardStep)}>이전</Button>
+            <button type="button" className="btn" disabled={advancing} onClick={() => setWizardStep((wizardStep - 1) as WizardStep)}>이전</button>
           )}
           {wizardStep < 4 && (
-            <Button type="button" disabled={advancing || currentLocked} aria-busy={advancing} onClick={() => void goNext()}>다음 단계 →</Button>
+            <button type="button" className="btn primary" disabled={advancing || currentLocked} aria-busy={advancing} onClick={() => void goNext()}>다음 단계 →</button>
           )}
         </div>
       </div>
-    </section>
+    </>
   )
 }

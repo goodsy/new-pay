@@ -9601,9 +9601,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-18T001008Z.json",
           "result": "GRADLE-CHECK 00:10:38Z..01:05:42Z(55m04s) exit 0; Kotlin 5075 / FRONTEND 628 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:17527c9e9f8c98ea791bef50e381703ee4163e4defb61f0b72b47ee6e45d6fb8",
           "supplementary": "WS7-cve1 PASS(~/gate-logs/WS7-cve1.log)"
+        },
+        {
+          "tag": "WS8-gate1",
+          "verdict": "PASS",
+          "screen": "사업자 등록·가맹점 등록",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-18T015027Z.json",
+          "result": "GRADLE-CHECK 01:51:01Z..02:46:54Z(55m53s) exit 0; Kotlin 5075 / FRONTEND 639 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:519ffbedcf5eab1554c3dc19b5b2b3d163741fa26808b691f315ecc3a50636ee",
+          "supplementary": "WS8-cve1 PASS(~/gate-logs/WS8-cve1.log)"
         }
       ],
-      "nextResumeAction": "남은 화면: 등록 wizard → login (후속 PAYOPS-DOUBLE-SUBMIT 사용자 결정 필요, APPROVAL-TARGET-KEYS-001)",
+      "nextResumeAction": "남은 화면: login (WS9) → ADMIN-HOME-ATTENTION-001. 후속: APPROVAL-TARGET-KEYS-001(+ 가맹점 등록 site_/ctr_/csa_ 표시), PAYOPS-DOUBLE-SUBMIT(UX만)",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -9830,7 +9838,7 @@
           "selectorChanges": "없음 — 기존 시험 무변경. 이번 화면 새 시험 PaymentOpsScreen.workspace.test.tsx만: .rolebar 자식 기대값에 진행 표시 span 추가, .detailgrid 기대값 label/strong → dl·dt/dd(문구 그대로, dd 값·짝 없는 label 0건 단언 추가), 진행 표시 시험 1건 새로, CSS 시험에 dt/dd·다크 규칙 단언 추가(각 '기대값 변경' 주석)",
           "evidence": "~/gate-logs/admin-ui-ws7: fix1-red.log(3 실패 — .rolebar에 진행 표시 span 없음·진행 표시 영역 null·dt/dd CSS 규칙 없음, exit 1), fix1-green.log(13파일 106 통과, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 63파일 603 통과·실패 0, exit 0), fix1-sha256.txt",
           "followUps": [
-            "PAYOPS-DOUBLE-SUBMIT: 승인 요청 버튼이 진행 중에도 눌려(기존 동작) 응답이 느리면 2인 승인 요청이 중복될 수 있음 — 진행 중 비활성화·성공 뒤 양식 잠금 여부는 동작 변경이라 Coordinator가 별도 제기",
+            "PAYOPS-DOUBLE-SUBMIT(화면 편의만 — 금융 위험 없음, Coordinator 확인 2026-11-18): 승인 요청 버튼이 진행 중·성공 뒤에도 눌리지만(기존 동작) 서버가 막는다 — 같은 결제의 미해결 승인은 admin V5 unresolved_key UNIQUE로 두 번째 요청이 409 DUPLICATE_UNRESOLVED(ADMIN-PAYMENT-OPS-001 §I-14, UnresolvedApprovalRaceSpec), 승인·실행은 balanceRevision 고정 + payment-api 잠금 아래 반환 가능액·지문 재검사(OwnerServiceApprovalService:240-248, CancelStart:99-121). 남는 것은 두 번째 클릭에 중복 오류 문구가 보이는 UX — 진행 중 비활성화는 다음 결제 관리 화면 정리 때 선택",
             "NIT-1·NIT-2·NIT-4: 기록만(캡처상 배치 문제 없음 — 리뷰 원문 그대로 후속)"
           ],
           "notVerified": "수정 후 실제 브라우저 재캡처(진행 표시 글자 위치·.rolebar 끝 빈 span 간격, dt/dd 모양 라이트·다크) 미실행 — Coordinator 몫(번들 재빌드 포함)"
@@ -9839,6 +9847,59 @@
           "method": "헤드리스 Chrome + 빌드 번들 + 고정 Demo fixture(대상 결제 1건, 다크는 보류 중), 5폭 × 라이트·다크 × 조회 전·요청 작성·요청 완료 = 30화면, reviewFix1 뒤 재캡처",
           "result": "페이지 가로 넘침 0, mer_/biz_ 노출 0(pay_ 입력값·apr_ 성공 안내는 기존 표시), style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0",
           "evidence": "scratchpad admin-ui-ws7/shots, results.json"
+        }
+      },
+      "registrationScreens": {
+        "status": "DONE(WS8-gate1)",
+        "scope": "사업자·가맹점 › 가맹점 등록(MerchantRegistrationScreen.tsx 4단계 마법사 — 단계 띠·① 사업자 선택·② 가맹점/Site 카드·③ 계약 초안/서비스 계약 카드·④ 검토·아래 이전/다음 줄, RegistrationStep 카드)와 사업자 등록(BusinessProfileFormScreen.tsx 생성 모드 — 섹션 1~6·저장 줄·결과 안내) 모양만 시안 사업자 등록 wizard 구조로 — 결제 보정 취소(WS7)·계정 관리(WS6) 선례 그대로. 저장 호출·본문(submissionId·idempotent 재전송·baseVersion/version)·사업자등록번호 조회/중복 확인(평문 번호 즉시 비움·감사 안내)·임시저장 vs 등록 완료·REGISTERED만 선택(D-BIZ-001/D-BIZ-006 ③)·가맹점 코드 미리보기/다시 제안·결과 불명 잠금과 같은 내용 다시 보내기·자동 채움 규칙·오류/거절 문구·세션 종료·PayCore 브랜드 유지, 샘플 데이터 없음. 두 화면 모두 완료",
+        "changes": [
+          "App.tsx: MenuCard flush 대상에 businessRegistration·merchantRegistration 추가 + flush 주석 화면 목록에 '사업자 등록·가맹점 등록'. 사업자 등록 탭의 BusinessProfileFormScreen에 workspace 표시 전달(사업자 조회 상세 안 수정 폼은 표시 없음 — 지금 모양)",
+          "components/ActionButton.tsx(새): workspace면 시안 버튼(.btn, 기본 = .btn.primary, outline/ghost = .btn, destructive = 'btn border-destructive-solid bg-destructive-solid text-white' — 승인함 거절·계정 정지 token 선례), 아니면 기존 shadcn Button 그대로. 이름·type·aria·disabled는 그대로 넘김",
+          "components/RegistrationStep.tsx: 선택 prop workspace 추가(기본 false — 가맹점 조회 상세 계약 Revision 폼(ContractRevisionForm)은 그대로 Card). workspace면 section(aria-label 그대로 — region 이름) > .cardtop h3(title) + .cardbody(같은 form·fieldset grid·알림). 제출 .btn.primary(aria-busy·비활성 조건 그대로) + 스피너 대신 버튼 왼쪽 span.subtle aria-live=polite '보내는 중…', 완료 뒤 새로 입력 .btn, 결과 불명 같은 내용 다시 보내기 .btn.primary·취소하고 새로 입력 .btn·그래도 새로 입력 destructive-solid. 제출/재전송/잠금 로직 무변경",
+          "MerchantRegistrationScreen.tsx: section.flex·PageHeader·shadcn Card/Button → Fragment(.mapnote h2 '가맹점 등록' + 기존 설명 span) → 단계 띠 시안 .wizard(div role=list aria-label '등록 단계' > span role=listitem — 현재 .current, 끝난 단계 'border-primary text-chip-info-fg'(PaymentOps 선례) > 기존 단계 button(aria-label·aria-current·advancing 비활성·onClick 그대로, 보이는 글자 `n. 이름`, 현재 단계 버튼 class는 theme.test MINOR-6 단언 문자열 그대로)) → ① BusinessPicker section(aria-label 사업자 선택) > .cardtop h3 + .cardbody(선택한 사업자 group·Field 사업자등록번호 그대로·찾기 .btn + span.subtle aria-live '찾는 중…'·찾은 사업자 ul — 선택 .btn.primary·사업자 상세 보기 .btn) | ②③ RegistrationStep workspace 4장(다시 제안 .btn) | ④ section(aria-label 등록 결과) > .cardtop h3 '검토 — 저장된 내용' + .cardbody(dl.detailgrid grid-cols-1 sm:grid-cols-2 > div > dt + dd(flex-col) 5칸 · 다음 안내 .notice(+ text-foreground — 대비) · WarningNote · 새 가맹점 등록 시작 .btn·가맹점 조회에서 보기 .btn.primary) → .cardnote(p.subtle 기존 안내 + 시안 .actions: 이전 .btn·다음 단계 → .btn.primary, 조건·aria-busy 그대로)",
+          "BusinessProfileFormScreen.tsx: 선택 prop workspace(기본 false). workspace면 Fragment(.mapnote h2 제목 + 설명 span) → .cardnote(p.subtle 필수 안내 2문장 그대로) → form(fieldset > Section 6개: section aria-label > .cardtop h3 `n. 이름` + .cardbody grid gap-4 sm:grid-cols-2 lg:grid-cols-3; 변경 사유 칸은 있으면 .cardbody; 저장 줄 .cardbody items-end: p.subtle D-BIZ-005 · group '저장'(임시저장 .btn·등록 완료/저장 .btn.primary·취소 .btn) · span.subtle aria-live '저장 중…') → (있으면) .cardnote(입력 확인·실패·거절(기존 사업자 상세 보기·다시 불러오기 .btn)·결과 불명 group). 중복 확인 .btn + span.subtle '확인 중…', 업태/종목/대표자/담당자 추가·삭제 .btn. workspace가 아니면 기존 마크업 그대로(내용 노드 공유 — 조건·문구·호출 한 벌)",
+          "workspace.css 변경 없음(기존 .mapnote·.mapnote + .wizard·.wizard·.cardtop h3·.cardbody·.cardnote·.detailgrid dt/dd·.notice·.actions·.btn·.subtle만 사용)",
+          "시험: MerchantRegistrationScreen.workspace.test.tsx 새로 5건(App 경유 flush 구조·.wizard span/button·①②카드 구조·버튼 class·style 0·biz_/mer_/평문 번호 0, 찾기/제출 보이는 진행 글자, 결과 불명 버튼 class, ④ dl.detailgrid·.notice·버튼, workspace 없는 RegistrationStep은 Card 유지) · BusinessProfileFormScreen.workspace.test.tsx 새로 4건(App 경유 flush 구조·섹션 h3·저장 줄·버튼 class·style 0·biz_ 0, 중복 확인/저장 진행 글자 + 임시저장 본문, 거절·결과 불명 .cardnote·버튼 class, workspace 없는 수정 폼은 Card 6장 유지)"
+        ],
+        "selectorChanges": "없음 — 기존 MerchantRegistrationScreen.test(59 — describe timeout 20s 그대로)·BusinessProfileFormScreen.test·App.test·noRuntimeStyles·theme.test(MINOR-6 `current && 'border-primary bg-primary/5 font-bold text-chip-info-fg hover:bg-primary/5'` 소스 단언)·WorkspaceShell·navigation·BusinessesScreen·MerchantsScreen.revision·RegistrationNumberInput 단언·선택자 변경 없이 통과. 새 시험 2파일만 green1·green2에서 자기 기대값 오류 수정(아래 evidence)",
+        "deviations": [
+          "가장 가까운 시안은 사업자 등록 wizard(drawer 안 eyebrow·h2·.wizard·.formrow·.notice·.actions)지만 drawer 대신 탭 패널 안(flush — 결제 보정 취소 선례). eyebrow 'MERCHANT ONBOARDING'은 넣지 않음(새 문구 금지 — 쪽 머리 eyebrow가 이미 있음), 제목은 .mapnote h2",
+          "단계 띠: 시안은 `<span class=current>` 글자뿐이지만 기존 단계는 누르면 저장 없이 이동하는 button(시험이 list '등록 단계' 안 button의 aria-label·aria-current로 찾음) — span role=listitem 안에 button을 두고 보이는 글자 = aria-label 값. 번호 원·완료 체크 아이콘·카드형 테두리는 없앰(시안 띠). 끝난 단계는 파란 위 선 + info 글자(PaymentOps 선례). 현재 단계 button에는 theme.test가 소스 문자열로 지키는 MINOR-6 class(bg-primary/5 tint·font-bold·text-chip-info-fg)를 그대로 둠 → 현재 단계 글자 뒤에 옅은 5% 파란 바탕이 남는다(시안에는 없음 — 기존 대비 시험이 지키는 조합이라 유지). 시안처럼 끝난 단계까지 .current로 칠하지 않음(기존: 현재 단계만 aria-current)",
+          "카드: 시안 wizard는 drawer 하나에 양식 한 벌이지만 실제 단계는 저장 단위 카드 1~2장 — 각 카드를 section(region 이름 — 기존 시험이 getByRole('region')으로 찾음) > .cardtop h3 + .cardbody로(카드 안 카드 없음, 구분선 없음). section 감싸개 하나는 region 의미 때문에 둠(시안 DOM에는 없는 요소)",
+          "입력 칸(Field·Input·NativeSelect·RegistrationNumberInput·DigitsInput·Textarea·라디오/체크)·ReadOnlyGroup·Affiliation·찾은 사업자 행·중복 확인 결과 상자·ErrorNotice/StatusNotice/WarningNote는 기존 구성요소 유지(시안 .formrow는 label+input 한 줄뿐 — 오류·도움말 aria-describedby·aria-invalid·읽기 전용 묶음을 지키려고, 재매입 요청·결제 보정 취소 선례). 보이는 label은 모두 기존 Field label",
+          "스피너 제거(찾기·카드 제출·중복 확인·등록 완료/저장) → 보이는 진행 글자 span.subtle aria-live=polite('찾는 중…'·'보내는 중…'·'확인 중…'·'저장 중…'). 버튼 이름·aria-busy 유무·비활성 조건은 그대로(등록 완료에는 원래 aria-busy가 없어 더하지 않음). 찾기 SearchIcon 제거",
+          "④ 검토 목록: 테두리 줄 목록(180px 이름 열) → 시안 검토 단계의 .detailgrid(정의 목록 dt/dd — WS7 reviewFix1 MINOR-2 규칙). 640px 미만은 한 열(grid-cols-1 sm:grid-cols-2 utility — 새 값 없음), 그 위는 원본 2열. 값 칸 안 작은 글자(코드·저장 안 함·Site 행)는 기존 utility 그대로",
+          "다음 안내 상자(rounded bg-muted/40) → 시안 .notice. 단 시안 .notice 글자 #64748b는 .notice 바탕 #f6f8fb 위 4.47:1(4.5 미달)이라 기존 본문 글자 token text-foreground(라이트 #334155·다크 #dbe4f0)를 붙임 — 새 색 없음. 목록 화살표(::before, 장식)는 기존 muted 그대로",
+          "아래 이전/다음 줄: border-t 구분선 + 오른쪽 정렬 → .cardnote(p.subtle) + 시안 .actions(왼쪽 정렬 — 원본 wizard 순서 이전·다음). 720px 이하에서는 원본 .actions 규칙대로 버튼이 세로로 쌓임",
+          "사업자 등록: 시안 wizard 첫 단계(.formrow 3칸)는 실제 6개 섹션 폼과 달라 섹션마다 .cardtop h3 + .cardbody grid(기존 3열 배치 utility)로. 필수 안내 문단은 .cardnote p.subtle, 결과 안내는 폼 아래 .cardnote. 취소(ghost)는 시안에 ghost가 없어 .btn",
+          "공유 구성요소 범위: RegistrationStep·BusinessProfileFormScreen은 다른 화면(가맹점 조회 상세 계약 Revision 폼·사업자 조회 상세 수정 폼 — 아직 옮기지 않은 화면)도 쓰므로 workspace 표시가 있을 때만 시안 모양(기본값은 지금 모양 그대로). 두 모양은 같은 내용 노드·같은 조건을 쓰고 감싸개·버튼 class만 다르다"
+        ],
+        "internalKeyFinding": "새 노출 없음(새 시험에서 biz_·mer_·평문 사업자등록번호 DOM 0건 — 가맹점 등록 ①②④, 사업자 등록 폼·거절 안내). 기존 표시(이번 변경 전과 같음): 가맹점 등록 마법사는 Site ID(site_…)·계약 ID(ctr_…)·서비스 계약 ID(csa_… 등 응답 reference)를 성공 안내·검토(④)·계약 범위 Site 체크 목록에 그대로 보이고, 'Site ID 직접 입력'(placeholder site_…, …)·서비스 계약 카드 '계약 ID'(placeholder ctr_…) 입력란은 운영자가 내부 키를 직접 입력한다. 사업자등록번호는 마스킹 값만(입력란 평문은 보낸 즉시 비움 — 기존). D-ADMIN-UI-004 ③와 site_/ctr_ 표시·입력의 관계(코드/이름으로 바꾸는 것은 기능 변경 — '모양만' 범위 밖)는 Coordinator 판단",
+        "evidence": "~/gate-logs/admin-ui-ws8: baseline.log(관련 10파일 178 통과, exit 0), red.log(새 시험 9 중 7 실패 — 구조 없음(section.flex·PageHeader·Card), 진행 글자 span 없음; 통과 2건은 workspace 없는 기본 모양 유지 회귀 확인, exit 1), tsc0.log(구현 중 'form' 이름 충돌 TS2451 → formNode로 고친 뒤 재실행 exit 0 — 로그는 재실행본), green1.log(새 시험 자체 기대값 오류 1 — 저장 줄 .cardbody의 utility class를 빠뜨림, exit 1), green2.log(같은 시험 fieldset utility class 오류 1 → 태그 + 시안 class만 보도록 새 시험 수정, exit 1), green3.log(관련 12 + 다른 workspace 시험 6 = 18파일 213 통과, exit 0), green4.log(.notice 대비 보정 뒤 3파일 77 통과, exit 0), tsc.log(npx tsc -b --force exit 0), full.log(Vitest 65파일 612 통과·실패 0, exit 0), sha256.txt(변경 7파일 + 로그, HEAD bd7f760 미커밋) — 각 로그에 명령·UTC 시각·exit. 실행 스크립트 ~/gate-logs/ws8.sh",
+        "contrast": "새 색 없음. 새로 쓰는 기존 규칙 조합: .wizard span #64748b on 카드 #fff 약 4.76:1(다크 #9aa8bc on #111a2b), .wizard .current/끝난 단계 text-chip-info-fg(theme.test MINOR-6 검사 — 현재 단계 5% tint 위 포함), .detailgrid dt #475569·dd #0f172a(다크 #cbd5e1·#f1f5f9), .notice 바탕 #f6f8fb 위 text-foreground #334155 약 9.8:1(시안 #64748b는 4.47:1이라 쓰지 않음)·다크 #dbe4f0 on #18233a(.notice 다크 바탕), .subtle·.btn·.btn.primary·destructive-solid 흰 글자는 기존 규칙(승인함·계정 관리와 같은 조합). 계산값 — 브라우저 측정 미실행",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·페이지 가로 넘침·대비 실측 미실행(Demo 실행 중 — gradle·vite build 미실행). jsdom으로 확인 못 한 것: .wizard 4칸 글자 줄바꿈(390px '3. 계약 초안·서비스 계약'), 현재 단계 button 5% tint가 글자 칸만 칠해지는 모양, 카드 grid(sm 2열·lg 3열) 안 Field와 .btn(다시 제안·업태 삭제 등 — 시안 .btn 높이 약 38px vs 입력 h-9) 정렬, ① 찾기 줄(sm:pb-7 맞춤)과 진행 글자 위치, .detailgrid 원본 margin 30px 0과 .cardbody gap이 겹친 세로 간격, 720px 이하 .actions 세로 쌓임, 사업자 등록 저장 줄 오른쪽 정렬·진행 글자. 독립 리뷰·게이트 미실행. npx tsc -b --force가 미추적 tsconfig.tsbuildinfo를 다시 씀(선례와 같음 — 커밋 대상 아님)",
+        "gate": "미실행",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부, MAJOR 0) + Coordinator 헤드리스 캡처(5폭 × 라이트·다크 × 사업자 등록 빈 폼/중복 확인 + 가맹점 등록 ① 빈/찾음 = 40화면 — 페이지 넘침 0, 키 0, style 속성 0, 대비 미달 0, 콘솔 오류 0; 찾기 버튼 높이 어긋남·현재 단계 tint가 글자 폭만 칠해짐 발견)",
+          "changes": [
+            "MINOR-1(WCAG 1.4.1): 가맹점 등록 단계 띠에서 끝난 단계(done && !current)는 기존 CheckIcon(aria-hidden, size-3.5 + mr-1 inline align-middle utility)을 이름 앞에 다시 둠 — 색만으로 구분하지 않음. 접근 가능한 이름(aria-label)·보이는 글자 그대로",
+            "MINOR-2: BusinessProfileFormScreen.workspace.test.tsx에 workspace 모양 멱등 시험 추가 — MASTER_OUTCOME_UNKNOWN 뒤 '같은 내용 다시 보내기'가 createBusiness를 같은 submissionId·같은 본문으로 다시 부르고(잠금 유지), '취소하고 새로 입력' → '그래도 새로 입력'이 잠금을 풂(fieldset 활성). 기존 동작 확인 시험이라 fix1-red에서 처음부터 통과(구현 변경 없음)",
+            "캡처 (a): ① 사업자 선택 찾기 줄 — Field(도움말이 입력과 같은 칸)를 풀어 같은 구성으로: form(flex-col gap-1.5) > div.flex.flex-wrap.items-end.gap-2(Label 'min-w-0 grow sm:max-w-xs' > span 사업자등록번호 + RegistrationNumberInput · 찾기 .btn · 진행 글자) + p(id — 도움말/형식 오류, Field와 같은 class·문구·aria-describedby). sm:pb-7 맞춤 제거, 버튼이 입력 아래끝에 맞음",
+            "캡처 (b)·NIT-1: 단계 button 'w-full text-left' → 'block w-full py-1 text-left'(현재 단계 tint가 단계 칸 전체 폭, 누르는 칸 위아래 4px). MINOR-6 class 문자열 그대로(theme.test 통과)",
+            "NIT-3: workspace ActionButton class에 whitespace-nowrap shrink-0(shadcn Button과 같음) — 'btn whitespace-nowrap shrink-0 [primary|destructive token]'",
+            "NIT-4: workspace ActionButton type 기본값 'button'(호출자가 준 type이 이김; shadcn 모양은 기존처럼 그대로 넘김) + 주석에 workspace 모양에서 size 미사용 명시",
+            "NIT-2/5/6: 기록만 — site_/ctr_/csa_ 표시·입력은 기존(internalKeyFinding 그대로), APPROVAL-TARGET-KEYS-001 같은 정리로 후속"
+          ],
+          "selectorChanges": "없음 — 기존 시험 무변경. 이번 화면 새 시험만: MerchantRegistrationScreen.workspace.test 단언 추가(단계 button block·w-full·py-1·tint 위치, 끝난 단계 svg aria-hidden size-3.5·나머지 단계 svg 없음, 찾기 줄 items-end·입력 포함·도움말 줄 밖·설명 그대로), BusinessProfileFormScreen.workspace.test 저장 버튼 className 기대값 변경(NIT-3 class 추가 — '기대값 변경' 주석) + 시험 2건 새로(MINOR-2 멱등, NIT-4 type 기본값)",
+          "evidence": "~/gate-logs/admin-ui-ws8: fix1-red.log(4 실패 — 단계 button block/py-1 없음·찾기 줄 items-end 없음·저장 버튼 class·ActionButton type 기본값 없음; MINOR-2 멱등 시험은 기존 동작이라 통과, exit 1), fix1-green.log(18파일 215 통과, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 65파일 614 통과·실패 0, exit 0), fix1-sha256.txt(변경 7파일 + fix1 로그)",
+          "contrast": "새 색 없음. 체크 아이콘은 단계 글자색(text-chip-info-fg 상속 — theme.test MINOR-6 대비 검사 token)",
+          "notVerified": "수정 후 실제 브라우저 재캡처(찾기 버튼·입력 아래끝 맞춤 — .btn 약 41px vs 입력 h-9라 위끝은 몇 px 다를 수 있음, 단계 칸 전체 tint·체크 아이콘 정렬, 390px 찾기 줄 줄바꿈) 미실행 — Coordinator 몫(번들 재빌드 포함)"
+        },
+        "coordinatorCapture": {
+          "method": "헤드리스 Chrome + 빌드 번들 + 고정 Demo fixture(번호 조회 1건 REGISTERED), 5폭 × 라이트·다크 × 사업자 등록 빈 화면·중복 확인 결과, 가맹점 등록 ① 빈 화면·조회 결과 = 40화면, reviewFix1 뒤 재캡처",
+          "result": "페이지 가로 넘침 0, biz_/mer_ 노출 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0. 수정 전 찾기 버튼 위로 뜸·현재 단계 바탕이 글자 폭만 칠해짐 → reviewFix1로 해소",
+          "notCaptured": "가맹점 등록 ②~④ 단계(카드 저장 흐름)는 fixture 없이 캡처하지 않음 — jsdom 구조 시험과 리뷰로만 확인",
+          "evidence": "scratchpad admin-ui-ws8/shots, results.json"
         }
       }
     },

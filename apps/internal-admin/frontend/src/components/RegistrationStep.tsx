@@ -6,7 +6,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { Spinner } from './DataBits'
 import { ErrorNotice, StatusNotice, WarningNote } from './Notice'
-import { Button } from './ui/button'
+import { ActionButton } from './ActionButton'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 /**
@@ -93,6 +93,11 @@ interface StepProps<P> extends StepSpec<P> {
   completion?: { resetLabel: string; onReset: () => void }
   /** 제출 버튼을 잠시 막는다(선택 — 등록 마법사 "다음 단계 →"가 보내는 동안, 리뷰 NIT-3). 결과 불명 재전송 버튼은 막지 않는다. */
   submitDisabled?: boolean
+  /**
+   * ADMIN-UI-WORKSPACE-001(가맹점 등록 WS8): 참고 시안 모양 — section(같은 region 이름) > 카드 제목 줄(.cardtop h3) + 본문(.cardbody), 버튼은 .btn/.btn.primary,
+   * 스피너 대신 제출 버튼 옆 보이는 진행 글자(aria-live). 주지 않으면 지금 카드 모양 그대로(가맹점 조회 상세 계약 Revision 폼 — 아직 옮기지 않은 화면).
+   */
+  workspace?: boolean
 }
 
 /** 메모리에 있는 단계 상태(콜백 시점 값 — 지난 렌더 값 아님). */
@@ -154,7 +159,7 @@ export async function submitStep<P>(spec: StepSpec<P>): Promise<boolean> {
 }
 
 /** 단계 하나: 제출·같은 submissionId 재전송·결과 불명 잠금·결과 표시. */
-export function RegistrationStep<P>({ title, submitLabel, succeeded, children, completion, submitDisabled = false, ...spec }: StepProps<P>) {
+export function RegistrationStep<P>({ title, submitLabel, succeeded, children, completion, submitDisabled = false, workspace = false, ...spec }: StepProps<P>) {
   const { memory, memoryKey } = spec
   const [pending, setPending] = useRemembered<{ submissionId: string; payload: P } | null>(memory, `${memoryKey}.pending`, null)
   const [status, setStatus] = useRemembered<StepStatus>(memory, `${memoryKey}.status`, IDLE)
@@ -190,23 +195,23 @@ export function RegistrationStep<P>({ title, submitLabel, succeeded, children, c
     setConfirmCancel(false)
   }
 
-  return (
-    <Card as="section" aria-label={title} className="gap-4 py-5">
-      <CardHeader className="px-5">
-        <CardTitle className="text-sm">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
+  const content = (
+    <>
         {/* noValidate: 형식 검사는 화면(collect)이 하고 판정은 서버가 한다 — 브라우저 제약(예: 시작일 min)이 제출을 막아 서버 판정(소급 거절 문구)을 가리지 않게. */}
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
           <fieldset disabled={locked || completed} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children(locked || completed)}</fieldset>
-          <div className="flex justify-end">
+          <div className={workspace ? 'flex flex-wrap items-center justify-end gap-2' : 'flex justify-end'}>
             {completed ? (
-              <Button type="button" variant="outline" onClick={startOver}>{completion.resetLabel}</Button>
+              <ActionButton workspace={workspace} type="button" variant="outline" onClick={startOver}>{completion.resetLabel}</ActionButton>
             ) : (
-              <Button type="submit" disabled={locked || submitDisabled} aria-busy={status.kind === 'busy'}>
-                <Spinner active={status.kind === 'busy'} />
-                {submitLabel}
-              </Button>
+              <>
+                {/* WS8: 스피너 대신 보이는 진행 글자(버튼 이름은 그대로 — 결제 보정 취소 reviewFix1 MINOR-1 선례). 늘 있는 polite 영역이라 글자가 생길 때 읽힌다. */}
+                {workspace && <span className="subtle" aria-live="polite">{status.kind === 'busy' ? '보내는 중…' : ''}</span>}
+                <ActionButton workspace={workspace} type="submit" disabled={locked || submitDisabled} aria-busy={status.kind === 'busy'}>
+                  {!workspace && <Spinner active={status.kind === 'busy'} />}
+                  {submitLabel}
+                </ActionButton>
+              </>
             )}
           </div>
         </form>
@@ -232,20 +237,38 @@ export function RegistrationStep<P>({ title, submitLabel, succeeded, children, c
               결과 확인 필요 — {messageOf(status.code)} 입력은 잠겨 있습니다. 같은 내용으로 다시 보내면 이미 처리된 경우 그 결과를 돌려받습니다.
             </ErrorNotice>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" onClick={resend}>같은 내용 다시 보내기</Button>
-              <Button type="button" variant="outline" onClick={() => setConfirmCancel(true)}>취소하고 새로 입력</Button>
+              <ActionButton workspace={workspace} type="button" onClick={resend}>같은 내용 다시 보내기</ActionButton>
+              <ActionButton workspace={workspace} type="button" variant="outline" onClick={() => setConfirmCancel(true)}>취소하고 새로 입력</ActionButton>
             </div>
             {confirmCancel && (
               <div className="flex flex-col gap-2">
                 <WarningNote>앞 요청이 이미 처리됐을 수 있습니다 — 가맹점 조회로 먼저 확인하세요. 가맹점·계약은 이름 중복이 허용되어 새로 보내면 중복 등록될 수 있습니다.</WarningNote>
                 <div className="flex justify-end">
-                  <Button type="button" variant="destructive" onClick={abandon}>그래도 새로 입력</Button>
+                  <ActionButton workspace={workspace} type="button" variant="destructive" onClick={abandon}>그래도 새로 입력</ActionButton>
                 </div>
               </div>
             )}
           </div>
         )}
-      </CardContent>
+    </>
+  )
+
+  if (workspace) {
+    return (
+      <section aria-label={title}>
+        <div className="cardtop">
+          <h3>{title}</h3>
+        </div>
+        <div className="cardbody">{content}</div>
+      </section>
+    )
+  }
+  return (
+    <Card as="section" aria-label={title} className="gap-4 py-5">
+      <CardHeader className="px-5">
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 px-5">{content}</CardContent>
     </Card>
   )
 }

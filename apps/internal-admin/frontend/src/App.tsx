@@ -229,8 +229,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
               )
             }
           />
-          {/* ADMIN-UI-WORKSPACE-001: 시안 목록 구조(.filters·.tablewrap)로 옮긴 화면(1단계 가맹점 조회, 거래 조회, 결제 보정 취소, 매입·대사, 승인함·내 요청, 계정 관리)은 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
-          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants' || page === 'transactions' || page === 'acquisitions' || page === 'reconciliation' || page === 'approvals' || page === 'mine' || page === 'accounts' || page === 'paymentOps'}>
+          {/* ADMIN-UI-WORKSPACE-001: 시안 목록 구조(.filters·.tablewrap)로 옮긴 화면(1단계 가맹점 조회, 거래 조회, 결제 보정 취소, 매입·대사, 승인함·내 요청, 계정 관리, 사업자 등록·가맹점 등록)은 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
+          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants' || page === 'transactions' || page === 'acquisitions' || page === 'reconciliation' || page === 'approvals' || page === 'mine' || page === 'accounts' || page === 'paymentOps' || page === 'businessRegistration' || page === 'merchantRegistration'}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'merchants' && (
@@ -258,7 +258,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
             )}
             {page === 'businessRegistration' && (
               // BUSINESS-PROFILE-001 BIZ-4(C-27): 옛 번호·상호 두 칸 화면을 새 등록 폼으로 교체. 성공하면 사업자 조회 상세로(다시 읽기 — C-18).
-              <BusinessProfileFormScreen api={api} mode={{ kind: 'create' }} memory={businessMemory} onSaved={openBusiness} onOpenBusiness={openBusiness} onSessionEnded={sessionEnded} />
+              <BusinessProfileFormScreen api={api} mode={{ kind: 'create' }} memory={businessMemory} workspace onSaved={openBusiness} onOpenBusiness={openBusiness} onSessionEnded={sessionEnded} />
             )}
             {page === 'merchantRegistration' && (
               <MerchantRegistrationScreen
