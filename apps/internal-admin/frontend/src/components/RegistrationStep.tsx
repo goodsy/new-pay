@@ -274,8 +274,9 @@ export function RegistrationStep<P>({ title, submitLabel, succeeded, children, c
   }
   return (
     <Card as="section" aria-label={title} className="gap-4 py-5">
+      {/* LAYOUT-ROLLOUT B6: 제목의 긴 ID(예: 계약 ID)가 좁은 폭에서 넘치면 아무 곳에서나 줄을 바꾼다(넘치지 않으면 그대로). */}
       <CardHeader className="px-5">
-        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardTitle className="text-sm wrap-anywhere">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 px-5">{content}</CardContent>
     </Card>

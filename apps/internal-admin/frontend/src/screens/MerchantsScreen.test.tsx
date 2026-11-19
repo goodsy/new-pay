@@ -5,6 +5,7 @@ import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantHistoryEntry, MerchantListItem } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
 import { domOccurrences } from '../test/domScan'
+import { expectDetailRows, panelDetailList } from '../test/detailRows'
 
 /** Demo 식별자(MASTER 형식 — 접두사 + Crockford base32 26자). 업무 의미 없는 고정값. */
 const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0')}`
@@ -414,5 +415,44 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(domOccurrences(document.body, BRN)).toEqual([])
     expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
     expect(api.merchantDetail).toHaveBeenCalledWith(MER1)
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B6(사용자 결정 2026-11-19 — "사업자 조회 상세보기처럼 다른 화면도 일관성 있게"): 바깥 Panel(.card > .cardtop h4 + .cardbody)은 그대로,
+ * 안쪽 정의 목록만 사업자 상세 DetailRow 줄(이름 140px 열 · 줄 사이 얇은 선 · 640px 미만 위아래). 모양만 — 값·이름 글자·업무 호출은 위 시험이 지킨다.
+ */
+describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 줄(DetailRow)', () => {
+  it('기본정보 · 권리 전파 상태는 바깥 Panel 그대로, 안쪽은 140px 이름 열 줄(style 속성 없음)', async () => {
+    await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    const basics = await screen.findByRole('region', { name: '기본정보' })
+    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '가맹점 상태', '권리 revision', '등록일', '사업자', '사업자등록번호(마스킹)', '사업자 상태'])
+    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
+    expectDetailRows(panelDetailList(propagation, '권리 전파 상태'), ['발행', '결제 서비스 수신', '효력'])
+    // 값은 그대로(상태 배지 · 마스킹 번호 · 효력 확인 전).
+    expect(within(basics).getAllByText('활성').length).toBeGreaterThan(0)
+    expect(within(basics).getByText(MASKED)).toHaveClass('font-mono')
+    expect(within(propagation).getByText('효력 확인 전')).toBeInTheDocument()
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  // LAYOUT-ROLLOUT B6 리뷰 MINOR-2 기대값 변경(이번 B6에서 새로 만든 시험): 표 전체 nowrap이면 긴 채널 식별값(최대 253자)이 표를 넓혀 상태·심사 결과 열이
+  // 데스크톱에서도 가로 스크롤 뒤로 숨는다 → 짧은 값 칸(Site ID·채널 종류·상태)만 nowrap, 식별값은 줄바꿈 허용 + 칸 최소 폭(16ch)으로 한 글자씩 쪼개짐만 막는다.
+  it('390px: Site 표는 가로 스크롤 — 짧은 값 칸만 줄바꿈 없음, 채널 식별값은 줄바꿈 허용 + 최소 폭(한 글자씩 세로로 쪼개지지 않음)', async () => {
+    await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    const table = await screen.findByRole('table', { name: 'Site 목록' })
+    expect(table).not.toHaveClass('whitespace-nowrap')
+    expect(table.parentElement).toHaveClass('overflow-x-auto')
+    const cells = within(within(table).getByRole('row', { name: id('mst', 1) })).getAllByRole('cell')
+    expect(cells[0]).toHaveClass('whitespace-nowrap') // Site ID
+    expect(cells[0]).toHaveTextContent(id('mst', 1))
+    expect(cells[2]).toHaveClass('whitespace-nowrap') // 상태
+    expect(cells[1]).not.toHaveClass('whitespace-nowrap') // 채널 칸 전체는 줄바꿈 허용
+    const channel = cells[1]!.querySelector(':scope > span.flex-col')!
+    expect(channel.children[0]).toHaveClass('whitespace-nowrap') // 채널 종류
+    const identifier = within(cells[1]!).getByText('shop.example.test')
+    expect(identifier.parentElement).toHaveClass('min-w-[16ch]')
+    expect(identifier.parentElement).not.toHaveClass('whitespace-nowrap')
+    expect(identifier.parentElement!.parentElement).toBe(channel)
   })
 })

@@ -6,6 +6,7 @@ import { App } from '../App'
 import { TransactionsScreen } from './TransactionsScreen'
 import type { AdminApi, TransactionDetail, TransactionListItem } from '../api/adminApi'
 import { fakeApi } from '../test/fakeApi'
+import { expectDetailRows, panelDetailList } from '../test/detailRows'
 import { domOccurrences } from '../test/domScan'
 
 /**
@@ -156,5 +157,37 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 거래 조회 in the referen
     const rules = WORKSPACE_CSS.slice(adaptation, light).split('\n').filter((line) => line.includes('.filters.many'))
     expect(rules.length).toBeGreaterThan(0)
     for (const rule of rules) expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B6(사용자 결정 2026-11-19 — 상세 일관성): 거래 상세의 결제 · 승인 · 반환 잔액 정의 목록을 사업자 상세 DetailRow 줄로.
+ * 바깥 Panel(.card > .cardtop h4 + .cardbody)과 거래 사실 · 취소 이력 표(.tablewrap)는 그대로 — 위 시험이 지킨다.
+ */
+describe('LAYOUT-ROLLOUT B6: 거래 상세 정의 목록 = 사업자 상세 줄(DetailRow)', () => {
+  it('결제 · 승인 · 반환 잔액은 140px 이름 열 줄, 상태 태그는 dd 안 감싼 칸에(늘어나지 않음), style 속성 없음', async () => {
+    const withBalance: TransactionDetail = {
+      ...detail,
+      returnBalance: { currency: 'KRW', authorizedMinor: 10000, completedMinor: 3000, reservedMinor: 2000, forcedMinor: 0, revision: 2 },
+    }
+    render(
+      <TransactionsScreen
+        api={fakeApi({ transactionSearch: vi.fn(async () => ({ items: [item], nextCursor: null, merchantLabels: 'OK' as const })), transactionDetail: vi.fn(async () => withBalance) })}
+        now={() => NOW}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: PAY1 })).getByRole('button', { name: '상세' }))
+    const payment = await screen.findByRole('region', { name: '결제' })
+    expectDetailRows(panelDetailList(payment, '결제'), ['결제 ID', '상태', '금액', '생성 시각', '환경', 'MID', 'Site', '가맹점 주문번호', '주문명', '결제수단', '종료 근거'])
+    const authorization = screen.getByRole('region', { name: '승인' })
+    expectDetailRows(panelDetailList(authorization, '승인'), ['승인 ID', '승인 상태', '할부', '카드 종류', '시작 시각'])
+    const balance = screen.getByRole('region', { name: '반환 잔액' })
+    expectDetailRows(panelDetailList(balance, '반환 잔액'), ['승인액', '취소 완료', '취소 진행 중(예약)', '강제 반영', 'revision'])
+    // 값은 그대로: 상태 태그 · 보류 태그 · 금액.
+    expect(within(payment).getByText('보류(hold) 중')).toHaveClass('tag', 'red')
+    expect(within(authorization).getByText('승인 완료')).toHaveClass('tag', 'green')
+    expect(within(balance).getByText('3,000원')).toBeInTheDocument()
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

@@ -4,6 +4,7 @@ import type {
 } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { DetailRow } from '../components/DetailCard'
 import { KstTime, Spinner } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import type { BadgeVariant } from '../components/ui/badge'
@@ -117,16 +118,6 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-/** 항목 이름·값(시안 `.detailgrid` label 13px·500 / 값 14px — 거래 조회 상세와 같은 값, 정의 목록 의미는 유지). */
-function Item({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
-      <dd className="text-sm text-heading">{children}</dd>
-    </div>
-  )
-}
-
 /** 확인 필요 배지 + 재매입 검토 배지(목록·상세 공용). 색은 원래 Badge tone 그대로(확인 필요 warning → orange, 재매입 outline·secondary → 회색). */
 function Marks({ file }: { file: AcquisitionFileItem }) {
   if (file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress) return <span className="subtle">-</span>
@@ -205,28 +196,28 @@ function DetailPanels({ detail, records, recordStatus, onRecordStatus, onMoreRec
   return (
     <>
       <Panel title="파일 요약">
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Item term="파일 ID"><Mono>{file.fileId}</Mono></Item>
-          <Item term="업무일·매입사"><span className="font-mono text-xs">{`${file.businessDate} · ${file.acquirerCode} · ${file.environment} · v${file.fileVersion}`}</span></Item>
-          <Item term="건수">{`매출 ${file.saleCount}건 · 취소 ${file.cancelCount}건`}</Item>
-          <Item term="순액">{amount(file.netAmountMinor, file.currency)}</Item>
-          <Item term="마감 정책"><span className="font-mono text-xs">{file.cutoffPolicyVersion}</span></Item>
-          <Item term="마감 시각"><KstTime iso={file.cutoffAt} /></Item>
-          <Item term="봉인 시각"><KstTime iso={file.sealedAt} /></Item>
-          <Item term="봉인 hash(SHA-256)"><span title={file.contentSha256} className="font-mono text-xs">{`${file.contentSha256.slice(0, 16)}… (${file.contentBytes}바이트)`}</span></Item>
+        <dl>
+          <DetailRow term="파일 ID"><Mono>{file.fileId}</Mono></DetailRow>
+          <DetailRow term="업무일·매입사"><span className="font-mono text-xs">{`${file.businessDate} · ${file.acquirerCode} · ${file.environment} · v${file.fileVersion}`}</span></DetailRow>
+          <DetailRow term="건수">{`매출 ${file.saleCount}건 · 취소 ${file.cancelCount}건`}</DetailRow>
+          <DetailRow term="순액">{amount(file.netAmountMinor, file.currency)}</DetailRow>
+          <DetailRow term="마감 정책"><span className="font-mono text-xs">{file.cutoffPolicyVersion}</span></DetailRow>
+          <DetailRow term="마감 시각"><KstTime iso={file.cutoffAt} /></DetailRow>
+          <DetailRow term="봉인 시각"><KstTime iso={file.sealedAt} /></DetailRow>
+          <DetailRow term="봉인 hash(SHA-256)"><span title={file.contentSha256} className="font-mono text-xs">{`${file.contentSha256.slice(0, 16)}… (${file.contentBytes}바이트)`}</span></DetailRow>
         </dl>
       </Panel>
 
       <Panel title="상태">
-        <dl className="grid gap-3 sm:grid-cols-3">
-          <Item term="전송">
+        <dl>
+          <DetailRow term="전송">
             <span className="flex flex-col items-start gap-1">
               <Tone table={TRANSMISSION} code={file.transmissionState} />
               {file.transmittedAt !== null && <span className="subtle">완료 <KstTime iso={file.transmittedAt} /></span>}
             </span>
-          </Item>
-          <Item term="수신 확인(ACK)"><Tone table={RECEIPT} code={file.receiptState} /></Item>
-          <Item term="결과"><Tone table={RESULT} code={file.resultState} /></Item>
+          </DetailRow>
+          <DetailRow term="수신 확인(ACK)"><span><Tone table={RECEIPT} code={file.receiptState} /></span></DetailRow>
+          <DetailRow term="결과"><span><Tone table={RESULT} code={file.resultState} /></span></DetailRow>
         </dl>
         {file.attention.length === 0 && !file.reacquisitionCandidate && !file.reacquisitionInProgress ? (
           <p className="subtle">확인할 일이 없습니다.</p>

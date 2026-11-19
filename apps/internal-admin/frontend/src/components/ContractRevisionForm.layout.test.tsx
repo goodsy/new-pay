@@ -116,3 +116,13 @@ describe('LAYOUT-ROLLOUT B5: 계약 Revision 등록 폼 = 폼 줄(바깥 Card �
     expect(screen.getByRole('button', { name: '등록' })).not.toHaveClass('btn')
   })
 })
+
+/** LAYOUT-ROLLOUT B6(B5 390px 캡처 후속 — 모양만): 카드 제목의 계약 ID가 넘치면 아무 곳에서나 줄을 바꿔 잘리지 않는다(넘치지 않으면 그대로). */
+describe('LAYOUT-ROLLOUT B6: 계약 Revision 등록 카드 제목 넘침 방지', () => {
+  it('CardTitle = wrap-anywhere(접근성 이름 · 글자 그대로)', () => {
+    const form = renderForm()
+    const title = form.querySelector('[data-slot="card-title"]')!
+    expect(title).toHaveTextContent(`새 Revision 등록 — ${CTR1}`)
+    expect(title).toHaveClass('wrap-anywhere')
+  })
+})

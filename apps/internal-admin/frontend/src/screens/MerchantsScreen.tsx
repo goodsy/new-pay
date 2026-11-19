@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } fr
 import type { AdminApi, MerchantDetail, MerchantHistoryEntry, MerchantListItem, MerchantSearchInput } from '../api/adminApi'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { DetailRow } from '../components/DetailCard'
 import { EmptyRow, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import { MapNote } from '../components/MapNote'
@@ -86,16 +87,6 @@ function Panel({ name, children }: { name: string; children: ReactNode }) {
   )
 }
 
-/** 항목 이름·값(시안 `.detailgrid` label 13px·500 #475569 / 값 14px — 정의 목록 의미는 유지). */
-function Item({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
-      <dd className="text-sm text-heading">{children}</dd>
-    </div>
-  )
-}
-
 /** "새 Revision 등록" 버튼 — 그 계약의 폼이 결과 불명으로 잠겨 있으면 닫혀 있어도 알린다(리뷰 C-M1). */
 function RevisionButton({ memory, contractId, onOpen }: { memory: ScreenMemory; contractId: string; onOpen: () => void }) {
   const locked = useRevisionLocked(memory, contractId)
@@ -134,20 +125,20 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
         </section>
       )}
       <Panel name="기본정보">
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Item term="가맹점">
+        <dl>
+          <DetailRow term="가맹점">
             {/* MERCHANT-CODE-001 MC-2: 가맹점 내부 키(mer_…) 대신 가맹점 코드(D-ADMIN-UI-004 ③ — 내부 키는 호출에만). */}
             <span className="flex flex-col"><span className="font-medium">{merchant.name}</span><Mono>{merchant.merchantCode}</Mono></span>
-          </Item>
-          <Item term="가맹점 상태"><StatusBadge code={merchant.lifecycle} /></Item>
-          <Item term="권리 revision"><span className="font-mono">{merchant.entitlementRevision}</span></Item>
-          <Item term="등록일"><KstTime iso={merchant.createdAt} /></Item>
-          <Item term="사업자">
+          </DetailRow>
+          <DetailRow term="가맹점 상태"><StatusBadge code={merchant.lifecycle} /></DetailRow>
+          <DetailRow term="권리 revision"><span className="font-mono">{merchant.entitlementRevision}</span></DetailRow>
+          <DetailRow term="등록일"><KstTime iso={merchant.createdAt} /></DetailRow>
+          <DetailRow term="사업자">
             {/* ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 그리지 않는다 — 상호·마스킹 등록번호로 식별(내부 키·API·감사 불변). */}
             <span className="font-medium">{business.name}</span>
-          </Item>
-          <Item term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></Item>
-          <Item term="사업자 상태"><StatusBadge code={business.lifecycle} /></Item>
+          </DetailRow>
+          <DetailRow term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></DetailRow>
+          <DetailRow term="사업자 상태"><StatusBadge code={business.lifecycle} /></DetailRow>
         </dl>
         {/* MERCHANT-CODE-001 MC-1b(§3.8·§5.5): 코드 이력(seq 1·2 — 바뀐 뒤 옛 코드는 "은퇴 — 다시 쓸 수 없음") + 변경 가능 여부(advisory). */}
         {(detail.merchantCodeHistory ?? []).length > 0 && (
@@ -172,6 +163,8 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
       </Panel>
 
       <Panel name="Site">
+        {/* LAYOUT-ROLLOUT B6(리뷰 MINOR-2): 좁은 폭은 표 가로 스크롤. 짧은 값 칸(Site ID·채널 종류·상태)만 줄바꿈 없음, 채널 식별값(최대 253자)은
+            줄바꿈 허용 + 최소 폭 16ch — 한 글자씩 세로로 쪼개지지 않고, 긴 값이 표를 넓혀 상태·심사 결과 열을 밀어내지도 않게(모양만). */}
         <Table aria-label="Site 목록">
           <TableHeader>
             <TableRow><TableHead>Site</TableHead><TableHead>채널</TableHead><TableHead>상태</TableHead><TableHead>심사 결과</TableHead></TableRow>
@@ -180,9 +173,14 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
             {sites.length === 0 && <EmptyRow columns={4} message="등록된 Site가 없습니다." />}
             {sites.map((site) => (
               <TableRow key={site.merchantSiteId} aria-label={site.merchantSiteId}>
-                <TableCell><Mono>{site.merchantSiteId}</Mono></TableCell>
-                <TableCell><span className="flex flex-col"><span>{labelOf(site.channelType)}</span><Mono>{site.channelIdentifier}</Mono></span></TableCell>
-                <TableCell><StatusBadge code={site.lifecycle} /></TableCell>
+                <TableCell className="whitespace-nowrap"><Mono>{site.merchantSiteId}</Mono></TableCell>
+                <TableCell>
+                  <span className="flex flex-col">
+                    <span className="whitespace-nowrap">{labelOf(site.channelType)}</span>
+                    <span className="min-w-[16ch]"><Mono>{site.channelIdentifier}</Mono></span>
+                  </span>
+                </TableCell>
+                <TableCell className="whitespace-nowrap"><StatusBadge code={site.lifecycle} /></TableCell>
                 <TableCell>
                   {site.review === null ? (
                     <span className="text-muted-foreground">심사 결정 없음</span>
@@ -358,17 +356,17 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
         {propagation === null ? (
           <p className="text-sm text-muted-foreground">권리 전파 기록이 없습니다.</p>
         ) : (
-          <dl className="grid gap-3 sm:grid-cols-3">
-            <Item term="발행">
+          <dl>
+            <DetailRow term="발행">
               <span className="flex flex-col"><span>{`최신 revision ${propagation.latestRevision}`}</span><KstTime iso={propagation.latestRevisionIssuedAt} /></span>
-            </Item>
-            <Item term="결제 서비스 수신">
+            </DetailRow>
+            <DetailRow term="결제 서비스 수신">
               <span className="flex flex-col">
                 <span>{`수신 확인 revision ${propagation.latestAckRevision ?? '-'}`}</span>
                 {propagation.latestAckAt !== null && <KstTime iso={propagation.latestAckAt} />}
               </span>
-            </Item>
-            <Item term="효력">
+            </DetailRow>
+            <DetailRow term="효력">
               {propagation.effectConfirmedAt === null ? (
                 <span className="text-muted-foreground">효력 확인 전</span>
               ) : (
@@ -377,7 +375,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
                   {propagation.effectBasis !== null && <span className="text-xs">{`근거: ${labelOf(propagation.effectBasis)}`}</span>}
                 </span>
               )}
-            </Item>
+            </DetailRow>
           </dl>
         )}
       </Panel>

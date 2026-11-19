@@ -6,6 +6,7 @@ import { App } from '../App'
 import { AcquisitionsScreen } from './AcquisitionsScreen'
 import type { AcquisitionFileDetail, AcquisitionFileItem, AcquisitionRecord, AdminApi } from '../api/adminApi'
 import { fakeApi } from '../test/fakeApi'
+import { expectDetailRows, panelDetailList } from '../test/detailRows'
 import { domOccurrences } from '../test/domScan'
 
 /**
@@ -140,5 +141,31 @@ describe('ADMIN-UI-WORKSPACE-001: 매입·대사 › 매입 현황 in the refere
     expect(added).toHaveLength(2)
     expect(added[0]).toMatch(/^\.cardtop h3\{.*color:#0f172a\}$/) // 색은 기존 .cardtop h4·.detailarea h3 값과 같다(새 색 아님)
     expect(added[1]).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B6(사용자 결정 2026-11-19 — 상세 일관성): 매입 파일 상세의 파일 요약 · 상태 정의 목록을 사업자 상세 DetailRow 줄로.
+ * 바깥 Panel과 레코드 · 전송 시도 · 기관 응답 표, 확인 필요 사유 목록은 그대로 — 위 시험이 지킨다.
+ */
+describe('LAYOUT-ROLLOUT B6: 매입 파일 상세 정의 목록 = 사업자 상세 줄(DetailRow)', () => {
+  it('파일 요약 · 상태는 140px 이름 열 줄, 상태 태그는 dd 안 감싼 칸에, 확인 필요 사유 목록은 dl 뒤 그대로, style 속성 없음', async () => {
+    signedIn(['OPERATOR'], {
+      acquisitionSearch: vi.fn(async () => ({ items: [file], nextCursor: null })),
+      acquisitionDetail: vi.fn(async () => detail),
+    })
+    await user.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '매입·대사' }))
+    await user.click(screen.getByRole('button', { name: '검색' }))
+    await user.click(within(await screen.findByRole('row', { name: F1 })).getByRole('button', { name: '상세' }))
+    const summary = await screen.findByRole('region', { name: '파일 요약' })
+    expectDetailRows(panelDetailList(summary, '파일 요약'), ['파일 ID', '업무일·매입사', '건수', '순액', '마감 정책', '마감 시각', '봉인 시각', '봉인 hash(SHA-256)'])
+    const state = screen.getByRole('region', { name: '상태' })
+    const list = panelDetailList(state, '상태')
+    expectDetailRows(list, ['전송', '수신 확인(ACK)', '결과'])
+    expect(list!.nextElementSibling).toHaveAccessibleName('확인 필요 사유')
+    // 값은 그대로: 상태 태그 · 순액.
+    expect(within(state).getByText('전송 완료')).toHaveClass('tag', 'green')
+    expect(within(summary).getByText('30,000원')).toBeInTheDocument()
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

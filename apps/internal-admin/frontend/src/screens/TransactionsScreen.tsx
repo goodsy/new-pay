@@ -3,6 +3,7 @@ import type { AdminApi, TransactionDetail, TransactionSearchInput, TransactionSe
 import { MERCHANT_LABEL_MISSING, MERCHANT_LABELS_UNAVAILABLE, merchantLabelText, paymentMethodLabel } from '../lib/merchantLabel'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import { DetailRow } from '../components/DetailCard'
 import { KstTime, Spinner } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import { formatMinor } from '../lib/format'
@@ -56,16 +57,6 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-/** 항목 이름·값(시안 `.detailgrid` label 13px·500 / 값 14px — 가맹점 조회 상세와 같은 값, 정의 목록 의미는 유지). */
-function Item({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <dt className="text-[13px] font-medium text-subtle">{term}</dt>
-      <dd className="text-sm text-heading">{children}</dd>
-    </div>
-  )
-}
-
 /** 상태 code → 시안 `.tag`(색 의미는 StatusBadge와 같은 statusTone — 문구는 labelOf, title은 원래 code). */
 const StatusTag = ({ code }: { code: string }) => <span className={tagClass(code)} title={code}>{labelOf(code)}</span>
 
@@ -78,25 +69,25 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
   return (
     <>
       <Panel title="결제">
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Item term="결제 ID"><Mono>{payment.paymentId}</Mono></Item>
-          <Item term="상태">
+        <dl>
+          <DetailRow term="결제 ID"><Mono>{payment.paymentId}</Mono></DetailRow>
+          <DetailRow term="상태">
             <span className="flex flex-wrap items-center gap-2">
               <StatusTag code={payment.status} />
               {detail.onHold && <span className="tag red">보류(hold) 중</span>}
             </span>
-          </Item>
-          <Item term="금액">{amount(payment.amountMinor, payment.currency)}</Item>
-          <Item term="생성 시각"><KstTime iso={payment.createdAt} /></Item>
-          <Item term="환경"><span className="font-mono">{payment.environment}</span></Item>
-          <Item term="MID"><Mono>{payment.merchantAccountId}</Mono></Item>
-          <Item term="Site"><Mono>{payment.merchantSiteId}</Mono></Item>
-          <Item term="가맹점 주문번호"><Mono>{payment.merchantOrderId}</Mono></Item>
-          <Item term="주문명">{payment.orderName ?? <span className="subtle">없음</span>}</Item>
-          <Item term="결제수단">{labelOf(payment.paymentMethod)}</Item>
-          <Item term="종료 근거">
+          </DetailRow>
+          <DetailRow term="금액">{amount(payment.amountMinor, payment.currency)}</DetailRow>
+          <DetailRow term="생성 시각"><KstTime iso={payment.createdAt} /></DetailRow>
+          <DetailRow term="환경"><span className="font-mono">{payment.environment}</span></DetailRow>
+          <DetailRow term="MID"><Mono>{payment.merchantAccountId}</Mono></DetailRow>
+          <DetailRow term="Site"><Mono>{payment.merchantSiteId}</Mono></DetailRow>
+          <DetailRow term="가맹점 주문번호"><Mono>{payment.merchantOrderId}</Mono></DetailRow>
+          <DetailRow term="주문명">{payment.orderName ?? <span className="subtle">없음</span>}</DetailRow>
+          <DetailRow term="결제수단">{labelOf(payment.paymentMethod)}</DetailRow>
+          <DetailRow term="종료 근거">
             {detail.terminationEvidence.length === 0 ? <span className="subtle">-</span> : <Mono>{detail.terminationEvidence.join(', ')}</Mono>}
-          </Item>
+          </DetailRow>
         </dl>
       </Panel>
 
@@ -104,13 +95,13 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
         {authorization === null ? (
           <p className="subtle">승인 시도가 없습니다.</p>
         ) : (
-          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Item term="승인 ID"><Mono>{authorization.authorizationId}</Mono></Item>
-            <Item term="승인 상태"><StatusTag code={authorization.status} /></Item>
-            <Item term="할부">{authorization.planKind === 'INSTALLMENT' ? `${authorization.installmentMonths ?? '-'}개월 할부` : name(PLAN, authorization.planKind)}</Item>
-            <Item term="카드 종류">{name(CARD_TYPE, authorization.cardType)}</Item>
-            <Item term="시작 시각"><KstTime iso={authorization.openedAt} /></Item>
-            {authorization.failureEvidence !== null && <Item term="실패 근거"><Mono>{authorization.failureEvidence}</Mono></Item>}
+          <dl>
+            <DetailRow term="승인 ID"><Mono>{authorization.authorizationId}</Mono></DetailRow>
+            <DetailRow term="승인 상태"><span><StatusTag code={authorization.status} /></span></DetailRow>
+            <DetailRow term="할부">{authorization.planKind === 'INSTALLMENT' ? `${authorization.installmentMonths ?? '-'}개월 할부` : name(PLAN, authorization.planKind)}</DetailRow>
+            <DetailRow term="카드 종류">{name(CARD_TYPE, authorization.cardType)}</DetailRow>
+            <DetailRow term="시작 시각"><KstTime iso={authorization.openedAt} /></DetailRow>
+            {authorization.failureEvidence !== null && <DetailRow term="실패 근거"><Mono>{authorization.failureEvidence}</Mono></DetailRow>}
           </dl>
         )}
       </Panel>
@@ -179,12 +170,12 @@ function DetailPanels({ detail }: { detail: TransactionDetail }) {
         {returnBalance === null ? (
           <p className="subtle">반환 잔액 기록이 없습니다(취소가 시작된 적 없음).</p>
         ) : (
-          <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <Item term="승인액">{amount(returnBalance.authorizedMinor, returnBalance.currency)}</Item>
-            <Item term="취소 완료">{amount(returnBalance.completedMinor, returnBalance.currency)}</Item>
-            <Item term="취소 진행 중(예약)">{amount(returnBalance.reservedMinor, returnBalance.currency)}</Item>
-            <Item term="강제 반영">{amount(returnBalance.forcedMinor, returnBalance.currency)}</Item>
-            <Item term="revision"><span className="font-mono">{returnBalance.revision}</span></Item>
+          <dl>
+            <DetailRow term="승인액">{amount(returnBalance.authorizedMinor, returnBalance.currency)}</DetailRow>
+            <DetailRow term="취소 완료">{amount(returnBalance.completedMinor, returnBalance.currency)}</DetailRow>
+            <DetailRow term="취소 진행 중(예약)">{amount(returnBalance.reservedMinor, returnBalance.currency)}</DetailRow>
+            <DetailRow term="강제 반영">{amount(returnBalance.forcedMinor, returnBalance.currency)}</DetailRow>
+            <DetailRow term="revision"><span className="font-mono">{returnBalance.revision}</span></DetailRow>
           </dl>
         )}
       </Panel>
