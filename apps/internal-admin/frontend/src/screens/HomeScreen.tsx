@@ -8,7 +8,7 @@ import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst, formatMinor } from '../lib/format'
 import { labelOf } from '../lib/labels'
 import { tagClass } from '../lib/statusTone'
-import type { Menu, MenuId, Page, View } from '../navigation'
+import { pagesOf, type Menu, type MenuId, type Page, type View } from '../navigation'
 
 /**
  * 서버 승인 목록 조회 상한(`ApprovalQueryService.LIMIT` = 200, 총계·잘림 표시 없음). 목록이 이만큼이면 정확한 수가 아니라 "이상"으로 보인다.
@@ -160,7 +160,8 @@ export function HomeScreen({ api, me, menus, onOpen, onSessionEnded, now = () =>
   /** 시험 주입용(오늘 KST 날짜·최근 거래 기간). */
   now?: () => Date
 }) {
-  const visible = new Set(menus.flatMap((m) => m.tabs.map((t) => t.page)))
+  // D-ADMIN-UI-006(LAYOUT-ROLLOUT B1): 등록 화면은 탭이 아니라 하위 화면 — 보이는 화면은 탭 + 하위 화면 + 쪽 머리 버튼(pagesOf)으로 본다(쪽 머리 '＋ 사업자 등록' 표시 규칙 그대로).
+  const visible = new Set(menus.flatMap((m) => pagesOf(m).map((t) => t.page)))
   const metrics = METRICS.filter((m) => visible.has(m.page))
   const metricKey = metrics.map((m) => m.id).join(',')
   const canSeePayments = visible.has('transactions')

@@ -9625,9 +9625,24 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T101937Z.json",
           "result": "GRADLE-CHECK 10:20:08Z..11:16:43Z exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=652 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:ebe2c7dedf7fc0fc4462fa1bf1dd582e2c8fe0c07d2f501799c9d3ff5b01cebb",
           "supplementary": "UF1-cve1 PASS(~/gate-logs/UF1-cve1.log)"
+        },
+        {
+          "tag": "B1-gate1",
+          "verdict": "FAIL",
+          "screen": "LAYOUT-ROLLOUT B1 탭 2개 + 등록 버튼",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T115323Z.json",
+          "result": "GRADLE-CHECK exit 1 — :apps:internal-admin:test 1168건 중 1 실패 MerchantActivationApprovalServiceSpec:369 (기대 Refused APPROVER_IS_REGISTRANT, 실제 StepUpFailed). 이번 변경(프런트엔드만)과 무관: 단독 재실행 19/19 통과(~/gate-logs/B1-flake-rerun.log). 원인 = 시험 fixture MerchantActivationApprovalFixture.secondSiteOf가 ULID 끝 2자를 Z9로 바꿔 만들어 가맹점 ID가 Z9로 끝나면(약 1/1024) PRIMARY Site ID와 같아짐 → stub 상세 첫 Site(등록자 다름)가 고정됨. 제품 판정 순서(등록자 검사 → TOTP) 정상. 후속 FLAKY-ADMIN-SITE-FIXTURE(별도 커밋)"
+        },
+        {
+          "tag": "B1-gate2",
+          "verdict": "PASS",
+          "screen": "LAYOUT-ROLLOUT B1 탭 2개 + 등록 버튼",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T123411Z.json",
+          "result": "GRADLE-CHECK exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=666 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:7c2b6e7019de1b373df86284469d7b7cd32a8e4e774de27b60326cc186a491f8",
+          "supplementary": "B1-cve1 PASS(~/gate-logs/B1-cve1.log)"
         }
       ],
-      "nextResumeAction": "LAYOUT-ROLLOUT(사용자 결정 D-ADMIN-UI-006·폼 줄·상세 일관성): B1 탭 2개+등록 버튼 → B2 가맹점 등록 → B3 결제 보정 취소·계정 → B4 로그인 → B5 상세 안 수정 폼·계약 개정 → B6 상세 블록 140px 줄 → (B7 상세 작업 폼). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
+      "nextResumeAction": "LAYOUT-ROLLOUT(B1 DONE; 사용자 결정 D-ADMIN-UI-006·폼 줄·상세 일관성): B2 가맹점 등록 → B3 결제 보정 취소·계정 → B4 로그인 → B5 상세 안 수정 폼·계약 개정 → B6 상세 블록 140px 줄 → (B7 상세 작업 폼). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -10120,6 +10135,103 @@
           "method": "헤드리스 Chrome + 빌드 번들 + 고정 응답(/api/auth/me 401, 등록 시작 400), 5폭 × 라이트·다크 × 로그인·인증 코드 단계·계정 등록·시작 오류 = 40화면, reviewFix1 뒤 재캡처",
           "result": "페이지 가로 넘침 0, 내부 키 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류는 의도한 401/400 응답 기록뿐",
           "evidence": "scratchpad admin-ui-ws9/shots, results.json"
+        }
+      },
+      "layoutRollout": {
+        "B1": {
+          "status": "DONE(B1-gate2)",
+          "statusNote": "구현자 기록 — 리뷰·게이트(vite build·gradle·Demo) 전. 자기 DONE 판정 아님. task status(IN_PROGRESS)는 변경하지 않음",
+          "decision": "D-ADMIN-UI-006 (Q-ADMIN-UI-9, 사용자 Demo 피드백 2026-11-19) — D-ADMIN-UI-004 ④의 화면 배치만 변경, 등록 화면 분리·권한은 그대로",
+          "coordinatorUiChoices": "탭 이름·순서 '가맹점' → '사업자'(첫 화면 유지) · 버튼은 탭 패널 제목 줄(.mapnote) 오른쪽(사업자 목록은 PageHeader action 슬롯) · '← 목록으로'도 등록 화면 .mapnote 안 · 탭 다시 누르면 목록 · 등록 화면 메모리(App businessMemory/registrationMemory) 유지 · 하위 화면에서도 부모 탭 aria-selected=true, tabpanel aria-labelledby=선택 탭",
+          "scope": "관리자 콘솔 프런트엔드 표시만. pagesFor(권한 표시 규칙)·page id·API 호출·요청 본문·submissionId·결과 불명 잠금·저장소 비보관 무변경",
+          "changes": [
+            "navigation.ts: Subpage 타입(Tab + parent)·Menu.subpages(선택) 추가. 사업자·가맹점 tabs = [merchants '가맹점', businesses '사업자'], subpages = [businessRegistration '사업자 등록' parent businesses, merchantRegistration '가맹점 등록' parent merchants]. menusFor는 subpages를 pagesFor로 거르고 부모 탭도 보일 때만 남김. pagesOf = [...tabs, ...subpages, ...action] (순서 merchants·businesses·businessRegistration·merchantRegistration 그대로). selectedTabOf(tabs, subpages, page) 새 함수. searchMenus는 하위 화면 이름도 찾음(경로 '사업자·가맹점 › 사업자 등록' 그대로). menuOf는 pagesOf 경유라 그대로",
+            "components/MenuCard.tsx: subpages prop. 선택 탭 = 그 화면의 탭 또는 하위 화면의 부모 탭(selectedTabOf) — aria-selected·class on·roving tabindex·aria-controls·tabpanel id/aria-labelledby가 선택 탭 기준. 선택 탭이 없으면 탭 막대 없이 카드만(기존 규칙 그대로). 키보드 ←/→/Home/End 그대로",
+            "components/MapNote.tsx(새): 탭 패널 제목 줄 .mapnote(h2 + ' · ' + 설명). action이 있으면 글 묶음 div 왼쪽 + 버튼 오른쪽, 없으면 기존 DOM 그대로",
+            "components/PageHeader.tsx: action 슬롯(선택). 없으면 기존 DOM 그대로(사용처 3곳 중 BusinessesScreen 목록만 사용)",
+            "workspace.css: .mapnote:has(> .btn){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px} · .mapnote > .btn{flex:none;white-space:nowrap} — 새 색·크기 없음(12px = .tablebottom gap)",
+            "App.tsx: opener(target) = 그 화면이 보일 때만(visible — pagesFor 기반, OPERATOR만) open. MerchantsScreen onRegister=opener('merchantRegistration'), BusinessesScreen onRegister=opener('businessRegistration'), BusinessProfileFormScreen onBack=open('businesses'), MerchantRegistrationScreen onBack=open('merchants'), MenuCard subpages=menu.subpages. continueToMerchantRegistration·flush 조건(page id)·메모리 무변경",
+            "screens/MerchantsScreen.tsx: onRegister prop, 제목 줄을 MapNote로 — '＋ 가맹점 등록' button.btn.primary(onRegister 있을 때만). 문구 그대로",
+            "screens/BusinessesScreen.tsx: onRegister prop, 목록 PageHeader action에 '＋ 사업자 등록' button.btn.primary(onRegister 있을 때만, 목록 화면에서만 — 상세·수정에는 없음)",
+            "screens/BusinessProfileFormScreen.tsx: onBack prop, workspace 모양 제목 줄을 MapNote로 — '← 목록으로' button.btn(onBack 있을 때만). 비 workspace(사업자 상세 안 수정 폼)는 무변경",
+            "screens/MerchantRegistrationScreen.tsx: onBack prop, 제목 줄을 MapNote로 — '← 목록으로' button.btn(onBack 있을 때만)",
+            "screens/HomeScreen.tsx(계획 목록 밖 — 필요해서 변경): 보이는 화면 집합을 m.tabs → pagesOf(m)로. 등록 화면이 탭에서 빠져 운영 홈 쪽 머리 '＋ 사업자 등록'(OPERATOR) 표시가 사라지는 회귀를 막음 — HomeScreen.test.tsx:71-72 기존 단언 그대로 통과"
+          ],
+          "newTests": [
+            "src/App.businessMerchantTabs.test.tsx(새, 6건): OPERATOR 탭 2개(가맹점→사업자)·가맹점 첫 화면·'＋ 가맹점 등록' .btn.primary가 .mapnote 안 / '＋ 가맹점 등록' → 같은 탭 안 마법사, 가맹점 aria-selected·tabindex 0, 사업자 -1, tabpanel id panel-merchants·aria-labelledby tab-merchants·aria-controls, '← 목록으로'(.btn, .mapnote 안) → 목록 / '＋ 사업자 등록'(사업자 목록) → 같은 탭 안 폼, 탭 다시 누르면 목록, '← 목록으로' / 하위 화면에서 키보드 ArrowRight로 사업자 탭 선택·초점 / 사업자 등록 결과 불명(503 MASTER_OUTCOME_UNKNOWN) 잠금이 탭 전환·'← 목록으로' 뒤에도 유지, 다시 보내기 본문 동일·저장소 비어 있음 / APPROVER·VIEWER·SECURITY_ADMIN 등록 버튼·'← 목록으로' 없음",
+            "src/navigation.test.ts 새 describe 'LAYOUT-ROLLOUT B1'(3건): 역할별 탭 이름 / subpages는 OPERATOR만(pagesFor 불변 단언 포함) / pagesOf·menuOf·searchMenus('등록', '사업자')·action 없음"
+          ],
+          "changedTests": {
+            "rule": "바꾼 곳마다 '// D-ADMIN-UI-006 기대값 변경' 주석. Coordinator 목록 밖 단언 변경 없음",
+            "navigation.test.ts": "28·63(SECURITY_ADMIN·VIEWER 트리 '가맹점 조회'→'가맹점'), 40(APPROVER '가맹점','사업자'), 53(OPERATOR 탭 4개→2개), 103(tabs page 4개→2개 — 102 pagesOf 순서 그대로), 109(VIEWER 검색 경로 '› 가맹점'), 125(OPERATOR 탭 이름 2개), 185(탭 이름이 '사업자'가 되어 검색어 '사업자 조회'→'사업자', 기대값에 메뉴 이름 결과 '사업자·가맹점' 추가). 이유: 사용자 결정으로 탭 이름·개수 변경",
+            "App.test.tsx:92": "tab '가맹점 조회' → '가맹점'(첫 화면 그대로)",
+            "MerchantRegistrationScreen.test.tsx": "939 openTab 도우미가 탭 클릭 + (등록이면) '＋ … 등록' 클릭을 흡수 — 사업자 탭이 기억한 상세가 열려 있으면 기존 '목록으로'를 먼저 누름(버튼은 목록에만 — D-ADMIN-UI-006 '목록 위 버튼'). 963(탭 2개)·965(등록 화면에서 부모 '사업자' 선택)·987·1014·1047·1092('사업자 조회'→'사업자')·990·1058(가맹점 등록 → 부모 '가맹점' 선택)·1152('가맹점 조회'→'가맹점')·1266-1273(역할별 탭 이름, 등록 버튼 없음 단언 2줄 추가). 업무 단언(본문·submissionId·잠금·저장소) 무변경",
+            "BusinessProfileFormScreen.workspace.test.tsx:51": "tab '사업자 등록' 클릭 → tab '사업자' + '＋ 사업자 등록' 클릭(구조 단언 shape 그대로 통과)",
+            "MerchantRegistrationScreen.workspace.test.tsx:54": "tab '가맹점 등록' 클릭 → '＋ 가맹점 등록' 클릭(가맹점 탭이 첫 화면, 구조 단언 그대로 통과)",
+            "unchangedMustPass": "WorkspaceShell.test.tsx:214, HomeScreen.test.tsx:72, BusinessesScreen.test.tsx:53 — 변경 없이 통과"
+          },
+          "red": "01-red-vitest.log: 새 시험 9건 실패(exit 1) — 탭 이름이 '가맹점 조회' 등 4개, subpages 없음, '＋ … 등록'·'← 목록으로' 버튼 없음, 검색 경로 '› 사업자 조회'. 모두 기능 부재로 인한 단언 실패(환경 오류 아님). 기존 15건 통과",
+          "evidence": {
+            "logDir": "~/gate-logs/layout-b1/ (각 로그에 명령·cwd·node·UTC 시작/끝·git HEAD·exit)",
+            "runner": "~/gate-logs/layout-b1/run.sh <log> <argv…> — 고정 argv(npx tsc -b --force / npx vitest run), PATH에 apps/internal-admin/.gradle/nodejs/node-v24.22.1-*/bin",
+            "gitHead": "bab658bbb1ddb001a7eb09762b2a0eac82ae0237 (작업 트리 변경, 미커밋)",
+            "sourceFingerprint": "sha256(git diff -- apps/internal-admin/frontend/src + MapNote.tsx + App.businessMerchantTabs.test.tsx) = 7ea74baccea14f527994c273c315621b9e6ba53e1bf4267fc0c10be088bcd1ed (tasks.json 기록 전)",
+            "specHash": "docs/DECISIONS.md sha256 0a0b56282e00e3a3fd32b89716a890344aee2c654c1b2efd569582d28b61e0b3",
+            "runs": [
+              "01-red-vitest.log 2026-11-19T11:25Z vitest run navigation.test.ts App.businessMerchantTabs.test.tsx — exit 1, 2 files, 9 failed | 15 passed (RED)",
+              "02-tsc.log·03-vitest-full.log 11:29-11:32Z — 중간(시험 파일 구문 오류·HomeScreen 회귀 발견) exit 1",
+              "04-tsc.log·05-vitest-full.log 11:32-11:35Z — tsc exit 0, vitest exit 1(2 failed — openTab 도우미가 사업자 상세 화면에서 버튼을 못 찾음, 도우미 보정)",
+              "06-tsc.log 2026-11-19T11:35:36Z npx tsc -b --force — exit 0",
+              "07-vitest-full.log 2026-11-19T11:35:37Z–11:37:56Z npx vitest run — exit 0, Test Files 68 passed (68), Tests 636 passed (636)"
+            ]
+          },
+          "notVerified": [
+            "vite build·gradle 게이트·Demo 화면 확인(코디네이터 몫 — 이 구현에서 실행 금지)",
+            "실제 브라우저 배치(.mapnote:has(> .btn) flex — jsdom은 CSS 배치를 계산하지 않음): 좁은 폭 줄바꿈·다크 모드 버튼 모양·제목 줄 높이 캡처 미확인",
+            "MerchantRegistrationScreen 결과 불명 잠금의 탭 전환 유지는 기존 시험(리뷰 MINOR-1 잠금 시험, 탭 오감)으로, 사업자 등록 잠금은 새 시험으로 확인 — 가맹점 등록 '← 목록으로' 경유 잠금은 같은 App 메모리 경로라 별도 시험 없음",
+            "리뷰(Reviewer)·Verifier 미실시"
+          ],
+          "openPoints": [
+            "UX(가역적, 코디네이터 판단): 사업자 탭은 사업자 조회 메모리의 상세를 기억해 다시 열므로, 상세가 열려 있으면 '＋ 사업자 등록'이 보이지 않음(목록에만 둠 — 결정 문구 '목록 위'). 탭을 누르면 그 탭의 조회 화면(page 'businesses')이 열리지만, 사업자 조회 메모리에 상세가 선택돼 있으면 목록이 아니라 그 상세가 열림(기존 메모리 동작 그대로 — 등록 화면에서 탭을 눌러도 마찬가지). 상세에도 버튼을 둘지·탭 재클릭 시 목록 초기화할지 결정 필요하면 별도",
+            "HomeScreen.tsx는 사전 조사 목록 밖이지만 회귀 방지에 필요해 변경(표시 규칙 동일)"
+          ],
+          "reviewFix1": {
+            "status": "IMPLEMENTED",
+            "statusNote": "독립 리뷰 조건부 PASS 지적 반영 — 재리뷰·게이트 전, 자기 DONE 판정 아님",
+            "findings": {
+              "MINOR-1": "사업자 상세 X를 기억한 채 운영 홈 '＋ 사업자 등록'·메뉴 검색으로 등록에 들어오면 '← 목록으로'·부모 탭 클릭이 상세 X를 엶 → 고침: BusinessesScreen.showBusinessListIn(memory)(새 export — 'view'만 LIST로, edit.*·edit.base·목록·조건 그대로). App.backToList(target)('목록으로')와 App.selectTab(target)(MenuCard onSelect — 하위 화면에서 그 부모 탭을 누를 때만)이 부름. 하위 화면이 아닐 때(사업자 탭 화면에서 다시 누르기)는 기존 동작(기억한 화면) 그대로. 가맹점 조회는 기억한 상세가 없어(화면 자체 상태) 변경 없음",
+              "MINOR-2": "navigation.test.ts 'VIEWER 사업자 조회 검색 = []'(늘 통과) → searchMenus(VIEWER, '사업자') = [['사업자·가맹점','merchants']] — VIEWER에게 사업자 탭이 보이면 실패. 이유 주석",
+              "MINOR-3": "버튼('＋ … 등록'·'목록으로')으로 전환할 때만 새 화면 제목으로 초점: App titleFocusRequest 상태(전환과 같은 렌더에서 +1) → useEffect가 '[role=tabpanel] h2[tabindex=\"-1\"]'에 focus. 처음 열기·탭·사이드 메뉴·'이 사업자로 가맹점 등록'은 옮기지 않음. MapNote h2 tabIndex -1(사용처 3화면), PageHeader focusable prop(사업자 조회 목록만 — 다른 사용처 DOM 무변경). workspace.css h2[tabindex=\"-1\"]:focus-visible 3px #1d4ed8 / 다크 #93c5fd(기존 초점 링 값 — 새 색 없음)",
+              "NIT": "시험 제목 3곳(MerchantRegistrationScreen.test.tsx '탭 4개' it 제목·D-BIZ-006 ① it 제목·App wiring describe 제목, navigation.test.ts:129 it 제목)을 새 구조로. '← 목록으로'는 MapNote.tsx BackToListButton — <span aria-hidden=\"true\">←</span> 목록으로, 접근 가능한 이름 '목록으로'. 사업자 상세의 기존 '목록으로'와 같은 화면에 함께 있지 않아 시험 모호성 없음(openTab 도우미는 탭 클릭 뒤 조회 화면에서만 '목록으로'를 찾음) — 그대로 적용"
+            },
+            "changes": [
+              "screens/BusinessesScreen.tsx: export showBusinessListIn; 목록 PageHeader focusable",
+              "App.tsx: titleFocusRequest + useEffect(초점), openByButton·showListOf·backToList·selectTab; MenuCard onSelect=selectTab; 등록 화면 onBack=backToList(부모)",
+              "components/MapNote.tsx: h2 tabIndex -1, BackToListButton(화살표 aria-hidden)",
+              "components/PageHeader.tsx: focusable prop(h2 tabIndex -1)",
+              "screens/BusinessProfileFormScreen.tsx·MerchantRegistrationScreen.tsx: BackToListButton 사용",
+              "workspace.css: h2[tabindex=\"-1\"]:focus-visible 초점 링(라이트·다크)"
+            ],
+            "tests": {
+              "new": "App.businessMerchantTabs.test.tsx 새 describe 'reviewFix1' 5건: 상세 기억 + 운영 홈 '＋ 사업자 등록' → 등록 → '목록으로' = 목록 / 등록 화면에서 부모 탭 클릭 = 목록, 사업자 화면에서 다시 누르기는 기억한 상세 유지 / showBusinessListIn이 view만 바꾸고 edit.base·edit.cmd.status·edit.form·detail.tab 유지 / 가맹점: 처음 열 때 h2 초점 없음, '＋ 가맹점 등록'→h2 '가맹점 등록' 초점·tabindex -1, '목록으로'→h2 '가맹점 조회' 초점, 탭 클릭은 탭 초점 / 사업자: '＋ 사업자 등록'→h2 '사업자 등록' 초점, 화살표 span aria-hidden·이름 '목록으로', '목록으로'→h2 '사업자 조회' 초점",
+              "changed": "같은 파일 B1 시험의 버튼 이름 '← 목록으로' → '목록으로'(6곳 — NIT로 접근 가능한 이름 변경). navigation.test.ts VIEWER 검색 단언(MINOR-2). 시험 제목 4곳(NIT). 그 밖 기존 단언 변경 없음",
+              "red": "11-reviewfix1-red-vitest.log: exit 1, 8 failed | 21 passed (29) — '목록으로' 버튼 없음(이름이 아직 '← 목록으로'), 상세가 열려 '사업자 목록' 표 없음, showBusinessListIn is not a function, toHaveFocus 실패. 모두 기능 부재(환경 오류 아님). MINOR-2 새 단언은 현재 코드에서 참이라 처음부터 통과(의미 있는 단언으로 교체 — 구현 변경 대상 아님)"
+            },
+            "evidence": {
+              "runs": [
+                "12-reviewfix1-tsc.log 2026-11-19T11:47:56Z npx tsc -b --force — exit 0",
+                "13-reviewfix1-target-vitest.log vitest run navigation.test.ts App.businessMerchantTabs.test.tsx — exit 0, 29 passed",
+                "14-reviewfix1-tsc.log ~11:48:14Z npx tsc -b --force — exit 0",
+                "15-reviewfix1-vitest-full.log 2026-11-19T11:48:14Z–11:50:35Z npx vitest run — exit 0, Test Files 68 passed (68), Tests 641 passed (641)"
+              ],
+              "gitHead": "bab658bbb1ddb001a7eb09762b2a0eac82ae0237 (작업 트리 변경, 미커밋)",
+              "sourceFingerprint": "sha256(git diff -- apps/internal-admin/frontend/src + MapNote.tsx + App.businessMerchantTabs.test.tsx) = 8e51066d7e3190902ed21051de21b3c10c71ad0ee19337f640e8e0fa8f2a94d8 (tasks.json 기록 전)"
+            },
+            "notVerified": [
+              "실제 브라우저의 :focus-visible 표시 — 마우스로 버튼을 누른 뒤 스크립트 초점 이동은 브라우저 휴리스틱상 링이 안 보일 수 있음(키보드 사용 시 보임). jsdom은 :focus-visible·배치를 평가하지 않음",
+              "스크린리더 낭독 확인, vite build·gradle·Demo 캡처(Coordinator 몫)"
+            ]
+          }
         }
       }
     },

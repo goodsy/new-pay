@@ -39,6 +39,8 @@ interface Props {
   canEdit: boolean
   /** "이 사업자로 가맹점 등록"(REGISTERED만 — D-BIZ-001). [handoffState]가 locked가 아닐 때만 부른다. */
   onContinue: (business: BusinessRef) => void
+  /** 목록 머리 '＋ 사업자 등록'(D-ADMIN-UI-006 — 같은 탭 안 등록 화면). 호출자가 이 역할에게 등록 화면이 보일 때만(OPERATOR — pagesFor) 준다. 없으면 버튼 없음. */
+  onRegister?: () => void
   handoffState?: () => HandoffState
   onSessionEnded?: (code: ConsoleErrorCode) => void
   newSubmissionId?: () => string
@@ -75,10 +77,18 @@ export function openBusinessIn(memory: ScreenMemory, businessId: string) {
   memory.remove('history')
 }
 
+/**
+ * 사업자 조회 탭을 목록으로(LAYOUT-ROLLOUT B1 reviewFix1 MINOR-1 — 등록 화면 '목록으로'·등록 화면에서 부모 탭 클릭). 기억한 화면('view')만 바꾼다 —
+ * 결과 확인용 편집 메모리(edit.*·edit.base)·목록·조건은 그대로(목록의 "결과 확인이 필요한 사업자 열기"로 다시 갈 수 있다).
+ */
+export function showBusinessListIn(memory: ScreenMemory) {
+  memory.write('view', LIST)
+}
+
 const messageOf = (code: ConsoleErrorCode, lookup = false) =>
   code === 'RATE_LIMITED' ? (lookup ? BRN_RATE_LIMITED : BUSINESS_READ_RATE_LIMITED) : ERROR_MESSAGES[code]
 
-export function BusinessesScreen({ api, memory, canEdit, onContinue, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId }: Props) {
+export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId }: Props) {
   const [view, setView] = useRemembered<View>(memory, 'view', LIST)
   const [filters, setFilters] = useRemembered<Filters>(memory, 'filters', NO_FILTERS)
   const [list, setList] = useRemembered<ListState | null>(memory, 'list', null)
@@ -343,7 +353,12 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, handoffStat
   const byNumber = number !== ''
   return (
     <section className="flex flex-col gap-4">
-      <PageHeader title="사업자 조회" description="등록된 사업자(가맹점이 없는 사업자 포함)를 찾고 상세·변경 이력을 확인합니다. 상세 열람은 감사 기록에 남습니다." />
+      <PageHeader
+        title="사업자 조회"
+        description="등록된 사업자(가맹점이 없는 사업자 포함)를 찾고 상세·변경 이력을 확인합니다. 상세 열람은 감사 기록에 남습니다."
+        action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 사업자 등록</button>}
+        focusable
+      />
       <form aria-label="사업자 검색" onSubmit={search} noValidate className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Field label="사업자등록번호" error={numberError ? '사업자등록번호는 숫자 10자리입니다.' : undefined} hint="번호로 찾으면 다른 조건은 쓰지 않습니다(조회는 감사 기록에 남습니다)." className="sm:col-span-2">
           {(describedBy) => <RegistrationNumberInput value={number} onValueChange={(v) => { setNumber(v); setNumberError(false) }} aria-describedby={describedBy} aria-invalid={numberError || undefined} />}

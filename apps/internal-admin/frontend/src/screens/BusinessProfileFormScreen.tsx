@@ -5,6 +5,7 @@ import { DigitsInput } from '../components/DigitsInput'
 import { Field, Spinner } from '../components/DataBits'
 import { ErrorNotice, WarningNote } from '../components/Notice'
 import { PageHeader } from '../components/PageHeader'
+import { BackToListButton, MapNote } from '../components/MapNote'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { REJECTION_MESSAGES } from '../components/RegistrationStep'
 import { ActionButton } from '../components/ActionButton'
@@ -64,6 +65,8 @@ interface Props {
   memoryKey?: string
   /** 참고 시안 모양(사업자 등록 탭 — MenuCard flush 안). 없으면 지금 카드 모양. */
   workspace?: boolean
+  /** [workspace] 제목 줄 '← 목록으로'(D-ADMIN-UI-006 — 사업자 탭 목록으로). 화면 메모리(결과 불명 잠금·입력)는 App에 그대로 남는다. 없으면 버튼 없음. */
+  onBack?: () => void
 }
 
 type CommandKind = 'createDraft' | 'createRegistered' | 'update' | 'complete'
@@ -108,7 +111,7 @@ const MAX_CONTACTS = 5
 const DRAFT_HINT = '사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요.'
 
 export function BusinessProfileFormScreen({
-  api, mode, onSaved, onOpenBusiness, onCancel, onReload, onAbandon, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, memoryKey = 'form', workspace = false,
+  api, mode, onSaved, onOpenBusiness, onCancel, onReload, onAbandon, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, memoryKey = 'form', workspace = false, onBack,
 }: Props) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -699,11 +702,9 @@ export function BusinessProfileFormScreen({
     // WS8: Fragment라 탭 패널 바로 아래 자식 — .mapnote → .cardnote(필수 안내) → form → (있으면) 결과 안내 .cardnote.
     return (
       <>
-        <div className="mapnote">
-          <h2>{title}</h2>
-          {' · '}
+        <MapNote title={title} action={onBack && <BackToListButton onClick={onBack} />}>
           <span>{description}</span>
-        </div>
+        </MapNote>
         <div className="cardnote">{requirements}</div>
         {formNode}
         {hasNotice && <div className="cardnote">{notices}</div>}

@@ -89,7 +89,8 @@ describe('App (session, role menu, error mapping)', () => {
     for (const [roles, brn] of expected) {
       const { view, api } = signedIn(roles)
       await userEvent.click((await signedInMenu()).getByRole('button', { name: '사업자·가맹점' }))
-      expect(screen.getByRole('tab', { name: '가맹점 조회' })).toHaveAttribute('aria-selected', 'true')
+      // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '가맹점 조회' → '가맹점'(첫 화면은 그대로 가맹점 조회).
+      expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
       // MERCHANT-CODE-001 MC-2: 가맹점 조회 검색란은 "가맹점 코드"(내부 키 "가맹점 ID" 검색란 대체).
       expect(screen.getByLabelText('가맹점 코드')).toBeInTheDocument()
       expect(screen.queryByLabelText('사업자등록번호') !== null).toBe(brn)

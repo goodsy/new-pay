@@ -51,7 +51,8 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 등록 wiza
   it('flush in the menu card: .mapnote(h2) → .wizard(step buttons) → ① 사업자 선택 section(.cardtop h3 + .cardbody) → .cardnote(안내 + .actions)', async () => {
     signedIn({ lookupBusinessByRegistrationNumber: vi.fn(async () => lookup) })
     await user.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
-    await user.click(screen.getByRole('tab', { name: '가맹점 등록' }))
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 가맹점 등록은 탭이 아니라 '가맹점' 탭 목록의 '＋ 가맹점 등록' 버튼으로 연다(같은 탭 패널 — 아래 구조 단언 그대로).
+    await user.click(screen.getByRole('button', { name: '＋ 가맹점 등록' }))
     const panel = screen.getByRole('main').querySelector(':scope > section.card > [role="tabpanel"]')!
     expect(shape(panel)).toEqual(['div.mapnote', 'div.wizard', 'section', 'div.cardnote'])
     const mapnote = panel.querySelector('.mapnote') as HTMLElement

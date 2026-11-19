@@ -4,6 +4,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { EmptyRow, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
+import { MapNote } from '../components/MapNote'
 import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
 import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
@@ -33,6 +34,8 @@ interface Props {
   openMerchantId?: string | null
   /** [openMerchantId]를 한 번 연 뒤 알린다(호출자가 비워 탭을 다시 와도 또 열지 않게). */
   onOpenedMerchant?: () => void
+  /** 제목 줄 '＋ 가맹점 등록'(D-ADMIN-UI-006 — 같은 탭 안 등록 화면). 호출자가 이 역할에게 등록 화면이 보일 때만(OPERATOR — pagesFor) 준다. 없으면 버튼 없음. */
+  onRegister?: () => void
   /** 계약 영역 "새 Revision 등록" 표시(OPERATOR — MERCHANT-OPS-002 §9.6 B2-1, 표시만; 판정·감사는 서버). */
   canRegisterRevision?: boolean
   /** Revision 폼 상태(결과 불명 잠금·submissionId·입력)를 둘 App 메모리(리뷰 C-M1 — 탭·가맹점 전환에도 유지, 세션 경계에서 App이 새로 만든다). 없으면 화면 자체 메모리. */
@@ -389,7 +392,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
 export function MerchantsScreen({
-  api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant, canRegisterRevision = false, revisionMemory: injectedRevisionMemory, newSubmissionId, todayKst,
+  api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant, onRegister, canRegisterRevision = false, revisionMemory: injectedRevisionMemory, newSubmissionId, todayKst,
   canRequestApproval = false, onOpenApprovals, now = () => new Date(),
 }: Props) {
   /** 승인 요청 폼을 연 Revision(`<contractId>#<revisionNo>` — 한 번에 하나, B2-2). */
@@ -570,10 +573,9 @@ export function MerchantsScreen({
   const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.' : null
   return (
     <>
-      <div className="mapnote">
-        <h2>가맹점 조회</h2>
-        {' · 가맹점·사업자·MID 개통 상태를 조회합니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다.'}
-      </div>
+      <MapNote title="가맹점 조회" action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 가맹점 등록</button>}>
+        가맹점·사업자·MID 개통 상태를 조회합니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다.
+      </MapNote>
       <form className="filters" onSubmit={search}>
         <input
           aria-label="가맹점 코드"

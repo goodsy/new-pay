@@ -19,6 +19,11 @@ export interface Tab {
   label: string
 }
 
+/** 탭이 아닌 하위 화면(D-ADMIN-UI-006): 부모 탭 목록의 버튼이 같은 탭 안에서 연다 — 열려 있는 동안 부모 탭이 선택으로 보인다. */
+export interface Subpage extends Tab {
+  parent: Page
+}
+
 export interface Menu {
   id: MenuId
   label: string
@@ -29,9 +34,11 @@ export interface Menu {
   tabbed: boolean
   /** 이 역할이 볼 수 있는 탭만(운영 홈은 빈 목록). */
   tabs: Tab[]
+  /** 이 역할이 볼 수 있는 하위 화면만(부모 탭도 보일 때). 탭 막대에는 없고 부모 탭 목록의 버튼으로 연다(D-ADMIN-UI-006). */
+  subpages?: Subpage[]
   /**
    * 쪽 머리 주요 버튼(ADMIN-UI-MERCHANT-001에서 도입): 탭 막대에 두지 않는 화면 하나를 연다. 이 역할이 볼 수 있을 때만 남는다(표시만 — 판정은 서버).
-   * ADMIN-UI-MERCHANT-002부터 쓰는 메뉴가 없다(사업자 등록·가맹점 등록은 탭) — 공용 장치로만 남긴다.
+   * ADMIN-UI-MERCHANT-002부터 쓰는 메뉴가 없다(사업자 등록·가맹점 등록은 탭 → D-ADMIN-UI-006부터 하위 화면) — 공용 장치로만 남긴다.
    */
   action?: Tab
 }
@@ -81,9 +88,12 @@ const MENUS: Menu[] = [
     // ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ④, 사용자 Demo 피드백 2026-11-13 "담당자별 업무가 다름"): 쪽 머리 '＋ 사업자 등록' 버튼(한 마법사) → 사업자 등록·가맹점 등록 두 탭. 표시 규칙(pagesFor)은 OPERATOR만 그대로.
     id: 'merchants', label: '사업자·가맹점', section: PAYMENT_OPERATIONS, tabbed: true,
     // BUSINESS-PROFILE-001 §8.1(C-26): 가맹점 조회 · 사업자 조회(새) · 사업자 등록(새 폼으로 교체 — C-27) · 가맹점 등록.
-    tabs: [
-      { page: 'merchants', label: '가맹점 조회' }, { page: 'businesses', label: '사업자 조회' }, { page: 'businessRegistration', label: '사업자 등록' },
-      { page: 'merchantRegistration', label: '가맹점 등록' },
+    // LAYOUT-ROLLOUT B1(사용자 결정 D-ADMIN-UI-006, Demo 피드백 2026-11-19): 탭 4개 → '가맹점'·'사업자' 2개(가맹점이 첫 화면 그대로). 등록 두 화면은 탭이 아니라
+    // 각 목록 제목 줄의 '＋ … 등록' 버튼이 같은 탭 안에서 여는 하위 화면 — page id·표시 규칙(pagesFor, OPERATOR만)은 그대로.
+    tabs: [{ page: 'merchants', label: '가맹점' }, { page: 'businesses', label: '사업자' }],
+    subpages: [
+      { page: 'businessRegistration', label: '사업자 등록', parent: 'businesses' },
+      { page: 'merchantRegistration', label: '가맹점 등록', parent: 'merchants' },
     ],
     description: '사업자 등록부터 서비스 개통까지, 가맹점의 전체 여정을 관리하세요(조회·등록 — 계약 승인·MID 발급·개통 요청은 가맹점 상세에서).',
   },
@@ -108,14 +118,24 @@ const MENUS: Menu[] = [
 export function menusFor(roles: string[]): Menu[] {
   const pages = pagesFor(roles)
   return MENUS.map((m) => {
-    const { action, ...rest } = m
-    const shown = { ...rest, tabs: m.tabs.filter((t) => pages.includes(t.page)) }
+    const { action, subpages, ...rest } = m
+    const tabs = m.tabs.filter((t) => pages.includes(t.page))
+    const shown: Menu = { ...rest, tabs }
+    // 하위 화면은 자기 화면과 부모 탭이 모두 보일 때만(D-ADMIN-UI-006 — 표시만, 판정은 서버).
+    const subs = (subpages ?? []).filter((s) => pages.includes(s.page) && tabs.some((t) => t.page === s.parent))
+    if (subs.length > 0) shown.subpages = subs
     return action && pages.includes(action.page) ? { ...shown, action } : shown
   }).filter((m) => m.id === 'home' || m.tabs.length > 0)
 }
 
-/** 메뉴가 여는 모든 화면(탭 + 쪽 머리 주요 버튼). */
-export const pagesOf = (menu: Menu): Tab[] => (menu.action ? [...menu.tabs, menu.action] : menu.tabs)
+/** 메뉴가 여는 모든 화면(탭 + 하위 화면 + 쪽 머리 주요 버튼). */
+export const pagesOf = (menu: Menu): Tab[] => [...menu.tabs, ...(menu.subpages ?? []), ...(menu.action ? [menu.action] : [])]
+
+/** 탭 막대에서 선택으로 보일 탭: 그 화면의 탭, 하위 화면이면 부모 탭(D-ADMIN-UI-006). 없으면 undefined. */
+export function selectedTabOf(tabs: Tab[], subpages: Subpage[] | undefined, page: Page): Tab | undefined {
+  const parent = subpages?.find((s) => s.page === page)?.parent ?? page
+  return tabs.find((t) => t.page === parent)
+}
 
 /** 화면 → 그 화면이 속한 메뉴. */
 export function menuOf(view: View): MenuId {
@@ -131,7 +151,7 @@ export interface MenuSearchResult {
 
 const normalize = (text: string) => text.replace(/[\s·]/g, '').toLowerCase()
 
-/** 상단 메뉴 검색(D-ADMIN-UI-003 — 거래·가맹점 검색 아님): 보이는 메뉴 이름과 탭 이름(쪽 머리 주요 버튼 포함)에서만 찾는다. */
+/** 상단 메뉴 검색(D-ADMIN-UI-003 — 거래·가맹점 검색 아님): 보이는 메뉴 이름과 탭 이름(하위 화면·쪽 머리 주요 버튼 포함)에서만 찾는다. */
 export function searchMenus(menus: Menu[], query: string): MenuSearchResult[] {
   const q = normalize(query)
   if (!q) return []
@@ -140,6 +160,7 @@ export function searchMenus(menus: Menu[], query: string): MenuSearchResult[] {
     if (normalize(menu.label).includes(q)) results.push({ path: menu.label, target: menu.tabs[0]?.page ?? 'home' })
     if (!menu.tabbed) continue
     for (const tab of menu.tabs) if (normalize(tab.label).includes(q)) results.push({ path: `${menu.label} › ${tab.label}`, target: tab.page })
+    for (const sub of menu.subpages ?? []) if (normalize(sub.label).includes(q)) results.push({ path: `${menu.label} › ${sub.label}`, target: sub.page })
     if (menu.action && normalize(menu.action.label).includes(q)) results.push({ path: `${menu.label} › ${menu.action.label}`, target: menu.action.page })
   }
   return results

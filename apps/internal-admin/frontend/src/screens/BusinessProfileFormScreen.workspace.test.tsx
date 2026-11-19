@@ -48,7 +48,9 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     })
     render(<App api={api} />)
     await user.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
-    await user.click(screen.getByRole('tab', { name: '사업자 등록' }))
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 사업자 등록은 탭이 아니라 '사업자' 탭 목록의 '＋ 사업자 등록' 버튼으로 연다(같은 탭 패널 — 아래 구조 단언 그대로).
+    await user.click(screen.getByRole('tab', { name: '사업자' }))
+    await user.click(await screen.findByRole('button', { name: '＋ 사업자 등록' }))
     const panel = screen.getByRole('main').querySelector(':scope > section.card > [role="tabpanel"]')!
     expect(shape(panel)).toEqual(['div.mapnote', 'div.cardnote', 'form'])
     const mapnote = panel.querySelector('.mapnote') as HTMLElement

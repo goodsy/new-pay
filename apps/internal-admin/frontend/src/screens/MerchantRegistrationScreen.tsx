@@ -5,6 +5,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { Field } from '../components/DataBits'
 import { ErrorNotice, WarningNote } from '../components/Notice'
+import { BackToListButton, MapNote } from '../components/MapNote'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { CheckIcon } from '../components/icons'
 import { Input } from '../components/ui/input'
@@ -49,6 +50,8 @@ interface Props {
   onOpenLookup: (merchantId: string) => void
   /** ① DRAFT 사업자의 "사업자 상세 보기"(D-BIZ-006 ③ — 사업자 조회 탭 상세, 메모리 라우팅·URL 없음). 없으면 링크를 그리지 않는다. */
   onOpenBusiness?: (businessId: string) => void
+  /** 제목 줄 '← 목록으로'(D-ADMIN-UI-006 — 가맹점 탭 목록으로). 화면 메모리(결과 불명 잠금·입력)는 App에 그대로 남는다. 없으면 버튼 없음. */
+  onBack?: () => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
   /** 시험 주입용(기본 = crypto.randomUUID 하이픈 제거). */
   newSubmissionId?: () => string
@@ -357,7 +360,7 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
 }
 
 export function MerchantRegistrationScreen({
-  api, onOpenLookup, onOpenBusiness, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, todayKst = defaultTodayKst, randomBytes = cryptoRandomBytes,
+  api, onOpenLookup, onOpenBusiness, onBack, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, todayKst = defaultTodayKst, randomBytes = cryptoRandomBytes,
 }: Props) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -598,11 +601,9 @@ export function MerchantRegistrationScreen({
   // ADMIN-UI-WORKSPACE-001(WS8): Fragment라 탭 패널 바로 아래 자식이 된다 — .mapnote → .wizard → 단계 카드(section) → .cardnote.
   return (
     <>
-      <div className="mapnote">
-        <h2>가맹점 등록</h2>
-        {' · '}
+      <MapNote title="가맹점 등록" action={onBack && <BackToListButton onClick={onBack} />}>
         <span>등록된 사업자를 골라 가맹점·사이트·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).</span>
-      </div>
+      </MapNote>
 
       {/*
         단계 띠: 시안 .wizard(span마다 `n. 단계 이름`, 현재 단계 .current — 위 선·글자 파랑, 결제 보정 취소 선례). 목록 의미는 role(list·listitem).

@@ -915,7 +915,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
  */
 // 부하 대응(BIZ-4): 새 등록 폼은 REGISTERED 필수 칸을 모두 채우므로(사업자 두 개를 만드는 시험 포함) 전체 게이트 부하에서 기본 5초를 넘을 수 있다 — 시간 상한만 넓힌다(단언 불변,
 // ApprovalsScreen.targetLabels 20초 선례).
-describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — 사업자 조회 / 사업자 등록 / 가맹점 등록 tabs, display only)', { timeout: 20_000 }, () => {
+describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — 가맹점 · 사업자 tabs, 등록 screens as sub-pages (D-ADMIN-UI-006), display only)', { timeout: 20_000 }, () => {
   const BIZ2 = id('biz', 8)
   const detailFor = (businessId: string) =>
     businessId === BIZ2
@@ -936,7 +936,17 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   const signedIn = (roles: string[], overrides: Parameters<typeof fakeApi>[0] = {}) => signedInWithApi(roles, overrides).view
   const openMerchants = async () =>
     user.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
-  const openTab = async (name: '가맹점 조회' | '사업자 조회' | '사업자 등록' | '가맹점 등록') => user.click(screen.getByRole('tab', { name }))
+  // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 4개 → '가맹점'·'사업자' 2개. 조회 화면은 그 탭, 등록 화면은 탭을 누른 뒤 목록 제목 줄의 '＋ … 등록' 버튼(같은 탭 안 하위 화면).
+  // 이 도우미가 두 동작을 흡수한다 — 아래 시험의 화면 전환 순서·업무 단언은 그대로. 사업자 탭이 기억한 상세(사업자 조회 메모리 — 기존 동작)가 열려 있으면
+  // 등록 버튼은 목록에만 있으므로(D-ADMIN-UI-006 "목록 위 버튼") 상세의 기존 '목록으로'를 먼저 누른다.
+  const TAB_OF = { '가맹점 조회': '가맹점', '사업자 조회': '사업자', '사업자 등록': '사업자', '가맹점 등록': '가맹점' } as const
+  const openTab = async (name: keyof typeof TAB_OF) => {
+    await user.click(screen.getByRole('tab', { name: TAB_OF[name] }))
+    if (name !== '사업자 등록' && name !== '가맹점 등록') return
+    const toList = screen.queryByRole('button', { name: '목록으로' })
+    if (toList) await user.click(toList)
+    await user.click(await screen.findByRole('button', { name: `＋ ${name}` }))
+  }
   const page = () => document.body
   const formCard = () => screen.getByRole('region', { name: '사업자 기본' })
   /** 사업자 등록 폼의 최소(임시저장) 칸. */
@@ -956,13 +966,15 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   }
   const detailRegion = () => screen.findByRole('region', { name: '사업자 상세' })
 
-  it('an OPERATOR sees 가맹점 조회, 사업자 조회, 사업자 등록 and 가맹점 등록 tabs (no header action); each tab opens its own screen', async () => {
+  // D-ADMIN-UI-006(LAYOUT-ROLLOUT B1 reviewFix1 NIT): 제목만 새 구조로 — 탭 2개 + 목록 버튼이 연 등록 화면.
+  it('an OPERATOR sees 가맹점 · 사업자 tabs (no header action); each list opens its 등록 screen inside the same tab', async () => {
     signedIn(['OPERATOR'], { searchBusinesses: vi.fn(async () => ({ items: [], next: null })) })
     await openMerchants()
     expect(screen.getByRole('heading', { level: 1, name: '사업자·가맹점' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점 조회', '사업자 조회', '사업자 등록', '가맹점 등록'])
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 4개 → 2개, 등록 화면에서는 부모 탭이 선택.
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점', '사업자'])
     await openTab('사업자 등록')
-    expect(screen.getByRole('tab', { name: '사업자 등록' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '등록 단계' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '등록 완료' })).toHaveLength(1)
@@ -984,10 +996,12 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await openTab('사업자 등록')
     await registerBusinessOnScreen()
     expect(await detailRegion()).toHaveTextContent('등록 완료')
-    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '사업자 조회' → '사업자'.
+    expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     expect(api.businessDetail).toHaveBeenCalledWith(BIZ)
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
-    expect(screen.getByRole('tab', { name: '가맹점 등록' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 가맹점 등록은 '가맹점' 탭의 하위 화면 — 부모 탭이 선택.
+    expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778*******')
@@ -1011,7 +1025,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await typeIn(step('사업자 선택'), '사업자등록번호', BRN)
     await click(step('사업자 선택'), '찾기')
     await user.click(await within(step('사업자 선택')).findByRole('button', { name: '사업자 상세 보기' }))
-    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '사업자 조회' → '사업자'.
+    expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     expect(await detailRegion()).toHaveTextContent('임시저장 사업자에는 새 가맹점을 등록할 수 없습니다')
     expect(api.businessDetail).toHaveBeenCalledWith(BIZ)
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
@@ -1044,7 +1059,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await registerSecondBusiness()
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     const confirm = screen.getByRole('group', { name: '가맹점 등록 새로 시작 확인' })
-    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '사업자 조회' → '사업자'.
+    expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     await click(confirm, '취소')
     expect(screen.queryByRole('group', { name: '가맹점 등록 새로 시작 확인' })).toBeNull()
     await openTab('가맹점 등록')
@@ -1055,7 +1071,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await openTab('사업자 조회')
     await user.click(await screen.findByRole('button', { name: '이 사업자로 가맹점 등록' }))
     await click(screen.getByRole('group', { name: '가맹점 등록 새로 시작 확인' }), '새로 시작')
-    expect(screen.getByRole('tab', { name: '가맹점 등록' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 가맹점 등록은 '가맹점' 탭의 하위 화면 — 부모 탭이 선택.
+    expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('두번째 사업자')
     expect(merchantBusinessText()).not.toContain('데모 사업자')
@@ -1089,7 +1106,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     expect(screen.getByText(/가맹점 등록에 결과 확인이 필요한 단계가 있습니다/)).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: '가맹점 등록 새로 시작 확인' })).toBeNull()
-    expect(screen.getByRole('tab', { name: '사업자 조회' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '사업자 조회' → '사업자'.
+    expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     await openTab('가맹점 등록')
     expect(within(step('가맹점')).getByRole('group', { name: '결과 확인 필요' })).toBeInTheDocument()
     expect(merchantBusinessText()).toContain('데모 사업자')
@@ -1149,7 +1167,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await goTo('4. 검토·완료')
     await click(step('등록 결과'), '가맹점 조회에서 보기')
 
-    expect(screen.getByRole('tab', { name: '가맹점 조회' })).toHaveAttribute('aria-selected', 'true')
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '가맹점 조회' → '가맹점'.
+    expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER)}`) })).toBeInTheDocument()
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
     expect(api.merchantDetail).toHaveBeenCalledWith(MER)
@@ -1264,12 +1283,15 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(storageIsEmpty()).toBe(true)
   })
 
-  it('D-BIZ-006 ①: VIEWER and SECURITY_ADMIN see only 가맹점 조회; APPROVER also sees 사업자 조회 (view only); none of them has 사업자 등록 / 가맹점 등록', async () => {
-    for (const [role, tabs] of [['VIEWER', ['가맹점 조회']], ['APPROVER', ['가맹점 조회', '사업자 조회']], ['SECURITY_ADMIN', ['가맹점 조회']]] as const) {
+  it('D-BIZ-006 ①: VIEWER and SECURITY_ADMIN see only the 가맹점 tab; APPROVER also sees 사업자 (view only); none of them has a 사업자 등록 / 가맹점 등록 entry', async () => {
+    // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 탭 이름 '가맹점 조회'·'사업자 조회' → '가맹점'·'사업자'. 등록 화면이 탭이 아니게 되어 등록 진입 버튼도 없음을 함께 본다.
+    for (const [role, tabs] of [['VIEWER', ['가맹점']], ['APPROVER', ['가맹점', '사업자']], ['SECURITY_ADMIN', ['가맹점']]] as const) {
       const view = signedIn([role])
       await openMerchants()
       expect(screen.queryByRole('tab', { name: '사업자 등록' })).toBeNull()
       expect(screen.queryByRole('tab', { name: '가맹점 등록' })).toBeNull()
+      expect(screen.queryByRole('button', { name: '＋ 가맹점 등록' })).toBeNull()
+      expect(screen.queryByRole('button', { name: '＋ 사업자 등록' })).toBeNull()
       expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([...tabs])
       view.unmount()
     }

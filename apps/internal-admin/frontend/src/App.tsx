@@ -19,7 +19,7 @@ import { EnrollmentScreen } from './screens/EnrollmentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { BusinessProfileFormScreen } from './screens/BusinessProfileFormScreen'
-import { BusinessesScreen, openBusinessIn } from './screens/BusinessesScreen'
+import { BusinessesScreen, openBusinessIn, showBusinessListIn } from './screens/BusinessesScreen'
 import { MerchantRegistrationScreen, registrationHandoffState, startWithBusiness } from './screens/MerchantRegistrationScreen'
 import { MerchantsScreen } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
@@ -155,6 +155,14 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
 
   const menus = useMemo(() => (me ? menusFor(me.roles) : []), [me])
 
+  // LAYOUT-ROLLOUT B1 reviewFix1 MINOR-3: 버튼('＋ … 등록'·'목록으로')으로 화면을 바꾼 뒤에만 새 화면 제목(탭 패널 안 h2 tabIndex -1)으로 초점을 옮긴다.
+  // 처음 열기·탭·사이드 메뉴는 옮기지 않는다. 요청 번호를 올린 렌더(화면 전환과 같은 렌더)가 그려진 뒤 한 번.
+  const [titleFocusRequest, setTitleFocusRequest] = useState(0)
+  useEffect(() => {
+    if (titleFocusRequest === 0) return
+    document.querySelector<HTMLElement>('[role="tabpanel"] h2[tabindex="-1"]')?.focus()
+  }, [titleFocusRequest])
+
   if (!me) {
     return (
       <AppLayout>
@@ -181,6 +189,30 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     if (startWithBusiness(registrationMemory, business)) open('merchantRegistration')
   }
   const page: Page | null = view === 'home' ? null : view
+  /** D-ADMIN-UI-006: 목록 제목 줄의 '＋ … 등록' — 그 등록 화면이 이 역할에게 보일 때만(pagesFor 그대로 — OPERATOR만, 판정은 서버). 같은 탭 안 하위 화면으로 연다. */
+  const opener = (target: Page) => (visible(target) ? () => openByButton(target) : undefined)
+  /** 버튼으로 화면을 바꾸고 새 화면 제목으로 초점(reviewFix1 MINOR-3). */
+  const openByButton = (target: Page) => {
+    open(target)
+    setTitleFocusRequest((n) => n + 1)
+  }
+  /**
+   * 목록 탭이 목록을 열게(reviewFix1 MINOR-1): 사업자 조회는 기억한 화면(상세)을 다시 여므로 그 'view'만 목록으로 — 결과 확인용 편집 메모리(edit.*)는 그대로.
+   * 가맹점 조회는 기억한 상세가 없어(화면 자체 상태) 그대로 열면 목록이다.
+   */
+  const showListOf = (target: Page) => {
+    if (target === 'businesses') showBusinessListIn(businessesMemory)
+  }
+  /** 등록 화면 '목록으로': 부모 탭의 목록 + 제목 초점. */
+  const backToList = (target: Page) => {
+    showListOf(target)
+    openByButton(target)
+  }
+  /** 탭 클릭: 하위 화면(등록)에서 그 부모 탭을 누르면 목록. 그 밖(이미 그 탭 화면이거나 다른 탭)은 기존 동작 그대로 — 초점은 탭에 둔다. */
+  const selectTab = (target: Page) => {
+    if (page !== null && menu.subpages?.some((s) => s.page === page && s.parent === target)) showListOf(target)
+    open(target)
+  }
 
   return (
     <AppLayout
@@ -230,7 +262,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
             }
           />
           {/* ADMIN-UI-WORKSPACE-001: 시안 목록 구조(.filters·.tablewrap)로 옮긴 화면(1단계 가맹점 조회, 거래 조회, 결제 보정 취소, 매입·대사, 승인함·내 요청, 계정 관리, 사업자 등록·가맹점 등록)은 카드 가장자리까지 그린다. 나머지 화면은 다음 단계. */}
-          <MenuCard label={menu.label} tabs={menu.tabs} tabbed={menu.tabbed} active={page} onSelect={open} flush={page === 'merchants' || page === 'transactions' || page === 'acquisitions' || page === 'reconciliation' || page === 'approvals' || page === 'mine' || page === 'accounts' || page === 'paymentOps' || page === 'businessRegistration' || page === 'merchantRegistration'}>
+          <MenuCard label={menu.label} tabs={menu.tabs} subpages={menu.subpages} tabbed={menu.tabbed} active={page} onSelect={selectTab} flush={page === 'merchants' || page === 'transactions' || page === 'acquisitions' || page === 'reconciliation' || page === 'approvals' || page === 'mine' || page === 'accounts' || page === 'paymentOps' || page === 'businessRegistration' || page === 'merchantRegistration'}>
             {page === 'approvals' && <ApprovalsScreen api={api} view="pending" canDecide viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'mine' && <ApprovalsScreen api={api} view="mine" canDecide={false} viewer={me} onSessionEnded={sessionEnded} />}
             {page === 'merchants' && (
@@ -244,6 +276,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 onSessionEnded={sessionEnded}
                 openMerchantId={lookupMerchantId}
                 onOpenedMerchant={() => setLookupMerchantId(null)}
+                onRegister={opener('merchantRegistration')}
               />
             )}
             {page === 'businesses' && (
@@ -253,12 +286,13 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 canEdit={me.roles.includes('OPERATOR')}
                 handoffState={() => registrationHandoffState(registrationMemory)}
                 onContinue={continueToMerchantRegistration}
+                onRegister={opener('businessRegistration')}
                 onSessionEnded={sessionEnded}
               />
             )}
             {page === 'businessRegistration' && (
               // BUSINESS-PROFILE-001 BIZ-4(C-27): 옛 번호·상호 두 칸 화면을 새 등록 폼으로 교체. 성공하면 사업자 조회 상세로(다시 읽기 — C-18).
-              <BusinessProfileFormScreen api={api} mode={{ kind: 'create' }} memory={businessMemory} workspace onSaved={openBusiness} onOpenBusiness={openBusiness} onSessionEnded={sessionEnded} />
+              <BusinessProfileFormScreen api={api} mode={{ kind: 'create' }} memory={businessMemory} workspace onSaved={openBusiness} onOpenBusiness={openBusiness} onBack={() => backToList('businesses')} onSessionEnded={sessionEnded} />
             )}
             {page === 'merchantRegistration' && (
               <MerchantRegistrationScreen
@@ -269,6 +303,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                   open('merchants')
                 }}
                 onOpenBusiness={openBusiness}
+                onBack={() => backToList('merchants')}
                 onSessionEnded={sessionEnded}
               />
             )}
