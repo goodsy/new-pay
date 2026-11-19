@@ -129,10 +129,11 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 등록 wiza
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} />)
     const picker = region('사업자 선택')
     const pickLive = within(picker).getByRole('button', { name: '찾기' }).parentElement!.querySelector(':scope > span.subtle')!
-    // reviewFix1 캡처(a): 찾기 버튼은 입력란과 같은 줄(items-end — 입력 아래끝 맞춤), 도움말·형식 오류는 그 줄 아래(aria-describedby 그대로).
+    // reviewFix1 캡처(a): 찾기 버튼은 입력란과 같은 줄, 도움말·형식 오류는 그 줄 아래(aria-describedby 그대로).
     const row = within(picker).getByRole('button', { name: '찾기' }).parentElement!
     const brnInput = within(picker).getByLabelText('사업자등록번호')
-    expect(row).toHaveClass('items-end')
+    // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 폼 줄): 같은 줄 = 풀어 쓴 flex 줄(items-end)이 아니라 FormRow 입력 칸 .fieldcontrol(입력 + trailing 찾기·진행 글자).
+    expect(row).toHaveClass('fieldcontrol')
     expect(row.contains(brnInput)).toBe(true)
     expect(brnInput).toHaveAccessibleDescription('조회는 감사 기록에 남습니다.')
     expect(row.contains(document.getElementById(brnInput.getAttribute('aria-describedby')!))).toBe(false)
@@ -220,5 +221,113 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 등록 wiza
     )
     expect(container.querySelector('[data-slot="card"]')).not.toBeNull()
     expect(container.querySelector('.cardtop')).toBeNull()
+    // LAYOUT-ROLLOUT B2 reviewFix1 NIT-6: 폼 줄 세로 흐름은 workspace만 — 비workspace(계약 Revision 폼, B5)는 기존 grid class 그대로.
+    expect(container.querySelector('form > fieldset')).toHaveClass('grid', 'gap-4', 'sm:grid-cols-2', 'lg:grid-cols-3')
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B2(사용자 결정 2026-11-19 폼 줄 — 사업자 등록 시범 bab658b와 같은 FormRow): 가맹점 등록 입력은 이름 왼쪽(140px)·입력 오른쪽 같은 줄,
+ * 입력 폭은 DB 열 길이 단계(MASTER Flyway — tasks.json layoutRollout.B2.widthTable). 모양만 — 이름·설명·업무 동작은 위·MerchantRegistrationScreen.test.tsx가 지킨다.
+ */
+/** 입력 하나의 폼 줄: .fieldrow 안 label[for] = 입력 id(이름 글자 그대로), 입력은 .fieldcontrol(줄의 자식) 첫 칸, 폭 class(null = full — fw-* 없음). */
+const formRowOf = (scope: HTMLElement, label: string, width: 'xs' | 'sm' | 'md' | 'lg' | null) => {
+  const input = within(scope).getByLabelText(label)
+  const row = input.closest('.fieldrow') as HTMLElement
+  expect(row, label).not.toBeNull()
+  const name = row.querySelector(':scope > label')!
+  expect(name.textContent).toBe(label)
+  expect(input.id).not.toBe('')
+  expect(name.getAttribute('for')).toBe(input.id)
+  const control = input.closest('.fieldcontrol') as HTMLElement
+  expect(control.parentElement).toBe(row)
+  expect(Array.from(control.classList).filter((c) => c.startsWith('fw-')), label).toEqual(width ? [`fw-${width}`] : [])
+  // 잠금(fieldset disabled) 때 줄 전체가 아니라 이름만 흐리게 — 입력·버튼은 자기 disabled 모양, 도움말·오류는 그대로 읽힌다.
+  expect(row.className).not.toMatch(/opacity/)
+  expect(name).toHaveClass('group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50')
+  return { input, row, control }
+}
+/** 읽기 전용 줄(사업자·소속 가맹점·계약 당사자): group(이름 = aria-label) 자체가 .fieldrow — 이름 span aria-hidden 왼쪽 · 값 상자 오른쪽 .fieldcontrol. */
+const readOnlyRowOf = (scope: HTMLElement, name: string) => {
+  const group = within(scope).getByRole('group', { name })
+  expect(group).toHaveClass('fieldrow')
+  const label = group.firstElementChild as HTMLElement
+  expect(label.tagName.toLowerCase()).toBe('span')
+  expect(label).toHaveAttribute('aria-hidden', 'true')
+  // reviewFix1 MINOR-1: 세 줄 모두 이름 열 글자 = 이름 그대로(숨긴 접두·콜론 없음).
+  expect(label.textContent).toBe(name)
+  expect(group.children[1]).toHaveClass('fieldcontrol')
+  return group
+}
+const atStep3 = () => {
+  const memory = withBusiness()
+  memory.write('wizard.step', 3)
+  return memory
+}
+
+describe('LAYOUT-ROLLOUT B2: 가맹점 등록 입력 = 폼 줄(이름 왼쪽 · 입력 오른쪽 · DB 열 길이 폭)', { timeout: 20_000 }, () => {
+  it('① 사업자등록번호: 줄(sm) — 찾기·진행 글자는 같은 .fieldcontrol(입력 오른쪽), 도움말은 입력 열 아래 .fieldnote(설명 연결 그대로)', () => {
+    render(<MerchantRegistrationScreen api={fakeApi()} onOpenLookup={vi.fn()} />)
+    const picker = region('사업자 선택')
+    const { input, row, control } = formRowOf(picker, '사업자등록번호', 'sm')
+    expect(control.firstElementChild).toBe(input)
+    const find = within(picker).getByRole('button', { name: '찾기' })
+    expect(find.parentElement).toBe(control)
+    expect(control.querySelector(':scope > span.subtle')).toHaveAttribute('aria-live', 'polite')
+    const note = document.getElementById(input.getAttribute('aria-describedby')!)!
+    expect(note).toHaveClass('fieldnote')
+    expect(note.parentElement).toBe(row)
+    expect(input).toHaveAccessibleDescription('조회는 감사 기록에 남습니다.')
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  it('② 가맹점·Site: 카드 fieldset은 grid가 아닌 세로 흐름, 읽기 전용 줄(사업자·소속 가맹점), 가맹점명 lg · 영문 상호 lg · 가맹점 코드 sm + 다시 제안 · 채널 sm · 채널 식별값 full', () => {
+    render(<MerchantRegistrationScreen api={fakeApi()} onOpenLookup={vi.fn()} memory={withBusiness()} />)
+    for (const name of ['가맹점', 'Site']) {
+      const fieldset = region(name).querySelector('form > fieldset')!
+      expect(fieldset.className).not.toMatch(/grid/)
+    }
+    const merchant = region('가맹점')
+    expect(readOnlyRowOf(merchant, '사업자')).toHaveTextContent('데모 사업자 · 778*******')
+    formRowOf(merchant, '가맹점명', 'lg')
+    expect(formRowOf(merchant, '영문 상호(코드 제안용)', 'lg').input).toHaveAccessibleDescription('저장하지 않습니다. 영문·숫자만 코드 제안에 씁니다(한글은 옮기지 않습니다).')
+    const code = formRowOf(merchant, '가맹점 코드', 'sm')
+    expect(within(code.control).getByRole('button', { name: '다시 제안' })).toHaveClass('btn')
+    expect(code.row.querySelector(':scope > .fieldnote')).not.toBeNull()
+
+    const site = region('Site')
+    // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경): 이름 열은 readOnlyRowOf가, 값 상자는 아래가 단언한다.
+    expect(readOnlyRowOf(site, '소속 가맹점').querySelector(':scope > .fieldcontrol')).toHaveTextContent('아직 없음')
+    formRowOf(site, '채널', 'sm')
+    formRowOf(site, '채널 식별값', null)
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  it('③ 계약 초안·서비스 계약: 계약 당사자·소속 가맹점 줄, 범위 = 줄 모양 fieldset(legend 이름 그대로), Site ID full, 시작일 sm, 종료일 sm + 옆 문구(설명 연결 그대로), 계약 ID md, 서비스 종류 md', async () => {
+    render(<MerchantRegistrationScreen api={fakeApi()} onOpenLookup={vi.fn()} memory={atStep3()} />)
+    const contract = region('계약 초안')
+    expect(region('계약 초안').querySelector('form > fieldset')!.className).not.toMatch(/grid/)
+    expect(readOnlyRowOf(contract, '계약 당사자')).toHaveTextContent('데모 사업자 · 778*******')
+    readOnlyRowOf(contract, '소속 가맹점')
+
+    const scope = within(contract).getByRole('group', { name: '범위' })
+    expect(scope.tagName.toLowerCase()).toBe('fieldset')
+    const scopeRow = scope.querySelector(':scope > .fieldrow')!
+    expect(scopeRow.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+    expect(scopeRow.firstElementChild).toHaveTextContent('범위')
+    expect(within(scopeRow.children[1] as HTMLElement).getAllByRole('radio')).toHaveLength(2)
+    await user.click(within(scope).getByRole('radio', { name: '선택 Site' }))
+    formRowOf(contract, 'Site ID 직접 입력', null)
+
+    expect(formRowOf(contract, '시작일', 'sm').input).toHaveAccessibleDescription('한국 시간 0시부터 효력')
+    const end = formRowOf(contract, '종료일(선택)', 'sm')
+    const endNote = document.getElementById(end.input.getAttribute('aria-describedby')!)!
+    expect(endNote.parentElement).toBe(end.control)
+    expect(end.input).toHaveAccessibleDescription('이 날 0시 종료(미포함)')
+
+    const agreement = region('서비스 계약')
+    formRowOf(agreement, '계약 ID', 'md')
+    formRowOf(agreement, '서비스 종류', 'md')
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

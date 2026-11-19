@@ -9640,9 +9640,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T123411Z.json",
           "result": "GRADLE-CHECK exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=666 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:7c2b6e7019de1b373df86284469d7b7cd32a8e4e774de27b60326cc186a491f8",
           "supplementary": "B1-cve1 PASS(~/gate-logs/B1-cve1.log)"
+        },
+        {
+          "tag": "B2-gate1",
+          "verdict": "PASS",
+          "screen": "LAYOUT-ROLLOUT B2 가맹점 등록 폼 줄 + FLAKY-ADMIN-SITE-FIXTURE(시험 fixture)",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T135944Z.json",
+          "result": "GRADLE-CHECK exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=669 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:fb9ddf063d37f22949dcab5deb555530a2dd912172a87cef6789393311ca0363",
+          "supplementary": "B2-cve1 PASS(~/gate-logs/B2-cve1.log)"
         }
       ],
-      "nextResumeAction": "LAYOUT-ROLLOUT(B1 DONE; 사용자 결정 D-ADMIN-UI-006·폼 줄·상세 일관성): B2 가맹점 등록 → B3 결제 보정 취소·계정 → B4 로그인 → B5 상세 안 수정 폼·계약 개정 → B6 상세 블록 140px 줄 → (B7 상세 작업 폼). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
+      "nextResumeAction": "LAYOUT-ROLLOUT(B1·B2 DONE): B3 결제 보정 취소·계정 → B4 로그인(카드 좁음 — 위아래 유지 검토) → B5 상세 안 수정 폼·계약 개정 → B6 상세 블록 140px 줄 → (B7). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -10232,6 +10240,184 @@
               "스크린리더 낭독 확인, vite build·gradle·Demo 캡처(Coordinator 몫)"
             ]
           }
+        },
+        "B2": {
+          "status": "DONE(B2-gate1)",
+          "statusNote": "구현자 기록 — 리뷰·게이트(vite build·gradle·Demo) 전. 자기 DONE 판정 아님. task status는 변경하지 않음",
+          "decision": "사용자 결정 2026-11-19(모든 입력 화면 폼 줄 — registrationScreens.userFeedback1 pattern/adoption/widthSteps) · 코디네이터 결정: 계약 ID md(ctr_+ULID 30자), ④ 검토 dl.detailgrid 그대로",
+          "scope": "관리자 콘솔 가맹점 등록 화면(MerchantRegistrationScreen — 모든 카드가 workspace) 모양만. 비workspace RegistrationStep(ContractRevisionForm — B5)은 grid 그대로. 업무 동작(등록 완료 사업자만 선택·가맹점 코드 미리보기/다시 제안·카드별 저장·결과 불명 재전송 잠금·오류 문구·세션 종료)·API 호출·요청 본문·submissionId 무변경",
+          "changes": [
+            "components/FormRow.tsx: 잠금 흐림을 줄 전체(has-[:disabled]:opacity-50)에서 이름 label만(group/fieldrow + group-has-[:disabled]/fieldrow:opacity-50)으로 — 입력·선택(disabled:opacity-50)·.btn(:disabled .4)은 자기 모양, 도움말·오류(.fieldnote)는 흐리지 않음(이중 흐림 제거). 사업자 등록 시험 무변경 통과",
+            "components/RegistrationStep.tsx: workspace일 때 fieldset class 'm-0 min-w-0 border-0 p-0'(사업자 등록 fieldset과 같음 — 폼 줄 세로 흐름), 아니면 기존 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' 그대로",
+            "screens/MerchantRegistrationScreen.tsx ① 사업자등록번호: 풀어 쓴 Label+flex 줄 → FormRow(sm) trailing = '찾기'(.btn h-9 py-0 — 입력 높이) + '찾는 중…'(span.subtle aria-live polite). 도움말/형식 오류는 .fieldnote(hint/error — 문구·aria-describedby·aria-invalid 그대로). useId numberNoteId 제거(FormRow가 id 부여)",
+            "ReadOnlyGroup(사업자·소속 가맹점·계약 당사자): group(role·aria-label·aria-describedby 그대로) 자체가 .fieldrow — 이름 span aria-hidden 왼쪽(text-xs muted, FormRow 이름과 같은 글자), 값 상자(점선, min-h-9) .fieldcontrol fw-lg, 오류 p.fieldnote. className prop 제거(소속 가맹점의 sm:col-span-2 lg:col-span-3 — grid 없어짐). inline(소속 가맹점)은 이름 열 글자 뒤 sr-only ': '(aria-hidden 안)로 MC-2b 표시 문자열 '소속 가맹점: <상호> · <코드>'를 DOM 글자에 유지 — 보이는 이름 열은 다른 줄처럼 콜론 없음(리뷰 확인 요청)",
+            "가맹점 카드: 가맹점명 FormRow lg · 영문 상호(코드 제안용) lg · 가맹점 코드 sm + trailing '다시 제안'(.btn h-9 py-0). 감싸던 div·버튼 div 제거",
+            "Site 카드: 채널 NativeSelect sm(id 전달) · 채널 식별값 full",
+            "계약 초안 카드: 범위 fieldset(m-0 border-0 p-0) > legend sr-only '범위'(접근 이름 그대로) + div.fieldrow(group/fieldrow, border-b py-2) — 이름 span aria-hidden 왼쪽 · 라디오 2개(flex-wrap gap-4) + 선택 Site 체크(pl-6) 오른쪽 열(사업자 등록 사업체 구분 radiogroup 줄 모양). 보이는 legend는 fieldset 테두리 자리에 그려져 grid 칸이 되지 않아 sr-only로 둠. Site ID 직접 입력 full · 시작일 sm(min·hint 그대로) · 종료일(선택) sm + trailing '이 날 0시 종료(미포함)'(span id=endDateNoteId, pb-2 제거) — 입력 aria-describedby는 기존처럼 endDateNoteId 하나, 오류 '종료일은 시작일보다 뒤여야 합니다.'는 .fieldnote(기존처럼 설명에 연결 안 함)",
+            "서비스 계약 카드: 계약 ID md · 서비스 종류 NativeSelect md",
+            "import: Field(DataBits)·Label 제거, FormRow 추가. ④ 검토 dl.detailgrid·BusinessText·단계 띠·.cardnote 무변경"
+          ],
+          "widthTable": [
+            {
+              "field": "사업자등록번호(① 찾기)",
+              "db": "business.registration_number CHAR(10) (V1)",
+              "frontend": "isRegistrationNumber 10자리, 표시 12자",
+              "width": "sm"
+            },
+            {
+              "field": "사업자(읽기 전용)",
+              "db": "business.display_name VARCHAR(100) (V1) + 마스킹 번호",
+              "frontend": "표시만",
+              "width": "lg(값 상자)"
+            },
+            {
+              "field": "가맹점명",
+              "db": "merchant.display_name VARCHAR(100) (V1)",
+              "frontend": "validName 1~100 code point",
+              "width": "lg"
+            },
+            {
+              "field": "영문 상호(코드 제안용)",
+              "db": "저장 안 함(열 없음)",
+              "frontend": "상한 없음(codePrefix가 영문·숫자 10자까지만 사용)",
+              "width": "lg(사업자 영문 상호 VARCHAR(100)과 같은 단계 — 코디네이터 지정)"
+            },
+            {
+              "field": "가맹점 코드",
+              "db": "merchant_code_assignment.merchant_code VARCHAR(14) CHECK ^[a-z][a-z0-9]{5,13}$ (V13)",
+              "frontend": "MERCHANT_CODE 같은 정규식",
+              "width": "sm"
+            },
+            {
+              "field": "소속 가맹점(읽기 전용)",
+              "db": "merchant.display_name VARCHAR(100) + merchant_code VARCHAR(14)",
+              "frontend": "표시만",
+              "width": "lg(값 상자)"
+            },
+            {
+              "field": "채널(select)",
+              "db": "merchant_site.channel_type VARCHAR(8) CHECK IN('WEB','APP') (V1)",
+              "frontend": "선택지 웹/앱",
+              "width": "sm"
+            },
+            {
+              "field": "채널 식별값",
+              "db": "merchant_site.channel_identifier VARCHAR(253) (V1)",
+              "frontend": "validChannel ≤253 + 정규식",
+              "width": "full"
+            },
+            {
+              "field": "계약 당사자(읽기 전용)",
+              "db": "business.display_name VARCHAR(100)",
+              "frontend": "표시만",
+              "width": "lg(값 상자)"
+            },
+            {
+              "field": "Site ID 직접 입력",
+              "db": "contract_revision_scope_site.merchant_site_id VARCHAR(64) (V1, site_+ULID 31자) × 최대 50",
+              "frontend": "쉼표 목록, SITE_ID 정규식·MAX_SCOPE_SITES 50",
+              "width": "full"
+            },
+            {
+              "field": "시작일",
+              "db": "contract_revision.effective_from DATETIME(3) (V1)",
+              "frontend": "type=date YYYY-MM-DD",
+              "width": "sm"
+            },
+            {
+              "field": "종료일(선택)",
+              "db": "contract_revision.effective_to DATETIME(3) NULL (V1)",
+              "frontend": "type=date, 시작일보다 뒤",
+              "width": "sm"
+            },
+            {
+              "field": "계약 ID",
+              "db": "contract_service_agreement.contract_id VARCHAR(64) (V1, CHECK ^ctr_ULID$ = 30자)",
+              "frontend": "CONTRACT_ID 정규식(30자)",
+              "width": "md(코디네이터 결정 — 열 64는 lg 단계지만 실제 값 30자 기준)"
+            },
+            {
+              "field": "서비스 종류(select)",
+              "db": "contract_service_agreement.service_kind VARCHAR(32) CHECK IN('CARD_PG_PAYMENT') (V1)",
+              "frontend": "SERVICE_KINDS 선택지",
+              "width": "md"
+            }
+          ],
+          "dbVsScreenMismatch": "없음 — 화면 검사 상한이 DB 열과 같거나 더 좁다(가맹점명 100·코드 14·채널 253·ID 정규식). 계약 ID만 열 길이(64) 대신 값 길이(30)로 단계를 고름(코디네이터 결정)",
+          "newTests": [
+            "MerchantRegistrationScreen.workspace.test.tsx 새 describe 'LAYOUT-ROLLOUT B2'(3건): 도우미 formRowOf(입력이 .fieldrow 안 · label[for]=입력 id · 이름 글자 그대로 · .fieldcontrol이 줄의 자식 · fw-* 폭 class · 줄 class에 opacity 없음 · label group-has-[:disabled]/fieldrow:opacity-50) / readOnlyRowOf(group이 .fieldrow · 첫 자식 span aria-hidden 이름 · 둘째 .fieldcontrol)",
+            "① 사업자등록번호 sm · 찾기·진행 글자 같은 .fieldcontrol · 입력이 첫 자식 · 도움말 .fieldnote(줄의 자식)·설명 그대로 · style 0",
+            "② 가맹점·Site fieldset grid 아님 · 사업자/소속 가맹점 읽기 전용 줄(글자 그대로) · 가맹점명 lg · 영문 상호 lg(설명 그대로) · 가맹점 코드 sm + 다시 제안 같은 .fieldcontrol · 채널 sm · 채널 식별값 full · style 0",
+            "③ 계약 초안 fieldset grid 아님 · 계약 당사자/소속 가맹점 줄 · 범위 fieldset(group 이름 '범위') > .fieldrow(이름 span aria-hidden + 라디오 2개) · 선택 Site → Site ID 직접 입력 full · 시작일 sm(설명 그대로) · 종료일 sm + 옆 문구가 같은 .fieldcontrol·설명 '이 날 0시 종료(미포함)' · 계약 ID md · 서비스 종류 md · style 0"
+          ],
+          "changedTests": {
+            "rule": "바꾼 곳에 '// LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 폼 줄)' 주석. 코디네이터 예상 목록 밖 단언 변경 없음",
+            "MerchantRegistrationScreen.workspace.test.tsx:135(변경 후 136-137)": "찾기 줄 toHaveClass('items-end') → toHaveClass('fieldcontrol'). 이유: 풀어 쓴 flex 줄이 FormRow 입력 칸(.fieldcontrol)으로 바뀜. 같은 시험의 contains(입력)·설명 문구·설명 p가 줄 밖(138)·진행 글자 span.subtle(131) 단언은 그대로 통과(132 주석에서 'items-end — 입력 아래끝 맞춤' 표현만 정리)",
+            "unchangedMustPass": "MerchantRegistrationScreen.test.tsx 전체(getByLabelText·toHaveAccessibleDescription·group 이름/설명·소속 가맹점 textContent '소속 가맹점: …'·업무 단언), BusinessProfileFormScreen.workspace.test.tsx·BusinessProfileFormScreen.test.tsx(FormRow 흐림 변경 후) — 변경 없이 통과"
+          },
+          "red": "01-red-vitest.log: 새 시험 3건 실패(exit 1, Tests 3 failed | 5 passed) — ① 사업자등록번호 입력이 .fieldrow 안에 없음(null), ②·③ 카드 fieldset class가 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'",
+          "evidence": {
+            "logDir": "~/gate-logs/layout-b2/ (각 로그에 명령·cwd·node·UTC 시작/끝·git HEAD·exit)",
+            "runner": "~/gate-logs/layout-b2/run.sh <log> <argv…> — layout-b1 run.sh와 같은 고정 argv(npx tsc -b --force / npx vitest run), PATH에 apps/internal-admin/.gradle/nodejs/node-v24.22.1-*/bin",
+            "gitHead": "562950fa8bcd43bcaff6403198897ebc69efe8d6 (작업 트리 변경, 미커밋)",
+            "sourceFingerprint": "sha256(git diff -- apps/internal-admin/frontend/src) = ff3033d4c29d4163a1105190c0ab5dd32922d2e419c3ce7b65a49d1850a86fad (tasks.json 기록 전, 4파일)",
+            "specHash": "docs/DECISIONS.md sha256 0a0b56282e00e3a3fd32b89716a890344aee2c654c1b2efd569582d28b61e0b3",
+            "runs": [
+              "01-red-vitest.log 2026-11-19T13:40:00Z–13:40:13Z vitest run MerchantRegistrationScreen.workspace.test.tsx — exit 1, 3 failed | 5 passed (RED)",
+              "02-tsc.log 2026-11-19T13:42:37Z–13:42:41Z npx tsc -b --force — exit 0",
+              "03-target-vitest.log 2026-11-19T13:42:41Z–13:43:35Z vitest run MerchantRegistrationScreen(.workspace).test.tsx·BusinessProfileFormScreen(.workspace).test.tsx — exit 0, 4 files, 100 passed",
+              "04-vitest-full.log 2026-11-19T13:43:41Z–13:46:13Z npx vitest run — exit 0, Test Files 68 passed (68), Tests 644 passed (644)"
+            ],
+            "lineEndings": "변경 4파일 CR 0(LF)"
+          },
+          "notVerified": [
+            "vite build·gradle·Demo 화면 캡처(코디네이터 게이트 — 금지 범위)",
+            "Tailwind가 group-has-[:disabled]/fieldrow:opacity-50·group/fieldrow 규칙을 실제로 생성하는지(빌드 CSS) — jsdom 시험은 class 문자열만 확인",
+            "실제 브라우저 배치(140px 열·폭 단계·720px 이하 위아래·종료일 옆 문구 줄바꿈·sr-only legend 범위 줄 정렬·읽기 전용 값 상자 높이 min-h-9)",
+            "실제 브라우저 접근성 트리(sr-only legend 이름·aria-hidden 이름 열) — jsdom accessible name만 확인"
+          ],
+          "openPoints": [
+            "소속 가맹점 줄: 기존 시험(MerchantRegistrationScreen.test.tsx:111-112 '소속 가맹점: …' textContent)을 바꾸지 않으려 이름 열 뒤 sr-only ': '(aria-hidden 안)를 둠 — 보이는 글자 영향 없음. 리뷰가 불필요한 DOM 글자로 보면 대안: 보이는 콜론('소속 가맹점:')을 이름 열에 두거나, 시험 기대값을 group 이름+값 단언으로 바꾸기(사용자/코디네이터 결정 필요 — 기존 단언 변경)",
+            "종료일 오류 문구는 기존처럼 aria-describedby에 연결되지 않음(B2 이전부터 — 모양만 범위라 그대로). 연결은 별도 개선 후보",
+            "B2 이후 MerchantRegistrationScreen 안 ① 읽기 전용 '선택한 사업자' 상자·찾은 사업자 목록은 폼 줄 대상 아님(입력 아님) — 그대로"
+          ],
+          "reviewFix1": {
+            "status": "IMPLEMENTED(재리뷰·게이트 전)",
+            "review": "B2 독립 리뷰 조건부 PASS(코디네이터 전달 — 브라우저 40화면 확인, 문제 없음). 반영 항목 MINOR-1(필수)·NIT-1·NIT-6, NIT-4는 기록만",
+            "fixes": [
+              "MINOR-1: ReadOnlyGroup의 inline prop과 이름 열 sr-only ': ' 제거 — 사업자·소속 가맹점·계약 당사자 세 줄이 같은 모양(이름 열 = 이름 그대로). 예전 '소속 가맹점: <상호> · <코드>'는 이름 열 '소속 가맹점' + 값 상자 '<상호> · <코드>'로 표현(D-MCODE-003 내용 무변경)",
+              "MINOR-1 시험: MerchantRegistrationScreen.test.tsx — expectAffiliation(region, value) 도우미(이름 열 첫 자식 /^소속 가맹점$/ + 값 상자 :scope > .fieldcontrol 글자) 추가, OWN_AFFILIATION·CONTEXT_AFFILIATION은 값 상자 글자('데모 가맹점 · CODE'·'기존 가맹점 · <code>')로, expect(affiliation(..)).toHaveTextContent(..) 27곳(상수 사용 + 직접 문자열 '소속 가맹점: 아직 없음'·'둘째 가맹점 · …')을 expectAffiliation으로 — 바꾼 줄마다 지정 주석. affiliation 도우미·toHaveAccessibleDescription(:663)·mer_ 비노출·저장 0건 등 업무 단언 무변경. 시험 이름(:1475 'both show \"소속 가맹점: <상호> · <코드>\"')·파일 머리 주석(:23)은 기존 문장이라 그대로",
+              "MINOR-1 시험: MerchantRegistrationScreen.workspace.test.tsx — readOnlyRowOf 이름 열 단언을 startsWith → textContent toBe(name)로 강화, :296 '소속 가맹점: 아직 없음' → 값 상자 .fieldcontrol '아직 없음'(지정 주석)",
+              "MINOR-1 문서: docs/repository/MERCHANT-CODE-001-MERCHANT-CODE.md §13 기록 표 끝에 행 '0.4.8-layout B2' 1줄 추가(기존 문장 무변경) — 수용 기준(:584) 표시를 이름 열 + 값 상자로 표현, 시험은 나눠 단언",
+              "NIT-1: FormRow label·범위 줄 이름 span 흐림 조건을 group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50로 좁힘(trailing 버튼만 막힌 경우 이름 흐리지 않음). workspace.test formRowOf 단언도 같은 class",
+              "NIT-6: workspace.test 비workspace RegistrationStep 시험에 form > fieldset이 grid·gap-4·sm:grid-cols-2·lg:grid-cols-3 유지 단언 1줄",
+              "NIT-4: 고치지 않음 — followUpCandidates에 기록"
+            ],
+            "followUpCandidates": [
+              "NIT-4(B2 리뷰): 종료일(선택) 오류 문구 '종료일은 시작일보다 뒤여야 합니다.'가 입력 aria-describedby에 연결되지 않음(B2 이전부터, 입력 설명은 '이 날 0시 종료(미포함)' 하나). 후속에서 둘을 함께 연결하는 개선 후보 — 접근 가능한 설명이 바뀌므로 시험 기대값 결정 필요"
+            ],
+            "red": "별도 RED 로그 없음 — 기대값 변경(이름 열/값 상자 분리, class 문자열)과 구현을 같은 단계에서 고침. 새 단언이 옛 구현에서 실패함은 구조상 명백(옛 이름 열 textContent '소속 가맹점: ' ≠ '소속 가맹점', 옛 class group-has-[:disabled]) 하나 실행 증거는 없음",
+            "evidence": {
+              "gitHead": "562950fa8bcd43bcaff6403198897ebc69efe8d6 (작업 트리 변경, 미커밋)",
+              "sourceFingerprint": "sha256(git diff -- apps/internal-admin/frontend/src) = edf21f5cf927a12c717a1714a0bab1f6b237247ea13c0b9393ca783b6b7b8664 (5파일, tasks.json 기록 전)",
+              "runs": [
+                "11-reviewfix1-tsc.log 2026-11-19T13:54:12Z–13:54:14Z npx tsc -b --force — exit 0",
+                "12-reviewfix1-target-vitest.log 2026-11-19T13:54:14Z–13:54:50Z vitest run MerchantRegistrationScreen(.workspace).test.tsx·BusinessProfileFormScreen(.workspace).test.tsx — exit 0, 4 files, 100 passed",
+                "13-reviewfix1-vitest-full.log 2026-11-19T13:54:54Z–13:57:12Z npx vitest run — exit 0, Test Files 68 passed (68), Tests 644 passed (644)"
+              ],
+              "lineEndings": "변경 파일 CR 0(LF)"
+            },
+            "notVerified": [
+              "vite build·gradle·Demo(코디네이터 게이트)",
+              "Tailwind가 group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50 규칙을 실제 생성하는지(빌드 CSS)"
+            ]
+          }
+        },
+        "flakyAdminSiteFixture": {
+          "status": "DONE(B2-gate1)",
+          "cause": "MerchantActivationApprovalFixture.secondSiteOf: 가맹점 ULID가 Z9로 끝나면(약 1/1024) PRIMARY Site ID와 같아짐 → B1-gate1 MerchantActivationApprovalServiceSpec:369 실패",
+          "fix": "Z9 끝이면 Z8 + check(두 ID 다름)",
+          "product": "변경 없음(등록자 검사 → TOTP 순서 정상)"
         }
       }
     },

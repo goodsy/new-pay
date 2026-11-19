@@ -3,13 +3,12 @@ import type { AdminApi } from '../api/adminApi'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { Field } from '../components/DataBits'
+import { FormRow } from '../components/FormRow'
 import { ErrorNotice, WarningNote } from '../components/Notice'
 import { BackToListButton, MapNote } from '../components/MapNote'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { CheckIcon } from '../components/icons'
 import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
 import { NativeSelect } from '../components/ui/native-select'
 import { RegistrationStep, stepLocked, stepReference, submitStep, type StepSpec, type StepStatus } from '../components/RegistrationStep'
 import { defaultSubmissionId, kstDate, validName, type BusinessRef, type HandoffState, type MerchantRef } from '../lib/registration'
@@ -139,18 +138,20 @@ const BusinessText = ({ business }: { business: BusinessRef }) => (
 
 /**
  * 읽기 전용 값 묶음(사업자·계약 당사자·소속 가맹점 — MC-2b 리뷰 NIT-2): 접근 이름은 [label] 하나(보이는 제목은 aria-hidden — 두 번 읽지 않는다),
- * 오류 문구는 aria-describedby로 묶음에 연결한다. [inline]이면 제목을 상자 안 앞에 "제목:"으로 붙인다(소속 가맹점).
+ * 오류 문구는 aria-describedby로 묶음에 연결한다.
+ * LAYOUT-ROLLOUT B2(사용자 결정 2026-11-19 폼 줄): 묶음 자체가 .fieldrow — 제목은 왼쪽 이름 열(FormRow 이름과 같은 글자), 값 상자는 오른쪽 .fieldcontrol(lg 폭 — 상호 100자 열),
+ * 오류는 입력 열 아래 .fieldnote(사업자 등록 사업체 구분 줄과 같은 구성). 세 줄 모두 같은 모양 — 소속 가맹점의 예전 "소속 가맹점: <상호> · <코드>"(MC-2b)는
+ * 이름 열 '소속 가맹점' + 값 상자 '<상호> · <코드>'로 표현한다(D-MCODE-003 내용 무변경, B2 reviewFix1 MINOR-1 — 예전 inline 접두 제거).
  */
-function ReadOnlyGroup({ label, inline = false, error, className, children }: { label: string; inline?: boolean; error?: string; className?: string; children: ReactNode }) {
+function ReadOnlyGroup({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   const errorId = useId()
   return (
-    <div role="group" aria-label={label} aria-describedby={error ? errorId : undefined} className={cn('flex flex-col gap-1.5 text-sm', className)}>
-      {!inline && <span aria-hidden="true" className="font-medium">{label}</span>}
-      <span className="flex min-h-10 flex-wrap items-center gap-x-1.5 rounded-md border border-dashed px-3">
-        {inline && <><span aria-hidden="true" className="font-medium">{`${label}:`}</span>{' '}</>}
-        {children}
-      </span>
-      {error && <p id={errorId} className="text-xs text-destructive">{error}</p>}
+    <div role="group" aria-label={label} aria-describedby={error ? errorId : undefined} className="fieldrow border-b py-2 text-sm last:border-b-0">
+      <span aria-hidden="true" className="text-xs text-muted-foreground">{label}</span>
+      <div className="fieldcontrol fw-lg">
+        <span className="flex min-h-9 flex-wrap items-center gap-x-1.5 rounded-md border border-dashed px-3">{children}</span>
+      </div>
+      {error && <p id={errorId} className="fieldnote text-xs text-destructive">{error}</p>}
     </div>
   )
 }
@@ -161,7 +162,7 @@ function ReadOnlyGroup({ label, inline = false, error, className, children }: { 
  */
 function Affiliation({ merchant, error }: { merchant: MerchantRef | undefined; error?: string }) {
   return (
-    <ReadOnlyGroup label="소속 가맹점" inline error={error} className="sm:col-span-2 lg:col-span-3">
+    <ReadOnlyGroup label="소속 가맹점" error={error}>
       {merchant ? (
         <>
           <span>{merchant.name}</span>
@@ -260,7 +261,6 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
   const [found, setFound] = useRemembered<readonly BusinessLookupItem[] | null>(memory, 'search.found', NO_FOUND)
   const [selected] = useRemembered<BusinessRef | null>(memory, 'selectedBusiness', null)
   const [selectError] = useRemembered(memory, 'selectError', false)
-  const numberNoteId = useId()
 
   const search = async (event: FormEvent) => {
     event.preventDefault()
@@ -302,23 +302,26 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
           <ErrorNotice>사업자를 선택하세요.</ErrorNotice>
         ) : null}
         {/*
-          리뷰 reviewFix1 캡처 (a): 찾기 버튼을 입력란과 같은 줄에 두고 아래끝 맞춤(items-end) — 도움말·형식 오류는 그 줄 아래(Field와 같은 label 감싸기·aria-describedby·문구).
-          Field는 도움말을 입력과 같은 칸 안에 두어 버튼을 입력 아래끝에 맞출 수 없어 같은 구성을 풀어 썼다(이름·설명·aria-invalid 그대로).
+          LAYOUT-ROLLOUT B2(사용자 결정 2026-11-19 폼 줄 — reviewFix1 캡처 (a)의 풀어 쓴 줄 대체): 사업자 등록 ① 사업자등록번호 줄과 같은 FormRow(sm — CHAR(10), 표시 12자).
+          '찾기'·진행 글자는 입력 바로 오른쪽(trailing, 입력 높이 h-9), 도움말·형식 오류는 입력 열 아래(.fieldnote — 이름·설명·aria-invalid·문구 그대로).
         */}
-        <form onSubmit={search} className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-end gap-2">
-            <Label className="min-w-0 grow sm:max-w-xs">
-              <span>사업자등록번호</span>
-              <RegistrationNumberInput value={number} onValueChange={setNumber} disabled={disabled} aria-describedby={numberNoteId} aria-invalid={formatError || undefined} />
-            </Label>
-            <button type="submit" className="btn" disabled={disabled} aria-busy={busy}>
-              찾기
-            </button>
-            <span className="subtle" aria-live="polite">{busy ? '찾는 중…' : ''}</span>
-          </div>
-          <p id={numberNoteId} className={formatError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-            {formatError ? '사업자등록번호는 숫자 10자리입니다.' : '조회는 감사 기록에 남습니다.'}
-          </p>
+        <form onSubmit={search}>
+          <FormRow
+            label="사업자등록번호"
+            width="sm"
+            error={formatError ? '사업자등록번호는 숫자 10자리입니다.' : undefined}
+            hint="조회는 감사 기록에 남습니다."
+            trailing={
+              <>
+                <button type="submit" className="btn h-9 py-0" disabled={disabled} aria-busy={busy}>
+                  찾기
+                </button>
+                <span className="subtle" aria-live="polite">{busy ? '찾는 중…' : ''}</span>
+              </>
+            }
+          >
+            {(describedBy, id) => <RegistrationNumberInput id={id} value={number} onValueChange={setNumber} disabled={disabled} aria-describedby={describedBy} aria-invalid={formatError || undefined} />}
+          </FormRow>
         </form>
         {error && <ErrorNotice>{error === 'RATE_LIMITED' ? BRN_RATE_LIMITED : ERROR_MESSAGES[error]}</ErrorNotice>}
         {found && (
@@ -666,30 +669,28 @@ export function MerchantRegistrationScreen({
                 <ReadOnlyGroup label="사업자" error={merchantErrors.business ? PICK_BUSINESS_FIRST : undefined}>
                   {merchantBusiness ? <BusinessText business={merchantBusiness} /> : <span className="text-muted-foreground">선택한 사업자 없음</span>}
                 </ReadOnlyGroup>
-                <Field label="가맹점명" error={merchantErrors.name ? '1~100자, 앞뒤 공백 없이 입력하세요.' : undefined}>
-                  {(describedBy) => (
-                    <Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} autoComplete="off" aria-describedby={describedBy} aria-invalid={merchantErrors.name || undefined} />
+                {/* LAYOUT-ROLLOUT B2: 폼 줄 — 가맹점명 lg(merchant.display_name VARCHAR(100)) · 영문 상호 lg(저장 안 함 — 사업자 영문 상호 100자와 같은 단계) · 가맹점 코드 sm(VARCHAR(14)) + '다시 제안'은 입력 오른쪽. */}
+                <FormRow label="가맹점명" width="lg" error={merchantErrors.name ? '1~100자, 앞뒤 공백 없이 입력하세요.' : undefined}>
+                  {(describedBy, id) => (
+                    <Input id={id} value={merchantName} onChange={(e) => setMerchantName(e.target.value)} autoComplete="off" aria-describedby={describedBy} aria-invalid={merchantErrors.name || undefined} />
                   )}
-                </Field>
-                <Field label="영문 상호(코드 제안용)" hint="저장하지 않습니다. 영문·숫자만 코드 제안에 씁니다(한글은 옮기지 않습니다).">
-                  {(describedBy) => (
-                    <Input value={englishName} onChange={(e) => changeEnglishName(e.target.value)} autoComplete="off" spellCheck={false} aria-describedby={describedBy} />
+                </FormRow>
+                <FormRow label="영문 상호(코드 제안용)" width="lg" hint="저장하지 않습니다. 영문·숫자만 코드 제안에 씁니다(한글은 옮기지 않습니다).">
+                  {(describedBy, id) => (
+                    <Input id={id} value={englishName} onChange={(e) => changeEnglishName(e.target.value)} autoComplete="off" spellCheck={false} aria-describedby={describedBy} />
                   )}
-                </Field>
-                <div className="flex flex-col gap-2">
-                  <Field
-                      label="가맹점 코드"
-                      error={merchantErrors.code ? `${MERCHANT_CODE_HINT}로 입력하세요.` : undefined}
-                      hint={merchantErrors.code ? undefined : `${MERCHANT_CODE_HINT}. 제안은 참고용이며 사용 가능 여부는 등록할 때 확인합니다. 한 번 쓴 코드는 다시 쓸 수 없습니다.`}
-                    >
-                      {(describedBy) => (
-                        <Input value={merchantCode} onChange={(e) => setMerchantCode(e.target.value)} autoComplete="off" spellCheck={false} aria-describedby={describedBy} aria-invalid={merchantErrors.code || undefined} className="font-mono" />
-                      )}
-                  </Field>
-                  <div>
-                    <button type="button" className="btn" onClick={suggestAgain}>다시 제안</button>
-                  </div>
-                </div>
+                </FormRow>
+                <FormRow
+                  label="가맹점 코드"
+                  width="sm"
+                  error={merchantErrors.code ? `${MERCHANT_CODE_HINT}로 입력하세요.` : undefined}
+                  hint={merchantErrors.code ? undefined : `${MERCHANT_CODE_HINT}. 제안은 참고용이며 사용 가능 여부는 등록할 때 확인합니다. 한 번 쓴 코드는 다시 쓸 수 없습니다.`}
+                  trailing={<button type="button" className="btn h-9 py-0" onClick={suggestAgain}>다시 제안</button>}
+                >
+                  {(describedBy, id) => (
+                    <Input id={id} value={merchantCode} onChange={(e) => setMerchantCode(e.target.value)} autoComplete="off" spellCheck={false} aria-describedby={describedBy} aria-invalid={merchantErrors.code || undefined} className="font-mono" />
+                  )}
+                </FormRow>
               </>
             )}
           </RegistrationStep>
@@ -710,20 +711,23 @@ export function MerchantRegistrationScreen({
               <>
                 {/* MC-2b(D-MCODE-003 ①): 가맹점 ID 입력칸 대신 읽기 전용 소속 가맹점 — 내부 키는 저장 본문에만. */}
                 <Affiliation merchant={knownMerchants[siteMerchantId]} error={siteErrors.merchant ? REGISTER_MERCHANT_FIRST_SITE : undefined} />
-                <Field label="채널">
-                  {(describedBy) => (
-                    <NativeSelect value={channelType} onChange={(e) => setChannelType(e.target.value as 'WEB' | 'APP')} aria-describedby={describedBy}>
+                {/* LAYOUT-ROLLOUT B2: 채널 sm(channel_type VARCHAR(8) — 선택지 '웹'·'앱') · 채널 식별값 full(channel_identifier VARCHAR(253)). */}
+                <FormRow label="채널" width="sm">
+                  {(describedBy, id) => (
+                    <NativeSelect id={id} value={channelType} onChange={(e) => setChannelType(e.target.value as 'WEB' | 'APP')} aria-describedby={describedBy}>
                       <option value="WEB">웹</option>
                       <option value="APP">앱</option>
                     </NativeSelect>
                   )}
-                </Field>
-                <Field
+                </FormRow>
+                <FormRow
                   label="채널 식별값"
+                  width="full"
                   error={siteErrors.channel ? '형식이 맞지 않습니다(소문자 정규형만 — 자동으로 바꾸지 않습니다).' : undefined}
                 >
-                  {(describedBy) => (
+                  {(describedBy, id) => (
                     <Input
+                      id={id}
                       value={channelIdentifier}
                       onChange={(e) => setChannelIdentifier(e.target.value)}
                       autoComplete="off"
@@ -733,7 +737,7 @@ export function MerchantRegistrationScreen({
                       className="font-mono"
                     />
                   )}
-                </Field>
+                </FormRow>
               </>
             )}
           </RegistrationStep>
@@ -761,67 +765,85 @@ export function MerchantRegistrationScreen({
                 </ReadOnlyGroup>
                 {/* MC-2b(D-MCODE-003 ①): 계약 대상 가맹점도 읽기 전용 소속 가맹점 — 내부 키는 저장 본문 scopeMerchantId에만. */}
                 <Affiliation merchant={knownMerchants[scopeMerchantId]} error={contractErrors.merchant ? REGISTER_MERCHANT_FIRST_CONTRACT : undefined} />
-                <fieldset className="flex flex-col gap-2 text-sm">
-                  <legend className="mb-1 text-sm font-medium">범위</legend>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="contract-scope" value="MERCHANT" checked={scopeKind === 'MERCHANT'} onChange={() => setScopeKind('MERCHANT')} />
-                    가맹점 전체
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" name="contract-scope" value="SITES" checked={scopeKind === 'SITES'} onChange={() => setScopeKind('SITES')} />
-                    선택 Site
-                  </label>
-                  {scopeKind === 'SITES' && offeredSites.map((s) => (
-                    <label key={s.siteId} className="flex items-center gap-2 pl-6">
-                      <input
-                        type="checkbox"
-                        checked={checkedSites.includes(s.siteId)}
-                        onChange={(e) => setCheckedSites(e.target.checked ? [...checkedSites, s.siteId] : checkedSites.filter((id) => id !== s.siteId))}
-                      />
-                      <Mono>{s.siteId}</Mono>
-                    </label>
-                  ))}
+                {/*
+                  LAYOUT-ROLLOUT B2: 범위는 사업자 등록 사업체 구분 radiogroup과 같은 줄 모양(.fieldrow — 이름 span aria-hidden 왼쪽 · 선택지 오른쪽). 접근 이름은 legend 그대로(화면에서는
+                  sr-only — 보이는 legend는 fieldset 테두리 자리에 그려져 grid 칸이 되지 않는다). 선택 Site 체크는 선택지 아래 같은 열.
+                */}
+                <fieldset className="m-0 min-w-0 border-0 p-0 text-sm">
+                  <legend className="sr-only">범위</legend>
+                  <div className="group/fieldrow fieldrow border-b py-2">
+                    <span aria-hidden="true" className="text-xs text-muted-foreground group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50">범위</span>
+                    <span className="flex flex-col gap-2">
+                      <span className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2">
+                          <input type="radio" name="contract-scope" value="MERCHANT" checked={scopeKind === 'MERCHANT'} onChange={() => setScopeKind('MERCHANT')} />
+                          가맹점 전체
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="radio" name="contract-scope" value="SITES" checked={scopeKind === 'SITES'} onChange={() => setScopeKind('SITES')} />
+                          선택 Site
+                        </label>
+                      </span>
+                      {scopeKind === 'SITES' && offeredSites.map((s) => (
+                        <label key={s.siteId} className="flex items-center gap-2 pl-6">
+                          <input
+                            type="checkbox"
+                            checked={checkedSites.includes(s.siteId)}
+                            onChange={(e) => setCheckedSites(e.target.checked ? [...checkedSites, s.siteId] : checkedSites.filter((id) => id !== s.siteId))}
+                          />
+                          <Mono>{s.siteId}</Mono>
+                        </label>
+                      ))}
+                    </span>
+                  </div>
                 </fieldset>
+                {/* LAYOUT-ROLLOUT B2: Site ID 직접 입력 full(쉼표로 여러 개 — 하나당 VARCHAR(64), 최대 50개) · 시작일·종료일 sm(DATE) — 종료일 옆 문구는 입력 오른쪽(설명 연결 그대로). */}
                 {scopeKind === 'SITES' && (
-                  <Field
+                  <FormRow
                     label="Site ID 직접 입력"
+                    width="full"
                     error={
                       contractErrors.typedSites ? 'Site ID 형식(site_…)이 아닙니다.'
                         : contractErrors.sites ? 'Site를 하나 이상 고르거나 입력하세요.'
                           : contractErrors.tooMany ? `Site는 ${MAX_SCOPE_SITES}개까지입니다.` : undefined
                     }
                   >
-                    {(describedBy) => (
-                      <Input value={typedSites} onChange={(e) => setTypedSites(e.target.value)} autoComplete="off" placeholder="site_…, site_…" aria-describedby={describedBy} className="font-mono" />
+                    {(describedBy, id) => (
+                      <Input id={id} value={typedSites} onChange={(e) => setTypedSites(e.target.value)} autoComplete="off" placeholder="site_…, site_…" aria-describedby={describedBy} className="font-mono" />
                     )}
-                  </Field>
+                  </FormRow>
                 )}
-                <Field
+                <FormRow
                   label="시작일"
+                  width="sm"
                   hint="한국 시간 0시부터 효력"
                   error={contractErrors.start ? '시작일을 고르세요.' : undefined}
                 >
-                  {(describedBy) => (
-                    <Input type="date" min={todayKst()} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-describedby={describedBy} aria-invalid={contractErrors.start || undefined} />
+                  {(describedBy, id) => (
+                    <Input id={id} type="date" min={todayKst()} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-describedby={describedBy} aria-invalid={contractErrors.start || undefined} />
                   )}
-                </Field>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-end gap-2">
-                    <Label className="flex-1">
-                      <span>종료일(선택)</span>
-                      <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        aria-describedby={endDateNoteId}
-                        aria-invalid={contractErrors.end || undefined}
-                      />
-                    </Label>
-                    {/* C-7 배타 끝: 고정 문구를 입력란 바로 옆에(m-6). */}
-                    <span id={endDateNoteId} className="pb-2 text-xs text-muted-foreground whitespace-nowrap">이 날 0시 종료(미포함)</span>
-                  </div>
-                  {contractErrors.end && <p className="text-xs text-destructive">종료일은 시작일보다 뒤여야 합니다.</p>}
-                </div>
+                </FormRow>
+                {/*
+                  C-7 배타 끝: 고정 문구를 입력란 바로 옆에(m-6) — 폼 줄 trailing. 설명 연결은 기존처럼 그 문구 하나(aria-describedby = endDateNoteId),
+                  오류 문구는 입력 열 아래 .fieldnote(기존처럼 설명에는 연결하지 않음 — 모양만 바꾼다).
+                */}
+                <FormRow
+                  label="종료일(선택)"
+                  width="sm"
+                  error={contractErrors.end ? '종료일은 시작일보다 뒤여야 합니다.' : undefined}
+                  trailing={<span id={endDateNoteId} className="text-xs text-muted-foreground whitespace-nowrap">이 날 0시 종료(미포함)</span>}
+                >
+                  {(_describedBy, id) => (
+                    <Input
+                      id={id}
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      aria-describedby={endDateNoteId}
+                      aria-invalid={contractErrors.end || undefined}
+                    />
+                  )}
+                </FormRow>
               </>
             )}
           </RegistrationStep>
@@ -837,18 +859,19 @@ export function MerchantRegistrationScreen({
           >
             {() => (
               <>
-                <Field label="계약 ID" error={agreementErrors.id ? '계약 ID 형식(ctr_…)이 아닙니다.' : undefined}>
-                  {(describedBy) => (
-                    <Input value={agreementContractId} onChange={(e) => setAgreementContractId(e.target.value)} autoComplete="off" placeholder="ctr_…" aria-describedby={describedBy} className="font-mono" />
+                {/* LAYOUT-ROLLOUT B2: 계약 ID md(코디네이터 결정 — ctr_+ULID 30자, 열은 VARCHAR(64)) · 서비스 종류 md(service_kind VARCHAR(32) — 선택지 글자). */}
+                <FormRow label="계약 ID" width="md" error={agreementErrors.id ? '계약 ID 형식(ctr_…)이 아닙니다.' : undefined}>
+                  {(describedBy, id) => (
+                    <Input id={id} value={agreementContractId} onChange={(e) => setAgreementContractId(e.target.value)} autoComplete="off" placeholder="ctr_…" aria-describedby={describedBy} className="font-mono" />
                   )}
-                </Field>
-                <Field label="서비스 종류">
-                  {(describedBy) => (
-                    <NativeSelect value={serviceKind} onChange={(e) => setServiceKind(e.target.value as ServiceKindCode)} aria-describedby={describedBy}>
+                </FormRow>
+                <FormRow label="서비스 종류" width="md">
+                  {(describedBy, id) => (
+                    <NativeSelect id={id} value={serviceKind} onChange={(e) => setServiceKind(e.target.value as ServiceKindCode)} aria-describedby={describedBy}>
                       {SERVICE_KINDS.map((kind) => <option key={kind.code} value={kind.code}>{kind.label}</option>)}
                     </NativeSelect>
                   )}
-                </Field>
+                </FormRow>
               </>
             )}
           </RegistrationStep>

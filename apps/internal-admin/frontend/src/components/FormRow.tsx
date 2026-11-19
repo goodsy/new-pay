@@ -28,9 +28,11 @@ export function FormRow({ label, hint, error, width = 'full', trailing, classNam
   const id = useId()
   const inputId = `${id}-input`
   const describedBy = error || hint ? `${id}-desc` : undefined
+  // LAYOUT-ROLLOUT B2: 잠금(fieldset disabled) 때 줄 전체가 아니라 이름만 흐리게 — 입력·선택·.btn은 자기 disabled 모양(opacity)이 있고, 도움말·오류는 흐리지 않는다.
+  // 조건은 입력 칸(input·select·textarea)이 disabled일 때만(reviewFix1 NIT-1 — trailing 버튼만 막힌 경우(예: 보내는 중 '찾기')에는 이름을 흐리지 않는다).
   return (
-    <div className={cn('fieldrow border-b py-2 last:border-b-0 has-[:disabled]:opacity-50', className)}>
-      <label htmlFor={inputId} className="text-xs text-muted-foreground">{label}</label>
+    <div className={cn('group/fieldrow fieldrow border-b py-2 last:border-b-0', className)}>
+      <label htmlFor={inputId} className="text-xs text-muted-foreground group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50">{label}</label>
       <div className={cn('fieldcontrol', width !== 'full' && `fw-${width}`)}>
         {children(describedBy, inputId)}
         {trailing}

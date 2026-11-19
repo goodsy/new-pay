@@ -107,9 +107,16 @@ function withMerchant(merchant: MerchantRef = CONTEXT_MERCHANT, memory = withBus
 }
 /** MC-2b: Site·계약 초안 카드의 읽기 전용 소속 가맹점 표시. */
 const affiliation = (region: string) => within(step(region)).getByRole('group', { name: '소속 가맹점' })
-/** typeMerchant 기본값으로 이 마법사에서 등록한 가맹점의 소속 표시. */
-const OWN_AFFILIATION = `소속 가맹점: 데모 가맹점 · ${CODE}`
-const CONTEXT_AFFILIATION = `소속 가맹점: 기존 가맹점 · ${codeOf(MER)}`
+// LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
+// 읽기 전용 소속 가맹점 줄은 이름 열(aria-hidden span) = '소속 가맹점', 값 상자(.fieldcontrol) = '<상호> · <코드>' 또는 '아직 없음'으로 나눠 단언한다.
+const expectAffiliation = (region: string, value: string) => {
+  const group = affiliation(region)
+  expect(group.firstElementChild).toHaveTextContent(/^소속 가맹점$/)
+  expect(group.querySelector(':scope > .fieldcontrol')).toHaveTextContent(value)
+}
+/** typeMerchant 기본값으로 이 마법사에서 등록한 가맹점의 소속 표시(값 상자). */
+const OWN_AFFILIATION = `데모 가맹점 · ${CODE}` // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
+const CONTEXT_AFFILIATION = `기존 가맹점 · ${codeOf(MER)}` // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
 
 // 실행 시간 상한만 20초(BIZ4-gate2에서 ①→④ 전체 흐름이 gate 부하로 5.1초 — App wiring·ApprovalsScreen 선례). 단언·findBy 대기는 그대로.
 describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', { timeout: 20_000 }, () => {
@@ -263,7 +270,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
 
     const contract = await screen.findByRole('region', { name: '계약 초안' })
     expect(partyText()).toContain('데모 사업자')
-    expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+    expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     expect(within(contract).queryByLabelText('가맹점 ID')).toBeNull()
     expect(within(contract).getByLabelText('시작일')).toHaveAttribute('min', '2026-11-08')
     expect(within(contract).getByText('이 날 0시 종료(미포함)')).toBeInTheDocument()
@@ -365,7 +372,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[1]![0]).toEqual(send.mock.calls[0]![0])
     expect(screen.getByRole('button', { name: '다음 단계 →' })).toBeEnabled()
-    expect(affiliation('Site')).toHaveTextContent(OWN_AFFILIATION)
+    expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await next()
     await screen.findByRole('region', { name: '계약 초안' })
     expect(send).toHaveBeenCalledTimes(2)
@@ -514,7 +521,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await screen.findByRole('region', { name: '계약 초안' })
     await previous()
     await click(step('Site'), '다른 Site 추가 입력')
-    expect(affiliation('Site')).toHaveTextContent(OWN_AFFILIATION)
+    expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await typeIn(step('Site'), '채널 식별값', 'demo-shop3.paycore.test')
     await next()
     await screen.findByRole('region', { name: '계약 초안' })
@@ -611,7 +618,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const api = fakeApi({ registerMerchantSite: vi.fn(async () => succeeded(SITE)) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={onOpenLookup} newSubmissionId={ids()} memory={withMerchant()} />)
     const site = step('Site')
-    expect(affiliation('Site')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('Site', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await typeIn(site, '채널 식별값', 'demo-shop2.paycore.test')
     await click(site, 'Site 등록')
     await within(site).findByText(SITE)
@@ -649,7 +656,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const site = step('Site')
     // MC-2b(D-MCODE-003 ①): 가맹점 ID 입력칸이 없다 — 소속 가맹점은 맥락으로 정해지고, 없으면 그렇게 보인다.
     expect(within(site).queryByLabelText('가맹점 ID')).toBeNull()
-    expect(affiliation('Site')).toHaveTextContent('소속 가맹점: 아직 없음')
+    expectAffiliation('Site', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await typeIn(site, '채널 식별값', 'Shop.Example.test')
     await click(site, 'Site 등록')
     expect(within(site).getByText('가맹점을 먼저 등록하세요(가맹점 카드).')).toBeInTheDocument()
@@ -666,7 +673,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await goTo('3. 계약 초안·서비스 계약')
     const contract = step('계약 초안')
     expect(partyText()).toContain('데모 사업자')
-    expect(affiliation('계약 초안')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('계약 초안', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await typeIn(contract, '시작일', '2026-11-07')
     await next()
     expect(send).toHaveBeenCalledWith({ submissionId: sid(1), partyBusinessId: BIZ, scopeMerchantId: MER, scopeSiteIds: [], effectiveFromDate: '2026-11-07' })
@@ -692,7 +699,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const second = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} todayKst={() => '2026-11-08'} memory={withBusiness()} />)
     await goTo('3. 계약 초안·서비스 계약')
     expect(within(step('계약 초안')).queryByLabelText('가맹점 ID')).toBeNull()
-    expect(affiliation('계약 초안')).toHaveTextContent('소속 가맹점: 아직 없음')
+    expectAffiliation('계약 초안', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await typeIn(step('계약 초안'), '시작일', '2026-11-09')
     await click(step('계약 초안'), '계약 초안 등록')
     expect(within(step('계약 초안')).getByText('가맹점을 먼저 등록하세요(2단계 가맹점 카드).')).toBeInTheDocument()
@@ -728,7 +735,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const group = await within(contract).findByRole('group', { name: '결과 확인 필요' })
     expect(within(contract).getByLabelText('시작일')).toBeDisabled()
     // MC-2b: 가맹점은 입력칸이 아니라 읽기 전용 표시 — 잠긴 동안에도 처음 보낸 소속 가맹점 그대로.
-    expect(affiliation('계약 초안')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('계약 초안', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     expect(screen.getByRole('button', { name: '다음 단계 →' })).toBeDisabled()
     expect(api.addServiceAgreement).not.toHaveBeenCalled()
     await user.click(within(group).getByRole('button', { name: '같은 내용 다시 보내기' }))
@@ -779,7 +786,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
 
     await goTo('3. 계약 초안·서비스 계약')
     const contract = step('계약 초안')
-    expect(affiliation('계약 초안')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('계약 초안', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await user.click(within(contract).getByLabelText('선택 Site'))
     await user.click(within(contract).getByRole('checkbox', { name: SITE }))
     await typeIn(contract, '시작일', '2026-11-09')
@@ -790,7 +797,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await click(step('Site'), '다른 Site 추가 입력')
     // MC-2b: 다른 가맹점은 입력칸이 아니라 맥락으로 정해진다(그 가맹점을 맥락으로 준다 — 잠기지 않은 Site에만 채워진다).
     act(() => offerMerchant(memory, { merchantId: MER2, businessId: BIZ, name: '둘째 가맹점', code: codeOf(MER2) }))
-    expect(affiliation('Site')).toHaveTextContent(`소속 가맹점: 둘째 가맹점 · ${codeOf(MER2)}`)
+    expectAffiliation('Site', `둘째 가맹점 · ${codeOf(MER2)}`) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await user.clear(within(step('Site')).getByLabelText('채널 식별값'))
     await typeIn(step('Site'), '채널 식별값', 'demo-shop3.paycore.test')
     await click(step('Site'), 'Site 등록')
@@ -798,7 +805,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(vi.mocked(api.registerMerchantSite).mock.calls[1]![0]).toMatchObject({ merchantId: MER2 })
 
     await goTo('3. 계약 초안·서비스 계약')
-    expect(affiliation('계약 초안')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('계약 초안', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     expect(within(step('계약 초안')).getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)).toEqual([SITE])
     expect(within(step('계약 초안')).getByRole('checkbox', { name: SITE })).toBeChecked()
 
@@ -875,11 +882,11 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(merchantSend.mock.calls[1]![0]).toEqual(merchantSend.mock.calls[0]![0])
     expect(merchantSend.mock.calls[0]![0]).toEqual({ submissionId: sid(2), businessId: BIZ, displayName: '데모 가맹점', merchantCode: 'shopabcd12' })
     // MC-2b: 잠긴 Site의 소속 가맹점은 처음 그대로(맥락 가맹점).
-    expect(affiliation('Site')).toHaveTextContent(CONTEXT_AFFILIATION)
+    expectAffiliation('Site', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await goTo('3. 계약 초안·서비스 계약')
     // 가맹점 성공 → 계약 당사자 = 그 가맹점의 사업자(잠기지 않은 카드), 대상 = 그 가맹점.
     expect(partyText()).toContain('데모 사업자')
-    expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+    expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
 
     await goTo('2. 가맹점·사이트')
     await click(step('Site'), '같은 내용 다시 보내기')
@@ -888,7 +895,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(siteSend.mock.calls[0]![0]).toEqual({ submissionId: sid(1), merchantId: MER, channelType: 'WEB', channelIdentifier: 'demo-shop2.paycore.test' })
     // 리뷰 MINOR-1: 늦게 온 Site 성공(가맹점 A = 맥락 가맹점 MER, 지금 맥락은 MER2)은 잠기지 않은 계약 초안의 소속 가맹점을 A로 되돌리지 않는다.
     await goTo('3. 계약 초안·서비스 계약')
-    expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+    expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
   })
 
   it('kstDate: the Asia/Seoul calendar date of an instant (UTC 15:00 boundary)', () => {
@@ -1080,7 +1087,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toBeEnabled()
     await goTo('3. 계약 초안·서비스 계약')
     expect(partyText()).toContain('두번째 사업자')
-    expect(affiliation('계약 초안')).toHaveTextContent('소속 가맹점: 아직 없음')
+    expectAffiliation('계약 초안', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     await goTo('2. 가맹점·사이트')
     await typeMerchant(step('가맹점'), '둘째 가맹점')
     await click(step('가맹점'), '가맹점 등록')
@@ -1420,7 +1427,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await next()
       // ③: 계약 초안 소속 가맹점은 상호·코드(내부 키 없음).
       await screen.findByRole('region', { name: '계약 초안' })
-      expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       expect(domOccurrences(container, 'mer_')).toEqual([])
       // ④ 검토: 가맹점·Site 행 모두 코드.
       await goTo('4. 검토·완료')
@@ -1429,7 +1436,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       // ② 결과: 가맹점 카드 결과는 코드, Site 카드 소속 가맹점도 상호·코드.
       await goTo('2. 가맹점·사이트')
       expect(step('가맹점')).toHaveTextContent(`가맹점 코드 ${CODE}`)
-      expect(affiliation('Site')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       expect(merOccurrences(container)).toEqual([])
       expect(domOccurrences(container, 'mer_')).toEqual([])
     })
@@ -1453,7 +1460,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
       await click(step('Site'), 'Site 등록')
       await within(step('Site')).findByRole('group', { name: '결과 확인 필요' })
-      expect(affiliation('Site')).toHaveTextContent(CONTEXT_AFFILIATION)
+      expectAffiliation('Site', CONTEXT_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       expect(domOccurrences(container, 'mer_')).toEqual([])
       await goTo('3. 계약 초안·서비스 계약')
       await typeIn(step('계약 초안'), '시작일', '2026-11-09')
@@ -1474,16 +1481,16 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} todayKst={() => '2026-11-08'} memory={withBusiness()} />)
       expect(within(step('Site')).queryByLabelText('가맹점 ID')).toBeNull()
       expect(within(step('Site')).queryByRole('textbox', { name: /가맹점/ })).toBeNull()
-      expect(affiliation('Site')).toHaveTextContent('소속 가맹점: 아직 없음')
+      expectAffiliation('Site', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await typeMerchant(step('가맹점'), '데모 가맹점')
       await click(step('가맹점'), '가맹점 등록')
       await within(step('가맹점')).findByText(CODE)
-      expect(affiliation('Site')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
       await next()
       await screen.findByRole('region', { name: '계약 초안' })
       expect(within(step('계약 초안')).queryByLabelText('가맹점 ID')).toBeNull()
-      expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await typeIn(step('계약 초안'), '시작일', '2026-11-09')
       await click(step('계약 초안'), '계약 초안 등록')
       await within(step('계약 초안')).findByText(CTR)
@@ -1512,13 +1519,13 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await click(step('가맹점'), '가맹점 등록')
       await within(step('가맹점')).findByText('secondshop2')
       // 완료된 Site는 보낸 가맹점 그대로(읽기 전용 완료 — C-32).
-      expect(affiliation('Site')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await click(step('Site'), '다른 Site 추가 입력')
-      expect(affiliation('Site')).toHaveTextContent('소속 가맹점: 둘째 가맹점 · secondshop2')
+      expectAffiliation('Site', '둘째 가맹점 · secondshop2') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await goTo('3. 계약 초안·서비스 계약')
-      expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await click(step('계약 초안'), '계약 초안 새로 입력')
-      expect(affiliation('계약 초안')).toHaveTextContent('소속 가맹점: 둘째 가맹점 · secondshop2')
+      expectAffiliation('계약 초안', '둘째 가맹점 · secondshop2') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
     })
 
     it('MC-2b-4 (review MINOR-2 — screen guard, MASTER still decides): when the contract party business differs from the business of the affiliated merchant, the 계약 초안 shows an error and is not sent', async () => {
@@ -1538,7 +1545,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await pickBusiness()
       await goTo('3. 계약 초안·서비스 계약')
       expect(partyText()).toContain('다른 사업자')
-      expect(affiliation('계약 초안')).toHaveTextContent(OWN_AFFILIATION)
+      expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await typeIn(step('계약 초안'), '시작일', '2026-11-09')
       await click(step('계약 초안'), '계약 초안 등록')
       const message = '계약 당사자와 소속 가맹점의 사업자가 다릅니다 — 소속 가맹점의 사업자를 1단계에서 다시 선택하세요.'
@@ -1558,7 +1565,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       const memory = withBusiness()
       memory.write('siteMerchantId', MER)
       const { container } = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={memory} />)
-      expect(affiliation('Site')).toHaveTextContent('소속 가맹점: 아직 없음')
+      expectAffiliation('Site', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
       await click(step('Site'), 'Site 등록')
       expect(within(step('Site')).getByText('가맹점을 먼저 등록하세요(가맹점 카드).')).toBeInTheDocument()

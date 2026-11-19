@@ -199,7 +199,8 @@ export function RegistrationStep<P>({ title, submitLabel, succeeded, children, c
     <>
         {/* noValidate: 형식 검사는 화면(collect)이 하고 판정은 서버가 한다 — 브라우저 제약(예: 시작일 min)이 제출을 막아 서버 판정(소급 거절 문구)을 가리지 않게. */}
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-          <fieldset disabled={locked || completed} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children(locked || completed)}</fieldset>
+          {/* LAYOUT-ROLLOUT B2: workspace(가맹점 등록)는 폼 줄(FormRow — 이름 왼쪽·입력 오른쪽)이 위→아래로 쌓인다(사업자 등록 fieldset과 같은 class). 아니면 기존 grid 그대로(계약 Revision 폼 — B5). */}
+          <fieldset disabled={locked || completed} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>{children(locked || completed)}</fieldset>
           <div className={workspace ? 'flex flex-wrap items-center justify-end gap-2' : 'flex justify-end'}>
             {completed ? (
               <ActionButton workspace={workspace} type="button" variant="outline" onClick={startOver}>{completion.resetLabel}</ActionButton>
