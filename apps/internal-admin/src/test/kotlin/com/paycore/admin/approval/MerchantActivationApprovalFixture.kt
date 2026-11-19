@@ -38,8 +38,12 @@ class MerchantActivationApprovalFixture(
     fun activationOf(merchantId: String) = "act_" + ulid(merchantId)
     fun primaryOf(merchantId: String) = "site_" + ulid(merchantId)
 
-    /** 두 번째 Site(심사 대상) — ULID 끝 두 글자를 `Z9`로 바꾼 값. */
-    fun secondSiteOf(merchantId: String) = "site_" + ulid(merchantId).dropLast(2) + "Z9"
+    /**
+     * 두 번째 Site(심사 대상) — ULID 끝 두 글자를 `Z9`로 바꾼 값. 가맹점 ULID가 이미 `Z9`로 끝나면(newMerchantId 순번상 약 1/1024)
+     * PRIMARY와 같은 ID가 되어 stub 상세의 첫 Site(다른 등록자)가 고정되므로 그때는 `Z8`(FLAKY-ADMIN-SITE-FIXTURE — B1-gate1 1회 실패 원인).
+     */
+    fun secondSiteOf(merchantId: String) = ulid(merchantId).let { u -> "site_" + u.dropLast(2) + if (u.endsWith("Z9")) "Z8" else "Z9" }
+        .also { check(it != primaryOf(merchantId)) { "fixture: second site must differ from PRIMARY" } }
 
     /**
      * MASTER 상세(B3-1 상태): [activationStatus]·[accountLifecycle]·[primary](열린 PRIMARY 여부)·[activationRegistrant]·[secondReview](두 번째 Site 심사 결정, null = PENDING)·
