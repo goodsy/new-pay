@@ -3971,7 +3971,7 @@
     },
     {
       "id": "Q-SC-3",
-      "status": "PENDING",
+      "status": "ANSWERED",
       "question": "코드의 고유 범위",
       "recommended": "MASTER 전체에서 하나(TEST·LIVE 공통, DB UNIQUE) — 번호는 가맹점·종류별 순번이지만 가맹점 코드가 포함돼 전역 유일, 코드만으로 대상 하나를 찾을 수 있음",
       "alternative": "가맹점 안에서만 고유(site-01처럼 짧게 — 항상 가맹점과 함께 표시해야 하며 감사·검색에서 코드만으로 식별 불가: 사용자가 반대한 '가맹점 기반 표시'에 가까움)",
@@ -3980,7 +3980,9 @@
         "SITE-CONTRACT-CODE-001"
       ],
       "askedAt": "2026-11-19",
-      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3"
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3",
+      "humanAnswer": "전체에서 하나 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-20)"
     },
     {
       "id": "Q-SC-4",
@@ -3999,7 +4001,7 @@
     },
     {
       "id": "Q-SC-5",
-      "status": "PENDING",
+      "status": "ANSWERED",
       "question": "코드 변경·재사용 규칙",
       "recommended": "발급 후 불변, 재사용 금지(종료 Site·철회 계약 번호도 다시 쓰지 않음) — DB 권한 SELECT·INSERT만",
       "alternative": "가맹점 코드처럼 계약 승인 전 1회 변경(2인 승인) / 종료된 번호 재사용 허용(과거 감사·이력이 다른 대상을 가리킬 수 있어 비권장)",
@@ -4008,11 +4010,13 @@
         "SITE-CONTRACT-CODE-001"
       ],
       "askedAt": "2026-11-19",
-      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3.5"
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3.5",
+      "humanAnswer": "불변·재사용 금지 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-20)"
     },
     {
       "id": "Q-SC-6",
-      "status": "PENDING",
+      "status": "ANSWERED",
       "question": "서비스 계약(csa_ ID)도 새 코드를 발급할지",
       "recommended": "발급하지 않음 — (계약, 서비스 종류)가 DB에서 유일하므로 화면은 '<계약 코드> · 카드 PG 결제'로 표시, csa_는 내부 요청·응답에만",
       "alternative": "csa-<가맹점코드>-NN 코드 발급(같은 표 모양 하나 추가) / 계약 코드 + 서비스 종류 약어 코드(ctr-…-01-card)로 발급·저장",
@@ -4021,11 +4025,13 @@
         "SITE-CONTRACT-CODE-001"
       ],
       "askedAt": "2026-11-19",
-      "origin": "D-ADMIN-UI-005(서비스 계약 ID csa_ 비표시)"
+      "origin": "D-ADMIN-UI-005(서비스 계약 ID csa_ 비표시)",
+      "humanAnswer": "발급 안 함 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-20)"
     },
     {
       "id": "Q-SC-7",
-      "status": "PENDING",
+      "status": "ANSWERED",
       "question": "Site·계약 코드를 외부 연동(웹훅·결제 응답)·정산서에 노출할지",
       "recommended": "노출하지 않음 — 관리자 화면·MASTER 전용(운영자 판독용). 외부 결제 API의 Site 식별은 계속 merchantSiteId(site_<ULID>), Snapshot·PAYMENT·FINANCIAL 변경 없음",
       "alternative": "웹훅·결제 응답에 출력 전용 siteCode 추가(가맹점 코드 MC-4와 같은 투영 작업) / 정산서에만 표기(SETTLEMENT-001에서)",
@@ -4035,7 +4041,9 @@
         "SETTLEMENT-001"
       ],
       "askedAt": "2026-11-19",
-      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §6"
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §6",
+      "humanAnswer": "노출 안 함 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-20)"
     },
     {
       "id": "Q-SC-8",
@@ -4054,7 +4062,7 @@
     },
     {
       "id": "Q-SC-9",
-      "status": "PENDING",
+      "status": "ANSWERED",
       "question": "감사·승인 기록의 Site·계약 대상 저장값 — 가맹점 코드(Q-MC-4)처럼 새 행의 target_ref를 코드로 바꿀지",
       "recommended": "저장값은 내부 키 유지(코드가 불변이라 1:1 대응 — 정보 손실 없음), 새 등록 감사 행 detail에 code=<코드> 추가, 화면은 MASTER 라벨 읽기로 기존·새 행 모두 코드 표시(실패 시 '—'). ADMIN migration 없음",
       "alternative": "새 행 target_ref = 코드(ADMIN V17: 감사 CHECK·TARGET_REF 정규식 분기 추가, 기존 행은 고치지 않고 연결 — Q-MC-9 방식)",
@@ -4063,7 +4071,9 @@
         "SITE-CONTRACT-CODE-001"
       ],
       "askedAt": "2026-11-19",
-      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §4.2·§5.3"
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §4.2·§5.3",
+      "humanAnswer": "내부 키 유지 + 화면은 코드 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-20)"
     },
     {
       "id": "Q-ADMIN-UI-9",
