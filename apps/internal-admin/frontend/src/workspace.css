@@ -268,6 +268,23 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline-color:#1d4ed8
 /* 결제 보정 취소 조회 값(리뷰 MINOR-2): 시안 .detailgrid의 label·strong 자리를 정의 목록 dt·dd로(입력과 연결되지 않는 label을 쓰지 않음). 값은 원본 최종값 그대로 — 이름 = .detailgrid label(13px·500·#475569·아래 8px), 값 = .detailgrid strong(14px·600·#0f172a). */
 .detailgrid dt{margin-bottom:8px;font-size:13px;font-weight:500;color:#475569}
 .detailgrid dd{margin:0;font-size:14px;font-weight:600;color:#0f172a}
+/* 폼 줄(사용자 결정 2026-11-19 — 모든 입력 화면, 사업자 등록이 처음 적용; components/FormRow.tsx): 이름은 왼쪽 고정 폭 열(140px·간격 4px — 사업자 조회 상세 DetailRow와 같은 값, 같은 문서 모양), 입력은 오른쪽 같은 줄,
+   도움말·오류(.fieldnote)는 입력 열 아래, 줄 끝 버튼은 입력 바로 오른쪽(.fieldcontrol — 첫 자식 = 입력, 최소 16ch(12자리 번호가 다 보이는 폭) 아래로 줄면 버튼이 다음 줄로 — 리뷰 MINOR-1, 1024px 캡처에서 번호 잘림 확인). 줄 밖 보조 요소(체크·추가 버튼·안내)는 .fieldoffset으로 입력 열에 맞춘다.
+   입력 폭 단계(.fw-* — DB 열 길이 기준, 입력 글자 크기의 ch): xs ≤5자 · sm ≤14자 · md ≤50자 · lg ≤100자 · 없음(full) >100자. 720px 이하는 이름이 입력 위로 쌓이고 입력은 전체 폭.
+   줄 사이 얇은 선·위아래 8px는 DetailRow와 같이 utility(border-b py-2 last:border-b-0 — FormRow가 붙임). 새 색 없음 — 140px·4px·8px는 DetailRow 값, ch 단계는 이 배치를 위해 새로 정한 크기.
+   720px 이하 위아래(사용자 결정 — DetailRow는 640px 미만)는 그대로 둔다. */
+.fieldrow{display:grid;grid-template-columns:140px minmax(0,1fr);column-gap:4px;row-gap:4px;align-items:center}
+.fieldcontrol{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+/* min-width는 Input utility min-w-0(utilities 층이 이 층보다 뒤)을 넘어야 해서 !important(층 안 important는 뒤 층 일반 선언을 이긴다). */
+.fieldcontrol > :first-child{flex:1 1 0%;min-width:min(100%,16ch) !important}
+.fieldcontrol.fw-xs > :first-child{min-width:0 !important}
+.fieldnote{grid-column:2;margin:0}
+.fieldoffset{padding:8px 0 8px calc(140px + 4px)}
+.fw-xs > :first-child{max-width:10ch}
+.fw-sm > :first-child{max-width:20ch}
+.fw-md > :first-child{max-width:36ch}
+.fw-lg > :first-child{max-width:60ch}
+@media(max-width:720px){.fieldrow{grid-template-columns:minmax(0,1fr)}.fieldnote{grid-column:1}.fieldoffset{padding-left:0}.fw-xs > :first-child,.fw-sm > :first-child,.fw-md > :first-child,.fw-lg > :first-child{max-width:none}}
 /* 운영 홈(2단계): 할 일 행은 접근성을 위해 button(원본 div onclick) — 폭·정렬만 원본 div와 같게. */
 button.task{width:100%;text-align:left}
 /* 날짜 표시(날짜 고르기 기능이 없어 누르는 단추가 아니다 — .btn 모양만). */

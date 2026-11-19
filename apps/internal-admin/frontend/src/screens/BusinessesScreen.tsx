@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEntry, BusinessListItem, BusinessLookupItem, BusinessSearchInput } from '../api/adminApi'
 import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
+// 상세 카드·줄은 components/DetailCard.tsx로 그대로 옮김(출력 동일 — 등록 폼 FormRow와 나란히 쓰는 공용 구성요소).
+import { DetailRow as Row, InfoCard } from '../components/DetailCard'
 import { ErrorNotice, WarningNote } from '../components/Notice'
 import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
@@ -483,24 +485,6 @@ function DetailInfo({ detail }: { detail: BusinessDetail }) {
           </Row>
         ))}
       </InfoCard>
-    </div>
-  )
-}
-
-function InfoCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border bg-card px-4 py-3">
-      <h4 className="text-sm font-semibold">{title}</h4>
-      <dl>{children}</dl>
-    </div>
-  )
-}
-
-function Row({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div className="grid gap-1 border-b py-2 last:border-b-0 sm:grid-cols-[140px_1fr]">
-      <dt className="text-xs text-muted-foreground">{term}</dt>
-      <dd className="flex flex-col gap-0.5 text-sm break-all">{children}</dd>
     </div>
   )
 }

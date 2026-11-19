@@ -3905,6 +3905,181 @@
       "humanAnswer": "사유와 만료일(30일)을 붙인 한시 예외로 두고, 고친 버전이 나오면 바로 올린다",
       "humanEvidence": "Claude Code 세션 사용자 응답 (2026-11-18, Coordinator 경유)",
       "appliedSpec": "harness/osv-scanner.toml [[IgnoredVulns]] GHSA-fc5q-39xc-vjpf ignoreUntil 2026-12-18; 후속 SEC-PICOMATCH-UPGRADE"
+    },
+    {
+      "id": "Q-ADMIN-UI-8",
+      "status": "ANSWERED",
+      "question": "가맹점 등록 화면이 Site ID(site_…)·계약 ID(ctr_…)를 저장 안내·④ 검토·③ Site 체크 목록에 표시하고, Site ID·계약 ID 직접 입력 칸이 있음 — D-ADMIN-UI-004 ③(내부 키 비표시)과 충돌",
+      "recommended": "숨기고 채널·식별값(Site)·계약 초안 표시(계약)로 바꾸고, 직접 입력 칸은 해당 가맹점의 Site·계약 목록에서 고르기 — 별도 작업(명세 → 리뷰 → 구현)",
+      "alternative": "안내·검토에서만 숨기고 직접 입력 칸 유지 / 현재 노출 유지(D-ADMIN-UI-004 ③ 예외 기록)",
+      "impact": "가맹점 등록 화면(②③④), 필요 시 ADMIN·MASTER 조회 응답(가맹점별 Site·계약 목록)",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001",
+        "ADMIN-UI-WORKSPACE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "사용자 Demo 피드백 \"Siteid는 노출되어야할가?\"",
+      "humanAnswer": "숨기고 채널·식별값으로 (Recommended) → 같은 날 재질문 답: 새 사람용 코드 발급으로 site_ ctr_ 이렇게 구분해서(권장 반대 — Site·계약에 새 사람용 코드, 종류 접두어 구분)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)",
+      "appliedSpec": "D-ADMIN-UI-005"
+    },
+    {
+      "id": "Q-BIZ-7",
+      "status": "ANSWERED",
+      "question": "사업자등록번호 마스킹 해제 범위(현재 화면·API 응답·감사·로그 모두 마스킹 — D-BIZ-006 ②, D-MOPS-003)",
+      "recommended": "화면·조회 응답만 원문, 감사·변경 이력·로그·지표는 마스킹 유지, 조회 횟수 제한·감사 유지",
+      "alternative": "모두 원문 / 역할별(OPERATOR·APPROVER 원문, 그 밖 마스킹)",
+      "impact": "MASTER·ADMIN 조회 응답 필드, 관리자 화면 표시, 시험 기대값(마스킹 단언) 변경",
+      "dependentTasks": [
+        "BRN-UNMASK-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "사용자 Demo 피드백 \"사업자번호 마스킹 불필요할것같아\"",
+      "humanAnswer": "화면·조회 응답만 원문 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)",
+      "appliedSpec": "D-BIZ-007"
+    },
+    {
+      "id": "Q-SC-1",
+      "status": "ANSWERED",
+      "question": "Site·계약 코드의 형식 — 종류 접두어 구분은 유지하되 구분자를 무엇으로? 원문 'site_ ctr_'(밑줄)은 내부 키 site_<ULID>·ctr_<ULID>와 접두가 같아 화면·로그에서 구분되지 않고, 화면 내부 키 가드(부분 문자열)·접두 분류와 충돌한다(§3.2)",
+      "recommended": "하이픈 + 가맹점 코드 + 순번: site-<가맹점코드>-NN / ctr-<가맹점코드>-NN (예 site-demoshop01-01) — 소문자, 밑줄 없음, 어떤 기존 정규식과도 겹치지 않음",
+      "alternative": "A 원문 그대로 site_<가맹점코드>_NN(본문 소문자·길이≠26 강제 + 모든 내부 키 판정을 정확 정규식으로 교체 필요, 사람 판독 혼동은 남음) / B 대문자 짧은 형식 S-<가맹점코드>-NN·C-<가맹점코드>-NN 또는 SITE-000123(전역 순번 — 전체 건수 노출) / C 가맹점 무관 무작위 site-k7q2mx·ctr-8hd3za(가맹점 코드 변경 영향 없음, 대신 소속을 코드로 알 수 없음)",
+      "impact": "MASTER V17 CHECK·값 객체, ADMIN 응답 모양 정규식, 화면 표시·가드, 시험 속성. A는 가드·분류 전수 교체와 외부 연동 오인 위험(L-3) 증가",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "D-ADMIN-UI-005 재질문 답 '새 사람용 코드 발급으로 site_ ctr_ 이렇게 구분해서'",
+      "humanAnswer": "site-가맹점코드-01 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)"
+    },
+    {
+      "id": "Q-SC-2",
+      "status": "ANSWERED",
+      "question": "코드에 가맹점 코드를 넣는 경우, 가맹점 코드가 (계약 승인 전 1회) 바뀌면 이미 발급된 Site·계약 코드는?",
+      "recommended": "발급 당시 값 유지(재발급 없음 — 불변). 옛 가맹점 코드는 영구 예약이라 다른 가맹점을 가리킬 수 없음. 코드 변경 승인 화면에 '이미 발급된 Site·계약 코드 N개는 옛 코드 유지' 안내",
+      "alternative": "가맹점 코드를 넣지 않는 형식(Q-SC-1 C) / 코드 변경 시 Site·계약 코드도 새로 발급하고 옛 코드는 은퇴 예약(1회 변경 이력 표 필요, 감사·라벨 '당시 코드' 처리 추가)",
+      "impact": "재발급안은 코드 표가 배정 이력 표(seq 1·2)로 바뀌고 MC-1b 변경 TX에 Site·계약 코드 INSERT 추가, 라벨·감사 '당시 코드' 표시 필요",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3.1·L-1",
+      "humanAnswer": "발급 당시 값 유지 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)"
+    },
+    {
+      "id": "Q-SC-3",
+      "status": "PENDING",
+      "question": "코드의 고유 범위",
+      "recommended": "MASTER 전체에서 하나(TEST·LIVE 공통, DB UNIQUE) — 번호는 가맹점·종류별 순번이지만 가맹점 코드가 포함돼 전역 유일, 코드만으로 대상 하나를 찾을 수 있음",
+      "alternative": "가맹점 안에서만 고유(site-01처럼 짧게 — 항상 가맹점과 함께 표시해야 하며 감사·검색에서 코드만으로 식별 불가: 사용자가 반대한 '가맹점 기반 표시'에 가까움)",
+      "impact": "가맹점 내 고유안은 UNIQUE·라벨·검색 설계가 (가맹점, 코드) 쌍으로 바뀜",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3"
+    },
+    {
+      "id": "Q-SC-4",
+      "status": "ANSWERED",
+      "question": "코드 발급 주체",
+      "recommended": "시스템 자동 발급(등록 TX 안, 가맹점 행 잠금 아래 다음 순번) — 운영자 입력 없음, 중복 거절·재입력 없음",
+      "alternative": "운영자가 꼬리 부분 직접 입력(예 site-demoshop01-main, 중복이면 거절 — 가맹점 코드식 미리보기 + 수정) / 자동 제안 + 운영자 수정 허용",
+      "impact": "운영자 입력안은 요청 지문에 코드 포함(seed 재실행 선확인 필요 — MERCHANT-CODE-001 C-23), 형식·예약어·중복 거절 코드, 화면 입력칸 추가",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3.4",
+      "humanAnswer": "시스템 자동 발급 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)"
+    },
+    {
+      "id": "Q-SC-5",
+      "status": "PENDING",
+      "question": "코드 변경·재사용 규칙",
+      "recommended": "발급 후 불변, 재사용 금지(종료 Site·철회 계약 번호도 다시 쓰지 않음) — DB 권한 SELECT·INSERT만",
+      "alternative": "가맹점 코드처럼 계약 승인 전 1회 변경(2인 승인) / 종료된 번호 재사용 허용(과거 감사·이력이 다른 대상을 가리킬 수 있어 비권장)",
+      "impact": "변경 허용안은 배정 이력 표·2인 승인 종류·ADMIN migration 추가, 재생·라벨에 '당시 코드' 처리",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §3.5"
+    },
+    {
+      "id": "Q-SC-6",
+      "status": "PENDING",
+      "question": "서비스 계약(csa_ ID)도 새 코드를 발급할지",
+      "recommended": "발급하지 않음 — (계약, 서비스 종류)가 DB에서 유일하므로 화면은 '<계약 코드> · 카드 PG 결제'로 표시, csa_는 내부 요청·응답에만",
+      "alternative": "csa-<가맹점코드>-NN 코드 발급(같은 표 모양 하나 추가) / 계약 코드 + 서비스 종류 약어 코드(ctr-…-01-card)로 발급·저장",
+      "impact": "발급안은 MASTER 표·백필·응답 키·라벨 하나씩 추가(SCODE-1 범위 증가)",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "D-ADMIN-UI-005(서비스 계약 ID csa_ 비표시)"
+    },
+    {
+      "id": "Q-SC-7",
+      "status": "PENDING",
+      "question": "Site·계약 코드를 외부 연동(웹훅·결제 응답)·정산서에 노출할지",
+      "recommended": "노출하지 않음 — 관리자 화면·MASTER 전용(운영자 판독용). 외부 결제 API의 Site 식별은 계속 merchantSiteId(site_<ULID>), Snapshot·PAYMENT·FINANCIAL 변경 없음",
+      "alternative": "웹훅·결제 응답에 출력 전용 siteCode 추가(가맹점 코드 MC-4와 같은 투영 작업) / 정산서에만 표기(SETTLEMENT-001에서)",
+      "impact": "노출안은 Snapshot 스키마 승격(revision +1)·PAYMENT migration·외부 계약 문서 갱신, 순번이 가맹점 규모를 드러냄(L-7)",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001",
+        "SETTLEMENT-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §6"
+    },
+    {
+      "id": "Q-SC-8",
+      "status": "ANSWERED",
+      "question": "site_<ULID>는 외부 결제 API 필수 입력(merchantSiteId)이라 가맹점 개발자가 알아야 하는 값이다. 가맹점 포털이 없어 운영자가 관리자 화면에서 이 값을 전달해야 한다 — 화면에서 완전히 숨길지",
+      "recommended": "가맹점 상세 Site 패널 한 곳에만 'API 연동값(merchantSiteId)'으로 복사 가능하게 표시, 그 밖 모든 화면(등록 마법사·승인·감사·거래·이력)은 Site 코드만",
+      "alternative": "완전히 숨김(연동값 전달은 별도 경로 — 현재 없음) / 외부 결제 API가 Site 코드도 받도록 확장(외부 계약·주문 지문·멱등 비교 변경 — 큰 작업) / 거래 상세에도 연동값 병기(가맹점 요청 로그 대조용)",
+      "impact": "완전 숨김은 가맹점 연동 인계 경로 부재, API 확장은 CP-CONTRACT-001 재설계·PAYMENT migration",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §1.4(CP-CONTRACT-001:28·39)",
+      "humanAnswer": "가맹점 상세 한 곳에만 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)"
+    },
+    {
+      "id": "Q-SC-9",
+      "status": "PENDING",
+      "question": "감사·승인 기록의 Site·계약 대상 저장값 — 가맹점 코드(Q-MC-4)처럼 새 행의 target_ref를 코드로 바꿀지",
+      "recommended": "저장값은 내부 키 유지(코드가 불변이라 1:1 대응 — 정보 손실 없음), 새 등록 감사 행 detail에 code=<코드> 추가, 화면은 MASTER 라벨 읽기로 기존·새 행 모두 코드 표시(실패 시 '—'). ADMIN migration 없음",
+      "alternative": "새 행 target_ref = 코드(ADMIN V17: 감사 CHECK·TARGET_REF 정규식 분기 추가, 기존 행은 고치지 않고 연결 — Q-MC-9 방식)",
+      "impact": "대안은 ADMIN V17(표 복사 ALTER — 유지보수 창, MERCHANT-CODE-001 L-14와 같음)·Domain 정규식·기록 지점 전수 변경",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "SITE-CONTRACT-CODE-001 명세 rev 0.1 §4.2·§5.3"
+    },
+    {
+      "id": "Q-ADMIN-UI-9",
+      "status": "ANSWERED",
+      "question": "사업자·가맹점 메뉴의 조회·등록 탭 4개 분리가 직관적인가",
+      "recommended": "탭 2개(사업자·가맹점) + 각 목록의 ＋등록 버튼(OPERATOR만), 같은 탭 안 등록 화면",
+      "alternative": "왼쪽 메뉴를 사업자·가맹점 둘로 분리 / 탭 4개 유지",
+      "impact": "navigation.ts 탭·App 화면 전환, 등록 화면 진입·복귀, 관련 화면 시험",
+      "dependentTasks": [
+        "ADMIN-UI-WORKSPACE-001"
+      ],
+      "askedAt": "2026-11-19",
+      "origin": "사용자 Demo 피드백",
+      "humanAnswer": "탭 2개 + 목록의 등록 버튼 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)",
+      "appliedSpec": "D-ADMIN-UI-006"
     }
   ]
 }

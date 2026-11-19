@@ -8,6 +8,7 @@ import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
 import { REJECTION_MESSAGES } from '../components/RegistrationStep'
 import { ActionButton } from '../components/ActionButton'
+import { FormRow, type FieldWidth } from '../components/FormRow'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
@@ -286,20 +287,42 @@ export function BusinessProfileFormScreen({
     const set = (patch: Partial<AddressForm>) => update({ [prefix]: { ...address, ...patch } } as Partial<BusinessForm>)
     return (
       <>
-        <Field label={`${label} 우편번호`} error={err(`${prefix}.postalCode`)}>
-          {(describedBy) => <Input value={address.postalCode} inputMode="numeric" autoComplete="off" onChange={(e) => set({ postalCode: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.postalCode`) || undefined} />}
-        </Field>
-        <Field label={`${label} 기본주소`} error={err(`${prefix}.baseAddress`)} className="sm:col-span-2">
-          {(describedBy) => <Input value={address.baseAddress} autoComplete="off" onChange={(e) => set({ baseAddress: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.baseAddress`) || undefined} />}
-        </Field>
-        <Field label={`${label} 상세주소(선택)`} error={err(`${prefix}.detailAddress`)} className="sm:col-span-3">
-          {(describedBy) => <Input value={address.detailAddress} autoComplete="off" onChange={(e) => set({ detailAddress: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.detailAddress`) || undefined} />}
-        </Field>
+        <Row workspace={workspace} width="xs" label={`${label} 우편번호`} error={err(`${prefix}.postalCode`)}>
+          {(describedBy, id) => <Input id={id} value={address.postalCode} inputMode="numeric" autoComplete="off" onChange={(e) => set({ postalCode: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.postalCode`) || undefined} />}
+        </Row>
+        <Row workspace={workspace} width="full" label={`${label} 기본주소`} error={err(`${prefix}.baseAddress`)} className="sm:col-span-2">
+          {(describedBy, id) => <Input id={id} value={address.baseAddress} autoComplete="off" onChange={(e) => set({ baseAddress: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.baseAddress`) || undefined} />}
+        </Row>
+        <Row workspace={workspace} width="full" label={`${label} 상세주소(선택)`} error={err(`${prefix}.detailAddress`)} className="sm:col-span-3">
+          {(describedBy, id) => <Input id={id} value={address.detailAddress} autoComplete="off" onChange={(e) => set({ detailAddress: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`${prefix}.detailAddress`) || undefined} />}
+        </Row>
       </>
     )
   }
 
-  const categoryRows = (list: 'businessTypes' | 'businessItems', label: string) => (
+  // 사용자 피드백 1(WS8 등록 탭): 업태·종목 한 줄 = 폼 줄(이름 왼쪽 · 입력 md 폭 · 같은 줄 입력 높이의 짧은 '삭제' — 접근 가능한 이름은 '업태 n 삭제' 그대로, 보이는 글자는 이름에 포함),
+  // '추가'는 줄들 아래 입력 열에 맞춘 작은 보조 버튼(h-8). 최대 개수·비활성 조건 그대로. workspace가 아니면 아래 기존 마크업 그대로.
+  const removeButton = (name: string, onClick: () => void) => (
+    <ActionButton workspace type="button" variant="outline" aria-label={name} className="h-9 py-0" onClick={onClick}>삭제</ActionButton>
+  )
+  const categoryRows = (list: 'businessTypes' | 'businessItems', label: string) => workspace ? (
+    <div className="flex flex-col">
+      {form[list].map((name, i) => (
+        <FormRow
+          key={i}
+          label={`${label} ${i + 1}`}
+          width="md"
+          error={err(`${list}[${i}]`)}
+          trailing={removeButton(`${label} ${i + 1} 삭제`, () => update({ [list]: form[list].filter((_, j) => j !== i) } as Partial<BusinessForm>))}
+        >
+          {(describedBy, id) => <Input id={id} value={name} autoComplete="off" onChange={(e) => setRow(list, i, e.target.value)} aria-describedby={describedBy} aria-invalid={!!err(`${list}[${i}]`) || undefined} />}
+        </FormRow>
+      ))}
+      <div className="fieldoffset">
+        <ActionButton workspace type="button" variant="outline" className="h-8 py-0" disabled={form[list].length >= MAX_CATEGORIES_PER_TYPE} onClick={() => update({ [list]: [...form[list], ''] } as Partial<BusinessForm>)}>{`${label} 추가`}</ActionButton>
+      </div>
+    </div>
+  ) : (
     <div className="flex flex-col gap-2">
       {form[list].map((name, i) => (
         <div key={i} className="flex items-end gap-2">
@@ -315,6 +338,24 @@ export function BusinessProfileFormScreen({
     </div>
   )
 
+  // 중복 확인 결과(두 모양 공통 — 문구·role·이름 그대로).
+  const dupResult = (
+    <>
+      {dupCheck?.kind === 'taken' && (
+        <div role="status" aria-label="중복 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
+          <span>{`이미 등록된 사업자: ${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
+          <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>기존 사업자 상세 보기</ActionButton></span>
+        </div>
+      )}
+      {dupCheck?.kind === 'free' && (
+        <div role="status" aria-label="중복 확인 결과" className="rounded-md border px-3 py-2 text-sm">
+          등록 가능 — 확인한 시점 기준입니다. 저장 시 다시 확인합니다(다른 운영자가 먼저 저장하면 중복 안내).
+        </div>
+      )}
+      {dupCheck?.kind === 'error' && <WarningNote>{dupCheck.message}</WarningNote>}
+    </>
+  )
+
   const description = detail ? `${detail.business.businessName} · ${detail.business.registrationNumberMasked} (${REGISTRATION_STATUS_LABELS[detail.business.registrationStatus] ?? detail.business.registrationStatus})` : '사업자 기본정보를 입력합니다. 임시저장 뒤 이어서 입력할 수 있습니다.'
   const requirements = (
     <p className={workspace ? 'subtle' : 'text-xs text-muted-foreground'}>
@@ -325,14 +366,14 @@ export function BusinessProfileFormScreen({
   const reasonFields = (
     <>
       {showReason && (
-        <Field label="변경 사유" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
-          {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
-        </Field>
+        <Row workspace={workspace} width="full" label="변경 사유" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
+          {(describedBy, id) => <Textarea id={id} value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
+        </Row>
       )}
       {showOptionalReason && (
-        <Field label="변경 사유(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
-          {(describedBy) => <Textarea value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
-        </Field>
+        <Row workspace={workspace} width="full" label="변경 사유(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
+          {(describedBy, id) => <Textarea id={id} value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
+        </Row>
       )}
     </>
   )
@@ -342,10 +383,13 @@ export function BusinessProfileFormScreen({
       <form noValidate onSubmit={(e) => e.preventDefault()} className={workspace ? undefined : 'flex flex-col gap-4'}>
         {/* WS8: 시안 구성에서는 섹션(section > .cardtop + .cardbody)이 위아래 여백을 가지므로 fieldset 간격을 두지 않는다. */}
         <fieldset disabled={locked} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'm-0 flex min-w-0 flex-col gap-4 border-0 p-0'}>
+          {/* 사용자 지시(2026-11-19): 섹션 카드는 사업자 조회 상세(DetailInfo)처럼 lg에서 2열 grid — 카드 좌우 23px(.cardbody). workspace가 아니면 감싸개 없음. */}
+          <Wrap workspace={workspace}>
           <Section workspace={workspace} label="사업자 기본" no={1}>
-            <div role="radiogroup" aria-label="사업체 구분" aria-describedby={err('businessType') ? typeErrorId : undefined} className="flex flex-col gap-1.5 text-sm sm:col-span-3">
-              <span aria-hidden="true" className="font-medium">사업체 구분</span>
-              <span className="flex gap-4">
+            {/* 사용자 결정(2026-11-19 폼 줄): workspace면 같은 줄 모양(.fieldrow — 이름 왼쪽 span aria-hidden · 선택지 오른쪽 · 오류는 입력 열 아래). 이름·aria는 그대로. */}
+            <div role="radiogroup" aria-label="사업체 구분" aria-describedby={err('businessType') ? typeErrorId : undefined} className={workspace ? 'fieldrow border-b py-2 text-sm last:border-b-0' : 'flex flex-col gap-1.5 text-sm sm:col-span-3'}>
+              <span aria-hidden="true" className={workspace ? 'text-xs text-muted-foreground' : 'font-medium'}>사업체 구분</span>
+              <span className={workspace ? 'flex flex-wrap gap-4' : 'flex gap-4'}>
                 {(['INDIVIDUAL', 'CORPORATION'] as const).map((type) => (
                   <label key={type} className="flex items-center gap-1.5">
                     <input type="radio" name={`${primaryGroup}-type`} value={type} checked={form.businessType === type} onChange={() => update({ businessType: type })} />
@@ -353,7 +397,7 @@ export function BusinessProfileFormScreen({
                   </label>
                 ))}
               </span>
-              {err('businessType') && <p id={typeErrorId} className="text-xs text-destructive">{err('businessType')}</p>}
+              {err('businessType') && <p id={typeErrorId} className={workspace ? 'fieldnote text-xs text-destructive' : 'text-xs text-destructive'}>{err('businessType')}</p>}
             </div>
             {detail ? (
               <div role="group" aria-label="사업자등록번호" className="flex flex-col gap-1.5 text-sm">
@@ -361,53 +405,59 @@ export function BusinessProfileFormScreen({
                 <span className="flex min-h-9 items-center rounded-md border border-dashed px-3 font-mono">{detail.business.registrationNumberMasked}</span>
                 <p className="text-xs text-muted-foreground">사업자등록번호 변경은 정책 미정으로 지원하지 않습니다.</p>
               </div>
+            ) : workspace ? (
+              // 사용자 피드백 1(WS8 등록 탭): 폼 줄 — '중복 확인'은 입력 바로 오른쪽(입력 높이 h-9, 좁으면 줄바꿈), 도움말·형식 오류(aria-describedby)는 입력 열 아래, 중복 확인 결과는 그 아래 입력 열.
+              <div className="flex min-w-0 flex-col">
+                <FormRow
+                  label="사업자등록번호"
+                  width="sm"
+                  error={numberError}
+                  hint={DRAFT_HINT}
+                  trailing={
+                    <>
+                      <ActionButton workspace type="button" variant="outline" className="h-9 py-0" onClick={checkDuplicate} aria-busy={dupBusy}>중복 확인</ActionButton>
+                      <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>
+                    </>
+                  }
+                >
+                  {(describedBy, id) => <RegistrationNumberInput id={id} value={number} onValueChange={changeNumber} aria-describedby={describedBy} aria-invalid={!!numberError || undefined} />}
+                </FormRow>
+                {dupCheck && <div className="fieldoffset">{dupResult}</div>}
+              </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <Field label="사업자등록번호" error={numberError} hint={DRAFT_HINT}>
                   {(describedBy) => <RegistrationNumberInput value={number} onValueChange={changeNumber} aria-describedby={describedBy} aria-invalid={!!numberError || undefined} />}
                 </Field>
-                <div className={workspace ? 'flex items-center gap-2' : undefined}>
-                  <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={checkDuplicate} aria-busy={dupBusy}>
-                    {!workspace && <Spinner active={dupBusy} />}
+                <div>
+                  <ActionButton workspace={false} type="button" variant="outline" size="sm" onClick={checkDuplicate} aria-busy={dupBusy}>
+                    <Spinner active={dupBusy} />
                     중복 확인
                   </ActionButton>
-                  {/* WS8: 스피너 대신 보이는 진행 글자(버튼 이름 그대로 — 결제 보정 취소 reviewFix1 MINOR-1 선례). */}
-                  {workspace && <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>}
                 </div>
-                {dupCheck?.kind === 'taken' && (
-                  <div role="status" aria-label="중복 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
-                    <span>{`이미 등록된 사업자: ${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
-                    <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>기존 사업자 상세 보기</ActionButton></span>
-                  </div>
-                )}
-                {dupCheck?.kind === 'free' && (
-                  <div role="status" aria-label="중복 확인 결과" className="rounded-md border px-3 py-2 text-sm">
-                    등록 가능 — 확인한 시점 기준입니다. 저장 시 다시 확인합니다(다른 운영자가 먼저 저장하면 중복 안내).
-                  </div>
-                )}
-                {dupCheck?.kind === 'error' && <WarningNote>{dupCheck.message}</WarningNote>}
+                {dupResult}
               </div>
             )}
-            <Field label="상호" error={err('displayName')}>
-              {(describedBy) => <Input value={form.displayName} autoComplete="off" onChange={(e) => update({ displayName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('displayName') || undefined} />}
-            </Field>
+            <Row workspace={workspace} width="lg" label="상호" error={err('displayName')}>
+              {(describedBy, id) => <Input id={id} value={form.displayName} autoComplete="off" onChange={(e) => update({ displayName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('displayName') || undefined} />}
+            </Row>
             {form.businessType === 'CORPORATION' && (
-              <Field label="법인등록번호" error={err('registration.corporateRegistrationNumber')}>
-                {(describedBy) => (
-                  <DigitsInput value={form.corporateRegistrationNumber} onValueChange={(v) => update({ corporateRegistrationNumber: v })} format={formatCorporateNumber} maxDigits={13} placeholder="000000-0000000"
+              <Row workspace={workspace} width="sm" label="법인등록번호" error={err('registration.corporateRegistrationNumber')}>
+                {(describedBy, id) => (
+                  <DigitsInput id={id} value={form.corporateRegistrationNumber} onValueChange={(v) => update({ corporateRegistrationNumber: v })} format={formatCorporateNumber} maxDigits={13} placeholder="000000-0000000"
                     aria-describedby={describedBy} aria-invalid={!!err('registration.corporateRegistrationNumber') || undefined} />
                 )}
-              </Field>
+              </Row>
             )}
-            <Field label="개업일" error={err('registration.openingDate')}>
-              {(describedBy) => <Input type="date" value={form.openingDate} onChange={(e) => update({ openingDate: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.openingDate') || undefined} />}
-            </Field>
-            <Field label="국가" hint="대한민국(KR)만 — 국외·비영리 확장은 정책 미정(TBD-10)">
-              {(describedBy) => <Input value="KR" readOnly aria-describedby={describedBy} />}
-            </Field>
-            <Field label="영문 상호(선택)" error={err('registration.englishName')}>
-              {(describedBy) => <Input value={form.englishName} autoComplete="off" onChange={(e) => update({ englishName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.englishName') || undefined} />}
-            </Field>
+            <Row workspace={workspace} width="sm" label="개업일" error={err('registration.openingDate')}>
+              {(describedBy, id) => <Input id={id} type="date" value={form.openingDate} onChange={(e) => update({ openingDate: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.openingDate') || undefined} />}
+            </Row>
+            <Row workspace={workspace} width="xs" label="국가" hint="대한민국(KR)만 — 국외·비영리 확장은 정책 미정(TBD-10)">
+              {(describedBy, id) => <Input id={id} value="KR" readOnly aria-describedby={describedBy} />}
+            </Row>
+            <Row workspace={workspace} width="lg" label="영문 상호(선택)" error={err('registration.englishName')}>
+              {(describedBy, id) => <Input id={id} value={form.englishName} autoComplete="off" onChange={(e) => update({ englishName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.englishName') || undefined} />}
+            </Row>
           </Section>
 
           <Section workspace={workspace} label="사업 내용" no={2} error={err('categories')}>
@@ -417,7 +467,7 @@ export function BusinessProfileFormScreen({
 
           <Section workspace={workspace} label="주소" no={3} error={err('addresses')}>
             {addressFields('registeredAddress', '사업장')}
-            <label className="flex items-center gap-2 text-sm sm:col-span-3">
+            <label className={workspace ? 'fieldoffset flex items-center gap-2 text-sm' : 'flex items-center gap-2 text-sm sm:col-span-3'}>
               <input type="checkbox" checked={form.actualDifferent} onChange={(e) => update({ actualDifferent: e.target.checked })} />
               실사업장이 사업장과 다름
             </label>
@@ -425,6 +475,34 @@ export function BusinessProfileFormScreen({
           </Section>
 
           <Section workspace={workspace} label="대표자" no={4} error={err('representatives')}>
+            {workspace ? (
+              // 사용자 결정(2026-11-19 폼 줄): 대표자 n = 이름 줄(md + 짧은 '삭제' — 이름 '대표자 n 삭제' 그대로) + 유형 줄(sm). 안내·추가는 입력 열에.
+              <div className="flex flex-col">
+                {form.representatives.map((r, i) => (
+                  <div key={i} className="flex flex-col">
+                    <FormRow label={`대표자 ${i + 1} 이름`} width="md" error={err(`representatives[${i}].name`)}
+                      trailing={removeButton(`대표자 ${i + 1} 삭제`, () => update({ representatives: form.representatives.filter((_, j) => j !== i) }))}>
+                      {(describedBy, id) => (
+                        <Input id={id} value={r.name} autoComplete="off" onChange={(e) => update({ representatives: form.representatives.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
+                          aria-describedby={describedBy} aria-invalid={!!err(`representatives[${i}].name`) || undefined} />
+                      )}
+                    </FormRow>
+                    <FormRow label={`대표자 ${i + 1} 유형`} width="sm" error={err(`representatives[${i}].type`)}>
+                      {(describedBy, id) => (
+                        <NativeSelect id={id} aria-label={`대표자 ${i + 1} 유형`} value={r.type} onChange={(e) => update({ representatives: form.representatives.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)) })}
+                          aria-describedby={describedBy} aria-invalid={!!err(`representatives[${i}].type`) || undefined}>
+                          {Object.entries(REPRESENTATIVE_TYPE_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                        </NativeSelect>
+                      )}
+                    </FormRow>
+                  </div>
+                ))}
+                <p className="fieldoffset m-0 text-xs text-muted-foreground">단독 대표는 1명일 때만, 2명 이상이면 공동·각자를 고르세요.</p>
+                <div className="fieldoffset">
+                  <ActionButton workspace type="button" variant="outline" className="h-8 py-0" disabled={form.representatives.length >= MAX_REPRESENTATIVES} onClick={() => update({ representatives: [...form.representatives, { name: '', type: 'JOINT' }] })}>대표자 추가</ActionButton>
+                </div>
+              </div>
+            ) : (
             <div className="flex flex-col gap-2 sm:col-span-3">
               {form.representatives.map((r, i) => (
                 <div key={i} className="flex flex-wrap items-end gap-2">
@@ -450,20 +528,57 @@ export function BusinessProfileFormScreen({
                 <ActionButton workspace={workspace} type="button" variant="outline" size="sm" disabled={form.representatives.length >= MAX_REPRESENTATIVES} onClick={() => update({ representatives: [...form.representatives, { name: '', type: 'JOINT' }] })}>대표자 추가</ActionButton>
               </div>
             </div>
+            )}
           </Section>
 
           <Section workspace={workspace} label="사업체 연락" no={5}>
-            <Field label="사업체 전화" error={err('registration.phoneNumber')} hint="등록 완료 시 필수">
-              {(describedBy) => (
-                <DigitsInput value={form.phoneNumber} onValueChange={(v) => update({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err('registration.phoneNumber') || undefined} />
+            <Row workspace={workspace} width="sm" label="사업체 전화" error={err('registration.phoneNumber')} hint="등록 완료 시 필수">
+              {(describedBy, id) => (
+                <DigitsInput id={id} value={form.phoneNumber} onValueChange={(v) => update({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err('registration.phoneNumber') || undefined} />
               )}
-            </Field>
-            <Field label="사업체 이메일(선택)" error={err('registration.email')}>
-              {(describedBy) => <Input value={form.email} autoComplete="off" onChange={(e) => update({ email: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.email') || undefined} />}
-            </Field>
+            </Row>
+            <Row workspace={workspace} width="full" label="사업체 이메일(선택)" error={err('registration.email')}>
+              {(describedBy, id) => <Input id={id} value={form.email} autoComplete="off" onChange={(e) => update({ email: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.email') || undefined} />}
+            </Row>
           </Section>
 
           <Section workspace={workspace} label="등록 담당자" no={6} error={err('contacts')}>
+            {workspace ? (
+              // 사용자 결정(2026-11-19 폼 줄): 담당자 n = 이름(md)·이메일(full)·전화(sm) 줄 + 입력 열의 기본 담당자·짧은 '삭제'(이름 그대로). 담당자 사이는 간격으로 구분
+              // (테두리 상자는 이름 열 정렬을 어긋나게 해 쓰지 않음 — 줄 사이 선으로 구분).
+              <div className="flex flex-col">
+                {form.contacts.map((c, i) => {
+                  const setContact = (patch: Partial<typeof c>) => update({ contacts: form.contacts.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
+                  return (
+                    <div key={i} className="flex flex-col">
+                      <FormRow label={`담당자 ${i + 1} 이름`} width="md" error={err(`contacts[${i}].name`)}>
+                        {(describedBy, id) => <Input id={id} value={c.name} autoComplete="off" onChange={(e) => setContact({ name: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].name`) || undefined} />}
+                      </FormRow>
+                      <FormRow label={`담당자 ${i + 1} 이메일`} width="full" error={err(`contacts[${i}].email`)}>
+                        {(describedBy, id) => <Input id={id} value={c.email} autoComplete="off" onChange={(e) => setContact({ email: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].email`) || undefined} />}
+                      </FormRow>
+                      <FormRow label={`담당자 ${i + 1} 전화`} width="sm" error={err(`contacts[${i}].phoneNumber`)}>
+                        {(describedBy, id) => (
+                          <DigitsInput id={id} value={c.phoneNumber} onValueChange={(v) => setContact({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].phoneNumber`) || undefined} />
+                        )}
+                      </FormRow>
+                      <span className="fieldoffset flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-sm">
+                          <input type="radio" name={`${primaryGroup}-primary`} aria-label={`담당자 ${i + 1} 기본 담당자`} checked={c.primary}
+                            onChange={() => update({ contacts: form.contacts.map((x, j) => ({ ...x, primary: j === i })) })} />
+                          기본 담당자
+                        </label>
+                        {removeButton(`담당자 ${i + 1} 삭제`, () => update({ contacts: form.contacts.filter((_, j) => j !== i) }))}
+                      </span>
+                    </div>
+                  )
+                })}
+                <div className="fieldoffset">
+                  <ActionButton workspace type="button" variant="outline" className="h-8 py-0" disabled={form.contacts.length >= MAX_CONTACTS}
+                    onClick={() => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] })}>담당자 추가</ActionButton>
+                </div>
+              </div>
+            ) : (
             <div className="flex flex-col gap-3 sm:col-span-3">
               {form.contacts.map((c, i) => {
                 const setContact = (patch: Partial<typeof c>) => update({ contacts: form.contacts.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
@@ -496,7 +611,9 @@ export function BusinessProfileFormScreen({
                   onClick={() => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] })}>담당자 추가</ActionButton>
               </div>
             </div>
+            )}
           </Section>
+          </Wrap>
 
           {workspace ? (showReason || showOptionalReason) && <div className="cardbody">{reasonFields}</div> : reasonFields}
         </fieldset>
@@ -603,20 +720,41 @@ export function BusinessProfileFormScreen({
   )
 }
 
+/** 섹션 카드 grid 감싸개(workspace만 — 사업자 조회 상세 DetailInfo의 `grid gap-4 lg:grid-cols-2`와 같은 배치, flush 탭 패널 안이라 .cardbody 좌우 여백). */
+function Wrap({ workspace, children }: { workspace: boolean; children: ReactNode }) {
+  return workspace ? <div className="cardbody grid gap-4 lg:grid-cols-2">{children}</div> : <>{children}</>
+}
+
+/**
+ * 두 모양 칸(사용자 결정 2026-11-19 폼 줄 — 사업자 등록 탭이 처음 적용): [workspace]면 [FormRow](이름 왼쪽 · 입력 오른쪽 · 입력 폭 [width] — DB 열 길이 단계),
+ * 아니면 기존 [Field] 그대로(사업자 조회 상세 안 수정 폼 — [className]은 이쪽에서만 쓴다). children 둘째 인자(입력 id)는 FormRow에서만 오고 Field에서는 undefined.
+ */
+function Row({ workspace, width, label, hint, error, className, children }: {
+  workspace: boolean
+  width: FieldWidth
+  label: string
+  hint?: ReactNode
+  error?: ReactNode
+  className?: string
+  children: (describedBy: string | undefined, id?: string) => ReactNode
+}) {
+  if (workspace) return <FormRow label={label} hint={hint} error={error} width={width}>{children}</FormRow>
+  return <Field label={label} hint={hint} error={error} className={className}>{children}</Field>
+}
+
 /**
  * 섹션 카드(번호 + 이름 — 접근 이름은 이름만). [error]는 목록 전체 오류(예: categories TOO_MANY).
- * [workspace](WS8): section > 시안 카드 제목 줄(.cardtop h3 `n. 이름`) + 본문(.cardbody — 칸 배치 grid는 기존 utility 그대로).
+ * [workspace]: 사업자 조회 상세 InfoCard와 같은 번호 섹션 카드(h3 `n. 이름` text-sm font-semibold) + 폼 줄([FormRow] — 이름 140px 왼쪽·입력 오른쪽·줄 사이 선). 사용자 지시 2026-11-19.
  */
 function Section({ label, no, error, workspace, children }: { label: string; no: number; error?: string; workspace: boolean; children: ReactNode }) {
   if (workspace) {
+    // 사용자 지시(2026-11-19): 사업자 조회 상세 [InfoCard](DetailCard.tsx)와 같은 번호 섹션 카드(같은 class·제목 글자) — 상세와 같은 문서를 편집 모드로. region 이름(section aria-label) 그대로.
     return (
-      <section aria-label={label}>
-        <div className="cardtop">
-          <h3>{`${no}. ${label}`}</h3>
-        </div>
-        <div className="cardbody grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section aria-label={label} className="flex flex-col gap-1 rounded-xl border bg-card px-4 py-3">
+        <h3 className="text-sm font-semibold">{`${no}. ${label}`}</h3>
+        <div className="flex flex-col">
           {children}
-          {error && <p className="text-xs text-destructive sm:col-span-3">{error}</p>}
+          {error && <p className="py-2 text-xs text-destructive">{error}</p>}
         </div>
       </section>
     )
