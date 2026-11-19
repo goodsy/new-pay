@@ -36,10 +36,15 @@ data class MerchantSearchCriteria(
     val limit: Int? = null,
     /** MERCHANT-CODE-001 MC-2 코드 검색(§3.8 — 정확 일치, 현재·은퇴 코드). 단일 기준: `limit`만 함께 올 수 있다(형식·조합 검사는 Use Case). 공개값이라 toString에 그대로 둔다. */
     val merchantCode: String? = null,
+    /**
+     * MERCHANT-NAME-SEARCH-001 MNS-2 가맹점명 앞부분(§3 — MASTER `DisplayName` 규칙, 정규화 없음). 다른 필터와 AND, `merchantCode`와 함께면 400(형식·조합 검사는 Use Case).
+     * toString에 나오지 않는다(`***` — 개인사업자 상호에 사람 이름이 있을 수 있다, BUSINESS-PROFILE-001 L-3 취지·[BusinessSearchCriteria]와 같다).
+     */
+    val displayNamePrefix: String? = null,
 ) {
     override fun toString(): String =
         "MerchantSearchCriteria(merchantId=$merchantId, businessId=$businessId, lifecycle=$lifecycle, registrationNumber=${if (registrationNumber == null) "null" else "****"}, after=$after, limit=$limit, " +
-            "merchantCode=$merchantCode)"
+            "merchantCode=$merchantCode, displayNamePrefix=${if (displayNamePrefix == null) "null" else "***"})"
 }
 
 sealed interface MerchantLookupResult {

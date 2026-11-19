@@ -136,6 +136,8 @@ class HttpMasterOpsGateway(private val settings: MasterOpsSettings, private val 
         criteria.registrationNumber?.let { body["registrationNumber"] = it }
         criteria.after?.let { body["after"] = it }
         criteria.merchantCode?.let { body["merchantCode"] = it }
+        // MERCHANT-NAME-SEARCH-001 MNS-2: 원문 그대로(형식 검사한 값 — trim·LIKE 이스케이프는 하지 않는다, MASTER가 글자 그대로 앞부분 일치). 응답 모양은 목록(DIRECTORY).
+        criteria.displayNamePrefix?.let { body["displayNamePrefix"] = it }
         criteria.limit?.let { body["limit"] = it }
         // MERCHANT-CODE-001 §3.8: 응답 모양은 **보낸 기준**으로 고른다(응답을 보고 고르지 않는다) — 코드 검색만 `matchedRetiredCode`가 있는 DIRECTORY_BY_CODE.
         val shape = if (criteria.merchantCode != null) MasterResponseShape.DIRECTORY_BY_CODE else MasterResponseShape.DIRECTORY

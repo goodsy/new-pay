@@ -1,7 +1,8 @@
-# MERCHANT-NAME-SEARCH-001 가맹점 조회 — 가맹점명 조건 명세 (rev 0.2)
+# MERCHANT-NAME-SEARCH-001 가맹점 조회 — 가맹점명 조건 명세 (rev 0.3)
 
 작성 2026-11-20 KST, branch `main`(기준 commit `514685f`). Implementer 작성 — 자기 완료 판정 아님(Verifier·Reviewer 별도).
 rev 0.2: MNS-1 리뷰(REVIEW_PASS) MINOR-1~3·NIT-1·2·3·5 반영 — L-3 운영 전 결정 항목, V17 운영 적용 절차(§5.1·L-4), §7 Recoverability, jOOQ 문구, 시험 추가.
+rev 0.3 (2026-11-20, 기준 commit `a56ac0a`): MNS-2 ADMIN 백엔드 구현 기록(§11) — 리뷰·게이트 전.
 
 ## 1. 목적·사용자 요청
 
@@ -89,7 +90,7 @@ Kafka/Redis: 도입하지 않는다(필요 없음).
 | 배치 | 범위 | 상태 |
 |---|---|---|
 | MNS-1 | MASTER: Filter·parser·jOOQ 조건·`MasterSqlText.likePrefix` 공유(사업자 Reader도 사용)·V17 색인·시험 | 구현(리뷰·게이트 전) |
-| MNS-2 | ADMIN 백엔드: 화면 API 본문 전달·검증(MASTER 먼저 배포 — 모르는 필드 400 방지 순서) | 대기 |
+| MNS-2 | ADMIN 백엔드: 화면 API 본문 전달·검증(MASTER 먼저 배포 — 모르는 필드 400 방지 순서) | 구현(리뷰·게이트 전, §11) |
 | MNS-3 | 화면: 가맹점 조회 조건에 가맹점명 입력·시험 | 대기 |
 
 ## 10. 시험 목록(MNS-1)
@@ -101,3 +102,37 @@ Kafka/Redis: 도입하지 않는다(필요 없음).
   (display_name, merchant_id)·EXPLAIN `possible_keys` 포함(계획 출력 기록).
 - `MerchantOpsApiSpec`: 이름 검색 200(목록 모양·`matchedRetiredCode` 없음)·대소문자 다른 접두 0건 동일 모양, 형식 위반 이름·이름+코드 → 400 `REQUEST_MALFORMED`(입력 비반사), 검색한 이름이 수락·거절 어느 쪽에서도 로그에 없음(CapturedLogs canary).
 - 회귀: `BusinessReaderSpec`(공유 `likePrefix` — C-5 이스케이프), migration 목록 기대값 2곳(`MasterApiMainMigrationsBootSpec`·`MasterApiContextSmokeSpec` — V17).
+
+## 11. MNS-2 구현 기록(ADMIN 백엔드 `apps/internal-admin` — 리뷰·게이트 전, Implementer 자기 완료 판정 아님)
+
+화면 API `POST /api/merchant-searches` 본문에 선택 필드 `displayNamePrefix`를 받아 MASTER로 그대로 전달한다. 컨트롤러·`MasterOpsGateway` 인터페이스 시그니처, 응답 모양·오류 코드는 바뀌지 않는다.
+
+| 위치 | 변경 |
+|---|---|
+| `adapter/web/MerchantSearchBodyParser` | 알려진 문자열 필드에 `displayNamePrefix` 추가(JSON 문자열만 — 숫자·null·배열·객체는 `Malformed`, 감사 없음). 등록번호 시도 스캐너 무변경 |
+| `application/provided/MerchantSearchCriteria` | `displayNamePrefix: String? = null`(마지막 인자). toString은 `***`/`null`만(BusinessSearchCriteria와 같다 — 상호에 사람 이름 가능, L-3 취지) |
+| `application/MerchantLookupService` | `wellFormed`: 이름이 있으면 `RegistrationInputRules.displayName`으로 MASTER 호출 전 검사. `codeSearchWellFormed`: `displayNamePrefix == null` 추가(코드 + 이름 → 400) |
+| `adapter/integration/HttpMasterOpsGateway.search` | 본문 고정 순서 `merchantId, businessId, lifecycle, registrationNumber, after, merchantCode, displayNamePrefix, limit`(기존 본문 바이트 불변), 원문 그대로(trim·LIKE 이스케이프 없음). 응답 모양 `DIRECTORY` |
+
+가역 구현 결정(저장소 관례 — 새 업무 정책 아님):
+
+- **형식 규칙 출처**: `RegistrationInputRules.displayName`(가맹점 등록의 MASTER `DisplayName` 복제, MERCHANT-OPS-002 C-10)을 쓴다. `BusinessProfileInputRules.displayNameWellFormed`와
+  판정 집합이 같음을 확인했다(빈 값·앞뒤 `' '`·`isISOControl`·짝 없는 서로게이트·101 code point 이상 거부 — 둘 다 MASTER `BusinessTextRule.errorOf(raw, 100)` = `DisplayName.errorOf`의 복제).
+  가맹점명이므로 가맹점 등록 규칙 쪽을 고른다.
+- **감사·속도**: 이름만(또는 다른 필터와 AND) 검색은 목록 검색 — 감사 없음(D-MOPS-002), 일반 조회 창(`lookupPerMinute`). 이름 형식 위반은 감사 없는 `InvalidInput`.
+  등록번호와 함께면 기존 등록번호 경로 그대로 — 이름 위반도 `MERCHANT_BRN_SEARCHED|INVALID_INPUT|brn=123*******`(마스킹 번호만, 이름은 감사 행·로그에 없다).
+- **오류 응답**: 화면 API 형식 위반은 기존과 같이 400 `{"error":"INVALID_INPUT"}`(입력 비반사).
+
+시험(RED 먼저 — `~/gate-logs/mns-2/`):
+
+- `MerchantNameSearchSpec`(새, 9): parser 텍스트 통과(`%_!`·앞뒤 공백·이모지 그대로)·숫자/null/배열/객체 Malformed(false)·등록번호와 함께면 Malformed(true) 유지, 정상 이름(최대 100 code point 경계·다른 필터 AND) MASTER 그대로·감사 0,
+  형식 위반(빈 값·앞뒤 공백·줄바꿈·탭·NUL·DEL·101 code point·짝 없는 서로게이트) → InvalidInput·MASTER 미호출·감사 0, 코드 + 이름 → InvalidInput·MASTER 미호출·감사 0,
+  이름 + 등록번호 → OK 감사(마스킹)·이름 위반은 INVALID_INPUT 감사, 이름 검색 속도 창(감사 없음), toString `***`, 로그 canary(수락·거절·등록번호 경로·실제 HTTP gateway — 대조군 operation 줄 수 단언).
+- `MasterOpsGatewaySpec`(+1): 실제 HTTP 대역 — 본문 `{"lifecycle":"ACTIVE","displayNamePrefix":"%_!홍 길동😀","limit":3}` 바이트 그대로, 서명 검증, query 없음, DIRECTORY 응답 Found.
+- `MerchantLookupHttpSpec`(+1): 실제 로그인 세션·MySQL 감사 표 — 이름 검색 200(no-store, 감사 0, MASTER 본문 원문), 형식 위반·숫자·null·이름 + 코드 → 400 `INVALID_INPUT`·MASTER 미호출, 응답·로그에 이름 없음.
+- 기존 단언 변경 없음.
+
+8대 원칙(§7과 같다 — 읽기 전용): 금융 사실·상태 변경 없음, ADMIN DB 쓰기 없음(이름 검색은 감사도 없다), MASTER 호출은 DB TX 밖(gateway가 TX 안 호출 거부 — 기존), 같은 검색 반복은 같은 결과,
+동시성은 기존 MASTER 조회 permit·속도 창, 실패는 기존 503 분류, 로그·감사에 이름 원문 없음, 관측은 기존 `operation=merchant-search`·`master-ops-search` 분류 줄.
+JPA: 이번 배치는 JPA Entity·Repository를 바꾸지 않는다(ADMIN은 MASTER HTTP 조회만 — 쓰기 모델 무변경). Kafka/Redis: 도입하지 않는다.
+배포 순서: MASTER(MNS-1) 먼저 — ADMIN만 먼저 나가면 MASTER가 모르는 필드로 400을 돌려 ADMIN은 `Unavailable("HTTP_400")`(이름 검색만 실패, 다른 검색 영향 없음).

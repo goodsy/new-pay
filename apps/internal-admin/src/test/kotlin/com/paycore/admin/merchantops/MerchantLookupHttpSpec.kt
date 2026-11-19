@@ -288,4 +288,42 @@ class MerchantLookupHttpSpec(
             client.perform(post("/api/merchant-searches").contentType(MediaType.APPLICATION_JSON).content("{}"), xsrf = false).status shouldBe 403
         }
     }
+
+    Given("MERCHANT-NAME-SEARCH-001 MNS-2 a name search through the screen API") {
+        Then("MNS-2 a name search is 200 without audit and MASTER gets the name verbatim; format violations, a non-string name and name+code are 400 INVALID_INPUT before MASTER; logs never carry the name") {
+            val account = withRole(AdminRole.VIEWER)
+            val client = loggedIn(account)
+            val name = "김캐너리상회"
+            StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(mer, biz, "778*******")))
+            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).size
+            val responses = mutableListOf<String>()
+            val logs = captureLogs {
+                search(client, """{"displayNamePrefix":"$name","lifecycle":"ACTIVE"}""").let {
+                    it.status shouldBe 200
+                    it.getHeader("Cache-Control")!! shouldContain "no-store"
+                    it.contentAsString shouldContain mer
+                }
+                listOf(
+                    """{"displayNamePrefix":" $name"}""", """{"displayNamePrefix":"$name "}""", """{"displayNamePrefix":""}""", """{"displayNamePrefix":"${"가".repeat(101)}"}""",
+                    """{"displayNamePrefix":"$name\n"}""", """{"displayNamePrefix":12345}""", """{"displayNamePrefix":null}""",
+                    """{"displayNamePrefix":"$name","merchantCode":"shopabcd12"}""",
+                ).forEach { body ->
+                    val res = search(client, body)
+                    withClue(body) {
+                        res.status shouldBe 400
+                        res.contentAsString shouldBe """{"error":"INVALID_INPUT"}"""
+                    }
+                    responses += res.contentAsString
+                }
+            }
+            val sent = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).drop(before)
+            sent.size shouldBe 1
+            String(sent.single().body, Charsets.UTF_8) shouldBe """{"lifecycle":"ACTIVE","displayNamePrefix":"$name"}"""
+            sent.single().signatureValid shouldBe true
+            audits(account.account.id.value).shouldBeEmpty()
+            responses.filter { name in it }.shouldBeEmpty()
+            logs.count { "operation=master-ops-search" in it } shouldBe 1
+            logs.filter { name in it }.shouldBeEmpty()
+        }
+    }
 })

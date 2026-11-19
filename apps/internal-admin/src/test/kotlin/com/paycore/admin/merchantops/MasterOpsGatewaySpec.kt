@@ -446,4 +446,19 @@ class MasterOpsGatewaySpec : BehaviorSpec({
             shouldThrow<IllegalStateException> { MasterOpsConfiguration.startupGuard("/admin", "DEMO", s, null, null) }
         }
     }
+
+    Given("MERCHANT-NAME-SEARCH-001 MNS-2 name search body") {
+        Then("MNS-2 displayNamePrefix goes into the signed POST body verbatim (no trim, %_! not escaped, UTF-8 as is) in fixed order; the reply is read as the list shape (DIRECTORY)") {
+            val id = merchantId()
+            StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(id, "biz_" + id.removePrefix("mer_"))))
+            val name = "%_!홍 길동😀"
+            val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).size
+            val found = gateway().search(MerchantSearchCriteria(lifecycle = "ACTIVE", limit = 3, displayNamePrefix = name)).shouldBeInstanceOf<MasterCallResult.Found>()
+            ((found.document["items"] as List<*>).single() as Map<*, *>)["merchantId"] shouldBe id
+            val req = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).drop(before).single()
+            listOf(req.method, req.query, req.signatureValid) shouldBe listOf("POST", null, true)
+            String(req.body, Charsets.UTF_8) shouldBe """{"lifecycle":"ACTIVE","displayNamePrefix":"$name","limit":3}"""
+            req.path shouldNotContain "displayNamePrefix"
+        }
+    }
 })

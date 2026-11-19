@@ -31,7 +31,10 @@ import java.util.concurrent.ConcurrentHashMap
  * - 상세(§5.1): MASTER가 답하면(FOUND·NOT_FOUND) `MERCHANT_VIEWED` 감사 — 대상(MERCHANT-CODE-001 §5.6.4 C-32): FOUND는 표기 targetRef = 응답 merchantCode(현재 코드),
  *   NOT_FOUND는 코드가 없으므로 mer_; 내부 키 targetMerchantId = merchantId(mer_)는 둘 다. 목록(등록번호 없음)·이력은 감사하지 않는다(D-MOPS-002).
  * - 감사 쓰기 실패 → [MerchantLookupResult.AuditUnavailable]이고 **결과를 돌려주지 않는다**(감사 실패 = 행위 실패).
- * 로그에는 연산·결과 분류만(등록번호·입력 값 없음).
+ * - 가맹점명 앞부분(MERCHANT-NAME-SEARCH-001 MNS-2): MASTER `DisplayName` 규칙([RegistrationInputRules.displayName] — 1~100 code point, 앞뒤 공백·제어문자·짝 없는
+ *   서로게이트 금지, 정규화 없음)으로 MASTER 호출 전에 검사한다. 목록 검색이라 감사 없음·일반 속도 창, 등록번호와 함께면 등록번호 경로(이름 위반도 `INVALID_INPUT` 감사 — 이름은 감사에 없다),
+ *   코드 검색과 함께면 400.
+ * 로그에는 연산·결과 분류만(등록번호·가맹점명·입력 값 없음).
  */
 @Service
 class MerchantLookupService(
@@ -136,14 +139,16 @@ class MerchantLookupService(
         (c.merchantId == null || MERCHANT_ID.matches(c.merchantId)) && (c.businessId == null || BUSINESS_ID.matches(c.businessId)) &&
             (c.lifecycle == null || c.lifecycle in LIFECYCLES) && (c.after == null || MERCHANT_ID.matches(c.after)) &&
             (c.limit == null || c.limit in 1..MAX_LIMIT) && (c.registrationNumber == null || REGISTRATION_NUMBER.matches(c.registrationNumber)) &&
-            (c.merchantCode == null || codeSearchWellFormed(c))
+            (c.merchantCode == null || codeSearchWellFormed(c)) && (c.displayNamePrefix == null || RegistrationInputRules.displayName(c.displayNamePrefix))
 
     /**
      * MERCHANT-CODE-001 MC-2(§3.8): 코드 검색은 §3.1 형식(정규화 없음)이고 **단일 기준** — MASTER `MerchantSearchRequestParser`와 같이 `limit`만 함께 올 수 있다
      * (다른 필터·cursor·등록번호와 함께면 MASTER 호출 전 400 — 은퇴 코드 일치 의미를 다른 조건과 섞지 않는다).
+     * MERCHANT-NAME-SEARCH-001 MNS-2(§4): 가맹점명 조건도 함께 올 수 없다(MASTER `MerchantSearchFilter` 불변식과 같다).
      */
     private fun codeSearchWellFormed(c: MerchantSearchCriteria): Boolean =
-        MERCHANT_CODE.matches(c.merchantCode!!) && c.merchantId == null && c.businessId == null && c.lifecycle == null && c.after == null && c.registrationNumber == null
+        MERCHANT_CODE.matches(c.merchantCode!!) && c.merchantId == null && c.businessId == null && c.lifecycle == null && c.after == null && c.registrationNumber == null &&
+            c.displayNamePrefix == null
 
     private fun rateLimited(kind: String): MerchantLookupResult {
         metrics.rateLimited(kind)
