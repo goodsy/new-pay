@@ -9674,7 +9674,7 @@
           "supplementary": "B6-cve1 PASS(~/gate-logs/B6-cve1.log)"
         }
       ],
-      "nextResumeAction": "LAYOUT-ROLLOUT(B1·B2·B3·B5·B6 DONE, B4 SKIPPED): (B7 상세 작업 폼 — 사용자 확인 후). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
+      "nextResumeAction": "LAYOUT-ROLLOUT(B1·B2·B3·B5·B6 DONE, B4 SKIPPED): B7 상세 작업 폼은 사용자 확인 대기. 후속 후보 MID-BADGE-CONTRAST. (MERCHANT-NAME-SEARCH-001 DONE, SITE-CONTRACT-CODE-001 명세 rev 0.2 리뷰 단계 — 각 task 참조)",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -13545,6 +13545,79 @@
           "supplementary": "MNS3-cve1 PASS(~/gate-logs/MNS3-cve1.log)"
         }
       ]
+    },
+    {
+      "id": "SITE-CONTRACT-CODE-001",
+      "title": "Site·계약 사람용 코드(site-<가맹점코드>-NN / ctr-<가맹점코드>-NN) 발급·표시",
+      "status": "BACKLOG",
+      "phase": "SPEC_REVIEW",
+      "statusNote": "명세 rev 0.2 확정(사용자 답 Q-SC-1~9 반영) — 독립 명세 리뷰 전. 코드·migration 없음",
+      "spec": "docs/repository/SITE-CONTRACT-CODE-001-SITE-CONTRACT-CODE.md rev 0.2 sha256 d54ee9000504c9c93c1d635f80ad465443809550615c77ce246c776e39cbf783",
+      "baseRevision": "4cd6a07",
+      "request": "사용자 Demo 피드백 2026-11-19 \"Siteid는 노출되어야할가?\" → 재질문 \"식별값들이 운영자가 인지가능한 값으로 안돼?\" → 답 \"새 사람용 코드 발급으로 site_ ctr_ 이렇게 구분해서\"(D-ADMIN-UI-005)",
+      "dependsOn": [
+        "MERCHANT-CODE-001",
+        "MERCHANT-OPS-002",
+        "ADMIN-HISTORY-KEYS-001",
+        "MERCHANT-NAME-SEARCH-001"
+      ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/**",
+        "harness/tasks.json",
+        "docs/repository/SITE-CONTRACT-CODE-001-*.md"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "decisions": [
+        "D-ADMIN-UI-005: Site·계약에 사람용 새 코드 발급, 종류는 접두어로 구분, 화면 내부 키 비표시·직접 입력칸 → 목록 선택",
+        "Q-SC-1(2026-11-19): 형식 site-<가맹점코드>-NN / ctr-<가맹점코드>-NN(소문자·하이픈)",
+        "Q-SC-2(2026-11-19): 가맹점 코드가 바뀌어도 발급 당시 값 유지(재발급 없음)",
+        "Q-SC-4(2026-11-19): 시스템 자동 발급(등록 TX·merchant 잠금 아래 다음 순번)",
+        "Q-SC-8(2026-11-19): site_<ULID>는 가맹점 상세 한 곳에만 'API 연동값(merchantSiteId)'으로 표시",
+        "D-ADMIN-UI-007(Q-SC-3·5·6·7·9, 2026-11-20): MASTER 전체 고유, 불변·재사용 금지(SELECT·INSERT만), csa_ 코드 없음, 외부·정산서 노출 없음, 감사·승인 저장값 내부 키 유지 + detail code= + 화면 라벨 표시(ADMIN migration 없음)"
+      ],
+      "batchOrder": [
+        "SCODE-1",
+        "SCODE-2",
+        "SCODE-3",
+        "SCODE-4"
+      ],
+      "batches": {
+        "SCODE-1": {
+          "scope": "MASTER V19(merchant_site_code·contract_code 두 표·백필)·V20(SELECT, INSERT), Domain SiteCode·ContractCode, JPA Entity adapter·같은 flush persist, 발급(merchant 잠금 뒤 READ COMMITTED MAX+1)·이력 detail·명령 응답 code·재생 조회, 상세 siteCode·contractCode(jOOQ), 1062 결함 분류, Demo seed 기대값 + ADMIN MasterResponseShape·RegistrationOutcome·감사 detail code=(같은 배포 단위)",
+          "status": "BACKLOG",
+          "tests": "명세 §9 SCODE-1-1~13 + 변이"
+        },
+        "SCODE-2": {
+          "scope": "화면: 가맹점 등록 마법사 코드 표시·Site 체크 목록(기존 ACTIVE Site 포함)·직접 입력칸 제거·계약 선택",
+          "status": "BACKLOG",
+          "tests": "SCODE-2-1~5"
+        },
+        "SCODE-3": {
+          "scope": "화면: 가맹점 상세·구성요소 코드 표시, API 연동값 한 곳(data-integration-value), 가맹점 코드 변경 안내",
+          "status": "BACKLOG",
+          "tests": "SCODE-3-1~5"
+        },
+        "SCODE-4": {
+          "scope": "MASTER 라벨 2종(site-labels·contract-labels, jOOQ Reader)·ADMIN 라벨 Use Case, 승인 ref·감사 대상·거래 상세·이력 코드 표시, hasInternalKey 정확 정규식",
+          "status": "BACKLOG",
+          "tests": "SCODE-4-1~6"
+        },
+        "SCODE-5": {
+          "scope": "(선택) 가맹점 검색에 site-/ctr- 코드 입력",
+          "status": "BACKLOG",
+          "statusNote": "별도 승인 전 실행하지 않음"
+        }
+      },
+      "migrations": {
+        "master": "V19__site_contract_code.sql(schema·백필), runtime-privilege V20__site_contract_code_privileges.sql — V18은 MERCHANT-NAME-SEARCH-001이 의도적으로 비운 번호(추가 금지). 착수 시 번호 선점 재확인",
+        "admin": "없음(Q-SC-9)",
+        "payment": "없음(Q-SC-7)",
+        "financial": "없음(Q-SC-7)"
+      },
+      "openQuestions": [],
+      "nextResumeAction": "명세 독립 리뷰 → SCODE-1"
     }
   ]
 }
