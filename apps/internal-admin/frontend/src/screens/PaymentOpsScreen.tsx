@@ -1,10 +1,10 @@
-import { memo, useId, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import type { AdminApi, PaymentTargetView } from '../api/adminApi'
 import type { InputProblem } from '../api/client'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { describeInputProblem } from '../errors/inputProblems'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
-import { Field } from '../components/DataBits'
+import { FormRow } from '../components/FormRow'
 import { ErrorNotice, StatusNotice, WarningNote } from '../components/Notice'
 import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
@@ -107,7 +107,6 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
   const [created, setCreated] = useState<string | null>(null)
   // 표시용 진행 표시(버튼을 막지 않는다 — 기존 동작 유지).
   const [busy, setBusy] = useState<'lookup' | 'submit' | null>(null)
-  const uid = useId()
 
   const fail = (e: unknown) => {
     const code = codeOf(e)
@@ -171,8 +170,10 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
           : null
 
   // 요청 양식을 입력하는 동안 조회 카드는 다시 만들지 않는다(표시 성능 — 입력마다 전체를 다시 그리지 않게). 의존 값이 바뀌면 새로 만든다.
-  // ADMIN-UI-WORKSPACE-001: 카드 제목 줄(.cardtop h3) + 본문(.cardbody — 안내 .subtle · 시안 .rolebar 줄 · 도움말 · 오류 · 조회 값). Fragment라 탭 패널 바로 아래 자식이 된다.
-  // 결제 ID 입력은 시안 .rolebar(`<b>이름</b>` + 입력 aria-labelledby — 계정 관리 reviewFix1 MINOR-2 선례)로 보이는 이름 '결제 ID'를 그대로 둔다. 도움말은 비어 있을 때만(기존 조건) 아래 줄에 aria-describedby.
+  // ADMIN-UI-WORKSPACE-001: 카드 제목 줄(.cardtop h3) + 본문(.cardbody — 안내 .subtle · 결제 ID 폼 줄 · 오류 · 조회 값). Fragment라 탭 패널 바로 아래 자식이 된다.
+  // LAYOUT-ROLLOUT B3(사용자 결정 2026-11-19 폼 줄 — 시안 .rolebar 대체): 결제 ID는 FormRow(md — payment_id VARCHAR(64)이지만 실제 값 pay_+ULID 30자, 코디네이터 결정).
+  // 이름은 진짜 label(글자 '결제 ID' 그대로), '대상 조회'·진행 글자는 입력 바로 오른쪽(trailing, 입력 높이 h-9 — 가맹점 등록 '찾기' 선례), 도움말은 비어 있을 때만(기존 조건) 입력 열 아래 .fieldnote(aria-describedby).
+  // 입력은 Input(.rolebar 밖이라 시안 입력 모양 대신 다른 폼 줄과 같은 모양) — .fieldcontrol 첫 자식이라 최소 폭·폭 단계 규칙이 입력에 걸린다.
   // 검색 버튼 선례처럼 아이콘·스피너 없이 aria-busy만(비활성 조건 그대로). 조회 전 주 버튼(.btn.primary), 조회 뒤 보조 버튼(.btn) — 기존 default/outline 전환과 같다.
   const lookupCard = useMemo(() => (
     <>
@@ -181,24 +182,32 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
       </div>
       <div className="cardbody">
         <p className="subtle">조회 값은 참고용이며, 실제 취소 가능 여부는 승인 시점에 결제 서비스가 다시 판정합니다.</p>
-        <div className="rolebar">
-          <b id={`${uid}-payment-id`}>결제 ID</b>
-          <input
-            aria-labelledby={`${uid}-payment-id`}
-            className="grow font-mono"
-            value={paymentId}
-            onChange={(e) => setPaymentId(e.target.value)}
-            autoComplete="off"
-            placeholder="pay_…"
-            aria-describedby={paymentId.trim() === '' ? `${uid}-payment-id-hint` : undefined}
-          />
-          <button type="button" className={target ? 'btn' : 'btn primary'} disabled={paymentId.trim() === ''} onClick={lookUp} aria-busy={busy === 'lookup'}>
-            대상 조회
-          </button>
-          {/* reviewFix1 MINOR-1: 스피너 대신 보이는 진행 글자(버튼 이름은 그대로 — 접근 가능한 이름이 바뀌지 않게). 늘 있는 polite 영역이라 글자가 생길 때 읽힌다. */}
-          <span className="subtle" aria-live="polite">{busy === 'lookup' ? '조회 중…' : ''}</span>
-        </div>
-        {paymentId.trim() === '' && <p id={`${uid}-payment-id-hint`} className="subtle">결제 ID(pay_…)를 입력하면 조회할 수 있습니다.</p>}
+        <FormRow
+          label="결제 ID"
+          width="md"
+          hint={paymentId.trim() === '' ? '결제 ID(pay_…)를 입력하면 조회할 수 있습니다.' : undefined}
+          trailing={
+            <>
+              <button type="button" className={target ? 'btn h-9 py-0' : 'btn primary h-9 py-0'} disabled={paymentId.trim() === ''} onClick={lookUp} aria-busy={busy === 'lookup'}>
+                대상 조회
+              </button>
+              {/* reviewFix1 MINOR-1: 스피너 대신 보이는 진행 글자(버튼 이름은 그대로 — 접근 가능한 이름이 바뀌지 않게). 늘 있는 polite 영역이라 글자가 생길 때 읽힌다. */}
+              <span className="subtle" aria-live="polite">{busy === 'lookup' ? '조회 중…' : ''}</span>
+            </>
+          }
+        >
+          {(describedBy, id) => (
+            <Input
+              id={id}
+              className="font-mono"
+              value={paymentId}
+              onChange={(e) => setPaymentId(e.target.value)}
+              autoComplete="off"
+              placeholder="pay_…"
+              aria-describedby={describedBy}
+            />
+          )}
+        </FormRow>
         {error && (
           <ErrorNotice>
             {error.display ? '결제 금액을 정확히 표시할 수 없어 조회 결과를 쓰지 않았습니다(표시 오류).' : error.problem ? describeInputProblem(error.problem) : ERROR_MESSAGES[error.code]}
@@ -207,24 +216,27 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
         {target && <TargetSummary target={target} blockedReason={blockedReason} />}
       </div>
     </>
-  ), [uid, paymentId, target, busy, error, blockedReason, api, onSessionEnded])
+  ), [paymentId, target, busy, error, blockedReason, api, onSessionEnded])
 
   // 입력 칸도 자기 값이 바뀔 때만 다시 만든다(한 칸에 입력할 때 다른 칸을 다시 그리지 않게).
+  // LAYOUT-ROLLOUT B3(사용자 결정 2026-11-19 폼 줄): Field → FormRow(이름 왼쪽 label[for] · 입력 오른쪽 · 도움말/오류 .fieldnote — 문구·aria-describedby·aria-invalid 그대로).
+  // 폭 = ADMIN V5 admin_operator_cancel_command 열 길이 단계: 금액 sm(BIGINT — 화면 상한 18자리, 코디네이터 결정) · 목적 md(purpose_kind VARCHAR(40)) · 근거 full(purpose_ref 200) · 사유 full(reason 500).
   const amountField = useMemo(() => (
-    <Field
+    <FormRow
       label="취소 금액(최소 단위)"
+      width="sm"
       error={amountTooLarge ? '금액이 허용 범위를 넘습니다.' : undefined}
       hint={amountPreview ?? '기본값은 반환 가능액 전액이며, 일부만 취소할 수 있습니다.'}
     >
-      {(describedBy) => (
-        <Input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} aria-describedby={describedBy} aria-invalid={amountTooLarge || undefined} className="font-mono" />
+      {(describedBy, id) => (
+        <Input id={id} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} aria-describedby={describedBy} aria-invalid={amountTooLarge || undefined} className="font-mono" />
       )}
-    </Field>
+    </FormRow>
   ), [amount, amountTooLarge, amountPreview])
   const purposeField = useMemo(() => (
-    <Field label="목적 종류" hint={labelOf(purposeKind)}>
-      {(describedBy) => (
-        <NativeSelect value={purposeKind} onChange={(e) => setPurposeKind(e.target.value)} aria-describedby={describedBy}>
+    <FormRow label="목적 종류" width="md" hint={labelOf(purposeKind)}>
+      {(describedBy, id) => (
+        <NativeSelect id={id} value={purposeKind} onChange={(e) => setPurposeKind(e.target.value)} aria-describedby={describedBy}>
           {PURPOSE_KINDS.map((kind) => (
             <option key={kind} value={kind}>
               {kind}
@@ -232,24 +244,24 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
           ))}
         </NativeSelect>
       )}
-    </Field>
+    </FormRow>
   ), [purposeKind])
   const referenceField = useMemo(() => (
-    <Field label="근거 참조" hint="1~200자. 문자·숫자·공백과 - _ . : / # 만 쓸 수 있습니다. 13~19자리로 이어진 숫자는 카드 번호로 보아 거부되니 구분 기호를 넣어 주세요(예: RECON-2026-1028-01).">
-      {(describedBy) => (
-        <Input value={reference} maxLength={200} onChange={(e) => setReference(e.target.value)} autoComplete="off" aria-describedby={describedBy} />
+    <FormRow label="근거 참조" hint="1~200자. 문자·숫자·공백과 - _ . : / # 만 쓸 수 있습니다. 13~19자리로 이어진 숫자는 카드 번호로 보아 거부되니 구분 기호를 넣어 주세요(예: RECON-2026-1028-01).">
+      {(describedBy, id) => (
+        <Input id={id} value={reference} maxLength={200} onChange={(e) => setReference(e.target.value)} autoComplete="off" aria-describedby={describedBy} />
       )}
-    </Field>
+    </FormRow>
   ), [reference])
   const reasonField = useMemo(() => (
-    <Field label="사유" hint="1~500자. 승인자가 판단할 수 있게 구체적으로 적어 주세요.">
-      {(describedBy) => <Textarea value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} />}
-    </Field>
+    <FormRow label="사유" hint="1~500자. 승인자가 판단할 수 있게 구체적으로 적어 주세요.">
+      {(describedBy, id) => <Textarea id={id} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} />}
+    </FormRow>
   ), [reason])
 
   // ADMIN-UI-WORKSPACE-001(결제 관리 › 결제 보정 취소): 거래 조회·계정 관리와 같이 MenuCard flush 탭 패널 바로 안에 시안 구성 —
   // .mapnote(탭 이름 h2 + 기존 설명) → 진행 단계 .wizard → [1. 대상 조회] .cardtop h3 + .cardbody → (조회 뒤) 운영자 아님 안내 .cardnote | [2. 요청 작성] .cardtop h3 + .cardbody
-  // → (요청 뒤) 결과 안내 .cardnote. 입력 칸(금액·목적·근거·사유)은 Field 그대로(보이는 label·도움말·오류 aria-describedby — 재매입 요청 선례). 동작·조건·문구 그대로.
+  // → (요청 뒤) 결과 안내 .cardnote. 입력 칸(금액·목적·근거·사유)은 폼 줄(LAYOUT-ROLLOUT B3 — 2열 grid 대신 위에서 아래로 한 묶음, 줄 사이 선은 FormRow). 동작·조건·문구 그대로.
   return (
     <>
       <div className="mapnote">
@@ -272,12 +284,12 @@ export function PaymentOpsScreen({ api, canRequest, onSessionEnded }: Props) {
           <div className="cardbody">
             <p className="subtle">요청은 다른 승인자가 인증 코드로 승인해야 실행됩니다.</p>
             <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div>
                 {amountField}
                 {purposeField}
+                {referenceField}
+                {reasonField}
               </div>
-              {referenceField}
-              {reasonField}
               <p className="subtle">카드 번호·유효기간 등 카드 정보는 입력하지 마세요.</p>
               <div className="flex flex-col items-end gap-1.5">
                 {/* 스피너 대신 버튼 옆 보이는 진행 글자(reviewFix1 MINOR-1 — 버튼 이름·비활성 조건 그대로, 진행 중 비활성화는 후속 PAYOPS-DOUBLE-SUBMIT). */}

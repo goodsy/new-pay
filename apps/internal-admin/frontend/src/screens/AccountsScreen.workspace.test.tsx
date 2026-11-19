@@ -10,7 +10,7 @@ import { domOccurrences } from '../test/domScan'
 
 /**
  * ADMIN-UI-WORKSPACE-001 계정·권한 › 계정 관리("모양만"): 대사 발견(96608d3)·승인함과 같이 참고 시안 moduleView(카드 안 탭 → .mapnote → 카드 제목 → 표 → .tablebottom)를
- * 실제 계정 관리 화면에 입힌다. 시안 accessView의 `.rolebar`(이름 b + 입력 + 버튼)는 새 계정 만들기 줄로 쓴다.
+ * 실제 계정 관리 화면에 입힌다. 새 계정 만들기는 폼 줄(LAYOUT-ROLLOUT B3 — 처음엔 시안 accessView의 `.rolebar`).
  * 기능·API 호출·등록 코드 1회 표시·2인 승인 요청·재활성 원인(서버 후보만)·역할별 표시·오류·세션 종료는 AccountsScreen.test.tsx가 그대로 지킨다.
  * 명시 Demo Fixture(업무 의미 없는 고정 식별자): 활성 운영자 1명(OPERATOR), 역할이 정지된 계정 1명(APPROVER 정지), 등록 대기 계정 1명(역할 없음).
  */
@@ -31,7 +31,7 @@ function signedIn(overrides: Partial<AdminApi> = {}) {
 }
 
 describe('ADMIN-UI-WORKSPACE-001: 계정·권한 › 계정 관리 in the reference list layout', () => {
-  it('flush in the menu card: tabpanel > .mapnote(h2) → .cardtop(h3 새 계정 만들기) → .cardbody(form.rolebar) → .tablewrap → .tablebottom', async () => {
+  it('flush in the menu card: tabpanel > .mapnote(h2) → .cardtop(h3 새 계정 만들기) → .cardbody(form — 폼 줄, LAYOUT-ROLLOUT B3) → .tablewrap → .tablebottom', async () => {
     signedIn({ accounts: vi.fn(async () => ({ accounts: [active] })) })
     await userEvent.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '계정·권한' }))
     const row = await screen.findByRole('row', { name: /ops-a/ })
@@ -41,19 +41,22 @@ describe('ADMIN-UI-WORKSPACE-001: 계정·권한 › 계정 관리 in the refere
     expect(within(panel.querySelector('.mapnote') as HTMLElement).getByRole('heading', { level: 2, name: '계정 관리' })).toBeInTheDocument()
     expect(panel.querySelector('.cardtop > h3')).toHaveTextContent('새 계정 만들기')
 
-    // 새 계정 만들기: 시안 .rolebar 줄(입력 2칸 + .btn.primary). 보이는 label 대신 aria-label, 도움말은 aria-describedby로 그대로 연결된다.
+    // 새 계정 만들기: 입력 2칸 + .btn.primary. 폼 이름은 aria-label, 도움말은 aria-describedby로 그대로 연결된다.
     const body = panel.querySelector('.cardbody') as HTMLElement
     const form = within(body).getByRole('form', { name: '새 계정 만들기' })
-    expect(form).toHaveClass('rolebar')
     expect(within(form).getByLabelText('새 로그인 이름')).toHaveAccessibleDescription('로그인 이름은 로그인할 때 쓰는 이름입니다.')
     expect(within(form).getByLabelText('표시명')).toHaveAccessibleDescription('표시명은 화면과 감사 기록에 보이는 이름입니다.')
-    // reviewFix1 MINOR-2: 보이는 이름(시안 .rolebar `<b>이름</b>` + 입력 aria-labelledby — 매입 현황 레코드 상태 선례). 접근 가능한 이름은 그대로.
-    expect(Array.from(form.children).map((c) => c.tagName.toLowerCase())).toEqual(['b', 'input', 'b', 'input', 'button'])
+    // LAYOUT-ROLLOUT B3 기대값 변경(사용자 결정 폼 줄): 시안 .rolebar(b + input aria-labelledby ×2 + button) → 폼 줄 2개(.fieldrow) + 버튼 칸(.fieldoffset).
+    // 보이는 이름은 label[for] = 입력 id(글자 그대로 — 접근 가능한 이름 그대로), 버튼은 입력 열에 맞춘 칸 안. 자세한 폭·도움말 위치는 아래 LAYOUT-ROLLOUT B3 시험.
+    expect(form).not.toHaveClass('rolebar')
+    expect(Array.from(form.children).map((c) => [c.tagName.toLowerCase(), ['fieldrow', 'fieldoffset'].find((k) => c.classList.contains(k))].join('.'))).toEqual(['div.fieldrow', 'div.fieldrow', 'div.fieldoffset'])
     for (const name of ['새 로그인 이름', '표시명']) {
       const input = within(form).getByLabelText(name)
-      expect(document.getElementById(input.getAttribute('aria-labelledby')!)).toBe(input.previousElementSibling)
-      expect(input.previousElementSibling).toHaveTextContent(name)
+      const label = input.closest('.fieldrow')!.querySelector(':scope > label')!
+      expect(label.getAttribute('for')).toBe(input.id)
+      expect(label).toHaveTextContent(name)
     }
+    expect(within(form).getByRole('button', { name: '계정 만들기' }).parentElement).toBe(form.lastElementChild)
     expect(within(form).getByRole('button', { name: '계정 만들기' })).toHaveClass('btn', 'primary')
     expect(body).toHaveTextContent('만들면 등록 코드가 한 번만 표시됩니다. 역할은 만든 뒤 2인 승인으로 부여합니다.')
 
@@ -129,5 +132,52 @@ describe('ADMIN-UI-WORKSPACE-001: 계정·권한 › 계정 관리 in the refere
     expect(block).toMatch(/^summary:focus-visible\{outline:3px solid #aecfff\}$/m)
     expect(block).toMatch(/^button:focus-visible,a:focus-visible,summary:focus-visible\{outline-color:#1d4ed8\}$/m)
     expect(WORKSPACE_CSS).toMatch(/:root\[data-theme=dark\] summary:focus-visible\{outline-color:#93c5fd\}|:root\[data-theme=dark\] summary:focus-visible[,{]/)
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B3(사용자 결정 2026-11-19 폼 줄 — 사업자 등록 bab658b·가맹점 등록 71d0c48과 같은 FormRow): 새 계정 만들기 입력은 이름 왼쪽(140px)·입력 오른쪽 같은 줄,
+ * 입력 폭은 DB 열 길이 단계(ADMIN V1 admin_account — tasks.json layoutRollout.B3.widthTable). 표 행 details 안 선택 상자는 대상 아님. 모양만 — 이름·설명·동작은 위·AccountsScreen.test.tsx가 지킨다.
+ */
+describe('LAYOUT-ROLLOUT B3: 새 계정 만들기 입력 = 폼 줄(이름 왼쪽 · 입력 오른쪽 · DB 열 길이 폭)', () => {
+  it('새 로그인 이름 lg · 표시명 lg(각 줄 도움말 .fieldnote — 문구 그대로), 계정 만들기 버튼은 입력 열에 맞춘 .fieldoffset', () => {
+    const { container } = render(<AccountsScreen api={fakeApi({ accounts: vi.fn(async () => ({ accounts: [active] })) })} canManage />)
+    const form = screen.getByRole('form', { name: '새 계정 만들기' })
+    expect(form).not.toHaveClass('rolebar')
+    const notes: Record<string, string> = {
+      '새 로그인 이름': '로그인 이름은 로그인할 때 쓰는 이름입니다.',
+      표시명: '표시명은 화면과 감사 기록에 보이는 이름입니다.',
+    }
+    const rows: HTMLElement[] = []
+    for (const [label, note] of Object.entries(notes)) {
+      const input = within(form).getByLabelText(label)
+      const row = input.closest('.fieldrow') as HTMLElement
+      expect(row, label).not.toBeNull()
+      expect(row.parentElement).toBe(form)
+      const name = row.querySelector(':scope > label')!
+      expect(name.textContent).toBe(label)
+      expect(input.id).not.toBe('')
+      expect(name.getAttribute('for')).toBe(input.id)
+      expect(input).not.toHaveAttribute('aria-labelledby')
+      expect(input).toBeRequired()
+      const control = input.closest('.fieldcontrol') as HTMLElement
+      expect(control.parentElement).toBe(row)
+      expect(control.firstElementChild).toBe(input)
+      expect(Array.from(control.classList).filter((c) => c.startsWith('fw-'))).toEqual(['fw-lg'])
+      const described = document.getElementById(input.getAttribute('aria-describedby')!)!
+      expect(described).toHaveClass('fieldnote')
+      expect(described.parentElement).toBe(row)
+      expect(described.textContent).toBe(note)
+      rows.push(row)
+    }
+    const button = within(form).getByRole('button', { name: '계정 만들기' })
+    expect(button).toHaveClass('btn', 'primary')
+    expect(button).toHaveAttribute('type', 'submit')
+    expect(button.parentElement).toHaveClass('fieldoffset')
+    expect(Array.from(form.children)).toEqual([...rows, button.parentElement])
+    // 도움말은 각 줄 아래로 옮겼다 — 폼 밖에 같은 문장이 한 번 더 남지 않는다.
+    expect(within(container).getAllByText('로그인 이름은 로그인할 때 쓰는 이름입니다.')).toHaveLength(1)
+    expect(within(container).getAllByText('표시명은 화면과 감사 기록에 보이는 이름입니다.')).toHaveLength(1)
+    expect(container.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

@@ -7,6 +7,7 @@ import { PaymentOpsScreen } from './PaymentOpsScreen'
 import type { AdminApi, PaymentTargetView } from '../api/adminApi'
 import { apiError, fakeApi } from '../test/fakeApi'
 import { domOccurrences } from '../test/domScan'
+import { labelOf } from '../lib/labels'
 
 /**
  * ADMIN-UI-WORKSPACE-001 결제 관리 › 결제 보정 취소("모양만"): 참고 시안의 카드 안 탭 구성(.mapnote → 카드 제목 줄 → 본문)과
@@ -40,7 +41,7 @@ async function lookUp() {
 const steps = () => within(screen.getByRole('list', { name: '진행 단계' })).getAllByRole('listitem')
 
 describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the reference layout', () => {
-  it('flush in the menu card: .mapnote(h2) → .wizard → lookup .cardtop/.cardbody(.rolebar) → after lookup .detailgrid and the request .cardtop/.cardbody', async () => {
+  it('flush in the menu card: .mapnote(h2) → .wizard → lookup .cardtop/.cardbody(.fieldrow — LAYOUT-ROLLOUT B3) → after lookup .detailgrid and the request .cardtop/.cardbody', async () => {
     const api = signedIn({
       paymentTarget: vi.fn(async () => target),
       requestOperatorCancel: vi.fn(async () => ({ approvalId: 'apr_NEW' })),
@@ -60,15 +61,19 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the 
     expect(steps().map((s) => s.textContent)).toEqual(['1. 대상 조회', '2. 요청 작성', '3. 승인 대기'])
     expect(steps()[0]).toHaveAttribute('aria-current', 'step')
 
-    // 대상 조회 카드: 제목 줄 h3 + 본문(안내 .subtle · 시안 .rolebar 줄 = 보이는 이름 b + 입력 aria-labelledby + 버튼 · 도움말 aria-describedby)
+    // 대상 조회 카드: 제목 줄 h3 + 본문(안내 .subtle · 결제 ID 폼 줄 = 이름 label + 입력 + 버튼 · 도움말 aria-describedby)
     expect(panel.querySelector(':scope > .cardtop > h3')).toHaveTextContent('1. 대상 조회')
     const lookupBody = panel.querySelectorAll(':scope > .cardbody')[0] as HTMLElement
     expect(lookupBody.querySelector(':scope > p.subtle')).toHaveTextContent('조회 값은 참고용이며, 실제 취소 가능 여부는 승인 시점에 결제 서비스가 다시 판정합니다.')
-    const bar = lookupBody.querySelector(':scope > .rolebar') as HTMLElement
-    // reviewFix1 MINOR-1: 버튼 뒤 진행 표시 칸(span.subtle aria-live=polite — 평소 비어 있음). 기대값 변경(이번 화면 새 시험만).
-    expect(Array.from(bar.children).map((c) => c.tagName.toLowerCase())).toEqual(['b', 'input', 'button', 'span'])
+    // LAYOUT-ROLLOUT B3 기대값 변경(사용자 결정 폼 줄): 시안 .rolebar(b + input aria-labelledby + button + span) → FormRow 줄 —
+    // 이름 label[for] = 입력 id(글자 그대로), 입력 칸 .fieldcontrol = 입력 + 버튼 + 진행 글자 span(aria-live polite — reviewFix1 MINOR-1 그대로).
+    const row = lookupBody.querySelector(':scope > .fieldrow') as HTMLElement
+    const bar = row.querySelector(':scope > .fieldcontrol') as HTMLElement
+    expect(Array.from(bar.children).map((c) => c.tagName.toLowerCase())).toEqual(['input', 'button', 'span'])
+    expect(bar.querySelector(':scope > span')).toHaveAttribute('aria-live', 'polite')
     const input = within(bar).getByLabelText('결제 ID')
-    expect(document.getElementById(input.getAttribute('aria-labelledby')!)).toBe(input.previousElementSibling)
+    expect(row.querySelector(':scope > label')).toHaveTextContent('결제 ID')
+    expect(row.querySelector(':scope > label')!.getAttribute('for')).toBe(input.id)
     expect(input).toHaveAccessibleDescription('결제 ID(pay_…)를 입력하면 조회할 수 있습니다.')
     expect(within(bar).getByRole('button', { name: '대상 조회' })).toHaveClass('btn', 'primary')
     expect(within(bar).getByRole('button', { name: '대상 조회' })).toBeDisabled()
@@ -83,7 +88,16 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the 
     expect(Array.from(grid.children).map((c) => [c.tagName.toLowerCase(), ...Array.from(c.children).map((x) => x.tagName.toLowerCase())].join(' '))).toEqual(Array(4).fill('div dt dd'))
     expect(Array.from(grid.querySelectorAll('dt')).map((l) => l.textContent)).toEqual(['결제 상태: AUTHORIZED', '원 승인액: 10000 KRW', '반환 가능액: 7000 KRW', '잔액 revision: 3'])
     expect(Array.from(grid.querySelectorAll('dd')).map((l) => l.textContent)).toEqual(['승인 완료', '10,000원', '7,000원', '3'])
-    expect(lookupBody.querySelector('label:not(:has(input, select, textarea))')).toBeNull()
+    // LAYOUT-ROLLOUT B3 기대값 변경(사용자 결정 폼 줄 — label[for] 연결, 의도 유지·강화; 코디네이터 승인)
+    // 원래 의도 "입력과 연결되지 않은 label 없음": 본문 안 모든 label은 입력을 감싸거나, for가 같은 본문 안 input/select/textarea id를 가리킨다. label이 하나 이상 있어야 한다(빈 통과 방지).
+    const labels = Array.from(lookupBody.querySelectorAll('label'))
+    expect(labels.length).toBeGreaterThan(0)
+    for (const label of labels) {
+      const wrapped = label.querySelector('input, select, textarea')
+      const target = label.htmlFor ? document.getElementById(label.htmlFor) : null
+      const linked = target !== null && lookupBody.contains(target) && target.matches('input, select, textarea')
+      expect(wrapped !== null || linked, label.outerHTML).toBe(true)
+    }
     // 단계: 1은 끝남(기존 MINOR-6 info 글자 token), 2가 현재.
     expect(steps()[0]).not.toHaveAttribute('aria-current')
     expect(steps()[0]).toHaveClass('border-primary', 'text-chip-info-fg')
@@ -151,7 +165,9 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the 
       requestOperatorCancel: vi.fn(() => new Promise<{ approvalId: string }>((resolve) => { finishRequest = resolve })),
     })
     const { container } = render(<PaymentOpsScreen api={api} canRequest />)
-    const live = container.querySelector('.rolebar > span.subtle')!
+    // LAYOUT-ROLLOUT B3 기대값 변경(사용자 결정 폼 줄): 진행 글자는 .rolebar 대신 결제 ID 줄의 입력 칸(.fieldcontrol) 안 — '대상 조회' 버튼과 같은 칸.
+    const live = container.querySelector('.fieldrow > .fieldcontrol > span.subtle')!
+    expect(live.parentElement).toBe(screen.getByRole('button', { name: '대상 조회' }).parentElement)
     expect(live).toHaveAttribute('aria-live', 'polite')
     expect(live).toBeEmptyDOMElement()
     await lookUp()
@@ -183,5 +199,78 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the 
     expect(block).toMatch(/^\.detailgrid dd\{margin:0;font-size:14px;font-weight:600;color:#0f172a\}$/m)
     expect(WORKSPACE_CSS).toMatch(/^:root\[data-theme=dark\] \.detailgrid dt\{color:#cbd5e1\}$/m)
     expect(WORKSPACE_CSS).toMatch(/^:root\[data-theme=dark\] \.detailgrid dd\{color:#f1f5f9\}$/m)
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B3(사용자 결정 2026-11-19 폼 줄 — 사업자 등록 bab658b·가맹점 등록 71d0c48과 같은 FormRow): 결제 보정 취소 입력은 이름 왼쪽(140px)·입력 오른쪽 같은 줄,
+ * 입력 폭은 DB 열 길이 단계(ADMIN V5 admin_operator_cancel_command — tasks.json layoutRollout.B3.widthTable). 모양만 — 이름·설명·업무 동작은 위·PaymentOpsScreen.test.tsx가 지킨다.
+ */
+/** 입력 하나의 폼 줄: .fieldrow 안 label[for] = 입력 id(이름 글자 그대로), 입력은 .fieldcontrol(줄의 자식) 안, 폭 class(null = full — fw-* 없음). */
+const formRowOf = (scope: HTMLElement, label: string, width: 'xs' | 'sm' | 'md' | 'lg' | null) => {
+  const input = within(scope).getByLabelText(label)
+  const row = input.closest('.fieldrow') as HTMLElement
+  expect(row, label).not.toBeNull()
+  const name = row.querySelector(':scope > label')!
+  expect(name.textContent).toBe(label)
+  expect(input.id).not.toBe('')
+  expect(name.getAttribute('for')).toBe(input.id)
+  expect(input).not.toHaveAttribute('aria-labelledby')
+  const control = input.closest('.fieldcontrol') as HTMLElement
+  expect(control.parentElement).toBe(row)
+  expect(Array.from(control.classList).filter((c) => c.startsWith('fw-')), label).toEqual(width ? [`fw-${width}`] : [])
+  return { input, row, control }
+}
+
+describe('LAYOUT-ROLLOUT B3: 결제 보정 취소 입력 = 폼 줄(이름 왼쪽 · 입력 오른쪽 · DB 열 길이 폭)', () => {
+  it('1. 대상 조회: 결제 ID 줄(md) — 대상 조회·진행 글자는 같은 .fieldcontrol(입력 오른쪽), 비어 있을 때만 도움말 .fieldnote(설명 연결)', async () => {
+    const { container } = render(<PaymentOpsScreen api={fakeApi({ paymentTarget: vi.fn(async () => target) })} canRequest />)
+    const lookupBody = container.querySelectorAll(':scope > .cardbody')[0] as HTMLElement
+    expect(lookupBody.querySelector('.rolebar')).toBeNull()
+    const { input, row, control } = formRowOf(lookupBody, '결제 ID', 'md')
+    expect(row.parentElement).toBe(lookupBody)
+    // 입력이 .fieldcontrol 첫 자식이어야 최소 폭(16ch)·폭 단계(max-width) 규칙이 입력에 걸린다.
+    expect(control.firstElementChild).toBe(input)
+    expect(input).toHaveClass('font-mono')
+    const button = within(lookupBody).getByRole('button', { name: '대상 조회' })
+    expect(button.parentElement).toBe(control)
+    const live = control.querySelector(':scope > span.subtle')!
+    expect(live).toHaveAttribute('aria-live', 'polite')
+    expect(live.previousElementSibling).toBe(button)
+    const note = document.getElementById(input.getAttribute('aria-describedby')!)!
+    expect(note).toHaveClass('fieldnote')
+    expect(note.parentElement).toBe(row)
+    expect(input).toHaveAccessibleDescription('결제 ID(pay_…)를 입력하면 조회할 수 있습니다.')
+    expect(container.querySelectorAll('[style]')).toHaveLength(0)
+
+    await userEvent.type(input, PAY)
+    expect(input).not.toHaveAttribute('aria-describedby')
+    expect(row.querySelector(':scope > .fieldnote')).toBeNull()
+  })
+
+  it('2. 요청 작성: 2열 grid 없이 세로 줄 — 취소 금액 sm · 목적 종류 md · 근거 참조 full · 사유 full(설명 그대로), 조회 값 dl.detailgrid는 그대로', async () => {
+    const { container } = render(<PaymentOpsScreen api={fakeApi({ paymentTarget: vi.fn(async () => target) })} canRequest />)
+    await lookUp()
+    await screen.findByText('반환 가능액: 7000 KRW')
+    expect(container.querySelector('.cardbody > dl.detailgrid')).not.toBeNull()
+    const requestBody = container.querySelectorAll(':scope > .cardbody')[1] as HTMLElement
+    expect(requestBody.querySelector('form [class*="grid"]')).toBeNull()
+    const amount = formRowOf(requestBody, '취소 금액(최소 단위)', 'sm')
+    expect(amount.input).toHaveAccessibleDescription('= 7,000원')
+    expect(amount.row.querySelector(':scope > .fieldnote')).toHaveTextContent('= 7,000원')
+    const purpose = formRowOf(requestBody, '목적 종류', 'md')
+    expect(purpose.input.tagName.toLowerCase()).toBe('select')
+    expect(purpose.input).toHaveAccessibleDescription(labelOf('INCIDENT_OR_RECON_CORRECTION'))
+    const reference = formRowOf(requestBody, '근거 참조', null)
+    expect(reference.input).toHaveAttribute('maxLength', '200')
+    const reason = formRowOf(requestBody, '사유', null)
+    expect(reason.input.tagName.toLowerCase()).toBe('textarea')
+    expect(reason.input).toHaveAttribute('maxLength', '500')
+    expect(reason.input).toHaveAccessibleDescription('1~500자. 승인자가 판단할 수 있게 구체적으로 적어 주세요.')
+    // 네 줄은 같은 묶음 안 위에서 아래로(금액 → 목적 → 근거 → 사유).
+    const rows = [amount.row, purpose.row, reference.row, reason.row]
+    expect(new Set(rows.map((r) => r.parentElement)).size).toBe(1)
+    expect(Array.from(amount.row.parentElement!.children)).toEqual(rows)
+    expect(container.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

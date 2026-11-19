@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useId, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { AccountView, AdminApi, ApprovalRequestInput, ReactivationCause } from '../api/adminApi'
 import { OneTimeCode } from '../components/OneTimeCode'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { ChevronDownIcon } from '../components/icons'
 import { Field } from '../components/DataBits'
+import { FormRow } from '../components/FormRow'
+import { Input } from '../components/ui/input'
 import { ErrorNotice, StatusNotice } from '../components/Notice'
 import { NativeSelect } from '../components/ui/native-select'
 import { labelOf } from '../lib/labels'
@@ -207,7 +209,6 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
   const [loginName, setLoginName] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [creating, setCreating] = useState(false)
-  const hintId = useId()
 
   const fail = useCallback((e: unknown) => {
     const code = codeOf(e)
@@ -275,7 +276,7 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
   const showLogin = accounts.some((a) => a.loginName !== null)
 
   // ADMIN-UI-WORKSPACE-001(계정·권한 › 계정 관리): 대사 발견·승인함과 같이 MenuCard flush 탭 패널 바로 안에 시안 구성 — .mapnote(탭 이름 h2 + 설명) → (오류·500개 안내 시) .cardnote
-  // → (SECURITY_ADMIN) 카드 제목 줄 .cardtop h3 '새 계정 만들기' + .cardbody(안내 · 시안 accessView .rolebar 줄 = 입력 2칸 + .btn.primary · 입력 도움말) → .tablewrap(빈 목록 .empty) → .tablebottom(표시 건수).
+  // → (SECURITY_ADMIN) 카드 제목 줄 .cardtop h3 '새 계정 만들기' + .cardbody(안내 · 폼 줄 2개(입력 + 도움말 — LAYOUT-ROLLOUT B3) · .fieldoffset .btn.primary) → .tablewrap(빈 목록 .empty) → .tablebottom(표시 건수).
   // 등록 코드 1회 표시([OneTimeCode])는 body에 붙는 dialog라 카드 구조에 들어가지 않는다(그대로).
   return (
     <>
@@ -298,36 +299,26 @@ export function AccountsScreen({ api, canManage, onSessionEnded }: Props) {
           </div>
           <div className="cardbody">
             <p className="subtle">만들면 등록 코드가 한 번만 표시됩니다. 역할은 만든 뒤 2인 승인으로 부여합니다.</p>
-            {/* 시안 .rolebar 줄(계정·권한 `<b>역할 선택</b><select>`): 보이는 이름은 굵은 글 b, 입력은 aria-labelledby(reviewFix1 MINOR-2 — 매입 현황 레코드 상태 선례).
-                입력은 고유 폭에서 남는 폭만큼 늘어난다(grow — 줄바꿈은 그대로, reviewFix1 NIT-3). 도움말은 아래 줄의 각 문장에 aria-describedby. 검색 버튼 선례처럼 아이콘·스피너 없이 aria-busy만. */}
-            <form onSubmit={create} className="rolebar" aria-label="새 계정 만들기">
-              <b id={`${hintId}-login-name`}>새 로그인 이름</b>
-              <input
-                aria-labelledby={`${hintId}-login-name`}
-                className="grow"
-                value={loginName}
-                onChange={(e) => setLoginName(e.target.value)}
-                aria-describedby={`${hintId}-login`}
-                required
-              />
-              <b id={`${hintId}-display-name`}>표시명</b>
-              <input
-                aria-labelledby={`${hintId}-display-name`}
-                className="grow"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                aria-describedby={`${hintId}-display`}
-                required
-              />
-              <button type="submit" className="btn primary" aria-busy={creating}>
-                계정 만들기
-              </button>
+            {/* LAYOUT-ROLLOUT B3(사용자 결정 2026-11-19 폼 줄 — 시안 .rolebar 대체): 이름 왼쪽 label[for] · 입력 오른쪽 같은 줄(FormRow). 폭 = ADMIN V1 admin_account 열 길이 단계 —
+                로그인 이름 lg(login_name VARCHAR(64)) · 표시명 lg(display_name VARCHAR(100)). 아래 한 문단에 있던 도움말 두 문장은 각 줄 입력 열 아래 .fieldnote로(글자·aria-describedby 연결 그대로).
+                '계정 만들기'는 입력 열에 맞춘 .fieldoffset(사업자 등록 보조 버튼 선례). 검색 버튼 선례처럼 아이콘·스피너 없이 aria-busy만. */}
+            <form onSubmit={create} aria-label="새 계정 만들기">
+              <FormRow label="새 로그인 이름" width="lg" hint="로그인 이름은 로그인할 때 쓰는 이름입니다.">
+                {(describedBy, id) => (
+                  <Input id={id} value={loginName} onChange={(e) => setLoginName(e.target.value)} aria-describedby={describedBy} required />
+                )}
+              </FormRow>
+              <FormRow label="표시명" width="lg" hint="표시명은 화면과 감사 기록에 보이는 이름입니다.">
+                {(describedBy, id) => (
+                  <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-describedby={describedBy} required />
+                )}
+              </FormRow>
+              <div className="fieldoffset">
+                <button type="submit" className="btn primary" aria-busy={creating}>
+                  계정 만들기
+                </button>
+              </div>
             </form>
-            <p className="subtle">
-              <span id={`${hintId}-login`}>로그인 이름은 로그인할 때 쓰는 이름입니다.</span>
-              {' '}
-              <span id={`${hintId}-display`}>표시명은 화면과 감사 기록에 보이는 이름입니다.</span>
-            </p>
           </div>
         </>
       )}
