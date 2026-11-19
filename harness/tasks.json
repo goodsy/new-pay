@@ -13417,8 +13417,8 @@
     {
       "id": "MERCHANT-NAME-SEARCH-001",
       "title": "가맹점 조회 조건에 가맹점명(앞부분 일치) 추가",
-      "status": "IN_PROGRESS",
-      "spec": "rev 0.3 §11 sha256 e93cf5c95c40c6b1c60e9e56b9fc697546cb855a7caa689dc8d48ab325a1a7b6",
+      "status": "DONE",
+      "spec": "rev 0.4 §12 sha256 e875708b0c1dbd0f0ea9314d8d6c81ef43adc632adf2bb874d1b281e9d13b41e",
       "request": "사용자 2026-11-19 \"가맹점조회에서 조건이 가맹점명도 추가해줘\"",
       "dependsOn": [
         "MERCHANT-OPS-001",
@@ -13451,7 +13451,7 @@
         "MNS-2": {
           "scope": "ADMIN 백엔드: 화면 API 본문 displayNamePrefix 전달·검증 (MASTER 먼저 배포)",
           "status": "DONE(MNS2-gate1)",
-          "statusNote": "REVIEW_PASS(NIT 4) + MNS2-gate1 PASS",
+          "statusNote": "REVIEW_PASS + MNS2-gate1 PASS, af53f28 커밋",
           "spec": "rev 0.3 §11 sha256 e93cf5c95c40c6b1c60e9e56b9fc697546cb855a7caa689dc8d48ab325a1a7b6",
           "changes": [
             "MerchantSearchBodyParser: TEXT_FIELDS에 displayNamePrefix(JSON 문자열만), 등록번호 시도 스캐너 무변경",
@@ -13465,7 +13465,28 @@
         },
         "MNS-3": {
           "scope": "화면: 가맹점 조회 조건에 가맹점명 입력·시험",
-          "status": "BACKLOG"
+          "status": "DONE(MNS3-gate1)",
+          "statusNote": "REVIEW_PASS(NIT 4) + MNS3-gate1 PASS",
+          "spec": "rev 0.4 §12 sha256 e875708b0c1dbd0f0ea9314d8d6c81ef43adc632adf2bb874d1b281e9d13b41e",
+          "changes": [
+            "adminApi.ts MerchantSearchInput.displayNamePrefix?: string(주석: 앞부분 일치·대소문자 구분·원문 그대로·merchantCode와 함께 불가)",
+            "MerchantsScreen.tsx: 상태 displayNamePrefix, .filters 줄 코드 입력 다음·상태 select 앞 입력(aria-label 가맹점명, placeholder '가맹점명 (앞부분 일치)', autoComplete off, spellCheck false, aria-describedby 도움말), search() 코드+이름 → combined(호출 없음), 이름 원문 그대로 criteria.displayNamePrefix(trim 없음 — 형식 위반은 서버 400 기존 문구), 다음 쪽은 sent.criteria 유지, combined 문구 '다른 조건(가맹점명·상태·사업자등록번호)', .cardnote 도움말 '가맹점명: 앞부분이 같은 이름(영문 대소문자 구분)'",
+            "MerchantsScreen.test.tsx: MNS-3-1~6 새 6건, 기존 MC-2-3 combined 문구 단언 2곳만 기대값 변경(주석 표시) — 그 밖 기존 단언 무변경",
+            "명세 rev 0.4: §9 MNS-1·MNS-2 완료(MNS1-gate1/MNS2-gate1, a56ac0a/af53f28) 정정(리뷰 NIT-3), §12 MNS-3 구현 기록"
+          ],
+          "evidence": "~/gate-logs/mns-3 (run.sh 고정 argv allowlist — layout-b6 재사용): red1.log(npx vitest run src/screens/MerchantsScreen.test.tsx exit 1 — 31 중 7 실패: 가맹점명 label 없음·새 combined 문구 없음·도움말 없음, 구현 전), green1.log(같은 명령 exit 0 — 31 통과), tsc1.log(npx tsc -b --force exit 0), vitest-all1.log(npx vitest run exit 0 — 69 files 667 tests 통과, 실패·skip 0)",
+          "gate": "미실행(Coordinator/Verifier 몫)",
+          "reviewFix1": {
+            "review": "MNS-3 REVIEW_PASS (MINOR 1, NIT 3) — Coordinator 전달 2026-11-20",
+            "applied": [
+              "MINOR-1: MNS-3-4b 새 시험 — 이름 + 등록번호 검색 뒤 다음 쪽 {displayNamePrefix, businessId: BIZ1, after}, registrationNumber 키·번호 값 없음 (기존 nextPage 동작 확인 시험 — 구현 무변경, 처음부터 통과)",
+              "NIT-1: MNS-3-5를 등록번호 칸이 있는 역할로 그리고 가맹점명 value = 원문, 코드·등록번호 입력란 value에 탐지값 없음 단언 추가 (처음부터 통과)",
+              "NIT-2: 가맹점명 입력란 aria-describedby = combined 오류일 때만 `${nameNoteId} ${codeNoteId}`(형식 오류·오류 없음은 도움말만) — MNS-3-3b 새 시험",
+              "NIT-3: 도움말 '가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)', MNS-3-6 문구 갱신",
+              "명세 §12 리뷰 수정 1 한 줄"
+            ],
+            "evidence": "~/gate-logs/mns-3: reviewfix1-red.log(MerchantsScreen.test.tsx exit 1 — 33 중 2 실패: MNS-3-3b·MNS-3-6 새 도움말 문구 없음), reviewfix1-green.log(exit 0 — 33 통과), reviewfix1-tsc.log(npx tsc -b --force exit 0), reviewfix1-vitest-all.log(npx vitest run exit 0 — 69 files 669 tests 통과, 실패·skip 0)"
+          }
         }
       },
       "migrations": {
@@ -13497,7 +13518,7 @@
           "evidence": "~/gate-logs/mns-1/reviewfix1.log exit 0: MerchantOpsReaderSpec 10, MerchantNameSearchParserSpec 5, MerchantOpsApiSpec 16, BusinessReaderSpec 9 = 40 tests, 실패·오류·skip 0"
         }
       },
-      "nextResumeAction": "MNS-3 화면(MerchantsScreen 가맹점명 입력·combined 문구·도움말, adminApi 타입) + 명세 §9 상태 정정(리뷰 NIT-3). 출시 조건: MASTER(MNS-1) 배포 확인 뒤",
+      "nextResumeAction": "완료(MNS1·2·3). LIVE Gate 항목: L-3 최소 접두 길이 또는 max_execution_time, L-4 V17 운영 적용 절차, 배포 순서 MASTER → ADMIN → 화면",
       "gateRuns": [
         {
           "tag": "MNS1-gate1",
@@ -13514,6 +13535,14 @@
           "evidence": "build/harness-evidence/MERCHANT-NAME-SEARCH-001-2026-11-19T205027Z.json",
           "result": "GRADLE-CHECK exit 0; total tests=5096 failures=0 errors=0 skipped=0 / total tests=686 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:7c2b00af3c8043cd4a4602dee655ac760b25b1a1908a6c51ee49c20a14f9d84d",
           "supplementary": "MNS2-cve1 PASS(~/gate-logs/MNS2-cve1.log)"
+        },
+        {
+          "tag": "MNS3-gate1",
+          "verdict": "PASS",
+          "batch": "MNS-3 화면",
+          "evidence": "build/harness-evidence/MERCHANT-NAME-SEARCH-001-2026-11-19T220504Z.json",
+          "result": "GRADLE-CHECK exit 0; total tests=5096 failures=0 errors=0 skipped=0 / total tests=694 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:a061ff75bbffeb494031ddb9e54244a0e50db70d64138ec1e271b617cca182b0",
+          "supplementary": "MNS3-cve1 PASS(~/gate-logs/MNS3-cve1.log)"
         }
       ]
     }

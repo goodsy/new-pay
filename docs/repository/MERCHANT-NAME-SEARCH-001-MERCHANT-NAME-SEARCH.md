@@ -1,8 +1,9 @@
-# MERCHANT-NAME-SEARCH-001 가맹점 조회 — 가맹점명 조건 명세 (rev 0.3)
+# MERCHANT-NAME-SEARCH-001 가맹점 조회 — 가맹점명 조건 명세 (rev 0.4)
 
 작성 2026-11-20 KST, branch `main`(기준 commit `514685f`). Implementer 작성 — 자기 완료 판정 아님(Verifier·Reviewer 별도).
 rev 0.2: MNS-1 리뷰(REVIEW_PASS) MINOR-1~3·NIT-1·2·3·5 반영 — L-3 운영 전 결정 항목, V17 운영 적용 절차(§5.1·L-4), §7 Recoverability, jOOQ 문구, 시험 추가.
 rev 0.3 (2026-11-20, 기준 commit `a56ac0a`): MNS-2 ADMIN 백엔드 구현 기록(§11) — 리뷰·게이트 전.
+rev 0.4 (2026-11-20, 기준 commit `af53f28`): 리뷰 NIT-3 — §9 MNS-1·MNS-2 상태 정정, MNS-3 화면 구현 기록(§12) — 리뷰·게이트 전.
 
 ## 1. 목적·사용자 요청
 
@@ -89,9 +90,9 @@ Kafka/Redis: 도입하지 않는다(필요 없음).
 
 | 배치 | 범위 | 상태 |
 |---|---|---|
-| MNS-1 | MASTER: Filter·parser·jOOQ 조건·`MasterSqlText.likePrefix` 공유(사업자 Reader도 사용)·V17 색인·시험 | 구현(리뷰·게이트 전) |
-| MNS-2 | ADMIN 백엔드: 화면 API 본문 전달·검증(MASTER 먼저 배포 — 모르는 필드 400 방지 순서) | 구현(리뷰·게이트 전, §11) |
-| MNS-3 | 화면: 가맹점 조회 조건에 가맹점명 입력·시험 | 대기 |
+| MNS-1 | MASTER: Filter·parser·jOOQ 조건·`MasterSqlText.likePrefix` 공유(사업자 Reader도 사용)·V17 색인·시험 | 완료(MNS1-gate1, 커밋 a56ac0a) |
+| MNS-2 | ADMIN 백엔드: 화면 API 본문 전달·검증(MASTER 먼저 배포 — 모르는 필드 400 방지 순서) | 완료(MNS2-gate1, 커밋 af53f28) |
+| MNS-3 | 화면: 가맹점 조회 조건에 가맹점명 입력·시험 | 구현(리뷰·게이트 전, §12) |
 
 ## 10. 시험 목록(MNS-1)
 
@@ -136,3 +137,29 @@ Kafka/Redis: 도입하지 않는다(필요 없음).
 동시성은 기존 MASTER 조회 permit·속도 창, 실패는 기존 503 분류, 로그·감사에 이름 원문 없음, 관측은 기존 `operation=merchant-search`·`master-ops-search` 분류 줄.
 JPA: 이번 배치는 JPA Entity·Repository를 바꾸지 않는다(ADMIN은 MASTER HTTP 조회만 — 쓰기 모델 무변경). Kafka/Redis: 도입하지 않는다.
 배포 순서: MASTER(MNS-1) 먼저 — ADMIN만 먼저 나가면 MASTER가 모르는 필드로 400을 돌려 ADMIN은 `Unavailable("HTTP_400")`(이름 검색만 실패, 다른 검색 영향 없음).
+
+## 12. MNS-3 구현 기록(관리자 콘솔 화면 `apps/internal-admin/frontend/src` — 리뷰·게이트 전, Implementer 자기 완료 판정 아님)
+
+가맹점 조회 화면(`MerchantsScreen`) 조회 조건 줄에 가맹점명 입력을 더한다. 화면 API·응답 모양·오류 문구 표는 바뀌지 않는다.
+
+| 위치 | 변경 |
+|---|---|
+| `api/adminApi.ts` `MerchantSearchInput` | `displayNamePrefix?: string`(앞부분 일치·대소문자 구분·원문 그대로, `merchantCode`와 함께 불가 — 주석) |
+| `screens/MerchantsScreen.tsx` | 상태 `displayNamePrefix`. 조회 조건 줄(`.filters` — 사용자 결정으로 가로 배치 유지)에 코드 입력 다음·상태 select 앞 `<input aria-label="가맹점명" placeholder="가맹점명 (앞부분 일치)" autoComplete="off" spellCheck={false}>`(기존 필터 줄 스타일 — 새 색·`style` 속성 없음) |
+| `search()` | 코드와 함께면 호출 없이 `combined` 문구. 이름이 있으면 `criteria.displayNamePrefix` = 입력 원문 그대로(trim·정규화 없음 — 앞뒤 공백 등 형식 위반은 서버 400 `INVALID_INPUT`을 기존 고정 문구 "입력 형식이 올바르지 않습니다."로, 사업자 조회 화면과 같은 방식). 다음 쪽은 보낸 조건(`sent.criteria`)에 이름이 들어 있어 그대로 이어진다 |
+| 문구 | `combined`: "가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다." 조회 안내(`.cardnote`)에 "가맹점명: 앞부분이 같은 이름(영문 대소문자 구분)"(입력란 `aria-describedby`) |
+
+가역 구현 결정: 이름은 화면에서 검사하지 않는다(코드처럼 형식이 짧지 않고, 판정 규칙 복제를 하나 더 늘리지 않는다 — 서버 MNS-2 `RegistrationInputRules.displayName`이 판정). 이름 입력은 검색 뒤에도 비우지 않는다(개인 식별 번호가 아님 — 사업자 조회 화면 상호와 같다).
+
+시험(`MerchantsScreen.test.tsx`, RED 먼저 — `~/gate-logs/mns-3/`):
+
+- MNS-3-1 입력란 속성(aria-label·placeholder·autocomplete off·spellcheck false)·위치(코드 다음·상태 앞, `.filters` 같은 줄), 이름만 → `{displayNamePrefix}`만, 앞뒤 공백 포함 원문 그대로.
+- MNS-3-2 이름 + 상태 → 둘 다. MNS-3-3 코드 + 이름 → 호출 없음·새 `combined` 문구·코드 입력 `aria-invalid`.
+- MNS-3-4 다음 쪽 `{displayNamePrefix, after}`(검색 뒤 입력을 바꿔도 보낸 조건 그대로).
+- MNS-3-5 400 `INVALID_INPUT` → 기존 고정 문구, 입력값은 입력란 value 밖(문구·속성·목록) 어디에도 없음(`domOccurrences`).
+- MNS-3-6 도움말 문구가 `.cardnote` 안·입력란 `aria-describedby` 연결, 검색 전후 `[style]` 0.
+- 기존 단언 변경: MC-2-3 `combined` 문구 2곳만(`// MERCHANT-NAME-SEARCH-001 MNS-3 기대값 변경(사용자 요청 가맹점명 조건)`). 그 밖 무변경.
+
+리뷰 수정 1(REVIEW_PASS MINOR 1·NIT 3): 이름 + 등록번호 다음 쪽 `{displayNamePrefix, businessId, after}` 시험(MNS-3-4b), MNS-3-5 코드·등록번호 입력란 value 단언, combined 오류일 때만 가맹점명 입력란 `aria-describedby`에 코드 안내 추가(MNS-3-3b), 도움말 "가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)".
+
+8대 원칙: 화면은 읽기 전용 조회 조건만 더한다 — 금융 사실·상태·TX·Outbox 변화 없음, 같은 검색 반복은 같은 요청 본문, 늦게 온 앞 요청은 기존 요청 순번으로 버림(Concurrency), 오류는 기존 고정 문구(입력 비반사), 감사·관측은 서버 기존 경로(§6·§11). JPA·jOOQ·Kafka/Redis 무관(화면 변경만).

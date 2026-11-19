@@ -304,6 +304,11 @@ export interface MerchantSearchInput {
    * MERCHANT-CODE-001 MC-2 코드 검색(정확 일치 — 현재·은퇴 코드, §3.1 형식). 단일 기준: [limit] 말고 다른 조건과 함께 보내지 않는다(서버도 400).
    */
   merchantCode?: string
+  /**
+   * MERCHANT-NAME-SEARCH-001 가맹점명 앞부분 일치(영문 대소문자 구분, 입력 원문 그대로 — trim·정규화 없음, 형식 위반은 서버 400).
+   * [merchantCode]와 함께 보내지 않는다(서버도 400). 다른 조건과는 AND.
+   */
+  displayNamePrefix?: string
 }
 
 /** 목록 항목. 사업자등록번호는 마스킹 값만(D-MD-008). [merchantId]는 내부 키(화면에 그리지 않음 — 상세 호출용, MC-2), 화면 표시는 [merchantCode]. */

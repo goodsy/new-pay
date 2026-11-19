@@ -407,6 +407,8 @@ export function MerchantsScreen({
   /** MC-2 코드 검색 입력(정확 일치 — 정규화 없음, 다른 조건과 함께 쓰지 않는다). */
   const [merchantCode, setMerchantCode] = useState('')
   const [codeError, setCodeError] = useState<'format' | 'combined' | null>(null)
+  /** MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 앞부분 일치 입력(원문 그대로 보낸다 — 형식 위반은 서버 400, 사업자 조회 화면과 같은 방식). */
+  const [displayNamePrefix, setDisplayNamePrefix] = useState('')
   const [lifecycle, setLifecycle] = useState('')
   const [registrationNumber, setRegistrationNumber] = useState('')
   const [registrationNumberError, setRegistrationNumberError] = useState(false)
@@ -466,7 +468,7 @@ export function MerchantsScreen({
         setCodeError('format')
         return
       }
-      if (lifecycle !== '' || brn !== '') {
+      if (displayNamePrefix !== '' || lifecycle !== '' || brn !== '') {
         setCodeError('combined')
         return
       }
@@ -474,6 +476,8 @@ export function MerchantsScreen({
     setCodeError(null)
     const criteria: SentSearch['criteria'] = {}
     if (merchantCode !== '') criteria.merchantCode = merchantCode
+    // trim·정규화 없음(MERCHANT-NAME-SEARCH-001 §2 — 앞뒤 공백 등 형식 위반은 서버 400을 기존 고정 문구로).
+    if (displayNamePrefix !== '') criteria.displayNamePrefix = displayNamePrefix
     if (lifecycle === 'ACTIVE' || lifecycle === 'TERMINATED') criteria.lifecycle = lifecycle
     // 번호는 이 요청 본문에만 — 보내는 즉시 입력란을 비운다(실패해도 다시 입력해야 한다).
     setRegistrationNumber('')
@@ -568,7 +572,8 @@ export function MerchantsScreen({
   // 입력란 이름은 aria-label(시안처럼 보이는 label 없음 — placeholder로 무엇을 넣는지 보인다), 도움말·오류는 필터 아래 .cardnote에 두고 aria-describedby로 잇는다.
   const codeNoteId = useId()
   const registrationNoteId = useId()
-  const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.' : null
+  const nameNoteId = useId()
+  const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.' : null
   return (
     <>
       <MapNote title="가맹점 조회" action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 가맹점 등록</button>}>
@@ -584,6 +589,15 @@ export function MerchantsScreen({
           placeholder="가맹점 코드 (예: demoshop01)"
           aria-describedby={codeNoteId}
           aria-invalid={codeError !== null || undefined}
+        />
+        <input
+          aria-label="가맹점명"
+          value={displayNamePrefix}
+          onChange={(e) => setDisplayNamePrefix(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="가맹점명 (앞부분 일치)"
+          aria-describedby={codeError === 'combined' ? `${nameNoteId} ${codeNoteId}` : nameNoteId}
         />
         <select aria-label="상태" value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
           <option value="">전체 상태</option>
@@ -608,6 +622,7 @@ export function MerchantsScreen({
       </form>
       <div className="cardnote">
         <p id={codeNoteId} className={codeMessage ? 'error' : 'subtle'}>{codeMessage ?? '가맹점 코드: 정확히 일치하는 코드 하나(예전에 쓰던 코드도 찾습니다).'}</p>
+        <p id={nameNoteId} className="subtle">가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)</p>
         {canSearchRegistrationNumber && (
           <p id={registrationNoteId} className={registrationNumberError ? 'error' : 'subtle'}>
             {registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : '사업자등록번호: 검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만).'}

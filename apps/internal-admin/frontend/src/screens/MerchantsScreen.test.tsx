@@ -337,11 +337,13 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     await typeIn('가맹점 코드', 'shopabcd12')
     await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
     await search()
-    expect(screen.getByText('가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    // MERCHANT-NAME-SEARCH-001 MNS-3 기대값 변경(사용자 요청 가맹점명 조건)
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByLabelText('상태'), '')
     await typeIn('사업자등록번호', '1234567890')
     await search()
-    expect(screen.getByText('가맹점 코드 검색은 다른 조건(상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    // MERCHANT-NAME-SEARCH-001 MNS-3 기대값 변경(사용자 요청 가맹점명 조건)
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
     expect(api.merchantSearch).not.toHaveBeenCalled()
   })
 
@@ -454,5 +456,152 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
     expect(identifier.parentElement).toHaveClass('min-w-[16ch]')
     expect(identifier.parentElement).not.toHaveClass('whitespace-nowrap')
     expect(identifier.parentElement!.parentElement).toBe(channel)
+  })
+})
+
+/**
+ * MERCHANT-NAME-SEARCH-001 MNS-3(사용자 요청 2026-11-19 "가맹점조회에서 조건이 가맹점명도 추가해줘", 명세 §3·§4): 가맹점명 앞부분 일치 조건.
+ * 화면은 입력 원문 그대로 보낸다(trim·정규화 없음 — 형식 위반은 서버 400을 기존 고정 문구로, 사업자 조회 화면과 같은 방식). 코드 검색과는 함께 쓰지 않는다.
+ */
+describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건', () => {
+  /** 앞뒤 공백 포함 원문(화면은 고치지 않는다 — 서버가 400으로 거절할 값도 그대로 보낸다). 화면 다른 곳에 우연히 나오지 않는 글자 조합. */
+  const RAW_NAME = ' Zq가맹%_! '
+
+  it('MNS-3-1 가맹점명 입력란은 코드 다음·상태 앞(같은 필터 줄), 입력하면 {displayNamePrefix}만 원문 그대로 보낸다', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    const input = screen.getByLabelText('가맹점명')
+    expect(input).toHaveAttribute('placeholder', '가맹점명 (앞부분 일치)')
+    expect(input).toHaveAttribute('autocomplete', 'off')
+    expect(input).toHaveAttribute('spellcheck', 'false')
+    const form = input.closest('form')!
+    expect(form).toHaveClass('filters')
+    const controls = Array.from(form.querySelectorAll('input, select')).map((el) => el.getAttribute('aria-label'))
+    expect(controls.indexOf('가맹점명')).toBe(controls.indexOf('가맹점 코드') + 1)
+    expect(controls.indexOf('상태')).toBe(controls.indexOf('가맹점명') + 1)
+    await typeIn('가맹점명', RAW_NAME)
+    await search()
+    expect(api.merchantSearch).toHaveBeenCalledTimes(1)
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: RAW_NAME })
+    expect(await screen.findByRole('row', { name: codeOf(MER1) })).toBeInTheDocument()
+  })
+
+  it('MNS-3-2 가맹점명 + 상태 → 둘 다 보낸다(AND — 서버 결정)', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
+    await typeIn('가맹점명', '데모')
+    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
+    await search()
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모', lifecycle: 'ACTIVE' })
+  })
+
+  it('MNS-3-3 가맹점 코드 + 가맹점명 → 호출 없이 바뀐 combined 문구', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
+    await typeIn('가맹점 코드', 'shopabcd12')
+    await typeIn('가맹점명', '데모')
+    await search()
+    expect(api.merchantSearch).not.toHaveBeenCalled()
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    expect(screen.getByLabelText('가맹점 코드')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('MNS-3-4 "다음"은 검색한 가맹점명 그대로 {displayNamePrefix, after}(검색 뒤 입력을 바꿔도 섞이지 않는다)', async () => {
+    const api = fakeApi({
+      merchantSearch: vi.fn()
+        .mockResolvedValueOnce({ items: [item(MER1, '데모 하나'), item(MER2, '데모 둘')], nextCursor: MER2 })
+        .mockResolvedValueOnce({ items: [item(MER3, '데모 셋')], nextCursor: null }),
+    })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
+    await typeIn('가맹점명', '데모')
+    await search()
+    await screen.findByRole('row', { name: codeOf(MER2) })
+    await userEvent.clear(screen.getByLabelText('가맹점명'))
+    await typeIn('가맹점명', '다른')
+    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', after: MER2 })
+    expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()
+  })
+
+  // MNS-3 리뷰 MINOR-1: 이름 + 등록번호 검색의 다음 쪽 — 이름은 이어지고, 번호 대신 결과의 사업자 키로 이어 찾는다(번호는 다시 보내지 않는다).
+  it('MNS-3-4b 가맹점명 + 사업자등록번호 → "다음"은 {displayNamePrefix, businessId, after}(registrationNumber 키 없음)', async () => {
+    const api = fakeApi({
+      merchantSearch: vi.fn()
+        .mockResolvedValueOnce({ items: [item(MER1, '데모 하나')], nextCursor: MER1 })
+        .mockResolvedValueOnce({ items: [item(MER2, '데모 둘')], nextCursor: null }),
+    })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    await typeIn('가맹점명', '데모')
+    await typeIn('사업자등록번호', BRN)
+    await search()
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(1, { displayNamePrefix: '데모', registrationNumber: BRN })
+    await screen.findByRole('row', { name: codeOf(MER1) })
+    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', businessId: BIZ1, after: MER1 })
+    const second = vi.mocked(api.merchantSearch).mock.calls[1]![0]
+    expect(Object.keys(second)).not.toContain('registrationNumber')
+    expect(JSON.stringify(second)).not.toContain(BRN)
+    expect(await screen.findByRole('row', { name: codeOf(MER2) })).toBeInTheDocument()
+  })
+
+  it('MNS-3-5 형식 위반 이름(앞뒤 공백)의 400 INVALID_INPUT → 기존 고정 문구, 입력값은 입력란 밖 어디에도 비치지 않는다', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => { throw apiError(400, 'INVALID_INPUT') }) })
+    // MNS-3 리뷰 NIT-1: 등록번호 칸이 있는 역할로 그려 코드·등록번호 입력란 value도 함께 본다.
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    await typeIn('가맹점명', RAW_NAME)
+    await search()
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: RAW_NAME })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('입력 형식이 올바르지 않습니다.')
+    expect(alert.textContent).not.toContain('Zq가맹')
+    // 입력란 value(프로퍼티·속성)만 — 문구·목록·속성(aria-*·title 등) 어디에도 없다.
+    const where = domOccurrences(document.body, 'Zq가맹')
+    expect(where.length).toBeGreaterThan(0)
+    for (const place of where) expect(place).toMatch(/\/INPUT\/value$/)
+    // MNS-3 리뷰 NIT-1: 그 입력란은 가맹점명 입력란뿐 — 코드·등록번호 입력란 value에는 없다.
+    expect(screen.getByLabelText('가맹점명')).toHaveValue(RAW_NAME)
+    expect((screen.getByLabelText('가맹점 코드') as HTMLInputElement).value).not.toContain('Zq가맹')
+    expect((screen.getByLabelText('사업자등록번호') as HTMLInputElement).value).not.toContain('Zq가맹')
+  })
+
+  // MNS-3 리뷰 NIT-2: combined 오류일 때만 가맹점명 입력란도 그 오류 문구를 가리킨다.
+  it('MNS-3-3b combined 오류가 있을 때만 가맹점명 입력란 aria-describedby = "<도움말> <코드 안내>"', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
+    const name = screen.getByLabelText('가맹점명')
+    const help = screen.getByText('가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)')
+    const codeNoteId = screen.getByLabelText('가맹점 코드').getAttribute('aria-describedby')!
+    expect(codeNoteId).not.toBe('')
+    expect(name).toHaveAttribute('aria-describedby', help.id)
+    // 형식 오류(코드 혼자)는 가맹점명과 무관 — 연결하지 않는다.
+    await typeIn('가맹점 코드', 'abc')
+    await search()
+    expect(screen.getByText('가맹점 코드는 영문 소문자로 시작, 영문 소문자·숫자 6~14자입니다.')).toBeInTheDocument()
+    expect(name).toHaveAttribute('aria-describedby', help.id)
+    await userEvent.clear(screen.getByLabelText('가맹점 코드'))
+    await typeIn('가맹점 코드', 'shopabcd12')
+    await typeIn('가맹점명', '데모')
+    await search()
+    expect(document.getElementById(codeNoteId)).toHaveTextContent('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')
+    expect(name).toHaveAttribute('aria-describedby', `${help.id} ${codeNoteId}`)
+    // 코드를 비우고 다시 검색하면 오류가 사라지고 연결도 도움말만.
+    await userEvent.clear(screen.getByLabelText('가맹점 코드'))
+    await search()
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모' })
+    expect(name).toHaveAttribute('aria-describedby', help.id)
+  })
+
+  it('MNS-3-6 조회 안내에 가맹점명 도움말(앞부분 일치·영문 대소문자 구분), 입력란이 그 안내를 가리킨다; style 속성 0', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
+    const help = screen.getByText('가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)')
+    expect(help.closest('.cardnote')).not.toBeNull()
+    expect(help.id).not.toBe('')
+    expect(screen.getByLabelText('가맹점명')).toHaveAttribute('aria-describedby', help.id)
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+    await typeIn('가맹점명', '데모')
+    await search()
+    await screen.findByRole('row', { name: codeOf(MER1) })
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })
