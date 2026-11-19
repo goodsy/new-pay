@@ -57,6 +57,7 @@ ADMIN-PAYMENT-OPS-001 §4.2 계약과 **같은 서명 v1**(헤더 `PayCore-Admin
 - 공통 503 `ADMIN_READ_BUSY`·`TEMPORARILY_UNAVAILABLE`. 오류 본문은 `{"error":"<CODE>"}`만(요청 값 없음).
 - 검색 본문: 알 수 없는 키·타입 불일치·형식 위반은 400(어느 필드인지 말하지 않는다 — 등록번호를 되돌려 주지 않는다). `limit` 1..50(없으면 20), `after`는 merchantId 형식,
   `lifecycle` ∈ {ACTIVE, TERMINATED}, `registrationNumber` 정확히 ASCII 숫자 10자리. 정렬 merchant_id 오름차순 keyset(`merchant_id > after`), `limit + 1` 행으로 다음 cursor 판정.
+- 검색 본문 필드는 MERCHANT-NAME-SEARCH-001로 확장(`displayNamePrefix` 가맹점명 앞부분 — [MERCHANT-NAME-SEARCH-001](MERCHANT-NAME-SEARCH-001-MERCHANT-NAME-SEARCH.md)).
 - 목록 항목: `merchantId, merchantName, businessId, businessName, registrationNumberMasked, lifecycle, entitlementRevision, midCount, createdAt`.
   **찾음/못 찾음 응답 모양 동일**(항목 수만 다르다).
 - 상세(§3.2)와 이력(§3.3) 모양. 시각은 `…T…Z` ms 3자리 UTC 문자열.

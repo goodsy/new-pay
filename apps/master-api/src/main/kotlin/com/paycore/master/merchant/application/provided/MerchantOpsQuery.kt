@@ -2,6 +2,7 @@ package com.paycore.master.merchant.application.provided
 
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.Lifecycle
 import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
@@ -21,7 +22,7 @@ interface MerchantOpsQuery {
 }
 
 /**
- * 목록 검색 조건(모두 정확 일치, 없으면 조건 없음). [registrationNumber]는 형식 검사를 마친 값 객체로만 받는다(toString은 마스킹).
+ * 목록 검색 조건([displayNamePrefix] 외에는 모두 정확 일치, 없으면 조건 없음 — 조건끼리는 AND). [registrationNumber]는 형식 검사를 마친 값 객체로만 받는다(toString은 마스킹).
  * keyset: merchant_id 오름차순, [after] 초과. [limit] 1..[MAX_LIMIT].
  */
 data class MerchantSearchFilter(
@@ -36,10 +37,15 @@ data class MerchantSearchFilter(
      * 결과 항목은 `matchedRetiredCode`를 갖는 별도 응답 모양이다.
      */
     val merchantCode: MerchantCode? = null,
+    /**
+     * MERCHANT-NAME-SEARCH-001: 가맹점명(`merchant.display_name`) **앞부분 일치**(글자 그대로 — `%`·`_`는 와일드카드가 아니다, 대소문자 구분 utf8mb4_0900_bin, 정규화 없음).
+     * 형식은 [DisplayName] 규칙(1~100 code point). 다른 조건과 AND, [merchantCode]와는 함께 쓸 수 없다.
+     */
+    val displayNamePrefix: DisplayName? = null,
 ) {
     init {
         require(limit in 1..MAX_LIMIT) { "limit must be within 1..$MAX_LIMIT" }
-        require(merchantCode == null || listOf(merchantId, businessId, lifecycle, registrationNumber, after).all { it == null }) {
+        require(merchantCode == null || listOf(merchantId, businessId, lifecycle, registrationNumber, after, displayNamePrefix).all { it == null }) {
             "merchantCode is a single search criterion"
         }
     }

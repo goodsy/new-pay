@@ -332,6 +332,37 @@ class MerchantOpsApiSpec(
             }
         }
 
+        Then("MERCHANT-NAME-SEARCH-001 MNS-1: a name prefix search is 200 with the list shape; malformed names and name with merchantCode are 400 without echoing the input") {
+            val found = post(search, """{"displayNamePrefix":"Demo Mer","businessId":"${e.ready.businessId.value}"}""")
+            found.response.status shouldBe 200
+            val node = json.readTree(found.body())
+            node.propertyNames().toList() shouldBe listOf("items", "nextCursor")
+            node.get("items").size() shouldBe 1
+            node.get("items").get(0).get("merchantId").asString() shouldBe e.merchantId.value
+            node.get("items").get(0).has("matchedRetiredCode") shouldBe false
+            post(search, """{"displayNamePrefix":"demo Mer","businessId":"${e.ready.businessId.value}"}""").body() shouldBe """{"items":[],"nextCursor":null}"""
+            // 리뷰 NIT-5: 검색한 이름은 수락(200)·거절(400) 어느 쪽에서도 로그에 남지 않는다(등록번호 시험과 같은 CapturedLogs 방식 — 고유 canary).
+            val canary = "NameCanary" + java.util.UUID.randomUUID().toString().take(8)
+            CapturedLogs().use { logs ->
+                post(search, """{"displayNamePrefix":"$canary"}""").response.status shouldBe 200
+                post(search, """{"displayNamePrefix":"$canary","limit":1,"businessId":"${e.ready.businessId.value}"}""").response.status shouldBe 200
+                post(search, """{"displayNamePrefix":" $canary"}""").response.status shouldBe 400
+                post(search, """{"displayNamePrefix":"$canary","merchantCode":"shopabcd12"}""").response.status shouldBe 400
+                logs.lines().filter { canary in it }.shouldBeEmpty()
+            }
+            listOf(
+                """{"displayNamePrefix":""}""", """{"displayNamePrefix":" Demo"}""", """{"displayNamePrefix":"Demo "}""", """{"displayNamePrefix":"De\nmo"}""",
+                """{"displayNamePrefix":"${"x".repeat(101)}"}""", """{"displayNamePrefix":12345}""", """{"displayNamePrefix":null}""",
+                """{"displayNamePrefix":"Demo","merchantCode":"shopabcd12"}""",
+            ).forEach { body ->
+                val res = post(search, body)
+                withClue(body) {
+                    res.response.status shouldBe 400
+                    res.body() shouldBe """{"error":"REQUEST_MALFORMED"}"""
+                }
+            }
+        }
+
         Then("unknown or malformed merchant ids are 404 MERCHANT_NOT_FOUND; a malformed history cursor is 400") {
             listOf("mer_00000000000000000000000000", "mer_x", "biz_00000000000000000000000000").forEach { id ->
                 val res = get("/internal/v1/admin/merchants/$id")

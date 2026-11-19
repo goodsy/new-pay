@@ -17,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 /**
- * 가맹점 목록(MERCHANT-OPS-001 §3.1, jOOQ 읽기 전용). merchant_id 오름차순 keyset(`> after`), `limit + 1`행으로 다음 쪽 판정. 조건은 모두 정확 일치이며 등록번호는
- * 바인드 값으로만 쓰고(로그·결과에 없음) 결과에는 SQL 마스킹 값만 담는다. MID 수는 상관 부분 질의(PK·FK 색인).
+ * 가맹점 목록(MERCHANT-OPS-001 §3.1, jOOQ 읽기 전용). merchant_id 오름차순 keyset(`> after`), `limit + 1`행으로 다음 쪽 판정. 조건은 가맹점명 접두 외에는 모두 정확 일치이며
+ * 등록번호는 바인드 값으로만 쓰고(로그·결과에 없음) 결과에는 SQL 마스킹 값만 담는다. MID 수는 상관 부분 질의(PK·FK 색인).
+ *
+ * MERCHANT-NAME-SEARCH-001: 가맹점명 앞부분 일치는 `display_name LIKE ? ESCAPE '!'`(`%`·`_`·`!`를 `!`로 이스케이프 — [MasterSqlText.likePrefix], 사업자 상호 접두와 같은 규칙).
+ * 색인 `ix_merchant_name_id (display_name, merchant_id)`(V17)로 접두 범위를 읽은 뒤 merchant_id 오름차순으로 다시 정렬한다(filesort — 알려진 한계, LIVE Gate에서 EXPLAIN 기록).
  */
 @Component
 class JooqMerchantDirectoryReader(private val dsl: DSLContext) : MerchantDirectoryReader {
@@ -31,6 +34,7 @@ class JooqMerchantDirectoryReader(private val dsl: DSLContext) : MerchantDirecto
         filter.lifecycle?.let { conditions += MERCHANT.LIFECYCLE.eq(it.name) }
         filter.registrationNumber?.let { conditions += BUSINESS.REGISTRATION_NUMBER.eq(it.value) }
         filter.after?.let { conditions += MERCHANT.MERCHANT_ID.gt(it.value) }
+        filter.displayNamePrefix?.let { conditions += MERCHANT.DISPLAY_NAME.like(MasterSqlText.likePrefix(it.value), MasterSqlText.ESCAPE) }
         // MERCHANT-CODE-001 §3.8: 코드 검색 = 현재·은퇴 코드 정확 일치(배정 표 UNIQUE 색인 — 0 또는 1 가맹점).
         filter.merchantCode?.let { code ->
             conditions += MERCHANT.MERCHANT_ID.`in`(

@@ -3,6 +3,7 @@ package com.paycore.master.merchant.adapter.web.admin
 import com.paycore.master.merchant.application.provided.MerchantSearchFilter
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.Lifecycle
 import com.paycore.master.merchant.domain.MerchantCode
 import com.paycore.master.merchant.domain.MerchantId
@@ -13,7 +14,8 @@ import tools.jackson.databind.json.JsonMapper
 
 /**
  * 가맹점 검색 본문 엄격 해석(MERCHANT-OPS-001 §3.1): JSON 객체, 모든 필드 선택, 모르는 필드·중복 key·뒤따르는 토큰·자료형 강제 변환 거부. ID는 `<prefix>_` + ULID,
- * `lifecycle` ACTIVE·TERMINATED, `registrationNumber`는 ASCII 숫자 10자리, `limit` JSON 정수 1..50. 하나라도 어긋나면 null(400 `REQUEST_MALFORMED` — 어느 필드인지·입력 값을
+ * `lifecycle` ACTIVE·TERMINATED, `registrationNumber`는 ASCII 숫자 10자리, `limit` JSON 정수 1..50, `displayNamePrefix`(MERCHANT-NAME-SEARCH-001 — 가맹점명 앞부분)는
+ * 상호 문자 규칙([DisplayName] — [BusinessSearchRequestParser]와 같은 해석, 정규화 없음). 하나라도 어긋나면 null(400 `REQUEST_MALFORMED` — 어느 필드인지·입력 값을
  * 응답·로그에 넣지 않는다: 등록번호를 되돌려 주지 않는 oracle 방어 §5.5).
  */
 object MerchantSearchRequestParser {
@@ -24,7 +26,8 @@ object MerchantSearchRequestParser {
         .build()
 
     // MERCHANT-CODE-001 §3.8: `merchantCode`(형식 = Domain [MerchantCode] 값 객체 — 정규화 없음) — 단일 기준(다른 필터·cursor와 함께면 400, `limit`만 허용).
-    private val FIELDS = setOf("merchantId", "businessId", "lifecycle", "registrationNumber", "after", "limit", "merchantCode")
+    // MERCHANT-NAME-SEARCH-001: `displayNamePrefix` — 다른 필터·cursor와 AND, `merchantCode`와 함께면 400(MerchantSearchFilter 불변식 → runCatching null).
+    private val FIELDS = setOf("merchantId", "businessId", "lifecycle", "registrationNumber", "after", "limit", "merchantCode", "displayNamePrefix")
     private const val ULID = "[0-9A-HJKMNP-TV-Z]{26}"
     val MERCHANT_ID = Regex("^mer_$ULID$")
     private val BUSINESS_ID = Regex("^biz_$ULID$")
@@ -35,6 +38,7 @@ object MerchantSearchRequestParser {
         if (root == null || !root.isObject || root.propertyNames().any { it !in FIELDS }) return null
         val limit = root.get("limit")?.let { if (it.isIntegralNumber && it.canConvertToInt()) it.asInt() else return null } ?: MerchantSearchFilter.DEFAULT_LIMIT
         if (limit !in 1..MerchantSearchFilter.MAX_LIMIT) return null
+        val namePrefix = text(root, "displayNamePrefix", ANY_TEXT)?.also { if (DisplayName.errorOf(it) != null) return null }
         MerchantSearchFilter(
             merchantId = text(root, "merchantId", MERCHANT_ID)?.let(::MerchantId),
             businessId = text(root, "businessId", BUSINESS_ID)?.let(::BusinessId),
@@ -42,6 +46,7 @@ object MerchantSearchRequestParser {
             registrationNumber = text(root, "registrationNumber", REGISTRATION_NUMBER)?.let(::BusinessRegistrationNumber),
             after = text(root, "after", MERCHANT_ID)?.let(::MerchantId),
             merchantCode = text(root, "merchantCode", ANY_TEXT)?.let(::MerchantCode),
+            displayNamePrefix = namePrefix?.let(::DisplayName),
             limit = limit,
         )
     }.getOrNull()

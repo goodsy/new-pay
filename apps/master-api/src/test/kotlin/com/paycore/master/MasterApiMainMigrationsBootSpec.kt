@@ -32,7 +32,8 @@ class MasterApiMainMigrationsBootSpec(
         // 기대값 변경(MERCHANT-OPS-002 B3-1 V11, §9.22 C-42): 승인 근거 operation CHECK 확장(schema만 — 권한 변경 없음, V12는 의도적으로 비운다).
         // 기대값 변경(MERCHANT-CODE-001 MC-1 — 목록 증가): + V13(가맹점 코드 배정 schema)·V14(그 runtime 권한).
         // 기대값 변경(BUSINESS-PROFILE-001 BIZ-1 — 목록 증가): + V15(사업자 기본정보 schema)·V16(그 runtime 권한).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16")
+        // 기대값 변경(MERCHANT-NAME-SEARCH-001 — V17): 가맹점명 검색 색인 ix_merchant_name_id(schema만 — 새 표·열 없음 → runtime 권한 변경 없음, V18은 의도적으로 비운다).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16", "17")
     }
 
     test("the runtime account (role-only, no database-level privilege) connects to the MASTER database and reads business tables") {

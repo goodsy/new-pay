@@ -13413,6 +13413,90 @@
       },
       "biz4Status": "DONE (review conditional REVIEW_PASS → MINOR-1..3, NIT-1..6 applied; BIZ4-gate3 PASS)",
       "doneNote": "All batches BIZ-1..4 implemented, independently reviewed and gated (BIZ1-gate1, BIZ2-gate3, BIZ3-gate2, BIZ4-gate3 PASS). Q-SEC-PICOMATCH-1 answered 2026-11-18 (time-boxed ignore until 2026-12-18, follow-up SEC-PICOMATCH-UPGRADE). Open: L-13 HMAC (B3-3a before LIVE), L-14 Demo values, FLAKY-FE-APPROVALS-LABELS. Demo walkthrough pending after Demo rebuild."
+    },
+    {
+      "id": "MERCHANT-NAME-SEARCH-001",
+      "title": "가맹점 조회 조건에 가맹점명(앞부분 일치) 추가",
+      "status": "IN_PROGRESS",
+      "spec": "docs/repository/MERCHANT-NAME-SEARCH-001-MERCHANT-NAME-SEARCH.md rev 0.2 sha256 4048dd7bbb25b2bcfc3f8bdeaa82f47b147c8d7577cd8375bdd0ecfb0c9e306b (rev 0.1 2a8971bb…에서 MNS-1 리뷰 MINOR-1~3·NIT-1·2·3·5 반영)",
+      "request": "사용자 2026-11-19 \"가맹점조회에서 조건이 가맹점명도 추가해줘\"",
+      "dependsOn": [
+        "MERCHANT-OPS-001",
+        "BUSINESS-PROFILE-001",
+        "MERCHANT-CODE-001"
+      ],
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/**",
+        "harness/tasks.json",
+        "docs/repository/MERCHANT-NAME-SEARCH-001-*.md",
+        "docs/repository/MERCHANT-OPS-001-MERCHANT-READ.md"
+      ],
+      "owner": "Coordinator",
+      "maxRepairAttempts": 3,
+      "decisions": [
+        "Coordinator 방침(가역·저장소 관례): 사업자 상호 검색(BUSINESS-PROFILE-001 C-5·L-11)과 같은 방식 — 앞부분 일치 LIKE + ESCAPE '!', utf8mb4_0900_bin 대소문자 구분, 정규화 없음(DisplayName.errorOf 규칙), 목록 감사 없음(D-MOPS-002), 조회 역할 무변경, merchantCode와 함께면 400, 나머지 필터와 AND, merchant_id 오름차순 keyset 유지"
+      ],
+      "batchOrder": [
+        "MNS-1",
+        "MNS-2",
+        "MNS-3"
+      ],
+      "batches": {
+        "MNS-1": {
+          "scope": "MASTER: MerchantSearchFilter.displayNamePrefix(+merchantCode 단일 기준 불변식), MerchantSearchRequestParser, JooqMerchantDirectoryReader LIKE 조건, MasterSqlText.ESCAPE·likePrefix 공유(JooqBusinessDirectoryReader도 사용), V17 ix_merchant_name_id(INPLACE, LOCK=NONE — 권한 변화 없음, V18 비움)",
+          "status": "DONE(MNS1-gate1)",
+          "statusNote": "구현·대상 시험 GREEN(Implementer) — 리뷰·전체 게이트 전, DONE 아님"
+        },
+        "MNS-2": {
+          "scope": "ADMIN 백엔드: 화면 API 본문 displayNamePrefix 전달·검증 (MASTER 먼저 배포)",
+          "status": "BACKLOG"
+        },
+        "MNS-3": {
+          "scope": "화면: 가맹점 조회 조건에 가맹점명 입력·시험",
+          "status": "BACKLOG"
+        }
+      },
+      "migrations": {
+        "master": "V17__merchant_display_name_index.sql(색인만 — runtime 권한 변경 없음, V18은 의도적으로 비운다)"
+      },
+      "mns1": {
+        "red": [
+          "~/gate-logs/mns-1/red1-compile.log: compileTestKotlin exit 1 — MerchantSearchFilter에 displayNamePrefix 없음(시험만 작성한 상태)",
+          "~/gate-logs/mns-1/red2-behavior.log: Filter 필드만 추가 후 대상 5클래스 39 중 9 실패 exit 1 — parser 모르는 필드 null(P1·P4), Reader 조건 무시로 전체 반환(R1~R3), 색인 없음(R4), API 400(200 기대), migration 목록 V17 없음(2곳)"
+        ],
+        "green": [
+          "~/gate-logs/mns-1/green1.log: 10클래스 71 tests, 실패·오류·skip 0, exit 0 (MerchantNameSearchParserSpec 5, MerchantOpsReaderSpec 10, MerchantOpsApiSpec 16, MasterApiMainMigrationsBootSpec 2, MasterApiContextSmokeSpec 6, BusinessReaderSpec 9, BusinessSchemaSpec 9, BusinessSchemaMigrationSpec 2, MerchantCodeParserSpec 7, MerchantOpsShapeGoldenSpec 5)",
+          "~/gate-logs/mns-1/green2-architecture.log: architecture 6클래스 50 + MasterDatabaseAccountSpec 10, 실패 0, exit 0"
+        ],
+        "explain": "MNS-1-R4 Testcontainers EXPLAIN: merchant range key=ix_merchant_name_id, Extra 'Using index condition; Using where; Using filesort' (L-3 filesort — LIVE Gate 재측정)",
+        "gate": "전체 게이트 미실행. verify-gate.py는 task별 등록이 필요 없다(TASK_ID는 증거 파일명만 — commands.json 고정 GATE 순서): python3 harness/scripts/verify-gate.py MERCHANT-NAME-SEARCH-001 --expect-fingerprint sha256:<fingerprint.sh 값>",
+        "reviewFix1": {
+          "review": "MNS-1 REVIEW_PASS (MINOR 3, NIT 6) — Coordinator 전달 2026-11-20",
+          "applied": [
+            "MINOR-1: 명세 L-3에 운영 전 결정 항목(최소 접두 길이 또는 statement timeout max_execution_time 중 하나 — LIVE Gate 결정), 코드 무변경",
+            "MINOR-2: 명세 §5.1 V17 운영 적용 절차(세션 lock_wait_timeout·장기 TX 시 MDL 대기·실패 시 Flyway repair 후 재시도·되돌리기 DROP INDEX 데이터 무변경), L-4 추가, §7 Recoverability 보완",
+            "MINOR-3: escape 제거 mutation(like(value + \"%\")) 1회 — ~/gate-logs/mns-1/mutation-escape.log exit 1, MerchantOpsReaderSpec 10 중 2 실패(R1: 50% 접두가 50X 미끼까지 반환, R4: escape '!' 없음) → 원복(diff MUTATION 0건) 후 reviewfix1.log 통과",
+            "NIT-1: §5 jOOQ 문구 '새 테이블·컬럼 타입 없음(빌드 산출물에 인덱스 상수만 추가)'",
+            "NIT-2: R1에 백슬래시 이름(b\\c)과 미끼(bc) 추가",
+            "NIT-3: MerchantNameSearchParserSpec P1에 😀×100 통과 경계 추가(DisplayName 단위 시험 MasterValuesSpec:43은 '가'×100만 있음)",
+            "NIT-5: MerchantOpsApiSpec 이름 검색 Then에 CapturedLogs canary 단언(200 2건·400 2건 — 로그에 이름 없음)",
+            "NIT-4·NIT-6: 지시대로 그대로 둠"
+          ],
+          "evidence": "~/gate-logs/mns-1/reviewfix1.log exit 0: MerchantOpsReaderSpec 10, MerchantNameSearchParserSpec 5, MerchantOpsApiSpec 16, BusinessReaderSpec 9 = 40 tests, 실패·오류·skip 0"
+        }
+      },
+      "nextResumeAction": "MNS-2 ADMIN 백엔드(body parser·Criteria toString 마스킹·Service wellFormed/codeSearchWellFormed·Gateway 본문) → MNS-3 화면. 배포 순서 MASTER 먼저(명세 §9)",
+      "gateRuns": [
+        {
+          "tag": "MNS1-gate1",
+          "verdict": "PASS",
+          "batch": "MNS-1 MASTER",
+          "evidence": "build/harness-evidence/MERCHANT-NAME-SEARCH-001-2026-11-19T193128Z.json",
+          "result": "GRADLE-CHECK exit 0; total tests=5085 failures=0 errors=0 skipped=0 / total tests=686 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:5a78a530d9fd0c0f499505eeee4a29c9fe693c7c2e3e3bc92684793aafb9b144",
+          "supplementary": "MNS1-cve1 PASS(~/gate-logs/MNS1-cve1.log)"
+        }
+      ]
     }
   ]
 }

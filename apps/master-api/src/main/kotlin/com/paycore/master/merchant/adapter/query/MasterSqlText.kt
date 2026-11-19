@@ -41,4 +41,19 @@ internal object MasterSqlText {
     fun utcLiteral(at: Instant): Field<LocalDateTime?> = DSL.field("CAST({0} AS DATETIME(3))", LocalDateTime::class.java, DSL.inline(UTC_WALL_CLOCK.format(at)))
 
     private val UTC_WALL_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS").withZone(ZoneOffset.UTC)
+
+    /** LIKE 이스케이프 문자(BUSINESS-PROFILE-001 C-5 — 사업자 상호 접두와 MERCHANT-NAME-SEARCH-001 가맹점명 접두가 같이 쓴다). */
+    const val ESCAPE = '!'
+
+    /**
+     * 글자 그대로의 앞부분 일치 LIKE 패턴: `!`·`%`·`_`를 [ESCAPE]로 감싼 뒤 `%`를 붙인다 — 입력이 와일드카드가 되지 않는다. `field.like(likePrefix(v), ESCAPE)`로 쓴다
+     * (값은 바인드 — SQL 문자열에 섞지 않는다).
+     */
+    fun likePrefix(value: String): String = buildString {
+        value.forEach { c ->
+            if (c == ESCAPE || c == '%' || c == '_') append(ESCAPE)
+            append(c)
+        }
+        append('%')
+    }
 }

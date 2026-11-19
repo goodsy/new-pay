@@ -116,9 +116,13 @@ class JooqStatementRecorder : org.jooq.ExecuteListener {
     /** BUSINESS-PROFILE-001 BIZ-2-7: [recording] 동안 실행된 SQL 문자열(SELECT 목록 단언용 — 바인드 값은 `?`). */
     val statements: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
 
+    /** MERCHANT-NAME-SEARCH-001 MNS-1: [recording] 동안 실행된 문장의 바인드 값 인라인 렌더(EXPLAIN 증거용 — 시험 데이터만 담긴다). */
+    val inlinedStatements: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
+
     override fun executeStart(ctx: org.jooq.ExecuteContext) {
         if (!recording) return
         ctx.sql()?.let { statements += it }
+        ctx.query()?.let { inlinedStatements += org.jooq.impl.DSL.using(ctx.configuration()).renderInlined(it) }
         observations += Observation(
             org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive(),
             org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly(),
