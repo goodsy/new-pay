@@ -4,12 +4,9 @@ import type { ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { CircleAlertIcon, InfoIcon } from '../components/icons'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Field, Spinner } from '../components/DataBits'
-import { Logo } from '../components/Logo'
+import { Field } from '../components/DataBits'
 
 interface Props {
   api: AdminApi
@@ -21,7 +18,11 @@ interface Props {
   unresolvedNotice?: boolean
 }
 
-/** 2단계 로그인(§4.3.2): CSRF 세션 → 비밀번호 → TOTP. 입력 값은 컴포넌트 상태에만, 실패하면 비밀 입력을 지운다. */
+/**
+ * 2단계 로그인(§4.3.2): CSRF 세션 → 비밀번호 → TOTP. 입력 값은 컴포넌트 상태에만, 실패하면 비밀 입력을 지운다.
+ * 모양(ADMIN-UI-WORKSPACE-001 WS9 — 참고 시안에 로그인 화면이 없어 시안 카드로 구성): section.card > .cardtop h2 → .cardbody(단계 안내 .subtle·알림·form) → .cardnote(등록 코드 .btn).
+ * 브랜드는 로그인 전 상단 바의 시안 `.brand`(AppLayout). 스피너 대신 버튼 아래 보이는 진행 글자(aria-live — 버튼과 한 묶음 div 안 block span이라 비어 있으면 높이 0, form gap을 더하지 않음). 입력 속성·문구·호출 순서는 그대로.
+ */
 export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolvedNotice = false }: Props) {
   const [step, setStep] = useState<'password' | 'totp'>('password')
   const [loginName, setLoginName] = useState('')
@@ -62,15 +63,12 @@ export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolved
   }
 
   return (
-    <Card as="section">
-      <CardHeader className="justify-items-center text-center">
-        <Logo className="mb-2 size-10 text-sm" />
-        <h2 className="text-xl font-bold tracking-tight">로그인</h2>
-        <CardDescription>
-          {step === 'password' ? '1단계 — 관리자 로그인 이름과 비밀번호를 입력하세요.' : '2단계 — OTP 앱의 6자리 코드를 입력하세요.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <section className="card">
+      <div className="cardtop">
+        <h2>로그인</h2>
+      </div>
+      <div className="cardbody">
+        <p className="subtle">{step === 'password' ? '1단계 — 관리자 로그인 이름과 비밀번호를 입력하세요.' : '2단계 — OTP 앱의 6자리 코드를 입력하세요.'}</p>
         {notice && (
           <Alert role="status" variant="warning">
             <InfoIcon aria-hidden="true" />
@@ -99,10 +97,12 @@ export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolved
               <span>비밀번호</span>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
             </Label>
-            <Button type="submit" disabled={busy} aria-busy={busy} className="w-full">
-              <Spinner active={busy} />
-              다음
-            </Button>
+            <div>
+              <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
+                다음
+              </button>
+              <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
+            </div>
           </form>
         ) : (
           <form onSubmit={submitTotp} className="flex flex-col gap-4">
@@ -111,18 +111,20 @@ export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolved
                 <Input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" required aria-describedby={describedBy} className="text-center font-mono text-lg tracking-[0.5em]" />
               )}
             </Field>
-            <Button type="submit" disabled={busy} aria-busy={busy} className="w-full">
-              <Spinner active={busy} />
-              로그인
-            </Button>
+            <div>
+              <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
+                로그인
+              </button>
+              <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
+            </div>
           </form>
         )}
-      </CardContent>
-      <CardFooter className="justify-center">
-        <Button type="button" variant="link" size="sm" onClick={onEnroll}>
+      </div>
+      <div className="cardnote items-center">
+        <button type="button" className="btn" onClick={onEnroll}>
           등록 코드로 계정 등록
-        </Button>
-      </CardFooter>
-    </Card>
+        </button>
+      </div>
+    </section>
   )
 }

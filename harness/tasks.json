@@ -9609,9 +9609,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-18T015027Z.json",
           "result": "GRADLE-CHECK 01:51:01Z..02:46:54Z(55m53s) exit 0; Kotlin 5075 / FRONTEND 639 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:519ffbedcf5eab1554c3dc19b5b2b3d163741fa26808b691f315ecc3a50636ee",
           "supplementary": "WS8-cve1 PASS(~/gate-logs/WS8-cve1.log)"
+        },
+        {
+          "tag": "WS9-gate1",
+          "verdict": "PASS",
+          "screen": "로그인·계정 등록",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-18T031416Z.json",
+          "result": "GRADLE-CHECK 03:14:46Z..04:06:34Z(51m48s) exit 0; Kotlin 5075 / FRONTEND 645 실패·errors·skip 0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:811bd830c133abd6e12bca6bc4abae04c09c0a46fc09f4690ff734fbfe90649a",
+          "supplementary": "WS9-cve1 PASS(~/gate-logs/WS9-cve1.log, 2026-11-19 실행)"
         }
       ],
-      "nextResumeAction": "남은 화면: login (WS9) → ADMIN-HOME-ATTENTION-001. 후속: APPROVAL-TARGET-KEYS-001(+ 가맹점 등록 site_/ctr_/csa_ 표시), PAYOPS-DOUBLE-SUBMIT(UX만)",
+      "nextResumeAction": "Demo 사용자 피드백 반영(2026-11-19): 사업자 등록 중복 확인 버튼 위치·업태/종목 버튼 정리 → SITE-CONTRACT-LABELS(사용자 결정: Site·계약 ID 숨기고 채널·식별값, 목록에서 고르기) → ADMIN-HOME-ATTENTION-001",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -9900,6 +9908,54 @@
           "result": "페이지 가로 넘침 0, biz_/mer_ 노출 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류 0. 수정 전 찾기 버튼 위로 뜸·현재 단계 바탕이 글자 폭만 칠해짐 → reviewFix1로 해소",
           "notCaptured": "가맹점 등록 ②~④ 단계(카드 저장 흐름)는 fixture 없이 캡처하지 않음 — jsdom 구조 시험과 리뷰로만 확인",
           "evidence": "scratchpad admin-ui-ws8/shots, results.json"
+        }
+      },
+      "loginScreens": {
+        "status": "DONE(WS9-gate1)",
+        "scope": "로그인 전 화면 — 로그인(LoginScreen.tsx 2단계: 비밀번호 → TOTP)과 계정 등록(EnrollmentScreen.tsx: 등록 코드 → 새 비밀번호 → TOTP 설정 키·확인 → 완료) 모양만 시안 카드 구조로. App.tsx·AppLayout(로그인 전 상단 바 .brand + 가운데 카드 main)은 변경 없음. CSRF → 비밀번호 → TOTP 호출 순서, 실패 시 비밀 입력 지움, 입력 속성(autocomplete·inputmode·pattern·maxLength·type·required), 저장소·URL 비보관, 오류·세션 종료·결과 확인 필요 문구(사용자 열거 차이 없음 — 같은 ERROR_MESSAGES), 설정 키 1회·한 곳 표시와 완료/재시작 시 지움, 등록 단계 재시작 규칙, PayCore 브랜드 유지. 샘플 데이터 없음",
+        "changes": [
+          "LoginScreen.tsx: shadcn Card/CardHeader/CardContent/CardFooter·Button·Spinner·카드 안 Logo → section.card > .cardtop h2 '로그인' → .cardbody(단계 안내 p.subtle 문구 그대로 · 세션 종료 status/결과 확인 필요 note/오류 alert Alert 구성요소 그대로 · form: 보이는 Label + Input 그대로(로그인 이름 username·비밀번호 current-password / 인증 코드 Field hint·aria-describedby·inputMode numeric·pattern [0-9]{6}·maxLength 6·one-time-code 그대로) · 제출 button.btn.primary.w-full(type submit·disabled·aria-busy 그대로) · 스피너 대신 span.subtle aria-live=polite '확인 중…') → .cardnote.items-center(등록 코드로 계정 등록 button.btn type=button). 상태·핸들러·호출 무변경",
+          "EnrollmentScreen.tsx: shadcn Card/CardHeader/CardContent/CardDescription·Button·Logo → section.card > .cardtop h2 '계정 등록' → .cardbody(단계 안내 p.subtle 문구 그대로 · ErrorNotice 그대로 · 단계 form: 보이는 Label + Input 그대로(등록 코드 autoComplete off·font-mono / 새 비밀번호 new-password / 인증 코드 inputMode numeric·maxLength 6·one-time-code) · 제출 button.btn.primary.w-full · 설정 키 안내 p.subtle + 설정 키 p.notice.text-foreground(text-center font-mono tracking-wider break-all, translate=no — 한 곳) · 완료 StatusNotice + '로그인 화면으로' button.btn.primary.w-full type=button). setupKeyOf·run·RESTART·afterPassword·start·providePassword·complete 무변경",
+          "App.tsx·AppLayout.tsx·workspace.css·styles.css 변경 없음(로그인 전 header .brand(i + h1 'PayCore 관리자')는 이미 시안 구조. 기존 .card·.cardtop h2·.cardbody·.cardnote·.subtle·.notice·.btn·.btn.primary 규칙과 다크 블록만 사용)",
+          "시험: LoginScreen.workspace.test.tsx 새로 4건(App 경유 로그인 전 골격·브랜드·카드 구조·보이는 label·자동 완성 속성·버튼 class·style 0·등록 화면 전환 / 진행 글자 aria-live·aria-busy·스피너 없음·TOTP 속성·도움말·저장소 비어 있음 / 알림 3종 위치·역할·문구·비밀번호 지움 / 로그인 전 테마: OS 다크·저장된 라이트 반영·저장소 미기록·다크 블록 선택자) · EnrollmentScreen.workspace.test.tsx 새로 2건(App 경유 4단계 구조·속성·문구·설정 키 1회·한 곳·otpauth 비노출·완료 후 키 0·로그인 복귀·저장소 비어 있음 / ENROLLMENT_STEP_INVALID 재시작 alert·키 지움)"
+        ],
+        "selectorChanges": "없음 — 기존 LoginScreen.test(3)·EnrollmentScreen.test(4)·App.test·AppLayout.test·noRuntimeStyles·theme.test·WorkspaceShell 단언·선택자 변경 없이 통과. 새 시험 1파일만 green1에서 자기 기대값 오류 1(.cardnote에 items-center utility를 빠뜨림) 수정",
+        "deviations": [
+          "참고 시안(index.html·app.js·CLAUDE_IMPLEMENTATION_GUIDE)에 로그인·등록 화면이 없음 → 시안 카드 토큰(.card > .cardtop h2 + .cardbody, 아래 .cardnote)·버튼(.btn·.btn.primary)·보조 글자(.subtle)·안내 상자(.notice)로 구성. 브랜드 블록은 사이드바 .brand와 같은 구조가 로그인 전 상단 바에 이미 있어(AppLayout — i 'P' + h1 'PayCore 관리자') 카드 안 로고(shadcn bg-primary 사각형)는 뺌 — 브랜드 표시는 상단 바 하나",
+          "카드 제목: 기존 가운데 정렬 text-xl 제목 + 로고 → 시안 .cardtop h2(17px·왼쪽). 단계 설명(CardDescription)은 .cardbody 첫 줄 p.subtle(문구 그대로)",
+          "입력 칸·알림은 기존 구성요소 유지(shadcn Input·Label·Field·Alert·ErrorNotice·StatusNotice — 시안 .formrow로 바꾸지 않음): 보이는 label·접근 가능한 이름·aria-describedby·자동 완성 속성·초점 표시(Input 고유 ring)를 그대로 두려고(등록 화면·결제 보정 취소 선례)",
+          "스피너 제거(다음·로그인) → 버튼 아래 보이는 진행 글자 span.subtle aria-live=polite '확인 중…'(사업자 등록 중복 확인과 같은 문구 — 새 문구 아님). 빈 span도 form(flex-col gap-4)의 항목이라 버튼 아래 16px 간격이 하나 더 생김. 계정 등록은 원래 진행 표시가 없어(busy 상태 없음) 더하지 않음 — 기능 변경 피함",
+          "등록 코드 링크(variant link, 가운데) → 카드 아래 .cardnote.items-center의 보조 .btn(시안에 link 버튼 없음). 위치·탭 순서는 그대로(로그인 입력·제출 뒤)",
+          "설정 키 상자: rounded border bg-muted → 시안 .notice(바탕 #f6f8fb, 테두리 없음) + 기존 본문 글자 token text-foreground(시안 .notice 글자 #64748b는 4.47:1이라 쓰지 않음 — WS8 선례). 라벨/값 쌍이 아닌 한 줄 값이라 dl/dt/dd로 바꾸지 않음(안내 문장이 바로 위 p.subtle)",
+          "테마: 로그인 전에도 data-theme는 기존 useTheme가 맞춤(OS·저장된 선택 — 시험으로 확인). 선택 버튼은 D-ADMIN-HOME-001대로 로그인 뒤 사이드바 아래에만(로그인 화면에 새로 두지 않음 — 저장소 쓰기·기능 추가 회피)"
+        ],
+        "internalKeyFinding": "새 노출 없음. 로그인·등록 화면에는 내부 키(adm_·mer_·biz_)를 그리지 않음(로그인 성공 me는 onAuthenticated로만 넘김). 등록 코드는 enrollStart가 성공한 뒤에만 입력에서 지워져 다음 단계에서 DOM 0건(실패하면 코드 단계 입력에 그대로 남음 — HEAD부터의 기존 동작, 이번 변경 없음; reviewFix1 기록 정정·후속 ENROLL-CODE-CLEAR-ON-FAIL), otpauth URI는 DOM 0건, 설정 키(base32)는 TOTP 단계에서 .notice 한 곳에만 보이고 완료·재시작이면 0건(새 시험 domOccurrences). 비밀번호·코드·설정 키를 새로 기록·로그·저장하는 곳 없음",
+        "evidence": "~/gate-logs/admin-ui-ws9: baseline.log(관련 7파일 65 통과, exit 0), red.log(새 시험 6 중 5 실패 — section.card/.cardbody 없음(shape null·container null); 통과 1건은 로그인 전 테마 회귀 확인(기존 동작), exit 1), green1.log(새 시험 자체 기대값 오류 1 — .cardnote의 items-center, exit 1), green2.log(관련 9파일 71 통과, exit 0), tsc.log(npx tsc -b --force exit 0), full.log(Vitest 67파일 620 통과·실패 0, exit 0), sha256.txt(변경 4파일 + 로그 + 실행 스크립트, HEAD 5acef1d 미커밋) — 각 로그에 명령·UTC 시각·node·HEAD·exit. 실행 스크립트 ~/gate-logs/ws9.sh(Gradle 제공 node v24.22.1 PATH)",
+        "contrast": "새 색 없음. 사용 조합: .cardtop h2 #0f172a on #fff(다크 #f1f5f9 on #111a2b), .subtle #64748b on #fff 약 4.76:1(다크 #9aa8bc on #111a2b), .notice 바탕 #f6f8fb 위 text-foreground #334155 약 9.8:1(다크 #dbe4f0 on #18233a), .btn·.btn.primary(#116ef5 흰 글자 4.59:1·다크 #60a5fa 위 #0b1220)·초점선 button:focus-visible #1d4ed8/다크 #93c5fd 기존 규칙, Alert·Input은 기존 token. 계산값 — 브라우저 측정 미실행",
+        "notVerified": "실제 브라우저 1440/1280/1101/1024/390 × 라이트·다크 캡처·가로 넘침·대비 실측 미실행(Demo 실행 중 — vite build·gradle 미실행). jsdom으로 확인 못 한 것: 로그인 전 main(max-w-md utility)과 시안 header 76px·padding 38px 조합의 390px 모양, .cardtop 위 22px·.cardbody 아래 20px 여백 안 폼 간격, 빈 진행 글자 span이 만드는 버튼 아래 여분 간격, .notice 안 font-mono tracking 설정 키 줄바꿈(break-all), .cardnote 가운데 .btn, 다크에서 shadcn Input·Alert와 시안 카드 바탕(#111a2b) 조합. 실제 서버 XSRF 쿠키/헤더 흐름은 api client 변경 없음으로만 판단(실행 확인 아님). 독립 리뷰·게이트 미실행. npx tsc -b --force가 미추적 tsconfig.tsbuildinfo를 다시 씀(선례와 같음 — 커밋 대상 아님)",
+        "gate": "미실행",
+        "reviewFix1": {
+          "review": "독립 리뷰 REVIEW_PASS(조건부, MAJOR 0) + Coordinator 헤드리스 캡처(5폭 × 라이트·다크 × 로그인·로그인 TOTP 단계·계정 등록·등록 시작 오류 = 40화면 — 가로 넘침 0, 키 0, style 속성 0, 대비 미달 0, 콘솔 오류는 예상된 401/400 리소스 로그뿐)",
+          "changes": [
+            "MINOR-1: EnrollmentScreen 설정 키 상자에 text-sm utility(14px) 추가 — .notice 12px로 줄어 손으로 옮겨 적기 어렵던 것. 새 시험 단언 추가(keyBox text-sm)",
+            "NIT-1: LoginScreen 두 단계 모두 제출 버튼과 진행 글자를 div 한 묶음으로(div > button.btn.primary.w-full + span.subtle.block aria-live=polite). 비어 있는 block span은 높이 0이라 form gap-4의 여분 16px가 없어지고, live region은 계속 DOM에 남음. 새 시험: 빈 상태에서도 span 존재·묶음이 form 마지막 항목·묶음 첫 항목이 제출 버튼",
+            "NIT-2: 새 시험의 같은 노드 비교(firstElementChild vs querySelector)를 toEqual → toBe",
+            "기록 정정: internalKeyFinding의 '등록 코드는 시작 즉시 지워짐' → enrollStart 성공 뒤에만 지움, 실패하면 입력에 남음(기존 동작 — 변경하지 않음)"
+          ],
+          "selectorChanges": "없음 — 기존 시험 무변경. 새 시험 2파일만 단언 추가/변경(live 선택자 '.cardbody form > div > span.subtle.block', text-sm, toBe)",
+          "followUps": [
+            "ENROLL-CODE-CLEAR-ON-FAIL: 등록 시작 실패(코드 무효 등) 뒤에도 등록 코드가 입력에 남음 — 지울지 여부는 보안·사용성 판단(기존 동작)",
+            "NIT-3: 로그인·등록 단계가 바뀌어도 초점을 새 단계 입력/제목으로 옮기지 않음",
+            "NIT-4: 계정 등록은 진행(busy)·비활성 상태가 없어 제출 버튼을 두 번 누르면 같은 요청이 두 번 갈 수 있음(기존 동작)"
+          ],
+          "evidence": "~/gate-logs/admin-ui-ws9: fix1-red.log(새 시험 6 중 2 실패 — 진행 글자 묶음 div/block 없음, 설정 키 text-sm 없음, exit 1), fix1-green.log(관련 9파일 71 통과, exit 0), fix1-tsc.log(npx tsc -b --force exit 0), fix1-full.log(Vitest 67파일 620 통과·실패 0, exit 0), fix1-sha256.txt(변경 4파일 + fix1 로그 + 실행 스크립트, HEAD 5acef1d 미커밋)",
+          "contrast": "새 색 없음(글자 크기만 12px → 14px)",
+          "notVerified": "수정 후 브라우저 재캡처(버튼 아래 간격·설정 키 14px 줄바꿈) 미실행 — Coordinator 몫(번들 재빌드 포함)"
+        },
+        "coordinatorCapture": {
+          "method": "헤드리스 Chrome + 빌드 번들 + 고정 응답(/api/auth/me 401, 등록 시작 400), 5폭 × 라이트·다크 × 로그인·인증 코드 단계·계정 등록·시작 오류 = 40화면, reviewFix1 뒤 재캡처",
+          "result": "페이지 가로 넘침 0, 내부 키 0, style 속성 0, 대비 4.5 미달 0, 콘솔 오류는 의도한 401/400 응답 기록뿐",
+          "evidence": "scratchpad admin-ui-ws9/shots, results.json"
         }
       }
     },
