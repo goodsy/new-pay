@@ -95,9 +95,14 @@ interface StepProps<P> extends StepSpec<P> {
   submitDisabled?: boolean
   /**
    * ADMIN-UI-WORKSPACE-001(가맹점 등록 WS8): 참고 시안 모양 — section(같은 region 이름) > 카드 제목 줄(.cardtop h3) + 본문(.cardbody), 버튼은 .btn/.btn.primary,
-   * 스피너 대신 제출 버튼 옆 보이는 진행 글자(aria-live). 주지 않으면 지금 카드 모양 그대로(가맹점 조회 상세 계약 Revision 폼 — 아직 옮기지 않은 화면).
+   * 스피너 대신 제출 버튼 옆 보이는 진행 글자(aria-live). 주지 않으면 Card 껍데기·shadcn 버튼·스피너(가맹점 조회 상세 계약 Revision 폼).
    */
   workspace?: boolean
+  /**
+   * LAYOUT-ROLLOUT B5(사용자 결정 2026-11-19 폼 줄): 안쪽 fieldset을 폼 줄(FormRow) 세로 흐름으로 — 껍데기는 그대로(workspace 값과 따로).
+   * 가맹점 조회 상세 계약 Revision 폼이 Card 껍데기 + 폼 줄로 쓴다. workspace면 늘 세로 흐름. 둘 다 없으면 기존 grid.
+   */
+  rows?: boolean
 }
 
 /** 메모리에 있는 단계 상태(콜백 시점 값 — 지난 렌더 값 아님). */
@@ -159,7 +164,7 @@ export async function submitStep<P>(spec: StepSpec<P>): Promise<boolean> {
 }
 
 /** 단계 하나: 제출·같은 submissionId 재전송·결과 불명 잠금·결과 표시. */
-export function RegistrationStep<P>({ title, submitLabel, succeeded, children, completion, submitDisabled = false, workspace = false, ...spec }: StepProps<P>) {
+export function RegistrationStep<P>({ title, submitLabel, succeeded, children, completion, submitDisabled = false, workspace = false, rows = false, ...spec }: StepProps<P>) {
   const { memory, memoryKey } = spec
   const [pending, setPending] = useRemembered<{ submissionId: string; payload: P } | null>(memory, `${memoryKey}.pending`, null)
   const [status, setStatus] = useRemembered<StepStatus>(memory, `${memoryKey}.status`, IDLE)
@@ -199,8 +204,11 @@ export function RegistrationStep<P>({ title, submitLabel, succeeded, children, c
     <>
         {/* noValidate: 형식 검사는 화면(collect)이 하고 판정은 서버가 한다 — 브라우저 제약(예: 시작일 min)이 제출을 막아 서버 판정(소급 거절 문구)을 가리지 않게. */}
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-          {/* LAYOUT-ROLLOUT B2: workspace(가맹점 등록)는 폼 줄(FormRow — 이름 왼쪽·입력 오른쪽)이 위→아래로 쌓인다(사업자 등록 fieldset과 같은 class). 아니면 기존 grid 그대로(계약 Revision 폼 — B5). */}
-          <fieldset disabled={locked || completed} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>{children(locked || completed)}</fieldset>
+          {/*
+            LAYOUT-ROLLOUT B2: workspace(가맹점 등록)는 폼 줄(FormRow — 이름 왼쪽·입력 오른쪽)이 위→아래로 쌓인다(사업자 등록 fieldset과 같은 class).
+            B5: [rows](계약 Revision 폼 — Card 껍데기 그대로)도 같은 세로 흐름. 둘 다 아니면 기존 grid.
+          */}
+          <fieldset disabled={locked || completed} className={workspace || rows ? 'm-0 min-w-0 border-0 p-0' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>{children(locked || completed)}</fieldset>
           <div className={workspace ? 'flex flex-wrap items-center justify-end gap-2' : 'flex justify-end'}>
             {completed ? (
               <ActionButton workspace={workspace} type="button" variant="outline" onClick={startOver}>{completion.resetLabel}</ActionButton>

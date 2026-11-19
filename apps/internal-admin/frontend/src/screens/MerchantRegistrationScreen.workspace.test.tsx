@@ -213,7 +213,8 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 등록 wiza
     expect(domOccurrences(document.body, 'mer_')).toEqual([])
   })
 
-  it('RegistrationStep without the workspace flag keeps the shared card look (계약 Revision 폼 — 가맹점 조회 상세는 이번 범위 밖)', () => {
+  // LAYOUT-ROLLOUT B5: 계약 Revision 폼은 이제 [rows](Card 껍데기 + 폼 줄 — ContractRevisionForm.layout.test.tsx)를 쓴다. 이 시험은 표시가 둘 다 없는 RegistrationStep 기본값만 지킨다(단언 그대로).
+  it('RegistrationStep without the workspace flag keeps the shared card look (표시 없음 기본값 — 계약 Revision 폼은 B5 [rows])', () => {
     const { container } = render(
       <RegistrationStep memory={createScreenMemory()} memoryKey="x" api={{ send: vi.fn() }} newSubmissionId={() => 'a'.repeat(32)} collect={() => null} onSucceeded={vi.fn()} title="계약 Revision" submitLabel="등록">
         {() => null}

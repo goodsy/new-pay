@@ -14,7 +14,7 @@ import { DetailRow, InfoCard } from '../components/DetailCard'
 
 /**
  * ADMIN-UI-WORKSPACE-001 사업자·가맹점 › 사업자 등록("모양만"): 참고 시안 사업자 등록 양식(카드 제목 줄 · 본문 · .btn/.btn.primary)을 실제 사업자 등록 폼(섹션 1~6)에 입힌다.
- * 사업자 조회 상세 안의 수정 폼(같은 구성요소, workspace 표시 없음)은 이번 범위 밖 — 지금 모양 그대로. 동작은 BusinessProfileFormScreen.test.tsx가 그대로 지킨다.
+ * 사업자 조회 상세 안의 수정 폼(같은 구성요소, workspace 표시 없음)은 LAYOUT-ROLLOUT B5부터 같은 폼 줄·섹션 카드(껍데기만 다름 — 아래 B5 describe). 동작은 BusinessProfileFormScreen.test.tsx가 그대로 지킨다.
  * 명시 Demo Fixture: 시험 입력 전용 사업자등록번호(실제 번호 아님), 기존 사업자 1곳(데모 사업자 · 778*******).
  */
 const BRN = '7781234560'
@@ -318,17 +318,158 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     expect(rowOf(screen.getByLabelText('상호'))).toHaveClass(...rowClasses)
   })
 
-  it('userFeedback1: without the workspace flag the number row and 업태 rows keep the old layout (separate 중복 확인 line, full-text delete buttons)', () => {
+  // LAYOUT-ROLLOUT B5 기대값 변경(사용자 결정 폼 줄): workspace 표시가 없어도 번호 줄·업태 줄은 폼 줄(중복 확인은 입력과 같은 .fieldcontrol, 짧은 '삭제' — 이름 그대로).
+  // 버튼 모양(.btn 아님)만 workspace를 따른다 — 옛 단언 중 '.btn 아님'은 그대로 유지.
+  it('userFeedback1 + B5: without the workspace flag the number row and 업태 rows are form rows too (중복 확인 beside the input, short 삭제 with the same name); buttons keep the non-workspace look', () => {
     render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'create' }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
-    expect(screen.getByRole('button', { name: '중복 확인' }).parentElement!.contains(screen.getByLabelText('사업자등록번호'))).toBe(false)
-    expect(screen.getByRole('button', { name: '업태 1 삭제' })).toHaveTextContent('업태 1 삭제')
+    const check = screen.getByRole('button', { name: '중복 확인' })
+    expect(check.parentElement!.contains(screen.getByLabelText('사업자등록번호'))).toBe(true)
+    expect(check.parentElement).toHaveClass('fieldcontrol', 'fw-sm')
+    expect(check).not.toHaveClass('btn')
+    expect(screen.getByRole('button', { name: '업태 1 삭제' })).toHaveTextContent(/^삭제$/)
+    expect(screen.getByRole('button', { name: '업태 1 삭제' }).parentElement).toBe(screen.getByLabelText('업태 1').closest('.fieldcontrol'))
     expect(screen.getByRole('button', { name: '업태 1 삭제' })).not.toHaveClass('btn')
   })
 
-  it('without the workspace flag (사업자 조회 상세 안의 수정 폼 — 이번 범위 밖) the form keeps the card look', () => {
+  // LAYOUT-ROLLOUT B5 기대값 변경(사용자 결정 폼 줄): 수정 폼(workspace 없음)도 옛 Card 6개 대신 등록 탭과 같은 번호 섹션 카드 6개. 껍데기(.mapnote·.cardtop 없음) 단언은 그대로.
+  it('without the workspace flag (사업자 조회 상세 안의 수정 폼) the shell stays non-workspace but the six sections are the numbered section cards (B5)', () => {
     const { container } = render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'edit', detail: individualRegisteredDetail(1) }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
     expect(container.querySelector('.mapnote')).toBeNull()
     expect(container.querySelector('.cardtop')).toBeNull()
-    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(6)
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0)
+    expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(SECTIONS)
+    for (const region of screen.getAllByRole('region')) expect(region).toHaveClass('rounded-xl', 'border', 'bg-card', 'px-4', 'py-3')
+  })
+})
+
+/**
+ * LAYOUT-ROLLOUT B5(사용자 결정 2026-11-19 폼 줄 — 모든 입력 화면): 사업자 조회 상세 안의 수정 폼(workspace 표시 없음)도 등록 탭과 같은 폼 줄·번호 섹션 카드.
+ * 껍데기(.mapnote/.cardnote/.cardbody·'← 목록으로'·.btn)는 workspace만 — 수정 폼은 PageHeader + 기존 버튼 모양 그대로. 동작은 BusinessesScreen.test.tsx·BusinessProfileFormScreen.test.tsx가 지킨다.
+ * 명시 Demo Fixture: individualRegisteredDetail(데모 사업자 · 778*******, REGISTERED v3).
+ */
+const EDIT_WIDTHS: Record<string, string> = {
+  상호: 'fw-lg', 개업일: 'fw-sm', 국가: 'fw-xs', '영문 상호(선택)': 'fw-lg', '업태 1': 'fw-md', '종목 1': 'fw-md',
+  '사업장 우편번호': 'fw-xs', '사업장 기본주소': 'full', '사업장 상세주소(선택)': 'full', '대표자 1 이름': 'fw-md', '대표자 1 유형': 'fw-sm',
+  '사업체 전화': 'fw-sm', '사업체 이메일(선택)': 'full', '담당자 1 이름': 'fw-md', '담당자 1 이메일': 'full', '담당자 1 전화': 'fw-sm',
+}
+/** 입력 하나의 폼 줄: label[for] = 입력 id(이름 글자 그대로) · .fieldcontrol이 줄의 자식 · 폭 class(full = fw-* 없음). */
+const expectFormRow = (label: string, width: string) => {
+  const input = screen.getByLabelText(label)
+  const row = rowOf(input)
+  expect(row, label).not.toBeNull()
+  const name = row.firstElementChild as HTMLLabelElement
+  expect(name.tagName.toLowerCase()).toBe('label')
+  expect(name.htmlFor).toBe(input.id)
+  expect(name.textContent).toBe(label)
+  expect(name).toHaveClass('text-xs', 'text-muted-foreground')
+  expect(row).toHaveClass('border-b', 'py-2', 'last:border-b-0')
+  const control = input.closest('.fieldcontrol') as HTMLElement
+  expect(control.parentElement).toBe(row)
+  const step = Array.from(control.classList).find((c) => c.startsWith('fw-')) ?? 'full'
+  expect(step, label).toBe(width)
+  const describedBy = input.getAttribute('aria-describedby')
+  if (describedBy) expect(document.getElementById(describedBy)).toHaveClass('fieldnote')
+  return { input, row, control }
+}
+/** 읽기 전용 사업자등록번호 줄(B2 ReadOnlyGroup과 같은 방식): group(이름 = aria-label) 자체가 .fieldrow — 이름 span aria-hidden 왼쪽 · 값 상자 .fieldcontrol(sm) · 안내 .fieldnote. */
+const expectReadOnlyNumberRow = () => {
+  const group = screen.getByRole('group', { name: '사업자등록번호' })
+  expect(group).toHaveClass('fieldrow', 'border-b', 'py-2', 'last:border-b-0')
+  const label = group.children[0] as HTMLElement
+  expect(label.tagName.toLowerCase()).toBe('span')
+  expect(label).toHaveAttribute('aria-hidden', 'true')
+  expect(label.textContent).toBe('사업자등록번호')
+  expect(label).toHaveClass('text-xs', 'text-muted-foreground')
+  const control = group.children[1] as HTMLElement
+  expect(control).toHaveClass('fieldcontrol', 'fw-sm')
+  expect(control.firstElementChild).toHaveTextContent(/^778\*{7}$/)
+  expect(control.firstElementChild).toHaveClass('border-dashed', 'font-mono')
+  const note = group.children[2] as HTMLElement
+  expect(note).toHaveClass('fieldnote')
+  expect(note).toHaveTextContent('사업자등록번호 변경은 정책 미정으로 지원하지 않습니다.')
+  // 수정 모드에는 번호 입력·중복 확인이 없다(읽기 전용 — 기존 동작).
+  expect(within(group).queryByRole('textbox')).toBeNull()
+  expect(screen.queryByRole('button', { name: '중복 확인' })).toBeNull()
+  return group
+}
+
+describe('LAYOUT-ROLLOUT B5: 사업자 상세 안 수정 폼 = 폼 줄(이름 왼쪽 · 입력 오른쪽 · DB 열 길이 폭) + 번호 섹션 카드', { timeout: 20_000 }, () => {
+  const renderEdit = (workspace = false) =>
+    render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'edit', detail: individualRegisteredDetail(1) }} workspace={workspace} onSaved={vi.fn()} onOpenBusiness={vi.fn()} onCancel={vi.fn()} />)
+
+  it('수정 폼: 껍데기는 PageHeader 그대로(.mapnote/.cardnote/.cardbody 없음), 섹션은 등록 탭과 같은 번호 섹션 카드(lg 2열 grid) — 옛 Card 없음', () => {
+    const { container } = renderEdit()
+    expect(screen.getByRole('heading', { name: '사업자 수정' })).toBeInTheDocument()
+    expect(container.querySelector('.mapnote')).toBeNull()
+    expect(container.querySelector('.cardnote')).toBeNull()
+    expect(container.querySelector('.cardbody')).toBeNull()
+    expect(container.querySelector('.cardtop')).toBeNull()
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0)
+    const fieldset = container.querySelector('form > fieldset')!
+    expect(shape(fieldset)).toEqual(['div.grid.gap-4.lg:grid-cols-2'])
+    expect(shape(fieldset.firstElementChild!)).toEqual(Array(6).fill('section.flex.flex-col.gap-1.rounded-xl.border.bg-card.px-4.py-3'))
+    SECTIONS.forEach((name, i) => {
+      const section = screen.getByRole('region', { name })
+      expect(shape(section)).toEqual(['h3.text-sm.font-semibold', 'div.flex.flex-col'])
+      expect(section.querySelector(':scope > h3')).toHaveTextContent(`${i + 1}. ${name}`)
+    })
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  it('수정 폼: 모든 입력이 .fieldrow(label[for]=id) · DB 열 길이 폭 · 사업자등록번호는 읽기 전용 줄(sm) + 변경 미지원 문구 · 사업체 구분 radiogroup 줄', () => {
+    renderEdit()
+    for (const [label, width] of Object.entries(EDIT_WIDTHS)) expectFormRow(label, width)
+    expect(screen.getByLabelText('국가')).toHaveAccessibleDescription('대한민국(KR)만 — 국외·비영리 확장은 정책 미정(TBD-10)')
+    expect(screen.getByLabelText('사업체 전화')).toHaveAccessibleDescription('등록 완료 시 필수')
+    const group = expectReadOnlyNumberRow()
+    expect(group.closest('section')).toBe(screen.getByRole('region', { name: '사업자 기본' }))
+    const type = screen.getByRole('radiogroup', { name: '사업체 구분' })
+    expect(type).toHaveClass('fieldrow')
+    expect(type.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+    expect(type.firstElementChild).toHaveTextContent('사업체 구분')
+    expect(screen.getByRole('checkbox', { name: '실사업장이 사업장과 다름' }).closest('label')).toHaveClass('fieldoffset')
+    expect(screen.getByText('단독 대표는 1명일 때만, 2명 이상이면 공동·각자를 고르세요.')).toHaveClass('fieldoffset')
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  it('수정 폼: 줄 끝 짧은 "삭제"(이름 그대로 · 입력과 같은 .fieldcontrol) · "추가"는 입력 열(.fieldoffset) — 버튼은 수정 폼 기존 모양(.btn 아님)', () => {
+    renderEdit()
+    for (const [label, remove] of [['업태 1', '업태 1 삭제'], ['종목 1', '종목 1 삭제'], ['대표자 1 이름', '대표자 1 삭제']] as const) {
+      const button = screen.getByRole('button', { name: remove })
+      expect(button).toHaveTextContent(/^삭제$/)
+      expect(button.parentElement).toBe(screen.getByLabelText(label).closest('.fieldcontrol'))
+      expect(button).not.toHaveClass('btn')
+    }
+    const contactRemove = screen.getByRole('button', { name: '담당자 1 삭제' })
+    expect(contactRemove).toHaveTextContent(/^삭제$/)
+    expect(contactRemove.parentElement).toHaveClass('fieldoffset')
+    for (const name of ['업태 추가', '종목 추가', '대표자 추가', '담당자 추가']) {
+      const add = screen.getByRole('button', { name })
+      expect(add.parentElement).toHaveClass('fieldoffset')
+      expect(add).not.toHaveClass('btn')
+    }
+    // 저장 줄(수정 폼 고유): 저장·취소 그대로, 기존 버튼 모양.
+    expect(saveButtons().map((b) => b.textContent)).toEqual(['저장', '취소'])
+    for (const b of saveButtons()) expect(b).not.toHaveClass('btn')
+  })
+
+  it('수정 폼: 중요 변경(법인으로) → 법인등록번호 줄(sm)·변경 사유 줄(full, 안내 = 설명) — 사유 칸은 섹션 밖 fieldset 안', async () => {
+    renderEdit()
+    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    await user.click(screen.getByRole('radio', { name: '법인' }))
+    expectFormRow('법인등록번호', 'fw-sm')
+    const reason = expectFormRow('변경 사유', 'full')
+    expect(reason.input).toHaveAccessibleDescription('중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.')
+    expect(reason.row.closest('section[aria-label]')).toBeNull() // 섹션 카드(region) 밖 — 바깥 화면 section(PageHeader 껍데기)은 이름 없음
+    expect(reason.row.closest('fieldset')).not.toBeNull()
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
+  })
+
+  it('reviewNIT(B5): workspace + 수정 모드도 사업자등록번호는 같은 읽기 전용 줄(sm) — 등록 탭 껍데기(.mapnote·.cardbody)는 그대로', () => {
+    const { container } = renderEdit(true)
+    expectReadOnlyNumberRow()
+    expect(container.querySelector(':scope > .mapnote')).not.toBeNull()
+    expect(container.querySelector('form > fieldset > div.cardbody')).not.toBeNull()
+    expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

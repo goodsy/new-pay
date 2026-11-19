@@ -5,9 +5,8 @@ import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { defaultSubmissionId, kstDate } from '../lib/registration'
 import { REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { RegistrationStep, type StepStatus } from './RegistrationStep'
-import { Field } from './DataBits'
+import { FormRow } from './FormRow'
 import { Input } from './ui/input'
-import { Label } from './ui/label'
 
 /**
  * 계약 Revision 등록 폼(MERCHANT-OPS-002 §9.2·§9.6 B2-1 — OPERATOR 1인, 미승인 Revision으로 남는다 — 권리 변경 없음). 가맹점 조회 상세의 계약 영역에서 연다.
@@ -64,6 +63,7 @@ export function ContractRevisionForm({ api, memory, contractId, merchantId, site
     <RegistrationStep<Payload>
       memory={memory}
       memoryKey={`${key}.step`}
+      rows
       title={`새 Revision 등록 — ${contractId}`}
       submitLabel="Revision 등록"
       api={{ send: (input) => api.registerContractRevision(input) }}
@@ -96,41 +96,56 @@ export function ContractRevisionForm({ api, memory, contractId, merchantId, site
     >
       {() => (
         <>
-          <fieldset className="flex flex-col gap-2 text-sm">
-            <legend className="mb-1 text-sm font-medium">범위</legend>
-            <label className="flex items-center gap-2">
-              <input type="radio" name={radioName} value="MERCHANT" checked={scopeKind === 'MERCHANT'} onChange={() => setScopeKind('MERCHANT')} />
-              가맹점 전체
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" name={radioName} value="SITES" checked={scopeKind === 'SITES'} onChange={() => setScopeKind('SITES')} />
-              선택 Site
-            </label>
-            {scopeKind === 'SITES' && siteIds.map((id) => (
-              <label key={id} className="flex items-center gap-2 pl-6">
-                <input type="checkbox" checked={checked.includes(id)} onChange={(e) => setChecked(e.target.checked ? [...checked, id] : checked.filter((c) => c !== id))} />
-                <Mono>{id}</Mono>
-              </label>
-            ))}
-            {errors.sites && <p className="text-xs text-destructive">Site를 하나 이상 고르세요.</p>}
-          </fieldset>
-          <Field label="시작일" hint="오늘(한국 시간) 이후 날짜. 그 날 0시부터 효력 — 오늘보다 앞이면 서버가 거절합니다." error={errors.start ? '시작일을 고르세요.' : undefined}>
-            {(describedBy) => (
-              <Input type="date" min={todayKst()} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-describedby={describedBy} aria-invalid={errors.start || undefined} />
-            )}
-          </Field>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-end gap-2">
-              <Label className="flex-1">
-                <span>종료일</span>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-describedby={endNoteId} aria-invalid={errors.end || undefined} />
-              </Label>
-              <span id={endNoteId} className="pb-2 text-xs text-muted-foreground whitespace-nowrap">이 날 0시 종료(미포함)</span>
+          {/*
+            LAYOUT-ROLLOUT B5(사용자 결정 2026-11-19 폼 줄): 범위는 가맹점 등록 ③ 범위 줄(B2)과 같은 줄 모양(.fieldrow — 이름 span aria-hidden 왼쪽 · 선택지 오른쪽).
+            접근 이름은 legend 그대로(화면에서는 sr-only — 보이는 legend는 fieldset 테두리 자리에 그려져 grid 칸이 되지 않는다). Site 체크·오류는 선택지 열 아래.
+          */}
+          <fieldset className="m-0 min-w-0 border-0 p-0 text-sm">
+            <legend className="sr-only">범위</legend>
+            <div className="group/fieldrow fieldrow border-b py-2">
+              <span aria-hidden="true" className="text-xs text-muted-foreground group-has-[:is(input,select,textarea):disabled]/fieldrow:opacity-50">범위</span>
+              <span className="flex flex-col gap-2">
+                <span className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name={radioName} value="MERCHANT" checked={scopeKind === 'MERCHANT'} onChange={() => setScopeKind('MERCHANT')} />
+                    가맹점 전체
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name={radioName} value="SITES" checked={scopeKind === 'SITES'} onChange={() => setScopeKind('SITES')} />
+                    선택 Site
+                  </label>
+                </span>
+                {scopeKind === 'SITES' && siteIds.map((id) => (
+                  <label key={id} className="flex items-center gap-2 pl-6">
+                    <input type="checkbox" checked={checked.includes(id)} onChange={(e) => setChecked(e.target.checked ? [...checked, id] : checked.filter((c) => c !== id))} />
+                    <Mono>{id}</Mono>
+                  </label>
+                ))}
+              </span>
+              {errors.sites && <p className="fieldnote text-xs text-destructive">Site를 하나 이상 고르세요.</p>}
             </div>
-            {errors.end
-              ? <p className="text-xs text-destructive">종료일은 시작일보다 뒤여야 합니다.</p>
-              : <p className="text-xs text-muted-foreground">선택 — 비우면 종료 없음.</p>}
-          </div>
+          </fieldset>
+          {/* B5: 시작일·종료일 sm(DATE — 가맹점 등록 ③과 같은 폭). 문구·설명 연결·aria-invalid 그대로. */}
+          <FormRow label="시작일" width="sm" hint="오늘(한국 시간) 이후 날짜. 그 날 0시부터 효력 — 오늘보다 앞이면 서버가 거절합니다." error={errors.start ? '시작일을 고르세요.' : undefined}>
+            {(describedBy, id) => (
+              <Input id={id} type="date" min={todayKst()} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-describedby={describedBy} aria-invalid={errors.start || undefined} />
+            )}
+          </FormRow>
+          {/*
+            C-7 배타 끝: 고정 문구를 입력 바로 옆에(폼 줄 trailing). 설명 연결은 기존처럼 그 문구 하나(aria-describedby = endNoteId),
+            선택 안내/오류 문구는 입력 열 아래 .fieldnote(기존처럼 설명에는 연결하지 않음 — 모양만 바꾼다).
+          */}
+          <FormRow
+            label="종료일"
+            width="sm"
+            error={errors.end ? '종료일은 시작일보다 뒤여야 합니다.' : undefined}
+            hint="선택 — 비우면 종료 없음."
+            trailing={<span id={endNoteId} className="text-xs text-muted-foreground whitespace-nowrap">이 날 0시 종료(미포함)</span>}
+          >
+            {(_describedBy, id) => (
+              <Input id={id} type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-describedby={endNoteId} aria-invalid={errors.end || undefined} />
+            )}
+          </FormRow>
         </>
       )}
     </RegistrationStep>

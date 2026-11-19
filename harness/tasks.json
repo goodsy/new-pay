@@ -9656,9 +9656,17 @@
           "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T151610Z.json",
           "result": "GRADLE-CHECK exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=672 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:2e8e1a3b59a4ca2e99e47d1e2bd381ddb46638f129268285071a3d1ec35fd0f2",
           "supplementary": "B3-cve1 PASS(~/gate-logs/B3-cve1.log)"
+        },
+        {
+          "tag": "B5-gate1",
+          "verdict": "PASS",
+          "screen": "LAYOUT-ROLLOUT B5 사업자 상세 수정 폼·계약 개정 폼",
+          "evidence": "build/harness-evidence/ADMIN-UI-WORKSPACE-001-2026-11-19T163351Z.json",
+          "result": "GRADLE-CHECK exit 0; total tests=5075 failures=0 errors=0 skipped=0 / total tests=681 failures=0 errors=0 skipped=0; HARNESS-SELFTEST PASS; fingerprint 전후 동일 sha256:6198ff43fa554fe9c202afdc4a9979d5b526c5e4c51aebd5da52813806d86b27",
+          "supplementary": "B5-cve1 PASS(~/gate-logs/B5-cve1.log)"
         }
       ],
-      "nextResumeAction": "LAYOUT-ROLLOUT(B1·B2·B3 DONE): B4 로그인(카드 좁음 — 위아래 유지 검토) → B5 상세 안 수정 폼·계약 개정 → B6 상세 블록 140px 줄 → (B7). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
+      "nextResumeAction": "LAYOUT-ROLLOUT(B1·B2·B3·B5 DONE, B4 SKIPPED): B6 상세 블록 140px 줄 → (B7). 그다음 MERCHANT-NAME-SEARCH, BRN-UNMASK-001, SITE-CONTRACT-CODE-001(Q-SC-3/5/6/7/9 대기), ADMIN-HOME-ATTENTION-001",
       "uirefKitPort": {
         "request": "사용자 PG Workspace React kit 이식 요청 2026-11-16, 1단계 계획 보고 후 사용자 \"A안\" — 로컬 미리보기(src/uiref) 전용, 운영 jar·실제 콘솔 제외",
         "scope": "docs/pg-workspace-react-kit(키트 원본), apps/internal-admin/frontend/src/uiref(styles·data·lib·store·components·pages·features), vite uiref 모드(Tailwind 없음), package.json dev:uiref --mode uiref, build-logic frontendSources",
@@ -10533,6 +10541,90 @@
             "review": "독립 리뷰 REVIEW_PASS(BLOCKER/MAJOR 0). 속성 손실 의심(INSUFFICIENT_EVIDENCE)은 코디네이터가 git show HEAD로 닫음 — 원래 계정 입력에 autoComplete 없음(기존 상태), 결제 ID autoComplete off·placeholder·font-mono 유지",
             "followUps": "ACCOUNT-CREATE-AUTOCOMPLETE(새 로그인 이름·표시명 autoComplete off·spellCheck false — 기존 상태, 별도 결정), noRuntimeStyles.test.tsx:78 주석 .rolebar 표기, 사유 textarea 이름 세로 가운데 정렬(모양), 계정 만들기 진행 중 비활성 아님(기존·서버 UNIQUE)",
             "browser": "scratchpad admin-ui-b3: 40화면 bad 0, 390px 계정 표는 표 안 가로 스크롤(기존)"
+          }
+        },
+        "B4": {
+          "status": "SKIPPED(코디네이터 결정 — 사용자에게 보고)",
+          "target": "LoginScreen · EnrollmentScreen",
+          "reason": "카드 폭 448px — 140px 이름 열을 빼면 입력이 약 250px라 DB 열 길이 폭 단계(xs~lg)가 의미 없음. 위아래 배치(이름 위·입력 아래) 유지. 코드·시험 무변경"
+        },
+        "B5": {
+          "status": "DONE(B5-gate1)",
+          "statusNote": "구현자 기록 — 리뷰·게이트(vite build·gradle·Demo) 전. 자기 DONE 판정 아님. task status는 변경하지 않음",
+          "decision": "사용자 결정 2026-11-19(모든 입력 화면 폼 줄 — registrationScreens.userFeedback1) · 코디네이터 지시: 수정 폼도 폼 줄·번호 섹션 카드, 껍데기만 workspace, 사업자등록번호 읽기 전용 줄(B2 ReadOnlyGroup 방식), 계약 개정 폼은 바깥 Card 유지 + RegistrationStep 별도 값 rows",
+          "scope": "관리자 콘솔 사업자 조회 상세 안 수정 폼(BusinessProfileFormScreen 비workspace)·가맹점 조회 상세 계약 Revision 등록 폼(ContractRevisionForm) 모양만. 버전 충돌·다시 불러오기·결과 불명 재전송·중요 변경 사유·저장/취소·번호 읽기 전용·변경 미지원 문구·API 호출·요청 본문·submissionId·세션 종료 무변경",
+          "changes": [
+            "screens/BusinessProfileFormScreen.tsx: workspace 한 플래그가 정하던 (a) 폼 안쪽 모양과 (b) 껍데기를 분리 — Row는 늘 FormRow(Field 분기·className 제거), Section은 늘 번호 섹션 카드(InfoCard와 같은 class — 옛 shadcn Card 분기 제거), Wrap은 workspace면 'cardbody grid gap-4 lg:grid-cols-2', 아니면 'grid gap-4 lg:grid-cols-2'(DetailInfo와 같은 배치). 사업체 구분 radiogroup·실사업장 체크(.fieldoffset)·업태/종목·대표자·담당자는 등록 탭과 같은 줄 구성 하나로(비workspace 옛 마크업 삭제)",
+            "버튼: removeButton(짧은 '삭제', aria-label 그대로)·addButton(h-8)이 workspace={workspace} — 수정 폼은 기존 shadcn Button 모양 그대로(.btn 아님), 등록 탭은 .btn 그대로. 저장 줄·결과 안내·'다시 불러오기'·재전송 버튼 무변경",
+            "사업자등록번호: 수정 모드(workspace 여부 무관)는 읽기 전용 줄 — div role=group aria-label='사업자등록번호'(이름 그대로) 자체가 .fieldrow, 이름 span aria-hidden 왼쪽(text-xs muted), 점선 마스킹 값 상자 .fieldcontrol fw-sm, '사업자등록번호 변경은 정책 미정으로 지원하지 않습니다.' p.fieldnote. 리뷰 NIT(workspace+수정 모드 번호 줄)도 같은 줄로 정리. 생성 모드 번호는 workspace 여부 무관 FormRow(sm) + trailing '중복 확인'(workspace는 진행 글자 span aria-live, 아니면 기존 버튼 안 Spinner)",
+            "import 정리: DataBits Field·ui/card 제거",
+            "components/RegistrationStep.tsx: 새 prop rows(기본 false) — fieldset class = workspace || rows ? 'm-0 min-w-0 border-0 p-0' : 기존 grid. 껍데기(Card·.cardtop)·버튼·스피너는 workspace만 따른다",
+            "components/ContractRevisionForm.tsx: RegistrationStep rows. 범위 fieldset = B2 범위 줄과 같은 구성(legend sr-only '범위' · .fieldrow 안 aria-hidden 이름 span · 선택지/Site 체크 열 · 오류 p.fieldnote). 시작일 FormRow sm(hint·error 문구 그대로 — 설명 연결 그대로). 종료일 FormRow sm + trailing '이 날 0시 종료(미포함)'(aria-describedby = 그 문구 하나 그대로), '선택 — 비우면 종료 없음.'/오류는 .fieldnote(기존처럼 설명 미연결). import Field·Label → FormRow",
+            "workspace.css·FormRow.tsx 무변경(새 색·style 속성·<style> 없음)"
+          ],
+          "widthTable": [
+            {
+              "field": "사업자 수정 폼 전 칸",
+              "width": "등록 탭(B 시범)과 같은 표 — 상호 lg · 개업일 sm · 국가 xs · 영문 상호 lg · 업태/종목 md · 우편번호 xs · 기본/상세주소 full · 대표자 이름 md · 유형 sm · 사업체 전화 sm · 이메일 full · 담당자 이름 md/이메일 full/전화 sm · 법인등록번호 sm · 변경 사유 full"
+            },
+            {
+              "field": "사업자등록번호(수정 — 읽기 전용)",
+              "width": "sm",
+              "db": "번호 10자리(마스킹 표시) — 생성 모드 입력과 같은 sm"
+            },
+            {
+              "field": "계약 Revision 시작일·종료일",
+              "width": "sm",
+              "db": "DATE(가맹점 등록 ③ 시작일·종료일 sm과 같음)"
+            },
+            {
+              "field": "계약 Revision 범위",
+              "width": "radiogroup 줄(폭 class 없음)"
+            }
+          ],
+          "newTests": [
+            "BusinessProfileFormScreen.workspace.test.tsx 새 describe 'LAYOUT-ROLLOUT B5'(5건) + 도우미 expectFormRow(label[for]=id·이름 글자·줄 class·.fieldcontrol 부모·폭)·expectReadOnlyNumberRow",
+            "1. 수정 폼 껍데기: PageHeader 제목 · .mapnote/.cardnote/.cardbody/.cardtop 없음 · data-slot=card 0 · fieldset > div.grid.gap-4.lg:grid-cols-2 > 번호 섹션 카드 6(h3 'n. 이름') · style 0",
+            "2. 수정 폼 16칸 폭 표 · 국가/사업체 전화 설명 그대로 · 사업자등록번호 읽기 전용 줄(group fieldrow · aria-hidden 이름 · fieldcontrol fw-sm 점선 마스킹 · fieldnote 변경 미지원 문구 · 입력/중복 확인 없음) · 사업체 구분 radiogroup 줄 · 체크/대표 안내 .fieldoffset · style 0",
+            "3. 짧은 '삭제'(이름 그대로·입력과 같은 .fieldcontrol·.btn 아님), 담당자 삭제 .fieldoffset, '추가' .fieldoffset·.btn 아님, 저장 group = ['저장','취소'] .btn 아님",
+            "4. 중요 변경(법인 선택) → 법인등록번호 sm · 변경 사유 full(안내 = 설명) · 섹션 카드 밖 fieldset 안 · style 0",
+            "5. reviewNIT: workspace + 수정 모드 번호도 같은 읽기 전용 줄, .mapnote·fieldset > .cardbody 그대로",
+            "components/ContractRevisionForm.layout.test.tsx(새 파일, 4건): Card 껍데기(data-slot=card·.cardtop 없음·제출 버튼 .btn 아님) + fieldset grid 없음 / 범위 줄(legend sr-only·aria-hidden 이름·라디오 2·Site 체크 같은 열·오류 .fieldnote 줄의 자식) / 시작일 sm(min·설명·오류 설명 전환) · 종료일 sm + trailing 문구(설명 = 그 문구 하나, 오류 때도) · 선택 안내/오류 .fieldnote / RegistrationStep rows만 → Card·grid 없음·.btn 아님"
+          ],
+          "changedTests": {
+            "rule": "바꾼 곳에 '// LAYOUT-ROLLOUT B5 기대값 변경(사용자 결정 폼 줄)' 주석. 코디네이터 예상 목록 안만 변경. 업무 단언(getByLabelText·버전 충돌·결과 불명·세션 종료) 무변경",
+            "BusinessProfileFormScreen.workspace.test.tsx:321-326(변경 후 321-332)": "비workspace 생성 폼 '중복 확인이 번호 입력과 다른 줄 · 업태 1 삭제 전체 글자' → '중복 확인이 번호 입력과 같은 .fieldcontrol fw-sm · 짧은 삭제(이름 그대로·업태 1 입력과 같은 .fieldcontrol)'. '.btn 아님' 단언 유지(버튼 모양은 workspace만 따름) + 중복 확인 .btn 아님 추가",
+            "BusinessProfileFormScreen.workspace.test.tsx:328-333(변경 후 334-343)": "비workspace 수정 폼 'data-slot=card 6개' → '0개 + region 6(SECTIONS 순서)이 번호 섹션 카드 class'. .mapnote·.cardtop 없음 단언 그대로",
+            "MerchantRegistrationScreen.workspace.test.tsx:216": "단언 무변경 — 시험 이름·주석만(계약 Revision 폼은 이제 rows, 이 시험은 표시 없는 RegistrationStep 기본 grid를 지킴). 예상과 달리 깨지지 않음: 계약 개정 폼을 별도 rows 값으로 분리했기 때문",
+            "BusinessProfileFormScreen.workspace.test.tsx 머리 주석": "'수정 폼 이번 범위 밖' → B5부터 같은 폼 줄(주석만)",
+            "selfFix": "새 B5 시험 2곳 시험 자체 오류 수정(RED 뒤 GREEN 전): ① 변경 사유 줄이 섹션 밖임을 closest('section')로 봤으나 PageHeader 껍데기가 이름 없는 section이라 closest('section[aria-label]')로(의도 동일) ② tsc TS2769 — 표 배열 as const"
+          },
+          "red": "01-red-vitest.log: 새 시험 9건 실패(exit 1, Test Files 2 failed, Tests 9 failed | 13 passed) — 수정 폼 섹션이 옛 Card·입력에 .fieldrow 없음(closest null)·사업자등록번호 group이 .fieldrow 아님·계약 개정 fieldset class grid·시작일 .fieldrow 없음·RegistrationStep rows 무시(grid). 모두 기능 부재 단언 실패(환경 오류 아님)",
+          "evidence": {
+            "logDir": "~/gate-logs/layout-b5/ (각 로그에 명령·cwd·node·UTC 시작/끝·git HEAD·exit)",
+            "runner": "~/gate-logs/layout-b5/run.sh <log> <argv…> — 고정 argv allowlist('npx tsc -b --force' | 'npx vitest run [src/*.test.tsx…]'), PATH에 apps/internal-admin/.gradle/nodejs/node-v24.22.1-*/bin",
+            "gitHead": "0530437d5a9650ea11bb4527e8d02691bdaf4327 (작업 트리 변경, 미커밋)",
+            "sourceFingerprint": "sha256(git diff -- apps/internal-admin/frontend/src + cat 새 파일 ContractRevisionForm.layout.test.tsx) = cefe3553198c7854a856db8d5a53b2abd690a82fee07041dbb646591546bf7fa (tasks.json 기록 전, 6파일)",
+            "specHash": "docs/DECISIONS.md sha256 0a0b56282e00e3a3fd32b89716a890344aee2c654c1b2efd569582d28b61e0b3",
+            "runs": [
+              "01-red-vitest.log vitest run BusinessProfileFormScreen.workspace·ContractRevisionForm.layout — exit 1, 9 failed | 13 passed (RED)",
+              "02-tsc.log tsc -b --force — exit 1(새 시험 TS2769 — 시험 자체 오류, 수정)",
+              "03-target-vitest.log 대상 6파일 — exit 1, 1 failed | 72 passed(새 시험 자체 오류 closest('section'), 수정)",
+              "04-tsc.log tsc -b --force — exit 0",
+              "05-target-vitest.log 대상 6파일(BusinessProfileFormScreen.workspace·ContractRevisionForm.layout·MerchantRegistrationScreen.workspace·BusinessProfileFormScreen·BusinessesScreen·MerchantsScreen.revision) — exit 0, Test Files 6 passed, Tests 73 passed",
+              "06-vitest-full.log vitest run(전체) — exit 0, Test Files 69 passed, Tests 656 passed"
+            ]
+          },
+          "notVerified": [
+            "vite build·gradle·Demo 화면 캡처(코디네이터 게이트 — 금지 범위)",
+            "실제 브라우저 배치: 수정 폼 섹션 카드 lg 2열·140px 이름 열·폭 단계·720px 이하 위아래, 계약 개정 폼이 가맹점 상세 계약 영역(좁은 Card 안)에서 140px 열 + sm 날짜 + 옆 문구가 한 줄에 들어가는지(좁으면 trailing 줄바꿈 — CSS flex-wrap)",
+            "수정 폼 비workspace 버튼(shadcn outline) h-9/h-8 높이가 입력 높이와 맞는지(className h-9 py-0 · size sm h-8 py-0 — 화면 확인 필요)",
+            "계약 개정 범위 줄의 이름 흐림(group-has disabled) — 잠금 상태 화면 확인"
+          ],
+          "coordinatorReview": {
+            "review": "독립 리뷰 REVIEW_PASS(BLOCKER/MAJOR/MINOR 0). NIT-1(읽기 전용 번호 설명 미연결)·NIT-2(종료일 오류가 안내를 대체)는 git show HEAD로 확인 — 원래 동작과 같음(회귀 아님)",
+            "browser": "scratchpad admin-ui-b5(일반 에이전트가 시험 fake API로 만든 하네스): 20화면 + Card 10장, 페이지 넘침·내부 키·style·대비 0, 1024 Card 2열에서 삭제 버튼은 다음 줄",
+            "followUps": "390px 계약 개정 Card 제목의 ctr_ ID 잘림, Site 표 site_ ID·채널 칸 세로 쪼개짐(기존 — B6/별도), 범위·섹션 목록 오류 설명 미연결(B2 NIT-4 계열)"
           }
         }
       }
