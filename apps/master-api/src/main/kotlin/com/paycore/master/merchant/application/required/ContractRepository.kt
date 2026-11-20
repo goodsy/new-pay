@@ -1,8 +1,11 @@
 package com.paycore.master.merchant.application.required
 
+import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.Contract
+import com.paycore.master.merchant.domain.ContractCode
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.MerchantId
+import java.time.Instant
 
 interface ContractRepository {
     /** 계약과 Revision 1(Scope Site 포함)을 넣고 계약 행 version을 돌려준다. */
@@ -21,4 +24,16 @@ interface ContractRepository {
      * 코드 변경 명령 TX 안에서 **merchant 잠금 뒤** 부른다(READ COMMITTED — 그 시점 최신 커밋, 영속성 컨텍스트 캐시 미사용). 명령 판정 입력이라 CQRS Reader가 아니다.
      */
     fun hasApprovedRevisionFor(merchantId: MerchantId): Boolean
+
+    /**
+     * SITE-CONTRACT-CODE-001 §3.4(C-12·C-13 — 등록 경로 전용, [lock]·[find]·[update]는 코드 표를 읽거나 쓰지 않는다): 그 가맹점(`contract.merchant_id`)의 다음 계약 코드 순번
+     * = `MAX(code_seq) + 1`(없으면 1). **Scope merchant 행 잠금 뒤**, `beginWrites()` **전**에 부른다(READ COMMITTED 최신 커밋).
+     */
+    fun nextContractCodeSeq(merchantId: MerchantId): Int
+
+    /** 코드 행 INSERT(append-only, source REGISTRATION). 계약 행([insertNew])이 먼저 flush된 뒤 같은 TX에서 부른다(FK `fk_cc_contract`). 1062는 결함 분류(C-3). */
+    fun insertCode(contractId: ContractId, merchantId: MerchantId, code: ContractCode, assignedAt: Instant, assignedBy: ActorRef)
+
+    /** 명령 응답·재생용 코드 조회(저장 reference → 코드, C-4). 없으면 null(호출자가 결함으로 본다). */
+    fun findCode(contractId: ContractId): ContractCode?
 }

@@ -55,6 +55,9 @@ enum class MasterFaultPoint {
 
     // BUSINESS-PROFILE-001 BIZ-2-4(m-1): 중복 거절 요약 읽기(BusinessDetailReader.summary — 명령 commit 뒤·TX 밖) 직후 — 요약 실패 503·재전송 재생 시험.
     BUSINESS_EXISTING_SUMMARY,
+
+    // SITE-CONTRACT-CODE-001 SCODE-1-13: Site·계약 코드 행 INSERT(flush) 직후(같은 TX·commit 전) — 등록 전체 rollback 시험.
+    SITE_CODE_INSERT, CONTRACT_CODE_INSERT,
 }
 
 /**
@@ -324,6 +327,14 @@ class MasterFaultInjectionConfig {
     fun faultInjectingMerchantSiteStore(real: JpaMerchantSiteRepository, f: MasterFaultInjector): MerchantSiteRepository =
         object : MerchantSiteRepository by real {
             override fun insert(site: MerchantSite) = f.around(MasterFaultPoint.SITE_INSERT) { real.insert(site) }
+
+            override fun insertCode(
+                siteId: com.paycore.master.merchant.domain.MerchantSiteId,
+                merchantId: com.paycore.master.merchant.domain.MerchantId,
+                code: com.paycore.master.merchant.domain.SiteCode,
+                assignedAt: Instant,
+                assignedBy: com.paycore.master.merchant.domain.ActorRef,
+            ) = f.around(MasterFaultPoint.SITE_CODE_INSERT) { real.insertCode(siteId, merchantId, code, assignedAt, assignedBy) }
         }
 
     @Bean
@@ -366,6 +377,14 @@ class MasterFaultInjectionConfig {
 
             override fun update(contract: com.paycore.master.merchant.domain.Contract, expectedVersion: Long): Long =
                 f.around(MasterFaultPoint.CONTRACT_UPDATE) { real.update(contract, expectedVersion) }
+
+            override fun insertCode(
+                contractId: com.paycore.master.merchant.domain.ContractId,
+                merchantId: com.paycore.master.merchant.domain.MerchantId,
+                code: com.paycore.master.merchant.domain.ContractCode,
+                assignedAt: Instant,
+                assignedBy: com.paycore.master.merchant.domain.ActorRef,
+            ) = f.around(MasterFaultPoint.CONTRACT_CODE_INSERT) { real.insertCode(contractId, merchantId, code, assignedAt, assignedBy) }
         }
 
     @Bean

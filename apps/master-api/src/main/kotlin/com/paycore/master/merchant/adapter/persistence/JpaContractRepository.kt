@@ -4,10 +4,13 @@ import com.paycore.master.merchant.adapter.persistence.PersistenceFailures.trans
 import com.paycore.master.merchant.application.required.ContractRepository
 import com.paycore.master.merchant.application.required.PersistenceFailure
 import com.paycore.master.merchant.application.required.Versioned
+import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.Contract
+import com.paycore.master.merchant.domain.ContractCode
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.MerchantId
 import jakarta.persistence.EntityManager
+import java.time.Instant
 import jakarta.persistence.LockModeType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -87,6 +90,27 @@ class JpaContractRepository(
         ).setParameter("merchantId", merchantId.value).singleResult > 0
     }
 
+    /**
+     * SITE-CONTRACT-CODE-001 §3.4·§7 주의 ②(C-12·C-13): 등록 경로 전용 — [find]·[lock]·[update]는 코드 표를 읽거나 쓰지 않는다. JPQL `max`는 DB를 읽고(영속성 컨텍스트 캐시 아님),
+     * Scope merchant `lockRow` 뒤·`beginWrites` 전에 불린다(READ COMMITTED 최신 커밋 — 직렬화는 merchant 행 잠금).
+     */
+    override fun nextContractCodeSeq(merchantId: MerchantId): Int = translate(CODE_ENTITY) {
+        val max = entityManager.createQuery(
+            "select max(c.codeSeq) from JpaContractCodeEntity c where c.merchantId = :merchantId", Int::class.javaObjectType,
+        ).setParameter("merchantId", merchantId.value).singleResult
+        (max ?: 0) + 1
+    }
+
+    /** 주의 ①·④: 독립 persist + flush — 계약 행([insertNew]가 이미 flush)이 먼저라 FK `fk_cc_contract` 만족. 1062는 결함 분류(C-3). */
+    override fun insertCode(contractId: ContractId, merchantId: MerchantId, code: ContractCode, assignedAt: Instant, assignedBy: ActorRef): Unit = translate(CODE_ENTITY) {
+        entityManager.persist(MasterPersistenceMapper.contractCodeRow(contractId, merchantId, code, assignedAt, assignedBy))
+        entityManager.flush()
+    }
+
+    override fun findCode(contractId: ContractId): ContractCode? = translate(CODE_ENTITY) {
+        entityManager.find(JpaContractCodeEntity::class.java, contractId.value)?.let(MasterPersistenceMapper::toContractCode)
+    }
+
     private fun appendRevision(contract: Contract, revision: com.paycore.master.merchant.domain.ContractRevision) {
         entityManager.persist(MasterPersistenceMapper.revisionRow(contract, revision))
         // FK(scope site → revision)를 위해 Revision 행을 먼저 보낸다.
@@ -105,5 +129,6 @@ class JpaContractRepository(
 
     private companion object {
         const val ENTITY = "contract"
+        const val CODE_ENTITY = "contract_code"
     }
 }

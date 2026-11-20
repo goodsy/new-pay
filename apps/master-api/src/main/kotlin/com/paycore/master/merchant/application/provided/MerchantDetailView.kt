@@ -43,11 +43,20 @@ data class MerchantDetailView(
         val review: SiteReview?,
         /** MERCHANT-OPS-002 B3-1(MAJOR-1 — 표시용): Site 등록자 = 기존 `merchant_site.created_by`(정규 actor 문자열). */
         val registeredBy: String,
+        /** SITE-CONTRACT-CODE-001 §4.1(C-15): 사람용 Site 코드(LEFT JOIN — 코드 행이 없으면 null = 결함 표시, 응답 키는 항상 있다). */
+        val siteCode: String? = null,
     )
 
     data class SiteReview(val decision: String, val decidedAt: Instant)
 
-    data class ContractDetail(val contractId: String, val createdAt: Instant, val revisions: List<RevisionDetail>, val agreements: List<AgreementDetail>)
+    data class ContractDetail(
+        val contractId: String,
+        val createdAt: Instant,
+        val revisions: List<RevisionDetail>,
+        val agreements: List<AgreementDetail>,
+        /** SITE-CONTRACT-CODE-001 §4.1(C-15): 사람용 계약 코드(LEFT JOIN — 없으면 null). */
+        val contractCode: String? = null,
+    )
 
     data class RevisionDetail(
         val revisionNo: Int,

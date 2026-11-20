@@ -85,6 +85,24 @@ class DemoSeedSnapshotGoldenSpec(
         val content = (mapper.convertValue(payload, Map::class.java) as Map<String, Any?>) - setOf("contentHash", "issuedAt", "leaseSeq", "leaseUntil")
         mapper.readTree(mapper.writeValueAsString(content)) shouldBe mapper.readTree(g("contentCanonical"))
     }
+
+    // SITE-CONTRACT-CODE-001 SCODE-1-11·1-12(시험 추가 — 위 시험의 기대값 불변): 새 DB의 운영 Demo seed(가맹점 코드 demoshop01)는 등록 경로로 Site·계약 코드를 받는다
+    // (결정적 — site-demoshop01-01·ctr-demoshop01-01). 위 golden contentHash가 그대로라는 사실이 Snapshot에 코드가 없음(Q-SC-7)을 보인다 — 여기서는 payload 문자열로도 확인한다.
+    test("SCODE-1-11 the production Demo seed on a new DB issues site-demoshop01-01 and ctr-demoshop01-01; SCODE-1-12 the Snapshot payload has no code") {
+        OnboardingFixture.runtime(container).use { c ->
+            fun column(sql: String) = c.prepareStatement(sql).use { ps -> ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } } }
+            column(
+                "SELECT k.site_code FROM merchant_site_code k JOIN merchant_code_assignment a ON a.merchant_id = k.merchant_id WHERE a.merchant_code = 'demoshop01' ORDER BY k.code_seq",
+            ) shouldBe listOf("site-demoshop01-01")
+            column(
+                "SELECT k.contract_code FROM contract_code k JOIN merchant_code_assignment a ON a.merchant_id = k.merchant_id WHERE a.merchant_code = 'demoshop01' ORDER BY k.code_seq",
+            ) shouldBe listOf("ctr-demoshop01-01")
+            val merchantId = column("SELECT merchant_id FROM merchant_code_assignment WHERE merchant_code = 'demoshop01'").single()
+            val payload = latestSnapshot(container, com.paycore.master.merchant.domain.MerchantId(merchantId)).toString()
+            listOf(payload.contains("site-demoshop01"), payload.contains("ctr-demoshop01"), payload.contains("siteCode"), payload.contains("contractCode")) shouldBe
+                listOf(false, false, false, false)
+        }
+    }
 })
 
 /** [DemoSeedSnapshotGoldenSpec] 전용 컨텍스트 표지(빈 없음 — 컨텍스트 cache key를 달리해 새 DB를 받는다). */

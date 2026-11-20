@@ -57,6 +57,10 @@ enum class StoreConstraint(val businessKey: Boolean) {
     // **업무 유일키가 아니다** — Domain 규칙(§4.3)과 business FOR UPDATE 직렬화가 먼저 막으므로 위반은 diff·flush 순서 결함 또는 잠금 우회다.
     // 결함 — 재시도·재판정 없음(실행기 새 TX 재판정 대상 아님 → 503 TEMPORARILY_UNAVAILABLE + 결함 로그(제약 이름만)).
     BUSINESS_PROFILE_ROW(false),
+
+    // SITE-CONTRACT-CODE-001 §3.3·C-3: Site·계약 코드 표의 PK·코드·(가맹점, 순번) UNIQUE. 순번은 merchant 행 잠금 아래 MAX+1이라 위반은 잠금 우회·순서 결함이다 — 업무 유일키 아님
+    // (재시도·재판정 없음 → 503 + 결함 로그). 업무 거절로 바꾸지 않는다.
+    SITE_CONTRACT_CODE(false),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

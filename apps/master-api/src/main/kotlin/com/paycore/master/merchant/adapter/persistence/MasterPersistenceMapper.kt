@@ -34,6 +34,9 @@ import com.paycore.master.merchant.domain.SiteAssignmentId
 import com.paycore.master.merchant.domain.SiteAssignmentRole
 import com.paycore.master.merchant.domain.SiteAssignmentStatus
 import com.paycore.master.merchant.domain.SiteChannel
+import com.paycore.master.merchant.domain.SiteCode
+import com.paycore.master.merchant.domain.ContractCode
+import java.time.Instant
 
 /**
  * Domain ↔ 행 변환(adapter 전용). 복원은 domain의 공식 복원 경로(`reconstitute`)와 값 객체 생성자를 거치므로 저장 값이 현재 규칙에서 존재할 수
@@ -82,6 +85,26 @@ internal object MasterPersistenceMapper {
     fun siteRow(s: MerchantSite) = JpaMerchantSiteEntity.newRow(
         s.id.value, s.merchantId.value, s.channel.type.name, s.channel.identifier, s.lifecycle.name, s.createdAt, s.createdBy.value,
     )
+
+    /** SITE-CONTRACT-CODE-001 §3.4: 등록 경로 코드 행(source REGISTRATION — 백필 행은 V19만 만든다). 코드 문자열은 Domain 값 그대로(DB CHECK가 같은 식으로 다시 검사). */
+    fun siteCodeRow(siteId: MerchantSiteId, merchantId: MerchantId, code: SiteCode, at: Instant, by: ActorRef) = JpaMerchantSiteCodeEntity.newRow(
+        siteId.value, merchantId.value, code.seq, code.issuedMerchantCode.value, code.value, CODE_SOURCE_REGISTRATION, at, by.value,
+    )
+
+    /** 저장 행 → Domain 값(형식 검사 + 행의 (가맹점 코드, 순번)과 코드 문자열 일치 확인 — 어긋나면 결함). */
+    fun toSiteCode(row: JpaMerchantSiteCodeEntity): SiteCode = SiteCode.parse(row.siteCode).also {
+        check(it.seq == row.codeSeq && it.issuedMerchantCode.value == row.issuedMerchantCode) { "stored site code is inconsistent with its row" }
+    }
+
+    fun contractCodeRow(contractId: ContractId, merchantId: MerchantId, code: ContractCode, at: Instant, by: ActorRef) = JpaContractCodeEntity.newRow(
+        contractId.value, merchantId.value, code.seq, code.issuedMerchantCode.value, code.value, CODE_SOURCE_REGISTRATION, at, by.value,
+    )
+
+    fun toContractCode(row: JpaContractCodeEntity): ContractCode = ContractCode.parse(row.contractCode).also {
+        check(it.seq == row.codeSeq && it.issuedMerchantCode.value == row.issuedMerchantCode) { "stored contract code is inconsistent with its row" }
+    }
+
+    private const val CODE_SOURCE_REGISTRATION = "REGISTRATION"
 
     fun toContract(
         row: JpaContractEntity,

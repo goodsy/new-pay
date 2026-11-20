@@ -107,6 +107,10 @@ enum class MasterRejection {
     BUSINESS_VERSION_CONFLICT,
     BUSINESS_CHANGE_REASON_REQUIRED,
     BUSINESS_PROFILE_UNCHANGED,
+
+    // SITE-CONTRACT-CODE-001 §3.1·C-1: 가맹점·종류별 사람용 코드 순번(1..9999) 소진 — 등록 판정 단계(실행기 beginWrites 전)의 저장된 거절, reference 없음.
+    SITE_CODE_EXHAUSTED,
+    CONTRACT_CODE_EXHAUSTED,
 }
 
 /**

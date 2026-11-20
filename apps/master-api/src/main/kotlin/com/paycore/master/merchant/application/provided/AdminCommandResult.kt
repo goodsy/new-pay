@@ -7,8 +7,11 @@ import com.paycore.master.merchant.domain.MasterRejection
  * [IdempotencyKeyReused]이며 아무것도 저장하지 않는다.
  */
 sealed interface AdminCommandResult {
-    /** [reference] = 만든 대상 ID(등록·발급은 새 ID, 승인은 `contractId#revisionNo`). */
-    data class Succeeded(val reference: String, val replayed: Boolean) : AdminCommandResult
+    /**
+     * [reference] = 만든 대상 ID(등록·발급은 새 ID, 승인은 `contractId#revisionNo`).
+     * [code] = SITE-CONTRACT-CODE-001 §3.4: Site·계약 등록 성공의 사람용 코드(저장 reference로 코드 표를 읽은 값 — 재생도 같은 값, C-4). 그 밖 명령은 null.
+     */
+    data class Succeeded(val reference: String, val replayed: Boolean, val code: String? = null) : AdminCommandResult
 
     /** 업무 거절(저장·재생). [reference] = 판단 근거 대상(예: 이미 있는 Default MID·같은 등록번호의 Business). */
     data class Rejected(val rejection: MasterRejection, val reference: String?, val replayed: Boolean) : AdminCommandResult
