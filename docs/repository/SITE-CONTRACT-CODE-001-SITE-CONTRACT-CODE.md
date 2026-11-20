@@ -1,5 +1,17 @@
-# SITE-CONTRACT-CODE-001 Site·계약 사람용 코드 명세 (rev 0.2)
+# SITE-CONTRACT-CODE-001 Site·계약 사람용 코드 명세 (rev 0.3)
 
+- **rev 0.3** (2026-11-20, Implementer — rev 0.2 독립 리뷰 조건부 PASS(BLOCKER 0·MAJOR 1·MINOR 9·NIT 다수) 반영. 문서만, 정책 변경 없음 — 사용자 답 Q-SC-1~9 그대로, Coordinator 결정 MINOR-2·3·7·9 기록, 자기 완료 판정 아님). 기준 HEAD `4cd6a07`.
+  - **MAJOR-1** 화면 내부 키 가드: 부분 문자열 가드 `hasInternalKey`(merchantTarget.ts:27-31·62-68)를 **유지**하고 대상만 `site_`·`ctr_`·`csa_`로 넓힌다. 정확 정규식 치환은 **함께** 쓴다(치환 → 남은 부분 문자열이면 전체 "—"). `historyTarget.ts:45`도 같은 규칙. 새 코드는 하이픈이라 가드에 걸리지 않음(오탐 없음). SCODE-4-5 = "짧은 토큰·소문자 토큰도 가려짐"(§5.3·C-11).
+  - MINOR-1 Q-SC-2 안내 위치 = 가맹점 코드 변경 **승인** 화면(권장안 원문), 요청 화면은 선택(§5.2·SCODE-3-5).
+  - MINOR-2(Coordinator 결정) 선택 칸 `value`에 내부 키 금지 — 목록 순번·화면 전용 키 + 상태 매핑. DOM 내부 키 0건 검사 = 텍스트 + 모든 속성(value·aria-*·title·data-*), 예외 'API 연동값' 하나. `MerchantsScreen.tsx:175` `aria-label` 노출도 수정(§5·C-14).
+  - MINOR-3(Coordinator 결정) 상세 조회 = LEFT JOIN, 코드 행 없음 → 응답 code `null` + 화면 "—" + WARN 로그(결함 표시). 첫 MID·계약 승인 등 명령은 막지 않음(코드는 판정 재료 아님). 누락 점검 쿼리는 LIVE Gate(§4.1·C-15·LG-7).
+  - MINOR-4 Recoverability: V19 CREATE 뒤 INSERT 실패 시 표 DROP → Flyway repair → 재시도 순서, V15 선례 precheck·inspect·revert 스크립트(`db/recovery/master/`)를 SCODE-1 파일에. LG에 쓰기 정지·누락 점검·멱등 보충(`INSERT … WHERE NOT EXISTS`) 추가(§3.6·§12).
+  - MINOR-5 CHECK·백필 식에 문자 집합 + collation 모두 명시, SCODE-1-5는 runtime 계정 연결에서 CHECK 통과·위반 확인.
+  - MINOR-6 배치 순서 SCODE-1 → 2 → 3 → **4**(같은 파일 `MerchantContractApprovalDetail.tsx`·`adminApi.ts`), "독립" 문구 삭제.
+  - MINOR-7(Coordinator 결정) 코드는 Aggregate 필드가 아니다 — 등록 경로에서 발급·저장, 상세·라벨 Reader에서만 읽음. `contracts.lock/find·update`는 코드 표 무관. 순번 판정은 `beginWrites()` 전(실행기 check L193)(§3.4·§7·C-12).
+  - MINOR-8 라벨 API 응답 대응 검사(보낸 키의 부분집합·중복 없음·오름차순 — 아니면 묶음 전체 unavailable)·시험·EXPLAIN 시험(MerchantLabelApiSpec 227-240 선례). site-labels `merchantCode` = **현재** 가맹점 코드(§4.1).
+  - MINOR-9(Coordinator 결정) 백필 `assigned_at` = migration 시각(Q-SC-2 — 발급 시점이 migration이고 그때 현재 코드를 쓰므로 시각도 같게)(§3.6·C-5).
+  - NIT: 회귀 등록부 갱신 대상(`MasterDatabaseAccountSpec.kt:237`, `MasterSchemaSpec.kt:40·304·486` — 정책 변경 아닌 등록부 갱신), 집계 이름 `ContractServiceAgreement`, LG-3 문구 완화, EXHAUSTED ADMIN 문구(`RegistrationStep.tsx`) 배치 목록, Observability "WARN 로그", JPA 주의 ④(Site·계약 행 먼저 persist — `order_inserts` 미설정), `validScope` 반환형 변경(잠근 Merchant의 currentCode 필요), 줄 번호 "Site ID 직접 입력" L800-815, SCODE-1-10 분류 Unknown, LG-2 배포 순서, §13 감사 detail 길이 항목 닫음(`DETAIL_MAX` 500·`-` 허용 확인).
 - **rev 0.2** (2026-11-20, Implementer — 명세 확정본. 문서만: 코드·migration·빌드·커밋 없음, 자기 완료 판정 아님 — 독립 리뷰 별도). 기준 main HEAD `4cd6a07`.
   - **변경 요약**
     1. 사용자 질문 Q-SC-1~9 답(모두 ANSWERED, 권장안 채택)을 확정 문장으로 바꿨다(§2). 대안은 §14 "검토했으나 채택 안 함"으로 짧게 옮겼다.
@@ -32,7 +44,7 @@
 | 저장 | 새 append-only 표 `merchant_site_code`·`contract_code`(MASTER **V19**), runtime `SELECT, INSERT`(**V20**). 기존 표 열·권한 불변 | C-2, §1.5 |
 | 기존 데이터 | V19 안에서 표마다 한 문장 백필(가맹점별 `created_at` 순서, 백필 시점 현재 가맹점 코드) | C-5·C-8 |
 | 화면 입력 | "Site ID 직접 입력"·"계약 ID" 입력칸 제거 → 그 가맹점 Site·계약 **목록 선택** | D-ADMIN-UI-005 |
-| 배치 | SCODE-1 MASTER 모델·발급·백필 + ADMIN 응답 모양(한 배포 단위) → SCODE-2 등록 마법사 → SCODE-3 가맹점 상세·구성요소 → SCODE-4 라벨 읽기(승인·감사·거래·이력) → (SCODE-5 코드 검색, 별도 승인) | §8 |
+| 배치 | SCODE-1 MASTER 저장·발급·백필 + ADMIN 응답 모양(한 배포 단위) → SCODE-2 등록 마법사 → SCODE-3 가맹점 상세·구성요소 → SCODE-4 라벨 읽기(승인·감사·거래·이력, SCODE-3 뒤 — 같은 파일) → (SCODE-5 코드 검색, 별도 승인) | §8 |
 | 막힘 | 사용자 질문 없음(모두 답). 독립 명세 리뷰 → SCODE-1 착수 | — |
 
 ## 1. 현재 상태(HEAD `4cd6a07` 코드 확인)
@@ -62,11 +74,12 @@
 - MASTER 응답 해석 `MasterResponseShape.kt`: 키 집합 **정확 일치**(MERCHANT-CODE-001 C-22) → 응답 키 추가는 MASTER와 같은 배포 단위.
 
 ### 1.3 ADMIN 화면(내부 키 노출 지점 — HEAD `4cd6a07` 줄)
-- `screens/MerchantRegistrationScreen.tsx`: 정규식 `SITE_ID`·`CONTRACT_ID` L101-102, `createdSites` L430·462·500·516, Site 성공 "Site ID" L704, 계약 성공 "계약 ID" L755, 계약 범위 Site 체크 목록(`offeredSites` — 이 마법사에서 만든 Site만) L787-794, **"Site ID 직접 입력"** L800-806(검증 L526), 서비스 계약 성공 "서비스 계약 ID" L857, **"계약 ID" 입력** L862-863(검증 L551), ④ 검토 Site 목록 L903-910·계약 초안 L921-·서비스 계약 L931-.
-- `screens/MerchantsScreen.tsx`: Site 표 L175-176, 계약 카드 L200-202, Revision Scope Site L219, CSA L231-234, 배정 Site L266, 한도 대상 L341, Revision 폼 Site 후보 L752.
+- `screens/MerchantRegistrationScreen.tsx`: 정규식 `SITE_ID`·`CONTRACT_ID` L101-102, `createdSites` L430·462·500·516, Site 성공 "Site ID" L704, 계약 성공 "계약 ID" L755, 계약 범위 Site 체크 목록(`offeredSites` — 이 마법사에서 만든 Site만) L787-794, **"Site ID 직접 입력"** L800-815(검증 L526), 서비스 계약 성공 "서비스 계약 ID" L857, **"계약 ID" 입력** L862-863(검증 L551), ④ 검토 Site 목록 L903-910·계약 초안 L921-·서비스 계약 L931-.
+- `screens/MerchantsScreen.tsx`: Site 표 L175-176(L175 `TableRow aria-label={site.merchantSiteId}` — 속성 노출), 계약 카드 L200-202, Revision Scope Site L219, CSA L231-234, 배정 Site L266, 한도 대상 L341, Revision 폼 Site 후보 L752.
 - 구성요소: `FirstMidRequest.tsx:102-119`(계약 #n·CSA·PRIMARY Site 선택지 문구), `MerchantActivationArea.tsx:451-454`, `ContractRevisionForm.tsx:67`(제목 "새 Revision 등록 — ctr_…"), `MerchantContractApprovalDetail.tsx`(실행 완료 ref·pinned 계약·CSA·Site).
 - `screens/TransactionsScreen.tsx:84`(거래 상세 "Site" = `merchantSiteId` 원문).
-- `lib/merchantTarget.ts`: L8 "그 밖(`ctr_` 등) 원문", `hasInternalKey` L29-31 = 부분 문자열 `includes('mer_') || includes('biz_')`.
+- `lib/merchantTarget.ts`: L8 "그 밖(`ctr_` 등) 원문", `INTERNAL_TOKEN` 정확 정규식 `(mer|biz)_<ULID>` L27, `hasInternalKey` L29-31 = 부분 문자열 `includes('mer_') || includes('biz_')`(마지막 방어), `sanitizeAuditDetail` L62-68 = 정확 정규식 치환 뒤 부분 문자열 가드(reviewFix1 NIT-1 — 소문자·짧은 토큰도 가림).
+- `lib/historyTarget.ts:45`: 이력 대상 `aggregateId.includes('mer_') || includes('biz_')` → 숨김, 그 밖 원문.
 
 ### 1.4 외부 API·Snapshot·FINANCIAL·Demo
 - `site_<ULID>`는 **외부 결제 API 필수 입력** `merchantSiteId`(CP-CONTRACT-001:28·39, 주문 지문 재료). 가맹점 포털이 없어 운영자가 관리자 화면에서 가맹점 개발자에게 전달해야 한다 → Q-SC-8 답(한 곳 표시).
@@ -92,13 +105,13 @@
 | 질문 | 사용자 답(원문) | 확정 적용 |
 |---|---|---|
 | Q-SC-1 형식 | "site-가맹점코드-01" | `site-<C>-<N>`·`ctr-<C>-<N>`(§3.1). 종류 접두어 구분(D-ADMIN-UI-005 의도) 유지, 구분자는 하이픈 — 내부 키 `site_`·`ctr_`와 판독·정규식 모두 구별 |
-| Q-SC-2 가맹점 코드 변경 | "발급 당시 값 유지" | 코드 행에 `issued_merchant_code` 저장, 변경 시 재발급 없음. 옛 코드는 영구 예약(D-MCODE-002)이라 다른 가맹점을 가리키지 않는다. 가맹점 코드 변경 요청 화면에 "이미 발급된 Site·계약 코드 N개는 옛 코드를 유지" 안내(SCODE-3) |
+| Q-SC-2 가맹점 코드 변경 | "발급 당시 값 유지" | 코드 행에 `issued_merchant_code` 저장, 변경 시 재발급 없음. 옛 코드는 영구 예약(D-MCODE-002)이라 다른 가맹점을 가리키지 않는다. 가맹점 코드 변경 **승인** 화면에 "이미 발급된 Site·계약 코드 N개는 옛 코드를 유지" 안내(권장안 원문, SCODE-3 — 요청 화면 병기는 선택) |
 | Q-SC-3 고유 범위 | "전체에서 하나" | `UNIQUE(site_code)`·`UNIQUE(contract_code)`(TEST·LIVE 공통). 두 종류는 접두어가 달라 교차 충돌 불가 |
 | Q-SC-4 발급 주체 | "시스템 자동 발급" | 등록 TX 안 merchant 잠금 아래 `MAX(code_seq)+1`. 요청 지문 불변(seed 재실행 충돌 없음) |
 | Q-SC-5 변경·재사용 | "불변·재사용 금지" | runtime `SELECT, INSERT`만(UPDATE·DELETE 1142), 삭제 경로 없음 → 빈 번호 재사용 불가 |
 | Q-SC-6 csa_ | "발급 안 함" | 화면 `<계약 코드> · 카드 PG 결제`, 선택 칸 값은 내부 키 |
 | Q-SC-7 외부·정산서 | "노출 안 함" | Snapshot·PAYMENT·FINANCIAL·웹훅·결제 응답·정산서 불변. SETTLEMENT-001도 이 답을 따른다 |
-| Q-SC-8 `site_` 화면 | "가맹점 상세 한 곳에만" | 가맹점 상세 Site 표의 "API 연동값(merchantSiteId)" 복사 영역 하나(`data-integration-value`). 마법사·승인·감사·거래·이력은 코드만 |
+| Q-SC-8 `site_` 화면 | "가맹점 상세 한 곳에만" | 가맹점 상세 Site 표의 "API 연동값(merchantSiteId)" 복사 영역 하나(`data-integration-value`). 마법사·승인·감사·거래·이력은 코드만 — 텍스트뿐 아니라 속성(value·aria-*·title·data-*)에도 내부 키 없음(C-14) |
 | Q-SC-9 감사·승인 저장 | "내부 키 유지 + 화면은 코드" | `target_ref`·pinned·ownerReference 저장값 불변, 새 등록 감사 detail `code=<코드>`, 화면은 MASTER 라벨 묶음 읽기(실패 "—"). ADMIN migration 없음 |
 
 ## 3. 형식·저장(MASTER)
@@ -115,7 +128,7 @@
 ### 3.2 저장 방식 — append-only 코드 표 2개(C-2)
 - 기존 표에 열을 더하지 않는다: `contract`는 runtime 표 단위 UPDATE 권한(V2)이 있어 열 불변을 권한으로 보장할 수 없다. 별도 표는 `SELECT, INSERT`만 주어 **불변·삭제 불가를 DB 권한이 보장**하고 기존 표 권한은 바꾸지 않는다.
 - 박힌 가맹점 코드가 그 가맹점의 배정 코드(현재·은퇴)임을 FK로 DB가 강제한다(`uk_mca_merchant_code`).
-- NOT NULL(코드 없는 Site·계약 0)은 자식 표라 DB로 표현할 수 없다 → 같은 TX INSERT + migration 시험 + 읽기 시 없음 = 결함 503(MERCHANT-CODE-001 V13 선례).
+- NOT NULL(코드 없는 Site·계약 0)은 자식 표라 DB로 표현할 수 없다 → 같은 TX INSERT + migration 시험 + 상세 읽기 시 없음 = `null`·"—"·WARN(결함 표시 — C-15, 명령 비차단) + LG-7 점검·보충. 등록 명령 재생 응답의 코드 조회 실패만 결함 503(재생은 저장 결과 재현이 목적).
 
 ### 3.3 V19 표 정의(collation `utf8mb4_0900_bin`, ENGINE InnoDB)
 **`merchant_site_code`**
@@ -127,17 +140,20 @@
   - FK 동작 미지정(NO ACTION — V1·V13 관례, CHECK 열과 공존 가능).
   - `ck_msc_seq CHECK (code_seq BETWEEN 1 AND 9999)`, `ck_msc_source CHECK (source IN ('REGISTRATION','BACKFILL'))`.
   - `ck_msc_code_format CHECK (REGEXP_LIKE(site_code, '^site-[a-z][a-z0-9]{5,13}-(0[1-9]|[1-9][0-9]{1,3})$', 'c'))`.
-  - `ck_msc_code_derived CHECK (site_code = CONCAT('site-', issued_merchant_code, '-', IF(code_seq < 100, LPAD(code_seq, 2, '0'), CAST(code_seq AS CHAR))) …)` — 코드 = f(가맹점 코드, 순번)을 DB가 강제. 숫자→문자 변환 결과에 `COLLATE utf8mb4_0900_bin`을 명시해 혼합 collation 오류(1267)를 막는다(정확한 SQL 표기는 SCODE-1 구현 — 시험이 CHECK 생성·위반 거절·백필 성공을 증명).
+  - `ck_msc_code_derived CHECK (site_code = CONCAT(_utf8mb4'site-' COLLATE utf8mb4_0900_bin, issued_merchant_code, _utf8mb4'-' COLLATE utf8mb4_0900_bin, IF(code_seq < 100, LPAD(CAST(code_seq AS CHAR CHARACTER SET utf8mb4), 2, _utf8mb4'0'), CAST(code_seq AS CHAR CHARACTER SET utf8mb4)) COLLATE utf8mb4_0900_bin))` — 코드 = f(가맹점 코드, 순번)을 DB가 강제. 숫자→문자 변환·리터럴마다 **문자 집합(`utf8mb4`)과 collation(`utf8mb4_0900_bin`)을 모두 명시**해 연결 기본 문자 집합·collation(runtime 계정 세션 포함)에 따라 결과가 달라지거나 혼합 collation 오류(1267)가 나지 않게 한다. 위 표기는 의미 스케치이고 정확한 SQL은 SCODE-1 구현 — 시험이 CHECK 생성, migration 계정 백필, **runtime 계정 연결에서의 통과·위반**을 증명(SCODE-1-5).
 - **`contract_code`**: 같은 모양 — `contract_id` PK, `fk_cc_contract FOREIGN KEY (contract_id, merchant_id) REFERENCES contract(contract_id, merchant_id)`, 접두 `ctr-`, 제약 이름 `uk_cc_code`·`uk_cc_merchant_seq`·`fk_cc_merchant_code`·`ck_cc_*`.
 - **V20 권한**: `set_runtime_table_privileges('merchant_site_code', 'SELECT, INSERT')`, `('contract_code', 'SELECT, INSERT')`(V14 선례). 기존 표 권한 불변.
 - 1062 분류(`PersistenceFailures` 표에 추가): `uk_*_merchant_seq`·`uk_*_code`·PK = 잠금 아래에서는 일어나면 안 되는 **결함**(OTHER → 503·경보 — C-3). 업무 거절로 바꾸지 않는다.
 
 ### 3.4 발급(등록 TX 안 — 같은 MASTER 로컬 TX)
+- **코드는 Aggregate 필드가 아니다(C-12, Coordinator 결정)**: `MerchantSite`·`Contract` Domain 객체에 코드를 넣지 않는다. 코드는 **등록 경로에서만** 발급·저장하고, 읽기는 상세·라벨 Reader(jOOQ)와 재생 응답 조회에서만 한다. `contracts.lock/find·update`, `sites.find·listByMerchant` 경로는 코드 표를 읽거나 쓰지 않는다(Revision 등록·CSA 추가·승인 경로 무변경).
+- **판정 순서**: 순번 계산·소진 판정(저장된 거절 `*_CODE_EXHAUSTED`)은 `work.beginWrites()` **전**에 끝낸다 — 실행기는 쓰기 시작 뒤 업무 거절을 결함으로 본다(`AdminCommandExecutor.kt:193` check).
 - **Site** `registerMerchantSite`: merchant 잠금(L125) **뒤**
   1. `nextSeq = MAX(code_seq)+1`(그 가맹점, 없으면 1 — 종료 Site 포함). 명령 TX가 READ COMMITTED라 잠금 뒤 읽는 일반 SELECT가 최신 커밋을 본다. FOR UPDATE는 권한상 불가(1142)이므로 쓰지 않는다 — **직렬화는 merchant 행 잠금이 맡는다**.
   2. `issued_merchant_code` = 잠근 Merchant의 현재 코드(`merchant.currentCode` — 같은 잠금으로 가맹점 코드 변경과 직렬화).
-  3. 9999 초과면 저장된 거절, 아니면 Site INSERT와 같은 flush로 코드 행 INSERT.
-- **계약** `registerContract`: business 잠금(L155) → `validScope`의 merchant 잠금(L424, 기존) **뒤** 같은 절차, 계약 INSERT와 같은 TX로 코드 행 INSERT. merchant `version`·entitlement revision은 바꾸지 않는다(잠금만).
+  3. 9999 초과면 저장된 거절(`beginWrites` 전), 아니면 `beginWrites` 뒤 Site INSERT → 코드 행 INSERT(같은 TX, Site 행이 먼저 — §7 JPA 주의 ④).
+- **계약** `registerContract`: business 잠금(L155) → `validScope`의 merchant 잠금(L424, 기존) **뒤** 같은 절차, 계약 INSERT → 코드 행 INSERT(같은 TX). merchant `version`·entitlement revision은 바꾸지 않는다(잠금만).
+  - **`validScope` 반환형 변경 필요**: 현재 `ContractScope`만 돌려주고 잠근 `Merchant`를 버린다(L423-429). 발급에는 잠근 Merchant의 `currentCode`가 필요하므로 (Scope, 잠근 Merchant)를 함께 돌려주도록 바꾼다(다시 `find`하지 않는다 — 같은 잠금 아래 값). `registerContractRevision`의 호출부는 Merchant를 쓰지 않아도 동작 불변.
 - 가맹점 코드 변경(`changeMerchantCodeWithEvidence` L391-406)도 merchant를 잠그므로 Site·계약 발급과 직렬화 → 각 코드는 옛 코드 또는 새 코드 중 하나에 일관되게 박힌다(SCODE-1-9).
 - 요청 지문 변화 없음(코드는 시스템 산출) → seed 재실행·같은 키 재전송 충돌 없음.
 - 이력 detail·Outbox payload: `MerchantSiteRegistered`에 `siteCode`, `ContractRegistered`에 `contractCode`(가산, L112-113 선례).
@@ -152,10 +168,11 @@
 
 ```sql
 -- 문서 설명용 스케치(실제 파일은 SCODE-1). 가맹점 코드 결합은 LEFT JOIN — 없으면 NULL → NOT NULL 위반으로 migration 실패(fail-closed).
+-- 문자 집합·collation은 §3.3 CHECK와 같은 식으로 모두 명시한다(아래 CONCAT 축약 표기).
 INSERT INTO merchant_site_code (merchant_site_id, merchant_id, code_seq, issued_merchant_code, site_code, source, assigned_at, assigned_by)
 SELECT s.merchant_site_id, s.merchant_id, s.seq, cur.merchant_code,
-       CONCAT('site-', cur.merchant_code, '-', IF(s.seq < 100, LPAD(s.seq, 2, '0'), CAST(s.seq AS CHAR))),  -- + COLLATE 명시
-       'BACKFILL', s.created_at, 'system:migration'
+       CONCAT('site-', cur.merchant_code, '-', IF(s.seq < 100, LPAD(s.seq, 2, '0'), CAST(s.seq AS CHAR))),  -- CHARACTER SET utf8mb4 + COLLATE utf8mb4_0900_bin 명시
+       'BACKFILL', NOW(3), 'system:migration'  -- assigned_at = migration 시각(C-5, MINOR-9)
 FROM (SELECT merchant_site_id, merchant_id, created_at,
              ROW_NUMBER() OVER (PARTITION BY merchant_id ORDER BY created_at, merchant_site_id) AS seq
       FROM merchant_site) s
@@ -165,26 +182,34 @@ LEFT JOIN merchant_code_assignment cur
 ```
 
 - 순번 = 가맹점별 `created_at` 오름차순, 동률은 내부 키 오름차순(결정적 — 같은 DB → 같은 코드).
-- 가맹점 코드 = **백필 시점 현재 코드**(Q-SC-2의 "발급 당시"는 백필 행에서 migration 시점). 모든 가맹점은 V13 백필·등록 TX로 배정 행을 가진다 — 없으면 LEFT JOIN NULL이 NOT NULL·FK에서 실패(조용히 빠지는 행 없음, MySQL 8.4 기본 strict `sql_mode` 전제 — SCODE-1에서 Flyway 세션 `sql_mode` 확인).
+- 가맹점 코드 = **백필 시점 현재 코드**(Q-SC-2의 "발급 당시"는 백필 행에서 migration 시점). `assigned_at`도 같은 이유로 **migration 시각**(`NOW(3)` — 한 문장 안 같은 값, C-5). 원 Site·계약 생성 시각은 원 표 `created_at`에 그대로 있다.
+- 모든 가맹점은 V13 백필·등록 TX로 배정 행을 가진다 — 없으면 LEFT JOIN NULL이 NOT NULL·FK에서 실패(조용히 빠지는 행 없음). 이 동작은 strict `sql_mode`일 때 가장 확실하다 — SCODE-1에서 Flyway 세션 `sql_mode`를 시험으로 확인하고, strict가 아니어도 FK·CHECK·행 수 비교 precheck가 누락을 잡는다(LG-3).
 - **LPAD만 쓰면 100 이상이 잘린다**(`LPAD('123',2,'0') = '12'`) → IF 필수. 같은 식을 CHECK·백필·앱(Kotlin `padStart(2,'0')` — 절단 없음) 세 곳에 동일 의미로 둔다(C-8).
 - 한 가맹점에 9999 초과 행이면 `ck_*_seq` 위반으로 migration 실패(fail-closed — Demo 해당 없음).
 - 충돌(같은 코드) 시 1062로 migration 실패(fail-closed).
-- `source='BACKFILL'`, `assigned_at = created_at`, `assigned_by = 'system:migration'`.
+- `source='BACKFILL'`, `assigned_at = migration 시각`, `assigned_by = 'system:migration'`.
+- **부분 적용 회복(MINOR-4 a)**: MySQL DDL은 자동 커밋이라 V19의 `CREATE TABLE` 뒤 백필 `INSERT`가 실패하면 **빈 표가 남고** Flyway 이력은 실패로 기록된다. 순서: ① inspect로 남은 표·행 확인 → ② revert(새 두 표 DROP — 원 표 무변경) → ③ `flyway repair`(실패 이력 제거) → ④ 원인 수정 뒤 재시도. V15 선례대로 SCODE-1에 `db/recovery/master/site-contract-code-v19-precheck.sql`(배정 행 없는 가맹점·가맹점별 9999 초과·예상 코드 충돌 0 확인)·`-inspect.sql`(표 존재·행 수·Site/계약 수 비교·누락 목록)·`-revert.sql`(새 두 표 DROP)을 둔다(Flyway 위치 밖, 운영자 수동 실행).
 - Demo 새 DB: seed가 등록 경로로 만들므로 `site-demoshop01-01`·`ctr-demoshop01-01`(결정적).
 
 ## 4. API 변경
 
 ### 4.1 MASTER(ADMIN 채널, 서명)
-- 가맹점 상세(`JooqMerchantDetailReader` — jOOQ 조회 측): `sites[]`에 `siteCode`, `contracts[]`에 `contractCode`(같은 REPEATABLE READ 읽기 TX 안 JOIN). Scope Site·MID 근거 계약·배정 Site·CSA는 같은 가맹점 소속이 FK로 보장되므로 화면이 같은 응답 안 대응표로 코드를 찾는다 — 키 추가는 두 개만(C-6).
+- 가맹점 상세(`JooqMerchantDetailReader` — jOOQ 조회 측): `sites[]`에 `siteCode`, `contracts[]`에 `contractCode`(같은 REPEATABLE READ 읽기 TX 안 **LEFT JOIN** — C-15, Coordinator 결정).
+  - 코드 행이 없으면(결함) 해당 키 값 `null`(키는 항상 있음 — 응답 모양 정확 일치 유지), MASTER는 WARN 로그 1줄(`site_code_missing`/`contract_code_missing` + 건수, ID 원문 없음), 화면은 "—".
+  - 상세 응답 전체를 503으로 만들지 않고, 첫 MID 발급·계약 승인·Revision 등록 등 명령도 막지 않는다 — 코드는 어떤 판정의 재료도 아니다(§3.4). 누락은 LG-7 점검 쿼리·멱등 보충으로 고친다. Scope Site·MID 근거 계약·배정 Site·CSA는 같은 가맹점 소속이 FK로 보장되므로 화면이 같은 응답 안 대응표로 코드를 찾는다 — 키 추가는 두 개만(C-6).
 - 등록 명령 성공 응답 `code`(§3.4).
 - 새 라벨 묶음 읽기(SCODE-4, jOOQ 조회 Port `SiteLabelReader`·`ContractLabelReader`):
   - `POST /internal/v1/admin/site-labels` `{"merchantSiteIds":[…≤50]}` → `{"items":[{"merchantSiteId","siteCode","channelType","merchantCode"}]}`.
   - `POST /internal/v1/admin/contract-labels` `{"contractIds":[…≤50], "agreementIds":[…≤50]}` → `{"items":[{"contractId","contractCode"}], "agreements":[{"agreementId","contractCode","serviceKind"}]}`.
-  - 라벨 전용 permit 공유(C-34), 분당 창 `label-reads-per-minute` 공유(C-35 — 새 설정 키 없음), 없는 ID는 빠짐, 로그에 ID·코드 없음.
+  - `site-labels`의 `merchantCode` = 그 가맹점의 **현재** 코드(Site 코드 자체가 발급 당시 가맹점 코드를 담으므로 소속 표시는 현재 값 — 둘이 다를 수 있음, L-1).
+  - 라벨 전용 permit 공유(C-34), 분당 창 `label-reads-per-minute` 공유(C-35 — 새 설정 키 없음), 없는 ID는 빠짐, 응답 항목은 키 오름차순, 로그에 ID·코드 없음.
+  - **ADMIN 응답 대응 검사(MINOR-8 — MerchantLabelApiSpec 227-240 선례)**: 응답 키가 ① 보낸 키의 부분집합, ② 중복 없음, ③ 키 오름차순이 아니면 그 **묶음 전체를 unavailable**로 본다(화면 "—", 부분 사용 금지). `agreements[]`도 같은 규칙.
+  - jOOQ 한 문장(`IN` 목록 + PK/UNIQUE 색인) — EXPLAIN 시험으로 색인 사용 기록(SCODE-4-7).
 - 요청 본문은 계속 내부 키(코드로 명령하지 않는다 — C-7).
 
 ### 4.2 ADMIN 서버
-- `MasterResponseShape` 상세 `siteCode`·`contractCode` 키 + 명령 성공 `code`(§3.1 정규식) — **MASTER와 같은 배포 단위**(C-22).
+- `MasterResponseShape` 상세 `siteCode`·`contractCode` 키(값 = §3.1 정규식 또는 `null` — C-15) + 명령 성공 `code`(§3.1 정규식, null 불가) — **MASTER와 같은 배포 단위**(C-22).
+- 등록 거절 코드 `SITE_CODE_EXHAUSTED`·`CONTRACT_CODE_EXHAUSTED`를 ADMIN 거절 분류와 화면 문구(`components/RegistrationStep.tsx` `REJECTION_MESSAGES`)에 추가.
 - `RegistrationOutcome`에 `code?` 전달.
 - 등록 감사 detail에 `code=<코드>`(성공 행만, 형식 일치 시). `target_ref`는 내부 키 그대로(Q-SC-9).
 - 라벨 클라이언트·Use Case(`MerchantTargetLabelService` 구조 재사용 — controller → Use Case → client, ArchUnit).
@@ -198,25 +223,31 @@ LEFT JOIN merchant_code_assignment cur
 - Site 성공(L704) → "Site 코드 `site-…-01`"(응답 `code`).
 - 계약 성공(L755) → "계약 코드 `ctr-…-01` (Revision 1, 승인 대기)".
 - 계약 범위 Site 체크 목록 → **그 가맹점의 MASTER 상세 Site 전체(ACTIVE)**, 항목 `site-…-NN · 웹 · shop.example.com`(이 마법사에서 만든 것 포함 — `createdSites` 의존 제거).
-- **"Site ID 직접 입력"(L800-806)·검증(L526) 제거**.
+- **"Site ID 직접 입력"(L800-815)·검증(L526) 제거**.
+- **선택 칸·체크 목록의 `value`·`key` 밖 속성에 내부 키를 넣지 않는다(C-14, Coordinator 결정)**: `value`는 목록 순번 또는 화면 전용 키(예 `s0`, `c1`), 선택 상태에서 내부 키로 매핑해 요청 본문만 내부 키를 쓴다. React `key`는 DOM에 나가지 않으므로 허용.
 - 서비스 계약 성공(L857) → "서비스 계약: `ctr-…-01 · 카드 PG 결제`".
 - **"계약 ID" 입력(L862-863) → 계약 선택**(그 가맹점 계약 목록 — 코드·시작일·승인 여부, 방금 만든 계약 자동 선택 유지).
 - ④ 검토(L903-) → 코드.
 - `SITE_ID`·`CONTRACT_ID` 정규식은 선택값 내부 검증으로만 남긴다.
 
 ### 5.2 가맹점 상세·구성요소(SCODE-3)
-- `MerchantsScreen.tsx` Site 표·계약 카드·Scope Site·CSA·배정 Site·한도 대상·Revision 폼 후보, `FirstMidRequest.tsx`, `MerchantActivationArea.tsx`, `ContractRevisionForm.tsx` 제목, `MerchantContractApprovalDetail.tsx` pinned 표시 → 코드(상세 응답 대응표). 대응 실패 = "—"(fail-closed, 내부 키 대체 표시 금지).
+- `MerchantsScreen.tsx` Site 표·계약 카드·Scope Site·CSA·배정 Site·한도 대상·Revision 폼 후보, `FirstMidRequest.tsx`, `MerchantActivationArea.tsx`, `ContractRevisionForm.tsx` 제목, `MerchantContractApprovalDetail.tsx` pinned 표시 → 코드(상세 응답 대응표). 대응 실패·`null` 코드 = "—"(fail-closed, 내부 키 대체 표시 금지).
+- 속성 노출 수정: `MerchantsScreen.tsx:175` `TableRow aria-label={site.merchantSiteId}` → 코드(또는 "Site n"), 계약 표 `aria-label`(`계약 revision ${contractId}`·`CSA ${contractId}` L205·230), `FirstMidRequest` 선택 칸 `value`(L102·111·119), `MerchantActivationArea` `aria-label`(L308·451) 등 모든 `value`·`aria-*`·`title`·`data-*`(C-14).
 - Revision 표기 `<계약 코드> · Revision n`, CSA `<계약 코드> · 카드 PG 결제`.
 - **API 연동값(Q-SC-8)**: Site 표에 "API 연동값(merchantSiteId)" 영역 하나 — 복사 버튼, 설명 "가맹점 결제 연동 요청에 쓰는 값", 요소 표식 `data-integration-value`. 그 밖 화면 금지. 볼 수 있는 역할은 현재 가맹점 상세 조회 역할 그대로(이미 `site_`가 보이는 화면 — 노출 확대 없음).
-- **가맹점 코드 변경 안내(Q-SC-2)**: 가맹점 코드 변경 요청 화면에 "이미 발급된 Site·계약 코드 N개는 옛 가맹점 코드를 유지합니다" 1줄(N = 상세 응답 sites·contracts 수).
+- **가맹점 코드 변경 안내(Q-SC-2)**: 가맹점 코드 변경 **승인** 화면(권장안 원문)에 "이미 발급된 Site·계약 코드 N개는 옛 가맹점 코드를 유지합니다" 1줄(N = 상세 응답 sites·contracts 수). 요청 화면에도 같은 문구를 둘지는 구현 시 선택(가역 화면 세부).
 
 ### 5.3 승인·감사·거래·이력(SCODE-4)
 - 승인 실행 완료 ref: `ctr_…#n` → "계약 `<코드>` Revision n", `site_…#n` → "Site `<코드>` 심사 결정 n"(라벨 읽기). `mid_`·`act_`·`cur_`는 범위 밖(L-4).
 - 감사 대상 열: `site_`·`ctr_`·`csa_` `target_ref` → 라벨(`merchantTarget.ts` L8 분기 확장).
-- 내부 키 가드 `hasInternalKey`를 **정확 정규식** `(mer|biz|site|ctr|csa)_[0-9A-HJKMNP-TV-Z]{26}`로 교체(부분 문자열 판정 제거 — C-11).
+- **내부 키 가드(C-11, MAJOR-1)**: 두 겹을 함께 쓴다.
+  - ① 정확 정규식 치환 `INTERNAL_TOKEN`을 `(mer|biz|site|ctr|csa)_[0-9A-HJKMNP-TV-Z]{26}`로 넓힌다(토큰만 "—").
+  - ② 부분 문자열 가드 `hasInternalKey`는 **유지**하고 대상을 `mer_`·`biz_`·`site_`·`ctr_`·`csa_`로 넓힌다 — 치환 뒤에도 남으면(소문자·짧은 토큰·잘린 키 등 패턴 밖) 요약 전체를 "—"(`sanitizeAuditDetail` L62-68 구조 그대로).
+  - `historyTarget.ts:45`도 같은 대상 집합으로 넓힌다(`site_`·`ctr_`·`csa_` 포함이면 숨김 — 단, §5.3 아래 코드 대응이 먼저).
+  - 새 코드는 하이픈(`site-`·`ctr-`)이라 `site_`·`ctr_` 부분 문자열에 걸리지 않는다 → 코드 표시 오탐 없음. 채널 식별값·상호에 `site_` 같은 문자열이 들어간 드문 경우는 "—"로 가려지는 쪽(안전 측)을 택한다.
 - 거래 상세 `TransactionsScreen.tsx:84` → Site 코드 라벨(연동값 병기 없음 — Q-SC-8).
-- 가맹점 변경 이력 대상 열(ADMIN-HISTORY-KEYS-001): `MerchantSite`·`Contract`·`ServiceAgreement` 행 → 코드(상세 대응표, 없으면 라벨 읽기).
-- 정적 시험: 화면 DOM에 `/(site|ctr|csa)_[0-9A-HJKMNP-TV-Z]{26}/` 0건(`data-integration-value` 하나 예외).
+- 가맹점 변경 이력 대상 열(ADMIN-HISTORY-KEYS-001): `MerchantSite`·`Contract`·`ContractServiceAgreement`(집계 이름 — MerchantOnboardingService.kt:457-459) 행 → 코드(상세 대응표, 없으면 라벨 읽기, 실패 "—").
+- 정적 시험(C-14): 렌더된 DOM의 **텍스트와 모든 속성(value·aria-*·title·data-* 포함)**에서 `/(mer|biz|site|ctr|csa)_[0-9A-HJKMNP-TV-Z]{26}/` 0건. 예외는 가맹점 상세 'API 연동값' 영역(`data-integration-value`) 하나뿐.
 
 ## 6. 외부·Snapshot·정산 노출 없음(Q-SC-7)
 - 코드는 운영자 판독용이며 결제 판정에 쓰이지 않는다 → Snapshot에 넣지 않는다(entitlement revision·contentHash·PAYMENT 해석 변경 없음).
@@ -231,89 +262,111 @@ LEFT JOIN merchant_code_assignment cur
 | Transaction Safety | Site·계약 INSERT, 코드 행 INSERT, 이력·Outbox·admin_request 결과가 MASTER 같은 로컬 TX(외부 호출 없음). 코드 INSERT 실패 시 Site·계약도 rollback(SCODE-1-13 장애 주입) |
 | Idempotency | 같은 요청키 재전송 → 같은 reference·같은 code, 코드 행 1개(SCODE-1-3). 요청 지문 불변 → Demo seed 재실행 충돌 없음(SCODE-1-11) |
 | Concurrency Control | merchant 행 잠금(PESSIMISTIC_WRITE) 아래 READ COMMITTED `MAX+1`, UNIQUE는 결함 감지 backstop. 8스레드 동시 등록 순번 {1..8}(SCODE-1-7), 계약·Site 혼합·가맹점 코드 변경 경합·교착 0(SCODE-1-8·9) |
-| Recoverability | migration fail-closed(LEFT JOIN NULL·1062·CHECK 위반 시 실패 — 부분 백필 없음, InnoDB DDL 뒤 INSERT 실패 시 Flyway repair 후 재시도), 재생은 저장 reference로 코드 재조회(불변). 1062 = 결함 503(재시도 가능, 업무 거절 아님) |
-| Reconciliation | 해당 금융 대사 없음. migration 정합 검사: Site·계약 수 = 코드 행 수, 가맹점별 순번 1..k 연속(SCODE-1-4). 라벨·대응 실패는 "—"로 드러냄(내부 키 대체 금지) |
+| Recoverability | 백필 INSERT는 한 문장 원자(부분 백필 없음, LEFT JOIN NULL·1062·CHECK 위반 시 실패). DDL 자동 커밋으로 CREATE 뒤 INSERT 실패 시 남는 빈 표는 inspect → revert(DROP) → `flyway repair` → 재시도(§3.6, recovery 스크립트 3종). 운영 누락은 점검 쿼리 + 멱등 보충 `INSERT … WHERE NOT EXISTS`(LG-7). 재생은 저장 reference로 코드 재조회(불변). 1062 = 결함 503(재시도 가능, 업무 거절 아님). 상세 조회는 코드 누락에도 응답(null·"—") — 명령 경로 막지 않음 |
+| Reconciliation | 해당 금융 대사 없음. migration 정합 검사: Site·계약 수 = 코드 행 수, 가맹점별 순번 1..k 연속(SCODE-1-4), inspect·LG-7 누락 점검 쿼리. 라벨·대응 실패는 "—"로 드러냄(내부 키 대체 금지), 라벨 응답 대응 검사 실패 = 묶음 전체 unavailable |
 | Auditability | 코드 append-only·불변(권한 1142 — SCODE-1-6), 이력 detail `siteCode`·`contractCode`, ADMIN 감사 detail `code=`, `target_ref` 내부 키 유지로 과거 행과 1:1 연결(Q-SC-9). `assigned_by`·`source` 기록 |
-| Observability | 1062 결함 분류 경보(기존 `PersistenceFailures` OTHER 경로), 라벨 읽기 기존 지표(`merchant_target_labels` 류) 재사용, 로그·지표 label에 ID·코드 원문 없음(canary 시험) |
+| Observability | 1062 결함은 기존 `PersistenceFailures` OTHER 경로의 WARN 로그·503, 상세 조회 코드 누락은 WARN 로그(`site_code_missing`·`contract_code_missing`, 건수만), 라벨 읽기 기존 지표 재사용, 로그·지표 label에 ID·코드 원문 없음(canary 시험) |
 
-- **JPA(쓰기 모델 — 이번 변경의 역할)**: Domain `SiteCode`·`ContractCode` 값 객체(순수 Kotlin — 형식·`issue(merchantCode, seq)`·소진 판정)와 JPA Entity adapter `JpaMerchantSiteCodeEntity`·`JpaContractCodeEntity`(`adapter.persistence`, 모든 열 `updatable=false`)를 분리한다. 예: `JpaMerchantSiteRepository.insert`가 Site 행과 코드 행을 **같은 flush**로 persist한다(`JpaMerchantRepository`가 가맹점 + 코드 배정을 함께 persist하는 L25-29와 같은 모양). 이유: Site·계약 Aggregate와 코드의 생명주기가 같고(같은 TX에 생기고 바뀌지 않음) Port를 늘리지 않는다. 주의점: ① 자식 Entity를 연관(`@OneToMany`)으로 묶지 않고 독립 persist — cascade·dirty checking이 불변 행에 UPDATE를 만들 여지를 없앤다. ② 순번 `MAX` 조회는 merchant `lockRow` **뒤** 호출(호출 순서 = 직렬화 근거, 변이 시험). ③ flush 시점 1062는 `translate`가 결함으로 분류. 저장 Port 이름은 기존 `MerchantSiteRepository`·`ContractRepository`에 메서드(`nextSiteCodeSeq` 등)를 더하는 쪽을 권장(C-12 — ARCHITECTURE-CONVENTIONS §14, 새 Aggregate 아님).
+- **JPA(쓰기 모델 — 이번 변경의 역할)**: Domain `SiteCode`·`ContractCode` 값 객체(순수 Kotlin — 형식·`issue(merchantCode, seq)`·소진 판정, Spring/JPA 비의존)와 JPA Entity adapter `JpaMerchantSiteCodeEntity`·`JpaContractCodeEntity`(`adapter.persistence`, 모든 열 `updatable=false`)를 분리한다. 코드는 `MerchantSite`·`Contract` Aggregate 필드가 **아니다**(C-12, Coordinator 결정): 등록 경로에서 Application이 저장 Port 메서드(예 `MerchantSiteRepository.nextSiteCodeSeq(merchantId)`·`insertCode(siteId, merchantId, SiteCode)`, `ContractRepository`도 같은 모양)로 발급·저장하고, 읽기는 jOOQ Reader만 한다. 예: `registerMerchantSite`가 `sites.insert(site)` 다음 `sites.insertCode(…)`를 같은 TX에서 호출. 이유: 코드는 표시용이라 Aggregate 불변식·판정에 들어가지 않고, Aggregate에 넣으면 `contracts.lock/find·update`·Revision·승인 경로가 모두 코드 표를 읽게 되어 변경 범위·결함 표면이 커진다. 주의점:
+  - ① 자식 Entity를 연관(`@OneToMany`)으로 묶지 않고 독립 persist — cascade·dirty checking이 불변 행에 UPDATE를 만들 여지를 없앤다.
+  - ② 순번 `MAX` 조회는 merchant `lockRow` **뒤**, `beginWrites()` **전**(호출 순서 = 직렬화·판정 근거, 변이 시험).
+  - ③ flush 시점 1062는 `translate`가 결함으로 분류.
+  - ④ **Site·계약 행을 먼저 persist·flush하고 코드 행을 persist**한다 — Hibernate `order_inserts`를 설정하지 않았으므로 INSERT 순서 = persist 순서이며, 코드 행 FK(`fk_msc_site`·`fk_cc_contract`)가 부모 행을 요구한다(순서 역전 시 1452).
+- 저장 Port 이름은 기존 `MerchantSiteRepository`·`ContractRepository`에 메서드 추가(ARCHITECTURE-CONVENTIONS §14 — 새 Aggregate·새 Repository 아님).
 - **jOOQ(CQRS 조회)**: 가맹점 상세(`JooqMerchantDetailReader`)와 라벨 Reader 2종은 `adapter.query` jOOQ — 읽기 전용 REPEATABLE READ, 쓰기 금지(ArchUnit). JPA Entity를 조회 측에서 쓰지 않는다.
 - **버전·의존성**: 새 의존성 없음. `gradle/libs.versions.toml` Spring Boot `4.1.1` BOM·Kotlin `2.3.21`·jOOQ·Flyway(Boot BOM 관리) 조합 그대로 — 변경 없음(SCODE-1 게이트에서 의존성 잠금 무변경 확인).
 - **Kafka/Redis**: 도입하지 않는다. 순번 직렬화·유일성·불변은 MySQL 행 잠금·UNIQUE·권한이 맡으며, 외부 브로커·캐시가 이 보장을 대체하지 않는다.
 
 ## 8. 배치(순서·파일·시험)
 
+순서: **SCODE-1 → SCODE-2 → SCODE-3 → SCODE-4** (→ SCODE-5 별도 승인). 같은 파일을 여러 배치가 고치므로 순차 진행한다.
+
 | 배치 | 범위·주요 파일(apps/ 아래) | 시험 | 선행 |
 |---|---|---|---|
-| **SCODE-1** | MASTER: `migration/master/V19__site_contract_code.sql`(두 표·백필), `runtime-privilege/master/V20__site_contract_code_privileges.sql`, domain `SiteCode.kt`·`ContractCode.kt`(+거절 코드), `MerchantSite`·`Contract` 조립에 코드, `JpaMerchantSiteCodeEntity`·`JpaContractCodeEntity`, `JpaMerchantSiteRepository`·`JpaContractRepository`, `MasterPersistenceMapper`, `PersistenceFailures`(1062 분류), `MerchantOnboardingService`(발급·이력 detail·응답 `code`·재생 조회), `JooqMerchantDetailReader`·상세 응답(`siteCode`·`contractCode`), Demo seed 기대값, migration 목록 기대값 2곳. **ADMIN 같은 배포 단위**: `MasterResponseShape`, `RegistrationOutcome`, `MerchantRegistrationService` 감사 detail `code=` | SCODE-1-1~13 | 명세 독립 리뷰 PASS |
-| **SCODE-2** | frontend `screens/MerchantRegistrationScreen.tsx`(§5.1 — 목록 선택·직접 입력 제거·코드 표시), `api/adminApi.ts`(`RegistrationOutcome.code`, `MerchantDetail` 코드 필드) | SCODE-2-1~5 | SCODE-1 |
-| **SCODE-3** | frontend `screens/MerchantsScreen.tsx`, `components/FirstMidRequest.tsx`·`MerchantActivationArea.tsx`·`ContractRevisionForm.tsx`·`MerchantContractApprovalDetail.tsx`(pinned 표시), API 연동값 한 곳, 가맹점 코드 변경 안내 | SCODE-3-1~5 | SCODE-1 |
-| **SCODE-4** | MASTER 라벨 2종(`SiteLabelController`·`ContractLabelController`·jOOQ `SiteLabelReader`·`ContractLabelReader`), ADMIN 라벨 client·Use Case, frontend 승인 ref·감사 대상·거래 상세·이력 §5.3, `lib/merchantTarget.ts` 가드 정규식 교체 | SCODE-4-1~6 | SCODE-1 (SCODE-2·3과 독립) |
+| **SCODE-1** | MASTER: `migration/master/V19__site_contract_code.sql`(두 표·백필), `runtime-privilege/master/V20__site_contract_code_privileges.sql`, `db/recovery/master/site-contract-code-v19-precheck.sql`·`-inspect.sql`·`-revert.sql`(V15 선례), domain `SiteCode.kt`·`ContractCode.kt`(+거절 코드 `SITE_CODE_EXHAUSTED`·`CONTRACT_CODE_EXHAUSTED`), `JpaMerchantSiteCodeEntity`·`JpaContractCodeEntity`, `MerchantSiteRepository`·`ContractRepository` Port 메서드와 `JpaMerchantSiteRepository`·`JpaContractRepository` 구현(코드는 Aggregate 필드 아님 — C-12), `MasterPersistenceMapper`, `PersistenceFailures`(1062 분류), `MerchantOnboardingService`(발급·`validScope` 반환형 변경·이력 detail·응답 `code`·재생 조회), `JooqMerchantDetailReader`·상세 응답(`siteCode`·`contractCode` LEFT JOIN·null·WARN), Demo seed 기대값. **회귀 등록부 갱신(정책 변경 아님 — 새 표·권한을 목록에 등록)**: migration 목록 `MasterApiMainMigrationsBootSpec`·`MasterApiContextSmokeSpec`, 권한 목록 `MasterDatabaseAccountSpec.kt:237`(`merchant_site_code`·`contract_code` → `SELECT, INSERT`), 표·열 목록 `MasterSchemaSpec.kt:40·304·486`. **ADMIN 같은 배포 단위**: `MasterResponseShape`, `RegistrationOutcome`, `MerchantRegistrationService` 감사 detail `code=`, 거절 분류 + 화면 문구 `frontend/src/components/RegistrationStep.tsx` `REJECTION_MESSAGES`(EXHAUSTED 2종) | SCODE-1-1~14 | 명세 독립 리뷰 PASS |
+| **SCODE-2** | frontend `screens/MerchantRegistrationScreen.tsx`(§5.1 — 목록 선택·직접 입력 제거·코드 표시·선택 `value` 화면 전용 키), `api/adminApi.ts`(`RegistrationOutcome.code`, `MerchantDetail` 코드 필드 `string \| null`) | SCODE-2-1~5 | SCODE-1 |
+| **SCODE-3** | frontend `screens/MerchantsScreen.tsx`(L175 `aria-label` 포함), `components/FirstMidRequest.tsx`(선택 `value`)·`MerchantActivationArea.tsx`·`ContractRevisionForm.tsx`·`MerchantContractApprovalDetail.tsx`(pinned 표시), API 연동값 한 곳, 가맹점 코드 변경 **승인** 화면 안내 | SCODE-3-1~6 | SCODE-2 |
+| **SCODE-4** | MASTER 라벨 2종(`SiteLabelController`·`ContractLabelController`·jOOQ `SiteLabelReader`·`ContractLabelReader`), ADMIN 라벨 client(응답 대응 검사)·Use Case, frontend 승인 ref(`MerchantContractApprovalDetail.tsx`)·감사 대상·거래 상세·이력 §5.3, `api/adminApi.ts` 라벨 타입, `lib/merchantTarget.ts`·`lib/historyTarget.ts` 가드 대상 확장 + 정확 정규식 치환 | SCODE-4-1~8 | SCODE-3(같은 파일 `MerchantContractApprovalDetail.tsx`·`adminApi.ts`) |
 | SCODE-5(선택) | 가맹점 검색에서 `site-…`/`ctr-…` 입력 → 소속 가맹점 | 별도 | 별도 승인 |
 
-- 배포 경계: SCODE-1 전 = 기존 화면, SCODE-1 후 = 응답에 코드가 있으나 화면 미사용, SCODE-2~4 = 화면만 순차 전환. 어느 경계에서도 ADMIN은 깨지지 않는다(MASTER·ADMIN 응답 모양은 SCODE-1 안에서 함께 배포).
-- 동시 수정 금지: SCODE-1만 migration을 만든다. SCODE-2·3은 `MerchantsScreen`·`adminApi.ts`를 순서대로(병렬 구현자 금지).
+- 배포 경계: SCODE-1 전 = 기존 화면, SCODE-1 후 = 응답에 코드가 있으나 화면 미사용, SCODE-2~4 = 화면만 순차 전환. 어느 경계에서도 ADMIN은 깨지지 않는다(MASTER·ADMIN 응답 모양은 SCODE-1 안에서 함께 배포, SCODE-4는 MASTER 라벨 API 먼저 — LG-2).
+- 동시 수정 금지: SCODE-1만 migration을 만든다. SCODE-2~4는 `MerchantsScreen`·`adminApi.ts`·`MerchantContractApprovalDetail.tsx`를 순서대로(병렬 구현자 금지).
 
 ## 9. 시험 목록
 
 ### SCODE-1(MASTER·ADMIN 모양 — MySQL 8.4 Testcontainers 포함)
 - **SCODE-1-1 형식**: 정규식 경계(6/14자 가맹점 코드, 01·99·100·9999 통과, 00·1·0001·10000 거절), 대문자·밑줄·공백 거절. 속성 시험 — 생성 코드는 `MasterIdFormat`·`AdminAuditEvent.TARGET_REF`·`MasterResponseShape.ID`·가맹점 코드·채널 식별값 정규식 어느 것과도 불일치. Kotlin 포맷 = SQL 식(1·9·10·99·100·101·999·1000·9999).
-- **SCODE-1-2 발급**: 첫 Site `-01`, 둘째 `-02`, 종료 Site가 있어도 다음 번호 증가(재사용 없음), Site·계약 순번 독립, 응답 `code` = 저장값, 9999 다음 저장된 거절.
+- **SCODE-1-2 발급**: 첫 Site `-01`, 둘째 `-02`, 종료 Site가 있어도 다음 번호 증가(재사용 없음), Site·계약 순번 독립, 응답 `code` = 저장값, 9999 다음 저장된 거절(`beginWrites` 전 — Site·계약·코드 행 없음, 거절 결과 재생 동일).
 - **SCODE-1-3 재생**: 같은 키 재전송 → 같은 reference·code, 코드 행 1개. 다른 내용 같은 키 → 기존 409 그대로.
-- **SCODE-1-4 migration**: 백필 행 수 = Site·계약 수, 가맹점별 1..k 연속, 101번째 = `-101`(LPAD 절단 회귀), 동률 `created_at`은 내부 키 순, 결정성(두 번 생성 DB 비교), 가맹점 코드 변경 이력 가맹점은 현재 코드, 배정 행 없는 가맹점 고의 주입 시 migration 실패.
-- **SCODE-1-5 DB 제약**: CHECK(코드 ≠ f(가맹점 코드, 순번) 거절, 형식 위반 거절), FK(다른 가맹점의 가맹점 코드·다른 가맹점 Site 거절), 순번·코드 UNIQUE.
+- **SCODE-1-4 migration**: 백필 행 수 = Site·계약 수, 가맹점별 1..k 연속, 101번째 = `-101`(LPAD 절단 회귀), 동률 `created_at`은 내부 키 순, `assigned_at` = migration 시각(한 문장 같은 값, 원 `created_at`과 무관), 결정성(두 번 생성 DB의 코드 비교), 가맹점 코드 변경 이력 가맹점은 현재 코드, 배정 행 없는 가맹점 고의 주입 시 migration 실패, Flyway 세션 `sql_mode` 기록. recovery 스크립트: precheck가 문제 0을 보고, 고의 실패 뒤 inspect가 남은 빈 표를 보고, revert → repair → 재적용 성공.
+- **SCODE-1-5 DB 제약(runtime 계정 연결)**: **runtime 계정 연결**에서 정상 코드 INSERT 통과, CHECK 위반(코드 ≠ f(가맹점 코드, 순번)·형식 위반) 거절 — 연결 기본 문자 집합·collation이 달라도 같은 결과(collation 명시 근거). FK(다른 가맹점의 가맹점 코드·다른 가맹점 Site 거절), 순번·코드 UNIQUE.
 - **SCODE-1-6 권한**: runtime UPDATE·DELETE·FOR UPDATE → 1142(두 표).
 - **SCODE-1-7 동시성(같은 가맹점)**: 8스레드 동시 Site 등록(서로 다른 채널) → 모두 SUCCEEDED, 순번 {1..8} 정확히, 1062·Unknown·503 0, 교착 0.
 - **SCODE-1-8 동시성(혼합)**: 같은 가맹점 계약 4 + Site 4 동시 → 종류별 1..4. 다른 가맹점은 서로 막지 않음(대기 시간 상한). 계약 등록 ↔ 첫 MID 발급·계약 승인 동시 → 교착 0.
 - **SCODE-1-9 가맹점 코드 변경 경합**: 코드 변경 ∥ Site 등록 → Site 코드의 가맹점 코드가 변경 전 또는 후 하나, FK 만족, 이후 Site는 새 코드, 이전 코드 행 불변.
-- **SCODE-1-10 교차 배포**: 새 ADMIN 모양이 새 MASTER 응답 수락, 옛 ADMIN 모양은 새 응답에 503(같은 배포 단위 근거 — MC-1-9 선례).
+- **SCODE-1-10 교차 배포**: 새 ADMIN 모양이 새 MASTER 응답 수락, 옛 ADMIN 모양은 새 응답을 모양 불일치로 **Unknown** 분류(명령 결과 미확정 — 같은 키 재조회 대상, MC-1-9 선례).
 - **SCODE-1-11 Demo seed**: 새 DB `site-demoshop01-01`·`ctr-demoshop01-01`, 기존 seed DB 재실행 충돌 없음.
 - **SCODE-1-12 비노출**: Snapshot payload·contentHash·PAYMENT 반영·외부 결제 응답 바이트 불변(코드 문자열 0건).
 - **SCODE-1-13 rollback**: 코드 INSERT 단계 장애 주입(`MasterFaultInjection`) → Site·계약·이력·Outbox·admin_request 모두 없음, 같은 키 재시도 성공.
-- 변이(RED 확인): 순번 MAX+1 → MAX, IF 제거(LPAD만), 순번 읽기를 merchant 잠금 **앞**으로 이동(SCODE-1-7·8에서 1062 결함 503), `validScope`의 `lock` → `find`(SCODE-1-8), 감사 detail `code=` 누락.
+- **SCODE-1-14 상세 누락 표시**: 코드 행을 고의로 지운(시험 관리자 연결) Site·계약 → 상세 200, 해당 `siteCode`·`contractCode` = `null`(키 존재), WARN 로그 1줄(ID 원문 없음), 같은 가맹점 첫 MID 발급·계약 승인 명령 정상(코드 비의존).
+- 변이(RED 확인): 순번 MAX+1 → MAX, IF 제거(LPAD만), 순번 읽기를 merchant 잠금 **앞**으로 이동(SCODE-1-7·8에서 1062 결함 503), 소진 판정을 `beginWrites` 뒤로 이동(실행기 check 결함), 코드 행을 Site 행보다 먼저 persist(1452), `validScope`의 `lock` → `find`(SCODE-1-8), 감사 detail `code=` 누락.
 
 ### SCODE-2·3(화면 — vitest)
-- SCODE-2-1 Site·계약 성공 안내에 코드, 내부 키 0. SCODE-2-2 체크 목록에 기존 ACTIVE Site 포함·직접 입력칸 부재. SCODE-2-3 계약 선택(자동 선택 유지)·계약 ID 입력칸 부재. SCODE-2-4 ④ 검토 코드. SCODE-2-5 DOM 내부 키 정규식 0.
-- SCODE-3-1 상세·구성요소 코드 표시, SCODE-3-2 대응 실패 "—", SCODE-3-3 연동값 영역 정확히 하나·복사 동작, SCODE-3-4 CSA·Revision 표기, SCODE-3-5 가맹점 코드 변경 안내 N.
+- 공통 DOM 검사(C-14): 렌더된 DOM의 텍스트와 모든 속성(value·aria-*·title·data-*)에서 내부 키 정규식 0건, 예외는 'API 연동값' 영역 하나.
+- SCODE-2-1 Site·계약 성공 안내에 코드. SCODE-2-2 체크 목록에 기존 ACTIVE Site 포함·직접 입력칸 부재·체크 `value` 화면 전용 키. SCODE-2-3 계약 선택(자동 선택 유지)·계약 ID 입력칸 부재·선택 `value` 화면 전용 키, 요청 본문은 내부 키. SCODE-2-4 ④ 검토 코드. SCODE-2-5 공통 DOM 검사.
+- SCODE-3-1 상세·구성요소 코드 표시, SCODE-3-2 대응 실패·`null` 코드 "—", SCODE-3-3 연동값 영역 정확히 하나·복사 동작, SCODE-3-4 CSA·Revision 표기, SCODE-3-5 가맹점 코드 변경 **승인** 화면 안내 N(요청 화면 병기는 선택 — 두면 같은 문구), SCODE-3-6 공통 DOM 검사(`MerchantsScreen` L175 `aria-label`·`FirstMidRequest` `value` 포함).
 
 ### SCODE-4(라벨)
-- SCODE-4-1 묶음 상한 50·permit busy 503·분당 창 429·없는 ID 빠짐. SCODE-4-2 승인 ref 변환(`ctr_…#2` → "계약 ctr-…-01 Revision 2"). SCODE-4-3 감사 대상 라벨(과거·새 행 모두). SCODE-4-4 거래 상세. SCODE-4-5 가드 정규식이 `site-…`를 가리지 않고 `site_<ULID>`는 가림(부분 문자열 회귀 변이 RED). SCODE-4-6 라벨 실패 시 원문 미표시·로그 canary.
+- SCODE-4-1 묶음 상한 50·permit busy 503·분당 창 429·없는 ID 빠짐.
+- SCODE-4-2 승인 ref 변환(`ctr_…#2` → "계약 ctr-…-01 Revision 2").
+- SCODE-4-3 감사 대상 라벨(과거·새 행 모두).
+- SCODE-4-4 거래 상세.
+- SCODE-4-5 가드: 정확 정규식 치환 + 부분 문자열 가드 — **짧은 토큰·소문자 토큰(`site_abc`, `ctr_01h…` 소문자, 잘린 키)도 가려짐**, `site-…`·`ctr-…` 코드는 가려지지 않음, `historyTarget` 같은 규칙(부분 문자열 가드 제거 변이 RED).
+- SCODE-4-6 라벨 실패 시 원문 미표시·로그 canary.
+- SCODE-4-7 응답 대응 검사(MerchantLabelApiSpec 227-240 선례): 보내지 않은 키·중복 키·오름차순 아님 → 묶음 전체 unavailable("—"), `agreements[]` 동일. MASTER Reader EXPLAIN — PK/UNIQUE 색인 사용 기록.
+- SCODE-4-8 `site-labels` `merchantCode` = 현재 가맹점 코드(코드 변경 뒤 Site 코드의 가맹점 부분과 달라도 현재 값).
 
 ## 10. Coordinator 가역 선택
-- **C-1** 순번 1..9999, 최소 2자리 0 채움, 초과는 저장된 거절.
+- **C-1** 순번 1..9999, 최소 2자리 0 채움, 초과는 저장된 거절(`beginWrites` 전).
 - **C-2** 저장 = append-only 코드 표 2개.
 - **C-3** 순번·코드 1062 = 결함(잠금 아래 경합 불가) — 업무 거절 아님.
 - **C-4** 재생 시 코드는 reference로 조회 — `admin_request` 열 추가 없음.
-- **C-5** 백필 순서 = 가맹점별 `created_at`, 동률 내부 키 오름차순, 가맹점 코드 = 백필 시점 현재 코드.
+- **C-5** 백필 순서 = 가맹점별 `created_at`, 동률 내부 키 오름차순, 가맹점 코드 = 백필 시점 현재 코드, **`assigned_at` = migration 시각**(rev 0.3 Coordinator 결정 MINOR-9 — Q-SC-2: 백필 행의 발급 시점은 migration이고 그때의 현재 코드를 쓰므로 시각도 같게 둔다).
 - **C-6** 상세 응답 키는 `siteCode`·`contractCode` 두 개만.
 - **C-7** 명령 본문은 내부 키 유지.
-- **C-8** IF 식(LPAD 절단 방지)을 CHECK·백필·앱 세 곳 같은 의미로, 숫자→문자 변환 collation 명시.
+- **C-8** IF 식(LPAD 절단 방지)을 CHECK·백필·앱 세 곳 같은 의미로, 숫자→문자 변환·리터럴에 문자 집합과 collation 모두 명시.
 - **C-9** 가맹점 코드 예약어에 `site`·`ctr`·`csa` 추가하지 않음(하이픈으로 구별, 기존 코드 소급 거절 위험).
 - **C-10** Revision 번호 체계 불변, 표기 `· Revision n`.
-- **C-11** 화면 내부 키 가드를 정확 정규식으로 교체.
-- **C-12** 저장 Port는 기존 `MerchantSiteRepository`·`ContractRepository`에 메서드 추가(새 Aggregate·새 Port 없음), 조회 Port는 `SiteLabelReader`·`ContractLabelReader`(§14 명명).
+- **C-11**(rev 0.3 — MAJOR-1) 화면 내부 키 가드 = 정확 정규식 치환 + 부분 문자열 가드 **둘 다**, 대상 `mer_`·`biz_`·`site_`·`ctr_`·`csa_`(`merchantTarget.ts`·`historyTarget.ts`). 부분 문자열 가드 제거 금지.
+- **C-12**(rev 0.3 Coordinator 결정 MINOR-7) 코드는 Aggregate 필드가 아니다. 저장 Port는 기존 `MerchantSiteRepository`·`ContractRepository`에 등록 경로 전용 메서드 추가(새 Aggregate·새 Port 없음), 읽기는 jOOQ Reader(`JooqMerchantDetailReader`, `SiteLabelReader`·`ContractLabelReader` — §14 명명)만. `contracts.lock/find·update`는 코드 표 무관.
 - **C-13** 순번 직렬화 = merchant 행 잠금 + READ COMMITTED 일반 SELECT(코드 표 FOR UPDATE 미사용 — 권한 설계 유지).
+- **C-14**(rev 0.3 Coordinator 결정 MINOR-2) 화면 선택 칸 `value`에 내부 키 금지(목록 순번·화면 전용 키 + 상태 매핑). DOM 내부 키 0건 검사 범위 = 텍스트 + 모든 속성, 예외 'API 연동값' 하나.
+- **C-15**(rev 0.3 Coordinator 결정 MINOR-3) 상세 조회 LEFT JOIN — 코드 누락 시 `null`·"—"·WARN, 명령(첫 MID·계약 승인 등) 비차단, 누락 점검은 LG-7.
 
 ## 11. 알려진 위험·한계
-- **L-1** 가맹점 코드 변경(계약 승인 전 1회) 뒤, 그 전에 발급된 Site·계약 코드는 옛 가맹점 코드를 담는다 — 표시 불일치(유일성·감사 무결성 유지). 사용자 답(Q-SC-2)으로 허용, 변경 화면 안내로 완화.
+- **L-1** 가맹점 코드 변경(계약 승인 전 1회) 뒤, 그 전에 발급된 Site·계약 코드는 옛 가맹점 코드를 담는다 — 표시 불일치(유일성·감사 무결성 유지). 사용자 답(Q-SC-2)으로 허용, 변경 승인 화면 안내로 완화. 라벨의 `merchantCode`(현재)와 코드 안 가맹점 부분이 다를 수 있다.
 - **L-2** Demo·운영 DB 간 코드 중복은 막을 수 없다(MERCHANT-CODE-001 L-1과 같음).
 - **L-3** 가맹점이 코드를 `merchantSiteId`로 잘못 보내면 기존 권리 판정 거절 — 외부 계약 변경 없음, 연동값 안내로 완화.
 - **L-4** `mid_`·`act_`·`cur_` 등 다른 내부 참조는 범위 밖(MID는 외부 식별자). 필요 시 별도 질문.
 - **L-5** 순번은 가맹점 단위 Site·계약 개수를 드러낸다 — 내부 전용(Q-SC-7)이라 허용. 외부 노출로 바뀌면 재검토.
-- **L-6** 코드 행 NOT NULL은 DB로 표현 불가(자식 표) — 같은 TX INSERT·migration 시험·읽기 시 결함 503으로 보완.
-- **L-7** 백필 가맹점 코드는 migration 시점 현재 코드다 — 백필 이전에 코드를 바꾼 가맹점의 과거 Site도 새 코드로 표시(Demo만 해당 가능, 유일성 영향 없음).
-- **L-8** V19 백필은 큰 `merchant_site`·`contract` 표에서 실행 시간·잠금 시간이 표 크기에 비례(새 표 INSERT — 원 표는 공유 읽기). 운영 적용은 LG-1.
+- **L-6** 코드 행 NOT NULL은 DB로 표현 불가(자식 표) — 같은 TX INSERT·migration 시험으로 막고, 그래도 생긴 누락은 상세 `null`·"—"·WARN으로 드러내 LG-7로 보충(C-15).
+- **L-7** 백필 가맹점 코드는 migration 시점 현재 코드, `assigned_at`도 migration 시각 — 백필 이전에 코드를 바꾼 가맹점의 과거 Site도 새 코드로 표시(Demo만 해당 가능, 유일성 영향 없음). 원 생성 시각은 원 표 `created_at`.
+- **L-8** V19 백필은 큰 `merchant_site`·`contract` 표에서 실행 시간이 표 크기에 비례(새 표 INSERT — 원 표는 읽기). 적용 중 등록 쓰기는 정지(LG-6).
+- **L-9** 부분 문자열 가드는 채널 식별값·상호 등에 `site_`·`ctr_`·`csa_`가 들어간 드문 표시도 "—"로 가린다(안전 측 — 오노출보다 과잉 은닉).
 
 ## 12. LIVE Gate(이번 작업은 Demo·시험만)
-- **LG-1** V19 운영 적용: 대상 표 행 수 측정·백필 소요 시간 리허설, 적용 창 공지, 실패 시 Flyway repair 후 재시도(새 표만 생기므로 되돌리기 = 새 표 DROP + schema history 정리, 원 표 데이터 무변경).
-- **LG-2** 배포 순서: MASTER·ADMIN(SCODE-1)을 같은 배포 단위로 — 응답 키 정확 일치. 롤백은 둘 함께.
-- **LG-3** 운영 MASTER Flyway 세션 `sql_mode` strict 확인(백필 fail-closed 전제).
+- **LG-1** V19 운영 적용: 대상 표 행 수 측정·백필 소요 시간 리허설, precheck 실행(문제 0), 적용 창 공지. 실패 시 inspect → revert(새 두 표 DROP, 원 표 무변경) → `flyway repair` → 원인 수정 뒤 재시도(§3.6).
+- **LG-2** 배포 순서: ① SCODE-1은 **쓰기 정지 창(LG-6)**에서 MASTER·ADMIN을 같은 배포 단위로(응답 키 정확 일치) — 롤백도 둘 함께. ② SCODE-2·3은 ADMIN 화면만. ③ SCODE-4는 **MASTER 라벨 API를 먼저** 배포한 뒤 ADMIN(라벨 client·화면) 배포 — 역순이면 ADMIN 라벨 호출이 실패해 "—"만 보인다(안전 측).
+- **LG-3** 운영 MASTER Flyway 세션 `sql_mode`를 기록·확인한다. strict이면 백필 NULL이 즉시 실패하고, strict가 아니어도 FK·CHECK·precheck·inspect 행 수 비교가 누락을 잡는다(단일 전제에 기대지 않음).
 - **LG-4** 라벨 permit·분당 창·timeout은 MERCHANT-CODE-001 Demo 값 공유 — 운영값은 그 작업의 LIVE Gate 항목을 따른다(새 값 없음).
 - **LG-5** API 연동값 전달 절차(운영자 → 가맹점 개발자 경로·대상 확인)는 운영 절차 문서에서 정한다 — 화면은 표시만 제공.
+- **LG-6** V19 적용 중과 SCODE-1 전환(새 바이너리 기동) 전에는 **MASTER 등록 쓰기 정지**(Site·계약 등록 명령 차단 — 백필 문장과 옛 바이너리 등록이 겹쳐 코드 없는 행이 생기는 것을 막는다). 정지 해제 전 LG-7 점검 0 확인.
+- **LG-7** 누락 점검 쿼리(코드 행 없는 `merchant_site`·`contract` 목록·건수)를 전환 직후와 정기 점검에 실행. 누락이 있으면 **멱등 보충 경로** `INSERT … SELECT … WHERE NOT EXISTS (코드 행)`(§3.6과 같은 순번·코드 식, 가맹점 잠금 아래 또는 쓰기 정지 중 실행 — 기존 행 불변, 재실행 무해) 후 다시 점검 0.
 
 ## 13. 미결
-- 금융/보안 의미의 새 미결 **없음**. Q-SC-1~9 모두 답, 남은 선택은 §10 가역 구현 세부.
-- 착수 시 재확인(질문 아님): §1.5 migration 번호 선점 여부, §1.6 E-3 Outbox 소비자(새 relay가 생겼는지), Flyway 세션 `sql_mode`, ADMIN 감사 detail 열 길이에 `code=` 추가 여유.
+- 금융/보안 의미의 새 미결 **없음**. Q-SC-1~9 모두 답, 남은 선택은 §10 가역 구현 세부(rev 0.3의 C-5·C-12·C-14·C-15는 Coordinator 결정으로 기록).
+- 착수 시 재확인(질문 아님): §1.5 migration 번호 선점 여부, §1.6 E-3 Outbox 소비자(새 relay가 생겼는지), Flyway 세션 `sql_mode`(LG-3).
+- 닫음: ADMIN 감사 detail 길이 — `AdminAuditEvent.DETAIL_MAX` 500, `DETAIL` 정규식이 `-` 허용(L43·L68) 확인 → `code=site-<14자>-<4자>`(최대 29자) 추가 여유 충분.
 
 ## 14. 검토했으나 채택 안 함
 - 형식: 원문 밑줄 `site_<C>_NN`(내부 키와 판독·가드 충돌), 대문자 짧은 형식·전역 순번(전체 건수 노출), 가맹점 무관 무작위(소속 판독 불가) — Q-SC-1 답으로 미채택.
@@ -327,7 +380,12 @@ LEFT JOIN merchant_code_assignment cur
 - 새 감사 행 `target_ref` = 코드(ADMIN migration·표 복사 ALTER) — Q-SC-9.
 - 기존 표에 코드 열 추가(`contract` UPDATE 권한으로 불변 보장 불가) — C-2.
 - 코드 표 FOR UPDATE로 순번 잠금(UPDATE 권한 필요 — 불변 권한 설계와 충돌) — C-13.
+- 화면 가드를 정확 정규식 하나로만 교체(rev 0.2안 — 소문자·짧은 토큰을 놓침) — C-11(MAJOR-1).
+- 코드를 `MerchantSite`·`Contract` Aggregate 필드로(모든 lock/find·update 경로가 코드 표 의존) — C-12.
+- 상세 조회 INNER JOIN·누락 시 503(표시용 값 누락이 상세·명령 흐름을 막음) — C-15.
+- 백필 `assigned_at` = 원 `created_at`(가맹점 코드는 migration 시점 값인데 시각만 과거가 되어 불일치) — C-5.
 
 ## 15. 기록
 - 0.1 초안(2026-11-19) — HEAD `0323648` 기준 코드 대조. 구현·migration·커밋 없음.
-- 0.2 확정(2026-11-20) — HEAD `4cd6a07` 기준 재대조, 사용자 답 Q-SC-1~9 반영, errata E-1~4. 구현·migration·커밋 없음. 다음: 명세 독립 리뷰 → SCODE-1.
+- 0.2 확정(2026-11-20) — HEAD `4cd6a07` 기준 재대조, 사용자 답 Q-SC-1~9 반영, errata E-1~4. 구현·migration·커밋 없음.
+- 0.3(2026-11-20) — rev 0.2 독립 리뷰 조건부 PASS(MAJOR 1·MINOR 9·NIT) 반영, Coordinator 결정 C-5·C-12·C-14·C-15 기록. 정책 변경 없음. 구현·migration·커밋 없음. 다음: 재리뷰(필요 시) → SCODE-1.
