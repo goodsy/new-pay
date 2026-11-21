@@ -2104,6 +2104,35 @@
       ],
       "nextResumeAction": "없음 — 완료",
       "detail": null
+    },
+    {
+      "id": "ONESHOT-LOCK-001",
+      "title": "개통 화면 1인 명령(useOneShot) 결과 불명 잠금을 §4.2·§5.3 규칙에 맞춤",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "PROC-GATE-001"
+      ],
+      "spec": "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §4.2·§5.3·§9.16(1인 = B1 틀), docs/assessment/RECOVERY-ROADMAP.md 2-2",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/components/MerchantActivationArea.tsx",
+        "apps/internal-admin/frontend/src/screens/MerchantsScreen.activation.test.tsx",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "ONESHOT-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/ONESHOT-LOCK-001-2026-11-21T084110Z.json"
+      },
+      "openItems": [
+        "수정: 재전송 중 409 아닌 오류에도 잠금·같은 submissionId 유지, 심사 거절 결과 불명 중 입력·다른 Site 거절 잠금, 보내는 중 재실행 방어(리뷰 REVIEW_PASS, MINOR-1·2·NIT-2 반영)",
+        "SCOPED 게이트 PASS(INTERNAL-ADMIN·ADMIN-FRONTEND, 약 19분) — DONE은 다음 FULL PASS 뒤(HARNESS-GUIDE §11)",
+        "[후속] useOneShot 상태가 컴포넌트 useState라 상세를 닫거나 탭을 옮기면 결과 불명·submissionId가 사라지고 hasUnresolvedRequest에도 안 잡힘 → RECOVERY-ROADMAP 2-1 공통 hook(ScreenMemory) 통합(6단계). 서버가 중복 효과는 막음(ACTIVATION_DUPLICATE·SITE_REVIEW_TRANSITION_NOT_ALLOWED)"
+      ],
+      "nextResumeAction": "다음 FULL 게이트 PASS 때 lastGate를 그 증거로 바꾸고 DONE",
+      "detail": null
     }
   ]
 }

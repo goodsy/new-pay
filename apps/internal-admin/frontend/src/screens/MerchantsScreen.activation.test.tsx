@@ -110,6 +110,32 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     expect(await within(area).findByText('이미 개통 등록이 있습니다')).toBeInTheDocument()
   })
 
+  it('§4.2·§5.3: while resending an unknown outcome, a non-409 error (503 MASTER_BUSY, 429) keeps the lock and the same submissionId; only 409 ends it', async () => {
+    const registerPaymentMethodActivation = vi.fn()
+      .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
+      .mockRejectedValueOnce(apiError(503, 'MASTER_BUSY'))
+      .mockRejectedValueOnce(apiError(429, 'RATE_LIMITED'))
+      .mockRejectedValueOnce(apiError(409, 'IDEMPOTENCY_KEY_REUSED'))
+      .mockResolvedValueOnce({ outcome: 'SUCCEEDED', reference: ACT1, replayed: false })
+    let n = 0
+    const api = fakeApi({
+      merchantSearch: vi.fn(async () => ({ items: [item], nextCursor: null })), merchantDetail: vi.fn(async () => detail()),
+      merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })), registerPaymentMethodActivation,
+    })
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'c')} />)
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    const area = await screen.findByRole('region', { name: `개통 ${MID1}` })
+    await userEvent.click(within(area).getByRole('button', { name: '개통 등록(카드)' }))
+    await userEvent.click(await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' }))
+    await userEvent.click(await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' }))
+    await userEvent.click(await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' }))
+    // 409(결함 신호)만 잠금을 푼다 — 다음 제출은 새 submissionId.
+    await userEvent.click(await within(area).findByRole('button', { name: '개통 등록(카드)' }))
+    const one = '1'.padStart(32, 'c')
+    expect(registerPaymentMethodActivation.mock.calls.map((c) => c[0].submissionId)).toEqual([one, one, one, one, '2'.padStart(32, 'c')])
+  })
+
   it('"개통 승인 요청" (2인) needs the institution reply reference, sends it, then shows the result; hidden while a PM-group approval is pending', async () => {
     const requestMerchantPaymentMethodActivation = vi.fn(async () => ({ approvalId: APR }))
     const { area } = await openDetail(true, { requestMerchantPaymentMethodActivation, merchantDetail: vi.fn(async () => detail({}, { paymentMethods: [underReview] })) })
@@ -203,6 +229,43 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
     await userEvent.click(within(within(row).getByRole('alertdialog')).getByRole('button', { name: '거절 확정' }))
     expect(rejectSiteReview).toHaveBeenCalledWith({ submissionId: SUB, merchantSiteId: SITE2, reasonCode: 'SITE_UNREACHABLE' })
+  })
+
+  it('§5.3: an unknown "심사 거절" locks the reason and evidence inputs and other sites\' reject; the resend carries the same submissionId and body', async () => {
+    const rejectSiteReview = vi.fn()
+      .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
+      .mockRejectedValueOnce(apiError(503, 'MASTER_BUSY'))
+      .mockResolvedValueOnce({ outcome: 'SUCCEEDED', reference: `${SITE2}#1`, replayed: true })
+    let n = 0
+    const api = fakeApi({
+      merchantSearch: vi.fn(async () => ({ items: [item], nextCursor: null })), merchantDetail: vi.fn(async () => detail()),
+      merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })), rejectSiteReview,
+    })
+    // 리뷰 MINOR-2: 매번 다른 값을 내는 생성기 — 재전송이 새 submissionId를 만들면 아래 단언이 실패한다.
+    render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'd')} />)
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    const area = await screen.findByRole('region', { name: `개통 ${MID1}` })
+    const table = within(area).getByRole('table', { name: 'Site 심사' })
+    const row = within(table).getByRole('row', { name: `심사 ${SITE2}` })
+    await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
+    await userEvent.selectOptions(within(row).getByLabelText('거절 사유'), 'SITE_UNREACHABLE')
+    await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
+    await userEvent.click(within(within(row).getByRole('alertdialog')).getByRole('button', { name: '거절 확정' }))
+    expect(await within(row).findByRole('button', { name: '같은 거절 다시 보내기' })).toBeInTheDocument()
+    expect(within(row).getByLabelText('거절 사유')).toBeDisabled()
+    expect(within(row).getByLabelText('PG 심사 근거(선택)')).toBeDisabled()
+    // 리뷰 MINOR-1: 다른 Site 거절을 열면 이 폼이 사라지므로 결과 불명 동안 막는다.
+    expect(within(within(table).getByRole('row', { name: `심사 ${SITE1}` })).getByRole('button', { name: '심사 거절' })).toBeDisabled()
+    for (let i = 0; i < 2; i++) {
+      await userEvent.click(await within(row).findByRole('button', { name: '같은 거절 다시 보내기' }))
+      await userEvent.click(within(within(row).getByRole('alertdialog')).getByRole('button', { name: '거절 확정' }))
+    }
+    const one = '1'.padStart(32, 'd')
+    expect(rejectSiteReview.mock.calls.map((c) => c[0])).toEqual(Array(3).fill({ submissionId: one, merchantSiteId: SITE2, reasonCode: 'SITE_UNREACHABLE' }))
+    // 확정 성공 뒤에는 다른 Site 거절을 다시 열 수 있다(상세 재조회 뒤 다시 찾는다).
+    const fresh = within(await screen.findByRole('region', { name: `개통 ${MID1}` })).getByRole('table', { name: 'Site 심사' })
+    expect(await within(within(fresh).getByRole('row', { name: `심사 ${SITE1}` })).findByRole('button', { name: '심사 거절' })).toBeEnabled()
   })
 
   it('site confirmations list valid / revoked', async () => {

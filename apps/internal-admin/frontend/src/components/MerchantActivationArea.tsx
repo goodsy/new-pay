@@ -1,5 +1,6 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import type { AdminApi, MerchantDetail, RegistrationOutcome } from '../api/adminApi'
+import { ApiError } from '../api/client'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
@@ -199,7 +200,9 @@ function useOneShot(newSubmissionId: () => string, onSessionEnded?: (code: Conso
   const [status, setStatus] = useState<OneShot>({ kind: 'idle' })
   const [submissionId, setSubmissionId] = useState<string | null>(null)
   const run = async (send: (submissionId: string) => Promise<RegistrationOutcome>, onDecided?: (o: RegistrationOutcome) => void) => {
-    const id = status.kind === 'unknown' && submissionId !== null ? submissionId : newSubmissionId()
+    if (status.kind === 'busy') return // 리뷰 NIT-2: 보내는 중에는 두 번째 요청을 내지 않는다(RegistrationStep stepLocked와 같은 방어).
+    const retrying = status.kind === 'unknown' && submissionId !== null
+    const id = retrying ? submissionId : newSubmissionId()
     setSubmissionId(id)
     setStatus({ kind: 'busy' })
     try {
@@ -209,8 +212,19 @@ function useOneShot(newSubmissionId: () => string, onSessionEnded?: (code: Conso
       onDecided?.(outcome)
     } catch (e) {
       const code = codeOf(e)
-      if (SESSION_ENDING.includes(code) && onSessionEnded) onSessionEnded(code)
-      else setStatus(UNKNOWN_CODES.includes(code) ? { kind: 'unknown', code } : { kind: 'failed', code })
+      if (SESSION_ENDING.includes(code) && onSessionEnded) {
+        onSessionEnded(code)
+        return
+      }
+      // MERCHANT-OPS-002 §4.2·§5.3(RegistrationStep.sendStep과 같은 규칙): 재전송 중에는 409만 확정 — 그 밖의 오류(503 MASTER_BUSY·429·403 등)는
+      // 앞 요청 결과를 여전히 모르므로 잠금과 같은 submissionId를 유지한다(재정비 4단계, RECOVERY-ROADMAP 2-2).
+      const conflict = e instanceof ApiError && e.status === 409
+      if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
+        setStatus({ kind: 'unknown', code })
+        return
+      }
+      setSubmissionId(null)
+      setStatus({ kind: 'failed', code })
     }
   }
   return { status, run }
@@ -285,17 +299,25 @@ function EvidenceRequest({ name, evidenceLabel, hint, send, onRequested, onSessi
 }
 
 /** Site 1인 심사 거절(되돌릴 수 없음 — 사유 코드 선택, 근거 참조 선택, 확인 대화상자). */
-function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded }: {
+function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded, onLockedChange }: {
   api: AdminApi
   site: Site
   newSubmissionId: () => string
   onDone: () => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
+  /** 보내는 중·결과 불명 여부를 부모에 알린다(다른 Site 거절 열기 차단 — 리뷰 MINOR-1). */
+  onLockedChange?: (locked: boolean) => void
 }) {
   const [reasonCode, setReasonCode] = useState(SITE_REJECT_REASONS[0]!.code)
   const [evidenceRef, setEvidenceRef] = useState('')
   const [confirming, setConfirming] = useState(false)
   const { status, run } = useOneShot(newSubmissionId, onSessionEnded)
+  // §5.3: 보내는 중·결과 불명이면 입력을 잠근다 — 같은 submissionId 재전송은 같은 본문이어야 한다(바뀌면 409).
+  const inputLocked = status.kind === 'busy' || status.kind === 'unknown'
+  useEffect(() => {
+    onLockedChange?.(inputLocked)
+  }, [inputLocked, onLockedChange])
+  useEffect(() => () => onLockedChange?.(false), [onLockedChange])
   const evidenceOk = evidenceRef === '' || EVIDENCE_REF.test(evidenceRef)
   const dialogId = useId()
   const send = () => {
@@ -308,7 +330,7 @@ function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded }: 
     <div className="flex flex-col gap-2" aria-label={`심사 거절 ${site.merchantSiteId}`} role="group">
       <Field label="거절 사유" className="text-xs">
         {(describedBy) => (
-          <NativeSelect value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} aria-describedby={describedBy}>
+          <NativeSelect value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} aria-describedby={describedBy} disabled={inputLocked}>
             {SITE_REJECT_REASONS.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
           </NativeSelect>
         )}
@@ -316,7 +338,7 @@ function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded }: 
       <Field label="PG 심사 근거(선택)" hint="영문·숫자와 . _ : # / - 만, 1~128자" className="text-xs">
         {(describedBy) => (
           <Input value={evidenceRef} onChange={(e) => setEvidenceRef(e.target.value)} autoComplete="off" aria-describedby={describedBy}
-            aria-invalid={!evidenceOk} className="h-8 font-mono text-xs" />
+            aria-invalid={!evidenceOk} disabled={inputLocked} className="h-8 font-mono text-xs" />
         )}
       </Field>
       {confirming ? (
@@ -359,6 +381,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
 }) {
   const [requestFor, setRequestFor] = useState<string | null>(null)
   const [rejectFor, setRejectFor] = useState<string | null>(null)
+  const [rejectLocked, setRejectLocked] = useState(false)
   const register = useOneShot(newSubmissionId, onSessionEnded)
   /** 마지막으로 누른 개통 등록 수단(결과 불명 재전송 버튼 위치 — 리뷰 MINOR-2). */
   const [registerMethod, setRegisterMethod] = useState<string | null>(null)
@@ -475,9 +498,10 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
                           )
                         )}
                         {rejectFor === site.merchantSiteId ? (
-                          <SiteRejectForm api={api} site={site} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
+                          <SiteRejectForm api={api} site={site} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} onLockedChange={setRejectLocked} />
                         ) : (
-                          <div><Button type="button" variant="ghost" size="sm" onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
+                          // 리뷰 MINOR-1: 열린 거절이 보내는 중·결과 불명이면 다른 Site 거절을 열 수 없다(열면 그 폼이 사라져 같은 submissionId 재전송을 잃는다).
+                          <div><Button type="button" variant="ghost" size="sm" disabled={rejectLocked} onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
                         )}
                       </div>
                     )}
