@@ -4090,6 +4090,98 @@
       "humanAnswer": "탭 2개 + 목록의 등록 버튼 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 응답 (2026-11-19)",
       "appliedSpec": "D-ADMIN-UI-006"
+    },
+    {
+      "id": "Q-PROC-1",
+      "status": "ANSWERED",
+      "question": "검증 게이트를 배치마다 전체로 돌릴지, 영향 범위로 돌리고 기능 완료 때 전체로 돌릴지",
+      "recommended": "배치는 영향 모듈만, 전체 게이트는 기능 종료 시 1회",
+      "alternative": "현행 유지(배치마다 전체)",
+      "impact": "기능당 게이트 시간. 모듈 사이 회귀는 기능 종료 FULL에서 잡음",
+      "dependentTasks": [
+        "PROC-GATE-001"
+      ],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-1",
+      "humanAnswer": "검증 게이트를 영향 범위 기반으로 변경한다. 기능 완료 시 전체 게이트를 수행하며 금융 핵심 검증은 유지한다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-001"
+    },
+    {
+      "id": "Q-PROC-2",
+      "status": "ANSWERED",
+      "question": "작업 기록·문서 관리 절차를 간소화할지",
+      "recommended": "tasks.json 고정 스키마, 명세는 현재 규칙만, 이력은 git",
+      "alternative": "현행 유지",
+      "impact": "기록 비용·최신 규칙 탐색",
+      "dependentTasks": [
+        "PROC-RECORD-001"
+      ],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-2",
+      "humanAnswer": "중복 작업 기록과 문서 관리 절차를 간소화한다. 기존 결정 이력과 검증 증거는 삭제하지 않는다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-002"
+    },
+    {
+      "id": "Q-PROC-3",
+      "status": "ANSWERED",
+      "question": "화면 시안 CSS 원본 동결(원문 대조 시험) 유지 여부",
+      "recommended": "해제",
+      "alternative": "유지",
+      "impact": "스타일 단일화 난이도",
+      "dependentTasks": [
+        "ADMIN-UI-WORKSPACE-001"
+      ],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-3",
+      "humanAnswer": "UI 시안 원본의 수정 금지를 해제하되, 공통 디자인 시스템과 회귀 검증 기준을 먼저 정의한다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-003"
+    },
+    {
+      "id": "Q-PROC-4",
+      "status": "ANSWERED",
+      "question": "순수 Domain↔JPA Entity 이중 모델 원칙 유지 여부",
+      "recommended": "현행 유지, 재평가는 정산 착수 전",
+      "alternative": "축소",
+      "impact": "RECOVERY-ROADMAP 6단계 진행 여부",
+      "dependentTasks": [],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-4",
+      "humanAnswer": "순수 Domain과 JPA Entity 분리 원칙을 유지한다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-004"
+    },
+    {
+      "id": "Q-PROC-5",
+      "status": "ANSWERED",
+      "question": "서비스·DB 분리 유지 여부",
+      "recommended": "유지",
+      "alternative": "통합",
+      "impact": "baseline·TECHNOLOGY 정책",
+      "dependentTasks": [],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-5",
+      "humanAnswer": "현재 서비스·DB 분리 구조를 유지한다. 통합 여부는 별도 아키텍처 검토 대상으로 남긴다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-005"
+    },
+    {
+      "id": "Q-PROC-6",
+      "status": "ANSWERED",
+      "question": "중단된 SCODE-1 미커밋 변경 처리",
+      "recommended": "재정비 1단계 이후 재개하거나 폐기",
+      "alternative": "즉시 폐기",
+      "impact": "작업 트리 정리",
+      "dependentTasks": [
+        "SITE-CONTRACT-CODE-001"
+      ],
+      "askedAt": "2026-11-20",
+      "origin": "docs/assessment/REBUILD-VS-REFACTOR.md §6 R-6",
+      "humanAnswer": "SCODE-1 미완성 변경은 삭제하지 않는다. 현재 상태를 확인한 뒤 별도로 안전하게 보존한다.",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
+      "appliedSpec": "D-PROC-006"
     }
   ]
 }

@@ -47,13 +47,15 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 - 포함: git 추적 + 미추적(비무시) 저장소 파일의 실행 비트(755/644)와 SHA-256. `harness/commands.json`(gate 정의) 포함. clone별 umask 차이(644/664)는 값에 영향이 없다.
 - 제외: `.gitignore` 대상(build/, .env, .idea/, `__pycache__`), 진행 상태 파일 `harness/tasks.json`, `progress.json`, `questions.json`. 상태 파일은 검증 결과를 기록하느라 검증 후에 바뀌므로 제외하고, 판정 기준을 바꾸는 **저장소 파일**은 모두 포함한다.
 - 보호(`harness/scripts/fingerprint.sh`의 `guarded_ignored` pathspec과 동일): `apps/*/src/**`, `libs/*/src/**`, `build-logic/src/**`, `build-logic/*.kts`(build-logic 바로 아래 Gradle 스크립트만), `harness/scripts`, `harness/tests`, `harness/fixtures`, `docker`, `gradle` 아래에 `.gitignore`로 무시된 파일이 있으면 FINGERPRINT가 실패한다(fingerprint에 안 잡히는 테스트 입력 차단). 예외: 경로에 `/__pycache__/`가 든 파일은 무시한다. 이 목록 밖(예: 루트 `*.gradle.kts`, `gradle.properties`, `build-logic/build/`, `apps/*/build/`)의 무시된 파일은 검사하지 않는다. 루트 Gradle 파일은 추적 파일이면 fingerprint에 포함된다.
+- `buildFingerprint`(PROC-GATE-001, D-PROC-001): FINGERPRINT를 `--manifest`로 실행해 manifest 줄 중 `scopedGate.pathRules`의 STATE·DOC·LOCAL 경로를 뺀 나머지로 만든 SHA-256. 증거에만 기록하고 판정(기대값 비교)은 여전히 `codeFingerprint`로 한다. 직전 FULL PASS와 같으면 빌드·시험 입력이 같다는 뜻이다(문서만 바뀐 경우).
+- 영향 범위 게이트(`VERIFY-GATE-SCOPED`): 사용 규칙은 HARNESS-GUIDE §11. 범위는 `git diff --no-renames <base>` + 미추적 파일로 계산하고, 분류할 수 없는 경로가 있으면 FULL_GATE_REQUIRED다. 단위 Gradle 실행은 FULL과 같은 `--no-build-cache --rerun-tasks`·출력 금지 규칙, 단위별 TEST-SUMMARY 하한·신선도를 쓴다.
 - 한계: 저장소 밖 입력(환경변수 `GRADLE_OPTS`/`JAVA_TOOL_OPTIONS`/`TESTCONTAINERS_*` 등, `~/.gradle/init.d`, `~/.gradle/gradle.properties`, `~/.testcontainers.properties`)은 fingerprint에 없다. 대신 `VERIFY-GATE` 증거의 `environment`에 이름과 값/파일 hash로 기록한다. 값이 달라졌을 때 차단하지는 않으므로 Verifier가 이전 증거와 비교해 차이를 보고한다.
 
 ## 5. 증거 기록
 
 - 증거 JSON: verdict, problems, 기대/전/후 fingerprint, headRevision/dirty, notBefore, 환경 snapshot, 각 명령의 argv·exit·timedOut·cleanupUnverified·environmentError·시작/종료 UTC·violations·출력 끝 4000자·전체 로그 경로와 sha256.
 - 보고서별 sha256·timestamp는 TEST-SUMMARY 전체 로그에 있다(출력 길이와 관계없이 보존).
-- Coordinator는 Verifier 보고와 증거를 대조해 `harness/tasks.json`의 작업 `evidence`에 요약 기록한다. 증거 파일은 `build/` 아래라 커밋하지 않는다.
+- Coordinator는 Verifier 보고와 증거를 대조해 `harness/tasks.json`의 작업 `lastGate`에 `{tag, verdict, evidence}`만 기록한다(HARNESS-GUIDE §12). 증거 파일은 `build/` 아래라 커밋하지 않는다.
 
 ## 6. 컨테이너 사용 증거
 
@@ -119,7 +121,7 @@ python3 harness/scripts/verify-gate.py <TASK_ID> --expect-fingerprint <Coordinat
 
 - 명령별 `timeoutSeconds`를 넘기면 `VERIFY-GATE`가 프로세스 그룹에 SIGKILL을 보내고 최대 10초 더 기다린 뒤 FAIL로 기록한다. 그룹을 벗어난 자손이 남아 pipe를 잡고 있으면 pipe를 닫고 `cleanupUnverified=true`로 표시한다(무한 대기 없음). 단순 자식(`test_timeout_is_failure_and_bounded`)과 새 session으로 빠져나가 pipe를 잡은 손자(`test_escaped_descendant_holding_pipe_is_bounded`) 두 경우를 시험한다. 실제 Gradle JVM이 모두 정리되는지는 timeout 발생 시 Verifier가 `ps`로 확인한다.
 - 메모리: 판정 명령(`--no-build-cache --rerun-tasks check`)은 그대로이고, 빌드 메모리 상한은 `gradle.properties`·`build-logic`(Kotlin in-process 컴파일, test JVM `maxHeapSize=1g`, `maxParallelForks=1`)이 정한다. 근거·측정: TECH-BASELINE §7.2(MASTER-BOOT-001). 메모리 부족으로 중단된 실행은 FAIL/환경 문제로 기록하고 성공으로 보지 않는다.
-- 작업 단위 timeout은 `harness/tasks.json`의 `taskTimeoutSeconds`. 수정 반복은 실패당 3회까지, 초과 시 원인과 다음 조치를 보고한다.
+- 작업 단위 timeout은 2026-11-20 이전 기록에서 `taskTimeoutSeconds`였다(harness/archive). 새 기록에서는 명령별 `timeoutSeconds`가 상한이다. 수정 반복은 실패당 3회까지, 초과 시 원인과 다음 조치를 보고한다.
 
 ## 9. 아직 하지 않은 것 (후속)
 

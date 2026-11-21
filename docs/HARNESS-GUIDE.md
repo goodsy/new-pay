@@ -27,7 +27,7 @@ BACKLOG → READY → RUNNING → VERIFYING → REVIEW → DONE.
 - FAILED: 실제 검사가 실행되고 요구 결과를 만족하지 못함.
 - PARTIAL: 기초 결과만 완료, 해당 기능 DoD/통합 Gate 미완료.
 
-각 작업에 phase, allowedPaths, requiredDecisions, acceptanceCriteria, verificationCommandIds, reports, owner, baseRevision/sourceFingerprint, lastSuccessfulStep, nextResumeAction을 둔다. 빈 명령/허용 경로는 해당 실행이 미설정임을 뜻한다. discovery 카드의 최초 조사만 예외로 프로젝트 루트 읽기를 허용하며 쓰기는 별도 하네스 로그/문서 경로로 제한한다.
+각 작업의 기록 키는 §12(D-PROC-002)의 고정 키를 따른다. 수용 기준·검증 명령·보고서·fingerprint는 명세와 증거 파일에 두고 tasks.json에는 위치만 남긴다. 빈 명령/허용 경로는 해당 실행이 미설정임을 뜻한다. discovery 카드의 최초 조사만 예외로 프로젝트 루트 읽기를 허용하며 쓰기는 별도 하네스 로그/문서 경로로 제한한다.
 
 ## 4. 질문 규칙
 
@@ -69,7 +69,7 @@ commit SHA만으로 미커밋 변경을 식별할 수 없다. git base/head와 �
 
 ## 8. 재개
 
-세션 종료 전 progress.json과 작업별 lastSuccessfulStep/nextResumeAction을 기록한다. 새로운 세션은 명세/코드/질문/검증 기록을 대조한다. 이미 실행한 가상 금융 요청은 Simulator의 원 ID 결과를 조회한다. 하네스 재시작을 기관 재전송 이유로 쓰지 않는다.
+세션 종료 전 작업별 nextResumeAction을 기록한다(progress.json은 2026-11-20부터 쓰지 않는다 — 원본은 harness/archive, D-PROC-002). 새로운 세션은 명세/코드/질문/검증 기록을 대조한다. 이미 실행한 가상 금융 요청은 Simulator의 원 ID 결과를 조회한다. 하네스 재시작을 기관 재전송 이유로 쓰지 않는다.
 
 동일 작업을 여러 세션이 점유하면 하나만 owner로 유지하고 다른 세션은 변경하지 않는다. 구현 동시 작업은 독립 worktree/파일 범위와 공통 migration 단일 소유가 준비된 후 허용한다. 통합한 정확한 source fingerprint에서 다시 검증한다.
 
@@ -85,4 +85,33 @@ FINANCE: 실제 운영 요율/한도 대신 DEMO DATA 사용 가능. 선정 fixt
 
 ## 10. 원칙별 검증과 기술 착수
 
-TECHNOLOGY-AND-PRINCIPLES.md가 필수 기술/8대 원칙 기준이다. TECH-001에서 실제 버전·빌드 조합을 검증한다. 모든 카드의 principleEvidence를 ASSESSED 상태로 분류해 적용 증거 또는 N/A 이유·후속 Gate를 기록한다. 미평가 원칙을 묵시적 통과로 보지 않는다. 아직 Kafka/Redis가 없다는 이유로 독립 초기 기능을 막지 않되 운영 도입 단계의 전달/재처리/장애 시험은 생략하지 않는다.
+TECHNOLOGY-AND-PRINCIPLES.md가 필수 기술/8대 원칙 기준이다. TECH-001에서 실제 버전·빌드 조합을 검증한다. 기능마다 8대 원칙을 ASSESSED 상태로 분류해 적용 증거 또는 N/A 이유·후속 Gate를 기록한다. 기록 위치는 그 기능 명세의 "원칙별 증거" 절이다(2026-11-20 이전 카드의 principleEvidence는 harness/archive에 있다 — D-PROC-002). Reviewer는 이 절을 증거 파일과 대조한다. 미평가 원칙을 묵시적 통과로 보지 않는다. 아직 Kafka/Redis가 없다는 이유로 독립 초기 기능을 막지 않되 운영 도입 단계의 전달/재처리/장애 시험은 생략하지 않는다.
+
+## 11. 게이트 종류와 사용 시점 (D-PROC-001, PROC-GATE-001)
+
+| 게이트 | 명령 | 언제 | 무엇을 |
+|---|---|---|---|
+| SCOPED | `verify-gate.py <TASK> --scoped [--base <rev>] --expect-fingerprint <fp>` (`VERIFY-GATE-SCOPED`) | 기능 안의 배치마다 | 바뀐 경로로 계산한 단위의 모듈 시험 전체 + HARNESS-SELFTEST |
+| FULL | `verify-gate.py <TASK> --expect-fingerprint <fp>` (`VERIFY-GATE`) | 기능 완료(DONE) 전 1회, SCOPED가 FULL_GATE_REQUIRED를 낼 때 | 전체 check(모든 모듈·프론트·build-logic) |
+
+- **실행 단위는 사람이 고르지 않는다.** `harness/commands.json`의 `scopedGate.pathRules`가 경로 → 단위를 정한다(위에서부터 첫 일치). 모듈 사이 입력도 규칙에 들어 있다. 예: 관리자 화면 → 관리자 화면 + 관리자 Kotlin(번들 검사), master 계약 golden → master + 관리자, simulator 소스 → simulator + payment(코드 노출 검사), 앱 설정·새 패키지 → master(레거시 검사).
+- **분류할 수 없는 경로가 하나라도 있으면** 빌드 없이 `FULL_GATE_REQUIRED`(exit 4)다. libs·build-logic·gradle·docker·루트 빌드 파일·앱 build.gradle.kts·하네스 스크립트·commands.json이 여기에 든다. 검증 성공이 아니다.
+- **단위는 그 모듈 시험 전체다.** 시험을 고르거나 줄이지 않는다. 단위별 하한(`minTests`)은 실제 시험 수이며, 낮추려면 사용자 결정이 필요하다. 캐시·skip·0건·오래된 보고서 거부 규칙은 FULL과 같다.
+- **금융 핵심 검증은 FULL에서 빠지지 않는다.** 기능 DONE은 FULL PASS가 있어야 한다. SCOPED PASS만으로 DONE을 기록하지 않는다.
+- 문서·기록만 바뀌면 단위가 0개라 HARNESS-SELFTEST만 돈다. 이때 SCOPED 증거의 `buildFingerprint`(문서·기록·로컬 파일을 뺀 빌드 입력 hash)가 직전 FULL PASS 증거의 값과 같으면, 그 FULL PASS의 **시험 증거**는 그대로 쓴다. 명세 파일(hash)이 바뀌었으면 Reviewer가 바뀐 명세와 구현·시험을 다시 대조한 뒤에만 DONE으로 본다. 이 판단은 도구가 아니라 Coordinator·Reviewer가 증거 두 개를 비교해 한다.
+- `--base`(기본 HEAD = 작업 트리의 미커밋 변경). **변경 경로가 0건이면 PASS가 아니라 FAIL이다.** 이미 커밋한 배치를 검사하려면 직전 게이트 증거의 `headRevision`(그 배치들 앞 커밋)을 준다. base는 HEAD의 조상이어야 하고(아니면 FAIL), 증거 `scope.baseRevision`에 남으므로 Reviewer가 직전 증거와 이어지는지 확인한다. 권장 순서는 지금처럼 "게이트 → 커밋"이라 대부분 HEAD 그대로 쓴다. 진행 기록(tasks/questions.json)만 바뀐 경우도 FAIL이다. 문서만 바뀐 범위는 `scope.classification = DOCS_ONLY`로 표시되며, 시험을 돌린 배치 증거로 쓰지 않는다(빌드 입력이 바뀐 배치는 `BUILD`).
+- 증거: `build/harness-evidence/<TASK>-<UTC>.json`의 `mode`(FULL/SCOPED), `scope`(경로별 분류·단위·FULL 사유), `buildFingerprint`.
+
+## 12. 기록 규칙 (D-PROC-002, PROC-RECORD-001)
+
+- **한 사실은 한 곳에.** 사용자 결정 전문은 `harness/questions.json`(답변 원문)과 `docs/DECISIONS.md`(결정 행)에만 둔다. 명세·tasks.json·커밋 메시지는 결정 ID로 참조한다.
+- **tasks.json(schemaVersion 2)** task 키: `id, title, status, phase, owner, dependsOn, spec, allowedWritePaths, maxRepairAttempts, lastGate, openItems, nextResumeAction, detail`. 다른 키를 추가하지 않는다. task 하나는 100줄 이하, 파일은 100KB 이하를 유지한다. 기록을 바꿀 때마다 `python3 harness/scripts/check-records.py harness/tasks.json`(`CHECK-RECORDS`)을 실행해 exit 0을 확인한다.
+  - 인수 기준·8대 원칙 증거는 명세에 둔다. 명세가 아직 없는 task는 인수 기준을 `openItems`에 `[인수 기준]`으로 둔다.
+  - 100줄을 넘으면 `openItems`를 잘라내지 말고 명세로 옮긴다(archive에 없는 2026-11-20 이후 항목은 잘라내면 사라진다).
+  - 2026-11-20 이후 DONE으로 바꾸는 task는 `lastGate`에 FULL PASS 증거 경로(`verdict: PASS`)를 반드시 남긴다.
+  - `lastGate`: 마지막 게이트의 `{tag, verdict, evidence}`만. 단계별 시간·시험 수·로그는 증거 파일에 있다.
+  - `openItems`: 남은 일만 짧게. 끝난 일은 지운다(이력은 git).
+  - `nextResumeAction`: 모든 task에 둔다. 다음 세션이 이것만 읽고 이어갈 수 있게 쓴다.
+- **과거 기록은 지우지 않는다.** 2026-11-20 이전 tasks.json(schemaVersion 1)과 progress.json은 `harness/archive/`에 원문 그대로 있다(파일 hash는 tasks.json `archive`). 수정하지 않는다.
+- **명세**: 본문은 현재 유효한 규칙만 쓴다. 개정 이력은 파일 끝의 짧은 표나 git으로 둔다.
+- **커밋 메시지**: 첫 줄 한 줄 요약 + task ID. 본문은 바뀐 것 몇 줄과 결정 ID·증거 경로만 쓴다. 결정 전문·시험 수·단계별 시간을 반복하지 않는다.

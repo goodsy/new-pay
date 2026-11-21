@@ -15,7 +15,7 @@
 ### 먼저 읽을 문서
 
 1. 루트 `CLAUDE.md` 및 현재 적용되는 저장소 지침
-2. `docs/HARNESS-GUIDE.md`, `harness/tasks.json`, `harness/progress.json`, `harness/questions.json`
+2. `docs/HARNESS-GUIDE.md`, `harness/tasks.json`, `harness/questions.json`
 3. `docs/TECHNOLOGY-AND-PRINCIPLES.md`, `docs/BASELINE-INDEX.md`
 4. `docs/repository/DOMAIN-DEFINITION.md`
 5. `docs/repository/ARCHITECTURE-CONVENTIONS.md`

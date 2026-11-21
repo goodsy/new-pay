@@ -26,7 +26,7 @@
 - `docs/BASELINE-INDEX.md`, `docs/baseline/`: 현재 정책/명세 Snapshot.
 - `harness/tasks.json`, `questions.json`: 초기 작업·미결 등록부.
 - `harness/commands.json`: 빈 실제 명령 등록부. BOOT 이후 등록.
-- `harness/progress.json`: 마지막 성공·현재 작업/질문·재개 위치.
+- `harness/archive/`: 2026-11-20 이전 상세 작업 기록(tasks.json schemaVersion 1)과 progress.json 원본. 수정하지 않는다(D-PROC-002).
 - `harness/EVIDENCE-TEMPLATE.json`: 검증 증거 양식.
 - `harness/REVIEW-TEMPLATE.md`: 독립 리뷰 양식.
 - `MANIFEST.json`: 배포 팩의 파일 hash. 설치 후 상태/로그는 변경되므로 각 검증에 적용한 명세 hash를 별도로 기록.
