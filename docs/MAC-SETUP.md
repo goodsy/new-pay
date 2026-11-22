@@ -1,6 +1,6 @@
 # 맥북(macOS)으로 개발 환경 옮기기
 
-- 작성: 2026-11-22. 기준 커밋 main `8370c09`.
+- 작성: 2026-11-22. 기준 커밋 main `8370c09`(BUILD-MAC-001 반영은 main `de12ab3` 위).
 - 지금까지는 Windows + WSL Ubuntu(linux-x64)에서 개발했다.
 
 ## 1. 이어서 할 작업 위치
@@ -14,7 +14,7 @@
 맥에서 재개하는 순서:
 
 1. 아래 §2 환경을 준비한다.
-2. §3의 빌드 차단을 해결한다.
+2. §3의 빌드 차단을 해결한다(BUILD-MAC-001, 완료).
 3. `wip/lock-unify`를 main 위에서 SCOPED 게이트로 다시 검증한다.
 4. 통과하면 main에 반영하고 재정비 6단계를 이어 간다. 이때 tasks.json의 LOCK-UNIFY-001 항목도 함께 반영한다.
 
@@ -31,23 +31,21 @@
 
 - 메모리: FULL 게이트는 Gradle 시험과 MySQL 컨테이너를 함께 돌린다. RAM 16GB 이상을 권한다. WSL 7.8GB에서는 메모리 부족으로 중단된 적이 있다.
 
-## 3. 빌드 차단: 프런트엔드 빌드가 linux-x64만 허용
+## 3. 프런트엔드 빌드 플랫폼 (BUILD-MAC-001로 해결)
 
-`build-logic/src/main/kotlin/paycore.frontend.gradle.kts`는 다음과 같이 되어 있다.
+- 처음에는 `paycore.frontend`가 linux-x64만 허용해 Apple Silicon 맥에서 관리자 화면·결제창 빌드와 게이트가 실패했다.
+- BUILD-MAC-001에서 darwin-arm64를 추가했다. 지원 호스트는 catalog에 `node-sha256-<platform>`이 있는 것뿐이다(`linux-x64`, `darwin-arm64`).
+- darwin-arm64 SHA-256은 nodejs.org `SHASUMS256.txt.asc`(clearsigned) GPG 검증(Good signature, 키 `5BE8A3F6…B168D356`) 뒤 넣었다. 검증 규칙(SHA-256 대조, 버전 고정)은 그대로다.
+- lockfile은 바꾸지 않았다. 두 플랫폼의 네이티브 binding이 이미 들어 있다.
+- 다른 호스트(Intel 맥, Linux arm64 등)는 `frontendNodeVerify`에서 실패한다. 추가하려면 같은 절차로 catalog 키와 분기를 넣는다.
 
-- `frontendNodeVerify`가 `os.name == Linux`이고 `os.arch`가 amd64/x86_64가 아니면 실패한다(53행).
-- Node 배포본은 `node-v24.22.1-linux-x64` 하나로 고정되어 있다(18·22·42행).
-- SHA-256은 `gradle/libs.versions.toml`의 `node-sha256-linux-x64` 하나뿐이다.
+## 3-1. 맥 Docker(OrbStack) 주의
 
-그래서 Apple Silicon 맥에서는 관리자 화면과 결제창 빌드, 그리고 게이트가 실패한다.
-
-해결 방법 중 하나를 고른다.
-
-1. **권장**: darwin-arm64 지원을 추가한다.
-   - 플랫폼별 배포본 이름, catalog SHA-256(nodejs.org SHASUMS256.txt, GPG 서명 검증), 압축 형식을 넣는다.
-   - 빌드 설정 변경이므로 하나의 작업으로 처리한다(독립 리뷰 → 게이트).
-   - 검증 규칙(SHA-256 대조, 버전 고정)은 완화하지 않는다.
-2. x86_64 Linux VM(에뮬레이션) 안에서 작업한다. 느리다.
+- OrbStack이 CLI 링크(`/usr/local/bin/docker`)와 `/var/run/docker.sock`을 만들지 않은 상태면 다음을 지정해 게이트를 실행한다.
+  - `PATH=/Applications/OrbStack.app/Contents/MacOS/xbin:$PATH`(IMAGE-DIGESTS 단계가 `docker`를 쓴다)
+  - `DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock`(Testcontainers)
+- OrbStack 설정에서 명령줄 도구를 설치하면 이 지정은 필요 없다.
+- `docker compose` 플러그인이 잡히지 않으면 `docker-compose` 단독 실행 파일을 쓴다(Demo `db.sh`가 자동 선택).
 
 ## 4. 저장소 밖에 있던 것 (git에 없음)
 
@@ -61,4 +59,5 @@
 ## 5. 경로 차이 주의
 
 - 메모리와 스크립트에 WSL 경로 `/home/sykim/workspace/paycore`와 Windows 경유 실행(`powershell.exe … wsl.exe bash`)이 적혀 있다. 맥에서는 일반 셸에서 바로 실행한다.
-- 프런트 시험을 직접 실행할 때 쓰던 Node는 `apps/payment-api/.gradle/nodejs/node-v24.22.1-linux-x64/bin/node`였다. §3을 해결한 뒤에는 그 플랫폼의 Node 경로로 바뀐다.
+- 프런트 시험을 직접 실행할 때 쓰는 Node: 맥 `apps/payment-api/.gradle/nodejs/node-v24.22.1-darwin-arm64/bin/node`(WSL에서는 `…-linux-x64/bin/node`).
+- Demo 스크립트(`~/paycore-demo`)는 맥용으로 고쳤다: `setsid` 대신 perl `POSIX::setsid`, `/proc/meminfo` 대신 `vm_stat`, JDK 25 고정(`/usr/libexec/java_home -v 25`), bash 3.2 빈 배열 처리, `stat`/`sha256sum` 이식. WSL에서 가져온 `run/*.pid`는 맥 프로세스 pid와 겹칠 수 있어 치웠다.

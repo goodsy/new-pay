@@ -15,11 +15,22 @@ plugins {
 
 val catalog = the<VersionCatalogsExtension>().named("libs")
 val pinnedNodeVersion: String = catalog.findVersion("node").get().requiredVersion
-val nodeSha256: String = catalog.findVersion("node-sha256-linux-x64").get().requiredVersion
+
+// 지원 호스트 = catalog에 SHA-256(node-sha256-<platform>)이 고정된 Node 배포본(BUILD-MAC-001): linux-x64(WSL/CI), darwin-arm64(Apple Silicon 맥).
+// 이름은 nodejs.org 배포본 classifier이자 node-gradle plugin이 같은 호스트에서 고르는 classifier다. 다른 호스트는 설정 단계를 통과하고
+// (프론트와 무관한 task에 영향 없음) frontendNodeVerify에서 실패한다.
+val hostOs: String = System.getProperty("os.name")
+val hostArch: String = System.getProperty("os.arch")
+val nodePlatform: String? = when {
+    hostOs == "Linux" && hostArch in setOf("amd64", "x86_64") -> "linux-x64"
+    hostOs == "Mac OS X" && hostArch in setOf("aarch64", "arm64") -> "darwin-arm64"
+    else -> null
+}
+val nodeSha256: String? = nodePlatform?.let { catalog.findVersion("node-sha256-$it").get().requiredVersion }
 
 val frontendDir = layout.projectDirectory.dir("frontend")
 val nodeWorkDir = layout.projectDirectory.dir(".gradle/nodejs")
-val nodeHome = nodeWorkDir.dir("node-v$pinnedNodeVersion-linux-x64")
+val nodeHome = nodeWorkDir.dir("node-v$pinnedNodeVersion-${nodePlatform ?: "unsupported"}")
 val nodeExecutableFile = nodeHome.file("bin/node")
 val npmCliFile = nodeHome.file("lib/node_modules/npm/bin/npm-cli.js")
 val npmWork = layout.buildDirectory.dir("frontend-npm")
@@ -39,19 +50,22 @@ val frontendNodeDistribution = configurations.create("frontendNodeDistribution")
     isCanBeConsumed = false
     isTransitive = false
 }
-dependencies { frontendNodeDistribution("org.nodejs:node:$pinnedNodeVersion:linux-x64@tar.gz") }
+// plugin(nodeSetup)과 같은 좌표라 같은 Gradle 캐시 파일을 본다(F-9). 미지원 호스트는 좌표를 만들지 않는다.
+if (nodePlatform != null) {
+    dependencies { frontendNodeDistribution("org.nodejs:node:$pinnedNodeVersion:$nodePlatform@tar.gz") }
+}
 
 val frontendNodeVerify = tasks.register("frontendNodeVerify") {
     group = "verification"
     description = "Verifies the resolved Node.js archive against the catalog SHA-256 before it is unpacked."
     val archive = frontendNodeDistribution
     val expected = nodeSha256
+    val os = hostOs
+    val arch = hostArch
     inputs.files(archive)
     doLast {
-        val os = System.getProperty("os.name")
-        val arch = System.getProperty("os.arch")
-        if (os != "Linux" || arch !in setOf("amd64", "x86_64")) {
-            throw GradleException("paycore.frontend supports linux-x64 only (WSL/CI); this host is $os/$arch")
+        if (expected == null) {
+            throw GradleException("paycore.frontend supports linux-x64 (WSL/CI) and darwin-arm64 (Apple Silicon) only; this host is $os/$arch")
         }
         val file = archive.singleFile
         val actual = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }

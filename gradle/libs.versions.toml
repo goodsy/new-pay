@@ -24,10 +24,12 @@ security-patch-jackson = "3.1.7"
 # 프론트 빌드 도구(ADMIN-BOOT-001, Boot BOM 밖·빌드 전용 — runtime/SBOM에 들어가지 않는다). 근거: docs/repository/TECH-BASELINE.md §9
 # node-gradle 7.1.0: 2024-09-27 최신 GA(Gradle 9.8.0 동작 실측). Node는 24.x LTS(Krypton) 보안 patch 예외 24.22.1(2026-10-20 —
 # 14일 규칙 예외, Coordinator Q-S0-1 판정 B. 제거 조건: 게시 14일 경과(2026-11-03) 뒤 재평가). SHA-256은 nodejs.org SHASUMS256.txt(GPG 서명 검증)의
-# node-v24.22.1-linux-x64.tar.gz 값이며 paycore.frontend의 frontendNodeVerify가 해석된 압축과 대조한다(F-9).
+# 플랫폼별 node-v24.22.1-<platform>.tar.gz 값이며 paycore.frontend의 frontendNodeVerify가 해석된 압축과 대조한다(F-9).
+# 지원 플랫폼은 아래 node-sha256-<platform> 키가 있는 것뿐이다(linux-x64 = WSL/CI, darwin-arm64 = Apple Silicon 맥, BUILD-MAC-001).
 node-gradle = "7.1.0"
 node = "24.22.1"
 node-sha256-linux-x64 = "eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c"
+node-sha256-darwin-arm64 = "89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7"
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }

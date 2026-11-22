@@ -272,7 +272,7 @@ Boot BOM 밖·**빌드 전용**이다(앱 runtime·runtime SBOM에 들어가지 
 | 구분 | 버전 | 근거 |
 |---|---|---|
 | node-gradle plugin `com.github.node-gradle.node` | 7.1.0 | 2024-09-27 최신 GA. Gradle 9.8.0에서 deprecation 경고 0건 실측. Node 배포판 내려받기·압축 해제만 맡긴다(npm 실행은 격리 Exec task) |
-| Node.js | 24.22.1 (Krypton LTS) | §9.1 보안 patch 예외. `node-v24.22.1-linux-x64.tar.gz` SHA-256 `eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c`(SHASUMS256.txt — GPG Good signature, 키 `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`, nodejs/release-keys). 동봉 npm 11.19.1 |
+| Node.js | 24.22.1 (Krypton LTS) | §9.1 보안 patch 예외. 지원 호스트 2개(BUILD-MAC-001): `node-v24.22.1-linux-x64.tar.gz`(WSL/CI) SHA-256 `eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c`, `node-v24.22.1-darwin-arm64.tar.gz`(Apple Silicon 맥, 2026-11-22 조회) SHA-256 `89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7`(둘 다 SHASUMS256.txt — GPG Good signature, 키 `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`, nodejs/release-keys). 동봉 npm 11.19.1. lockfile에는 두 플랫폼의 네이티브 binding(rolldown·lightningcss·typescript·tailwind oxide)이 이미 있다 |
 | react / react-dom | 19.3.0 | 2026-09-09 |
 | vite | 8.3.4 | 2026-10-08 (번들러 rolldown — 네이티브 binding은 optionalDependencies, `--ignore-scripts`로 동작) |
 | vitest | 5.0.3 | 2026-09-30 |
@@ -283,7 +283,7 @@ Boot BOM 밖·**빌드 전용**이다(앱 runtime·runtime SBOM에 들어가지 
 | @testing-library/react / jest-dom / user-event | 16.3.3 / 7.0.1 / 14.6.7 | 2026-08-27 / 2026-08-09 / 2026-09-02 |
 
 - 출처: `https://nodejs.org/dist/index.json`·`SHASUMS256.txt(.asc)`, `https://registry.npmjs.org/<pkg>`의 `time`, plugins.gradle.org `maven-metadata.xml`·GitHub releases(모두 2026-10-24 조회).
-- 저장 위치: catalog(`node-gradle`·`node`·`node-sha256-linux-x64`), 루트 settings `nodejs-dist` ivy 저장소(`exclusiveContent` — FAIL_ON_PROJECT_REPOS), `apps/internal-admin/frontend/package.json`(정확 버전)·`package-lock.json`(v3, registry 고정·sha512)·`lockfile-policy.json`(cutoff·보안 override 근거)·`.npmrc`.
+- 저장 위치: catalog(`node-gradle`·`node`·`node-sha256-<platform>` — `linux-x64`·`darwin-arm64`, 다른 호스트는 `frontendNodeVerify` 실패), 루트 settings `nodejs-dist` ivy 저장소(`exclusiveContent` — FAIL_ON_PROJECT_REPOS), `apps/internal-admin/frontend/package.json`(정확 버전)·`package-lock.json`(v3, registry 고정·sha512)·`lockfile-policy.json`(cutoff·보안 override 근거)·`.npmrc`.
 - 실행 경로: `paycore.frontend` convention plugin — `frontendNodeVerify`(압축 SHA-256) → `nodeSetup` → `frontendLockfileCheck`(오프라인 공급망 규칙) → `frontendInstall`(`npm ci --ignore-scripts`, 격리 환경: 상속 환경 버림·`npm_config_userconfig` 빈 파일·고정 PATH/HOME — S0 §17.7) → `frontendTypecheck`·`frontendTest`(Vitest JUnit)·`frontendBuild`(static/). lockfile 재생성은 `frontendLockfileRegenerate`(2단계, 네트워크, check 밖).
 - CVE: `cve-scan.py`가 프론트 lockfile을 npm canary(dependencies lodash 4.17.20 + devDependencies minimist 1.2.5)와 한 번의 osv 호출로 검사(D-ADMIN1-007 — dev 의존 취약점도 FAIL).
 

@@ -537,7 +537,7 @@
     {
       "id": "ONESHOT-LOCK-001",
       "title": "개통 화면 1인 명령(useOneShot) 결과 불명 잠금을 §4.2·§5.3 규칙에 맞춤",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "PROCESS",
       "owner": "Coordinator",
       "dependsOn": [
@@ -551,16 +551,14 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "ONESHOT-gate2",
+        "tag": "TZ-BIND-gate3",
         "verdict": "PASS",
-        "evidence": "build/harness-evidence/ONESHOT-LOCK-001-2026-11-21T084110Z.json"
+        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
       },
       "openItems": [
-        "수정: 재전송 중 409 아닌 오류에도 잠금·같은 submissionId 유지, 심사 거절 결과 불명 중 입력·다른 Site 거절 잠금, 보내는 중 재실행 방어(리뷰 REVIEW_PASS, MINOR-1·2·NIT-2 반영)",
-        "SCOPED 게이트 PASS(INTERNAL-ADMIN·ADMIN-FRONTEND, 약 19분) — DONE은 다음 FULL PASS 뒤(HARNESS-GUIDE §11)",
         "[후속] useOneShot 상태가 컴포넌트 useState라 상세를 닫거나 탭을 옮기면 결과 불명·submissionId가 사라지고 hasUnresolvedRequest에도 안 잡힘 → RECOVERY-ROADMAP 2-1 공통 hook(ScreenMemory) 통합(6단계). 서버가 중복 효과는 막음(ACTIVATION_DUPLICATE·SITE_REVIEW_TRANSITION_NOT_ALLOWED)"
       ],
-      "nextResumeAction": "다음 FULL 게이트 PASS 때 lastGate를 그 증거로 바꾸고 DONE",
+      "nextResumeAction": "완료(FULL PASS)",
       "detail": null
     },
     {
@@ -588,6 +586,58 @@
         "[후속] §8 B1·V1·B2~B5 이행(RECOVERY-ROADMAP 4단계) — 배치마다 리뷰·SCOPED 게이트·§7.4 캡처·§11 매핑표"
       ],
       "nextResumeAction": "§8 B1(토큰 편입, 화면 변화 0) 착수: 매핑표·픽셀/computed style 비교·SCOPED 게이트. DONE은 B1~B5 뒤 FULL PASS",
+      "detail": null
+    },
+    {
+      "id": "BUILD-MAC-001",
+      "title": "프런트엔드 빌드 darwin-arm64(Apple Silicon 맥) 지원",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "docs/MAC-SETUP.md §3, docs/repository/TECH-BASELINE.md §9 Node 행",
+      "allowedWritePaths": [
+        "build-logic/src/main/kotlin/paycore.frontend.gradle.kts",
+        "gradle/libs.versions.toml",
+        "docs/repository/TECH-BASELINE.md",
+        "docs/MAC-SETUP.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "TZ-BIND-gate3",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
+      },
+      "openItems": [
+        "[후속] 다른 호스트(Intel 맥·Linux arm64)는 frontendNodeVerify 실패 — 필요 시 같은 절차로 catalog 키 추가"
+      ],
+      "nextResumeAction": "완료(FULL PASS, 리뷰 REVIEW_PASS). 후속 없음",
+      "detail": null
+    },
+    {
+      "id": "TZ-BIND-001",
+      "title": "관리자 회복 선점(lockDue) 시각 바인딩이 JVM 시간대에 따라 밀리는 결함 수정",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "docs/repository/ARCHITECTURE-CONVENTIONS.md 시각 바인딩 행(LocalDateTime 바인딩은 JVM 기본 시간대 영향), 기존 회복 규칙(next_attempt_at ≤ now) — 정책 변경 없음",
+      "allowedWritePaths": [
+        "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaOwnerExecutionRepository.kt",
+        "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "TZ-BIND-gate3",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
+      },
+      "openItems": [
+        "[후속] 시험 중 TimeZone.setDefault — Kotest 병렬 실행을 켜면 재검토(현재 maxParallelForks=1, 스케줄러 비활성)"
+      ],
+      "nextResumeAction": "완료(FULL PASS, 리뷰 REVIEW_PASS, 변이 RED 확인). 후속 없음",
       "detail": null
     }
   ]
