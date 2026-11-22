@@ -1,9 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import type { RegistrationOutcome } from '../api/adminApi'
-import { ApiError } from '../api/client'
 import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
-import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
-import { codeOf, ERROR_MESSAGES } from '../errors/messages'
+import type { ConsoleErrorCode } from '../errors/errorCodes'
+import { ERROR_MESSAGES } from '../errors/messages'
+import { sendUnknownLocked, type SubmissionStatus } from '../lib/useUnknownLockedSubmission'
 import { Spinner } from './DataBits'
 import { ErrorNotice, StatusNotice, WarningNote } from './Notice'
 import { ActionButton } from './ActionButton'
@@ -13,9 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
  * 등록 단계 하나(MERCHANT-OPS-002 §4.2·§5.3 — 가맹점 등록 화면 ①~⑤와 조회 상세 B2-1 Revision 폼이 같이 쓴다): 제출·같은 submissionId 재전송·결과 불명 잠금·결과 표시.
  * 상태·보낸 입력은 호출자가 준 [ScreenMemory]에 둔다(탭 전환·폼 닫기에도 유지 — 브라우저 저장소 아님).
  */
-
-/** 결과를 확정하지 못한 응답 — 같은 submissionId로 다시 보내 확인한다. */
-const UNKNOWN_CODES: readonly ConsoleErrorCode[] = ['MASTER_OUTCOME_UNKNOWN', 'MASTER_RETRY_SAME_KEY', 'AUDIT_UNAVAILABLE', 'SERVER_ERROR']
 
 export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   BUSINESS_REGISTRATION_NUMBER_DUPLICATE: '이미 등록된 사업자등록번호입니다',
@@ -55,12 +52,8 @@ const messageOf = (code: ConsoleErrorCode) => REGISTRATION_MESSAGES[code] ?? ERR
 /** 기억 저장소 초기값(매 렌더 같은 참조). */
 const IDLE: StepStatus = { kind: 'idle' }
 
-export type StepStatus =
-  | { kind: 'idle' }
-  | { kind: 'busy' }
-  | { kind: 'decided'; outcome: RegistrationOutcome }
-  | { kind: 'failed'; code: ConsoleErrorCode }
-  | { kind: 'unknown'; code: ConsoleErrorCode }
+/** 단계 상태(공용 결과 불명 잠금 상태 — LOCK-UNIFY-001). */
+export type StepStatus = SubmissionStatus<RegistrationOutcome>
 
 /**
  * 저장 단계 하나의 명세(ADMIN-UI-MERCHANT-001): [RegistrationStep] 양식과 등록 마법사 "다음 단계 →"가 **같은** 제출 경로를 쓴다.
@@ -120,38 +113,14 @@ export const stepReference = (memory: ScreenMemory, memoryKey: string): string |
 
 /** [retrying] — 결과 불명으로 잠긴 뒤 같은 submissionId로 다시 보내는 중. 확정 성공이면 true. */
 export async function sendStep<P>(spec: StepSpec<P>, submissionId: string, payload: P, retrying: boolean): Promise<boolean> {
-  const { memory, memoryKey } = spec
-  const setPending = (value: { submissionId: string; payload: P } | null) => memory.write(`${memoryKey}.pending`, value)
-  const setStatus = (value: StepStatus) => memory.write(`${memoryKey}.status`, value)
-  setPending({ submissionId, payload })
-  setStatus({ kind: 'busy' })
-  try {
-    const outcome = await spec.api.send({ ...payload, submissionId })
-    setPending(null)
-    setStatus({ kind: 'decided', outcome })
-    if (outcome.outcome === 'SUCCEEDED' && outcome.reference) {
-      spec.onSucceeded(outcome.reference, payload)
-      return true
-    }
-    return false
-  } catch (e) {
-    const code = codeOf(e)
-    if (SESSION_ENDING.includes(code)) {
-      spec.onSessionEnded?.(code)
-      return false
-    }
-    // 재전송 중에는 409만 확정 — 그 밖의 오류(503 MASTER_BUSY·429·403 등)는 앞 요청 결과를 여전히 모르므로 잠금 유지(§5.3, 리뷰 M-1).
-    const conflict = e instanceof ApiError && e.status === 409
-    if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
-      // 결과 불명 — 같은 submissionId·같은 입력을 메모리에 그대로 둔다(잠금).
-      setStatus({ kind: 'unknown', code })
-      return false
-    }
-    // 확정된 실패(첫 제출의 MASTER 미호출 또는 409 결함 신호) — 다음 제출은 새 submissionId.
-    setPending(null)
-    setStatus({ kind: 'failed', code })
-    return false
+  // 공용 결과 불명 잠금(LOCK-UNIFY-001): 재전송 중에는 409만 확정 — 그 밖의 오류는 앞 요청 결과를 여전히 모르므로 잠금 유지(§5.3, 리뷰 M-1).
+  const result = await sendUnknownLocked(spec.memory, spec.memoryKey, { submissionId, payload }, retrying,
+    (pending) => spec.api.send({ ...pending.payload, submissionId: pending.submissionId }), spec.onSessionEnded)
+  if (result.kind === 'decided' && result.outcome.outcome === 'SUCCEEDED' && result.outcome.reference) {
+    spec.onSucceeded(result.outcome.reference, payload)
+    return true
   }
+  return false
 }
 
 /** 새 제출(입력 검사 → 새 submissionId). 잠겨 있으면 보내지 않는다. 확정 성공이면 true. */

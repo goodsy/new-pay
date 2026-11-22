@@ -22,6 +22,7 @@ import {
 import { defaultSubmissionId } from '../lib/registration'
 import { isRegistrationNumber } from '../lib/registrationNumber'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
+import { sendUnknownLocked } from '../lib/useUnknownLockedSubmission'
 
 /**
  * 사업자 등록·수정 폼(BUSINESS-PROFILE-001 §8.3 — BIZ-4, 기존 BusinessRegistrationScreen 교체 C-27). 섹션 1 사업자 기본 · 2 사업 내용 · 3 주소 · 4 대표자 · 5 사업체 연락 ·
@@ -31,7 +32,7 @@ import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/scr
  * - D-BIZ-005: 생성 모드 번호 칸 아래·저장 버튼 근처에 "저장 후 변경할 수 없습니다"(확인 대화상자 없음). 수정 모드 번호는 읽기 전용(마스킹 — TBD-04).
  * - D-BIZ-003: "중복 확인"은 번호 조회 API(감사·버킷 1회 — 안내일 뿐, 권위는 저장 시 DB). 번호가 바뀌면 결과 즉시 무효. 저장 시 중복이면 같은 안내(기존 상호·마스킹 번호·상세 보기).
  * - 평문 번호는 화면 자체 상태(보낸 즉시 비움 — 화면 전환에도 남지 않음). 재전송할 payload만 [memory]에(기존 리뷰 MINOR-2 규칙).
- * - 결과 불명(503 MASTER_RETRY_SAME_KEY·MASTER_OUTCOME_UNKNOWN·AUDIT_UNAVAILABLE)은 폼 잠금 + 같은 submissionId·같은 본문 재전송(기존 RegistrationStep 규칙 — 재전송 중에는 409만 확정).
+ * - 결과 불명(공용 `UNKNOWN_CODES` — lib/useUnknownLockedSubmission)은 폼 잠금 + 같은 submissionId·같은 본문 재전송(공용 [sendUnknownLocked] 규칙 — 재전송 중에는 409만 확정).
  *   문구는 code별로 다르다(BIZ-3 리뷰 3). MASTER_BUSY(첫 전송)는 처리 안 됨 — 잠그지 않는다.
  * - 성공하면 [onSaved](reference) — 호출자가 상세를 다시 읽는다(C-18: 성공 응답에 상태·version이 없다). 사업자 ID(biz_)는 그리지 않는다(D-ADMIN-UI-004 ③).
  * - ADMIN-UI-WORKSPACE-001(WS8 — "모양만", [workspace]): 사업자 등록 탭(MenuCard flush)에서는 참고 시안 구성 — .mapnote(h2 + 설명) → .cardnote(필수 안내) →
@@ -85,8 +86,6 @@ type DupCheck = { kind: 'free' } | { kind: 'taken'; item: BusinessLookupItem } |
 
 const IDLE: CommandStatus = Object.freeze({ kind: 'idle' })
 const NO_ERRORS: Readonly<Record<string, string>> = Object.freeze({})
-/** 결과를 확정하지 못한 응답 — 같은 submissionId로 다시 보내 확인한다(RegistrationStep과 같다). */
-const UNKNOWN_CODES: readonly ConsoleErrorCode[] = ['MASTER_OUTCOME_UNKNOWN', 'MASTER_RETRY_SAME_KEY', 'AUDIT_UNAVAILABLE', 'SERVER_ERROR']
 const RESEND = '"같은 내용 다시 보내기"'
 /** 결과 불명 문구(BIZ-3 리뷰 3 — code별 구분). */
 const UNKNOWN_MESSAGES: Partial<Record<ConsoleErrorCode, string>> = {
@@ -165,33 +164,21 @@ export function BusinessProfileFormScreen({
 
   const send = async (next: Pending, retrying: boolean) => {
     setConfirmAbandon(false)
-    setPending(next)
-    setStatus({ kind: 'busy' })
-    try {
-      const outcome = await call(next.kind, next.payload)
+    // 공용 결과 불명 잠금(LOCK-UNIFY-001 — `cmd.status`·`cmd.pending`): 재전송 중에는 409만 확정.
+    const result = await sendUnknownLocked(memory, key('cmd'), next, retrying, (p) => call(p.kind, p.payload), onSessionEnded)
+    if (result.kind === 'decided') {
+      const { outcome } = result
       if (outcome.outcome === 'SUCCEEDED' && outcome.reference) {
         clearAll()
         onSaved(outcome.reference)
         return
       }
-      setPending(null)
-      setStatus({ kind: 'decided', outcome })
       if (outcome.rejection === 'BUSINESS_CHANGE_REASON_REQUIRED') {
         setReasonForced(true)
         setErrors({ reason: 'REQUIRED' })
       }
-    } catch (e) {
-      const code = codeOf(e)
-      if (SESSION_ENDING.includes(code)) {
-        onSessionEnded?.(code)
-        return
-      }
-      const conflict = e instanceof ApiError && e.status === 409
-      if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
-        setStatus({ kind: 'unknown', code })
-        return
-      }
-      setPending(null)
+    } else if (result.kind === 'failed') {
+      const { code, error: e } = result
       if (code === 'INVALID_INPUT' && e instanceof ApiError && e.fieldErrors) {
         // 리뷰 NIT-1: 칸이 없는 path — 담당자 기본 지정은 담당자 묶음 오류로, 사유는 사유 칸을 강제로 보인다(그 밖은 일반 문구 — [unshownErrors]).
         const map: Record<string, string> = { ...fieldErrorMap(e.fieldErrors, next.sentForm) }
@@ -204,7 +191,6 @@ export function BusinessProfileFormScreen({
         if (map.reason) setReasonForced(true)
         setErrors(map)
       }
-      setStatus({ kind: 'failed', code })
     }
   }
 

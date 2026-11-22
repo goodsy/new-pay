@@ -800,6 +800,8 @@ export function MerchantsScreen({
                     }}
                     onSessionEnded={onSessionEnded}
                     newSubmissionId={newSubmissionId}
+                    // LOCK-UNIFY-001: 1인 명령 결과 불명 잠금은 App의 가맹점 조회 메모리에(상세 닫기·탭 전환에도 유지, 세션 경계 hasUnresolvedRequest).
+                    memory={revisionMemory}
                   />
                 )}
               />

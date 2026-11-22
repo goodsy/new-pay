@@ -556,7 +556,7 @@
         "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
       },
       "openItems": [
-        "[후속] useOneShot 상태가 컴포넌트 useState라 상세를 닫거나 탭을 옮기면 결과 불명·submissionId가 사라지고 hasUnresolvedRequest에도 안 잡힘 → RECOVERY-ROADMAP 2-1 공통 hook(ScreenMemory) 통합(6단계). 서버가 중복 효과는 막음(ACTIVATION_DUPLICATE·SITE_REVIEW_TRANSITION_NOT_ALLOWED)"
+        "[후속] 상태 유실 문제는 LOCK-UNIFY-001에서 해결"
       ],
       "nextResumeAction": "완료(FULL PASS)",
       "detail": null
@@ -638,6 +638,35 @@
         "[후속] 시험 중 TimeZone.setDefault — Kotest 병렬 실행을 켜면 재검토(현재 maxParallelForks=1, 스케줄러 비활성)"
       ],
       "nextResumeAction": "완료(FULL PASS, 리뷰 REVIEW_PASS, 변이 RED 확인). 후속 없음",
+      "detail": null
+    },
+    {
+      "id": "LOCK-UNIFY-001",
+      "title": "관리자 화면 결과 불명 잠금 3벌을 공용 hook 하나로 통합(ScreenMemory 기반)",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "ONESHOT-LOCK-001"
+      ],
+      "spec": "docs/assessment/RECOVERY-ROADMAP.md 2-1, docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §4.2·§5.3",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "LOCKU-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/LOCK-UNIFY-001-2026-11-22T124110Z.json"
+      },
+      "openItems": [
+        "구현·독립 리뷰 REVIEW_PASS(MINOR-2·NIT-3 반영, MINOR-1은 git 대조로 동작 동일 확인 — 옛 3벌 모두 SERVER_ERROR 포함). 기존 시험 무수정",
+        "결정(Coordinator, 가역·안전 방향): 결과 불명 뒤 상세가 이미 결정된 것처럼 보여도 잠금 유지 — §5.3 결과는 200/409로만. 세션 동안 로그인 안내가 남음",
+        "[후속] 리뷰 MINOR-3: 같은 세션에서 개통 처리→해지 뒤 첫 '개통 등록'이 옛 submissionId replay(이중 효과 없음) — 결제수단별 one-shot 분리 때 정리",
+        "[후속] 리뷰 NIT-1·2: Site 거절 잠금이 MID별 영역 간 공유(표시만), 다른 Site 거절 차단 유지 여부는 화면 결정"
+      ],
+      "nextResumeAction": "SCOPED PASS·main 반영 완료. DONE은 다음 FULL PASS 뒤(HARNESS-GUIDE §11)",
       "detail": null
     }
   ]

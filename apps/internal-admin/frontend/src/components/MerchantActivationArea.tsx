@@ -1,11 +1,12 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import type { AdminApi, MerchantDetail, RegistrationOutcome } from '../api/adminApi'
-import { ApiError } from '../api/client'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
-import { PAYMENT_METHODS } from '../lib/paymentMethods'
+import { PAYMENT_METHODS, type PaymentMethodCode } from '../lib/paymentMethods'
 import { CURRENCIES, kstTomorrowOf, nextKstDate, type EffectiveFromMode } from '../lib/currencies'
+import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
+import { isLocked, submissionStatusOf, useUnknownLockedSubmission, type SubmissionStatus } from '../lib/useUnknownLockedSubmission'
 import { EVIDENCE_REF } from './ContractApprovalRequest'
 import { EmptyRow, Field, KstTime, StatusBadge } from './DataBits'
 import { ErrorNotice, WarningNote } from './Notice'
@@ -188,46 +189,31 @@ function CurrencyRequest({ api, merchantId, account, now, onRequested, onSession
   )
 }
 
-/** 결과 불명(같은 submissionId로 다시 보내 확인) 응답 code. */
-const UNKNOWN_CODES: readonly ConsoleErrorCode[] = ['MASTER_OUTCOME_UNKNOWN', 'MASTER_RETRY_SAME_KEY', 'AUDIT_UNAVAILABLE', 'SERVER_ERROR']
-
 const defaultSubmissionId = () => crypto.randomUUID().replace(/-/g, '')
 
 /** 1인 명령 상태(제출 단위 submissionId — 결과 불명이면 같은 값으로 재전송, 결정되면 다음 제출은 새 값). */
-type OneShot = { kind: 'idle' } | { kind: 'busy' } | { kind: 'decided'; outcome: RegistrationOutcome } | { kind: 'failed'; code: ConsoleErrorCode } | { kind: 'unknown'; code: ConsoleErrorCode }
+type OneShot = SubmissionStatus<RegistrationOutcome>
 
-function useOneShot(newSubmissionId: () => string, onSessionEnded?: (code: ConsoleErrorCode) => void) {
-  const [status, setStatus] = useState<OneShot>({ kind: 'idle' })
-  const [submissionId, setSubmissionId] = useState<string | null>(null)
-  const run = async (send: (submissionId: string) => Promise<RegistrationOutcome>, onDecided?: (o: RegistrationOutcome) => void) => {
-    if (status.kind === 'busy') return // 리뷰 NIT-2: 보내는 중에는 두 번째 요청을 내지 않는다(RegistrationStep stepLocked와 같은 방어).
-    const retrying = status.kind === 'unknown' && submissionId !== null
-    const id = retrying ? submissionId : newSubmissionId()
-    setSubmissionId(id)
-    setStatus({ kind: 'busy' })
-    try {
-      const outcome = await send(id)
-      setStatus({ kind: 'decided', outcome })
-      setSubmissionId(null)
-      onDecided?.(outcome)
-    } catch (e) {
-      const code = codeOf(e)
-      if (SESSION_ENDING.includes(code) && onSessionEnded) {
-        onSessionEnded(code)
-        return
-      }
-      // MERCHANT-OPS-002 §4.2·§5.3(RegistrationStep.sendStep과 같은 규칙): 재전송 중에는 409만 확정 — 그 밖의 오류(503 MASTER_BUSY·429·403 등)는
-      // 앞 요청 결과를 여전히 모르므로 잠금과 같은 submissionId를 유지한다(재정비 4단계, RECOVERY-ROADMAP 2-2).
-      const conflict = e instanceof ApiError && e.status === 409
-      if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
-        setStatus({ kind: 'unknown', code })
-        return
-      }
-      setSubmissionId(null)
-      setStatus({ kind: 'failed', code })
-    }
-  }
-  return { status, run }
+/** 개통 1인 명령의 App 메모리 키(LOCK-UNIFY-001 — 상세를 닫거나 탭을 바꿔도 결과 불명 잠금·submissionId 유지, [hasUnresolvedRequest]가 본다). */
+const registerKey = (merchantAccountId: string) => `activation.${merchantAccountId}.register`
+const siteRejectKey = (merchantSiteId: string) => `activation.siteReject.${merchantSiteId}`
+
+/**
+ * 1인 명령 하나(MERCHANT-OPS-002 §4.2·§5.3 — 공용 [useUnknownLockedSubmission]): 상태·보낸 본문은 [memory]에.
+ * 화면이 사라질 때 잠기지 않은 지난 결과(결정·확정 실패)는 지운다 — 다시 열면 새로 시작(잠긴 결과만 남는다).
+ */
+function useOneShot<P>(memory: ScreenMemory, key: string, newSubmissionId: () => string, onSessionEnded?: (code: ConsoleErrorCode) => void) {
+  const shot = useUnknownLockedSubmission<P, RegistrationOutcome>(memory, key, newSubmissionId, onSessionEnded)
+  const { resetIfUnlocked } = shot
+  const resetRef = useRef(resetIfUnlocked)
+  resetRef.current = resetIfUnlocked
+  useEffect(() => () => resetRef.current(), [])
+  return shot
+}
+
+/** 결과 불명으로 잠긴 Site 거절(있으면 그 Site ID — 다시 열면 그 폼을 연다, 다른 Site 거절은 막는다). */
+function useLockedSiteReject(memory: ScreenMemory, siteIds: readonly string[]): string | null {
+  return useSyncExternalStore(memory.subscribe, () => siteIds.find((siteId) => isLocked(submissionStatusOf(memory, siteRejectKey(siteId)))) ?? null)
 }
 
 function OneShotResult({ status, success }: { status: OneShot; success: (reference: string) => string }) {
@@ -299,32 +285,32 @@ function EvidenceRequest({ name, evidenceLabel, hint, send, onRequested, onSessi
 }
 
 /** Site 1인 심사 거절(되돌릴 수 없음 — 사유 코드 선택, 근거 참조 선택, 확인 대화상자). */
-function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded, onLockedChange }: {
+type SiteRejectBody = { merchantSiteId: string; reasonCode: string; evidenceRef?: string }
+
+function SiteRejectForm({ api, site, memory, newSubmissionId, onDone, onSessionEnded }: {
   api: AdminApi
   site: Site
+  /** 결과 불명 잠금·보낸 본문을 둘 App 메모리(다른 Site 거절 열기 차단은 부모가 이 메모리로 본다 — 리뷰 MINOR-1). */
+  memory: ScreenMemory
   newSubmissionId: () => string
   onDone: () => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
-  /** 보내는 중·결과 불명 여부를 부모에 알린다(다른 Site 거절 열기 차단 — 리뷰 MINOR-1). */
-  onLockedChange?: (locked: boolean) => void
 }) {
-  const [reasonCode, setReasonCode] = useState(SITE_REJECT_REASONS[0]!.code)
-  const [evidenceRef, setEvidenceRef] = useState('')
+  const [reasonInput, setReasonCode] = useState(SITE_REJECT_REASONS[0]!.code)
+  const [evidenceInput, setEvidenceRef] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const { status, run } = useOneShot(newSubmissionId, onSessionEnded)
-  // §5.3: 보내는 중·결과 불명이면 입력을 잠근다 — 같은 submissionId 재전송은 같은 본문이어야 한다(바뀌면 409).
-  const inputLocked = status.kind === 'busy' || status.kind === 'unknown'
-  useEffect(() => {
-    onLockedChange?.(inputLocked)
-  }, [inputLocked, onLockedChange])
-  useEffect(() => () => onLockedChange?.(false), [onLockedChange])
+  const { status, pending, locked: inputLocked, run } = useOneShot<SiteRejectBody>(memory, siteRejectKey(site.merchantSiteId), newSubmissionId, onSessionEnded)
+  // §5.3: 보내는 중·결과 불명이면 입력을 잠근다 — 같은 submissionId 재전송은 같은 본문이어야 한다(바뀌면 409). 잠긴 동안은 보낸 본문을 보인다(다시 연 폼 포함).
+  const sent = inputLocked && pending !== null ? pending.payload : null
+  const reasonCode = sent ? sent.reasonCode : reasonInput
+  const evidenceRef = sent ? (sent.evidenceRef ?? '') : evidenceInput
   const evidenceOk = evidenceRef === '' || EVIDENCE_REF.test(evidenceRef)
   const dialogId = useId()
   const send = () => {
     setConfirming(false)
-    void run((submissionId) => api.rejectSiteReview({
-      submissionId, merchantSiteId: site.merchantSiteId, reasonCode, ...(evidenceRef === '' ? {} : { evidenceRef }),
-    }), (o) => { if (o.outcome === 'SUCCEEDED') onDone() })
+    void run({ merchantSiteId: site.merchantSiteId, reasonCode, ...(evidenceRef === '' ? {} : { evidenceRef }) },
+      (submissionId, body) => api.rejectSiteReview({ submissionId, ...body }),
+      (o) => { if (o.outcome === 'SUCCEEDED') onDone() })
   }
   return (
     <div className="flex flex-col gap-2" aria-label={`심사 거절 ${site.merchantSiteId}`} role="group">
@@ -366,7 +352,7 @@ function SiteRejectForm({ api, site, newSubmissionId, onDone, onSessionEnded, on
  * 결제수단(상태·등록자, "개통 등록" 1인 → "개통 승인 요청" 2인), Site 표(심사 상태·등록자, "심사 승인 요청" 2인·"심사 거절" 1인), Site 적용 확인 목록, 개통 점검표(참고용).
  * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 개통·Site 심사의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER; 승인함은 등록자에게 안내를 보인다).
  */
-export function MerchantActivationArea({ api, detail, account, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId }: {
+export function MerchantActivationArea({ api, detail, account, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected }: {
   api: AdminApi
   detail: MerchantDetail
   account: Account
@@ -378,13 +364,24 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
   onRequested: (approvalId: string, what: string) => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
   newSubmissionId?: () => string
+  /** 1인 명령 결과 불명 잠금·submissionId를 둘 App 메모리(LOCK-UNIFY-001 — 상세 닫기·탭 전환에도 유지). 없으면 이 영역 자체 메모리. */
+  memory?: ScreenMemory
 }) {
+  const [own] = useState(createScreenMemory)
+  const memory = injected ?? own
   const [requestFor, setRequestFor] = useState<string | null>(null)
   const [rejectFor, setRejectFor] = useState<string | null>(null)
-  const [rejectLocked, setRejectLocked] = useState(false)
-  const register = useOneShot(newSubmissionId, onSessionEnded)
-  /** 마지막으로 누른 개통 등록 수단(결과 불명 재전송 버튼 위치 — 리뷰 MINOR-2). */
-  const [registerMethod, setRegisterMethod] = useState<string | null>(null)
+  const register = useOneShot<{ paymentMethod: PaymentMethodCode }>(memory, registerKey(account.merchantAccountId), newSubmissionId, onSessionEnded)
+  /** 마지막으로 누른 개통 등록 수단(결과 불명 재전송 버튼 위치 — 리뷰 MINOR-2): 보낸 본문의 수단. */
+  const registerMethod = register.pending?.payload.paymentMethod ?? null
+  // 리뷰 MINOR-1: 결과 불명으로 잠긴 거절이 있으면 그 폼을 열어 두고(다시 연 상세 포함) 다른 Site 거절은 막는다 — 열 수 있는(actionable) Site 중에서만 본다.
+  const lockedReject = useLockedSiteReject(memory, detail.sites.filter((s) => s.lifecycle === 'ACTIVE' && (s.review === null || s.review.decision === 'SUSPENDED')).map((s) => s.merchantSiteId))
+  const rejectLocked = lockedReject !== null
+  const openReject = lockedReject ?? rejectFor
+  // 다시 연 잠긴 폼이 결정된 뒤에도 그 결과를 보이게 열린 폼으로 이어 둔다.
+  useEffect(() => {
+    if (lockedReject !== null) setRejectFor(lockedReject)
+  }, [lockedReject])
   const merchantId = detail.merchant.merchantId
   const pmPending = pendingIn(detail, APPROVAL_GROUPS.PM)
   const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
@@ -448,8 +445,8 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
               return (
                 <Button key={pm.code} type="button" variant="outline" size="sm" disabled={blocked} aria-busy={register.status.kind === 'busy' && registerMethod === pm.code}
                   onClick={() => {
-                    setRegisterMethod(pm.code)
-                    void register.run((submissionId) => api.registerPaymentMethodActivation({ submissionId, merchantAccountId: account.merchantAccountId, paymentMethod: pm.code }),
+                    void register.run({ paymentMethod: pm.code },
+                      (submissionId, { paymentMethod }) => api.registerPaymentMethodActivation({ submissionId, merchantAccountId: account.merchantAccountId, paymentMethod }),
                       (o) => { if (o.outcome === 'SUCCEEDED') onChanged() })
                   }}>
                   {unknownHere ? '같은 개통 등록 다시 보내기' : `개통 등록(${pm.label})`}
@@ -497,8 +494,8 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
                             <div><Button type="button" variant="outline" size="sm" onClick={() => setRequestFor(site.merchantSiteId)}>심사 승인 요청</Button></div>
                           )
                         )}
-                        {rejectFor === site.merchantSiteId ? (
-                          <SiteRejectForm api={api} site={site} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} onLockedChange={setRejectLocked} />
+                        {openReject === site.merchantSiteId ? (
+                          <SiteRejectForm api={api} site={site} memory={memory} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
                         ) : (
                           // 리뷰 MINOR-1: 열린 거절이 보내는 중·결과 불명이면 다른 Site 거절을 열 수 없다(열면 그 폼이 사라져 같은 submissionId 재전송을 잃는다).
                           <div><Button type="button" variant="ghost" size="sm" disabled={rejectLocked} onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
