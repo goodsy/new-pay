@@ -113,5 +113,6 @@ TECHNOLOGY-AND-PRINCIPLES.md가 필수 기술/8대 원칙 기준이다. TECH-001
   - `openItems`: 남은 일만 짧게. 끝난 일은 지운다(이력은 git).
   - `nextResumeAction`: 모든 task에 둔다. 다음 세션이 이것만 읽고 이어갈 수 있게 쓴다.
 - **과거 기록은 지우지 않는다.** 2026-11-20 이전 tasks.json(schemaVersion 1)과 progress.json은 `harness/archive/`에 원문 그대로 있다(파일 hash는 tasks.json `archive`). 수정하지 않는다.
+  - tasks.json이 100KB에 닿으면 DONE task를 `harness/archive/tasks-done-<날짜>.json`으로 원문 그대로 옮기고 hash를 `archive`에 더한다(첫 이동 2026-11-22, 53개). 옮긴 파일도 수정하지 않는다.
 - **명세**: 본문은 현재 유효한 규칙만 쓴다. 개정 이력은 파일 끝의 짧은 표나 git으로 둔다.
 - **커밋 메시지**: 첫 줄 한 줄 요약 + task ID. 본문은 바뀐 것 몇 줄과 결정 ID·증거 경로만 쓴다. 결정 전문·시험 수·단계별 시간을 반복하지 않는다.

@@ -4182,6 +4182,70 @@
       "humanAnswer": "SCODE-1 미완성 변경은 삭제하지 않는다. 현재 상태를 확인한 뒤 별도로 안전하게 보존한다.",
       "humanEvidence": "Claude Code 세션 사용자 메시지 'PayCore 재정비 의사결정 및 실행 지침' (2026-11-20, 원문 시각 불명)",
       "appliedSpec": "D-PROC-006"
+    },
+    {
+      "id": "Q-DS-1",
+      "status": "ANSWERED",
+      "question": "관리자 화면 스타일 정본(시안 workspace.css class vs shadcn/Tailwind)",
+      "recommended": "시안 class 하나",
+      "alternative": "shadcn/Tailwind 하나 / 둘 다 유지·역할 구분",
+      "impact": "스타일 체계 1개, workspace 분기 제거, components/ui 정리",
+      "dependentTasks": [
+        "ADMIN-DS-001"
+      ],
+      "askedAt": "2026-11-22",
+      "origin": "D-PROC-003 해제 조건, docs/assessment/FRONTEND-ASSESSMENT.md §4·§7",
+      "humanAnswer": "시안 class 하나 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 답 (2026-11-22, 재정비 5단계)",
+      "appliedSpec": "D-ADMIN-UI-008"
+    },
+    {
+      "id": "Q-DS-2",
+      "status": "ANSWERED",
+      "question": "시안 원본 수정 금지 해제 방식(D-PROC-003)",
+      "recommended": "디자인 시스템으로 편입(토큰화, 원본 대조·DOM 경로 단언을 역할·접근성 단언으로 전환, 원본은 참고자료로 보존, CSP·내부 키·금융 잠금 시험 유지)",
+      "alternative": "원본 블록 계속 동결, 적응 구역·컴포넌트 중복만 정리",
+      "impact": "구조 단언 시험 약 2,600줄 전환, 다크 hex 중복 제거",
+      "dependentTasks": [
+        "ADMIN-DS-001"
+      ],
+      "askedAt": "2026-11-22",
+      "origin": "D-PROC-003 해제 조건, docs/assessment/FRONTEND-ASSESSMENT.md §4·§7",
+      "humanAnswer": "디자인 시스템으로 편입 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 답 (2026-11-22, 재정비 5단계)",
+      "appliedSpec": "D-ADMIN-UI-008"
+    },
+    {
+      "id": "Q-DS-3",
+      "status": "ANSWERED",
+      "question": "원본 대조 시험을 없앤 뒤 시각 회귀 확인 방법",
+      "recommended": "정해진 폭(1440·1101·1100·721·720·390) × 라이트·다크 캡처 체크리스트(넘침·대비·style 속성·콘솔 오류 0), 새 도구 없음",
+      "alternative": "Playwright 스크린샷 자동 비교 도입(새 devDependency)",
+      "impact": "화면 변경 배치의 확인 절차",
+      "dependentTasks": [
+        "ADMIN-DS-001"
+      ],
+      "askedAt": "2026-11-22",
+      "origin": "D-PROC-003 해제 조건, docs/assessment/FRONTEND-ASSESSMENT.md §4·§7",
+      "humanAnswer": "정해진 폭 캡처 체크리스트 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 답 (2026-11-22, 재정비 5단계)",
+      "appliedSpec": "D-ADMIN-UI-008"
+    },
+    {
+      "id": "Q-DS-4",
+      "status": "ANSWERED",
+      "question": "캡처 6폭이 Tailwind 반응형 경계(640·768·1024, main 약 36곳)를 덮지 못함 — 처리 방법",
+      "recommended": "경계 폭 추가(1024·1023·768·767·640·639, 반응형 utility가 남아 있는 동안)",
+      "alternative": "B5에서 Tailwind 반응형 utility를 1100/720 경계로 통일(화면 배치 변경)",
+      "impact": "화면 변경 배치의 캡처 수 증가, 배치 무변경",
+      "dependentTasks": [
+        "ADMIN-DS-001"
+      ],
+      "askedAt": "2026-11-22",
+      "origin": "ADMIN-DS-001 rev 0.1 독립 리뷰 M4",
+      "humanAnswer": "경계 폭 추가 (Recommended)",
+      "humanEvidence": "Claude Code 세션 AskUserQuestion 답 (2026-11-22, 재정비 5단계)",
+      "appliedSpec": "D-ADMIN-UI-008"
     }
   ]
 }
