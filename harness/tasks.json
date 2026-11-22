@@ -558,7 +558,7 @@
       "openItems": [
         "수정: 재전송 중 409 아닌 오류에도 잠금·같은 submissionId 유지, 심사 거절 결과 불명 중 입력·다른 Site 거절 잠금, 보내는 중 재실행 방어(리뷰 REVIEW_PASS, MINOR-1·2·NIT-2 반영)",
         "SCOPED 게이트 PASS(INTERNAL-ADMIN·ADMIN-FRONTEND, 약 19분) — DONE은 다음 FULL PASS 뒤(HARNESS-GUIDE §11)",
-        "[후속] useOneShot 상태가 컴포넌트 useState라 상세를 닫거나 탭을 옮기면 결과 불명·submissionId가 사라지고 hasUnresolvedRequest에도 안 잡힘 → RECOVERY-ROADMAP 2-1 공통 hook(ScreenMemory) 통합(6단계). 서버가 중복 효과는 막음(ACTIVATION_DUPLICATE·SITE_REVIEW_TRANSITION_NOT_ALLOWED)"
+        "[후속] 상태 유실 문제는 LOCK-UNIFY-001에서 해결"
       ],
       "nextResumeAction": "다음 FULL 게이트 PASS 때 lastGate를 그 증거로 바꾸고 DONE",
       "detail": null
@@ -588,6 +588,31 @@
         "[후속] §8 B1·V1·B2~B5 이행(RECOVERY-ROADMAP 4단계) — 배치마다 리뷰·SCOPED 게이트·§7.4 캡처·§11 매핑표"
       ],
       "nextResumeAction": "§8 B1(토큰 편입, 화면 변화 0) 착수: 매핑표·픽셀/computed style 비교·SCOPED 게이트. DONE은 B1~B5 뒤 FULL PASS",
+      "detail": null
+    },
+    {
+      "id": "LOCK-UNIFY-001",
+      "title": "관리자 화면 결과 불명 잠금 3벌을 공용 hook 하나로 통합(ScreenMemory 기반)",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "ONESHOT-LOCK-001"
+      ],
+      "spec": "docs/assessment/RECOVERY-ROADMAP.md 2-1, docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §4.2·§5.3",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "구현·독립 리뷰 REVIEW_PASS(MINOR-2·NIT-3 반영, MINOR-1은 git 대조로 동작 동일 확인 — 옛 3벌 모두 SERVER_ERROR 포함). 기존 시험 무수정",
+        "결정(Coordinator, 가역·안전 방향): 결과 불명 뒤 상세가 이미 결정된 것처럼 보여도 잠금 유지 — §5.3 결과는 200/409로만. 세션 동안 로그인 안내가 남음",
+        "[후속] 리뷰 MINOR-3: 같은 세션에서 개통 처리→해지 뒤 첫 '개통 등록'이 옛 submissionId replay(이중 효과 없음) — 결제수단별 one-shot 분리 때 정리",
+        "[후속] 리뷰 NIT-1·2: Site 거절 잠금이 MID별 영역 간 공유(표시만), 다른 Site 거절 차단 유지 여부는 화면 결정"
+      ],
+      "nextResumeAction": "SCOPED 게이트 PASS → 커밋. DONE은 다음 FULL PASS 뒤(ONESHOT-LOCK-001과 함께)",
       "detail": null
     }
   ]
