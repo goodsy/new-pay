@@ -48,13 +48,14 @@ class JpaOwnerExecutionRepository(private val entityManager: EntityManager) : Ow
     /**
      * 회복 선점(§4.16, 관례 §16): native `FOR UPDATE SKIP LOCKED` — 승인 행(EXECUTING·EXECUTION_UNKNOWN) ⋈ 실행 행(`next_attempt_at ≤ now`)을 다음 시도 순으로 잠그고,
      * 다른 인스턴스가 잡은 행은 기다리지 않고 건너뛴다. 잠근 행은 이 TX 안에서 다시 읽어 `Versioned`로 돌려준다(`@Version`이 두 번째 방어).
+     * `now`는 `Instant` 그대로 바인딩한다(TZ-BIND-001): `LocalDateTime` 바인딩은 JVM 기본 시간대만큼 밀려 KST에선 늦게, 음수 offset에선 일찍 선점된다.
      */
     override fun lockDue(now: java.time.Instant, limit: Int): List<VersionedOwnerExecution> = translate {
         @Suppress("UNCHECKED_CAST")
         val ids = entityManager.createNativeQuery(
             "SELECT e.approval_id FROM admin_owner_execution e JOIN admin_approval_request r ON r.approval_id = e.approval_id " +
                 "WHERE r.status IN ('EXECUTING', 'EXECUTION_UNKNOWN') AND e.next_attempt_at <= ? ORDER BY e.next_attempt_at, e.approval_id LIMIT ? FOR UPDATE SKIP LOCKED",
-        ).setParameter(1, java.time.LocalDateTime.ofInstant(now, java.time.ZoneOffset.UTC)).setParameter(2, limit).resultList as List<String>
+        ).setParameter(1, now).setParameter(2, limit).resultList as List<String>
         ids.map { id ->
             val row = requireNotNull(entityManager.find(JpaOwnerExecutionEntity::class.java, id)) { "claimed execution row" }
             entityManager.refresh(row)
