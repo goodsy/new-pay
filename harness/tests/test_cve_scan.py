@@ -136,7 +136,31 @@ class CveScan(unittest.TestCase):
             cve_scan.check_tool(silent, hashlib.sha256(silent.read_bytes()).hexdigest())
 
     def test_registered_checksum_is_read_from_commands(self):
-        self.assertRegex(cve_scan.registered_osv_sha256(cve_scan.COMMANDS), r"^[0-9a-f]{64}$")
+        for key in ("linux-x64", "darwin-arm64"):
+            self.assertRegex(cve_scan.registered_osv_sha256(cve_scan.COMMANDS, key), r"^[0-9a-f]{64}$")
+
+    def test_checksums_differ_per_platform(self):
+        self.assertNotEqual(cve_scan.registered_osv_sha256(cve_scan.COMMANDS, "linux-x64"),
+                            cve_scan.registered_osv_sha256(cve_scan.COMMANDS, "darwin-arm64"))
+
+    def test_unregistered_platform_is_environment_error(self):
+        with self.assertRaises(cve_scan.ScanError):
+            cve_scan.registered_osv_sha256(cve_scan.COMMANDS, "windows-x64")
+
+    def test_host_platform_normalizes_arch(self):
+        self.assertEqual(cve_scan.host_platform("Linux", "x86_64"), "linux-x64")
+        self.assertEqual(cve_scan.host_platform("Linux", "amd64"), "linux-x64")
+        self.assertEqual(cve_scan.host_platform("LINUX", "AMD64"), "linux-x64")
+        self.assertEqual(cve_scan.host_platform("Linux", "aarch64"), "linux-arm64")
+        self.assertEqual(cve_scan.host_platform("Darwin", "arm64"), "darwin-arm64")
+
+    def test_missing_or_legacy_checksum_table_is_environment_error(self):
+        """표가 비었거나 옛 단일 sha256 필드만 있으면 다른 값으로 넘어가지 않고 ScanError(exit 3)로 닫힌다."""
+        for tool in ({"sha256ByPlatform": {}}, {"sha256": "0" * 64}):
+            commands = self.dir / "commands.json"
+            commands.write_text(json.dumps({"commands": [{"id": "CVE-SCAN", "externalTool": tool}]}), encoding="utf-8")
+            with self.assertRaises(cve_scan.ScanError):
+                cve_scan.registered_osv_sha256(commands, "linux-x64")
 
     def run_generate_sboms(self, create_sboms: bool) -> list[list[str]]:
         """generate_sboms를 임시 ROOT에서 실행하고 gradle argv를 기록한다(실제 gradle·저장소 build/는 건드리지 않는다)."""

@@ -17,7 +17,7 @@
 | Fixture Monkey (`fixture-monkey-kotlin`, 테스트 전용) | 1.2.3 | CP-DB-001(2026-10-07 Maven Central 최신 GA). Boot BOM 밖이라 catalog 고정. kotlin-reflect/stdlib는 BOM 2.3.21로 정렬. 전이 의존 jqwik 1.7.3·rgxgen 1.4는 testRuntimeClasspath에만 있고 값 생성에 jqwik 구현 모듈이 필요하다(엔진 모듈 제외 시 NoClassDefFoundError). jqwik JUnit 엔진은 payment-api test에서 `excludeEngines("jqwik")`. runtimeClasspath 유입은 `verifyRuntimeHasNoTestTools`가 check에서 차단, Instancio는 `verifyNoInstancio`가 차단 |
 | MySQL (Testcontainers/compose) | 8.4.11 | 사용자 확정 8.4 LTS 중 Docker Hub 최신 patch |
 | CycloneDX Gradle plugin | 3.4.1 | 실행 단위별 runtime SBOM(`cyclonedxDirectBom`, runtimeClasspath만) |
-| osv-scanner (저장소 밖 도구) | 2.6.0, SHA-256 `ca69b3d3…b108` | `~/.local/bin`, 공식 SHA256SUMS로 검증 설치. `harness/scripts/cve-scan.py`가 SBOM을 검사 |
+| osv-scanner (저장소 밖 도구) | 2.6.0, 플랫폼별 SHA-256: linux-x64 `ca69b3d3…b108`, darwin-arm64 `98c460dc…56b4` (`commands.json` CVE-SCAN `externalTool.sha256ByPlatform`, MAC-OSV-001) | `~/.local/bin`, 공식 SHA256SUMS로 검증 설치. 등록 없는 플랫폼은 ENVIRONMENT(exit 3). `harness/scripts/cve-scan.py`가 SBOM을 검사 |
 
 Modulith는 runtime에 `spring-modulith-api`만 둔다. 구조 검증용 `spring-modulith-core`(ArchUnit 포함)는 테스트(`spring-modulith-starter-test`)에만 있다. 이전 `starter-core`는 ArchUnit 1.4.2를 운영 runtime에 넣었다(TECH-001 Verifier 지적).
 

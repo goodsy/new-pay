@@ -66,6 +66,12 @@ org.gradle.jvmargs=-Xmx3g -XX:+UseG1GC -XX:G1PeriodicGCInterval=30000 -XX:MinHea
 - 선택: `paycore.testMaxHeap`(기본 `1g`, 예 `1536m`)은 이 맥에서도 올리지 않았다.
 - 측정할 때는 Demo 앱을 멈춘다(`bash ~/paycore-demo/app.sh stop all`).
 
+## 3-3. CVE 검사 도구 osv-scanner (MAC-OSV-001)
+
+- CVE-SCAN(`python3 harness/scripts/cve-scan.py`)은 `~/.local/bin/osv-scanner` 바이너리의 SHA-256을 `harness/commands.json` CVE-SCAN `externalTool.sha256ByPlatform`의 이 호스트 값(`darwin-arm64`)과 대조한다. 등록이 없는 플랫폼이면 ENVIRONMENT(exit 3)다.
+- 설치: v2.6.0 릴리스에서 `osv-scanner_darwin_arm64`와 `osv-scanner_SHA256SUMS`를 받아 `shasum -a 256`이 SUMS의 해당 줄과 같은지 확인한 뒤 `install -m 755 … ~/.local/bin/osv-scanner`.
+- 버전을 올리면 플랫폼마다 새 SHA를 SUMS에서 확인해 표를 함께 갱신한다.
+
 ## 4. 저장소 밖에 있던 것 (git에 없음)
 
 | WSL 위치 | 내용 | 옮기는 방법 |

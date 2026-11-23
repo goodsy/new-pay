@@ -705,22 +705,34 @@
     {
       "id": "MAC-OSV-001",
       "title": "맥(darwin-arm64)용 osv-scanner 설치·체크섬 등록 — CVE-SCAN 복구",
-      "status": "BACKLOG",
+      "status": "DONE",
       "phase": "PROCESS",
       "owner": "Coordinator",
       "dependsOn": [],
       "spec": "harness/scripts/cve-scan.py, harness/commands.json CVE-SCAN",
       "allowedWritePaths": [
         "harness/commands.json",
+        "harness/scripts/cve-scan.py",
+        "harness/tests/test_cve_scan.py",
         "docs/MAC-SETUP.md",
-        "docs/repository/TECH-BASELINE.md"
+        "docs/repository/TECH-BASELINE.md",
+        "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "MACOSV-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/MAC-OSV-001-2026-11-23T120409Z.json"
+      },
       "openItems": [
-        "2026-11-23 FLAKY-FIX-001 DONE 때 CVE-SCAN ENVIRONMENT: osv-scanner not installed at ~/.local/bin (WSL 시절 linux-x64 바이너리 SHA만 등록)"
+        "2026-11-23 FLAKY-FIX-001 DONE 때 CVE-SCAN ENVIRONMENT: osv-scanner not installed at ~/.local/bin (WSL 시절 linux-x64 바이너리 SHA만 등록)",
+        "설치(2026-11-23): 공식 v2.6.0 osv-scanner_darwin_arm64 SHA-256 98c460dc…56b4 = osv-scanner_SHA256SUMS 항목, 같은 SUMS의 linux_amd64 = 기존 등록값 ca69b3d3…b108(일치) → ~/.local/bin/osv-scanner",
+        "설계: externalTool.sha256(단일) → sha256ByPlatform {linux-x64, darwin-arm64}; 등록 없는 플랫폼은 ScanError(ENVIRONMENT, exit 3)",
+        "CVE-SCAN 실행 PASS(2026-11-23, ~/gate-logs/MACOSV-cve1.log): 5모듈 canary 8·프론트 2 canary 5 검출, 취약점 0. 독립 리뷰 REVIEW_PASS — MINOR 2(commands.json purpose·technology-baseline.json 문구)·NIT 2(빈 표/옛 필드·정규화 경계 시험) 반영",
+        "MACOSV-gate1 FAIL: HARNESS-SELFTEST minTests 258 != 실제 시험 수(시험 추가) → minTests 262(시험 4+1 추가 후 실제 262, 기준 규칙 '하한 = 실제 수' 그대로)",
+        "완료: MACOSV-gate2 FULL PASS(fp 8e3647a5…, GRADLE-CHECK 6m06s, Kotlin 5120/FE 712, harness 262, 실패·skip 0) + CVE-SCAN 재실행 PASS(~/gate-logs/MACOSV-cve2.log, cve_exit=0)"
       ],
-      "nextResumeAction": "공식 릴리스 darwin-arm64 바이너리 + SHA256SUMS 검증 설치 → commands.json에 SHA 추가 → CVE-SCAN 실행",
+      "nextResumeAction": "완료",
       "detail": null
     },
     {
@@ -748,7 +760,7 @@
         "기준선: FLAKY-gate1..3 GRADLE-CHECK 11m38s/11m32s/11m39s (DB test JVM 1, workers 4, test heap 1g, daemon 2g)",
         "설계: 저장소 기본값(1개 직렬)은 그대로, gradle 속성(예: paycore.dbTestJvmSlots)으로만 상향 — 맥은 ~/.gradle/gradle.properties(저장소 밖). 시험·판정 기준·timeout 불변",
         "구현: build-logic BuildConcurrency(paycore.dbTestJvmSlots/kotlinCompileSlots/testMaxHeap, 기본 1/1/1g, 잘못된 값 거부, 비기본이면 'paycore concurrency:' 로그 1줄) + BuildConcurrencySpec 23건. 이 맥 ~/.gradle/gradle.properties: dbTestJvmSlots=3, kotlinCompileSlots=2, workers.max=6, daemon -Xmx3g. 측정(fp 152f9a10…): 기본 701s, slots2 492s, 채택안 367~374s, slots5 355s, swap 0. 독립 리뷰 REVIEW_PASS(MINOR-1~3·NIT-1~3 반영)",
-        "완료 기준 충족(fp c2e49b9b…, Kotlin 5120/FE 712, 실패·skip 0): 상향 설정 PERF-gate1..3 PASS — GRADLE-CHECK 6m17s/6m16s/6m15s(…083108Z/083841Z/084614Z, 로그에 'paycore concurrency' 1줄) + 기본값 경로 PERF-gate-default PASS 11m37s(…085346Z, 사용자 속성 파일 치움, 로그 0줄). 기준선 FLAKY-gate 11m32s~11m39s. CVE-SCAN 미실행(의존성 변경 없음, MAC-OSV-001)",
+        "완료 기준 충족(fp c2e49b9b…, Kotlin 5120/FE 712, 실패·skip 0): 상향 설정 PERF-gate1..3 PASS — GRADLE-CHECK 6m17s/6m16s/6m15s(…083108Z/083841Z/084614Z, 로그에 'paycore concurrency' 1줄) + 기본값 경로 PERF-gate-default PASS 11m37s(…085346Z, 사용자 속성 파일 치움, 로그 0줄). 기준선 FLAKY-gate 11m32s~11m39s. CVE-SCAN 미실행(의존성 변경 없음) → MAC-OSV-001 이후 2026-11-23 CVE-SCAN PASS",
         "[후속] 저장소 gradle.properties 주석에 '호스트별 상향은 TECH-BASELINE §7.3' 안내(리뷰 MINOR-2, 이번 허용 경로 밖)"
       ],
       "nextResumeAction": "완료",

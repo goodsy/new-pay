@@ -57,7 +57,7 @@
     "ref": "docs/repository/TECH-BASELINE.md §1.1"
   },
   "sbom": "CycloneDX gradle plugin 3.4.1 (runtimeClasspath)",
-  "vulnerabilityScanner": "osv-scanner 2.6.0 (~/.local/bin, sha256 ca69b3d3…b108)",
+  "vulnerabilityScanner": "osv-scanner 2.6.0 (~/.local/bin, sha256 by platform: linux-x64 ca69b3d3…b108, darwin-arm64 98c460dc…56b4 — commands.json CVE-SCAN externalTool.sha256ByPlatform)",
   "runtimeUnits": [
     "apps/payment-api (PAYMENT)",
     "apps/financial-batch (FINANCIAL)",
