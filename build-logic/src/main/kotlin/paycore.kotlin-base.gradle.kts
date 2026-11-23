@@ -39,9 +39,11 @@ configurations.matching { it.name == "testCompileClasspath" || it.name == "testR
 // - 실행 단위(apps/*)의 Test task(test JVM + 그 MySQL 컨테이너): 한 번에 하나 — paycore.kotlin-app의 paycoreDbTestJvmSlots. 두 개를 겹치면
 //   WSL 7.8GB에서 가용 메모리가 바닥난다(실측). DB 없는 libs/* 시험(컨테이너 없음, 작은 JVM)은 이 상한에 묶지 않는다.
 // - Kotlin 컴파일: in-process(Gradle daemon heap -Xmx2g 안)이므로 한 번에 하나. 여러 모듈을 동시에 컴파일하면 daemon heap이 모자랄 수 있다.
-val kotlinCompileSlots = gradle.sharedServices.registerIfAbsent("paycoreKotlinCompileSlots", com.paycore.buildlogic.ExclusiveSlots::class) {
-    maxParallelUsages = 1
-}
+// 두 상한과 test JVM heap은 저장소 기본값(위 값)을 두고, 메모리가 큰 호스트만 저장소 밖 ~/.gradle/gradle.properties의 paycore.dbTestJvmSlots·
+// paycore.kotlinCompileSlots·paycore.testMaxHeap으로 올린다(BUILD-PERF-MAC-001, BuildConcurrency — 잘못된 값은 빌드 실패). kotlinCompileSlots를
+// 올리면 org.gradle.jvmargs -Xmx도 같은 곳에서 함께 올린다.
+val kotlinCompileSlots = com.paycore.buildlogic.BuildConcurrency.registerKotlinCompileSlots(gradle, providers)
+val testMaxHeap = com.paycore.buildlogic.BuildConcurrency.testMaxHeap(providers)
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach { usesService(kotlinCompileSlots) }
 
 tasks.withType<Test>().configureEach {
@@ -50,10 +52,10 @@ tasks.withType<Test>().configureEach {
     failOnNoDiscoveredTests = true
     // 메모리 상한(MASTER-BOOT-001·TEST-PERF-001, 측정 근거: docs/repository/TECH-BASELINE.md §7). 모듈마다 test JVM 하나만 쓰고(병렬 fork 없음 —
     // DB 시험은 Spring 컨텍스트마다 MySQL 컨테이너를 띄우므로 fork를 늘리면 컨테이너도 늘어난다), heap 상한을 JVM 기본값(물리 메모리의 1/4)
-    // 대신 고정한다. 모듈 병렬 실행 중에도 DB test JVM은 paycore.kotlin-app의 상한으로 한 번에 하나다. 실행되는 시험·판정 기준은 바뀌지 않는다.
+    // 대신 고정한다(기본 1g, 호스트별 paycore.testMaxHeap). 모듈 병렬 실행 중 DB test JVM 동시 수는 paycore.kotlin-app의 상한(기본 1)이다. 실행되는 시험·판정 기준은 바뀌지 않는다.
     // Testcontainers 재사용(withReuse)은 쓰지 않는다(매 실행 새 컨테이너).
     maxParallelForks = 1
-    maxHeapSize = "1g"
+    maxHeapSize = testMaxHeap
 }
 
 // ---------------------------------------------------------------------------------------------

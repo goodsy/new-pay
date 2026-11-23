@@ -184,6 +184,50 @@ GRADLE-CHECK가 timeout 2400초에 걸려(같은 기계 기준 측정 42m59s) �
 | 동시 컨테이너 최대(ryuk·codegen 포함) | 6 | 9 |
 | 시험 수(Kotlin/Vitest) | 3,212 / 66 | 3,220 / 66 |
 
+#### 호스트별 병렬도 속성 (BUILD-PERF-MAC-001, 2026-11-23)
+
+위 표의 1·1·1g는 WSL 7.8GB에서 측정한 **저장소 기본값**이고 그대로다(메모리 작은 PC·CI 안전). 메모리가 큰 호스트만 저장소 밖
+`~/.gradle/gradle.properties`(GRADLE_USER_HOME — 프로젝트 `gradle.properties`보다 우선)에 아래 속성을 둬 올린다. 스케줄과 test JVM heap만 바뀐다 —
+GRADLE-CHECK argv·timeout·시험·판정 기준·`commands.json`·`verify-gate`·`frontendTest mustRunAfter generateJooq*` 순서 제약은 같다.
+읽는 곳은 build-logic `com.paycore.buildlogic.BuildConcurrency` 하나다(`paycore.kotlin-base`·`paycore.kotlin-app`·`paycore.frontend`가 같은 이름의
+`ExclusiveSlots`를 모두 이 함수로 등록 — 먼저 등록된 쪽과 관계없이 같은 값). 잘못된 값(숫자 아님·0 이하·단위 없는 heap)은 기본값으로 바꾸지 않고
+빌드를 실패시킨다(`BuildConcurrencySpec`).
+
+| 속성 | 기본값 | 이 맥 권장값 | 대상 |
+|---|---|---|---|
+| `paycore.dbTestJvmSlots` | 1 | 3 | 실행 단위(apps) Test task(test JVM + 그 MySQL 컨테이너) 동시 수 |
+| `paycore.kotlinCompileSlots` | 1 | 2 | in-process Kotlin 컴파일 동시 수(daemon heap 공유 — 올리면 `-Xmx`도 올린다) |
+| `paycore.testMaxHeap` | `1g` | 지정 안 함(1g) | 모든 Test task `maxHeapSize`(형식 `1536m`/`2g`) |
+| `org.gradle.workers.max`(Gradle 표준) | 4(저장소) | 6 | Gradle worker 수 |
+| `org.gradle.jvmargs`(Gradle 표준) | `-Xmx2g …`(저장소) | `-Xmx3g` + 저장소의 나머지 옵션 그대로 | 이 속성은 저장소 값을 통째로 대신한다 — 단일 사용 daemon이 `-Xmx3g`로 뜬 것을 확인 |
+
+사용자 홈 `org.gradle.jvmargs`는 저장소 값을 통째로 대체한다 — 저장소 `gradle.properties`의 jvmargs를 바꾸는 작업은 이 표와 각 호스트의
+`~/.gradle/gradle.properties`를 함께 갱신한다. 상향 설정이면 빌드 시작 때 `paycore concurrency: dbTestJvmSlots=… kotlinCompileSlots=… testMaxHeap=…`
+한 줄이 찍힌다(기본값이면 없음).
+
+측정(이 맥: Apple Silicon 12코어·32GB, OrbStack Docker VM 16GB·12 CPU, Demo JVM 정지·Demo MySQL 2개 실행 중, GRADLE-CHECK argv 그대로,
+약 5초 간격 표본 — `memory_pressure` free %·`vm_stat` active+wired+compressed·java RSS 합·`GradleWorkerMain` 수(libs 시험 포함)·`docker ps` 수(Demo 2개 포함)·
+10초 `docker stats` 합; 측정 전 호스트 사용량 약 17.1GB(다른 앱 포함). fingerprint `sha256:152f9a10…`(측정 전후 동일), 로그 `~/gate-logs/build-perf-mac/`):
+
+| 구성 | GRADLE-CHECK | 결과·시험 실패 | free % 최저 | 사용 최대 | java RSS 합 최대 | test JVM 최대 | 컨테이너 최대 | docker 메모리 최대 | load 최대 |
+|---|---|---|---|---|---|---|---|---|---|
+| 기준선 FLAKY-gate1..3(verify-gate, 기본값) | 698s / 692s / 699s | PASS | (표본 없음) | | | | | | |
+| default1(기본값, 표본 포함) | 701s | 0 / 실패 0 | 73 | 17.8GB | 3.8GB | 2 | 11 | 3.7GB | 23 |
+| A: slots 2 | 492s | 0 / 실패 0 | 75 | 19.9GB | 5.0GB | 2 | 13 | 4.6GB | 20 |
+| **B: slots 3·compile 2·workers 6·Xmx3g(채택)** | **374s / 367s / 373s** | 0 / 실패 0(3회) | 67~70 | 20.7~21.2GB | 6.3~6.8GB | 3 | 16~17 | 5.5~5.7GB | 22~27 |
+| C: slots 5·compile 3·workers 8·Xmx4g | 355s | 0 / 실패 0 | 67 | 21.1GB | 6.7GB | 5 | 17 | 6.1GB | 38 |
+
+- 모든 실행에서 swap-out 증가 0, 시험 보고서 합계·실패 0·skip 0이 같았다(시험 수 불변).
+- B를 고른 이유: 기준 대비 약 −47%(약 11m40s → 6m10s). C는 B보다 약 15~20초(5%)만 빠르면서 test JVM 5개·load 38로 시간 민감 시험(Vitest 기본
+  timeout 5초 — GATE-LOAD-001)의 여유를 더 깎는다. 벽시계는 가장 긴 모듈(payment-api 시험)이 정하므로 슬롯을 더 올려도 이득이 작다.
+- 슬롯을 2 이상으로 올리면 `frontendTest`는 남은 슬롯만큼 컴파일·DB test JVM과 겹칠 수 있다(Gradle 공유 서비스는 가중치가 없다). B·C 측정에서
+  Vitest 최장 시험은 약 1.1초였다. 메모리·CPU가 작은 호스트에서 이 속성을 올릴 때는 그 호스트에서 다시 측정한다.
+- JVM 벽시계 단언(예: `AdminReadIsolationSpec`의 `busyMillis < 200`·`allHeld.await` 10초·p95 < 30초)은 병렬 test JVM·높은 load에서 여유가 줄어든다.
+- `ServerSocket(0)`으로 받은 포트를 닫은 뒤 "닫힌 포트"로 쓰는 시험(`SimulatorVanAuthorizationAdapterSpec` 등)은 동시에 도는 test JVM 수만큼
+  다른 프로세스가 그 포트를 다시 잡을 확률이 커진다.
+- 처리 규칙: 상향 설정에서 이 계열이 실패하면 timeout·단언을 바꾸지 않고 기본값(속성 없음 — `~/.gradle/gradle.properties`의 `paycore.*` 줄 제거)으로
+  재실행해 원인(병렬도 vs 시험·코드)을 구분한다.
+
 ### 7.4 GRADLE-CHECK 소요 시간 2차 (TEST-PERF-002, 2026-11-03)
 
 목표: timeout 2400초·gate 기준(minTests 3329 / Vitest 132·출력 규칙)·시험·단언은 그대로 두고 30분 이하(여유 25%). **결과: 목표 미달.**

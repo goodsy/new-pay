@@ -47,6 +47,25 @@
 - OrbStack 설정에서 명령줄 도구를 설치하면 이 지정은 필요 없다.
 - `docker compose` 플러그인이 잡히지 않으면 `docker-compose` 단독 실행 파일을 쓴다(Demo `db.sh`가 자동 선택).
 
+## 3-2. 게이트 병렬도 올리기 (BUILD-PERF-MAC-001)
+
+- 저장소 기본값(DB test JVM 1개씩 직렬, workers 4, daemon `-Xmx2g`)은 메모리 작은 PC 기준이다. 이 맥(32GB, OrbStack VM 16GB)에서는 저장소 밖
+  `~/.gradle/gradle.properties`에 아래를 둬 FULL 게이트 GRADLE-CHECK를 약 11분 40초 → 약 6분 10초로 줄였다. 측정·근거: [TECH-BASELINE §7.3](repository/TECH-BASELINE.md) "호스트별 병렬도 속성".
+- 이 파일은 프로젝트 `gradle.properties`보다 우선한다. 사용자 홈 `org.gradle.jvmargs`는 저장소 값을 통째로 대체하므로 나머지 옵션도 함께 적는다.
+  저장소 `gradle.properties`의 jvmargs를 바꾸는 작업은 TECH-BASELINE §7.3 표와 각 호스트의 `~/.gradle/gradle.properties`를 함께 갱신한다.
+- 적용되면 빌드 시작 때 `paycore concurrency: dbTestJvmSlots=3 kotlinCompileSlots=2 testMaxHeap=1g` 한 줄이 찍힌다.
+- 잘못된 값(0, 숫자 아님)은 빌드가 실패한다. 파일을 지우면 저장소 기본값으로 돌아간다.
+
+```properties
+paycore.dbTestJvmSlots=3
+paycore.kotlinCompileSlots=2
+org.gradle.workers.max=6
+org.gradle.jvmargs=-Xmx3g -XX:+UseG1GC -XX:G1PeriodicGCInterval=30000 -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -Dfile.encoding=UTF-8
+```
+
+- 선택: `paycore.testMaxHeap`(기본 `1g`, 예 `1536m`)은 이 맥에서도 올리지 않았다.
+- 측정할 때는 Demo 앱을 멈춘다(`bash ~/paycore-demo/app.sh stop all`).
+
 ## 4. 저장소 밖에 있던 것 (git에 없음)
 
 | WSL 위치 | 내용 | 옮기는 방법 |

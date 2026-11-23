@@ -722,6 +722,37 @@
       ],
       "nextResumeAction": "공식 릴리스 darwin-arm64 바이너리 + SHA256SUMS 검증 설치 → commands.json에 SHA 추가 → CVE-SCAN 실행",
       "detail": null
+    },
+    {
+      "id": "BUILD-PERF-MAC-001",
+      "title": "메모리 큰 호스트에서 게이트 병렬도 상향(저장소 기본값 불변, 호스트별 gradle 속성) — 32GB 맥",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "docs/repository/TECH-BASELINE.md §7.3, docs/repository/TEST-PERF-001-GATE-DURATION.md",
+      "allowedWritePaths": [
+        "build-logic/src/main/kotlin/**",
+        "build-logic/src/test/**",
+        "docs/repository/TECH-BASELINE.md",
+        "docs/MAC-SETUP.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "PERF-gate-default",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/BUILD-PERF-MAC-001-2026-11-23T085346Z.json"
+      },
+      "openItems": [
+        "기준선: FLAKY-gate1..3 GRADLE-CHECK 11m38s/11m32s/11m39s (DB test JVM 1, workers 4, test heap 1g, daemon 2g)",
+        "설계: 저장소 기본값(1개 직렬)은 그대로, gradle 속성(예: paycore.dbTestJvmSlots)으로만 상향 — 맥은 ~/.gradle/gradle.properties(저장소 밖). 시험·판정 기준·timeout 불변",
+        "구현: build-logic BuildConcurrency(paycore.dbTestJvmSlots/kotlinCompileSlots/testMaxHeap, 기본 1/1/1g, 잘못된 값 거부, 비기본이면 'paycore concurrency:' 로그 1줄) + BuildConcurrencySpec 23건. 이 맥 ~/.gradle/gradle.properties: dbTestJvmSlots=3, kotlinCompileSlots=2, workers.max=6, daemon -Xmx3g. 측정(fp 152f9a10…): 기본 701s, slots2 492s, 채택안 367~374s, slots5 355s, swap 0. 독립 리뷰 REVIEW_PASS(MINOR-1~3·NIT-1~3 반영)",
+        "완료 기준 충족(fp c2e49b9b…, Kotlin 5120/FE 712, 실패·skip 0): 상향 설정 PERF-gate1..3 PASS — GRADLE-CHECK 6m17s/6m16s/6m15s(…083108Z/083841Z/084614Z, 로그에 'paycore concurrency' 1줄) + 기본값 경로 PERF-gate-default PASS 11m37s(…085346Z, 사용자 속성 파일 치움, 로그 0줄). 기준선 FLAKY-gate 11m32s~11m39s. CVE-SCAN 미실행(의존성 변경 없음, MAC-OSV-001)",
+        "[후속] 저장소 gradle.properties 주석에 '호스트별 상향은 TECH-BASELINE §7.3' 안내(리뷰 MINOR-2, 이번 허용 경로 밖)"
+      ],
+      "nextResumeAction": "완료",
+      "detail": null
     }
   ]
 }

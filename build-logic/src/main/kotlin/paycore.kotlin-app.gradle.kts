@@ -21,12 +21,11 @@ dependencies {
     "testImplementation"(catalog.findLibrary("spring-boot-starter-test").get())
 }
 
-// 실행 단위의 Test task(test JVM + Spring 컨텍스트별 MySQL 컨테이너)는 모듈 병렬 실행(org.gradle.parallel) 중에도 한 번에 하나만 돈다
-// (TEST-PERF-001, 측정 근거: docs/repository/TECH-BASELINE.md §7.3 — 두 개를 겹치면 WSL 7.8GB에서 가용 메모리가 바닥난다). 순서만 정할 뿐
+// 실행 단위의 Test task(test JVM + Spring 컨텍스트별 MySQL 컨테이너)는 모듈 병렬 실행(org.gradle.parallel) 중에도 기본 한 번에 하나만 돈다
+// (TEST-PERF-001, 측정 근거: docs/repository/TECH-BASELINE.md §7.3 — 두 개를 겹치면 WSL 7.8GB에서 가용 메모리가 바닥난다). 메모리가 큰 호스트는
+// 저장소 밖 ~/.gradle/gradle.properties의 paycore.dbTestJvmSlots로만 올린다(BUILD-PERF-MAC-001, BuildConcurrency). 순서만 정할 뿐
 // 실행되는 시험·판정 기준은 같다.
-val dbTestJvmSlots = gradle.sharedServices.registerIfAbsent("paycoreDbTestJvmSlots", com.paycore.buildlogic.ExclusiveSlots::class) {
-    maxParallelUsages = 1
-}
+val dbTestJvmSlots = com.paycore.buildlogic.BuildConcurrency.registerDbTestJvmSlots(gradle, providers)
 tasks.withType<Test>().configureEach { usesService(dbTestJvmSlots) }
 
 // ---------------------------------------------------------------------------------------------

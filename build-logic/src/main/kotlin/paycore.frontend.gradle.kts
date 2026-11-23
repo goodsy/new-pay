@@ -147,8 +147,10 @@ val frontendTest = tasks.register<Exec>("frontendTest") {
     outputs.dir(reports)
     // 모듈 병렬 실행(TEST-PERF-001, docs/repository/TECH-BASELINE.md §7.3)에서 Vitest가 Kotlin 컴파일·DB test JVM과 CPU를 나눠 쓰면 시험별 timeout
     // (기본 5초)에 걸렸다(실측 1건). 시험 timeout은 바꾸지 않고, 이 둘과 겹치지 않게만 한다(같은 이름의 ExclusiveSlots — kotlin-base·kotlin-app).
-    usesService(gradle.sharedServices.registerIfAbsent("paycoreKotlinCompileSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
-    usesService(gradle.sharedServices.registerIfAbsent("paycoreDbTestJvmSlots", com.paycore.buildlogic.ExclusiveSlots::class) { maxParallelUsages = 1 })
+    // 세 곳 모두 BuildConcurrency로 등록해 먼저 등록된 쪽과 관계없이 같은 상한(기본 1)을 쓴다. 호스트별로 상한을 2 이상으로 올리면 Vitest는 남은
+    // 슬롯만큼 컴파일·DB test JVM과 겹칠 수 있다(BUILD-PERF-MAC-001 — 그 호스트의 측정으로 확인, TECH-BASELINE §7.3).
+    usesService(com.paycore.buildlogic.BuildConcurrency.registerKotlinCompileSlots(gradle, providers))
+    usesService(com.paycore.buildlogic.BuildConcurrency.registerDbTestJvmSlots(gradle, providers))
     // GATE-LOAD-001: 모든 모듈의 jOOQ 생성기(generateJooq* JavaExec — MySQL 컨테이너 기동 + Flyway + codegen)가 끝난 뒤에만 돈다(순서만, 의존 아님 —
     // 생성기를 실행 대상에 넣지 않는다). gate9(MERCHANT-OPS-002-2026-11-11T233256Z)에서 financial-batch codegen과 겹쳐 Vitest 2건이 5초 timeout.
     // 생성기를 DB test 슬롯에 넣었던 1차 안은 gate10(…-2026-11-12T022929Z)에서 codegen이 앞 모듈 시험 뒤로 밀려 큰 모듈 컴파일이 늦게 시작 →
