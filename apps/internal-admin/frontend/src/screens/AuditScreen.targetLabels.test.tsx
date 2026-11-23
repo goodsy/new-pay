@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuditScreen } from './AuditScreen'
 import { apiError, fakeApi } from '../test/fakeApi'
+import { settle } from '../test/settle'
 import { domOccurrences } from '../test/domScan'
 import type { AdminApi, AuditEntry, MerchantListItem, MerchantTargetLabelPage } from '../api/adminApi'
 
@@ -28,7 +29,14 @@ const business: AuditEntry = { ...base, eventId: 14, action: 'BUSINESS_REGISTERE
 const account: AuditEntry = { ...base, eventId: 15, action: 'ROLE_GRANTED', targetActorId: 'adm_T' }
 const payment: AuditEntry = { ...base, eventId: 16, action: 'PAYMENT_VIEWED', targetRef: `pay_${ulid(9)}` }
 const entries = [legacy, oldCode, newCode, business, account, payment]
-const rowOf = (action: string) => screen.findByRole('row', { name: new RegExp(`^${action} `) })
+// FOLLOWUP-SMALL-001(FLAKY-FIX-001과 같은 방식): fake API는 이미 끝난 Promise(또는 시험이 직접 푼 Promise)로 답하므로 findBy*·vi.waitFor의 1초 벽시계 polling 대신
+// settle()(act flush)로 응답 반영을 기다린 뒤 getBy*로 한 번만 질의한다 — 게이트 부하에서 polling 1초가 넘쳤다(단언·기대값 그대로). 입력은 지연 없이(TEST-PERF-003과 같은
+// `delay: null`) 해 키 입력 사이 setTimeout(0)이 부하에서 5초 시험 제한을 넘지 않게 한다.
+const user = userEvent.setup({ delay: null })
+const rowOf = async (action: string) => {
+  await settle()
+  return screen.getByRole('row', { name: new RegExp(`^${action} `) })
+}
 const okLabels = vi.fn(async (ids: string[]): Promise<MerchantTargetLabelPage> => ({
   items: ids.includes(MER) ? [{ merchantId: MER, name: '데모상점', code: 'newcode01' }] : [], labels: 'OK',
 }))
@@ -53,7 +61,7 @@ describe('MC-3-19 감사 화면 — 대상 칸', () => {
   it('merchant rows (mer_·old code·new code) show the current label, the old-code row adds "(당시 oldcode01)"; biz_ → "사업자"; account·payment unchanged; one label call', async () => {
     const { api } = renderAudit()
     const legacyRow = await rowOf('MERCHANT_VIEWED')
-    expect(await within(legacyRow).findByText('데모상점 · newcode01')).toBeInTheDocument()
+    expect(within(legacyRow).getByText('데모상점 · newcode01')).toBeInTheDocument()
     expect(within(legacyRow).queryByText(/당시/)).toBeNull()
     const old = await rowOf('APPROVAL_REQUESTED')
     expect(within(old).getByText('데모상점 · newcode01')).toBeInTheDocument()
@@ -95,7 +103,8 @@ describe('MC-3-19 감사 화면 — 대상 칸', () => {
       vi.fn(async (): Promise<MerchantTargetLabelPage> => { throw apiError(429, 'RATE_LIMITED') }),
     ]) {
       const { onSessionEnded } = renderAudit({ merchantLabels })
-      expect(await screen.findByText(NOTE)).toHaveAttribute('role', 'note')
+      await settle()
+      expect(screen.getByText(NOTE)).toHaveAttribute('role', 'note')
       expect(within(await rowOf('MERCHANT_VIEWED')).getByText('—')).toBeInTheDocument()
       expect(within(await rowOf('APPROVAL_REQUESTED')).queryByText(/당시/)).toBeNull()
       expect(within(await rowOf('BUSINESS_REGISTERED')).getByText('사업자')).toBeInTheDocument()
@@ -109,21 +118,24 @@ describe('MC-3-19 감사 화면 — 대상 칸', () => {
   it('empty result and audit error states also carry no internal key; no label call without merchant rows', async () => {
     const merchantLabels = vi.fn(okLabels)
     renderAudit({ audit: vi.fn(async () => ({ entries: [] })), merchantLabels })
-    expect(await screen.findByText('조건에 맞는 감사 기록이 없습니다.')).toBeInTheDocument()
+    await settle()
+    expect(screen.getByText('조건에 맞는 감사 기록이 없습니다.')).toBeInTheDocument()
     expect(merchantLabels).not.toHaveBeenCalled()
     noInternalKeys()
     cleanup()
     renderAudit({ audit: vi.fn(async () => { throw apiError(503, 'AUDIT_UNAVAILABLE') }) })
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await settle()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
     noInternalKeys()
   })
 })
 
 describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조회)', () => {
   const searchWith = async (code: string) => {
-    await userEvent.clear(screen.getByLabelText('가맹점 코드'))
-    await userEvent.type(screen.getByLabelText('가맹점 코드'), code)
-    await userEvent.click(screen.getByRole('button', { name: '조회' }))
+    await user.clear(screen.getByLabelText('가맹점 코드'))
+    // 고정 문자열은 붙여넣는다(TEST-PERF-003·FLAKY-FIX-001과 같음) — 판정은 제출 시 최종 입력값으로 하므로 확인 내용 그대로.
+    await user.paste(code)
+    await user.click(screen.getByRole('button', { name: '조회' }))
   }
 
   it('format violation → screen error, no search and no audit call', async () => {
@@ -133,7 +145,8 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
     const auditCalls = vi.mocked(api.audit).mock.calls.length
     for (const bad of ['Demo_Shop', 'abc', 'a'.repeat(15), '1shop0001']) {
       await searchWith(bad)
-      expect(await screen.findByText(/가맹점 코드 형식이 아닙니다/)).toBeInTheDocument()
+      await settle()
+      expect(screen.getByText(/가맹점 코드 형식이 아닙니다/)).toBeInTheDocument()
     }
     expect(merchantSearch).not.toHaveBeenCalled()
     expect(api.audit).toHaveBeenCalledTimes(auditCalls)
@@ -146,7 +159,8 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
     await rowOf('MERCHANT_VIEWED')
     const auditCalls = vi.mocked(api.audit).mock.calls.length
     await searchWith('nosuchcode1')
-    expect(await screen.findByText('없는 가맹점 코드')).toBeInTheDocument()
+    await settle()
+    expect(screen.getByText('없는 가맹점 코드')).toBeInTheDocument()
     expect(merchantSearch).toHaveBeenCalledWith({ merchantCode: 'nosuchcode1' })
     expect(api.audit).toHaveBeenCalledTimes(auditCalls)
   })
@@ -157,7 +171,8 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
     await rowOf('MERCHANT_VIEWED')
     const auditCalls = vi.mocked(api.audit).mock.calls.length
     await searchWith('oldcode01')
-    await vi.waitFor(() => expect(api.audit).toHaveBeenCalledTimes(auditCalls + 1))
+    await settle()
+    expect(api.audit).toHaveBeenCalledTimes(auditCalls + 1)
     expect(api.audit).toHaveBeenLastCalledWith({ targetMerchantId: MER })
     expect(merchantSearch).toHaveBeenCalledWith({ merchantCode: 'oldcode01' })
     noInternalKeys()
@@ -177,7 +192,8 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
       expect(recordRows()).toHaveLength(entries.length)
       const auditCalls = vi.mocked(api.audit).mock.calls.length
       await searchWith(code)
-      const error = await screen.findByText(message)
+      await settle()
+      const error = screen.getByText(message)
       expect(error).toHaveClass('text-destructive')
       expect(screen.getByLabelText('가맹점 코드')).toHaveAttribute('aria-invalid', 'true')
       expect(screen.getByLabelText('가맹점 코드')).toHaveAttribute('aria-describedby', error.id)
@@ -196,10 +212,11 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
     await rowOf('MERCHANT_VIEWED')
     await searchWith('slowcode01')
     expect(screen.getByRole('button', { name: '조회' })).toHaveAttribute('aria-busy', 'true')
-    await userEvent.clear(screen.getByLabelText('가맹점 코드'))
-    await userEvent.click(screen.getByRole('button', { name: '조회' }))
-    await vi.waitFor(() => expect(audit).toHaveBeenCalledTimes(2))
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: '조회' })).toHaveAttribute('aria-busy', 'false'))
+    await user.clear(screen.getByLabelText('가맹점 코드'))
+    await user.click(screen.getByRole('button', { name: '조회' }))
+    await settle()
+    expect(audit).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: '조회' })).toHaveAttribute('aria-busy', 'false')
     expect(recordRows()).toHaveLength(entries.length)
     releaseSearch({ items: [listItem], nextCursor: null })
     await new Promise((resolve) => setTimeout(resolve, 20))
@@ -216,12 +233,13 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
       filter.action === 'SLOW' ? new Promise<{ entries: AuditEntry[] }>((resolve) => { releaseOld = resolve }) : Promise.resolve({ entries }))
     renderAudit({ audit })
     await rowOf('MERCHANT_VIEWED')
-    await userEvent.type(screen.getByLabelText('행위'), 'SLOW')
-    await userEvent.click(screen.getByRole('button', { name: '조회' }))
-    await userEvent.clear(screen.getByLabelText('행위'))
-    await userEvent.click(screen.getByRole('button', { name: '조회' }))
-    await vi.waitFor(() => expect(audit).toHaveBeenCalledTimes(3))
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: '조회' })).toHaveAttribute('aria-busy', 'false'))
+    await user.type(screen.getByLabelText('행위'), 'SLOW')
+    await user.click(screen.getByRole('button', { name: '조회' }))
+    await user.clear(screen.getByLabelText('행위'))
+    await user.click(screen.getByRole('button', { name: '조회' }))
+    await settle()
+    expect(audit).toHaveBeenCalledTimes(3)
+    expect(screen.getByRole('button', { name: '조회' })).toHaveAttribute('aria-busy', 'false')
     releaseOld({ entries: [payment] })
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(recordRows()).toHaveLength(entries.length)
@@ -233,7 +251,8 @@ describe('MC-3-19 감사 화면 — "가맹점 코드" 조회(§5.6.4 연결 조
     await rowOf('MERCHANT_VIEWED')
     const auditCalls = vi.mocked(api.audit).mock.calls.length
     await searchWith('demoshop01')
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await settle()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(api.audit).toHaveBeenCalledTimes(auditCalls)
     noInternalKeys()
   })
