@@ -32,10 +32,21 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
 /**
+ * 점유 상한(SLEEP(6) 포함, 점유 시작부터): 공개 부하 future 대기 90초·관리 client 요청 timeout 60초(AdminOpsTestClient.send 기본값)보다 짧게 둔 시험 전용 값(업무 값 아님).
+ * 그래서 공개 요청이 점유에 막히는 회귀에서도 관리 조회는 client timeout 전에 응답하고, 실패는 HttpTimeoutException이 아니라 순서 단언으로 드러난다.
+ */
+private val HOLD_CAP: Duration = Duration.ofSeconds(45)
+
+/**
  * 관리 조회 장애 비전파(ADMIN-PAYMENT-OPS-001 §4.7 M-7 `AdminReadIsolationSpec` — 실제 HTTP 두 connector, 실제 DB 연결 점유): 관리 대상 조회 4건이 각각 **실제 풀 연결에서 `SELECT SLEEP(6)`**를
  * 실행해 조회 permit 4개와 연결 4개를 붙잡은 동안, 5번째 관리 조회는 대기 없이 503 `ADMIN_READ_BUSY`(< 200ms), 공개 포트 CreatePayment 20건 + confirm 20건(공식 준비 경로 ConfirmFixture로 만든
  * 인증 완료 Payment) 동시 요청은 모두 성공(5xx·timeout 0건)하고 **모두 관리 조회 4건보다 먼저 끝난다**(review M-3). p95는 클라이언트 timeout(60초)의 50% 미만. 지연 p50·p95는 포화 없는
  * 기준선과 함께 표준 출력에 남긴다. 점유는 시험 hook(대상 조회 직후, 같은 요청 스레드·permit 안)이 연다(I-61).
+ *
+ * FLAKY-FIX-001(ADMIN-READ-ISOLATION-FLAKE): 점유는 `SELECT SLEEP(6)` 뒤에도 **공개 부하가 끝났다는 신호(release)를 받을 때까지** 같은 연결에서 짧은 SLEEP으로 이어진다.
+ * 전에는 고정 6초만 붙잡아, 게이트 부하로 공개 부하 40건이 6초를 넘기면(기준선 p95≈6.1초 관측) 시간 순서 단언이 업무와 무관하게 실패했다. 이제 그 단언은 "공개 요청이 관리 조회 점유가
+ * 풀리기를 기다리지 않고 끝난다"는 인과를 확인한다 — 공개 요청이 점유에 막히면 release가 오지 않아 점유는 상한([HOLD_CAP])에서야 풀리고, 공개 요청은 그 뒤에 끝나 같은 단언이 실패한다.
+ * 지연 상한은 p95 단언(30초 미만)이 그대로 맡는다.
  */
 @PaymentApiTest
 class AdminReadIsolationSpec(
@@ -111,36 +122,48 @@ class AdminReadIsolationSpec(
             withClue("baseline") { statuses(baseline) shouldBe setOf(201, 200) }
             val allHeld = CountDownLatch(4)
             val held = AtomicInteger()
+            val release = CountDownLatch(1)
             faults.after(FaultPoint.OPERATOR_TARGET_FIND) {
                 dataSource.connection.use { c ->
                     held.incrementAndGet()
                     allHeld.countDown()
-                    c.createStatement().use { it.execute("SELECT SLEEP(6)") }
+                    c.createStatement().use { st ->
+                        val deadline = System.nanoTime() + HOLD_CAP.toNanos()
+                        st.execute("SELECT SLEEP(6)")
+                        // 공개 부하가 끝날 때까지 같은 실제 연결을 계속 점유한다(상한 HOLD_CAP — 공개 요청이 막혔다면 여기서 풀린 뒤에야 끝나 순서 단언이 실패한다).
+                        while (release.count > 0 && System.nanoTime() < deadline) st.execute("SELECT SLEEP(0.1)")
+                    }
                 }
             }
             val readers = Executors.newFixedThreadPool(4)
-            val reads = (1..4).map { readers.submit<Done> { val t0 = System.nanoTime(); val r = target(); val e = System.nanoTime(); Done(r.status, (e - t0) / 1_000_000, e) } }
-            allHeld.await(10, TimeUnit.SECONDS) shouldBe true
-            val t0 = System.nanoTime()
-            val busy = target()
-            val busyMillis = (System.nanoTime() - t0) / 1_000_000
-            busy.status shouldBe 503
-            busy.body shouldBe """{"error":"ADMIN_READ_BUSY"}"""
-            (busyMillis < 200) shouldBe true
-            val loaded = publicLoad(20, loadUnderPressure)
-            val adminDone = reads.map { it.get(30, TimeUnit.SECONDS) }
-            readers.shutdown()
-            held.get() shouldBe 4
-            adminDone.map { it.status }.toSet() shouldBe setOf(404)
-            statuses(loaded) shouldBe setOf(201, 200)
-            loaded.count { it.status == 200 } shouldBe 20
-            (loaded.maxOf { it.endNanos } < adminDone.minOf { it.endNanos }) shouldBe true
-            val p95 = pct(loaded.map { it.millis }, 0.95)
-            println(
-                "AdminReadIsolationSpec latency ms: baseline p50=${pct(baseline.map { it.millis }, 0.5)} p95=${pct(baseline.map { it.millis }, 0.95)}; " +
-                    "saturated p50=${pct(loaded.map { it.millis }, 0.5)} p95=$p95; busy admin read=${busyMillis}ms",
-            )
-            (Duration.ofMillis(p95) < Duration.ofSeconds(30)) shouldBe true
+            try {
+                val reads = (1..4).map { readers.submit<Done> { val t0 = System.nanoTime(); val r = target(); val e = System.nanoTime(); Done(r.status, (e - t0) / 1_000_000, e) } }
+                allHeld.await(10, TimeUnit.SECONDS) shouldBe true
+                val t0 = System.nanoTime()
+                val busy = target()
+                val busyMillis = (System.nanoTime() - t0) / 1_000_000
+                busy.status shouldBe 503
+                busy.body shouldBe """{"error":"ADMIN_READ_BUSY"}"""
+                (busyMillis < 200) shouldBe true
+                val loaded = publicLoad(20, loadUnderPressure)
+                release.countDown()
+                val adminDone = reads.map { it.get(30, TimeUnit.SECONDS) }
+                readers.shutdown()
+                held.get() shouldBe 4
+                adminDone.map { it.status }.toSet() shouldBe setOf(404)
+                statuses(loaded) shouldBe setOf(201, 200)
+                loaded.count { it.status == 200 } shouldBe 20
+                (loaded.maxOf { it.endNanos } < adminDone.minOf { it.endNanos }) shouldBe true
+                val p95 = pct(loaded.map { it.millis }, 0.95)
+                println(
+                    "AdminReadIsolationSpec latency ms: baseline p50=${pct(baseline.map { it.millis }, 0.5)} p95=${pct(baseline.map { it.millis }, 0.95)}; " +
+                        "saturated p50=${pct(loaded.map { it.millis }, 0.5)} p95=$p95; busy admin read=${busyMillis}ms",
+                )
+                (Duration.ofMillis(p95) < Duration.ofSeconds(30)) shouldBe true
+            } finally {
+                release.countDown() // 앞 단언이 실패해도 점유 연결을 상한까지 붙잡아 두지 않는다.
+                readers.shutdownNow()
+            }
         }
     }
 })

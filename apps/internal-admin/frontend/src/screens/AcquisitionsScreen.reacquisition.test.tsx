@@ -4,12 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { AcquisitionsScreen } from './AcquisitionsScreen'
 import type { AcquisitionFileDetail, AcquisitionFileItem, AcquisitionRecord, ReacquisitionTargets } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { settle } from '../test/settle'
 
 /**
  * 매입 현황 재매입 요청(ACQ-ADMIN-001 B1-A §5.1 — OPERATOR, D-ACQA-002·003·I-8). 명시 Fixture: 원 파일 001의 SALE 1·3이 기관 거절(세대 0, 원승인 10,000원), 레코드 3은 취소 5,000원을 받아 예상
  * 순액 5,000원, 레코드 2는 매입 확정. 승인 뒤 같은 업무일 002(재매입 — 원 파일 표시)가 목록에 보인다.
  */
-// 게이트 부하(Kotlin 시험 동시 실행)에서 5초 제한을 넘지 않도록 지연 없이 입력하고 고정 문자열은 붙여넣는다. 카드 번호 경고는 한 자씩 입력을 유지한다(TEST-PERF-003 — 확인 내용은 그대로).
+// 게이트 부하(Kotlin 시험 동시 실행)에서 5초 제한을 넘지 않도록 지연 없이 입력하고 고정 문자열은 붙여넣는다(TEST-PERF-003). FLAKY-FIX-001: 카드 번호 경고도 붙여넣기로 확인하고
+// (경고·버튼 상태는 최종 입력값으로 정해진다 — 확인 내용 그대로), fake API 응답 반영은 findBy* polling 대신 settle()로 기다린 뒤 한 번만 질의한다.
 const user = userEvent.setup({ delay: null })
 const NOW = Date.parse('2026-11-06T01:00:00.000Z')
 const F1 = 'ACQ.SIMACQA.TEST.20261105.001'
@@ -48,7 +50,9 @@ async function fill(field: HTMLElement, text: string) {
 async function openDetail(api: ReturnType<typeof fakeApi>, canRequest: boolean) {
   render(<AcquisitionsScreen api={api} canRequest={canRequest} now={() => NOW} />)
   await user.click(screen.getByRole('button', { name: '검색' }))
-  await user.click(within(await screen.findByRole('row', { name: F1 })).getByRole('button', { name: '상세' }))
+  await settle()
+  await user.click(within(screen.getByRole('row', { name: F1 })).getByRole('button', { name: '상세' }))
+  await settle()
 }
 
 describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)', () => {
@@ -62,7 +66,7 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       reacquisitionTargets, requestReacquisition,
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     // 매입 확정 레코드 2는 후보가 아니다(표시 편의 — 권위는 미리 보기).
     expect(within(panel).queryByLabelText('레코드 2')).toBeNull()
     expect(within(panel).getByRole('button', { name: '대상 미리 보기' })).toBeDisabled()
@@ -70,7 +74,8 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
     await user.click(within(panel).getByLabelText('레코드 3'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
     expect(reacquisitionTargets).toHaveBeenCalledWith(F1, [1, 3])
-    const preview = await within(panel).findByRole('table', { name: '재매입 대상 미리 보기' })
+    await settle()
+    const preview = within(panel).getByRole('table', { name: '재매입 대상 미리 보기' })
     // 레코드 3: 원승인 10,000 · 받은 취소 5,000 · 예상 순액 5,000(표시용).
     expect(within(within(preview).getByRole('row', { name: '미리 보기 3' })).getAllByText('5,000원')).toHaveLength(2)
     const submit = within(panel).getByRole('button', { name: '재매입 승인 요청' })
@@ -87,7 +92,8 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
     expect(requestReacquisition).toHaveBeenCalledWith({
       fileId: F1, seqs: [1, 3], reasonCode: 'INSTITUTION_REQUESTED', evidenceRef: 'INQ-2026-0001', reason: 'acquirer asked to resend',
     })
-    expect(await within(panel).findByRole('status')).toHaveTextContent('apr_01JC0000000000000000000A01')
+    await settle()
+    expect(within(panel).getByRole('status')).toHaveTextContent('apr_01JC0000000000000000000A01')
     expect(storageIsEmpty()).toBe(true)
   })
 
@@ -100,19 +106,22 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       requestReacquisition: vi.fn(async () => { throw apiError(409, 'DUPLICATE_UNRESOLVED') }),
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     await user.click(within(panel).getByLabelText('레코드 1'))
     await user.click(within(panel).getByLabelText('레코드 3'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
-    expect(await within(panel).findByText('불가: 판정 전 취소가 있음 — 다음 봉인 뒤 다시 요청')).toBeInTheDocument()
+    await settle()
+    expect(within(panel).getByText('불가: 판정 전 취소가 있음 — 다음 봉인 뒤 다시 요청')).toBeInTheDocument()
     expect(within(panel).queryByRole('button', { name: '재매입 승인 요청' })).toBeNull()
     await user.click(within(panel).getByLabelText('레코드 3'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
-    await user.selectOptions(await within(panel).findByLabelText('사유 코드'), 'DATA_CORRECTED_AT_SOURCE')
+    await settle()
+    await user.selectOptions(within(panel).getByLabelText('사유 코드'), 'DATA_CORRECTED_AT_SOURCE')
     await fill(within(panel).getByLabelText('근거 참조'), 'INQ-2')
     await fill(within(panel).getByLabelText('사유'), 'fixed')
     await user.click(within(panel).getByRole('button', { name: '재매입 승인 요청' }))
-    expect(await within(panel).findByText('이 파일에 아직 끝나지 않은 재매입 승인이 있습니다.')).toBeInTheDocument()
+    await settle()
+    expect(within(panel).getByText('이 파일에 아직 끝나지 않은 재매입 승인이 있습니다.')).toBeInTheDocument()
   })
 
   it('B1-A review M-1: an evidence reference that looks like a card number keeps the request disabled with the card-number warning (server refuses it too)', async () => {
@@ -122,16 +131,17 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       reacquisitionTargets: vi.fn(async () => targets(eligible(1))), requestReacquisition,
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     await user.click(within(panel).getByLabelText('레코드 1'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
-    await user.selectOptions(await within(panel).findByLabelText('사유 코드'), 'INSTITUTION_REQUESTED')
+    await settle()
+    await user.selectOptions(within(panel).getByLabelText('사유 코드'), 'INSTITUTION_REQUESTED')
     expect(within(panel).getByText(/카드 번호 금지/)).toBeInTheDocument()
     await fill(within(panel).getByLabelText('사유'), 'acquirer asked to resend')
     const submit = within(panel).getByRole('button', { name: '재매입 승인 요청' })
     for (const card of ['4111111111111111', '4111-1111-1111-1111']) {
       await user.clear(within(panel).getByLabelText('근거 참조'))
-      await user.type(within(panel).getByLabelText('근거 참조'), card)
+      await fill(within(panel).getByLabelText('근거 참조'), card)
       expect(submit).toBeDisabled()
       expect(within(panel).getByRole('alert')).toHaveTextContent('카드 번호처럼 보이는')
     }
@@ -149,14 +159,16 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       requestReacquisition: vi.fn(async () => { throw apiError(400, 'ACQUISITION_FILE_NOT_FOUND') }),
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     await user.click(within(panel).getByLabelText('레코드 1'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
-    await user.selectOptions(await within(panel).findByLabelText('사유 코드'), 'INSTITUTION_REQUESTED')
+    await settle()
+    await user.selectOptions(within(panel).getByLabelText('사유 코드'), 'INSTITUTION_REQUESTED')
     await fill(within(panel).getByLabelText('근거 참조'), 'INQ-1')
     await fill(within(panel).getByLabelText('사유'), 'resend')
     await user.click(within(panel).getByRole('button', { name: '재매입 승인 요청' }))
-    expect(await within(panel).findByText('매입 파일을 찾을 수 없습니다.')).toBeInTheDocument()
+    await settle()
+    expect(within(panel).getByText('매입 파일을 찾을 수 없습니다.')).toBeInTheDocument()
   })
 
   it('B1-A review n-4: while the preview request is in flight the record checkboxes are disabled (the selection cannot drift from the previewed set)', async () => {
@@ -166,13 +178,14 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       reacquisitionTargets: vi.fn(() => new Promise<ReacquisitionTargets>((r) => { resolve = r })),
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     await user.click(within(panel).getByLabelText('레코드 1'))
     await user.click(within(panel).getByRole('button', { name: '대상 미리 보기' }))
     expect(within(panel).getByLabelText('레코드 1')).toBeDisabled()
     expect(within(panel).getByLabelText('레코드 3')).toBeDisabled()
     resolve(targets(eligible(1)))
-    expect(await within(panel).findByRole('table', { name: '재매입 대상 미리 보기' })).toBeInTheDocument()
+    await settle()
+    expect(within(panel).getByRole('table', { name: '재매입 대상 미리 보기' })).toBeInTheDocument()
     expect(within(panel).getByLabelText('레코드 3')).toBeEnabled()
   })
 
@@ -181,8 +194,10 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       const api = fakeApi({ acquisitionSearch: vi.fn(async () => ({ items: [file(F1)], nextCursor: null })), acquisitionDetail: vi.fn(async () => detail(rows)) })
       const { unmount } = render(<AcquisitionsScreen api={api} canRequest={canRequest} now={() => NOW} />)
       await user.click(screen.getByRole('button', { name: '검색' }))
-      await user.click(within(await screen.findByRole('row', { name: F1 })).getByRole('button', { name: '상세' }))
-      await screen.findByRole('table', { name: '레코드 목록' })
+      await settle()
+      await user.click(within(screen.getByRole('row', { name: F1 })).getByRole('button', { name: '상세' }))
+      await settle()
+      screen.getByRole('table', { name: '레코드 목록' })
       if (canRequest) {
         expect(screen.getByText('매입 파일의 전송·수신·결과 상태를 조회하고, 거절된 레코드의 재매입을 요청합니다. 파일 상세 조회는 감사 기록에 남습니다.')).toBeInTheDocument()
         expect(screen.getByText('거절된 레코드가 있습니다. 아래에서 재매입을 요청하면 승인함에서 다른 관리자(APPROVER)가 승인합니다.')).toBeInTheDocument()
@@ -201,7 +216,7 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       acquisitionDetail: vi.fn(async () => detail([record(1, 'UNKNOWN'), record(3, 'REJECTED')])),
     })
     await openDetail(api, true)
-    const panel = await screen.findByRole('region', { name: '재매입 요청' })
+    const panel = screen.getByRole('region', { name: '재매입 요청' })
     expect(within(panel).queryByLabelText('레코드 1')).toBeNull()
     expect(within(panel).getByText('결과 모름 — 대사로 미매입 확인 뒤 가능(D-ACQ-014)')).toBeInTheDocument()
     expect(within(panel).getByLabelText('레코드 3')).toBeInTheDocument()
@@ -216,7 +231,7 @@ describe('AcquisitionsScreen re-acquisition request (ACQ-ADMIN-001 B1-A §5.1)',
       acquisitionDetail: vi.fn(async () => detail(rows)),
     })
     await openDetail(api, false)
-    expect(await screen.findByRole('table', { name: '레코드 목록' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: '레코드 목록' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '재매입 요청' })).toBeNull()
     const row002 = screen.getByRole('row', { name: F2 })
     expect(within(row002).getByText(`재매입 · 원 파일 ${F1}`)).toBeInTheDocument()

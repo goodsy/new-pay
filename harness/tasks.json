@@ -643,7 +643,7 @@
     {
       "id": "LOCK-UNIFY-001",
       "title": "관리자 화면 결과 불명 잠금 3벌을 공용 hook 하나로 통합(ScreenMemory 기반)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "PROCESS",
       "owner": "Coordinator",
       "dependsOn": [
@@ -661,12 +661,66 @@
         "evidence": "build/harness-evidence/LOCK-UNIFY-001-2026-11-22T124110Z.json"
       },
       "openItems": [
+        "FULL PASS 충족: FLAKY-gate1..3(2026-11-23, 7c2290b 포함 트리) — HARNESS-GUIDE §11",
         "구현·독립 리뷰 REVIEW_PASS(MINOR-2·NIT-3 반영, MINOR-1은 git 대조로 동작 동일 확인 — 옛 3벌 모두 SERVER_ERROR 포함). 기존 시험 무수정",
         "결정(Coordinator, 가역·안전 방향): 결과 불명 뒤 상세가 이미 결정된 것처럼 보여도 잠금 유지 — §5.3 결과는 200/409로만. 세션 동안 로그인 안내가 남음",
         "[후속] 리뷰 MINOR-3: 같은 세션에서 개통 처리→해지 뒤 첫 '개통 등록'이 옛 submissionId replay(이중 효과 없음) — 결제수단별 one-shot 분리 때 정리",
         "[후속] 리뷰 NIT-1·2: Site 거절 잠금이 MID별 영역 간 공유(표시만), 다른 Site 거절 차단 유지 여부는 화면 결정"
       ],
-      "nextResumeAction": "SCOPED PASS·main 반영 완료. DONE은 다음 FULL PASS 뒤(HARNESS-GUIDE §11)",
+      "nextResumeAction": "완료(SCOPED LOCKU-gate2 + FULL FLAKY-gate1..3 PASS). 후속은 openItems [후속]",
+      "detail": null
+    },
+    {
+      "id": "FLAKY-FIX-001",
+      "title": "불안정 시험 3유형 결정화(timeout·기대값 불변) — 재정비 2-3",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "docs/assessment/RECOVERY-ROADMAP.md 2-3, docs/assessment/COMPLEXITY-ASSESSMENT.md §2.2",
+      "allowedWritePaths": [
+        "apps/payment-api/src/test/**",
+        "apps/internal-admin/frontend/src/**/*.test.tsx",
+        "apps/internal-admin/frontend/src/test/**",
+        "harness/tasks.json",
+        "docs/repository/ADMIN-PAYMENT-OPS-001-PAYMENT-OPS.md"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "FLAKY-gate3",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/FLAKY-FIX-001-2026-11-23T053802Z.json"
+      },
+      "openItems": [
+        "대상 3유형 수정 완료(2026-11-23, 시험 코드만): (1) AdminReadIsolationSpec 순서 단언 — 고정 SLEEP(6) 벽시계 경주 → 공개 부하 종료 신호까지 점유 유지(시험 전용 상한 45초, 관리 client 60초·future 90초보다 짧음), 합격 기준 §4.7 불변, 명세 I-61 한 줄 갱신 (2) ApprovalsScreen.targetLabels — 기본 1초 findBy polling → settle()(act flush)+getBy (3) 관리자 Vitest 첫 시험 5초 — setup.ts beforeAll 환경 warm-up + 카드 입력 붙여넣기 + settle()",
+        "MINOR-2 기록: warm-up은 화면 코드가 아닌 jsdom·접근 이름·user-event 환경 초기화만 beforeAll로 옮김. 시험 timeout·hookTimeout·기대값 변경 없음. hook 실패 시 파일 전체 FAIL로 집계(skip 아님)",
+        "증거: ~/gate-logs/flaky-fix-001/ (수정 전 재현 targetLabels 43/48·reacquisition 65/72 실패 → 수정 후 0/1728·0/1152, 회귀 복제본 RED 확인, 관리자 Vitest 687, tsc 0). 독립 리뷰 REVIEW_PASS(MINOR-1·NIT-1·NIT-2 반영)",
+        "후속(범위 밖): AuditScreen.targetLabels.test.tsx 기본 1초 findBy 다수(같은 유형)",
+        "게이트: FLAKY-gate1(…051223Z)·gate2(…052516Z)·gate3(…053802Z) evidence build/harness-evidence/FLAKY-FIX-001-2026-11-23T*.json, 모두 PASS, buildFingerprint 86f8409e…",
+        "완료 기준 충족: FULL 3회 연속 PASS(2026-11-23 05:12~05:50Z, 같은 fingerprint 9e79fec7…, Kotlin 5097/FE 712, 실패·skip 0). CVE-SCAN은 맥에 osv-scanner 미설치로 ENVIRONMENT(성공 아님) — 의존성 변경 없는 시험 전용 변경. 후속 MAC-OSV-001"
+      ],
+      "nextResumeAction": "완료",
+      "detail": null
+    },
+    {
+      "id": "MAC-OSV-001",
+      "title": "맥(darwin-arm64)용 osv-scanner 설치·체크섬 등록 — CVE-SCAN 복구",
+      "status": "BACKLOG",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "harness/scripts/cve-scan.py, harness/commands.json CVE-SCAN",
+      "allowedWritePaths": [
+        "harness/commands.json",
+        "docs/MAC-SETUP.md",
+        "docs/repository/TECH-BASELINE.md"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "2026-11-23 FLAKY-FIX-001 DONE 때 CVE-SCAN ENVIRONMENT: osv-scanner not installed at ~/.local/bin (WSL 시절 linux-x64 바이너리 SHA만 등록)"
+      ],
+      "nextResumeAction": "공식 릴리스 darwin-arm64 바이너리 + SHA256SUMS 검증 설치 → commands.json에 SHA 추가 → CVE-SCAN 실행",
       "detail": null
     }
   ]

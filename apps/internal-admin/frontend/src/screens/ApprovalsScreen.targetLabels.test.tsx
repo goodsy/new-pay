@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApprovalsScreen } from './ApprovalsScreen'
 import { apiError, fakeApi } from '../test/fakeApi'
+import { settle } from '../test/settle'
 import { domOccurrences } from '../test/domScan'
 import type { AdminApi, ApprovalView, MerchantApprovalDetail, MerchantTargetLabelPage } from '../api/adminApi'
 
@@ -62,7 +63,9 @@ describe('MC-3-19 승인함·내 요청 — 가맹점 대상 칸·행 접근 이
     for (const view of ['pending', 'mine'] as const) {
       const merchantLabels = okLabels({ [MER]: ['데모상점', 'demoshop01'] })
       renderScreen([legacyRow, newRow, accountRow], { merchantLabels }, view)
-      const merchantRows = await screen.findAllByRole('row', { name: `MERCHANT_CONTRACT_APPROVAL ${LABEL} PENDING` })
+      // FLAKY-FIX-001: 목록·라벨 응답(이미 끝난 Promise)이 반영될 때까지 microtask를 비운 뒤 한 번만 질의한다 — findAllByRole 1초 polling은 게이트 부하에서 넘쳤다(단언 그대로).
+      await settle()
+      const merchantRows = screen.getAllByRole('row', { name: `MERCHANT_CONTRACT_APPROVAL ${LABEL} PENDING` })
       expect(merchantRows).toHaveLength(2)
       for (const row of merchantRows) expect(within(row).getByText(LABEL)).toBeInTheDocument()
       expect(screen.getByRole('row', { name: 'ROLE_GRANT adm_T PENDING' })).toBeInTheDocument()
@@ -77,7 +80,8 @@ describe('MC-3-19 승인함·내 요청 — 가맹점 대상 칸·행 접근 이
   it('no merchant target → the label API is not called', async () => {
     const merchantLabels = okLabels({})
     renderScreen([accountRow], { merchantLabels })
-    await screen.findByRole('row', { name: 'ROLE_GRANT adm_T PENDING' })
+    await settle()
+    screen.getByRole('row', { name: 'ROLE_GRANT adm_T PENDING' })
     expect(merchantLabels).not.toHaveBeenCalled()
   })
 
@@ -104,7 +108,8 @@ describe('MC-3-19 승인함·내 요청 — 가맹점 대상 칸·행 접근 이
 
   it('OK but the key is absent → "가맹점 정보 없음" (no note line)', async () => {
     renderScreen([legacyRow], { merchantLabels: okLabels({}) })
-    expect(await screen.findByRole('row', { name: 'MERCHANT_CONTRACT_APPROVAL 가맹점 정보 없음 PENDING' })).toBeInTheDocument()
+    await settle()
+    expect(screen.getByRole('row', { name: 'MERCHANT_CONTRACT_APPROVAL 가맹점 정보 없음 PENDING' })).toBeInTheDocument()
     expect(screen.queryByText(NOTE)).toBeNull()
     noInternalKeys()
   })
@@ -117,7 +122,8 @@ describe('MC-3-19 승인함·내 요청 — 가맹점 대상 칸·행 접근 이
     ]) {
       const approve = vi.fn(async () => ({ approvalId: 'apr_NEW', status: 'EXECUTING' }))
       const { onSessionEnded } = renderScreen([legacyRow, newRow], { merchantLabels, approve })
-      expect(await screen.findByText(NOTE)).toHaveAttribute('role', 'note')
+      await settle()
+      expect(screen.getByText(NOTE)).toHaveAttribute('role', 'note')
       expect(screen.getAllByText(NOTE)).toHaveLength(1)
       const rows = screen.getAllByRole('row', { name: 'MERCHANT_CONTRACT_APPROVAL — PENDING' })
       expect(rows).toHaveLength(2)
@@ -137,11 +143,13 @@ describe('MC-3-19 승인함·내 요청 — 가맹점 대상 칸·행 접근 이
     let release: (page: MerchantTargetLabelPage) => void = () => undefined
     const merchantLabels = vi.fn(() => new Promise<MerchantTargetLabelPage>((resolve) => { release = resolve }))
     renderScreen([legacyRow], { merchantLabels })
-    expect(await screen.findByRole('row', { name: 'MERCHANT_CONTRACT_APPROVAL — PENDING' })).toBeInTheDocument()
+    await settle()
+    expect(screen.getByRole('row', { name: 'MERCHANT_CONTRACT_APPROVAL — PENDING' })).toBeInTheDocument()
     expect(screen.queryByText(NOTE)).toBeNull()
     noInternalKeys()
     release({ items: [{ merchantId: MER, name: '데모상점', code: 'demoshop01' }], labels: 'OK' })
-    expect(await screen.findByRole('row', { name: `MERCHANT_CONTRACT_APPROVAL ${LABEL} PENDING` })).toBeInTheDocument()
+    await settle()
+    expect(screen.getByRole('row', { name: `MERCHANT_CONTRACT_APPROVAL ${LABEL} PENDING` })).toBeInTheDocument()
   })
 })
 
@@ -170,20 +178,22 @@ describe('MC-3-19 승인 상세 5종 — 요청 시 코드 → 현재 코드', (
 
   async function openDetail(row: ApprovalView, labels: Record<string, [string, string]>) {
     renderScreen([row], { merchantLabels: okLabels(labels) })
-    const tr = await screen.findByRole('row', { name: new RegExp(`^${row.kind} `) })
+    await settle()
+    const tr = screen.getByRole('row', { name: new RegExp(`^${row.kind} `) })
     await userEvent.click(within(tr).getByRole('button', { name: '상세' }))
+    await settle()
     return tr
   }
 
   it('new row: "가맹점: <pinned 상호> · <요청 시 코드>", and "→ 현재 <코드>" when the current code differs', async () => {
     for (const [kind, commandKind, pinnedOf, region] of kinds) {
       await openDetail(approval(`apr_${kind}`, 'oldcode01', pinnedOf('oldcode01'), kind, commandKind), { [MER]: ['데모상점', 'newcode01'] })
-      const panel = await screen.findByRole('region', { name: region })
+      const panel = screen.getByRole('region', { name: region })
       expect(panel).toHaveTextContent('가맹점: 데모 가맹점 · oldcode01 → 현재 newcode01')
       noInternalKeys()
       cleanup()
       await openDetail(approval(`apr_${kind}`, 'demoshop01', pinnedOf('demoshop01'), kind, commandKind), { [MER]: ['데모상점', 'demoshop01'] })
-      const same = await screen.findByRole('region', { name: region })
+      const same = screen.getByRole('region', { name: region })
       expect(same).toHaveTextContent('가맹점: 데모 가맹점 · demoshop01')
       expect(same).not.toHaveTextContent('→ 현재')
       cleanup()
@@ -193,13 +203,13 @@ describe('MC-3-19 승인 상세 5종 — 요청 시 코드 → 현재 코드', (
   it('legacy row (no pinned code, target_ref mer_): current code only; labels unavailable → "—"; never the internal key', async () => {
     for (const [kind, commandKind, pinnedOf, region] of kinds) {
       await openDetail(approval(`apr_${kind}`, MER, pinnedOf(), kind, commandKind), { [MER]: ['데모상점', 'demoshop01'] })
-      const panel = await screen.findByRole('region', { name: region })
+      const panel = screen.getByRole('region', { name: region })
       expect(panel).toHaveTextContent('가맹점: 데모 가맹점 · demoshop01')
       expect(panel).not.toHaveTextContent('→ 현재')
       noInternalKeys()
       cleanup()
       await openDetail(approval(`apr_${kind}`, MER, pinnedOf(), kind, commandKind), {})
-      expect(await screen.findByRole('region', { name: region })).toHaveTextContent('가맹점: 데모 가맹점 · —')
+      expect(screen.getByRole('region', { name: region })).toHaveTextContent('가맹점: 데모 가맹점 · —')
       noInternalKeys()
       cleanup()
     }
@@ -207,6 +217,6 @@ describe('MC-3-19 승인 상세 5종 — 요청 시 코드 → 현재 코드', (
 
   it('new row whose target_ref is a code but pinned has no code (read tolerance) uses the target_ref as the request-time code', async () => {
     await openDetail(approval('apr_X', 'oldcode01', contractPinned()), { [MER]: ['데모상점', 'newcode01'] })
-    expect(await screen.findByRole('region', { name: '가맹점 계약 승인 상세' })).toHaveTextContent('가맹점: 데모 가맹점 · oldcode01 → 현재 newcode01')
+    expect(screen.getByRole('region', { name: '가맹점 계약 승인 상세' })).toHaveTextContent('가맹점: 데모 가맹점 · oldcode01 → 현재 newcode01')
   })
 })
