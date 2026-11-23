@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { TransactionsScreen } from './TransactionsScreen'
 import type { AdminApi, TransactionDetail, TransactionListItem } from '../api/adminApi'
@@ -18,7 +17,6 @@ const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0
 const PAY1 = id('pay', 1)
 const MID = id('mid', 1)
 const NOW = Date.parse('2026-11-04T01:00:00.000Z')
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 
 const item: TransactionListItem = {
   paymentId: PAY1, environment: 'TEST', merchantAccountId: MID, merchantOrderId: 'order-77', orderNamePreview: '가나다라마바사아자차', orderNameTruncated: true,
@@ -143,21 +141,7 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 거래 조회 in the referen
     expect(container.querySelector('.tablebottom')).not.toBeNull()
   })
 
-  it('stylesheet: the filter-row wrap rules for this screen live in the PayCore adaptation block (no new color)', () => {
-    const adaptation = WORKSPACE_CSS.indexOf('PayCore 적응 규칙')
-    const light = WORKSPACE_CSS.indexOf('라이트 대비 보정')
-    const block = WORKSPACE_CSS.slice(adaptation, light)
-    // 기대값 변경(리뷰 MINOR-1 — 이 시험은 이번 화면에서 새로 만든 것): 줄바꿈은 모든 폭에서(미디어 조건 밖, 줄 첫머리 규칙),
-    // 입력란·선택은 원본 min-width:0 대신 고유 폭(min-width:auto — 새 크기 값 아님)이라 1101~1300px에서도 날짜가 잘리지 않고 다음 줄로 간다.
-    expect(block).toMatch(/^\.filters\.many\{flex-wrap:wrap\}$/m)
-    expect(block).toMatch(/^\.filters\.many input,\.filters\.many select\{min-width:auto\}$/m)
-    expect(block).toContain('@media(max-width:1100px){.filters.many input,.filters.many select{flex:1 1 40%}')
-    // 리뷰 NIT-3: 아래 줄 간격 12px(원본 .quick·.rolebar 값)·세로 가운데.
-    expect(block).toMatch(/^\.tablebottom\{gap:12px;align-items:center\}$/m)
-    const rules = WORKSPACE_CSS.slice(adaptation, light).split('\n').filter((line) => line.includes('.filters.many'))
-    expect(rules.length).toBeGreaterThan(0)
-    for (const rule of rules) expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b/i)
-  })
+  // ADMIN-DS-B1(§7.2): .filters.many 줄바꿈·.tablebottom 간격 원문 정규식(모양 전용)은 §7.4 캡처(거래 조회 1101~1440px 날짜·MID 칸 잘림 없음)와 designTokens.test.ts 리터럴 위치로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 })
 
 /**

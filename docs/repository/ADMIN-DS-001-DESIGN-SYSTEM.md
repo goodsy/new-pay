@@ -314,6 +314,7 @@
 |---|---|---|
 | 0.1 | 2026-11-22 | 최초 작성(D-PROC-003 해제 조건, D-ADMIN-UI-008 ①~③) |
 | 0.2 | 2026-11-22 | 독립 리뷰(CHANGES_REQUIRED) 반영. 재리뷰 REVIEW_PASS 뒤 MINOR 3건(줄 범위, §7.1 WorkspaceShell 범위, assetsInlineLimit 시험 부재) 반영 |
+| 0.2 | 2026-11-23 | 본문 규칙 변경 없음. §11.1 B1 배치 기록(토큰 이름 확정·결정·매핑표·캡처 요약·미결) 추가 |
 
 **0.2 반영 내용**
 
@@ -328,4 +329,87 @@
 
 ## 11. 배치 기록
 
-각 배치의 보장 행동 매핑표와 캡처 판정 요약을 여기에 더한다. 아직 없다.
+각 배치의 보장 행동 매핑표와 캡처 판정 요약을 여기에 더한다.
+
+### 11.1 B1 토큰 편입 (ADMIN-DS-B1, 2026-11-23, 기준 `7024796`)
+
+**가역 세부 결정**(문서 관례로 구현자가 정함, 리뷰 대상)
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 디자인 시스템 CSS 파일 | `src/workspace.css` 이름 유지(§3.1 "B1에서 정한다") | 이름만 바꾸면 import·시험·주석만 늘어난다. §7.1 "self-contained" 시험이 이 파일 전체에 적용된다 |
+| 토큰 이름 | 모두 `--ds-` 접두 | styles.css shadcn token은 cascade layer 밖이라 같은 이름이면 이 층 값을 이긴다(예: `--eyebrow` #64748b ≠ 시안 eyebrow #526984). B5에서 shadcn token을 정리할 때 다시 본다 |
+| 토큰 범위 | 색, 글자 크기(`--ds-fs-<px>`), radius(`--ds-radius-<px>`), 그림자(`--ds-shadow-drawer`) | 간격·크기 px(padding·margin·gap·width·height·letter-spacing)와 §4.2 상수는 B1에서 리터럴로 두었다 — 아래 미결 |
+| 덮인 원본 색 | 시안 블록 안에서 뒤 규칙에 덮여 보이지 않던 원본 색은 최종값과 같은 토큰으로 바꿨다 | 렌더 결과가 같다(아래 캡처). 원래 시안 값은 `docs/ui-reference` 원본에 남는다 |
+| 시안 CSS 변수 | `--blue`·`--line`·`--muted` 삭제 → `--ds-logo-bg`·`--ds-line`. `--muted`는 styles.css 값이 이미 이기고 있었고 이 파일은 쓰지 않았다 | 토큰 정의 위치를 맨 앞 한 곳으로(§4.1) |
+| 다크 예외 | 1건: `:where(:root[data-theme=dark]) .btn{color:var(--ds-text-body)}` | 라이트 `.btn`은 글자색을 정하지 않고 놓인 곳의 색을 이어받는다(예: 로그아웃 = 계정 영역 색). "이어받음"은 토큰 값으로 적을 수 없다. `:where()`로 명시도를 `.btn`과 같게 둬 `.cardtop button`·`.btn.primary`가 지금처럼 이긴다 |
+| 용도별 다크 토큰 | `#475569` → `--ds-text-secondary`(다크 #cbd5e1)·`--ds-text-workspace`(#dbe4f0)·`--ds-text-quiet`(#9aa8bc), `#64748b` → `--ds-text-muted`·`--ds-placeholder`(#94a3b8), `#1d4ed8` → `--ds-brand-text`(#7cb4ff)·`--ds-tone-info-fg`·`--ds-focus-ring`(#93c5fd), `#3182f6` → `--ds-brand-line`(#7cb4ff)·`--ds-logo-bg`(#3b82f6)·`--ds-tone-info-glyph`(#93c5fd)·`--ds-accent-control`(그대로) | §4.1 용도별 토큰 허용. 다크 값을 따로 정한 적 없는 `.matrix` accent·`nav em` 배지는 라이트와 같은 다크 값으로 옮겼다(값 변경 0) |
+| 시험 안 토큰 이름 | 시험 소스에는 전체 이름(`--ds-text-muted`)만 쓴다 | Tailwind가 소스의 짧은 이름(`text-muted`·`text-secondary`)을 utility 후보로 읽어 번들에 쓰지 않는 class를 더했다(B1 중 실측). 전체 이름으로 바꾼 뒤 번들 CSS가 측정본과 같다 |
+| 대비 보정 블록 | "라이트 대비 보정" 블록은 원본 순서(같은 명시도, 뒤에서 이김)를 지키려고 남기고 값은 토큰으로 | 보정값 자체는 토큰 정의에 있다 |
+
+**토큰 이름(§4.2 확정)**
+
+| 분류 | 토큰 |
+|---|---|
+| 바탕 | `canvas`, `surface`, `surface-subtle`, `surface-muted`, `table-head`, `row-hover`, `input-bg`, `overlay-dim`, `toast-bg`/`toast-fg` |
+| 선 | `line`(장식), `line-row`, `line-soft`, `line-timeline`, `line-step`, `banner-border`, `control-border`(입력), `control-border-btn`(버튼) |
+| 글자 | `text-heading`, `text-body`, `text-secondary`, `text-workspace`, `text-quiet`, `text-muted`, `text-muted-strong`, `placeholder`, `eyebrow` |
+| 브랜드 | `brand`, `brand-fg`, `brand-text`, `brand-soft`, `brand-line`, `banner-action`, `logo-bg`/`logo-fg`, `focus-ring`, `accent-control` |
+| 상태 tone | `tone-{neutral,info,warning,success,danger}-{bg,fg}`, `tone-info-glyph`, `tone-warning-glyph`/`-glyph-bg`, `tone-success-step-{bg,fg}`, `nav-badge-{bg,fg}` |
+| 위험 동작 | styles.css `--destructive-solid` 그대로(B2에서 Button 원자 위험 variant로) |
+| 크기 | `fs-9`…`fs-30`(15단계), `radius-4`…`radius-15`(10단계), `shadow-drawer` |
+
+**알려진 미달 목록**(designTokens.test.ts `KNOWN_SHORTFALLS`)
+
+| 쌍 | 라이트 | 다크 | 후속 |
+|---|---|---|---|
+| `control-border` / `input-bg`·`surface` | 1.23:1 | 1.81:1·1.68:1 | V1 |
+| `control-border-btn` / `surface` | 1.23:1 | 1.68:1 | V1 |
+| `text-muted` / `surface-subtle`(`.notice` 12px 글자) | 4.47:1 | 통과 | B1에서 새로 드러난 기존 값. Coordinator 결정(2026-11-23): 목록 추가 수용, **V1 범위에 포함(값 변경, Demo 사용자 확인)** |
+
+**보장 행동 매핑표**(§7.2. "방식만 변경"은 §7.1 시험 — 같은 쌍·같은 기준, 색을 읽는 곳만 토큰으로)
+
+| 기존 시험(파일:줄, `e9e4d1c`) | 지키던 행동 | 대체 시험 또는 체크리스트 항목 | 분류 |
+|---|---|---|---|
+| WorkspaceShell.test.tsx:294 | 라이트 대비 보정값(주 버튼·안내 띠 단추·보조 글자·단계 번호·주황 글리프)이 원본 값을 이기고, styles.css `--brand`와 같다 | designTokens.test.ts "every pair meets…"(`brand-fg/brand`, `banner-action/brand-soft`, `text-muted-strong` 3쌍, `tone-success-step`, `tone-warning-glyph` 3:1), "values defined in both places"(`--brand`↔`--ds-brand`). 이기는 값은 §7.4 computed style 차이 0 | 계산 |
+| WorkspaceShell.test.tsx:312 | 시안 원본 선언 블록이 같은 순서로 모두 있다(원본 수정 금지 — D-PROC-003으로 해제) | §7.4 픽셀·computed style 차이 0, designTokens.test.ts 리터럴 위치·다크 선택자 | 모양 전용 |
+| theme.test.tsx:109(:112·:113 유지) | 다크 색은 `data-theme=dark` 아래에만, 다크 구역 규칙은 모두 `:root[data-theme=dark]` | designTokens.test.ts "only the token override block and the listed exceptions mention data-theme", "token definitions … hold the only literal colours", "every colour token has light and dark values" | 계산 |
+| theme.test.tsx:178 | 긴 KPI 값이 카드 안에서 줄을 바꾼다 | 같은 it — 규칙 모델 `declOf('.stat strong','overflow-wrap') = anywhere`(Demo로 긴 KPI 값을 만들 수 없어 캡처로 대체 불가) | 규칙 모델 |
+| PaymentOps.workspace:195-201 | 진행 단계가 카드 좌우 23px에 맞는다. dt/dd가 label/strong 최종값. 다크 dt/dd 값 | 대비 `text-secondary/surface`·`text-heading/surface`(라이트·다크), 리터럴 위치, 캡처 `payment-ops` | 모양 전용 + 계산 |
+| Login.workspace:164 | 로그인 화면이 쓰는 class(body·header·.brand·h2·.card·.subtle·.btn·.btn.primary·.notice)에 다크 색이 있다 | 같은 it의 테마 전환 단언은 유지. 다크 색 = 토큰 규칙(모든 색 토큰 다크 값)·리터럴 위치·대비. 캡처 `login`·`login-totp`·`enroll` 다크 12폭 | 계산 + 캡처 |
+| Accounts.workspace:131-134 | 행 작업 summary(.btn)도 버튼과 같은 초점 링(라이트 보정색·다크) | designTokens.test.ts "focus ring": button·a·summary·h2[tabindex=-1] 각각 `@media` 밖에 `outline:3px solid var(--ds-focus-ring)` 규칙이 있고, 파일 순서로 접은 최종 굵기·모양·색이 `3px`·`solid`·`var(--ds-focus-ring)`(입력 focus는 `2px solid`). 대비 `focus-ring` 3:1(surface·canvas·input-bg·brand-soft, 라이트·다크). 키트 비교 focus 상태 | 접근성 계산 |
+| Reconciliation.workspace:76-78 | `.cardtop h3` = h4 값, 다크 값이 있다 | 대비 `text-heading/surface`, 토큰 다크 값 규칙, 캡처 `reconciliation` | 모양 전용 + 계산 |
+| Transactions.workspace:147-157 | 필터 줄바꿈(1101~1300px 날짜·MID 잘림 방지), 표 아래 줄 간격, 새 색 없음 | 캡처 `transactions` 12폭(가로 넘침 0, 잘림 눈 확인 — 1440·1101), 리터럴 위치 | 모양 전용 |
+| BusinessProfileForm.workspace:289 | 폼 줄 140px 이름 열·폭 단계·최소 16ch·720px 이하 쌓임, 색 없음 | 캡처 `business-registration` 1024(12자리 번호 다 보임)·721/720(쌓임), 리터럴 위치 | 모양 전용 |
+| Acquisitions.workspace:137 | 카드 안 레코드 상태 막대 여백 0·줄바꿈, `.cardtop h3` 기존 색, 새 색 없음 | 같은 파일 새 it(규칙 모델: padding 0·flex-wrap wrap — 매입 파일 상세는 Demo 데이터가 없어 캡처 불가), 대비 `text-heading/surface`, 리터럴 위치 | 규칙 모델 + 계산 |
+| theme.test.tsx:159 (§7.1 MINOR-2) | 다크 `.detailarea h3 small` ≥ 4.5:1 on #111a2b | 같은 it: 규칙의 토큰이 다크 재정의를 가진다 + 같은 기준(4.5, #111a2b). designTokens `text-muted/surface`에도 | 방식만 변경 |
+| theme.test.tsx:229 (§7.1) | 라이트 표 칸 4쌍 ≥ 4.5:1, 카드 #ffffff | 같은 it: 같은 선택자 4개, 색은 규칙의 토큰 라이트 값 | 방식만 변경 |
+| theme.test.tsx:238 (§7.1) | 다크 표 칸 4쌍 ≥ 4.5:1 | 같은 it: 같은 선택자 4개의 토큰 다크 값, 카드 #111a2b 단언 추가 | 방식만 변경 |
+
+- 바뀌지 않은 §7.1 시험: noRuntimeStyles 전체, WorkspaceShell:287(self-contained)·:281·:76·:131-254·:275, theme :37~:106·:113·:148(MINOR-1)·:165(MINOR-6), domScan, UiRefIsolation, 금융 화면 동작 시험.
+- 새 시험(§7.3 B1): `src/lib/designTokens.test.ts` 13개(토큰 대비 5, 리터럴 위치 3, 다크 선택자 2, 초점 링 2, 자산 인라인 금지 1). 리터럴 시험은 hex·색 함수와 CSS 이름 색 전체(transparent·currentColor 제외)를 잡는다와 도우미 `src/test/cssModel.ts`(규칙 모델·토큰 해석·WCAG 대비).
+- 변이 확인(저장소 밖 사본): 컴포넌트 규칙의 hex·`white`·글자 크기 px, 주석 없는 다크 선택자, 이유 주석과 떨어진 예외, 다크 값 없는 토큰, 다크 보조 글자 대비 저하, 고친 뒤 남은 미달 항목, summary 초점 링 다른 토큰, `assetsInlineLimit: 4096`, `--brand` 불일치, 쓰지 않는 토큰, 이름 색(`rebeccapurple`), 빈 주석(`/**/`)만 붙은 예외, summary 초점선 1px dotted, button·a 초점선 삭제·1px dotted, 파일 끝에서 닫히지 않은 주석 — 18건 모두 실패로 잡혔다(명령·결과 `~/gate-logs/admin-ds-b1/mutations.log`, 리뷰 반영 후 재실행).
+
+**캡처 판정 요약**(§7.4. 증거 `build/harness-evidence/ADMIN-DS-B1-capture-20261123T133503Z/` — `verdict.json`, 실행별 `shots.json`·`compare-*.json`·이미지, 도구 사본 `tool/`)
+
+- 대상: 메뉴의 모든 화면 20상태(로그인·인증 코드·계정 등록, 운영 홈·메뉴 검색 열림, 내 요청, 가맹점 목록·검색 결과·상세·등록, 사업자 목록·상세·등록, 결제 보정 취소, 거래 조회, 매입 현황, 계정 관리, 접속·감사 이력, 승인함, 대사 발견) × 12폭(1440·1101·1100·1024·1023·768·767·721·720·640·639·390, 높이 900·390은 844) × 라이트·다크 = 480장. Demo 데이터는 seed 가맹점 1개·결제 0건(새로 만든 데이터 없음).
+- 방법: "차이 0"은 같은 화면 DOM 안에서 번들 CSS만 바꿔(HEAD CSS ↔ 새 CSS) 두 번 찍어 잰다 — 데이터·시각 차이가 섞이지 않는다. Demo 재빌드 전(HEAD 제공, 새 CSS 끼움)과 후(새 CSS 제공, HEAD CSS 끼움) 두 번. 재빌드한 Demo가 내는 CSS는 측정한 CSS와 sha256이 같다(JS 번들 무변경).
+
+| 항목 | 재빌드 전 쌍 | 재빌드 후 쌍 |
+|---|---|---|
+| computed style 차이(보이는 모든 요소, 색·배경·테두리·글자·여백·크기·위치) | 0 | 0 |
+| 픽셀 차이 | 5장 27픽셀 | 11장 41픽셀 |
+| 가로 넘침 / `style` 속성 / CSP 위반 | 0 / 0 / 0 | 0 / 0 / 0 |
+| 콘솔 오류 | 로그인 전 `GET /api/auth/me` 401 6건(인증 전 확인 요청 — 기존 동작) | 같음 |
+
+- 픽셀 차이는 모두 pixelmatch가 안티앨리어싱으로 분류한 픽셀이다(채널 차 최댓값은 기록하지 않았다). 위치는 선택 메뉴 둥근 모서리(x=17·186)와 아이콘 글리프 가장자리이고, 같은 장의 computed style은 같다.
+- 별도 세션 비교(재빌드 전 화면 대 재빌드 후 화면)의 차이는 데이터·시각뿐이다: 접속·감사 이력 행 증가(캡처 로그인 기록), 운영 홈 "기준" 시각, 가맹점 상세 시각, 대사 마지막 실행 시각.
+- 화면에 없는 class(drawer·modal·toast·matrix·timeline·clickable 행)와 :hover·:focus-visible·:focus는 정적 키트 페이지로 HEAD CSS 대 새 CSS를 비교했다: 207요소 × 2테마 × 4폭 + hover 2 + 초점 9, 차이 0(1단위 토큰 변이로 검출력 확인 — 104건 검출).
+- 잘림·겹침(눈 확인): computed style·위치가 전부 같아 전후 모양이 같다. 기존 모양 자체의 잘림·겹침은 이번 배치 범위 밖이며 새로 보이는 것은 없다.
+
+**미결**
+
+- 간격·크기 px 토큰화 범위: §4.1 리터럴 규칙은 "글자·간격 px"를 말하지만 §7.3 리터럴 시험은 hex만 정한다. B1은 색·글자 크기·radius·그림자까지 했다. 간격을 토큰으로 옮길지(값 집합 약 30개), 언제 할지 Coordinator 판단.
+- `.notice` 글자 대비 4.47:1(라이트) — 결정됨: V1 범위에 포함(값 변경, Demo 사용자 확인). 위 미달 목록.
+- Tailwind가 시험 파일 문자열을 utility 후보로 읽는다(위 "시험 안 토큰 이름"). B5에서 `@source not` 등으로 시험 파일을 소스 검색에서 빼는 방법을 검토한다.
+- §4.1 "두 곳에 같은 값" 시험(designTokens.test.ts `same` 목록)의 적용 범위: 지금은 styles.css shadcn token과 이름이 1:1로 대응하는 15쌍만 본다(`--sidebar-*`·`--chip-success-*`처럼 대응 토큰이 없거나 값이 다른 것은 대상 아님). 범위를 문서에 명시할지 B5 전까지 정한다.

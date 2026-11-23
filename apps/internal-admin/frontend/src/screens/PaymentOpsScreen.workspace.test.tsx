@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { PaymentOpsScreen } from './PaymentOpsScreen'
 import type { AdminApi, PaymentTargetView } from '../api/adminApi'
@@ -20,7 +19,6 @@ const target: PaymentTargetView = {
   paymentId: PAY, paymentStatus: 'AUTHORIZED', cancellable: true, currency: 'KRW', authorizedMinor: 10000, cancellableMinor: 7000, balanceRevision: 3,
   onHold: false, inFlightCancel: false,
 }
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 const shape = (el: Element) => Array.from(el.children).map((c) => [c.tagName.toLowerCase(), ...Array.from(c.classList)].join('.'))
 
 function signedIn(overrides: Partial<AdminApi> = {}) {
@@ -191,15 +189,7 @@ describe('ADMIN-UI-WORKSPACE-001: 결제 관리 › 결제 보정 취소 in the 
     expect(requestLive).toBeEmptyDOMElement()
   })
 
-  it('CSS: the step bar sits under the map note with the card side margin; dl.detailgrid dt/dd take the reference label/value values (adaptation block only, no new value)', () => {
-    const block = WORKSPACE_CSS.slice(WORKSPACE_CSS.indexOf('PayCore 적응 규칙'), WORKSPACE_CSS.indexOf('라이트 대비 보정'))
-    expect(block).toMatch(/^\.mapnote \+ \.wizard\{margin:0 23px\}$/m)
-    // reviewFix1 MINOR-2: 원본 최종값 — 이름 .detailgrid label(13px·500·#475569·아래 8px), 값 .detailgrid strong(14px·600·#0f172a). 다크는 기존 label·strong 다크 값.
-    expect(block).toMatch(/^\.detailgrid dt\{margin-bottom:8px;font-size:13px;font-weight:500;color:#475569\}$/m)
-    expect(block).toMatch(/^\.detailgrid dd\{margin:0;font-size:14px;font-weight:600;color:#0f172a\}$/m)
-    expect(WORKSPACE_CSS).toMatch(/^:root\[data-theme=dark\] \.detailgrid dt\{color:#cbd5e1\}$/m)
-    expect(WORKSPACE_CSS).toMatch(/^:root\[data-theme=dark\] \.detailgrid dd\{color:#f1f5f9\}$/m)
-  })
+  // ADMIN-DS-B1(§7.2): workspace.css 원문 정규식(.mapnote + .wizard 여백, dt/dd 값·다크 값)은 designTokens.test.ts(토큰 대비 — secondary·heading 쌍, 리터럴 위치)와 §7.4 캡처(결제 보정 취소)로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 })
 
 /**

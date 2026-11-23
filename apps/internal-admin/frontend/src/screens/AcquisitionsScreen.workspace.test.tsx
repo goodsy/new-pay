@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
+import { declOf, DESIGN_CSS_PATH, parseRules, readCss } from '../test/cssModel'
 import { App } from '../App'
 import { AcquisitionsScreen } from './AcquisitionsScreen'
 import type { AcquisitionFileDetail, AcquisitionFileItem, AcquisitionRecord, AdminApi } from '../api/adminApi'
@@ -16,8 +16,8 @@ import { domOccurrences } from '../test/domScan'
  */
 const user = userEvent.setup({ delay: null })
 const NOW = Date.parse('2026-11-06T01:00:00.000Z')
+const RULES = parseRules(readCss(DESIGN_CSS_PATH)) // ADMIN-DS-B1: 디자인 시스템 CSS 규칙 모델(test/cssModel.ts)
 const F1 = 'ACQ.SIMACQA.TEST.20261105.001'
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 
 const file: AcquisitionFileItem = {
   fileId: F1, acquirerCode: 'SIMACQA', environment: 'TEST', businessDate: '2026-11-05', fileVersion: 1, originalFileId: null, recordCount: 3, saleCount: 3,
@@ -133,14 +133,11 @@ describe('ADMIN-UI-WORKSPACE-001: 매입·대사 › 매입 현황 in the refere
     expect(container.querySelector('.tablebottom')).toHaveTextContent('목록 0건')
   })
 
-  it('stylesheet: the rolebar-in-card rule lives in the PayCore adaptation block (no new color)', () => {
-    const block = WORKSPACE_CSS.slice(WORKSPACE_CSS.indexOf('PayCore 적응 규칙'), WORKSPACE_CSS.indexOf('라이트 대비 보정'))
-    expect(block).toMatch(/^\.cardbody \.rolebar\{padding:0;flex-wrap:wrap\}$/m)
-    // 이번 화면에서 더한 규칙만(기존 초점 규칙 `:where(…,.rolebar,…) input:focus`의 색은 거래 조회 리뷰 MINOR-3 값이라 대상 아님).
-    const added = block.split('\n').filter((line) => line.startsWith('.cardbody .rolebar') || line.startsWith('.cardtop h3'))
-    expect(added).toHaveLength(2)
-    expect(added[0]).toMatch(/^\.cardtop h3\{.*color:#0f172a\}$/) // 색은 기존 .cardtop h4·.detailarea h3 값과 같다(새 색 아님)
-    expect(added[1]).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+  // ADMIN-DS-B1(§7.2): 원문 정규식 → 규칙 모델(원문 형식 무관). 색 쌍(.cardtop h3)은 designTokens.test.ts 대비·리터럴 위치로 — ADMIN-DS-001 §11 매핑표.
+  // 매입 파일 상세는 Demo에 데이터가 없어 캡처로 대체할 수 없으므로 좁은 폭 줄바꿈 규칙을 여기서 지킨다.
+  it('stylesheet: the record-status bar inside a card body has no extra padding and wraps on narrow widths', () => {
+    expect(declOf(RULES, '.cardbody .rolebar', 'padding')).toBe('0')
+    expect(declOf(RULES, '.cardbody .rolebar', 'flex-wrap')).toBe('wrap')
   })
 })
 

@@ -583,6 +583,7 @@
       "lastGate": null,
       "openItems": [
         "기준 문서 rev 0.2 확정(독립 리뷰 REVIEW_PASS, MINOR 3 반영, 문서만 변경) — D-PROC-003 해제 조건 충족",
+        "B1 DONE(ADMIN-DS-B1, 2026-11-23). 다음 V1 → B2~B5",
         "[후속] §8 B1·V1·B2~B5 이행(RECOVERY-ROADMAP 4단계) — 배치마다 리뷰·SCOPED 게이트·§7.4 캡처·§11 매핑표"
       ],
       "nextResumeAction": "§8 B1(토큰 편입, 화면 변화 0) 착수: 매핑표·픽셀/computed style 비교·SCOPED 게이트. DONE은 B1~B5 뒤 FULL PASS",
@@ -764,6 +765,38 @@
         "[후속] 저장소 gradle.properties 주석에 '호스트별 상향은 TECH-BASELINE §7.3' 안내(리뷰 MINOR-2, 이번 허용 경로 밖)"
       ],
       "nextResumeAction": "완료",
+      "detail": null
+    },
+    {
+      "id": "ADMIN-DS-B1",
+      "title": "관리자 디자인 시스템 B1 — 토큰 편입(값 변경 0)",
+      "status": "DONE",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "ADMIN-DS-001"
+      ],
+      "spec": "docs/repository/ADMIN-DS-001-DESIGN-SYSTEM.md rev 0.2 §4·§7.2~§7.4·§8 B1·§11",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/ADMIN-DS-001-DESIGN-SYSTEM.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "ADSB1-gate1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/ADMIN-DS-B1-2026-11-23T142354Z.json"
+      },
+      "openItems": [
+        "완료 기준(§8 B1): 원본 블록·적응 규칙 값을 §4 토큰 var()로, 다크 선택자를 토큰 재정의로 축소, workspace.css:12 낡은 주석 수정, §7.2 둘째 행 원문 정규식 단언 전환(WorkspaceShell은 :294·:312만), §7.3 B1 시험 4종 추가, §7.1 시험 무변경 통과, §7.4 픽셀·computed style 차이 0(12폭×2테마), §11 매핑표·캡처 요약",
+        "Demo 데이터: 2026-11-23 Mac 재seed mer_01M848F144EG96CWK9FRZJ18F9 / mid_01M848F174PB3DPCPHTFRGCZTN, 결제는 2026-11-24 00:00 KST 이후",
+        "구현 완료(2026-11-23): workspace.css 색·글자 크기·radius·그림자 → --ds- 토큰(:root / :root[data-theme=dark]), 다크 선택자 약 63개 → 토큰 재정의(이유 주석 예외 1건 .btn), 원문 정규식 단언 7개 전환(매핑표 §11.1 14행), designTokens.test.ts 13건 + cssModel.ts(시험 전용). 캡처: 20상태×12폭×2테마 480장, computed style 차이 0, 픽셀 차이는 pixelmatch AA 분류만(build/harness-evidence/ADMIN-DS-B1-capture-20261123T133503Z). 변이 18건 모두 검출(tool/mutation/mutations.log). Vitest 693(=687−7+13), tsc 0",
+        "리뷰: 1차 REVIEW_FAIL(MAJOR-1 초점 링 3px solid 보장 누락) → 반영 후 재리뷰 REVIEW_PASS. Coordinator 결정: theme.test :159·:229·:238 단언 방식 변경 수용(같은 쌍·4.5:1, 리뷰 전후 대조 PASS), .notice 4.47:1(#64748b/#f6f8fb) 알려진 미달 목록 추가 수용 → V1에서 값 보정·Demo 사용자 확인",
+        "[후속] B5: Tailwind가 시험 파일 문자열을 utility 후보로 읽음(@source not 검토), §4.1 same 목록 범위 명시, 간격 px 토큰화 범위 결정",
+        "완료: ADSB1-gate1 FULL PASS(fp 5f7db1d0…, GRADLE-CHECK 6m07s, Kotlin 5120/FE 718, 실패·skip 0). Demo 관리자는 새 CSS로 재빌드됨(화면 변화 없음)"
+      ],
+      "nextResumeAction": "완료. 다음 배치 V1(값 변경 — control-border 3:1, .notice 대비) — 사용자 Demo 확인 필요",
       "detail": null
     }
   ]

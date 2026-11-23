@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { AccountsScreen } from './AccountsScreen'
 import type { AccountView, AdminApi } from '../api/adminApi'
@@ -17,7 +16,6 @@ import { domOccurrences } from '../test/domScan'
 const active: AccountView = { actorId: 'adm_A', loginName: 'ops-a', displayName: '운영 A', status: 'ACTIVE', activeRoles: ['OPERATOR'], suspendedRoles: [], pendingPurpose: null }
 const suspended: AccountView = { ...active, actorId: 'adm_S', loginName: 'ops-s', displayName: '정지 S', activeRoles: [], suspendedRoles: ['APPROVER'] }
 const pending: AccountView = { ...active, actorId: 'adm_P', loginName: 'ops-p', displayName: '대기 P', status: 'PENDING_ENROLLMENT', activeRoles: [], suspendedRoles: [] }
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 const shape = (el: Element) => Array.from(el.children).map((c) => [c.tagName.toLowerCase(), ...Array.from(c.classList)].join('.'))
 
 function signedIn(overrides: Partial<AdminApi> = {}) {
@@ -127,12 +125,7 @@ describe('ADMIN-UI-WORKSPACE-001: 계정·권한 › 계정 관리 in the refere
     expect(within(waiting).getByRole('button', { name: '등록 코드 재발급' })).toHaveClass('btn')
     expect(within(waiting).getByTitle('PENDING_ENROLLMENT')).toHaveClass('tag', 'orange')
   })
-  it('reviewFix1 MINOR-1: the row-action summary (.btn) gets the same focus ring as buttons — light, contrast-corrected color and dark (no new color)', () => {
-    const block = WORKSPACE_CSS.slice(WORKSPACE_CSS.indexOf('PayCore 적응 규칙'), WORKSPACE_CSS.indexOf('라이트 대비 보정'))
-    expect(block).toMatch(/^summary:focus-visible\{outline:3px solid #aecfff\}$/m)
-    expect(block).toMatch(/^button:focus-visible,a:focus-visible,summary:focus-visible\{outline-color:#1d4ed8\}$/m)
-    expect(WORKSPACE_CSS).toMatch(/:root\[data-theme=dark\] summary:focus-visible\{outline-color:#93c5fd\}|:root\[data-theme=dark\] summary:focus-visible[,{]/)
-  })
+  // ADMIN-DS-B1(§7.2): summary 초점 링 원문 정규식은 designTokens.test.ts 'focus ring'(summary·button·a 모두 --ds-focus-ring, 대비 3:1 라이트·다크)으로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 })
 
 /**

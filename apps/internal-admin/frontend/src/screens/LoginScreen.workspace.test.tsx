@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { LoginScreen } from './LoginScreen'
 import type { Me } from '../api/adminApi'
@@ -14,7 +13,6 @@ import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
  * 명시 Demo Fixture: 세션 없음(me = 401 UNAUTHENTICATED), 로그인 성공 계정 1명(보안 관리자).
  */
 const me: Me = { actorId: 'adm_01', displayName: '보안 관리자', roles: ['SECURITY_ADMIN'] }
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 const shape = (el: Element) => Array.from(el.children).map((c) => [c.tagName.toLowerCase(), ...Array.from(c.classList)].join('.'))
 
 function stubMatchMedia(dark: boolean) {
@@ -148,7 +146,7 @@ describe('ADMIN-UI-WORKSPACE-001 WS9: 로그인 in the reference card layout', (
     expect(screen.getByLabelText('비밀번호')).toHaveValue('')
   })
 
-  it('theme works before login: data-theme follows the OS / stored choice on the login screen, and the dark block covers the classes it uses', async () => {
+  it('theme works before login: data-theme follows the OS / stored choice on the login screen, and the design tokens carry the dark colours', async () => {
     stubMatchMedia(true)
     const unauthenticated = () => fakeApi({ me: vi.fn(async () => { throw apiError(401, 'UNAUTHENTICATED') }) })
     const first = render(<App api={unauthenticated()} />)
@@ -160,8 +158,7 @@ describe('ADMIN-UI-WORKSPACE-001 WS9: 로그인 in the reference card layout', (
     render(<App api={unauthenticated()} />)
     await screen.findByLabelText('로그인 이름')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
-    for (const selector of ['body', 'header', '.brand', 'h2', '.card', '.subtle', '.btn', '.btn.primary', '.notice']) {
-      expect(WORKSPACE_CSS).toMatch(new RegExp(`:root\\[data-theme=dark\\] ${selector.replace(/\./g, '\\.')}[,{ ]`))
-    }
+    // ADMIN-DS-B1(§7.2): "다크 구역이 로그인 화면 class를 덮는다"는 원문 정규식은 designTokens.test.ts로 옮겼다 — 색은 토큰만 쓰고(리터럴 위치)
+    // 모든 색 토큰이 다크 값을 가지며(토큰 규칙) 대비를 라이트·다크로 계산한다. 로그인 화면 다크 모양은 §7.4 캡처(login·login-totp·enroll). ADMIN-DS-001 §11 매핑표.
   })
 })

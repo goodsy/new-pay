@@ -9,7 +9,6 @@ import { createScreenMemory } from '../lib/screenMemory'
 import { apiError, fakeApi } from '../test/fakeApi'
 import { domOccurrences } from '../test/domScan'
 import { commandRejected, individualRegisteredDetail, lookupItemOf } from '../test/businessFixtures'
-import { readFileSync } from 'node:fs'
 import { DetailRow, InfoCard } from '../components/DetailCard'
 
 /**
@@ -30,7 +29,6 @@ const fillDraft = async () => {
   await paste('사업자등록번호', BRN)
   await paste('상호', '데모 사업자')
 }
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 /** 폼 줄(사용자 결정 2026-11-19): 입력이 든 .fieldrow — 첫 자식 label(for = 입력 id, 이름 왼쪽), 둘째 .fieldcontrol(입력 + 줄 끝 버튼). */
 const rowOf = (input: HTMLElement) => input.closest('.fieldrow') as HTMLElement
 const saveButtons = () => within(screen.getByRole('group', { name: '저장' })).getAllByRole('button')
@@ -285,24 +283,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     })
   })
 
-  it('userFeedback1 CSS: one form-row adaptation rule set (label column, help under the input column, width steps, ≤720px stacked + full width) — no colors', () => {
-    const block = WORKSPACE_CSS.slice(WORKSPACE_CSS.indexOf('PayCore 적응 규칙'), WORKSPACE_CSS.indexOf('라이트 대비 보정'))
-    // 사용자 지시(2026-11-19): 이름 열·간격은 사업자 조회 상세 DetailRow(sm:grid-cols-[140px_1fr] gap-1)와 같은 값.
-    expect(block).toMatch(/^\.fieldrow\{display:grid;grid-template-columns:140px minmax\(0,1fr\);column-gap:4px;row-gap:4px;align-items:center\}$/m)
-    expect(block).toMatch(/^\.fieldcontrol\{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0\}$/m)
-    // 리뷰 MINOR-1(기대값 변경 — 이번 피드백 새 시험): 입력 최소 16ch(12자리 번호가 다 보이게, 좁으면 버튼이 다음 줄). Input utility min-w-0을 넘으려고 !important, xs 단계는 0.
-    expect(block).toMatch(/^\.fieldcontrol > :first-child\{flex:1 1 0%;min-width:min\(100%,16ch\) !important\}$/m)
-    expect(block).toMatch(/^\.fieldcontrol\.fw-xs > :first-child\{min-width:0 !important\}$/m)
-    expect(block).toMatch(/^\.fieldnote\{grid-column:2;margin:0\}$/m)
-    expect(block).toMatch(/^\.fieldoffset\{padding:8px 0 8px calc\(140px \+ 4px\)\}$/m)
-    expect(block).toMatch(/^\.fw-xs > :first-child\{max-width:10ch\}$/m)
-    expect(block).toMatch(/^\.fw-sm > :first-child\{max-width:20ch\}$/m)
-    expect(block).toMatch(/^\.fw-md > :first-child\{max-width:36ch\}$/m)
-    expect(block).toMatch(/^\.fw-lg > :first-child\{max-width:60ch\}$/m)
-    expect(block).toMatch(/@media\(max-width:720px\)\{\.fieldrow\{grid-template-columns:minmax\(0,1fr\)\}\.fieldnote\{grid-column:1\}\.fieldoffset\{padding-left:0\}\.fw-xs > :first-child,\.fw-sm > :first-child,\.fw-md > :first-child,\.fw-lg > :first-child\{max-width:none\}\}/)
-    const rules = block.slice(block.indexOf('.fieldrow{'), block.indexOf('max-width:none}}') + 16)
-    expect(rules).not.toMatch(/color|#[0-9a-f]{3,6}/i)
-  })
+  // ADMIN-DS-B1(§7.2): 폼 줄(.fieldrow·.fw-*) 원문 정규식(모양 전용)은 §7.4 캡처(사업자 등록 1024px 12자리 번호 다 보임·720px 이하 쌓임)와 designTokens.test.ts 리터럴 위치로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 
   it('사용자 지시 2026-11-19: the form section card and row match the 사업자 조회 상세 InfoCard / DetailRow (same card classes, same 140px row look)', () => {
     const detail = render(<InfoCard title="1. 사업자 기본"><DetailRow term="상호">데모 사업자</DetailRow></InfoCard>)

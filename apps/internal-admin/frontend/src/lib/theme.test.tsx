@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { fakeApi } from '../test/fakeApi'
+import { declOf, designTokens, DESIGN_CSS_PATH, parseRules, readCss, tokenValue, type Theme } from '../test/cssModel'
 import { applyStoredTheme, resolveTheme, THEME_STORAGE_KEY } from './theme'
 
 /** D-ADMIN-HOME-001: 라이트(참고 시안) + 다크. OS 설정이 기본, 사이드바 아래 선택은 저장소에 남는다(직접 고를 때만). */
@@ -106,16 +107,11 @@ describe('theme (D-ADMIN-HOME-001 — light + dark)', () => {
     expect(readFileSync('index.html', 'utf8')).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>\s*\S/)
   })
 
-  it('dark colours live only under data-theme=dark: styles.css tokens and the workspace.css dark block (reference blocks unchanged)', () => {
+  // ADMIN-DS-B1(§7.2): workspace.css 다크 구역 원문 대조는 designTokens.test.ts(다크 선택자·리터럴 위치·토큰 대비)로 옮겼다 — ADMIN-DS-001 §11 매핑표.
+  it('dark colours live only under data-theme=dark: styles.css tokens (the design system CSS: see designTokens.test.ts)', () => {
     const styles = readFileSync('src/styles.css', 'utf8')
-    const workspace = readFileSync('src/workspace.css', 'utf8')
     expect(styles).toMatch(/:root\[data-theme="dark"\] \{[^}]*--card: #111a2b/)
     expect(styles).not.toMatch(/prefers-color-scheme/)
-    expect(workspace).toMatch(/:root\[data-theme=dark\] body\{background:#0b1220;color:#dbe4f0\}/)
-    const darkBlock = workspace.slice(workspace.indexOf(':root[data-theme=dark]{'))
-    for (const line of darkBlock.split('\n').filter((l) => l.includes('{') && !l.startsWith('@') && !l.startsWith('/*') && !l.startsWith(' *'))) {
-      expect(line.startsWith(':root[data-theme=dark]'), line).toBe(true)
-    }
   })
 })
 
@@ -134,7 +130,10 @@ const ratio = (a: number[], b: number[]) => {
   return (x + 0.05) / (y + 0.05)
 }
 const STYLES = readFileSync('src/styles.css', 'utf8')
-const WORKSPACE = readFileSync('src/workspace.css', 'utf8')
+// ADMIN-DS-B1: 디자인 시스템 CSS는 색을 토큰으로만 쓴다 — 규칙의 var(--ds-…)를 테마별 토큰 값으로 풀어 잰다(test/cssModel.ts).
+const WORKSPACE_RULES = parseRules(readCss(DESIGN_CSS_PATH))
+const WORKSPACE_TOKENS = designTokens(WORKSPACE_RULES)
+const cssColor = (theme: Theme, selector: string, prop = 'color') => tokenValue(WORKSPACE_TOKENS, theme, declOf(WORKSPACE_RULES, selector, prop))
 const LIGHT_TOKENS = STYLES.slice(STYLES.indexOf('--radius: 0.75rem'), STYLES.indexOf(':root[data-theme="dark"] {'))
 const DARK_TOKENS = STYLES.slice(STYLES.indexOf(':root[data-theme="dark"] {'), STYLES.indexOf('@theme inline'))
 const BRAND_TOKENS = STYLES.slice(0, STYLES.indexOf('--radius: 0.75rem'))
@@ -157,9 +156,11 @@ describe('independent review — contrast fixes (WCAG AA 4.5:1 for text)', () =>
   })
 
   it('MINOR-2: .detailarea h3 small has a dark override readable on the dark card (>= 4.5:1)', () => {
-    const m = WORKSPACE.match(/:root\[data-theme=dark\] \.detailarea h3 small\{color:(#[0-9a-f]{6})\}/)
-    expect(m).not.toBeNull()
-    expect(ratio(rgb(m![1]!), rgb('#111a2b'))).toBeGreaterThanOrEqual(4.5)
+    // ADMIN-DS-B1: 다크 값은 선택자 재정의 대신 토큰 재정의 — 그 토큰이 다크 값을 가져야 하고, 다크 카드 위 4.5:1(기준 그대로).
+    const token = declOf(WORKSPACE_RULES, '.detailarea h3 small', 'color').match(/^var\((--ds-[\w-]+)\)$/)
+    expect(token).not.toBeNull()
+    expect(WORKSPACE_TOKENS.darkOverrides).toHaveProperty([token![1]!])
+    expect(ratio(rgb(cssColor('dark', '.detailarea h3 small')), rgb('#111a2b'))).toBeGreaterThanOrEqual(4.5)
   })
 
   it('MINOR-6: brand text on the 5% brand tint uses the darker info token (>= 4.5:1 light and dark); the old text-primary pairing is gone', () => {
@@ -176,25 +177,9 @@ describe('independent review — contrast fixes (WCAG AA 4.5:1 for text)', () =>
   })
 
   it('NIT: long KPI values wrap inside the stat card instead of overflowing', () => {
-    expect(WORKSPACE).toMatch(/\.stat strong\{[^}]*overflow-wrap:anywhere/)
+    expect(declOf(WORKSPACE_RULES, '.stat strong', 'overflow-wrap')).toBe('anywhere')
   })
 })
-
-/**
- * workspace.css에서 선택자 하나의 실제 글자색(같은 선택자는 뒤 규칙이 이긴다). 라이트 = 다크 블록 앞, 다크 = `:root[data-theme=dark]` 블록(더 구체적이라 라이트를 덮는다).
- * 선택자는 파일에 적힌 그대로(쉼표 목록 안 한 항목) 찾는다 — 없으면 실패(조용한 통과 없음).
- */
-const DARK_START = WORKSPACE.indexOf(':root[data-theme=dark]{')
-const cssColor = (block: string, selector: string, prop = 'color') => {
-  let found: string | null = null
-  for (const m of block.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectors = m[1]!.split(',').map((s) => s.trim())
-    const value = m[2]!.match(new RegExp(`(?:^|;)${prop}:#([0-9a-f]{6}|[0-9a-f]{3})(?![0-9a-f])`))
-    if (selectors.includes(selector) && value) found = value[1]!
-  }
-  if (found === null) throw new Error(`${prop} for ${selector} missing`)
-  return `#${found.length === 3 ? [...found].map((c) => c + c).join('') : found}`
-}
 
 describe('TXN-LIST-ENRICH-001 review NIT-5 — the new list cells meet WCAG AA (4.5:1) in light and dark', () => {
   const row = (merchant: { name: string; code: string } | null) => ({
@@ -227,19 +212,19 @@ describe('TXN-LIST-ENRICH-001 review NIT-5 — the new list cells meet WCAG AA (
   })
 
   it('light: td strong, td small, plain td (MID-only / 결제수단) and .mapnote on the white card >= 4.5:1', () => {
-    const light = WORKSPACE.slice(0, DARK_START)
-    const card = cssColor(light, '.card', 'background')
+    const card = cssColor('light', '.card', 'background')
     expect(card).toBe('#ffffff')
     for (const sel of [':where(.tablewrap) td strong', ':where(.tablewrap) td small', ':where(.tablewrap) td', '.mapnote']) {
-      expect(ratio(rgb(cssColor(light, sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
+      expect(ratio(rgb(cssColor('light', sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
     }
   })
 
   it('dark: the same cells on the dark card >= 4.5:1', () => {
-    const dark = WORKSPACE.slice(DARK_START)
-    const card = cssColor(dark, ':root[data-theme=dark] .card', 'background')
-    for (const sel of [':root[data-theme=dark] .tablewrap td strong', ':root[data-theme=dark] .tablewrap td small', ':root[data-theme=dark] .tablewrap td', ':root[data-theme=dark] .mapnote']) {
-      expect(ratio(rgb(cssColor(dark, sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
+    // ADMIN-DS-B1: 다크는 선택자 재정의 대신 같은 규칙의 토큰 다크 값(D-ADMIN-HOME-001 slate) — 같은 칸·같은 기준.
+    const card = cssColor('dark', '.card', 'background')
+    expect(card).toBe('#111a2b')
+    for (const sel of [':where(.tablewrap) td strong', ':where(.tablewrap) td small', ':where(.tablewrap) td', '.mapnote']) {
+      expect(ratio(rgb(cssColor('dark', sel)), rgb(card)), sel).toBeGreaterThanOrEqual(4.5)
     }
   })
 })

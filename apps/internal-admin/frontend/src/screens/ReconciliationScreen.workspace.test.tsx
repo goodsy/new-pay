@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
 import { App } from '../App'
 import { ReconciliationScreen } from './ReconciliationScreen'
 import type { AdminApi, ReconciliationOverview } from '../api/adminApi'
@@ -13,7 +12,6 @@ import { domOccurrences } from '../test/domScan'
  * 실제 대사 발견 화면에 입힌다. 기능·문구·오류 처리·"해결·종료 버튼 없음"은 ReconciliationScreen.test.tsx가 그대로 지킨다.
  * Demo 식별자는 업무 의미 없는 고정값이다(발견 2건 — 종류별 수의 합 3은 열린 발견 수와 같다).
  */
-const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8') // Vitest 작업 디렉터리 = frontend/
 
 const overview: ReconciliationOverview = {
   openCounts: { MISSING_DECISION: 2, ORPHAN_DECISION: 1 }, openTotal: 3, truncated: false, lastRunAt: '2026-10-28T00:00:00Z', lastFullScanAt: null, lastResult: 'OK',
@@ -72,9 +70,5 @@ describe('ADMIN-UI-WORKSPACE-001: 매입·대사 › 대사 발견 in the refere
     expect(Array.from(container.children).map((c) => c.className)).toEqual(['mapnote', 'cardnote'])
   })
 
-  it('stylesheet: the card-title h3 rule lives in the PayCore adaptation block with existing values (no new color)', () => {
-    const block = WORKSPACE_CSS.slice(WORKSPACE_CSS.indexOf('PayCore 적응 규칙'), WORKSPACE_CSS.indexOf('라이트 대비 보정'))
-    expect(block).toMatch(/^\.cardtop h3\{margin:0;font-size:17px;font-weight:700;color:#0f172a\}$/m)
-    expect(WORKSPACE_CSS).toMatch(/:root\[data-theme=dark\] \.cardtop h3[,{]/)
-  })
+  // ADMIN-DS-B1(§7.2): .cardtop h3 원문 정규식은 designTokens.test.ts(heading/surface 대비 라이트·다크, 리터럴 위치)와 §7.4 캡처(대사 발견)로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 })

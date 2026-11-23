@@ -14,7 +14,6 @@ import { domOccurrences } from '../test/domScan'
  */
 
 const REFERENCE_JS = readFileSync('docs/ui-reference/reference/app.js', 'utf8') // Vitest 작업 디렉터리 = frontend/
-const REFERENCE_CSS = readFileSync('docs/ui-reference/reference/style.css', 'utf8')
 const WORKSPACE_CSS = readFileSync('src/workspace.css', 'utf8')
 const STYLES_CSS = readFileSync('src/styles.css', 'utf8')
 const MAIN_TSX = readFileSync('src/main.tsx', 'utf8')
@@ -291,33 +290,6 @@ describe('ADMIN-UI-WORKSPACE-001: stylesheet — the whole reference CSS (with t
     expect(WORKSPACE_CSS).not.toMatch(/https?:\/\//i)
   })
 
-  it('light contrast overrides (user decision "기준에 맞게 조금 진하게") exist after the reference blocks, before the dark block; the shadcn brand token matches', () => {
-    const overrides = [
-      '.btn.primary{background:#116ef5;border-color:#116ef5}',
-      '.banner button{color:#0a67ec}',
-      '.workspace small,kbd,.banner p{color:#617086}',
-      '.stepno{color:#2c7c5c}',
-      '.taskicon{color:#d77120}',
-    ]
-    const typography = WORKSPACE_CSS.indexOf('/* Readable operations typography */')
-    const dark = WORKSPACE_CSS.indexOf(':root[data-theme=dark]{')
-    for (const rule of overrides) {
-      const at = WORKSPACE_CSS.indexOf(rule)
-      expect(at, rule).toBeGreaterThan(typography)
-      expect(at, rule).toBeLessThan(dark)
-    }
-    expect(STYLES_CSS).toMatch(/--brand: #116ef5;/)
-  })
-
-  it('every reference declaration block appears in workspace.css in the reference order, ending with "Readable operations typography"', () => {
-    const blocks = [...REFERENCE_CSS.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]!.trim()).filter((b) => b !== '')
-    expect(blocks.length).toBeGreaterThan(150)
-    let at = 0
-    for (const block of blocks) {
-      const found = WORKSPACE_CSS.indexOf(`{${block}}`, at)
-      expect(found, block).toBeGreaterThanOrEqual(0)
-      at = found + block.length
-    }
-    expect(WORKSPACE_CSS.indexOf('/* Readable operations typography */')).toBeGreaterThan(WORKSPACE_CSS.indexOf('@media(max-width:720px)'))
-  })
+  // ADMIN-DS-B1(§7.2): 라이트 대비 보정값 원문 대조(:294)와 시안 선언 블록 순서 대조(:312)는 designTokens.test.ts(토큰 대비 계산 — 보정값 쌍 포함,
+  // styles.css --brand와 --ds-brand 일치, 리터럴 위치·다크 선택자)와 §7.4 캡처(값 변경 0)로 옮겼다 — ADMIN-DS-001 §11 매핑표.
 })
