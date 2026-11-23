@@ -4246,6 +4246,20 @@
       "humanAnswer": "경계 폭 추가 (Recommended)",
       "humanEvidence": "Claude Code 세션 AskUserQuestion 답 (2026-11-22, 재정비 5단계)",
       "appliedSpec": "D-ADMIN-UI-008"
+    },
+    {
+      "id": "Q-PROC-7",
+      "status": "ANSWERED",
+      "question": "FULL 게이트(맥 약 7.5분)를 작은 작업마다 돌리는 운영 방식",
+      "recommended": "(나) 작은 작업 여러 개를 모아 FULL 한 번(규칙 유지, 횟수만 줄임)",
+      "alternative": "(가) 작은 harness·문서 작업은 SCOPED 통과만으로 DONE 허용(판정 기준 변경)",
+      "impact": "게이트 대기 시간, DONE 판정 시점",
+      "dependentTasks": [],
+      "askedAt": "2026-11-23",
+      "origin": "세션 대화(게이트 소요 시간 질문)",
+      "humanAnswer": "게이트 운영방식은 나로 해주고",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 (2026-11-24)",
+      "appliedSpec": "D-PROC-007"
     }
   ]
 }

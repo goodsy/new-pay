@@ -98,6 +98,7 @@ TECHNOLOGY-AND-PRINCIPLES.md가 필수 기술/8대 원칙 기준이다. TECH-001
 - **분류할 수 없는 경로가 하나라도 있으면** 빌드 없이 `FULL_GATE_REQUIRED`(exit 4)다. libs·build-logic·gradle·docker·루트 빌드 파일·앱 build.gradle.kts·하네스 스크립트·commands.json이 여기에 든다. 검증 성공이 아니다.
 - **단위는 그 모듈 시험 전체다.** 시험을 고르거나 줄이지 않는다. 단위별 하한(`minTests`)은 실제 시험 수이며, 낮추려면 사용자 결정이 필요하다. 캐시·skip·0건·오래된 보고서 거부 규칙은 FULL과 같다.
 - **금융 핵심 검증은 FULL에서 빠지지 않는다.** 기능 DONE은 FULL PASS가 있어야 한다. SCOPED PASS만으로 DONE을 기록하지 않는다.
+- **작은 작업은 묶어서 FULL 한 번(D-PROC-007).** 시험 전용·문서·하네스·화면 정리 같은 작은 작업은 각자 독립 리뷰 + SCOPED PASS 뒤 커밋하고 IN_PROGRESS("FULL 대기")로 둔다. 다음 FULL PASS 한 번(묶인 커밋을 모두 포함한 fingerprint)으로 함께 DONE을 기록한다. SCOPED가 `FULL_GATE_REQUIRED`를 내는 변경은 묶지 않고 바로 FULL을 돌린다. 묶음 FULL이 FAIL이면 묶인 작업 모두 원인 확인 전까지 DONE이 아니다.
 - 문서·기록만 바뀌면 단위가 0개라 HARNESS-SELFTEST만 돈다. 이때 SCOPED 증거의 `buildFingerprint`(문서·기록·로컬 파일을 뺀 빌드 입력 hash)가 직전 FULL PASS 증거의 값과 같으면, 그 FULL PASS의 **시험 증거**는 그대로 쓴다. 명세 파일(hash)이 바뀌었으면 Reviewer가 바뀐 명세와 구현·시험을 다시 대조한 뒤에만 DONE으로 본다. 이 판단은 도구가 아니라 Coordinator·Reviewer가 증거 두 개를 비교해 한다.
 - `--base`(기본 HEAD = 작업 트리의 미커밋 변경). **변경 경로가 0건이면 PASS가 아니라 FAIL이다.** 이미 커밋한 배치를 검사하려면 직전 게이트 증거의 `headRevision`(그 배치들 앞 커밋)을 준다. base는 HEAD의 조상이어야 하고(아니면 FAIL), 증거 `scope.baseRevision`에 남으므로 Reviewer가 직전 증거와 이어지는지 확인한다. 권장 순서는 지금처럼 "게이트 → 커밋"이라 대부분 HEAD 그대로 쓴다. 진행 기록(tasks/questions.json)만 바뀐 경우도 FAIL이다. 문서만 바뀐 범위는 `scope.classification = DOCS_ONLY`로 표시되며, 시험을 돌린 배치 증거로 쓰지 않는다(빌드 입력이 바뀐 배치는 `BUILD`).
 - 증거: `build/harness-evidence/<TASK>-<UTC>.json`의 `mode`(FULL/SCOPED), `scope`(경로별 분류·단위·FULL 사유), `buildFingerprint`.
