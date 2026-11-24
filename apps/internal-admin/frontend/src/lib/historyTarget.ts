@@ -12,13 +12,14 @@ import { historyTargetValue } from './merchantLabels'
 export const HISTORY_TARGET_LABELS: Readonly<Record<string, string>> = {
   Business: '사업자',
   Merchant: '가맹점',
-  MerchantSite: '사이트',
+  // MERCHANT-IA-001 B6(B1 리뷰 NIT-2 — 용어 통일): '사이트' → 'Site'(관리자 화면·명세·결정 문서에서 더 많이 쓰는 말 — 명세 §7.7).
+  MerchantSite: 'Site',
   Contract: '계약',
   ContractServiceAgreement: '서비스 약정(CSA)',
   MerchantAccount: 'MID',
-  SiteAssignment: '사이트 배정',
+  SiteAssignment: 'Site 배정',
   PaymentMethodActivation: '결제수단 개통',
-  SiteActivationConfirmation: '사이트 적용 확인',
+  SiteActivationConfirmation: 'Site 적용 확인',
   CurrencyEnablement: '통화 활성화',
   PolicyAssignment: '정책 배정',
   TransactionLimitPolicy: '거래 한도',

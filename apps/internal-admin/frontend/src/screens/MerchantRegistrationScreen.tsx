@@ -22,7 +22,7 @@ import type { BusinessLookupItem } from '../api/adminApi'
 
 /**
  * 가맹점 등록 마법사(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④: 사업자 등록과 화면 분리, 권한 그대로 OPERATOR만. 저장은 MERCHANT-OPS-002 §5 B1 그대로 — 표시만, 판정·감사는 서버).
- * 단계: ① 사업자 선택(저장 없음) ② 가맹점·사이트(가맹점 → Site) ③ 계약 초안·서비스 계약(계약 초안 → 서비스 계약) ④ 검토·완료.
+ * 단계: ① 사업자 선택(저장 없음) ② 가맹점·Site(가맹점 → Site) ③ 계약 초안·서비스 계약(계약 초안 → 서비스 계약) ④ 검토·완료.
  * - ① 사업자는 **사업자등록번호 조회**로 고른다(BUSINESS-PROFILE-001 §8.4 — 합친 MERCHANT-BIZ-LOOKUP-001, D-BIZ-004: 가맹점이 없는 사업자도 찾는다. 매 시도 감사·공유 번호 버킷은
  *   서버). 결과 0/1건 + 등록 상태(D-BIZ-006 ③): REGISTERED만 "선택", DRAFT는 "사업자 등록 완료 후 가맹점 등록 가능" + [사업자 상세 보기](선택 불가 — MASTER도
  *   `BUSINESS_NOT_REGISTERED`로 거절, D-BIZ-001), 없음은 "사업자 등록에서 먼저 등록". 사업자 조회 상세 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]).
@@ -82,7 +82,8 @@ const defaultTodayKst = () => kstDate(new Date())
 
 const STEPS: readonly { no: WizardStep; label: string }[] = [
   { no: 1, label: '사업자 선택' },
-  { no: 2, label: '가맹점·사이트' },
+  // MERCHANT-IA-001 B6(B1 리뷰 NIT-2 — 용어 통일, 명세 §7.7): '가맹점·사이트' → '가맹점·Site'.
+  { no: 2, label: '가맹점·Site' },
   { no: 3, label: '계약 초안·서비스 계약' },
   { no: 4, label: '검토·완료' },
 ]
@@ -192,7 +193,7 @@ const fillable = (memory: ScreenMemory, memoryKey: string) => !stepLocked(memory
 
 /**
  * 사업자를 고른다(① "선택" 또는 사업자 등록 화면 "이 사업자로 가맹점 등록"): 고른 사업자를 기억하고, 가맹점·계약 초안 카드에 채운다(잠김·완료면 건너뜀).
- * ① 단계에 있으면 ② 가맹점·사이트로 넘긴다(저장 없음).
+ * ① 단계에 있으면 ② 가맹점·Site로 넘긴다(저장 없음).
  */
 export function offerBusiness(memory: ScreenMemory, business: BusinessRef) {
   memory.write('selectedBusiness', business)
@@ -605,7 +606,7 @@ export function MerchantRegistrationScreen({
   return (
     <>
       <MapNote title="가맹점 등록" action={onBack && <BackToListButton onClick={onBack} />}>
-        <span>등록된 사업자를 골라 가맹점·사이트·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).</span>
+        <span>등록된 사업자를 골라 가맹점·Site·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).</span>
       </MapNote>
 
       {/*

@@ -456,6 +456,29 @@ h2[tabindex="-1"]:focus-visible{outline:3px solid var(--ds-focus-ring)}
 .fw-md > :first-child{max-width:36ch}
 .fw-lg > :first-child{max-width:60ch}
 @media(max-width:720px){.fieldrow{grid-template-columns:minmax(0,1fr)}.fieldnote{grid-column:1}.fieldoffset{padding-left:0}.fw-xs > :first-child,.fw-sm > :first-child,.fw-md > :first-child,.fw-lg > :first-child{max-width:none}}
+/* 목록 필터 묶음(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ①, pg-lab 목록 패턴; components/FilterPanel.tsx): 한 카드 안 '항목명 | 입력' 칸(넓은 폭 2열 — 1100px 이하 1열),
+   아래 오른쪽 '초기화'·'검색'. 이름 칸 = 표 머리 바탕·글자(.tablewrap th 값), 선 = 카드·표 선 토큰, 아래 버튼 줄 = 보조 바탕. 입력 모양·초점선은 .filters 입력과 같은 값(14px 글자·2px 초점선 — 기존 :where(.filters…) 선택자 목록은 designTokens 시험이 고정해 따로 적는다). 새 색 없음.
+   칸 이름 폭 120px(가장 긴 이름 '사업자등록번호' 13px 7자 + 여백), 720px 이하 112px(390px 캡처에서 96px은 이름이 두 줄로 갈라짐 — 같은 이름이 한 줄에 들어가는 최소 폭). 칸 수가 홀수면 마지막 칸이 한 줄 전체. inset = flush 카드 안(.filters·.cardnote와 같은 좌우 23px). */
+.filterpanel{border:1px solid var(--ds-line);border-radius:var(--ds-radius-9);overflow:hidden;background:var(--ds-input-bg)}
+.filterpanel.inset{margin:20px 23px 12px}
+.filtergrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.filterfield{display:grid;grid-template-columns:120px minmax(0,1fr);border-bottom:1px solid var(--ds-line);min-width:0}
+.filterfield.wide,.filterfield:last-child:nth-child(odd){grid-column:1 / -1}
+.filterlabel{display:flex;align-items:center;padding:10px 14px;word-break:keep-all;background:var(--ds-table-head);font-size:var(--ds-fs-13);font-weight:500;color:var(--ds-text-secondary)}
+.filtercontrol{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 12px;min-width:0}
+.filtercontrol input,.filtercontrol select{flex:1 1 14ch;min-width:0;padding:10px 12px;border:1px solid var(--ds-control-border);border-radius:var(--ds-radius-7);background:var(--ds-input-bg);font-size:var(--ds-fs-14);color:var(--ds-text-body)}
+.filtercontrol input::placeholder{color:var(--ds-placeholder);opacity:1}
+.filtercontrol input:focus,.filtercontrol select:focus{outline:2px solid var(--ds-focus-ring)}
+.filtercontrol input:disabled,.filtercontrol select:disabled{opacity:.5;cursor:not-allowed}
+.filtercontrol .rangesep{flex:none;color:var(--ds-text-muted)}
+.filtererror{flex-basis:100%;margin:0;font-size:var(--ds-fs-12);color:var(--ds-tone-danger-fg)}
+.filterhint{flex-basis:100%;margin:0;font-size:var(--ds-fs-12);color:var(--ds-text-muted)}
+.filteractions{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;background:var(--ds-surface-subtle)}
+.filteractions .btn{flex:none;white-space:nowrap}
+.filterpanel.inset + .cardnote{padding-top:0}
+@media(max-width:1100px){.filtergrid{grid-template-columns:minmax(0,1fr)}}
+/* 720px 이하 등록일 시작~끝: 두 날짜 칸이 위아래로 쌓이므로 '~'는 숨긴다(순서 = 시작, 끝 — 각 칸 이름은 aria-label). */
+@media(max-width:720px){.filterfield{grid-template-columns:112px minmax(0,1fr)}.filterlabel{padding:10px}.filtercontrol{padding:8px 10px}.filtercontrol .rangesep{display:none}}
 /* 운영 홈(2단계): 할 일 행은 접근성을 위해 button(원본 div onclick) — 폭·정렬만 원본 div와 같게. */
 button.task{width:100%;text-align:left}
 /* 날짜 표시(날짜 고르기 기능이 없어 누르는 단추가 아니다 — .btn 모양만). */

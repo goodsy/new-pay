@@ -149,6 +149,8 @@ JPA: 이번 배치는 JPA Entity·Repository를 바꾸지 않는다(ADMIN은 MAS
 | `search()` | 코드와 함께면 호출 없이 `combined` 문구. 이름이 있으면 `criteria.displayNamePrefix` = 입력 원문 그대로(trim·정규화 없음 — 앞뒤 공백 등 형식 위반은 서버 400 `INVALID_INPUT`을 기존 고정 문구 "입력 형식이 올바르지 않습니다."로, 사업자 조회 화면과 같은 방식). 다음 쪽은 보낸 조건(`sent.criteria`)에 이름이 들어 있어 그대로 이어진다 |
 | 문구 | `combined`: "가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다." 조회 안내(`.cardnote`)에 "가맹점명: 앞부분이 같은 이름(영문 대소문자 구분)"(입력란 `aria-describedby`) |
 
+> 이후 변경(2026-11-24): 위 148–150행의 화면 배치(`.filters` 조회 조건 줄·placeholder·`.cardnote` 상시 도움말)는 **MERCHANT-IA-001 §7.7(B6 필터 묶음)로 대체**되었다 — 가맹점명 규칙은 칸 안 짧은 안내 + 서버 형식 거절 때 칸 아래 전체 문구. 검색 조건·호출 인자·서버 판정은 이 문서 그대로.
+
 가역 구현 결정: 이름은 화면에서 검사하지 않는다(코드처럼 형식이 짧지 않고, 판정 규칙 복제를 하나 더 늘리지 않는다 — 서버 MNS-2 `RegistrationInputRules.displayName`이 판정). 이름 입력은 검색 뒤에도 비우지 않는다(개인 식별 번호가 아님 — 사업자 조회 화면 상호와 같다).
 
 시험(`MerchantsScreen.test.tsx`, RED 먼저 — `~/gate-logs/mns-3/`):

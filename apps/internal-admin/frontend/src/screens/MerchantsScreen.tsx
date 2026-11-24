@@ -14,6 +14,8 @@ import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn, SiteReviewTable } f
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
+import { FilterField, FilterPanel } from '../components/FilterPanel'
+import { listCountText } from '../lib/listCount'
 import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -73,6 +75,10 @@ export type MerchantDetailTab = 'overview' | 'siteContract' | 'mid' | 'limits' |
 type ListPage = { items: MerchantListItem[]; nextCursor: string | null }
 type HistoryPage = { items: MerchantHistoryEntry[]; nextCursor: number | null }
 
+/** B6: 가맹점명 입력 규칙(MERCHANT-NAME-SEARCH-001 — 서버 형식 거절 때 칸 아래). */
+/** B6 리뷰 M-1: 가맹점 코드 칸 설명(MC-2 — 은퇴 코드도 찾는다). */
+const CODE_HINT = '정확히 일치 · 예전 코드도 찾음'
+const NAME_RULE = '가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)'
 const LIST: View = Object.freeze({ kind: 'list' })
 const VIEW_KEY = 'lookup.view'
 const HISTORY_KEY = 'lookup.history'
@@ -458,7 +464,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
 
 /**
  * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). MERCHANT-CODE-001 MC-2: 가맹점은 **가맹점 코드**로 보이고 찾는다(목록·상세·이력 대상의 mer_… 표시 → 코드,
- * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·가맹점명 — 상태 조건은 MERCHANT-IA-001 B2에서 화면에서 뺌, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
+ * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·가맹점명 — 상태 조건은 MERCHANT-IA-001 B2에서 화면에서 뺌, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "더 보기" — 이어 붙임, MERCHANT-IA-001 B6) →
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 사업자등록번호는 원문 하이픈 표시(D-BIZ-007), 그 밖 개인정보는 서버가 준 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
@@ -516,7 +522,7 @@ export function MerchantsScreen({
   }
 
   // 리뷰 MINOR-4: 목록 요청 순번(listRequest) — 늦게 도착한 앞 요청의 응답·오류가 새 요청 결과를 덮지 않는다(버튼도 요청 중에는 disabled).
-  const runSearch = async (input: MerchantSearchInput, next: SentSearch) => {
+  const runSearch = async (input: MerchantSearchInput, next: SentSearch, append = false) => {
     const request = ++listRequest.current
     setListError(null)
     setListBusy(true)
@@ -524,7 +530,9 @@ export function MerchantsScreen({
       const result = await api.merchantSearch(input)
       if (listRequest.current !== request) return
       setSent(next)
-      setPage(result)
+      // B6 '더 보기': 다음 쪽을 지금 목록 뒤에 붙인다(호출은 그대로 after = nextCursor).
+      const previous = append ? ((memory.read('lookup.page') as ListPage | null | undefined) ?? null) : null
+      setPage(previous === null ? result : { ...result, items: [...previous.items, ...result.items] })
     } catch (e) {
       if (listRequest.current === request) setListError(failure(e))
     } finally {
@@ -574,10 +582,27 @@ export function MerchantsScreen({
       const businessId = page.items[0]?.businessId
       if (businessId === undefined) return
       const next: SentSearch = { criteria: { ...sent.criteria, businessId }, byRegistrationNumber: false }
-      await runSearch({ ...next.criteria, after: page.nextCursor }, next)
+      await runSearch({ ...next.criteria, after: page.nextCursor }, next, true)
       return
     }
-    await runSearch({ ...sent.criteria, after: page.nextCursor }, sent)
+    await runSearch({ ...sent.criteria, after: page.nextCursor }, sent, true)
+  }
+
+  /**
+   * B6 '초기화': 입력·오류·결과를 비우는 화면 동작만(서버 호출 없음). 상세·결과 불명 잠금 메모리(revisionMemory)는 건드리지 않는다.
+   * 리뷰 NIT-3: 목록 요청 순번을 올려 진행 중 검색의 늦은 응답·오류가 비운 화면을 다시 채우지 않게 한다(그래서 검색 중에도 누를 수 있다).
+   */
+  const resetSearch = () => {
+    listRequest.current += 1
+    setListBusy(false)
+    setMerchantCode('')
+    setDisplayNamePrefix('')
+    setRegistrationNumber('')
+    setRegistrationNumberError(false)
+    setCodeError(null)
+    setListError(null)
+    setSent(null)
+    setPage(null)
   }
 
   const loadHistory = async (id: string, after: number | undefined, request: number) => {
@@ -696,11 +721,13 @@ export function MerchantsScreen({
     await loadHistory(detail.merchant.merchantId, history.nextCursor, openRequest.current)
   }
 
-  // ADMIN-UI-WORKSPACE-001: 참고 시안 업무 화면(app.js moduleView — 카드 안 탭 → .filters → .tablewrap → .tablebottom). 탭 막대·카드는 MenuCard(flush).
-  // 입력란 이름은 aria-label(시안처럼 보이는 label 없음 — placeholder로 무엇을 넣는지 보인다), 도움말·오류는 필터 아래 .cardnote에 두고 aria-describedby로 잇는다.
+  // ADMIN-UI-WORKSPACE-001: 참고 시안 업무 화면(카드 안 탭 → 검색 조건 → .tablewrap → .tablebottom). 탭 막대·카드는 MenuCard(flush).
+  // MERCHANT-IA-001 B6: 검색 조건은 필터 묶음(FilterPanel — 보이는 <label for> 칸 이름). 칸 오류·짧은 설명은 칸 아래, 번호 감사 안내는 묶음 아래 .cardnote — 모두 aria-describedby로 잇는다.
   const codeNoteId = useId()
   const registrationNoteId = useId()
   const nameNoteId = useId()
+  // B6(§3.1 "오류일 때만 길게"): 가맹점명 규칙은 서버가 입력 형식을 거절했을 때만 칸 아래에 보인다(평소에는 칸 안 placeholder).
+  const nameRuleShown = listError === 'INVALID_INPUT' && displayNamePrefix !== ''
   const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.' : null
 
   // ── 상세 화면(MERCHANT-DETAIL-VIEW-001 — 목록을 숨기고 상세만, 사업자 조회 상세와 같은 화면 전환). 상세 안 기능·잠금·감사 규칙은 목록 아래에 펼치던 때와 같다. ──
@@ -1012,51 +1039,60 @@ export function MerchantsScreen({
         {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.1): 목록에는 개통 상태가 없고 '＋ 가맹점 등록'·상세 요청이 있어 "개통 상태를 조회"·"조회 전용"은 사실과 달라 뺐다. 감사 안내는 그대로. */}
         상세 조회는 감사 기록에 남습니다.
       </MapNote>
-      <form className="filters" onSubmit={search}>
-        <input
-          aria-label="가맹점 코드"
-          value={merchantCode}
-          onChange={(e) => setMerchantCode(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="가맹점 코드 (예: demoshop01)"
-          aria-describedby={codeNoteId}
-          aria-invalid={codeError !== null || undefined}
-        />
-        <input
-          aria-label="가맹점명"
-          value={displayNamePrefix}
-          onChange={(e) => setDisplayNamePrefix(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="가맹점명 (앞부분 일치)"
-          aria-describedby={codeError === 'combined' ? `${nameNoteId} ${codeNoteId}` : nameNoteId}
-        />
+      {/* MERCHANT-IA-001 B6(사용자 결정 D-ADMIN-UI-011 ① — pg-lab 목록 패턴, 명세 §4.4): 검색 조건을 한 카드 안 '항목명 | 입력' 칸으로 묶고 아래 오른쪽 '초기화'·'검색'.
+          검색 조건·호출 인자·가맹점 코드 단일 기준·번호 입력 즉시 비움은 그대로. 입력 규칙 도움말 3줄은 오류일 때만 그 칸 아래에(§3.1 — 평소에는 번호 감사 안내 한 줄). */}
+      <FilterPanel label="가맹점 검색" onSubmit={search} onReset={resetSearch} busy={listBusy} resetWhileBusy inset>
+        {/* B6 리뷰 M-1·NIT-6: 은퇴 코드도 찾는다는 안내는 칸 아래 짧은 설명(390px에서도 잘리지 않게 — placeholder는 예시만). */}
+        <FilterField label="가맹점 코드" hint={CODE_HINT} error={codeMessage} errorId={codeNoteId}>
+          {(id, describedBy) => (
+            <input
+              id={id}
+              value={merchantCode}
+              onChange={(e) => setMerchantCode(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="예: demoshop01"
+              aria-describedby={describedBy}
+              aria-invalid={codeError !== null || undefined}
+            />
+          )}
+        </FilterField>
+        <FilterField label="가맹점명" error={nameRuleShown ? NAME_RULE : null} errorId={nameNoteId} describedBy={codeError === 'combined' ? codeNoteId : undefined}>
+          {(id, describedBy) => (
+            <input
+              id={id}
+              value={displayNamePrefix}
+              onChange={(e) => setDisplayNamePrefix(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="앞부분 일치 · 대소문자 구분"
+              aria-describedby={describedBy}
+              aria-invalid={nameRuleShown || undefined}
+            />
+          )}
+        </FilterField>
         {canSearchRegistrationNumber && (
-          <RegistrationNumberInput
-            plain
-            aria-label="사업자등록번호"
-            placeholder="사업자등록번호 000-00-00000"
-            value={registrationNumber}
-            onValueChange={setRegistrationNumber}
-            aria-describedby={registrationNoteId}
-            aria-invalid={registrationNumberError || undefined}
-          />
+          <FilterField label="사업자등록번호" error={registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : null} describedBy={registrationNoteId}>
+            {(id, describedBy) => (
+              <RegistrationNumberInput
+                plain
+                id={id}
+                placeholder="000-00-00000"
+                value={registrationNumber}
+                onValueChange={setRegistrationNumber}
+                aria-describedby={describedBy}
+                aria-invalid={registrationNumberError || undefined}
+              />
+            )}
+          </FilterField>
         )}
-        <button type="submit" className="btn primary" disabled={listBusy} aria-busy={listBusy}>
-          검색
-        </button>
-      </form>
-      <div className="cardnote">
-        <p id={codeNoteId} className={codeMessage ? 'error' : 'subtle'}>{codeMessage ?? '가맹점 코드: 정확히 일치하는 코드 하나(예전에 쓰던 코드도 찾습니다).'}</p>
-        <p id={nameNoteId} className="subtle">가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)</p>
-        {canSearchRegistrationNumber && (
-          <p id={registrationNoteId} className={registrationNumberError ? 'error' : 'subtle'}>
-            {registrationNumberError ? '사업자등록번호는 숫자 10자리입니다.' : '사업자등록번호: 검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만).'}
-          </p>
-        )}
-        {listError && <ErrorNotice>{ERROR_MESSAGES[listError]}</ErrorNotice>}
-      </div>
+      </FilterPanel>
+      {(canSearchRegistrationNumber || listError) && (
+        <div className="cardnote">
+          {canSearchRegistrationNumber && <p id={registrationNoteId} className="subtle">사업자등록번호 검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만).</p>}
+          {listError && <ErrorNotice>{ERROR_MESSAGES[listError]}</ErrorNotice>}
+        </div>
+      )}
 
       {page && (
         <>
@@ -1065,8 +1101,9 @@ export function MerchantsScreen({
               <thead>
                 <tr>
                   {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 상태 열(늘 '활성')을 뺐다. */}
-                  <th>가맹점</th><th>사업자</th><th>사업자등록번호</th>
-                  <th>MID 수</th><th>등록일</th><th><span className="sr-only">작업</span></th>
+                  {/* B6(명세 §4.4): 사업자 칸은 "상호 · 번호" 한 칸(D-MCODE-003 ② 형식), 작업 열 이름은 사업자 목록과 같은 '상세'. */}
+                  <th>가맹점</th><th>사업자</th>
+                  <th>MID 수</th><th>등록일</th><th>상세</th>
                 </tr>
               </thead>
               <tbody>
@@ -1076,8 +1113,7 @@ export function MerchantsScreen({
                       <strong>{row.merchantName}</strong>
                       <small>{row.merchantCode}</small>
                     </td>
-                    <td>{row.businessName}</td>
-                    <td>{displayRegistrationNumber(row.registrationNumber)}</td>
+                    <td>{`${row.businessName} · ${displayRegistrationNumber(row.registrationNumber)}`}</td>
                     <td data-col="midCount">{row.midCount}</td>
                     <td><KstTime iso={row.createdAt} /></td>
                     <td>
@@ -1090,9 +1126,10 @@ export function MerchantsScreen({
             {page.items.length === 0 && <div className="empty">조건에 맞는 가맹점이 없습니다.</div>}
           </div>
           <div className="tablebottom">
-            <span>{`이 쪽 ${page.items.length}건`}</span>
+            {/* B6: '다음'(쪽 바꿈) → '더 보기'(이어 붙임 — 사업자 목록·변경 이력과 같은 말과 동작). keyset 호출 인자는 그대로. */}
+            <span>{listCountText(page.items.length, page.nextCursor !== null)}</span>
             {page.nextCursor !== null && (
-              <button type="button" className="btn" onClick={nextPage} disabled={listBusy} aria-busy={listBusy}>다음</button>
+              <button type="button" className="btn" onClick={nextPage} disabled={listBusy} aria-busy={listBusy}>더 보기</button>
             )}
           </div>
         </>

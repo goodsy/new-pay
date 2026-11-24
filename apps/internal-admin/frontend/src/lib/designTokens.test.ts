@@ -51,6 +51,9 @@ const PAIRS: [string, string, number, string][] = [
   ['--ds-text-muted-strong', '--ds-surface-muted', 4.5, 'kbd(라이트 대비 보정)'],
   ['--ds-text-muted-strong', '--ds-brand-soft', 4.5, '안내 띠 설명(라이트 대비 보정)'],
   ['--ds-placeholder', '--ds-input-bg', 4.5, '입력 placeholder'],
+  // MERCHANT-IA-001 B6 리뷰 NIT-4(검사 추가만): 목록 필터 묶음 칸 안(.filtercontrol 바탕 = --ds-input-bg)의 오류·설명 글자.
+  ['--ds-tone-danger-fg', '--ds-input-bg', 4.5, '필터 묶음 칸 오류(.filtererror)'],
+  ['--ds-text-muted', '--ds-input-bg', 4.5, '필터 묶음 칸 설명(.filterhint)·기간 ~'],
   ['--ds-eyebrow', '--ds-canvas', 4.5, 'eyebrow'],
   ['--ds-brand-fg', '--ds-brand', 4.5, '주 버튼 글자(라이트 대비 보정)'],
   ['--ds-brand-text', '--ds-surface', 4.5, '선택 탭·진행 단계·.positive'],
@@ -236,6 +239,14 @@ describe('ADMIN-DS-B1 §7.3 — focus ring (SC 1.4.11): every focus outline is 3
 
   it('form controls inside the reference containers: 2px solid var(--ds-focus-ring)', () => {
     for (const sel of [':where(.filters,.formrow,.modal,.rolebar,.matrix) input:focus', ':where(.filters,.formrow,.modal,.rolebar,.matrix) select:focus']) {
+      const o = finalOutline(sel)
+      expect([o.width, o.style, o.color], sel).toEqual(['2px', 'solid', 'var(--ds-focus-ring)'])
+    }
+  })
+
+  // MERCHANT-IA-001 B6(검사 추가만): 목록 필터 묶음(.filterpanel) 입력·선택도 같은 초점선.
+  it('form controls inside the list filter panel (B6 .filtercontrol): 2px solid var(--ds-focus-ring)', () => {
+    for (const sel of ['.filtercontrol input:focus', '.filtercontrol select:focus']) {
       const o = finalOutline(sel)
       expect([o.width, o.style, o.color], sel).toEqual(['2px', 'solid', 'var(--ds-focus-ring)'])
     }

@@ -106,7 +106,8 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(row.querySelector('[data-col="entitlementRevision"]')).toBeNull()
     expect(within(screen.getByRole('table', { name: '가맹점 목록' })).queryByRole('columnheader', { name: '권리 revision' })).toBeNull()
     expect(row).toHaveTextContent('2026-10-01 09:00:00')
-    expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §3.1·§4.4·§7.7): '다음' → '더 보기'.
+    expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull()
   })
 
   it('an empty result shows the empty row (same shape as found — no oracle wording)', async () => {
@@ -117,7 +118,8 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(await screen.findByText('조건에 맞는 가맹점이 없습니다.')).toBeInTheDocument()
   })
 
-  it('"다음" sends the same criteria with after = nextCursor and replaces the page', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §3.1·§4.4·§7.7): '다음'(쪽 바꿈) → '더 보기'(이어 붙임 — 사업자 목록·변경 이력과 같은 말과 동작). 호출 인자(after = nextCursor, 검색한 조건 그대로)는 같다.
+  it('"더 보기" sends the same criteria with after = nextCursor and appends the next page', async () => {
     const api = fakeApi({
       merchantSearch: vi.fn()
         .mockResolvedValueOnce({ items: [item(MER1, '첫째'), item(MER2, '둘째')], nextCursor: MER2 })
@@ -132,11 +134,13 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     await screen.findByRole('row', { name: codeOf(MER2) })
     // 검색 뒤 입력란을 바꿔도 다음 쪽은 검색한 조건 그대로(조건이 섞이지 않는다).
     await typeIn('가맹점명', '바뀜')
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    expect(screen.getByText('2건 표시 · 더 있음')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', after: MER2 })
     expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()
-    expect(screen.queryByRole('row', { name: codeOf(MER1) })).toBeNull()
-    expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
+    expect(screen.getByRole('row', { name: codeOf(MER1) })).toBeInTheDocument()
+    expect(screen.getByText('총 3건')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull()
   })
 
   it('D-MOPS-003 §5.3: the registration number field is shown only when allowed (OPERATOR·APPROVER — display only, the server decides)', () => {
@@ -186,13 +190,15 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.innerHTML).not.toContain(BRN)
     // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 결과 행은 응답 번호를 하이픈 표시한다(위 단언). 입력한 번호는 비워지고, 하이픈 표시는 결과 칸 하나에만 — 입력값·속성에는 없다.
-    expect(domOccurrences(container, SHOWN_NUMBER)).toEqual(['-/DIV/textContent', `-/TD/text:${SHOWN_NUMBER}`])
+    // 기대값 변경(MERCHANT-IA-001 B6 — §4.4 사업자 칸 "상호 · 번호" 한 칸): 하이픈 표시는 여전히 결과 칸 하나뿐(그 칸 글자가 상호와 합쳐졌다).
+    expect(domOccurrences(container, SHOWN_NUMBER)).toEqual(['-/DIV/textContent', `-/TD/text:데모 사업자 · ${SHOWN_NUMBER}`])
     expect(storageIsEmpty()).toBe(true)
     expect(window.location.href).not.toContain(BRN)
     expect(log).not.toHaveBeenCalled()
     // 기대값 변경(ADMIN-UI-MERCHANT-002): 사업자 ID를 화면에 보이지 않으므로 "사업자 ID로 다시 검색" 안내 대신 "다음"이 그 결과의 사업자로 이어 찾는다.
     // 번호는 다시 보내지 않는다(화면 상태에 번호 없음 — 그대로) — 다음 쪽 조건은 결과에 이미 있던 내부 사업자 키(businessId)뿐.
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    // 기대값 변경(MERCHANT-IA-001 B6): 버튼 이름 '다음' → '더 보기'(같은 호출).
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { businessId: BIZ1, after: MER1 })
     expect(JSON.stringify(vi.mocked(api.merchantSearch).mock.calls[1])).not.toContain(BRN)
     log.mockRestore()
@@ -418,7 +424,8 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(within(merchant).getByText('가맹점', { exact: true })).toBeInTheDocument()
     expect(merchant).toHaveTextContent(`데모 가맹점 · ${codeOf(MER1)}`)
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 상세에 없는 Site는 종류 이름만(키 없음), Route는 MID · 인수사 코드.
-    expect(within(history).getByRole('row', { name: '42' })).toHaveTextContent('사이트')
+    // 기대값 변경(MERCHANT-IA-001 B6 — B1 리뷰 NIT-2 용어 통일, 명세 §7.7): '사이트' → 'Site'(관리자 화면·명세·결정 문서에서 더 많이 쓰는 말).
+    expect(within(history).getByRole('row', { name: '42' })).toHaveTextContent('Site')
     expect(within(history).getByRole('row', { name: '42' })).not.toHaveTextContent(id('site', 1))
     const route = within(history).getByRole('row', { name: '43' })
     expect(route).toHaveTextContent('카드사 Route 개통')
@@ -448,7 +455,8 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
     // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
     expect(domOccurrences(document.body, BRN)).toEqual([])
-    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `-/TD/text:${SHOWN_NUMBER}`])
+    // 기대값 변경(MERCHANT-IA-001 B6 — §4.4 사업자 칸 "상호 · 번호" 한 칸): 표시 자리 수는 그대로 하나(칸 글자가 상호와 합쳐졌다).
+    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `-/TD/text:데모 사업자 · ${SHOWN_NUMBER}`])
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
     await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(SHOWN_NUMBER)
@@ -526,12 +534,13 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
     const input = screen.getByLabelText('가맹점명')
-    expect(input).toHaveAttribute('placeholder', '가맹점명 (앞부분 일치)')
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §3.1·§4.4·§7.7): 칸 이름이 보이는 label로 바뀌어 placeholder는 규칙만("앞부분 일치 · 대소문자 구분"), 폼은 필터 묶음(.filterpanel), 칸 이름은 label 글자로 센다.
+    expect(input).toHaveAttribute('placeholder', '앞부분 일치 · 대소문자 구분')
     expect(input).toHaveAttribute('autocomplete', 'off')
     expect(input).toHaveAttribute('spellcheck', 'false')
     const form = input.closest('form')!
-    expect(form).toHaveClass('filters')
-    const controls = Array.from(form.querySelectorAll('input, select')).map((el) => el.getAttribute('aria-label'))
+    expect(form).toHaveClass('filterpanel')
+    const controls = Array.from(form.querySelectorAll('input, select')).map((el) => (el as HTMLInputElement).labels?.[0]?.textContent ?? null)
     expect(controls.indexOf('가맹점명')).toBe(controls.indexOf('가맹점 코드') + 1)
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 가맹점명 다음은 사업자등록번호다.
     expect(controls).toEqual(['가맹점 코드', '가맹점명', '사업자등록번호'])
@@ -563,7 +572,7 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     expect(screen.getByLabelText('가맹점 코드')).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('MNS-3-4 "다음"은 검색한 가맹점명 그대로 {displayNamePrefix, after}(검색 뒤 입력을 바꿔도 섞이지 않는다)', async () => {
+  it('MNS-3-4 "더 보기"(B6 — 옛 "다음")는 검색한 가맹점명 그대로 {displayNamePrefix, after}(검색 뒤 입력을 바꿔도 섞이지 않는다)', async () => {
     const api = fakeApi({
       merchantSearch: vi.fn()
         .mockResolvedValueOnce({ items: [item(MER1, '데모 하나'), item(MER2, '데모 둘')], nextCursor: MER2 })
@@ -575,13 +584,14 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     await screen.findByRole('row', { name: codeOf(MER2) })
     await userEvent.clear(screen.getByLabelText('가맹점명'))
     await typeIn('가맹점명', '다른')
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    // 기대값 변경(MERCHANT-IA-001 B6): 버튼 이름 '다음' → '더 보기'(같은 호출).
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', after: MER2 })
     expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()
   })
 
   // MNS-3 리뷰 MINOR-1: 이름 + 등록번호 검색의 다음 쪽 — 이름은 이어지고, 번호 대신 결과의 사업자 키로 이어 찾는다(번호는 다시 보내지 않는다).
-  it('MNS-3-4b 가맹점명 + 사업자등록번호 → "다음"은 {displayNamePrefix, businessId, after}(registrationNumber 키 없음)', async () => {
+  it('MNS-3-4b 가맹점명 + 사업자등록번호 → "더 보기"(B6 — 옛 "다음")는 {displayNamePrefix, businessId, after}(registrationNumber 키 없음)', async () => {
     const api = fakeApi({
       merchantSearch: vi.fn()
         .mockResolvedValueOnce({ items: [item(MER1, '데모 하나')], nextCursor: MER1 })
@@ -593,7 +603,8 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     await search()
     expect(api.merchantSearch).toHaveBeenNthCalledWith(1, { displayNamePrefix: '데모', registrationNumber: BRN })
     await screen.findByRole('row', { name: codeOf(MER1) })
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    // 기대값 변경(MERCHANT-IA-001 B6): 버튼 이름 '다음' → '더 보기'(같은 호출).
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', businessId: BIZ1, after: MER1 })
     const second = vi.mocked(api.merchantSearch).mock.calls[1]![0]
     expect(Object.keys(second)).not.toContain('registrationNumber')
@@ -622,43 +633,51 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
   })
 
   // MNS-3 리뷰 NIT-2: combined 오류일 때만 가맹점명 입력란도 그 오류 문구를 가리킨다.
-  it('MNS-3-3b combined 오류가 있을 때만 가맹점명 입력란 aria-describedby = "<도움말> <코드 안내>"', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §3.1·§4.4·§7.7): 평소 칸 아래 도움말 줄이 없어(규칙은 placeholder) 가맹점명 입력란은 평소 aria-describedby 없음, combined 오류일 때만 코드 오류 문구를 가리킨다(연결 규칙은 그대로).
+  it('MNS-3-3b combined 오류가 있을 때만 가맹점명 입력란 aria-describedby = "<코드 안내>"', async () => {
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
     const name = screen.getByLabelText('가맹점명')
-    const help = screen.getByText('가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)')
-    const codeNoteId = screen.getByLabelText('가맹점 코드').getAttribute('aria-describedby')!
-    expect(codeNoteId).not.toBe('')
-    expect(name).toHaveAttribute('aria-describedby', help.id)
+    expect(name).not.toHaveAttribute('aria-describedby')
     // 형식 오류(코드 혼자)는 가맹점명과 무관 — 연결하지 않는다.
     await typeIn('가맹점 코드', 'abc')
     await search()
     expect(screen.getByText('가맹점 코드는 영문 소문자로 시작, 영문 소문자·숫자 6~14자입니다.')).toBeInTheDocument()
-    expect(name).toHaveAttribute('aria-describedby', help.id)
+    // B6 리뷰 M-1: 코드 칸은 늘 짧은 설명('정확히 일치 · 예전 코드도 찾음')도 가리킨다 — 오류 문구가 앞.
+    expect(screen.getByLabelText('가맹점 코드')).toHaveAccessibleDescription('가맹점 코드는 영문 소문자로 시작, 영문 소문자·숫자 6~14자입니다. 정확히 일치 · 예전 코드도 찾음')
+    expect(name).not.toHaveAttribute('aria-describedby')
     await userEvent.clear(screen.getByLabelText('가맹점 코드'))
     await typeIn('가맹점 코드', 'shopabcd12')
     await typeIn('가맹점명', '데모')
     await search()
+    const codeNoteId = screen.getByLabelText('가맹점 코드').getAttribute('aria-describedby')!.split(' ')[0]!
     expect(document.getElementById(codeNoteId)).toHaveTextContent('가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.' /* MERCHANT-IA-001 B2: 상태 필터 제거로 안내에서 "상태"를 뺐다(D-ADMIN-UI-010 ②) */)
-    expect(name).toHaveAttribute('aria-describedby', `${help.id} ${codeNoteId}`)
-    // 코드를 비우고 다시 검색하면 오류가 사라지고 연결도 도움말만.
+    expect(name).toHaveAttribute('aria-describedby', codeNoteId)
+    // 코드를 비우고 다시 검색하면 오류가 사라지고 연결도 없다.
     await userEvent.clear(screen.getByLabelText('가맹점 코드'))
     await search()
     expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모' })
-    expect(name).toHaveAttribute('aria-describedby', help.id)
+    expect(name).not.toHaveAttribute('aria-describedby')
   })
 
-  it('MNS-3-6 조회 안내에 가맹점명 도움말(앞부분 일치·영문 대소문자 구분), 입력란이 그 안내를 가리킨다; style 속성 0', async () => {
-    const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
+  // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §3.1·§4.4·§7.7): 가맹점명 규칙 도움말은 평소 줄이 아니라 서버가 입력 형식을 거절했을 때(400 INVALID_INPUT) 칸 아래에 오류로 보인다("오류일 때만 길게") — 평소에는 placeholder에 짧게.
+  it('MNS-3-6 가맹점명 도움말(앞부분 일치·영문 대소문자 구분)은 형식 거절 때 칸 아래에 보이고 입력란이 그 글자를 가리킨다; 평소에는 placeholder; style 속성 0', async () => {
+    const api = fakeApi({ merchantSearch: vi.fn().mockRejectedValueOnce(apiError(400, 'INVALID_INPUT')).mockResolvedValueOnce({ items: [item(MER1, '데모 가맹점')], nextCursor: null }) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
-    const help = screen.getByText('가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)')
-    expect(help.closest('.cardnote')).not.toBeNull()
-    expect(help.id).not.toBe('')
-    expect(screen.getByLabelText('가맹점명')).toHaveAttribute('aria-describedby', help.id)
+    const RULE = '가맹점명: 앞부분이 같은 이름(영문 대소문자 구분, 앞뒤 공백 없이)'
+    expect(screen.queryByText(RULE)).toBeNull()
+    expect(screen.getByLabelText('가맹점명')).toHaveAttribute('placeholder', '앞부분 일치 · 대소문자 구분')
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
+    await typeIn('가맹점명', ' 데모')
+    await search()
+    const help = await screen.findByText(RULE)
+    expect(help.closest('.filterfield')).toContainElement(screen.getByLabelText('가맹점명'))
+    expect(screen.getByLabelText('가맹점명')).toHaveAccessibleDescription(RULE)
+    await userEvent.clear(screen.getByLabelText('가맹점명'))
     await typeIn('가맹점명', '데모')
     await search()
     await screen.findByRole('row', { name: codeOf(MER1) })
+    expect(screen.queryByText(RULE)).toBeNull()
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 })

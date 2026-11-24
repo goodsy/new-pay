@@ -216,16 +216,20 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 조회 in t
     await userEvent.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
     const card = screen.getByRole('main').querySelector(':scope > section.card')!
     const panel = card.querySelector(':scope > [role="tabpanel"]')!
-    expect(panel.querySelector('form.filters')).not.toBeNull()
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.4·§7.7): 필터 줄(.filters) → 필터 묶음(.filterpanel '항목명 | 입력' 칸 + 초기화·검색).
+    expect(panel.querySelector('form.filterpanel')).not.toBeNull()
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     const row = await screen.findByRole('row', { name: 'shop000001' })
     const wrap = panel.querySelector('.tablewrap')!
     expect(wrap.querySelector('table')).toHaveAccessibleName('가맹점 목록')
     expect(wrap.nextElementSibling).toHaveClass('tablebottom')
-    expect(within(wrap.nextElementSibling as HTMLElement).getByRole('button', { name: '다음' })).toHaveClass('btn')
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.4·§7.7): '다음' → '더 보기'(이어 붙임 — 사업자 목록과 같은 말), 아래 건수 '총 n건/n건 표시 · 더 있음'.
+    expect(within(wrap.nextElementSibling as HTMLElement).getByRole('button', { name: '더 보기' })).toHaveClass('btn')
+    expect(wrap.nextElementSibling).toHaveTextContent('1건 표시 · 더 있음')
     // 기대값 변경(D-ADMIN-UI-009 ② 사용자 결정 2026-11-24 "기술 정보 접기"): '권리 revision' 열 제거(§7.2 전환 대상 DOM 구조 부분 — 값은 상세의 접힌 기술 정보).
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 늘 '활성'이던 상태 열(.tag)을 뺐다(§7.2 전환 대상 DOM 구조 부분, 내부 키 단언은 그대로).
-    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호', 'MID 수', '등록일', '작업'])
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.4·§7.7): 사업자 칸 = "상호 · 번호" 한 칸(§4.4), 작업 열 이름 '상세'(보이는 머리).
+    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', 'MID 수', '등록일', '상세'])
     const first = row.querySelector('td')!
     expect(first.querySelector('strong')).toHaveTextContent('데모 가맹점')
     expect(first.querySelector('small')).toHaveTextContent('shop000001')
@@ -249,14 +253,16 @@ describe('review MINOR-4: merchant list requests — buttons disabled while busy
     resolve({ items: [item], nextCursor: 'next' })
     expect(await screen.findByRole('row', { name: 'shop000001' })).toBeInTheDocument()
     expect(button).toBeEnabled()
-    expect(screen.getByRole('button', { name: '다음' })).toBeEnabled()
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.4·§7.7): '다음' → '더 보기'.
+    expect(screen.getByRole('button', { name: '더 보기' })).toBeEnabled()
   })
 
   it('a stale response arriving after a newer search is dropped', async () => {
     const resolvers: ((v: { items: MerchantListItem[]; nextCursor: string | null }) => void)[] = []
     const merchantSearch = vi.fn(() => new Promise<{ items: MerchantListItem[]; nextCursor: string | null }>((r) => { resolvers.push(r) }))
     const { container } = render(<MerchantsScreen api={fakeApi({ merchantSearch })} canSearchRegistrationNumber={false} />)
-    const form = container.querySelector('form.filters')!
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.4·§7.7): 필터 줄 → 필터 묶음(.filterpanel).
+    const form = container.querySelector('form.filterpanel')!
     // 버튼이 막혀 있어도 다른 경로(폼 제출)로 둘째 요청이 생긴 경우를 흉내 낸다.
     fireEvent.submit(form)
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 둘째 요청 전 조건 변경은 가맹점명으로.

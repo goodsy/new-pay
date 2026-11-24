@@ -57,13 +57,14 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 등록 wiza
     expect(shape(panel)).toEqual(['div.mapnote', 'div.wizard', 'section', 'div.cardnote'])
     const mapnote = panel.querySelector('.mapnote') as HTMLElement
     expect(within(mapnote).getByRole('heading', { level: 2, name: '가맹점 등록' })).toBeInTheDocument()
-    expect(mapnote).toHaveTextContent('등록된 사업자를 골라 가맹점·사이트·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).')
+    // 기대값 변경(MERCHANT-IA-001 B6 — B1 리뷰 NIT-2 용어 통일, 명세 §7.7): '사이트' → 'Site'(관리자 화면·명세·결정 문서에서 더 많이 쓰는 말).
+    expect(mapnote).toHaveTextContent('등록된 사업자를 골라 가맹점·Site·계약 초안을 등록합니다. 계약 승인·첫 MID 발급은 가맹점 조회 상세에서 요청합니다(2인 승인).')
 
     // 단계 띠: 시안 .wizard(span 4개 — 현재 .current). span 안 단계 버튼(이동 기능·aria-label·aria-current 그대로), 보이는 글자 = 이름.
     const wizard = panel.querySelector('.wizard')!
     expect(wizard).toHaveAccessibleName('등록 단계')
     expect(shape(wizard)).toEqual(['span.current', 'span', 'span', 'span'])
-    expect(stepItems().map((s) => s.textContent)).toEqual(['1. 사업자 선택', '2. 가맹점·사이트', '3. 계약 초안·서비스 계약', '4. 검토·완료'])
+    expect(stepItems().map((s) => s.textContent)).toEqual(['1. 사업자 선택', '2. 가맹점·Site', '3. 계약 초안·서비스 계약', '4. 검토·완료'])
     expect(stepItems().map((s) => Array.from(s.children).map((c) => c.tagName.toLowerCase()))).toEqual(Array(4).fill(['button']))
     expect(within(stepItems()[0]!).getByRole('button')).toHaveAttribute('aria-current', 'step')
     // reviewFix1 캡처(b)·NIT-1: 현재 단계 tint(MINOR-6 class 그대로)가 글자 폭이 아니라 단계 칸 전체 — button block·w-full, 누르는 칸 py-1.

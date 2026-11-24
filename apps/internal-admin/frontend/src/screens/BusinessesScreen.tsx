@@ -1,17 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEntry, BusinessListItem, BusinessLookupItem, BusinessSearchInput, MerchantListItem } from '../api/adminApi'
-import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
+import { EmptyRow, KstTime, Spinner } from '../components/DataBits'
 // 상세 카드·줄은 components/DetailCard.tsx로 그대로 옮김(출력 동일 — 등록 폼 FormRow와 나란히 쓰는 공용 구성요소).
 import { DetailRow as Row, InfoCard } from '../components/DetailCard'
 import { DetailTabs } from '../components/DetailTabs'
 import { ErrorNotice, WarningNote } from '../components/Notice'
 import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
-import { SearchIcon } from '../components/icons'
+import { FilterField, FilterPanel } from '../components/FilterPanel'
+import { listCountText } from '../lib/listCount'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { NativeSelect } from '../components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
@@ -65,7 +64,8 @@ type DetailTabKey = 'info' | 'linked' | 'history'
 interface LinkedState { businessId: string; items: MerchantListItem[]; next: string | null }
 type Leave = { kind: 'list' } | { kind: 'tab'; tab: DetailTabKey } | { kind: 'merchant'; merchantId: string }
 /** 일반 검색 결과 열(MERCHANT-IA-001 B2 — 진위확인 열은 늘 '미검증'이라 뺐다, D-ADMIN-UI-010 ②). */
-const SEARCH_COLUMNS = ['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '보기'] as const
+// B6(명세 §4.1): 마지막 열 이름 '보기' → '상세'(가맹점 목록·번호 조회 결과와 같은 이름).
+const SEARCH_COLUMNS = ['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '상세'] as const
 /** 사업자등록번호 조회 결과 열(D-ADMIN-UI-010 ⑦ 짧은 결과 모양 — 번호 조회 응답에 있는 값만). */
 const LOOKUP_COLUMNS = ['사업자등록번호', '상호', '등록 상태', '상세'] as const
 const NO_FILTERS: Filters = Object.freeze({ displayNamePrefix: '', businessType: '', registrationStatus: '', createdFrom: '', createdTo: '' })
@@ -127,6 +127,9 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   const [busy, setBusy] = useState(false)
   // 리뷰 NIT-6: 목록 오류는 메모리에 둔다 — 첫 목록 읽기가 실패한 뒤 탭에 다시 들어와도 자동으로 다시 읽지 않는다("다시 시도" 버튼만).
   const [error, setError] = useRemembered<string | null>(memory, 'list.error', null)
+  /** B6 '초기화' 뒤(목록을 비운 상태): 처음 들어올 때의 자동 첫 쪽 읽기를 하지 않는다 — 초기화는 서버 호출이 없는 화면 동작. 다음 '검색'에서 풀린다. */
+  const [cleared, setCleared] = useRemembered<boolean>(memory, 'list.cleared', false)
+  const numberNoteId = useId()
   const [detailError, setDetailError] = useState<string | null>(null)
   const [handoff, setHandoff] = useState<'locked' | 'confirm' | null>(null)
   const [editBase] = useRemembered<BusinessDetail | null>(memory, EDIT_BASE, null)
@@ -153,7 +156,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
 
   // 목록 첫 쪽(조건 없음 — 본문 `{}`): 목록 화면에 처음 들어올 때 한 번.
   useEffect(() => {
-    if (view.kind === 'list' && list === null && !busy && error === null) void runSearch({}, false)
+    if (view.kind === 'list' && list === null && !cleared && !busy && error === null) void runSearch({}, false)
   }, [view.kind, list])
 
   // 상세: 선택한 사업자 문서가 없으면 읽는다(열람마다 서버 감사 BUSINESS_VIEWED).
@@ -182,6 +185,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   const search = async (event: FormEvent) => {
     event.preventDefault()
     if (busy) return
+    setCleared(false)
     if (number === '') {
       await runSearch(criteriaOf(filters), false)
       return
@@ -506,6 +510,15 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
 
   // ── 목록 ──
   const set = (patch: Partial<Filters>) => setFilters({ ...filters, ...patch })
+  /** B6 '초기화': 입력·오류·결과를 비우는 화면 동작만(서버 호출 없음 — 자동 첫 쪽 읽기도 막는다). 검색 중에는 버튼이 막혀 있다. */
+  const resetSearch = () => {
+    setFilters(NO_FILTERS)
+    setNumber('')
+    setNumberError(false)
+    setError(null)
+    setCleared(true)
+    setList(null)
+  }
   const byNumber = number !== ''
   return (
     <section className="flex flex-col gap-4">
@@ -516,46 +529,45 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
         action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 사업자 등록</button>}
         focusable
       />
-      <form aria-label="사업자 검색" onSubmit={search} noValidate className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Field label="사업자등록번호" error={numberError ? '사업자등록번호는 숫자 10자리입니다.' : undefined} hint="번호로 찾으면 다른 조건은 쓰지 않습니다(조회는 감사 기록에 남습니다)." className="sm:col-span-2">
-          {(describedBy) => <RegistrationNumberInput value={number} onValueChange={(v) => { setNumber(v); setNumberError(false) }} aria-describedby={describedBy} aria-invalid={numberError || undefined} />}
-        </Field>
-        <Field label="상호(앞부분 일치)">
-          {() => <Input value={filters.displayNamePrefix} disabled={byNumber} autoComplete="off" onChange={(e) => set({ displayNamePrefix: e.target.value })} />}
-        </Field>
-        <Field label="사업체 구분">
-          {() => (
-            <NativeSelect aria-label="사업체 구분" value={filters.businessType} disabled={byNumber} onChange={(e) => set({ businessType: e.target.value })}>
+      {/* MERCHANT-IA-001 B6(사용자 결정 D-ADMIN-UI-011 ① — pg-lab 목록 패턴, 명세 §4.1): 검색 조건을 한 카드 안 '항목명 | 입력' 칸으로 묶고 아래 오른쪽 '초기화'·'검색'('조회' → '검색' 용어 통일).
+          번호를 넣으면 다른 조건은 비활성·번호는 보낸 즉시 비움·검색 조건과 호출 인자는 그대로. 감사 안내는 묶음 아래 한 줄. */}
+      <FilterPanel label="사업자 검색" onSubmit={search} onReset={resetSearch} busy={busy}>
+        <FilterField label="사업자등록번호" error={numberError ? '사업자등록번호는 숫자 10자리입니다.' : null} describedBy={numberNoteId}>
+          {(id, describedBy) => <RegistrationNumberInput plain id={id} placeholder="000-00-00000" value={number} onValueChange={(v) => { setNumber(v); setNumberError(false) }} aria-describedby={describedBy} aria-invalid={numberError || undefined} />}
+        </FilterField>
+        <FilterField label="상호">
+          {(id) => <input id={id} value={filters.displayNamePrefix} disabled={byNumber} autoComplete="off" placeholder="앞부분 일치" onChange={(e) => set({ displayNamePrefix: e.target.value })} />}
+        </FilterField>
+        <FilterField label="사업체 구분">
+          {(id) => (
+            <select id={id} value={filters.businessType} disabled={byNumber} onChange={(e) => set({ businessType: e.target.value })}>
               <option value="">전체</option>
               <option value="INDIVIDUAL">개인</option>
               <option value="CORPORATION">법인</option>
-            </NativeSelect>
+            </select>
           )}
-        </Field>
-        <Field label="등록 상태">
-          {() => (
-            <NativeSelect aria-label="등록 상태" value={filters.registrationStatus} disabled={byNumber} onChange={(e) => set({ registrationStatus: e.target.value })}>
+        </FilterField>
+        <FilterField label="등록 상태">
+          {(id) => (
+            <select id={id} value={filters.registrationStatus} disabled={byNumber} onChange={(e) => set({ registrationStatus: e.target.value })}>
               <option value="">전체</option>
               <option value="DRAFT">임시저장</option>
               <option value="REGISTERED">등록 완료</option>
-            </NativeSelect>
+            </select>
           )}
-        </Field>
-        <div className="flex flex-col gap-3 sm:col-span-3 sm:flex-row lg:col-span-6">
-          <Field label="등록일 시작">
-            {() => <Input type="date" value={filters.createdFrom} disabled={byNumber} onChange={(e) => set({ createdFrom: e.target.value })} />}
-          </Field>
-          <Field label="등록일 끝">
-            {() => <Input type="date" value={filters.createdTo} disabled={byNumber} onChange={(e) => set({ createdTo: e.target.value })} />}
-          </Field>
-          <div className="flex items-end">
-            <Button type="submit" variant="outline" aria-busy={busy}>
-              {busy ? <Spinner active /> : <SearchIcon aria-hidden="true" />}
-              조회
-            </Button>
-          </div>
-        </div>
-      </form>
+        </FilterField>
+        <FilterField label="등록일" group>
+          {() => (
+            <>
+              <input type="date" aria-label="등록일 시작" value={filters.createdFrom} disabled={byNumber} onChange={(e) => set({ createdFrom: e.target.value })} />
+              <span className="rangesep" aria-hidden="true">~</span>
+              <input type="date" aria-label="등록일 끝" value={filters.createdTo} disabled={byNumber} onChange={(e) => set({ createdTo: e.target.value })} />
+            </>
+          )}
+        </FilterField>
+      </FilterPanel>
+      <p id={numberNoteId} className="text-xs text-muted-foreground">사업자등록번호 검색은 매번 감사 기록에 남습니다. 번호로 찾으면 다른 조건은 쓰지 않습니다.</p>
+      {cleared && list === null && !error && <p className="text-sm text-muted-foreground">검색 조건을 넣고 '검색'을 누르세요.</p>}
       {error && (
         <div className="flex flex-col gap-2">
           <ErrorNotice>{error}</ErrorNotice>
@@ -603,11 +615,11 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
               )}
             </TableBody>
           </Table>
-          {list.next && (
-            <div className="flex justify-center">
-              <Button type="button" variant="outline" disabled={busy} onClick={() => runSearch(list.criteria, true)}>더 보기</Button>
-            </div>
-          )}
+          {/* B6: 표 아래 건수(pg-lab '총 n건' — keyset이라 다음 쪽이 있으면 "n건 표시 · 더 있음")와 '더 보기'. */}
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>{listCountText(list.items.length, list.next !== null)}</span>
+            {list.next && <Button type="button" variant="outline" disabled={busy} onClick={() => runSearch(list.criteria, true)}>더 보기</Button>}
+          </div>
         </>
       )}
     </section>
@@ -638,7 +650,7 @@ function LinkedMerchants({ state, busy, error, onMore, onOpen }: {
         <Table aria-label="연결 가맹점 목록">
           <TableHeader>
             <TableRow>
-              <TableHead>가맹점</TableHead><TableHead>MID 수</TableHead><TableHead>등록일</TableHead>{onOpen && <TableHead><span className="sr-only">작업</span></TableHead>}
+              <TableHead>가맹점</TableHead><TableHead>MID 수</TableHead><TableHead>등록일</TableHead>{onOpen && <TableHead>상세</TableHead> /* B6: 작업 열 이름 '상세'(목록들과 같은 이름 — 보이는 머리) */}
             </TableRow>
           </TableHeader>
           <TableBody>

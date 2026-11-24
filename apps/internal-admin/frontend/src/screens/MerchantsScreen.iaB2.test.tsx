@@ -34,14 +34,16 @@ describe('MERCHANT-IA-001 B2 — 가맹점 목록', () => {
     render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
     expect(screen.queryByLabelText('상태')).toBeNull()
     const form = screen.getByLabelText('가맹점명').closest('form')!
-    expect(Array.from(form.querySelectorAll('input, select')).map((el) => el.getAttribute('aria-label'))).toEqual(['가맹점 코드', '가맹점명', '사업자등록번호'])
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 용어 통일, 명세 §7.7): 칸 이름은 보이는 label(필터 묶음 '항목명 | 입력')로 센다.
+    expect(Array.from(form.querySelectorAll('input, select')).map((el) => (el as HTMLInputElement).labels?.[0]?.textContent ?? null)).toEqual(['가맹점 코드', '가맹점명', '사업자등록번호'])
     await search()
     expect(api.merchantSearch).toHaveBeenCalledWith({})
     const table = await screen.findByRole('table', { name: '가맹점 목록' })
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호', 'MID 수', '등록일', '작업'])
+    // 기대값 변경(MERCHANT-IA-001 B6 — 명세 §4.4): 사업자 칸 = "상호 · 번호" 한 칸, 작업 열 이름 '상세'.
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', 'MID 수', '등록일', '상세'])
     const row = screen.getByRole('row', { name: codeOf(MER1) })
     expect(row).not.toHaveTextContent('활성')
-    expect(within(row).getAllByRole('cell')).toHaveLength(6)
+    expect(within(row).getAllByRole('cell')).toHaveLength(5)
   })
 
   it('② 예전 화면 메모리의 상태 필터 값(lookup.filter.lifecycle)은 무시한다 — 검색·다음 쪽 어디에도 lifecycle이 없다', async () => {
@@ -56,7 +58,8 @@ describe('MERCHANT-IA-001 B2 — 가맹점 목록', () => {
     await userEvent.type(screen.getByLabelText('가맹점명'), '데모')
     await search()
     await screen.findByRole('row', { name: codeOf(MER2) })
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 용어 통일, 명세 §7.7): '다음' → '더 보기'(같은 호출).
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(api.merchantSearch).toHaveBeenNthCalledWith(1, { displayNamePrefix: '데모' })
     expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', after: MER2 })
     expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()

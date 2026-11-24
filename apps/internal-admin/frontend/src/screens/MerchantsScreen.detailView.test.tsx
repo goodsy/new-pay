@@ -85,7 +85,8 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(list()).toBeNull()
     expect(screen.queryByRole('button', { name: '검색' })).toBeNull()
     expect(screen.queryByLabelText('가맹점 코드')).toBeNull()
-    expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 용어 통일, 명세 §7.7): '다음' → '더 보기'.
+    expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull()
     expect(back()).toHaveTextContent('← 목록으로')
     expect(back().querySelector('span[aria-hidden="true"]')).toHaveTextContent('←')
     expect(back().closest('.mapnote')).not.toBeNull()
@@ -102,7 +103,8 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     await userEvent.type(screen.getByLabelText('가맹점명'), '데모')
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어졌다 — 돌아와도 남는 조건은 가맹점명으로 본다.
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
-    await userEvent.click(await screen.findByRole('button', { name: '다음' }))
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 용어 통일, 명세 §7.7): '다음'(쪽 바꿈) → '더 보기'(이어 붙임) — 돌아오면 이어 붙인 목록(첫 쪽 + 둘째 쪽)이 그대로 남는다.
+    await userEvent.click(await screen.findByRole('button', { name: '더 보기' }))
     await openRow(MER2)
     expect(await detailHeading(MER2)).toBeInTheDocument()
     expect(list()).toBeNull()
@@ -111,14 +113,15 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(list()).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /가맹점 상세/ })).toBeNull()
     expect(screen.getByRole('row', { name: codeOf(MER2) })).toHaveClass('selected')
-    expect(screen.queryByRole('row', { name: codeOf(MER1) })).toBeNull()
-    expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
+    expect(screen.getByRole('row', { name: codeOf(MER1) })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull()
     expect(screen.getByLabelText('가맹점명')).toHaveValue('데모')
     expect(api.merchantSearch).toHaveBeenCalledTimes(2)
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
   })
 
-  it('the next-page cursor stays: back on page 1 the "다음" button continues with the same criteria and cursor', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 용어 통일, 명세 §7.7): '다음' → '더 보기'(같은 호출).
+  it('the next-page cursor stays: back on page 1 the "더 보기" button continues with the same criteria and cursor', async () => {
     const { api, show } = setup()
     show()
     await userEvent.type(screen.getByLabelText('가맹점명'), '데모')
@@ -126,7 +129,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     await openRow(MER1)
     await detailHeading(MER1)
     await userEvent.click(back())
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
     expect(await screen.findByRole('row', { name: codeOf(MER2) })).toBeInTheDocument()
     expect(vi.mocked(api.merchantSearch).mock.calls.map((c) => c[0])).toEqual([{ displayNamePrefix: '데모' }, { displayNamePrefix: '데모', after: 'c1' }])
   })

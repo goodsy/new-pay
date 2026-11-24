@@ -186,7 +186,8 @@ describe('MERCHANT-IA-001 B5 — 연결 가맹점 탭', () => {
     await user.click(tab)
     expect(merchantSearch).toHaveBeenCalledWith({ businessId: bizId(1) })
     const table = await screen.findByRole('table', { name: '연결 가맹점 목록' })
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', 'MID 수', '등록일', '작업'])
+    // 기대값 변경(MERCHANT-IA-001 B6 — 명세 §7.7 용어 통일): 작업 열 이름 '상세'(보이는 머리 — 목록들과 같은 이름).
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', 'MID 수', '등록일', '상세'])
     const row = within(table).getByRole('row', { name: 'shop000001' })
     expect(row).toHaveTextContent('첫째 가맹점')
     expect(within(row).getAllByRole('cell')[1]).toHaveTextContent('1')

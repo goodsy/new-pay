@@ -181,7 +181,8 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
     await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const table = screen.getByRole('table', { name: '변경 이력 목록' })
     const target = (seq: number) => within(within(table).getByRole('row', { name: String(seq) })).getAllByRole('cell')[2]!
-    expect(target(1)).toHaveTextContent(/^사이트앱 · com\.example\.app$/)
+    // 기대값 변경(MERCHANT-IA-001 B6 — B1 리뷰 NIT-2 용어 통일, 명세 §7.7): '사이트' → 'Site'(관리자 화면·명세·결정 문서에서 더 많이 쓰는 말).
+    expect(target(1)).toHaveTextContent(/^Site앱 · com\.example\.app$/)
     expect(target(2)).toHaveTextContent(/^계약계약 1$/)
     expect(target(3)).toHaveTextContent(/^서비스 약정\(CSA\)서비스: 카드 PG 결제$/)
     expect(target(4)).toHaveTextContent(new RegExp(`^MID${MID1}$`))
@@ -193,7 +194,7 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
     expect(target(10)).toHaveTextContent(`MID ${MID1} · KRW`)
     expect(target(11)).toHaveTextContent(/^정책 배정$/)
     // 상세에 없는 Site(예: 다른 경로로 지워진 값) — 종류만, 키는 보이지 않는다.
-    expect(target(12)).toHaveTextContent(/^사이트$/)
+    expect(target(12)).toHaveTextContent(/^Site$/)
     for (const code of ['MerchantSite', 'CardRouteActivation', 'PolicyAssignment']) expect(table).not.toHaveTextContent(code)
   })
 

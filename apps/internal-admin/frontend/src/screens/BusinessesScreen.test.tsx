@@ -23,6 +23,8 @@ const paste = async (label: string, value: string) => {
   await user.paste(value)
 }
 const press = async (name: string) => user.click(screen.getByRole('button', { name }))
+// 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.1·§7.7): 목록 검색 버튼 '조회' → '검색', 칸 이름 '상호(앞부분 일치)' → '상호'(규칙은 placeholder '앞부분 일치').
+const SEARCH = '검색'
 
 type Overrides = Parameters<typeof fakeApi>[0]
 /** 제출마다 다른 submissionId(32 hex). */
@@ -55,7 +57,8 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     expect(search).toHaveBeenCalledWith({})
     const headers = within(screen.getByRole('table', { name: '사업자 목록' })).getAllByRole('columnheader').map((h) => h.textContent)
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다": 진위확인은 늘 '미검증'(DB CHECK NOT_CHECKED만), 값·API는 그대로).
-    expect(headers).toEqual(['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '보기'])
+    // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.1·§7.7): 마지막 열 이름 '보기' → '상세'.
+    expect(headers).toEqual(['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '상세'])
     await vi.waitFor(() => expect(rows()).toHaveLength(3))
     expect(rows()[0]).toHaveTextContent('778-12-34567')
     expect(rows()[0]).toHaveTextContent('데모 사업자')
@@ -80,13 +83,13 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     renderScreen({ searchBusinesses: search })
     await screen.findByRole('table', { name: '사업자 목록' })
     // 빈 조건으로 "조회" → 본문 `{}`(키 생략 — null·빈 문자열 없음).
-    await press('조회')
+    await press(SEARCH)
     expect(search).toHaveBeenLastCalledWith({})
-    await paste('상호(앞부분 일치)', '데모')
+    await paste('상호', '데모')
     await user.selectOptions(screen.getByLabelText('사업체 구분'), 'INDIVIDUAL')
     await user.selectOptions(screen.getByLabelText('등록 상태'), 'REGISTERED')
     await user.type(screen.getByLabelText('등록일 시작'), '2026-11-01')
-    await press('조회')
+    await press(SEARCH)
     expect(search).toHaveBeenLastCalledWith({ displayNamePrefix: '데모', businessType: 'INDIVIDUAL', registrationStatus: 'REGISTERED', createdFrom: '2026-11-01' })
     for (const call of search.mock.calls) expect(JSON.stringify(call)).not.toMatch(/registrationNumber|null/)
   })
@@ -97,8 +100,8 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     const { api, view } = renderScreen({ searchBusinesses: search, lookupBusinessByRegistrationNumber: lookup })
     await screen.findByRole('table', { name: '사업자 목록' })
     await paste('사업자등록번호', BRN)
-    expect(screen.getByLabelText('상호(앞부분 일치)')).toBeDisabled()
-    await press('조회')
+    expect(screen.getByLabelText('상호')).toBeDisabled()
+    await press(SEARCH)
     expect(lookup).toHaveBeenCalledWith(BRN)
     expect(search).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(rows()).toHaveLength(1))
@@ -108,7 +111,7 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(view.container.innerHTML).not.toContain(BRN)
     await paste('사업자등록번호', BRN)
-    await press('조회')
+    await press(SEARCH)
     expect(await screen.findByText('이 번호로 등록된 사업자가 없습니다.')).toBeInTheDocument()
     // 리뷰 MINOR-3: 원문 번호는 번호 조회 요청에만(목록 검색 등 모든 대역 호출 인수 전수).
     expect(callsContaining(api, BRN)).toEqual(['lookupBusinessByRegistrationNumber'])
@@ -121,7 +124,7 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     renderScreen({ searchBusinesses: search, lookupBusinessByRegistrationNumber: lookup })
     expect(await screen.findByText(/사업자 조회 30회\/분/)).toHaveTextContent('Demo 값')
     await paste('사업자등록번호', BRN)
-    await press('조회')
+    await press(SEARCH)
     expect(await screen.findByText(/사업자등록번호 10회\/분/)).toHaveTextContent('Demo 값')
   })
 })

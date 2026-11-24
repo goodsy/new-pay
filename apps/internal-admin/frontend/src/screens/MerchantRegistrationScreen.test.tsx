@@ -12,7 +12,7 @@ import { createScreenMemory } from '../lib/screenMemory'
 import { draftMinimalDetail, individualRegisteredDetail } from '../test/businessFixtures'
 
 /**
- * 가맹점 등록 마법사(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④ 화면 분리: ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료).
+ * 가맹점 등록 마법사(ADMIN-UI-MERCHANT-002 — D-ADMIN-UI-004 ④ 화면 분리: ① 사업자 선택 → ② 가맹점·Site → ③ 계약 초안·서비스 계약 → ④ 검토·완료).
  * 기대값 변경 근거(ADMIN-UI-MERCHANT-001 시험에서):
  * - ① 사업자 정보(사업자 등록 카드)는 사업자 등록 화면으로 옮겼다(BusinessRegistrationScreen.test — 같은 단언). 이 화면 ①은 저장 없는 "사업자 선택"(기존 사업자등록번호 가맹점 검색 재사용).
  * - 사업자 ID 입력란(biz_…)이 없어졌다(D-ADMIN-UI-004 ③): 가맹점·계약 초안의 사업자는 고른 사업자(상호·마스킹 번호 표시)이고, 보내는 body의 businessId·partyBusinessId는 그대로 같은 값.
@@ -74,7 +74,8 @@ const typeMerchant = async (region: HTMLElement, name: string, code = 'shopabcd1
 const click = async (region: HTMLElement, name: string) => user.click(within(region).getByRole('button', { name }))
 
 /** 단계 표시(1~4). */
-const STEPS = ['1. 사업자 선택', '2. 가맹점·사이트', '3. 계약 초안·서비스 계약', '4. 검토·완료'] as const
+// 기대값 변경(MERCHANT-IA-001 B6 — B1 리뷰 NIT-2 용어 통일, 명세 §7.7): '사이트' → 'Site'(관리자 화면·명세·결정 문서에서 더 많이 쓰는 말).
+const STEPS = ['1. 사업자 선택', '2. 가맹점·Site', '3. 계약 초안·서비스 계약', '4. 검토·완료'] as const
 const stepper = () => screen.getByRole('list', { name: '등록 단계' })
 const currentStep = () => within(stepper()).getByRole('button', { current: 'step' }).getAttribute('aria-label')
 const goTo = async (name: (typeof STEPS)[number]) => user.click(within(stepper()).getByRole('button', { name }))
@@ -119,7 +120,7 @@ const OWN_AFFILIATION = `데모 가맹점 · ${CODE}` // LAYOUT-ROLLOUT B2 기�
 const CONTEXT_AFFILIATION = `기존 가맹점 · ${codeOf(MER)}` // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
 
 // 실행 시간 상한만 20초(BIZ4-gate2에서 ①→④ 전체 흐름이 gate 부하로 5.1초 — App wiring·ApprovalsScreen 선례). 단언·findBy 대기는 그대로.
-describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', { timeout: 20_000 }, () => {
+describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·Site → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', { timeout: 20_000 }, () => {
   it('① BIZ-4-4 (D-BIZ-004): finds the business with the registration-number lookup (merchantSearch not called — a business without merchants is found), number cleared and never rendered; name + number only (D-BIZ-007); "선택" moves to ②', async () => {
     const api = fakeApi({
       lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
@@ -150,7 +151,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(container.innerHTML).not.toContain('778-12-34560')
 
     await user.click(within(found).getByRole('button', { name: '선택' }))
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778-12-34567')
     expect(domOccurrences(container, 'biz_')).toEqual([])
@@ -230,7 +231,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
       registerMerchantSite: vi.fn(async () => succeeded(SITE)),
     })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
@@ -242,7 +243,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(api.registerMerchantSite).toHaveBeenCalledWith({ submissionId: sid(2), merchantId: MER, channelType: 'WEB', channelIdentifier: 'demo-shop2.paycore.test' })
 
     await previous()
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(within(step('가맹점')).getByText(CODE)).toBeInTheDocument()
     expect(within(step('Site')).getByText(SITE)).toBeInTheDocument()
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toBeDisabled()
@@ -321,7 +322,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
   it('② without a selected business the merchant is not sent (replaces the old biz_ format check — no business id field any more)', async () => {
     const api = fakeApi({ registerMerchant: vi.fn(async () => succeeded(MER)) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     const merchant = step('가맹점')
     expect(merchantBusinessText()).toContain('선택한 사업자 없음')
     expect(within(merchant).queryByLabelText('사업자 ID')).toBeNull()
@@ -343,7 +344,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
     await next()
     expect(await within(step('Site')).findByRole('alert')).toHaveTextContent('이미 다른 Site가 쓰는 채널 식별값입니다')
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     await user.clear(within(step('Site')).getByLabelText('채널 식별값'))
     await typeIn(step('Site'), '채널 식별값', 'demo-shop3.paycore.test')
     await next()
@@ -365,7 +366,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await within(step('가맹점')).findByRole('group', { name: '결과 확인 필요' })
     expect(screen.getByRole('button', { name: '다음 단계 →' })).toBeDisabled()
     expect(api.registerMerchantSite).not.toHaveBeenCalled()
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
 
     await click(step('가맹점'), '같은 내용 다시 보내기')
     expect(await within(step('가맹점')).findByText(CODE)).toBeInTheDocument()
@@ -388,7 +389,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await within(step('가맹점')).findByText(CODE)
     first.unmount()
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={memory} />)
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(within(step('가맹점')).getByText(CODE)).toBeInTheDocument()
     expect(merchantBusinessText()).toContain('데모 사업자')
 
@@ -398,7 +399,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await click(done, '새 가맹점 등록 시작')
     expect(currentStep()).toBe('1. 사업자 선택')
     expect(within(step('사업자 선택')).queryByRole('group', { name: '선택한 사업자' })).toBeNull()
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toHaveValue('')
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toBeEnabled()
     expect(merchantBusinessText()).toContain('선택한 사업자 없음')
@@ -448,7 +449,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await merchant.resolve(succeeded(MER))
     expect(api.registerMerchantSite).not.toHaveBeenCalled()
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={memory} />)
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(within(step('가맹점')).getByText(CODE)).toBeInTheDocument()
     expect(api.registerMerchantSite).not.toHaveBeenCalled()
   })
@@ -499,7 +500,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await next()
     expect(await within(step('가맹점')).findByText(CODE)).toBeInTheDocument()
     expect(within(step('Site')).getByText('형식이 맞지 않습니다(소문자 정규형만 — 자동으로 바꾸지 않습니다).')).toBeInTheDocument()
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(api.registerMerchantSite).not.toHaveBeenCalled()
     await user.clear(within(step('Site')).getByLabelText('채널 식별값'))
     await typeIn(step('Site'), '채널 식별값', 'shop.example.test')
@@ -652,7 +653,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
   it('formats are checked on screen without sending (no automatic normalization): upper-case host; without an affiliated merchant (MC-2b — replaces the old mer_ format check) the Site is not sent', async () => {
     const api = fakeApi()
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     const site = step('Site')
     // MC-2b(D-MCODE-003 ①): 가맹점 ID 입력칸이 없다 — 소속 가맹점은 맥락으로 정해지고, 없으면 그렇게 보인다.
     expect(within(site).queryByLabelText('가맹점 ID')).toBeNull()
@@ -793,7 +794,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await click(contract, '계약 초안 등록')
     await within(contract).findByRole('group', { name: '결과 확인 필요' })
 
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     await click(step('Site'), '다른 Site 추가 입력')
     // MC-2b: 다른 가맹점은 입력칸이 아니라 맥락으로 정해진다(그 가맹점을 맥락으로 준다 — 잠기지 않은 Site에만 채워진다).
     act(() => offerMerchant(memory, { merchantId: MER2, businessId: BIZ, name: '둘째 가맹점', code: codeOf(MER2) }))
@@ -870,13 +871,13 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     // ①에서 다른 사업자를 고른다 — 잠긴 가맹점 카드는 그대로, 잠기지 않은 계약 초안에는 채워진다.
     await goTo('1. 사업자 선택')
     await pickBusiness()
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).not.toContain('다른 사업자')
     await goTo('3. 계약 초안·서비스 계약')
     expect(partyText()).toContain('다른 사업자')
 
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     await click(step('가맹점'), '같은 내용 다시 보내기')
     await within(step('가맹점')).findByText(CODE)
     expect(merchantSend.mock.calls[1]![0]).toEqual(merchantSend.mock.calls[0]![0])
@@ -888,7 +889,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(partyText()).toContain('데모 사업자')
     expectAffiliation('계약 초안', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
 
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     await click(step('Site'), '같은 내용 다시 보내기')
     expect(await within(step('Site')).findByText(SITE)).toBeInTheDocument()
     expect(siteSend.mock.calls[1]![0]).toEqual(siteSend.mock.calls[0]![0])
@@ -1018,7 +1019,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await user.click(screen.getByRole('button', { name: '이 사업자로 가맹점 등록' }))
     // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 가맹점 등록은 '가맹점' 탭의 하위 화면 — 부모 탭이 선택.
     expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(merchantBusinessText()).toContain('데모 사업자')
     expect(merchantBusinessText()).toContain('778-12-34567')
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
@@ -1089,7 +1090,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await click(screen.getByRole('group', { name: '가맹점 등록 새로 시작 확인' }), '새로 시작')
     // D-ADMIN-UI-006 기대값 변경(LAYOUT-ROLLOUT B1): 가맹점 등록은 '가맹점' 탭의 하위 화면 — 부모 탭이 선택.
     expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
-    expect(currentStep()).toBe('2. 가맹점·사이트')
+    expect(currentStep()).toBe('2. 가맹점·Site')
     expect(merchantBusinessText()).toContain('두번째 사업자')
     expect(merchantBusinessText()).not.toContain('데모 사업자')
     expect(within(step('가맹점')).getByLabelText('가맹점명')).toHaveValue('')
@@ -1097,7 +1098,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await goTo('3. 계약 초안·서비스 계약')
     expect(partyText()).toContain('두번째 사업자')
     expectAffiliation('계약 초안', '아직 없음') // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
-    await goTo('2. 가맹점·사이트')
+    await goTo('2. 가맹점·Site')
     await typeMerchant(step('가맹점'), '둘째 가맹점')
     await click(step('가맹점'), '가맹점 등록')
     await within(step('가맹점')).findByText(CODE)
@@ -1457,7 +1458,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       expect(step('등록 결과')).toHaveTextContent(`가맹점 코드 ${CODE}`)
       expect(domOccurrences(container, 'mer_')).toEqual([])
       // ② 결과: 가맹점 카드 결과는 코드, Site 카드 소속 가맹점도 상호·코드.
-      await goTo('2. 가맹점·사이트')
+      await goTo('2. 가맹점·Site')
       expect(step('가맹점')).toHaveTextContent(`가맹점 코드 ${CODE}`)
       expectAffiliation('Site', OWN_AFFILIATION) // LAYOUT-ROLLOUT B2 기대값 변경(사용자 결정 2026-11-19 폼 줄 — '소속 가맹점: ' 접두는 이름 열로 표현, D-MCODE-003 내용 무변경)
       expect(merOccurrences(container)).toEqual([])
@@ -1536,7 +1537,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await typeIn(step('계약 초안'), '시작일', '2026-11-09')
       await click(step('계약 초안'), '계약 초안 등록')
       await within(step('계약 초안')).findByText(CTR)
-      await goTo('2. 가맹점·사이트')
+      await goTo('2. 가맹점·Site')
       await click(step('가맹점'), '가맹점 새로 입력')
       await typeMerchant(step('가맹점'), '둘째 가맹점', 'secondshop2')
       await click(step('가맹점'), '가맹점 등록')

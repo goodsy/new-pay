@@ -139,6 +139,7 @@
 | 제목 줄 | `MapNote`(목록·등록 전환 버튼 포함), `WorkspaceHeader` | `PageHeader`: 사용처를 확인한 뒤 하나로 |
 | 사업자 폼 배치 | `BusinessProfileFormScreen`의 `layout` 열거형 variant(§6.3): `'sections'`(기본 — 사업자 등록 화면 6섹션) / `'detail'`(MERCHANT-IA-001 B5 — 사업자 상세의 항상 편집 폼: 회사(2열)·대표자·담당자, 하단 저장 + 목록으로, 국가 줄 없음). 입력 칸 묶음은 한 번만 정의하고 두 배치가 같이 쓴다 | 사업자 상세 안 별도 수정 화면(흡수함) |
 | 상세 탭 | `DetailTabs`(MERCHANT-IA-001 B4 — 사업자 상세·가맹점 상세). tablist/tab/tabpanel·aria-controls·roving tabIndex·좌우/Home/End 자동 선택, 패널은 `hidden`(언마운트 없음 — 결과 불명 잠금 폼·입력 보존), 탭 알림(`alert` → aria-describedby). 모양은 사업자 상세 탭의 기존 class 그대로(새 class·토큰 없음 — 정본 class·토큰으로 옮기는 일은 후속) | BusinessesScreen 지역 tablist(교체함). 메뉴 카드 탭 막대 `MenuCard`(`.tabs`)는 화면 탭이라 별개 |
+| 목록 필터 묶음 | `FilterPanel` + `FilterField`(MERCHANT-IA-001 B6 — D-ADMIN-UI-011 ① pg-lab 목록 패턴, 사업자 목록·가맹점 목록). 한 카드 안 '항목명 \| 입력' 칸(넓은 폭 2열·1100px 이하 1열, 홀수 마지막 칸은 한 줄 전체), 아래 오른쪽 '초기화'(type=button — 화면 동작만, 서버 호출 없음)·'검색'(submit), 검색 중 둘 다 막음. 이름은 `<label for>`, 여러 입력 칸(기간)은 `role=group` + aria-labelledby, 오류는 칸 아래 글자 + aria-describedby. class `.filterpanel`·`.filtergrid`·`.filterfield`·`.filterlabel`·`.filtercontrol`·`.filtererror`·`.filteractions`(기존 토큰만 — 새 색·토큰 없음). 건수 문구는 `lib/listCount.ts`(keyset — 다 읽었을 때만 '총 n건') | 사업자 목록 `Field` 그리드, 가맹점 목록 `.filters` 줄(두 목록 교체함). 다른 화면의 `.filters` 줄은 그대로(옮길 때 §6.4) |
 | 등록 단계 | `RegistrationStep`(모양 하나) | `workspace`·`rows` 플래그로 그린 세 모양 |
 | 로딩·빈 상태 | `Spinner`, `EmptyRow` | — |
 | 셸 | `AppLayout`, 사이드바, 상단 경로 | — |
