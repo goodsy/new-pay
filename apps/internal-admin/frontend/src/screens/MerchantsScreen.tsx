@@ -10,7 +10,7 @@ import { ContractRevisionForm, useRevisionLocked } from '../components/ContractR
 import { ContractApprovalRequest } from '../components/ContractApprovalRequest'
 import { FirstMidRequest, mayRequestFirstMid } from '../components/FirstMidRequest'
 import { MerchantCodeChangeRequest, mayRequestCodeChange } from '../components/MerchantCodeChangeRequest'
-import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn } from '../components/MerchantActivationArea'
+import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn, SiteReviewTable } from '../components/MerchantActivationArea'
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { ChevronDownIcon } from '../components/icons'
 import { formatMinor } from '../lib/format'
 import { historyTarget, historyTargetLabel } from '../lib/historyTarget'
+import { changeTypeLabel } from '../lib/merchantChangeTypes'
 import { tagClass } from '../lib/statusTone'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
@@ -136,10 +137,15 @@ function RevisionButton({ memory, contractId, onOpen }: { memory: ScreenMemory; 
   )
 }
 
-function DetailPanels({ detail, contractAction, revisionAction, activation }: {
+function DetailPanels({ detail, contractAction, revisionAction, activation, siteReview }: {
   detail: MerchantDetail
+  /**
+   * 가맹점 단위 Site 심사 표(MERCHANT-IA-001 B1 — 예전에는 MID "개통" 영역마다 같은 표가 반복됐다). Site 패널 안 Site 목록 아래에 한 번 그린다:
+   * Site를 보는 곳 바로 옆이 자연스럽고, B4 탭(Site·계약)에서도 같은 자리다. MID가 하나라도 있을 때만 그린다 — 개통 영역 안에 있던 때의 표시 조건 그대로.
+   */
+  siteReview?: ReactNode
   contractAction?: (contractId: string) => ReactNode
-  /** MID 아래 "개통" 영역(B3-1 §9.17 — 결제수단·Site 심사·적용 확인·점검표). 있으면 결제수단 표를 이 영역이 그린다. */
+  /** MID 아래 "개통" 영역(B3-1 §9.17 — 결제수단·적용 확인·통화·점검표). 있으면 결제수단 표를 이 영역이 그린다. */
   activation?: (account: MerchantDetail['accounts'][number]) => ReactNode
   /** Revision 행의 작업 칸(B2-2 "승인 요청" — 표시만, 판정은 서버). */
   revisionAction?: (contractId: string, revision: MerchantDetail['contracts'][number]['revisions'][number]) => ReactNode
@@ -228,6 +234,12 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
             ))}
           </TableBody>
         </Table>
+        {accounts.length > 0 && siteReview && (
+          <div className="mt-4 flex flex-col gap-2">
+            <h5 className="text-xs font-semibold text-muted-foreground">Site 심사</h5>
+            {siteReview}
+          </div>
+        )}
       </Panel>
 
       <Panel name="계약·CSA">
@@ -324,21 +336,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation }: {
                 </TableBody>
               </Table>
             )}
-            <Table aria-label="통화">
-              <TableHeader>
-                <TableRow><TableHead>통화</TableHead><TableHead>효력 기간</TableHead><TableHead>종료 처리</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {account.currencies.length === 0 && <EmptyRow columns={3} message="허용 통화가 없습니다." />}
-                {account.currencies.map((currency) => (
-                  <TableRow key={currency.enablementId}>
-                    <TableCell className="font-mono">{currency.currencyCode}</TableCell>
-                    <TableCell>{period(currency.effectiveFrom, currency.effectiveTo)}</TableCell>
-                    <TableCell>{currency.endedAt === null ? <span className="text-muted-foreground">-</span> : <KstTime iso={currency.endedAt} />}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.6): 여기 있던 통화 표(효력 기간·종료 처리)는 개통 영역 통화 표와 같은 행이라 지웠다 — '종료 처리' 열은 그 표로 옮겼다. */}
             {/* 카드 Route는 인수사 코드·Route 참조·상태만 그린다(기관 가맹점 번호는 감사 전용 — D-MS2-005). */}
             <Table aria-label="카드 Route">
               <TableHeader>
@@ -778,6 +776,23 @@ export function MerchantsScreen({
             <Button type="button" variant="outline" size="sm" onClick={() => setApprovalFor(key)}>승인 요청</Button>
           )
         } : undefined}
+        siteReview={
+          <SiteReviewTable
+            api={api}
+            detail={detail}
+            canOperate={canRequestApproval}
+            now={now()}
+            onChanged={() => void refreshDetail(detail.merchant.merchantId)}
+            onRequested={(approvalId, what) => {
+              setRequestResult({ approvalId, what })
+              void refreshDetail(detail.merchant.merchantId)
+            }}
+            onSessionEnded={onSessionEnded}
+            newSubmissionId={newSubmissionId}
+            // LOCK-UNIFY-001: 심사 거절 결과 불명 잠금(activation.siteReject.<site>)은 개통 영역 안에 있던 때와 같은 App 메모리에.
+            memory={revisionMemory}
+          />
+        }
         activation={(account) => (
           <MerchantActivationArea
             api={api}
@@ -803,16 +818,16 @@ export function MerchantsScreen({
           <Table aria-label="변경 이력 목록">
             <TableHeader>
               <TableRow>
-                <TableHead>순번</TableHead><TableHead>시각</TableHead><TableHead>연산</TableHead><TableHead>대상</TableHead><TableHead>변경</TableHead><TableHead>행위자</TableHead>
+                {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.8): '연산'(영문 원문, 예: CreateBusiness) 열은 '변경'과 같은 뜻이라 뺐다 — 이력 값·API는 그대로. */}
+                <TableHead>순번</TableHead><TableHead>시각</TableHead><TableHead>대상</TableHead><TableHead>변경</TableHead><TableHead>행위자</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {history.items.length === 0 && <EmptyRow columns={6} message="변경 이력이 없습니다." />}
+              {history.items.length === 0 && <EmptyRow columns={5} message="변경 이력이 없습니다." />}
               {history.items.map((entry) => (
                 <TableRow key={entry.seq} aria-label={String(entry.seq)}>
                   <TableCell className="font-mono">{entry.seq}</TableCell>
                   <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
-                  <TableCell><Mono>{entry.operation}</Mono></TableCell>
                   {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·마스킹 번호 — 내부 키 mer_·biz_ 미표시. 다른 대상(Site·계약·MID 등)은 각 식별자 그대로. */}
                   <TableCell>
                     <span className="flex flex-col gap-1">
@@ -820,7 +835,8 @@ export function MerchantsScreen({
                       <span className="text-sm">{historyTarget(entry, detail)}</span>
                     </span>
                   </TableCell>
-                  <TableCell><KindLabel code={entry.changeType} /></TableCell>
+                  {/* MERCHANT-IA-001 B1: 한국어 이름만(영문 코드 줄 없음). 모르는 종류는 코드 그대로 — changeTypeLabel. */}
+                  <TableCell>{changeTypeLabel(entry.changeType)}</TableCell>
                   <TableCell><Mono>{entry.actorRef}</Mono></TableCell>
                 </TableRow>
               ))}
@@ -840,8 +856,9 @@ export function MerchantsScreen({
     const current = detail !== null && detail.merchant.merchantId === view.merchantId ? detail : null
     return (
       <>
+        {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.2): "조회 전용"은 사실과 달라(상세에 요청·등록 버튼이 있다) 뺐다. 감사 안내는 그대로. */}
         <MapNote title="가맹점 조회" titleRef={titleRef} action={<BackToListButton onClick={backToList} />}>
-          가맹점 상세입니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다.
+          상세 조회는 감사 기록에 남습니다.
         </MapNote>
         <div className="detailarea">
           {detailBusy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner active />상세를 불러오는 중입니다.</p>}
@@ -856,7 +873,8 @@ export function MerchantsScreen({
   return (
     <>
       <MapNote title="가맹점 조회" titleRef={titleRef} action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 가맹점 등록</button>}>
-        가맹점·사업자·MID 개통 상태를 조회합니다. 조회 전용이며, 상세 조회는 감사 기록에 남습니다.
+        {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.1): 목록에는 개통 상태가 없고 '＋ 가맹점 등록'·상세 요청이 있어 "개통 상태를 조회"·"조회 전용"은 사실과 달라 뺐다. 감사 안내는 그대로. */}
+        상세 조회는 감사 기록에 남습니다.
       </MapNote>
       <form className="filters" onSubmit={search}>
         <input

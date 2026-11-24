@@ -4292,6 +4292,150 @@
       "humanAnswer": "기술 정보 접기 (권장)만 선택",
       "humanEvidence": "Claude Code 세션 사용자 메시지·선택 (2026-11-24)",
       "appliedSpec": "D-ADMIN-UI-009"
+    },
+    {
+      "id": "Q-IA-1",
+      "status": "ANSWERED",
+      "question": "가맹점 상세 구조",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "요약 + 탭 6개 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-2",
+      "status": "ANSWERED",
+      "question": "늘 같은 값 항목(진위확인·국가·가맹점/사업자 상태·상태 필터)",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "화면에서 빼기 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-3",
+      "status": "ANSWERED",
+      "question": "남은 내부 식별자(site_·ctr_·csa_·act_·apr_·이력 대상 키)",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "사람용 값으로 바꾸기 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-4",
+      "status": "ANSWERED",
+      "question": "MID 선택 위치",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "상세 맨 위 (토스식) — 권장안(MID·개통 탭 안) 대신",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-5",
+      "status": "ANSWERED",
+      "question": "데이터 없는 업무 항목(정산·수수료·카드사별 이용 가능)",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "숨기기 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-6",
+      "status": "ANSWERED",
+      "question": "사업자 섹션별 '변경' 동작",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "기존 수정 폼으로 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-7",
+      "status": "ANSWERED",
+      "question": "사업자등록번호 검색 결과 빈 칸",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "짧은 결과 모양 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-8",
+      "status": "ANSWERED",
+      "question": "사업자 상세 '연결 가맹점' 탭",
+      "recommended": "docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §6 권장안",
+      "alternative": "§6 대안",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "탭 추가 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-4b",
+      "status": "ANSWERED",
+      "question": "상세 맨 위 MID 선택이 어느 탭까지 MID 기준으로 바뀌는가(Q-IA-4 범위 확인 — 리뷰 MAJOR-1)",
+      "recommended": "MID 것만 따라감(Site·계약·이력은 가맹점 공통)",
+      "alternative": "모든 탭을 MID로 거름(토스식)",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "MERCHANT-IA-001 정리안 rev 0.1 §6",
+      "humanAnswer": "MID 것만 따라감 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-010"
     }
   ]
 }

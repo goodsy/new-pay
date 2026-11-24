@@ -125,7 +125,8 @@ describe('serviceOpeningTimeline (ADMIN-UI-MERCHANT-001 — derived from the exi
       '계약 승인승인 대기',
       'MID 발급미시작',
       '결제수단 개통·Site 심사미시작',
-      '수수료·정산 (예정)B4 이후',
+      // 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §3.2·§7 B1, Q-IA-5 답 "준비 전이라는 말로만 남긴다"): 작업 배치 이름 'B4 이후' → '준비 전', 같은 뜻의 '(예정)' 꼬리는 뺐다(상태 LATER 그대로).
+      '수수료·정산준비 전',
     ])
     expect(region).toHaveTextContent('참고용')
     expect(region).toHaveTextContent('MID 발급 뒤 나오는 개통 점검표')

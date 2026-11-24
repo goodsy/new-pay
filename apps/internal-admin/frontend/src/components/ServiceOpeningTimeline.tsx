@@ -2,11 +2,12 @@ import type { MerchantDetail } from '../api/adminApi'
 import { cn } from '../lib/utils'
 import { activationChecklist, APPROVAL_GROUPS, pendingIn } from './MerchantActivationArea'
 
-/** 단계 상태(표시만): 완료 / 진행 중 / 승인 대기(2인 승인 요청이 대기 중) / 미시작 / 예정(서버 기능 전). */
+/** 단계 상태(표시만): 완료 / 진행 중 / 승인 대기(2인 승인 요청이 대기 중) / 미시작 / 준비 전(서버 기능 전). */
 export type OpeningState = 'DONE' | 'IN_PROGRESS' | 'WAITING' | 'NOT_STARTED' | 'LATER'
 export interface OpeningStep { key: string; label: string; state: OpeningState; note?: string }
 
-const STATE_TEXT: Record<OpeningState, string> = { DONE: '완료', IN_PROGRESS: '진행 중', WAITING: '승인 대기', NOT_STARTED: '미시작', LATER: 'B4 이후' }
+/** MERCHANT-IA-001 B1(명세 rev 0.2 §3.2, Q-IA-5 답 "준비 전이라는 말로만"): LATER는 작업 배치 이름('B4 이후') 대신 "준비 전". */
+const STATE_TEXT: Record<OpeningState, string> = { DONE: '완료', IN_PROGRESS: '진행 중', WAITING: '승인 대기', NOT_STARTED: '미시작', LATER: '준비 전' }
 
 /**
  * 서비스 개통 현황(ADMIN-UI-MERCHANT-001 — 참고 시안 #merchant 타임라인, 사용자 지시 2026-11-11): **기존 상세 응답 값으로만** 계산한다(새 API·샘플 데이터 없음 — D-ADMIN-UI-003).
@@ -15,7 +16,7 @@ const STATE_TEXT: Record<OpeningState, string> = { DONE: '완료', IN_PROGRESS: 
  * ② 계약 승인: 승인된 Revision이 있으면 완료, 계약 승인 요청이 대기 중이면 승인 대기.
  * ③ MID 발급: MID가 하나라도 있으면 완료, 첫 MID 발급 요청이 대기 중이면 승인 대기.
  * ④ 결제수단 개통·Site 심사: **한 MID에서** 개통 점검표 ②(그 MID의 [now]에 열린 대표 Site 심사 APPROVED)와 ③(그 MID의 카드 개통 ACTIVE)이 모두 충족이면 완료(Coordinator 결정 — 점검표와 같은 규칙, 표시 규칙), 개통·재개·Site 심사 승인 요청이 대기 중이면 승인 대기, 개통 등록이나 심사 결정이 하나라도 있으면 진행 중.
- * ⑤ 수수료·정산: 서버 기능 전(B4) — 항상 예정.
+ * ⑤ 수수료·정산: 서버 기능 전 — 항상 "준비 전"(LATER).
  */
 export function serviceOpeningTimeline(detail: MerchantDetail, now: Date): OpeningStep[] {
   const pick = (done: boolean, waiting: boolean, started: boolean): OpeningState => (done ? 'DONE' : waiting ? 'WAITING' : started ? 'IN_PROGRESS' : 'NOT_STARTED')
@@ -36,7 +37,8 @@ export function serviceOpeningTimeline(detail: MerchantDetail, now: Date): Openi
     { key: 'approval', label: '계약 승인', state: pick(approved, pendingKind('MERCHANT_CONTRACT_APPROVAL'), false) },
     { key: 'mid', label: 'MID 발급', state: pick(issued, pendingKind('MERCHANT_FIRST_MID_ISSUANCE'), false) },
     { key: 'opening', label: '결제수단 개통·Site 심사', state: pick(opened, openingPending, methods.length > 0 || reviewed) },
-    { key: 'terms', label: '수수료·정산', state: 'LATER', note: '(예정)' },
+    // MERCHANT-IA-001 B1: '(예정)' 꼬리는 상태 글자 "준비 전"과 같은 말이라 뺐다.
+    { key: 'terms', label: '수수료·정산', state: 'LATER' },
   ]
 }
 

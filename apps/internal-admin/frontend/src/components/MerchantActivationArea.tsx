@@ -81,13 +81,15 @@ export function activationChecklist(detail: MerchantDetail, account: Account, no
     { key: 'method', group: '결제 생성 조건', label: '③ 결제수단(카드) 개통 활성', state: state(methodActive) },
     { key: 'confirmation', group: '결제 생성 조건', label: '④ 대표 Site 적용 확인 유효', state: state(confirmed) },
     { key: 'currency', group: '결제 생성 조건', label: '⑤ 통화(KRW) 활성', state: state(krw), note: krw ? undefined : krwLater ? '효력 전' : '통화 활성화 승인 필요' },
-    { key: 'route', group: '승인 시작 조건', label: '⑥ 카드 Route 활성', state: state(route), note: route ? undefined : 'B3-3 Route 개통 이후' },
-    { key: 'terms', group: '승인 시작 조건', label: '⑦ 수수료·정산 배정·한도', state: 'LATER', note: 'B4 이후' },
+    // MERCHANT-IA-001 B1(명세 rev 0.2 §3.6): 작업 배치 이름("B3-3 Route 개통 이후"·"B4 이후")은 운영자에게 뜻이 없어 "준비 전"으로 — 판정(state)은 그대로.
+    { key: 'route', group: '승인 시작 조건', label: '⑥ 카드 Route 활성', state: state(route), note: route ? undefined : '준비 전' },
+    { key: 'terms', group: '승인 시작 조건', label: '⑦ 수수료·정산 배정·한도', state: 'LATER' },
     { key: 'propagation', group: '전파', label: '⑧ 최신 권리 revision을 결제 서비스가 수신 확인', state: state(acked) },
   ]
 }
 
-const CHECK_TEXT: Record<CheckState, string> = { MET: '충족', NOT_MET: '미충족', LATER: '이후 배치' }
+/** MERCHANT-IA-001 B1: LATER(아직 서버 기능이 없는 항목)는 작업 배치 이름("이후 배치") 대신 "준비 전". */
+const CHECK_TEXT: Record<CheckState, string> = { MET: '충족', NOT_MET: '미충족', LATER: '준비 전' }
 
 /** 통화 기록 한 줄의 [now] 기준 상태(표시만 — 권위는 결제 시점 PAYMENT 판정). */
 function currencyState(c: Account['currencies'][number], now: Date): '효력 전' | '효력 중' | '종료' {
@@ -348,9 +350,103 @@ function SiteRejectForm({ api, site, memory, newSubmissionId, onDone, onSessionE
 }
 
 /**
+ * 가맹점 Site 심사 표(MERCHANT-OPS-002 B3-1 §9.17 — "심사 승인 요청" 2인·"심사 거절" 1인). 버튼은 [canOperate](OPERATOR)일 때만 보이며 권위 판정·감사는 서버다.
+ * MERCHANT-IA-001 B1(명세 rev 0.2 §7 B1, "한 사실은 한 곳에"): Site 심사는 가맹점 단위라 MID "개통" 영역마다 반복하지 않고 가맹점 상세에서 한 번 그린다(B4 탭 전까지 Site 패널 안).
+ * 동작은 개통 영역 안에 있던 때와 같다 — 같은 그룹 대기면 2인 버튼만 숨기고 1인 거절은 숨기지 않는다(C-35), 거절 확인 대화상자, 결과 불명 잠금 메모리 키
+ * `activation.siteReject.<site>`(LOCK-UNIFY-001 — App 메모리, 다시 연 상세에서 잠긴 폼을 연다, 그 동안 다른 Site 거절은 막는다).
+ * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 Site 심사의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER).
+ * "대표(PRIMARY)"는 [now]에 어느 MID의 열린 대표 Site인지로 표시한다(표시만 — 버튼 조건이 아니다).
+ */
+export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected }: {
+  api: AdminApi
+  detail: MerchantDetail
+  canOperate: boolean
+  now: Date
+  /** 1인 명령 성공 뒤 상세 다시 읽기. */
+  onChanged: () => void
+  /** 2인 승인 요청 성공(승인 ID, 무엇). */
+  onRequested: (approvalId: string, what: string) => void
+  onSessionEnded?: (code: ConsoleErrorCode) => void
+  newSubmissionId?: () => string
+  /** 결과 불명 잠금·submissionId를 둘 App 메모리(LOCK-UNIFY-001). 없으면 이 표 자체 메모리. */
+  memory?: ScreenMemory
+}) {
+  const [own] = useState(createScreenMemory)
+  const memory = injected ?? own
+  const [requestFor, setRequestFor] = useState<string | null>(null)
+  const [rejectFor, setRejectFor] = useState<string | null>(null)
+  // 리뷰 MINOR-1: 결과 불명으로 잠긴 거절이 있으면 그 폼을 열어 두고(다시 연 상세 포함) 다른 Site 거절은 막는다 — 열 수 있는(actionable) Site 중에서만 본다.
+  const lockedReject = useLockedSiteReject(memory, detail.sites.filter((s) => s.lifecycle === 'ACTIVE' && (s.review === null || s.review.decision === 'SUSPENDED')).map((s) => s.merchantSiteId))
+  const rejectLocked = lockedReject !== null
+  const openReject = lockedReject ?? rejectFor
+  // 다시 연 잠긴 폼이 결정된 뒤에도 그 결과를 보이게 열린 폼으로 이어 둔다.
+  useEffect(() => {
+    if (lockedReject !== null) setRejectFor(lockedReject)
+  }, [lockedReject])
+  const merchantId = detail.merchant.merchantId
+  const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
+  const primaries = new Set(detail.accounts.map((account) => openPrimarySite(account, now)).filter((site): site is string => site !== null))
+
+  return (
+      <Table aria-label="Site 심사">
+        <TableHeader>
+          <TableRow><TableHead>Site</TableHead><TableHead>상태</TableHead><TableHead>심사</TableHead><TableHead>등록자</TableHead>{canOperate && <TableHead><span className="sr-only">작업</span></TableHead>}</TableRow>
+        </TableHeader>
+        <TableBody>
+          {detail.sites.length === 0 && <EmptyRow columns={canOperate ? 5 : 4} message="등록된 Site가 없습니다." />}
+          {detail.sites.map((site) => {
+            const reviewOpen = site.review === null || site.review.decision === 'SUSPENDED'
+            const actionable = site.lifecycle === 'ACTIVE' && reviewOpen
+            return (
+              <TableRow key={site.merchantSiteId} aria-label={`심사 ${site.merchantSiteId}`}>
+                <TableCell>
+                  <span className="flex flex-col"><span className="font-mono text-xs">{site.merchantSiteId}</span>
+                    {primaries.has(site.merchantSiteId) && <span className="text-xs text-muted-foreground">대표(PRIMARY)</span>}</span>
+                </TableCell>
+                <TableCell><StatusBadge code={site.lifecycle} /></TableCell>
+                <TableCell>{site.review === null ? <StatusBadge code="PENDING" /> : <StatusBadge code={site.review.decision} />}</TableCell>
+                <TableCell><span className="font-mono text-xs">{site.registeredBy ?? '-'}</span></TableCell>
+                {canOperate && (
+                  <TableCell>
+                    {actionable && (
+                      <div className="flex flex-col gap-2">
+                        {!sitePending && (
+                          requestFor === site.merchantSiteId ? (
+                            <EvidenceRequest
+                              name={`심사 승인 요청 ${site.merchantSiteId}`}
+                              evidenceLabel="PG 심사 근거"
+                              hint="PG 심사 기록 번호 — 영문·숫자와 . _ : # / - 만, 1~128자. 사유: 심사 통과(REVIEW_PASSED)"
+                              send={(evidenceRef) => api.requestMerchantSiteReviewApproval({ merchantId, merchantSiteId: site.merchantSiteId, reasonCode: 'REVIEW_PASSED', evidenceRef })}
+                              onRequested={(id) => { setRequestFor(null); onRequested(id, 'Site 심사 승인') }}
+                              onSessionEnded={onSessionEnded}
+                            />
+                          ) : (
+                            <div><Button type="button" variant="outline" size="sm" onClick={() => setRequestFor(site.merchantSiteId)}>심사 승인 요청</Button></div>
+                          )
+                        )}
+                        {openReject === site.merchantSiteId ? (
+                          <SiteRejectForm api={api} site={site} memory={memory} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
+                        ) : (
+                          // 리뷰 MINOR-1: 열린 거절이 보내는 중·결과 불명이면 다른 Site 거절을 열 수 없다(열면 그 폼이 사라져 같은 submissionId 재전송을 잃는다).
+                          <div><Button type="button" variant="ghost" size="sm" disabled={rejectLocked} onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+  )
+}
+
+/**
  * 가맹점 상세 MID 아래 "개통" 영역(MERCHANT-OPS-002 B3-1 §9.17 — D-ADMIN-UI-003: 배포된 배치의 버튼만). 버튼은 [canOperate](OPERATOR)일 때만 보이며 권위 판정·감사는 서버다.
- * 결제수단(상태·등록자, "개통 등록" 1인 → "개통 승인 요청" 2인), Site 표(심사 상태·등록자, "심사 승인 요청" 2인·"심사 거절" 1인), Site 적용 확인 목록, 개통 점검표(참고용).
- * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 개통·Site 심사의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER; 승인함은 등록자에게 안내를 보인다).
+ * 결제수단(상태·등록자, "개통 등록" 1인 → "개통 승인 요청" 2인), Site 적용 확인 목록, 통화, 개통 점검표(참고용). Site 심사 표는 MERCHANT-IA-001 B1부터 가맹점에서 한 번 —
+ * [SiteReviewTable].
+ * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 개통의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER; 승인함은 등록자에게 안내를 보인다).
  */
 export function MerchantActivationArea({ api, detail, account, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected }: {
   api: AdminApi
@@ -370,21 +466,11 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
   const [requestFor, setRequestFor] = useState<string | null>(null)
-  const [rejectFor, setRejectFor] = useState<string | null>(null)
   const register = useOneShot<{ paymentMethod: PaymentMethodCode }>(memory, registerKey(account.merchantAccountId), newSubmissionId, onSessionEnded)
   /** 마지막으로 누른 개통 등록 수단(결과 불명 재전송 버튼 위치 — 리뷰 MINOR-2): 보낸 본문의 수단. */
   const registerMethod = register.pending?.payload.paymentMethod ?? null
-  // 리뷰 MINOR-1: 결과 불명으로 잠긴 거절이 있으면 그 폼을 열어 두고(다시 연 상세 포함) 다른 Site 거절은 막는다 — 열 수 있는(actionable) Site 중에서만 본다.
-  const lockedReject = useLockedSiteReject(memory, detail.sites.filter((s) => s.lifecycle === 'ACTIVE' && (s.review === null || s.review.decision === 'SUSPENDED')).map((s) => s.merchantSiteId))
-  const rejectLocked = lockedReject !== null
-  const openReject = lockedReject ?? rejectFor
-  // 다시 연 잠긴 폼이 결정된 뒤에도 그 결과를 보이게 열린 폼으로 이어 둔다.
-  useEffect(() => {
-    if (lockedReject !== null) setRejectFor(lockedReject)
-  }, [lockedReject])
   const merchantId = detail.merchant.merchantId
   const pmPending = pendingIn(detail, APPROVAL_GROUPS.PM)
-  const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
   const currencyPending = pendingIn(detail, APPROVAL_GROUPS.CURRENCY)
   const [currencyRequest, setCurrencyRequest] = useState(false)
   // B3-2: 같은 통화(KRW)의 끝나지 않은 기록(효력 전 포함)이 있으면 요청 버튼을 숨긴다(서버 미리 보기와 같은 판정 — 권위는 MASTER 중첩 판정).
@@ -458,58 +544,6 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
         </div>
       )}
 
-      <Table aria-label="Site 심사">
-        <TableHeader>
-          <TableRow><TableHead>Site</TableHead><TableHead>상태</TableHead><TableHead>심사</TableHead><TableHead>등록자</TableHead>{canOperate && <TableHead><span className="sr-only">작업</span></TableHead>}</TableRow>
-        </TableHeader>
-        <TableBody>
-          {detail.sites.length === 0 && <EmptyRow columns={canOperate ? 5 : 4} message="등록된 Site가 없습니다." />}
-          {detail.sites.map((site) => {
-            const reviewOpen = site.review === null || site.review.decision === 'SUSPENDED'
-            const actionable = site.lifecycle === 'ACTIVE' && reviewOpen
-            return (
-              <TableRow key={site.merchantSiteId} aria-label={`심사 ${site.merchantSiteId}`}>
-                <TableCell>
-                  <span className="flex flex-col"><span className="font-mono text-xs">{site.merchantSiteId}</span>
-                    {site.merchantSiteId === primary && <span className="text-xs text-muted-foreground">대표(PRIMARY)</span>}</span>
-                </TableCell>
-                <TableCell><StatusBadge code={site.lifecycle} /></TableCell>
-                <TableCell>{site.review === null ? <StatusBadge code="PENDING" /> : <StatusBadge code={site.review.decision} />}</TableCell>
-                <TableCell><span className="font-mono text-xs">{site.registeredBy ?? '-'}</span></TableCell>
-                {canOperate && (
-                  <TableCell>
-                    {actionable && (
-                      <div className="flex flex-col gap-2">
-                        {!sitePending && (
-                          requestFor === site.merchantSiteId ? (
-                            <EvidenceRequest
-                              name={`심사 승인 요청 ${site.merchantSiteId}`}
-                              evidenceLabel="PG 심사 근거"
-                              hint="PG 심사 기록 번호 — 영문·숫자와 . _ : # / - 만, 1~128자. 사유: 심사 통과(REVIEW_PASSED)"
-                              send={(evidenceRef) => api.requestMerchantSiteReviewApproval({ merchantId, merchantSiteId: site.merchantSiteId, reasonCode: 'REVIEW_PASSED', evidenceRef })}
-                              onRequested={(id) => { setRequestFor(null); onRequested(id, 'Site 심사 승인') }}
-                              onSessionEnded={onSessionEnded}
-                            />
-                          ) : (
-                            <div><Button type="button" variant="outline" size="sm" onClick={() => setRequestFor(site.merchantSiteId)}>심사 승인 요청</Button></div>
-                          )
-                        )}
-                        {openReject === site.merchantSiteId ? (
-                          <SiteRejectForm api={api} site={site} memory={memory} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
-                        ) : (
-                          // 리뷰 MINOR-1: 열린 거절이 보내는 중·결과 불명이면 다른 Site 거절을 열 수 없다(열면 그 폼이 사라져 같은 submissionId 재전송을 잃는다).
-                          <div><Button type="button" variant="ghost" size="sm" disabled={rejectLocked} onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                )}
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-
       <Table aria-label="Site 적용 확인">
         <TableHeader>
           <TableRow><TableHead>Site</TableHead><TableHead>결제수단</TableHead><TableHead>개통</TableHead><TableHead>확인</TableHead><TableHead>상태</TableHead></TableRow>
@@ -530,15 +564,17 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
 
       <Table aria-label="통화">
         <TableHeader>
-          <TableRow><TableHead>통화</TableHead><TableHead>효력 시작</TableHead><TableHead>종료</TableHead><TableHead>상태</TableHead></TableRow>
+          <TableRow><TableHead>통화</TableHead><TableHead>효력 시작</TableHead><TableHead>종료</TableHead><TableHead>종료 처리</TableHead><TableHead>상태</TableHead></TableRow>
         </TableHeader>
         <TableBody>
-          {account.currencies.length === 0 && <EmptyRow columns={4} message="통화 활성화가 없습니다." />}
+          {account.currencies.length === 0 && <EmptyRow columns={5} message="통화 활성화가 없습니다." />}
           {account.currencies.map((c) => (
             <TableRow key={c.enablementId} aria-label={c.enablementId}>
               <TableCell>{c.currencyCode}</TableCell>
               <TableCell><KstTime iso={c.effectiveFrom} /></TableCell>
               <TableCell>{c.effectiveTo === null ? <span className="text-muted-foreground">없음</span> : <KstTime iso={c.effectiveTo} />}</TableCell>
+              {/* MERCHANT-IA-001 B1: 가맹점 상세에 따로 있던 같은 통화 표(효력 기간·종료 처리)를 지우고, 그 표에만 있던 '종료 처리'(종료를 기록한 시각) 열을 여기로 옮겼다. */}
+              <TableCell>{c.endedAt === null ? <span className="text-muted-foreground">-</span> : <KstTime iso={c.endedAt} />}</TableCell>
               <TableCell>{currencyState(c, now)}</TableCell>
             </TableRow>
           ))}
@@ -567,8 +603,9 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
           ))}
         </ul>
         <p className="text-xs">{`결제 생성 조건: ${checklist.filter((c) => c.group === '결제 생성 조건').every((c) => c.state === 'MET') ? '충족' : '미충족'}(참고)`}</p>
-        <p className="text-xs text-muted-foreground">승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)</p>
-        <p className="text-xs text-muted-foreground">새 MID는 가맹점 API Credential이 없어 Demo 결제 호출 불가(L-17)</p>
+        {/* MERCHANT-IA-001 B1(명세 rev 0.2 §3.6): "승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)" 줄은 항목 ⑥⑦과 같은 말이라 뺐다. L-17(새 MID는 가맹점 API
+            Credential이 없어 Demo 결제 호출 불가) 안내는 화면이 Demo/운영을 구별할 값이 없어 환경을 말하지 않는 사실 문구로 바꿨다 — API 키 발급 화면은 관리자 화면에 없다. */}
+        <p className="text-xs text-muted-foreground">가맹점의 결제 호출에는 API 키가 따로 필요하며, 이 화면에서 발급하지 않습니다.</p>
       </section>
     </section>
   )

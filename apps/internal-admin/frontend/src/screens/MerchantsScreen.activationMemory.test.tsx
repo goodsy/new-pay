@@ -112,7 +112,9 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     const { memory, show } = setup({ rejectSiteReview })
     const first = show()
     let area = await openDetail()
-    const rowOf = (a: HTMLElement, site: string) => within(within(a).getByRole('table', { name: 'Site 심사' })).getByRole('row', { name: `심사 ${site}` })
+    // MERCHANT-IA-001 B1(명세 rev 0.2 §7 B1): Site 심사 표가 MID 개통 영역 밖(가맹점에서 한 번 — Site 패널)으로 옮겨졌다. 찾는 곳만 바꾼다 — a(개통 영역)는 상세가
+    // 다시 그려진 뒤를 기다리는 데만 쓰이고, 아래 잠금·재전송 단언은 한 글자도 바꾸지 않는다.
+    const rowOf = (a: HTMLElement, site: string) => within(within(a.closest('.detailarea') as HTMLElement).getByRole('table', { name: 'Site 심사' })).getByRole('row', { name: `심사 ${site}` })
     await userEvent.click(within(rowOf(area, SITE2)).getByRole('button', { name: '심사 거절' }))
     await userEvent.selectOptions(within(rowOf(area, SITE2)).getByLabelText('거절 사유'), 'SITE_UNREACHABLE')
     await userEvent.type(within(rowOf(area, SITE2)).getByLabelText('PG 심사 근거(선택)'), 'PG-REVIEW/2026-0002')

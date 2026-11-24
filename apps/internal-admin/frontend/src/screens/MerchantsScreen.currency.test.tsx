@@ -148,12 +148,17 @@ describe('MerchantsScreen — B3-2 currency in the "개통" area (MERCHANT-OPS-0
     expect(within(within(later).getByRole('table', { name: '통화' })).getByRole('row', { name: CUR1 })).toHaveTextContent('효력 전')
   })
 
-  it('the checklist explains what remains: approval start needs Route·fees·settlement·limits (B3-3·B4); new MIDs have no merchant API credential in the Demo (L-17)', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §3.6·§7 B1): "승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)" 줄은 항목 ⑥⑦과 같은 말이라 뺐고(⑥⑦은 그대로 남는다),
+  // L-17 Demo 한계 줄은 화면이 환경을 구별할 수 없어 일반 문구("가맹점의 결제 호출에는 API 키가 따로 필요하며, 이 화면에서 발급하지 않습니다.")로 바꿨다. 작업 배치 이름은 화면에 없다.
+  it('the checklist explains what remains: items ⑥⑦ stay (no duplicate "승인 시작 조건" line, no batch names); the API key line is generic', async () => {
     const { area } = await openDetail(false, { merchantDetail: vi.fn(async () => detail({}, { currencies: [krw()] })) })
     const list = within(area).getByRole('region', { name: '개통 점검표' })
     // 이 Fixture는 결제수단·Site 심사가 아직이라 결제 생성 조건 요약은 미충족(참고).
     expect(list).toHaveTextContent('결제 생성 조건: 미충족(참고)')
-    expect(list).toHaveTextContent('승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)')
-    expect(list).toHaveTextContent('새 MID는 가맹점 API Credential이 없어 Demo 결제 호출 불가(L-17)')
+    expect(within(list).getByRole('listitem', { name: /^⑥ / })).toBeInTheDocument()
+    expect(within(list).getByRole('listitem', { name: /^⑦ / })).toBeInTheDocument()
+    expect(list).not.toHaveTextContent('승인 시작 조건:')
+    for (const word of ['B3-3', 'B4', 'L-17']) expect(list).not.toHaveTextContent(word)
+    expect(list).toHaveTextContent('가맹점의 결제 호출에는 API 키가 따로 필요하며, 이 화면에서 발급하지 않습니다.')
   })
 })

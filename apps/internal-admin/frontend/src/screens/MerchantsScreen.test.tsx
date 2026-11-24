@@ -298,7 +298,11 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
         .mockResolvedValueOnce({ items: [entry(12, 'SUSPENDED')], nextCursor: null }),
     })
     const history = await screen.findByRole('region', { name: '변경 이력' })
-    expect(await within(history).findByRole('row', { name: '10' })).toHaveTextContent('RegisterCardRouteActivation')
+    // 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §3.8·§7 B1): '연산'(영문 원문) 열을 뺐다. 리뷰 MINOR-1: '변경' 열 셀을 지정해 본다 — 열 순서 순번·시각·대상·변경·행위자,
+    // Fixture의 'REGISTERED'는 이력 변경 종류 이름표에 없는 값이라 원문 그대로(changeTypeLabel 폴백).
+    const first = await within(history).findByRole('row', { name: '10' })
+    expect(within(first).getAllByRole('cell')[3]).toHaveTextContent(/^REGISTERED$/)
+    expect(first).not.toHaveTextContent('RegisterCardRouteActivation')
     expect(api.merchantHistory).toHaveBeenNthCalledWith(1, MER1, undefined)
     await userEvent.click(within(history).getByRole('button', { name: '이력 더 보기' }))
     expect(api.merchantHistory).toHaveBeenNthCalledWith(2, MER1, 11)

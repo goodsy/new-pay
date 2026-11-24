@@ -859,6 +859,39 @@
       ],
       "nextResumeAction": "커밋 완료 → 다음 묶음 FULL PASS 시 DONE",
       "detail": null
+    },
+    {
+      "id": "MERCHANT-IA-001",
+      "title": "사업자·가맹점 화면 항목 정리(정보 구조 재설계) — 업무 단위 묶음·탭·필요 항목만",
+      "status": "IN_PROGRESS",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "MERCHANT-DETAIL-VIEW-001"
+      ],
+      "spec": "사용자 요청 2026-11-24 '가맹점 사업자 관리 화면부터 항목 정리 — 불필요 항목이 너무 많고 중구난방'. 참고: 사용자 제공 토스페이먼츠 상점관리자 사용 설명서 PDF(저장소 밖, 계약·운영 회사정보/이용정보/사용자관리 화면 구조 원칙만 참고)",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "docs/DECISIONS.md",
+        "docs/repository/MERCHANT-IA-001-*.md",
+        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md",
+        "harness/questions.json",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "IA-B1-scoped",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T033357Z.json"
+      },
+      "openItems": [
+        "1단계: 정리안(현재 항목 전수 → 남김/묶음 이동/접기/빼기, 목표 구조, 질문) 작성 → 사용자 승인 전 화면 구현 금지",
+        "참고 원칙: 업무 단위 섹션(회사/대표자/담당자), MID 선택 + 계약 상태·계약일 머리, 탭(정산/수수료/결제·부가서비스), 칩·이용가능 표, 기술 정보 비노출",
+        "사용자 답 Q-IA-1~8 → D-ADMIN-UI-010(Q-IA-4만 권장안과 다름: MID 선택 상세 맨 위). 명세 rev 0.2 반영 → 배치 B1(잡음 제거)→B2(고정값·번호 검색)→B3(내부 식별자)→B4(머리·탭·MID 선택)→B5(사업자 섹션·연결 가맹점)→B6(목록·용어). 배치마다 리뷰+SCOPED+커밋(D-PROC-007), Demo 확인",
+        "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영"
+      ],
+      "nextResumeAction": "B1 커밋 → B2(고정값 빼기·번호 검색 짧은 결과)",
+      "detail": null
     }
   ]
 }

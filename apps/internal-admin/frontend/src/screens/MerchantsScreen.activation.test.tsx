@@ -70,12 +70,19 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
   return { api, area: await screen.findByRole('region', { name: `개통 ${MID1}` }) }
 }
 
+/**
+ * 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §7 B1, D-ADMIN-UI-010 "한 사실은 한 곳에"): Site 심사 표는 MID "개통" 영역마다 반복하지 않고 가맹점에서 한 번(Site 패널 안)
+ * 그린다. 그래서 Site 심사 단언은 개통 영역(area) 대신 이 표에서 찾는다 — 버튼·등록자·잠금 단언은 그대로.
+ */
+const siteReviewTable = () => screen.getByRole('table', { name: 'Site 심사' })
+
 describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () => {
   it('a VIEWER sees statuses, registrants, confirmations and the checklist but no button', async () => {
     const { area } = await openDetail(false, { merchantDetail: vi.fn(async () => detail({}, { paymentMethods: [underReview] })) })
     expect(within(within(area).getByRole('table', { name: '결제수단 개통' })).getByText(SITE_REGISTRANT)).toBeInTheDocument()
-    expect(within(area).getByRole('table', { name: 'Site 심사' })).toHaveTextContent(SITE2)
+    expect(siteReviewTable()).toHaveTextContent(SITE2)
     for (const name of ['개통 등록(카드)', '개통 승인 요청', '심사 승인 요청', '심사 거절']) expect(within(area).queryByRole('button', { name })).toBeNull()
+    for (const name of ['심사 승인 요청', '심사 거절']) expect(within(siteReviewTable()).queryByRole('button', { name })).toBeNull()
     expect(within(area).getByRole('region', { name: '개통 점검표' })).toBeInTheDocument()
   })
 
@@ -154,7 +161,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     const pm = detail({ pendingApprovals: [{ approvalId: APR, kind: 'MERCHANT_PAYMENT_METHOD_ACTIVATION', status: 'PENDING', revisionNo: null }] }, { paymentMethods: [underReview] })
     const { area } = await openDetail(true, { merchantDetail: vi.fn(async () => pm) })
     expect(within(area).queryByRole('button', { name: '개통 승인 요청' })).toBeNull()
-    expect(within(area).getAllByRole('button', { name: '심사 승인 요청' })).toHaveLength(2)
+    expect(within(siteReviewTable()).getAllByRole('button', { name: '심사 승인 요청' })).toHaveLength(2)
   })
 
   it.each(['MERCHANT_PAYMENT_METHOD_ACTIVATION', 'MERCHANT_SITE_REVIEW_APPROVAL'])(
@@ -190,8 +197,8 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
   it('C-35: with a pending site review the 2-person button is hidden for every site while the 1-person reject stays', async () => {
     const sr = detail({ pendingApprovals: [{ approvalId: APR, kind: 'MERCHANT_SITE_REVIEW_APPROVAL', status: 'EXECUTION_UNKNOWN', revisionNo: null }] }, { paymentMethods: [underReview] })
     const { area } = await openDetail(true, { merchantDetail: vi.fn(async () => sr) })
-    expect(within(area).queryByRole('button', { name: '심사 승인 요청' })).toBeNull()
-    expect(within(area).getAllByRole('button', { name: '심사 거절' })).toHaveLength(2)
+    expect(within(siteReviewTable()).queryByRole('button', { name: '심사 승인 요청' })).toBeNull()
+    expect(within(siteReviewTable()).getAllByRole('button', { name: '심사 거절' })).toHaveLength(2)
     expect(within(area).getByRole('button', { name: '개통 승인 요청' })).toBeInTheDocument()
   })
 
@@ -204,8 +211,8 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
         { merchantSiteId: id('site', 3), channelType: 'APP', channelIdentifier: 'com.example.app', lifecycle: 'ACTIVE', review: { decision: 'REJECTED', decidedAt: '2026-11-11T00:00:00.000Z' }, registeredBy: SITE_REGISTRANT },
       ],
     })
-    const { area } = await openDetail(true, { requestMerchantSiteReviewApproval, merchantDetail: vi.fn(async () => d) })
-    const table = within(area).getByRole('table', { name: 'Site 심사' })
+    await openDetail(true, { requestMerchantSiteReviewApproval, merchantDetail: vi.fn(async () => d) })
+    const table = siteReviewTable()
     expect(within(within(table).getByRole('row', { name: `심사 ${SITE1}` })).queryAllByRole('button')).toHaveLength(0)
     expect(within(within(table).getByRole('row', { name: `심사 ${id('site', 3)}` })).queryAllByRole('button')).toHaveLength(0)
     const row = within(table).getByRole('row', { name: `심사 ${SITE2}` })
@@ -217,8 +224,8 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
 
   it('"심사 거절" (1인): reason select, confirmation dialog "되돌릴 수 없습니다. 재신청은 새 Site로", cancel sends nothing, confirm sends {submissionId, site, reason} without evidence', async () => {
     const rejectSiteReview = vi.fn(async () => ({ outcome: 'SUCCEEDED' as const, reference: `${SITE2}#1`, replayed: false }))
-    const { area } = await openDetail(true, { rejectSiteReview })
-    const row = within(within(area).getByRole('table', { name: 'Site 심사' })).getByRole('row', { name: `심사 ${SITE2}` })
+    await openDetail(true, { rejectSiteReview })
+    const row = within(siteReviewTable()).getByRole('row', { name: `심사 ${SITE2}` })
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
     await userEvent.selectOptions(within(row).getByLabelText('거절 사유'), 'SITE_UNREACHABLE')
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
@@ -245,8 +252,8 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'd')} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
-    const area = await screen.findByRole('region', { name: `개통 ${MID1}` })
-    const table = within(area).getByRole('table', { name: 'Site 심사' })
+    await screen.findByRole('region', { name: `개통 ${MID1}` })
+    const table = siteReviewTable()
     const row = within(table).getByRole('row', { name: `심사 ${SITE2}` })
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
     await userEvent.selectOptions(within(row).getByLabelText('거절 사유'), 'SITE_UNREACHABLE')
@@ -264,7 +271,8 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     const one = '1'.padStart(32, 'd')
     expect(rejectSiteReview.mock.calls.map((c) => c[0])).toEqual(Array(3).fill({ submissionId: one, merchantSiteId: SITE2, reasonCode: 'SITE_UNREACHABLE' }))
     // 확정 성공 뒤에는 다른 Site 거절을 다시 열 수 있다(상세 재조회 뒤 다시 찾는다).
-    const fresh = within(await screen.findByRole('region', { name: `개통 ${MID1}` })).getByRole('table', { name: 'Site 심사' })
+    await screen.findByRole('region', { name: `개통 ${MID1}` })
+    const fresh = siteReviewTable()
     expect(await within(within(fresh).getByRole('row', { name: `심사 ${SITE1}` })).findByRole('button', { name: '심사 거절' })).toBeEnabled()
   })
 
@@ -282,7 +290,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     expect(within(table).getByRole('row', { name: id('sac', 2) })).toHaveTextContent('철회')
   })
 
-  it('checklist (C-43 — reference only): ①~④ met and ⑤ currency not met after B3-1, ⑦ "B4 이후", ⑧ ACK; the "참고용" notice is shown', async () => {
+  it('checklist (C-43 — reference only): ①~④ met and ⑤ currency not met after B3-1, ⑦ "준비 전", ⑧ ACK; the "참고용" notice is shown', async () => {
     const d = detail({
       sites: [
         { merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: { decision: 'APPROVED', decidedAt: '2026-11-11T02:30:00.000Z' }, registeredBy: SITE_REGISTRANT },
@@ -298,7 +306,9 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     expect([state(/^① /), state(/^② /), state(/^③ /), state(/^④ /), state(/^⑤ /), state(/^⑥ /), state(/^⑦ /), state(/^⑧ /)]).toEqual(
       ['MET', 'MET', 'MET', 'MET', 'NOT_MET', 'NOT_MET', 'LATER', 'MET'],
     )
-    expect(within(list).getByRole('listitem', { name: /^⑦ / })).toHaveTextContent('B4 이후')
+    // 기대값 변경(MERCHANT-IA-001 B1 — 명세 §3.6 "작업 배치 이름 → 준비 전"): ⑦ 표시 문구만 바뀌었다(상태 LATER 그대로).
+    expect(within(list).getByRole('listitem', { name: /^⑦ / })).toHaveTextContent('준비 전')
+    expect(within(list).getByRole('listitem', { name: /^⑦ / })).not.toHaveTextContent('B4')
   })
 
   it('a revoked PRIMARY confirmation or a pending propagation is not met', async () => {
