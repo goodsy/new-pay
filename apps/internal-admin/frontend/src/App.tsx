@@ -298,6 +298,11 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 onContinue={continueToMerchantRegistration}
                 onRegister={opener('businessRegistration')}
                 onSessionEnded={sessionEnded}
+                // MERCHANT-IA-001 B5(Q-IA-8 '연결 가맹점'): 가맹점 '상세' → 가맹점 조회 탭의 그 상세(가맹점 등록 "가맹점 조회에서 보기"와 같은 경로·감사).
+                onOpenMerchant={(merchantId) => {
+                  setLookupMerchantId(merchantId)
+                  open('merchants')
+                }}
               />
             )}
             {page === 'businessRegistration' && (

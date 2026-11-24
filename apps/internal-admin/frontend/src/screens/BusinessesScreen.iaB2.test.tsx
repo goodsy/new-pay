@@ -21,9 +21,11 @@ const REG = individualRegisteredDetail(1)
 const DRAFT = draftMinimalDetail(2)
 const pageOf = (details: BusinessDetail[]) => ({ items: details.map(listItemOf), next: null })
 
-function renderScreen(overrides: Parameters<typeof fakeApi>[0] = {}) {
+// 기대값 변경(MERCHANT-IA-001 B5 — 사용자 결정 D-ADMIN-UI-011 ② "사업자 상세 = 항상 편집 폼"): OPERATOR 상세는 편집 폼이다 — 읽기 표시의 줄(dt)은 조회 역할(canEdit false)로 본다.
+// 분담(B5 리뷰 NIT-4): 이 파일은 읽기 표시(조회 역할)에서 '빼기' 결정을 지키고, OPERATOR 편집 폼(국가 칸 없음 등)은 BusinessesScreen.iaB5.test가 지킨다.
+function renderScreen(overrides: Parameters<typeof fakeApi>[0] = {}, canEdit = true) {
   const api = fakeApi(overrides)
-  render(<BusinessesScreen api={api} memory={createScreenMemory()} canEdit onContinue={vi.fn()} handoffState={() => 'empty'} />)
+  render(<BusinessesScreen api={api} memory={createScreenMemory()} canEdit={canEdit} onContinue={vi.fn()} handoffState={() => 'empty'} />)
   return api
 }
 const table = () => screen.getByRole('table', { name: '사업자 목록' })
@@ -81,7 +83,7 @@ describe('MERCHANT-IA-001 B2 — 사업자 목록', () => {
 
 describe('MERCHANT-IA-001 B2 — 사업자 상세', () => {
   it('② 머리에 진위확인 배지 없음, 기본정보에 진위확인·국가·등록 상태 줄 없음; 등록 상태 배지와 "등록 완료 ≠ 진위확인·AML/KYB·계약 승인" 안내는 남는다', async () => {
-    renderScreen({ searchBusinesses: vi.fn(async () => pageOf([REG])), businessDetail: vi.fn(async () => REG) })
+    renderScreen({ searchBusinesses: vi.fn(async () => pageOf([REG])), businessDetail: vi.fn(async () => REG) }, false)
     await user.click(await screen.findByRole('button', { name: '데모 사업자 상세' }))
     const section = await screen.findByRole('region', { name: '사업자 상세' })
     await within(section).findByText('사업자등록번호')
@@ -89,14 +91,16 @@ describe('MERCHANT-IA-001 B2 — 사업자 상세', () => {
     expect(section).not.toHaveTextContent('미검증')
     const terms = Array.from(section.querySelectorAll('dt')).map((dt) => dt.textContent)
     for (const gone of ['진위확인', '국가', '등록 상태']) expect(terms).not.toContain(gone)
-    for (const kept of ['사업자등록번호', '상호', '사업체 구분', '개업일', '영문 상호', '가맹점 수', '등록일', '수정일']) expect(terms).toContain(kept)
+    // 기대값 변경(MERCHANT-IA-001 B5 — 사용자 결정 D-ADMIN-UI-011 ② "사업자 상세 = 항상 편집 폼"): 등록일·수정일은 줄 대신 머리 아래 메타 한 줄(명세 §4.2 — "등록 … · 수정 …").
+    for (const kept of ['사업자등록번호', '상호', '사업체 구분', '개업일', '영문 상호', '가맹점 수']) expect(terms).toContain(kept)
+    expect(section).toHaveTextContent(/등록.*· 수정/)
     // 등록 상태는 머리 배지 하나로(줄과 중복이던 값).
     expect(within(section).getAllByText('등록 완료')).toHaveLength(1)
     expect(section).toHaveTextContent('등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.')
   })
 
   it('② 임시저장 사업자도 같은 안내와 DRAFT 경고가 남는다(진위확인 표시 없음)', async () => {
-    renderScreen({ searchBusinesses: vi.fn(async () => pageOf([DRAFT])), businessDetail: vi.fn(async () => DRAFT) })
+    renderScreen({ searchBusinesses: vi.fn(async () => pageOf([DRAFT])), businessDetail: vi.fn(async () => DRAFT) }, false)
     await user.click(await screen.findByRole('button', { name: '임시 사업자 상세' }))
     const section = await screen.findByRole('region', { name: '사업자 상세' })
     await within(section).findByText('사업자등록번호')

@@ -67,8 +67,16 @@ interface Props {
   memoryKey?: string
   /** 참고 시안 껍데기(사업자 등록 탭 — MenuCard flush 안). 없으면 PageHeader 껍데기(사업자 조회 상세 안 수정 폼). 폼 줄·섹션 카드는 둘 다 같다(B5). */
   workspace?: boolean
-  /** [workspace] 제목 줄 '← 목록으로'(D-ADMIN-UI-006 — 사업자 탭 목록으로). 화면 메모리(결과 불명 잠금·입력)는 App에 그대로 남는다. 없으면 버튼 없음. */
+  /** [workspace] 제목 줄 '← 목록으로'(D-ADMIN-UI-006 — 사업자 탭 목록으로). 화면 메모리(결과 불명 잠금·입력)는 App에 그대로 남는다. 없으면 버튼 없음. [layout] 'detail'에서는 하단 '목록으로'. */
   onBack?: () => void
+  /**
+   * 칸 배치(ADMIN-DS-001 §6.3 열거형 variant — §5 "사업자 폼 배치"):
+   * - 'sections'(기본): 등록 화면 6섹션(1 사업자 기본 · 2 사업 내용 · 3 주소 · 4 대표자 · 5 사업체 연락 · 6 등록 담당자).
+   * - 'detail': MERCHANT-IA-001 B5(D-ADMIN-UI-011 ② pg-lab식 — 사업자 상세 = 항상 편집 폼): 섹션 회사 / 대표자 / 담당자, 회사는 2열, 국가 줄 없음(늘 KR — Q-IA-2, 본문은 그대로 KR),
+   *   제목 줄 없음(상세 머리가 있다), 하단 '저장'(DRAFT는 '임시저장'·'등록 완료') + '목록으로'. 바뀐 칸이 없으면 '저장'·'임시저장'은 누를 수 없다('등록 완료'는 그대로).
+   * 칸·이름·검사·저장 규칙(사유·version·결과 불명 잠금)은 두 배치가 같다.
+   */
+  layout?: 'sections' | 'detail'
 }
 
 type CommandKind = 'createDraft' | 'createRegistered' | 'update' | 'complete'
@@ -112,6 +120,7 @@ const DRAFT_HINT = '사업자등록번호는 저장 후 변경할 수 없습니�
 
 export function BusinessProfileFormScreen({
   api, mode, onSaved, onOpenBusiness, onCancel, onReload, onAbandon, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, memoryKey = 'form', workspace = false, onBack,
+  layout = 'sections',
 }: Props) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -359,14 +368,8 @@ export function BusinessProfileFormScreen({
   )
   const hasNotice = status.kind === 'invalid' || status.kind === 'failed' || status.kind === 'unknown' || (status.kind === 'decided' && status.outcome.outcome === 'REJECTED')
 
-  const formNode = (
-      <form noValidate onSubmit={(e) => e.preventDefault()} className={workspace ? undefined : 'flex flex-col gap-4'}>
-        {/* WS8: 시안 구성에서는 섹션(section > .cardtop + .cardbody)이 위아래 여백을 가지므로 fieldset 간격을 두지 않는다. */}
-        <fieldset disabled={locked} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'm-0 flex min-w-0 flex-col gap-4 border-0 p-0'}>
-          {/* 사용자 지시(2026-11-19): 섹션 카드는 사업자 조회 상세(DetailInfo)처럼 lg에서 2열 grid — workspace면 카드 좌우 23px(.cardbody). 수정 폼(B5)도 같은 grid. */}
-          <Wrap workspace={workspace}>
-          <Section label="사업자 기본" no={1}>
-            {/* 사용자 결정(2026-11-19 폼 줄 — B5부터 수정 폼도): 같은 줄 모양(.fieldrow — 이름 왼쪽 span aria-hidden · 선택지 오른쪽 · 오류는 입력 열 아래). 이름·aria는 그대로. */}
+  // MERCHANT-IA-001 B5(D-ADMIN-UI-011 ②): 입력 칸 묶음을 한 번만 정의하고 두 배치(등록 6섹션 / 사업자 상세 회사·대표자·담당자 2열)가 같이 쓴다 — 칸·이름·검사·aria 그대로.
+  const typeRow = (
             <div role="radiogroup" aria-label="사업체 구분" aria-describedby={err('businessType') ? typeErrorId : undefined} className="fieldrow border-b py-2 text-sm last:border-b-0">
               <span aria-hidden="true" className="text-xs text-muted-foreground">사업체 구분</span>
               <span className="flex flex-wrap gap-4">
@@ -379,6 +382,8 @@ export function BusinessProfileFormScreen({
               </span>
               {err('businessType') && <p id={typeErrorId} className="fieldnote text-xs text-destructive">{err('businessType')}</p>}
             </div>
+  )
+  const numberRow = <>
             {detail ? (
               // LAYOUT-ROLLOUT B5: 수정 모드 번호는 읽기 전용 줄(B2 ReadOnlyGroup과 같은 방식 — group 이름 = aria-label, 이름 span aria-hidden 왼쪽, 점선 값 상자 sm(번호 10자리 열),
               // 변경 미지원 문구는 입력 열 아래 .fieldnote). 문구 그대로, 번호는 원문 하이픈 표시(D-BIZ-007). workspace + 수정 모드도 같은 줄(리뷰 NIT — 번호 줄 정리).
@@ -413,9 +418,13 @@ export function BusinessProfileFormScreen({
                 {dupCheck && <div className="fieldoffset">{dupResult}</div>}
               </div>
             )}
+</>
+  const nameRow = <>
             <Row width="lg" label="상호" error={err('displayName')}>
               {(describedBy, id) => <Input id={id} value={form.displayName} autoComplete="off" onChange={(e) => update({ displayName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('displayName') || undefined} />}
             </Row>
+</>
+  const corpRow = <>
             {form.businessType === 'CORPORATION' && (
               <Row width="sm" label="법인등록번호" error={err('registration.corporateRegistrationNumber')}>
                 {(describedBy, id) => (
@@ -424,33 +433,31 @@ export function BusinessProfileFormScreen({
                 )}
               </Row>
             )}
+</>
+  const openingRow = <>
             <Row width="sm" label="개업일" error={err('registration.openingDate')}>
               {(describedBy, id) => <Input id={id} type="date" value={form.openingDate} onChange={(e) => update({ openingDate: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.openingDate') || undefined} />}
             </Row>
+</>
+  const countryRow = <>
             <Row width="xs" label="국가" hint="대한민국(KR)만 — 국외·비영리 확장은 정책 미정(TBD-10)">
               {(describedBy, id) => <Input id={id} value="KR" readOnly aria-describedby={describedBy} />}
             </Row>
+</>
+  const englishRow = <>
             <Row width="lg" label="영문 상호(선택)" error={err('registration.englishName')}>
               {(describedBy, id) => <Input id={id} value={form.englishName} autoComplete="off" onChange={(e) => update({ englishName: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.englishName') || undefined} />}
             </Row>
-          </Section>
-
-          <Section label="사업 내용" no={2} error={err('categories')}>
-            {categoryRows('businessTypes', '업태')}
-            {categoryRows('businessItems', '종목')}
-          </Section>
-
-          <Section label="주소" no={3} error={err('addresses')}>
+</>
+  const addressBlock = <>
             {addressFields('registeredAddress', '사업장')}
             <label className="fieldoffset flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.actualDifferent} onChange={(e) => update({ actualDifferent: e.target.checked })} />
               실사업장이 사업장과 다름
             </label>
             {form.actualDifferent && addressFields('actualAddress', '실사업장')}
-          </Section>
-
-          <Section label="대표자" no={4} error={err('representatives')}>
-            {/* 사용자 결정(2026-11-19 폼 줄 — B5부터 수정 폼도): 대표자 n = 이름 줄(md + 짧은 '삭제' — 이름 '대표자 n 삭제' 그대로) + 유형 줄(sm). 안내·추가는 입력 열에. */}
+</>
+  const representativesBlock = <>
             <div className="flex flex-col">
               {form.representatives.map((r, i) => (
                 <div key={i} className="flex flex-col">
@@ -476,20 +483,20 @@ export function BusinessProfileFormScreen({
                 {addButton('대표자 추가', form.representatives.length >= MAX_REPRESENTATIVES, () => update({ representatives: [...form.representatives, { name: '', type: 'JOINT' }] }))}
               </div>
             </div>
-          </Section>
-
-          <Section label="사업체 연락" no={5}>
+</>
+  const phoneRow = <>
             <Row width="sm" label="사업체 전화" error={err('registration.phoneNumber')} hint="등록 완료 시 필수">
               {(describedBy, id) => (
                 <DigitsInput id={id} value={form.phoneNumber} onValueChange={(v) => update({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err('registration.phoneNumber') || undefined} />
               )}
             </Row>
+</>
+  const emailRow = <>
             <Row width="full" label="사업체 이메일(선택)" error={err('registration.email')}>
               {(describedBy, id) => <Input id={id} value={form.email} autoComplete="off" onChange={(e) => update({ email: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err('registration.email') || undefined} />}
             </Row>
-          </Section>
-
-          <Section label="등록 담당자" no={6} error={err('contacts')}>
+</>
+  const contactsBlock = <>
             {/*
               사용자 결정(2026-11-19 폼 줄 — B5부터 수정 폼도): 담당자 n = 이름(md)·이메일(full)·전화(sm) 줄 + 입력 열의 기본 담당자·짧은 '삭제'(이름 그대로).
               담당자 사이는 줄 사이 선으로 구분(테두리 상자는 이름 열 정렬을 어긋나게 해 쓰지 않음).
@@ -525,6 +532,46 @@ export function BusinessProfileFormScreen({
                 {addButton('담당자 추가', form.contacts.length >= MAX_CONTACTS, () => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] }))}
               </div>
             </div>
+</>
+
+  const formNode = (
+      <form noValidate onSubmit={(e) => e.preventDefault()} className={workspace ? undefined : 'flex flex-col gap-4'}>
+        {/* WS8: 시안 구성에서는 섹션(section > .cardtop + .cardbody)이 위아래 여백을 가지므로 fieldset 간격을 두지 않는다. */}
+        <fieldset disabled={locked} className={workspace ? 'm-0 min-w-0 border-0 p-0' : 'm-0 flex min-w-0 flex-col gap-4 border-0 p-0'}>
+          {/* 사용자 지시(2026-11-19): 섹션 카드는 사업자 조회 상세(DetailInfo)처럼 lg에서 2열 grid — workspace면 카드 좌우 23px(.cardbody). 수정 폼(B5)도 같은 grid. */}
+          <Wrap workspace={workspace}>
+          <Section label="사업자 기본" no={1}>
+            {/* 사용자 결정(2026-11-19 폼 줄 — B5부터 수정 폼도): 같은 줄 모양(.fieldrow — 이름 왼쪽 span aria-hidden · 선택지 오른쪽 · 오류는 입력 열 아래). 이름·aria는 그대로. */}
+            {typeRow}
+            {numberRow}
+            {nameRow}
+            {corpRow}
+            {openingRow}
+            {countryRow}
+            {englishRow}
+          </Section>
+
+          <Section label="사업 내용" no={2} error={err('categories')}>
+            {categoryRows('businessTypes', '업태')}
+            {categoryRows('businessItems', '종목')}
+          </Section>
+
+          <Section label="주소" no={3} error={err('addresses')}>
+            {addressBlock}
+          </Section>
+
+          <Section label="대표자" no={4} error={err('representatives')}>
+            {/* 사용자 결정(2026-11-19 폼 줄 — B5부터 수정 폼도): 대표자 n = 이름 줄(md + 짧은 '삭제' — 이름 '대표자 n 삭제' 그대로) + 유형 줄(sm). 안내·추가는 입력 열에. */}
+            {representativesBlock}
+          </Section>
+
+          <Section label="사업체 연락" no={5}>
+            {phoneRow}
+            {emailRow}
+          </Section>
+
+          <Section label="등록 담당자" no={6} error={err('contacts')}>
+            {contactsBlock}
           </Section>
           </Wrap>
 
@@ -554,6 +601,57 @@ export function BusinessProfileFormScreen({
           {workspace && <span className="subtle" aria-live="polite">{status.kind === 'busy' ? '저장 중…' : ''}</span>}
         </div>
       </form>
+  )
+
+  // B5 'detail' 배치: 회사(2열) / 대표자 / 담당자 + 하단 저장 줄. 바뀐 칸이 없으면 저장·임시저장 비활성(등록 완료는 그대로 — 바뀐 칸 없이도 등록을 끝낼 수 있다).
+  const detailFormNode = detail && (
+    <form noValidate onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
+      <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
+        {/* B5 리뷰 NIT-2: 회사 섹션에는 사업 내용·주소 두 목록 오류가 함께 올 수 있다 — 둘 다 보인다. */}
+        <Section label="회사" error={[err('categories'), err('addresses')].filter(Boolean).join(' ') || undefined}>
+          <div className="grid gap-x-8 lg:grid-cols-2">
+            <div className="flex min-w-0 flex-col">
+              {typeRow}
+              {numberRow}
+              {nameRow}
+              {corpRow}
+              {openingRow}
+              {englishRow}
+            </div>
+            <div className="flex min-w-0 flex-col">
+              {categoryRows('businessTypes', '업태')}
+              {categoryRows('businessItems', '종목')}
+              {phoneRow}
+              {emailRow}
+            </div>
+          </div>
+          {addressBlock}
+        </Section>
+        <Section label="대표자" error={err('representatives')}>{representativesBlock}</Section>
+        <Section label="담당자" error={err('contacts')}>{contactsBlock}</Section>
+        {reasonFields}
+      </fieldset>
+      <div className="flex flex-col items-end gap-2">
+        <div role="group" aria-label="저장" className="flex flex-wrap justify-end gap-2">
+          {detail.business.registrationStatus === 'DRAFT' ? (
+            <>
+              <ActionButton workspace={false} type="button" variant="outline" disabled={locked || !changed} aria-busy={status.kind === 'busy'} onClick={() => submit('update')}>임시저장</ActionButton>
+              <ActionButton workspace={false} type="button" disabled={locked} onClick={() => submit('complete')}>
+                <Spinner active={status.kind === 'busy'} />
+                등록 완료
+              </ActionButton>
+            </>
+          ) : (
+            <ActionButton workspace={false} type="button" disabled={locked || !changed} aria-busy={status.kind === 'busy'} onClick={() => submit('update')}>
+              <Spinner active={status.kind === 'busy'} />
+              저장
+            </ActionButton>
+          )}
+          {onBack && <ActionButton workspace={false} type="button" variant="outline" onClick={onBack}>목록으로</ActionButton>}
+        </div>
+        {!changed && !locked && <p className="text-xs text-muted-foreground">바뀐 칸이 없습니다.</p>}
+      </div>
+    </form>
   )
 
   const notices = (
@@ -621,6 +719,15 @@ export function BusinessProfileFormScreen({
       </>
     )
   }
+  if (layout === 'detail' && detailFormNode) {
+    return (
+      <section aria-label="사업자 정보 편집" className="flex flex-col gap-4">
+        {detail?.business.registrationStatus === 'DRAFT' && requirements}
+        {detailFormNode}
+        {notices}
+      </section>
+    )
+  }
   return (
     <section className="flex flex-col gap-6">
       <PageHeader title={title} description={description} />
@@ -658,10 +765,11 @@ function Row({ width, label, hint, error, children }: {
  * 사업자 조회 상세 [InfoCard](DetailCard.tsx)와 같은 번호 섹션 카드(같은 class·h3 `n. 이름` text-sm font-semibold) + 폼 줄 — 상세와 같은 문서를 편집 모드로(사용자 지시 2026-11-19).
  * region 이름(section aria-label) 그대로. LAYOUT-ROLLOUT B5부터 등록 탭·수정 폼 공통.
  */
-function Section({ label, no, error, children }: { label: string; no: number; error?: string; children: ReactNode }) {
+function Section({ label, no, error, children }: { label: string; no?: number; error?: string; children: ReactNode }) {
   return (
     <section aria-label={label} className="flex flex-col gap-1 rounded-xl border bg-card px-4 py-3">
-      <h3 className="text-sm font-semibold">{`${no}. ${label}`}</h3>
+      {/* B5: 'detail' 배치 섹션(회사·대표자·담당자)은 번호 없이 이름만. */}
+      <h3 className="text-sm font-semibold">{no === undefined ? label : `${no}. ${label}`}</h3>
       <div className="flex flex-col">
         {children}
         {error && <p className="py-2 text-xs text-destructive">{error}</p>}

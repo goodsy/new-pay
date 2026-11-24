@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEntry, BusinessListItem, BusinessLookupItem, BusinessSearchInput } from '../api/adminApi'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEntry, BusinessListItem, BusinessLookupItem, BusinessSearchInput, MerchantListItem } from '../api/adminApi'
 import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
 // 상세 카드·줄은 components/DetailCard.tsx로 그대로 옮김(출력 동일 — 등록 폼 FormRow와 나란히 쓰는 공용 구성요소).
 import { DetailRow as Row, InfoCard } from '../components/DetailCard'
@@ -17,7 +17,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import {
   ADDRESS_TYPE_LABELS, BRN_RATE_LIMITED, BUSINESS_READ_RATE_LIMITED, BUSINESS_TYPE_LABELS, CATEGORY_TYPE_LABELS, CHANGE_TYPE_LABELS, formatCorporateNumber, formatPhone,
-  HISTORY_FIELD_LABELS, labelIn, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, representativeSummary,
+  HISTORY_FIELD_LABELS, labelIn, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, representativeSummary, compactForm, contentOf, contentOfDetail, type BusinessForm,
 } from '../lib/businessProfile'
 import { defaultSubmissionId, type BusinessRef, type HandoffState } from '../lib/registration'
 import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
@@ -43,6 +43,8 @@ interface Props {
   /** 목록 머리 '＋ 사업자 등록'(D-ADMIN-UI-006 — 같은 탭 안 등록 화면). 호출자가 이 역할에게 등록 화면이 보일 때만(OPERATOR — pagesFor) 준다. 없으면 버튼 없음. */
   onRegister?: () => void
   handoffState?: () => HandoffState
+  /** MERCHANT-IA-001 B5(Q-IA-8 '연결 가맹점' 탭): 가맹점 '상세' → 가맹점 조회 탭의 그 가맹점 상세(App이 화면을 바꾼다 — MERCHANT-DETAIL-VIEW-001 규칙). 없으면 '상세' 버튼 없음. */
+  onOpenMerchant?: (merchantId: string) => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
   newSubmissionId?: () => string
 }
@@ -57,12 +59,19 @@ type ListState =
 interface HistoryState { businessId: string; items: BusinessHistoryEntry[]; nextAfter: number | null }
 
 const LIST: View = Object.freeze({ kind: 'list' })
+/** 사업자 상세 탭(MERCHANT-IA-001 B5 — 기본정보 / 연결 가맹점 (n) / 변경 이력). */
+type DetailTabKey = 'info' | 'linked' | 'history'
+/** 연결 가맹점(기존 가맹점 검색의 사업자 조건 businessId — keyset '다음'). */
+interface LinkedState { businessId: string; items: MerchantListItem[]; next: string | null }
+type Leave = { kind: 'list' } | { kind: 'tab'; tab: DetailTabKey } | { kind: 'merchant'; merchantId: string }
 /** 일반 검색 결과 열(MERCHANT-IA-001 B2 — 진위확인 열은 늘 '미검증'이라 뺐다, D-ADMIN-UI-010 ②). */
 const SEARCH_COLUMNS = ['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '보기'] as const
 /** 사업자등록번호 조회 결과 열(D-ADMIN-UI-010 ⑦ 짧은 결과 모양 — 번호 조회 응답에 있는 값만). */
 const LOOKUP_COLUMNS = ['사업자등록번호', '상호', '등록 상태', '상세'] as const
 const NO_FILTERS: Filters = Object.freeze({ displayNamePrefix: '', businessType: '', registrationStatus: '', createdFrom: '', createdTo: '' })
 const EDIT_KEY = 'edit'
+/** B5 리뷰 MINOR-3: 저장하지 않은 입력이 새로 읽은 정보로 버려진 사업자(안내 한 줄 — 닫거나 다른 화면으로 가면 지운다). */
+const DISCARDED_KEY = 'detail.discarded'
 /** 편집 기준 상세(리뷰 MINOR-1): 수정을 연 시점의 문서 — 폼의 이전 값·보내는 version은 항상 이것(지금 상세 version이 아님 — 낙관적 잠금 우회 방지). */
 const EDIT_BASE = 'edit.base'
 
@@ -83,6 +92,8 @@ export function openBusinessIn(memory: ScreenMemory, businessId: string) {
   memory.write('detail.tab', 'info')
   memory.remove('detail.doc')
   memory.remove('history')
+  // B5 리뷰 MINOR-1: 같은 사업자를 다시 열어도 연결 가맹점은 다시 읽는다(이력과 같은 규칙).
+  memory.remove('linked')
 }
 
 /**
@@ -96,12 +107,19 @@ export function showBusinessListIn(memory: ScreenMemory) {
 const messageOf = (code: ConsoleErrorCode, lookup = false) =>
   code === 'RATE_LIMITED' ? (lookup ? BRN_RATE_LIMITED : BUSINESS_READ_RATE_LIMITED) : ERROR_MESSAGES[code]
 
-export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId }: Props) {
+export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId, onOpenMerchant }: Props) {
   const [view, setView] = useRemembered<View>(memory, 'view', LIST)
   const [filters, setFilters] = useRemembered<Filters>(memory, 'filters', NO_FILTERS)
   const [list, setList] = useRemembered<ListState | null>(memory, 'list', null)
   const [doc, setDoc] = useRemembered<BusinessDetail | null>(memory, 'detail.doc', null)
-  const [tab, setTab] = useRemembered<'info' | 'history'>(memory, 'detail.tab', 'info')
+  const [tab, setTab] = useRemembered<DetailTabKey>(memory, 'detail.tab', 'info')
+  const [linked, setLinked] = useRemembered<LinkedState | null>(memory, 'linked', null)
+  const [linkedBusy, setLinkedBusy] = useState(false)
+  const [linkedError, setLinkedError] = useState<string | null>(null)
+  /** B5 이탈 확인(화면 안 — 브라우저 confirm 아님): 저장하지 않은 편집이 있을 때 목록으로·탭 이동·가맹점 상세로 가려 하면 먼저 묻는다. */
+  const [leave, setLeave] = useState<Leave | null>(null)
+  const [editForm] = useRemembered<BusinessForm | null>(memory, `${EDIT_KEY}.form`, null)
+  const [discarded, setDiscarded] = useRemembered<string | null>(memory, DISCARDED_KEY, null)
   const [history, setHistory] = useRemembered<HistoryState | null>(memory, 'history', null)
   // 평문 번호는 화면 자체 상태 — 보낸 즉시 비운다(메모리·저장소·URL 없음).
   const [number, setNumber] = useState('')
@@ -111,10 +129,8 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   const [error, setError] = useRemembered<string | null>(memory, 'list.error', null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [handoff, setHandoff] = useState<'locked' | 'confirm' | null>(null)
-  const [editBlocked, setEditBlocked] = useState(false)
   const [editBase] = useRemembered<BusinessDetail | null>(memory, EDIT_BASE, null)
   const [editStatus] = useRemembered<{ kind?: string } | null>(memory, `${EDIT_KEY}.cmd.status`, null)
-  const pendingEditId = (editStatus?.kind === 'busy' || editStatus?.kind === 'unknown') && editBase ? editBase.business.businessId : null
 
   const fail = (e: unknown, lookup = false, target: (m: string) => void = setError) => {
     const code = codeOf(e)
@@ -142,7 +158,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
 
   // 상세: 선택한 사업자 문서가 없으면 읽는다(열람마다 서버 감사 BUSINESS_VIEWED).
   useEffect(() => {
-    if (view.kind !== 'detail' || (doc && doc.business.businessId === view.businessId)) return
+    if ((view.kind !== 'detail' && view.kind !== 'edit') || (doc && doc.business.businessId === view.businessId)) return
     let alive = true
     setDetailError(null)
     api.businessDetail(view.businessId)
@@ -202,8 +218,34 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
 
   const openDetail = (businessId: string) => {
     setHandoff(null)
-    setEditBlocked(false)
+    setLeave(null)
+    // B5 리뷰 NIT-1: 사업자를 바꾸면 연결 가맹점 읽기 상태(진행·오류)도 새로.
+    setLinkedBusy(false)
+    setLinkedError(null)
     openBusinessIn(memory, businessId)
+  }
+
+  /**
+   * B5 리뷰 MINOR-2: 이탈 확인의 초점 — 열리면 '계속 편집'으로, '계속 편집'·Esc면 확인을 부른 버튼·탭으로 돌아가고, '탭 옮기기'면 새로 고른 탭으로.
+   * (목록·가맹점으로 가면 그 화면의 제목 초점 규칙을 따른다.) 확인 안에서는 Tab이 두 버튼 사이만 돈다.
+   */
+  const leaveMessageId = useId()
+  const leaveTrigger = useRef<HTMLElement | null>(null)
+  const keepEditingRef = useRef<HTMLButtonElement>(null)
+  const focusAfter = useRef<(() => HTMLElement | null) | null>(null)
+  useEffect(() => {
+    if (leave) keepEditingRef.current?.focus()
+  }, [leave])
+  useEffect(() => {
+    if (!focusAfter.current) return
+    const target = focusAfter.current()
+    focusAfter.current = null
+    target?.focus()
+  })
+  const keepEditing = () => {
+    const trigger = leaveTrigger.current
+    focusAfter.current = () => trigger
+    setLeave(null)
   }
 
   const loadHistory = async (businessId: string, more: boolean) => {
@@ -216,23 +258,43 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     }
   }
 
-  /**
-   * 수정 시작(리뷰 MINOR-1): 결과 확인이 필요한 편집이 있으면 버리지 않는다 — 같은 사업자면 그 편집(기준 version 그대로)으로 이어서 열고, 다른 사업자면 막고 안내한다.
-   * 없으면 지금 상세를 편집 기준으로 새로 고정한다.
-   */
-  const startEdit = (current: BusinessDetail) => {
-    const pendingId = unresolvedEditOf(memory)
-    if (pendingId !== null && pendingId !== current.business.businessId) {
-      setEditBlocked(true)
-      return
+  /** 연결 가맹점 읽기(기존 가맹점 검색 — 사업자 조건 businessId, keyset '다음'). 감사 없음·가맹점 조회 속도 제한(서버) — 명세 §7.5. */
+  const loadLinked = async (businessId: string, more: boolean) => {
+    setLinkedBusy(true)
+    setLinkedError(null)
+    // B5 리뷰 NIT-1: 응답이 오기 전에 다른 사업자를 열었으면 그 응답·오류는 버린다(지금 보는 사업자 것만 쓴다).
+    const stillShowing = () => {
+      const v = memory.read('view') as View | undefined
+      return v !== undefined && v.kind !== 'list' && v.businessId === businessId
     }
-    if (pendingId === null) {
-      clearEdit(memory)
-      memory.write(EDIT_BASE, current)
+    try {
+      const after = more && linked?.businessId === businessId ? linked.next ?? undefined : undefined
+      const page = await api.merchantSearch(after === undefined ? { businessId } : { businessId, after })
+      if (!stillShowing()) return
+      const prev = memory.read('linked') as LinkedState | null | undefined
+      setLinked({ businessId, items: more && prev?.businessId === businessId ? [...prev.items, ...page.items] : page.items, next: page.nextCursor })
+    } catch (e) {
+      if (stillShowing()) fail(e, false, setLinkedError)
+    } finally {
+      if (stillShowing()) setLinkedBusy(false)
     }
-    setEditBlocked(false)
-    setView({ kind: 'edit', businessId: current.business.businessId })
   }
+
+  /**
+   * B5 편집 기준 고정(리뷰 MINOR-1 규칙 그대로 — 보내는 version은 이 기준): OPERATOR가 상세를 열면 그 문서를 편집 기준(edit.base)으로 고정한다.
+   * 결과 확인이 필요한 편집(보내는 중·결과 불명)이 있으면 바꾸지 않는다 — 같은 사업자면 그 기준 그대로, 다른 사업자면 이 사업자는 읽기 표시.
+   */
+  useEffect(() => {
+    if (!canEdit || (view.kind !== 'detail' && view.kind !== 'edit') || !doc || doc.business.businessId !== view.businessId) return
+    if (unresolvedEditOf(memory) !== null) return
+    const pinned = memory.read(EDIT_BASE) as BusinessDetail | undefined
+    if (pinned && pinned.business.businessId === doc.business.businessId && pinned.business.version === doc.business.version) return
+    // B5 리뷰 MINOR-3: 다른 화면의 링크·새 version 다시 읽기로 저장하지 않은 입력이 버려지면 한 줄로 알린다(이탈 확인은 더하지 않는다 — 새 정보 기준이 안전한 쪽).
+    const unsaved = memory.read(`${EDIT_KEY}.form`) as BusinessForm | undefined
+    if (pinned && unsaved && formChanged(pinned, unsaved)) memory.write(DISCARDED_KEY, doc.business.businessId)
+    clearEdit(memory)
+    memory.write(EDIT_BASE, doc)
+  }, [canEdit, view, doc])
 
   const continueWith = (business: BusinessRef) => {
     const state = handoffState()
@@ -244,52 +306,54 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     }
   }
 
-  // ── 편집 ──
-  if (view.kind === 'edit') {
-    // 리뷰 MINOR-1: 폼은 편집 기준(edit.base)으로만 그린다 — 그 사이 상세가 다시 읽혀 version이 바뀌어도 보내는 version은 기준 값(서버가 충돌로 판정).
-    const base = editBase && editBase.business.businessId === view.businessId ? editBase : null
-    if (!base) {
-      return <ErrorNotice>상세를 먼저 불러오세요.</ErrorNotice>
+  // ── 상세(MERCHANT-IA-001 B5 — D-ADMIN-UI-011 ②: OPERATOR는 기본정보 탭이 항상 편집 폼, 조회 역할은 같은 배치의 읽기 표시) ──
+  // 옛 'edit' 화면(별도 수정 화면)은 이 상세로 흡수했다 — 메모리에 남은 'edit' 화면은 상세로 본다.
+  if (view.kind === 'detail' || view.kind === 'edit') {
+    const current = doc && doc.business.businessId === view.businessId ? doc : null
+    const pendingId = unresolvedEditOf(memory)
+    // 편집 기준(edit.base — 리뷰 MINOR-1 규칙 그대로): 결과 확인이 필요한 편집이 이 사업자 것이면 그 기준, 아니면 지금 상세에서 고정한 기준(effect).
+    const base = current && editBase && editBase.business.businessId === current.business.businessId ? editBase : null
+    const blockedByOther = pendingId !== null && current !== null && pendingId !== current.business.businessId
+    const editable = canEdit && current !== null && base !== null && !blockedByOther
+    const dirty = editable && editForm !== null && formChanged(base!, editForm) && !(editStatus?.kind === 'busy' || editStatus?.kind === 'unknown')
+    const proceed = (to: Leave) => {
+      setLeave(null)
+      if (to.kind === 'tab') {
+        selectTab(to.tab)
+        focusAfter.current = () => document.querySelector<HTMLElement>('[role="tablist"][aria-label="사업자 상세 보기"] [role="tab"][aria-selected="true"]')
+        return
+      }
+      setDiscarded(null)
+      // 이동하면 저장하지 않은 편집은 버린다(결과 확인이 필요한 편집은 버리지 않는다 — 같은 submissionId 재전송 유지).
+      if (unresolvedEditOf(memory) === null) clearEdit(memory)
+      if (to.kind === 'list') {
+        setHandoff(null)
+        setView(LIST)
+        focusTitle.current = true
+      } else onOpenMerchant?.(to.merchantId)
+    }
+    const request = (to: Leave) => {
+      if (!dirty) {
+        proceed(to)
+        return
+      }
+      leaveTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setLeave(to)
+    }
+    const selectTab = (t: DetailTabKey) => {
+      if (!current) return
+      setTab(t)
+      if (t === 'history' && history?.businessId !== current.business.businessId) void loadHistory(current.business.businessId, false)
+      if (t === 'linked' && linked?.businessId !== current.business.businessId) void loadLinked(current.business.businessId, false)
     }
     return (
-      <BusinessProfileFormScreen
-        key={`${base.business.businessId}:${base.business.version}`}
-        api={api}
-        mode={{ kind: 'edit', detail: base }}
-        memory={memory}
-        memoryKey={EDIT_KEY}
-        newSubmissionId={newSubmissionId}
-        onSessionEnded={onSessionEnded}
-        onSaved={(businessId) => {
-          clearEdit(memory)
-          openDetail(businessId)
-        }}
-        onOpenBusiness={openDetail}
-        onCancel={() => {
-          clearEdit(memory)
-          setView({ kind: 'detail', businessId: view.businessId })
-        }}
-        onReload={() => {
-          clearEdit(memory)
-          openDetail(view.businessId)
-        }}
-        onAbandon={() => {
-          // 결과 불명 포기: 편집 메모리를 비우고 상세를 다시 읽는다(다음 수정은 최신 상세가 기준).
-          clearEdit(memory)
-          openDetail(view.businessId)
-        }}
-      />
-    )
-  }
-
-  // ── 상세 ──
-  if (view.kind === 'detail') {
-    const current = doc && doc.business.businessId === view.businessId ? doc : null
-    return (
       <section aria-label="사업자 상세" className="flex flex-col gap-4">
-        <div>
-          <Button type="button" variant="outline" size="sm" onClick={() => { setHandoff(null); setView(LIST); focusTitle.current = true }}>목록으로</Button>
-        </div>
+        {/* B5: OPERATOR 편집 폼은 하단 저장 줄에 '목록으로'가 있다(pg-lab식) — 위쪽 버튼은 편집 폼이 없을 때(조회 역할·편집 불가)만. */}
+        {!editable && (
+          <div>
+            <Button type="button" variant="outline" size="sm" onClick={() => request({ kind: 'list' })}>목록으로</Button>
+          </div>
+        )}
         {detailError && <ErrorNotice>{detailError}</ErrorNotice>}
         {!current && !detailError && <p className="text-sm text-muted-foreground"><Spinner active /> 불러오는 중…</p>}
         {current && (
@@ -301,33 +365,30 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
               {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②): "진위확인 미검증" 배지는 늘 같은 값이라 뺐다. 오해(등록 완료 = 검증됨)는 바로 아래 안내 문구가 막는다 — 그 문구는 지우지 않는다. */}
             </div>
             <p className="text-xs text-muted-foreground">등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.</p>
+            {/* B5(명세 §4.2): 등록일·수정일은 머리 아래 메타 한 줄. */}
+            <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              <span>등록</span><KstTime iso={current.business.createdAt} /><span>· 수정</span><KstTime iso={current.business.updatedAt} />
+            </p>
             {current.business.registrationStatus === 'DRAFT' && (
               <WarningNote>
                 임시저장 사업자에는 새 가맹점을 등록할 수 없습니다. 필수 정보를 입력해 등록 완료하세요(이미 등록된 가맹점·계약·MID는 그대로 동작합니다).
-                {current.business.businessType === null ? ' 사업체 구분이 비어 있는 기존 사업자입니다 — 처음 수정할 때 구분을 고르세요.' : ''}
+                {current.business.businessType === null ? ' 사업체 구분이 비어 있는 기존 사업자입니다 — 아래 폼에서 구분을 고르세요.' : ''}
               </WarningNote>
             )}
-            {canEdit && (
+            {canEdit && current.business.registrationStatus === 'REGISTERED' && (
               <div className="flex flex-wrap gap-2">
-                {current.business.registrationStatus === 'DRAFT' ? (
-                  <Button type="button" onClick={() => startEdit(current)}>이어서 입력·등록 완료</Button>
-                ) : (
-                  <>
-                    <Button type="button" variant="outline" onClick={() => startEdit(current)}>수정</Button>
-                    <Button type="button" onClick={() => continueWith({ businessId: current.business.businessId, name: current.business.businessName, registrationNumber: current.business.registrationNumber })}>
-                      이 사업자로 가맹점 등록
-                    </Button>
-                  </>
-                )}
+                <Button type="button" onClick={() => continueWith({ businessId: current.business.businessId, name: current.business.businessName, registrationNumber: current.business.registrationNumber })}>
+                  이 사업자로 가맹점 등록
+                </Button>
               </div>
             )}
-            {canEdit && pendingEditId === current.business.businessId && (
-              <WarningNote>이 사업자에 결과 확인이 필요한 수정이 있습니다 — "수정"/"이어서 입력"으로 열어 "같은 내용 다시 보내기"로 먼저 확인하세요.</WarningNote>
+            {canEdit && pendingId === current.business.businessId && (
+              <WarningNote>이 사업자에 결과 확인이 필요한 저장이 있습니다 — 아래 폼의 "같은 내용 다시 보내기"로 먼저 확인하세요.</WarningNote>
             )}
-            {canEdit && editBlocked && pendingEditId !== null && pendingEditId !== current.business.businessId && (
+            {canEdit && blockedByOther && (
               <div className="flex flex-col gap-2">
-                <WarningNote>다른 사업자에 결과 확인이 필요한 수정이 있어 새 수정을 시작하지 않았습니다 — 그 사업자 상세에서 먼저 확인하세요.</WarningNote>
-                <div><Button type="button" variant="outline" size="sm" onClick={() => openDetail(pendingEditId)}>결과 확인이 필요한 사업자 열기</Button></div>
+                <WarningNote>다른 사업자에 결과 확인이 필요한 저장이 있어 이 사업자는 편집 폼을 열지 않았습니다 — 그 사업자 상세에서 먼저 확인하세요.</WarningNote>
+                <div><Button type="button" variant="outline" size="sm" onClick={() => openDetail(pendingId!)}>결과 확인이 필요한 사업자 열기</Button></div>
               </div>
             )}
             {handoff === 'locked' && <WarningNote>가맹점 등록에 결과 확인이 필요한 단계가 있습니다 — 가맹점 등록에서 '같은 내용 다시 보내기'로 먼저 확인하세요.</WarningNote>}
@@ -349,16 +410,91 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 </div>
               </div>
             )}
-            {/* MERCHANT-IA-001 B4(ADMIN-DS-001 §5 "상세 탭" 정본): 같은 모양의 공용 DetailTabs로 — tabpanel·aria-controls·좌우/Home/End, 패널은 hidden으로 숨긴다(언마운트 없음). 이력은 탭을 처음 열 때 읽는다(그대로). */}
-            <DetailTabs<'info' | 'history'>
+            {discarded === current.business.businessId && (
+              <div role="status" aria-label="버려진 입력" className="flex flex-wrap items-center gap-2">
+                <WarningNote>저장하지 않은 입력은 새로 읽은 사업자 정보로 다시 불러와 버려졌습니다. 필요하면 다시 입력하세요.</WarningNote>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setDiscarded(null)}>닫기</Button>
+              </div>
+            )}
+            {leave && (
+              <div
+                role="alertdialog"
+                aria-label="저장하지 않은 변경"
+                aria-describedby={leaveMessageId}
+                className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    keepEditing()
+                    return
+                  }
+                  if (event.key !== 'Tab') return
+                  // 확인 안에서만 초점이 돈다(두 버튼).
+                  const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'))
+                  const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+                  event.preventDefault()
+                  buttons[(at + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus()
+                }}
+              >
+                <p id={leaveMessageId} className="m-0 font-medium">
+                  {leave.kind === 'tab' ? '저장하지 않은 변경이 있습니다. 탭을 옮겨도 입력은 기본정보 탭에 남습니다.' : '저장하지 않은 변경이 있습니다. 이동하면 입력한 내용이 사라집니다.'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button ref={keepEditingRef} type="button" variant="outline" size="sm" onClick={keepEditing}>계속 편집</Button>
+                  <Button type="button" variant={leave.kind === 'tab' ? 'outline' : 'destructive'} size="sm" onClick={() => proceed(leave)}>{leave.kind === 'tab' ? '탭 옮기기' : '변경 버리고 이동'}</Button>
+                </div>
+              </div>
+            )}
+            {/* MERCHANT-IA-001 B4·B5: 공용 DetailTabs — 기본정보 / 연결 가맹점 (n) / 변경 이력. 이력·연결 가맹점은 그 탭을 처음 고를 때 읽는다. 패널은 hidden(언마운트 없음 — 입력 유지). */}
+            <DetailTabs<DetailTabKey>
               label="사업자 상세 보기"
-              selected={tab}
-              onSelect={(t) => {
-                setTab(t)
-                if (t === 'history' && history?.businessId !== current.business.businessId) void loadHistory(current.business.businessId, false)
-              }}
+              selected={tab === 'linked' || tab === 'history' ? tab : 'info'}
+              onSelect={(t) => (tab === 'info' && t !== 'info' ? request({ kind: 'tab', tab: t }) : selectTab(t))}
               tabs={[
-                { key: 'info', label: '기본정보', panel: <DetailInfo detail={current} /> },
+                {
+                  key: 'info',
+                  label: '기본정보',
+                  panel: editable ? (
+                    <BusinessProfileFormScreen
+                      key={`${base!.business.businessId}:${base!.business.version}`}
+                      api={api}
+                      mode={{ kind: 'edit', detail: base! }}
+                      layout="detail"
+                      memory={memory}
+                      memoryKey={EDIT_KEY}
+                      newSubmissionId={newSubmissionId}
+                      onSessionEnded={onSessionEnded}
+                      onSaved={(businessId) => {
+                        clearEdit(memory)
+                        openDetail(businessId)
+                      }}
+                      onOpenBusiness={openDetail}
+                      onReload={() => {
+                        clearEdit(memory)
+                        openDetail(current.business.businessId)
+                      }}
+                      onAbandon={() => {
+                        // 결과 불명 포기: 편집 메모리를 비우고 상세를 다시 읽는다(다음 편집은 최신 상세가 기준).
+                        clearEdit(memory)
+                        openDetail(current.business.businessId)
+                      }}
+                      onBack={() => request({ kind: 'list' })}
+                    />
+                  ) : <DetailInfo detail={current} />,
+                },
+                {
+                  key: 'linked',
+                  label: `연결 가맹점 (${current.business.merchantCount})`,
+                  panel: (
+                    <LinkedMerchants
+                      state={linked?.businessId === current.business.businessId ? linked : null}
+                      busy={linkedBusy}
+                      error={linkedError}
+                      onMore={() => loadLinked(current.business.businessId, true)}
+                      onOpen={onOpenMerchant ? (merchantId) => request({ kind: 'merchant', merchantId }) : undefined}
+                    />
+                  ),
+                },
                 { key: 'history', label: '변경 이력', panel: <HistoryTable history={history?.businessId === current.business.businessId ? history : null} onMore={() => loadHistory(current.business.businessId, true)} /> },
               ]}
             />
@@ -478,45 +614,98 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   )
 }
 
-/** 상세 섹션 1~6(원문 — D-BIZ-006 ②. 사업자등록번호도 원문(D-BIZ-007), 하이픈은 표시만). */
+/** 편집 폼이 기준 상세와 달라졌는가(BusinessProfileFormScreen의 `changed`와 같은 계산 — 이탈 확인용). */
+function formChanged(base: BusinessDetail, form: BusinessForm): boolean {
+  return JSON.stringify(contentOfDetail(base)) !== JSON.stringify(contentOf(compactForm(form)))
+}
+
+/**
+ * 연결 가맹점 탭(MERCHANT-IA-001 B5 — D-ADMIN-UI-010 ⑧): 가맹점(이름·코드) | MID 수 | 등록일 | 상세. 내부 키(mer_)는 그리지 않는다(행 이름은 가맹점 코드).
+ * '상세'는 가맹점 조회 탭의 그 가맹점 상세로(App — 상세 조회 감사는 그 화면이 연다).
+ */
+function LinkedMerchants({ state, busy, error, onMore, onOpen }: {
+  state: LinkedState | null
+  busy: boolean
+  error: string | null
+  onMore: () => void
+  onOpen?: (merchantId: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {error && <ErrorNotice>{error}</ErrorNotice>}
+      {busy && state === null && <p className="text-sm text-muted-foreground"><Spinner active /> 불러오는 중…</p>}
+      {state && (
+        <Table aria-label="연결 가맹점 목록">
+          <TableHeader>
+            <TableRow>
+              <TableHead>가맹점</TableHead><TableHead>MID 수</TableHead><TableHead>등록일</TableHead>{onOpen && <TableHead><span className="sr-only">작업</span></TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {state.items.length === 0 && <EmptyRow columns={onOpen ? 4 : 3} message="연결된 가맹점이 없습니다." />}
+            {state.items.map((m) => (
+              <TableRow key={m.merchantId} aria-label={m.merchantCode}>
+                <TableCell><span className="flex flex-col"><span className="font-medium">{m.merchantName}</span><span className="font-mono text-xs">{m.merchantCode}</span></span></TableCell>
+                <TableCell>{m.midCount}</TableCell>
+                <TableCell><KstTime iso={m.createdAt} /></TableCell>
+                {onOpen && <TableCell><Button type="button" variant="outline" size="sm" aria-label={`${m.merchantName} 가맹점 상세`} onClick={() => onOpen(m.merchantId)}>상세</Button></TableCell>}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      {state?.next && (
+        <div className="flex justify-center">
+          <Button type="button" variant="outline" disabled={busy} onClick={onMore}>더 보기</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 사업자 상세 읽기 표시(MERCHANT-IA-001 B5 — D-ADMIN-UI-011 ②: OPERATOR의 편집 폼과 같은 배치 — 섹션 회사(2열) / 대표자 / 담당자). 조회 역할(APPROVER 등)과,
+ * 결과 확인이 필요한 다른 사업자 편집이 있어 이 사업자 폼을 열 수 없을 때 쓴다. 값은 원문(D-BIZ-006 ②), 사업자등록번호는 원문 하이픈(D-BIZ-007).
+ */
 function DetailInfo({ detail }: { detail: BusinessDetail }) {
   const { business, registration } = detail
   const names = (type: string) => detail.categories.filter((c) => c.categoryType === type).map((c) => c.name)
   const none = <span className="text-muted-foreground">미입력</span>
   const or = (value: string | null | undefined, show: (v: string) => ReactNode = (v) => v) => (value ? show(value) : none)
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <InfoCard title="1. 사업자 기본">
-        <Row term="사업자등록번호"><span className="font-mono">{displayRegistrationNumber(business.registrationNumber)}</span></Row>
-        <Row term="상호">{business.businessName}</Row>
-        <Row term="사업체 구분">{labelIn(BUSINESS_TYPE_LABELS, business.businessType)}</Row>
-        {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②, 명세 §3.10): '등록 상태'는 머리 배지와 중복, '진위확인'(늘 미검증)·'국가'(늘 KR)는 늘 같은 값이라 뺐다(값·API 그대로). */}
-        {business.businessType === 'CORPORATION' && <Row term="법인등록번호">{or(registration.corporateRegistrationNumber, (v) => <span className="font-mono">{formatCorporateNumber(v)}</span>)}</Row>}
-        <Row term="개업일">{or(registration.openingDate)}</Row>
-        <Row term="영문 상호">{or(registration.englishName)}</Row>
-        <Row term="가맹점 수">{business.merchantCount}</Row>
-        <Row term="등록일"><KstTime iso={business.createdAt} /></Row>
-        <Row term="수정일"><KstTime iso={business.updatedAt} /></Row>
-      </InfoCard>
-      <InfoCard title="2. 사업 내용">
-        <Row term="업태">{names('BUSINESS_TYPE').length > 0 ? names('BUSINESS_TYPE').join(', ') : none}</Row>
-        <Row term="종목">{names('BUSINESS_ITEM').length > 0 ? names('BUSINESS_ITEM').join(', ') : none}</Row>
-      </InfoCard>
-      <InfoCard title="3. 주소">
-        {detail.addresses.length === 0 ? <Row term="주소">{none}</Row> : detail.addresses.map((a) => (
-          <Row key={a.addressType} term={labelIn(ADDRESS_TYPE_LABELS, a.addressType)}>{`(${a.postalCode}) ${a.baseAddress}${a.detailAddress ? ` ${a.detailAddress}` : ''}`}</Row>
-        ))}
-      </InfoCard>
-      <InfoCard title="4. 대표자">
+    <div className="flex flex-col gap-4">
+      <section aria-label="회사" className="flex flex-col gap-1 rounded-xl border bg-card px-4 py-3">
+        <h3 className="text-sm font-semibold">회사</h3>
+        <div className="grid gap-x-8 lg:grid-cols-2">
+          <dl>
+            <Row term="사업체 구분">{labelIn(BUSINESS_TYPE_LABELS, business.businessType)}</Row>
+            <Row term="사업자등록번호"><span className="font-mono">{displayRegistrationNumber(business.registrationNumber)}</span></Row>
+            <Row term="상호">{business.businessName}</Row>
+            {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②, 명세 §3.10): '등록 상태'는 머리 배지와 중복, '진위확인'(늘 미검증)·'국가'(늘 KR)는 늘 같은 값이라 뺐다(값·API 그대로). */}
+            {business.businessType === 'CORPORATION' && <Row term="법인등록번호">{or(registration.corporateRegistrationNumber, (v) => <span className="font-mono">{formatCorporateNumber(v)}</span>)}</Row>}
+            <Row term="개업일">{or(registration.openingDate)}</Row>
+            <Row term="영문 상호">{or(registration.englishName)}</Row>
+          </dl>
+          <dl>
+            <Row term="업태">{names('BUSINESS_TYPE').length > 0 ? names('BUSINESS_TYPE').join(', ') : none}</Row>
+            <Row term="종목">{names('BUSINESS_ITEM').length > 0 ? names('BUSINESS_ITEM').join(', ') : none}</Row>
+            <Row term="사업체 전화">{or(registration.phoneNumber, (v) => <span className="font-mono">{formatPhone(v)}</span>)}</Row>
+            <Row term="사업체 이메일">{or(registration.email)}</Row>
+            <Row term="가맹점 수">{business.merchantCount}</Row>
+          </dl>
+        </div>
+        <dl>
+          {detail.addresses.length === 0 ? <Row term="주소">{none}</Row> : detail.addresses.map((a) => (
+            <Row key={a.addressType} term={labelIn(ADDRESS_TYPE_LABELS, a.addressType)}>{`(${a.postalCode}) ${a.baseAddress}${a.detailAddress ? ` ${a.detailAddress}` : ''}`}</Row>
+          ))}
+        </dl>
+      </section>
+      <InfoCard title="대표자">
         {detail.representatives.length === 0 ? <Row term="대표자">{none}</Row> : detail.representatives.map((r, i) => (
           <Row key={i} term={`대표자 ${i + 1}`}>{`${r.name} (${labelIn(REPRESENTATIVE_TYPE_LABELS, r.representativeType)})`}</Row>
         ))}
       </InfoCard>
-      <InfoCard title="5. 사업체 연락">
-        <Row term="전화">{or(registration.phoneNumber, (v) => <span className="font-mono">{formatPhone(v)}</span>)}</Row>
-        <Row term="이메일">{or(registration.email)}</Row>
-      </InfoCard>
-      <InfoCard title="6. 등록 담당자">
+      <InfoCard title="담당자">
         {detail.contacts.length === 0 ? <Row term="담당자">{none}</Row> : detail.contacts.map((c, i) => (
           <Row key={i} term={`담당자 ${i + 1}${c.primary ? ' (기본)' : ''}`}>
             <span>{c.name}</span>
