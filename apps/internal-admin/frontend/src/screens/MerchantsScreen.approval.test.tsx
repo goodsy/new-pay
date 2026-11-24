@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 
 /**
  * MERCHANT-OPS-002 §8.2 B2-2-12 — 조회 상세 Revision 행 "승인 요청"(OPERATOR·승인 전·끝나지 않은 Revision만, 근거 참조 필수), 승인 대기 표시(C-24), Revision 등록자 표시(D-MOPS-008 ③).
@@ -46,6 +47,8 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={canRequestApproval} onOpenApprovals={onOpenApprovals} now={NOW} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭): 계약·CSA는 'Site·계약' 탭 — 탭 열기 단계만 더한다(단언 그대로).
+  await openMerchantTab('Site·계약')
   await screen.findByRole('region', { name: '계약·CSA' })
   return api
 }

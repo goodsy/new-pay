@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantHistoryEntry, MerchantListItem } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 import { domOccurrences } from '../test/domScan'
 import { expectDetailRows, panelDetailList } from '../test/detailRows'
 
@@ -237,6 +238,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     expect(api.merchantDetail).toHaveBeenCalledWith(MER1)
 
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const basic = await screen.findByRole('region', { name: '기본정보' })
     expect(basic).toHaveTextContent('데모 가맹점')
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 상세에도 사업자 ID는 보이지 않는다(상호·마스킹 번호로 식별).
@@ -245,12 +247,14 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(basic).toHaveTextContent(SHOWN_NUMBER)
 
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): Site 행은 Site 키 대신 채널 식별값으로, 계약·서비스 약정은 "계약 1"·"서비스: 카드 PG 결제"로 보인다(키는 없다).
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const sites = screen.getByRole('region', { name: 'Site' })
     expect(within(sites).getByRole('row', { name: '웹 · shop.example.test' })).toHaveTextContent('shop.example.test')
     expect(within(sites).getByRole('row', { name: '웹 · shop.example.test' })).toHaveTextContent('승인')
     expect(within(sites).getByRole('row', { name: '앱 · test.example.app' })).toHaveTextContent('심사 결정 없음')
     expect(sites).not.toHaveTextContent(id('mst', 1))
 
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const contracts = screen.getByRole('region', { name: '계약·CSA' })
     expect(contracts).toHaveTextContent('계약 1')
     expect(contracts).not.toHaveTextContent(id('ctr', 1))
@@ -259,6 +263,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(contracts).not.toHaveTextContent(id('csa', 1))
     expect(contracts).toHaveTextContent('카드 PG 결제')
 
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const mids = screen.getByRole('region', { name: 'MID·개통' })
     expect(mids).toHaveTextContent(id('mid', 1))
     expect(mids).toHaveTextContent('기본 MID')
@@ -266,6 +271,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(mids).toHaveTextContent('심사 중')
     expect(mids).toHaveTextContent('KRW')
 
+    await openMerchantTab('한도') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const limits = screen.getByRole('region', { name: '한도' })
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③): 한도 행 이름은 한도 키(tlp_) 대신 순번, 범위는 사람용 값.
     expect(within(limits).getByRole('row', { name: '한도 1' })).toHaveTextContent('1,000,000원')
@@ -276,12 +282,10 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(within(limits).getByRole('row', { name: '한도 2' })).toHaveTextContent(`MID ${id('mid', 1)}`)
     expect(limits).toHaveTextContent('Demo')
 
-    // D-ADMIN-UI-009 ②: 권리 전파는 기본 접힘 "기술 정보" 안 — 열면 같은 값(기대값 그대로).
-    const techInfo = screen.getByRole('group', { name: '기술 정보' })
-    expect(techInfo).not.toHaveAttribute('open')
-    await userEvent.click(within(techInfo).getByText('기술 정보'))
-    expect(techInfo).toHaveAttribute('open')
-    const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
+    // D-ADMIN-UI-009 ②: 권리 전파는 기본 화면에 없다. 기대값 변경(MERCHANT-IA-001 B4 — 사용자 결정 D-ADMIN-UI-010 ① 탭 6개): 접힌 details 대신 '기술 정보' 탭 — 기본 화면에 없고 열면 같은 값(값 기대 그대로).
+    expect(screen.queryByRole('region', { name: '권리 전파 상태' })).toBeNull()
+    await openMerchantTab('기술 정보')
+    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
     expect(propagation).toHaveTextContent('최신 revision 4')
     expect(propagation).toHaveTextContent('수신 확인 revision 3')
     expect(propagation).toHaveTextContent('효력 확인 전')
@@ -292,6 +296,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     // MASTER·ADMIN이 막아야 할 값이 잘못 섞여 와도 화면은 정해진 칸만 그린다(fail-closed 표시).
     Object.assign(leaky.accounts[0]!.cardRoutes[0]!, { institutionMerchantRef: 'INST-SECRET-777', detail: 'raw-detail' })
     await openDetail({ merchantDetail: vi.fn(async () => leaky), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const routes = await screen.findByRole('table', { name: '카드 Route' })
     expect(within(routes).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['인수사 코드', 'Route 참조', '상태'])
     const row = within(routes).getAllByRole('row')[1]!
@@ -310,6 +315,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
         .mockResolvedValueOnce({ items: [entry(10, 'REGISTERED'), entry(11, 'APPROVED')], nextCursor: 11 })
         .mockResolvedValueOnce({ items: [entry(12, 'SUSPENDED')], nextCursor: null }),
     })
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const history = await screen.findByRole('region', { name: '변경 이력' })
     // 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §3.8·§7 B1): '연산'(영문 원문) 열을 뺐다. 리뷰 MINOR-1: '변경' 열 셀을 지정해 본다 — 열 순서 순번·시각·대상·변경·행위자,
     // Fixture의 'REGISTERED'는 이력 변경 종류 이름표에 없는 값이라 원문 그대로(changeTypeLabel 폴백).
@@ -376,11 +382,13 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
       merchantDetail: vi.fn(async () => detail),
       merchantHistory: vi.fn(async () => ({ items: [merchantEntry, entry(21, 'SUSPENDED')], nextCursor: null })),
     })
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const history = await screen.findByRole('region', { name: '변경 이력' })
     expect(await within(history).findByRole('row', { name: '20' })).toHaveTextContent(codeOf(MER1))
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 다른 대상은 키 대신 사람용 값(카드사 Route 개통 = MID · 인수사 코드).
     expect(within(history).getByRole('row', { name: '21' })).toHaveTextContent(`${id('mid', 1)} · 인수사 ACQ01`)
     expect(within(history).getByRole('row', { name: '21' })).not.toHaveTextContent(id('cra', 1))
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent(codeOf(MER1))
     expect(screen.getByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER1)}`) })).toBeInTheDocument()
     // 재리뷰 MAJOR-1: DOM 전체 — 텍스트와 모든 속성(value·placeholder·aria-*·title·data-* 포함, innerHTML) 및 입력란 value 프로퍼티에 mer_ 0건.
@@ -399,6 +407,7 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
       entry(43, 'SUSPENDED'),
     ]
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: rows, nextCursor: null })) })
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const history = await screen.findByRole('region', { name: '변경 이력' })
     const business = await within(history).findByRole('row', { name: '40' })
     expect(within(business).getByText('사업자', { exact: true })).toBeInTheDocument()
@@ -419,7 +428,8 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(domOccurrences(document.body, 'mer_')).toEqual([])
     // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
     expect(domOccurrences(document.body, BRN)).toEqual([])
-    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `기본정보/SPAN/text:${SHOWN_NUMBER}`, `변경 이력/SPAN/text:데모 사업자 · ${SHOWN_NUMBER}`])
+    // 기대값 변경(MERCHANT-IA-001 B4 — 사용자 결정 D-ADMIN-UI-010 ① "머리 요약"): 상세 머리 요약에 "사업자: 상호 · 번호"가 한 번 더 보인다(표시 자리만 늘었고 하이픈 표시 규칙·원문 10자리 0건은 그대로).
+    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `-/SPAN/text:사업자: 데모 사업자 · ${SHOWN_NUMBER}`, `기본정보/SPAN/text:${SHOWN_NUMBER}`, `변경 이력/SPAN/text:데모 사업자 · ${SHOWN_NUMBER}`])
   })
 
   it('MC-2b DOM (D-MCODE-003 ②): a registration-number search list and the detail render no biz_ anywhere (text, attributes, input values) and the number only as the hyphenated display text (D-BIZ-007) — the business is name + number; the internal key goes only to calls', async () => {
@@ -440,9 +450,12 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(domOccurrences(document.body, BRN)).toEqual([])
     expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `-/TD/text:${SHOWN_NUMBER}`])
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(SHOWN_NUMBER)
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent('데모 사업자')
     // ADMIN-HISTORY-KEYS-001 코드 리뷰 MINOR-1: 이력 행이 그려진 뒤에 단언한다(대기만 추가 — 단언 무변경).
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await within(screen.getByRole('region', { name: '변경 이력' })).findByRole('row', { name: '30' })
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
     // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
@@ -464,13 +477,14 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
   // 기대값 변경(D-ADMIN-UI-009 ② "기술 정보 접기"): 기본정보의 '권리 revision' 줄은 접힌 "기술 정보"의 '가맹점 권리' Panel로 옮겼다(값 그대로). 권리 전파 상태는 같은 Panel 모양으로 그 안에.
   it('기본정보 · 가맹점 권리 · 권리 전파 상태는 바깥 Panel 그대로, 안쪽은 140px 이름 열 줄(style 속성 없음)', async () => {
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const basics = await screen.findByRole('region', { name: '기본정보' })
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): '가맹점 상태'·'사업자 상태' 줄(늘 '활성')을 뺐다.
     expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '등록일', '사업자', '사업자등록번호'])
-    const techInfo = screen.getByRole('group', { name: '기술 정보' })
-    await userEvent.click(within(techInfo).getByText('기술 정보'))
-    expectDetailRows(panelDetailList(within(techInfo).getByRole('region', { name: '가맹점 권리' }), '가맹점 권리'), ['권리 revision'])
-    const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
+    // 기대값 변경(MERCHANT-IA-001 B4 — 사용자 결정 D-ADMIN-UI-010 ① 탭 6개): 접힌 details 대신 '기술 정보' 탭 — 기본 화면에 없고 열면 같은 값(값 기대 그대로).
+    await openMerchantTab('기술 정보')
+    expectDetailRows(panelDetailList(screen.getByRole('region', { name: '가맹점 권리' }), '가맹점 권리'), ['권리 revision'])
+    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
     expectDetailRows(panelDetailList(propagation, '권리 전파 상태'), ['발행', '결제 서비스 수신', '효력'])
     // 값은 그대로(마스킹 번호 · 효력 확인 전). 상태 배지 줄은 B2에서 뺐다.
     expect(within(basics).getByText(SHOWN_NUMBER)).toHaveClass('font-mono')
@@ -482,6 +496,7 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
   // 데스크톱에서도 가로 스크롤 뒤로 숨는다 → 짧은 값 칸(Site ID·채널 종류·상태)만 nowrap, 식별값은 줄바꿈 허용 + 칸 최소 폭(16ch)으로 한 글자씩 쪼개짐만 막는다.
   it('390px: Site 표는 가로 스크롤 — 짧은 값 칸만 줄바꿈 없음, 채널 식별값은 줄바꿈 허용 + 최소 폭(한 글자씩 세로로 쪼개지지 않음)', async () => {
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const table = await screen.findByRole('table', { name: 'Site 목록' })
     expect(table).not.toHaveClass('whitespace-nowrap')
     expect(table.parentElement).toHaveClass('overflow-x-auto')

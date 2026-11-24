@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 
 /**
  * MERCHANT-OPS-002 §8.3 B3-1 9 — 조회 상세 MID 아래 "개통" 영역(§9.17): 결제수단(등록자, "개통 등록(카드)" 1인 → "개통 승인 요청" 2인 — 근거 라벨 "기관(카드사/VAN) 회신 참조"),
@@ -70,6 +71,8 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={canRequestApproval} now={NOW} newSubmissionId={() => SUB} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭 6개): 개통 영역은 'MID·개통' 탭, Site 심사는 'Site·계약' 탭 — 탭 열기 단계만 더한다(단언 그대로).
+  await openMerchantTab('MID·개통')
   return { api, area: await screen.findByRole('region', { name: `개통 ${MID1}` }) }
 }
 
@@ -78,15 +81,19 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
  * 그린다. 그래서 Site 심사 단언은 개통 영역(area) 대신 이 표에서 찾는다 — 버튼·등록자·잠금 단언은 그대로.
  */
 const siteReviewTable = () => screen.getByRole('table', { name: 'Site 심사' })
+/** MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭 6개): 개통 영역은 'MID·개통' 탭, Site 심사는 'Site·계약' 탭 — 탭 열기 단계만 더한다(단언 그대로). */
+const openSiteContract = () => openMerchantTab('Site·계약')
+const openMid = () => openMerchantTab('MID·개통')
 
 describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () => {
   it('a VIEWER sees statuses, registrants, confirmations and the checklist but no button', async () => {
     const { area } = await openDetail(false, { merchantDetail: vi.fn(async () => detail({}, { paymentMethods: [underReview] })) })
     expect(within(within(area).getByRole('table', { name: '결제수단 개통' })).getByText(SITE_REGISTRANT)).toBeInTheDocument()
-    expect(siteReviewTable()).toHaveTextContent(SITE2_NAME)
     for (const name of ['개통 등록(카드)', '개통 승인 요청', '심사 승인 요청', '심사 거절']) expect(within(area).queryByRole('button', { name })).toBeNull()
-    for (const name of ['심사 승인 요청', '심사 거절']) expect(within(siteReviewTable()).queryByRole('button', { name })).toBeNull()
     expect(within(area).getByRole('region', { name: '개통 점검표' })).toBeInTheDocument()
+    await openSiteContract()
+    expect(siteReviewTable()).toHaveTextContent(SITE2_NAME)
+    for (const name of ['심사 승인 요청', '심사 거절']) expect(within(siteReviewTable()).queryByRole('button', { name })).toBeNull()
   })
 
   it('OPERATOR "개통 등록(카드)" (1인) sends {submissionId, merchantAccountId, CARD}, shows the act_ result and re-reads the detail; hidden once a card activation exists', async () => {
@@ -113,6 +120,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'c')} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    await openMid()
     const area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     await userEvent.click(within(area).getByRole('button', { name: '개통 등록(카드)' }))
     await userEvent.click(await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' }))
@@ -135,6 +143,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'c')} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    await openMid()
     const area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     await userEvent.click(within(area).getByRole('button', { name: '개통 등록(카드)' }))
     await userEvent.click(await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' }))
@@ -164,6 +173,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     const pm = detail({ pendingApprovals: [{ approvalId: APR, kind: 'MERCHANT_PAYMENT_METHOD_ACTIVATION', status: 'PENDING', revisionNo: null }] }, { paymentMethods: [underReview] })
     const { area } = await openDetail(true, { merchantDetail: vi.fn(async () => pm) })
     expect(within(area).queryByRole('button', { name: '개통 승인 요청' })).toBeNull()
+    await openSiteContract()
     expect(within(siteReviewTable()).getAllByRole('button', { name: '심사 승인 요청' })).toHaveLength(2)
   })
 
@@ -192,6 +202,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
       render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={true} now={NOW} newSubmissionId={() => SUB} />)
       await userEvent.click(screen.getByRole('button', { name: '검색' }))
       await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+      await openMerchantTab('Site·계약')
       expect(await screen.findByRole('button', { name: '승인 요청' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '첫 MID 발급 요청' })).toBeInTheDocument()
     },
@@ -200,9 +211,10 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
   it('C-35: with a pending site review the 2-person button is hidden for every site while the 1-person reject stays', async () => {
     const sr = detail({ pendingApprovals: [{ approvalId: APR, kind: 'MERCHANT_SITE_REVIEW_APPROVAL', status: 'EXECUTION_UNKNOWN', revisionNo: null }] }, { paymentMethods: [underReview] })
     const { area } = await openDetail(true, { merchantDetail: vi.fn(async () => sr) })
+    expect(within(area).getByRole('button', { name: '개통 승인 요청' })).toBeInTheDocument()
+    await openSiteContract()
     expect(within(siteReviewTable()).queryByRole('button', { name: '심사 승인 요청' })).toBeNull()
     expect(within(siteReviewTable()).getAllByRole('button', { name: '심사 거절' })).toHaveLength(2)
-    expect(within(area).getByRole('button', { name: '개통 승인 요청' })).toBeInTheDocument()
   })
 
   it('"심사 승인 요청" (2인) uses the PG review basis and REVIEW_PASSED; APPROVED or REJECTED sites have no buttons', async () => {
@@ -215,6 +227,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
       ],
     })
     await openDetail(true, { requestMerchantSiteReviewApproval, merchantDetail: vi.fn(async () => d) })
+    await openSiteContract()
     const table = siteReviewTable()
     expect(within(within(table).getByRole('row', { name: `심사 ${SITE1_NAME}` })).queryAllByRole('button')).toHaveLength(0)
     expect(within(within(table).getByRole('row', { name: '심사 앱 · com.example.app' })).queryAllByRole('button')).toHaveLength(0)
@@ -228,6 +241,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
   it('"심사 거절" (1인): reason select, confirmation dialog "되돌릴 수 없습니다. 재신청은 새 Site로", cancel sends nothing, confirm sends {submissionId, site, reason} without evidence', async () => {
     const rejectSiteReview = vi.fn(async () => ({ outcome: 'SUCCEEDED' as const, reference: `${SITE2}#1`, replayed: false }))
     await openDetail(true, { rejectSiteReview })
+    await openSiteContract()
     const row = within(siteReviewTable()).getByRole('row', { name: `심사 ${SITE2_NAME}` })
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
     await userEvent.selectOptions(within(row).getByLabelText('거절 사유'), 'SITE_UNREACHABLE')
@@ -255,7 +269,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval now={NOW} newSubmissionId={() => `${++n}`.padStart(32, 'd')} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
-    await screen.findByRole('region', { name: `개통 ${MID1}` })
+    await openSiteContract()
     const table = siteReviewTable()
     const row = within(table).getByRole('row', { name: `심사 ${SITE2_NAME}` })
     await userEvent.click(within(row).getByRole('button', { name: '심사 거절' }))
@@ -274,7 +288,7 @@ describe('MerchantsScreen — B3-1 "개통" area (MERCHANT-OPS-002 §9.17)', () 
     const one = '1'.padStart(32, 'd')
     expect(rejectSiteReview.mock.calls.map((c) => c[0])).toEqual(Array(3).fill({ submissionId: one, merchantSiteId: SITE2, reasonCode: 'SITE_UNREACHABLE' }))
     // 확정 성공 뒤에는 다른 Site 거절을 다시 열 수 있다(상세 재조회 뒤 다시 찾는다).
-    await screen.findByRole('region', { name: `개통 ${MID1}` })
+    await openSiteContract()
     const fresh = siteReviewTable()
     expect(await within(within(fresh).getByRole('row', { name: `심사 ${SITE1_NAME}` })).findByRole('button', { name: '심사 거절' })).toBeEnabled()
   })

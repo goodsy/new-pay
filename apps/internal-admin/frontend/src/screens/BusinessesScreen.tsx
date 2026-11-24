@@ -3,6 +3,7 @@ import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEn
 import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
 // 상세 카드·줄은 components/DetailCard.tsx로 그대로 옮김(출력 동일 — 등록 폼 FormRow와 나란히 쓰는 공용 구성요소).
 import { DetailRow as Row, InfoCard } from '../components/DetailCard'
+import { DetailTabs } from '../components/DetailTabs'
 import { ErrorNotice, WarningNote } from '../components/Notice'
 import { PageHeader } from '../components/PageHeader'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
@@ -348,19 +349,19 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 </div>
               </div>
             )}
-            <div role="tablist" aria-label="사업자 상세 보기" className="flex gap-2 border-b">
-              {(['info', 'history'] as const).map((t) => (
-                <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'border-b-2 border-primary px-3 py-2 text-sm font-semibold' : 'px-3 py-2 text-sm text-muted-foreground'}
-                  onClick={() => {
-                    setTab(t)
-                    if (t === 'history' && history?.businessId !== current.business.businessId) void loadHistory(current.business.businessId, false)
-                  }}
-                >
-                  {t === 'info' ? '기본정보' : '변경 이력'}
-                </button>
-              ))}
-            </div>
-            {tab === 'info' ? <DetailInfo detail={current} /> : <HistoryTable history={history?.businessId === current.business.businessId ? history : null} onMore={() => loadHistory(current.business.businessId, true)} />}
+            {/* MERCHANT-IA-001 B4(ADMIN-DS-001 §5 "상세 탭" 정본): 같은 모양의 공용 DetailTabs로 — tabpanel·aria-controls·좌우/Home/End, 패널은 hidden으로 숨긴다(언마운트 없음). 이력은 탭을 처음 열 때 읽는다(그대로). */}
+            <DetailTabs<'info' | 'history'>
+              label="사업자 상세 보기"
+              selected={tab}
+              onSelect={(t) => {
+                setTab(t)
+                if (t === 'history' && history?.businessId !== current.business.businessId) void loadHistory(current.business.businessId, false)
+              }}
+              tabs={[
+                { key: 'info', label: '기본정보', panel: <DetailInfo detail={current} /> },
+                { key: 'history', label: '변경 이력', panel: <HistoryTable history={history?.businessId === current.business.businessId ? history : null} onMore={() => loadHistory(current.business.businessId, true)} /> },
+              ]}
+            />
           </>
         )}
       </section>

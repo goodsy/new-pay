@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { ContractRevisionInput, MerchantDetail, MerchantListItem, RegistrationOutcome } from '../api/adminApi'
 import { apiError, fakeApi } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 import { createScreenMemory } from '../lib/screenMemory'
 
 /** MERCHANT-OPS-002 §8.2 B2-1-6 — 조회 상세 "새 Revision 등록"(OPERATOR, 1인, 미승인). Demo 식별자(업무 의미 없는 고정값). */
@@ -50,6 +51,8 @@ async function openDetail(canRegisterRevision: boolean, overrides: Parameters<ty
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision={canRegisterRevision} newSubmissionId={() => SUB} todayKst={() => '2026-11-10'} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭): 계약·CSA는 'Site·계약' 탭 — 탭 열기 단계만 더한다(단언 그대로).
+  await openMerchantTab('Site·계약')
   await screen.findByRole('region', { name: '계약·CSA' })
   return api
 }
@@ -129,6 +132,7 @@ describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision newSubmissionId={() => `${SUB.slice(0, 31)}${n++}`} todayKst={() => '2026-11-10'} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    await openMerchantTab('Site·계약') // B4: 탭 열기 단계만 더함
     await userEvent.click(await screen.findByRole('button', { name: '새 Revision 등록' }))
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))
@@ -176,8 +180,11 @@ describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form
     )
     return { api, send, view }
   }
-  const openMerchant = async (merchantId: string) =>
-    userEvent.click(within(await screen.findByRole('row', { name: codeOf(merchantId) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭): 가맹점을 열면 개요 탭부터 — 계약·Revision 폼은 'Site·계약' 탭을 연 뒤 찾는다(탭 열기 단계만 더함, 잠금·재전송 단언 그대로).
+  const openMerchant = async (merchantId: string) => {
+    await userEvent.click(within(await screen.findByRole('row', { name: codeOf(merchantId) })).getByRole('button', { name: '상세' }))
+    await openMerchantTab('Site·계약')
+  }
   const openRevisionForm = async () => userEvent.click(await screen.findByRole('button', { name: /새 Revision 등록/ }))
   const lockFirstMerchant = async () => {
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
@@ -272,6 +279,7 @@ describe('MerchantsScreen — B2-1 completed revision form (C-32)', () => {
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRegisterRevision newSubmissionId={() => `${SUB.slice(0, 31)}${n++}`} todayKst={() => '2026-11-10'} />)
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    await openMerchantTab('Site·계약') // B4: 탭 열기 단계만 더함
     await userEvent.click(await screen.findByRole('button', { name: '새 Revision 등록' }))
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))

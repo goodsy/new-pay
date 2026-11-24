@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantHistoryEntry, MerchantListItem } from '../api/adminApi'
 import { fakeApi } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 import { changeTypeLabel, MERCHANT_CHANGE_TYPE_LABELS } from '../lib/merchantChangeTypes'
 
 /**
@@ -71,6 +72,7 @@ async function openDetail(d: MerchantDetail, history: MerchantHistoryEntry[] = [
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={canRequestApproval} now={NOW} newSubmissionId={() => 'f'.repeat(32)} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
   await screen.findByRole('region', { name: 'MID·개통' })
   return api
 }
@@ -78,9 +80,14 @@ async function openDetail(d: MerchantDetail, history: MerchantHistoryEntry[] = [
 describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
   it('① 통화 표는 MID마다 한 번(개통 영역) — 중복 표 없음, 종료 처리 시각은 그 표의 열', async () => {
     await openDetail(detail())
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
+    // 기대값 변경(MERCHANT-IA-001 B4 — Q-IA-4b "MID 것만 따라감"): MID·개통 탭은 머리에서 고른 MID 하나만 보인다 — MID마다 고르고 본다(통화 표 중복 없음 단언은 MID별로 그대로).
     const mids = screen.getByRole('region', { name: 'MID·개통' })
-    expect(within(mids).getAllByRole('table', { name: '통화' })).toHaveLength(2)
+    expect(within(mids).getAllByRole('table', { name: '통화' })).toHaveLength(1)
+    expect(mids.querySelectorAll('table[aria-label="통화"]')).toHaveLength(2)
     for (const mid of [MID1, MID2]) {
+      await userEvent.selectOptions(screen.getByLabelText('MID 선택'), mid)
+      expect(within(mids).getAllByRole('table', { name: '통화' })).toHaveLength(1)
       const area = screen.getByRole('region', { name: `개통 ${mid}` })
       const table = within(area).getByRole('table', { name: '통화' })
       expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['통화', '효력 시작', '종료', '종료 처리', '상태'])
@@ -93,12 +100,16 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
 
   it('② Site 심사 표는 가맹점에서 한 번(Site 패널 안) — MID 개통 영역에는 없다, 버튼·등록자는 그대로', async () => {
     await openDetail(detail())
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const tables = screen.getAllByRole('table', { name: 'Site 심사' })
     expect(tables).toHaveLength(1)
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(within(screen.getByRole('region', { name: 'Site' })).getByRole('table', { name: 'Site 심사' })).toBe(tables[0])
-    for (const mid of [MID1, MID2]) expect(within(screen.getByRole('region', { name: `개통 ${mid}` })).queryByRole('table', { name: 'Site 심사' })).toBeNull()
+    // B4: 고르지 않은 MID 블록은 hidden이라 숨은 요소까지 본다(hidden: true) — 어느 MID 개통 영역에도 Site 심사 표가 없다.
+    for (const mid of [MID1, MID2]) expect(within(screen.getByRole('region', { name: `개통 ${mid}`, hidden: true })).queryByRole('table', { name: 'Site 심사', hidden: true })).toBeNull()
     const row = within(tables[0]!).getByRole('row', { name: '심사 웹 · shop.example.test' })
-    expect(row).toHaveTextContent('대표(PRIMARY)')
+    // 기대값 변경(MERCHANT-IA-001 B4 리뷰 NIT-3): 대표 표시는 머리에서 고른 MID 기준이라 "대표(선택 MID)".
+    expect(row).toHaveTextContent('대표(선택 MID)')
     expect(row).toHaveTextContent('admin:adm_SR')
     expect(within(row).getByRole('button', { name: '심사 승인 요청' })).toBeInTheDocument()
     expect(within(row).getByRole('button', { name: '심사 거절' })).toBeInTheDocument()
@@ -107,11 +118,13 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
 
   it('② MID가 없으면 Site 심사 표도 없다(이전 표시 조건 그대로 — 개통 영역이 있던 때만)', async () => {
     await openDetail(detail({ accounts: [] }))
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(screen.queryByRole('table', { name: 'Site 심사' })).toBeNull()
   })
 
   it('③ 변경 이력: 열은 순번·시각·대상·변경·행위자 — 연산(영문 원문) 없음, 변경은 한국어 라벨만', async () => {
     await openDetail(detail(), [historyEntry(1, 'RegisterMerchant', 'MerchantRegistered'), historyEntry(2, 'ChangeMerchantCode', 'MerchantCodeChanged')])
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const history = screen.getByRole('region', { name: '변경 이력' })
     const table = await within(history).findByRole('table', { name: '변경 이력 목록' })
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['순번', '시각', '대상', '변경', '행위자'])
@@ -129,6 +142,7 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
 
   it('④ 개통 점검표: 작업 배치 이름 없음, ⑦은 "준비 전", 중복 줄 "승인 시작 조건: …" 없음; 참고용 안내는 그대로', async () => {
     await openDetail(detail())
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const list = within(screen.getByRole('region', { name: `개통 ${MID1}` })).getByRole('region', { name: '개통 점검표' })
     for (const word of ['B3-3', 'B4', '이후 배치', 'L-17', '승인 시작 조건:']) expect(list).not.toHaveTextContent(word)
     const item7 = within(list).getByRole('listitem', { name: /^⑦ / })
@@ -142,6 +156,7 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
     // 상세 전체에도 작업 배치 이름이 없다(서비스 개통 현황 포함).
     const detailArea = document.querySelector('.detailarea')!
     for (const word of ['B3-3', 'B4 이후', '이후 배치', '(B3-3·B4)', 'L-17']) expect(detailArea).not.toHaveTextContent(word)
+    await openMerchantTab('개요') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(within(screen.getByRole('region', { name: '서비스 개통 현황' })).getByText('준비 전')).toBeInTheDocument()
   })
 
@@ -158,6 +173,7 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
     expect(document.body).not.toHaveTextContent('개통 상태를 조회')
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await screen.findByRole('region', { name: 'MID·개통' })
     expect(document.body).toHaveTextContent('상세 조회는 감사 기록에 남습니다.')
     expect(document.body).not.toHaveTextContent('조회 전용')
@@ -192,6 +208,7 @@ describe('MERCHANT-IA-001 B1 — 변경 이력 종류 한국어 라벨', () => {
     expect(changeTypeLabel('SomethingNewHappened')).toBe('SomethingNewHappened')
     expect(changeTypeLabel('toString')).toBe('toString')
     await openDetail(detail(), [historyEntry(7, 'DoSomethingNew', 'SomethingNewHappened')])
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const row = await within(screen.getByRole('region', { name: '변경 이력' })).findByRole('row', { name: '7' })
     expect(within(row).getAllByRole('cell')[3]).toHaveTextContent(/^SomethingNewHappened$/)
     expect(row).not.toHaveTextContent('DoSomethingNew')

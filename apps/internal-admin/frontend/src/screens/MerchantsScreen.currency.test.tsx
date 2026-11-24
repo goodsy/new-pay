@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 import { formatKst } from '../lib/format'
 
 /**
@@ -61,6 +62,8 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval={canRequestApproval} now={NOW} newSubmissionId={() => 'c'.repeat(32)} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭): 개통 영역은 'MID·개통' 탭 — 탭 열기 단계만 더한다.
+  await openMerchantTab('MID·개통')
   return { api, area: await screen.findByRole('region', { name: `개통 ${MID1}` }) }
 }
 

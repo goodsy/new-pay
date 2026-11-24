@@ -5,6 +5,7 @@ import { MerchantsScreen } from './MerchantsScreen'
 import type { AdminApi, MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { createScreenMemory, hasUnresolvedRequest, type ScreenMemory } from '../lib/screenMemory'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 
 /**
  * LOCK-UNIFY-001(RECOVERY-ROADMAP 2-1, ONESHOT-LOCK-001 미룬 항목): 개통 영역 1인 명령("개통 등록"·"심사 거절")의 결과 불명 잠금과 submissionId는
@@ -60,6 +61,8 @@ function setup(overrides: Partial<AdminApi>) {
 async function openDetail() {
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  // MERCHANT-IA-001 B4(D-ADMIN-UI-010 ① 탭): 개통 영역은 'MID·개통' 탭 — 탭 열기 단계만 더한다(아래 잠금·재전송 단언 그대로).
+  await openMerchantTab('MID·개통')
   return screen.findByRole('region', { name: `개통 ${MID1}` })
 }
 
@@ -112,6 +115,8 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     const { memory, show } = setup({ rejectSiteReview })
     const first = show()
     let area = await openDetail()
+    // B4: Site 심사는 'Site·계약' 탭(탭 열기만 더함).
+    await openMerchantTab('Site·계약')
     // MERCHANT-IA-001 B1(명세 rev 0.2 §7 B1): Site 심사 표가 MID 개통 영역 밖(가맹점에서 한 번 — Site 패널)으로 옮겨졌다. 찾는 곳만 바꾼다 — a(개통 영역)는 상세가
     // 다시 그려진 뒤를 기다리는 데만 쓰이고, 아래 잠금·재전송 단언은 한 글자도 바꾸지 않는다.
     // MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③): 행 이름이 Site 키 대신 채널 식별값이 되어 찾는 이름만 바꾼다(아래 잠금·재전송 단언은 그대로).
@@ -129,6 +134,7 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     // MERCHANT-DETAIL-VIEW-001: 상세 화면에는 검색 버튼이 없다 — 먼저 '목록으로'(닫기 경로만 바뀜, 잠금 단언 그대로).
     await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     area = await openDetail()
+    await openMerchantTab('Site·계약')
     expect(within(rowOf(area, SITE2)).getByRole('button', { name: '같은 거절 다시 보내기' })).toBeInTheDocument()
     expect(within(rowOf(area, SITE2)).getByLabelText('거절 사유')).toBeDisabled()
     expect(within(rowOf(area, SITE2)).getByLabelText('거절 사유')).toHaveValue('SITE_UNREACHABLE')
@@ -138,6 +144,7 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     // 탭 전환 → 돌아와 다시 열기 → 같은 거절 재전송.
     const back = await leaveAndReturn(first.unmount, memory, show)
     area = back.area
+    await openMerchantTab('Site·계약')
     expect(within(rowOf(area, SITE1)).getByRole('button', { name: '심사 거절' })).toBeDisabled()
     await userEvent.click(within(rowOf(area, SITE2)).getByRole('button', { name: '같은 거절 다시 보내기' }))
     await userEvent.click(within(within(rowOf(area, SITE2)).getByRole('alertdialog')).getByRole('button', { name: '거절 확정' }))

@@ -6,6 +6,7 @@ import { FirstMidRequest } from '../components/FirstMidRequest'
 import type { MerchantDetail, MerchantHistoryEntry, MerchantListItem } from '../api/adminApi'
 import { domOccurrences } from '../test/domScan'
 import { fakeApi } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 
 /**
  * MERCHANT-IA-001 B3(명세 docs/repository/MERCHANT-IA-001-SCREEN-ITEMS.md §7 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"):
@@ -100,6 +101,7 @@ async function openDetail(d: MerchantDetail, overrides: Parameters<typeof fakeAp
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} canRequestApproval canRegisterRevision now={NOW} newSubmissionId={() => 'f'.repeat(32)} onOpenApprovals={vi.fn()} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
+  await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
   await within(await screen.findByRole('region', { name: '변경 이력' })).findByRole('row', { name: '12' })
   return api
 }
@@ -109,10 +111,14 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
     await openDetail(detail())
     noInternalKeys()
     // 열 수 있는 폼을 모두 연다: 새 Revision 등록(선택 Site), 계약 승인 요청, 개통 승인 요청, 심사 승인 요청, 심사 거절, 통화 활성화 요청은 KRW가 있어 없음.
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '새 Revision 등록' }))
     await userEvent.click(screen.getByRole('radio', { name: '선택 Site' }))
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '승인 요청' }))
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '개통 승인 요청' }))
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const review = screen.getByRole('table', { name: 'Site 심사' })
     await userEvent.click(within(review).getByRole('button', { name: '심사 거절' }))
     noInternalKeys()
@@ -120,16 +126,19 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
 
   it('Site = 채널 식별값(같은 채널이 둘이면 상태·순서로 구별), 계약 = "계약 1", 서비스 약정 = "서비스: 카드 PG 결제", MID 발급 근거·Site 배정·적용 확인도 사람용 값', async () => {
     await openDetail(detail())
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const sites = screen.getByRole('table', { name: 'Site 목록' })
     expect(within(sites).getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['채널', '상태', '심사 결과'])
     expect(within(sites).getByRole('row', { name: '웹 · shop.example.test (해지 · 1번째)' })).toBeInTheDocument()
     expect(within(sites).getByRole('row', { name: '웹 · shop.example.test (활성 · 2번째)' })).toBeInTheDocument()
     expect(within(sites).getByRole('row', { name: '앱 · com.example.app' })).toBeInTheDocument()
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const contracts = screen.getByRole('region', { name: '계약·CSA' })
     expect(contracts).toHaveTextContent('계약 1')
     expect(within(contracts).getByRole('table', { name: '계약 1 revision' })).toBeInTheDocument()
     expect(within(within(contracts).getByRole('row', { name: 'revision 2' })).getByText('앱 · com.example.app')).toBeInTheDocument()
     expect(within(contracts).getByRole('list', { name: '계약 1 서비스' })).toHaveTextContent('서비스: 카드 PG 결제')
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const mids = screen.getByRole('region', { name: 'MID·개통' })
     expect(mids).toHaveTextContent(MID1)
     expect(mids).toHaveTextContent('근거 계약 1 Revision 1 · 서비스: 카드 PG 결제')
@@ -141,6 +150,7 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
 
   it('한도 범위는 "서비스: 카드 PG 결제" / "MID <mid>"; 승인 대기 배너는 승인 ID 대신 "승인함에서 보기"', async () => {
     await openDetail(detail())
+    await openMerchantTab('한도') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const limits = screen.getByRole('table', { name: '한도 목록' })
     const rows = within(limits).getAllByRole('row').slice(1)
     expect(rows[0]).toHaveTextContent('서비스: 카드 PG 결제')
@@ -153,6 +163,7 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
   it('승인 요청 결과 배너: 승인 ID 없이 무엇을 요청했는지 + "승인함에서 보기"; 개통 승인 요청 폼 이름은 결제수단', async () => {
     const requestMerchantPaymentMethodActivation = vi.fn(async () => ({ approvalId: APR }))
     await openDetail(detail({ pendingApprovals: [] }), { requestMerchantPaymentMethodActivation })
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '개통 승인 요청' }))
     const form = screen.getByRole('form', { name: '개통 승인 요청 카드' })
     await userEvent.type(within(form).getByLabelText('기관(카드사/VAN) 회신 참조(필수)'), 'VAN-REPLY/2026-0001')
@@ -167,6 +178,7 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
 
   it('변경 이력 대상 = 한국어 종류 이름 + 사람용 값(없으면 종류만), 영문 종류 코드·내부 키 없음', async () => {
     await openDetail(detail())
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const table = screen.getByRole('table', { name: '변경 이력 목록' })
     const target = (seq: number) => within(within(table).getByRole('row', { name: String(seq) })).getAllByRole('cell')[2]!
     expect(target(1)).toHaveTextContent(/^사이트앱 · com\.example\.app$/)
@@ -188,6 +200,7 @@ describe('MERCHANT-IA-001 B3 — 내부 식별자 → 사람용 값', () => {
   it('새 Revision 등록 폼: 제목은 "계약 1", 선택 Site 후보는 채널 식별값 — 보내는 본문에는 내부 키', async () => {
     const registerContractRevision = vi.fn(async () => ({ outcome: 'SUCCEEDED' as const, reference: `${CTR1}#3`, replayed: false }))
     await openDetail(detail(), { registerContractRevision })
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '새 Revision 등록' }))
     const form = screen.getByRole('region', { name: '새 Revision 등록 — 계약 1' })
     await userEvent.click(within(form).getByRole('radio', { name: '선택 Site' }))
@@ -236,10 +249,13 @@ describe('MERCHANT-IA-001 B3 리뷰 반영', () => {
 
   it('MINOR-1: 같은 식별값의 웹·앱 Site는 채널 종류로 구별된다 — Site 목록·Site 심사·Revision 폼 후보(순번 꼬리 없음)', async () => {
     await openDetail(sameIdentifier())
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(within(screen.getByRole('table', { name: 'Site 목록' })).getAllByRole('row').slice(1).map((r) => r.getAttribute('aria-label'))).toEqual(['웹 · shop.example.test', '앱 · shop.example.test'])
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const review = screen.getByRole('table', { name: 'Site 심사' })
     expect(within(review).getByRole('row', { name: '심사 웹 · shop.example.test' })).toBeInTheDocument()
     expect(within(review).getByRole('row', { name: '심사 앱 · shop.example.test' })).toBeInTheDocument()
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await userEvent.click(screen.getByRole('button', { name: '새 Revision 등록' }))
     const form = screen.getByRole('region', { name: '새 Revision 등록 — 계약 1' })
     await userEvent.click(within(form).getByRole('radio', { name: '선택 Site' }))
@@ -258,6 +274,7 @@ describe('MERCHANT-IA-001 B3 리뷰 반영', () => {
 
   it('NIT-1: 승인 대기가 없으면 "심사 승인 요청" 폼까지 열어도 DOM에 내부 키가 없다(폼 이름도 사람용 값)', async () => {
     await openDetail(detail({ pendingApprovals: [] }))
+    await openMerchantTab('Site·계약') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     const review = screen.getByRole('table', { name: 'Site 심사' })
     await userEvent.click(within(within(review).getByRole('row', { name: '심사 앱 · com.example.app' })).getByRole('button', { name: '심사 승인 요청' }))
     expect(screen.getByRole('form', { name: '심사 승인 요청 앱 · com.example.app' })).toBeInTheDocument()

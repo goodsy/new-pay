@@ -90,7 +90,7 @@ export function activationChecklist(detail: MerchantDetail, account: Account, no
 }
 
 /** MERCHANT-IA-001 B1: LATER(아직 서버 기능이 없는 항목)는 작업 배치 이름("이후 배치") 대신 "준비 전". */
-const CHECK_TEXT: Record<CheckState, string> = { MET: '충족', NOT_MET: '미충족', LATER: '준비 전' }
+export const CHECK_TEXT: Record<CheckState, string> = { MET: '충족', NOT_MET: '미충족', LATER: '준비 전' }
 
 /** 통화 기록 한 줄의 [now] 기준 상태(표시만 — 권위는 결제 시점 PAYMENT 판정). */
 function currencyState(c: Account['currencies'][number], now: Date): '효력 전' | '효력 중' | '종료' {
@@ -367,9 +367,9 @@ function SiteRejectForm({ api, site, label, memory, newSubmissionId, onDone, onS
  * 동작은 개통 영역 안에 있던 때와 같다 — 같은 그룹 대기면 2인 버튼만 숨기고 1인 거절은 숨기지 않는다(C-35), 거절 확인 대화상자, 결과 불명 잠금 메모리 키
  * `activation.siteReject.<site>`(LOCK-UNIFY-001 — App 메모리, 다시 연 상세에서 잠긴 폼을 연다, 그 동안 다른 Site 거절은 막는다).
  * 등록자를 표시한다 — D-MOPS-009 ③: 등록자는 그 Site 심사의 2인 승인자가 될 수 없다(판정 근거 = 이 값, 권위 판정은 승인 TX1 403·MASTER).
- * "대표(PRIMARY)"는 [now]에 어느 MID의 열린 대표 Site인지로 표시한다(표시만 — 버튼 조건이 아니다).
+ * "대표(선택 MID)"는 [now]에 고른 MID([selectedAccount])의 열린 대표 Site인지로 표시한다(표시만 — 버튼 조건이 아니다, B4).
  */
-export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected }: {
+export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onRequested, onSessionEnded, newSubmissionId = defaultSubmissionId, memory: injected, selectedAccount = null }: {
   api: AdminApi
   detail: MerchantDetail
   canOperate: boolean
@@ -382,6 +382,8 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
   newSubmissionId?: () => string
   /** 결과 불명 잠금·submissionId를 둘 App 메모리(LOCK-UNIFY-001). 없으면 이 표 자체 메모리. */
   memory?: ScreenMemory
+  /** "대표(선택 MID)" 표시 기준 MID(MERCHANT-IA-001 B4 — B1 리뷰 MINOR-3: 여러 MID일 때 머리에서 고른 MID의 대표만). 없으면(MID 없음) 대표 표시 없음. */
+  selectedAccount?: MerchantDetail['accounts'][number] | null
 }) {
   const [own] = useState(createScreenMemory)
   const memory = injected ?? own
@@ -397,7 +399,7 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
   }, [lockedReject])
   const merchantId = detail.merchant.merchantId
   const sitePending = pendingIn(detail, APPROVAL_GROUPS.SITE_REVIEW)
-  const primaries = new Set(detail.accounts.map((account) => openPrimarySite(account, now)).filter((site): site is string => site !== null))
+  const primary = selectedAccount === null ? null : openPrimarySite(selectedAccount, now)
 
   return (
       <Table aria-label="Site 심사">
@@ -414,7 +416,7 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
                 <TableCell>
                   {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자·메모리 키로만, DOM에는 사람용 값): Site 키 대신 채널 식별값. */}
                   <span className="flex flex-col"><span className="font-mono text-xs">{siteLabel(detail, site.merchantSiteId)}</span>
-                    {primaries.has(site.merchantSiteId) && <span className="text-xs text-muted-foreground">대표(PRIMARY)</span>}</span>
+                    {site.merchantSiteId === primary && <span className="text-xs text-muted-foreground">대표(선택 MID)</span>}</span>
                 </TableCell>
                 <TableCell><StatusBadge code={site.lifecycle} /></TableCell>
                 <TableCell>{site.review === null ? <StatusBadge code="PENDING" /> : <StatusBadge code={site.review.decision} />}</TableCell>
@@ -522,7 +524,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
                         evidenceLabel="기관(카드사/VAN) 회신 참조"
                         hint="카드사·VAN 심사 회신 번호 — 영문·숫자와 . _ : # / - 만, 1~128자(자유 문구 불가)"
                         send={(evidenceRef) => api.requestMerchantPaymentMethodActivation({ merchantId, merchantAccountId: account.merchantAccountId, activationId: method.activationId, evidenceRef })}
-                        onRequested={(id) => { setRequestFor(null); onRequested(id, '결제수단 개통 승인') }}
+                        onRequested={(id) => { setRequestFor(null); onRequested(id, `결제수단 개통 승인(MID ${account.merchantAccountId})`) }}
                         onSessionEnded={onSessionEnded}
                       />
                     ) : (
@@ -598,7 +600,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
       {canOperate && midActive && !currencyPending && !unendedKrw && (
         currencyRequest ? (
           <CurrencyRequest api={api} merchantId={merchantId} account={account} now={now} onSessionEnded={onSessionEnded}
-            onRequested={(id) => { setCurrencyRequest(false); onRequested(id, '통화 활성화') }} />
+            onRequested={(id) => { setCurrencyRequest(false); onRequested(id, `통화 활성화(MID ${account.merchantAccountId})`) }} />
         ) : (
           <div><Button type="button" variant="outline" size="sm" onClick={() => setCurrencyRequest(true)}>통화 활성화 요청</Button></div>
         )

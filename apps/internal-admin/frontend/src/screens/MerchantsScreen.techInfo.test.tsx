@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MerchantsScreen } from './MerchantsScreen'
 import type { MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { fakeApi } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 
 /**
  * MERCHANT-DETAIL-VIEW-001 2단계 — D-ADMIN-UI-009 ②(사용자 결정 2026-11-24 "기술 정보 접기"):
@@ -40,7 +41,8 @@ async function openDetail(detail: MerchantDetail = DETAIL) {
   render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
   await userEvent.click(screen.getByRole('button', { name: '검색' }))
   const row = await screen.findByRole('row', { name: CODE1 })
-  return { row, open: async () => { await userEvent.click(within(row).getByRole('button', { name: '상세' })); return screen.findByRole('group', { name: '기술 정보' }) } }
+  // B4: 상세를 열고 탭이 그려질 때까지 기다린다(기술 정보는 이제 탭 — D-ADMIN-UI-010 ①).
+  return { row, open: async () => { await userEvent.click(within(row).getByRole('button', { name: '상세' })); return screen.findByRole('tab', { name: '기술 정보' }) } }
 }
 
 describe('MerchantsScreen — technical info folded (D-ADMIN-UI-009 ②)', () => {
@@ -53,49 +55,45 @@ describe('MerchantsScreen — technical info folded (D-ADMIN-UI-009 ②)', () =>
     expect(within(row).queryByText('7')).toBeNull()
   })
 
-  it('the detail starts with "기술 정보" closed (native details, .btn summary) after the panels and before 변경 이력; 기본정보 has no 권리 revision', async () => {
-    const techInfo = await (await openDetail()).open()
-    expect(techInfo.tagName).toBe('DETAILS')
-    expect(techInfo).not.toHaveAttribute('open')
-    const summary = techInfo.querySelector(':scope > summary')!
-    expect(summary).toHaveTextContent('기술 정보')
-    expect(summary).toHaveClass('btn')
+  // 기대값 변경(MERCHANT-IA-001 B4 — 사용자 결정 D-ADMIN-UI-010 ① "머리 요약 + 탭 6개(… / 기술 정보)"): 접힌 details 대신 마지막 탭 "기술 정보".
+  // 기본 화면(개요 탭)에서 보이지 않는다는 D-ADMIN-UI-009 ②의 뜻과 값·문구·기록 없음 안내는 그대로다.
+  it('"기술 정보" is the last tab, not selected at first (the 개요 tab is); 기본정보 has no 권리 revision; 권리·전파 sections live only in that tab', async () => {
+    await (await openDetail()).open()
+    const tabs = screen.getAllByRole('tab').filter((t) => t.closest('[role="tablist"]')?.getAttribute('aria-label') === '가맹점 상세 보기')
+    expect(tabs.map((t) => t.getAttribute('aria-label'))).toEqual(['개요', 'Site·계약', 'MID·개통', '한도', '변경 이력', '기술 정보'])
+    const tech = screen.getByRole('tab', { name: '기술 정보' })
+    expect(tech).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: '개요' })).toHaveAttribute('aria-selected', 'true')
+    const panel = document.getElementById(tech.getAttribute('aria-controls')!)!
+    expect(panel).not.toBeVisible()
     expect(within(screen.getByRole('region', { name: '기본정보' })).queryByText('권리 revision')).toBeNull()
-    // 기술 정보 밖에는 권리 revision·권리 전파가 없다.
-    const outside = Array.from(document.querySelectorAll('section[aria-label]')).filter((s) => !techInfo.contains(s)).map((s) => s.getAttribute('aria-label'))
+    const outside = Array.from(document.querySelectorAll('section[aria-label]')).filter((s) => !panel.contains(s)).map((s) => s.getAttribute('aria-label'))
     expect(outside).not.toContain('권리 전파 상태')
     expect(outside).not.toContain('가맹점 권리')
-    // 자리: 한도 Panel 뒤, 변경 이력 Panel 앞(권리 전파 패널이 있던 자리).
-    const limits = screen.getByRole('region', { name: '한도' })
-    const history = screen.getByRole('region', { name: '변경 이력' })
-    expect(limits.compareDocumentPosition(techInfo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(techInfo.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 
-  it('opening it shows the revision and the propagation values unchanged (발행·결제 서비스 수신·효력); clicking again folds it', async () => {
-    const techInfo = await (await openDetail()).open()
-    const summary = techInfo.querySelector(':scope > summary') as HTMLElement
-    await userEvent.click(summary)
-    expect(techInfo).toHaveAttribute('open')
-    const rights = within(techInfo).getByRole('region', { name: '가맹점 권리' })
+  it('opening the tab shows the revision and the propagation values unchanged (발행·결제 서비스 수신·효력); going back to 개요 hides it again', async () => {
+    await (await openDetail()).open()
+    await openMerchantTab('기술 정보')
+    const rights = screen.getByRole('region', { name: '가맹점 권리' })
     expect(within(rights).getByText('권리 revision')).toBeInTheDocument()
     expect(within(rights).getByText('7')).toHaveClass('font-mono')
-    const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
+    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
     expect(propagation).toHaveTextContent('발행')
     expect(propagation).toHaveTextContent('최신 revision 7')
     expect(propagation).toHaveTextContent('결제 서비스 수신')
     expect(propagation).toHaveTextContent('수신 확인 revision 6')
     expect(propagation).toHaveTextContent('효력')
     expect(propagation).toHaveTextContent('효력 확인 전')
-    await userEvent.click(summary)
-    expect(techInfo).not.toHaveAttribute('open')
+    await openMerchantTab('개요')
+    expect(screen.queryByRole('region', { name: '가맹점 권리' })).toBeNull()
   })
 
-  it('no propagation record: the opened tech info still shows the revision and the unchanged "기록이 없습니다" notice', async () => {
-    const techInfo = await (await openDetail({ ...DETAIL, propagation: null })).open()
-    await userEvent.click(techInfo.querySelector(':scope > summary') as HTMLElement)
-    expect(within(techInfo).getByRole('region', { name: '가맹점 권리' })).toHaveTextContent('7')
-    expect(within(techInfo).getByRole('region', { name: '권리 전파 상태' })).toHaveTextContent('권리 전파 기록이 없습니다.')
+  it('no propagation record: the tech info tab still shows the revision and the unchanged "기록이 없습니다" notice', async () => {
+    await (await openDetail({ ...DETAIL, propagation: null })).open()
+    await openMerchantTab('기술 정보')
+    expect(screen.getByRole('region', { name: '가맹점 권리' })).toHaveTextContent('7')
+    expect(screen.getByRole('region', { name: '권리 전파 상태' })).toHaveTextContent('권리 전파 기록이 없습니다.')
   })
 })

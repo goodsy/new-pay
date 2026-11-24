@@ -5,6 +5,7 @@ import { MerchantsScreen, showMerchantListIn } from './MerchantsScreen'
 import type { AdminApi, MerchantDetail, MerchantListItem } from '../api/adminApi'
 import { createScreenMemory, hasUnresolvedRequest } from '../lib/screenMemory'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { openMerchantTab } from '../test/merchantDetailTabs'
 import { domOccurrences } from '../test/domScan'
 
 /**
@@ -89,6 +90,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(back().querySelector('span[aria-hidden="true"]')).toHaveTextContent('←')
     expect(back().closest('.mapnote')).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: '가맹점 조회' })).toBeInTheDocument()
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(await screen.findByRole('region', { name: `개통 ${MID1}` })).toBeInTheDocument()
     noInternalKeys()
     expect(storageIsEmpty()).toBe(true)
@@ -134,6 +136,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     const first = show()
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await openRow(MER1)
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     await screen.findByRole('region', { name: `개통 ${MID1}` })
     first.unmount()
 
@@ -180,6 +183,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
 
     show()
     expect(await detailHeading(MER1)).toBeInTheDocument()
+    await openMerchantTab('변경 이력') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     expect(await screen.findByRole('table', { name: '변경 이력 목록' })).toBeInTheDocument()
     expect(merchantHistory).toHaveBeenCalledTimes(2)
     expect(merchantHistory.mock.calls.map((c) => c[0])).toEqual([MER1, MER1])
@@ -213,6 +217,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     show()
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await openRow(MER1)
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     let area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     await userEvent.click(within(area).getByRole('button', { name: '개통 등록(카드)' }))
     await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' })
@@ -223,6 +228,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(hasUnresolvedRequest(revisionMemory)).toBe(true)
 
     await openRow(MER1)
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     expect(within(area).queryByRole('button', { name: '개통 등록(카드)' })).toBeNull()
     await userEvent.click(within(area).getByRole('button', { name: '같은 개통 등록 다시 보내기' }))
@@ -239,6 +245,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     show()
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await openRow(MER1)
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     let area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     await userEvent.click(within(area).getByRole('button', { name: '개통 등록(카드)' }))
     expect(hasUnresolvedRequest(revisionMemory)).toBe(true)
@@ -247,6 +254,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(list()).toBeInTheDocument()
     expect(hasUnresolvedRequest(revisionMemory)).toBe(true)
     await openRow(MER1)
+    await openMerchantTab('MID·개통') // MERCHANT-IA-001 B4: 탭 열기 단계만 더함
     area = await screen.findByRole('region', { name: `개통 ${MID1}` })
     expect(within(area).getByRole('button', { name: '개통 등록(카드)' })).toBeDisabled()
     expect(registerPaymentMethodActivation).toHaveBeenCalledTimes(1)

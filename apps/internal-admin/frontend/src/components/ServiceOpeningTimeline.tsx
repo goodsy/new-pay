@@ -7,7 +7,7 @@ export type OpeningState = 'DONE' | 'IN_PROGRESS' | 'WAITING' | 'NOT_STARTED' | 
 export interface OpeningStep { key: string; label: string; state: OpeningState; note?: string }
 
 /** MERCHANT-IA-001 B1(명세 rev 0.2 §3.2, Q-IA-5 답 "준비 전이라는 말로만"): LATER는 작업 배치 이름('B4 이후') 대신 "준비 전". */
-const STATE_TEXT: Record<OpeningState, string> = { DONE: '완료', IN_PROGRESS: '진행 중', WAITING: '승인 대기', NOT_STARTED: '미시작', LATER: '준비 전' }
+export const STATE_TEXT: Record<OpeningState, string> = { DONE: '완료', IN_PROGRESS: '진행 중', WAITING: '승인 대기', NOT_STARTED: '미시작', LATER: '준비 전' }
 
 /**
  * 서비스 개통 현황(ADMIN-UI-MERCHANT-001 — 참고 시안 #merchant 타임라인, 사용자 지시 2026-11-11): **기존 상세 응답 값으로만** 계산한다(새 API·샘플 데이터 없음 — D-ADMIN-UI-003).

@@ -137,6 +137,7 @@
 | 상태 태그 | `StatusBadge`(`tag`+tone). 상태→tone 규칙은 한 곳 | shadcn Badge, `BadgeVariant` 타입 |
 | 알림 | `ErrorNotice`·`StatusNotice`·`WarningNote`(`.notice`·`.banner`) | shadcn Alert 2 |
 | 제목 줄 | `MapNote`(목록·등록 전환 버튼 포함), `WorkspaceHeader` | `PageHeader`: 사용처를 확인한 뒤 하나로 |
+| 상세 탭 | `DetailTabs`(MERCHANT-IA-001 B4 — 사업자 상세·가맹점 상세). tablist/tab/tabpanel·aria-controls·roving tabIndex·좌우/Home/End 자동 선택, 패널은 `hidden`(언마운트 없음 — 결과 불명 잠금 폼·입력 보존), 탭 알림(`alert` → aria-describedby). 모양은 사업자 상세 탭의 기존 class 그대로(새 class·토큰 없음 — 정본 class·토큰으로 옮기는 일은 후속) | BusinessesScreen 지역 tablist(교체함). 메뉴 카드 탭 막대 `MenuCard`(`.tabs`)는 화면 탭이라 별개 |
 | 등록 단계 | `RegistrationStep`(모양 하나) | `workspace`·`rows` 플래그로 그린 세 모양 |
 | 로딩·빈 상태 | `Spinner`, `EmptyRow` | — |
 | 셸 | `AppLayout`, 사이드바, 상단 경로 | — |
