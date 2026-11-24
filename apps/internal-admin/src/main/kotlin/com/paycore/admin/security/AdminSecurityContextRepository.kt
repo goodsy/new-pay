@@ -18,6 +18,7 @@ import java.time.Clock
  * 계정 security_version(세대 없이 security_version만 오르는 사건도 세션을 끝낸다 — S4 리뷰 nit), 절대 한도 안.
  * 무효면 세션을 폐기하고 사유를 요청 속성에 남긴다(401 본문: 세대 불일치 `SESSION_REPLACED`, 만료·손상·한도 초과 `SESSION_EXPIRED` — [JsonErrorResponses]).
  * 권한(authority)은 계정 현재 활성 역할(`ROLE_<역할>`)이며 세션에는 역할이 없다.
+ * 데모 간편 로그인 표시(`loginMethod=DEMO_QUICK`)가 있는 세션은 그 기능이 지금 켜져 있을 때만 유효하다(꺼져 있으면 `SESSION_EXPIRED` — ADMIN-DEMO-LOGIN-001 MINOR-B).
  */
 class AdminSecurityContextRepository(private val sessions: AdminSessionQuery, private val clock: Clock = Clock.systemUTC()) : SecurityContextRepository {
 
@@ -52,6 +53,8 @@ class AdminSecurityContextRepository(private val sessions: AdminSessionQuery, pr
         if (AdminSessionState.isCorrupt(session::getAttribute)) return invalidate(request, SESSION_EXPIRED)
         val state = AdminSessionState.read(session::getAttribute) ?: return null
         if (state.stage != AdminSessionState.Stage.AUTHENTICATED) return null
+        // ADMIN-DEMO-LOGIN-001 리뷰 MINOR-B: 기능을 끈 뒤(재기동) 남은 데모 간편 로그인 세션은 쓰지 않는다 — 만료와 같이 폐기(401 SESSION_EXPIRED).
+        if (state.isDemoQuick && !sessions.demoQuickLoginActive()) return invalidate(request, SESSION_EXPIRED)
         val view = sessions.current(state.actorId) ?: return invalidate(request, SESSION_EXPIRED)
         if (!clock.instant().isBefore(state.authenticatedAt!!.plus(sessions.policy().absolute))) return invalidate(request, SESSION_EXPIRED)
         if (!view.isActive || view.sessionGeneration != state.sessionGeneration || view.securityVersion != state.securityVersion) return invalidate(request, SESSION_REPLACED)

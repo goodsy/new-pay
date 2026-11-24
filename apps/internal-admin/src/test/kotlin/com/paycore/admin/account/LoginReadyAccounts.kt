@@ -44,17 +44,19 @@ class LoginReadyAccounts(
         override fun toString(): String = "LoginReady(${account.id})"
     }
 
-    fun withoutRoles(password: String? = null): LoginReady = create(emptyList(), RoleEventActor.SystemBootstrap, null, password)
+    /** [login]을 주면 그 로그인 이름(설정에 미리 적는 이름이 필요한 시험 — ADMIN-DEMO-LOGIN-001), 없으면 actor ID에서 만든 이름. */
+    fun withoutRoles(password: String? = null, login: String? = null): LoginReady = create(emptyList(), RoleEventActor.SystemBootstrap, null, password, login)
 
-    fun bootstrapped(role: AdminRole): LoginReady {
+    fun bootstrapped(role: AdminRole, login: String? = null): LoginReady {
         require(role in AdminAccountFixture.BOOTSTRAP_ROLES) { "bootstrap creates only SECURITY_ADMIN or APPROVER accounts" }
-        return create(listOf(role), RoleEventActor.SystemBootstrap, null)
+        return create(listOf(role), RoleEventActor.SystemBootstrap, null, login = login)
     }
 
-    private fun create(roles: List<AdminRole>, actor: RoleEventActor, approvalId: String?, fixedPassword: String? = null): LoginReady {
+    private fun create(roles: List<AdminRole>, actor: RoleEventActor, approvalId: String?, fixedPassword: String? = null, login: String? = null): LoginReady {
         val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
         // 부트스트랩 역할 계정은 시스템 경로(배제 대상 없음), 역할 없는 계정은 1인 생성 경로(Fixture 생성자 — D-ADMIN1-015).
-        var account = AdminAccountFixture.pending(creator = if (actor == RoleEventActor.SystemBootstrap && roles.isNotEmpty()) null else AdminAccountFixture.FIXTURE_CREATOR)
+        val creator = if (actor == RoleEventActor.SystemBootstrap && roles.isNotEmpty()) null else AdminAccountFixture.FIXTURE_CREATOR
+        var account = if (login == null) AdminAccountFixture.pending(creator = creator) else AdminAccountFixture.pending(login = login, creator = creator)
         val events = mutableListOf<RoleEvent>()
         for (role in roles) {
             val change = account.grantRole(role, actor, approvalId, now) as AccountChange.Applied

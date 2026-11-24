@@ -1,6 +1,7 @@
 package com.paycore.admin.account.application
 
 import com.paycore.admin.account.application.provided.AdminOwnedCommandExecutor
+import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.OwnedCommandEvidence
 import com.paycore.admin.account.application.provided.OwnedCommandOutcome
 import com.paycore.admin.account.application.provided.ParticipantView
@@ -10,6 +11,7 @@ import com.paycore.admin.account.application.required.AdminClock
 import com.paycore.admin.account.application.required.AdminRoleEventStore
 import com.paycore.admin.account.application.required.AdminSecuritySettings
 import com.paycore.admin.account.application.required.CipherContext
+import com.paycore.admin.account.application.required.DemoQuickLoginSettings
 import com.paycore.admin.account.application.required.EnrollmentCodeGenerator
 import com.paycore.admin.account.application.required.EnrollmentCodeStore
 import com.paycore.admin.account.application.required.RecoveryEpisodeStore
@@ -25,6 +27,8 @@ import com.paycore.admin.account.domain.AdminRole
 import com.paycore.admin.account.domain.EnrollmentCode
 import com.paycore.admin.account.domain.EnrollmentPurpose
 import com.paycore.admin.account.domain.RoleSuspensions
+import com.paycore.admin.audit.application.provided.AdminAuditRecorder
+import com.paycore.admin.audit.application.provided.AuditRecord
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -49,6 +53,8 @@ class AdminOwnedCommandService(
     private val verifier: TotpVerifier,
     private val clock: AdminClock,
     private val settings: AdminSecuritySettings,
+    private val demoQuickLogin: DemoQuickLoginSettings,
+    private val recorder: AdminAuditRecorder,
 ) : AdminOwnedCommandExecutor {
 
     override fun lockOpenRecoveryEpisode(): Boolean = retryLaterOnConflict { episodes.lockOpen() != null }
@@ -76,6 +82,26 @@ class AdminOwnedCommandService(
         val accepted = step?.let { account.acceptTotpStep(it, now()) } as? AccountChange.Applied ?: return@retryLaterOnConflict StepUpResult.FAILED
         replace(current, accepted.account)
         StepUpResult.ACCEPTED
+    }
+
+    /**
+     * ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션 **그리고** 켜짐(DEMO + enabled)일 때만 TOTP를 건너뛴다 — 계정은 잠근 현재 행이 ACTIVE여야 하고(아니면 FAILED —
+     * 기존과 같은 결과), 같은 TX에 감사 `STEP_UP_SKIPPED`·`DEMO_SKIPPED`·`stepUp=DEMO_SKIPPED;method=DEMO_QUICK`(상관 ID로 승인·마스킹 해제 감사와 묶인다)를 남긴다.
+     * 실패 계수·`last_totp_step`은 바꾸지 않는다. 그 밖은 [consumeStepUpTotp] 그대로.
+     */
+    override fun verifyStepUp(actorId: String, code: String, context: AdminRequestContext): StepUpResult {
+        if (!(context.demoQuickSession && demoQuickLogin.active)) return consumeStepUpTotp(actorId, code)
+        return retryLaterOnConflict {
+            val account = current(actorId)?.value ?: return@retryLaterOnConflict StepUpResult.FAILED
+            if (account.status != AccountStatus.ACTIVE) return@retryLaterOnConflict StepUpResult.FAILED
+            recorder.record(
+                AuditRecord(
+                    occurredAt = now(), actorKind = "ADMIN", actorId = account.id.value, actorDisplayName = account.displayName.value, action = STEP_UP_SKIPPED,
+                    resultCode = DEMO_SKIPPED, correlationId = context.correlationId, remoteIp = context.remoteIp, detail = "stepUp=DEMO_SKIPPED;method=DEMO_QUICK",
+                ),
+            )
+            StepUpResult.DEMO_SKIPPED
+        }
     }
 
     override fun rolesSuspendedBy(targetActorId: String, causeApprovalId: String): Set<String> = retryLaterOnConflict {
@@ -149,5 +175,7 @@ class AdminOwnedCommandService(
         val CODE = Regex("^[0-9]{6}$")
         val ESCALATIONS = setOf("ROLE_GRANT", "ROLE_REACTIVATE")
         const val CREDENTIAL_ISSUER = "CREDENTIAL_ISSUER"
+        const val STEP_UP_SKIPPED = "STEP_UP_SKIPPED"
+        const val DEMO_SKIPPED = "DEMO_SKIPPED"
     }
 }

@@ -941,12 +941,17 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "DEMOLOGIN-scoped",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/ADMIN-DEMO-LOGIN-001-2026-11-24T045704Z.json"
+      },
       "openItems": [
         "보안 기능(데모 한정): 독립 리뷰 필수, 운영 준비 체크리스트에 '반드시 끔' 항목",
-        "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인"
+        "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인",
+        "구현 완료(명세 rev 0.3): 데모 계정 고르기 간편 로그인(정상 세션·CSRF·세대, 감사 LOGIN_SUCCEEDED method=DEMO_QUICK), 켜짐 = DEMO + enabled + 허용 계정(LIVE·모든 주소 허용 목록이면 기동 거부, WARN+gauge), 재인증 생략(③: 간편 로그인 세션만, 요청마다 판정, STEP_UP_SKIPPED 같은 TX 감사, 2인 승인 검사 먼저), 기능 끈 뒤 남은 간편 세션 폐기, deployment-mode 비교 정규화, 프런트 패널·배너·계정 바꾸기·승인 화면 생략 안내, 감사 라벨. 독립 보안 리뷰 PASS → 재리뷰 PASS(MINOR-A~C·NIT 반영). 기존 시험 기대값 불변(LoginReadyAccounts 선택 인자만)"
       ],
-      "nextResumeAction": "명세 초안 → 구현 → 리뷰 → SCOPED → 커밋 → Demo 설정 켜기",
+      "nextResumeAction": "SCOPED(분리 작업 트리) → 커밋 → ~/paycore-demo 설정 켜기 + admin 재빌드 → 사용자 확인",
       "detail": null
     },
     {

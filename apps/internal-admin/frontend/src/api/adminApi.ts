@@ -1,9 +1,24 @@
-import { apiFetch, type ApiDeps } from './client'
+import { ApiError, apiFetch, type ApiDeps } from './client'
 
 export interface Me {
   actorId: string
   displayName: string
   roles: string[]
+  /**
+   * ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션이고 서버에서 켜져 있으면 true(그 밖에는 필드 없음). 화면은 승인·반려의 TOTP 입력 대신 "데모: 재인증 생략" 안내를 보인다
+   * — 생략 판정은 서버.
+   */
+  demoQuickLogin?: boolean
+}
+
+/**
+ * 데모 간편 로그인 버튼 하나(ADMIN-DEMO-LOGIN-001 §3 — Demo 전용 임시 기능). 비밀 없음. [available]이 false면(잠김·정지·등록 미완료) 버튼을 막는다.
+ */
+export interface DemoQuickLoginAccount {
+  loginName: string
+  displayName: string
+  roles: string[]
+  available: boolean
 }
 
 export interface EnrollStart {
@@ -929,6 +944,13 @@ export interface AdminApi {
   password(loginName: string, password: string): Promise<{ next: string }>
   totp(code: string): Promise<Me>
   logout(): Promise<void>
+  /**
+   * ADMIN-DEMO-LOGIN-001: 데모 간편 로그인 계정 목록. 서버가 꺼져 있으면(엔드포인트 없음 — 404) null. 선택 메서드 — 없으면 꺼짐으로 본다(시험 대역 기본).
+   * 켜짐 판정·권한은 서버, 화면은 이 결과로 버튼·표시만 한다.
+   */
+  demoQuickLoginOptions?(): Promise<DemoQuickLoginAccount[] | null>
+  /** ADMIN-DEMO-LOGIN-001: 그 계정의 정상 세션 발급(CSRF 세션 필요 — 호출 전에 csrf()). 성공 본문은 me()와 같다. */
+  demoQuickLogin?(loginName: string): Promise<Me>
   enrollStart(code: string): Promise<EnrollStart>
   enrollPassword(password: string): Promise<void>
   enrollTotp(): Promise<{ otpauthUri: string }>
@@ -1036,6 +1058,15 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     password: (loginName, password) => call('/api/auth/password', 'POST', { loginName, password }),
     totp: (code) => call<Me>('/api/auth/totp', 'POST', { code }),
     logout: () => call<void>('/api/auth/logout', 'POST'),
+    demoQuickLoginOptions: () =>
+      call<{ accounts: DemoQuickLoginAccount[] }>('/api/auth/demo-quick-login').then(
+        (body) => body.accounts,
+        (e: unknown) => {
+          if (e instanceof ApiError && e.status === 404) return null
+          throw e
+        },
+      ),
+    demoQuickLogin: (loginName) => call<Me>('/api/auth/demo-quick-login', 'POST', { loginName }),
     enrollStart: (code) => call<EnrollStart>('/api/enroll/start', 'POST', { code }),
     enrollPassword: (password) => call<void>('/api/enroll/password', 'POST', { password }),
     enrollTotp: () => call('/api/enroll/totp', 'POST'),

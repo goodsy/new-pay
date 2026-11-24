@@ -211,7 +211,7 @@ class AcquiringOpsApprovalService(
         val approver = participants[approverId]
         if (approver == null || !approver.holds(ApprovalParticipants.APPROVER_ROLE)) throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", fileId, request.id)
         if (approver.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
-        if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
+        if (executor.verifyStepUp(approverId, command.totpCode, command.context) == StepUpResult.FAILED) {
             status.setRollbackOnly()
             return Tx1.Done(ApprovalOutcome.StepUpFailed)
         }

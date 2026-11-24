@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createAdminApi, type AdminApi, type Me } from './api/adminApi'
+import { DemoQuickLoginStatus } from './components/DemoQuickLoginStatus'
 import { MenuCard } from './components/MenuCard'
 import { MenuSearch } from './components/MenuSearch'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -242,6 +243,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
           <b>{me.displayName}</b>
           <small title={me.roles.join(', ')}>{`역할: ${me.roles.map(labelOf).join(', ')}`}</small>
           <ThemeToggle value={themePreference} onChange={setThemePreference} />
+          {/* ADMIN-DEMO-LOGIN-001: 서버에서 데모 간편 로그인이 켜져 있을 때만 표시 + 계정 바꾸기(로그아웃 → 데모 계정 선택). 꺼져 있으면 아무것도 없다. */}
+          <DemoQuickLoginStatus api={api} onSwitch={() => void logout()} />
           <button type="button" className="btn" onClick={logout}>
             로그아웃
           </button>

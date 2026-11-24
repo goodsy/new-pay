@@ -20,6 +20,13 @@ interface AdminOwnedCommandExecutor {
 
     fun consumeStepUpTotp(actorId: String, code: String): StepUpResult
 
+    /**
+     * 재인증 판정의 단일 진입점(승인·반려·마스킹 해제 — ADMIN-DEMO-LOGIN-001 결정 ③). [context]가 데모 간편 로그인 세션이고 서버 켜짐 조건(DEMO + enabled)이면
+     * TOTP 검증을 건너뛰고 [StepUpResult.DEMO_SKIPPED](같은 TX에 감사 1행 — 실패 계수·TOTP 단계 불변), 아니면 [consumeStepUpTotp]와 완전히 같다.
+     * 기본 구현은 항상 [consumeStepUpTotp](시험 대역 호환) — 실제 구현은 account application.
+     */
+    fun verifyStepUp(actorId: String, code: String, context: AdminRequestContext): StepUpResult = consumeStepUpTotp(actorId, code)
+
     /** [targetActorId]에서 원인 [causeApprovalId]로 정지된 채 남아 있는 역할(역할 이벤트 이력 기준). */
     fun rolesSuspendedBy(targetActorId: String, causeApprovalId: String): Set<String>
 
@@ -44,7 +51,8 @@ data class ParticipantView(
     fun holds(role: String): Boolean = isActive && role in activeRoles
 }
 
-enum class StepUpResult { ACCEPTED, FAILED }
+/** [DEMO_SKIPPED]: 데모 간편 로그인 세션 재인증 생략(결정 ③) — 호출자에게는 통과(FAILED가 아님). */
+enum class StepUpResult { ACCEPTED, FAILED, DEMO_SKIPPED }
 
 /** 실행 증거 — 모두 잠근 승인 행의 값. [kind]는 승인 종류 이름(account의 실행 종류와 같은 이름 6종). */
 data class OwnedCommandEvidence(

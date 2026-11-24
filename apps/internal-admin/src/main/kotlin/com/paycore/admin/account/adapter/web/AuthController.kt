@@ -4,6 +4,7 @@ import com.paycore.admin.account.application.provided.AdminLoginUseCase
 import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionState
+import com.paycore.admin.account.application.provided.DemoQuickLoginUseCase
 import com.paycore.admin.account.application.provided.PasswordStepResult
 import com.paycore.admin.account.application.provided.PasswordVerified
 import com.paycore.admin.account.application.provided.TotpStepResult
@@ -11,9 +12,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.servlet.http.HttpSession
 import org.springframework.http.CacheControl
-import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.security.web.csrf.CsrfTokenRepository
@@ -37,6 +36,8 @@ class AuthController(
     private val login: AdminLoginUseCase,
     private val sessions: AdminSessionQuery,
     private val csrfTokens: CsrfTokenRepository,
+    private val writer: LoginSessionWriter,
+    private val demoQuickLogin: DemoQuickLoginUseCase,
 ) {
 
     @GetMapping("/csrf")
@@ -109,24 +110,25 @@ class AuthController(
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build()
     }
 
+    /**
+     * 계정 현재값. ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션 **그리고** 서버 켜짐이면 `"demoQuickLogin":true`를 덧붙인다(화면이 TOTP 입력 대신 "재인증 생략"
+     * 안내를 그리는 표시용 — 판정은 서버). 일반 세션 응답은 기존 형태 그대로(필드 없음).
+     */
     @GetMapping("/me")
-    fun me(authentication: Authentication): ResponseEntity<out Any> = me(authentication.name)
+    fun me(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val demo = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.isDemoQuick == true && demoQuickLogin.isActive()
+        return me(authentication.name, demo)
+    }
 
-    private fun me(actorId: String): ResponseEntity<out Any> {
+    private fun me(actorId: String, demoQuickLogin: Boolean = false): ResponseEntity<out Any> {
         val view = sessions.current(actorId) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "UNAUTHENTICATED"))
-        return ok(linkedMapOf("actorId" to view.actorId, "displayName" to view.displayName, "roles" to view.roles.sorted()))
+        val body = linkedMapOf<String, Any>("actorId" to view.actorId, "displayName" to view.displayName, "roles" to view.roles.sorted())
+        if (demoQuickLogin) body["demoQuickLogin"] = true
+        return ok(body)
     }
 
-    /** 세션 ID 재발급 → 로그인 상태 기록 → CSRF 토큰 재발급(쿠키 전달). */
-    private fun renew(request: HttpServletRequest, response: HttpServletResponse, state: AdminSessionState): HttpSession {
-        request.changeSessionId()
-        val session = request.getSession(false)!!
-        state.toAttributes().forEach { (name, value) -> if (value == null) session.removeAttribute(name) else session.setAttribute(name, value) }
-        val token = csrfTokens.generateToken(request)
-        csrfTokens.saveToken(token, request, response)
-        writeXsrfCookie(response, token.token)
-        return session
-    }
+    /** 세션 ID 재발급 → 로그인 상태 기록 → CSRF 토큰 재발급 — 데모 간편 로그인과 같은 경로([LoginSessionWriter]). */
+    private fun renew(request: HttpServletRequest, response: HttpServletResponse, state: AdminSessionState): HttpSession = writer.renew(request, response, state)
 
     private fun clearState(session: HttpSession) = AdminSessionState.NAMES.forEach(session::removeAttribute)
 
@@ -137,11 +139,7 @@ class AuthController(
     private fun invalidCredentials(): ResponseEntity<Map<String, String>> =
         ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore()).body(mapOf("error" to "INVALID_CREDENTIALS"))
 
-    private fun writeXsrfCookie(response: HttpServletResponse, token: String) {
-        // 이름·속성은 security.XsrfCookieFilter와 같다(`__Host-` — Secure·Path=/·Domain 없음, JS가 읽어야 하므로 HttpOnly 아님). LoginHttpSpec이 고정.
-        val cookie = ResponseCookie.from(XSRF_COOKIE, token).path("/").secure(true).httpOnly(false).sameSite("Strict").build()
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString())
-    }
+    private fun writeXsrfCookie(response: HttpServletResponse, token: String) = writer.writeXsrfCookie(response, token)
 
     class PasswordRequest(val loginName: String?, val password: String?) {
         override fun toString(): String = "PasswordRequest(***)"
@@ -149,9 +147,5 @@ class AuthController(
 
     class TotpRequest(val code: String?) {
         override fun toString(): String = "TotpRequest(***)"
-    }
-
-    private companion object {
-        const val XSRF_COOKIE = "__Host-PCADMIN-XSRF"
     }
 }

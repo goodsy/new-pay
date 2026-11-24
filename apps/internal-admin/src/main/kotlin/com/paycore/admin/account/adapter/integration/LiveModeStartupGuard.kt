@@ -53,6 +53,13 @@ object LiveModeStartupGuard {
         check(found.isEmpty()) { "LIVE deployment refused: " + found.joinToString("; ") }
     }
 
+    /**
+     * TOTP 암호 키 전부와 login_name HMAC 키가 저장소의 알려진 Demo 키인가(ADMIN-DEMO-LOGIN-001 리뷰 MINOR-2(b) — **보고용**: Demo 배치는 gen-env로 만든 임의 키를 쓰므로
+     * "알려진 Demo 키가 아님"이 곧 운영 키라는 근거가 없다. 그래서 거부하지 않고 기동 WARN에 분류만 남긴다).
+     */
+    fun usesKnownDemoKeys(security: AdminSecurityProperties): Boolean =
+        security.totpCipher.keys.values.all(::isDemoKey) && isDemoKey(security.loginNameHmacKey)
+
     private fun isDemoKey(key: ByteArray): Boolean =
         MessageDigest.getInstance("SHA-256").digest(key).joinToString("") { "%02x".format(it) } in KNOWN_DEMO_KEY_FINGERPRINTS
 }

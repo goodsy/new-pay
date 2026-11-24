@@ -14,6 +14,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   LOGIN_TOTP: '로그인 — 인증 코드 확인',
   LOGIN_SUCCEEDED: '로그인 성공',
   LOGOUT: '로그아웃',
+  // ADMIN-DEMO-LOGIN-001(Demo 전용 임시 기능): 데모 간편 로그인 거부(성공은 LOGIN_SUCCEEDED + detail method=DEMO_QUICK), 데모 세션 재인증 생략(결정 ③).
+  LOGIN_DEMO_QUICK: '데모 간편 로그인',
+  STEP_UP_SKIPPED: '재인증 생략(데모)',
   AUTHENTICATION_FAILED: '인증 실패',
   ACCOUNT_LOCKED: '계정 잠김',
   ACCOUNT_CREATED: '계정 생성',
@@ -134,6 +137,8 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   HALTED: '재전송 중단(조사 필요)',
   COUNTED: '실패 횟수 반영',
   NOT_COUNTED: '실패 횟수 미반영',
+  // ADMIN-DEMO-LOGIN-001 결정 ③(STEP_UP_SKIPPED 결과).
+  DEMO_SKIPPED: '데모 생략',
   // 감사 행위자 종류(AuditActorKind)
   ADMIN: '관리자',
   ANONYMOUS: '익명',

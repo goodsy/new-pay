@@ -186,7 +186,7 @@ class ApprovalService(
             }
         }
         // 5단계: 재인증 TOTP 검증·단계 소비(같은 TX). 실패면 전체 rollback → 별도 TX 계수(afterDecision).
-        if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
+        if (executor.verifyStepUp(approverId, command.totpCode, command.context) == StepUpResult.FAILED) {
             status.setRollbackOnly()
             return ApprovalOutcome.StepUpFailed
         }
@@ -257,7 +257,7 @@ class ApprovalService(
                     throw Refusal(ApprovalOutcome.Denied, "APPROVER_NOT_ELIGIBLE", request.target, request.id)
                 }
                 if (approver.sessionGeneration != command.sessionGeneration) throw Refusal(ApprovalOutcome.SessionReplaced, null, null)
-                if (executor.consumeStepUpTotp(command.approverActorId, command.totpCode) == StepUpResult.FAILED) {
+                if (executor.verifyStepUp(command.approverActorId, command.totpCode, command.context) == StepUpResult.FAILED) {
                     status.setRollbackOnly()
                     return@execute ApprovalOutcome.StepUpFailed
                 }

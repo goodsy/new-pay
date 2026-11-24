@@ -8,6 +8,7 @@ import com.paycore.admin.account.application.provided.UnmaskRequest
 import com.paycore.admin.account.application.provided.UnmaskResult
 import com.paycore.admin.account.application.provided.UnmaskUseCase
 import com.paycore.admin.account.application.required.AdminClock
+import com.paycore.admin.account.application.required.DemoQuickLoginSettings
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import org.springframework.stereotype.Service
@@ -22,6 +23,7 @@ class UnmaskService(
     private val failures: AuthenticationFailureRecorder,
     private val recorder: AdminAuditRecorder,
     private val clock: AdminClock,
+    private val demoQuickLogin: DemoQuickLoginSettings,
 ) : UnmaskUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -30,7 +32,9 @@ class UnmaskService(
         if (command.reason.isBlank()) return UnmaskResult.Invalid("REASON_REQUIRED")
         if (command.reason.length > REASON_MAX || command.reason.any { it.isISOControl() }) return UnmaskResult.Invalid("REASON_INVALID")
         if (!TARGET.matches(command.targetRef)) return UnmaskResult.Invalid("TARGET_INVALID")
-        if (command.totpCode.isBlank()) return UnmaskResult.Invalid("TOTP_REQUIRED")
+        // ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션 + 켜짐이면 TOTP 입력이 없어도 된다(검증 생략은 executor.verifyStepUp — 같은 조건). 그 밖은 그대로.
+        val stepUpWaived = command.context.demoQuickSession && demoQuickLogin.active
+        if (command.totpCode.isBlank() && !stepUpWaived) return UnmaskResult.Invalid("TOTP_REQUIRED")
         val result = retryLaterOnConflict {
             transactions.execute({ false }) { status ->
                 val actor = executor.lockParticipants(listOf(command.actorId))[command.actorId]
@@ -46,7 +50,7 @@ class UnmaskService(
                     return@execute UnmaskResult.Denied
                 }
                 if (actor.sessionGeneration != command.sessionGeneration) return@execute UnmaskResult.SessionReplaced
-                if (executor.consumeStepUpTotp(command.actorId, command.totpCode) == StepUpResult.FAILED) {
+                if (executor.verifyStepUp(command.actorId, command.totpCode, command.context) == StepUpResult.FAILED) {
                     status.setRollbackOnly()
                     return@execute UnmaskResult.StepUpFailed
                 }

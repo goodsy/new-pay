@@ -23,11 +23,11 @@ interface Props {
   /** 승인·거절 버튼 표시(APPROVER — 표시만, 권한 판정은 서버). */
   canDecide: boolean
   /** 조회자(근거·사유 버튼 표시 판단용 — 표시만, 권한 판정은 서버). */
-  viewer?: { actorId: string; roles: string[] }
+  viewer?: { actorId: string; roles: string[]; demoQuickLogin?: boolean }
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }
 
-function Row({ item, target, canDecide, mine, registrant, selected, onApprove, onReject, onWithdraw, onDetail }: {
+function Row({ item, target, canDecide, mine, registrant, selected, stepUpWaived = false, onApprove, onReject, onWithdraw, onDetail }: {
   item: ApprovalView
   /** 대상 표시 텍스트(MERCHANT-CODE-001 §5.6.2 — 가맹점 = "<상호> · <코드>"/"가맹점 정보 없음"/"—", 내부 키 없음). */
   target: string
@@ -37,15 +37,17 @@ function Row({ item, target, canDecide, mine, registrant, selected, onApprove, o
   /** 조회자가 이 계약 Revision의 등록자(MERCHANT-OPS-002 D-MOPS-008 ③ — 표시만, 서버가 403 APPROVER_IS_REGISTRANT로 다시 막는다). */
   registrant: boolean
   mine: boolean
+  /** ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션 — TOTP 입력 대신 안내, 빈 코드로 보낸다(생략 판정은 서버, 일반 세션은 기존 그대로). */
+  stepUpWaived?: boolean
   onApprove: (id: string, totp: string) => Promise<void>
   onReject: (id: string, totp: string) => Promise<void>
   onWithdraw: (id: string) => Promise<void>
   onDetail: (id: string) => Promise<void>
 }) {
   const [totp, setTotp] = useState('')
-  const valid = TOTP.test(totp)
+  const valid = stepUpWaived || TOTP.test(totp)
   const decide = async (action: (id: string, totp: string) => Promise<void>) => {
-    const code = totp
+    const code = stepUpWaived ? '' : totp
     setTotp('')
     await action(item.approvalId, code)
   }
@@ -69,7 +71,10 @@ function Row({ item, target, canDecide, mine, registrant, selected, onApprove, o
         {/* reviewFix1 MINOR-2(1101px 캡처 — 인증 코드 칸·도움말이 표 오른쪽 끝 밖으로 잘림): 결정 칸을 세로로 쌓는다 — 인증 코드 칸(기존 w-44, 도움말은 표의 nowrap 대신 줄바꿈) 위,
             버튼 줄(승인·거절·철회·상세 — 기존 DOM 순서 그대로) 아래. 새 크기 값 없음. */}
         <div className="flex flex-col items-start gap-2">
-          {canDecide && item.status === 'PENDING' && (
+          {canDecide && item.status === 'PENDING' && stepUpWaived && (
+            <span className="subtle whitespace-normal text-xs" role="note" aria-label="재인증 생략">데모: 재인증 생략</span>
+          )}
+          {canDecide && item.status === 'PENDING' && !stepUpWaived && (
             <Field label="인증 코드(6자리)" hint={valid ? undefined : '6자리를 입력하면 승인·거절할 수 있습니다.'} className="w-36 whitespace-normal text-xs">
               {(describedBy) => (
                 <Input inputMode="numeric" maxLength={6} value={totp} onChange={(e) => setTotp(e.target.value)} autoComplete="one-time-code" aria-describedby={describedBy} className="h-8 font-mono tracking-widest" />
@@ -181,6 +186,7 @@ export function ApprovalsScreen({ api, view, canDecide, viewer, onSessionEnded }
                 target={merchantTargetText(item, labels)}
                 canDecide={canDecide && view === 'pending'}
                 registrant={isRegistrant(item, viewer?.actorId)}
+                stepUpWaived={viewer?.demoQuickLogin === true}
                 selected={detail?.approvalId === item.approvalId}
                 mine={view === 'mine'}
                 onApprove={(id, totp) => act(id, () => api.approve(id, totp))}

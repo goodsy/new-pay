@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.DispatcherType
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
@@ -55,10 +56,12 @@ class SecurityConfig {
         environment: Environment,
     ): FilterRegistrationBean<IpAllowlistFilter> {
         // LIVE 배치에서 모든 주소 허용(0.0.0.0/0·::/0)은 기동 거부(S4 리뷰 m-5). 모드 값은 account의 배치 모드 설정과 같은 키.
-        if (environment.getProperty("paycore.admin.deployment-mode") == "LIVE") {
-            val found = properties.ipAllowlist.liveViolations()
-            check(found.isEmpty()) { "LIVE deployment refused: " + found.joinToString("; ") }
-        }
+        // ADMIN-DEMO-LOGIN-001 리뷰 MINOR-4: 모드 비교는 설정 바인딩의 관대 enum 변환과 같은 규칙(대소문자·구분자 무시 — `live`도 LIVE).
+        // 리뷰 MINOR-2(a): 데모 간편 로그인이 켜진 DEMO도 모든 주소 허용이면 기동 거부(누구나 데모 계정으로 들어오는 배치 방지).
+        val mode = normalizedDeploymentMode(environment.getProperty("paycore.admin.deployment-mode"))
+        val demoQuickLogin = Binder.get(environment).bind("paycore.admin.demo-quick-login.enabled", Boolean::class.javaObjectType).orElse(false) == true
+        val found = allowlistStartupViolations(mode, demoQuickLogin, properties.ipAllowlist)
+        check(found.isEmpty()) { "${if (mode == "LIVE") "LIVE deployment" else "demo quick login"} refused: " + found.joinToString("; ") }
         // 감사 기록기는 처음 거부할 때 얻는다(lazy) — filter 등록은 웹 서버 시작 때 만들어지므로 DataSource를 그 시점에 끌어오지 않게 한다.
         return FilterRegistrationBean(IpAllowlistFilter(properties.ipAllowlist, { events.getObject() }, { meters.ifAvailable })).apply {
             order = Ordered.HIGHEST_PRECEDENCE
@@ -132,6 +135,10 @@ class SecurityConfig {
                 it.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/auth/password", "/api/auth/totp").permitAll()
+                    // ADMIN-DEMO-LOGIN-001 C-3: 데모 간편 로그인(익명 — POST는 세션·CSRF 필요). 핸들러는 DEMO + enabled일 때만 등록되고, 아니면 이 경로는 404다
+                    // (익명 허용 자체는 효과 없음). IP 허용 목록 filter는 이 체인보다 앞이다.
+                    .requestMatchers(HttpMethod.GET, DEMO_QUICK_LOGIN).permitAll()
+                    .requestMatchers(HttpMethod.POST, DEMO_QUICK_LOGIN).permitAll()
                     // S7: 등록 코드 흐름(미인증 — 익명 세션·CSRF 필요, 진행 상태는 세션 문자열 속성).
                     .requestMatchers(HttpMethod.POST, "/api/enroll/start", "/api/enroll/password", "/api/enroll/totp", "/api/enroll/complete").permitAll()
                     .requestMatchers("/api/**").authenticated()
@@ -167,6 +174,14 @@ class SecurityConfig {
 
     companion object {
         const val XSRF_HEADER = "X-XSRF-TOKEN"
+        const val DEMO_QUICK_LOGIN = "/api/auth/demo-quick-login"
+
+        /** 배치 모드 문자열을 설정 바인딩(LenientStringToEnumConverter)과 같은 방식으로 정규화 — 글자·숫자만 남기고 대문자(`live`·`Live` → `LIVE`). 없으면 null. */
+        fun normalizedDeploymentMode(raw: String?): String? = raw?.filter { it.isLetterOrDigit() }?.uppercase()?.ifEmpty { null }
+
+        /** IP 허용 목록 기동 검사: LIVE, 또는 DEMO + 데모 간편 로그인 켜짐에서 모든 주소 허용이면 위반(설정 이름만). */
+        fun allowlistStartupViolations(mode: String?, demoQuickLoginEnabled: Boolean, allowlist: IpAllowlist): List<String> =
+            if (mode == "LIVE" || (mode == "DEMO" && demoQuickLoginEnabled)) allowlist.liveViolations() else emptyList()
         const val HSTS_MAX_AGE_SECONDS = 31_536_000L
         const val CONTENT_SECURITY_POLICY =
             "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; " +

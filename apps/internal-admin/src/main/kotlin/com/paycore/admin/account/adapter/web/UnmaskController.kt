@@ -21,12 +21,13 @@ class UnmaskController(private val unmask: UnmaskUseCase) {
 
     @PostMapping("/api/unmask")
     fun request(@RequestBody body: Body, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
-        val generation = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.sessionGeneration
-            ?: return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val state = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }
+        val generation = state?.sessionGeneration ?: return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
         val result = unmask.request(
             UnmaskRequest(
                 authentication.name, generation, body.targetRef.orEmpty(), body.reason.orEmpty(), body.totpCode.orEmpty(),
-                AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(45)),
+                // ADMIN-DEMO-LOGIN-001 결정 ③: 세션 표시만 전달 — 생략 여부는 application이 켜짐 조건과 함께 판정한다.
+                AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(45), demoQuickSession = state.isDemoQuick),
             ),
         )
         return when (result) {

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Field } from '../components/DataBits'
+import { DemoQuickLoginPanel } from '../components/DemoQuickLoginPanel'
 
 interface Props {
   api: AdminApi
@@ -22,6 +23,7 @@ interface Props {
  * 2단계 로그인(§4.3.2): CSRF 세션 → 비밀번호 → TOTP. 입력 값은 컴포넌트 상태에만, 실패하면 비밀 입력을 지운다.
  * 모양(ADMIN-UI-WORKSPACE-001 WS9 — 참고 시안에 로그인 화면이 없어 시안 카드로 구성): section.card > .cardtop h2 → .cardbody(단계 안내 .subtle·알림·form) → .cardnote(등록 코드 .btn).
  * 브랜드는 로그인 전 상단 바의 시안 `.brand`(AppLayout). 스피너 대신 버튼 아래 보이는 진행 글자(aria-live — 버튼과 한 묶음 div 안 block span이라 비어 있으면 높이 0, form gap을 더하지 않음). 입력 속성·문구·호출 순서는 그대로.
+ * ADMIN-DEMO-LOGIN-001: 서버에서 데모 간편 로그인이 켜져 있을 때만 이 카드 위에 데모 계정 카드([DemoQuickLoginPanel])를 둔다(꺼져 있으면 DOM 그대로).
  */
 export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolvedNotice = false }: Props) {
   const [step, setStep] = useState<'password' | 'totp'>('password')
@@ -63,68 +65,71 @@ export function LoginScreen({ api, onAuthenticated, onEnroll, notice, unresolved
   }
 
   return (
-    <section className="card">
-      <div className="cardtop">
-        <h2>로그인</h2>
-      </div>
-      <div className="cardbody">
-        <p className="subtle">{step === 'password' ? '1단계 — 관리자 로그인 이름과 비밀번호를 입력하세요.' : '2단계 — OTP 앱의 6자리 코드를 입력하세요.'}</p>
-        {notice && (
-          <Alert role="status" variant="warning">
-            <InfoIcon aria-hidden="true" />
-            <AlertDescription>{ERROR_MESSAGES[notice]}</AlertDescription>
-          </Alert>
-        )}
-        {unresolvedNotice && (
-          <Alert role="note" variant="warning" aria-label="결과 확인 필요">
-            <InfoIcon aria-hidden="true" />
-            <AlertDescription>결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요</AlertDescription>
-          </Alert>
-        )}
-        {error && (
-          <Alert role="alert" variant="destructive">
-            <CircleAlertIcon aria-hidden="true" />
-            <AlertDescription>{ERROR_MESSAGES[error]}</AlertDescription>
-          </Alert>
-        )}
-        {step === 'password' ? (
-          <form onSubmit={submitPassword} className="flex flex-col gap-4">
-            <Label>
-              <span>로그인 이름</span>
-              <Input value={loginName} onChange={(e) => setLoginName(e.target.value)} autoComplete="username" required />
-            </Label>
-            <Label>
-              <span>비밀번호</span>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-            </Label>
-            <div>
-              <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
-                다음
-              </button>
-              <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={submitTotp} className="flex flex-col gap-4">
-            <Field label="인증 코드(6자리)" hint="인증 앱에 지금 보이는 코드를 입력하세요. 틀리면 비밀번호 단계부터 다시 합니다.">
-              {(describedBy) => (
-                <Input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" required aria-describedby={describedBy} className="text-center font-mono text-lg tracking-[0.5em]" />
-              )}
-            </Field>
-            <div>
-              <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
-                로그인
-              </button>
-              <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
-            </div>
-          </form>
-        )}
-      </div>
-      <div className="cardnote items-center">
-        <button type="button" className="btn" onClick={onEnroll}>
-          등록 코드로 계정 등록
-        </button>
-      </div>
-    </section>
+    <>
+      <DemoQuickLoginPanel api={api} onAuthenticated={onAuthenticated} />
+      <section className="card">
+        <div className="cardtop">
+          <h2>로그인</h2>
+        </div>
+        <div className="cardbody">
+          <p className="subtle">{step === 'password' ? '1단계 — 관리자 로그인 이름과 비밀번호를 입력하세요.' : '2단계 — OTP 앱의 6자리 코드를 입력하세요.'}</p>
+          {notice && (
+            <Alert role="status" variant="warning">
+              <InfoIcon aria-hidden="true" />
+              <AlertDescription>{ERROR_MESSAGES[notice]}</AlertDescription>
+            </Alert>
+          )}
+          {unresolvedNotice && (
+            <Alert role="note" variant="warning" aria-label="결과 확인 필요">
+              <InfoIcon aria-hidden="true" />
+              <AlertDescription>결과 확인이 필요한 요청이 있습니다 — 가맹점 조회로 확인하세요</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert role="alert" variant="destructive">
+              <CircleAlertIcon aria-hidden="true" />
+              <AlertDescription>{ERROR_MESSAGES[error]}</AlertDescription>
+            </Alert>
+          )}
+          {step === 'password' ? (
+            <form onSubmit={submitPassword} className="flex flex-col gap-4">
+              <Label>
+                <span>로그인 이름</span>
+                <Input value={loginName} onChange={(e) => setLoginName(e.target.value)} autoComplete="username" required />
+              </Label>
+              <Label>
+                <span>비밀번호</span>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+              </Label>
+              <div>
+                <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
+                  다음
+                </button>
+                <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={submitTotp} className="flex flex-col gap-4">
+              <Field label="인증 코드(6자리)" hint="인증 앱에 지금 보이는 코드를 입력하세요. 틀리면 비밀번호 단계부터 다시 합니다.">
+                {(describedBy) => (
+                  <Input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" required aria-describedby={describedBy} className="text-center font-mono text-lg tracking-[0.5em]" />
+                )}
+              </Field>
+              <div>
+                <button type="submit" disabled={busy} aria-busy={busy} className="btn primary w-full">
+                  로그인
+                </button>
+                <span className="subtle block" aria-live="polite">{busy ? '확인 중…' : ''}</span>
+              </div>
+            </form>
+          )}
+        </div>
+        <div className="cardnote items-center">
+          <button type="button" className="btn" onClick={onEnroll}>
+            등록 코드로 계정 등록
+          </button>
+        </div>
+      </section>
+    </>
   )
 }

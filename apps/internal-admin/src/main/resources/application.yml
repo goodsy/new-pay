@@ -88,6 +88,11 @@ paycore:
   admin:
     # 배치 모드(§4.8.2 — 기본값 없음, DEMO|LIVE). LIVE는 Demo 키·Demo 보안 수치·BCrypt cost 하한 미달이면 기동 실패(LiveModeStartupGuard).
     deployment-mode: ${PAYCORE_ADMIN_DEPLOYMENT_MODE}
+    # 데모 간편 로그인(ADMIN-DEMO-LOGIN-001 — D-ADMIN-AUTH-DEMO-001, **Demo 전용 임시 기능 — 운영 준비 전 반드시 끔**). 기본 꺼짐. 켜짐 = deployment-mode DEMO
+    # 그리고 enabled=true 그리고 허용 로그인 이름 목록(쉼표 구분) 1개 이상. LIVE에서 enabled=true면 기동 실패(DemoQuickLoginStartupGuard). 계정 이름은 저장소에 두지 않는다.
+    demo-quick-login:
+      enabled: ${PAYCORE_ADMIN_DEMO_QUICK_LOGIN_ENABLED:false}
+      accounts: ${PAYCORE_ADMIN_DEMO_QUICK_LOGIN_ACCOUNTS:}
     # 2인 승인(D-SV Demo — 운영값 아님): 요청 유효 24시간, 만료 정리 job(화면용 — 권위 판정은 승인 TX) 1분마다.
     approval:
       validity: 24h

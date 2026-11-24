@@ -9,6 +9,12 @@ interface AdminSessionQuery {
     fun current(actorId: String): AdminSessionView?
 
     fun policy(): AdminSessionPolicy
+
+    /**
+     * 데모 간편 로그인 켜짐(DEMO + enabled — ADMIN-DEMO-LOGIN-001 리뷰 MINOR-B). 꺼져 있으면 `loginMethod=DEMO_QUICK` 표시가 남은 세션은 요청 때 폐기된다(`SESSION_EXPIRED`).
+     * 기본값 false = 안전한 쪽(시험 대역·다른 구현은 표시 세션을 받지 않는다). 실제 구현은 account application.
+     */
+    fun demoQuickLoginActive(): Boolean = false
 }
 
 data class AdminSessionView(

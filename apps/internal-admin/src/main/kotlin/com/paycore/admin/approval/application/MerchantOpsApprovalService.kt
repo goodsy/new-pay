@@ -605,7 +605,7 @@ class MerchantOpsApprovalService(
         registrantOf(pinned)?.let { registrant ->
             if (registrant == ACTOR_PREFIX + approverId) throw Refusal(ApprovalOutcome.Refused(APPROVER_IS_REGISTRANT), APPROVER_IS_REGISTRANT, audited, request.id)
         }
-        if (executor.consumeStepUpTotp(approverId, command.totpCode) == StepUpResult.FAILED) {
+        if (executor.verifyStepUp(approverId, command.totpCode, command.context) == StepUpResult.FAILED) {
             status.setRollbackOnly()
             return Tx1.Done(ApprovalOutcome.StepUpFailed)
         }

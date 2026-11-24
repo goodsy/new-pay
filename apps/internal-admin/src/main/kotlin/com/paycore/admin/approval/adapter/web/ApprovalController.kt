@@ -190,14 +190,14 @@ class ApprovalController(
     @PostMapping("/{approvalId}/approve")
     fun approve(@PathVariable approvalId: String, @RequestBody body: TotpBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
         val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
-        val command = DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), context(request))
+        val command = DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), decisionContext(request))
         return respond(if (query.isOwnerService(approvalId) == true) owners.approve(command) else approvals.approve(command), request)
     }
 
     @PostMapping("/{approvalId}/reject")
     fun reject(@PathVariable approvalId: String, @RequestBody body: TotpBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
         val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
-        return respond(approvals.reject(DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), context(request))), request)
+        return respond(approvals.reject(DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), decisionContext(request))), request)
     }
 
     @PostMapping("/{approvalId}/withdraw")
@@ -268,6 +268,15 @@ class ApprovalController(
         AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.takeIf { it.stage == AdminSessionState.Stage.AUTHENTICATED }?.sessionGeneration
 
     private fun context(request: HttpServletRequest) = AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(45))
+
+    /**
+     * 승인·반려 문맥(ADMIN-DEMO-LOGIN-001 결정 ③): 세션이 데모 간편 로그인으로 만들어졌다는 표시만 전달한다 — 재인증 생략 판정(켜짐 조건 포함)은 account의
+     * `AdminOwnedCommandExecutor.verifyStepUp`. 일반 세션이면 [context]와 같다.
+     */
+    private fun decisionContext(request: HttpServletRequest) = AdminRequestContext(
+        UUID.randomUUID().toString(), request.remoteAddr?.take(45),
+        demoQuickSession = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.isDemoQuick == true,
+    )
 
     private fun json(v: ApprovalView): MutableMap<String, Any?> = linkedMapOf<String, Any?>(
         "approvalId" to v.approvalId, "kind" to v.kind, "targetKind" to v.targetKind, "targetActorId" to v.targetActorId, "targetRef" to v.targetRef,
