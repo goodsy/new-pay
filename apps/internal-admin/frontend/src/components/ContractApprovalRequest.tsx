@@ -59,8 +59,8 @@ export function ContractApprovalRequest({ api, merchantId, contractId, revisionN
   if (created) {
     return (
       <div role="status" aria-label={`승인 요청 완료 revision ${revisionNo}`} className="flex flex-wrap items-center gap-2 text-sm">
+        {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③): 승인 ID(apr_)는 보이지 않는다 — '승인함에서 보기'로 찾는다. */}
         <span>승인 요청을 만들었습니다</span>
-        <span className="font-mono text-xs">{created}</span>
         {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
       </div>
     )

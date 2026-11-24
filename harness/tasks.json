@@ -880,9 +880,9 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "IA-B2-scoped",
+        "tag": "IA-B3-scoped",
         "verdict": "PASS",
-        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T035138Z.json"
+        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T042343Z.json"
       },
       "openItems": [
         "1단계: 정리안(현재 항목 전수 → 남김/묶음 이동/접기/빼기, 목표 구조, 질문) 작성 → 사용자 승인 전 화면 구현 금지",
@@ -890,9 +890,10 @@
         "사용자 답 Q-IA-1~8 → D-ADMIN-UI-010(Q-IA-4만 권장안과 다름: MID 선택 상세 맨 위). 명세 rev 0.2 반영 → 배치 B1(잡음 제거)→B2(고정값·번호 검색)→B3(내부 식별자)→B4(머리·탭·MID 선택)→B5(사업자 섹션·연결 가맹점)→B6(목록·용어). 배치마다 리뷰+SCOPED+커밋(D-PROC-007), Demo 확인",
         "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영",
         "D-ADMIN-UI-011(pg-lab 참고): 화면 패턴 먼저 — 사업자 등록 번호 확인 먼저, 결제 준비 상태 줄+탭, 필터 묶음, 사업자 상세 항상 편집 폼+저장(Q-IA-6 대체). B2 뒤 명세 rev 0.3에 반영. 참고 캡처 scratchpad/pglab/*.png",
-        "B2 완료(명세 rev 0.2b): 사업자 목록 진위확인 열·상세 진위확인 배지/진위확인·국가·등록 상태(머리 배지와 중복) 줄 제거, 번호 검색 결과 4열, 가맹점 목록 상태 열·필터와 상세 가맹점/사업자 상태 줄 제거(DB·API 유지, '등록 완료 ≠ 진위확인' 안내 유지·시험 고정). Vitest 731, tsc 0, 캡처 6폭×2테마×5화면 이상 없음(build/harness-evidence/MERCHANT-IA-001-B2-capture-20261124T034046Z). 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영)"
+        "B2 완료(명세 rev 0.2b): 사업자 목록 진위확인 열·상세 진위확인 배지/진위확인·국가·등록 상태(머리 배지와 중복) 줄 제거, 번호 검색 결과 4열, 가맹점 목록 상태 열·필터와 상세 가맹점/사업자 상태 줄 제거(DB·API 유지, '등록 완료 ≠ 진위확인' 안내 유지·시험 고정). Vitest 731, tsc 0, 캡처 6폭×2테마×5화면 이상 없음(build/harness-evidence/MERCHANT-IA-001-B2-capture-20261124T034046Z). 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영)",
+        "명세 rev 0.3a(D-ADMIN-UI-011 pg-lab 패턴 반영, 배치 재편 B4·B5·B5b·B6) + B3 완료: 가맹점 상세 내부 식별자(site_·ctr_·csa_·act_·apr_·sac_·cra_·tlp_·pas_·cur_·asg_) → 사람용 값(Site='종류 · 식별값', 계약 n, 서비스: …, 승인함에서 보기), 명령 인자·잠금 메모리 키는 내부 키 그대로, FirstMid select는 순번 value + 상태 키(사라지면 첫 값). Vitest 753, tsc 0, 캡처 6폭×2테마 내부 키 0(build/harness-evidence/MERCHANT-IA-001-B3-capture-20261124T035805Z/after-review). 독립 리뷰 REVIEW_PASS(MINOR-1~3, NIT-1·3 반영). 미결: 등록자 adm_ 표시, 승인함 대상 이름 통일"
       ],
-      "nextResumeAction": "B2 커밋 → 명세 rev 0.3(D-ADMIN-UI-011 pg-lab 패턴) → B3",
+      "nextResumeAction": "B3 커밋 → BRN-UNMASK-001 → B4",
       "detail": null
     },
     {
@@ -946,6 +947,52 @@
         "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인"
       ],
       "nextResumeAction": "명세 초안 → 구현 → 리뷰 → SCOPED → 커밋 → Demo 설정 켜기",
+      "detail": null
+    },
+    {
+      "id": "PII-MASKING-POLICY-001",
+      "title": "개인정보·민감정보 마스킹 규칙 문서(결정 통합 + 현재 구현 대조)",
+      "status": "IN_PROGRESS",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "사용자 요청 2026-11-24 '개인정보 마스킹 규칙도 별도로 문서로'. 근거 DECISIONS(D-MS2-005, D-ADMIN-002/004, D-ADMIN1-017/019, D-OPS-010, D-MOPS-003/006/009, D-BIZ-003/006/007, D-ACQA-005, D-BIZLOOKUP-001 등)",
+      "allowedWritePaths": [
+        "docs/repository/PII-MASKING-POLICY.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "결정 출처별 규칙 표(대상 데이터 × 화면/조회 응답/감사/변경 이력/로그/지표/오류/요청 본문/저장), 현재 구현 대조·불일치 목록, 미결 질문"
+      ],
+      "nextResumeAction": "초안 → 사용자 검토",
+      "detail": null
+    },
+    {
+      "id": "BRN-UNMASK-001",
+      "title": "관리자 화면·조회 응답의 사업자등록번호 원문 표시(D-BIZ-007 구현)",
+      "status": "READY",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "MERCHANT-IA-001"
+      ],
+      "spec": "D-BIZ-007(2026-11-19) — 사용자 재확인 2026-11-24 '뉴피지 내부관리자 시스템에서는 사업자번호 마스킹 안 함'. 화면·ADMIN/MASTER 조회 응답 원문(하이픈 표시), 감사 detail·변경 이력·로그·지표는 마스킹 유지, 번호 조회 횟수 제한·감사 유지",
+      "allowedWritePaths": [
+        "apps/master-api/src/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/BRN-UNMASK-001-*.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "MERCHANT-IA-001 B3 커밋 뒤(같은 화면 파일) 시작",
+        "PII-MASKING-POLICY.md 규칙과 일치"
+      ],
+      "nextResumeAction": "B3·데모 로그인 커밋 뒤 명세·구현",
       "detail": null
     }
   ]

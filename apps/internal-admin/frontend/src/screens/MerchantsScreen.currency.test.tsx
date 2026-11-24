@@ -67,7 +67,8 @@ async function openDetail(canRequestApproval: boolean, overrides: Parameters<typ
 describe('MerchantsScreen — B3-2 currency in the "개통" area (MERCHANT-OPS-002 §8.4 B3-2-6)', () => {
   it('a VIEWER sees the currency row with the MASTER-confirmed start time and its state, but no request button', async () => {
     const { area } = await openDetail(false, { merchantDetail: vi.fn(async () => detail({}, { currencies: [krw()] })) })
-    const row = within(within(area).getByRole('table', { name: '통화' })).getByRole('row', { name: CUR1 })
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 통화 행 이름은 통화 기록 키 대신 통화 코드.
+    const row = within(within(area).getByRole('table', { name: '통화' })).getByRole('row', { name: 'KRW' })
     expect(row).toHaveTextContent('KRW')
     expect(row).toHaveTextContent(formatKst('2026-11-11T02:30:00.123Z'))
     expect(row).toHaveTextContent('효력 중')
@@ -145,7 +146,7 @@ describe('MerchantsScreen — B3-2 currency in the "개통" area (MERCHANT-OPS-0
     const item5 = within(within(later).getByRole('region', { name: '개통 점검표' })).getByRole('listitem', { name: /^⑤ / })
     expect(item5.getAttribute('data-state')).toBe('NOT_MET')
     expect(item5).toHaveTextContent('효력 전')
-    expect(within(within(later).getByRole('table', { name: '통화' })).getByRole('row', { name: CUR1 })).toHaveTextContent('효력 전')
+    expect(within(within(later).getByRole('table', { name: '통화' })).getByRole('row', { name: 'KRW' })).toHaveTextContent('효력 전')
   })
 
   // 기대값 변경(MERCHANT-IA-001 B1 — 명세 rev 0.2 §3.6·§7 B1): "승인 시작 조건: Route·수수료·정산·한도 필요(B3-3·B4)" 줄은 항목 ⑥⑦과 같은 말이라 뺐고(⑥⑦은 그대로 남는다),

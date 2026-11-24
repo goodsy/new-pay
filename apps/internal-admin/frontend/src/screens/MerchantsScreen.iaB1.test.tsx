@@ -80,11 +80,12 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
     await openDetail(detail())
     const mids = screen.getByRole('region', { name: 'MID·개통' })
     expect(within(mids).getAllByRole('table', { name: '통화' })).toHaveLength(2)
-    for (const [mid, cen] of [[MID1, id('cen', 1)], [MID2, id('cen', 2)]] as const) {
+    for (const mid of [MID1, MID2]) {
       const area = screen.getByRole('region', { name: `개통 ${mid}` })
       const table = within(area).getByRole('table', { name: '통화' })
       expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['통화', '효력 시작', '종료', '종료 처리', '상태'])
-      const row = within(table).getByRole('row', { name: cen })
+      // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 통화 행 이름은 통화 코드(cen 키 아님).
+      const row = within(table).getByRole('row', { name: 'KRW' })
       expect(row).toHaveTextContent('2026-11-10 14:00:00')
       expect(row).toHaveTextContent('종료')
     }
@@ -96,7 +97,7 @@ describe('MERCHANT-IA-001 B1 — 가맹점 상세 잡음 제거', () => {
     expect(tables).toHaveLength(1)
     expect(within(screen.getByRole('region', { name: 'Site' })).getByRole('table', { name: 'Site 심사' })).toBe(tables[0])
     for (const mid of [MID1, MID2]) expect(within(screen.getByRole('region', { name: `개통 ${mid}` })).queryByRole('table', { name: 'Site 심사' })).toBeNull()
-    const row = within(tables[0]!).getByRole('row', { name: `심사 ${SITE1}` })
+    const row = within(tables[0]!).getByRole('row', { name: '심사 웹 · shop.example.test' })
     expect(row).toHaveTextContent('대표(PRIMARY)')
     expect(row).toHaveTextContent('admin:adm_SR')
     expect(within(row).getByRole('button', { name: '심사 승인 요청' })).toBeInTheDocument()

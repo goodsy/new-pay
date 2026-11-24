@@ -4,6 +4,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { formatKst } from '../lib/format'
 import { labelOf } from '../lib/labels'
+import { contractLabel, siteLabel } from '../lib/merchantLabels'
 import { EVIDENCE_REF } from './ContractApprovalRequest'
 import { Field } from './DataBits'
 import { ErrorNotice } from './Notice'
@@ -50,15 +51,22 @@ export function FirstMidRequest({ api, detail, now, onRequested, onSessionEnded 
   onSessionEnded?: (code: ConsoleErrorCode) => void
 }) {
   const candidates = useMemo(() => issuableRevisions(detail, now), [detail, now])
-  const [basis, setBasis] = useState(candidates[0] ? `${candidates[0].contractId}#${candidates[0].revision.revisionNo}` : '')
-  const chosen = candidates.find((c) => `${c.contractId}#${c.revision.revisionNo}` === basis)
+  const keyOfCandidate = (c: { contractId: string; revision: Revision }) => `${c.contractId}#${c.revision.revisionNo}`
+  const [pickedBasis, setBasis] = useState(candidates[0] ? keyOfCandidate(candidates[0]) : '')
+  // B3 리뷰 NIT-3: 고른 Revision이 다시 읽은 후보에 없으면 첫 후보(아래 서비스 약정·Site와 같은 규칙).
+  const basis = candidates.some((c) => keyOfCandidate(c) === pickedBasis) ? pickedBasis : (candidates[0] ? keyOfCandidate(candidates[0]) : '')
+  const chosen = candidates.find((c) => keyOfCandidate(c) === basis)
   const agreements = detail.contracts.find((c) => c.contractId === chosen?.contractId)?.agreements ?? []
   const sites = detail.sites.filter((s) => s.lifecycle === 'ACTIVE' && (chosen?.revision.scopeKind !== 'SITES' || chosen.revision.scopeSiteIds.includes(s.merchantSiteId)))
-  const [agreementId, setAgreementId] = useState(agreements[0]?.agreementId ?? '')
-  const [siteId, setSiteId] = useState(sites[0]?.merchantSiteId ?? '')
+  const [pickedAgreementId, setAgreementId] = useState(agreements[0]?.agreementId ?? '')
+  const [pickedSiteId, setSiteId] = useState(sites[0]?.merchantSiteId ?? '')
   const [evidenceRef, setEvidenceRef] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ConsoleErrorCode | null>(null)
+  // MERCHANT-IA-001 B3 리뷰 NIT-3: 상세를 다시 읽어 고른 서비스 약정·Site가 새 목록에 없으면(예: Site 해지) 화면은 새 목록의 첫 값을 고른 것으로 본다 —
+  // 선택 상자 표시·보내는 값·보낼 수 있는지 판정이 모두 같은 값(value가 목록 순번이라 목록 밖 키를 가리키는 선택 상자가 생기지 않게).
+  const agreementId = agreements.some((a) => a.agreementId === pickedAgreementId) ? pickedAgreementId : (agreements[0]?.agreementId ?? '')
+  const siteId = sites.some((s) => s.merchantSiteId === pickedSiteId) ? pickedSiteId : (sites[0]?.merchantSiteId ?? '')
   // B2-3 리뷰 m-3: 선택값이 지금 옵션 목록 안에 있을 때만 보낼 수 있다(Revision을 바꾼 뒤 이전 계약의 CSA·Site가 남지 않게).
   const valid = chosen !== undefined && agreements.some((a) => a.agreementId === agreementId) && sites.some((s) => s.merchantSiteId === siteId) && EVIDENCE_REF.test(evidenceRef)
 
@@ -97,10 +105,11 @@ export function FirstMidRequest({ api, detail, now, onRequested, onSessionEnded 
       <h4 className="text-sm font-semibold sm:col-span-2">첫 MID 발급 요청</h4>
       <Field label="Revision" hint="승인되고 끝나지 않은 Revision만(적용 여부는 MASTER가 판정)" className="text-xs">
         {(describedBy) => (
-          <NativeSelect value={basis} onChange={(e) => chooseBasis(e.target.value)} aria-describedby={describedBy}>
-            {candidates.map((c) => (
-              <option key={`${c.contractId}#${c.revision.revisionNo}`} value={`${c.contractId}#${c.revision.revisionNo}`}>
-                {`${c.contractId} #${c.revision.revisionNo} · ${formatKst(c.revision.effectiveFrom).slice(0, 10)} 시작`}
+          // MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③): 선택지의 글자·value에 내부 키(ctr_·csa_·site_)를 두지 않는다 — value는 목록 순번, 고른 키는 화면 상태·호출 인자로만.
+          <NativeSelect value={String(candidates.findIndex((c) => `${c.contractId}#${c.revision.revisionNo}` === basis))} onChange={(e) => { const c = candidates[Number(e.target.value)]; if (c) chooseBasis(`${c.contractId}#${c.revision.revisionNo}`) }} aria-describedby={describedBy}>
+            {candidates.map((c, index) => (
+              <option key={`${c.contractId}#${c.revision.revisionNo}`} value={String(index)}>
+                {`${contractLabel(detail, c.contractId)} Revision ${c.revision.revisionNo} · ${formatKst(c.revision.effectiveFrom).slice(0, 10)} 시작`}
               </option>
             ))}
           </NativeSelect>
@@ -108,15 +117,15 @@ export function FirstMidRequest({ api, detail, now, onRequested, onSessionEnded 
       </Field>
       <Field label="서비스 계약(CSA)" className="text-xs">
         {() => (
-          <NativeSelect value={agreementId} onChange={(e) => setAgreementId(e.target.value)}>
-            {agreements.map((a) => <option key={a.agreementId} value={a.agreementId}>{`${a.agreementId} · ${labelOf(a.serviceKind)}`}</option>)}
+          <NativeSelect value={String(agreements.findIndex((a) => a.agreementId === agreementId))} onChange={(e) => setAgreementId(agreements[Number(e.target.value)]?.agreementId ?? '')}>
+            {agreements.map((a, index) => <option key={a.agreementId} value={String(index)}>{`서비스: ${labelOf(a.serviceKind)}`}</option>)}
           </NativeSelect>
         )}
       </Field>
       <Field label="PRIMARY Site" hint="계약 범위 안 ACTIVE Site만" className="text-xs">
         {(describedBy) => (
-          <NativeSelect value={siteId} onChange={(e) => setSiteId(e.target.value)} aria-describedby={describedBy}>
-            {sites.map((s) => <option key={s.merchantSiteId} value={s.merchantSiteId}>{`${s.merchantSiteId} · ${labelOf(s.channelType)}`}</option>)}
+          <NativeSelect value={String(sites.findIndex((s) => s.merchantSiteId === siteId))} onChange={(e) => setSiteId(sites[Number(e.target.value)]?.merchantSiteId ?? '')} aria-describedby={describedBy}>
+            {sites.map((s, index) => <option key={s.merchantSiteId} value={String(index)}>{siteLabel(detail, s.merchantSiteId)}</option>)}
           </NativeSelect>
         )}
       </Field>

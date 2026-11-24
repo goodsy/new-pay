@@ -7,6 +7,7 @@ import { REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { RegistrationStep, type StepStatus } from './RegistrationStep'
 import { FormRow } from './FormRow'
 import { Input } from './ui/input'
+import { revisionReferenceLabel } from '../lib/merchantLabels'
 
 /**
  * 계약 Revision 등록 폼(MERCHANT-OPS-002 §9.2·§9.6 B2-1 — OPERATOR 1인, 미승인 Revision으로 남는다 — 권리 변경 없음). 가맹점 조회 상세의 계약 영역에서 연다.
@@ -22,9 +23,13 @@ interface Props {
   /** 계약별 폼 상태를 둘 메모리(App 수준 — 세션 경계에서만 새로). */
   memory: ScreenMemory
   contractId: string
+  /** 화면에 보이는 계약 이름(MERCHANT-IA-001 B3 — "계약 n"; 계약 키 ctr_는 메모리 키·호출 인자로만). 없으면 "계약". */
+  contractLabel?: string
   merchantId: string
-  /** 범위 선택 후보(이 가맹점의 Site). */
+  /** 범위 선택 후보(이 가맹점의 Site — 값은 내부 키, 호출 인자로만). */
   siteIds: readonly string[]
+  /** 후보 Site의 화면 이름(B3 — 채널 식별값). 없으면 "Site n". */
+  siteLabel?: (siteId: string) => string
   /** 성공 뒤(상세 다시 읽기 등). */
   onRegistered: (reference: string) => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
@@ -49,7 +54,7 @@ export function useRevisionLocked(memory: ScreenMemory, contractId: string): boo
 }
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs break-all">{children}</span>
 
-export function ContractRevisionForm({ api, memory, contractId, merchantId, siteIds, onRegistered, onSessionEnded, newSubmissionId = defaultSubmissionId, todayKst = () => kstDate(new Date()) }: Props) {
+export function ContractRevisionForm({ api, memory, contractId, contractLabel = '계약', merchantId, siteIds, siteLabel, onRegistered, onSessionEnded, newSubmissionId = defaultSubmissionId, todayKst = () => kstDate(new Date()) }: Props) {
   const key = keyOf(contractId)
   const [scopeKind, setScopeKind] = useRemembered<'MERCHANT' | 'SITES'>(memory, `${key}.scopeKind`, 'MERCHANT')
   const [checked, setChecked] = useRemembered<readonly string[]>(memory, `${key}.checked`, NO_SITES)
@@ -64,7 +69,8 @@ export function ContractRevisionForm({ api, memory, contractId, merchantId, site
       memory={memory}
       memoryKey={`${key}.step`}
       rows
-      title={`새 Revision 등록 — ${contractId}`}
+      // MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③): 제목·결과·Site 후보에 내부 키(ctr_·site_)를 그리지 않는다.
+      title={`새 Revision 등록 — ${contractLabel}`}
       submitLabel="Revision 등록"
       api={{ send: (input) => api.registerContractRevision(input) }}
       newSubmissionId={newSubmissionId}
@@ -82,7 +88,7 @@ export function ContractRevisionForm({ api, memory, contractId, merchantId, site
         return { contractId, scopeMerchantId: merchantId, scopeSiteIds: sites, effectiveFromDate: startDate, ...(endDate ? { effectiveToDate: endDate } : {}) }
       }}
       onSucceeded={(reference) => onRegistered(reference)}
-      succeeded={(reference) => <span>Revision <Mono>{reference}</Mono> ({REVISION_AWAITING_APPROVAL} — 승인은 2인 승인 기능에서)</span>}
+      succeeded={(reference) => <span><Mono>{revisionReferenceLabel(reference)}</Mono> ({REVISION_AWAITING_APPROVAL} — 승인은 2인 승인 기능에서)</span>}
       completion={{
         resetLabel: '다른 Revision 새로 입력',
         onReset: () => {
@@ -115,10 +121,10 @@ export function ContractRevisionForm({ api, memory, contractId, merchantId, site
                     선택 Site
                   </label>
                 </span>
-                {scopeKind === 'SITES' && siteIds.map((id) => (
+                {scopeKind === 'SITES' && siteIds.map((id, index) => (
                   <label key={id} className="flex items-center gap-2 pl-6">
                     <input type="checkbox" checked={checked.includes(id)} onChange={(e) => setChecked(e.target.checked ? [...checked, id] : checked.filter((c) => c !== id))} />
-                    <Mono>{id}</Mono>
+                    <Mono>{siteLabel ? siteLabel(id) : `Site ${index + 1}`}</Mono>
                   </label>
                 ))}
               </span>

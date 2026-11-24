@@ -91,16 +91,19 @@ describe('MerchantsScreen — B2-3 first Default MID request (MERCHANT-OPS-002 �
     const form = screen.getByRole('form', { name: '첫 MID 발급 요청' })
     // 기대값 변경(B2-3 Demo 지적 3): 폼 제목, Revision 선택지에 계약 ID와 시작일(KST)을 함께 보인다.
     expect(within(form).getByRole('heading', { name: '첫 MID 발급 요청' })).toBeInTheDocument()
-    expect(within(within(form).getByLabelText('Revision')).getAllByRole('option').map((o) => o.textContent)).toEqual([`${CTR1} #1 · 2026-11-09 시작`])
-    expect(within(within(form).getByLabelText('PRIMARY Site')).getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual([SITE1])
-    expect(within(within(form).getByLabelText('서비스 계약(CSA)')).getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual([CSA1])
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 선택지 글자·value에 계약·서비스 약정·Site 키가 없다(value는 목록 순번) — 고른 키는 보내는 본문에만(아래 호출 단언 그대로).
+    expect(within(within(form).getByLabelText('Revision')).getAllByRole('option').map((o) => o.textContent)).toEqual(['계약 1 Revision 1 · 2026-11-09 시작'])
+    expect(within(within(form).getByLabelText('PRIMARY Site')).getAllByRole('option').map((o) => [o.textContent, o.getAttribute('value')])).toEqual([['웹 · shop.example.test', '0']])
+    expect(within(within(form).getByLabelText('서비스 계약(CSA)')).getAllByRole('option').map((o) => [o.textContent, o.getAttribute('value')])).toEqual([['서비스: 카드 PG 결제', '0']])
     const send = within(form).getByRole('button', { name: '발급 요청 보내기' })
     expect(send).toBeDisabled()
     await userEvent.type(within(form).getByLabelText('업무 근거 참조(필수)'), 'MID-2026/0001#p1')
     await userEvent.click(send)
     expect(requestMerchantFirstMid).toHaveBeenCalledWith({ merchantId: MER1, contractId: CTR1, agreementId: CSA1, revisionNo: 1, primarySiteId: SITE1, evidenceRef: 'MID-2026/0001#p1' })
     // C-1: 상세를 다시 읽은 뒤에도 결과가 패널 위에 남는다.
-    expect(await screen.findByRole('status', { name: '승인 요청 결과' })).toHaveTextContent(APR)
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 결과 배너는 승인 ID 대신 무엇을 요청했는지(승인함에서 찾는다).
+    expect(await screen.findByRole('status', { name: '승인 요청 결과' })).toHaveTextContent('첫 MID 발급')
+    expect(screen.getByRole('status', { name: '승인 요청 결과' })).not.toHaveTextContent(APR)
     // C-2: 승인 대기 배너가 대상(첫 MID 발급)을 말한다.
     const banner = await screen.findByRole('status', { name: '승인 대기' })
     // Demo 지적 1: 대상 표시와 종류 라벨이 겹쳐 "첫 MID 발급"이 두 번 보이지 않는다(한 번만).
@@ -130,11 +133,12 @@ describe('MerchantsScreen — B2-3 first Default MID request (MERCHANT-OPS-002 �
     await openDetail(true, { merchantDetail: vi.fn(async () => two), requestMerchantFirstMid })
     await userEvent.click(screen.getByRole('button', { name: '첫 MID 발급 요청' }))
     const form = screen.getByRole('form', { name: '첫 MID 발급 요청' })
-    expect(within(form).getByLabelText('서비스 계약(CSA)')).toHaveValue(CSA1)
-    expect(within(form).getByLabelText('PRIMARY Site')).toHaveValue(SITE1)
-    await userEvent.selectOptions(within(form).getByLabelText('Revision'), `${CTR2}#1`)
-    expect(within(form).getByLabelText('서비스 계약(CSA)')).toHaveValue(CSA2)
-    expect(within(form).getByLabelText('PRIMARY Site')).toHaveValue(SITE2)
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 고른 값은 선택된 선택지의 사람용 글자로 본다(value는 목록 순번 — 키는 보내는 본문에만).
+    expect((within(form).getByLabelText('서비스 계약(CSA)') as HTMLSelectElement).selectedOptions[0]?.textContent).toBe('서비스: 카드 PG 결제')
+    expect((within(form).getByLabelText('PRIMARY Site') as HTMLSelectElement).selectedOptions[0]?.textContent).toBe('웹 · shop.example.test')
+    await userEvent.selectOptions(within(form).getByLabelText('Revision'), '계약 2 Revision 1 · 2026-11-10 시작')
+    expect((within(form).getByLabelText('Revision') as HTMLSelectElement).selectedOptions[0]?.textContent).toBe('계약 2 Revision 1 · 2026-11-10 시작')
+    expect((within(form).getByLabelText('PRIMARY Site') as HTMLSelectElement).selectedOptions[0]?.textContent).toBe('앱 · app.example.test')
     await userEvent.type(within(form).getByLabelText('업무 근거 참조(필수)'), 'MID-2')
     await userEvent.click(within(form).getByRole('button', { name: '발급 요청 보내기' }))
     expect(requestMerchantFirstMid).toHaveBeenCalledWith({ merchantId: MER1, contractId: CTR2, agreementId: CSA2, revisionNo: 1, primarySiteId: SITE2, evidenceRef: 'MID-2' })
@@ -148,7 +152,9 @@ describe('MerchantsScreen — B2-3 first Default MID request (MERCHANT-OPS-002 �
     const form = screen.getByRole('form', { name: '승인 요청 revision 2' })
     await userEvent.type(within(form).getByLabelText('업무 근거 참조(필수)'), 'CONTRACT-1')
     await userEvent.click(within(form).getByRole('button', { name: '승인 요청 보내기' }))
-    expect(await screen.findByRole('status', { name: '승인 요청 결과' })).toHaveTextContent(APR)
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 승인 ID 대신 대상 이름.
+    expect(await screen.findByRole('status', { name: '승인 요청 결과' })).toHaveTextContent('계약 승인(Revision 2)')
+    expect(screen.getByRole('status', { name: '승인 요청 결과' })).not.toHaveTextContent(APR)
     expect(await screen.findByRole('status', { name: '승인 대기' })).toHaveTextContent('Revision 2')
   })
 })

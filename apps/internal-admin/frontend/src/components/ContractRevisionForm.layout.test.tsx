@@ -17,12 +17,13 @@ const MER1 = id('mer', 1)
 const SITE1 = id('site', 1)
 const user = userEvent.setup({ delay: null })
 
+// 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 제목·Site 후보는 계약 키·Site 키 대신 사람용 이름(호출자가 준다 — 모양 단언은 그대로).
 function renderForm() {
   render(
-    <ContractRevisionForm api={fakeApi()} memory={createScreenMemory()} contractId={CTR1} merchantId={MER1} siteIds={[SITE1]} onRegistered={vi.fn()}
+    <ContractRevisionForm api={fakeApi()} memory={createScreenMemory()} contractId={CTR1} contractLabel="계약 1" merchantId={MER1} siteIds={[SITE1]} siteLabel={() => '웹 · shop.example.test'} onRegistered={vi.fn()}
       newSubmissionId={() => '0'.repeat(32)} todayKst={() => '2026-11-10'} />,
   )
-  return screen.getByRole('region', { name: `새 Revision 등록 — ${CTR1}` })
+  return screen.getByRole('region', { name: '새 Revision 등록 — 계약 1' })
 }
 /** 입력 하나의 폼 줄: .fieldrow 안 label[for] = 입력 id(이름 글자 그대로), 입력은 .fieldcontrol(줄의 자식) 첫 칸, 폭 class. */
 const formRowOf = (scope: HTMLElement, label: string, width: 'xs' | 'sm' | 'md' | 'lg' | null) => {
@@ -65,7 +66,7 @@ describe('LAYOUT-ROLLOUT B5: 계약 Revision 등록 폼 = 폼 줄(바깥 Card �
     const options = scopeRow.children[1] as HTMLElement
     expect(within(options).getAllByRole('radio')).toHaveLength(2)
     await user.click(within(scope).getByRole('radio', { name: '선택 Site' }))
-    expect(options.contains(within(scope).getByRole('checkbox', { name: SITE1 }))).toBe(true)
+    expect(options.contains(within(scope).getByRole('checkbox', { name: '웹 · shop.example.test' }))).toBe(true)
     // Site를 고르지 않고 제출 → 오류는 입력 열 아래(.fieldnote, 줄의 자식).
     await user.type(within(form).getByLabelText('시작일'), '2026-11-12')
     await user.click(within(form).getByRole('button', { name: 'Revision 등록' }))
@@ -122,7 +123,7 @@ describe('LAYOUT-ROLLOUT B6: 계약 Revision 등록 카드 제목 넘침 방지'
   it('CardTitle = wrap-anywhere(접근성 이름 · 글자 그대로)', () => {
     const form = renderForm()
     const title = form.querySelector('[data-slot="card-title"]')!
-    expect(title).toHaveTextContent(`새 Revision 등록 — ${CTR1}`)
+    expect(title).toHaveTextContent('새 Revision 등록 — 계약 1')
     expect(title).toHaveClass('wrap-anywhere')
   })
 })

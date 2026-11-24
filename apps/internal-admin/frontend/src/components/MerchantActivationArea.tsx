@@ -3,6 +3,7 @@ import type { AdminApi, MerchantDetail, RegistrationOutcome } from '../api/admin
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { ACTIVATION_REJECTION_MESSAGES, codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
+import { siteLabel } from '../lib/merchantLabels'
 import { PAYMENT_METHODS, type PaymentMethodCode } from '../lib/paymentMethods'
 import { CURRENCIES, kstTomorrowOf, nextKstDate, type EffectiveFromMode } from '../lib/currencies'
 import { createScreenMemory, type ScreenMemory } from '../lib/screenMemory'
@@ -100,6 +101,14 @@ function currencyState(c: Account['currencies'][number], now: Date): '효력 전
 }
 
 const ISO_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+
+/**
+ * 행 이름(MERCHANT-IA-001 B3): 사람용 이름이 같은 행이 여럿이면 "이름 (n번째)" — 내부 키를 접근 이름에 쓰지 않으면서 행을 구별한다.
+ */
+function nth<T>(rows: readonly T[], row: T, name: (x: T) => string): string {
+  const same = rows.filter((x) => name(x) === name(row))
+  return same.length <= 1 ? name(row) : `${name(row)} (${same.indexOf(row) + 1}번째)`
+}
 
 /**
  * B3-2 통화 활성화 요청 폼(MERCHANT-OPS-002 §8.4 B3-2-6 — D-MOPS-009 ②, KRW만 C-41). 효력 시작: "승인 실행 즉시"(MASTER가 실행할 때의 시각으로 확정 — 승인 시각이 아니다) 또는
@@ -289,9 +298,11 @@ function EvidenceRequest({ name, evidenceLabel, hint, send, onRequested, onSessi
 /** Site 1인 심사 거절(되돌릴 수 없음 — 사유 코드 선택, 근거 참조 선택, 확인 대화상자). */
 type SiteRejectBody = { merchantSiteId: string; reasonCode: string; evidenceRef?: string }
 
-function SiteRejectForm({ api, site, memory, newSubmissionId, onDone, onSessionEnded }: {
+function SiteRejectForm({ api, site, label, memory, newSubmissionId, onDone, onSessionEnded }: {
   api: AdminApi
   site: Site
+  /** 화면 이름(채널 식별값 — B3). 메모리 키·호출 인자는 site.merchantSiteId. */
+  label: string
   /** 결과 불명 잠금·보낸 본문을 둘 App 메모리(다른 Site 거절 열기 차단은 부모가 이 메모리로 본다 — 리뷰 MINOR-1). */
   memory: ScreenMemory
   newSubmissionId: () => string
@@ -315,7 +326,7 @@ function SiteRejectForm({ api, site, memory, newSubmissionId, onDone, onSessionE
       (o) => { if (o.outcome === 'SUCCEEDED') onDone() })
   }
   return (
-    <div className="flex flex-col gap-2" aria-label={`심사 거절 ${site.merchantSiteId}`} role="group">
+    <div className="flex flex-col gap-2" aria-label={`심사 거절 ${label}`} role="group">
       <Field label="거절 사유" className="text-xs">
         {(describedBy) => (
           <NativeSelect value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} aria-describedby={describedBy} disabled={inputLocked}>
@@ -344,7 +355,8 @@ function SiteRejectForm({ api, site, memory, newSubmissionId, onDone, onSessionE
           </Button>
         </div>
       )}
-      <OneShotResult status={status} success={(ref) => `거절되었습니다 — ${ref}`} />
+      {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자·메모리 키로만, DOM에는 사람용 값): 결과 참조(<site 키>#n)는 보이지 않는다. */}
+      <OneShotResult status={status} success={() => '거절되었습니다'} />
     </div>
   )
 }
@@ -398,9 +410,10 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
             const reviewOpen = site.review === null || site.review.decision === 'SUSPENDED'
             const actionable = site.lifecycle === 'ACTIVE' && reviewOpen
             return (
-              <TableRow key={site.merchantSiteId} aria-label={`심사 ${site.merchantSiteId}`}>
+              <TableRow key={site.merchantSiteId} aria-label={`심사 ${siteLabel(detail, site.merchantSiteId)}`}>
                 <TableCell>
-                  <span className="flex flex-col"><span className="font-mono text-xs">{site.merchantSiteId}</span>
+                  {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자·메모리 키로만, DOM에는 사람용 값): Site 키 대신 채널 식별값. */}
+                  <span className="flex flex-col"><span className="font-mono text-xs">{siteLabel(detail, site.merchantSiteId)}</span>
                     {primaries.has(site.merchantSiteId) && <span className="text-xs text-muted-foreground">대표(PRIMARY)</span>}</span>
                 </TableCell>
                 <TableCell><StatusBadge code={site.lifecycle} /></TableCell>
@@ -413,7 +426,7 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
                         {!sitePending && (
                           requestFor === site.merchantSiteId ? (
                             <EvidenceRequest
-                              name={`심사 승인 요청 ${site.merchantSiteId}`}
+                              name={`심사 승인 요청 ${siteLabel(detail, site.merchantSiteId)}`}
                               evidenceLabel="PG 심사 근거"
                               hint="PG 심사 기록 번호 — 영문·숫자와 . _ : # / - 만, 1~128자. 사유: 심사 통과(REVIEW_PASSED)"
                               send={(evidenceRef) => api.requestMerchantSiteReviewApproval({ merchantId, merchantSiteId: site.merchantSiteId, reasonCode: 'REVIEW_PASSED', evidenceRef })}
@@ -425,7 +438,7 @@ export function SiteReviewTable({ api, detail, canOperate, now, onChanged, onReq
                           )
                         )}
                         {openReject === site.merchantSiteId ? (
-                          <SiteRejectForm api={api} site={site} memory={memory} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
+                          <SiteRejectForm api={api} site={site} label={siteLabel(detail, site.merchantSiteId)} memory={memory} newSubmissionId={newSubmissionId} onDone={onChanged} onSessionEnded={onSessionEnded} />
                         ) : (
                           // 리뷰 MINOR-1: 열린 거절이 보내는 중·결과 불명이면 다른 Site 거절을 열 수 없다(열면 그 폼이 사라져 같은 submissionId 재전송을 잃는다).
                           <div><Button type="button" variant="ghost" size="sm" disabled={rejectLocked} onClick={() => setRejectFor(site.merchantSiteId)}>심사 거절</Button></div>
@@ -481,6 +494,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
   const midActive = account.lifecycle === 'ACTIVE'
   const checklist = activationChecklist(detail, account, now)
   const confirmations = account.siteConfirmations ?? []
+  const methodLabel = (method: Account['paymentMethods'][number]) => nth(account.paymentMethods, method, (x) => labelOf(x.paymentMethod))
 
   return (
     <section aria-label={`개통 ${account.merchantAccountId}`} className="flex flex-col gap-3 rounded-md border border-dashed p-3">
@@ -492,8 +506,9 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
         </TableHeader>
         <TableBody>
           {account.paymentMethods.length === 0 && <EmptyRow columns={canOperate ? 5 : 4} message="결제수단 개통이 없습니다." />}
+          {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자·메모리 키로만, DOM에는 사람용 값): 개통 키(act_) 대신 결제수단 이름(같은 수단이 여럿이면 순서). */}
           {account.paymentMethods.map((method) => (
-            <TableRow key={method.activationId} aria-label={method.activationId}>
+            <TableRow key={method.activationId} aria-label={methodLabel(method)}>
               <TableCell>{labelOf(method.paymentMethod)}</TableCell>
               <TableCell>{method.status === null ? <span className="text-muted-foreground">상태 없음</span> : <StatusBadge code={method.status} />}</TableCell>
               <TableCell><KstTime iso={method.registeredAt} /></TableCell>
@@ -503,7 +518,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
                   {method.status === 'UNDER_REVIEW' && midActive && primary !== null && !pmPending && (
                     requestFor === method.activationId ? (
                       <EvidenceRequest
-                        name={`개통 승인 요청 ${method.activationId}`}
+                        name={`개통 승인 요청 ${methodLabel(method)}`}
                         evidenceLabel="기관(카드사/VAN) 회신 참조"
                         hint="카드사·VAN 심사 회신 번호 — 영문·숫자와 . _ : # / - 만, 1~128자(자유 문구 불가)"
                         send={(evidenceRef) => api.requestMerchantPaymentMethodActivation({ merchantId, merchantAccountId: account.merchantAccountId, activationId: method.activationId, evidenceRef })}
@@ -540,21 +555,21 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
               )
             })}
           </div>
-          <OneShotResult status={register.status} success={(ref) => `개통 등록되었습니다(심사 중) — ${ref}`} />
+          <OneShotResult status={register.status} success={() => '개통 등록되었습니다(심사 중)'} />
         </div>
       )}
 
       <Table aria-label="Site 적용 확인">
         <TableHeader>
-          <TableRow><TableHead>Site</TableHead><TableHead>결제수단</TableHead><TableHead>개통</TableHead><TableHead>확인</TableHead><TableHead>상태</TableHead></TableRow>
+          {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자·메모리 키로만, DOM에는 사람용 값): '개통'(act_) 열을 뺐다 — 결제수단 열이 같은 뜻. Site는 채널 식별값. */}
+          <TableRow><TableHead>Site</TableHead><TableHead>결제수단</TableHead><TableHead>확인</TableHead><TableHead>상태</TableHead></TableRow>
         </TableHeader>
         <TableBody>
-          {confirmations.length === 0 && <EmptyRow columns={5} message="Site 적용 확인이 없습니다." />}
+          {confirmations.length === 0 && <EmptyRow columns={4} message="Site 적용 확인이 없습니다." />}
           {confirmations.map((c) => (
-            <TableRow key={c.confirmationId} aria-label={c.confirmationId}>
-              <TableCell><span className="font-mono text-xs">{c.merchantSiteId}</span></TableCell>
+            <TableRow key={c.confirmationId} aria-label={nth(confirmations, c, (x) => `${siteLabel(detail, x.merchantSiteId)} ${labelOf(x.paymentMethod)}`)}>
+              <TableCell><span className="font-mono text-xs">{siteLabel(detail, c.merchantSiteId)}</span></TableCell>
               <TableCell>{labelOf(c.paymentMethod)}</TableCell>
-              <TableCell><span className="font-mono text-xs">{c.activationId}</span></TableCell>
               <TableCell><KstTime iso={c.confirmedAt} /></TableCell>
               <TableCell>{c.revoked ? <span className="text-muted-foreground">철회</span> : <span>유효</span>}</TableCell>
             </TableRow>
@@ -569,7 +584,7 @@ export function MerchantActivationArea({ api, detail, account, canOperate, now, 
         <TableBody>
           {account.currencies.length === 0 && <EmptyRow columns={5} message="통화 활성화가 없습니다." />}
           {account.currencies.map((c) => (
-            <TableRow key={c.enablementId} aria-label={c.enablementId}>
+            <TableRow key={c.enablementId} aria-label={nth(account.currencies, c, (x) => x.currencyCode)}>
               <TableCell>{c.currencyCode}</TableCell>
               <TableCell><KstTime iso={c.effectiveFrom} /></TableCell>
               <TableCell>{c.effectiveTo === null ? <span className="text-muted-foreground">없음</span> : <KstTime iso={c.effectiveTo} />}</TableCell>

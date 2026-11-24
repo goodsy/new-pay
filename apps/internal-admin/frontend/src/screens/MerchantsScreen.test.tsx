@@ -241,15 +241,19 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(basic).toHaveTextContent('데모 사업자')
     expect(basic).toHaveTextContent(MASKED)
 
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): Site 행은 Site 키 대신 채널 식별값으로, 계약·서비스 약정은 "계약 1"·"서비스: 카드 PG 결제"로 보인다(키는 없다).
     const sites = screen.getByRole('region', { name: 'Site' })
-    expect(within(sites).getByRole('row', { name: id('mst', 1) })).toHaveTextContent('shop.example.test')
-    expect(within(sites).getByRole('row', { name: id('mst', 1) })).toHaveTextContent('승인')
-    expect(within(sites).getByRole('row', { name: id('mst', 2) })).toHaveTextContent('심사 결정 없음')
+    expect(within(sites).getByRole('row', { name: '웹 · shop.example.test' })).toHaveTextContent('shop.example.test')
+    expect(within(sites).getByRole('row', { name: '웹 · shop.example.test' })).toHaveTextContent('승인')
+    expect(within(sites).getByRole('row', { name: '앱 · test.example.app' })).toHaveTextContent('심사 결정 없음')
+    expect(sites).not.toHaveTextContent(id('mst', 1))
 
     const contracts = screen.getByRole('region', { name: '계약·CSA' })
-    expect(contracts).toHaveTextContent(id('ctr', 1))
+    expect(contracts).toHaveTextContent('계약 1')
+    expect(contracts).not.toHaveTextContent(id('ctr', 1))
     expect(contracts).toHaveTextContent('Site 지정')
-    expect(contracts).toHaveTextContent(id('csa', 1))
+    expect(contracts).toHaveTextContent('서비스: 카드 PG 결제')
+    expect(contracts).not.toHaveTextContent(id('csa', 1))
     expect(contracts).toHaveTextContent('카드 PG 결제')
 
     const mids = screen.getByRole('region', { name: 'MID·개통' })
@@ -260,10 +264,13 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(mids).toHaveTextContent('KRW')
 
     const limits = screen.getByRole('region', { name: '한도' })
-    expect(within(limits).getByRole('row', { name: id('tlp', 1) })).toHaveTextContent('1,000,000원')
-    expect(within(limits).getByRole('row', { name: id('tlp', 1) })).toHaveTextContent('무제한')
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③): 한도 행 이름은 한도 키(tlp_) 대신 순번, 범위는 사람용 값.
+    expect(within(limits).getByRole('row', { name: '한도 1' })).toHaveTextContent('1,000,000원')
+    expect(within(limits).getByRole('row', { name: '한도 1' })).toHaveTextContent('무제한')
+    expect(within(limits).getByRole('row', { name: '한도 1' })).toHaveTextContent('서비스: 카드 PG 결제')
     // 안전 정수가 아닌 금액은 짐작해 보이지 않는다(L-2와 같은 이유).
-    expect(within(limits).getByRole('row', { name: id('tlp', 2) })).toHaveTextContent('표시할 수 없는 금액')
+    expect(within(limits).getByRole('row', { name: '한도 2' })).toHaveTextContent('표시할 수 없는 금액')
+    expect(within(limits).getByRole('row', { name: '한도 2' })).toHaveTextContent(`MID ${id('mid', 1)}`)
     expect(limits).toHaveTextContent('Demo')
 
     // D-ADMIN-UI-009 ②: 권리 전파는 기본 접힘 "기술 정보" 안 — 열면 같은 값(기대값 그대로).
@@ -360,7 +367,7 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(api.merchantSearch).not.toHaveBeenCalled()
   })
 
-  it('MC-2-3 DOM: list, detail header, basic info and the merchant row of the history show the code — no mer_ in the screen text or accessible names; other aggregate keys stay', async () => {
+  it('MC-2-3 DOM: list, detail header, basic info and the merchant row of the history show the code — no mer_ in the screen text or accessible names; other aggregates show human values (B3)', async () => {
     const merchantEntry: MerchantHistoryEntry = { ...entry(20, 'REGISTERED'), operation: 'RegisterMerchant', aggregateType: 'Merchant', aggregateId: MER1 }
     await openDetail({
       merchantDetail: vi.fn(async () => detail),
@@ -368,7 +375,9 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     })
     const history = await screen.findByRole('region', { name: '변경 이력' })
     expect(await within(history).findByRole('row', { name: '20' })).toHaveTextContent(codeOf(MER1))
-    expect(within(history).getByRole('row', { name: '21' })).toHaveTextContent(id('cra', 1))
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 다른 대상은 키 대신 사람용 값(카드사 Route 개통 = MID · 인수사 코드).
+    expect(within(history).getByRole('row', { name: '21' })).toHaveTextContent(`${id('mid', 1)} · 인수사 ACQ01`)
+    expect(within(history).getByRole('row', { name: '21' })).not.toHaveTextContent(id('cra', 1))
     expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent(codeOf(MER1))
     expect(screen.getByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER1)}`) })).toBeInTheDocument()
     // 재리뷰 MAJOR-1: DOM 전체 — 텍스트와 모든 속성(value·placeholder·aria-*·title·data-* 포함, innerHTML) 및 입력란 value 프로퍼티에 mer_ 0건.
@@ -379,7 +388,7 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     }
   })
 
-  it('ADMIN-HISTORY-KEYS-001 T-HK-2/3: business and merchant history rows show name · masked number / name · code with Korean target names — no biz_/mer_ or plaintext number anywhere; other targets keep their identifier', async () => {
+  it('ADMIN-HISTORY-KEYS-001 T-HK-2/3: business and merchant history rows show name · masked number / name · code with Korean target names — no biz_/mer_ or plaintext number anywhere; other targets show human values (B3)', async () => {
     const rows: MerchantHistoryEntry[] = [
       { ...entry(40, 'REGISTERED'), operation: 'RegisterBusiness', aggregateType: 'Business', aggregateId: BIZ1 },
       { ...entry(41, 'REGISTERED'), operation: 'RegisterMerchant', aggregateType: 'Merchant', aggregateId: MER1 },
@@ -390,15 +399,19 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     const history = await screen.findByRole('region', { name: '변경 이력' })
     const business = await within(history).findByRole('row', { name: '40' })
     expect(within(business).getByText('사업자', { exact: true })).toBeInTheDocument()
-    expect(business).toHaveTextContent('Business')
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 영문 종류 코드('Business') 줄은 없다 — 한국어 종류 이름만.
+    expect(business).not.toHaveTextContent('Business')
     expect(business).toHaveTextContent(`데모 사업자 · ${MASKED}`)
     const merchant = within(history).getByRole('row', { name: '41' })
     expect(within(merchant).getByText('가맹점', { exact: true })).toBeInTheDocument()
     expect(merchant).toHaveTextContent(`데모 가맹점 · ${codeOf(MER1)}`)
-    expect(within(history).getByRole('row', { name: '42' })).toHaveTextContent(id('site', 1))
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 상세에 없는 Site는 종류 이름만(키 없음), Route는 MID · 인수사 코드.
+    expect(within(history).getByRole('row', { name: '42' })).toHaveTextContent('사이트')
+    expect(within(history).getByRole('row', { name: '42' })).not.toHaveTextContent(id('site', 1))
     const route = within(history).getByRole('row', { name: '43' })
     expect(route).toHaveTextContent('카드사 Route 개통')
-    expect(route).toHaveTextContent(id('cra', 1))
+    expect(route).toHaveTextContent(`${id('mid', 1)} · 인수사 ACQ01`)
+    expect(route).not.toHaveTextContent(id('cra', 1))
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
     expect(domOccurrences(document.body, 'mer_')).toEqual([])
     expect(domOccurrences(document.body, BRN)).toEqual([])
@@ -462,14 +475,14 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
     const table = await screen.findByRole('table', { name: 'Site 목록' })
     expect(table).not.toHaveClass('whitespace-nowrap')
     expect(table.parentElement).toHaveClass('overflow-x-auto')
-    const cells = within(within(table).getByRole('row', { name: id('mst', 1) })).getAllByRole('cell')
-    expect(cells[0]).toHaveClass('whitespace-nowrap') // Site ID
-    expect(cells[0]).toHaveTextContent(id('mst', 1))
-    expect(cells[2]).toHaveClass('whitespace-nowrap') // 상태
-    expect(cells[1]).not.toHaveClass('whitespace-nowrap') // 채널 칸 전체는 줄바꿈 허용
-    const channel = cells[1]!.querySelector(':scope > span.flex-col')!
+    // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): Site ID 열을 뺐다 — 칸 순서가 채널·상태·심사 결과로 당겨졌다(줄바꿈 규칙 단언은 그대로).
+    const cells = within(within(table).getByRole('row', { name: '웹 · shop.example.test' })).getAllByRole('cell')
+    expect(cells).toHaveLength(3)
+    expect(cells[1]).toHaveClass('whitespace-nowrap') // 상태
+    expect(cells[0]).not.toHaveClass('whitespace-nowrap') // 채널 칸 전체는 줄바꿈 허용
+    const channel = cells[0]!.querySelector(':scope > span.flex-col')!
     expect(channel.children[0]).toHaveClass('whitespace-nowrap') // 채널 종류
-    const identifier = within(cells[1]!).getByText('shop.example.test')
+    const identifier = within(cells[0]!).getByText('shop.example.test')
     expect(identifier.parentElement).toHaveClass('min-w-[16ch]')
     expect(identifier.parentElement).not.toHaveClass('whitespace-nowrap')
     expect(identifier.parentElement!.parentElement).toBe(channel)

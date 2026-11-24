@@ -54,7 +54,8 @@ async function openDetail(canRegisterRevision: boolean, overrides: Parameters<ty
   return api
 }
 
-const revisionForm = () => screen.getByRole('region', { name: `새 Revision 등록 — ${CTR1}` })
+// 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 폼 제목·계약 표 이름·결과는 계약 키 대신 "계약 n"·"Revision n", Site 후보는 채널 식별값 — 잠금·재전송·호출 단언은 그대로.
+const revisionForm = () => screen.getByRole('region', { name: '새 Revision 등록 — 계약 1' })
 
 describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6)', () => {
   it('the button is shown only when allowed (OPERATOR — display only, the server decides)', async () => {
@@ -81,9 +82,9 @@ describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6
     // C-32 표기 통일: 상세 표와 같은 "승인 전".
     expect(await within(revisionForm()).findByText(/승인 전/)).toBeInTheDocument()
     expect(within(revisionForm()).queryByText(/미승인/)).toBeNull()
-    expect(within(revisionForm()).getByText(`${CTR1}#2`)).toBeInTheDocument()
+    expect(within(revisionForm()).getByText('Revision 2')).toBeInTheDocument()
     expect(detailCalls).toHaveBeenCalledTimes(2)
-    expect(await screen.findByRole('table', { name: `계약 revision ${CTR1}` })).toHaveTextContent('2')
+    expect(await screen.findByRole('table', { name: '계약 1 revision' })).toHaveTextContent('2')
   })
 
   it('SITES scope offers only ACTIVE sites of this merchant and requires one', async () => {
@@ -91,8 +92,8 @@ describe('MerchantsScreen — B2-1 new contract revision (MERCHANT-OPS-002 §9.6
     await userEvent.click(screen.getByRole('button', { name: '새 Revision 등록' }))
     const form = revisionForm()
     await userEvent.click(within(form).getByLabelText('선택 Site'))
-    expect(within(form).getByText(SITE1)).toBeInTheDocument()
-    expect(within(form).queryByText(SITE2)).toBeNull()
+    expect(within(form).getByText('웹 · shop.example.test')).toBeInTheDocument()
+    expect(within(form).queryByText('웹 · old.example.test')).toBeNull()
     await userEvent.type(within(form).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(form).getByRole('button', { name: 'Revision 등록' }))
     expect(within(form).getByText('Site를 하나 이상 고르세요.')).toBeInTheDocument()
@@ -200,7 +201,7 @@ describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form
     const { send } = setup()
     await lockFirstMerchant()
     await userEvent.click(screen.getByRole('button', { name: '닫기' }))
-    expect(screen.queryByRole('region', { name: `새 Revision 등록 — ${CTR1}` })).toBeNull()
+    expect(screen.queryByRole('region', { name: '새 Revision 등록 — 계약 1' })).toBeNull()
     // 닫힌 상태에서도 잠금이 남아 있음을 버튼이 알린다.
     expect(screen.getByRole('button', { name: /새 Revision 등록/ })).toHaveTextContent('결과 확인 필요')
     await openRevisionForm()
@@ -213,10 +214,14 @@ describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form
     // MERCHANT-DETAIL-VIEW-001: 상세는 목록과 다른 화면이다 — 다른 가맹점은 '목록으로'로 목록에 돌아가 연다(목록 아래 상세 시절의 "목록에서 바로 다른 행 열기"와 같은 경로·같은 단언).
     await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     await openMerchant(MER2)
-    await screen.findByRole('table', { name: `계약 revision ${CTR2}` })
+    // MERCHANT-IA-001 B3: MER2의 유일한 계약도 "계약 1" — 목록에서 연 뒤 그 상세가 그려질 때까지 기다리는 용도(단언 의미 같음).
+    await screen.findByRole('table', { name: '계약 1 revision' })
+    // B3 리뷰 MINOR-3(단언 추가만): 계약 표 이름이 두 가맹점에서 같아졌으므로, 지금 보이는 상세가 MER2인지 머리의 가맹점 코드로 확인한다.
+    expect(screen.getByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER2)}`) })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     await openMerchant(MER1)
-    await screen.findByRole('table', { name: `계약 revision ${CTR1}` })
+    await screen.findByRole('table', { name: '계약 1 revision' })
+    expect(screen.getByRole('heading', { name: new RegExp(`가맹점 상세 ${codeOf(MER1)}`) })).toBeInTheDocument()
     await openRevisionForm()
     await expectStillLockedAndResendSame(send)
   })
@@ -270,7 +275,7 @@ describe('MerchantsScreen — B2-1 completed revision form (C-32)', () => {
     await userEvent.click(await screen.findByRole('button', { name: '새 Revision 등록' }))
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-12')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))
-    expect(await within(revisionForm()).findByText(`${CTR1}#2`)).toBeInTheDocument()
+    expect(await within(revisionForm()).findByText('Revision 2')).toBeInTheDocument()
 
     expect(within(revisionForm()).queryByRole('button', { name: 'Revision 등록' })).toBeNull()
     expect(within(revisionForm()).getByLabelText('시작일')).toBeDisabled()
@@ -280,7 +285,7 @@ describe('MerchantsScreen — B2-1 completed revision form (C-32)', () => {
     await userEvent.click(within(revisionForm()).getByRole('button', { name: '다른 Revision 새로 입력' }))
     expect(within(revisionForm()).getByLabelText('시작일')).not.toBeDisabled()
     expect(within(revisionForm()).getByLabelText('시작일')).toHaveValue('')
-    expect(within(revisionForm()).queryByText(`${CTR1}#2`)).toBeNull()
+    expect(within(revisionForm()).queryByText('Revision 2')).toBeNull()
     await userEvent.type(within(revisionForm()).getByLabelText('시작일'), '2026-11-13')
     await userEvent.click(within(revisionForm()).getByRole('button', { name: 'Revision 등록' }))
     expect(send).toHaveBeenCalledTimes(2)

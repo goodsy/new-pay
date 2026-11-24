@@ -3,7 +3,7 @@ import type { AdminApi, MerchantDetail, MerchantHistoryEntry, MerchantListItem, 
 import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { DetailRow } from '../components/DetailCard'
-import { EmptyRow, KindLabel, KstTime, Spinner, StatusBadge } from '../components/DataBits'
+import { EmptyRow, KstTime, Spinner, StatusBadge } from '../components/DataBits'
 import { ErrorNotice } from '../components/Notice'
 import { BackToListButton, MapNote } from '../components/MapNote'
 import { ContractRevisionForm, useRevisionLocked } from '../components/ContractRevisionForm'
@@ -22,6 +22,7 @@ import { ChevronDownIcon } from '../components/icons'
 import { formatMinor } from '../lib/format'
 import { historyTarget, historyTargetLabel } from '../lib/historyTarget'
 import { changeTypeLabel } from '../lib/merchantChangeTypes'
+import { agreementLabel, contractLabel, limitScopeLabel, siteIdentifierOf, siteLabel, siteLabelOf } from '../lib/merchantLabels'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
 
@@ -134,8 +135,10 @@ function RevisionButton({ memory, contractId, onOpen }: { memory: ScreenMemory; 
   )
 }
 
-function DetailPanels({ detail, contractAction, revisionAction, activation, siteReview }: {
+function DetailPanels({ detail, contractAction, revisionAction, activation, siteReview, onOpenApprovals }: {
   detail: MerchantDetail
+  /** 승인 대기 배너의 '승인함에서 보기'(B3 — 승인 ID 대신). */
+  onOpenApprovals?: () => void
   /**
    * 가맹점 단위 Site 심사 표(MERCHANT-IA-001 B1 — 예전에는 MID "개통" 영역마다 같은 표가 반복됐다). Site 패널 안 Site 목록 아래에 한 번 그린다:
    * Site를 보는 곳 바로 옆이 자연스럽고, B4 탭(Site·계약)에서도 같은 자리다. MID가 하나라도 있을 때만 그린다 — 개통 영역 안에 있던 때의 표시 조건 그대로.
@@ -159,7 +162,9 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
               {/* Demo 개선 C-2: 대상(계약 승인 Revision 번호 또는 첫 MID 발급). */}
               {/* Demo 지적 1(B2-3): 첫 MID 발급은 종류 라벨이 대상을 말하므로 대상 표시는 계약 승인의 Revision 번호만. */}
               {p.revisionNo != null && <span>{`Revision ${p.revisionNo}`}</span>}
-              <KindLabel code={p.kind} /><StatusBadge code={p.status} /><Mono>{p.approvalId}</Mono>
+              {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 승인 ID(apr_) 대신 종류 이름과 '승인함에서 보기'. */}
+              <span>{labelOf(p.kind)}</span><StatusBadge code={p.status} />
+              {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
             </p>
           ))}
         </section>
@@ -205,17 +210,17 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
             줄바꿈 허용 + 최소 폭 16ch — 한 글자씩 세로로 쪼개지지 않고, 긴 값이 표를 넓혀 상태·심사 결과 열을 밀어내지도 않게(모양만). */}
         <Table aria-label="Site 목록">
           <TableHeader>
-            <TableRow><TableHead>Site</TableHead><TableHead>채널</TableHead><TableHead>상태</TableHead><TableHead>심사 결과</TableHead></TableRow>
+            {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): Site 내부 키 열을 뺐다 — Site는 채널 식별값으로 식별한다(같은 채널이 여럿이면 상태·순서 — siteLabelOf). */}
+            <TableRow><TableHead>채널</TableHead><TableHead>상태</TableHead><TableHead>심사 결과</TableHead></TableRow>
           </TableHeader>
           <TableBody>
-            {sites.length === 0 && <EmptyRow columns={4} message="등록된 Site가 없습니다." />}
+            {sites.length === 0 && <EmptyRow columns={3} message="등록된 Site가 없습니다." />}
             {sites.map((site) => (
-              <TableRow key={site.merchantSiteId} aria-label={site.merchantSiteId}>
-                <TableCell className="whitespace-nowrap"><Mono>{site.merchantSiteId}</Mono></TableCell>
+              <TableRow key={site.merchantSiteId} aria-label={siteLabelOf(sites, site)}>
                 <TableCell>
                   <span className="flex flex-col">
                     <span className="whitespace-nowrap">{labelOf(site.channelType)}</span>
-                    <span className="min-w-[16ch]"><Mono>{site.channelIdentifier}</Mono></span>
+                    <span className="min-w-[16ch]"><Mono>{siteIdentifierOf(sites, site)}</Mono></span>
                   </span>
                 </TableCell>
                 <TableCell className="whitespace-nowrap"><StatusBadge code={site.lifecycle} /></TableCell>
@@ -243,10 +248,11 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
         {contracts.map((contract) => (
           <div key={contract.contractId} className="flex flex-col gap-2 rounded-lg border p-3">
             <p className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-medium">계약</span><Mono>{contract.contractId}</Mono>
+              {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 계약 키(ctr_) 대신 "계약 n". */}
+              <span className="font-medium">{contractLabel(detail, contract.contractId)}</span>
               <span className="text-xs text-muted-foreground">등록</span><KstTime iso={contract.createdAt} />
             </p>
-            <Table aria-label={`계약 revision ${contract.contractId}`}>
+            <Table aria-label={`${contractLabel(detail, contract.contractId)} revision`}>
               <TableHeader>
                 <TableRow>
                   <TableHead>revision</TableHead><TableHead>범위</TableHead><TableHead>효력 기간</TableHead><TableHead>승인</TableHead><TableHead>등록자</TableHead>
@@ -260,7 +266,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
                     <TableCell>
                       <span className="flex flex-col gap-0.5">
                         <span>{labelOf(revision.scopeKind)}</span>
-                        {revision.scopeSiteIds.map((siteId) => <Mono key={siteId}>{siteId}</Mono>)}
+                        {revision.scopeSiteIds.map((siteId) => <Mono key={siteId}>{siteLabel(detail, siteId)}</Mono>)}
                       </span>
                     </TableCell>
                     <TableCell>{period(revision.effectiveFrom, revision.effectiveTo)}</TableCell>
@@ -271,11 +277,12 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
                 ))}
               </TableBody>
             </Table>
-            <ul aria-label={`CSA ${contract.contractId}`} className="flex flex-col gap-1 text-sm">
+            {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 서비스 약정 키(csa_) 대신 "서비스: <종류> · 추가 <시각>". */}
+            <ul aria-label={`${contractLabel(detail, contract.contractId)} 서비스`} className="flex flex-col gap-1 text-sm">
               {contract.agreements.map((agreement) => (
                 <li key={agreement.agreementId} className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">CSA</span><Mono>{agreement.agreementId}</Mono>
-                  <span>{labelOf(agreement.serviceKind)}</span><KstTime iso={agreement.addedAt} />
+                  <span>{`서비스: ${labelOf(agreement.serviceKind)}`}</span>
+                  <span className="text-xs text-muted-foreground">추가</span><KstTime iso={agreement.addedAt} />
                 </li>
               ))}
             </ul>
@@ -294,10 +301,9 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
               <StatusBadge code={account.lifecycle} />
             </p>
             <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>발급 근거: 계약</span><Mono>{account.issuingContractId}</Mono>
-              <span>· CSA</span><Mono>{account.issuingAgreementId}</Mono>
-              <span>{`· revision ${account.issuingRevisionNo}`}</span>
-              <span>· 발급</span><KstTime iso={account.issuedAt} />
+              {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 발급 근거의 계약·서비스 약정 키 대신 사람용 값. */}
+              <span>발급</span><KstTime iso={account.issuedAt} />
+              <span>{`· 근거 ${contractLabel(detail, account.issuingContractId)} Revision ${account.issuingRevisionNo} · ${agreementLabel(detail, account.issuingAgreementId)}`}</span>
             </p>
             <Table aria-label="Site 배정">
               <TableHeader>
@@ -307,7 +313,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
                 {account.assignments.length === 0 && <EmptyRow columns={4} message="Site 배정이 없습니다." />}
                 {account.assignments.map((assignment) => (
                   <TableRow key={assignment.assignmentId}>
-                    <TableCell><Mono>{assignment.merchantSiteId}</Mono></TableCell>
+                    <TableCell><Mono>{siteLabel(detail, assignment.merchantSiteId)}</Mono></TableCell>
                     <TableCell>{labelOf(assignment.role)}</TableCell>
                     <TableCell><StatusBadge code={assignment.status} /></TableCell>
                     <TableCell>{period(assignment.effectiveFrom, assignment.effectiveTo)}</TableCell>
@@ -363,12 +369,13 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
           </TableHeader>
           <TableBody>
             {limits.length === 0 && <EmptyRow columns={6} message="등록된 한도가 없습니다." />}
-            {limits.map((limit) => (
-              <TableRow key={limit.policyId} aria-label={limit.policyId}>
+            {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 한도 키(tlp_) 행 이름 대신 순번, 범위는 "MID …"/"서비스: …". */}
+            {limits.map((limit, index) => (
+              <TableRow key={limit.policyId} aria-label={`한도 ${index + 1}`}>
                 <TableCell>
                   <span className="flex flex-col gap-0.5">
                     <span>{labelOf(limit.scopeKind)}</span>
-                    <Mono>{limit.merchantAccountId ?? limit.agreementId ?? '-'}</Mono>
+                    <Mono>{limitScopeLabel(detail, limit)}</Mono>
                   </span>
                 </TableCell>
                 <TableCell className="font-mono">{limit.currencyCode}</TableCell>
@@ -674,8 +681,8 @@ export function MerchantsScreen({
       <ServiceOpeningTimeline detail={detail} now={now()} />
       {requestResult && (
         <section role="status" aria-label="승인 요청 결과" className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 승인 ID(apr_)는 보이지 않는다 — '승인함에서 보기'로 찾는다. */}
           <span>{`승인 요청을 만들었습니다 — ${requestResult.what}`}</span>
-          <Mono>{requestResult.approvalId}</Mono>
           {onOpenApprovals && <Button type="button" variant="outline" size="sm" onClick={onOpenApprovals}>승인함에서 보기</Button>}
           <Button type="button" variant="ghost" size="sm" onClick={() => setRequestResult(null)}>닫기</Button>
         </section>
@@ -725,6 +732,7 @@ export function MerchantsScreen({
       )}
       <DetailPanels
         detail={detail}
+        onOpenApprovals={onOpenApprovals}
         contractAction={canRegisterRevision ? (contractId) => (
           revisionFor === contractId ? (
             <div className="flex flex-col gap-2">
@@ -732,6 +740,8 @@ export function MerchantsScreen({
                 api={api}
                 memory={revisionMemory}
                 contractId={contractId}
+                contractLabel={contractLabel(detail, contractId)}
+                siteLabel={(siteId) => siteLabel(detail, siteId)}
                 merchantId={detail.merchant.merchantId}
                 // 리뷰 n-4: ACTIVE Site만 후보로 보이는 것은 안내일 뿐이다 — 범위 판정의 권위는 MASTER(validScope: 다른 가맹점·비활성 Site 거절)다.
                 siteIds={detail.sites.filter((site) => site.lifecycle === 'ACTIVE').map((site) => site.merchantSiteId)}
@@ -823,11 +833,12 @@ export function MerchantsScreen({
                 <TableRow key={entry.seq} aria-label={String(entry.seq)}>
                   <TableCell className="font-mono">{entry.seq}</TableCell>
                   <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
-                  {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·마스킹 번호 — 내부 키 mer_·biz_ 미표시. 다른 대상(Site·계약·MID 등)은 각 식별자 그대로. */}
+                  {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·마스킹 번호 — 내부 키 mer_·biz_ 미표시. 다른 대상은 MERCHANT-IA-001 B3부터 사람용 값(historyTargetValue — 내부 키 없음, MID는 외부 식별자라 그대로). */}
                   <TableCell>
                     <span className="flex flex-col gap-1">
-                      <KindLabel code={entry.aggregateType} label={historyTargetLabel(entry.aggregateType)} />
-                      <span className="text-sm">{historyTarget(entry, detail)}</span>
+                      {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 종류는 한국어 이름만(영문 종류 코드 줄 없음), 값은 사람용 값 — 없으면 종류만. */}
+                      <span className="font-medium">{historyTargetLabel(entry.aggregateType)}</span>
+                      {historyTarget(entry, detail) !== '' && <span className="text-sm">{historyTarget(entry, detail)}</span>}
                     </span>
                   </TableCell>
                   {/* MERCHANT-IA-001 B1: 한국어 이름만(영문 코드 줄 없음). 모르는 종류는 코드 그대로 — changeTypeLabel. */}
