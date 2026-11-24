@@ -1,7 +1,6 @@
 package com.paycore.admin.account.adapter.web
 
 import com.paycore.admin.account.application.provided.AdminRequestContext
-import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionState
 import com.paycore.admin.account.application.provided.DemoQuickLoginResult
 import com.paycore.admin.account.application.provided.DemoQuickLoginUseCase
@@ -30,7 +29,7 @@ import java.util.UUID
 @Conditional(DemoQuickLoginCondition::class)
 class DemoQuickLoginController(
     private val quick: DemoQuickLoginUseCase,
-    private val sessions: AdminSessionQuery,
+    private val meBody: AdminMeBody,
     private val writer: LoginSessionWriter,
 ) {
 
@@ -58,11 +57,9 @@ class DemoQuickLoginController(
                     loginMethod = AdminSessionState.DEMO_QUICK,
                 ))
                 renewed.maxInactiveInterval = result.idle.seconds.toInt()
-                val view = sessions.current(result.actorId)
+                // 리뷰 NIT-c: `/api/auth/me`와 같은 본문·같은 표시 규칙([AdminMeBody] 한 곳).
+                val body = meBody.of(result.actorId, renewed)
                     ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore()).body(mapOf("error" to "UNAUTHENTICATED"))
-                // 리뷰 NIT-c: `/api/auth/me`와 같은 규칙 — 방금 기록한 세션 표시(DEMO_QUICK) **그리고** 서버 켜짐이면 `"demoQuickLogin":true`, 아니면 필드 없음.
-                val body = linkedMapOf<String, Any>("actorId" to view.actorId, "displayName" to view.displayName, "roles" to view.roles.sorted())
-                if (AdminSessionState.read(renewed::getAttribute)?.isDemoQuick == true && quick.isActive()) body["demoQuickLogin"] = true
                 ok(body)
             }
         }

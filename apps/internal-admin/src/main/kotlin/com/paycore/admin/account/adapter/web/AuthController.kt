@@ -4,7 +4,6 @@ import com.paycore.admin.account.application.provided.AdminLoginUseCase
 import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionState
-import com.paycore.admin.account.application.provided.DemoQuickLoginUseCase
 import com.paycore.admin.account.application.provided.PasswordStepResult
 import com.paycore.admin.account.application.provided.PasswordVerified
 import com.paycore.admin.account.application.provided.TotpStepResult
@@ -37,7 +36,7 @@ class AuthController(
     private val sessions: AdminSessionQuery,
     private val csrfTokens: CsrfTokenRepository,
     private val writer: LoginSessionWriter,
-    private val demoQuickLogin: DemoQuickLoginUseCase,
+    private val meBody: AdminMeBody,
 ) {
 
     @GetMapping("/csrf")
@@ -46,7 +45,7 @@ class AuthController(
             request.getSession(true).maxInactiveInterval = sessions.policy().anonymousIdle.seconds.toInt()
         }
         val token = csrfTokens.loadToken(request) ?: csrfTokens.generateToken(request).also { csrfTokens.saveToken(it, request, response) }
-        writeXsrfCookie(response, token.token)
+        writer.writeXsrfCookie(response, token.token)
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build()
     }
 
@@ -65,7 +64,7 @@ class AuthController(
                 invalidCredentials()
             }
             is PasswordStepResult.Verified -> {
-                val renewed = renew(request, response, AdminSessionState(
+                val renewed = writer.renew(request, response, AdminSessionState(
                     AdminSessionState.Stage.PASSWORD_VERIFIED, result.verified.actorId, result.verified.securityVersion,
                     stepExpiresAt = result.verified.stepExpiresAt,
                 ))
@@ -87,11 +86,11 @@ class AuthController(
                 invalidCredentials()
             }
             is TotpStepResult.Authenticated -> {
-                val renewed = renew(request, response, AdminSessionState(
+                val renewed = writer.renew(request, response, AdminSessionState(
                     AdminSessionState.Stage.AUTHENTICATED, result.actorId, result.securityVersion, result.sessionGeneration, result.authenticatedAt,
                 ))
                 renewed.maxInactiveInterval = result.idle.seconds.toInt()
-                me(result.actorId)
+                me(result.actorId, renewed)
             }
         }
     }
@@ -115,20 +114,13 @@ class AuthController(
      * 안내를 그리는 표시용 — 판정은 서버). 일반 세션 응답은 기존 형태 그대로(필드 없음).
      */
     @GetMapping("/me")
-    fun me(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
-        val demo = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.isDemoQuick == true && demoQuickLogin.isActive()
-        return me(authentication.name, demo)
-    }
+    fun me(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> = me(authentication.name, request.getSession(false))
 
-    private fun me(actorId: String, demoQuickLogin: Boolean = false): ResponseEntity<out Any> {
-        val view = sessions.current(actorId) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "UNAUTHENTICATED"))
-        val body = linkedMapOf<String, Any>("actorId" to view.actorId, "displayName" to view.displayName, "roles" to view.roles.sorted())
-        if (demoQuickLogin) body["demoQuickLogin"] = true
+    /** 본문은 [AdminMeBody](데모 간편 로그인 성공과 공유 — 표시 규칙 한 곳). 계정이 없으면 401(기존 그대로 — Cache-Control 없음). */
+    private fun me(actorId: String, session: HttpSession?): ResponseEntity<out Any> {
+        val body = meBody.of(actorId, session) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "UNAUTHENTICATED"))
         return ok(body)
     }
-
-    /** 세션 ID 재발급 → 로그인 상태 기록 → CSRF 토큰 재발급 — 데모 간편 로그인과 같은 경로([LoginSessionWriter]). */
-    private fun renew(request: HttpServletRequest, response: HttpServletResponse, state: AdminSessionState): HttpSession = writer.renew(request, response, state)
 
     private fun clearState(session: HttpSession) = AdminSessionState.NAMES.forEach(session::removeAttribute)
 
@@ -138,8 +130,6 @@ class AuthController(
 
     private fun invalidCredentials(): ResponseEntity<Map<String, String>> =
         ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore()).body(mapOf("error" to "INVALID_CREDENTIALS"))
-
-    private fun writeXsrfCookie(response: HttpServletResponse, token: String) = writer.writeXsrfCookie(response, token)
 
     class PasswordRequest(val loginName: String?, val password: String?) {
         override fun toString(): String = "PasswordRequest(***)"

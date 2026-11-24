@@ -33,8 +33,7 @@ class UnmaskService(
         if (command.reason.length > REASON_MAX || command.reason.any { it.isISOControl() }) return UnmaskResult.Invalid("REASON_INVALID")
         if (!TARGET.matches(command.targetRef)) return UnmaskResult.Invalid("TARGET_INVALID")
         // ADMIN-DEMO-LOGIN-001 결정 ③: 데모 간편 로그인 세션 + 켜짐이면 TOTP 입력이 없어도 된다(검증 생략은 executor.verifyStepUp — 같은 조건). 그 밖은 그대로.
-        val stepUpWaived = command.context.demoQuickSession && demoQuickLogin.active
-        if (command.totpCode.isBlank() && !stepUpWaived) return UnmaskResult.Invalid("TOTP_REQUIRED")
+        if (command.totpCode.isBlank() && !demoQuickLogin.waivesStepUp(command.context)) return UnmaskResult.Invalid("TOTP_REQUIRED")
         val result = retryLaterOnConflict {
             transactions.execute({ false }) { status ->
                 val actor = executor.lockParticipants(listOf(command.actorId))[command.actorId]

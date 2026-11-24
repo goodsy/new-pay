@@ -58,13 +58,13 @@ class AccountSecurityConfiguration {
      */
     @Bean
     fun demoQuickLoginSettings(
-        deployment: AdminDeploymentProperties,
         properties: DemoQuickLoginProperties,
         security: AdminSecurityProperties,
         meters: ObjectProvider<MeterRegistry>,
         guard: LiveModeGuardPassed,
     ): DemoQuickLoginSettings {
-        val active = guard.mode == DeploymentMode.DEMO && deployment.deploymentMode == DeploymentMode.DEMO && properties.enabled
+        // guard.mode = 배치 모드 설정 그대로(가드 통과 값).
+        val active = guard.mode == DeploymentMode.DEMO && properties.enabled
         if (active) {
             LoggerFactory.getLogger(DemoQuickLoginSettings::class.java).warn(
                 "DEMO QUICK LOGIN ENABLED (demo only — must be off before operation): accounts={} knownDemoKeys={}",

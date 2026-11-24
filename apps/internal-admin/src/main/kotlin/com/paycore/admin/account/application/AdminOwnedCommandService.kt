@@ -90,7 +90,7 @@ class AdminOwnedCommandService(
      * 실패 계수·`last_totp_step`은 바꾸지 않는다. 그 밖은 [consumeStepUpTotp] 그대로.
      */
     override fun verifyStepUp(actorId: String, code: String, context: AdminRequestContext): StepUpResult {
-        if (!(context.demoQuickSession && demoQuickLogin.active)) return consumeStepUpTotp(actorId, code)
+        if (!demoQuickLogin.waivesStepUp(context)) return consumeStepUpTotp(actorId, code)
         return retryLaterOnConflict {
             val account = current(actorId)?.value ?: return@retryLaterOnConflict StepUpResult.FAILED
             if (account.status != AccountStatus.ACTIVE) return@retryLaterOnConflict StepUpResult.FAILED

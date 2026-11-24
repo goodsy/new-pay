@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { AdminApi, DemoQuickLoginAccount, Me } from '../api/adminApi'
+import { useState } from 'react'
+import type { AdminApi, Me } from '../api/adminApi'
 import type { ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import { labelOf } from '../lib/labels'
+import { useDemoQuickLoginAccounts } from '../lib/useDemoQuickLoginAccounts'
 import { CircleAlertIcon, InfoIcon } from './icons'
 import { Alert, AlertDescription } from './ui/alert'
 
@@ -12,21 +13,9 @@ import { Alert, AlertDescription } from './ui/alert'
  * 켜짐 판정·권한은 서버. 비밀번호·OTP 입력이 없다. 브라우저 저장소를 쓰지 않는다.
  */
 export function DemoQuickLoginPanel({ api, onAuthenticated }: { api: AdminApi; onAuthenticated: (me: Me) => void }) {
-  const [accounts, setAccounts] = useState<DemoQuickLoginAccount[]>([])
+  const accounts = useDemoQuickLoginAccounts(api)
   const [error, setError] = useState<ConsoleErrorCode | null>(null)
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    const load = api.demoQuickLoginOptions
-    if (!load) return
-    load.call(api)
-      .then((list) => alive && setAccounts(list ?? []))
-      .catch(() => alive && setAccounts([]))
-    return () => {
-      alive = false
-    }
-  }, [api])
 
   if (accounts.length === 0 || !api.demoQuickLogin) return null
 

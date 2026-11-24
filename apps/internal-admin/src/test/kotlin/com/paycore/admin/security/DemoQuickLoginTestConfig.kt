@@ -7,5 +7,5 @@ package com.paycore.admin.security
 object DemoQuickLoginTestConfig {
     const val ACCOUNTS =
         "paycore.admin.demo-quick-login.accounts=dq-approver,dq-sa,dq-locked,dq-suspended,dq-pending,dq-missing,dq-replaced,dq-limit,dq-relogin," +
-            "su-approver,su-both,su-unmask,su-normal,mo-registrant,mo-approver"
+            "su-approver,su-both,su-unmask,su-normal,mo-registrant,mo-approver,ow-approver,aq-approver"
 }
