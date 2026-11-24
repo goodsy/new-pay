@@ -964,9 +964,10 @@
       "maxRepairAttempts": 3,
       "lastGate": null,
       "openItems": [
-        "결정 출처별 규칙 표(대상 데이터 × 화면/조회 응답/감사/변경 이력/로그/지표/오류/요청 본문/저장), 현재 구현 대조·불일치 목록, 미결 질문"
+        "결정 출처별 규칙 표(대상 데이터 × 화면/조회 응답/감사/변경 이력/로그/지표/오류/요청 본문/저장), 현재 구현 대조·불일치 목록, 미결 질문",
+        "rev 0.1a: 규칙 표 25행, 구현 대조 X-1~X-8, 미결 Q-PII-1~11 중 1·2·4·11 답(D-PII-001). 남은 미결 Q-PII-3·5~10"
       ],
-      "nextResumeAction": "초안 → 사용자 검토",
+      "nextResumeAction": "남은 미결 질문(Q-PII-3·5~10)은 관련 기능 착수 때 질문",
       "detail": null
     },
     {
@@ -990,7 +991,8 @@
       "lastGate": null,
       "openItems": [
         "MERCHANT-IA-001 B3 커밋 뒤(같은 화면 파일) 시작",
-        "PII-MASKING-POLICY.md 규칙과 일치"
+        "PII-MASKING-POLICY.md 규칙과 일치",
+        "D-PII-001: 범위 관리자 전체(마법사·이력 대상 포함), 목록 감사 없음. 구현 대상 PII-MASKING-POLICY.md §7 X-1(MasterSqlText·Reader 6곳, MasterResponseShape 형식 검사, 화면 3파일·historyTarget), 감사 마스킹(BusinessAudit, MerchantLookupService)은 유지"
       ],
       "nextResumeAction": "B3·데모 로그인 커밋 뒤 명세·구현",
       "detail": null

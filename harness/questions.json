@@ -2581,13 +2581,16 @@
     },
     {
       "id": "Q-MOPS-04",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "운영자의 사업자등록번호 마스킹 해제(UNMASK) 필요 여부",
       "recommended": "실제 필요 발생 시까지 보류; 필요 시 기존 UNMASK+사유+TOTP 흐름",
       "alternative": "지금 도입",
       "dependentTasks": [],
       "askedAt": "2026-11-03",
-      "origin": "MERCHANT-OPS-001 조사 — 보류"
+      "origin": "MERCHANT-OPS-001 조사 — 보류",
+      "humanAnswer": "닫기 — D-BIZ-007(관리자 화면 원문)로 대체, 별도 마스킹 해제 절차 불필요",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-PII-001"
     },
     {
       "id": "Q-MOPS-05",
@@ -4500,6 +4503,56 @@
       "humanAnswer": "데모에서만, Tailscale 포함 (권장)",
       "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
       "appliedSpec": "D-ADMIN-AUTH-DEMO-001"
+    },
+    {
+      "id": "Q-DEMOLOGIN-3",
+      "status": "ANSWERED",
+      "question": "데모 간편 로그인 세션의 재인증(승인·반려·마스킹 해제 TOTP) 생략 여부",
+      "recommended": "데모에서 건너뛰기(간편 로그인 세션만, 감사 기록, 2인 승인 유지)",
+      "alternative": "재인증 유지",
+      "impact": "관리자 인증(데모 한정) — 운영 준비 전 제거 필요",
+      "dependentTasks": [
+        "ADMIN-DEMO-LOGIN-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "세션 대화(초기 개발 편의 요청)",
+      "humanAnswer": "데모에서 건너뛰기 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-AUTH-DEMO-001"
+    },
+    {
+      "id": "Q-PII-1",
+      "status": "ANSWERED",
+      "question": "사업자등록번호 원문 표시 범위",
+      "recommended": "뉴피지 관리자 전체(가맹점 등록 마법사·이력 대상 표시 포함), 가맹점용 화면·외부 API·내보내기는 그때 결정",
+      "alternative": "사업자 화면만",
+      "impact": "사업자등록번호 표시·감사",
+      "dependentTasks": [
+        "BRN-UNMASK-001",
+        "PII-MASKING-POLICY-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8",
+      "humanAnswer": "뉴피지 관리자 전체 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-PII-001"
+    },
+    {
+      "id": "Q-PII-4",
+      "status": "ANSWERED",
+      "question": "원문 번호가 나오는 목록 조회 감사 여부",
+      "recommended": "목록은 감사 안 함(상세 열람·번호 조회만 감사)",
+      "alternative": "목록 조회도 감사",
+      "impact": "사업자등록번호 표시·감사",
+      "dependentTasks": [
+        "BRN-UNMASK-001",
+        "PII-MASKING-POLICY-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8",
+      "humanAnswer": "목록은 감사 안 함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-PII-001"
     }
   ]
 }
