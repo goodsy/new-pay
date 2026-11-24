@@ -45,7 +45,7 @@ const pageOf = (details: BusinessDetail[], next: string | null = null) => ({ ite
 const rows = () => within(screen.getByRole('table', { name: '사업자 목록' })).getAllByRole('row').slice(1)
 
 describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
-  it('lists with masked number, name, masked representative + "외 N명", 구분 (미입력), status, merchant count — no Business ID or 진위확인 column; "더 보기" pages by cursor', async () => {
+  it('lists with the raw number (hyphenated — D-BIZ-007), name, masked representative + "외 N명", 구분 (미입력), status, merchant count — no Business ID or 진위확인 column; "더 보기" pages by cursor', async () => {
     const search = vi.fn()
       .mockResolvedValueOnce(pageOf([REG, JOINT, LEGACY], bizId(3)))
       .mockResolvedValueOnce(pageOf([DRAFT]))
@@ -57,7 +57,7 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다": 진위확인은 늘 '미검증'(DB CHECK NOT_CHECKED만), 값·API는 그대로).
     expect(headers).toEqual(['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '보기'])
     await vi.waitFor(() => expect(rows()).toHaveLength(3))
-    expect(rows()[0]).toHaveTextContent('778*******')
+    expect(rows()[0]).toHaveTextContent('778-12-34567')
     expect(rows()[0]).toHaveTextContent('데모 사업자')
     expect(rows()[0]).toHaveTextContent('홍**')
     expect(rows()[0]).toHaveTextContent('개인')
@@ -103,7 +103,7 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
     expect(search).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(rows()).toHaveLength(1))
     expect(rows()[0]).toHaveTextContent('임시 사업자')
-    expect(rows()[0]).toHaveTextContent('123*******')
+    expect(rows()[0]).toHaveTextContent('123-45-67890')
     expect(rows()[0]).toHaveTextContent('임시저장')
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(view.container.innerHTML).not.toContain(BRN)
@@ -127,14 +127,14 @@ describe('BusinessesScreen — 목록·검색 (BIZ-4-3, §8.2)', () => {
 })
 
 describe('BusinessesScreen — 상세·이력 (BIZ-4-3·BIZ-4-5, §8.2·§9)', () => {
-  it('detail shows PII in plain text (D-BIZ-006 ②), the number masked, no "미검증", the REGISTERED meaning line; OPERATOR + REGISTERED → "이 사업자로 가맹점 등록" hands over name + masked only', async () => {
+  it('detail shows PII in plain text (D-BIZ-006 ②), the number raw (hyphenated — D-BIZ-007), no "미검증", the REGISTERED meaning line; OPERATOR + REGISTERED → "이 사업자로 가맹점 등록" hands over name + number only', async () => {
     const detail = vi.fn(async () => REG)
     const { api, onContinue, view } = renderScreen({ searchBusinesses: vi.fn(async () => pageOf([REG])), businessDetail: detail })
     await user.click(await screen.findByRole('button', { name: '데모 사업자 상세' }))
     const section = await screen.findByRole('region', { name: '사업자 상세' })
     expect(api.businessDetail).toHaveBeenCalledWith(bizId(1))
     expect(api.businessDetail).toHaveBeenCalledTimes(1)
-    for (const text of ['778*******', '홍길동', '김담당', 'contact.demo@example.test', '010-1234-5678', '02-1234-5678', '서울특별시 중구 세종대로 110', '데모동 101호', '도소매', '전자상거래', '등록 완료']) {
+    for (const text of ['778-12-34567', '홍길동', '김담당', 'contact.demo@example.test', '010-1234-5678', '02-1234-5678', '서울특별시 중구 세종대로 110', '데모동 101호', '도소매', '전자상거래', '등록 완료']) {
       expect(section).toHaveTextContent(text)
     }
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다": 진위확인은 늘 '미검증'(DB CHECK NOT_CHECKED만), 값·API는 그대로): 머리 배지·기본정보 줄 모두 없다. 아래 "등록 완료 ≠ 진위확인" 안내는 그대로.
@@ -142,8 +142,12 @@ describe('BusinessesScreen — 상세·이력 (BIZ-4-3·BIZ-4-5, §8.2·§9)', (
     expect(section).toHaveTextContent('등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.')
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
     await press('이 사업자로 가맹점 등록')
-    expect(onContinue).toHaveBeenCalledWith({ businessId: bizId(1), name: '데모 사업자', masked: '778*******' })
+    expect(onContinue).toHaveBeenCalledWith({ businessId: bizId(1), name: '데모 사업자', registrationNumber: '7781234567' })
     expect(window.location.href).not.toContain('biz_')
+    // BRN-UNMASK-001(D-BIZ-007·D-PII-001 ①, PII §6 #10): 화면에는 원문(하이픈)이지만 번호는 식별자가 아니다 — URL·브라우저 저장소에 없고, 마스킹 문자열도 남지 않는다.
+    expect(section).not.toHaveTextContent('*******')
+    expect(window.location.href).not.toContain('7781234567')
+    expect(window.location.href).not.toContain('778-12-34567')
     expect(storageIsEmpty()).toBe(true)
   })
 

@@ -10,7 +10,7 @@ const CTR = 'ctr_01M71F76DZR43JHRZH34068V9V'
 const MID = 'mid_01M71F76XMMG2NYV5QYKJY7KEQ'
 const detail = {
   merchant: { merchantId: MER, merchantCode: 'demoshop01', name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-10-01T00:00:00.000Z' },
-  business: { businessId: BIZ, name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: BIZ, name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   // MERCHANT-IA-001 B3: 다른 대상의 사람용 값은 상세 응답에서 찾는다 — Site 하나·계약 하나·MID 하나(나머지는 비어 있음).
   sites: [{ merchantSiteId: SITE, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
   contracts: [{ contractId: CTR, createdAt: '2026-10-01T00:00:00.000Z', revisions: [], agreements: [] }],
@@ -27,7 +27,7 @@ describe('ADMIN-HISTORY-KEYS-001 historyTarget', () => {
   })
 
   it('T-HK-1 business row → name · masked registration number (no biz_)', () => {
-    expect(historyTarget(entry('Business', BIZ), detail)).toBe('데모 사업자 · 123*******')
+    expect(historyTarget(entry('Business', BIZ), detail)).toBe('데모 사업자 · 123-45-67890')
   })
 
   it.each([

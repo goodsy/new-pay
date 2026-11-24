@@ -37,3 +37,10 @@ export function caretAfterDigits(formatted: string, n: number): number {
 
 /** 표시 문자열의 [end] 앞에 있는 숫자 수. */
 export const digitsBefore = (text: string, end: number) => text.slice(0, end).replace(/[^0-9]/g, '').length
+
+/**
+ * 조회 응답 번호의 화면 표시(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 뉴피지 관리자 화면은 원문을 하이픈 표시(`123-45-67890`)로 보인다.
+ * 응답 필드 `registrationNumber`(원문 10자리 — v2 계약)를 받아 표시만 바꾼다. 10 ASCII 숫자가 아니면 손대지 않는다(형식 검사는 ADMIN 응답 모양).
+ * 번호는 식별자가 아니다(D-BIZLOOKUP-001) — URL·브라우저 저장소에 두지 않는다. 감사·로그는 서버가 마스킹한다.
+ */
+export const displayRegistrationNumber = (value: string) => (isRegistrationNumber(value) ? formatRegistrationNumber(value) : value)

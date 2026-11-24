@@ -51,7 +51,7 @@ describe('MERCHANT-IA-001 B2 — 사업자 목록', () => {
     await vi.waitFor(() => expect(rows()).toHaveLength(1))
     expect(headers()).toEqual(['사업자등록번호', '상호', '등록 상태', '상세'])
     const cells = within(rows()[0]!).getAllByRole('cell')
-    expect(cells.map((c) => c.textContent)).toEqual(['123*******', '임시 사업자', '임시저장', '상세'])
+    expect(cells.map((c) => c.textContent)).toEqual(['123-45-67890', '임시 사업자', '임시저장', '상세'])
     expect(table()).not.toHaveTextContent('—')
     expect(within(rows()[0]!).getByRole('button', { name: '임시 사업자 상세' })).toBeInTheDocument()
     await user.click(screen.getByLabelText('사업자등록번호'))

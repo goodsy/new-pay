@@ -243,7 +243,7 @@ class BusinessProfileApiSpec(
             }
         }
 
-        Then("TC-06 a duplicate number is 200 REJECTED with existing {businessId, businessName, registrationNumberMasked, registrationStatus}; no second business") {
+        Then("TC-06 a duplicate number is 200 REJECTED with existing {businessId, businessName, registrationNumber, registrationStatus}; no second business") {
             val n = number()
             val first = created(status = "DRAFT", content = BusinessBodies.draftMinimal(name = "먼저 등록한 사업자"), n = n)
             val r = post(BusinessBodies.CREATE, BusinessBodies.create(number = n, content = BusinessBodies.individual(name = "나중 사업자")))
@@ -251,12 +251,12 @@ class BusinessProfileApiSpec(
             val t = r.tree()
             t.keys() shouldBe listOf("outcome", "rejection", "replayed", "existing")
             t.get("rejection").asString() shouldBe "BUSINESS_REGISTRATION_NUMBER_DUPLICATE"
-            t.get("existing").keys() shouldBe listOf("businessId", "businessName", "registrationNumberMasked", "registrationStatus")
+            t.get("existing").keys() shouldBe listOf("businessId", "businessName", "registrationNumber", "registrationStatus")
             t.get("existing").get("businessId").asString() shouldBe first
             t.get("existing").get("businessName").asString() shouldBe "먼저 등록한 사업자"
-            t.get("existing").get("registrationNumberMasked").asString() shouldBe n.take(3) + "*******"
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1). 중복 안내도 범위(D-PII-001 ①).
+            t.get("existing").get("registrationNumber").asString() shouldBe n
             t.get("existing").get("registrationStatus").asString() shouldBe "DRAFT"
-            r.body() shouldNotContain n
             count("SELECT COUNT(*) FROM business WHERE registration_number = ?", n) shouldBe 1L
         }
 
@@ -420,17 +420,17 @@ class BusinessProfileApiSpec(
     }
 
     Given("BIZ-2-7 query endpoints over HTTP (shapes — Reader behaviour is BusinessReaderSpec)") {
-        Then("list, lookup (found / not found same shape with registrationStatus), detail (raw personal data, masked number) and history keys") {
+        Then("list, lookup (found / not found same shape with registrationStatus), detail (raw personal data, raw number — D-BIZ-007) and history keys") {
             val n = number()
             val id = created(content = BusinessBodies.corporation(name = "조회모양 법인"), n = n)
             val list = post(BusinessBodies.SEARCHES, """{"displayNamePrefix":"조회모양 법인","limit":1}""").tree()
             list.keys() shouldBe listOf("items", "next")
             list.get("items").get(0).keys() shouldBe listOf(
-                "businessId", "businessName", "registrationNumberMasked", "businessType", "registrationStatus", "verificationStatus", "representativeNameMasked",
+                "businessId", "businessName", "registrationNumber", "businessType", "registrationStatus", "verificationStatus", "representativeNameMasked",
                 "representativeCount", "merchantCount", "updatedAt",
             )
             val found = post(BusinessBodies.LOOKUPS, """{"registrationNumber":"$n"}""")
-            found.body() shouldBe """{"items":[{"businessId":"$id","businessName":"조회모양 법인","registrationNumberMasked":"${n.take(3)}*******","registrationStatus":"REGISTERED"}]}"""
+            found.body() shouldBe """{"items":[{"businessId":"$id","businessName":"조회모양 법인","registrationNumber":"$n","registrationStatus":"REGISTERED"}]}""" // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
             val missing = post(BusinessBodies.LOOKUPS, """{"registrationNumber":"${number()}"}""").tree()
             missing.keys() shouldBe listOf("items")
             missing.get("items").size() shouldBe 0
@@ -439,7 +439,7 @@ class BusinessProfileApiSpec(
             val d = get(BusinessBodies.detail(id)).tree()
             d.keys() shouldBe listOf("business", "registration", "representatives", "categories", "addresses", "contacts")
             d.get("business").keys() shouldBe listOf(
-                "businessId", "businessName", "registrationNumberMasked", "businessType", "registrationStatus", "verificationStatus", "lifecycle", "version", "createdAt",
+                "businessId", "businessName", "registrationNumber", "businessType", "registrationStatus", "verificationStatus", "lifecycle", "version", "createdAt",
                 "updatedAt", "merchantCount",
             )
             d.get("registration").keys() shouldBe listOf("corporateRegistrationNumber", "openingDate", "countryCode", "englishName", "phoneNumber", "email")
@@ -448,8 +448,8 @@ class BusinessProfileApiSpec(
             d.get("representatives").let { reps -> (0 until reps.size()).map { reps.get(it).get("name").asString() } } shouldBe listOf("이공동", "박공동")
             d.get("contacts").get(0).keys() shouldBe listOf("name", "email", "phoneNumber", "primary")
             d.get("contacts").get(0).get("phoneNumber").asString() shouldBe "01012345678"
-            d.get("business").get("registrationNumberMasked").asString() shouldBe n.take(3) + "*******"
-            get(BusinessBodies.detail(id)).body() shouldNotContain n
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            d.get("business").get("registrationNumber").asString() shouldBe n
 
             val h = get(BusinessBodies.history(id)).tree()
             h.keys() shouldBe listOf("items", "nextAfter")
@@ -459,20 +459,23 @@ class BusinessProfileApiSpec(
     }
 
     Given("BIZ-2-8 no exposure on the MASTER side (canary values of §9)") {
-        Then("the canary never appears in logs, the 400 body, admin_request, master_change_history, outbox_event, list or lookup responses — only in the detail (control)") {
+        Then("the canary never appears in logs, the 400 body, admin_request, master_change_history, outbox_event; personal data only in the detail, the number in list/lookup/detail/duplicate (D-BIZ-007)") {
             val canaries = listOf(
                 BusinessFixtures.CANARY_NUMBER, BusinessFixtures.CANARY_REPRESENTATIVE, BusinessFixtures.CANARY_EMAIL, BusinessFixtures.CANARY_PHONE,
                 BusinessFixtures.CANARY_DETAIL_ADDRESS,
             )
             val bodies = mutableListOf<String>()
+            // BRN-UNMASK-001(D-BIZ-007·D-PII-001 ①): 번호를 원문으로 주는 조회 응답(목록·번호 조회·상세·중복 요약)은 따로 모은다 — 번호 캔어리만 대조군, 개인정보 캔어리는 여전히 0건.
+            val numberBodies = mutableListOf<String>()
             var detail = ""
             recorder.statements.clear()
             recorder.recording = true
             val lines = CapturedLogs().use { logs ->
                 // 공유 DB: BIZ-1 시험이 같은 캔어리 번호를 먼저 썼을 수 있다 — 그러면 중복 거절의 existing으로 같은 사업자를 얻는다(둘 다 캔어리 내용).
                 val r = post(BusinessBodies.CREATE, BusinessBodies.create(number = BusinessFixtures.CANARY_NUMBER, content = BusinessBodies.canary()))
-                bodies += r.body()
                 val t = r.tree()
+                // 중복 거절이면 existing 요약에 원문 번호가 있다(D-BIZ-007) — 번호 응답 쪽에 모은다.
+                if (t.get("outcome").asString() == "SUCCEEDED") bodies += r.body() else numberBodies += r.body()
                 val id = if (t.get("outcome").asString() == "SUCCEEDED") t.get("reference").asString() else t.get("existing").get("businessId").asString()
                 val invalid = post(
                     BusinessBodies.CREATE,
@@ -482,22 +485,26 @@ class BusinessProfileApiSpec(
                 bodies += invalid.body()
                 val badEmail = BusinessBodies.with(BusinessBodies.canary(), "contacts", listOf(BusinessBodies.contact(BusinessFixtures.CANARY_REPRESENTATIVE, "x@" + BusinessFixtures.CANARY_PHONE)))
                 bodies += post(BusinessBodies.CREATE, BusinessBodies.create(number = BusinessFixtures.CANARY_NUMBER, content = badEmail)).body()
-                bodies += post(BusinessBodies.SEARCHES, """{"displayNamePrefix":"캔어리","limit":50}""").body()
-                bodies += post(BusinessBodies.LOOKUPS, """{"registrationNumber":"${BusinessFixtures.CANARY_NUMBER}"}""").body()
+                numberBodies += post(BusinessBodies.SEARCHES, """{"displayNamePrefix":"캔어리","limit":50}""").body()
+                numberBodies += post(BusinessBodies.LOOKUPS, """{"registrationNumber":"${BusinessFixtures.CANARY_NUMBER}"}""").body()
                 bodies += get(BusinessBodies.history(id)).body()
                 detail = get(BusinessBodies.detail(id)).body()
                 // 중복 거절 요약(existingSummary) SELECT도 포획 대상에 넣는다.
-                bodies += post(BusinessBodies.CREATE, BusinessBodies.create(number = BusinessFixtures.CANARY_NUMBER, content = BusinessBodies.canary())).body()
+                numberBodies += post(BusinessBodies.CREATE, BusinessBodies.create(number = BusinessFixtures.CANARY_NUMBER, content = BusinessBodies.canary())).body()
                 logs.lines()
             }
             recorder.recording = false
-            // 리뷰 MINOR-1: 목록·번호 조회·상세·중복 요약 SELECT(jOOQ 포획)는 원문 번호 열을 마스킹 밖에서 SELECT하지 않는다(대상 존재 대조 — 빈 포획 통과 금지).
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 목록·번호 조회·상세·중복 요약 SELECT(jOOQ 포획)는 이제 원문 번호 열을 그대로 읽는다(대조 — 빈 포획 통과 금지).
+            // 옛 단언(마스킹 밖 SELECT 없음)은 D-BIZ-007이 바꾼 화면·응답 규칙이라 뒤집는다. 로그·이력·Outbox·admin_request 0건 단언은 아래에서 그대로(약화 없음).
             val captured = recorder.statements.toList()
             captured.count { it.contains("`registration_number`") } shouldBeGreaterThanOrEqual 3
-            captured.filterNot(::numberOnlyMaskedOrBound) shouldBe emptyList()
+            captured.filterNot(::numberOnlyMaskedOrBound).isNotEmpty() shouldBe true
+            numberBodies.size shouldBeGreaterThanOrEqual 3
+            numberBodies.forEach { it shouldContain BusinessFixtures.CANARY_NUMBER }
             canaries.forEach { c ->
                 withClue(c) {
                     bodies.forEach { it shouldNotContain c }
+                    if (c != BusinessFixtures.CANARY_NUMBER) numberBodies.forEach { it shouldNotContain c }
                     lines.forEach { it shouldNotContain c }
                     count(
                         "SELECT COUNT(*) FROM admin_request WHERE CONCAT_WS('|', operation, idempotency_key, request_record_id, request_fingerprint, actor_ref, result_code, " +
@@ -508,13 +515,15 @@ class BusinessProfileApiSpec(
                     count("SELECT COUNT(*) FROM outbox_event WHERE CAST(payload AS CHAR) LIKE ?", "%$c%") shouldBe 0L
                 }
             }
-            // 대조군: 상세에는 개인정보 원문이 있다(D-BIZ-006 ②) — 사업자등록번호는 상세에서도 마스킹.
+            // 대조군: 상세에는 개인정보 원문이 있다(D-BIZ-006 ②). 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 사업자등록번호도 상세에서 원문.
             detail shouldContain BusinessFixtures.CANARY_REPRESENTATIVE
             detail shouldContain BusinessFixtures.CANARY_EMAIL
             detail shouldContain BusinessFixtures.CANARY_PHONE
             detail shouldContain BusinessFixtures.CANARY_DETAIL_ADDRESS
-            detail shouldNotContain BusinessFixtures.CANARY_NUMBER
-            bodies.any { it.contains("731*******") } shouldBe true
+            detail shouldContain BusinessFixtures.CANARY_NUMBER
+            detail shouldNotContain "731*******"
+            // 이력 저장값은 마스킹 그대로(D-BIZ-007 유지 — 위 0건 단언의 대조: 마스킹 값은 실제로 있다).
+            (count("SELECT COUNT(*) FROM master_change_history WHERE CAST(detail AS CHAR) LIKE ?", "%731*******%") >= 1L) shouldBe true
         }
     }
 

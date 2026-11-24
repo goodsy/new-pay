@@ -7,7 +7,7 @@ import com.paycore.master.merchant.application.provided.BusinessSummary
 import com.paycore.master.merchant.domain.BusinessFieldError
 
 /**
- * 사업자 MASTER 내부 응답 모양(BUSINESS-PROFILE-001 §6.2~§6.7 — 골든 `business-profile-response-shapes-v1`). 필드 이름·순서 고정, 값 없는 필드는 `null`.
+ * 사업자 MASTER 내부 응답 모양(BUSINESS-PROFILE-001 §6.2~§6.7 — 골든 `business-profile-response-shapes-v2`). 필드 이름·순서 고정, 값 없는 필드는 `null`.
  * view에 없는 값(원문 사업자등록번호·이력 detail의 다른 키)은 여기서도 만들 수 없다. 시각은 `…T…Z` ms 3자리, 날짜는 `yyyy-MM-dd`.
  */
 object BusinessProfileJson {
@@ -15,7 +15,7 @@ object BusinessProfileJson {
     fun directory(page: BusinessDirectoryPage): Map<String, Any?> = linkedMapOf(
         "items" to page.items.map {
             linkedMapOf(
-                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumberMasked" to it.registrationNumberMasked,
+                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumber" to it.registrationNumber,
                 "businessType" to it.businessType, "registrationStatus" to it.registrationStatus, "verificationStatus" to it.verificationStatus,
                 "representativeNameMasked" to it.representativeNameMasked, "representativeCount" to it.representativeCount, "merchantCount" to it.merchantCount,
                 "updatedAt" to AdminChannelResponses.time(it.updatedAt),
@@ -27,11 +27,11 @@ object BusinessProfileJson {
     /** 번호 조회(§6.3): 찾음·못 찾음 같은 모양(`items` 길이만 다르다 — 404 없음). */
     fun lookup(items: List<BusinessSummary>): Map<String, Any?> = linkedMapOf("items" to items.map(::summary))
 
-    /** 상세(§6.4 — 개인정보 원문, 사업자등록번호 마스킹). */
+    /** 상세(§6.4 — 개인정보 원문, 사업자등록번호 원문 — D-BIZ-007). */
     fun detail(v: BusinessDetailView): Map<String, Any?> = linkedMapOf(
         "business" to v.business.let {
             linkedMapOf(
-                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumberMasked" to it.registrationNumberMasked,
+                "businessId" to it.businessId, "businessName" to it.businessName, "registrationNumber" to it.registrationNumber,
                 "businessType" to it.businessType, "registrationStatus" to it.registrationStatus, "verificationStatus" to it.verificationStatus,
                 "lifecycle" to it.lifecycle, "version" to it.version, "createdAt" to AdminChannelResponses.time(it.createdAt),
                 "updatedAt" to AdminChannelResponses.time(it.updatedAt), "merchantCount" to it.merchantCount,
@@ -79,7 +79,7 @@ object BusinessProfileJson {
     )
 
     private fun summary(s: BusinessSummary): Map<String, Any?> = linkedMapOf(
-        "businessId" to s.businessId, "businessName" to s.businessName, "registrationNumberMasked" to s.registrationNumberMasked,
+        "businessId" to s.businessId, "businessName" to s.businessName, "registrationNumber" to s.registrationNumber,
         "registrationStatus" to s.registrationStatus,
     )
 }

@@ -12,7 +12,7 @@ import { Input } from '../components/ui/input'
 import { NativeSelect } from '../components/ui/native-select'
 import { RegistrationStep, stepLocked, stepReference, submitStep, type StepSpec, type StepStatus } from '../components/RegistrationStep'
 import { defaultSubmissionId, kstDate, validName, type BusinessRef, type HandoffState, type MerchantRef } from '../lib/registration'
-import { isRegistrationNumber } from '../lib/registrationNumber'
+import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { SERVICE_KINDS, serviceKindLabel, type ServiceKindCode } from '../lib/paymentMethods'
 import { REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { cn } from '../lib/utils'
@@ -26,8 +26,8 @@ import type { BusinessLookupItem } from '../api/adminApi'
  * - ① 사업자는 **사업자등록번호 조회**로 고른다(BUSINESS-PROFILE-001 §8.4 — 합친 MERCHANT-BIZ-LOOKUP-001, D-BIZ-004: 가맹점이 없는 사업자도 찾는다. 매 시도 감사·공유 번호 버킷은
  *   서버). 결과 0/1건 + 등록 상태(D-BIZ-006 ③): REGISTERED만 "선택", DRAFT는 "사업자 등록 완료 후 가맹점 등록 가능" + [사업자 상세 보기](선택 불가 — MASTER도
  *   `BUSINESS_NOT_REGISTERED`로 거절, D-BIZ-001), 없음은 "사업자 등록에서 먼저 등록". 사업자 조회 상세 "이 사업자로 가맹점 등록"으로 넘어오면 그 사업자가 이미 골라져 있다([offerBusiness]).
- * - 사업자 ID(biz_…)는 화면에 그리지 않는다(D-ADMIN-UI-004 ③) — 상호·마스킹 등록번호로 보이고, 내부 키는 가맹점·계약 초안 저장 본문에만 그대로 들어간다(API·감사 불변).
- *   사업자 표시는 "<상호> · <마스킹 등록번호>"(MERCHANT-CODE-001 MC-2b — D-MCODE-003 ②, 마스킹 값은 서버 응답·화면 계산 그대로, 평문 재노출 없음).
+ * - 사업자 ID(biz_…)는 화면에 그리지 않는다(D-ADMIN-UI-004 ③) — 상호·등록번호(원문 하이픈 — BRN-UNMASK-001·D-BIZ-007·D-PII-001 ①)로 보이고, 내부 키는 가맹점·계약 초안 저장 본문에만 그대로 들어간다(API·감사 불변).
+ *   사업자 표시는 "<상호> · <등록번호>"(MERCHANT-CODE-001 MC-2b — D-MCODE-003 ②, 번호는 서버 조회 응답 값을 하이픈 표시 — D-BIZ-007. 입력한 번호는 보낸 즉시 비운다).
  *   가맹점은 **가맹점 코드**로 보인다(MERCHANT-CODE-001 MC-2 — 등록 결과·검토의 가맹점 ID(mer_…) 표시를 코드로 교체, 내부 키는 저장 본문에만). 가맹점 카드의 코드는
  *   "영문 상호"(저장 안 함)로 만든 미리보기(§3.4 — 상호 영문 + 랜덤 4자, `crypto.getRandomValues`)를 채우고 "다시 제안"으로 꼬리만 새로 뽑는다. 운영자가 고친 값은 그대로 보낸다.
  *   미리보기는 제안일 뿐 — 사용 가능 여부는 등록 시 MASTER가 판정한다(중복·은퇴 코드 = TAKEN, 예약어 = RESERVED).
@@ -127,12 +127,12 @@ function validChannel(type: string, identifier: string): boolean {
 }
 
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs break-all">{children}</span>
-/** 사업자 표시 "<상호> · <마스킹 등록번호>"(D-MCODE-003 ② — 사업자 ID 없음, 평문 번호 없음). */
+/** 사업자 표시 "<상호> · <등록번호>"(D-MCODE-003 ② — 사업자 ID 없음, 번호는 원문 하이픈 표시 — D-BIZ-007·D-PII-001 ①). */
 const BusinessText = ({ business }: { business: BusinessRef }) => (
   <span className="flex flex-wrap items-baseline gap-x-1.5">
     <span className="font-medium">{business.name}</span>
     {' · '}
-    <span className="font-mono text-xs text-muted-foreground">{business.masked}</span>
+    <span className="font-mono text-xs text-muted-foreground">{displayRegistrationNumber(business.registrationNumber)}</span>
   </span>
 )
 
@@ -330,7 +330,7 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
           ) : (
             <ul aria-label="찾은 사업자" className="flex flex-col gap-2">
               {found.map((item) => {
-                const business: BusinessRef = { businessId: item.businessId, name: item.businessName, masked: item.registrationNumberMasked }
+                const business: BusinessRef = { businessId: item.businessId, name: item.businessName, registrationNumber: item.registrationNumber }
                 return (
                   <li key={item.businessId} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2.5">
                     <span className="flex flex-wrap items-baseline gap-x-1.5">

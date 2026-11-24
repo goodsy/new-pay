@@ -18,12 +18,12 @@ const MER1 = id('mer', 1)
 const MER2 = id('mer', 2)
 const MER3 = id('mer', 3)
 const item = (merchantId: string, name: string): MerchantListItem => ({
-  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 4, midCount: 1, createdAt: '2026-10-01T00:00:00.000Z',
 })
 const detail: MerchantDetail = {
   merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 4, createdAt: '2026-10-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [], contracts: [], accounts: [], limits: [], propagation: null, pendingApprovals: [],
 }
 const search = () => userEvent.click(screen.getByRole('button', { name: '검색' }))
@@ -38,7 +38,7 @@ describe('MERCHANT-IA-001 B2 — 가맹점 목록', () => {
     await search()
     expect(api.merchantSearch).toHaveBeenCalledWith({})
     const table = await screen.findByRole('table', { name: '가맹점 목록' })
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', 'MID 수', '등록일', '작업'])
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호', 'MID 수', '등록일', '작업'])
     const row = screen.getByRole('row', { name: codeOf(MER1) })
     expect(row).not.toHaveTextContent('활성')
     expect(within(row).getAllByRole('cell')).toHaveLength(6)
@@ -84,7 +84,7 @@ describe('MERCHANT-IA-001 B2 — 가맹점 상세', () => {
     await search()
     await userEvent.click(within(await screen.findByRole('row', { name: codeOf(MER1) })).getByRole('button', { name: '상세' }))
     const basics = await screen.findByRole('region', { name: '기본정보' })
-    expect(Array.from(basics.querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['가맹점', '등록일', '사업자', '사업자등록번호(마스킹)'])
+    expect(Array.from(basics.querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['가맹점', '등록일', '사업자', '사업자등록번호'])
     expect(basics).not.toHaveTextContent('활성')
   })
 })

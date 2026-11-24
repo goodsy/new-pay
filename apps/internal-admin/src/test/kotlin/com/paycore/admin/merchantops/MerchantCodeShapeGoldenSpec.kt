@@ -1,6 +1,7 @@
 package com.paycore.admin.merchantops
 
 import com.paycore.admin.merchantops.adapter.integration.MasterResponseShape
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import tools.jackson.databind.JsonNode
@@ -11,14 +12,14 @@ import java.io.File
 
 /**
  * MERCHANT-CODE-001 MC-1-9 ADMIN 쪽(C-22 — MC-1 배포 단위가 ADMIN을 깨지 않음): MASTER `MerchantOpsShapeGoldenSpec`이 실제 응답 생성기로 만든 바이트와 같은 golden
- * `merchant-ops-response-shapes-v1.golden.json`(이 모듈 사본 — MASTER 원본과 바이트 동일 단언)을 `MasterResponseShape`로 해석한다: 목록 → `DIRECTORY`, 코드 검색 → 새 `DIRECTORY_BY_CODE`,
+ * `merchant-ops-response-shapes-v2.golden.json`(이 모듈 사본 — MASTER 원본과 바이트 동일 단언)을 `MasterResponseShape`로 해석한다: 목록 → `DIRECTORY`, 코드 검색 → 새 `DIRECTORY_BY_CODE`,
  * 상세 → `DETAIL` 모두 성공. 대조군: 목록에 `matchedRetiredCode`가 오면 `DIRECTORY` 해석 실패, 키 하나 빠지면 실패, 코드 형식 위반·이력 3개 실패.
  * TXN-LIST-ENRICH-001 T-E2-10(N-2): 라벨 `accountLabels` → `MERCHANT_ACCOUNT_LABELS` 성공(MASTER 원본과 함께 갱신 — 위 바이트 동일 단언), 대조군: 내부 키 추가·키 누락 실패.
  */
 class MerchantCodeShapeGoldenSpec : BehaviorSpec({
 
     val mapper = JsonMapper.builder().build()
-    val resource = MerchantCodeShapeGoldenSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v1.golden.json")!!
+    val resource = MerchantCodeShapeGoldenSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v2.golden.json")!!
     val golden: JsonNode = mapper.readTree(resource.readText(Charsets.UTF_8))
     fun copy(name: String): ObjectNode = golden.get(name).deepCopy() as ObjectNode
     fun parses(shape: MasterResponseShape, node: JsonNode): Boolean = runCatching { shape.read(node) }.isSuccess
@@ -26,7 +27,7 @@ class MerchantCodeShapeGoldenSpec : BehaviorSpec({
 
     Given("MC-1-9 the cross-batch golden produced by MASTER") {
         Then("MC-1-9 the ADMIN copy is byte-identical to the MASTER golden (no silent drift between the two apps)") {
-            val master = File(System.getProperty("user.dir")).resolve("../master-api/src/test/resources/contracts/merchant-ops-response-shapes-v1.golden.json")
+            val master = File(System.getProperty("user.dir")).resolve("../master-api/src/test/resources/contracts/merchant-ops-response-shapes-v2.golden.json")
             master.isFile shouldBe true
             resource.readBytes().toList() shouldBe master.readBytes().toList()
         }
@@ -80,6 +81,24 @@ class MerchantCodeShapeGoldenSpec : BehaviorSpec({
             parses(MasterResponseShape.MERCHANT_LABELS, copy("merchantLabels").also { firstItem(it).put("merchantCode", "DEMOSHOP01") }) shouldBe false
             parses(MasterResponseShape.MERCHANT_LABELS, golden.get("accountLabels")) shouldBe false
             parses(MasterResponseShape.MERCHANT_ACCOUNT_LABELS, golden.get("merchantLabels")) shouldBe false
+        }
+
+        Then("BRN-UNMASK-001 list/code search/detail carry the raw 10-digit number (D-BIZ-007); the old masked value or a hyphenated value fails") {
+            // M-1(v2 계약): 옛 v1 키 registrationNumberMasked는 이름을 바꿔 와도(옛 MASTER) 해석 불가.
+            fun renamed(node: ObjectNode) = node.also { it.put("registrationNumberMasked", it.get("registrationNumber").asString()); it.remove("registrationNumber") }
+            parses(MasterResponseShape.DIRECTORY, copy("list").also { renamed(firstItem(it)) }) shouldBe false
+            parses(MasterResponseShape.DIRECTORY_BY_CODE, copy("codeSearch").also { renamed(firstItem(it)) }) shouldBe false
+            parses(MasterResponseShape.DETAIL, copy("detail").also { renamed(it.get("business") as ObjectNode) }) shouldBe false
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 가맹점 목록·상세의 사업자등록번호는 원문 10자리.
+            golden.get("list").get("items").get(0).get("registrationNumber").asString() shouldBe "7780000001"
+            golden.get("detail").get("business").get("registrationNumber").asString() shouldBe "7780000001"
+            listOf("778*******", "778-00-00001", "778000000").forEach { v ->
+                withClue(v) {
+                    parses(MasterResponseShape.DIRECTORY, copy("list").also { firstItem(it).put("registrationNumber", v) }) shouldBe false
+                    parses(MasterResponseShape.DIRECTORY_BY_CODE, copy("codeSearch").also { firstItem(it).put("registrationNumber", v) }) shouldBe false
+                    parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("business") as ObjectNode).put("registrationNumber", v) }) shouldBe false
+                }
+            }
         }
 
         Then("MC-1-9 control: a code outside ^[a-z][a-z0-9]{5,13}$, an unknown source and a third history row fail") {

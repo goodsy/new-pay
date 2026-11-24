@@ -28,6 +28,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import java.time.Instant
 import java.time.LocalDate
@@ -128,13 +129,17 @@ class BusinessReaderSpec(
             merchantOps.search(MerchantSearchFilter(businessId = withMerchant.businessId)).items.map { it.merchantId } shouldBe listOf(merchantId.value)
         }
 
-        Then("items: masked number, type, status, NOT_CHECKED, first current representative masked in SQL (= BusinessPiiMask.name), current representative count") {
+        Then("items: raw number (D-BIZ-007), type, status, NOT_CHECKED, first current representative masked in SQL (= BusinessPiiMask.name), current representative count") {
             val p = prefix()
             val corp = BusinessCommandFixture.withoutMerchants(businesses, name = "${p}법인", type = BusinessType.CORPORATION, profile = BusinessFixtures.corporationProfile())
             val draft = BusinessCommandFixture.withoutMerchants(businesses, name = "${p}임시", status = BusinessRegistrationStatus.DRAFT)
             val items = query.search(BusinessSearchFilter(displayNamePrefix = DisplayName(p))).items.associateBy { it.businessId }
             items.getValue(corp.businessId.value).let {
-                it.registrationNumberMasked shouldBe corp.number.value.take(3) + "*******"
+                // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+                it.registrationNumber shouldBe corp.number.value
+                // 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007): View 값은 원문이어도 toString(로그·예외 문자열)에는 마스킹만.
+                it.toString() shouldNotContain corp.number.value
+                it.toString() shouldContain corp.number.value.take(3) + "*******"
                 it.businessType shouldBe "CORPORATION"
                 it.registrationStatus shouldBe "REGISTERED"
                 it.verificationStatus shouldBe "NOT_CHECKED"
@@ -196,14 +201,15 @@ class BusinessReaderSpec(
             range("2026-10-09", "2026-10-10").toSet() shouldBe setOf(late, next)
         }
 
-        Then("§6.2 SELECT list (SQL capture): the number only as LEFT(…, 3), the representative name only inside the mask; no contact, address, corporate number or email column") {
+        Then("§6.2 SELECT list (SQL capture): the number raw (D-BIZ-007), the representative name only inside the mask; no contact, address, corporate number or email column") {
             val p = prefix()
             BusinessCommandFixture.withoutMerchants(businesses, name = "${p}선택목록", profile = BusinessFixtures.canaryProfile())
             val (page, statements) = sql { query.search(BusinessSearchFilter(displayNamePrefix = DisplayName(p))) }
             page.items.size shouldBe 1
             val search = statements.single { it.contains("`business`") }
             withClue(search) {
-                onlyMasked(search, "registration_number") shouldBe true
+                // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 목록은 원문 번호 열을 그대로 읽는다(대조 — 실제로 SELECT한다). 대표자 이름 마스킹은 그대로.
+                search shouldContain "`registration_number`"
                 onlyMasked(search, "name") shouldBe true
                 listOf("email", "phone_number", "base_address", "detail_address", "corporate_registration_number", "business_contact", "business_address")
                     .forEach { search shouldNotContain "`$it`" }
@@ -212,18 +218,19 @@ class BusinessReaderSpec(
     }
 
     Given("BIZ-2-7 the registration number lookup (§6.3 — merged MERCHANT-BIZ-LOOKUP-001)") {
-        Then("found and not found have the same shape (0/1 items) with registrationStatus (D-BIZ-006 ③); the number is only bound, never selected raw") {
+        Then("found and not found have the same shape (0/1 items) with registrationStatus (D-BIZ-006 ③); the number is returned raw (D-BIZ-007)") {
             val b = BusinessCommandFixture.withoutMerchants(businesses, name = "번호조회 대상", status = BusinessRegistrationStatus.DRAFT)
             val (found, statements) = sql { query.lookup(b.number) }
-            found.map { listOf(it.businessId, it.businessName, it.registrationNumberMasked, it.registrationStatus) } shouldBe
-                listOf(listOf(b.businessId.value, "번호조회 대상", b.number.value.take(3) + "*******", "DRAFT"))
-            statements.single().let { s -> withClue(s) { onlyMasked(s, "registration_number", allowedAfter = " = ?") shouldBe true } }
+            found.map { listOf(it.businessId, it.businessName, it.registrationNumber, it.registrationStatus) } shouldBe
+                listOf(listOf(b.businessId.value, "번호조회 대상", b.number.value, "DRAFT")) // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            statements.single().let { s -> withClue(s) { s shouldContain "`registration_number` = ?" } }
+            found.toString() shouldNotContain b.number.value // 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007): View 값은 원문이어도 toString(로그·예외 문자열)에는 마스킹만.
             query.lookup(BusinessFixtures.registrationNumber()).shouldBeEmpty()
         }
     }
 
     Given("BIZ-2-7 the detail (§6.4)") {
-        Then("current rows only in display order (business types → items, REGISTERED → ACTUAL), raw personal data, masked number, merchantCount, version — one read-only REPEATABLE READ TX") {
+        Then("current rows only in display order (business types → items, REGISTERED → ACTUAL), raw personal data, raw number (D-BIZ-007), merchantCount, version — one read-only REPEATABLE READ TX") {
             val b = BusinessCommandFixture.withoutMerchants(businesses, name = "상세 법인", type = BusinessType.CORPORATION, profile = BusinessFixtures.corporationProfile())
             // 대표자 한 명 교체(종료 행은 상세에 나오지 않는다 — 현재 행만).
             val changed = BusinessFixtures.corporationProfile().copy(representatives = listOf(BusinessFixtures.joint("이공동"), BusinessFixtures.joint("정새로")))
@@ -236,7 +243,9 @@ class BusinessReaderSpec(
             recorder.observations.isNotEmpty() shouldBe true
             recorder.observations.forEach { it shouldBe JooqStatementRecorder.Observation(true, true, 4) }
             view.shouldNotBeNull()
-            view.business.registrationNumberMasked shouldBe b.number.value.take(3) + "*******"
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            view.business.registrationNumber shouldBe b.number.value
+            view.toString() shouldNotContain b.number.value // 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007): View 값은 원문이어도 toString(로그·예외 문자열)에는 마스킹만.
             view.business.businessType shouldBe "CORPORATION"
             view.business.lifecycle shouldBe "ACTIVE"
             view.business.version shouldBe 1L

@@ -21,13 +21,13 @@ const SITE2 = id('site', 2)
 const NOW = () => new Date('2026-11-11T03:00:00.000Z')
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 3, midCount: 1, createdAt: '2026-11-01T00:00:00.000Z',
 }
 /** Named Fixture: MID 활성 + PRIMARY Site1, 결제수단 개통 없음, Site1·Site2 심사 결정 없음(개통 등록·심사 거절 모두 가능). */
 const detail: MerchantDetail = {
   merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [
     { merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null },
     { merchantSiteId: SITE2, channelType: 'WEB', channelIdentifier: 'second.example.test', lifecycle: 'ACTIVE', review: null },

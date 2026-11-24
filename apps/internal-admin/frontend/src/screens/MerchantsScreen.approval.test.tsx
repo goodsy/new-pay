@@ -18,7 +18,7 @@ const REGISTRANT = 'admin:adm_01JCRG0000000000000000RG01'
 const NOW = () => new Date('2026-11-10T09:00:00.000Z')
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 type Revision = MerchantDetail['contracts'][number]['revisions'][number]
@@ -30,7 +30,7 @@ const REVISIONS = [revision(1, { approvedAt: '2026-11-01T00:00:00.000Z' }), revi
 function detail(pending: MerchantDetail['pendingApprovals'] = []): MerchantDetail {
   return {
     merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
-    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
     sites: [], contracts: [{ contractId: CTR1, createdAt: '2026-11-01T00:00:00.000Z', revisions: REVISIONS, agreements: [] }], accounts: [], limits: [], propagation: null,
     pendingApprovals: pending,
   }

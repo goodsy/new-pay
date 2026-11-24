@@ -21,8 +21,8 @@ import java.time.Instant
 /**
  * 사업자 상세(BUSINESS-PROFILE-001 §6.4, jOOQ — 한 읽기 전용 REPEATABLE READ TX라 business·등록정보·하위 행이 같은 시점이다). 하위 행은 **현재 행만**(`effective_to IS NULL`),
  * 표시 순서대로(업태 → 종목·유형 안 `display_order`, 사업장 → 실사업장). Aggregate를 로드하지 않는다(CQRS — 명령 측 `lockWithProfile`과 별개).
- * 개인정보·법인등록번호는 원문(D-BIZ-006 ② — 상세 전용), 사업자등록번호는 SQL 마스킹만. 시각은 저장 UTC 문자열(TZ-FIX-001).
- * [summary]: 중복 거절 요약(§6.7 D-BIZ-003) — 상세와 같은 business 행에서 상호·마스킹 번호·등록 상태만.
+ * 개인정보·법인등록번호는 원문(D-BIZ-006 ② — 상세 전용), 사업자등록번호도 원문(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약). 시각은 저장 UTC 문자열(TZ-FIX-001).
+ * [summary]: 중복 거절 요약(§6.7 D-BIZ-003) — 상세와 같은 business 행에서 상호·원문 번호(D-BIZ-007·D-PII-001 ① 중복 안내)·등록 상태만.
  */
 @Component
 class JooqBusinessDetailReader(private val dsl: DSLContext) : BusinessDetailReader {
@@ -32,7 +32,7 @@ class JooqBusinessDetailReader(private val dsl: DSLContext) : BusinessDetailRead
         val id = businessId.value
         val merchantCount = DSL.field(DSL.selectCount().from(MERCHANT).where(MERCHANT.BUSINESS_ID.eq(BUSINESS.BUSINESS_ID)))
         val business = dsl.select(
-            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.maskedRegistrationNumber(), BUSINESS.BUSINESS_TYPE, BUSINESS.REGISTRATION_STATUS,
+            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.registrationNumber(), BUSINESS.BUSINESS_TYPE, BUSINESS.REGISTRATION_STATUS,
             BUSINESS.VERIFICATION_STATUS, BUSINESS.LIFECYCLE, BUSINESS.VERSION, MasterSqlText.instant(BUSINESS.CREATED_AT), MasterSqlText.instant(BUSINESS.UPDATED_AT),
             merchantCount,
         )
@@ -40,7 +40,7 @@ class JooqBusinessDetailReader(private val dsl: DSLContext) : BusinessDetailRead
             .where(BUSINESS.BUSINESS_ID.eq(id))
             .fetchOne { r ->
                 BusinessDetailView.BusinessBlock(
-                    businessId = r.value1(), businessName = r.value2(), registrationNumberMasked = r.value3(), businessType = r.value4(),
+                    businessId = r.value1(), businessName = r.value2(), registrationNumber = r.value3(), businessType = r.value4(),
                     registrationStatus = r.value5(), verificationStatus = r.value6(), lifecycle = r.value7(), version = r.value8(),
                     createdAt = Instant.parse(r.value9()), updatedAt = Instant.parse(r.value10()), merchantCount = r.value11().toLong(),
                 )
@@ -87,7 +87,7 @@ class JooqBusinessDetailReader(private val dsl: DSLContext) : BusinessDetailRead
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     override fun summary(businessId: BusinessId): BusinessSummary? =
-        dsl.select(BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.maskedRegistrationNumber(), BUSINESS.REGISTRATION_STATUS)
+        dsl.select(BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.registrationNumber(), BUSINESS.REGISTRATION_STATUS)
             .from(BUSINESS)
             .where(BUSINESS.BUSINESS_ID.eq(businessId.value))
             .fetchOne { BusinessSummary(it.value1(), it.value2(), it.value3(), it.value4()) }

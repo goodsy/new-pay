@@ -58,7 +58,7 @@ class BusinessQueryServiceSpec : BehaviorSpec({
     val biz = "biz_01JC0000000000000000000001"
     val ctx = AdminRequestContext("req-q", "127.0.0.1")
     val found = linkedMapOf<String, Any?>(
-        "items" to listOf(linkedMapOf("businessId" to biz, "businessName" to "시험 사업자", "registrationNumberMasked" to "912*******", "registrationStatus" to "DRAFT")),
+        "items" to listOf(linkedMapOf("businessId" to biz, "businessName" to "시험 사업자", "registrationNumber" to "9120000001", "registrationStatus" to "DRAFT")),
     )
 
     class Fixture(roles: Set<String> = setOf("OPERATOR"), status: String = "ACTIVE", businessReads: Int = 30, brnPerMinute: Int = 10, merchantLookups: Int = 30) {
@@ -242,6 +242,8 @@ class BusinessQueryServiceSpec : BehaviorSpec({
             f.lookup.lookup(actorId, "9120000002", ctx)
             f.row(0) shouldBe "BUSINESS_BRN_LOOKUP|OK|brn=912*******;results=1|$biz"
             f.row(1) shouldBe "BUSINESS_BRN_LOOKUP|OK|brn=912*******;results=0|null"
+            // BRN-UNMASK-001(D-BIZ-007): 결과 문서는 원문 번호를 담아도(화면 표시용) 감사 detail에는 마스킹만 — 원문 0건.
+            f.audits.forEach { a -> withClue(a.detail) { (a.detail ?: "").contains("9120000001") shouldBe false } }
             f.metrics.count { it == "lookup:OK" } shouldBe 2
         }
         Then("malformed body (null) and wrong formats are attempts: INVALID_INPUT `brn=INVALID`, before any bucket use; MASTER failure → UNAVAILABLE row; audit failure → no result") {

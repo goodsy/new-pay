@@ -44,7 +44,7 @@ import java.time.Instant
  * 가맹점 상세(MERCHANT-OPS-001 §3.2, jOOQ 읽기 전용). 표마다 한 문장(N+1 없음), **모든 문장이 한 읽기 전용 REPEATABLE READ TX** — InnoDB 첫 일관 읽기의 스냅샷을 공유해
  * 그 사이 커밋된 발급·개통·Route가 일부 표에만 보이는 찢어진 상세를 돌려주지 않는다(JooqMerchantStructureReader review m-2와 같은 이유).
  *
- * 비노출(D-MD-008, D-MS2-005): 등록번호는 SQL 마스킹 값만 읽고, `card_route_activation.institution_merchant_ref`·`evidence_ref`·`reason` 열은 SELECT 목록에 없다.
+ * 비노출(D-MD-008, D-MS2-005): 등록번호는 원문(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약), `card_route_activation.institution_merchant_ref`·`evidence_ref`·`reason` 열은 SELECT 목록에 없다.
  * 시각은 [MasterSqlText.instant](저장 UTC 벽시계 문자열 — JVM 시간대 무관). 전파 상태는 application이 별도 Port로 채운다(여기서는 null).
  */
 @Component
@@ -55,7 +55,7 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
         val id = merchantId.value
         val head = dsl.select(
             MERCHANT.MERCHANT_ID, MERCHANT.DISPLAY_NAME, MERCHANT.LIFECYCLE, MERCHANT.ENTITLEMENT_REVISION, MasterSqlText.instant(MERCHANT.CREATED_AT),
-            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.maskedRegistrationNumber(), BUSINESS.LIFECYCLE,
+            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.registrationNumber(), BUSINESS.LIFECYCLE,
         )
             .from(MERCHANT)
             .join(BUSINESS).on(BUSINESS.BUSINESS_ID.eq(MERCHANT.BUSINESS_ID))

@@ -16,13 +16,13 @@ const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0
 const MER1 = id('mer', 1)
 const CODE1 = 'shop000001'
 const ITEM: MerchantListItem = {
-  merchantId: MER1, merchantCode: CODE1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: CODE1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 7, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 /** Named Fixture: 권리 revision 7 발행, 결제 서비스 수신 6, 효력 확인 전. */
 const DETAIL: MerchantDetail = {
   merchant: { merchantId: MER1, merchantCode: CODE1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 7, createdAt: '2026-11-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [], contracts: [], accounts: [], limits: [],
   propagation: {
     latestRevision: 7, latestRevisionIssuedAt: '2026-11-02T00:00:00.000Z', latestAckRevision: 6, latestAckAt: '2026-11-02T00:01:00.000Z',
@@ -48,7 +48,7 @@ describe('MerchantsScreen — technical info folded (D-ADMIN-UI-009 ②)', () =>
     const { row } = await openDetail()
     const table = screen.getByRole('table', { name: '가맹점 목록' })
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 늘 '활성'이던 상태 열을 뺐다.
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', 'MID 수', '등록일', '작업'])
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호', 'MID 수', '등록일', '작업'])
     expect(row.querySelector('[data-col="entitlementRevision"]')).toBeNull()
     expect(within(row).queryByText('7')).toBeNull()
   })

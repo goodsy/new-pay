@@ -14,7 +14,7 @@ import { APPROVAL_GROUPS, MerchantActivationArea, pendingIn, SiteReviewTable } f
 import { ServiceOpeningTimeline } from '../components/ServiceOpeningTimeline'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { RegistrationNumberInput } from '../components/RegistrationNumberInput'
-import { isRegistrationNumber } from '../lib/registrationNumber'
+import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
@@ -47,7 +47,8 @@ interface Props {
   onOpenApprovals?: () => void
   /**
    * 화면 상태(MERCHANT-DETAIL-VIEW-001 — 목록 ↔ 상세 화면 전환, 검색 조건·목록 결과·다음 쪽 커서·연 상세)를 둘 App 메모리(사업자 조회 `businessesMemory`와 같은 규칙 —
-   * 탭·메뉴를 오가도 유지, 세션 경계에서 App이 새로 만든다). 사업자등록번호는 담지 않는다. 없으면 화면 자체 메모리(다시 그리면 목록부터).
+   * 탭·메뉴를 오가도 유지, 세션 경계에서 App이 새로 만든다). **입력한** 사업자등록번호(검색 조건)는 담지 않는다(보낸 즉시 비움). 목록 결과·연 상세에 든 응답 번호(원문 —
+   * BRN-UNMASK-001·D-BIZ-007)는 이 JS 메모리에만 있다 — URL·브라우저 저장소에는 없다. 없으면 화면 자체 메모리(다시 그리면 목록부터).
    */
   memory?: ScreenMemory
   /** 시험 주입용(끝난 Revision 판정 기준 시각). */
@@ -178,10 +179,10 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
           {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): '가맹점 상태'·'사업자 상태'는 해지 경로가 없어 늘 '활성'이라 줄을 뺐다(값·API 그대로, 머리 배지는 B4에서 판단). */}
           <DetailRow term="등록일"><KstTime iso={merchant.createdAt} /></DetailRow>
           <DetailRow term="사업자">
-            {/* ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 그리지 않는다 — 상호·마스킹 등록번호로 식별(내부 키·API·감사 불변). */}
+            {/* ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 그리지 않는다 — 상호·등록번호(원문 하이픈 — BRN-UNMASK-001·D-BIZ-007)로 식별(내부 키·API·감사 불변). */}
             <span className="font-medium">{business.name}</span>
           </DetailRow>
-          <DetailRow term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></DetailRow>
+          <DetailRow term="사업자등록번호"><span className="font-mono">{displayRegistrationNumber(business.registrationNumber)}</span></DetailRow>
         </dl>
         {/* MERCHANT-CODE-001 MC-1b(§3.8·§5.5): 코드 이력(seq 1·2 — 바뀐 뒤 옛 코드는 "은퇴 — 다시 쓸 수 없음") + 변경 가능 여부(advisory). */}
         {(detail.merchantCodeHistory ?? []).length > 0 && (
@@ -440,7 +441,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
  * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). MERCHANT-CODE-001 MC-2: 가맹점은 **가맹점 코드**로 보이고 찾는다(목록·상세·이력 대상의 mer_… 표시 → 코드,
  * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·가맹점명 — 상태 조건은 MERCHANT-IA-001 B2에서 화면에서 뺌, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
- * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
+ * 사업자등록번호는 원문 하이픈 표시(D-BIZ-007), 그 밖 개인정보는 서버가 준 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
 export function MerchantsScreen({
   api, canSearchRegistrationNumber, onSessionEnded, openMerchantId, onOpenedMerchant, onRegister, canRegisterRevision = false, revisionMemory: injectedRevisionMemory, newSubmissionId, todayKst,
@@ -833,7 +834,7 @@ export function MerchantsScreen({
                 <TableRow key={entry.seq} aria-label={String(entry.seq)}>
                   <TableCell className="font-mono">{entry.seq}</TableCell>
                   <TableCell><KstTime iso={entry.occurredAt} /></TableCell>
-                  {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·마스킹 번호 — 내부 키 mer_·biz_ 미표시. 다른 대상은 MERCHANT-IA-001 B3부터 사람용 값(historyTargetValue — 내부 키 없음, MID는 외부 식별자라 그대로). */}
+                  {/* ADMIN-HISTORY-KEYS-001(MC-2 확장): 가맹점 = 상호·코드, 사업자 = 상호·번호(원문 하이픈 — D-BIZ-007) — 내부 키 mer_·biz_ 미표시. 다른 대상은 MERCHANT-IA-001 B3부터 사람용 값(historyTargetValue — 내부 키 없음, MID는 외부 식별자라 그대로). */}
                   <TableCell>
                     <span className="flex flex-col gap-1">
                       {/* MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③ — 내부 키는 호출 인자로만, DOM에는 사람용 값): 종류는 한국어 이름만(영문 종류 코드 줄 없음), 값은 사람용 값 — 없으면 종류만. */}
@@ -935,7 +936,7 @@ export function MerchantsScreen({
               <thead>
                 <tr>
                   {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 상태 열(늘 '활성')을 뺐다. */}
-                  <th>가맹점</th><th>사업자</th><th>사업자등록번호(마스킹)</th>
+                  <th>가맹점</th><th>사업자</th><th>사업자등록번호</th>
                   <th>MID 수</th><th>등록일</th><th><span className="sr-only">작업</span></th>
                 </tr>
               </thead>
@@ -947,7 +948,7 @@ export function MerchantsScreen({
                       <small>{row.merchantCode}</small>
                     </td>
                     <td>{row.businessName}</td>
-                    <td>{row.registrationNumberMasked}</td>
+                    <td>{displayRegistrationNumber(row.registrationNumber)}</td>
                     <td data-col="midCount">{row.midCount}</td>
                     <td><KstTime iso={row.createdAt} /></td>
                     <td>

@@ -15,19 +15,21 @@ const MER1 = id('mer', 1)
 const MER2 = id('mer', 2)
 const MER3 = id('mer', 3)
 const BIZ1 = id('biz', 1)
-const MASKED = '123*******'
+// BRN-UNMASK-001(D-BIZ-007·D-PII-001 ①): 응답은 원문 10자리, 화면은 하이픈 표시.
+const RAW_NUMBER = '1234567890'
+const SHOWN_NUMBER = '123-45-67890'
 /** 시험 입력 전용 사업자등록번호(Demo — 실제 번호 아님). 화면·요청 밖에 남으면 안 된다. */
 const BRN = '1234567890'
 
 const item = (merchantId: string, name: string): MerchantListItem => ({
-  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: BIZ1, businessName: '데모 사업자', registrationNumberMasked: MASKED, lifecycle: 'ACTIVE',
+  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: BIZ1, businessName: '데모 사업자', registrationNumber: RAW_NUMBER, lifecycle: 'ACTIVE',
   entitlementRevision: 4, midCount: 2, createdAt: '2026-10-01T00:00:00.000Z',
 })
 
 /** 상세 한 건(MERCHANT-OPS-001 §3.2 모양 전부 — Site 둘(심사 결과 있음/없음), 계약 1(SITES 범위), MID 1(배정·결제수단·통화·카드 Route), 한도 2). */
 const detail: MerchantDetail = {
   merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 4, createdAt: '2026-10-01T00:00:00.000Z' },
-  business: { businessId: BIZ1, name: '데모 사업자', registrationNumberMasked: MASKED, lifecycle: 'ACTIVE' },
+  business: { businessId: BIZ1, name: '데모 사업자', registrationNumber: RAW_NUMBER, lifecycle: 'ACTIVE' },
   sites: [
     { merchantSiteId: id('mst', 1), channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: { decision: 'APPROVED', decidedAt: '2026-10-02T00:00:00.000Z' } },
     { merchantSiteId: id('mst', 2), channelType: 'APP', channelIdentifier: 'test.example.app', lifecycle: 'ACTIVE', review: null },
@@ -96,7 +98,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 화면에 보이지 않는다 — 사업자는 상호·마스킹 등록번호로 식별.
     expect(row).not.toHaveTextContent(BIZ1)
     expect(row).toHaveTextContent('데모 사업자')
-    expect(row).toHaveTextContent(MASKED)
+    expect(row).toHaveTextContent(SHOWN_NUMBER)
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 늘 '활성'이던 상태 열은 없다.
     expect(row).not.toHaveTextContent('활성')
     expect(within(row).getByText('2', { selector: '[data-col="midCount"]' })).toBeInTheDocument()
@@ -172,17 +174,18 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(api.merchantSearch).not.toHaveBeenCalled()
   })
 
-  it('a valid registration number is sent in the POST body, then cleared from the field; it is never rendered or stored', async () => {
+  it('a valid registration number is sent in the POST body, then cleared from the field; it is never stored and shows only as the hyphenated number of the result (D-BIZ-007)', async () => {
     const log = vi.spyOn(console, 'log')
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: MER1 })) })
     const { container } = render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
     await typeIn('사업자등록번호', BRN)
     await search()
     expect(api.merchantSearch).toHaveBeenCalledWith({ registrationNumber: BRN })
-    expect(await screen.findByRole('row', { name: codeOf(MER1) })).toHaveTextContent(MASKED)
+    expect(await screen.findByRole('row', { name: codeOf(MER1) })).toHaveTextContent(SHOWN_NUMBER)
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.innerHTML).not.toContain(BRN)
-    expect(container.innerHTML).not.toContain('123-45-67890')
+    // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 결과 행은 응답 번호를 하이픈 표시한다(위 단언). 입력한 번호는 비워지고, 하이픈 표시는 결과 칸 하나에만 — 입력값·속성에는 없다.
+    expect(domOccurrences(container, SHOWN_NUMBER)).toEqual(['-/DIV/textContent', `-/TD/text:${SHOWN_NUMBER}`])
     expect(storageIsEmpty()).toBe(true)
     expect(window.location.href).not.toContain(BRN)
     expect(log).not.toHaveBeenCalled()
@@ -239,7 +242,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 상세에도 사업자 ID는 보이지 않는다(상호·마스킹 번호로 식별).
     expect(basic).not.toHaveTextContent(BIZ1)
     expect(basic).toHaveTextContent('데모 사업자')
-    expect(basic).toHaveTextContent(MASKED)
+    expect(basic).toHaveTextContent(SHOWN_NUMBER)
 
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): Site 행은 Site 키 대신 채널 식별값으로, 계약·서비스 약정은 "계약 1"·"서비스: 카드 PG 결제"로 보인다(키는 없다).
     const sites = screen.getByRole('region', { name: 'Site' })
@@ -388,7 +391,7 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     }
   })
 
-  it('ADMIN-HISTORY-KEYS-001 T-HK-2/3: business and merchant history rows show name · masked number / name · code with Korean target names — no biz_/mer_ or plaintext number anywhere; other targets show human values (B3)', async () => {
+  it('ADMIN-HISTORY-KEYS-001 T-HK-2/3: business and merchant history rows show name · hyphenated number (D-BIZ-007) / name · code with Korean target names — no biz_/mer_, the number only in its display cells; other targets show human values (B3)', async () => {
     const rows: MerchantHistoryEntry[] = [
       { ...entry(40, 'REGISTERED'), operation: 'RegisterBusiness', aggregateType: 'Business', aggregateId: BIZ1 },
       { ...entry(41, 'REGISTERED'), operation: 'RegisterMerchant', aggregateType: 'Merchant', aggregateId: MER1 },
@@ -401,7 +404,7 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(within(business).getByText('사업자', { exact: true })).toBeInTheDocument()
     // 기대값 변경(MERCHANT-IA-001 B3 — 사용자 결정 D-ADMIN-UI-010 ③ "내부 식별자는 사람용 값으로"): 영문 종류 코드('Business') 줄은 없다 — 한국어 종류 이름만.
     expect(business).not.toHaveTextContent('Business')
-    expect(business).toHaveTextContent(`데모 사업자 · ${MASKED}`)
+    expect(business).toHaveTextContent(`데모 사업자 · ${SHOWN_NUMBER}`)
     const merchant = within(history).getByRole('row', { name: '41' })
     expect(within(merchant).getByText('가맹점', { exact: true })).toBeInTheDocument()
     expect(merchant).toHaveTextContent(`데모 가맹점 · ${codeOf(MER1)}`)
@@ -414,11 +417,12 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     expect(route).not.toHaveTextContent(id('cra', 1))
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
     expect(domOccurrences(document.body, 'mer_')).toEqual([])
+    // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
     expect(domOccurrences(document.body, BRN)).toEqual([])
-    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `기본정보/SPAN/text:${SHOWN_NUMBER}`, `변경 이력/SPAN/text:데모 사업자 · ${SHOWN_NUMBER}`])
   })
 
-  it('MC-2b DOM (D-MCODE-003 ②): a registration-number search list and the detail render no biz_ anywhere (text, attributes, input values) and never the plaintext number — the business is name + masked number; the internal key goes only to calls', async () => {
+  it('MC-2b DOM (D-MCODE-003 ②): a registration-number search list and the detail render no biz_ anywhere (text, attributes, input values) and the number only as the hyphenated display text (D-BIZ-007) — the business is name + number; the internal key goes only to calls', async () => {
     const api = fakeApi({
       merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })),
       merchantDetail: vi.fn(async () => detail),
@@ -430,18 +434,24 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     await search()
     const row = await screen.findByRole('row', { name: codeOf(MER1) })
     expect(row).toHaveTextContent('데모 사업자')
-    expect(row).toHaveTextContent(MASKED)
+    expect(row).toHaveTextContent(SHOWN_NUMBER)
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
+    // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
     expect(domOccurrences(document.body, BRN)).toEqual([])
-    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+    expect(domOccurrences(document.body, SHOWN_NUMBER)).toEqual(['-/BODY/textContent', `-/TD/text:${SHOWN_NUMBER}`])
     await userEvent.click(within(row).getByRole('button', { name: '상세' }))
-    expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(MASKED)
+    expect(await screen.findByRole('region', { name: '기본정보' })).toHaveTextContent(SHOWN_NUMBER)
     expect(screen.getByRole('region', { name: '기본정보' })).toHaveTextContent('데모 사업자')
     // ADMIN-HISTORY-KEYS-001 코드 리뷰 MINOR-1: 이력 행이 그려진 뒤에 단언한다(대기만 추가 — 단언 무변경).
     await within(screen.getByRole('region', { name: '변경 이력' })).findByRole('row', { name: '30' })
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
+    // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 번호는 원문 하이픈 표시. 보이는 곳은 정해진 표시 칸의 텍스트뿐 — 속성·입력값·URL·저장소에는 없다(위치 목록을 정확히 고정).
     expect(domOccurrences(document.body, BRN)).toEqual([])
-    expect(domOccurrences(document.body, '123-45-67890')).toEqual([])
+    expect(domOccurrences(document.body, SHOWN_NUMBER).filter((o) => !/\/(text:|textContent$)/.test(o))).toEqual([])
+    // N-2(BRN-UNMASK-001 — PII §6 #10): 가맹점 상세를 연 뒤에도 원문 번호(숫자·하이픈)는 URL·브라우저 저장소에 없다.
+    expect(window.location.href).not.toContain(RAW_NUMBER)
+    expect(window.location.href).not.toContain(SHOWN_NUMBER)
+    expect(storageIsEmpty()).toBe(true)
     expect(api.merchantDetail).toHaveBeenCalledWith(MER1)
   })
 })
@@ -456,14 +466,14 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
     const basics = await screen.findByRole('region', { name: '기본정보' })
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): '가맹점 상태'·'사업자 상태' 줄(늘 '활성')을 뺐다.
-    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '등록일', '사업자', '사업자등록번호(마스킹)'])
+    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '등록일', '사업자', '사업자등록번호'])
     const techInfo = screen.getByRole('group', { name: '기술 정보' })
     await userEvent.click(within(techInfo).getByText('기술 정보'))
     expectDetailRows(panelDetailList(within(techInfo).getByRole('region', { name: '가맹점 권리' }), '가맹점 권리'), ['권리 revision'])
     const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
     expectDetailRows(panelDetailList(propagation, '권리 전파 상태'), ['발행', '결제 서비스 수신', '효력'])
     // 값은 그대로(마스킹 번호 · 효력 확인 전). 상태 배지 줄은 B2에서 뺐다.
-    expect(within(basics).getByText(MASKED)).toHaveClass('font-mono')
+    expect(within(basics).getByText(SHOWN_NUMBER)).toHaveClass('font-mono')
     expect(within(propagation).getByText('효력 확인 전')).toBeInTheDocument()
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })

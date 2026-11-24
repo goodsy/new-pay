@@ -49,7 +49,10 @@ data class MerchantSearchCriteria(
 
 sealed interface MerchantLookupResult {
     /** MASTER 응답을 허용 필드 모양으로 검사해 다시 만든 문서(문자열·숫자·불린·null·목록·객체만). */
-    data class Found(val document: Map<String, Any?>) : MerchantLookupResult
+    data class Found(val document: Map<String, Any?>) : MerchantLookupResult {
+        /** BRN-UNMASK-001 M-2(D-BIZ-007): 목록·상세 문서에 사업자등록번호 원문이 있다 — toString은 값을 가린다(로그·예외 비노출, [BusinessQueryResult.Found]와 같은 규칙). */
+        override fun toString(): String = "Found(***)"
+    }
 
     data object InvalidInput : MerchantLookupResult
 

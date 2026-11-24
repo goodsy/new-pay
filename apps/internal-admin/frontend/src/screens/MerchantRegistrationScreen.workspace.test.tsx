@@ -20,9 +20,9 @@ const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0
 const BIZ = id('biz', 7)
 const MER = id('mer', 7)
 const BRN = '7781234560'
-const BUSINESS: BusinessRef = { businessId: BIZ, name: '데모 사업자', masked: '778*******' }
+const BUSINESS: BusinessRef = { businessId: BIZ, name: '데모 사업자', registrationNumber: '7781234567' }
 const succeeded = (reference: string): RegistrationOutcome => ({ outcome: 'SUCCEEDED', reference, replayed: false })
-const lookup = { items: [{ businessId: BIZ, businessName: '데모 사업자', registrationNumberMasked: '778*******', registrationStatus: 'REGISTERED' as const }] }
+const lookup = { items: [{ businessId: BIZ, businessName: '데모 사업자', registrationNumber: '7781234567', registrationStatus: 'REGISTERED' as const }] }
 const user = userEvent.setup({ delay: null })
 const shape = (el: Element) => Array.from(el.children).map((c) => [c.tagName.toLowerCase(), ...Array.from(c.classList)].join('.'))
 const region = (name: string) => screen.getByRole('region', { name })
@@ -289,7 +289,7 @@ describe('LAYOUT-ROLLOUT B2: 가맹점 등록 입력 = 폼 줄(이름 왼쪽 · 
       expect(fieldset.className).not.toMatch(/grid/)
     }
     const merchant = region('가맹점')
-    expect(readOnlyRowOf(merchant, '사업자')).toHaveTextContent('데모 사업자 · 778*******')
+    expect(readOnlyRowOf(merchant, '사업자')).toHaveTextContent('데모 사업자 · 778-12-34567')
     formRowOf(merchant, '가맹점명', 'lg')
     expect(formRowOf(merchant, '영문 상호(코드 제안용)', 'lg').input).toHaveAccessibleDescription('저장하지 않습니다. 영문·숫자만 코드 제안에 씁니다(한글은 옮기지 않습니다).')
     const code = formRowOf(merchant, '가맹점 코드', 'sm')
@@ -308,7 +308,7 @@ describe('LAYOUT-ROLLOUT B2: 가맹점 등록 입력 = 폼 줄(이름 왼쪽 · 
     render(<MerchantRegistrationScreen api={fakeApi()} onOpenLookup={vi.fn()} memory={atStep3()} />)
     const contract = region('계약 초안')
     expect(region('계약 초안').querySelector('form > fieldset')!.className).not.toMatch(/grid/)
-    expect(readOnlyRowOf(contract, '계약 당사자')).toHaveTextContent('데모 사업자 · 778*******')
+    expect(readOnlyRowOf(contract, '계약 당사자')).toHaveTextContent('데모 사업자 · 778-12-34567')
     readOnlyRowOf(contract, '소속 가맹점')
 
     const scope = within(contract).getByRole('group', { name: '범위' })

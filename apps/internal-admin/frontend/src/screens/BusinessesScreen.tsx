@@ -19,7 +19,7 @@ import {
   HISTORY_FIELD_LABELS, labelIn, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, representativeSummary,
 } from '../lib/businessProfile'
 import { defaultSubmissionId, type BusinessRef, type HandoffState } from '../lib/registration'
-import { isRegistrationNumber } from '../lib/registrationNumber'
+import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { BusinessProfileFormScreen } from './BusinessProfileFormScreen'
 
@@ -28,7 +28,7 @@ import { BusinessProfileFormScreen } from './BusinessProfileFormScreen'
  * - 조회 역할 OPERATOR·APPROVER(D-BIZ-006 ① — 표시만, 판정은 서버). 명령 버튼(수정·이어서 입력·이 사업자로 가맹점 등록)은 [canEdit](OPERATOR)일 때만.
  * - 번호 검색은 번호 조회 API만(C-6 — 목록 본문에 번호 없음, 입력 시 다른 조건 비활성, 보낸 즉시 비움). 목록 본문은 빈 조건의 키를 생략한다(null 없음 — BIZ-3 리뷰 1).
  * - 선택한 사업자 키(biz_)는 App 메모리에만([openBusinessIn]) — URL·location·브라우저 저장소·DOM에 없다(X-4·D-ADMIN-UI-004 ③). Business ID 열 없음.
- * - 사업자등록번호는 어디서나 마스킹(서버 값 그대로). 진위확인(늘 "미검증" — TC-21)·국가(늘 KR)는 화면에 그리지 않는다(MERCHANT-IA-001 B2, D-ADMIN-UI-010 ② — 값·API 그대로). 429는 공유 조회 창·번호 버킷 문구(Demo 값 — L-14).
+ * - 사업자등록번호는 원문을 하이픈 표시(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①: 목록·번호 조회 결과·상세, [displayRegistrationNumber]). URL·저장소에는 없다. 진위확인(늘 "미검증" — TC-21)·국가(늘 KR)는 화면에 그리지 않는다(MERCHANT-IA-001 B2, D-ADMIN-UI-010 ② — 값·API 그대로). 429는 공유 조회 창·번호 버킷 문구(Demo 값 — L-14).
  * - 저장 성공 뒤 상세를 다시 읽는다(C-18). DRAFT 상세는 "새 가맹점 등록 불가" 안내(L-7·D-BIZ-001).
  */
 interface Props {
@@ -313,7 +313,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 ) : (
                   <>
                     <Button type="button" variant="outline" onClick={() => startEdit(current)}>수정</Button>
-                    <Button type="button" onClick={() => continueWith({ businessId: current.business.businessId, name: current.business.businessName, masked: current.business.registrationNumberMasked })}>
+                    <Button type="button" onClick={() => continueWith({ businessId: current.business.businessId, name: current.business.businessName, registrationNumber: current.business.registrationNumber })}>
                       이 사업자로 가맹점 등록
                     </Button>
                   </>
@@ -340,7 +340,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                     onClick={() => {
                       setHandoff(null)
                       if (handoffState() === 'locked') setHandoff('locked')
-                      else onContinue({ businessId: current.business.businessId, name: current.business.businessName, masked: current.business.registrationNumberMasked })
+                      else onContinue({ businessId: current.business.businessId, name: current.business.businessName, registrationNumber: current.business.registrationNumber })
                     }}
                   >
                     새로 시작
@@ -442,7 +442,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 // MERCHANT-IA-001 B2(D-ADMIN-UI-010 ⑦): 번호 조회 결과는 짧은 결과 모양 — 응답(BusinessLookupItem)에 있는 값만, '—' 칸을 그리지 않는다.
                 list.source === 'lookup' ? list.items.map((item) => (
                     <TableRow key={item.businessId}>
-                      <TableCell className="font-mono">{item.registrationNumberMasked}</TableCell>
+                      <TableCell className="font-mono">{displayRegistrationNumber(item.registrationNumber)}</TableCell>
                       <TableCell className="font-medium">{item.businessName}</TableCell>
                       <TableCell>{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</TableCell>
                       <TableCell>
@@ -451,7 +451,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                     </TableRow>
                 )) : list.items.map((item) => (
                     <TableRow key={item.businessId}>
-                      <TableCell className="font-mono">{item.registrationNumberMasked}</TableCell>
+                      <TableCell className="font-mono">{displayRegistrationNumber(item.registrationNumber)}</TableCell>
                       <TableCell className="font-medium">{item.businessName}</TableCell>
                       <TableCell>{representativeSummary(item.representativeNameMasked, item.representativeCount)}</TableCell>
                       <TableCell>{labelIn(BUSINESS_TYPE_LABELS, item.businessType)}</TableCell>
@@ -477,7 +477,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   )
 }
 
-/** 상세 섹션 1~6(원문 — D-BIZ-006 ②. 사업자등록번호는 마스킹 값만, 하이픈은 표시만). */
+/** 상세 섹션 1~6(원문 — D-BIZ-006 ②. 사업자등록번호도 원문(D-BIZ-007), 하이픈은 표시만). */
 function DetailInfo({ detail }: { detail: BusinessDetail }) {
   const { business, registration } = detail
   const names = (type: string) => detail.categories.filter((c) => c.categoryType === type).map((c) => c.name)
@@ -486,7 +486,7 @@ function DetailInfo({ detail }: { detail: BusinessDetail }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <InfoCard title="1. 사업자 기본">
-        <Row term="사업자등록번호"><span className="font-mono">{business.registrationNumberMasked}</span></Row>
+        <Row term="사업자등록번호"><span className="font-mono">{displayRegistrationNumber(business.registrationNumber)}</span></Row>
         <Row term="상호">{business.businessName}</Row>
         <Row term="사업체 구분">{labelIn(BUSINESS_TYPE_LABELS, business.businessType)}</Row>
         {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②, 명세 §3.10): '등록 상태'는 머리 배지와 중복, '진위확인'(늘 미검증)·'국가'(늘 KR)는 늘 같은 값이라 뺐다(값·API 그대로). */}

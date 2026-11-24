@@ -15,7 +15,7 @@ const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0
 const MER1 = id('mer', 1)
 const NOW = () => new Date('2026-11-11T03:00:00.000Z')
 const item: MerchantListItem = {
-  merchantId: MER1, merchantCode: 'shopabcd12', merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******',
+  merchantId: MER1, merchantCode: 'shopabcd12', merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890',
   lifecycle: 'ACTIVE', entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 const history1 = [{ code: 'shopabcd12', seq: 1, source: 'REGISTRATION', replacesCode: null, assignedAt: '2026-11-01T00:00:00.000Z', assignedBy: 'admin:adm_X', reasonCode: null }]
@@ -23,7 +23,7 @@ const history2 = [...history1, { code: 'shopnew2026', seq: 2, source: 'CHANGE', 
 function detail(patch: Partial<MerchantDetail> = {}): MerchantDetail {
   return {
     merchant: { merchantId: MER1, merchantCode: 'shopabcd12', name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
-    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
     sites: [], contracts: [], accounts: [], limits: [],
     propagation: { latestRevision: 1, latestRevisionIssuedAt: '2026-11-01T00:00:00.000Z', latestAckRevision: null, latestAckAt: null, effectConfirmedAt: null, effectBasis: null },
     pendingApprovals: [], merchantCodeHistory: history1, merchantCodeChangeable: true,

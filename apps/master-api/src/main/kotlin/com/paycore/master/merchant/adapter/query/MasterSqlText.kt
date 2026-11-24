@@ -11,7 +11,8 @@ import java.time.format.DateTimeFormatter
 
 /**
  * 조회 adapter 공용 SQL 표현(MERCHANT-OPS-001). 시각은 저장 UTC 벽시계를 ISO `…Z` 문자열로 읽는다(JVM·driver 시간대 변환 없음 — JooqMerchantStructureReader KDoc,
- * TZ-FIX-001). 사업자등록번호는 SQL에서 앞 3자리 + `*` 7개로만 읽는다 — 평문이 애플리케이션 메모리로 오지 않는다(D-MD-008, `BusinessRegistrationNumber.masked()`와 같은 모양).
+ * TZ-FIX-001). 사업자등록번호는 [registrationNumber] 한 곳에서 저장 원문 10자리로 읽는다(BRN-UNMASK-001 — D-BIZ-007·D-PII-001: 뉴피지 관리자 화면·조회 응답 원문).
+ * 감사·변경 이력·로그·지표는 마스킹 그대로다(이력 저장값은 `BusinessRegistrationNumber.masked()` — 이 조회 표현과 무관).
  */
 internal object MasterSqlText {
     /** MERCHANT-CODE-001 §3.2·§3.8: 현재 가맹점 코드 = 가장 큰 assignment_seq 행의 코드(PK (merchant_id, seq) 범위 읽기 — 상관 부분 질의). */
@@ -23,12 +24,13 @@ internal object MasterSqlText {
             .limit(1),
     )
 
-    private const val VISIBLE_DIGITS = 3
-    private const val MASK = "*******"
-
     fun instant(field: Field<LocalDateTime?>): Field<String?> = DSL.field("DATE_FORMAT({0}, '%Y-%m-%dT%H:%i:%s.%fZ')", String::class.java, field)
 
-    fun maskedRegistrationNumber(): Field<String> = DSL.concat(DSL.left(BUSINESS.REGISTRATION_NUMBER, VISIBLE_DIGITS), DSL.inline(MASK))
+    /**
+     * BRN-UNMASK-001(D-BIZ-007·D-PII-001 ①): 관리자 조회 응답의 사업자등록번호 = 저장 원문 10자리(하이픈은 화면이 표시할 때만). 이전 SQL 마스킹(`LEFT(…, 3)` + `*******`)을 대체한다.
+     * 응답 필드 `registrationNumber`(v2 계약 — 명세 §2 C-1). 값을 로그·감사·이력에 옮겨 적지 않는다(그곳은 마스킹 — D-BIZ-007).
+     */
+    fun registrationNumber(): Field<String> = BUSINESS.REGISTRATION_NUMBER
 
     /**
      * BUSINESS-PROFILE-001 §6.2·§9: 사람 이름 마스킹을 SQL에서(원문이 메모리로 오지 않는다) — 첫 code point + 나머지 `*`(1글자면 `김*`). Domain `BusinessPiiMask.name`과 같은 모양

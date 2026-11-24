@@ -24,13 +24,13 @@ const SITE1 = id('site', 1)
 const NOW = () => new Date('2026-11-11T03:00:00.000Z')
 
 const itemOf = (merchantId: string, name: string): MerchantListItem => ({
-  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId, merchantCode: codeOf(merchantId), merchantName: name, businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 3, midCount: 1, createdAt: '2026-11-01T00:00:00.000Z',
 })
 /** Named Fixture: MID 활성 + PRIMARY Site1, 결제수단 개통 없음(개통 등록 가능), 계약 없음. */
 const detailOf = (merchantId: string, name: string): MerchantDetail => ({
   merchant: { merchantId, merchantCode: codeOf(merchantId), name, lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [{ merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
   contracts: [],
   accounts: [{

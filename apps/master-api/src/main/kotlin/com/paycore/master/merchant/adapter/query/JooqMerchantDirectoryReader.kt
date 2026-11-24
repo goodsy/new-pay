@@ -18,7 +18,7 @@ import java.time.Instant
 
 /**
  * 가맹점 목록(MERCHANT-OPS-001 §3.1, jOOQ 읽기 전용). merchant_id 오름차순 keyset(`> after`), `limit + 1`행으로 다음 쪽 판정. 조건은 가맹점명 접두 외에는 모두 정확 일치이며
- * 등록번호는 바인드 값으로만 쓰고(로그·결과에 없음) 결과에는 SQL 마스킹 값만 담는다. MID 수는 상관 부분 질의(PK·FK 색인).
+ * 등록번호는 바인드 값으로만 쓰고(로그·결과에 없음) 결과의 등록번호는 원문(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약). MID 수는 상관 부분 질의(PK·FK 색인).
  *
  * MERCHANT-NAME-SEARCH-001: 가맹점명 앞부분 일치는 `display_name LIKE ? ESCAPE '!'`(`%`·`_`·`!`를 `!`로 이스케이프 — [MasterSqlText.likePrefix], 사업자 상호 접두와 같은 규칙).
  * 색인 `ix_merchant_name_id (display_name, merchant_id)`(V17)로 접두 범위를 읽은 뒤 merchant_id 오름차순으로 다시 정렬한다(filesort — 알려진 한계, LIVE Gate에서 EXPLAIN 기록).
@@ -44,7 +44,7 @@ class JooqMerchantDirectoryReader(private val dsl: DSLContext) : MerchantDirecto
         val midCount = DSL.field(DSL.selectCount().from(MERCHANT_ACCOUNT).where(MERCHANT_ACCOUNT.MERCHANT_ID.eq(MERCHANT.MERCHANT_ID)))
         val currentCode = MasterSqlText.currentMerchantCode(MERCHANT.MERCHANT_ID)
         val rows = dsl.select(
-            MERCHANT.MERCHANT_ID, MERCHANT.DISPLAY_NAME, BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.maskedRegistrationNumber(),
+            MERCHANT.MERCHANT_ID, MERCHANT.DISPLAY_NAME, BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.registrationNumber(),
             MERCHANT.LIFECYCLE, MERCHANT.ENTITLEMENT_REVISION, midCount, MasterSqlText.instant(MERCHANT.CREATED_AT), currentCode,
         )
             .from(MERCHANT)
@@ -54,7 +54,7 @@ class JooqMerchantDirectoryReader(private val dsl: DSLContext) : MerchantDirecto
             .limit(filter.limit + 1)
             .fetch { r ->
                 MerchantDirectoryItem(
-                    merchantId = r.value1(), merchantName = r.value2(), businessId = r.value3(), businessName = r.value4(), registrationNumberMasked = r.value5(),
+                    merchantId = r.value1(), merchantName = r.value2(), businessId = r.value3(), businessName = r.value4(), registrationNumber = r.value5(),
                     lifecycle = r.value6(), entitlementRevision = r.value7(), midCount = r.value8().toLong(), createdAt = Instant.parse(r.value9()),
                     // 배정 없음 = 결함(등록 TX·V13 채우기가 보장) — 조용히 빈 값으로 내보내지 않는다.
                     merchantCode = checkNotNull(r.value10()) { "merchant without a code assignment" },

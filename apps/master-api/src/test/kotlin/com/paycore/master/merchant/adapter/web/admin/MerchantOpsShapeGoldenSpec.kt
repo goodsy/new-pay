@@ -7,6 +7,7 @@ import com.paycore.master.merchant.application.provided.MerchantDirectoryPage
 import com.paycore.master.merchant.application.provided.MerchantLabel
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
@@ -14,27 +15,31 @@ import java.time.Instant
 /**
  * MERCHANT-CODE-001 MC-1-9 MASTER 쪽(C-22 — 교차 배치 golden): 고정 Demo 값의 view를 응답 Map 생성기 [MerchantOpsJson]으로 만들고 기본 설정 `JsonMapper`(관리 채널
  * `AdminChannelResponses`도 `JsonMapper.builder().build()` — 같은 빌더 호출을 이 시험에서 따로 만든 것이지 그 객체를 쓰는 것은 아니다)로 직렬화한 **압축 JSON 문자열**이
- * golden `merchant-ops-response-shapes-v1.golden.json`의 항목(목록·코드 검색·상세, TXN-LIST-ENRICH-001 T-E2-10(N-2): 라벨 `accountLabels`)을 같은 mapper로 다시 직렬화한 문자열과 같다(키 순서·값 비교 — golden 파일의 들여쓰기 바이트 비교가 아님). ADMIN `MerchantCodeShapeGoldenSpec`이 같은 파일 사본을 `MasterResponseShape`로 해석한다.
+ * golden `merchant-ops-response-shapes-v2.golden.json`의 항목(목록·코드 검색·상세, TXN-LIST-ENRICH-001 T-E2-10(N-2): 라벨 `accountLabels`)을 같은 mapper로 다시 직렬화한 문자열과 같다(키 순서·값 비교 — golden 파일의 들여쓰기 바이트 비교가 아님). ADMIN `MerchantCodeShapeGoldenSpec`이 같은 파일 사본을 `MasterResponseShape`로 해석한다.
  * 실제 HTTP 응답의 키 구조가 이 golden과 같음은 `MerchantCodeApiSpec`(MC-1-6)이, 라벨 응답의 키 목록은 `MerchantAccountLabelApiSpec`(T-E2-1)이 확인한다.
  * golden을 바꾸면 ADMIN 사본(`apps/internal-admin/src/test/resources/contracts/`)도 **같은 바이트로** 함께 바꾼다(ADMIN `MerchantCodeShapeGoldenSpec`이 바이트 동일을 단언).
  */
 class MerchantOpsShapeGoldenSpec : BehaviorSpec({
 
     val mapper = JsonMapper.builder().build()
-    val golden: JsonNode = mapper.readTree(MerchantOpsShapeGoldenSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v1.golden.json")!!.readText(Charsets.UTF_8))
+    val golden: JsonNode = mapper.readTree(MerchantOpsShapeGoldenSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v2.golden.json")!!.readText(Charsets.UTF_8))
     fun at(text: String) = Instant.parse(text)
     fun item(code: String, retired: Boolean?) = MerchantDirectoryItem(
-        "mer_01JC0000000000000000000001", "Demo Merchant", "biz_01JC0000000000000000000001", "Demo Business", "778*******", "ACTIVE", 5, 1,
+        "mer_01JC0000000000000000000001", "Demo Merchant", "biz_01JC0000000000000000000001", "Demo Business", "7780000001", "ACTIVE", 5, 1,
         at("2026-10-09T02:00:00Z"), code, retired,
     )
     val operator = "admin:adm_01JC00000000000000000000V1"
 
     Given("MC-1-9 fixed views serialized by the MASTER response generator") {
+        Then("BRN-UNMASK-001 M-1: the contract is v2 (registrationNumber); the v1 golden is gone — MASTER fixes only the current version (golden 관례: 생산자는 현재 버전만)") {
+            MerchantOpsShapeGoldenSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v1.golden.json") shouldBe null
+            mapper.writeValueAsString(golden) shouldNotContain "registrationNumberMasked"
+        }
         Then("MC-1-9 list (no merchantCode criterion): 10 item keys, no matchedRetiredCode — compact JSON equals the golden") {
             val produced = mapper.writeValueAsString(MerchantOpsJson.directory(MerchantDirectoryPage(listOf(item("shopabcd12", null)), null)))
             produced shouldBe mapper.writeValueAsString(golden.get("list"))
             mapper.readTree(produced).get("items").get(0).propertyNames().toList() shouldBe listOf(
-                "merchantId", "merchantName", "businessId", "businessName", "registrationNumberMasked", "lifecycle", "entitlementRevision", "midCount", "createdAt", "merchantCode",
+                "merchantId", "merchantName", "businessId", "businessName", "registrationNumber", "lifecycle", "entitlementRevision", "midCount", "createdAt", "merchantCode",
             )
         }
 
@@ -72,7 +77,7 @@ class MerchantOpsShapeGoldenSpec : BehaviorSpec({
         Then("MC-1-9 detail: merchant.merchantCode, merchantCodeHistory and merchantCodeChangeable — compact JSON equals the golden; no registeredBy on the merchant") {
             val view = MerchantDetailView(
                 merchant = MerchantDetailView.MerchantSummary("mer_01JC0000000000000000000001", "Demo Merchant", "ACTIVE", 5, at("2026-10-09T02:00:00Z"), "shopxyz789"),
-                business = MerchantDetailView.BusinessSummary("biz_01JC0000000000000000000001", "Demo Business", "778*******", "ACTIVE"),
+                business = MerchantDetailView.BusinessSummary("biz_01JC0000000000000000000001", "Demo Business", "7780000001", "ACTIVE"),
                 sites = listOf(MerchantDetailView.SiteDetail("site_01JC0000000000000000000001", "WEB", "demo-shop.paycore.test", "ACTIVE", null, operator)),
                 contracts = listOf(
                     MerchantDetailView.ContractDetail(

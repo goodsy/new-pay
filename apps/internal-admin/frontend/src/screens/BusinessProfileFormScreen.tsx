@@ -20,7 +20,7 @@ import {
   formOf, importantChange, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, reasonError, validateForm, withInputRows, type AddressForm, type BusinessForm,
 } from '../lib/businessProfile'
 import { defaultSubmissionId } from '../lib/registration'
-import { isRegistrationNumber } from '../lib/registrationNumber'
+import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { createScreenMemory, useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { sendUnknownLocked } from '../lib/useUnknownLockedSubmission'
 
@@ -29,8 +29,8 @@ import { sendUnknownLocked } from '../lib/useUnknownLockedSubmission'
  * 6 등록 담당자 · 8 버튼(7 증빙은 P1 — 표시하지 않음). 판정·감사·속도 제한은 서버(ADMIN → MASTER), 화면 검사는 같은 규칙의 복제(`lib/businessProfile.ts`).
  * - 생성: 임시저장(DRAFT — 구분·번호·상호, D-BIZ-002) / 등록 완료(REGISTERED). 수정: DRAFT = 임시저장(update)·등록 완료(complete-registration), REGISTERED = 저장(update).
  * - 본문 = 모든 key·선택 값 null·countryCode "KR"(BIZ-3 리뷰 2). 수정·등록 완료에는 번호·상태가 없고 version은 상세 `business.version`(낙관적 잠금).
- * - D-BIZ-005: 생성 모드 번호 칸 아래·저장 버튼 근처에 "저장 후 변경할 수 없습니다"(확인 대화상자 없음). 수정 모드 번호는 읽기 전용(마스킹 — TBD-04).
- * - D-BIZ-003: "중복 확인"은 번호 조회 API(감사·버킷 1회 — 안내일 뿐, 권위는 저장 시 DB). 번호가 바뀌면 결과 즉시 무효. 저장 시 중복이면 같은 안내(기존 상호·마스킹 번호·상세 보기).
+ * - D-BIZ-005: 생성 모드 번호 칸 아래·저장 버튼 근처에 "저장 후 변경할 수 없습니다"(확인 대화상자 없음). 수정 모드 번호는 읽기 전용(원문 하이픈 표시 — TBD-04, D-BIZ-007).
+ * - D-BIZ-003: "중복 확인"은 번호 조회 API(감사·버킷 1회 — 안내일 뿐, 권위는 저장 시 DB). 번호가 바뀌면 결과 즉시 무효. 저장 시 중복이면 같은 안내(기존 상호·번호(원문 하이픈 — D-BIZ-007·D-PII-001 ①)·상세 보기).
  * - 평문 번호는 화면 자체 상태(보낸 즉시 비움 — 화면 전환에도 남지 않음). 재전송할 payload만 [memory]에(기존 리뷰 MINOR-2 규칙).
  * - 결과 불명(공용 `UNKNOWN_CODES` — lib/useUnknownLockedSubmission)은 폼 잠금 + 같은 submissionId·같은 본문 재전송(공용 [sendUnknownLocked] 규칙 — 재전송 중에는 409만 확정).
  *   문구는 code별로 다르다(BIZ-3 리뷰 3). MASTER_BUSY(첫 전송)는 처리 안 됨 — 잠그지 않는다.
@@ -266,7 +266,7 @@ export function BusinessProfileFormScreen({
     setNumberFormatError(false)
   }
 
-  const existingText = (item: BusinessLookupItem) => `${item.businessName} · ${item.registrationNumberMasked}`
+  const existingText = (item: BusinessLookupItem) => `${item.businessName} · ${displayRegistrationNumber(item.registrationNumber)}`
   const title = !detail ? '사업자 등록' : detail.business.registrationStatus === 'DRAFT' ? '사업자 이어서 입력' : '사업자 수정'
   const numberError = numberFormatError ? '사업자등록번호는 숫자 10자리입니다.' : err('registrationNumber')
 
@@ -336,7 +336,7 @@ export function BusinessProfileFormScreen({
     </>
   )
 
-  const description = detail ? `${detail.business.businessName} · ${detail.business.registrationNumberMasked} (${REGISTRATION_STATUS_LABELS[detail.business.registrationStatus] ?? detail.business.registrationStatus})` : '사업자 기본정보를 입력합니다. 임시저장 뒤 이어서 입력할 수 있습니다.'
+  const description = detail ? `${detail.business.businessName} · ${displayRegistrationNumber(detail.business.registrationNumber)} (${REGISTRATION_STATUS_LABELS[detail.business.registrationStatus] ?? detail.business.registrationStatus})` : '사업자 기본정보를 입력합니다. 임시저장 뒤 이어서 입력할 수 있습니다.'
   const requirements = (
     <p className={workspace ? 'subtle' : 'text-xs text-muted-foreground'}>
       임시저장은 사업체 구분·사업자등록번호·상호만 있으면 됩니다. 등록 완료에는 개업일·사업장 주소·사업체 전화·대표자·업태·종목·등록 담당자(기본 1명)가 필요하고, 법인은 법인등록번호도 필요합니다.
@@ -381,11 +381,11 @@ export function BusinessProfileFormScreen({
             </div>
             {detail ? (
               // LAYOUT-ROLLOUT B5: 수정 모드 번호는 읽기 전용 줄(B2 ReadOnlyGroup과 같은 방식 — group 이름 = aria-label, 이름 span aria-hidden 왼쪽, 점선 값 상자 sm(번호 10자리 열),
-              // 변경 미지원 문구는 입력 열 아래 .fieldnote). 문구·마스킹 그대로. workspace + 수정 모드도 같은 줄(리뷰 NIT — 번호 줄 정리).
+              // 변경 미지원 문구는 입력 열 아래 .fieldnote). 문구 그대로, 번호는 원문 하이픈 표시(D-BIZ-007). workspace + 수정 모드도 같은 줄(리뷰 NIT — 번호 줄 정리).
               <div role="group" aria-label="사업자등록번호" className="fieldrow border-b py-2 text-sm last:border-b-0">
                 <span aria-hidden="true" className="text-xs text-muted-foreground">사업자등록번호</span>
                 <div className="fieldcontrol fw-sm">
-                  <span className="flex min-h-9 items-center rounded-md border border-dashed px-3 font-mono">{detail.business.registrationNumberMasked}</span>
+                  <span className="flex min-h-9 items-center rounded-md border border-dashed px-3 font-mono">{displayRegistrationNumber(detail.business.registrationNumber)}</span>
                 </div>
                 <p className="fieldnote text-xs text-muted-foreground">사업자등록번호 변경은 정책 미정으로 지원하지 않습니다.</p>
               </div>
@@ -577,7 +577,7 @@ export function BusinessProfileFormScreen({
             </span>
             {status.outcome.existing && (
               <span className="flex flex-wrap items-center gap-2">
-                {/* D-BIZ-003: 기존 사업자 상호·마스킹 번호·상세 링크(내부 키는 그리지 않는다). */}
+                {/* D-BIZ-003: 기존 사업자 상호·번호(원문 하이픈 — D-BIZ-007)·상세 링크(내부 키는 그리지 않는다). */}
                 <span>{existingText(status.outcome.existing)}</span>
                 <ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(status.outcome.existing!.businessId)}>기존 사업자 상세 보기</ActionButton>
               </span>

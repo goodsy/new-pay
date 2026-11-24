@@ -7,7 +7,7 @@
         "merchantName": "Demo Merchant",
         "businessId": "biz_01JC0000000000000000000001",
         "businessName": "Demo Business",
-        "registrationNumberMasked": "778*******",
+        "registrationNumber": "7780000001",
         "lifecycle": "ACTIVE",
         "entitlementRevision": 5,
         "midCount": 1,
@@ -24,7 +24,7 @@
         "merchantName": "Demo Merchant",
         "businessId": "biz_01JC0000000000000000000001",
         "businessName": "Demo Business",
-        "registrationNumberMasked": "778*******",
+        "registrationNumber": "7780000001",
         "lifecycle": "ACTIVE",
         "entitlementRevision": 5,
         "midCount": 1,
@@ -47,7 +47,7 @@
     "business": {
       "businessId": "biz_01JC0000000000000000000001",
       "name": "Demo Business",
-      "registrationNumberMasked": "778*******",
+      "registrationNumber": "7780000001",
       "lifecycle": "ACTIVE"
     },
     "sites": [

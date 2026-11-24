@@ -14,7 +14,7 @@ import { DetailRow, InfoCard } from '../components/DetailCard'
 /**
  * ADMIN-UI-WORKSPACE-001 사업자·가맹점 › 사업자 등록("모양만"): 참고 시안 사업자 등록 양식(카드 제목 줄 · 본문 · .btn/.btn.primary)을 실제 사업자 등록 폼(섹션 1~6)에 입힌다.
  * 사업자 조회 상세 안의 수정 폼(같은 구성요소, workspace 표시 없음)은 LAYOUT-ROLLOUT B5부터 같은 폼 줄·섹션 카드(껍데기만 다름 — 아래 B5 describe). 동작은 BusinessProfileFormScreen.test.tsx가 그대로 지킨다.
- * 명시 Demo Fixture: 시험 입력 전용 사업자등록번호(실제 번호 아님), 기존 사업자 1곳(데모 사업자 · 778*******).
+ * 명시 Demo Fixture: 시험 입력 전용 사업자등록번호(실제 번호 아님), 기존 사업자 1곳(데모 사업자 · 778-12-34567).
  */
 const BRN = '7781234560'
 const user = userEvent.setup({ delay: null })
@@ -326,7 +326,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
 /**
  * LAYOUT-ROLLOUT B5(사용자 결정 2026-11-19 폼 줄 — 모든 입력 화면): 사업자 조회 상세 안의 수정 폼(workspace 표시 없음)도 등록 탭과 같은 폼 줄·번호 섹션 카드.
  * 껍데기(.mapnote/.cardnote/.cardbody·'← 목록으로'·.btn)는 workspace만 — 수정 폼은 PageHeader + 기존 버튼 모양 그대로. 동작은 BusinessesScreen.test.tsx·BusinessProfileFormScreen.test.tsx가 지킨다.
- * 명시 Demo Fixture: individualRegisteredDetail(데모 사업자 · 778*******, REGISTERED v3).
+ * 명시 Demo Fixture: individualRegisteredDetail(데모 사업자 · 778-12-34567, REGISTERED v3).
  */
 const EDIT_WIDTHS: Record<string, string> = {
   상호: 'fw-lg', 개업일: 'fw-sm', 국가: 'fw-xs', '영문 상호(선택)': 'fw-lg', '업태 1': 'fw-md', '종목 1': 'fw-md',
@@ -363,7 +363,8 @@ const expectReadOnlyNumberRow = () => {
   expect(label).toHaveClass('text-xs', 'text-muted-foreground')
   const control = group.children[1] as HTMLElement
   expect(control).toHaveClass('fieldcontrol', 'fw-sm')
-  expect(control.firstElementChild).toHaveTextContent(/^778\*{7}$/)
+  // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 읽기 전용 번호는 원문 하이픈 표시.
+  expect(control.firstElementChild).toHaveTextContent(/^778-12-34567$/)
   expect(control.firstElementChild).toHaveClass('border-dashed', 'font-mono')
   const note = group.children[2] as HTMLElement
   expect(note).toHaveClass('fieldnote')

@@ -17,13 +17,13 @@ const id = (prefix: string, n: number) => `${prefix}_${String(n).padStart(26, '0
 const MER1 = id('mer', 1)
 const CODE1 = 'shop000001'
 const ITEM: MerchantListItem = {
-  merchantId: MER1, merchantCode: CODE1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: CODE1, merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 3, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
 }
 /** Named Fixture: Site·계약·MID 없는 갓 등록한 가맹점(상세 화면 전환만 본다). */
 const DETAIL: MerchantDetail = {
   merchant: { merchantId: MER1, merchantCode: CODE1, name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [], contracts: [], accounts: [], limits: [], propagation: null, pendingApprovals: [],
 }
 

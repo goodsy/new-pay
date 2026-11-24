@@ -76,7 +76,7 @@ class MerchantOpsReaderSpec(
     }
 
     Given("a fully onboarded Merchant (MID, CARD activation, approved site review, KRW, fee/settlement policy, CSA limit, ACTIVE card route)") {
-        Then("the detail returns every block with masked registration number and the route without the institution merchant reference") {
+        Then("the detail returns every block with the raw registration number (D-BIZ-007) and the route without the institution merchant reference") {
             val r = fullMerchant()
             val e = r.entitled
             val brn = registrationNumberOf(e.ready.businessId)
@@ -85,7 +85,8 @@ class MerchantOpsReaderSpec(
             v.merchant.lifecycle shouldBe "ACTIVE"
             v.merchant.createdAt shouldBe OnboardingFixture.t0
             v.business.businessId shouldBe e.ready.businessId.value
-            v.business.registrationNumberMasked shouldBe BusinessRegistrationNumber(brn).masked()
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            v.business.registrationNumber shouldBe brn
             v.sites.map { it.merchantSiteId }.toSet() shouldBe setOf(e.ready.siteId.value, e.ready.secondSiteId.value)
             v.sites.single { it.merchantSiteId == e.ready.siteId.value }.review!!.decision shouldBe "APPROVED"
             v.sites.single { it.merchantSiteId == e.ready.secondSiteId.value }.review shouldBe null
@@ -160,7 +161,7 @@ class MerchantOpsReaderSpec(
     }
 
     Given("a business with three merchants and another business") {
-        Then("exact filters, the masked number, MID counts and keyset paging (same page shape for found and not found)") {
+        Then("exact filters, the raw number (D-BIZ-007), MID counts and keyset paging (same page shape for found and not found)") {
             val full = fullMerchant().entitled
             val business = full.ready.businessId
             val extra = (1..2).map {
@@ -172,7 +173,9 @@ class MerchantOpsReaderSpec(
             all.nextCursor shouldBe null
             all.items.single { it.merchantId == full.merchantId.value }.midCount shouldBe 1L
             all.items.filter { it.merchantId != full.merchantId.value }.map { it.midCount }.toSet() shouldBe setOf(0L)
-            all.items.map { it.registrationNumberMasked }.toSet() shouldBe setOf(BusinessRegistrationNumber(brn).masked())
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            all.items.map { it.registrationNumber }.toSet() shouldBe setOf(brn)
+            all.toString() shouldNotContain brn // 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007): View 값은 원문이어도 toString(로그·예외 문자열)에는 마스킹만.
 
             val first = query.search(MerchantSearchFilter(businessId = business, limit = 2))
             first.items.size shouldBe 2
@@ -277,8 +280,8 @@ class MerchantOpsReaderSpec(
             notFound.items shouldBe emptyList()
             notFound.nextCursor shouldBe null
             val found = query.search(MerchantSearchFilter(displayNamePrefix = DisplayName("${p}나")))
-            found.items.single().let { listOf(it.merchantId, it.merchantName, it.businessId, it.registrationNumberMasked, it.matchedRetiredCode) } shouldBe
-                listOf(b2, "${p}나", b.value, numberB.masked(), null)
+            found.items.single().let { listOf(it.merchantId, it.merchantName, it.businessId, it.registrationNumber, it.matchedRetiredCode) } shouldBe
+                listOf(b2, "${p}나", b.value, numberB.value, null) // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
             found.nextCursor shouldBe null
         }
 

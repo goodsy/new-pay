@@ -41,7 +41,7 @@ const okLabels = vi.fn(async (ids: string[]): Promise<MerchantTargetLabelPage> =
   items: ids.includes(MER) ? [{ merchantId: MER, name: '데모상점', code: 'newcode01' }] : [], labels: 'OK',
 }))
 const listItem: MerchantListItem = {
-  merchantId: MER, merchantCode: 'newcode01', matchedRetiredCode: true, merchantName: '데모상점', businessId: BIZ, businessName: '데모 사업자', registrationNumberMasked: '123*******',
+  merchantId: MER, merchantCode: 'newcode01', matchedRetiredCode: true, merchantName: '데모상점', businessId: BIZ, businessName: '데모 사업자', registrationNumber: '1234567890',
   lifecycle: 'ACTIVE', entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00Z',
 }
 

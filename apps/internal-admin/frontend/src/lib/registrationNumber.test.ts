@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { caretAfterDigits, digitsOf, formatRegistrationNumber, isRegistrationNumber } from './registrationNumber'
+import { caretAfterDigits, digitsOf, displayRegistrationNumber, formatRegistrationNumber, isRegistrationNumber } from './registrationNumber'
 
 /** ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004): 하이픈은 화면 표시에만 — 상태·서버 값은 숫자 10자리 그대로. */
 describe('registrationNumber (display-only hyphens 000-00-00000)', () => {
@@ -37,5 +37,19 @@ describe('registrationNumber (display-only hyphens 000-00-00000)', () => {
     expect(caretAfterDigits('778-12-34560', 5)).toBe(6)
     expect(caretAfterDigits('778-12-34560', 6)).toBe(8)
     expect(caretAfterDigits('778-12-34560', 10)).toBe(12)
+  })
+})
+
+/** BRN-UNMASK-001 T-F1(D-BIZ-007·D-PII-001 ①): 조회 응답 원문 10자리 → 하이픈 표시(3-2-5). 명시 Demo 값(실제 번호 아님). */
+describe('displayRegistrationNumber', () => {
+  it('shows the 10 raw digits of a response as 3-2-5 with hyphens', () => {
+    expect(displayRegistrationNumber('1234567890')).toBe('123-45-67890')
+    expect(displayRegistrationNumber('7780000001')).toBe('778-00-00001')
+  })
+
+  it('leaves anything that is not exactly 10 ASCII digits as it is (display only — ADMIN validates the response shape)', () => {
+    for (const value of ['123*******', '123-45-67890', '123456789', '12345678901', '', '１２３４５６７８９０']) {
+      expect(displayRegistrationNumber(value)).toBe(value)
+    }
   })
 })

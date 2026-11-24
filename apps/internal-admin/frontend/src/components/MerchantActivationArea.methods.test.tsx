@@ -27,7 +27,7 @@ const account: Account = {
 }
 const detail: MerchantDetail = {
   merchant: { merchantId: id('mer', 1), merchantCode: codeOf(id('mer', 1)), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+  business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
   sites: [{ merchantSiteId: id('site', 1), channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
   contracts: [], accounts: [account], limits: [], propagation: null, pendingApprovals: [],
 }

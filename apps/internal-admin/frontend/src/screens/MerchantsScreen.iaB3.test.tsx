@@ -36,7 +36,7 @@ const NOW = () => new Date('2026-11-11T03:00:00.000Z')
 const PREFIXES = ['site_', 'ctr_', 'csa_', 'act_', 'apr_', 'sac_', 'cra_', 'tlp_', 'pas_', 'cur_', 'asg_', 'mer_', 'biz_']
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 3, midCount: 1, createdAt: '2026-11-01T00:00:00.000Z',
 }
 /**
@@ -46,7 +46,7 @@ const item: MerchantListItem = {
 function detail(patch: Partial<MerchantDetail> = {}): MerchantDetail {
   return {
     merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
     sites: [
       { merchantSiteId: SITE_OLD, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'TERMINATED', review: { decision: 'APPROVED', decidedAt: '2026-11-02T00:00:00.000Z' }, registeredBy: 'admin:adm_SR' },
       { merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: { decision: 'APPROVED', decidedAt: '2026-11-10T00:00:00.000Z' }, registeredBy: 'admin:adm_SR' },

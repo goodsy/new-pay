@@ -100,6 +100,17 @@ class MerchantLookupServiceSpec : BehaviorSpec({
         fun auditRows() = audits.map { listOf(it.action, it.resultCode, it.detail, it.targetRef) }
     }
 
+    Given("BRN-UNMASK-001 M-2 the lookup result carries the raw registration number (D-BIZ-007)") {
+        Then("Found.toString hides the document (Found(***)) — the raw number never reaches a log line or exception text; the value itself is unchanged") {
+            val document = linkedMapOf<String, Any?>("items" to listOf(linkedMapOf("businessName" to "Demo Business", "registrationNumber" to "7781234560")))
+            val found = MerchantLookupResult.Found(document)
+            found.toString() shouldBe "Found(***)"
+            "$found" shouldNotContain "7781234560"
+            listOf(found).toString() shouldNotContain "7781234560"
+            found.document shouldBe document
+        }
+    }
+
     Given("the view roles") {
         Then("VIEWER, OPERATOR, APPROVER and SECURITY_ADMIN may list, view and read history; UNMASK-only, no role and inactive accounts are forbidden without a MASTER call") {
             listOf("VIEWER", "OPERATOR", "APPROVER", "SECURITY_ADMIN").forEach { role ->

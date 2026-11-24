@@ -23,7 +23,7 @@ type Account = Detail['accounts'][number]
 function registeredOnly(patch: Partial<Detail> = {}): Detail {
   return {
     merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-11-01T00:00:00.000Z' },
-    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
     sites: [{ merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null }],
     contracts: [], accounts: [], limits: [], propagation: null, pendingApprovals: [],
     ...patch,
@@ -136,7 +136,7 @@ describe('serviceOpeningTimeline (ADMIN-UI-MERCHANT-001 — derived from the exi
 describe('MerchantsScreen detail — 서비스 개통 현황 sits above the existing panels (the 개통 점검표 stays)', () => {
   it('shows the timeline right after the detail heading, before 기본정보', async () => {
     const item: MerchantListItem = {
-      merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+      merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
       entitlementRevision: 1, midCount: 0, createdAt: '2026-11-01T00:00:00.000Z',
     }
     const api = fakeApi({

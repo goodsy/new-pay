@@ -38,7 +38,7 @@ const CTR = id('ctr', 7)
 const CSA = id('csa', 7)
 /** 시험 입력 전용 사업자등록번호(Demo — 실제 번호 아님). 화면에 평문으로 남으면 안 된다. */
 const BRN = '7781234560'
-const BUSINESS: BusinessRef = { businessId: BIZ, name: '데모 사업자', masked: '778*******' }
+const BUSINESS: BusinessRef = { businessId: BIZ, name: '데모 사업자', registrationNumber: '7781234567' }
 const succeeded = (reference: string, replayed = false): RegistrationOutcome => ({ outcome: 'SUCCEEDED', reference, replayed })
 const rejected = (rejection: string, replayed = false): RegistrationOutcome => ({ outcome: 'REJECTED', rejection, replayed })
 /**
@@ -46,7 +46,7 @@ const rejected = (rejection: string, replayed = false): RegistrationOutcome => (
  * 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 §8.4): ① 시험의 대역을 가맹점 검색(merchantSearch — 가맹점 0개 사업자를 못 찾음)에서 번호 조회로 바꿨다. 보내는 body·선택 뒤 흐름 단언은 그대로.
  */
 const lookupOf = (businessId: string, businessName = '데모 사업자', registrationStatus: 'DRAFT' | 'REGISTERED' = 'REGISTERED') => ({
-  items: [{ businessId, businessName, registrationNumberMasked: '778*******', registrationStatus }],
+  items: [{ businessId, businessName, registrationNumber: '7781234567', registrationStatus }],
 })
 
 /** 제출마다 다른 고정 submissionId(32 hex). */
@@ -120,7 +120,7 @@ const CONTEXT_AFFILIATION = `기존 가맹점 · ${codeOf(MER)}` // LAYOUT-ROLLO
 
 // 실행 시간 상한만 20초(BIZ4-gate2에서 ①→④ 전체 흐름이 gate 부하로 5.1초 — App wiring·ApprovalsScreen 선례). 단언·findBy 대기는 그대로.
 describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사업자 선택 → ② 가맹점·사이트 → ③ 계약 초안·서비스 계약 → ④ 검토·완료)', { timeout: 20_000 }, () => {
-  it('① BIZ-4-4 (D-BIZ-004): finds the business with the registration-number lookup (merchantSearch not called — a business without merchants is found), number cleared and never rendered; name + masked only; "선택" moves to ②', async () => {
+  it('① BIZ-4-4 (D-BIZ-004): finds the business with the registration-number lookup (merchantSearch not called — a business without merchants is found), number cleared and never rendered; name + number only (D-BIZ-007); "선택" moves to ②', async () => {
     const api = fakeApi({
       lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
@@ -142,7 +142,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     const found = await within(picker).findByRole('list', { name: '찾은 사업자' })
     expect(within(found).getAllByRole('listitem')).toHaveLength(1)
     expect(found).toHaveTextContent('데모 사업자')
-    expect(found).toHaveTextContent('778*******')
+    expect(found).toHaveTextContent('778-12-34567')
     expect(found).toHaveTextContent('등록 완료')
     expect(within(picker).getByLabelText('사업자등록번호')).toHaveValue('')
     expect(container.textContent).not.toMatch(/biz_/)
@@ -152,7 +152,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     await user.click(within(found).getByRole('button', { name: '선택' }))
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('데모 사업자')
-    expect(merchantBusinessText()).toContain('778*******')
+    expect(merchantBusinessText()).toContain('778-12-34567')
     expect(domOccurrences(container, 'biz_')).toEqual([])
     expect(storageIsEmpty()).toBe(true)
     // 리뷰 MINOR-3: 원문 번호는 번호 조회 요청에만 — 가맹점 등록 본문 등 다른 호출에 없다.
@@ -253,7 +253,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(api.registerMerchantSite).toHaveBeenCalledTimes(1)
   })
 
-  it('①→④: the whole flow sends each save once with the same bodies; ④ shows the business by name + masked number (no business id), points to the real next steps and opens the lookup', async () => {
+  it('①→④: the whole flow sends each save once with the same bodies; ④ shows the business by name + hyphenated number (no business id — D-BIZ-007), points to the real next steps and opens the lookup', async () => {
     const api = fakeApi({
       lookupBusinessByRegistrationNumber: vi.fn(async () => lookupOf(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
@@ -298,7 +298,7 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     // 리뷰 NIT-4: 가맹점은 가맹점 행과 Site 행(소유 가맹점)에 한 번씩 — MC-2부터 코드로(mer_ 0건).
     expect(within(done).getAllByText(CODE)).toHaveLength(2)
     expect(done.textContent).not.toContain('mer_')
-    expect(within(done).getByText('778*******')).toBeInTheDocument()
+    expect(within(done).getByText('778-12-34567')).toBeInTheDocument()
     expect(within(done).getByText('데모 사업자')).toBeInTheDocument()
     expect(within(done).getByText('데모 가맹점')).toBeInTheDocument()
     expect(within(done).getByText('demo-shop2.paycore.test')).toBeInTheDocument()
@@ -926,7 +926,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   const BIZ2 = id('biz', 8)
   const detailFor = (businessId: string) =>
     businessId === BIZ2
-      ? { ...individualRegisteredDetail(8, '두번째 사업자'), business: { ...individualRegisteredDetail(8, '두번째 사업자').business, businessId: BIZ2, registrationNumberMasked: '123*******' } }
+      ? { ...individualRegisteredDetail(8, '두번째 사업자'), business: { ...individualRegisteredDetail(8, '두번째 사업자').business, businessId: BIZ2, registrationNumber: '1234567890' } }
       : { ...individualRegisteredDetail(7, '데모 사업자'), business: { ...individualRegisteredDetail(7, '데모 사업자').business, businessId } }
   function signedInWithApi(roles: string[], overrides: Parameters<typeof fakeApi>[0] = {}) {
     const api = fakeApi({
@@ -994,7 +994,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(screen.queryByRole('button', { name: '가맹점 조회로' })).toBeNull()
   })
 
-  it('등록 완료 opens the 사업자 조회 detail (re-read); "이 사업자로 가맹점 등록" opens 가맹점 등록 on ② with that business (name + masked only) and the merchant body carries its business id', async () => {
+  it('등록 완료 opens the 사업자 조회 detail (re-read); "이 사업자로 가맹점 등록" opens 가맹점 등록 on ② with that business (name + number only (D-BIZ-007)) and the merchant body carries its business id', async () => {
     const { api, view } = signedInWithApi(['OPERATOR'], {
       createBusiness: vi.fn(async () => succeeded(BIZ)),
       registerMerchant: vi.fn(async () => succeeded(MER)),
@@ -1011,7 +1011,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(screen.getByRole('tab', { name: '가맹점' })).toHaveAttribute('aria-selected', 'true')
     expect(currentStep()).toBe('2. 가맹점·사이트')
     expect(merchantBusinessText()).toContain('데모 사업자')
-    expect(merchantBusinessText()).toContain('778*******')
+    expect(merchantBusinessText()).toContain('778-12-34567')
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
     await typeMerchant(step('가맹점'), '데모 가맹점')
     await click(step('가맹점'), '가맹점 등록')
@@ -1150,7 +1150,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   it('review m-3: "가맹점 조회에서 보기" opens the 가맹점 조회 tab on the created merchant detail (existing detail path, once)', async () => {
     const detail: MerchantDetail = {
       merchant: { merchantId: MER, merchantCode: codeOf(MER), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 1, createdAt: '2026-10-01T00:00:00.000Z' },
-      business: { businessId: BIZ, name: '데모 사업자', registrationNumberMasked: '778*******', lifecycle: 'ACTIVE' },
+      business: { businessId: BIZ, name: '데모 사업자', registrationNumber: '7781234567', lifecycle: 'ACTIVE' },
       sites: [], contracts: [], accounts: [], limits: [], propagation: null,
     }
     const { api } = signedInWithApi(['OPERATOR'], {
@@ -1471,7 +1471,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     })
   })
 
-  describe('MERCHANT-CODE-001 MC-2b affiliated merchant (D-MCODE-003 ① — no merchant-ID input) and business display (② — no biz_, masked number only)', () => {
+  describe('MERCHANT-CODE-001 MC-2b affiliated merchant (D-MCODE-003 ① — no merchant-ID input) and business display (② — no biz_, hyphenated number — D-BIZ-007)', () => {
     it('MC-2b-1 Site and 계약 초안 have no merchant-ID field; after the merchant card succeeds both show "소속 가맹점: <상호> · <코드>" and the bodies carry the internal key unchanged', async () => {
       const api = fakeApi({
         registerMerchant: vi.fn(async () => succeeded(MER)),
@@ -1591,21 +1591,21 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       await typeIn(step('사업자 선택'), '사업자등록번호', BRN)
       await click(step('사업자 선택'), '찾기')
       const found = await within(step('사업자 선택')).findByRole('list', { name: '찾은 사업자' })
-      expect(found).toHaveTextContent('데모 사업자 · 778*******')
+      expect(found).toHaveTextContent('데모 사업자 · 778-12-34567')
       clean()
       await user.click(within(found).getByRole('button', { name: '선택' }))
-      expect(merchantBusinessText()).toContain('데모 사업자 · 778*******')
+      expect(merchantBusinessText()).toContain('데모 사업자 · 778-12-34567')
       clean()
       await typeMerchant(step('가맹점'), '데모 가맹점')
       await typeIn(step('Site'), '채널 식별값', 'demo-shop2.paycore.test')
       await next()
       await screen.findByRole('region', { name: '계약 초안' })
-      expect(partyText()).toContain('데모 사업자 · 778*******')
+      expect(partyText()).toContain('데모 사업자 · 778-12-34567')
       clean()
       await typeIn(step('계약 초안'), '시작일', '2026-11-09')
       await next()
       await screen.findByRole('region', { name: '등록 결과' })
-      expect(step('등록 결과')).toHaveTextContent('데모 사업자 · 778*******')
+      expect(step('등록 결과')).toHaveTextContent('데모 사업자 · 778-12-34567')
       clean()
       // 내부 키는 본문에만.
       expect(api.registerMerchant).toHaveBeenCalledWith(expect.objectContaining({ businessId: BIZ }))

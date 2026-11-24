@@ -144,7 +144,7 @@ class BusinessProfileServiceSpec : BehaviorSpec({
         fun brnLeft(actor: String = "adm_01JC00000000000000000000V1"): Int = generateSequence { budget.admit(actor) }.takeWhile { it }.count()
     }
 
-    val existing = linkedMapOf<String, Any?>("businessId" to existingBiz, "businessName" to "기존 사업자", "registrationNumberMasked" to "912*******", "registrationStatus" to "DRAFT")
+    val existing = linkedMapOf<String, Any?>("businessId" to existingBiz, "businessName" to "기존 사업자", "registrationNumber" to "9120000001", "registrationStatus" to "DRAFT")
 
     Given("BIZ-3-2 permission constants (D-BIZ-006 ① — 사용자 결정 2026-11-17, m-6 four separate constants)") {
         Then("VIEW = {OPERATOR, APPROVER}, CREATE = UPDATE = COMPLETE = {OPERATOR}") {
@@ -348,7 +348,7 @@ class BusinessProfileServiceSpec : BehaviorSpec({
     }
 
     Given("BIZ-3-1 duplicate registration number (D-BIZ-003 — 사용자 결정 2026-11-17, C-14)") {
-        Then("D-BIZ-003 the response carries existing (상호·마스킹 번호·내부 키·등록 상태); audit targetRef = the existing businessId; the bucket stays consumed") {
+        Then("D-BIZ-003 the response carries existing (상호·원문 번호(D-BIZ-007)·내부 키·등록 상태); audit targetRef = the existing businessId; the bucket stays consumed") {
             val f = Fixture(brnPerMinute = 5)
             f.reply = { MasterBusinessCommandResult.Decided(false, null, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", false, existing) }
             val s = sub()

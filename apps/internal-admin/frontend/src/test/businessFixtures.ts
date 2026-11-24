@@ -10,7 +10,7 @@ export const bizId = (n: number) => `biz_${String(n).padStart(26, '0')}`
 export function individualRegisteredDetail(n = 1, name = '데모 사업자'): BusinessDetail {
   return {
     business: {
-      businessId: bizId(n), businessName: name, registrationNumberMasked: '778*******', businessType: 'INDIVIDUAL', registrationStatus: 'REGISTERED',
+      businessId: bizId(n), businessName: name, registrationNumber: '7781234567', businessType: 'INDIVIDUAL', registrationStatus: 'REGISTERED',
       verificationStatus: 'NOT_CHECKED', lifecycle: 'ACTIVE', version: 3, createdAt: '2026-11-17T01:00:00.000Z', updatedAt: '2026-11-17T02:00:00.000Z', merchantCount: 1,
     },
     registration: { corporateRegistrationNumber: null, openingDate: '2026-01-01', countryCode: 'KR', englishName: null, phoneNumber: '0212345678', email: null },
@@ -31,7 +31,7 @@ export function jointRegisteredDetail(n = 1): BusinessDetail {
 export function draftMinimalDetail(n = 2, name = '임시 사업자'): BusinessDetail {
   return {
     business: {
-      businessId: bizId(n), businessName: name, registrationNumberMasked: '123*******', businessType: 'INDIVIDUAL', registrationStatus: 'DRAFT',
+      businessId: bizId(n), businessName: name, registrationNumber: '1234567890', businessType: 'INDIVIDUAL', registrationStatus: 'DRAFT',
       verificationStatus: 'NOT_CHECKED', lifecycle: 'ACTIVE', version: 0, createdAt: '2026-11-17T01:00:00.000Z', updatedAt: '2026-11-17T01:00:00.000Z', merchantCount: 0,
     },
     registration: { corporateRegistrationNumber: null, openingDate: null, countryCode: 'KR', englishName: null, phoneNumber: null, email: null },
@@ -45,7 +45,7 @@ export function draftMinimalDetail(n = 2, name = '임시 사업자'): BusinessDe
 /** migration 행·옛 경로 DRAFT(구분 NULL — X-1·L-7). 가맹점이 이미 있다. */
 export function legacyDraftDetail(n = 3): BusinessDetail {
   const detail = draftMinimalDetail(n, 'DEMO 옛 사업자')
-  return { ...detail, business: { ...detail.business, businessType: null, registrationNumberMasked: '999*******', merchantCount: 1 } }
+  return { ...detail, business: { ...detail.business, businessType: null, registrationNumber: '9990000009', merchantCount: 1 } }
 }
 
 export function listItemOf(detail: BusinessDetail): BusinessListItem {
@@ -53,7 +53,7 @@ export function listItemOf(detail: BusinessDetail): BusinessListItem {
   return {
     businessId: detail.business.businessId,
     businessName: detail.business.businessName,
-    registrationNumberMasked: detail.business.registrationNumberMasked,
+    registrationNumber: detail.business.registrationNumber,
     businessType: detail.business.businessType,
     registrationStatus: detail.business.registrationStatus,
     verificationStatus: detail.business.verificationStatus,
@@ -68,7 +68,7 @@ export function lookupItemOf(detail: BusinessDetail): BusinessLookupItem {
   return {
     businessId: detail.business.businessId,
     businessName: detail.business.businessName,
-    registrationNumberMasked: detail.business.registrationNumberMasked,
+    registrationNumber: detail.business.registrationNumber,
     registrationStatus: detail.business.registrationStatus,
   }
 }

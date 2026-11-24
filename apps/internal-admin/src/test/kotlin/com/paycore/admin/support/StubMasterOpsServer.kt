@@ -117,9 +117,10 @@ object StubMasterOpsServer {
 
     fun historyPath(merchantId: String, after: Long) = "/internal/v1/admin/merchants/$merchantId/history/after/$after"
 
-    fun directoryJson(merchantId: String, businessId: String, masked: String = "123*******"): String =
+    /** [number] = MASTER 응답의 사업자등록번호(원문 10자리 — BRN-UNMASK-001·D-BIZ-007, 응답 필드 `registrationNumber` — v2 계약). */
+    fun directoryJson(merchantId: String, businessId: String, number: String = "1234567890"): String =
         """{"items":[{"merchantId":"$merchantId","merchantName":"Demo Merchant","businessId":"$businessId","businessName":"Demo Business",""" +
-            """"registrationNumberMasked":"$masked","lifecycle":"ACTIVE","entitlementRevision":5,"midCount":1,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"shopabcd12"}],"nextCursor":null}"""
+            """"registrationNumber":"$number","lifecycle":"ACTIVE","entitlementRevision":5,"midCount":1,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"shopabcd12"}],"nextCursor":null}"""
 
     const val EMPTY_DIRECTORY = """{"items":[],"nextCursor":null}"""
 
@@ -183,7 +184,7 @@ object StubMasterOpsServer {
         val confirmationList = siteConfirmations ?: siteConfirmationJson("sac_$ulid", "site_$ulid", "act_$ulid")
         // MERCHANT-CODE-001 MC-1(§3.8): MASTER 상세 모양 변화(merchant.merchantCode + 최상위 merchantCodeHistory·merchantCodeChangeable)를 대역도 따른다.
         return """{"merchant":{"merchantId":"$merchantId","name":"Demo Merchant","lifecycle":"ACTIVE","entitlementRevision":5,"createdAt":"2026-10-09T02:00:00.000Z","merchantCode":"$merchantCode"},""" +
-            """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumberMasked":"123*******","lifecycle":"ACTIVE"},""" +
+            """"business":{"businessId":"biz_$ulid","name":"Demo Business","registrationNumber":"1234567890","lifecycle":"ACTIVE"},""" +
             """"sites":[$siteList],""" +
             """"contracts":[{"contractId":"ctr_$ulid","createdAt":"2026-10-09T02:00:00.000Z","revisions":[$revisions],""" +
             """"agreements":[{"agreementId":"csa_$ulid","serviceKind":"CARD_PG_PAYMENT","addedAt":"2026-10-09T02:00:00.000Z"}]}],""" +

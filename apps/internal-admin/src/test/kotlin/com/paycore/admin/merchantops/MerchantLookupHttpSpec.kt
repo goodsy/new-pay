@@ -89,7 +89,7 @@ class MerchantLookupHttpSpec(
     val brn = "7781234560"
     val mer = merchantId()
     val biz = "biz_" + mer.removePrefix("mer_")
-    StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(mer, biz, "778*******")))
+    StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(mer, biz, brn)))
     StubMasterOpsServer.reply(StubMasterOpsServer.merchantPath(mer), StubMasterOpsServer.Reply(200, StubMasterOpsServer.detailJson(mer)))
     StubMasterOpsServer.reply(StubMasterOpsServer.historyPath(mer, 0), StubMasterOpsServer.Reply(200, StubMasterOpsServer.historyJson(mer)))
 
@@ -164,7 +164,7 @@ class MerchantLookupHttpSpec(
     }
 
     Given("an OPERATOR and an APPROVER") {
-        Then("both may search by the full number; the response and the logs carry only the masked value; every search is audited without the number") {
+        Then("both may search by the full number; the response carries the raw number (D-BIZ-007), the logs and every audit row never do") {
             listOf(withRole(AdminRole.OPERATOR), ready.bootstrapped(AdminRole.APPROVER)).forEach { account ->
                 val client = loggedIn(account)
                 lateinit var body: String
@@ -174,8 +174,9 @@ class MerchantLookupHttpSpec(
                     res.status shouldBe 200
                     body = res.contentAsString
                 }
-                body shouldContain "778*******"
-                body shouldNotContain brn
+                // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): MASTER 조회 응답 번호는 원문 10자리. 감사·로그는 마스킹 그대로(아래 단언 — 약화 없음).
+                body shouldContain "\"registrationNumber\":\"$brn\""
+                body shouldNotContain "778*******"
                 logs.filter { brn in it }.shouldBeEmpty()
                 // 서명 키·이번 호출의 서명 헤더·v1 값도 로그에 없다(대조군: 게이트웨이 로그 줄이 실제로 잡혔다).
                 val signatures = StubMasterOpsServer.received.drop(before).mapNotNull { it.signature }
@@ -294,7 +295,7 @@ class MerchantLookupHttpSpec(
             val account = withRole(AdminRole.VIEWER)
             val client = loggedIn(account)
             val name = "김캐너리상회"
-            StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(mer, biz, "778*******")))
+            StubMasterOpsServer.reply(StubMasterOpsServer.SEARCH, StubMasterOpsServer.Reply(200, StubMasterOpsServer.directoryJson(mer, biz, brn)))
             val before = StubMasterOpsServer.requestsForPath(StubMasterOpsServer.SEARCH).size
             val responses = mutableListOf<String>()
             val logs = captureLogs {

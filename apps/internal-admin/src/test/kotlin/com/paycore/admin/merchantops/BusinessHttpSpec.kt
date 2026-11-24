@@ -61,7 +61,7 @@ class BusinessHttpSpec(
 
     StubMasterOpsServer.start()
     val json = JsonMapper.builder().build()
-    val golden: JsonNode = json.readTree(requireNotNull(BusinessHttpSpec::class.java.getResourceAsStream("/contracts/business-profile-response-shapes-v1.golden.json")).readAllBytes())
+    val golden: JsonNode = json.readTree(requireNotNull(BusinessHttpSpec::class.java.getResourceAsStream("/contracts/business-profile-response-shapes-v2.golden.json")).readAllBytes())
     fun g(name: String): String = json.writeValueAsString(golden.get(name))
     var subSeq = System.nanoTime() % 1_000_000L
     fun sub() = "%032x".format(++subSeq)
@@ -188,7 +188,7 @@ class BusinessHttpSpec(
     }
 
     Given("BIZ-3-1 command responses over HTTP") {
-        Then("D-BIZ-003 duplicate → 200 REJECTED with existing (상호·마스킹·내부 키·상태); the audit row targets the existing businessId (C-14)") {
+        Then("D-BIZ-003 duplicate → 200 REJECTED with existing (상호·원문 번호(D-BIZ-007)·내부 키·상태); the audit row targets the existing businessId (C-14)") {
             val operator = withRole(AdminRole.OPERATOR)
             val client = loggedIn(operator)
             replyMaster("$base/commands/create", 200, g("duplicateRejected"))
@@ -284,12 +284,14 @@ class BusinessHttpSpec(
     }
 
     Given("BIZ-3-6 canary values never land in ADMIN storage, logs, metric labels or error bodies") {
-        Then("create/update/lookup/detail with canary values: every ADMIN string column (information_schema) has 0 hits; audit detail shows brn=731******* only") {
+        Then("create/update/lookup/detail with canary values: every ADMIN string column (information_schema) has 0 hits; audit detail shows brn=731******* only; the detail response shows the raw number (D-BIZ-007)") {
             val operator = withRole(AdminRole.OPERATOR)
             val client = loggedIn(operator)
             val id = businessId()
             val detail = (golden.get("detail").deepCopy() as ObjectNode).also { d ->
                 (d.get("business") as ObjectNode).put("businessName", BusinessInputFixture.CANARY_NAME)
+                // BRN-UNMASK-001(D-BIZ-007): MASTER 상세가 원문 번호를 주면 화면 응답에는 원문, ADMIN 저장·감사·로그·지표에는 0건(아래 단언 — 강화).
+                    .put("registrationNumber", BusinessInputFixture.CANARY_NUMBER)
                 ((d.get("representatives") as ArrayNode).get(0) as ObjectNode).put("name", BusinessInputFixture.CANARY_REPRESENTATIVE)
                 ((d.get("contacts") as ArrayNode).get(0) as ObjectNode).put("email", BusinessInputFixture.CANARY_EMAIL).put("phoneNumber", BusinessInputFixture.CANARY_PHONE)
                 ((d.get("addresses") as ArrayNode).get(0) as ObjectNode).put("detailAddress", BusinessInputFixture.CANARY_DETAIL_ADDRESS)
@@ -314,6 +316,7 @@ class BusinessHttpSpec(
                 send(client, get("/api/businesses/$id")).let {
                     it.status shouldBe 200
                     it.contentAsString shouldContain BusinessInputFixture.CANARY_EMAIL // 상세는 조회 역할에 원문(D-BIZ-006 ②) — 저장·로그에는 없다.
+                    it.contentAsString shouldContain "\"registrationNumber\":\"${BusinessInputFixture.CANARY_NUMBER}\"" // 번호도 원문(D-BIZ-007) — 저장·감사·로그에는 없다.
                 }
             } finally {
                 root.detachAppender(appender)
@@ -343,6 +346,8 @@ class BusinessHttpSpec(
             audits(operator.account.id.value).filter { it.startsWith("BUSINESS_CREATE|") || it.startsWith("BUSINESS_BRN_LOOKUP|") }.forEach { row ->
                 withClue(row) { (row.contains("brn=731*******") || row.contains("brn=INVALID")) shouldBe true }
             }
+            // 대조(BRN-UNMASK-001): 원문 번호를 돌려준 상세 열람도 감사됐다(BUSINESS_VIEWED) — 그 행에도 원문이 없다(위 information_schema 0건이 덮는다).
+            audits(operator.account.id.value).any { it.startsWith("BUSINESS_VIEWED|") } shouldBe true
             bodies.forEach { b -> canaries.forEach { canary -> withClue(b) { b shouldNotContain canary } } }
             appender.list.map { it.formattedMessage }.forEach { line -> canaries.forEach { canary -> withClue(line) { line shouldNotContain canary } } }
             registry.meters.flatMap { m -> m.id.tags.map { it.value } + m.id.name }.forEach { v -> canaries.forEach { canary -> withClue(v) { v shouldNotContain canary } } }

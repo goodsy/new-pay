@@ -13,8 +13,8 @@ import java.time.ZoneId
  * 사업자 조회(BUSINESS-PROFILE-001 §6.2~§6.5·§6.7 — BIZ-2, CQRS 조회 측). 구현은 Application Query Service가 required `…Reader`(jOOQ `adapter.query`, 읽기 전용 TX)에
  * 위임한다 — web adapter는 이 Use Case만 부른다(r-2, ArchUnit `webAdapterUsesOnlyApplication`). 권한·감사·조회 창은 호출자(ADMIN — 서명 채널 뒤, BIZ-3)가 맡는다.
  *
- * 노출(§9, D-BIZ-006 ②): 사업자등록번호는 **어디서나 마스킹 값만**(SQL에서 마스킹 — 평문이 메모리로 오지 않는다). 목록·번호 조회·중복 요약에는 개인정보가 없고(대표자는 마스킹
- * 이름만), 상세만 대표자·담당자 이름·전화·이메일·주소·법인등록번호 원문을 담는다. 이력은 저장된 마스킹 값 그대로다.
+ * 노출(§9, D-BIZ-006 ②): 사업자등록번호는 원문 10자리(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약). 목록·번호 조회·중복 요약에는 개인정보가 없고(대표자는 마스킹
+ * 이름만), 상세만 대표자·담당자 이름·전화·이메일·주소·법인등록번호 원문을 담는다. 이력은 저장된 마스킹 값 그대로다(D-BIZ-007 — 감사·이력·로그는 마스킹 유지).
  */
 interface BusinessProfileQueryUseCase {
     /** 목록·검색(§6.2 — `business_id` 내림차순 keyset). 가맹점 0개 사업자도 나온다. */
@@ -69,11 +69,11 @@ data class BusinessSearchFilter(
 /** 목록 한 쪽. [next] = 다음 쪽이 있을 때 마지막 항목의 businessId. */
 data class BusinessDirectoryPage(val items: List<BusinessDirectoryItem>, val next: String?)
 
-/** 목록 항목(§6.2). 원문 번호·대표자 원문·연락처 없음 — [representativeNameMasked]는 현재 첫 순서 대표자의 마스킹 이름(없으면 null). */
+/** 목록 항목(§6.2). 등록번호 원문(D-BIZ-007), 대표자 원문·연락처 없음 — [representativeNameMasked]는 현재 첫 순서 대표자의 마스킹 이름(없으면 null). */
 data class BusinessDirectoryItem(
     val businessId: String,
     val businessName: String,
-    val registrationNumberMasked: String,
+    val registrationNumber: String,
     val businessType: String?,
     val registrationStatus: String,
     val verificationStatus: String,
@@ -81,12 +81,23 @@ data class BusinessDirectoryItem(
     val representativeCount: Long,
     val merchantCount: Long,
     val updatedAt: Instant,
-)
+) {
+    /** 로그 마스킹 유지(D-BIZ-007) — 번호는 [registrationNumberLogText]. */
+    override fun toString(): String =
+        "BusinessDirectoryItem(businessId=$businessId, businessName=$businessName, registrationNumber=${registrationNumberLogText(registrationNumber)}, " +
+            "businessType=$businessType, registrationStatus=$registrationStatus, verificationStatus=$verificationStatus, representativeNameMasked=$representativeNameMasked, " +
+            "representativeCount=$representativeCount, merchantCount=$merchantCount, updatedAt=$updatedAt)"
+}
 
-/** 번호 조회 항목·중복 요약(§6.3·§6.7 — 상호·마스킹 번호·내부 키(화면 미표시 — D-BIZLOOKUP-001)·등록 상태(D-BIZ-006 ③)). */
+/** 번호 조회 항목·중복 요약(§6.3·§6.7 — 상호·원문 번호(D-BIZ-007)·내부 키(화면 미표시 — D-BIZLOOKUP-001)·등록 상태(D-BIZ-006 ③)). */
 data class BusinessSummary(
     val businessId: String,
     val businessName: String,
-    val registrationNumberMasked: String,
+    val registrationNumber: String,
     val registrationStatus: String,
-)
+) {
+    /** 로그 마스킹 유지(D-BIZ-007) — 번호는 [registrationNumberLogText]. */
+    override fun toString(): String =
+        "BusinessSummary(businessId=$businessId, businessName=$businessName, registrationNumber=${registrationNumberLogText(registrationNumber)}, " +
+            "registrationStatus=$registrationStatus)"
+}

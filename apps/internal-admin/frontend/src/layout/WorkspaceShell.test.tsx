@@ -26,7 +26,7 @@ const SAMPLE_MENUS = ['원천사·기준정보', '정산·지급', '리스크 �
 const MER = 'mer_00000000000000000000000001'
 const BIZ = 'biz_00000000000000000000000001'
 const item: MerchantListItem = {
-  merchantId: MER, merchantCode: 'shop000001', merchantName: '데모 가맹점', businessId: BIZ, businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER, merchantCode: 'shop000001', merchantName: '데모 가맹점', businessId: BIZ, businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 4, midCount: 2, createdAt: '2026-10-01T00:00:00.000Z',
 }
 
@@ -225,7 +225,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 조회 in t
     expect(within(wrap.nextElementSibling as HTMLElement).getByRole('button', { name: '다음' })).toHaveClass('btn')
     // 기대값 변경(D-ADMIN-UI-009 ② 사용자 결정 2026-11-24 "기술 정보 접기"): '권리 revision' 열 제거(§7.2 전환 대상 DOM 구조 부분 — 값은 상세의 접힌 기술 정보).
     // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 늘 '활성'이던 상태 열(.tag)을 뺐다(§7.2 전환 대상 DOM 구조 부분, 내부 키 단언은 그대로).
-    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', 'MID 수', '등록일', '작업'])
+    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호', 'MID 수', '등록일', '작업'])
     const first = row.querySelector('td')!
     expect(first.querySelector('strong')).toHaveTextContent('데모 가맹점')
     expect(first.querySelector('small')).toHaveTextContent('shop000001')

@@ -19,7 +19,7 @@ import java.time.Instant
  * 사업자 목록(BUSINESS-PROFILE-001 §6.2, jOOQ 읽기 전용 — CQRS). `business`에서 출발하므로 **가맹점 0개 사업자도 나온다**(D-BIZ-004 — 가맹점 검색의 `JOIN business`와 다름).
  * 정렬 `business_id` 내림차순(ULID — 최신 먼저, 유일·안정), keyset `business_id < after`, `limit + 1`행으로 다음 쪽 판정(C-28).
  *
- * SELECT 목록(시험이 SQL로 고정): 번호는 `LEFT(registration_number, 3)` 마스킹만, 대표자는 현재 첫 순서 이름의 SQL 마스킹(`BusinessPiiMask.name`과 같은 모양)·현재 수만,
+ * SELECT 목록(시험이 SQL로 고정): 번호는 원문(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약), 대표자는 현재 첫 순서 이름의 SQL 마스킹(`BusinessPiiMask.name`과 같은 모양)·현재 수만,
  * 가맹점 수. **원문 번호·대표자 원문·연락처·주소·법인등록번호는 SELECT하지 않는다**(§9).
  * 상호 앞부분 일치는 `LIKE ? ESCAPE '!'`(`%`·`_`·`!`를 `!`로 이스케이프 — 입력이 와일드카드가 되지 않는다, C-5 — [MasterSqlText.likePrefix], 가맹점명 검색과 공유). 상호 접두·상태·기간 조건은 색인 범위를 읽은 뒤
  * `business_id` 내림차순으로 다시 정렬한다(filesort — L-11, LIVE Gate에서 EXPLAIN 기록).
@@ -46,7 +46,7 @@ class JooqBusinessDirectoryReader(private val dsl: DSLContext) : BusinessDirecto
         val merchantCount = DSL.field(DSL.selectCount().from(MERCHANT).where(MERCHANT.BUSINESS_ID.eq(BUSINESS.BUSINESS_ID)))
 
         val rows = dsl.select(
-            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.maskedRegistrationNumber(), BUSINESS.BUSINESS_TYPE, BUSINESS.REGISTRATION_STATUS,
+            BUSINESS.BUSINESS_ID, BUSINESS.DISPLAY_NAME, MasterSqlText.registrationNumber(), BUSINESS.BUSINESS_TYPE, BUSINESS.REGISTRATION_STATUS,
             BUSINESS.VERIFICATION_STATUS, firstRepresentative, representativeCount, merchantCount, MasterSqlText.instant(BUSINESS.UPDATED_AT),
         )
             .from(BUSINESS)
@@ -55,7 +55,7 @@ class JooqBusinessDirectoryReader(private val dsl: DSLContext) : BusinessDirecto
             .limit(filter.limit + 1)
             .fetch { r ->
                 BusinessDirectoryItem(
-                    businessId = r.value1(), businessName = r.value2(), registrationNumberMasked = r.value3(), businessType = r.value4(),
+                    businessId = r.value1(), businessName = r.value2(), registrationNumber = r.value3(), businessType = r.value4(),
                     registrationStatus = r.value5(), verificationStatus = r.value6(), representativeNameMasked = r.value7(),
                     representativeCount = r.value8().toLong(), merchantCount = r.value9().toLong(), updatedAt = Instant.parse(r.value10()),
                 )

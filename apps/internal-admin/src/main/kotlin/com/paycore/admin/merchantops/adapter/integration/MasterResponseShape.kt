@@ -7,7 +7,8 @@ import tools.jackson.databind.JsonNode
 /**
  * MASTER 응답 허용 필드 모양(MERCHANT-OPS-001 §4 — fail-closed). 객체는 **정해진 키 집합과 정확히 같아야** 하고(알 수 없는 필드 = 거부: MASTER가 실수로 새 값을 내보내도 화면으로
  * 흘리지 않는다), 값은 형식 정규식·정수 범위·불린·목록 길이 상한으로 검사한다. 통과하면 Kotlin 기본 값(String·Long·Boolean·null·List·LinkedHashMap)으로 다시 만든다.
- * `institutionMerchantRef`·`detail`·등록번호 평문 필드는 어느 모양에도 없다.
+ * `institutionMerchantRef`·`detail`은 어느 모양에도 없다. 사업자등록번호는 `registrationNumber` 키 하나로만 오고 값은 원문 10자리다(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①:
+ * 뉴피지 관리자 화면·조회 응답 원문, v2 계약). 옛 키 `registrationNumberMasked`(v1)는 키 집합이 달라 해석 불가(fail-closed).
  */
 internal sealed interface MasterResponseShape {
     /** 검사·변환. 위반이면 [IllegalArgumentException]. */
@@ -83,7 +84,11 @@ internal sealed interface MasterResponseShape {
         private val TIME = Text(Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"))
         private val CODE = Text(Regex("^[A-Za-z][A-Za-z0-9_]{0,47}$"))
         private val NAME = Text(Regex("^[^\\p{Cntrl}]{1,200}$"))
-        private val MASKED = Text(Regex("^[0-9]{3}\\*{7}$"))
+        /**
+         * BRN-UNMASK-001(D-BIZ-007): 사업자등록번호 = MASTER 저장 원문 10 ASCII 숫자(하이픈은 화면이 표시할 때만). 옛 마스킹 모양(`123*******`)·하이픈 표기는 해석 불가 —
+         * MASTER와 같은 배포 단위(MERCHANT-CODE-001 C-22)라 과도기 형식을 받지 않는다(fail-closed). 이 값을 감사·로그에 옮기지 않는다(감사는 `brn=123*******` — BusinessAudit).
+         */
+        private val REGISTRATION_NUMBER = Text(Regex("^[0-9]{10}$"))
         private val CHANNEL = Text(Regex("^[a-z0-9._-]{1,253}$"))
         private val INSTITUTION_CODE = Text(Regex("^[A-Z0-9]{1,32}$"))
         private val CURRENCY = Text(Regex("^[A-Z]{3}$"))
@@ -108,7 +113,7 @@ internal sealed interface MasterResponseShape {
         /** 목록·기존 검색 항목 9키 + `merchantCode`(MERCHANT-CODE-001 §3.8 — MASTER와 같은 배포 단위, C-22). */
         private val DIRECTORY_ITEM_FIELDS: Array<Pair<String, MasterResponseShape>> = arrayOf(
             "merchantId" to MERCHANT_ID, "merchantName" to NAME, "businessId" to BUSINESS_ID, "businessName" to NAME,
-            "registrationNumberMasked" to MASKED, "lifecycle" to CODE, "entitlementRevision" to COUNT, "midCount" to COUNT, "createdAt" to TIME,
+            "registrationNumber" to REGISTRATION_NUMBER, "lifecycle" to CODE, "entitlementRevision" to COUNT, "midCount" to COUNT, "createdAt" to TIME,
             "merchantCode" to MERCHANT_CODE,
         )
 
@@ -242,7 +247,7 @@ internal sealed interface MasterResponseShape {
             "items" to Arr(obj("merchantId" to MERCHANT_ID, "merchantName" to DISPLAY_NAME, "merchantCode" to MERCHANT_CODE), max = 50),
         )
 
-        // ---------------------------------------------------------------- BUSINESS-PROFILE-001 BIZ-3(§6.2~§6.8 — 골든 business-profile-response-shapes-v1, ADMIN 바이트 동일 사본)
+        // ---------------------------------------------------------------- BUSINESS-PROFILE-001 BIZ-3(§6.2~§6.8 — 골든 business-profile-response-shapes-v2, ADMIN 바이트 동일 사본)
 
         /** 사업자 문자열(MASTER `BusinessTextRule`과 같은 문자 규칙 — 제어문자·짝 없는 서로게이트·앞뒤 공백 금지) + code point 상한. */
         private fun plain(maxCodePoints: Int) = Text(Regex("^(?! )[^\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+(?<! )$"), maxCodePoints)
@@ -266,16 +271,16 @@ internal sealed interface MasterResponseShape {
         private const val HISTORY_PAGE = 20
         private const val ROWS = 20
 
-        /** 중복 요약·번호 조회 항목(4키 — D-BIZ-003·D-BIZ-006 ③, 내부 키는 화면이 그리지 않는다). 원문 번호 키가 오면 키 집합이 달라 해석 불가. */
+        /** 중복 요약·번호 조회 항목(4키 — D-BIZ-003·D-BIZ-006 ③, 내부 키는 화면이 그리지 않는다). 번호는 원문 10자리(D-BIZ-007), 다른 번호 키가 오면 키 집합이 달라 해석 불가. */
         private val BUSINESS_SUMMARY = obj(
-            "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "registrationStatus" to REGISTRATION_STATUS,
+            "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumber" to REGISTRATION_NUMBER, "registrationStatus" to REGISTRATION_STATUS,
         )
 
-        /** 목록(§6.2 — 항목 10키, 50 이하, keyset `next`). 원문 번호·대표자 원문·연락처 없음. */
+        /** 목록(§6.2 — 항목 10키, 50 이하, keyset `next`). 번호 원문(D-BIZ-007), 대표자 원문·연락처 없음. */
         val BUSINESS_LIST: MasterResponseShape = obj(
             "items" to Arr(
                 obj(
-                    "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "businessType" to opt(BUSINESS_TYPE),
+                    "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumber" to REGISTRATION_NUMBER, "businessType" to opt(BUSINESS_TYPE),
                     "registrationStatus" to REGISTRATION_STATUS, "verificationStatus" to VERIFICATION_STATUS, "representativeNameMasked" to opt(PERSON_NAME),
                     "representativeCount" to COUNT, "merchantCount" to COUNT, "updatedAt" to TIME,
                 ),
@@ -287,10 +292,10 @@ internal sealed interface MasterResponseShape {
         /** 번호 조회(§6.3 — 0/1, 찾음·못 찾음 같은 모양). */
         val BUSINESS_LOOKUP: MasterResponseShape = obj("items" to Arr(BUSINESS_SUMMARY, max = 1))
 
-        /** 상세(§6.4 — 개인정보 원문, 사업자등록번호는 마스킹만 — D-BIZ-006 ②). 목록 상한 = MASTER 구조 상한(대표자 5·업태+종목 20·주소 2·담당자 5). */
+        /** 상세(§6.4 — 개인정보 원문(D-BIZ-006 ②), 사업자등록번호도 원문(D-BIZ-007)). 목록 상한 = MASTER 구조 상한(대표자 5·업태+종목 20·주소 2·담당자 5). */
         val BUSINESS_DETAIL: MasterResponseShape = obj(
             "business" to obj(
-                "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumberMasked" to MASKED, "businessType" to opt(BUSINESS_TYPE),
+                "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumber" to REGISTRATION_NUMBER, "businessType" to opt(BUSINESS_TYPE),
                 "registrationStatus" to REGISTRATION_STATUS, "verificationStatus" to VERIFICATION_STATUS, "lifecycle" to BUSINESS_LIFECYCLE, "version" to COUNT,
                 "createdAt" to TIME, "updatedAt" to TIME, "merchantCount" to COUNT,
             ),
@@ -368,7 +373,7 @@ internal sealed interface MasterResponseShape {
         val DETAIL: MasterResponseShape = obj(
             // MERCHANT-CODE-001 §3.8: 현재 코드.
             "merchant" to obj("merchantId" to MERCHANT_ID, "name" to NAME, "lifecycle" to CODE, "entitlementRevision" to COUNT, "createdAt" to TIME, "merchantCode" to MERCHANT_CODE),
-            "business" to obj("businessId" to BUSINESS_ID, "name" to NAME, "registrationNumberMasked" to MASKED, "lifecycle" to CODE),
+            "business" to obj("businessId" to BUSINESS_ID, "name" to NAME, "registrationNumber" to REGISTRATION_NUMBER, "lifecycle" to CODE),
             "sites" to list(
                 obj(
                     "merchantSiteId" to ID, "channelType" to CODE, "channelIdentifier" to CHANNEL, "lifecycle" to CODE,

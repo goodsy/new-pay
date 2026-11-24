@@ -4,7 +4,7 @@
       {
         "businessId": "biz_01JC0000000000000000000001",
         "businessName": "DEMO 사업자 (운영값 아님)",
-        "registrationNumberMasked": "000*******",
+        "registrationNumber": "0000000000",
         "businessType": "INDIVIDUAL",
         "registrationStatus": "REGISTERED",
         "verificationStatus": "NOT_CHECKED",
@@ -16,7 +16,7 @@
       {
         "businessId": "biz_01JC0000000000000000000000",
         "businessName": "DEMO 옛 사업자",
-        "registrationNumberMasked": "999*******",
+        "registrationNumber": "9999999999",
         "businessType": null,
         "registrationStatus": "DRAFT",
         "verificationStatus": "NOT_CHECKED",
@@ -33,7 +33,7 @@
       {
         "businessId": "biz_01JC0000000000000000000001",
         "businessName": "DEMO 사업자 (운영값 아님)",
-        "registrationNumberMasked": "000*******",
+        "registrationNumber": "0000000000",
         "registrationStatus": "REGISTERED"
       }
     ]
@@ -45,7 +45,7 @@
     "business": {
       "businessId": "biz_01JC0000000000000000000001",
       "businessName": "DEMO 사업자 (운영값 아님)",
-      "registrationNumberMasked": "000*******",
+      "registrationNumber": "0000000000",
       "businessType": "INDIVIDUAL",
       "registrationStatus": "REGISTERED",
       "verificationStatus": "NOT_CHECKED",
@@ -168,7 +168,7 @@
     "existing": {
       "businessId": "biz_01JC0000000000000000000001",
       "businessName": "DEMO 사업자 (운영값 아님)",
-      "registrationNumberMasked": "000*******",
+      "registrationNumber": "0000000000",
       "registrationStatus": "REGISTERED"
     }
   },

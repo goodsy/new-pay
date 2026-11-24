@@ -831,7 +831,7 @@
     {
       "id": "MERCHANT-DETAIL-VIEW-001",
       "title": "가맹점 상세 화면 전환 + 기술 정보 접기(D-ADMIN-UI-009)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "ADMIN",
       "owner": "Coordinator",
       "dependsOn": [],
@@ -844,9 +844,9 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "MDV-scoped1",
+        "tag": "BRN-gate2",
         "verdict": "PASS",
-        "evidence": "build/harness-evidence/MERCHANT-DETAIL-VIEW-001-2026-11-24T012755Z.json"
+        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
       },
       "openItems": [
         "Coordinator 결정(가역 UI 세부, 저장소 관례): 사업자 상세와 같은 화면 전환 패턴, '← 목록으로'로 복귀 시 검색 조건·결과·스크롤 유지, URL 불변(콘솔 전체 관례), 내부 키 DOM 노출 금지(C-14) 유지, 상세 기능·시험 기대값 불변",
@@ -855,9 +855,10 @@
         "2단계: 권리 revision·권리 전파 → 상세의 접힌 '기술 정보'(목록 열 제거). [관찰] ctr_·csa_ 식별자가 상세에 원래부터 표시 — SITE-CONTRACT-CODE-001(사람용 코드) 대상, 이번 범위 밖",
         "2단계 + 리뷰 반영 완료: 기술 정보 <details>(목록 권리 revision 열 제거), 세션 경계 초기화 App 시험 2, 상세↔목록 전환 시 h2 초점(가맹점·사업자 모두, 사업자 상세 제목 h3→h2 모양 불변), 이력만 재조회. Vitest 714, tsc 0, 캡처 24장 넘침·style·CSP·mer_/biz_ 0(build/harness-evidence/MERCHANT-DETAIL-VIEW-001-capture-20261124T012520Z). 독립 리뷰 REVIEW_PASS → 재리뷰 REVIEW_PASS. §7.1 activationMemory 시험은 '목록으로' 클릭 한 줄·주석만 추가(Coordinator diff 확인)",
         "[후속 NIT] 세션 끝 메모리 초기화 두 줄은 이중 방어라 단독 변이 미검출(관측 성질은 시험) / 이력 진행 중 탭 왕복 시 이력 1회 추가 조회 / 2인 승인 요청 폼 busy는 화면 자체 상태(서버 DUPLICATE_UNRESOLVED가 막음) / 복원 상세는 재조회 안 함(사용자 결정 ①)",
-        "SCOPED MDV-scoped1 PASS(units INTERNAL-ADMIN·ADMIN-FRONTEND, fp 1e70ce22…). D-PROC-007: 커밋 후 FULL 대기 — DONE은 다음 묶음 FULL PASS 뒤"
+        "SCOPED MDV-scoped1 PASS(units INTERNAL-ADMIN·ADMIN-FRONTEND, fp 1e70ce22…). D-PROC-007: 커밋 후 FULL 대기 — DONE은 다음 묶음 FULL PASS 뒤",
+        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
       ],
-      "nextResumeAction": "커밋 완료 → 다음 묶음 FULL PASS 시 DONE",
+      "nextResumeAction": "완료",
       "detail": null
     },
     {
@@ -891,9 +892,10 @@
         "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영",
         "D-ADMIN-UI-011(pg-lab 참고): 화면 패턴 먼저 — 사업자 등록 번호 확인 먼저, 결제 준비 상태 줄+탭, 필터 묶음, 사업자 상세 항상 편집 폼+저장(Q-IA-6 대체). B2 뒤 명세 rev 0.3에 반영. 참고 캡처 scratchpad/pglab/*.png",
         "B2 완료(명세 rev 0.2b): 사업자 목록 진위확인 열·상세 진위확인 배지/진위확인·국가·등록 상태(머리 배지와 중복) 줄 제거, 번호 검색 결과 4열, 가맹점 목록 상태 열·필터와 상세 가맹점/사업자 상태 줄 제거(DB·API 유지, '등록 완료 ≠ 진위확인' 안내 유지·시험 고정). Vitest 731, tsc 0, 캡처 6폭×2테마×5화면 이상 없음(build/harness-evidence/MERCHANT-IA-001-B2-capture-20261124T034046Z). 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영)",
-        "명세 rev 0.3a(D-ADMIN-UI-011 pg-lab 패턴 반영, 배치 재편 B4·B5·B5b·B6) + B3 완료: 가맹점 상세 내부 식별자(site_·ctr_·csa_·act_·apr_·sac_·cra_·tlp_·pas_·cur_·asg_) → 사람용 값(Site='종류 · 식별값', 계약 n, 서비스: …, 승인함에서 보기), 명령 인자·잠금 메모리 키는 내부 키 그대로, FirstMid select는 순번 value + 상태 키(사라지면 첫 값). Vitest 753, tsc 0, 캡처 6폭×2테마 내부 키 0(build/harness-evidence/MERCHANT-IA-001-B3-capture-20261124T035805Z/after-review). 독립 리뷰 REVIEW_PASS(MINOR-1~3, NIT-1·3 반영). 미결: 등록자 adm_ 표시, 승인함 대상 이름 통일"
+        "명세 rev 0.3a(D-ADMIN-UI-011 pg-lab 패턴 반영, 배치 재편 B4·B5·B5b·B6) + B3 완료: 가맹점 상세 내부 식별자(site_·ctr_·csa_·act_·apr_·sac_·cra_·tlp_·pas_·cur_·asg_) → 사람용 값(Site='종류 · 식별값', 계약 n, 서비스: …, 승인함에서 보기), 명령 인자·잠금 메모리 키는 내부 키 그대로, FirstMid select는 순번 value + 상태 키(사라지면 첫 값). Vitest 753, tsc 0, 캡처 6폭×2테마 내부 키 0(build/harness-evidence/MERCHANT-IA-001-B3-capture-20261124T035805Z/after-review). 독립 리뷰 REVIEW_PASS(MINOR-1~3, NIT-1·3 반영). 미결: 등록자 adm_ 표시, 승인함 대상 이름 통일",
+        "B1~B3 FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL. 남은 배치 B4·B5·B5b·B6"
       ],
-      "nextResumeAction": "B3 커밋 → BRN-UNMASK-001 → B4",
+      "nextResumeAction": "B4(가맹점 상세 머리 요약·결제 준비 상태 줄·탭·MID 선택)",
       "detail": null
     },
     {
@@ -923,7 +925,7 @@
     {
       "id": "ADMIN-DEMO-LOGIN-001",
       "title": "데모 간편 로그인(데모 계정 고르기, DEMO 모드+명시 설정 한정, LIVE 기동 거부)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "ADMIN",
       "owner": "Coordinator",
       "dependsOn": [],
@@ -942,22 +944,23 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "DEMOLOGIN-scoped",
+        "tag": "BRN-gate2",
         "verdict": "PASS",
-        "evidence": "build/harness-evidence/ADMIN-DEMO-LOGIN-001-2026-11-24T045704Z.json"
+        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
       },
       "openItems": [
         "보안 기능(데모 한정): 독립 리뷰 필수, 운영 준비 체크리스트에 '반드시 끔' 항목",
         "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인",
-        "구현 완료(명세 rev 0.3): 데모 계정 고르기 간편 로그인(정상 세션·CSRF·세대, 감사 LOGIN_SUCCEEDED method=DEMO_QUICK), 켜짐 = DEMO + enabled + 허용 계정(LIVE·모든 주소 허용 목록이면 기동 거부, WARN+gauge), 재인증 생략(③: 간편 로그인 세션만, 요청마다 판정, STEP_UP_SKIPPED 같은 TX 감사, 2인 승인 검사 먼저), 기능 끈 뒤 남은 간편 세션 폐기, deployment-mode 비교 정규화, 프런트 패널·배너·계정 바꾸기·승인 화면 생략 안내, 감사 라벨. 독립 보안 리뷰 PASS → 재리뷰 PASS(MINOR-A~C·NIT 반영). 기존 시험 기대값 불변(LoginReadyAccounts 선택 인자만)"
+        "구현 완료(명세 rev 0.3): 데모 계정 고르기 간편 로그인(정상 세션·CSRF·세대, 감사 LOGIN_SUCCEEDED method=DEMO_QUICK), 켜짐 = DEMO + enabled + 허용 계정(LIVE·모든 주소 허용 목록이면 기동 거부, WARN+gauge), 재인증 생략(③: 간편 로그인 세션만, 요청마다 판정, STEP_UP_SKIPPED 같은 TX 감사, 2인 승인 검사 먼저), 기능 끈 뒤 남은 간편 세션 폐기, deployment-mode 비교 정규화, 프런트 패널·배너·계정 바꾸기·승인 화면 생략 안내, 감사 라벨. 독립 보안 리뷰 PASS → 재리뷰 PASS(MINOR-A~C·NIT 반영). 기존 시험 기대값 불변(LoginReadyAccounts 선택 인자만)",
+        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
       ],
-      "nextResumeAction": "SCOPED(분리 작업 트리) → 커밋 → ~/paycore-demo 설정 켜기 + admin 재빌드 → 사용자 확인",
+      "nextResumeAction": "완료",
       "detail": null
     },
     {
       "id": "PII-MASKING-POLICY-001",
       "title": "개인정보·민감정보 마스킹 규칙 문서(결정 통합 + 현재 구현 대조)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "ADMIN",
       "owner": "Coordinator",
       "dependsOn": [],
@@ -967,18 +970,23 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "BRN-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
+      },
       "openItems": [
         "결정 출처별 규칙 표(대상 데이터 × 화면/조회 응답/감사/변경 이력/로그/지표/오류/요청 본문/저장), 현재 구현 대조·불일치 목록, 미결 질문",
-        "rev 0.1a: 규칙 표 25행, 구현 대조 X-1~X-8, 미결 Q-PII-1~11 중 1·2·4·11 답(D-PII-001). 남은 미결 Q-PII-3·5~10"
+        "rev 0.1a: 규칙 표 25행, 구현 대조 X-1~X-8, 미결 Q-PII-1~11 중 1·2·4·11 답(D-PII-001). 남은 미결 Q-PII-3·5~10",
+        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
       ],
-      "nextResumeAction": "남은 미결 질문(Q-PII-3·5~10)은 관련 기능 착수 때 질문",
+      "nextResumeAction": "완료 — 남은 미결 Q-PII-3·5~10은 관련 기능 착수 때",
       "detail": null
     },
     {
       "id": "BRN-UNMASK-001",
       "title": "관리자 화면·조회 응답의 사업자등록번호 원문 표시(D-BIZ-007 구현)",
-      "status": "READY",
+      "status": "DONE",
       "phase": "ADMIN",
       "owner": "Coordinator",
       "dependsOn": [
@@ -986,20 +994,49 @@
       ],
       "spec": "D-BIZ-007(2026-11-19) — 사용자 재확인 2026-11-24 '뉴피지 내부관리자 시스템에서는 사업자번호 마스킹 안 함'. 화면·ADMIN/MASTER 조회 응답 원문(하이픈 표시), 감사 detail·변경 이력·로그·지표는 마스킹 유지, 번호 조회 횟수 제한·감사 유지",
       "allowedWritePaths": [
-        "apps/master-api/src/**",
-        "apps/internal-admin/src/**",
         "apps/internal-admin/frontend/src/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/src/test/resources/contracts/**",
+        "apps/master-api/src/**",
+        "apps/master-api/src/test/resources/contracts/**",
         "docs/repository/BRN-UNMASK-001-*.md",
+        "docs/repository/PII-MASKING-POLICY.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "BRN-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
+      },
+      "openItems": [
+        "MERCHANT-IA-001 B3 커밋 뒤(같은 화면 파일) 시작",
+        "PII-MASKING-POLICY.md 규칙과 일치",
+        "D-PII-001: 범위 관리자 전체(마법사·이력 대상 포함), 목록 감사 없음. 구현 대상 PII-MASKING-POLICY.md §7 X-1(MasterSqlText·Reader 6곳, MasterResponseShape 형식 검사, 화면 3파일·historyTarget), 감사 마스킹(BusinessAudit, MerchantLookupService)은 유지",
+        "구현 완료(명세 rev 0.2): MASTER 조회 Reader 6곳 원문 SELECT(MasterSqlText.registrationNumber), 응답 필드 registrationNumberMasked→registrationNumber(golden v2, v1 삭제, ADMIN은 새 이름만 fail-closed), 화면 하이픈 표시·라벨, 원문 담는 View/결과 toString 마스킹. 유지: 감사 brn=123*******, 이력 저장값, 로그·지표·오류·admin_request·outbox 원문 0(캔어리 시험 강화), 목록 감사 없음, 번호 조회 제한·감사. MASTER·ADMIN 동시 배포 필수. 독립 리뷰 REVIEW_PASS(조건부 → M-1~M-4·N 반영). master 966, admin 1217, Vitest 757, tsc 0",
+        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL (BRN-gate1은 지운 v1 golden 미반영으로 지문 단계 거부 — 시험 미실행)"
+      ],
+      "nextResumeAction": "완료",
+      "detail": null
+    },
+    {
+      "id": "LOG-JOOQ-001",
+      "title": "jOOQ 실행 로그(DEBUG) 원문 노출 방지 — org.jooq DEBUG 금지 또는 executeLogging=false",
+      "status": "BACKLOG",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "BRN-UNMASK-001 L-4, PII-MASKING-POLICY.md",
+      "allowedWritePaths": [
+        "apps/*/src/main/resources/application*.yml",
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
       "lastGate": null,
       "openItems": [
-        "MERCHANT-IA-001 B3 커밋 뒤(같은 화면 파일) 시작",
-        "PII-MASKING-POLICY.md 규칙과 일치",
-        "D-PII-001: 범위 관리자 전체(마법사·이력 대상 포함), 목록 감사 없음. 구현 대상 PII-MASKING-POLICY.md §7 X-1(MasterSqlText·Reader 6곳, MasterResponseShape 형식 검사, 화면 3파일·historyTarget), 감사 마스킹(BusinessAudit, MerchantLookupService)은 유지"
+        "LIVE 전 필수 검토"
       ],
-      "nextResumeAction": "B3·데모 로그인 커밋 뒤 명세·구현",
+      "nextResumeAction": "LIVE 준비 단계에서",
       "detail": null
     }
   ]

@@ -22,7 +22,7 @@ const NOW = () => new Date('2026-11-11T03:00:00.000Z')
 const APR = 'apr_01JC0000000000000000000B32'
 
 const item: MerchantListItem = {
-  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE',
+  merchantId: MER1, merchantCode: codeOf(MER1), merchantName: '데모 가맹점', businessId: id('biz', 1), businessName: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE',
   entitlementRevision: 3, midCount: 1, createdAt: '2026-11-01T00:00:00.000Z',
 }
 type Account = MerchantDetail['accounts'][number]
@@ -37,7 +37,7 @@ const account = (patch: Partial<Account> = {}): Account => ({
 function detail(patch: Partial<MerchantDetail> = {}, accountPatch: Partial<Account> = {}): MerchantDetail {
   return {
     merchant: { merchantId: MER1, merchantCode: codeOf(MER1), name: '데모 가맹점', lifecycle: 'ACTIVE', entitlementRevision: 3, createdAt: '2026-11-01T00:00:00.000Z' },
-    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumberMasked: '123*******', lifecycle: 'ACTIVE' },
+    business: { businessId: id('biz', 1), name: '데모 사업자', registrationNumber: '1234567890', lifecycle: 'ACTIVE' },
     sites: [{ merchantSiteId: SITE1, channelType: 'WEB', channelIdentifier: 'shop.example.test', lifecycle: 'ACTIVE', review: null, registeredBy: 'admin:adm_SR' }],
     contracts: [{
       contractId: id('ctr', 1), createdAt: '2026-11-01T00:00:00.000Z',

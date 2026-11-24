@@ -1,5 +1,6 @@
 import type { MerchantDetail, MerchantHistoryEntry } from '../api/adminApi'
 import { merchantLabelText } from './merchantLabel'
+import { displayRegistrationNumber } from './registrationNumber'
 import { historyTargetValue } from './merchantLabels'
 
 /**
@@ -33,7 +34,7 @@ export function historyTargetLabel(aggregateType: string): string {
 export const HISTORY_TARGET_HIDDEN = '—'
 
 /**
- * 대상 식별 표시. 가맹점 자신 = "<상호> · <가맹점 코드>", 그 가맹점의 사업자 = "<상호> · <마스킹 사업자등록번호>".
+ * 대상 식별 표시. 가맹점 자신 = "<상호> · <가맹점 코드>", 그 가맹점의 사업자 = "<상호> · <사업자등록번호>"(원문 하이픈 — BRN-UNMASK-001·D-BIZ-007·D-PII-001 ①).
  * 그 밖에 `mer_`/`biz_`가 들어 있는 값은 [HISTORY_TARGET_HIDDEN](정상 경로에서는 없음 — 방어).
  * MERCHANT-IA-001 B3(D-ADMIN-UI-010 ③): 나머지(Site·계약·서비스 약정·배정·개통·적용 확인·통화·Route·한도·정책 배정)는 원래 식별자(site_·ctr_·csa_·asg_·act_·sac_·cur_·cra_·tlp_·pas_)
  * 대신 상세 응답 안의 사람용 값([historyTargetValue]) — 찾지 못하면 빈 문자열(종류 이름만 보인다). MID는 외부 식별자라 그대로.
@@ -43,7 +44,7 @@ export function historyTarget(entry: MerchantHistoryEntry, detail: MerchantDetai
     return merchantLabelText({ name: detail.merchant.name, code: detail.merchant.merchantCode }) ?? HISTORY_TARGET_HIDDEN
   }
   if (entry.aggregateType === 'Business' && entry.aggregateId === detail.business.businessId) {
-    return `${detail.business.name} · ${detail.business.registrationNumberMasked}`
+    return `${detail.business.name} · ${displayRegistrationNumber(detail.business.registrationNumber)}`
   }
   if (entry.aggregateId.includes('mer_') || entry.aggregateId.includes('biz_')) return HISTORY_TARGET_HIDDEN
   return historyTargetValue(entry.aggregateType, entry.aggregateId, detail)

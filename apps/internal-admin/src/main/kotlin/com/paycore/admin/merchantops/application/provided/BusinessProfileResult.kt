@@ -2,7 +2,7 @@ package com.paycore.admin.merchantops.application.provided
 
 /**
  * 사업자 명령 결과(BUSINESS-PROFILE-001 §7.3). [Decided]는 MASTER가 저장한 판정(200): 성공만 [Decided.reference], 거절은 [Decided.rejection]만. [Decided.existing]은
- * **중복 거절 + 행위자가 사업자 조회 권한 보유**일 때만(D-BIZ-003 — 기존 사업자 상호·마스킹 번호·내부 키·등록 상태, 화면은 내부 키를 그리지 않고 상세 링크에만 쓴다).
+ * **중복 거절 + 행위자가 사업자 조회 권한 보유**일 때만(D-BIZ-003 — 기존 사업자 상호·원문 번호(BRN-UNMASK-001 — D-BIZ-007)·내부 키·등록 상태, 화면은 내부 키를 그리지 않고 상세 링크에만 쓴다).
  */
 sealed interface BusinessProfileResult {
     data class Decided(val outcome: String, val reference: String?, val rejection: String?, val replayed: Boolean, val existing: Map<String, Any?>? = null) : BusinessProfileResult {

@@ -10,7 +10,8 @@ import java.time.Instant
 
 /**
  * 운영 화면용 가맹점 조회(MERCHANT-OPS-001 §3 — CQRS 조회 측, jOOQ `adapter.query`가 DTO로 읽는다, 읽기 전용). 판정용 권위 조회가 아니다.
- * 권한·감사는 호출자(ADMIN — 서명 채널 뒤)가 맡는다. **사업자등록번호 평문·기관 가맹점 번호(`institutionMerchantRef`)·변경 이력 detail은 어떤 view에도 없다**(D-MD-008, D-MS2-005).
+ * 권한·감사는 호출자(ADMIN — 서명 채널 뒤)가 맡는다. **기관 가맹점 번호(`institutionMerchantRef`)·변경 이력 detail은 어떤 view에도 없다**(D-MD-008, D-MS2-005).
+ * 사업자등록번호는 원문 10자리로 view에 담긴다(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①: 관리자 조회 응답 원문). view `toString`은 번호를 마스킹한다(로그 비노출 — `registrationNumberLogText`).
  */
 interface MerchantOpsQuery {
     fun search(filter: MerchantSearchFilter): MerchantDirectoryPage
@@ -64,7 +65,7 @@ data class MerchantDirectoryItem(
     val merchantName: String,
     val businessId: String,
     val businessName: String,
-    val registrationNumberMasked: String,
+    val registrationNumber: String,
     val lifecycle: String,
     val entitlementRevision: Long,
     val midCount: Long,
@@ -73,4 +74,10 @@ data class MerchantDirectoryItem(
     val merchantCode: String,
     /** 코드 검색에서만 값이 있다 — 검색한 코드가 은퇴 코드면 true(현재 코드면 false). 목록·기존 검색 응답에는 키 자체가 없다. */
     val matchedRetiredCode: Boolean? = null,
-)
+) {
+    /** 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007) — 번호는 [registrationNumberLogText]. */
+    override fun toString(): String =
+        "MerchantDirectoryItem(merchantId=$merchantId, merchantName=$merchantName, businessId=$businessId, businessName=$businessName, " +
+            "registrationNumber=${registrationNumberLogText(registrationNumber)}, lifecycle=$lifecycle, entitlementRevision=$entitlementRevision, midCount=$midCount, " +
+            "createdAt=$createdAt, merchantCode=$merchantCode, matchedRetiredCode=$matchedRetiredCode)"
+}

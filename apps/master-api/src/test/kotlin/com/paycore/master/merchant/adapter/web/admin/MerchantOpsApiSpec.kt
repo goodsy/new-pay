@@ -263,7 +263,7 @@ class MerchantOpsApiSpec(
             }
         }
 
-        Then("detail is 200 with the documented shape and no institution reference, no history detail and no plain registration number") {
+        Then("detail is 200 with the documented shape and no institution reference, no history detail; the business number raw (D-BIZ-007)") {
             val res = get("/internal/v1/admin/merchants/${e.merchantId.value}")
             res.response.status shouldBe 200
             res.response.getHeader("Cache-Control")!! shouldContain "no-store"
@@ -271,7 +271,8 @@ class MerchantOpsApiSpec(
             val node = json.readTree(text)
             // 기대값 변경(MERCHANT-CODE-001 MC-1 §3.8 — 응답 키 증가, 완화 아님): 최상위에 merchantCodeHistory·merchantCodeChangeable(MC-1-6 MerchantCodeApiSpec이 값·모양 확인).
             node.propertyNames().toList() shouldBe listOf("merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable")
-            node.get("business").get("registrationNumberMasked").asString() shouldBe brn.take(3) + "*******"
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            node.get("business").get("registrationNumber").asString() shouldBe brn
             node.get("accounts").get(0).get("cardRoutes").get(0).propertyNames().toList() shouldBe
                 listOf("activationId", "paymentMethod", "acquirerCode", "routeRef", "status", "registeredAt")
             // MERCHANT-OPS-002 B2-2(D-MOPS-008 ③, §9.5): Revision마다 등록자(정규 actor 문자열) — ADMIN이 pinned registeredBy로 등록자≠승인자를 판정한다.
@@ -288,7 +289,7 @@ class MerchantOpsApiSpec(
             text shouldNotContain institutionRef
             text shouldNotContain "institutionMerchantRef"
             text shouldNotContain "\"detail\""
-            text shouldNotContain brn
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007): 상세 응답의 사업자 번호는 원문(위에서 값 확인). 다른 곳(로그·이력)은 아래 시험이 본다.
         }
 
         Then("history is 200 without detail or request ids, and cursor paging works via the path") {
@@ -304,13 +305,13 @@ class MerchantOpsApiSpec(
             json.readTree(get("/internal/v1/admin/merchants/${e.merchantId.value}/history/after/$first").body()).get("items").get(0).get("seq").asLong() shouldNotBe first
         }
 
-        Then("search by the full registration number returns only masked values and the log never contains the number") {
+        Then("search by the full registration number returns the raw number (D-BIZ-007) and the log never contains the number") {
             CapturedLogs().use { logs ->
                 val res = post(search, """{"registrationNumber":"$brn"}""")
                 res.response.status shouldBe 200
                 val node = json.readTree(res.body())
-                node.get("items").get(0).get("registrationNumberMasked").asString() shouldBe brn.take(3) + "*******"
-                res.body() shouldNotContain brn
+                // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+                node.get("items").get(0).get("registrationNumber").asString() shouldBe brn
                 logs.lines().filter { brn in it }.shouldBeEmpty()
             }
         }

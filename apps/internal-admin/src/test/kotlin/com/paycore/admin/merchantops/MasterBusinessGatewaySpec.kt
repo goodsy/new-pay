@@ -38,7 +38,7 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
 
     StubMasterOpsServer.start()
     val json = JsonMapper.builder().build()
-    val golden: JsonNode = json.readTree(requireNotNull(javaClass.getResourceAsStream("/contracts/business-profile-response-shapes-v1.golden.json")).readAllBytes())
+    val golden: JsonNode = json.readTree(requireNotNull(javaClass.getResourceAsStream("/contracts/business-profile-response-shapes-v2.golden.json")).readAllBytes())
     fun g(name: String): String = json.writeValueAsString(golden.get(name))
 
     fun settings(read: Duration = Duration.ofSeconds(2)) = MasterOpsSettings(
@@ -70,13 +70,13 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             reply("$base/registration-number-lookups", 200, g("lookupFound"))
             val r = gateway().lookup("9120000001").shouldBeInstanceOf<MasterCallResult.Found>()
             @Suppress("UNCHECKED_CAST")
-            ((r.document["items"] as List<Map<String, Any?>>).single()).keys shouldBe setOf("businessId", "businessName", "registrationNumberMasked", "registrationStatus")
+            ((r.document["items"] as List<Map<String, Any?>>).single()).keys shouldBe setOf("businessId", "businessName", "registrationNumber", "registrationStatus")
             val req = StubMasterOpsServer.requestsForPath("$base/registration-number-lookups").last()
             String(req.body, Charsets.UTF_8) shouldBe """{"registrationNumber":"9120000001"}"""
             req.path shouldNotContain "9120000001"
             reply("$base/registration-number-lookups", 200, g("lookupNotFound"))
             gateway().lookup("9120000001") shouldBe MasterCallResult.Found(linkedMapOf("items" to emptyList<Any>()))
-            val leaky = (golden.get("lookupFound").deepCopy() as ObjectNode).also { (it.get("items").get(0) as ObjectNode).put("registrationNumber", "9120000001") }
+            val leaky = (golden.get("lookupFound").deepCopy() as ObjectNode).also { (it.get("items").get(0) as ObjectNode).put("registrationNumberMasked", "912*******") } // M-1: 옛 v1 키가 섞이면 해석 불가
             reply("$base/registration-number-lookups", 200, json.writeValueAsString(leaky))
             gateway().lookup("9120000001") shouldBe MasterCallResult.Unavailable("RESPONSE_UNREADABLE")
         }
@@ -119,7 +119,7 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
         Then("duplicate rejection carries existing (D-BIZ-003); a duplicate without existing, another rejection with existing or a reference on a rejection → Unknown(RESPONSE_UNREADABLE)") {
             reply(create, 200, g("duplicateRejected"))
             gateway().command(command(BusinessProfileOperation.CREATE)).shouldBeInstanceOf<MasterBusinessCommandResult.Decided>().existing shouldBe
-                linkedMapOf("businessId" to "biz_01JC0000000000000000000001", "businessName" to "DEMO 사업자 (운영값 아님)", "registrationNumberMasked" to "000*******",
+                linkedMapOf("businessId" to "biz_01JC0000000000000000000001", "businessName" to "DEMO 사업자 (운영값 아님)", "registrationNumber" to "0000000000",
                     "registrationStatus" to "REGISTERED")
             reply(create, 200, g("otherRejected"))
             gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Decided(false, null, "BUSINESS_VERSION_CONFLICT", true, null)

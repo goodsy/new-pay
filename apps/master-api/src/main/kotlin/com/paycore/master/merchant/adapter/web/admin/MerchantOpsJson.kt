@@ -20,7 +20,7 @@ object MerchantOpsJson {
         "items" to page.items.map {
             linkedMapOf<String, Any?>(
                 "merchantId" to it.merchantId, "merchantName" to it.merchantName, "businessId" to it.businessId, "businessName" to it.businessName,
-                "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision,
+                "registrationNumber" to it.registrationNumber, "lifecycle" to it.lifecycle, "entitlementRevision" to it.entitlementRevision,
                 "midCount" to it.midCount, "createdAt" to time(it.createdAt), "merchantCode" to it.merchantCode,
             ).also { item -> if (byCode) item["matchedRetiredCode"] = checkNotNull(it.matchedRetiredCode) { "a code search item says whether a retired code matched" } }
         },
@@ -59,7 +59,7 @@ object MerchantOpsJson {
             )
         },
         "business" to v.business.let {
-            linkedMapOf("businessId" to it.businessId, "name" to it.name, "registrationNumberMasked" to it.registrationNumberMasked, "lifecycle" to it.lifecycle)
+            linkedMapOf("businessId" to it.businessId, "name" to it.name, "registrationNumber" to it.registrationNumber, "lifecycle" to it.lifecycle)
         },
         "sites" to v.sites.map { s ->
             linkedMapOf(

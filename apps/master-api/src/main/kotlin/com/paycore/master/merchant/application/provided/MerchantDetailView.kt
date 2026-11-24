@@ -4,7 +4,7 @@ import java.time.Instant
 
 /**
  * 가맹점 상세(MERCHANT-OPS-001 §3.2) — 한 읽기 전용 REPEATABLE READ TX에서 읽은 일관 스냅샷(전파 상태 [propagation]만 별도 읽기).
- * 사업자등록번호는 마스킹 값만, 카드 Route는 인수사 코드·Route 참조·상태만(기관 가맹점 번호 없음 — D-MS2-005).
+ * 사업자등록번호는 원문(BRN-UNMASK-001 — D-BIZ-007: 조회 응답 원문 10자리, 응답 필드 `registrationNumber` — v2 계약), 카드 Route는 인수사 코드·Route 참조·상태만(기관 가맹점 번호 없음 — D-MS2-005).
  */
 data class MerchantDetailView(
     val merchant: MerchantSummary,
@@ -33,7 +33,11 @@ data class MerchantDetailView(
         val reasonCode: String?,
     )
 
-    data class BusinessSummary(val businessId: String, val name: String, val registrationNumberMasked: String, val lifecycle: String)
+    data class BusinessSummary(val businessId: String, val name: String, val registrationNumber: String, val lifecycle: String) {
+        /** 로그 마스킹 유지(BRN-UNMASK-001 — D-BIZ-007) — 번호는 [registrationNumberLogText]. */
+        override fun toString(): String =
+            "BusinessSummary(businessId=$businessId, name=$name, registrationNumber=${registrationNumberLogText(registrationNumber)}, lifecycle=$lifecycle)"
+    }
 
     data class SiteDetail(
         val merchantSiteId: String,

@@ -326,7 +326,7 @@ export interface MerchantSearchInput {
   displayNamePrefix?: string
 }
 
-/** 목록 항목. 사업자등록번호는 마스킹 값만(D-MD-008). [merchantId]는 내부 키(화면에 그리지 않음 — 상세 호출용, MC-2), 화면 표시는 [merchantCode]. */
+/** 목록 항목. [registrationNumber]는 사업자등록번호 원문 10자리(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①, 표시는 `displayRegistrationNumber` 하이픈). [merchantId]는 내부 키(화면에 그리지 않음 — 상세 호출용, MC-2), 화면 표시는 [merchantCode]. */
 export interface MerchantListItem {
   merchantId: string
   /** MERCHANT-CODE-001 가맹점 코드(현재 코드). */
@@ -336,7 +336,7 @@ export interface MerchantListItem {
   merchantName: string
   businessId: string
   businessName: string
-  registrationNumberMasked: string
+  registrationNumber: string
   lifecycle: string
   entitlementRevision: number
   midCount: number
@@ -418,7 +418,7 @@ export interface MerchantCurrencyEnablementInput {
 export interface MerchantDetail {
   /** [merchantCode] = 현재 가맹점 코드(MERCHANT-CODE-001 — 화면 표시용, 내부 키 merchantId는 호출에만). */
   merchant: { merchantId: string; merchantCode: string; name: string; lifecycle: string; entitlementRevision: number; createdAt: string }
-  business: { businessId: string; name: string; registrationNumberMasked: string; lifecycle: string }
+  business: { businessId: string; name: string; registrationNumber: string; lifecycle: string }
   sites: {
     merchantSiteId: string
     channelType: string
@@ -556,7 +556,7 @@ export interface RegistrationOutcome {
 
 /**
  * 사업자 관리(BUSINESS-PROFILE-001 §6·§7 — BIZ-4 화면). 응답은 MASTER 문서 그대로(ADMIN 모양 검사 통과분).
- * [businessId](biz_…)는 **화면에 그리지 않는** 내부 키(D-ADMIN-UI-004 ③·X-4) — 상세·명령 호출 경로에만 쓴다. 사업자등록번호는 어디서나 마스킹 값만(D-BIZ-006 ②).
+ * [businessId](biz_…)는 **화면에 그리지 않는** 내부 키(D-ADMIN-UI-004 ③·X-4) — 상세·명령 호출 경로에만 쓴다. 사업자등록번호는 원문 10자리 `registrationNumber`(BRN-UNMASK-001 — D-BIZ-007, 화면은 하이픈 표시 — URL·저장소에 두지 않는다).
  */
 export type BusinessType = 'INDIVIDUAL' | 'CORPORATION'
 export type BusinessRegistrationStatus = 'DRAFT' | 'REGISTERED' | 'INACTIVE'
@@ -576,7 +576,7 @@ export interface BusinessSearchInput {
 export interface BusinessListItem {
   businessId: string
   businessName: string
-  registrationNumberMasked: string
+  registrationNumber: string
   businessType: BusinessType | null
   registrationStatus: BusinessRegistrationStatus
   verificationStatus: string
@@ -595,7 +595,7 @@ export interface BusinessSearchPage {
 export interface BusinessLookupItem {
   businessId: string
   businessName: string
-  registrationNumberMasked: string
+  registrationNumber: string
   registrationStatus: BusinessRegistrationStatus
 }
 
@@ -603,7 +603,7 @@ export interface BusinessDetail {
   business: {
     businessId: string
     businessName: string
-    registrationNumberMasked: string
+    registrationNumber: string
     businessType: BusinessType | null
     registrationStatus: BusinessRegistrationStatus
     verificationStatus: string
@@ -684,7 +684,7 @@ export interface BusinessChangeInput extends BusinessProfileContent {
   reason: string | null
 }
 
-/** 명령 결과(§7.3): [existing]은 중복 거절 + 조회 권한일 때만(D-BIZ-003 — 기존 사업자 상호·마스킹 번호·상세 링크용 내부 키). */
+/** 명령 결과(§7.3): [existing]은 중복 거절 + 조회 권한일 때만(D-BIZ-003 — 기존 사업자 상호·원문 번호(D-BIZ-007)·상세 링크용 내부 키). */
 export interface BusinessCommandOutcome extends RegistrationOutcome {
   existing?: BusinessLookupItem
 }

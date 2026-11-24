@@ -44,7 +44,7 @@ class MerchantCodeSearchSpec : BehaviorSpec({
 
     val ctx = AdminRequestContext("corr-1", "127.0.0.1")
     val mapper = JsonMapper.builder().build()
-    val golden = mapper.readTree(MerchantCodeSearchSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v1.golden.json")!!.readText(Charsets.UTF_8))
+    val golden = mapper.readTree(MerchantCodeSearchSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v2.golden.json")!!.readText(Charsets.UTF_8))
 
     class Fixture(roles: Set<String> = setOf("VIEWER")) {
         val searched = mutableListOf<MerchantSearchCriteria>()

@@ -29,7 +29,7 @@ import tools.jackson.databind.json.JsonMapper
 /**
  * MERCHANT-CODE-001 MC-1-6(§3.8 — 실제 보안 체인 + MVC + MySQL): 목록·기존 검색 항목 10키(`matchedRetiredCode` 없음), 코드 검색 11키(현재 코드 → false, 은퇴 코드 → true),
  * 코드 + 다른 필터 400, 대문자 400, 상세 세 키(`merchant.merchantCode`·`merchantCodeHistory`·`merchantCodeChangeable`)·`registeredBy` 없음.
- * MC-1-9 보강: 실제 응답의 키 구조(재귀 키 집합)가 golden `merchant-ops-response-shapes-v1.golden.json`의 같은 항목과 같다(ADMIN이 해석하는 모양 = MASTER가 실제로 내는 모양).
+ * MC-1-9 보강: 실제 응답의 키 구조(재귀 키 집합)가 golden `merchant-ops-response-shapes-v2.golden.json`의 같은 항목과 같다(ADMIN이 해석하는 모양 = MASTER가 실제로 내는 모양).
  * 은퇴 코드 Fixture: 1회 변경 경로(MC-1b)가 아직 없으므로 V13 CHECK를 만족하는 seq 2 행을 root로 넣는다(유효한 저장 상태 — 시험 데이터 준비).
  */
 @MasterDbTest
@@ -41,7 +41,7 @@ class MerchantCodeApiSpec(
 
     val mvc: MockMvc = MockMvcBuilders.webAppContextSetup(context).apply<org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder>(SecurityMockMvcConfigurers.springSecurity()).build()
     val json = JsonMapper.builder().build()
-    val golden: JsonNode = json.readTree(MerchantCodeApiSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v1.golden.json")!!.readText(Charsets.UTF_8))
+    val golden: JsonNode = json.readTree(MerchantCodeApiSpec::class.java.getResource("/contracts/merchant-ops-response-shapes-v2.golden.json")!!.readText(Charsets.UTF_8))
     val search = "/internal/v1/admin/merchant-searches"
 
     fun get(path: String): MvcResult = mvc.perform(MockMvcRequestBuilders.get(path).header(AdminCallSignature.HEADER, MasterAdminChannelFixture.springHeader("GET", path, ByteArray(0)))).andReturn()
@@ -63,7 +63,7 @@ class MerchantCodeApiSpec(
     fun keys(node: JsonNode): Set<String> = node.propertyNames().toSet()
 
     val listKeys = setOf(
-        "merchantId", "merchantName", "businessId", "businessName", "registrationNumberMasked", "lifecycle", "entitlementRevision", "midCount", "createdAt", "merchantCode",
+        "merchantId", "merchantName", "businessId", "businessName", "registrationNumber", "lifecycle", "entitlementRevision", "midCount", "createdAt", "merchantCode",
     )
 
     Given("MC-1-6 a merchant registered with a code, then (as MC-1b would) changed once") {
