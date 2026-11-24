@@ -143,7 +143,8 @@ describe('App — 가맹점 list ↔ detail screen follows the 사업자 조회 
     expect(merchantList()).toBeNull()
     expect(screen.getByLabelText('가맹점명')).toHaveValue('')
     expect(screen.getByLabelText('가맹점 코드')).toHaveValue('')
-    expect(screen.getByLabelText('상태')).toHaveValue('')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어졌다(검색 조건 초기화는 가맹점명·가맹점 코드로 본다).
+    expect(screen.queryByLabelText('상태')).toBeNull()
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
     expect(api.merchantSearch).toHaveBeenCalledTimes(1)
   }

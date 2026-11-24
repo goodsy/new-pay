@@ -84,9 +84,10 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
     // 기대값 변경(MERCHANT-CODE-001 MC-2, D-ADMIN-UI-004 ③): "가맹점 ID" 검색란이 "가맹점 코드"(단일 기준)로 바뀌었다 — 채운 조건만 보내는 규칙은 상태 조건으로 확인한다.
     expect(screen.queryByLabelText('가맹점 ID')).toBeNull()
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 채운 조건만 보내는 규칙은 가맹점명 조건으로 확인한다.
+    await typeIn('가맹점명', '데모')
     await search()
-    expect(api.merchantSearch).toHaveBeenCalledWith({ lifecycle: 'TERMINATED' })
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모' })
     const row = await screen.findByRole('row', { name: codeOf(MER1) })
     expect(row).toHaveTextContent('데모 가맹점')
     // MC-2 표시 교체: 가맹점은 코드로(내부 키 mer_… 없음).
@@ -96,7 +97,8 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(row).not.toHaveTextContent(BIZ1)
     expect(row).toHaveTextContent('데모 사업자')
     expect(row).toHaveTextContent(MASKED)
-    expect(row).toHaveTextContent('활성')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 늘 '활성'이던 상태 열은 없다.
+    expect(row).not.toHaveTextContent('활성')
     expect(within(row).getByText('2', { selector: '[data-col="midCount"]' })).toBeInTheDocument()
     expect(row.querySelector('[data-col="entitlementRevision"]')).toBeNull()
     expect(within(screen.getByRole('table', { name: '가맹점 목록' })).queryByRole('columnheader', { name: '권리 revision' })).toBeNull()
@@ -121,13 +123,14 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
     // 기대값 변경(ADMIN-UI-MERCHANT-002, D-ADMIN-UI-004 ③): 사업자 ID 검색란이 없어졌다(화면에 사업자 ID를 보이지 않으므로 입력할 값도 없다) — 같은 규칙을 상태 조건으로 확인한다.
     expect(screen.queryByLabelText('사업자 ID')).toBeNull()
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 같은 규칙을 가맹점명 조건으로 확인한다.
+    await typeIn('가맹점명', '데모')
     await search()
     await screen.findByRole('row', { name: codeOf(MER2) })
     // 검색 뒤 입력란을 바꿔도 다음 쪽은 검색한 조건 그대로(조건이 섞이지 않는다).
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
+    await typeIn('가맹점명', '바뀜')
     await userEvent.click(screen.getByRole('button', { name: '다음' }))
-    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { lifecycle: 'ACTIVE', after: MER2 })
+    expect(api.merchantSearch).toHaveBeenNthCalledWith(2, { displayNamePrefix: '데모', after: MER2 })
     expect(await screen.findByRole('row', { name: codeOf(MER3) })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: codeOf(MER1) })).toBeNull()
     expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
@@ -346,15 +349,14 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
     }
     await userEvent.clear(screen.getByLabelText('가맹점 코드'))
     await typeIn('가맹점 코드', 'shopabcd12')
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 함께 쓴 다른 조건은 가맹점명으로, 안내 문구에서 "상태"를 뺐다(코드 단일 기준 규칙은 그대로).
+    await typeIn('가맹점명', '데모')
     await search()
-    // MERCHANT-NAME-SEARCH-001 MNS-3 기대값 변경(사용자 요청 가맹점명 조건)
-    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
-    await userEvent.selectOptions(screen.getByLabelText('상태'), '')
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    await userEvent.clear(screen.getByLabelText('가맹점명'))
     await typeIn('사업자등록번호', '1234567890')
     await search()
-    // MERCHANT-NAME-SEARCH-001 MNS-3 기대값 변경(사용자 요청 가맹점명 조건)
-    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
     expect(api.merchantSearch).not.toHaveBeenCalled()
   })
 
@@ -440,14 +442,14 @@ describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 �
   it('기본정보 · 가맹점 권리 · 권리 전파 상태는 바깥 Panel 그대로, 안쪽은 140px 이름 열 줄(style 속성 없음)', async () => {
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
     const basics = await screen.findByRole('region', { name: '기본정보' })
-    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '가맹점 상태', '등록일', '사업자', '사업자등록번호(마스킹)', '사업자 상태'])
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): '가맹점 상태'·'사업자 상태' 줄(늘 '활성')을 뺐다.
+    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '등록일', '사업자', '사업자등록번호(마스킹)'])
     const techInfo = screen.getByRole('group', { name: '기술 정보' })
     await userEvent.click(within(techInfo).getByText('기술 정보'))
     expectDetailRows(panelDetailList(within(techInfo).getByRole('region', { name: '가맹점 권리' }), '가맹점 권리'), ['권리 revision'])
     const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
     expectDetailRows(panelDetailList(propagation, '권리 전파 상태'), ['발행', '결제 서비스 수신', '효력'])
-    // 값은 그대로(상태 배지 · 마스킹 번호 · 효력 확인 전).
-    expect(within(basics).getAllByText('활성').length).toBeGreaterThan(0)
+    // 값은 그대로(마스킹 번호 · 효력 확인 전). 상태 배지 줄은 B2에서 뺐다.
     expect(within(basics).getByText(MASKED)).toHaveClass('font-mono')
     expect(within(propagation).getByText('효력 확인 전')).toBeInTheDocument()
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
@@ -482,7 +484,7 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
   /** 앞뒤 공백 포함 원문(화면은 고치지 않는다 — 서버가 400으로 거절할 값도 그대로 보낸다). 화면 다른 곳에 우연히 나오지 않는 글자 조합. */
   const RAW_NAME = ' Zq가맹%_! '
 
-  it('MNS-3-1 가맹점명 입력란은 코드 다음·상태 앞(같은 필터 줄), 입력하면 {displayNamePrefix}만 원문 그대로 보낸다', async () => {
+  it('MNS-3-1 가맹점명 입력란은 코드 다음(같은 필터 줄), 입력하면 {displayNamePrefix}만 원문 그대로 보낸다', async () => {
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber />)
     const input = screen.getByLabelText('가맹점명')
@@ -493,7 +495,8 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     expect(form).toHaveClass('filters')
     const controls = Array.from(form.querySelectorAll('input, select')).map((el) => el.getAttribute('aria-label'))
     expect(controls.indexOf('가맹점명')).toBe(controls.indexOf('가맹점 코드') + 1)
-    expect(controls.indexOf('상태')).toBe(controls.indexOf('가맹점명') + 1)
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 가맹점명 다음은 사업자등록번호다.
+    expect(controls).toEqual(['가맹점 코드', '가맹점명', '사업자등록번호'])
     await typeIn('가맹점명', RAW_NAME)
     await search()
     expect(api.merchantSearch).toHaveBeenCalledTimes(1)
@@ -501,13 +504,14 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     expect(await screen.findByRole('row', { name: codeOf(MER1) })).toBeInTheDocument()
   })
 
-  it('MNS-3-2 가맹점명 + 상태 → 둘 다 보낸다(AND — 서버 결정)', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 "가맹점명 + 상태" 조합은 화면에서 만들 수 없다 — 상태 조건 없이 가맹점명만 보내는지로 바꿨다(API의 lifecycle 조건 자체는 그대로).
+  it('MNS-3-2 가맹점명만 → 상태 조건 없이 {displayNamePrefix}만 보낸다', async () => {
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
+    expect(screen.queryByLabelText('상태')).toBeNull()
     await typeIn('가맹점명', '데모')
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
     await search()
-    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모', lifecycle: 'ACTIVE' })
+    expect(api.merchantSearch).toHaveBeenCalledWith({ displayNamePrefix: '데모' })
   })
 
   it('MNS-3-3 가맹점 코드 + 가맹점명 → 호출 없이 바뀐 combined 문구', async () => {
@@ -517,7 +521,7 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     await typeIn('가맹점명', '데모')
     await search()
     expect(api.merchantSearch).not.toHaveBeenCalled()
-    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')).toBeInTheDocument()
+    expect(screen.getByText('가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.' /* MERCHANT-IA-001 B2: 상태 필터 제거로 안내에서 "상태"를 뺐다(D-ADMIN-UI-010 ②) */)).toBeInTheDocument()
     expect(screen.getByLabelText('가맹점 코드')).toHaveAttribute('aria-invalid', 'true')
   })
 
@@ -597,7 +601,7 @@ describe('MerchantsScreen — MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 조건
     await typeIn('가맹점 코드', 'shopabcd12')
     await typeIn('가맹점명', '데모')
     await search()
-    expect(document.getElementById(codeNoteId)).toHaveTextContent('가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.')
+    expect(document.getElementById(codeNoteId)).toHaveTextContent('가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.' /* MERCHANT-IA-001 B2: 상태 필터 제거로 안내에서 "상태"를 뺐다(D-ADMIN-UI-010 ②) */)
     expect(name).toHaveAttribute('aria-describedby', `${help.id} ${codeNoteId}`)
     // 코드를 비우고 다시 검색하면 오류가 사라지고 연결도 도움말만.
     await userEvent.clear(screen.getByLabelText('가맹점 코드'))

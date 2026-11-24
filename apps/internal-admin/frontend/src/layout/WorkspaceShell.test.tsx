@@ -211,7 +211,7 @@ describe('ADMIN-UI-WORKSPACE-001: header search is the reference modal (menu nam
 })
 
 describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 조회 in the reference list layout', () => {
-  it('card(tabs → filters → tablewrap → tablebottom); the row is strong name + small code with a .tag status; no mer_/biz_ anywhere', async () => {
+  it('card(tabs → filters → tablewrap → tablebottom); the row is strong name + small code (no status column); no mer_/biz_ anywhere', async () => {
     signedIn(['OPERATOR'], { merchantSearch: vi.fn(async () => ({ items: [item], nextCursor: 'next' })) })
     await userEvent.click(within(await screen.findByRole('navigation', { name: '메뉴' })).getByRole('button', { name: '사업자·가맹점' }))
     const card = screen.getByRole('main').querySelector(':scope > section.card')!
@@ -224,11 +224,12 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 조회 in t
     expect(wrap.nextElementSibling).toHaveClass('tablebottom')
     expect(within(wrap.nextElementSibling as HTMLElement).getByRole('button', { name: '다음' })).toHaveClass('btn')
     // 기대값 변경(D-ADMIN-UI-009 ② 사용자 결정 2026-11-24 "기술 정보 접기"): '권리 revision' 열 제거(§7.2 전환 대상 DOM 구조 부분 — 값은 상세의 접힌 기술 정보).
-    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', '상태', 'MID 수', '등록일', '작업'])
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 늘 '활성'이던 상태 열(.tag)을 뺐다(§7.2 전환 대상 DOM 구조 부분, 내부 키 단언은 그대로).
+    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', 'MID 수', '등록일', '작업'])
     const first = row.querySelector('td')!
     expect(first.querySelector('strong')).toHaveTextContent('데모 가맹점')
     expect(first.querySelector('small')).toHaveTextContent('shop000001')
-    expect(row.querySelector('.tag.green')).toHaveTextContent('활성')
+    expect(row.querySelector('.tag')).toBeNull()
     expect(domOccurrences(document.body, 'mer_')).toEqual([])
     expect(domOccurrences(document.body, 'biz_')).toEqual([])
   })
@@ -258,7 +259,8 @@ describe('review MINOR-4: merchant list requests — buttons disabled while busy
     const form = container.querySelector('form.filters')!
     // 버튼이 막혀 있어도 다른 경로(폼 제출)로 둘째 요청이 생긴 경우를 흉내 낸다.
     fireEvent.submit(form)
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'TERMINATED')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어져 둘째 요청 전 조건 변경은 가맹점명으로.
+    await userEvent.type(screen.getByLabelText('가맹점명'), '새')
     fireEvent.submit(form)
     expect(merchantSearch).toHaveBeenCalledTimes(2)
     resolvers[1]!({ items: [{ ...item, merchantCode: 'newer00001', merchantName: '새 결과' }], nextCursor: null })

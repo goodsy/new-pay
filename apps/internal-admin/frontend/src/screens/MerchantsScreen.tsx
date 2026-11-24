@@ -22,11 +22,8 @@ import { ChevronDownIcon } from '../components/icons'
 import { formatMinor } from '../lib/format'
 import { historyTarget, historyTargetLabel } from '../lib/historyTarget'
 import { changeTypeLabel } from '../lib/merchantChangeTypes'
-import { tagClass } from '../lib/statusTone'
 import { labelOf, REVISION_AWAITING_APPROVAL } from '../lib/labels'
 import { MERCHANT_CODE, MERCHANT_CODE_HINT } from '../lib/merchantCode'
-
-const LIFECYCLES = ['ACTIVE', 'TERMINATED'] as const
 
 interface Props {
   api: AdminApi
@@ -173,14 +170,13 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
             {/* MERCHANT-CODE-001 MC-2: 가맹점 내부 키(mer_…) 대신 가맹점 코드(D-ADMIN-UI-004 ③ — 내부 키는 호출에만). */}
             <span className="flex flex-col"><span className="font-medium">{merchant.name}</span><Mono>{merchant.merchantCode}</Mono></span>
           </DetailRow>
-          <DetailRow term="가맹점 상태"><StatusBadge code={merchant.lifecycle} /></DetailRow>
+          {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): '가맹점 상태'·'사업자 상태'는 해지 경로가 없어 늘 '활성'이라 줄을 뺐다(값·API 그대로, 머리 배지는 B4에서 판단). */}
           <DetailRow term="등록일"><KstTime iso={merchant.createdAt} /></DetailRow>
           <DetailRow term="사업자">
             {/* ADMIN-UI-MERCHANT-002(D-ADMIN-UI-004 ③): 사업자 ID(biz_…)는 그리지 않는다 — 상호·마스킹 등록번호로 식별(내부 키·API·감사 불변). */}
             <span className="font-medium">{business.name}</span>
           </DetailRow>
           <DetailRow term="사업자등록번호(마스킹)"><span className="font-mono">{business.registrationNumberMasked}</span></DetailRow>
-          <DetailRow term="사업자 상태"><StatusBadge code={business.lifecycle} /></DetailRow>
         </dl>
         {/* MERCHANT-CODE-001 MC-1b(§3.8·§5.5): 코드 이력(seq 1·2 — 바뀐 뒤 옛 코드는 "은퇴 — 다시 쓸 수 없음") + 변경 가능 여부(advisory). */}
         {(detail.merchantCodeHistory ?? []).length > 0 && (
@@ -435,7 +431,7 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
 
 /**
  * 가맹점 조회(MERCHANT-OPS-001 §4.1·§7 AC 11 — 읽기 전용). MERCHANT-CODE-001 MC-2: 가맹점은 **가맹점 코드**로 보이고 찾는다(목록·상세·이력 대상의 mer_… 표시 → 코드,
- * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·상태, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
+ * "가맹점 ID" 검색란 → "가맹점 코드" 정확 일치 검색 — 단일 기준, 은퇴 코드 표시는 MC-1b 뒤). 내부 키는 상세·명령 호출에만 쓴다. 검색(가맹점 코드·가맹점명 — 상태 조건은 MERCHANT-IA-001 B2에서 화면에서 뺌, 허용 역할에는 사업자등록번호 — ADMIN-UI-MERCHANT-002: 사업자 ID 검색란·표시 제거, 하이픈 자동) → 목록(keyset "다음") →
  * 행 "상세"로 상세 패널과 변경 이력(“이력 더 보기”). 사업자등록번호는 POST 본문으로만 보내고, 보낸 즉시 입력란을 비우며 URL·저장소·로그·화면에 남기지 않는다.
  * 화면은 마스킹 값만 보인다. 권한·감사·속도 제한은 서버가 판정한다(화면은 표시만).
  */
@@ -462,7 +458,7 @@ export function MerchantsScreen({
   const [codeError, setCodeError] = useState<'format' | 'combined' | null>(null)
   /** MERCHANT-NAME-SEARCH-001 MNS-3 가맹점명 앞부분 일치 입력(원문 그대로 보낸다 — 형식 위반은 서버 400, 사업자 조회 화면과 같은 방식). */
   const [displayNamePrefix, setDisplayNamePrefix] = useRemembered(memory, 'lookup.filter.displayNamePrefix', '')
-  const [lifecycle, setLifecycle] = useRemembered(memory, 'lookup.filter.lifecycle', '')
+  // MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 상태 필터(전체/활성/해지)를 뺐다 — 해지 경로가 없어 늘 '활성'. 예전 화면 메모리의 'lookup.filter.lifecycle' 값은 읽지 않는다(검색에 상태 조건을 보내지 않음).
   // 사업자등록번호는 화면 자체 상태 — 보낸 즉시 비운다(메모리·저장소·URL 없음).
   const [registrationNumber, setRegistrationNumber] = useState('')
   const [registrationNumberError, setRegistrationNumberError] = useState(false)
@@ -521,7 +517,7 @@ export function MerchantsScreen({
         setCodeError('format')
         return
       }
-      if (displayNamePrefix !== '' || lifecycle !== '' || brn !== '') {
+      if (displayNamePrefix !== '' || brn !== '') {
         setCodeError('combined')
         return
       }
@@ -531,7 +527,6 @@ export function MerchantsScreen({
     if (merchantCode !== '') criteria.merchantCode = merchantCode
     // trim·정규화 없음(MERCHANT-NAME-SEARCH-001 §2 — 앞뒤 공백 등 형식 위반은 서버 400을 기존 고정 문구로).
     if (displayNamePrefix !== '') criteria.displayNamePrefix = displayNamePrefix
-    if (lifecycle === 'ACTIVE' || lifecycle === 'TERMINATED') criteria.lifecycle = lifecycle
     // 번호는 이 요청 본문에만 — 보내는 즉시 입력란을 비운다(실패해도 다시 입력해야 한다).
     setRegistrationNumber('')
     setPage(null)
@@ -663,7 +658,7 @@ export function MerchantsScreen({
   const codeNoteId = useId()
   const registrationNoteId = useId()
   const nameNoteId = useId()
-  const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(가맹점명·상태·사업자등록번호)과 함께 쓸 수 없습니다.' : null
+  const codeMessage = codeError === 'format' ? `가맹점 코드는 ${MERCHANT_CODE_HINT}입니다.` : codeError === 'combined' ? '가맹점 코드 검색은 다른 조건(가맹점명·사업자등록번호)과 함께 쓸 수 없습니다.' : null
 
   // ── 상세 화면(MERCHANT-DETAIL-VIEW-001 — 목록을 숨기고 상세만, 사업자 조회 상세와 같은 화면 전환). 상세 안 기능·잠금·감사 규칙은 목록 아래에 펼치던 때와 같다. ──
   const renderDetail = (detail: MerchantDetail) => (
@@ -896,12 +891,6 @@ export function MerchantsScreen({
           placeholder="가맹점명 (앞부분 일치)"
           aria-describedby={codeError === 'combined' ? `${nameNoteId} ${codeNoteId}` : nameNoteId}
         />
-        <select aria-label="상태" value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
-          <option value="">전체 상태</option>
-          {LIFECYCLES.map((value) => (
-            <option key={value} value={value}>{labelOf(value)}</option>
-          ))}
-        </select>
         {canSearchRegistrationNumber && (
           <RegistrationNumberInput
             plain
@@ -934,7 +923,8 @@ export function MerchantsScreen({
             <table aria-label="가맹점 목록">
               <thead>
                 <tr>
-                  <th>가맹점</th><th>사업자</th><th>사업자등록번호(마스킹)</th><th>상태</th>
+                  {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다"): 상태 열(늘 '활성')을 뺐다. */}
+                  <th>가맹점</th><th>사업자</th><th>사업자등록번호(마스킹)</th>
                   <th>MID 수</th><th>등록일</th><th><span className="sr-only">작업</span></th>
                 </tr>
               </thead>
@@ -947,7 +937,6 @@ export function MerchantsScreen({
                     </td>
                     <td>{row.businessName}</td>
                     <td>{row.registrationNumberMasked}</td>
-                    <td><span className={tagClass(row.lifecycle)} title={row.lifecycle}>{labelOf(row.lifecycle)}</span></td>
                     <td data-col="midCount">{row.midCount}</td>
                     <td><KstTime iso={row.createdAt} /></td>
                     <td>

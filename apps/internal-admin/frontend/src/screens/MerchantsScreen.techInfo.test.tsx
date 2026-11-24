@@ -47,7 +47,8 @@ describe('MerchantsScreen — technical info folded (D-ADMIN-UI-009 ②)', () =>
   it('the list has no 권리 revision column and the row does not show the revision', async () => {
     const { row } = await openDetail()
     const table = screen.getByRole('table', { name: '가맹점 목록' })
-    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', '상태', 'MID 수', '등록일', '작업'])
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 늘 '활성'이던 상태 열을 뺐다.
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', 'MID 수', '등록일', '작업'])
     expect(row.querySelector('[data-col="entitlementRevision"]')).toBeNull()
     expect(within(row).queryByText('7')).toBeNull()
   })

@@ -16,7 +16,7 @@ import { SESSION_ENDING, type ConsoleErrorCode } from '../errors/errorCodes'
 import { codeOf, ERROR_MESSAGES } from '../errors/messages'
 import {
   ADDRESS_TYPE_LABELS, BRN_RATE_LIMITED, BUSINESS_READ_RATE_LIMITED, BUSINESS_TYPE_LABELS, CATEGORY_TYPE_LABELS, CHANGE_TYPE_LABELS, formatCorporateNumber, formatPhone,
-  HISTORY_FIELD_LABELS, labelIn, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, representativeSummary, verificationLabel,
+  HISTORY_FIELD_LABELS, labelIn, REGISTRATION_STATUS_LABELS, REPRESENTATIVE_TYPE_LABELS, representativeSummary,
 } from '../lib/businessProfile'
 import { defaultSubmissionId, type BusinessRef, type HandoffState } from '../lib/registration'
 import { isRegistrationNumber } from '../lib/registrationNumber'
@@ -28,7 +28,7 @@ import { BusinessProfileFormScreen } from './BusinessProfileFormScreen'
  * - 조회 역할 OPERATOR·APPROVER(D-BIZ-006 ① — 표시만, 판정은 서버). 명령 버튼(수정·이어서 입력·이 사업자로 가맹점 등록)은 [canEdit](OPERATOR)일 때만.
  * - 번호 검색은 번호 조회 API만(C-6 — 목록 본문에 번호 없음, 입력 시 다른 조건 비활성, 보낸 즉시 비움). 목록 본문은 빈 조건의 키를 생략한다(null 없음 — BIZ-3 리뷰 1).
  * - 선택한 사업자 키(biz_)는 App 메모리에만([openBusinessIn]) — URL·location·브라우저 저장소·DOM에 없다(X-4·D-ADMIN-UI-004 ③). Business ID 열 없음.
- * - 사업자등록번호는 어디서나 마스킹(서버 값 그대로), 진위확인은 "미검증"(TC-21). 429는 공유 조회 창·번호 버킷 문구(Demo 값 — L-14).
+ * - 사업자등록번호는 어디서나 마스킹(서버 값 그대로). 진위확인(늘 "미검증" — TC-21)·국가(늘 KR)는 화면에 그리지 않는다(MERCHANT-IA-001 B2, D-ADMIN-UI-010 ② — 값·API 그대로). 429는 공유 조회 창·번호 버킷 문구(Demo 값 — L-14).
  * - 저장 성공 뒤 상세를 다시 읽는다(C-18). DRAFT 상세는 "새 가맹점 등록 불가" 안내(L-7·D-BIZ-001).
  */
 interface Props {
@@ -49,10 +49,17 @@ interface Props {
 type View = { kind: 'list' } | { kind: 'detail'; businessId: string } | { kind: 'edit'; businessId: string }
 interface Filters { displayNamePrefix: string; businessType: string; registrationStatus: string; createdFrom: string; createdTo: string }
 /** 목록 결과(검색 = keyset 쪽 이어붙임, 번호 조회 = 0/1건 — 같은 표 모양). */
-interface ListState { source: 'search' | 'lookup'; criteria: BusinessSearchInput; items: (BusinessListItem | BusinessLookupItem)[]; next: string | null }
+/** 목록 결과 — 일반 검색(BusinessListItem)과 번호 조회(BusinessLookupItem, 짧은 결과 모양 — MERCHANT-IA-001 B2)는 행 모양이 달라 출처로 나눈다. */
+type ListState =
+  | { source: 'search'; criteria: BusinessSearchInput; items: BusinessListItem[]; next: string | null }
+  | { source: 'lookup'; criteria: BusinessSearchInput; items: BusinessLookupItem[]; next: null }
 interface HistoryState { businessId: string; items: BusinessHistoryEntry[]; nextAfter: number | null }
 
 const LIST: View = Object.freeze({ kind: 'list' })
+/** 일반 검색 결과 열(MERCHANT-IA-001 B2 — 진위확인 열은 늘 '미검증'이라 뺐다, D-ADMIN-UI-010 ②). */
+const SEARCH_COLUMNS = ['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '가맹점 수', '수정일', '보기'] as const
+/** 사업자등록번호 조회 결과 열(D-ADMIN-UI-010 ⑦ 짧은 결과 모양 — 번호 조회 응답에 있는 값만). */
+const LOOKUP_COLUMNS = ['사업자등록번호', '상호', '등록 상태', '상세'] as const
 const NO_FILTERS: Filters = Object.freeze({ displayNamePrefix: '', businessType: '', registrationStatus: '', createdFrom: '', createdTo: '' })
 const EDIT_KEY = 'edit'
 /** 편집 기준 상세(리뷰 MINOR-1): 수정을 연 시점의 문서 — 폼의 이전 값·보내는 version은 항상 이것(지금 상세 version이 아님 — 낙관적 잠금 우회 방지). */
@@ -119,7 +126,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     setError(null)
     try {
       const page = await api.searchBusinesses(append && list?.next ? { ...criteria, after: list.next } : criteria)
-      setList({ source: 'search', criteria, items: append && list ? [...list.items, ...page.items] : page.items, next: page.next })
+      setList({ source: 'search', criteria, items: append && list?.source === 'search' ? [...list.items, ...page.items] : page.items, next: page.next })
     } catch (e) {
       fail(e)
     } finally {
@@ -290,7 +297,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
               {/* 리뷰 MINOR-2: 상세 화면 제목 — 버튼 전환 초점 자리(h2 tabIndex -1, 같은 초점 링). 목록 제목(h2)과 같은 단계(목록이 숨겨진 화면 — 모양 class 그대로). */}
               <h2 ref={titleRef} tabIndex={-1} className="text-base font-bold text-heading">{current.business.businessName}</h2>
               <Badge variant={current.business.registrationStatus === 'REGISTERED' ? 'success' : 'warning'}>{labelIn(REGISTRATION_STATUS_LABELS, current.business.registrationStatus)}</Badge>
-              <Badge variant="secondary">{`진위확인 ${verificationLabel(current.business.verificationStatus)}`}</Badge>
+              {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②): "진위확인 미검증" 배지는 늘 같은 값이라 뺐다. 오해(등록 완료 = 검증됨)는 바로 아래 안내 문구가 막는다 — 그 문구는 지우지 않는다. */}
             </div>
             <p className="text-xs text-muted-foreground">등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.</p>
             {current.business.registrationStatus === 'DRAFT' && (
@@ -425,31 +432,37 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
           <Table aria-label="사업자 목록">
             <TableHeader>
               <TableRow>
-                {['사업자등록번호', '상호', '대표자', '사업체 구분', '등록 상태', '진위확인', '가맹점 수', '수정일', '보기'].map((h) => <TableHead key={h}>{h}</TableHead>)}
+                {(list.source === 'lookup' ? LOOKUP_COLUMNS : SEARCH_COLUMNS).map((h) => <TableHead key={h}>{h}</TableHead>)}
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.items.length === 0 ? (
-                <EmptyRow columns={9} message={list.source === 'lookup' ? '이 번호로 등록된 사업자가 없습니다.' : '조건에 맞는 사업자가 없습니다.'} />
+                <EmptyRow columns={(list.source === 'lookup' ? LOOKUP_COLUMNS : SEARCH_COLUMNS).length} message={list.source === 'lookup' ? '이 번호로 등록된 사업자가 없습니다.' : '조건에 맞는 사업자가 없습니다.'} />
               ) : (
-                list.items.map((item) => {
-                  const full = 'updatedAt' in item ? item : null
-                  return (
+                // MERCHANT-IA-001 B2(D-ADMIN-UI-010 ⑦): 번호 조회 결과는 짧은 결과 모양 — 응답(BusinessLookupItem)에 있는 값만, '—' 칸을 그리지 않는다.
+                list.source === 'lookup' ? list.items.map((item) => (
                     <TableRow key={item.businessId}>
                       <TableCell className="font-mono">{item.registrationNumberMasked}</TableCell>
                       <TableCell className="font-medium">{item.businessName}</TableCell>
-                      <TableCell>{full ? representativeSummary(full.representativeNameMasked, full.representativeCount) : '—'}</TableCell>
-                      <TableCell>{full ? labelIn(BUSINESS_TYPE_LABELS, full.businessType) : '—'}</TableCell>
                       <TableCell>{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</TableCell>
-                      <TableCell>{full ? verificationLabel(full.verificationStatus) : '—'}</TableCell>
-                      <TableCell>{full ? full.merchantCount : '—'}</TableCell>
-                      <TableCell>{full ? <KstTime iso={full.updatedAt} /> : '—'}</TableCell>
                       <TableCell>
                         <Button type="button" variant="outline" size="sm" aria-label={`${item.businessName} 상세`} onClick={() => { openDetail(item.businessId); focusTitle.current = true }}>상세</Button>
                       </TableCell>
                     </TableRow>
-                  )
-                })
+                )) : list.items.map((item) => (
+                    <TableRow key={item.businessId}>
+                      <TableCell className="font-mono">{item.registrationNumberMasked}</TableCell>
+                      <TableCell className="font-medium">{item.businessName}</TableCell>
+                      <TableCell>{representativeSummary(item.representativeNameMasked, item.representativeCount)}</TableCell>
+                      <TableCell>{labelIn(BUSINESS_TYPE_LABELS, item.businessType)}</TableCell>
+                      <TableCell>{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</TableCell>
+                      <TableCell>{item.merchantCount}</TableCell>
+                      <TableCell><KstTime iso={item.updatedAt} /></TableCell>
+                      <TableCell>
+                        <Button type="button" variant="outline" size="sm" aria-label={`${item.businessName} 상세`} onClick={() => { openDetail(item.businessId); focusTitle.current = true }}>상세</Button>
+                      </TableCell>
+                    </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
@@ -476,11 +489,9 @@ function DetailInfo({ detail }: { detail: BusinessDetail }) {
         <Row term="사업자등록번호"><span className="font-mono">{business.registrationNumberMasked}</span></Row>
         <Row term="상호">{business.businessName}</Row>
         <Row term="사업체 구분">{labelIn(BUSINESS_TYPE_LABELS, business.businessType)}</Row>
-        <Row term="등록 상태">{labelIn(REGISTRATION_STATUS_LABELS, business.registrationStatus)}</Row>
-        <Row term="진위확인">{verificationLabel(business.verificationStatus)}</Row>
+        {/* MERCHANT-IA-001 B2(D-ADMIN-UI-010 ②, 명세 §3.10): '등록 상태'는 머리 배지와 중복, '진위확인'(늘 미검증)·'국가'(늘 KR)는 늘 같은 값이라 뺐다(값·API 그대로). */}
         {business.businessType === 'CORPORATION' && <Row term="법인등록번호">{or(registration.corporateRegistrationNumber, (v) => <span className="font-mono">{formatCorporateNumber(v)}</span>)}</Row>}
         <Row term="개업일">{or(registration.openingDate)}</Row>
-        <Row term="국가">{registration.countryCode}</Row>
         <Row term="영문 상호">{or(registration.englishName)}</Row>
         <Row term="가맹점 수">{business.merchantCount}</Row>
         <Row term="등록일"><KstTime iso={business.createdAt} /></Row>

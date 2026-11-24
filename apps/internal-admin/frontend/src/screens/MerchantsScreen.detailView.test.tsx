@@ -98,7 +98,7 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     const { api, show } = setup()
     show()
     await userEvent.type(screen.getByLabelText('가맹점명'), '데모')
-    await userEvent.selectOptions(screen.getByLabelText('상태'), 'ACTIVE')
+    // 기대값 변경(MERCHANT-IA-001 B2 — 사용자 결정 D-ADMIN-UI-010 ② "늘 같은 값은 화면에서 뺀다", 명세 §7 B2): 상태 필터가 없어졌다 — 돌아와도 남는 조건은 가맹점명으로 본다.
     await userEvent.click(screen.getByRole('button', { name: '검색' }))
     await userEvent.click(await screen.findByRole('button', { name: '다음' }))
     await openRow(MER2)
@@ -112,7 +112,6 @@ describe('MerchantsScreen — list ↔ detail screen switch (MERCHANT-DETAIL-VIE
     expect(screen.queryByRole('row', { name: codeOf(MER1) })).toBeNull()
     expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
     expect(screen.getByLabelText('가맹점명')).toHaveValue('데모')
-    expect(screen.getByLabelText('상태')).toHaveValue('ACTIVE')
     expect(api.merchantSearch).toHaveBeenCalledTimes(2)
     expect(api.merchantDetail).toHaveBeenCalledTimes(1)
   })
