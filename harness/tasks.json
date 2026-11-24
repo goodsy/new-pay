@@ -880,17 +880,72 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "IA-B1-scoped",
+        "tag": "IA-B2-scoped",
         "verdict": "PASS",
-        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T033357Z.json"
+        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T035138Z.json"
       },
       "openItems": [
         "1단계: 정리안(현재 항목 전수 → 남김/묶음 이동/접기/빼기, 목표 구조, 질문) 작성 → 사용자 승인 전 화면 구현 금지",
         "참고 원칙: 업무 단위 섹션(회사/대표자/담당자), MID 선택 + 계약 상태·계약일 머리, 탭(정산/수수료/결제·부가서비스), 칩·이용가능 표, 기술 정보 비노출",
         "사용자 답 Q-IA-1~8 → D-ADMIN-UI-010(Q-IA-4만 권장안과 다름: MID 선택 상세 맨 위). 명세 rev 0.2 반영 → 배치 B1(잡음 제거)→B2(고정값·번호 검색)→B3(내부 식별자)→B4(머리·탭·MID 선택)→B5(사업자 섹션·연결 가맹점)→B6(목록·용어). 배치마다 리뷰+SCOPED+커밋(D-PROC-007), Demo 확인",
-        "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영"
+        "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영",
+        "D-ADMIN-UI-011(pg-lab 참고): 화면 패턴 먼저 — 사업자 등록 번호 확인 먼저, 결제 준비 상태 줄+탭, 필터 묶음, 사업자 상세 항상 편집 폼+저장(Q-IA-6 대체). B2 뒤 명세 rev 0.3에 반영. 참고 캡처 scratchpad/pglab/*.png",
+        "B2 완료(명세 rev 0.2b): 사업자 목록 진위확인 열·상세 진위확인 배지/진위확인·국가·등록 상태(머리 배지와 중복) 줄 제거, 번호 검색 결과 4열, 가맹점 목록 상태 열·필터와 상세 가맹점/사업자 상태 줄 제거(DB·API 유지, '등록 완료 ≠ 진위확인' 안내 유지·시험 고정). Vitest 731, tsc 0, 캡처 6폭×2테마×5화면 이상 없음(build/harness-evidence/MERCHANT-IA-001-B2-capture-20261124T034046Z). 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영)"
       ],
-      "nextResumeAction": "B1 커밋 → B2(고정값 빼기·번호 검색 짧은 결과)",
+      "nextResumeAction": "B2 커밋 → 명세 rev 0.3(D-ADMIN-UI-011 pg-lab 패턴) → B3",
+      "detail": null
+    },
+    {
+      "id": "MERCHANT-FLOW-001",
+      "title": "사업자·가맹점 업무 흐름 재설계 검토(pg-lab식 사업자 계약 진행 상태·계약 조건·영업대행사·등급·메모·원문 조회)",
+      "status": "BACKLOG",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "MERCHANT-IA-001"
+      ],
+      "spec": "D-ADMIN-UI-011 ①: 화면 패턴 적용 뒤 별도 명세. 금융·계약·개인정보 의미 — 사용자 결정 필요",
+      "allowedWritePaths": [
+        "docs/repository/MERCHANT-FLOW-001-*.md",
+        "harness/tasks.json",
+        "harness/questions.json",
+        "docs/DECISIONS.md"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "pg-lab 대비 차이: 사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료/불가/해지)·계약 완료 후 상점 등록, 수수료·담보·신청 서비스가 사업자 계약 조건, 접수 경로·영업대행사·계약 담당자, 가맹점 등급·업종분류·가상자산 취급, 대표자 생년월일·성별·지분율·실소유자, 메모(append-only), 개인정보 원문 조회(감사). 우리: 계약 Revision이 가맹점에 붙고 2인 승인"
+      ],
+      "nextResumeAction": "MERCHANT-IA-001 화면 패턴 완료 뒤 명세 초안 + 사용자 질문",
+      "detail": null
+    },
+    {
+      "id": "ADMIN-DEMO-LOGIN-001",
+      "title": "데모 간편 로그인(데모 계정 고르기, DEMO 모드+명시 설정 한정, LIVE 기동 거부)",
+      "status": "IN_PROGRESS",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "docs/repository/ADMIN-DEMO-LOGIN-001-DEMO-QUICK-LOGIN.md, D-ADMIN-AUTH-DEMO-001",
+      "allowedWritePaths": [
+        "apps/internal-admin/src/main/**",
+        "apps/internal-admin/src/test/**",
+        "apps/internal-admin/frontend/src/App.tsx",
+        "apps/internal-admin/frontend/src/screens/LoginScreen*",
+        "apps/internal-admin/frontend/src/api/**",
+        "apps/internal-admin/frontend/src/layout/**",
+        "apps/internal-admin/frontend/src/components/**",
+        "apps/internal-admin/.env.example",
+        "docs/repository/ADMIN-DEMO-LOGIN-001-DEMO-QUICK-LOGIN.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "보안 기능(데모 한정): 독립 리뷰 필수, 운영 준비 체크리스트에 '반드시 끔' 항목",
+        "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인"
+      ],
+      "nextResumeAction": "명세 초안 → 구현 → 리뷰 → SCOPED → 커밋 → Demo 설정 켜기",
       "detail": null
     }
   ]

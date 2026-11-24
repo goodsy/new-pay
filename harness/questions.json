@@ -4436,6 +4436,70 @@
       "humanAnswer": "MID 것만 따라감 (권장)",
       "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
       "appliedSpec": "D-ADMIN-UI-010"
+    },
+    {
+      "id": "Q-IA-9",
+      "status": "ANSWERED",
+      "question": "pg-lab 내부관리자처럼 바꿀 범위",
+      "recommended": "화면 패턴 먼저(업무 흐름은 별도 명세)",
+      "alternative": "업무 흐름까지 함께 설계 / 병행",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "사용자 참고 화면 pg-lab-admin.vercel.app (2026-11-24)",
+      "humanAnswer": "화면 패턴 먼저 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-011"
+    },
+    {
+      "id": "Q-IA-10",
+      "status": "ANSWERED",
+      "question": "사업자 상세 편집 방식",
+      "recommended": "보기 기본 + 섹션 '변경'",
+      "alternative": "항상 편집 폼 + 저장(pg-lab식)",
+      "impact": "사업자·가맹점 관리자 화면 표시·구조(DB·API·감사·2인 승인 규칙 불변)",
+      "dependentTasks": [
+        "MERCHANT-IA-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "사용자 참고 화면 pg-lab-admin.vercel.app (2026-11-24)",
+      "humanAnswer": "항상 편집 폼 (pg-lab식)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-011"
+    },
+    {
+      "id": "Q-DEMOLOGIN-1",
+      "status": "ANSWERED",
+      "question": "로그인 없이 들어가는 방식",
+      "recommended": "데모 계정 고르기(역할·감사·2인 승인 유지)",
+      "alternative": "운영자 자동 입장 / TOTP만 생략",
+      "impact": "관리자 인증(데모 한정) — 운영 준비 전 제거 필요",
+      "dependentTasks": [
+        "ADMIN-DEMO-LOGIN-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "세션 대화(초기 개발 편의 요청)",
+      "humanAnswer": "데모 계정 고르기 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-AUTH-DEMO-001"
+    },
+    {
+      "id": "Q-DEMOLOGIN-2",
+      "status": "ANSWERED",
+      "question": "데모 간편 로그인 사용 범위",
+      "recommended": "데모에서만, Tailscale 포함(DEMO 모드+명시 설정, LIVE 기동 거부)",
+      "alternative": "맥 로컬(localhost)에서만",
+      "impact": "관리자 인증(데모 한정) — 운영 준비 전 제거 필요",
+      "dependentTasks": [
+        "ADMIN-DEMO-LOGIN-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "세션 대화(초기 개발 편의 요청)",
+      "humanAnswer": "데모에서만, Tailscale 포함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-AUTH-DEMO-001"
     }
   ]
 }
