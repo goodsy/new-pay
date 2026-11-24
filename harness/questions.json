@@ -4260,6 +4260,38 @@
       "humanAnswer": "게이트 운영방식은 나로 해주고",
       "humanEvidence": "Claude Code 세션 사용자 메시지 (2026-11-24)",
       "appliedSpec": "D-PROC-007"
+    },
+    {
+      "id": "Q-ADMIN-UI-10",
+      "status": "ANSWERED",
+      "question": "가맹점 상세 표시 방식",
+      "recommended": "사업자 상세와 같은 화면 전환(사용자 제안)",
+      "alternative": "현행 목록 아래 펼침",
+      "impact": "관리자 사업자·가맹점 화면 표시",
+      "dependentTasks": [
+        "MERCHANT-DETAIL-VIEW-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "세션 대화(Demo 화면 피드백)",
+      "humanAnswer": "기준정보 상세보기 화면 아래가 아닌 화면 전환으로 할거야",
+      "humanEvidence": "Claude Code 세션 사용자 메시지·선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-009"
+    },
+    {
+      "id": "Q-ADMIN-UI-11",
+      "status": "ANSWERED",
+      "question": "사업자·가맹점 화면 불필요 항목 정리 범위",
+      "recommended": "기술 정보 접기 + 고정값 항목 빼기 + 번호 검색 빈 칸 정리(모두 권장)",
+      "alternative": "직접 고르기",
+      "impact": "관리자 사업자·가맹점 화면 표시",
+      "dependentTasks": [
+        "MERCHANT-DETAIL-VIEW-001"
+      ],
+      "askedAt": "2026-11-24",
+      "origin": "세션 대화(Demo 화면 피드백)",
+      "humanAnswer": "기술 정보 접기 (권장)만 선택",
+      "humanEvidence": "Claude Code 세션 사용자 메시지·선택 (2026-11-24)",
+      "appliedSpec": "D-ADMIN-UI-009"
     }
   ]
 }

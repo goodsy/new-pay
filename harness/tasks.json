@@ -827,6 +827,38 @@
       ],
       "nextResumeAction": "완료",
       "detail": null
+    },
+    {
+      "id": "MERCHANT-DETAIL-VIEW-001",
+      "title": "가맹점 상세 화면 전환 + 기술 정보 접기(D-ADMIN-UI-009)",
+      "status": "IN_PROGRESS",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "사용자 요청 2026-11-24 '기준정보 상세보기 화면 아래가 아닌 화면 전환으로'. 기존 관례: BusinessesScreen View {list|detail|edit} + ScreenMemory",
+      "allowedWritePaths": [
+        "apps/internal-admin/frontend/src/**",
+        "docs/DECISIONS.md",
+        "harness/questions.json",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "MDV-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/MERCHANT-DETAIL-VIEW-001-2026-11-24T012755Z.json"
+      },
+      "openItems": [
+        "Coordinator 결정(가역 UI 세부, 저장소 관례): 사업자 상세와 같은 화면 전환 패턴, '← 목록으로'로 복귀 시 검색 조건·결과·스크롤 유지, URL 불변(콘솔 전체 관례), 내부 키 DOM 노출 금지(C-14) 유지, 상세 기능·시험 기대값 불변",
+        "D-PROC-007: 리뷰 + SCOPED → 커밋 → 묶음 FULL",
+        "1단계 구현(화면 전환) 완료: Vitest 705, tsc 0, Demo 캡처 24장 넘침·style·CSP 0, §7.1 activationMemory 시험 2건은 닫기 경로만 '목록으로' 추가(단언 불변 — 리뷰 확인)",
+        "2단계: 권리 revision·권리 전파 → 상세의 접힌 '기술 정보'(목록 열 제거). [관찰] ctr_·csa_ 식별자가 상세에 원래부터 표시 — SITE-CONTRACT-CODE-001(사람용 코드) 대상, 이번 범위 밖",
+        "2단계 + 리뷰 반영 완료: 기술 정보 <details>(목록 권리 revision 열 제거), 세션 경계 초기화 App 시험 2, 상세↔목록 전환 시 h2 초점(가맹점·사업자 모두, 사업자 상세 제목 h3→h2 모양 불변), 이력만 재조회. Vitest 714, tsc 0, 캡처 24장 넘침·style·CSP·mer_/biz_ 0(build/harness-evidence/MERCHANT-DETAIL-VIEW-001-capture-20261124T012520Z). 독립 리뷰 REVIEW_PASS → 재리뷰 REVIEW_PASS. §7.1 activationMemory 시험은 '목록으로' 클릭 한 줄·주석만 추가(Coordinator diff 확인)",
+        "[후속 NIT] 세션 끝 메모리 초기화 두 줄은 이중 방어라 단독 변이 미검출(관측 성질은 시험) / 이력 진행 중 탭 왕복 시 이력 1회 추가 조회 / 2인 승인 요청 폼 busy는 화면 자체 상태(서버 DUPLICATE_UNRESOLVED가 막음) / 복원 상세는 재조회 안 함(사용자 결정 ①)",
+        "SCOPED MDV-scoped1 PASS(units INTERNAL-ADMIN·ADMIN-FRONTEND, fp 1e70ce22…). D-PROC-007: 커밋 후 FULL 대기 — DONE은 다음 묶음 FULL PASS 뒤"
+      ],
+      "nextResumeAction": "커밋 완료 → 다음 묶음 FULL PASS 시 DONE",
+      "detail": null
     }
   ]
 }

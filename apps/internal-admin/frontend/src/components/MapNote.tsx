@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 /**
  * 탭 패널 제목 줄(참고 시안 `.mapnote` — `<b>탭 이름</b> · 설명`, 화면 이름은 h2). MenuCard flush 화면이 쓴다.
@@ -6,10 +6,11 @@ import type { ReactNode } from 'react'
  * 배치는 workspace.css `.mapnote:has(> .btn)`(새 색·크기 없음). [action]이 없으면 지금 모양 그대로(h2가 .mapnote 바로 안).
  * reviewFix1 MINOR-3: h2는 tabIndex -1 — 버튼으로 화면이 바뀌면 App이 이 제목으로 초점을 옮긴다(Tab 순서에는 없음, 초점 링은 workspace.css).
  */
-export function MapNote({ title, children, action }: { title: ReactNode; children: ReactNode; action?: ReactNode }) {
+export function MapNote({ title, children, action, titleRef }: { title: ReactNode; children: ReactNode; action?: ReactNode; titleRef?: Ref<HTMLHeadingElement> }) {
   const text = (
     <>
-      <h2 tabIndex={-1}>{title}</h2>
+      {/* MERCHANT-DETAIL-VIEW-001 리뷰 MINOR-2: [titleRef] — 화면 안 버튼 전환(목록 ↔ 상세) 뒤 화면이 이 제목으로 초점을 옮길 때 쓴다(App 전환과 같은 h2 tabIndex -1). */}
+      <h2 tabIndex={-1} ref={titleRef}>{title}</h2>
       {' · '}
       {children}
     </>

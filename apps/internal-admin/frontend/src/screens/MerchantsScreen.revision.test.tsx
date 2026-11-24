@@ -210,8 +210,11 @@ describe('MerchantsScreen — B2-1 result-unknown lock survives closing the form
   it('opening another merchant and coming back keeps the lock and resends the same submissionId and payload', async () => {
     const { send } = setup()
     await lockFirstMerchant()
+    // MERCHANT-DETAIL-VIEW-001: 상세는 목록과 다른 화면이다 — 다른 가맹점은 '목록으로'로 목록에 돌아가 연다(목록 아래 상세 시절의 "목록에서 바로 다른 행 열기"와 같은 경로·같은 단언).
+    await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     await openMerchant(MER2)
     await screen.findByRole('table', { name: `계약 revision ${CTR2}` })
+    await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     await openMerchant(MER1)
     await screen.findByRole('table', { name: `계약 revision ${CTR1}` })
     await openRevisionForm()

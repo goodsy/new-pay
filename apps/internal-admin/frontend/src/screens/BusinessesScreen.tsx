@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { AdminApi, BusinessDetail, BusinessHistoryChange, BusinessHistoryEntry, BusinessListItem, BusinessLookupItem, BusinessSearchInput } from '../api/adminApi'
 import { EmptyRow, Field, KstTime, Spinner } from '../components/DataBits'
 // 상세 카드·줄은 components/DetailCard.tsx로 그대로 옮김(출력 동일 — 등록 폼 FormRow와 나란히 쓰는 공용 구성요소).
@@ -181,6 +181,17 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     }
   }
 
+  // MERCHANT-DETAIL-VIEW-001 리뷰 MINOR-2: 화면 안 버튼 전환(목록 '상세' → 상세, '목록으로' → 목록) 뒤 새 화면 제목(h2, tabIndex -1)으로 초점 — App 버튼 전환과 같은 관례.
+  // 상세 제목(상호)은 문서를 읽은 뒤 그려지므로 요청을 남겨 두고 제목이 생긴 렌더에서 옮긴다. 처음 열기·탭 전환·다른 화면 링크는 옮기지 않는다.
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const focusTitle = useRef(false)
+  useEffect(() => {
+    if (focusTitle.current && titleRef.current) {
+      focusTitle.current = false
+      titleRef.current.focus()
+    }
+  })
+
   const openDetail = (businessId: string) => {
     setHandoff(null)
     setEditBlocked(false)
@@ -269,14 +280,15 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     return (
       <section aria-label="사업자 상세" className="flex flex-col gap-4">
         <div>
-          <Button type="button" variant="outline" size="sm" onClick={() => { setHandoff(null); setView(LIST) }}>목록으로</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setHandoff(null); setView(LIST); focusTitle.current = true }}>목록으로</Button>
         </div>
         {detailError && <ErrorNotice>{detailError}</ErrorNotice>}
         {!current && !detailError && <p className="text-sm text-muted-foreground"><Spinner active /> 불러오는 중…</p>}
         {current && (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-bold text-heading">{current.business.businessName}</h3>
+              {/* 리뷰 MINOR-2: 상세 화면 제목 — 버튼 전환 초점 자리(h2 tabIndex -1, 같은 초점 링). 목록 제목(h2)과 같은 단계(목록이 숨겨진 화면 — 모양 class 그대로). */}
+              <h2 ref={titleRef} tabIndex={-1} className="text-base font-bold text-heading">{current.business.businessName}</h2>
               <Badge variant={current.business.registrationStatus === 'REGISTERED' ? 'success' : 'warning'}>{labelIn(REGISTRATION_STATUS_LABELS, current.business.registrationStatus)}</Badge>
               <Badge variant="secondary">{`진위확인 ${verificationLabel(current.business.verificationStatus)}`}</Badge>
             </div>
@@ -354,6 +366,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
   return (
     <section className="flex flex-col gap-4">
       <PageHeader
+        titleRef={titleRef}
         title="사업자 조회"
         description="등록된 사업자(가맹점이 없는 사업자 포함)를 찾고 상세·변경 이력을 확인합니다. 상세 열람은 감사 기록에 남습니다."
         action={onRegister && <button type="button" className="btn primary" onClick={onRegister}>＋ 사업자 등록</button>}
@@ -432,7 +445,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                       <TableCell>{full ? full.merchantCount : '—'}</TableCell>
                       <TableCell>{full ? <KstTime iso={full.updatedAt} /> : '—'}</TableCell>
                       <TableCell>
-                        <Button type="button" variant="outline" size="sm" aria-label={`${item.businessName} 상세`} onClick={() => openDetail(item.businessId)}>상세</Button>
+                        <Button type="button" variant="outline" size="sm" aria-label={`${item.businessName} 상세`} onClick={() => { openDetail(item.businessId); focusTitle.current = true }}>상세</Button>
                       </TableCell>
                     </TableRow>
                   )

@@ -84,7 +84,9 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     await within(area).findByRole('button', { name: '같은 개통 등록 다시 보내기' })
     expect(hasUnresolvedRequest(memory)).toBe(true)
 
-    // 상세 닫기(다시 검색 — 상세가 사라진다) → 다시 열기.
+    // 상세 닫기('목록으로' → 다시 검색 — 상세가 사라진다) → 다시 열기.
+    // MERCHANT-DETAIL-VIEW-001: 상세가 목록과 다른 화면이 되어 상세 화면에는 검색 버튼이 없다 — 먼저 '목록으로'(닫기 경로만 바뀜, 잠금 단언 그대로).
+    await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     area = await openDetail()
     expect(within(area).getByRole('button', { name: '같은 개통 등록 다시 보내기' })).toBeEnabled()
     expect(within(area).queryByRole('button', { name: '개통 등록(카드)' })).toBeNull()
@@ -120,6 +122,8 @@ describe('MerchantsScreen — activation one-shot lock survives closing the deta
     expect(hasUnresolvedRequest(memory)).toBe(true)
 
     // 상세 닫기 → 다시 열기: 잠긴 거절 폼이 다시 열려 있고 보낸 사유·근거를 보인다.
+    // MERCHANT-DETAIL-VIEW-001: 상세 화면에는 검색 버튼이 없다 — 먼저 '목록으로'(닫기 경로만 바뀜, 잠금 단언 그대로).
+    await userEvent.click(screen.getByRole('button', { name: '목록으로' }))
     area = await openDetail()
     expect(within(rowOf(area, SITE2)).getByRole('button', { name: '같은 거절 다시 보내기' })).toBeInTheDocument()
     expect(within(rowOf(area, SITE2)).getByLabelText('거절 사유')).toBeDisabled()

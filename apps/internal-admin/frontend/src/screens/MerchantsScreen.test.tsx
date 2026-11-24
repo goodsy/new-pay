@@ -78,7 +78,8 @@ async function openDetail(overrides: Parameters<typeof fakeApi>[0]) {
 }
 
 describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant lookup)', () => {
-  it('search sends only the filled criteria and lists the masked registration number, MID count and entitlement revision', async () => {
+  // 기대값 변경(D-ADMIN-UI-009 ② 사용자 결정 2026-11-24 "기술 정보 접기"): 목록의 '권리 revision' 열은 없앴다 — 값은 상세의 접힌 "기술 정보"에 있다(MerchantsScreen.techInfo.test).
+  it('search sends only the filled criteria and lists the masked registration number and MID count (no entitlement revision column)', async () => {
     const api = fakeApi({ merchantSearch: vi.fn(async () => ({ items: [item(MER1, '데모 가맹점')], nextCursor: null })) })
     render(<MerchantsScreen api={api} canSearchRegistrationNumber={false} />)
     // 기대값 변경(MERCHANT-CODE-001 MC-2, D-ADMIN-UI-004 ③): "가맹점 ID" 검색란이 "가맹점 코드"(단일 기준)로 바뀌었다 — 채운 조건만 보내는 규칙은 상태 조건으로 확인한다.
@@ -97,7 +98,8 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(row).toHaveTextContent(MASKED)
     expect(row).toHaveTextContent('활성')
     expect(within(row).getByText('2', { selector: '[data-col="midCount"]' })).toBeInTheDocument()
-    expect(within(row).getByText('4', { selector: '[data-col="entitlementRevision"]' })).toBeInTheDocument()
+    expect(row.querySelector('[data-col="entitlementRevision"]')).toBeNull()
+    expect(within(screen.getByRole('table', { name: '가맹점 목록' })).queryByRole('columnheader', { name: '권리 revision' })).toBeNull()
     expect(row).toHaveTextContent('2026-10-01 09:00:00')
     expect(screen.queryByRole('button', { name: '다음' })).toBeNull()
   })
@@ -261,7 +263,12 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(within(limits).getByRole('row', { name: id('tlp', 2) })).toHaveTextContent('표시할 수 없는 금액')
     expect(limits).toHaveTextContent('Demo')
 
-    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
+    // D-ADMIN-UI-009 ②: 권리 전파는 기본 접힘 "기술 정보" 안 — 열면 같은 값(기대값 그대로).
+    const techInfo = screen.getByRole('group', { name: '기술 정보' })
+    expect(techInfo).not.toHaveAttribute('open')
+    await userEvent.click(within(techInfo).getByText('기술 정보'))
+    expect(techInfo).toHaveAttribute('open')
+    const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
     expect(propagation).toHaveTextContent('최신 revision 4')
     expect(propagation).toHaveTextContent('수신 확인 revision 3')
     expect(propagation).toHaveTextContent('효력 확인 전')
@@ -425,11 +432,15 @@ describe('MerchantsScreen — MERCHANT-CODE-001 MC-2 code display and code searc
  * 안쪽 정의 목록만 사업자 상세 DetailRow 줄(이름 140px 열 · 줄 사이 얇은 선 · 640px 미만 위아래). 모양만 — 값·이름 글자·업무 호출은 위 시험이 지킨다.
  */
 describe('LAYOUT-ROLLOUT B6: 가맹점 상세 정의 목록 = 사업자 상세 줄(DetailRow)', () => {
-  it('기본정보 · 권리 전파 상태는 바깥 Panel 그대로, 안쪽은 140px 이름 열 줄(style 속성 없음)', async () => {
+  // 기대값 변경(D-ADMIN-UI-009 ② "기술 정보 접기"): 기본정보의 '권리 revision' 줄은 접힌 "기술 정보"의 '가맹점 권리' Panel로 옮겼다(값 그대로). 권리 전파 상태는 같은 Panel 모양으로 그 안에.
+  it('기본정보 · 가맹점 권리 · 권리 전파 상태는 바깥 Panel 그대로, 안쪽은 140px 이름 열 줄(style 속성 없음)', async () => {
     await openDetail({ merchantDetail: vi.fn(async () => detail), merchantHistory: vi.fn(async () => ({ items: [], nextCursor: null })) })
     const basics = await screen.findByRole('region', { name: '기본정보' })
-    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '가맹점 상태', '권리 revision', '등록일', '사업자', '사업자등록번호(마스킹)', '사업자 상태'])
-    const propagation = screen.getByRole('region', { name: '권리 전파 상태' })
+    expectDetailRows(panelDetailList(basics, '기본정보'), ['가맹점', '가맹점 상태', '등록일', '사업자', '사업자등록번호(마스킹)', '사업자 상태'])
+    const techInfo = screen.getByRole('group', { name: '기술 정보' })
+    await userEvent.click(within(techInfo).getByText('기술 정보'))
+    expectDetailRows(panelDetailList(within(techInfo).getByRole('region', { name: '가맹점 권리' }), '가맹점 권리'), ['권리 revision'])
+    const propagation = within(techInfo).getByRole('region', { name: '권리 전파 상태' })
     expectDetailRows(panelDetailList(propagation, '권리 전파 상태'), ['발행', '결제 서비스 수신', '효력'])
     // 값은 그대로(상태 배지 · 마스킹 번호 · 효력 확인 전).
     expect(within(basics).getAllByText('활성').length).toBeGreaterThan(0)

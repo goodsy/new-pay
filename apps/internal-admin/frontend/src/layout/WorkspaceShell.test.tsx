@@ -223,7 +223,8 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 가맹점 조회 in t
     expect(wrap.querySelector('table')).toHaveAccessibleName('가맹점 목록')
     expect(wrap.nextElementSibling).toHaveClass('tablebottom')
     expect(within(wrap.nextElementSibling as HTMLElement).getByRole('button', { name: '다음' })).toHaveClass('btn')
-    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', '상태', 'MID 수', '권리 revision', '등록일', '작업'])
+    // 기대값 변경(D-ADMIN-UI-009 ② 사용자 결정 2026-11-24 "기술 정보 접기"): '권리 revision' 열 제거(§7.2 전환 대상 DOM 구조 부분 — 값은 상세의 접힌 기술 정보).
+    expect(Array.from(wrap.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['가맹점', '사업자', '사업자등록번호(마스킹)', '상태', 'MID 수', '등록일', '작업'])
     const first = row.querySelector('td')!
     expect(first.querySelector('strong')).toHaveTextContent('데모 가맹점')
     expect(first.querySelector('small')).toHaveTextContent('shop000001')

@@ -21,7 +21,7 @@ import { LoginScreen } from './screens/LoginScreen'
 import { BusinessProfileFormScreen } from './screens/BusinessProfileFormScreen'
 import { BusinessesScreen, openBusinessIn, showBusinessListIn } from './screens/BusinessesScreen'
 import { MerchantRegistrationScreen, registrationHandoffState, startWithBusiness } from './screens/MerchantRegistrationScreen'
-import { MerchantsScreen } from './screens/MerchantsScreen'
+import { MerchantsScreen, showMerchantListIn } from './screens/MerchantsScreen'
 import { PaymentOpsScreen } from './screens/PaymentOpsScreen'
 import { ReconciliationScreen } from './screens/ReconciliationScreen'
 import { TransactionsScreen } from './screens/TransactionsScreen'
@@ -101,6 +101,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   const [businessesMemory, setBusinessesMemory] = useState(createScreenMemory)
   // 조회 상세 Revision 폼 상태(B2-1 — 결과 불명 잠금·submissionId, 리뷰 C-M1). 등록 화면과 같이 세션마다 새로.
   const [revisionMemory, setRevisionMemory] = useState(createScreenMemory)
+  // 가맹점 조회 탭 상태(MERCHANT-DETAIL-VIEW-001 — 목록 ↔ 상세 화면, 검색 조건·결과·커서·연 상세). 사업자 조회 메모리와 같은 규칙: 메모리에만(내부 키 mer_ 포함 — URL·브라우저 저장소·DOM 없음), 세션마다 새로.
+  const [merchantsMemory, setMerchantsMemory] = useState(createScreenMemory)
   // "가맹점 조회에서 보기"로 열 가맹점 — 조회 화면이 한 번 열면 비운다(리뷰 m-3).
   const [lookupMerchantId, setLookupMerchantId] = useState<string | null>(null)
   // B2-1 리뷰 n-a: 세션이 끝날 때 결과 확인이 필요한 등록 단계·Revision 폼이 있었으면 로그인 화면에 한 번 안내한다(다음 로그인에서 지운다 — 입력·submissionId는 남기지 않는다).
@@ -115,6 +117,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setBusinessMemory(createScreenMemory())
     setBusinessesMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
+    setMerchantsMemory(createScreenMemory())
     setLookupMerchantId(null)
   }, [])
 
@@ -135,6 +138,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
     setBusinessMemory(createScreenMemory())
     setBusinessesMemory(createScreenMemory())
     setRevisionMemory(createScreenMemory())
+    setMerchantsMemory(createScreenMemory())
     setLookupMerchantId(null)
   }, [registrationMemory, businessMemory, businessesMemory, revisionMemory])
 
@@ -149,6 +153,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
       setBusinessMemory(createScreenMemory())
       setBusinessesMemory(createScreenMemory())
       setRevisionMemory(createScreenMemory())
+      setMerchantsMemory(createScreenMemory())
       setLookupMerchantId(null)
     }
   }
@@ -198,10 +203,11 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
   }
   /**
    * 목록 탭이 목록을 열게(reviewFix1 MINOR-1): 사업자 조회는 기억한 화면(상세)을 다시 여므로 그 'view'만 목록으로 — 결과 확인용 편집 메모리(edit.*)는 그대로.
-   * 가맹점 조회는 기억한 상세가 없어(화면 자체 상태) 그대로 열면 목록이다.
+   * 가맹점 조회도 같다(MERCHANT-DETAIL-VIEW-001 — 기억한 상세 화면의 'view'만 목록으로, 결과 불명 잠금 메모리(revisionMemory)·검색 결과는 그대로).
    */
   const showListOf = (target: Page) => {
     if (target === 'businesses') showBusinessListIn(businessesMemory)
+    if (target === 'merchants') showMerchantListIn(merchantsMemory)
   }
   /** 등록 화면 '목록으로': 부모 탭의 목록 + 제목 초점. */
   const backToList = (target: Page) => {
@@ -273,6 +279,7 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 canRequestApproval={me.roles.includes('OPERATOR')}
                 onOpenApprovals={() => open('mine')}
                 revisionMemory={revisionMemory}
+                memory={merchantsMemory}
                 onSessionEnded={sessionEnded}
                 openMerchantId={lookupMerchantId}
                 onOpenedMerchant={() => setLookupMerchantId(null)}
