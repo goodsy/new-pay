@@ -936,6 +936,8 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       accounts: vi.fn(async () => ({ accounts: [] })),
       audit: vi.fn(async () => ({ entries: [] })),
       businessDetail: vi.fn(async (businessId: string) => detailFor(businessId)),
+      // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 사업자 등록 1단계 번호 확인의 기본 대역 = "없음"(가맹점 등록 ① 찾기를 쓰는 시험은 아래에서 덮어쓴다).
+      lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })),
       ...overrides,
     })
     return { view: render(<App api={api} />), api }
@@ -958,8 +960,11 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   const formCard = () => screen.getByRole('region', { name: '사업자 기본' })
   /** 사업자 등록 폼의 최소(임시저장) 칸. */
   async function fillDraftBusiness(number = BRN, name = '데모 사업자') {
-    await user.click(screen.getByRole('radio', { name: '개인' }))
+    // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 확인(1단계) → 2단계 입력. 넘겨주기·잠금·재전송 단언은 그대로.
     await typeIn(page(), '사업자등록번호', number)
+    await user.click(within(screen.getByRole('form', { name: '사업자등록번호 확인' })).getByRole('button', { name: '확인' }))
+    await screen.findByRole('region', { name: '사업자 기본' })
+    await user.click(screen.getByRole('radio', { name: '개인' }))
     await typeIn(page(), '상호', name)
   }
   /** 사업자 등록 폼에서 REGISTERED 사업자를 만든다(등록 완료 → 사업자 조회 상세 — C-18 재조회). */
@@ -982,6 +987,10 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['가맹점', '사업자'])
     await openTab('사업자 등록')
     expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
+    // 기대값 변경(MERCHANT-IA-001 B5b — D-ADMIN-UI-011 ①): 사업자 등록은 번호 확인 단계부터 — 확인 뒤 같은 입력 폼(단언 그대로).
+    expect(await screen.findByRole('form', { name: '사업자등록번호 확인' })).toBeInTheDocument()
+    await typeIn(page(), '사업자등록번호', BRN)
+    await user.click(screen.getByRole('button', { name: '확인' }))
     expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '등록 단계' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '등록 완료' })).toHaveLength(1)
@@ -1206,12 +1215,15 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   const expectFreshRegistration = async () => {
     await openMerchants()
     await openTab('사업자 등록')
-    const form = await screen.findByRole('region', { name: '사업자 기본' })
+    // 기대값 변경(MERCHANT-IA-001 B5b — D-ADMIN-UI-011 ①): 새 세션의 사업자 등록은 빈 번호 확인 단계부터(잠금·재전송 버튼 없음), 확인 뒤 빈 입력 폼(단언 그대로).
+    expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(screen.queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
     expect(screen.queryByRole('button', { name: '같은 내용 다시 보내기' })).toBeNull()
+    await typeIn(page(), '사업자등록번호', BRN)
+    await user.click(screen.getByRole('button', { name: '확인' }))
+    const form = await screen.findByRole('region', { name: '사업자 기본' })
     expect(within(form).getByLabelText('상호')).toHaveValue('')
     expect(within(form).getByLabelText('상호')).toBeEnabled()
-    expect(within(form).getByLabelText('사업자등록번호')).toHaveValue('')
     expect(screen.getByRole('button', { name: '임시저장' })).toBeEnabled()
     await openTab('가맹점 등록')
     expect(currentStep()).toBe('1. 사업자 선택')
@@ -1279,14 +1291,25 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     signedIn(['OPERATOR'])
     await openMerchants()
     await openTab('사업자 등록')
+    // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ①): 번호는 1단계에서 확인하고 2단계에서는 읽기 전용(화면 자체 상태). 화면을 바꾸면 번호(입력 중·확인한 것 모두)는
+    // 남지 않아 1단계부터 다시 확인하고, 다른 입력(상호)은 남는다 — 단언의 뜻 그대로.
     await typeIn(page(), '사업자등록번호', BRN)
-    await typeIn(page(), '상호', '데모 사업자')
-    expect(within(formCard()).getByLabelText('사업자등록번호')).toHaveValue('778-12-34560')
+    expect(screen.getByLabelText('사업자등록번호')).toHaveValue('778-12-34560')
+    await openTab('가맹점 조회')
+    await openTab('사업자 등록')
+    expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
+    await typeIn(page(), '사업자등록번호', BRN)
+    await user.click(screen.getByRole('button', { name: '확인' }))
+    await typeIn(await screen.findByRole('region', { name: '사업자 기본' }), '상호', '데모 사업자')
+    expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('778-12-34560')
 
     await openTab('가맹점 조회')
     await openTab('사업자 등록')
-    expect(within(formCard()).getByLabelText('사업자등록번호')).toHaveValue('')
-    expect(within(formCard()).getByLabelText('상호')).toHaveValue('데모 사업자')
+    expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
+    expect(screen.queryByRole('group', { name: '사업자등록번호' })).toBeNull()
+    await typeIn(page(), '사업자등록번호', BRN)
+    await user.click(screen.getByRole('button', { name: '확인' }))
+    expect(within(await screen.findByRole('region', { name: '사업자 기본' })).getByLabelText('상호')).toHaveValue('데모 사업자')
     expect(storageIsEmpty()).toBe(true)
   })
 

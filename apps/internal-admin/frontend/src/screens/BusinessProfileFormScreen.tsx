@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import type { AdminApi, BusinessChangeInput, BusinessCommandOutcome, BusinessCreateInput, BusinessDetail, BusinessLookupItem } from '../api/adminApi'
 import { ApiError } from '../api/client'
 import { DigitsInput } from '../components/DigitsInput'
@@ -30,8 +30,10 @@ import { sendUnknownLocked } from '../lib/useUnknownLockedSubmission'
  * - 생성: 임시저장(DRAFT — 구분·번호·상호, D-BIZ-002) / 등록 완료(REGISTERED). 수정: DRAFT = 임시저장(update)·등록 완료(complete-registration), REGISTERED = 저장(update).
  * - 본문 = 모든 key·선택 값 null·countryCode "KR"(BIZ-3 리뷰 2). 수정·등록 완료에는 번호·상태가 없고 version은 상세 `business.version`(낙관적 잠금).
  * - D-BIZ-005: 생성 모드 번호 칸 아래·저장 버튼 근처에 "저장 후 변경할 수 없습니다"(확인 대화상자 없음). 수정 모드 번호는 읽기 전용(원문 하이픈 표시 — TBD-04, D-BIZ-007).
- * - D-BIZ-003: "중복 확인"은 번호 조회 API(감사·버킷 1회 — 안내일 뿐, 권위는 저장 시 DB). 번호가 바뀌면 결과 즉시 무효. 저장 시 중복이면 같은 안내(기존 상호·번호(원문 하이픈 — D-BIZ-007·D-PII-001 ①)·상세 보기).
- * - 평문 번호는 화면 자체 상태(보낸 즉시 비움 — 화면 전환에도 남지 않음). 재전송할 payload만 [memory]에(기존 리뷰 MINOR-2 규칙).
+ * - D-BIZ-003 + MERCHANT-IA-001 B5b(D-ADMIN-UI-011 ①): 생성은 1단계 "사업자등록번호 확인"(번호 조회 API — 확인마다 감사·번호 공유 버킷 1회, 안내일 뿐, 권위는 저장 시 DB)부터.
+ *   이미 있으면 "이미 등록한 사업자입니다" + 기존 상호·번호(원문 하이픈 — D-BIZ-007·D-PII-001 ①)·등록 상태·'정보 보기', 없으면 2단계 입력 폼(번호 읽기 전용 고정, '번호 다시 입력').
+ *   번호가 바뀌면 결과 즉시 무효. 저장 시 중복(경합)이면 같은 안내(기존 사업자 상세 보기).
+ * - 평문 번호는 화면 자체 상태(1단계 입력은 확인 즉시 비우고, 확인한 번호는 2단계 동안만 — 화면 전환에도 남지 않음). 재전송할 payload만 [memory]에(기존 리뷰 MINOR-2 규칙).
  * - 결과 불명(공용 `UNKNOWN_CODES` — lib/useUnknownLockedSubmission)은 폼 잠금 + 같은 submissionId·같은 본문 재전송(공용 [sendUnknownLocked] 규칙 — 재전송 중에는 409만 확정).
  *   문구는 code별로 다르다(BIZ-3 리뷰 3). MASTER_BUSY(첫 전송)는 처리 안 됨 — 잠그지 않는다.
  * - 성공하면 [onSaved](reference) — 호출자가 상세를 다시 읽는다(C-18: 성공 응답에 상태·version이 없다). 사업자 ID(biz_)는 그리지 않는다(D-ADMIN-UI-004 ③).
@@ -136,13 +138,24 @@ export function BusinessProfileFormScreen({
   // 평문 번호·중복 확인 결과는 화면 자체 상태(메모리·저장소 없음 — 화면을 바꾸면 비워진다).
   const [number, setNumber] = useState('')
   const [dupCheck, setDupCheck] = useState<DupCheck | null>(null)
+  /**
+   * MERCHANT-IA-001 B5b(D-ADMIN-UI-011 ① — 사업자등록번호 먼저 확인): 1단계에서 번호 조회로 "없음"을 확인한 번호. 화면 자체 상태에만(메모리·저장소·URL 없음) —
+   * 화면이 바뀌면 사라지고 1단계부터 다시 확인한다. 등록 요청까지 같은 번호로 다시 조회하지 않는다(서버 등록 시 중복 판정이 최종).
+   */
+  const [confirmed, setConfirmed] = useState<string | null>(null)
   const [dupBusy, setDupBusy] = useState(false)
+  /** B5b 리뷰 MINOR-1: 번호 확인 요청 세대 — 응답 전에 번호를 바꾸거나 단계를 바꾸면 늦게 온 옛 결과를 버린다. */
+  const dupGeneration = useRef(0)
   const [numberFormatError, setNumberFormatError] = useState(false)
   const [confirmAbandon, setConfirmAbandon] = useState(false)
   const primaryGroup = useId()
   const typeErrorId = useId()
 
   const locked = status.kind === 'busy' || status.kind === 'unknown'
+  // B5b: 2단계 번호 = 확인한 번호, 또는(화면을 다시 그린 뒤) 결과 확인이 필요한 등록 요청의 번호(재전송 payload — 기존 메모리 규칙).
+  const pendingNumber = !detail && pending && (pending.kind === 'createDraft' || pending.kind === 'createRegistered') ? (pending.payload as BusinessCreateInput).registrationNumber : null
+  const createNumber = confirmed ?? pendingNumber
+  const numberStep = !detail && createNumber === null
   const before = detail ? contentOfDetail(detail) : null
   const important = detail !== null && before !== null &&
     importantChange(detail.business.registrationStatus, detail.business.businessType, before, contentOf(compactForm(form)))
@@ -163,6 +176,9 @@ export function BusinessProfileFormScreen({
     setDupCheck(null)
     setNumberFormatError(false)
     setConfirmAbandon(false)
+    setConfirmed(null)
+    dupGeneration.current += 1
+    setDupBusy(false)
   }
 
   const call = (kind: CommandKind, payload: CommandPayload): Promise<BusinessCommandOutcome> => {
@@ -209,7 +225,7 @@ export function BusinessProfileFormScreen({
     setForm(withInputRows(sentForm))
     const creating = kind === 'createDraft' || kind === 'createRegistered'
     const target = kind === 'createRegistered' || kind === 'complete' || (kind === 'update' && detail?.business.registrationStatus === 'REGISTERED') ? 'REGISTERED' : 'DRAFT'
-    const found = validateForm(sentForm, creating ? number : null, target)
+    const found = validateForm(sentForm, creating ? createNumber : null, target)
     const map: Record<string, string> = { ...fieldErrorMap(found, sentForm) }
     if (showReason || showOptionalReason) {
       const problem = reason === '' ? (showReason ? 'REQUIRED' : null) : reasonError(reason)
@@ -223,13 +239,9 @@ export function BusinessProfileFormScreen({
     const content = contentOf(sentForm)
     const submissionId = newSubmissionId()
     const payload: CommandPayload = creating
-      ? { submissionId, registrationStatus: kind === 'createDraft' ? 'DRAFT' : 'REGISTERED', registrationNumber: number, ...content }
+      ? { submissionId, registrationStatus: kind === 'createDraft' ? 'DRAFT' : 'REGISTERED', registrationNumber: createNumber ?? '', ...content }
       : { submissionId, version: detail!.business.version, reason: (showReason || showOptionalReason) && reason !== '' ? reason : null, ...content }
-    if (creating) {
-      // 평문 번호는 보낸 즉시 비운다(재전송 payload만 메모리 — 기존 규칙).
-      setNumber('')
-      setDupCheck(null)
-    }
+    // B5b: 번호는 1단계에서 이미 입력란을 비웠다(확인한 번호만 화면 상태 — 재전송 payload만 메모리, 기존 규칙).
     await send({ submissionId, kind, payload, sentForm }, false)
   }
 
@@ -254,21 +266,43 @@ export function BusinessProfileFormScreen({
       return
     }
     setNumberFormatError(false)
+    // B5b 리뷰 MINOR-2: 다른 번호 조회 화면(BusinessesScreen·MerchantRegistrationScreen)과 같게 보낸 즉시 입력란을 비운다(D-BIZLOOKUP-001) —
+    // 오류·이미 있음 뒤 다시 확인하려면 번호를 다시 입력한다.
+    const registrationNumber = number
+    setNumber('')
+    setDupCheck(null)
+    const generation = ++dupGeneration.current
     setDupBusy(true)
     try {
-      const result = await api.lookupBusinessByRegistrationNumber(number)
+      const result = await api.lookupBusinessByRegistrationNumber(registrationNumber)
+      if (generation !== dupGeneration.current) return
       const item = result.items[0]
-      setDupCheck(item ? { kind: 'taken', item } : { kind: 'free' })
+      if (item) setDupCheck({ kind: 'taken', item })
+      else {
+        // B5b: 없음 → 2단계(입력 폼). 확인한 번호는 화면 상태에만(조회 요청에서만 1회 전송 — D-BIZLOOKUP-001).
+        // 리뷰 NIT-2(resetIfUnlocked 규칙): 잠기지 않은 지난 등록 결과(거절·실패 안내)는 새 2단계로 이어받지 않는다. 결과 불명 잠금은 그대로.
+        if (!locked) {
+          setPending(null)
+          setStatus(IDLE)
+        }
+        setConfirmed(registrationNumber)
+      }
     } catch (e) {
       const code = codeOf(e)
+      // 세션 종료는 옛 확인이라도 알린다(로그인으로). 그 밖의 늦은 오류는 버린다.
       if (SESSION_ENDING.includes(code)) onSessionEnded?.(code)
-      else setDupCheck({ kind: 'error', message: code === 'RATE_LIMITED' ? BRN_RATE_LIMITED : ERROR_MESSAGES[code] })
+      else if (generation === dupGeneration.current) setDupCheck({ kind: 'error', message: code === 'RATE_LIMITED' ? BRN_RATE_LIMITED : ERROR_MESSAGES[code] })
     } finally {
-      setDupBusy(false)
+      if (generation === dupGeneration.current) setDupBusy(false)
     }
   }
 
   const changeNumber = (digits: string) => {
+    // 리뷰 MINOR-1: 확인 중에는 입력란이 잠기지만, 그래도 번호가 바뀌면 진행 중 확인의 결과는 버린다.
+    if (dupBusy) {
+      dupGeneration.current += 1
+      setDupBusy(false)
+    }
     setNumber(digits)
     // 지침서 §3: 번호가 바뀌면 중복 확인 결과는 즉시 무효.
     setDupCheck(null)
@@ -327,18 +361,15 @@ export function BusinessProfileFormScreen({
     </div>
   )
 
-  // 중복 확인 결과(두 모양 공통 — 문구·role·이름 그대로).
+  // B5b 번호 확인 결과(두 모양 공통): 이미 있으면 "이미 등록한 사업자입니다" + 상호·번호(원문 하이픈 — D-BIZ-003·D-PII-001)·등록 상태 + '정보 보기'(내부 키는 그리지 않는다).
+  // 없으면 결과 상자 없이 바로 2단계(입력 폼)로 간다. 조회 오류는 기존 문구(429 = 번호 공유 버킷 문구).
   const dupResult = (
     <>
       {dupCheck?.kind === 'taken' && (
-        <div role="status" aria-label="중복 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
-          <span>{`이미 등록된 사업자: ${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
-          <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>기존 사업자 상세 보기</ActionButton></span>
-        </div>
-      )}
-      {dupCheck?.kind === 'free' && (
-        <div role="status" aria-label="중복 확인 결과" className="rounded-md border px-3 py-2 text-sm">
-          등록 가능 — 확인한 시점 기준입니다. 저장 시 다시 확인합니다(다른 운영자가 먼저 저장하면 중복 안내).
+        <div role="status" aria-label="번호 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
+          <span className="font-medium">이미 등록한 사업자입니다.</span>
+          <span>{`${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
+          <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>정보 보기</ActionButton></span>
         </div>
       )}
       {dupCheck?.kind === 'error' && <WarningNote>{dupCheck.message}</WarningNote>}
@@ -395,27 +426,14 @@ export function BusinessProfileFormScreen({
                 <p className="fieldnote text-xs text-muted-foreground">사업자등록번호 변경은 정책 미정으로 지원하지 않습니다.</p>
               </div>
             ) : (
-              // 사용자 피드백 1(WS8 등록 탭): 폼 줄 — '중복 확인'은 입력 바로 오른쪽(입력 높이 h-9, 좁으면 줄바꿈), 도움말·형식 오류(aria-describedby)는 입력 열 아래, 중복 확인 결과는 그 아래 입력 열.
-              // 진행 표시: workspace는 보이는 진행 글자(aria-live), 아니면 기존 버튼 안 스피너.
-              <div className="flex min-w-0 flex-col">
-                <FormRow
-                  label="사업자등록번호"
-                  width="sm"
-                  error={numberError}
-                  hint={DRAFT_HINT}
-                  trailing={
-                    <>
-                      <ActionButton workspace={workspace} type="button" variant="outline" className="h-9 py-0" onClick={checkDuplicate} aria-busy={dupBusy}>
-                        {!workspace && <Spinner active={dupBusy} />}
-                        중복 확인
-                      </ActionButton>
-                      {workspace && <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>}
-                    </>
-                  }
-                >
-                  {(describedBy, id) => <RegistrationNumberInput id={id} value={number} onValueChange={changeNumber} aria-describedby={describedBy} aria-invalid={!!numberError || undefined} />}
-                </FormRow>
-                {dupCheck && <div className="fieldoffset">{dupResult}</div>}
+              // B5b(D-ADMIN-UI-011 ①): 2단계 번호는 1단계에서 확인한 번호를 읽기 전용 줄로 고정한다(원문 하이픈 — D-PII-001). '번호 다시 입력'은 1단계로(보내는 중·결과 불명이면 막는다).
+              <div role="group" aria-label="사업자등록번호" className="fieldrow border-b py-2 text-sm last:border-b-0">
+                <span aria-hidden="true" className="text-xs text-muted-foreground">사업자등록번호</span>
+                <div className="fieldcontrol fw-sm flex items-center gap-2">
+                  <span className="flex min-h-9 items-center rounded-md border border-dashed px-3 font-mono">{createNumber === null ? '' : displayRegistrationNumber(createNumber)}</span>
+                  <ActionButton workspace={workspace} type="button" variant="outline" className="h-9 py-0" disabled={locked} onClick={() => { dupGeneration.current += 1; setConfirmed(null); setDupCheck(null) }}>번호 다시 입력</ActionButton>
+                </div>
+                <p className="fieldnote text-xs text-muted-foreground">{DRAFT_HINT}</p>
               </div>
             )}
 </>
@@ -705,6 +723,50 @@ export function BusinessProfileFormScreen({
       )}
     </>
   )
+
+  // B5b 1단계(D-ADMIN-UI-011 ① — pg-lab 사업자 등록 첫 단계): 사업자등록번호 한 칸(하이픈 자동) + '확인'. 형식이 맞을 때만 번호 조회를 부른다(D-MOPS-006 ④ —
+  // 매 확인 감사·번호 공유 버킷은 서버). 이미 있으면 안내·'정보 보기', 없으면 2단계(입력 폼).
+  const numberStepNode = (
+    <form noValidate aria-label="사업자등록번호 확인" onSubmit={(e) => { e.preventDefault(); void checkDuplicate() }} className={workspace ? 'cardbody' : 'flex flex-col gap-2'}>
+      <FormRow
+        label="사업자등록번호"
+        width="sm"
+        error={numberError}
+        hint={DRAFT_HINT}
+        trailing={
+          <>
+            <ActionButton workspace={workspace} type="submit" className="h-9 py-0" aria-busy={dupBusy}>
+              {!workspace && <Spinner active={dupBusy} />}
+              확인
+            </ActionButton>
+            {workspace && <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>}
+          </>
+        }
+      >
+        {(describedBy, id) => <RegistrationNumberInput id={id} value={number} onValueChange={changeNumber} disabled={dupBusy} aria-describedby={describedBy} aria-invalid={!!numberError || undefined} />}
+      </FormRow>
+      {dupCheck && <div className="fieldoffset">{dupResult}</div>}
+    </form>
+  )
+  const numberStepGuide = '먼저 사업자등록번호로 이미 등록된 사업자인지 확인합니다. 확인은 감사 기록에 남습니다. 없으면 나머지 정보를 입력합니다.'
+  if (numberStep && workspace) {
+    return (
+      <>
+        <MapNote title="사업자 등록" action={onBack && <BackToListButton onClick={onBack} />}>
+          <span>{numberStepGuide}</span>
+        </MapNote>
+        {numberStepNode}
+      </>
+    )
+  }
+  if (numberStep) {
+    return (
+      <section className="flex flex-col gap-6">
+        <PageHeader title="사업자 등록" description={numberStepGuide} />
+        {numberStepNode}
+      </section>
+    )
+  }
 
   if (workspace) {
     // WS8: Fragment라 탭 패널 바로 아래 자식 — .mapnote → .cardnote(필수 안내) → form → (있으면) 결과 안내 .cardnote.

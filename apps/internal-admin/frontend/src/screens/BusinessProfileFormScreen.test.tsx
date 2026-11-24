@@ -42,8 +42,9 @@ function ids() {
 const sid = (n: number) => n.toString(16).padStart(32, '0')
 
 type Overrides = Parameters<typeof fakeApi>[0]
+// 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 등록은 1단계(번호 조회 — 기본 대역 "없음") 뒤 2단계 입력 폼이다.
 function renderCreate(overrides: Overrides = {}) {
-  const api = fakeApi(overrides)
+  const api = fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })), ...overrides })
   const onSaved = vi.fn()
   const onOpenBusiness = vi.fn()
   const memory = createScreenMemory()
@@ -60,10 +61,16 @@ function renderEdit(detail: BusinessDetail, overrides: Overrides = {}) {
   return { api, onSaved, onReload, view }
 }
 
-/** REGISTERED 필수값 전부(개인). */
+/** 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 1단계 — 번호 입력 → '확인'(번호 조회 "없음") → 2단계 입력 폼(번호는 읽기 전용으로 고정). */
+async function confirmNumber(number = BRN) {
+  await paste('사업자등록번호', number)
+  await press('확인')
+  await screen.findByRole('region', { name: '사업자 기본' })
+}
+
+/** REGISTERED 필수값 전부(개인) — 번호는 1단계에서 확인한 값([confirmNumber]). */
 async function fillRegisteredIndividual() {
   await user.click(screen.getByRole('radio', { name: '개인' }))
-  await paste('사업자등록번호', BRN)
   await paste('상호', '데모 사업자')
   await paste('개업일', '2026-01-01')
   await paste('업태 1', '도소매')
@@ -90,16 +97,21 @@ const REGISTERED_BODY = {
 }
 
 describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)', { timeout: 20_000 }, () => {
-  it('renders sections 1~6 and the buttons (임시저장·등록 완료·취소); no 증빙 section; 국가 is KR read-only; D-BIZ-005 notice under the number and near the buttons', () => {
+  it('renders sections 1~6 and the buttons (임시저장·등록 완료·취소) after the number step; no 증빙 section; 국가 is KR read-only; D-BIZ-005 notice under the number and near the buttons', async () => {
     const { view } = renderCreate()
     expect(screen.getByRole('heading', { name: '사업자 등록' })).toBeInTheDocument()
+    // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 처음에는 번호 한 칸만(D-BIZ-005 안내는 그 칸의 설명) — 섹션은 확인 뒤.
+    expect(field('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요.')
+    expect(screen.queryAllByRole('region')).toEqual([])
+    await confirmNumber()
     expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(['사업자 기본', '사업 내용', '주소', '대표자', '사업체 연락', '등록 담당자'])
     expect(screen.queryByText(/증빙/)).toBeNull()
     expect(within(screen.getByRole('group', { name: '저장' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['임시저장', '등록 완료', '취소'])
     expect(field('국가')).toHaveValue('KR')
     expect(field('국가')).toHaveAttribute('readonly')
-    // D-BIZ-005: 번호 칸 아래 고정 문구 + 저장 버튼 근처 같은 뜻 한 줄(확인 대화상자 없음).
-    expect(field('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요.')
+    // D-BIZ-005: 번호 줄 아래 고정 문구 + 저장 버튼 근처 같은 뜻 한 줄(확인 대화상자 없음). 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 2단계 번호는 읽기 전용 줄(원문 하이픈).
+    expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('778-12-34560')
+    expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요.')
     expect(within(screen.getByRole('group', { name: '저장' }).parentElement!).getByText('사업자등록번호는 저장 후 변경할 수 없습니다.')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(view.container.querySelectorAll('[style]')).toHaveLength(0)
@@ -107,12 +119,20 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
 
   it('법인등록번호 is shown only for 법인 (hidden again for 개인); number/phone/corporate number show hyphens while the body carries digits only', async () => {
     const { api } = renderCreate({ createBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
+    // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 하이픈 표시는 1단계 입력에서 본다.
+    await paste('사업자등록번호', BRN)
+    expect(field('사업자등록번호')).toHaveValue('778-12-34560')
+    await press('확인')
+    await screen.findByRole('region', { name: '사업자 기본' })
     expect(screen.queryByLabelText('법인등록번호')).toBeNull()
     await user.click(screen.getByRole('radio', { name: '법인' }))
     await paste('법인등록번호', '1101111234567')
     expect(field('법인등록번호')).toHaveValue('110111-1234567')
-    await paste('사업자등록번호', BRN)
-    expect(field('사업자등록번호')).toHaveValue('778-12-34560')
+    // 리뷰 NIT-5: 제목이 말하는 "개인이면 칸 없음"을 단언한다 — 개인으로 바꾸면 칸이 사라진다(보내는 값은 contentOf가 null — lib 시험).
+    // B5b: 저장 성공 뒤 폼은 1단계로 돌아가므로 이 확인을 저장 전에 한다(단언 그대로, 순서만).
+    await user.click(screen.getByRole('radio', { name: '개인' }))
+    expect(screen.queryByLabelText('법인등록번호')).toBeNull()
+    await user.click(screen.getByRole('radio', { name: '법인' }))
     await paste('사업체 전화', '0212345678')
     expect(field('사업체 전화')).toHaveValue('02-1234-5678')
     await paste('상호', '데모 법인')
@@ -122,15 +142,12 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     expect(body.registration.corporateRegistrationNumber).toBe('1101111234567')
     expect(body.registration.phoneNumber).toBe('0212345678')
     expect(body.registrationNumber).toBe(BRN)
-    // 리뷰 NIT-5: 제목이 말하는 "개인이면 칸 없음"을 단언한다 — 개인으로 바꾸면 칸이 사라진다(보내는 값은 contentOf가 null — lib 시험).
-    await user.click(screen.getByRole('radio', { name: '개인' }))
-    expect(screen.queryByLabelText('법인등록번호')).toBeNull()
   })
 
   it('임시저장 with 구분·번호·상호 sends a DRAFT create with every key (optional values null, countryCode KR, empty lists), clears the number and hands the reference to onSaved (re-read)', async () => {
     const { api, onSaved, view } = renderCreate({ createBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
+    await confirmNumber()
     await user.click(screen.getByRole('radio', { name: '개인' }))
-    await paste('사업자등록번호', BRN)
     await paste('상호', '임시 사업자')
     await press('임시저장')
     expect(api.createBusiness).toHaveBeenCalledWith({
@@ -141,8 +158,9 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledWith(BIZ))
     expect(field('사업자등록번호')).toHaveValue('')
     expect(view.container.innerHTML).not.toContain(BRN)
-    // 리뷰 MINOR-3: 원문 번호는 생성 요청 본문에만(모든 대역 호출 인수 전수).
-    expect(callsContaining(api, BRN)).toEqual(['createBusiness'])
+    // 리뷰 MINOR-3: 원문 번호는 번호 조회·생성 요청 본문에만(모든 대역 호출 인수 전수). 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 1단계 번호 조회 1회가 더해졌다(확인 → 등록 사이 다시 조회 없음).
+    expect(callsContaining(api, BRN)).toEqual(['createBusiness', 'lookupBusinessByRegistrationNumber'])
+    expect(api.lookupBusinessByRegistrationNumber).toHaveBeenCalledTimes(1)
     expect(leakedCalls(api, BRN)).toEqual([])
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
     expect(storageIsEmpty()).toBe(true)
@@ -150,8 +168,8 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
 
   it('등록 완료 sends a REGISTERED create with the full content; the client rules block an incomplete REGISTERED form (no call, field errors)', async () => {
     const { api, onSaved } = renderCreate({ createBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
+    await confirmNumber()
     await user.click(screen.getByRole('radio', { name: '개인' }))
-    await paste('사업자등록번호', BRN)
     await paste('상호', '데모 사업자')
     await press('등록 완료')
     expect(api.createBusiness).not.toHaveBeenCalled()
@@ -159,7 +177,6 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     expect(field('사업체 전화')).toHaveAccessibleDescription('필수 입력입니다.')
     expect(screen.getByRole('alert')).toHaveTextContent('입력을 확인하세요')
 
-    await user.clear(field('사업자등록번호'))
     await user.clear(field('상호'))
     await fillRegisteredIndividual()
     await press('등록 완료')
@@ -169,56 +186,64 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
 
   it('DRAFT minimum (D-BIZ-002): 구분 missing → field error and nothing sent', async () => {
     const { api } = renderCreate({ createBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
-    await paste('사업자등록번호', BRN)
+    await confirmNumber()
     await paste('상호', '임시 사업자')
     await press('임시저장')
     expect(api.createBusiness).not.toHaveBeenCalled()
     expect(screen.getByRole('radiogroup', { name: '사업체 구분' })).toHaveAccessibleDescription('필수 입력입니다.')
   })
 
-  it('중복 확인 (D-BIZ-003): uses the number lookup (digits only); an existing business shows 상호 · masked number + 상세 보기 (no biz_); the result is void as soon as the number changes', async () => {
+  // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 인라인 '중복 확인' 대신 1단계 '확인' — 이미 있으면 "이미 등록한 사업자입니다" + 상호·번호·등록 상태 + '정보 보기', 없으면 2단계(결과 상자 없음).
+  it('번호 확인 (D-BIZ-003): uses the number lookup (digits only); an existing business shows "이미 등록한 사업자입니다" + name · number (status) + 정보 보기 (no biz_); the result is void as soon as the number changes; none → step 2', async () => {
     const existing = individualRegisteredDetail(1, '이미 있는 사업자')
     const lookup = vi.fn().mockResolvedValueOnce({ items: [lookupItemOf(existing)] }).mockResolvedValueOnce({ items: [] })
     const { api, onOpenBusiness, view } = renderCreate({ lookupBusinessByRegistrationNumber: lookup })
     await paste('사업자등록번호', BRN)
-    await press('중복 확인')
+    await press('확인')
     expect(lookup).toHaveBeenCalledWith(BRN)
-    const result = await screen.findByRole('status', { name: '중복 확인 결과' })
-    expect(result).toHaveTextContent('이미 등록된 사업자: 이미 있는 사업자 · 778-12-34567')
+    const result = await screen.findByRole('status', { name: '번호 확인 결과' })
+    expect(result).toHaveTextContent('이미 등록한 사업자입니다.')
+    expect(result).toHaveTextContent('이미 있는 사업자 · 778-12-34567 (등록 완료)')
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
-    await user.click(within(result).getByRole('button', { name: '기존 사업자 상세 보기' }))
+    expect(screen.queryByRole('region', { name: '사업자 기본' })).toBeNull()
+    await user.click(within(result).getByRole('button', { name: '정보 보기' }))
     expect(onOpenBusiness).toHaveBeenCalledWith(BIZ)
+    // 기대값 변경(MERCHANT-IA-001 B5b 리뷰 MINOR-2 — 다른 번호 조회 화면과 같은 "보낸 즉시 입력란 비움"(D-BIZLOOKUP-001)): 확인 뒤 입력란은 비어 있고, 다시 확인하려면 번호를 다시 입력한다.
+    expect(field('사업자등록번호')).toHaveValue('')
     // 번호가 바뀌면 결과 즉시 무효(지침서 §3).
-    await user.type(field('사업자등록번호'), '{Backspace}')
-    expect(screen.queryByRole('status', { name: '중복 확인 결과' })).toBeNull()
-    await user.type(field('사업자등록번호'), '0')
-    await press('중복 확인')
-    expect(await screen.findByRole('status', { name: '중복 확인 결과' })).toHaveTextContent('등록 가능')
-    expect(screen.getByRole('status', { name: '중복 확인 결과' })).toHaveTextContent('저장 시 다시 확인합니다')
-    // 리뷰 MINOR-3: 상세 보기·그 밖 호출 인수에 원문 번호 없음(번호 조회만).
+    await user.type(field('사업자등록번호'), '7')
+    expect(screen.queryByRole('status', { name: '번호 확인 결과' })).toBeNull()
+    await user.type(field('사업자등록번호'), '781234560')
+    await press('확인')
+    expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('778-12-34560')
+    // 리뷰 MINOR-3: 정보 보기·그 밖 호출 인수에 원문 번호 없음(번호 조회만).
     expect(leakedCalls(api, BRN)).toEqual([])
     expect(leakedCalls(api, '778123456')).toEqual([])
   })
 
-  it('중복 확인 429 shows the shared BRN budget wording (Demo values); a malformed number is not looked up', async () => {
+  it('번호 확인 429 shows the shared BRN budget wording (Demo values); a malformed number is not looked up', async () => {
     const lookup = vi.fn(async () => { throw apiError(429, 'RATE_LIMITED') })
     renderCreate({ lookupBusinessByRegistrationNumber: lookup })
     await paste('사업자등록번호', '77812')
-    await press('중복 확인')
+    // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 버튼 이름 '중복 확인' → '확인'(1단계).
+    await press('확인')
     expect(lookup).not.toHaveBeenCalled()
     expect(field('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호는 숫자 10자리입니다.')
     await paste('사업자등록번호', '34560')
-    await press('중복 확인')
+    await press('확인')
     expect(await screen.findByText(/사업자등록번호 10회\/분/)).toHaveTextContent('Demo 값')
   })
 
-  it('a duplicate on save (D-BIZ-003) shows the existing business name · masked number with 상세 보기; DOM has no biz_', async () => {
+  // 리뷰 NIT-1: 제목 "masked" → 원문 하이픈 번호(D-BIZ-007·D-PII-001 ① — 기대값은 이미 원문 하이픈 '778-12-34567').
+  it('a duplicate on save (D-BIZ-003) shows the existing business name · number (원문 하이픈) with 상세 보기; DOM has no biz_', async () => {
     const existing = individualRegisteredDetail(9, '먼저 있던 사업자')
     const { onOpenBusiness, onSaved, view } = renderCreate({
       createBusiness: vi.fn(async () => ({ ...commandRejected('BUSINESS_REGISTRATION_NUMBER_DUPLICATE'), existing: lookupItemOf(existing) })),
     })
+    // 확인한 뒤 다른 운영자가 먼저 등록한 경합 — 서버 등록 시 중복 판정이 최종(B5b에도 그대로).
+    await confirmNumber()
     await user.click(screen.getByRole('radio', { name: '개인' }))
-    await paste('사업자등록번호', BRN)
     await paste('상호', '임시 사업자')
     await press('임시저장')
     const alert = await screen.findByRole('alert')
@@ -239,6 +264,7 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
       { path: 'addresses[0].postalCode', code: 'FORMAT' },
     ])
     renderCreate({ createBusiness: vi.fn(async () => { throw error }) })
+    await confirmNumber()
     await fillRegisteredIndividual()
     await press('등록 완료')
     expect(await screen.findByRole('alert')).toHaveTextContent('입력을 확인하세요')
@@ -256,6 +282,7 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
       .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
       .mockResolvedValueOnce(commandSucceeded(BIZ, true))
     const { onSaved } = renderCreate({ createBusiness: send })
+    await confirmNumber()
     await fillRegisteredIndividual()
     await press('등록 완료')
     const group = await screen.findByRole('group', { name: '결과 확인 필요' })
@@ -278,8 +305,8 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
       .mockRejectedValueOnce(apiError(503, 'MASTER_BUSY'))
       .mockRejectedValueOnce(apiError(429, 'RATE_LIMITED'))
     renderCreate({ createBusiness: send })
+    await confirmNumber()
     await user.click(screen.getByRole('radio', { name: '개인' }))
-    await paste('사업자등록번호', BRN)
     await paste('상호', '임시 사업자')
     await press('임시저장')
     expect(await screen.findByRole('group', { name: '결과 확인 필요' })).toHaveTextContent('처리 결과를 아직 확정하지 못했습니다')
@@ -289,20 +316,19 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     expect(await screen.findByText(/같은 제출 번호로 다른 내용/)).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
     expect(send.mock.calls.slice(0, 3).map((c) => c[0].submissionId)).toEqual([sid(1), sid(1), sid(1)])
-    // 확정 실패 뒤 새 제출 = 새 submissionId. 번호는 보낸 뒤 비웠으므로 다시 입력한다.
-    await paste('사업자등록번호', BRN)
+    // 확정 실패 뒤 새 제출 = 새 submissionId. 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호는 1단계에서 확인해 2단계에 고정돼 있어 다시 입력하지 않는다.
     await press('임시저장')
     expect(await screen.findByText(/바빠 처리하지 않았습니다/)).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
     expect(send.mock.calls[3]![0].submissionId).toBe(sid(2))
-    await paste('사업자등록번호', BRN)
     await press('임시저장')
     expect(await screen.findByText(/저장 요청이 너무 잦습니다/)).toHaveTextContent('Demo 값')
   })
 })
 
 describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, §4.5·§8.3)', { timeout: 20_000 }, () => {
-  it('the number is read-only (masked) with the TBD-04 notice and no 중복 확인; REGISTERED has 저장·취소; the update body has every key, version from the detail, reason null, no registrationNumber/registrationStatus', async () => {
+  // 리뷰 NIT-1: 제목 "masked" → 원문 하이픈(기대값 '778-12-34567'은 그대로).
+  it('the number is read-only (원문 하이픈) with the TBD-04 notice and no 중복 확인; REGISTERED has 저장·취소; the update body has every key, version from the detail, reason null, no registrationNumber/registrationStatus', async () => {
     const detail = individualRegisteredDetail()
     const { api, onSaved, view } = renderEdit(detail, { updateBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
     expect(screen.getByRole('heading', { name: '사업자 수정' })).toBeInTheDocument()

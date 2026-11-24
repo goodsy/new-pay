@@ -194,7 +194,13 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
 
   it('BUSINESS-PROFILE-001 BIZ-4-6: business registration form, business list, detail and history', async () => {
     const detail = individualRegisteredDetail()
-    const form = render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'create' }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
+    // MERCHANT-IA-001 B5b(D-ADMIN-UI-011 ①): 등록은 번호 확인 단계부터 — 그 단계도 검사하고, 확인 뒤 입력 폼을 같은 방식으로 검사한다(검사 추가만, 기존 단언 그대로).
+    const form = render(<BusinessProfileFormScreen api={fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })) })} mode={{ kind: 'create' }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
+    expectNoRuntimeStyles()
+    await userEvent.click(screen.getByLabelText('사업자등록번호'))
+    await userEvent.paste('7781234560')
+    await userEvent.click(screen.getByRole('button', { name: '확인' }))
+    await screen.findByRole('region', { name: '사업자 기본' })
     await userEvent.click(screen.getByRole('radio', { name: '법인' }))
     await userEvent.click(screen.getByRole('checkbox', { name: '실사업장이 사업장과 다름' }))
     expect(screen.getByLabelText('법인등록번호')).toBeInTheDocument()
