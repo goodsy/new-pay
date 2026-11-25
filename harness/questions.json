@@ -4553,6 +4553,710 @@
       "humanAnswer": "목록은 감사 안 함 (권장)",
       "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-24)",
       "appliedSpec": "D-PII-001"
+    },
+    {
+      "id": "Q-FLOW-1",
+      "status": "ANSWERED",
+      "question": "사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료) 설계 선택지 A/B/C",
+      "recommended": "A: 현행 가맹점 계약·2인 승인·MID 유지 + 사업자에 '계약 접수' 기록 추가",
+      "alternative": "B: 계약 단위를 사업자로 이동 / C: A 후 계약 조건 화면 확장",
+      "impact": "MASTER 하위 기록 추가(A) vs 권리 계산 전면 재설계(B)",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "A: 사업자에 '계약 접수' 추가 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-001"
+    },
+    {
+      "id": "Q-FLOW-2",
+      "status": "ANSWERED",
+      "question": "진행 상태 정의·전이·가맹점 등록 관문",
+      "recommended": "상담 중→계약서 접수→계약 완료|계약 불가, 계약 완료→계약 해지. 종결 비가역·재진행은 새 접수 건. 새 가맹점 등록 = REGISTERED + 계약 완료. 기존 사업자 '계약 완료(이관)'",
+      "alternative": "관문 없이 표시만 / 기존 사업자 미기록 / 사업자 열 하나로 덮어쓰기",
+      "impact": "MASTER 가맹점 등록 거절 1개 추가, 이관 migration, Demo seed",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "Q-FLOW-1 답 A와 Q-FLOW-3 답 '운영자 1인 + 근거'의 선택지 설명에 포함된 범위로 답함: 상태 5종·전이, 계약 완료여야 가맹점 등록, 종결(완료·불가·해지) 비가역, 재진행은 새 접수 건, 기존 사업자 '계약 완료(이관)'. 선택지 설명에 없던 세부(뒤로 가기 계약서 접수→상담 중, DRAFT 사업자 접수 허용, 열린 건 ≤1)는 Q-FLOW-2b로 분리",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-001"
+    },
+    {
+      "id": "Q-FLOW-3",
+      "status": "ANSWERED",
+      "question": "진행 상태를 누가 바꾸는가(2인 승인 여부)",
+      "recommended": "운영자 1인 + 계약 완료 시 계약서 수령 근거 참조 필수, 감사",
+      "alternative": "계약 완료·해지만 2인 승인",
+      "impact": "FLOW-2 상태 명령",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "운영자 1인 + 근거 (권장). 계약 해지의 기존 가맹점 연쇄 효과는 선택지에 없었으므로 Q-FLOW-3b로 분리",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-001"
+    },
+    {
+      "id": "Q-FLOW-4",
+      "status": "ANSWERED",
+      "question": "수수료율을 어디에 두는가",
+      "recommended": "사업자에 효력 있는 요율 없음. 요율은 가맹점 서비스·MID 정책 배정 + 2인 + 원승인 Snapshot. SETTLEMENT-CONTRACT-001 뒤 사업자 화면 읽기 전용 집계",
+      "alternative": "접수 건에 협의 요율(참고, 효력 없음) 기록",
+      "impact": "사업자 상세 '계약 조건' 섹션 순서",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "정산 계약 작업에서 정함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-001"
+    },
+    {
+      "id": "Q-FLOW-5",
+      "status": "ANSWERED",
+      "question": "대표자 생년월일·성별·지분율·실소유자(KYC/KYB) 수집",
+      "recommended": "지금은 수집 안 함(별도 KYB 작업에서 법적 근거·보관 기간 확정 후)",
+      "alternative": "이번에 함께 수집",
+      "impact": "PC-BIZ-POL-001 POL-003·§1-5 변경, 새 개인정보 책임(표시·원문 조회·보관 기간)",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "이번에 함께 수집 (권장안 아님 — 사용자가 대안 선택). 표시 방식·원문 조회·보관 기간·항목별 목적은 후속 질문 Q-FLOW-5b~5d",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-001"
+    },
+    {
+      "id": "Q-FLOW-5b",
+      "status": "ANSWERED",
+      "question": "새 KYC 항목(대표자 생년월일·실소유자) 화면 표시 방식",
+      "recommended": "마스킹 + 원문 조회(별도 권한·사유·직전 재인증·조회 감사, UNMASK 틀 첫 적용)",
+      "alternative": "다른 대표자 정보처럼 상세 원문",
+      "impact": "UNMASK 데이터 Port·화면·시험",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5 Q-FLOW-5b~5e",
+      "humanAnswer": "마스킹 + 원문 조회 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-002"
+    },
+    {
+      "id": "Q-FLOW-5c",
+      "status": "ANSWERED",
+      "question": "성별 수집 여부",
+      "recommended": "수집 안 함(업무 목적 미정, 최소수집)",
+      "alternative": "수집",
+      "impact": "입력란·PII 표",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5 Q-FLOW-5b~5e",
+      "humanAnswer": "수집 안 함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-002"
+    },
+    {
+      "id": "Q-FLOW-5d",
+      "status": "ANSWERED",
+      "question": "실소유자 수집 범위",
+      "recommended": "'대표자와 같음' 기본 + 다르면 이름·생년월일·지분율, 최대 4명(25% 이상 기준, Demo 값)",
+      "alternative": "대표자 지분율만 / pg-lab 그대로 1명",
+      "impact": "KYC Domain·화면",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5 Q-FLOW-5b~5e",
+      "humanAnswer": "'대표자와 같음' + 다르면 상세 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-002"
+    },
+    {
+      "id": "Q-FLOW-5e",
+      "status": "ANSWERED",
+      "question": "보관·파기 기간 미정 상태에서 수집 시점",
+      "recommended": "Demo는 지금 수집, 보관·파기 기간은 LIVE 전 결정(그때까지 파기 기능 없음, 운영 준비 점검 항목)",
+      "alternative": "기간을 먼저 정한 뒤 수집",
+      "impact": "LIVE Gate, Q-PII-5",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5 Q-FLOW-5b~5e",
+      "humanAnswer": "Demo는 지금, 기간은 운영 전 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-002"
+    },
+    {
+      "id": "Q-FLOW-2b",
+      "status": "ANSWERED",
+      "question": "진행 세부(뒤로 가기·임시 사업자 접수·열린 건 수)",
+      "recommended": "뒤로 가기 허용(사유 필수)·DRAFT 사업자도 접수·열린 건 ≤1",
+      "alternative": "앞으로만 / 등록 완료 사업자만",
+      "impact": "FLOW-1·2",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "뒤로 가기 허용·임시 사업자도 접수 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-3b",
+      "status": "ANSWERED",
+      "question": "계약 해지의 기존 가맹점 효과",
+      "recommended": "이번엔 기록만(새 가맹점 등록 차단 + 연결 가맹점 개별 중지/철회 안내), 연쇄는 MASTER-LIFECYCLE-001",
+      "alternative": "신규 결제 자동 차단 / 해지 2인 승인",
+      "impact": "FLOW-2 해지 명령",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "이번엔 기록만 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-6",
+      "status": "ANSWERED",
+      "question": "신청 서비스(인증·키인·가상계좌)",
+      "recommended": "접수 건에 희망 서비스 체크만(효력 없음, 카드 외 '준비 전')",
+      "alternative": "두지 않음",
+      "impact": "접수 건 항목",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "희망 서비스 체크만 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-7",
+      "status": "ANSWERED",
+      "question": "담보(보증보험)",
+      "recommended": "이번에는 기록 안 함(정산·리스크 작업에서 효력 결정 후 2인·이력)",
+      "alternative": "참고 기록만 지금(효력 없음, 1인)",
+      "impact": "'담보 확보' 오해 위험 → 화면에 참고·효력 없음 표시 필요",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "참고 기록만 지금 (권장안 아님 — 사용자가 대안 선택)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-8",
+      "status": "ANSWERED",
+      "question": "접수 경로·영업대행사·계약 담당자",
+      "recommended": "접수 경로 고정 목록, 담당자 = 관리자 계정, 영업대행사 = MASTER 기준 목록(이름·상태), 대행사 수수료·정산 없음",
+      "alternative": "대행사 자유 문구",
+      "impact": "FLOW-4",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "고정 목록 + 대행사 기준 목록 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-9",
+      "status": "ANSWERED",
+      "question": "가맹점 등급·업종분류·가상자산 취급",
+      "recommended": "정의 전까지 만들지 않음",
+      "alternative": "표시용으로 지금 추가",
+      "impact": "사업자 정보 섹션",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "표시용으로 지금 추가 (권장안 아님 — 사용자가 대안 선택). 후속 답: 가맹점 등급은 '사용안할게'(만들지 않음), 업종분류는 '직접입력하고 추후 코드 관리'(지금 자유 입력, 코드 관리는 후속), 가상자산 취급 여부는 표시용 추가",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-10",
+      "status": "ANSWERED",
+      "question": "영중소 등급·상점 그룹·카드사 그룹",
+      "recommended": "나중에(영중소는 SETTLEMENT-CONTRACT-001, 그룹은 의미 확인 후)",
+      "alternative": "영중소 등급만 표시용",
+      "impact": "가맹점 목록 필터",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "나중에 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-11",
+      "status": "ANSWERED",
+      "question": "사업자 메모",
+      "recommended": "추가만 가능한 메모(ADMIN append-only, 종류 고정 목록, 1~1,000자, 카드번호 패턴 거부, 작성 OPERATOR)",
+      "alternative": "취소 표시 가능",
+      "impact": "FLOW-5",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "추가만 가능한 메모 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-12",
+      "status": "ANSWERED",
+      "question": "계약서 파일 보관",
+      "recommended": "근거 번호만 필수, 파일 업로드는 별도 작업",
+      "alternative": "지금 파일 업로드",
+      "impact": "계약 완료 전이",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "근거 번호만, 파일은 나중 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-13",
+      "status": "ANSWERED",
+      "question": "기존 대표자·담당자 개인정보 표시",
+      "recommended": "현행 유지(상세 원문 + 열람 감사), 마스킹+원문 조회는 새 KYC 항목만",
+      "alternative": "기존 항목도 가림",
+      "impact": "없음",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "현행 유지 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-14",
+      "status": "ANSWERED",
+      "question": "국적·홈페이지·대표자 영문 이름",
+      "recommended": "추가 안 함",
+      "alternative": "홈페이지·영문 이름 추가",
+      "impact": "없음",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5",
+      "humanAnswer": "추가 안 함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-003"
+    },
+    {
+      "id": "Q-FLOW-23",
+      "status": "ANSWERED",
+      "question": "계약 완료 이후 새 접수 건·DRAFT 사업자의 계약 완료",
+      "recommended": "계약 완료 건이 있으면 새 접수 거절(해지 뒤에만), DRAFT 사업자도 계약 완료 허용",
+      "alternative": "계약 중 재계약 접수 허용 / DRAFT는 계약서 접수까지만",
+      "impact": "관문 판정, 열린 건 UNIQUE",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2",
+      "humanAnswer": "해지 뒤에만 새 접수 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-004"
+    },
+    {
+      "id": "Q-FLOW-21",
+      "status": "ANSWERED",
+      "question": "계약 불가·계약 해지 입력",
+      "recommended": "둘 다 사유 필수(1~200자, 카드번호 패턴 거부, 이력 원문), 해지 근거 참조 선택",
+      "alternative": "사유 고정 목록 / 해지 근거 필수",
+      "impact": "해지 감사 증거",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2",
+      "humanAnswer": "사유 필수, 해지 근거는 선택 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-004"
+    },
+    {
+      "id": "Q-FLOW-20",
+      "status": "ANSWERED",
+      "question": "접수 항목·고정 목록 값",
+      "recommended": "접수일 = 운영자 선택 날짜(KST, 기본 오늘, 미래 불가), 경로 = 직접 영업·전화·홈페이지·영업대행사·기타, 대행사는 경로 '영업대행사'일 때만 필수, 계약 담당자 선택 입력(ACTIVE OPERATOR), 희망 서비스 = 카드 인증(선택 가능)·키인·가상계좌('준비 전'), 메모 종류 = 일반·상담·계약·리스크",
+      "alternative": "담당자 필수 / 접수일 = 기록 시각",
+      "impact": "접수 건 열·CHECK",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2",
+      "humanAnswer": "계약 담당자 필수 (권장안과 다름 — 나머지 목록·규칙은 권장안 그대로 제시된 선택지)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-004"
+    },
+    {
+      "id": "Q-FLOW-24",
+      "status": "ANSWERED",
+      "question": "계약서 수령 근거 참조 열람 범위",
+      "recommended": "사업자 조회 역할(OPERATOR·APPROVER) 원문, 사업자 상세 열람 감사에 포함",
+      "alternative": "전이 행위자·APPROVER만 별도 조회 + 조회마다 감사",
+      "impact": "PII 표, 화면·API",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2",
+      "humanAnswer": "사업자 조회 역할 전체 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-004"
+    },
+    {
+      "id": "Q-FLOW-25",
+      "status": "ANSWERED",
+      "question": "'상담 중'에서 바로 '계약 불가' 전이 허용(리뷰 M-3)",
+      "recommended": "허용(사유 필수), 계약 완료는 계약서 접수를 거쳐야 함",
+      "alternative": "계약서 접수 뒤에만",
+      "impact": "상태 전이 표",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "허용 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-26",
+      "status": "ANSWERED",
+      "question": "계약서 접수 → 상담 중 되돌리기 사유 규칙(리뷰 M-4)",
+      "recommended": "불가·해지 사유와 같게(1~200자, 카드번호 패턴 거부, 이력 원문)",
+      "alternative": "길이만 제한",
+      "impact": "전이 사유 입력 검사",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "불가·해지 사유와 같게 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-16",
+      "status": "ANSWERED",
+      "question": "업종분류·가상자산 입력 규칙",
+      "recommended": "업종분류 1~50자·빈 값 허용·제어 문자/카드번호 패턴 거부, 가상자산 예/아니오/미확인(기본 미확인), 변경 사유 1~200자·카드번호 패턴 거부",
+      "alternative": "가상자산 예/아니오만",
+      "impact": "FLOW-7",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "예/아니오/미확인 + 사유 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-22",
+      "status": "ANSWERED",
+      "question": "영업대행사 기준 목록 관리",
+      "recommended": "사용/중지, 등록·이름 수정·중지 = OPERATOR 1인 + 이력, 삭제 없음, 이름 UNIQUE, 중지 대행사는 새 접수에서 선택 불가·기존 표시 유지",
+      "alternative": "보안관리자 관리 / 중지 대행사 선택 가능",
+      "impact": "FLOW-4",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "운영자 1인, 사용/중지 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-15",
+      "status": "ANSWERED",
+      "question": "담보 참고 기록 항목·통화·건수",
+      "recommended": "사업자 하위 증권별 여러 건(정정은 새 행), 보증보험사·증권번호(근거 참조 형식, 카드번호 패턴 거부)·금액(정수, 원)·KRW 고정·시작일·만기일, 만기 알림 없음",
+      "alternative": "금액·기간만",
+      "impact": "FLOW-8, R-9",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "증권별 여러 건, KRW 고정 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-17",
+      "status": "ANSWERED",
+      "question": "KYC 마스킹 형식·원문 조회 단위",
+      "recommended": "생년월일 ****-**-**, 실소유자 이름 홍**, 지분율 비마스킹, 원문 조회 1회 = 사업자 하나의 KYC 전체(감사 1행)",
+      "alternative": "생년만 표시 / 항목별 원문 조회",
+      "impact": "FLOW-9·10",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "생년월일 전부 가림 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-18",
+      "status": "ANSWERED",
+      "question": "KYC 입력 규칙",
+      "recommended": "OPERATOR 1인 입력·변경, 변경 사유 필수, REGISTERED 필수 조건 아님, 공동대표 각자 생년월일, 지분율 0.01~100.00·실소유자 합 ≤ 100, 25%는 입력 거부 기준이 아닌 안내(Demo 설정값)",
+      "alternative": "등록 완료 필수",
+      "impact": "FLOW-9",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "선택 입력 + 변경 사유 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-19",
+      "status": "ANSWERED",
+      "question": "UNMASK 첫 적용 보안 세부",
+      "recommended": "Demo seed 계정에 UNMASK 미부여(SECURITY_ADMIN이 기존 2인 역할 부여 절차로), UNMASK 사유 카드번호 패턴 거부 적용(D-ADMIN1-019 재검토 이행)",
+      "alternative": "Demo 계정 하나에 미리 부여",
+      "impact": "FLOW-10",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3 §5.2 / 리뷰 M-3·M-4",
+      "humanAnswer": "보안관리자가 부여, 사유 카드번호 거부 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-005"
+    },
+    {
+      "id": "Q-FLOW-27",
+      "status": "ANSWERED",
+      "question": "사유 입력 방식(항목마다 사유 vs 공통 칸)",
+      "recommended": "(사용자 지시 — 질문 아님)",
+      "alternative": "항목별 사유 칸",
+      "impact": "사업자 편집 폼·접수 건 전이·KYC·리스크·담보 입력 화면, MASTER 사유 필수 판정",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "사용자 메시지 2026-11-25",
+      "humanAnswer": "\"사업관리자의 사유는 각 항목마다 있는건 아니지? 사유 및 비고 란은 공통으로 사용하고 입력이 필수인 항목만 필수입력값으로 하기\"",
+      "humanEvidence": "Claude Code 세션 사용자 메시지 (2026-11-25)",
+      "appliedSpec": "D-FLOW-006"
+    },
+    {
+      "id": "Q-FLOW-28",
+      "status": "ANSWERED",
+      "question": "공통 '사유 및 비고' 칸의 카드번호 패턴 검사(기존 중요정보 사유 + 새 항목 사유가 섞일 때)",
+      "recommended": "칸 전체 항상 검사, Q-PII-6도 함께 닫음",
+      "alternative": "기존 중요정보만 바꾼 저장은 검사 없음",
+      "impact": "기존 사업자 폼 사유 검사 변경",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "칸 전체 항상 검사 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-28b",
+      "status": "ANSWERED",
+      "question": "새 항목(KYC·리스크 표시·담보) 저장 방식",
+      "recommended": "섹션별 따로 저장(각 섹션 저장 버튼 + '사유 및 비고' 칸), 기존 회사·대표자·담당자 폼은 하단 저장 그대로",
+      "alternative": "하단 저장 하나로 합침(D-ADMIN-UI-011 ② 그대로)",
+      "impact": "D-ADMIN-UI-011 ②의 새 섹션 예외",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "섹션별 따로 저장 (권장) — 질문에 '사업자 상세는 항상 편집 폼 + 하단 저장 방식' 명시 후 선택",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-29",
+      "status": "ANSWERED",
+      "question": "대표자 본인 지분율 수집",
+      "recommended": "대표자마다 선택 입력",
+      "alternative": "받지 않음",
+      "impact": "FLOW-9",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "받지 않음 (권장안 아님 — 사용자 선택)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-30",
+      "status": "ANSWERED",
+      "question": "접수 항목 생성 뒤 수정",
+      "recommended": "열린 건에서만 OPERATOR 1인 수정 + 이력",
+      "alternative": "생성 뒤 고정",
+      "impact": "FLOW-2",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "세 가지 모두 권장안 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-31",
+      "status": "ANSWERED",
+      "question": "종료(TERMINATED) 사업자 메모",
+      "recommended": "허용",
+      "alternative": "금지",
+      "impact": "FLOW-6",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "세 가지 모두 권장안 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-32",
+      "status": "ANSWERED",
+      "question": "담보 증권 종료(해지·반환) 표시",
+      "recommended": "새 행으로 종료일 + 사유",
+      "alternative": "—",
+      "impact": "FLOW-8",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md rev 0.3a §5.3",
+      "humanAnswer": "세 가지 모두 권장안 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-007"
+    },
+    {
+      "id": "Q-FLOW-33",
+      "status": "ANSWERED",
+      "question": "마스킹된 KYC 수정 방식",
+      "recommended": "빈 칸은 유지('등록됨(가림)' 표시), 입력한 칸만 변경, 원문 응답 없음",
+      "alternative": "전체 재입력 / 원문 보기 후에만 수정",
+      "impact": "FLOW-9 변경 기능",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "MERCHANT-FLOW-001 rev 0.3a 재리뷰 N-2·N-3·n-1",
+      "humanAnswer": "빈 칸은 유지, 입력한 칸만 변경 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-008"
+    },
+    {
+      "id": "Q-FLOW-34",
+      "status": "ANSWERED",
+      "question": "대표자 이름 수정·순서 변경 시 등록된 생년월일",
+      "recommended": "같은 사람이면 유지(대표자 안정 식별자), 삭제 후 새 사람 추가면 새로 입력",
+      "alternative": "변경 시 '재확인 필요'",
+      "impact": "KYC 연결 모델",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "MERCHANT-FLOW-001 rev 0.3a 재리뷰 N-2·N-3·n-1",
+      "humanAnswer": "같은 사람이면 유지 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-008"
+    },
+    {
+      "id": "Q-FLOW-35",
+      "status": "ANSWERED",
+      "question": "UNMASK 원문 범위(현재/과거 버전)",
+      "recommended": "현재 값만, 이력 탭은 'KYC 변경 + 사유'만 표시",
+      "alternative": "과거 버전 포함",
+      "impact": "FLOW-10",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "MERCHANT-FLOW-001 rev 0.3a 재리뷰 N-2·N-3·n-1",
+      "humanAnswer": "현재 값만 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-008"
+    },
+    {
+      "id": "Q-FLOW-36",
+      "status": "ANSWERED",
+      "question": "접수일을 열린 접수 건에서 수정",
+      "recommended": "열린 건에서만 수정, '사유 및 비고' 필수, 이력, 미래 불가 유지",
+      "alternative": "생성 뒤 고정",
+      "impact": "FLOW-2",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "MERCHANT-FLOW-001 rev 0.3b §5.4",
+      "humanAnswer": "열린 건에서 수정, 사유 필수 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-009"
+    },
+    {
+      "id": "Q-FLOW-37",
+      "status": "ANSWERED",
+      "question": "등록된 KYC 값 지우기",
+      "recommended": "칸마다 '지우기' + 사유 필수, 과거 값은 이력 저장만(파기는 보관 기간 결정 후)",
+      "alternative": "지우기 없음",
+      "impact": "FLOW-9",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "MERCHANT-FLOW-001 rev 0.3b §5.4",
+      "humanAnswer": "칸마다 '지우기' + 사유 필수 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-FLOW-009"
     }
   ]
 }
