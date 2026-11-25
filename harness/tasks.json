@@ -1257,7 +1257,7 @@
     {
       "id": "SEC-BIZ-001",
       "title": "정상화 사업자 보안 선행: 사유 칸 카드번호 거부(M-1) + MASTER 관리 명령 지문 비밀 키 HMAC(M-2)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "MASTER",
       "owner": "Coordinator",
       "dependsOn": [
@@ -1288,9 +1288,10 @@
         "[구현 관례] 키 분리 대상 = admin-channel signing-keys 전부 + 권리 dispatch 키(Binder로 읽음), 알려진 Demo 키 = 시험 설정 키 SHA-256 1개. MasterApiMainMigrationsBootSpec은 운영 DeploymentMode를 쓰므로 deployment-mode=DEMO 속성 추가",
         "[구현 관례] 카드번호 판정은 MASTER domain CardNumberPattern(internal)·ADMIN BusinessProfileInputRules 내부 정규식·화면 CARD_NUMBER 상수로 복제, 공통 벡터 양성 10·음성 6(CardNumberVectors·BusinessCardNumberVectors·businessProfile.test.ts). 문자 규칙(REQUIRED·FORMAT·TOO_LONG) 뒤 마지막 판정",
         "독립 리뷰 APPROVED(r2), FULL SEC-gate1 PASS fp sha256:705aa7b1…f9e",
-        "Coordinator 결정: Demo master 웹 LIVE 판정 유지 + Demo 전용 무작위 지문 키(C-47/L-25), 재기동 전 확인 admin_request 18건 m1 SUCCESS·승인 1건 EXECUTED(재전송 대상 0)"
+        "Coordinator 결정: Demo master 웹 LIVE 판정 유지 + Demo 전용 무작위 지문 키(C-47/L-25), 재기동 전 확인 admin_request 18건 m1 SUCCESS·승인 1건 EXECUTED(재전송 대상 0)",
+        "Demo 확인 2026-11-25(커밋 439fa1a, master·admin 재빌드, Demo 전용 지문 키 추가 — ~/paycore-demo demo.env·app-json.py·gen-env.sh, 백업 bak-wsl/*.before-fpkey-*): 사유 카드번호 PUT → 400 CARD_NUMBER_PATTERN(값 미노출), 정상 사유 수정 200, 같은 submission 재전송 replayed=true, 새 admin_request 지문 h1:(67자), 기존 m1 행 유지. Demo 시험 사업자 biz_01M88XEHKG0MJ5E35X0KE9W4EF('SEC 시험 사업자 (Demo) 2', DRAFT) 생성됨"
       ],
-      "nextResumeAction": "커밋 → Demo 재기동·확인 → DONE",
+      "nextResumeAction": "완료. 다음: GOV-BIZ-001 나머지(M-3 사용중지 수정 거절, M-7·용어 화면 문구, 문서 M-4~M-6·M-8)",
       "detail": null
     }
   ]
