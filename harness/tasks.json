@@ -1297,7 +1297,7 @@
     {
       "id": "BIZ-NORM-002",
       "title": "사업자 정상화 2묶음: 사용중지 사업자 수정 업무 거절(M-3) + '사유 및 비고' 칸 이름(M-7) + 사업자 용어 화면 문구 정렬(D-GOV-008) + 주석 정정(M-6)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "ADMIN",
       "owner": "Coordinator",
       "dependsOn": [
@@ -1325,9 +1325,10 @@
         "Implementer 2026-11-25: 가맹점 등록 ① 사업자 선택 MerchantRegistrationScreen.tsx:350 '비활성(사용중지) 사업자 — 가맹점 등록 불가'는 가맹점 화면 문구라 이번 범위 밖으로 남김 — D-GOV-008 ① 적용 여부 Coordinator 판단 → 2026-11-25 Coordinator: 적용, '사용중지 사업자 — 가맹점 등록 불가'로 반영함",
         "Implementer 2026-11-25: 연결 가맹점 탭·가맹점 목록의 '등록일'은 가맹점 등록일이라 그대로(D-GOV-008 ②는 사업자 최초 저장일)",
         "독립 리뷰 APPROVED(MINOR 3·NIT 반영), FULL NORM2-gate1 PASS fp sha256:1404cd94…109b",
-        "Coordinator 후속: GOV-BIZ-001:171('INACTIVE 수정은 결함 처리')은 이제 사실과 다름 — 다음 문서 정리 묶음(M-4~M-8)에서 정정"
+        "Coordinator 후속: GOV-BIZ-001:171('INACTIVE 수정은 결함 처리')은 이제 사실과 다름 — 다음 문서 정리 묶음(M-4~M-8)에서 정정",
+        "Demo 확인 2026-11-25(커밋 bdf4e42, master·admin 재빌드): Demo 시험 사업자 biz_01M88XEHKG0MJ5E35X0KE9W4EF를 SQL로 INACTIVE 전환(앱 전이 경로 없음 — 시험 행만), 수정 PUT → 200 REJECTED BUSINESS_INACTIVE, 같은 요청 재전송 replayed=true"
       ],
-      "nextResumeAction": "커밋 → Demo 확인 → DONE",
+      "nextResumeAction": "완료. 다음: GOV-BIZ-001 문서 정리(M-4·M-5·M-8, GOV-BIZ-001:171 정정)",
       "detail": null
     }
   ]
