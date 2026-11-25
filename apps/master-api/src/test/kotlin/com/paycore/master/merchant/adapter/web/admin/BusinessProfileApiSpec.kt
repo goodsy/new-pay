@@ -423,6 +423,44 @@ class BusinessProfileApiSpec(
         }
     }
 
+    // BIZ-NORM-002 M-3(BR-BIZ-311, GOV-BIZ-001 G-03 — 전: 503 TEMPORARILY_UNAVAILABLE·admin_request 0행): 사용중지 행은 앱 경로가 없어 저장 행을 직접 바꾼다.
+    Given("BIZ-NORM-002 M-3 an INACTIVE business over HTTP") {
+        Then("update → 200 REJECTED BUSINESS_INACTIVE (no reference), same key replays (replayed=true), admin_request REJECTED 1 row, no history/Outbox, version unchanged") {
+            val id = created(content = BusinessBodies.individual(name = "사용중지 대상"))
+            OnboardingFixture.runtime(container).use { c ->
+                c.prepareStatement("UPDATE business SET registration_status = 'INACTIVE' WHERE business_id = ?").use { ps -> ps.setString(1, id); ps.executeUpdate() shouldBe 1 }
+            }
+            val v = versionOf(id)
+            val history = count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", id)
+            val outbox = count("SELECT COUNT(*) FROM outbox_event WHERE aggregate_id = ?", id)
+            val s = Submission()
+            val body = BusinessBodies.update(s, businessId = id, version = v, content = BusinessBodies.individual(name = "바꾼 상호"), reason = "상호 변경")
+            val first = post(BusinessBodies.UPDATE, body)
+            withClue(first.body()) { first.response.status shouldBe 200 }
+            first.body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_INACTIVE","replayed":false}"""
+            post(BusinessBodies.UPDATE, body).body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_INACTIVE","replayed":true}"""
+            adminRows(s.idempotencyKey) shouldBe 1L
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key = ? AND result_kind = 'REJECTED' AND result_code = 'BUSINESS_INACTIVE'", s.idempotencyKey) shouldBe 1L
+            listOf(
+                count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", id),
+                count("SELECT COUNT(*) FROM outbox_event WHERE aggregate_id = ?", id),
+                versionOf(id),
+            ) shouldBe listOf(history, outbox, v)
+            get(BusinessBodies.detail(id)).tree().get("business").get("registrationStatus").asString() shouldBe "INACTIVE"
+        }
+
+        Then("complete-registration → 200 REJECTED BUSINESS_NOT_DRAFT (unchanged — expected value fixed) and replayed with the same key") {
+            val id = created(content = BusinessBodies.individual(name = "사용중지 완료 대상"))
+            OnboardingFixture.runtime(container).use { c ->
+                c.prepareStatement("UPDATE business SET registration_status = 'INACTIVE' WHERE business_id = ?").use { ps -> ps.setString(1, id); ps.executeUpdate() shouldBe 1 }
+            }
+            val s = Submission()
+            val body = BusinessBodies.complete(s, businessId = id, version = versionOf(id), content = BusinessBodies.individual(name = "사용중지 완료 대상"))
+            post(BusinessBodies.COMPLETE, body).body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_NOT_DRAFT","replayed":false}"""
+            post(BusinessBodies.COMPLETE, body).body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_NOT_DRAFT","replayed":true}"""
+        }
+    }
+
     Given("BIZ-2-7 query endpoints over HTTP (shapes — Reader behaviour is BusinessReaderSpec)") {
         Then("list, lookup (found / not found same shape with registrationStatus), detail (raw personal data, raw number — D-BIZ-007) and history keys") {
             val n = number()

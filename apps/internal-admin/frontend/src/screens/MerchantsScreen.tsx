@@ -1089,7 +1089,7 @@ export function MerchantsScreen({
       </FilterPanel>
       {(canSearchRegistrationNumber || listError) && (
         <div className="cardnote">
-          {canSearchRegistrationNumber && <p id={registrationNoteId} className="subtle">사업자등록번호 검색은 매번 감사 기록에 남습니다(정확히 일치하는 번호만).</p>}
+          {canSearchRegistrationNumber && <p id={registrationNoteId} className="subtle">사업자등록번호 조회는 매번 감사 기록에 남습니다(정확히 일치하는 번호만).</p>}
           {listError && <ErrorNotice>{ERROR_MESSAGES[listError]}</ErrorNotice>}
         </div>
       )}

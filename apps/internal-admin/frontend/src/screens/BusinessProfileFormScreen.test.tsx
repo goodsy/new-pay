@@ -64,7 +64,7 @@ function renderEdit(detail: BusinessDetail, overrides: Overrides = {}) {
 /** 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 1단계 — 번호 입력 → '확인'(번호 조회 "없음") → 2단계 입력 폼(번호는 읽기 전용으로 고정). */
 async function confirmNumber(number = BRN) {
   await paste('사업자등록번호', number)
-  await press('확인')
+  await press('등록 여부 확인')
   await screen.findByRole('region', { name: '사업자 기본' })
 }
 
@@ -79,9 +79,9 @@ async function fillRegisteredIndividual() {
   await paste('사업장 기본주소', '서울특별시 중구 세종대로 110')
   await paste('대표자 1 이름', '홍길동')
   await paste('사업체 전화', '0212345678')
-  await paste('담당자 1 이름', '김담당')
-  await paste('담당자 1 이메일', 'contact.demo@example.test')
-  await paste('담당자 1 전화', '01012345678')
+  await paste('등록 담당자 1 이름', '김담당')
+  await paste('등록 담당자 1 이메일', 'contact.demo@example.test')
+  await paste('등록 담당자 1 전화', '01012345678')
 }
 
 const REGISTERED_BODY = {
@@ -122,7 +122,7 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 하이픈 표시는 1단계 입력에서 본다.
     await paste('사업자등록번호', BRN)
     expect(field('사업자등록번호')).toHaveValue('778-12-34560')
-    await press('확인')
+    await press('등록 여부 확인')
     await screen.findByRole('region', { name: '사업자 기본' })
     expect(screen.queryByLabelText('법인등록번호')).toBeNull()
     await user.click(screen.getByRole('radio', { name: '법인' }))
@@ -199,9 +199,9 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     const lookup = vi.fn().mockResolvedValueOnce({ items: [lookupItemOf(existing)] }).mockResolvedValueOnce({ items: [] })
     const { api, onOpenBusiness, view } = renderCreate({ lookupBusinessByRegistrationNumber: lookup })
     await paste('사업자등록번호', BRN)
-    await press('확인')
+    await press('등록 여부 확인')
     expect(lookup).toHaveBeenCalledWith(BRN)
-    const result = await screen.findByRole('status', { name: '번호 확인 결과' })
+    const result = await screen.findByRole('status', { name: '등록 여부 확인 결과' })
     expect(result).toHaveTextContent('이미 등록한 사업자입니다.')
     expect(result).toHaveTextContent('이미 있는 사업자 · 778-12-34567 (등록 완료)')
     expect(domOccurrences(view.container, 'biz_')).toEqual([])
@@ -212,9 +212,9 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     expect(field('사업자등록번호')).toHaveValue('')
     // 번호가 바뀌면 결과 즉시 무효(지침서 §3).
     await user.type(field('사업자등록번호'), '7')
-    expect(screen.queryByRole('status', { name: '번호 확인 결과' })).toBeNull()
+    expect(screen.queryByRole('status', { name: '등록 여부 확인 결과' })).toBeNull()
     await user.type(field('사업자등록번호'), '781234560')
-    await press('확인')
+    await press('등록 여부 확인')
     expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('778-12-34560')
     // 리뷰 MINOR-3: 정보 보기·그 밖 호출 인수에 원문 번호 없음(번호 조회만).
@@ -227,11 +227,11 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     renderCreate({ lookupBusinessByRegistrationNumber: lookup })
     await paste('사업자등록번호', '77812')
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 버튼 이름 '중복 확인' → '확인'(1단계).
-    await press('확인')
+    await press('등록 여부 확인')
     expect(lookup).not.toHaveBeenCalled()
     expect(field('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호는 숫자 10자리입니다.')
     await paste('사업자등록번호', '34560')
-    await press('확인')
+    await press('등록 여부 확인')
     expect(await screen.findByText(/사업자등록번호 10회\/분/)).toHaveTextContent('Demo 값')
   })
 
@@ -268,7 +268,7 @@ describe('BusinessProfileFormScreen — 등록(생성) 모드 (BIZ-4-2, §8.3)',
     await fillRegisteredIndividual()
     await press('등록 완료')
     expect(await screen.findByRole('alert')).toHaveTextContent('입력을 확인하세요')
-    expect(field('담당자 1 이메일')).toHaveAccessibleDescription('이메일 형식(예: name@example.com)이 아닙니다.')
+    expect(field('등록 담당자 1 이메일')).toHaveAccessibleDescription('이메일 형식(예: name@example.com)이 아닙니다.')
     expect(field('종목 1')).toHaveAccessibleDescription('같은 이름이 이미 있습니다.')
     expect(field('대표자 1 유형')).toHaveAccessibleDescription('필수 입력입니다.')
     expect(field('사업장 우편번호')).toHaveAccessibleDescription('우편번호는 숫자 5자리입니다.')
@@ -340,7 +340,7 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
     expect(field('대표자 1 이름')).toHaveValue('홍길동')
     expect(field('사업체 전화')).toHaveValue('02-1234-5678')
     await replace('사업체 이메일(선택)', 'biz.demo@example.test')
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
     await press('저장')
     expect(api.updateBusiness).toHaveBeenCalledTimes(1)
     const [businessId, body] = vi.mocked(api.updateBusiness).mock.calls[0]!
@@ -355,11 +355,11 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
   it('r-6 중요 변경 감지: 상호 change → 변경 사유 (required) appears; without a reason nothing is sent; with a reason it is sent', async () => {
     const { api } = renderEdit(individualRegisteredDetail(), { updateBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
     await replace('상호', '데모 사업자 2')
-    expect(field('변경 사유')).toHaveAccessibleDescription(/개인정보를 적지 마세요/)
+    expect(field('사유 및 비고')).toHaveAccessibleDescription(/개인정보를 적지 마세요/)
     await press('저장')
     expect(api.updateBusiness).not.toHaveBeenCalled()
-    expect(field('변경 사유')).toHaveAccessibleDescription('필수 입력입니다.')
-    await paste('변경 사유', '상호 정정')
+    expect(field('사유 및 비고')).toHaveAccessibleDescription('필수 입력입니다.')
+    await paste('사유 및 비고', '상호 정정')
     await press('저장')
     expect(vi.mocked(api.updateBusiness).mock.calls[0]![1]).toMatchObject({ displayName: '데모 사업자 2', reason: '상호 정정' })
   })
@@ -367,40 +367,40 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
   it('r-6: REGISTERED — adding a representative only, or swapping their order, needs a reason (M-2·M-4)', async () => {
     const first = renderEdit(individualRegisteredDetail())
     await user.selectOptions(field('대표자 1 유형'), 'JOINT')
-    expect(screen.queryByLabelText('변경 사유')).not.toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).not.toBeNull()
     await user.selectOptions(field('대표자 1 유형'), 'SOLE')
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
     await press('대표자 추가')
     await paste('대표자 2 이름', '이몽룡')
-    expect(field('변경 사유')).toBeInTheDocument()
+    expect(field('사유 및 비고')).toBeInTheDocument()
     first.view.unmount()
 
     renderEdit(jointRegisteredDetail())
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
     await replace('대표자 1 이름', '이몽룡')
     await replace('대표자 2 이름', '홍길동')
-    expect(field('변경 사유')).toBeInTheDocument()
+    expect(field('사유 및 비고')).toBeInTheDocument()
   })
 
   it('r-6: DRAFT 0 → 1 first representative and a 업태 order change need no reason', async () => {
     const first = renderEdit(draftMinimalDetail())
     await paste('대표자 1 이름', '홍길동')
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
     first.view.unmount()
 
     const detail = individualRegisteredDetail()
     renderEdit({ ...detail, categories: [{ categoryType: 'BUSINESS_TYPE', name: '도소매' }, { categoryType: 'BUSINESS_TYPE', name: '서비스' }, { categoryType: 'BUSINESS_ITEM', name: '전자상거래' }] })
     await replace('업태 1', '서비스')
     await replace('업태 2', '도소매')
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
   })
 
   it('a server BUSINESS_CHANGE_REASON_REQUIRED (server is the authority) shows the reason field with the rejection', async () => {
     renderEdit(individualRegisteredDetail(), { updateBusiness: vi.fn(async () => commandRejected('BUSINESS_CHANGE_REASON_REQUIRED')) })
     await replace('사업체 이메일(선택)', 'biz.demo@example.test')
     await press('저장')
-    expect(await screen.findByRole('alert')).toHaveTextContent('중요정보를 바꾸려면 변경 사유가 필요합니다')
-    expect(field('변경 사유')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent("중요정보를 바꾸려면 '사유 및 비고'에 사유를 적어야 합니다")
+    expect(field('사유 및 비고')).toBeInTheDocument()
   })
 
   it('a version conflict says so and offers 다시 불러오기 (re-read the detail); BUSINESS_PROFILE_UNCHANGED says nothing changed', async () => {
@@ -435,9 +435,9 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
     await paste('사업장 기본주소', '서울특별시 중구 세종대로 110')
     await paste('대표자 1 이름', '홍길동')
     await paste('사업체 전화', '0212345678')
-    await paste('담당자 1 이름', '김담당')
-    await paste('담당자 1 이메일', 'contact.demo@example.test')
-    await paste('담당자 1 전화', '01012345678')
+    await paste('등록 담당자 1 이름', '김담당')
+    await paste('등록 담당자 1 이메일', 'contact.demo@example.test')
+    await paste('등록 담당자 1 전화', '01012345678')
     await press('등록 완료')
     expect(api.completeBusinessRegistration).toHaveBeenCalledTimes(1)
     const [businessId, body] = vi.mocked(api.completeBusinessRegistration).mock.calls[0]!
@@ -451,10 +451,10 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
 
   it('review NIT-2 (§4.5 "일반정보만이면 사유 선택"): a general change shows an optional reason; empty → null, typed → sent', async () => {
     const { api } = renderEdit(individualRegisteredDetail(), { updateBusiness: vi.fn(async () => commandSucceeded(BIZ)) })
-    expect(screen.queryByLabelText('변경 사유(선택)')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고(선택)')).toBeNull()
     await replace('사업체 이메일(선택)', 'biz.demo@example.test')
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
-    await paste('변경 사유(선택)', '연락처 갱신')
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
+    await paste('사유 및 비고(선택)', '연락처 갱신')
     await press('저장')
     expect(vi.mocked(api.updateBusiness).mock.calls[0]![1]).toMatchObject({ reason: '연락처 갱신', registration: { email: 'biz.demo@example.test' } })
   })
@@ -468,7 +468,7 @@ describe('BusinessProfileFormScreen — 수정·등록 완료 모드 (BIZ-4-2, �
     expect(await screen.findByRole('alert')).toHaveTextContent('화면 칸에 표시할 수 없는 오류')
     expect(screen.getByRole('region', { name: '등록 담당자' })).toHaveTextContent('기본 등록 담당자는 1명만 고를 수 있습니다')
     await press('저장')
-    expect(await screen.findByLabelText('변경 사유')).toHaveAccessibleDescription('200자 이하로 입력하세요.')
+    expect(await screen.findByLabelText('사유 및 비고')).toHaveAccessibleDescription('200자 이하로 입력하세요.')
   })
 })
 

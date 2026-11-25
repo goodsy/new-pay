@@ -27,7 +27,7 @@ const paste = async (label: string, value: string) => {
 /** 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 1단계 — 번호 입력 → '확인'(번호 조회 "없음") → 2단계 입력 폼. */
 const confirmNumber = async () => {
   await paste('사업자등록번호', BRN)
-  await user.click(screen.getByRole('button', { name: '확인' }))
+  await user.click(screen.getByRole('button', { name: '등록 여부 확인' }))
   await screen.findByRole('region', { name: '사업자 기본' })
 }
 const fillDraft = async () => {
@@ -66,7 +66,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     const panel = screen.getByRole('main').querySelector(':scope > section.card > [role="tabpanel"]')!
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 처음 화면은 .mapnote + 번호 확인 form(.cardbody) — 확인 뒤 아래 구조(단언 그대로).
     expect(shape(panel)).toEqual(['div.mapnote', 'form.cardbody'])
-    expect(within(panel.querySelector(':scope > form')! as HTMLElement).getByRole('button', { name: '확인' })).toHaveClass('btn')
+    expect(within(panel.querySelector(':scope > form')! as HTMLElement).getByRole('button', { name: '등록 여부 확인' })).toHaveClass('btn')
     await confirmNumber()
     expect(shape(panel)).toEqual(['div.mapnote', 'div.cardnote', 'form'])
     const mapnote = panel.querySelector('.mapnote') as HTMLElement
@@ -92,7 +92,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     })
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 2단계 번호 줄의 '번호 다시 입력'(1단계로)도 .btn.
     expect(screen.getByRole('button', { name: '번호 다시 입력' })).toHaveClass('btn')
-    for (const name of ['업태 추가', '종목 추가', '대표자 추가', '담당자 추가', '업태 1 삭제', '대표자 1 삭제', '담당자 1 삭제']) {
+    for (const name of ['업태 추가', '종목 추가', '대표자 추가', '등록 담당자 추가', '업태 1 삭제', '대표자 1 삭제', '등록 담당자 1 삭제']) {
       expect(screen.getByRole('button', { name })).toHaveClass('btn')
       expect(screen.getByRole('button', { name })).not.toHaveClass('primary')
     }
@@ -116,13 +116,13 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     })
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 확인은 1단계 '확인'(같은 보이는 진행 글자) — "없음"이면 결과 상자 없이 2단계로.
     await paste('사업자등록번호', BRN)
-    const check = screen.getByRole('button', { name: '확인' })
+    const check = screen.getByRole('button', { name: '등록 여부 확인' })
     const checkLive = check.parentElement!.querySelector(':scope > span.subtle')!
     expect(checkLive).toHaveAttribute('aria-live', 'polite')
     expect(checkLive).toBeEmptyDOMElement()
     await user.click(check)
     expect(checkLive).toHaveTextContent('확인 중…')
-    expect(screen.getByRole('button', { name: '확인' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: '등록 여부 확인' })).toHaveAttribute('aria-busy', 'true')
     finishLookup({ items: [] })
     expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     await user.click(screen.getByRole('radio', { name: '개인' }))
@@ -200,7 +200,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
   it('userFeedback1-1: 확인 sits on the 사업자등록번호 input row (wrapping, input-height button); help text and the result box stay below the row', async () => {
     renderWorkspace({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [lookupItemOf(individualRegisteredDetail(1))] })) })
     const input = screen.getByLabelText('사업자등록번호')
-    const check = screen.getByRole('button', { name: '확인' })
+    const check = screen.getByRole('button', { name: '등록 여부 확인' })
     const row = check.parentElement!
     expect(row.contains(input)).toBe(true)
     expect(row).toHaveClass('fieldcontrol')
@@ -212,7 +212,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     expect(hint.parentElement).toBe(row.parentElement)
     await paste('사업자등록번호', BRN)
     await user.click(check)
-    const result = await screen.findByRole('status', { name: '번호 확인 결과' })
+    const result = await screen.findByRole('status', { name: '등록 여부 확인 결과' })
     expect(rowOf(input).contains(result)).toBe(false)
     // 결과 상자는 줄 아래 입력 열 정렬(.fieldoffset).
     expect(result.parentElement).toHaveClass('fieldoffset')
@@ -256,7 +256,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     expect(numberRow.firstElementChild).toHaveTextContent('사업자등록번호')
     const labels = [
       '상호', '개업일', '국가', '영문 상호(선택)', '업태 1', '종목 1', '사업장 우편번호', '사업장 기본주소', '사업장 상세주소(선택)',
-      '대표자 1 이름', '대표자 1 유형', '사업체 전화', '사업체 이메일(선택)', '담당자 1 이름', '담당자 1 이메일', '담당자 1 전화',
+      '대표자 1 이름', '대표자 1 유형', '사업체 전화', '사업체 이메일(선택)', '등록 담당자 1 이름', '등록 담당자 1 이메일', '등록 담당자 1 전화',
     ]
     for (const label of labels) {
       const input = screen.getByLabelText(label)
@@ -283,11 +283,11 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     expect(rowOf(screen.getByLabelText('법인등록번호')).firstElementChild).toHaveTextContent('법인등록번호')
     // 줄 밖 보조 요소(실사업장 체크·추가 버튼·대표자 안내)는 입력 열에 맞춘다.
     expect(screen.getByRole('checkbox', { name: '실사업장이 사업장과 다름' }).closest('label')).toHaveClass('fieldoffset')
-    for (const name of ['대표자 추가', '담당자 추가']) expect(screen.getByRole('button', { name }).parentElement).toHaveClass('fieldoffset')
+    for (const name of ['대표자 추가', '등록 담당자 추가']) expect(screen.getByRole('button', { name }).parentElement).toHaveClass('fieldoffset')
     expect(screen.getByText('단독 대표는 1명일 때만, 2명 이상이면 공동·각자를 고르세요.')).toHaveClass('fieldoffset')
     // 대표자·담당자 삭제도 업태와 같은 짧은 '삭제'(이름 그대로).
     expect(screen.getByRole('button', { name: '대표자 1 삭제' })).toHaveTextContent(/^삭제$/)
-    expect(screen.getByRole('button', { name: '담당자 1 삭제' })).toHaveTextContent(/^삭제$/)
+    expect(screen.getByRole('button', { name: '등록 담당자 1 삭제' })).toHaveTextContent(/^삭제$/)
     expect(document.querySelectorAll('[style]')).toHaveLength(0)
   })
 
@@ -302,11 +302,11 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
     expect(screen.getByRole('group', { name: '사업자등록번호' }).querySelector('.fieldcontrol')).toHaveClass('fw-sm')
     expect(Object.fromEntries([
       '법인등록번호', '상호', '개업일', '국가', '영문 상호(선택)', '업태 1', '종목 1', '사업장 우편번호', '사업장 기본주소', '사업장 상세주소(선택)',
-      '대표자 1 이름', '대표자 1 유형', '사업체 전화', '사업체 이메일(선택)', '담당자 1 이름', '담당자 1 이메일', '담당자 1 전화',
+      '대표자 1 이름', '대표자 1 유형', '사업체 전화', '사업체 이메일(선택)', '등록 담당자 1 이름', '등록 담당자 1 이메일', '등록 담당자 1 전화',
     ].map((label) => [label, width(label)]))).toEqual({
       법인등록번호: 'fw-sm', 상호: 'fw-lg', 개업일: 'fw-sm', 국가: 'fw-xs', '영문 상호(선택)': 'fw-lg', '업태 1': 'fw-md', '종목 1': 'fw-md',
       '사업장 우편번호': 'fw-xs', '사업장 기본주소': 'full', '사업장 상세주소(선택)': 'full', '대표자 1 이름': 'fw-md', '대표자 1 유형': 'fw-sm',
-      '사업체 전화': 'fw-sm', '사업체 이메일(선택)': 'full', '담당자 1 이름': 'fw-md', '담당자 1 이메일': 'full', '담당자 1 전화': 'fw-sm',
+      '사업체 전화': 'fw-sm', '사업체 이메일(선택)': 'full', '등록 담당자 1 이름': 'fw-md', '등록 담당자 1 이메일': 'full', '등록 담당자 1 전화': 'fw-sm',
     })
   })
 
@@ -331,7 +331,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
   // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 칸·'확인'은 1단계 폼 줄, 업태 줄은 확인 뒤 2단계에서 본다(단언 그대로).
   it('userFeedback1 + B5: without the workspace flag the number row and 업태 rows are form rows too (확인 beside the input, short 삭제 with the same name); buttons keep the non-workspace look', async () => {
     render(<BusinessProfileFormScreen api={fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })) })} mode={{ kind: 'create' }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
-    const check = screen.getByRole('button', { name: '확인' })
+    const check = screen.getByRole('button', { name: '등록 여부 확인' })
     expect(check.parentElement!.contains(screen.getByLabelText('사업자등록번호'))).toBe(true)
     expect(check.parentElement).toHaveClass('fieldcontrol', 'fw-sm')
     expect(check).not.toHaveClass('btn')
@@ -360,7 +360,7 @@ describe('ADMIN-UI-WORKSPACE-001: 사업자·가맹점 › 사업자 등록 in t
 const EDIT_WIDTHS: Record<string, string> = {
   상호: 'fw-lg', 개업일: 'fw-sm', 국가: 'fw-xs', '영문 상호(선택)': 'fw-lg', '업태 1': 'fw-md', '종목 1': 'fw-md',
   '사업장 우편번호': 'fw-xs', '사업장 기본주소': 'full', '사업장 상세주소(선택)': 'full', '대표자 1 이름': 'fw-md', '대표자 1 유형': 'fw-sm',
-  '사업체 전화': 'fw-sm', '사업체 이메일(선택)': 'full', '담당자 1 이름': 'fw-md', '담당자 1 이메일': 'full', '담당자 1 전화': 'fw-sm',
+  '사업체 전화': 'fw-sm', '사업체 이메일(선택)': 'full', '등록 담당자 1 이름': 'fw-md', '등록 담당자 1 이메일': 'full', '등록 담당자 1 전화': 'fw-sm',
 }
 /** 입력 하나의 폼 줄: label[for] = 입력 id(이름 글자 그대로) · .fieldcontrol이 줄의 자식 · 폭 class(full = fw-* 없음). */
 const expectFormRow = (label: string, width: string) => {
@@ -451,10 +451,10 @@ describe('LAYOUT-ROLLOUT B5: 사업자 상세 안 수정 폼 = 폼 줄(이름 �
       expect(button.parentElement).toBe(screen.getByLabelText(label).closest('.fieldcontrol'))
       expect(button).not.toHaveClass('btn')
     }
-    const contactRemove = screen.getByRole('button', { name: '담당자 1 삭제' })
+    const contactRemove = screen.getByRole('button', { name: '등록 담당자 1 삭제' })
     expect(contactRemove).toHaveTextContent(/^삭제$/)
     expect(contactRemove.parentElement).toHaveClass('fieldoffset')
-    for (const name of ['업태 추가', '종목 추가', '대표자 추가', '담당자 추가']) {
+    for (const name of ['업태 추가', '종목 추가', '대표자 추가', '등록 담당자 추가']) {
       const add = screen.getByRole('button', { name })
       expect(add.parentElement).toHaveClass('fieldoffset')
       expect(add).not.toHaveClass('btn')
@@ -466,10 +466,10 @@ describe('LAYOUT-ROLLOUT B5: 사업자 상세 안 수정 폼 = 폼 줄(이름 �
 
   it('수정 폼: 중요 변경(법인으로) → 법인등록번호 줄(sm)·변경 사유 줄(full, 안내 = 설명) — 사유 칸은 섹션 밖 fieldset 안', async () => {
     renderEdit()
-    expect(screen.queryByLabelText('변경 사유')).toBeNull()
+    expect(screen.queryByLabelText('사유 및 비고')).toBeNull()
     await user.click(screen.getByRole('radio', { name: '법인' }))
     expectFormRow('법인등록번호', 'fw-sm')
-    const reason = expectFormRow('변경 사유', 'full')
+    const reason = expectFormRow('사유 및 비고', 'full')
     expect(reason.input).toHaveAccessibleDescription('중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.')
     expect(reason.row.closest('section[aria-label]')).toBeNull() // 섹션 카드(region) 밖 — 바깥 화면 section(PageHeader 껍데기)은 이름 없음
     expect(reason.row.closest('fieldset')).not.toBeNull()

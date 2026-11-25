@@ -347,7 +347,7 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
                       // INACTIVE(전이 경로 없음 — TBD-08)는 등록 완료로 풀 수 없으므로 다른 문구(리뷰 NIT-4).
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-warning">
-                          {item.registrationStatus === 'DRAFT' ? '사업자 등록 완료 후 가맹점 등록 가능' : '비활성(사용중지) 사업자 — 가맹점 등록 불가'}
+                          {item.registrationStatus === 'DRAFT' ? '사업자 등록 완료 후 가맹점 등록 가능' : '사용중지 사업자 — 가맹점 등록 불가'}
                         </span>
                         {onOpenBusiness && <button type="button" className="btn" onClick={() => onOpenBusiness(item.businessId)}>사업자 상세 보기</button>}
                       </span>

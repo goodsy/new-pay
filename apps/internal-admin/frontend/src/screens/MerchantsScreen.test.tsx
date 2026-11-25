@@ -156,7 +156,7 @@ describe('MerchantsScreen (MERCHANT-OPS-001 §7 AC 11 — read-only merchant loo
     expect(input).not.toHaveAttribute('maxlength')
     expect(input).toHaveAttribute('autocomplete', 'off')
     // 감사 안내는 줄였지만 유지한다(보안상 필요한 안내 — D-ADMIN-UI-004 설명 최소화의 예외).
-    expect(screen.getByText(/검색은 매번 감사 기록/)).toBeInTheDocument()
+    expect(screen.getByText(/조회는 매번 감사 기록/)).toBeInTheDocument()
   })
 
   it('a registration number that is not exactly 10 ASCII digits is not sent (client check — the server checks again)', async () => {

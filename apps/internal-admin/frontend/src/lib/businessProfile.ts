@@ -10,13 +10,14 @@ import type { FieldError } from '../errors/fieldErrors'
  */
 
 export const BUSINESS_TYPE_LABELS: Readonly<Record<string, string>> = { INDIVIDUAL: '개인', CORPORATION: '법인' }
-/** INACTIVE(비활성)는 DB 값만 있고 이번 범위에 전이 경로가 없다(TBD-08 — 사용중지 정책 미정). */
-export const REGISTRATION_STATUS_LABELS: Readonly<Record<string, string>> = { DRAFT: '임시저장', REGISTERED: '등록 완료', INACTIVE: '비활성(사용중지)' }
+/** INACTIVE(사용중지 — D-GOV-008 ①)는 DB 값만 있고 이번 범위에 전이 경로가 없다(TBD-08). 사용중지 사업자 수정은 업무 거절(BR-BIZ-311 — 화면은 편집 폼을 열지 않는다). */
+export const REGISTRATION_STATUS_LABELS: Readonly<Record<string, string>> = { DRAFT: '임시저장', REGISTERED: '등록 완료', INACTIVE: '사용중지' }
 export const REPRESENTATIVE_TYPE_LABELS: Readonly<Record<string, string>> = { SOLE: '단독', JOINT: '공동', EACH: '각자' }
 export const CATEGORY_TYPE_LABELS: Readonly<Record<string, string>> = { BUSINESS_TYPE: '업태', BUSINESS_ITEM: '종목' }
 export const ADDRESS_TYPE_LABELS: Readonly<Record<string, string>> = { REGISTERED: '사업장', ACTUAL: '실사업장' }
 export const CHANGE_TYPE_LABELS: Readonly<Record<string, string>> = {
-  BusinessCreated: '생성',
+  // D-GOV-008 ②: '생성' → '사업자 등록(저장)'(changeType code 그대로).
+  BusinessCreated: '사업자 등록(저장)',
   BusinessProfileUpdated: '수정',
   BusinessRegistrationCompleted: '등록 완료',
   // 옛 사업자 등록 경로(BIZ-4 전환에서 제거 — C-27)가 남긴 이력 행.
@@ -45,9 +46,9 @@ export const labelIn = (labels: Readonly<Record<string, string>>, code: string |
 /** 429 문구(BIZ-3 리뷰 4 — L-14): 한도 숫자는 Demo 설정 값(운영값 아님). */
 export const BUSINESS_READ_RATE_LIMITED = '사업자 조회가 너무 잦습니다. 잠시 후 다시 시도하세요(사업자 조회 30회/분 — 목록·상세·이력·번호 조회 합산, Demo 값·운영값 아님).'
 export const BRN_RATE_LIMITED =
-  '번호 조회가 너무 잦습니다. 잠시 후 다시 시도하세요(사업자등록번호 10회/분 — 번호 조회·가맹점 번호 검색·사업자 생성 합산, 번호 조회는 사업자 조회 30회/분에도 포함 · Demo 값·운영값 아님).'
+  '번호 조회가 너무 잦습니다. 잠시 후 다시 시도하세요(사업자등록번호 10회/분 — 번호 조회·가맹점 번호 조회·사업자 등록 합산, 번호 조회는 사업자 조회 30회/분에도 포함 · Demo 값·운영값 아님).'
 export const COMMAND_RATE_LIMITED =
-  '저장 요청이 너무 잦습니다. 잠시 후 다시 시도하세요(사업자 저장 20회/분, 생성은 사업자등록번호 10회/분도 함께 — Demo 값·운영값 아님).'
+  '저장 요청이 너무 잦습니다. 잠시 후 다시 시도하세요(사업자 저장 20회/분, 사업자 등록은 사업자등록번호 10회/분도 함께 — Demo 값·운영값 아님).'
 
 // ── 입력 폼 ─────────────────────────────────────────────────────────────
 
@@ -335,7 +336,7 @@ const FIELD_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   REQUIRED: '필수 입력입니다.',
   FORMAT: '형식이 올바르지 않습니다.',
   TOO_LONG: '허용 길이를 넘었습니다.',
-  TOO_MANY: '개수 상한을 넘었습니다(대표자 5·업태 10·종목 10·주소 유형별 1·담당자 5).',
+  TOO_MANY: '개수 상한을 넘었습니다(대표자 5·업태 10·종목 10·주소 유형별 1·등록 담당자 5).',
   DUPLICATE: '같은 이름이 이미 있습니다.',
   NOT_ALLOWED: '이 사업체 구분에서는 입력할 수 없습니다.',
   SOLE_WITH_OTHERS: '단독 대표는 대표자가 1명일 때만 고를 수 있습니다(2명 이상이면 공동·각자).',

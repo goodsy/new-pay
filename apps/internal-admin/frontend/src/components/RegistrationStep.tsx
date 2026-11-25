@@ -18,7 +18,8 @@ export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   BUSINESS_REGISTRATION_NUMBER_DUPLICATE: '이미 등록된 사업자등록번호입니다',
   SITE_CHANNEL_DUPLICATE: '이미 다른 Site가 쓰는 채널 식별값입니다',
   BUSINESS_NOT_FOUND: '사업자를 찾을 수 없습니다',
-  BUSINESS_NOT_ACTIVE: '활성 상태가 아닌 사업자입니다',
+  // D-GOV-008 ①: BUSINESS_NOT_ACTIVE는 생명주기 종료(TERMINATED) — '활성 상태가 아닌' 대신 '종료'.
+  BUSINESS_NOT_ACTIVE: '종료된 사업자입니다',
   MERCHANT_NOT_FOUND: '가맹점을 찾을 수 없습니다',
   MERCHANT_NOT_ACTIVE: '활성 상태가 아닌 가맹점입니다',
   // B1-2 계약 초안·서비스 계약(§5.2) — 거절에는 기존 계약·Site ID가 오지 않는다(C-12).
@@ -37,9 +38,13 @@ export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   MERCHANT_CODE_RESERVED: '사용할 수 없는 코드입니다',
   // BUSINESS-PROFILE-001 §8.5(BIZ-4): 사업자 명령 거절 + 가맹점 등록의 새 거절(C-27 — D-BIZ-001 새 가맹점은 REGISTERED 사업자만).
   BUSINESS_NOT_REGISTERED: '등록 완료된 사업자만 가맹점을 등록할 수 있습니다',
-  BUSINESS_NOT_DRAFT: '이미 등록 완료된 사업자입니다',
+  // BIZ-NORM-002: 등록 완료(complete)는 DRAFT만 — 이미 등록 완료(REGISTERED)와 사용중지(INACTIVE) 둘 다 이 거절이다. 화면이 아는 상태는 연 시점 값이라(그 사이 바뀔 수 있다)
+  // 상태로 문구를 고르지 않고 두 경우에 맞는 공통 문구를 쓴다.
+  BUSINESS_NOT_DRAFT: '등록 완료할 수 없는 상태입니다(이미 등록 완료됐거나 사용중지된 사업자)',
+  // BIZ-NORM-002 M-3(BR-BIZ-311): 사용중지 사업자 수정 — MASTER가 저장한 업무 거절(효과 없음 확정, 결과 불명 아님).
+  BUSINESS_INACTIVE: '사용중지된 사업자는 수정할 수 없습니다',
   BUSINESS_VERSION_CONFLICT: '다른 사용자가 먼저 수정했습니다. 다시 불러온 뒤 수정하세요',
-  BUSINESS_CHANGE_REASON_REQUIRED: '중요정보를 바꾸려면 변경 사유가 필요합니다',
+  BUSINESS_CHANGE_REASON_REQUIRED: "중요정보를 바꾸려면 '사유 및 비고'에 사유를 적어야 합니다",
   BUSINESS_PROFILE_UNCHANGED: '바뀐 내용이 없습니다',
 }
 

@@ -11,7 +11,7 @@ value class BusinessRegistrationNumber(val value: String) {
         require(value.length == LENGTH && value.all { it in '0'..'9' }) { "business registration number must be $LENGTH ASCII digits" }
     }
 
-    /** 감사·화면용 가린 값(앞 3자리 + `*`). */
+    /** 변경 이력·로그·[toString]용 가린 값(앞 3자리 + `*`). 관리자 화면·조회 응답은 원문을 쓴다(D-BIZ-007·D-PII-001 ① — 이 값이 아니다). */
     fun masked(): String = value.take(VISIBLE) + "*".repeat(LENGTH - VISIBLE)
 
     override fun toString(): String = "BusinessRegistrationNumber(${masked()})"

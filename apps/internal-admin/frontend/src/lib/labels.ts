@@ -47,7 +47,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   OPS_RECON_FINDING: '대사 발견 기록',
   // MERCHANT-OPS-001 §5.1·§5.2(admin.merchantops)
   MERCHANT_VIEWED: '가맹점 상세 조회',
-  MERCHANT_BRN_SEARCHED: '사업자등록번호 검색',
+  // D-GOV-008 ③: 가맹점 목록의 번호 찾기도 '번호 조회'(사업자 쪽 BUSINESS_BRN_LOOKUP과 구분 — action code 그대로).
+  MERCHANT_BRN_SEARCHED: '사업자등록번호 조회(가맹점 목록)',
   // MERCHANT-OPS-002 §6(B1-1 — C-5 명령별 code)
   MERCHANT_BUSINESS_REGISTER: '사업자 등록',
   MERCHANT_REGISTER: '가맹점 등록',
@@ -61,7 +62,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   // BUSINESS-PROFILE-001 §7.4(admin.merchantops — 사업자 관리, C-25). 옛 MERCHANT_BUSINESS_REGISTER는 기존 행 표시용으로 남는다(경로는 C-27로 제거).
   BUSINESS_BRN_LOOKUP: '사업자등록번호 조회',
   BUSINESS_VIEWED: '사업자 상세 조회',
-  BUSINESS_CREATE: '사업자 생성',
+  // D-GOV-008 ②: '사업자 생성' → '사업자 등록(저장)'(action code 그대로).
+  BUSINESS_CREATE: '사업자 등록(저장)',
   BUSINESS_UPDATE: '사업자 수정',
   BUSINESS_REGISTRATION_COMPLETE: '사업자 등록 완료',
   // TXN-OPS-001 §5.1(admin.paymentops)

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
  * [BusinessProfileCommandUseCase](MASTER 로컬 TX 하나 — BIZ-1), 중복 요약은 provided [BusinessProfileQueryUseCase.existingSummary](TX 밖 — r-2). 이 컨트롤러는 TX를 열지 않는다.
  *
  * 응답(기존 MerchantOperationsController 틀): 성공 200 `{"outcome":"SUCCEEDED","reference","replayed"}`, 저장된 거절 200 `{"outcome":"REJECTED","rejection","replayed"}` —
- * **거절 reference는 버린다(C-12)**. 예외는 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE` 하나: 저장 reference로 기존 사업자 요약을 읽어 `existing`(상호·마스킹 번호·내부 키·등록 상태 —
+ * **거절 reference는 버린다(C-12)**. 예외는 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE` 하나: 저장 reference로 기존 사업자 요약을 읽어 `existing`(상호·원문 번호(D-BIZ-007·D-PII-001 ① — 마스킹 아님)·내부 키·등록 상태 —
  * D-BIZ-003·C-14)을 더한다. 요약을 읽지 못하면(예외·없음) **503 `TEMPORARILY_UNAVAILABLE`**(existing 없는 REJECTED를 내보내지 않는다 — m-1·C-33). 거절은 이미 저장됐으므로 같은 키
  * 재전송은 저장 거절 재생 + 요약 재조회다.
  *

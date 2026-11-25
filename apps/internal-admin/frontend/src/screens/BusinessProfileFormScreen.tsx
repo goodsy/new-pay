@@ -366,7 +366,7 @@ export function BusinessProfileFormScreen({
   const dupResult = (
     <>
       {dupCheck?.kind === 'taken' && (
-        <div role="status" aria-label="번호 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
+        <div role="status" aria-label="등록 여부 확인 결과" className="flex flex-col gap-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
           <span className="font-medium">이미 등록한 사업자입니다.</span>
           <span>{`${existingText(dupCheck.item)} (${REGISTRATION_STATUS_LABELS[dupCheck.item.registrationStatus] ?? dupCheck.item.registrationStatus})`}</span>
           <span><ActionButton workspace={workspace} type="button" variant="outline" size="sm" onClick={() => onOpenBusiness(dupCheck.item.businessId)}>정보 보기</ActionButton></span>
@@ -386,12 +386,12 @@ export function BusinessProfileFormScreen({
   const reasonFields = (
     <>
       {showReason && (
-        <Row width="full" label="변경 사유" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
+        <Row width="full" label="사유 및 비고" error={err('reason')} hint="중요정보(상호·사업체 구분·대표자·개업일·법인등록번호)를 바꾸려면 사유가 필요합니다. 개인정보를 적지 마세요.">
           {(describedBy, id) => <Textarea id={id} value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
         </Row>
       )}
       {showOptionalReason && (
-        <Row width="full" label="변경 사유(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
+        <Row width="full" label="사유 및 비고(선택)" error={err('reason')} hint="일반정보만 바뀌어 사유는 선택입니다(남기면 변경 이력에 기록). 개인정보를 적지 마세요.">
           {(describedBy, id) => <Textarea id={id} value={reason} rows={2} onChange={(e) => setReason(e.target.value)} aria-describedby={describedBy} aria-invalid={!!err('reason') || undefined} />}
         </Row>
       )}
@@ -524,30 +524,30 @@ export function BusinessProfileFormScreen({
                 const setContact = (patch: Partial<typeof c>) => update({ contacts: form.contacts.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
                 return (
                   <div key={i} className="flex flex-col">
-                    <FormRow label={`담당자 ${i + 1} 이름`} width="md" error={err(`contacts[${i}].name`)}>
+                    <FormRow label={`등록 담당자 ${i + 1} 이름`} width="md" error={err(`contacts[${i}].name`)}>
                       {(describedBy, id) => <Input id={id} value={c.name} autoComplete="off" onChange={(e) => setContact({ name: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].name`) || undefined} />}
                     </FormRow>
-                    <FormRow label={`담당자 ${i + 1} 이메일`} width="full" error={err(`contacts[${i}].email`)}>
+                    <FormRow label={`등록 담당자 ${i + 1} 이메일`} width="full" error={err(`contacts[${i}].email`)}>
                       {(describedBy, id) => <Input id={id} value={c.email} autoComplete="off" onChange={(e) => setContact({ email: e.target.value })} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].email`) || undefined} />}
                     </FormRow>
-                    <FormRow label={`담당자 ${i + 1} 전화`} width="sm" error={err(`contacts[${i}].phoneNumber`)}>
+                    <FormRow label={`등록 담당자 ${i + 1} 전화`} width="sm" error={err(`contacts[${i}].phoneNumber`)}>
                       {(describedBy, id) => (
                         <DigitsInput id={id} value={c.phoneNumber} onValueChange={(v) => setContact({ phoneNumber: v })} format={formatPhone} maxDigits={12} aria-describedby={describedBy} aria-invalid={!!err(`contacts[${i}].phoneNumber`) || undefined} />
                       )}
                     </FormRow>
                     <span className="fieldoffset flex flex-wrap items-center gap-3">
                       <label className="flex items-center gap-1.5 text-sm">
-                        <input type="radio" name={`${primaryGroup}-primary`} aria-label={`담당자 ${i + 1} 기본 담당자`} checked={c.primary}
+                        <input type="radio" name={`${primaryGroup}-primary`} aria-label={`등록 담당자 ${i + 1} 기본 등록 담당자`} checked={c.primary}
                           onChange={() => update({ contacts: form.contacts.map((x, j) => ({ ...x, primary: j === i })) })} />
-                        기본 담당자
+                        기본 등록 담당자
                       </label>
-                      {removeButton(`담당자 ${i + 1} 삭제`, () => update({ contacts: form.contacts.filter((_, j) => j !== i) }))}
+                      {removeButton(`등록 담당자 ${i + 1} 삭제`, () => update({ contacts: form.contacts.filter((_, j) => j !== i) }))}
                     </span>
                   </div>
                 )
               })}
               <div className="fieldoffset">
-                {addButton('담당자 추가', form.contacts.length >= MAX_CONTACTS, () => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] }))}
+                {addButton('등록 담당자 추가', form.contacts.length >= MAX_CONTACTS, () => update({ contacts: [...form.contacts, { name: '', email: '', phoneNumber: '', primary: form.contacts.length === 0 }] }))}
               </div>
             </div>
 </>
@@ -727,7 +727,7 @@ export function BusinessProfileFormScreen({
   // B5b 1단계(D-ADMIN-UI-011 ① — pg-lab 사업자 등록 첫 단계): 사업자등록번호 한 칸(하이픈 자동) + '확인'. 형식이 맞을 때만 번호 조회를 부른다(D-MOPS-006 ④ —
   // 매 확인 감사·번호 공유 버킷은 서버). 이미 있으면 안내·'정보 보기', 없으면 2단계(입력 폼).
   const numberStepNode = (
-    <form noValidate aria-label="사업자등록번호 확인" onSubmit={(e) => { e.preventDefault(); void checkDuplicate() }} className={workspace ? 'cardbody' : 'flex flex-col gap-2'}>
+    <form noValidate aria-label="등록 여부 확인" onSubmit={(e) => { e.preventDefault(); void checkDuplicate() }} className={workspace ? 'cardbody' : 'flex flex-col gap-2'}>
       <FormRow
         label="사업자등록번호"
         width="sm"
@@ -737,7 +737,7 @@ export function BusinessProfileFormScreen({
           <>
             <ActionButton workspace={workspace} type="submit" className="h-9 py-0" aria-busy={dupBusy}>
               {!workspace && <Spinner active={dupBusy} />}
-              확인
+              등록 여부 확인
             </ActionButton>
             {workspace && <span className="subtle" aria-live="polite">{dupBusy ? '확인 중…' : ''}</span>}
           </>
@@ -748,7 +748,8 @@ export function BusinessProfileFormScreen({
       {dupCheck && <div className="fieldoffset">{dupResult}</div>}
     </form>
   )
-  const numberStepGuide = '먼저 사업자등록번호로 이미 등록된 사업자인지 확인합니다. 확인은 감사 기록에 남습니다. 없으면 나머지 정보를 입력합니다.'
+  // D-GOV-008 ③: 등록 1단계 이름 = '등록 여부 확인'(외부 진위확인이 아니다 — BIZ.md §0).
+  const numberStepGuide = '먼저 등록 여부 확인으로 이 사업자등록번호가 PayCore에 이미 있는지 봅니다. 등록 여부 확인은 감사 기록에 남습니다. 없으면 나머지 정보를 입력합니다.'
   if (numberStep && workspace) {
     return (
       <>

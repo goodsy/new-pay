@@ -42,7 +42,7 @@ class Business private constructor(
     }
 
     /**
-     * 같은 상태 안 수정(DRAFT → DRAFT, REGISTERED → REGISTERED — 명세 §4.4·§4.5). 판정 순서: 생명주기 → version → 변경 계산(없으면 `BUSINESS_PROFILE_UNCHANGED`,
+     * 같은 상태 안 수정(DRAFT → DRAFT, REGISTERED → REGISTERED — 명세 §4.4·§4.5). 판정 순서: 생명주기 → 사용중지(`BUSINESS_INACTIVE` — BR-BIZ-311) → version → 변경 계산(없으면 `BUSINESS_PROFILE_UNCHANGED`,
      * 중요 변경 + 사유 없음 `BUSINESS_CHANGE_REASON_REQUIRED`) → 현재 상태 규칙 재검사(REGISTERED는 필수값을 지우는 수정 거절 — 위반은 [BusinessProfileRuleViolation]).
      */
     @Suppress("LongParameterList")
@@ -57,7 +57,8 @@ class Business private constructor(
         by: ActorRef,
     ): BusinessProfileEdit {
         requireActive()
-        check(registrationStatus != BusinessRegistrationStatus.INACTIVE) { "INACTIVE businesses have no update path (TBD-08)" }
+        // BR-BIZ-311(D-GOV-005 ②, BIZ-NORM-002 M-3): 사용중지 사업자 수정은 저장되는 업무 거절(전이 경로는 생명주기 작업 — TBD-08). version·내용보다 먼저 판정한다.
+        if (registrationStatus == BusinessRegistrationStatus.INACTIVE) throw MasterRuleViolation(MasterRejection.BUSINESS_INACTIVE)
         requireVersion(expectedVersion)
         val change = BusinessProfileChange.of(registrationStatus, BusinessContent(businessType, displayName, current), BusinessContent(type, name, profile))
         if (change.isEmpty) throw MasterRuleViolation(MasterRejection.BUSINESS_PROFILE_UNCHANGED)

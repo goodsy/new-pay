@@ -963,7 +963,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
   async function fillDraftBusiness(number = BRN, name = '데모 사업자') {
     // 기대값 변경(MERCHANT-IA-001 B5b — 사용자 결정 D-ADMIN-UI-011 ① "사업자 등록 = 사업자등록번호 먼저 확인"): 번호 확인(1단계) → 2단계 입력. 넘겨주기·잠금·재전송 단언은 그대로.
     await typeIn(page(), '사업자등록번호', number)
-    await user.click(within(screen.getByRole('form', { name: '사업자등록번호 확인' })).getByRole('button', { name: '확인' }))
+    await user.click(within(screen.getByRole('form', { name: '등록 여부 확인' })).getByRole('button', { name: '등록 여부 확인' }))
     await screen.findByRole('region', { name: '사업자 기본' })
     await user.click(screen.getByRole('radio', { name: '개인' }))
     await typeIn(page(), '상호', name)
@@ -973,7 +973,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await fillDraftBusiness(number, name)
     for (const [label, value] of [
       ['개업일', '2026-01-01'], ['업태 1', '도소매'], ['종목 1', '전자상거래'], ['사업장 우편번호', '04524'], ['사업장 기본주소', '서울특별시 중구 세종대로 110'],
-      ['대표자 1 이름', '홍길동'], ['사업체 전화', '0212345678'], ['담당자 1 이름', '김담당'], ['담당자 1 이메일', 'contact.demo@example.test'], ['담당자 1 전화', '01012345678'],
+      ['대표자 1 이름', '홍길동'], ['사업체 전화', '0212345678'], ['등록 담당자 1 이름', '김담당'], ['등록 담당자 1 이메일', 'contact.demo@example.test'], ['등록 담당자 1 전화', '01012345678'],
     ] as const) await typeIn(page(), label, value)
     await user.click(screen.getByRole('button', { name: '등록 완료' }))
   }
@@ -989,9 +989,9 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await openTab('사업자 등록')
     expect(screen.getByRole('tab', { name: '사업자' })).toHaveAttribute('aria-selected', 'true')
     // 기대값 변경(MERCHANT-IA-001 B5b — D-ADMIN-UI-011 ①): 사업자 등록은 번호 확인 단계부터 — 확인 뒤 같은 입력 폼(단언 그대로).
-    expect(await screen.findByRole('form', { name: '사업자등록번호 확인' })).toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: '등록 여부 확인' })).toBeInTheDocument()
     await typeIn(page(), '사업자등록번호', BRN)
-    await user.click(screen.getByRole('button', { name: '확인' }))
+    await user.click(screen.getByRole('button', { name: '등록 여부 확인' }))
     expect(await screen.findByRole('region', { name: '사업자 기본' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '등록 단계' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '등록 완료' })).toHaveLength(1)
@@ -1221,7 +1221,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(screen.queryByRole('group', { name: '결과 확인 필요' })).toBeNull()
     expect(screen.queryByRole('button', { name: '같은 내용 다시 보내기' })).toBeNull()
     await typeIn(page(), '사업자등록번호', BRN)
-    await user.click(screen.getByRole('button', { name: '확인' }))
+    await user.click(screen.getByRole('button', { name: '등록 여부 확인' }))
     const form = await screen.findByRole('region', { name: '사업자 기본' })
     expect(within(form).getByLabelText('상호')).toHaveValue('')
     expect(within(form).getByLabelText('상호')).toBeEnabled()
@@ -1300,7 +1300,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     await openTab('사업자 등록')
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     await typeIn(page(), '사업자등록번호', BRN)
-    await user.click(screen.getByRole('button', { name: '확인' }))
+    await user.click(screen.getByRole('button', { name: '등록 여부 확인' }))
     await typeIn(await screen.findByRole('region', { name: '사업자 기본' }), '상호', '데모 사업자')
     expect(screen.getByRole('group', { name: '사업자등록번호' })).toHaveTextContent('778-12-34560')
 
@@ -1309,7 +1309,7 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
     expect(screen.getByLabelText('사업자등록번호')).toHaveValue('')
     expect(screen.queryByRole('group', { name: '사업자등록번호' })).toBeNull()
     await typeIn(page(), '사업자등록번호', BRN)
-    await user.click(screen.getByRole('button', { name: '확인' }))
+    await user.click(screen.getByRole('button', { name: '등록 여부 확인' }))
     expect(within(await screen.findByRole('region', { name: '사업자 기본' })).getByLabelText('상호')).toHaveValue('데모 사업자')
     expect(storageIsEmpty()).toBe(true)
   })

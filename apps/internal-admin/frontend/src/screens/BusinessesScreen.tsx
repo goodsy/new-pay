@@ -319,7 +319,10 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     // 편집 기준(edit.base — 리뷰 MINOR-1 규칙 그대로): 결과 확인이 필요한 편집이 이 사업자 것이면 그 기준, 아니면 지금 상세에서 고정한 기준(effect).
     const base = current && editBase && editBase.business.businessId === current.business.businessId ? editBase : null
     const blockedByOther = pendingId !== null && current !== null && pendingId !== current.business.businessId
-    const editable = canEdit && current !== null && base !== null && !blockedByOther
+    // BIZ-NORM-002 M-3(BR-BIZ-311): 사용중지 사업자는 편집 폼을 열지 않는다(읽기 표시 + 안내 — 서버도 BUSINESS_INACTIVE로 거절). 단 이 사업자에 결과 확인이 필요한
+    // 편집이 있으면 폼을 유지한다(같은 submissionId 재전송으로 결과를 확인해야 한다 — 결과 불명 잠금 규칙 그대로).
+    const inactive = current !== null && current.business.registrationStatus === 'INACTIVE'
+    const editable = canEdit && current !== null && base !== null && !blockedByOther && (!inactive || pendingId === current.business.businessId)
     const dirty = editable && editForm !== null && formChanged(base!, editForm) && !(editStatus?.kind === 'busy' || editStatus?.kind === 'unknown')
     const proceed = (to: Leave) => {
       setLeave(null)
@@ -372,7 +375,7 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
             <p className="text-xs text-muted-foreground">등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다.</p>
             {/* B5(명세 §4.2): 등록일·수정일은 머리 아래 메타 한 줄. */}
             <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              <span>등록</span><KstTime iso={current.business.createdAt} /><span>· 수정</span><KstTime iso={current.business.updatedAt} />
+              <span>최초 저장일</span><KstTime iso={current.business.createdAt} /><span>· 수정</span><KstTime iso={current.business.updatedAt} />
             </p>
             {current.business.registrationStatus === 'DRAFT' && (
               <WarningNote>
@@ -386,6 +389,9 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                   이 사업자로 가맹점 등록
                 </Button>
               </div>
+            )}
+            {canEdit && inactive && (
+              <WarningNote>{editable ? '사용중지된 사업자는 수정할 수 없습니다. 결과 확인 뒤 읽기 표시로 바뀝니다.' : '사용중지된 사업자는 수정할 수 없습니다.'}</WarningNote>
             )}
             {canEdit && pendingId === current.business.businessId && (
               <WarningNote>이 사업자에 결과 확인이 필요한 저장이 있습니다 — 아래 폼의 "같은 내용 다시 보내기"로 먼저 확인하세요.</WarningNote>
@@ -559,17 +565,18 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
             </select>
           )}
         </FilterField>
-        <FilterField label="등록일" group>
+        {/* D-GOV-008 ②: '등록일' → '최초 저장일'(검색 조건·호출 인자 createdFrom/createdTo 그대로). */}
+        <FilterField label="최초 저장일" group>
           {() => (
             <>
-              <input type="date" aria-label="등록일 시작" value={filters.createdFrom} disabled={byNumber} onChange={(e) => set({ createdFrom: e.target.value })} />
+              <input type="date" aria-label="최초 저장일 시작" value={filters.createdFrom} disabled={byNumber} onChange={(e) => set({ createdFrom: e.target.value })} />
               <span className="rangesep" aria-hidden="true">~</span>
-              <input type="date" aria-label="등록일 끝" value={filters.createdTo} disabled={byNumber} onChange={(e) => set({ createdTo: e.target.value })} />
+              <input type="date" aria-label="최초 저장일 끝" value={filters.createdTo} disabled={byNumber} onChange={(e) => set({ createdTo: e.target.value })} />
             </>
           )}
         </FilterField>
       </FilterPanel>
-      <p id={numberNoteId} className="text-xs text-muted-foreground">사업자등록번호 검색은 매번 감사 기록에 남습니다. 번호로 찾으면 다른 조건은 쓰지 않습니다.</p>
+      <p id={numberNoteId} className="text-xs text-muted-foreground">사업자등록번호 조회는 매번 감사 기록에 남습니다. 번호로 찾으면 다른 조건은 쓰지 않습니다.</p>
       {cleared && list === null && !error && <p className="text-sm text-muted-foreground">검색 조건을 넣고 '검색'을 누르세요.</p>}
       {error && (
         <div className="flex flex-col gap-2">
@@ -721,8 +728,9 @@ function DetailInfo({ detail }: { detail: BusinessDetail }) {
         ))}
       </InfoCard>
       <InfoCard title="담당자">
-        {detail.contacts.length === 0 ? <Row term="담당자">{none}</Row> : detail.contacts.map((c, i) => (
-          <Row key={i} term={`담당자 ${i + 1}${c.primary ? ' (기본)' : ''}`}>
+        {/* D-GOV-008 ④: 줄 이름 '등록 담당자 n'·'(기본 등록 담당자)'. 섹션 제목 '담당자'는 D-ADMIN-UI-010 ⑥ 그대로. */}
+        {detail.contacts.length === 0 ? <Row term="등록 담당자">{none}</Row> : detail.contacts.map((c, i) => (
+          <Row key={i} term={`등록 담당자 ${i + 1}${c.primary ? ' (기본 등록 담당자)' : ''}`}>
             <span>{c.name}</span>
             <span>{c.email}</span>
             <span className="font-mono">{formatPhone(c.phoneNumber)}</span>

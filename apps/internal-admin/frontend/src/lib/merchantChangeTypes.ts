@@ -5,7 +5,8 @@
  * `CODE_LABELS`(서버 상태 code 집합 시험 대상)와 섞지 않는 이력 전용 맵이다(historyTarget.ts와 같은 이유).
  */
 export const MERCHANT_CHANGE_TYPE_LABELS: Readonly<Record<string, string>> = {
-  BusinessCreated: '사업자 생성',
+  // D-GOV-008 ②: '사업자 생성' → '사업자 등록(저장)'.
+  BusinessCreated: '사업자 등록(저장)',
   BusinessProfileUpdated: '사업자 정보 수정',
   BusinessRegistrationCompleted: '사업자 등록 완료',
   // 옛 사업자 등록 경로(BIZ-4 전환에서 제거 — C-27)가 남긴 이력 행(사업자 이력 CHANGE_TYPE_LABELS와 같은 뜻).

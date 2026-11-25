@@ -114,6 +114,10 @@ enum class MasterRejection {
     CONTRACT_INTAKE_COMPLETED_EXISTS,
     CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED,
     CONTRACT_INTAKE_VERSION_CONFLICT,
+
+    // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②): 사용중지(INACTIVE) 사업자의 정보 수정(update) 거절. reference 없음. 등록 완료는 그대로 `BUSINESS_NOT_DRAFT`.
+    // 추가만(기존 저장 행 영향 없음 — `admin_request.result_code` VARCHAR(48), 값 집합 CHECK 없음).
+    BUSINESS_INACTIVE,
 }
 
 /**

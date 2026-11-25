@@ -32,6 +32,7 @@ import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.MasterFixture
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.scalar
+import com.paycore.master.update
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -233,6 +234,43 @@ class BusinessProfileServiceSpec(
             listOf(status(id), version(id), history(id).size) shouldBe listOf("DRAFT", 0L, 1)
             service.update(update(id, 0)) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_PROFILE_UNCHANGED, null, replayed = false)
             listOf(version(id), history(id).size) shouldBe listOf(0L, 1)
+        }
+    }
+
+    // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②, GOV-BIZ-001 G-03): 사용중지 행은 앱 전이 경로가 없어(BR-BIZ-015) 이관·수동 데이터처럼 저장 행을 직접 바꿔 만든다.
+    fun markInactive(id: String) = runtime(container).use {
+        it.update("UPDATE business SET registration_status = 'INACTIVE' WHERE business_id = ?", id) shouldBe 1
+    }
+
+    Given("BIZ-NORM-002 M-3 an INACTIVE business (BR-BIZ-311 — stored business rejection, not a defect)") {
+        Then("update → REJECTED BUSINESS_INACTIVE stored in admin_request; the same key replays it; no history, Outbox or row change") {
+            val id = succeeded(service.create(create()))
+            markInactive(id)
+            val before = footprint(id)
+            val k = key()
+            val command = update(id, 0, name = "새 상호", reason = "상호 변경", k = k)
+            service.update(command).toString() shouldBe "Rejected(rejection=BUSINESS_INACTIVE, reference=null, replayed=false)"
+            listOf(
+                text("SELECT result_kind FROM admin_request WHERE idempotency_key = ?", k.value),
+                text("SELECT result_code FROM admin_request WHERE idempotency_key = ?", k.value),
+                text("SELECT result_reference FROM admin_request WHERE idempotency_key = ?", k.value),
+            ) shouldBe listOf("REJECTED", "BUSINESS_INACTIVE", null)
+            service.update(command).toString() shouldBe "Rejected(rejection=BUSINESS_INACTIVE, reference=null, replayed=true)"
+            listOf(footprint(id), version(id), status(id), adminRequests(k)) shouldBe listOf(before, 0L, "INACTIVE", 1L)
+            history(id).map { it.first } shouldBe listOf("BusinessCreated")
+            outbox(id).map { it.first } shouldBe listOf("BusinessCreated")
+        }
+
+        Then("complete-registration of an INACTIVE business stays REJECTED BUSINESS_NOT_DRAFT (expected value fixed), stored and replayed the same way") {
+            val id = succeeded(service.create(create()))
+            markInactive(id)
+            val before = footprint(id)
+            val k = key()
+            val command = complete(id, 0, k = k)
+            service.completeRegistration(command) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_NOT_DRAFT, null, replayed = false)
+            service.completeRegistration(command) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_NOT_DRAFT, null, replayed = true)
+            text("SELECT result_code FROM admin_request WHERE idempotency_key = ?", k.value) shouldBe "BUSINESS_NOT_DRAFT"
+            listOf(footprint(id), version(id), status(id)) shouldBe listOf(before, 0L, "INACTIVE")
         }
     }
 

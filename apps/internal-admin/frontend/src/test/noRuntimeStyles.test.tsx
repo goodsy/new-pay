@@ -199,7 +199,7 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     expectNoRuntimeStyles()
     await userEvent.click(screen.getByLabelText('사업자등록번호'))
     await userEvent.paste('7781234560')
-    await userEvent.click(screen.getByRole('button', { name: '확인' }))
+    await userEvent.click(screen.getByRole('button', { name: '등록 여부 확인' }))
     await screen.findByRole('region', { name: '사업자 기본' })
     await userEvent.click(screen.getByRole('radio', { name: '법인' }))
     await userEvent.click(screen.getByRole('checkbox', { name: '실사업장이 사업장과 다름' }))
@@ -208,7 +208,7 @@ describe('ADMIN-UI-001: no runtime <style>, style attribute or external resource
     form.unmount()
     const edit = render(<BusinessProfileFormScreen api={fakeApi()} mode={{ kind: 'edit', detail }} onSaved={vi.fn()} onOpenBusiness={vi.fn()} />)
     await userEvent.clear(screen.getByLabelText('상호'))
-    expect(screen.getByLabelText('변경 사유')).toBeInTheDocument()
+    expect(screen.getByLabelText('사유 및 비고')).toBeInTheDocument()
     expectNoRuntimeStyles()
     edit.unmount()
     render(<BusinessesScreen api={fakeApi({

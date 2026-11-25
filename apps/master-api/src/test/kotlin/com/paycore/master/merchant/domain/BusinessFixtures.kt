@@ -78,6 +78,15 @@ object BusinessFixtures {
         Business.createDraft(MasterFixture.businessId(), type, number, DisplayName("임시 상호"), BusinessProfile.EMPTY, t0, operator)
 
     /**
+     * 사용중지(INACTIVE) 사업자 저장 행(BIZ-NORM-002 M-3 — BR-BIZ-311). 앱 전이 경로가 없으므로(BR-BIZ-015·TBD-08) 이관·수동 데이터와 같은 저장 행 복원으로 만든다.
+     * 구분 있음(DB `ck_business_type_required` — 비DRAFT는 구분 필수), 생명주기 사용 중, version 3(전이 이력이 있었던 행).
+     */
+    fun inactiveRow(number: BusinessRegistrationNumber = registrationNumber()): Business = Business.reconstitute(
+        MasterFixture.businessId(), number, DisplayName("사용중지 상호"), BusinessType.INDIVIDUAL, BusinessRegistrationStatus.INACTIVE,
+        BusinessVerificationStatus.NOT_CHECKED, Lifecycle.ACTIVE, t0, operator, t0, operator, 3,
+    )
+
+    /**
      * migration·과도기 옛 경로 행(D-BIZ-001·X-1·X-10): DRAFT·구분 NULL·하위 정보 없음. 옛 생성 경로(`Business.register`)는 C-27 전환에서 제거됐으므로 V15 백필 행과 같은 값의
      * 저장 행 복원으로 만든다(생성·갱신 = 같은 시각·행위자, version 0 — V15 문장 (2)와 같은 모양).
      */

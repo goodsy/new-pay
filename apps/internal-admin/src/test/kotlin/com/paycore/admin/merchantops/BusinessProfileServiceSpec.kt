@@ -392,6 +392,22 @@ class BusinessProfileServiceSpec : BehaviorSpec({
         }
     }
 
+    // BIZ-NORM-002 M-3(BR-BIZ-311 — GOV-BIZ-001 G-03 전: MASTER 503 → RetrySameKey → 화면 결과 불명 잠금): 사용중지 사업자 수정은 MASTER가 저장한 업무 거절이다.
+    Given("BIZ-NORM-002 M-3 MASTER rejects an update of an INACTIVE business (BUSINESS_INACTIVE)") {
+        Then("no-effect confirmed business rejection: Decided REJECTED (not RetrySameKey/OutcomeUnknown), audit REJECTED with the rejection and target; a same-key replay is the same") {
+            val f = Fixture()
+            val s = sub()
+            val request = BusinessInputFixture.update(s, biz, version = 3, reason = "상호 변경")
+            f.reply = { MasterBusinessCommandResult.Decided(false, null, "BUSINESS_INACTIVE", false, null) }
+            f.service.execute(operatorId, request, ctx) shouldBe BusinessProfileResult.Decided("REJECTED", null, "BUSINESS_INACTIVE", false, null)
+            f.reply = { MasterBusinessCommandResult.Decided(false, null, "BUSINESS_INACTIVE", true, null) }
+            f.service.execute(operatorId, request, ctx) shouldBe BusinessProfileResult.Decided("REJECTED", null, "BUSINESS_INACTIVE", true, null)
+            f.audits.map { it.resultCode } shouldBe listOf("REQUESTED", "REJECTED", "REQUESTED", "REJECTED")
+            f.audits[1].let { listOf(it.targetRef, it.detail!!.contains("rejection=BUSINESS_INACTIVE")) } shouldBe listOf(biz, true)
+            f.commands.map { it.idempotencyKey }.distinct().size shouldBe 1
+        }
+    }
+
     Given("BIZ-3-4 failure paths (BIZ-2 인계 ②③)") {
         Then("인계 ② MASTER 400 BUSINESS_VALIDATION_FAILED → no effect confirmed: 400 with the same fieldErrors, audit INVALID_INPUT (not OUTCOME_UNKNOWN), drift metric, bucket refunded") {
             val f = Fixture(brnPerMinute = 5)

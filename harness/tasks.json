@@ -1293,6 +1293,42 @@
       ],
       "nextResumeAction": "완료. 다음: GOV-BIZ-001 나머지(M-3 사용중지 수정 거절, M-7·용어 화면 문구, 문서 M-4~M-6·M-8)",
       "detail": null
+    },
+    {
+      "id": "BIZ-NORM-002",
+      "title": "사업자 정상화 2묶음: 사용중지 사업자 수정 업무 거절(M-3) + '사유 및 비고' 칸 이름(M-7) + 사업자 용어 화면 문구 정렬(D-GOV-008) + 주석 정정(M-6)",
+      "status": "IN_PROGRESS",
+      "phase": "ADMIN",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "SEC-BIZ-001"
+      ],
+      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-3·M-6·M-7, BR-BIZ-311, D-GOV-005 ②, D-FLOW-006, D-GOV-008 ①~④, docs/rules/BIZ.md §0 용어, SKILL-PILOT-001 biz-terms 새 사실(BusinessRegistrationNumber.kt:14 주석, INACTIVE 등록 완료 거절 문구)",
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
+        "docs/rules/BIZ.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "NORM2-gate1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/BIZ-NORM-002-2026-11-25T112249Z.json"
+      },
+      "openItems": [
+        "사용자 지시 2026-11-25 'M-3과 화면 문구 정렬을 한 묶음으로 진행'",
+        "저장된 코드값·감사 action code·API 필드 이름은 바꾸지 않음(화면 표시 문구만)",
+        "ADMIN-DS §7.1 보호 시험 불변",
+        "Implementer 2026-11-25: 가맹점 등록 ① 사업자 선택 MerchantRegistrationScreen.tsx:350 '비활성(사용중지) 사업자 — 가맹점 등록 불가'는 가맹점 화면 문구라 이번 범위 밖으로 남김 — D-GOV-008 ① 적용 여부 Coordinator 판단 → 2026-11-25 Coordinator: 적용, '사용중지 사업자 — 가맹점 등록 불가'로 반영함",
+        "Implementer 2026-11-25: 연결 가맹점 탭·가맹점 목록의 '등록일'은 가맹점 등록일이라 그대로(D-GOV-008 ②는 사업자 최초 저장일)",
+        "독립 리뷰 APPROVED(MINOR 3·NIT 반영), FULL NORM2-gate1 PASS fp sha256:1404cd94…109b",
+        "Coordinator 후속: GOV-BIZ-001:171('INACTIVE 수정은 결함 처리')은 이제 사실과 다름 — 다음 문서 정리 묶음(M-4~M-8)에서 정정"
+      ],
+      "nextResumeAction": "커밋 → Demo 확인 → DONE",
+      "detail": null
     }
   ]
 }

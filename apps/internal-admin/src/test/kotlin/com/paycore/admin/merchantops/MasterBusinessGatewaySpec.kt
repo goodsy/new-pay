@@ -156,6 +156,15 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
                 withClue(body) { gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE") }
             }
         }
+        // BIZ-NORM-002 M-3(BR-BIZ-311): MASTER가 저장한 사용중지 수정 거절은 다른 업무 거절과 같은 모양 — Decided(효과 없음 확정), 결과 불명이 아니다.
+        Then("M-3 update 200 REJECTED BUSINESS_INACTIVE (and its replay) → Decided rejection, not Unknown/RetrySameKey") {
+            val update = "$base/commands/update"
+            val body = linkedMapOf<String, Any?>("businessId" to "biz_01JC0000000000000000000001")
+            reply(update, 200, """{"outcome":"REJECTED","rejection":"BUSINESS_INACTIVE","replayed":false}""")
+            gateway().command(command(BusinessProfileOperation.UPDATE, body)) shouldBe MasterBusinessCommandResult.Decided(false, null, "BUSINESS_INACTIVE", false, null)
+            reply(update, 200, """{"outcome":"REJECTED","rejection":"BUSINESS_INACTIVE","replayed":true}""")
+            gateway().command(command(BusinessProfileOperation.UPDATE, body)) shouldBe MasterBusinessCommandResult.Decided(false, null, "BUSINESS_INACTIVE", true, null)
+        }
         Then("인계 ② 400 BUSINESS_VALIDATION_FAILED → Invalid with the field errors (no effect — not Unknown), incl. categories TOO_MANY and representatives[i].type; a path outside §4.6 → Unknown; REQUEST_MALFORMED → Unknown(HTTP_400)") {
             reply(create, 400, g("validationFailed"))
             gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Invalid(

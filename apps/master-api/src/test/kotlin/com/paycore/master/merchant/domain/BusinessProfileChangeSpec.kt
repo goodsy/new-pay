@@ -202,6 +202,35 @@ class BusinessProfileChangeSpec : BehaviorSpec({
                 .rejection shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
         }
 
+        // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②): 사용중지 사업자 수정은 저장되는 업무 거절(결함 check() 아님). 기대값은 명세 리터럴(이름 문자열 — 구현 상수와 독립).
+        Then("M-3 an INACTIVE business update is a business rejection BUSINESS_INACTIVE (not a defect) before version and content checks") {
+            val inactive = BusinessFixtures.inactiveRow()
+            val profile = individualProfile()
+            fun rejection(block: () -> Unit) = shouldThrow<MasterRuleViolation>(block).let { listOf(it.rejection.name, it.reference) }
+            // 맞는 version·바뀐 내용·사유 있음 — 그래도 거절.
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, BusinessChangeReason("상호 변경"), 3, t0, operator) } shouldBe
+                listOf("BUSINESS_INACTIVE", null)
+            // 판정 순서: 사용중지가 version 충돌·변경 없음보다 먼저(어느 입력이든 같은 거절 — 재생 결과가 입력에 따라 갈리지 않는다).
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, null, 99, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, inactive.displayName, profile, null, 3, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
+        }
+
+        Then("M-3 completeRegistration of an INACTIVE business stays BUSINESS_NOT_DRAFT (expected value fixed — unchanged behaviour)") {
+            val inactive = BusinessFixtures.inactiveRow()
+            shouldThrow<MasterRuleViolation> {
+                inactive.completeRegistration(individualProfile(), INDIVIDUAL, inactive.displayName, individualProfile(), null, 3, t0, operator)
+            }.rejection shouldBe MasterRejection.BUSINESS_NOT_DRAFT
+        }
+
+        Then("M-3 control: a TERMINATED + INACTIVE row is still BUSINESS_NOT_ACTIVE first (lifecycle before registration status)") {
+            val closed = Business.reconstitute(
+                MasterFixture.businessId(), BusinessFixtures.registrationNumber(), name, INDIVIDUAL, BusinessRegistrationStatus.INACTIVE, BusinessVerificationStatus.NOT_CHECKED,
+                Lifecycle.TERMINATED, t0, operator, t0, operator, 0,
+            )
+            shouldThrow<MasterRuleViolation> { closed.updateProfile(individualProfile(), INDIVIDUAL, DisplayName("x"), individualProfile(), null, 0, t0, operator) }
+                .rejection shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
+        }
+
         Then("Business.toString shows the masked registration number only") {
             BusinessFixtures.individualRegistered(BusinessRegistrationNumber(BusinessFixtures.CANARY_NUMBER)).business.toString() shouldNotContain "9024865"
         }

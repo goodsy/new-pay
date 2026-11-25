@@ -65,7 +65,7 @@ describe('MERCHANT-IA-001 B2 — 사업자 목록', () => {
     expect(screen.getByText('이 번호로 등록된 사업자가 없습니다.').closest('td')).toHaveAttribute('colspan', '4')
     // 감사·속도 제한 안내는 그대로(번호 조회 안내 문구).
     // 기대값 변경(MERCHANT-IA-001 B6 — 사용자 결정 D-ADMIN-UI-011 ① 목록 필터 묶음·용어 통일, 명세 §4.1·§7.7): 안내는 필터 묶음 아래 한 줄('검색' 용어) — 입력란이 그 줄을 가리키는 연결은 그대로.
-    expect(screen.getByLabelText('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호 검색은 매번 감사 기록에 남습니다. 번호로 찾으면 다른 조건은 쓰지 않습니다.')
+    expect(screen.getByLabelText('사업자등록번호')).toHaveAccessibleDescription('사업자등록번호 조회는 매번 감사 기록에 남습니다. 번호로 찾으면 다른 조건은 쓰지 않습니다.')
     expect(callsContaining(api, BRN)).toEqual(['lookupBusinessByRegistrationNumber'])
     expect(leakedCalls(api, BRN)).toEqual([])
   })
