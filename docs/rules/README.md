@@ -42,3 +42,5 @@
   4. 질문은 한 번에 3개 이하(HARNESS-GUIDE §4), 대안은 `harness/questions.json` 안에 문장으로 적는다.
   5. 대장 반영 전 독립 리뷰를 거치고, 정식 용어 선택·반영은 사용자 확인 후에 한다.
 - 만들지 않는 것: `GLOSSARY.md`, `docs/adr/`, `docs/agents/`, CLAUDE.md의 별도 Skill 블록.
+
+검사: `harness/scripts/rule-trace.py` (경고 모드 — 형식·근거 ID·작업 카드 참조·확정 규칙 시험 연결·대체 규칙 시험 잔존, HARNESS-GUIDE §13).

@@ -117,3 +117,11 @@ TECHNOLOGY-AND-PRINCIPLES.md가 필수 기술/8대 원칙 기준이다. TECH-001
   - tasks.json이 100KB에 닿으면 DONE task를 `harness/archive/tasks-done-<날짜>.json`으로 원문 그대로 옮기고 hash를 `archive`에 더한다(첫 이동 2026-11-22, 53개). 옮긴 파일도 수정하지 않는다.
 - **명세**: 본문은 현재 유효한 규칙만 쓴다. 개정 이력은 파일 끝의 짧은 표나 git으로 둔다.
 - **커밋 메시지**: 첫 줄 한 줄 요약 + task ID. 본문은 바뀐 것 몇 줄과 결정 ID·증거 경로만 쓴다. 결정 전문·시험 수·단계별 시간을 반복하지 않는다.
+
+## 13. 규칙 추적 검사 RULE-TRACE (경고 모드, RULE-TRACE-001)
+
+- 명령: `python3 -B harness/scripts/rule-trace.py [--json <path>]` (저장소 루트 기준, 표준 라이브러리만·shell 없음). 설계: RULE-GOV-001 §2.3.
+- 검사: ① 대장 형식(`docs/rules/{BIZ,PAY,CAN,FIN,WH,ADM}.md` 규칙 표 행, `## 진단` 이후 제외 — 열 7개·ID 중복·도메인 접두·상태·출처·대체 대상) ② 근거·미결 상태의 D-ID(`docs/DECISIONS.md`)·Q-ID(`harness/questions.json`) 존재, 파싱 불가 표기는 따로 ③ `harness/tasks.json` 카드 spec·openItems의 확정 아닌 BR-ID ④ 확정 규칙 검증 열이 `없음`이거나 적힌 시험 파일(`::` 앞 이름)을 시험 경로에서 찾을 수 없음(도메인별 건수) ⑤ 대체됨 BR-ID가 시험 소스에 남은 곳.
+- **경고 모드**(D-GOV-006 ③): 대장 확정 전이라 항상 exit 0이고 게이트 단계에 넣지 않는다. exit 2는 대장·입력 파일을 못 읽거나 규칙 표를 파싱할 수 없을 때(규칙 행 0건, 표준 머리글 밖 규칙 행)와 사용법 오류.
+- `--strict-domains BIZ,…`: 지정 도메인에 ④ 위반이 있으면 exit 1. 기본 비활성이며 **사용자 확인 후** 시험에 BR-ID 연결이 끝난 도메인부터 켠다.
+- 현재 strict 판정 = ④(검증 열 시험 파일 존재)만. BR-ID 표기까지 실패로 볼지는 strict 활성 시 사용자 확인.

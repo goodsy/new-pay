@@ -1451,6 +1451,41 @@
       ],
       "nextResumeAction": "완료(커밋).",
       "detail": null
+    },
+    {
+      "id": "RULE-TRACE-001",
+      "title": "규칙·시험 연결 검사 도구 RULE-TRACE(경고 모드) — 대장 형식·근거 ID·확정 규칙 시험 연결·대체 규칙 시험 잔존 보고",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-GOV-001"
+      ],
+      "spec": "docs/repository/RULE-GOV-001-BUSINESS-RULE-GOVERNANCE.md §2.3(RULE-TRACE 1~4), D-GOV-006 ③(대장 확정 후 단계적 — 처음엔 경고만, BR-ID 연결 끝난 도메인부터 실패), 사용자 승인 밤 작업 2026-11-25 ④",
+      "allowedWritePaths": [
+        "harness/scripts/rule-trace.py",
+        "harness/tests/test_rule_trace.py",
+        "harness/fixtures/rule-trace/**",
+        "harness/commands.json(HARNESS-SELFTEST minTests 하한 갱신만)",
+        "docs/HARNESS-GUIDE.md(명령 안내 한 절)",
+        "docs/rules/README.md(검사 안내 한 줄)",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "mode": "FULL",
+        "verdict": "PASS",
+        "at": "2026-11-25T12:40:06Z",
+        "codeFingerprint": "sha256:7d30aa08648a4918d351a922e6657e3f8834fbe1aed4ade6f6fa1c9759a25576",
+        "evidence": "build/harness-evidence/RULE-TRACE-001-2026-11-25T123315Z.json",
+        "harnessTests": 280
+      },
+      "openItems": [
+        "실제 실행(경고): 확정 615 중 시험 연결 없음 157(BIZ 57·PAY 4·CAN 9·FIN 61·WH 8·ADM 18), 근거 ID 없음 4(Q-PII-6×2·Q-PII-11·Q-PII-2 — questions.json 누락), 파싱 불가 3(FIN-053 D-OPS, ADM-017 D-08, ADM-064 D-SV), 카드 비확정 참조 4",
+        "strict 도메인 활성·판정 기준(파일 존재 vs BR-ID 표기)은 사용자 확인 후"
+      ],
+      "nextResumeAction": "없음 — 결손 근거 ID 정리는 RULE-CONFIRM 답 반영 때 함께",
+      "detail": null
     }
   ]
 }

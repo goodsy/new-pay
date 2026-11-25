@@ -1,0 +1,17 @@
+{
+ "schemaVersion": 2,
+ "tasks": [
+  {
+   "id": "T-OK",
+   "spec": "BR-BIZ-901 확정 규칙만 참조",
+   "openItems": [
+    "BR-PAY-901 확인"
+   ]
+  },
+  {
+   "id": "T-NULL",
+   "spec": null,
+   "openItems": []
+  }
+ ]
+}
