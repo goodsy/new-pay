@@ -911,7 +911,8 @@
       "phase": "SPEC",
       "owner": "Coordinator",
       "dependsOn": [
-        "MERCHANT-IA-001"
+        "MERCHANT-IA-001",
+        "RULE-GOV-001"
       ],
       "spec": "D-ADMIN-UI-011 ①: 화면 패턴 적용 뒤 별도 명세. 금융·계약·개인정보 의미 — 사용자 결정 필요",
       "allowedWritePaths": [
@@ -924,9 +925,10 @@
       "lastGate": null,
       "openItems": [
         "pg-lab 대비 차이: 사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료/불가/해지)·계약 완료 후 상점 등록, 수수료·담보·신청 서비스가 사업자 계약 조건, 접수 경로·영업대행사·계약 담당자, 가맹점 등급·업종분류·가상자산 취급, 대표자 생년월일·성별·지분율·실소유자, 메모(append-only), 개인정보 원문 조회(감사). 우리: 계약 Revision이 가맹점에 붙고 2인 승인",
-        "[명세 APPROVED rev 0.3d, 5차 리뷰] FLOW-9a 착수 전 반영: MINOR-G 대표자 key 전용 값 타입(두 형식 수용, 새 발급 ULID만, MasterIdFormat 불변, 이관 key 추측 가능 편차 기록) / MINOR-H ArchUnit을 메서드 호출 단위(latestStatus만) / MINOR-I STORED 생성 열 ALGORITHM 명시·key UPDATE 1142 시험 / 담보 명령 경로 단일·사업자 잠금 선행 고정"
+        "[명세 APPROVED rev 0.3d, 5차 리뷰] FLOW-9a 착수 전 반영: MINOR-G 대표자 key 전용 값 타입(두 형식 수용, 새 발급 ULID만, MasterIdFormat 불변, 이관 key 추측 가능 편차 기록) / MINOR-H ArchUnit을 메서드 호출 단위(latestStatus만) / MINOR-I STORED 생성 열 ALGORITHM 명시·key UPDATE 1142 시험 / 담보 명령 경로 단일·사업자 잠금 선행 고정",
+        "[FLOW-1 리뷰 APPROVED a12819c, MINOR 7] FLOW-2로: MINOR-1 Domain transitionTo 근거·사유 필수(현재 DB CHECK만), Fixture aCompletedIntake(evidenceRef). 후속 메모: MINOR-6 처리자 표시명 = 계정 현재값(표시명 변경 기능 도입 시 재검토), MINOR-7 상세 1회 MASTER 순차 2회(Demo 지연 확인), MINOR-4 vitest RED 제목과 최종 시험 차이 확인. MINOR-2·3·5 보완 중"
       ],
-      "nextResumeAction": "명세 커밋 → FLOW-1(접수 건 Domain·표·이관) 구현",
+      "nextResumeAction": "사용자 결정 2026-11-25 '별도 복사본에서 병행, 병합은 진단 후': FLOW-1은 worktree ~/gate-wt/flow1(브랜치 wip/flow-1)에서 구현·리뷰·게이트. main 병합은 GOV-DIAG-001 완료 + BIZ 진단에 FLOW-1 관련 충돌 없음 확인 후",
       "detail": null
     },
     {
@@ -1129,6 +1131,60 @@
         "지운 대표자·지운 KYC 칸의 이력 저장값 포함"
       ],
       "nextResumeAction": "LIVE 준비 단계에서 질문",
+      "detail": null
+    },
+    {
+      "id": "RULE-GOV-001",
+      "title": "업무 규칙 통제 체계 — 도메인별 업무 규칙 대장·착수 전 관문·추적 게이트·변경 통제",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-DIAG-001"
+      ],
+      "spec": "docs/repository/RULE-GOV-001-BUSINESS-RULE-GOVERNANCE.md, 사용자 지시 2026-11-25 '지금 바로 멈추고 전체 도메인부터'",
+      "allowedWritePaths": [
+        "docs/rules/**",
+        "docs/repository/RULE-GOV-001-*.md",
+        "harness/tasks.json",
+        "harness/questions.json",
+        "docs/DECISIONS.md"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "2단계: 6개 도메인 대장 초안 추출(BIZ·PAY·CAN·FIN·WH·ADM)",
+        "하네스 관문 강제 시점은 사용자 확인 후"
+      ],
+      "nextResumeAction": "GOV-DIAG-001 진단에 흡수(정책 분류 원천), 관문·추적 게이트 구현은 정상화 계획 승인 후",
+      "detail": null
+    },
+    {
+      "id": "GOV-DIAG-001",
+      "title": "업무·도메인·소스 관리체계 정상화 진단 — 기능 인벤토리·도메인/정책 정합성·소스 컨벤션·관리자 UI·기준선 설계·정비 우선순위",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [],
+      "spec": "사용자 지침 'PayCore 업무·도메인·소스 관리체계 정상화 지침'(2026-11-25) §1~6, 제한: 소스·DB 변경·기능 추가·테스트 완화·결정 이력 삭제·정책 임의 확정·전면 리팩터링 금지",
+      "allowedWritePaths": [
+        "docs/governance/**",
+        "docs/rules/**",
+        "docs/repository/RULE-GOV-001-*.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "GOV-doc-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/GOV-DIAG-001-2026-11-25T020951Z.json"
+      },
+      "openItems": [
+        "산출물: ADMIN-FEATURE-INVENTORY, POLICY-CONFLICTS, DOMAIN-CONSISTENCY-REPORT(1-MASTER·2-PAYMENT-FINANCIAL), SOURCE-CONVENTION-REVIEW, ADMIN-UI-DIAGNOSIS, NORMALIZATION-PLAN(기준선 설계·P0~P4)",
+        "docs/assessment 결과 활용, 중복 문서 금지",
+        "RULE-GOV-001 규칙 대장(docs/rules)은 이 진단의 정책 분류 원천 — 최종 위치는 기준선 설계에서 결정"
+      ],
+      "nextResumeAction": "S1 진단 완료(종합 리뷰 APPROVED rev 0.1a) → S2 사용자 결정 U-01~U-12 질문·기록",
       "detail": null
     }
   ]
