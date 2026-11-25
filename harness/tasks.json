@@ -922,13 +922,17 @@
         "docs/DECISIONS.md"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "FLOW1-gate2",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/MERCHANT-FLOW-001-2026-11-25T025954Z.json"
+      },
       "openItems": [
         "pg-lab 대비 차이: 사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료/불가/해지)·계약 완료 후 상점 등록, 수수료·담보·신청 서비스가 사업자 계약 조건, 접수 경로·영업대행사·계약 담당자, 가맹점 등급·업종분류·가상자산 취급, 대표자 생년월일·성별·지분율·실소유자, 메모(append-only), 개인정보 원문 조회(감사). 우리: 계약 Revision이 가맹점에 붙고 2인 승인",
         "[명세 APPROVED rev 0.3d, 5차 리뷰] FLOW-9a 착수 전 반영: MINOR-G 대표자 key 전용 값 타입(두 형식 수용, 새 발급 ULID만, MasterIdFormat 불변, 이관 key 추측 가능 편차 기록) / MINOR-H ArchUnit을 메서드 호출 단위(latestStatus만) / MINOR-I STORED 생성 열 ALGORITHM 명시·key UPDATE 1142 시험 / 담보 명령 경로 단일·사업자 잠금 선행 고정",
         "[FLOW-1 리뷰 APPROVED a12819c, MINOR 7] FLOW-2로: MINOR-1 Domain transitionTo 근거·사유 필수(현재 DB CHECK만), Fixture aCompletedIntake(evidenceRef). 후속 메모: MINOR-6 처리자 표시명 = 계정 현재값(표시명 변경 기능 도입 시 재검토), MINOR-7 상세 1회 MASTER 순차 2회(Demo 지연 확인), MINOR-4 vitest RED 제목과 최종 시험 차이 확인. MINOR-2·3·5 보완 중"
       ],
-      "nextResumeAction": "사용자 결정 2026-11-25 '별도 복사본에서 병행, 병합은 진단 후': FLOW-1은 worktree ~/gate-wt/flow1(브랜치 wip/flow-1)에서 구현·리뷰·게이트. main 병합은 GOV-DIAG-001 완료 + BIZ 진단에 FLOW-1 관련 충돌 없음 확인 후",
+      "nextResumeAction": "FLOW-1 main 병합 cf86c67·Demo 확인(API). 다음 FLOW-2는 GOV 정비 S3 이후(D-GOV-001 ① 보안 선행 작업 뒤). 미결 연동: PC-45 최신 접수 건(FLOW-3 전 개별 확인, D-GOV-005 ④)",
       "detail": null
     },
     {
@@ -1184,7 +1188,7 @@
         "docs/assessment 결과 활용, 중복 문서 금지",
         "RULE-GOV-001 규칙 대장(docs/rules)은 이 진단의 정책 분류 원천 — 최종 위치는 기준선 설계에서 결정"
       ],
-      "nextResumeAction": "S1 진단 완료(종합 리뷰 APPROVED rev 0.1a) → S2 사용자 결정 U-01~U-12 질문·기록",
+      "nextResumeAction": "S2 결정 완료(D-GOV-001~006). 다음: CLAUDE.md:42 문구 사용자 확인 → S3 문서 정합(대장 제안 119 일괄 확인, 결정 역참조, baseline 대체 표, 명세 stale) → S4 관문·RULE-TRACE → S5 보안 선행 작업(HMAC·카드번호)",
       "detail": null
     }
   ]

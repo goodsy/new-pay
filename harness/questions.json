@@ -682,7 +682,7 @@
     },
     {
       "id": "Q-MD-18",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "다른 Merchant의 Site가 TERMINATED된 뒤 그 채널 식별값을 다른 Merchant가 등록할 수 있는가(권장: 예외 승인 없으면 거절, 재사용 위험)",
       "recommended": "예외 승인 없으면 거절",
       "alternative": "종료 후 재등록 허용",
@@ -690,7 +690,10 @@
         "MASTER-LIFECYCLE-001"
       ],
       "askedAt": null,
-      "origin": "MASTER-DOMAIN-001 review round1 QC QC-2 — MASTER-LIFECYCLE-001 착수 전 질문"
+      "origin": "MASTER-DOMAIN-001 review round1 QC QC-2 — MASTER-LIFECYCLE-001 착수 전 질문",
+      "humanAnswer": "예외 승인 없으면 거절 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-004"
     },
     {
       "id": "Q-MD-19",
@@ -5257,6 +5260,378 @@
       "humanAnswer": "칸마다 '지우기' + 사유 필수 (권장)",
       "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
       "appliedSpec": "D-FLOW-009"
+    },
+    {
+      "id": "Q-GOV-U01a",
+      "status": "ANSWERED",
+      "question": "이미 결정된 보안 조치 적용 시점: D-MOPS-010 ②(사업자 등록 지문 BRN HMAC), D-FLOW-005 ⑧·007 ①(사유 칸 카드번호 거부)",
+      "recommended": "둘 다 정비 첫 작업으로 선행(카드번호 판정 4벌을 공통 시험 벡터로)",
+      "alternative": "각자 예정 배치(B3-3a·FLOW-2)",
+      "impact": "Demo 개인정보 대입·카드번호 저장 위험",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "둘 다 정비 첫 작업으로 선행 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-001"
+    },
+    {
+      "id": "Q-GOV-U01b",
+      "status": "ANSWERED",
+      "question": "다른 관리 명령 멱등 지문의 대표자·담당자 이름·전화·이메일(무염 SHA-256) 처리 — D-MOPS-010 ② 범위 확장",
+      "recommended": "개인정보 필드 전부 비밀 키 HMAC(같은 요청·다른 내용 판정 유지)",
+      "alternative": "지문에서 제외 + 별도 HMAC 필드 / BRN만(현행 결정)",
+      "impact": "멱등 지문 설계",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "개인정보 필드 전부 HMAC으로 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-001"
+    },
+    {
+      "id": "Q-GOV-U02",
+      "status": "ANSWERED",
+      "question": "'RECON 전 LIVE 금지'(취소 UNKNOWN은 D-CANCEL1-003로 확정)를 승인 UNKNOWN 이관·IncidentHold·FORCED·매입 UNKNOWN/RECONCILE에도 LIVE 필수 조건으로 명시 + RECON-001 범위에 매입 대사",
+      "recommended": "모두 LIVE 필수 조건, 매입 대사도 RECON에",
+      "alternative": "매입 대사 별도 / 취소만",
+      "impact": "LIVE Gate, RECON-001 범위",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "모두 LIVE 필수 조건으로, 매입 대사도 RECON에 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-001"
+    },
+    {
+      "id": "Q-GOV-U03",
+      "status": "ANSWERED",
+      "question": "PAYMENT 사건 hold를 FINANCIAL 매입·정산에 반영하는 방식 + 정합성 보류 거래 정산",
+      "recommended": "사고 사실(RISK_INCIDENT) 전달 → FINANCIAL 결제 보류 투영(매입 후보 보류), 정합성 보류 거래는 해제 전 정산 대기",
+      "alternative": "매입 직전 PAYMENT 조회 / 정산에서만 차단",
+      "impact": "매입 파일 구성, SETTLEMENT",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "사고 사실 전달 → 매입·정산 보류 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-001"
+    },
+    {
+      "id": "Q-GOV-U04a",
+      "status": "ANSWERED",
+      "question": "선지급 3기준과 D-ACQ-005 해석",
+      "recommended": "3종 유지(승인 완료·매입 전송 완료·매입 확정), D-ACQ-005는 선지급에만 적용(매입 결과에 따른 보류는 정산이 정함)",
+      "alternative": "2종 축소(CLAUDE.md:41 변경)",
+      "impact": "정산 적격성",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "3종 유지, D-ACQ-005는 선지급에만 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-002"
+    },
+    {
+      "id": "Q-GOV-U04b",
+      "status": "ANSWERED",
+      "question": "RENAMED를 전송 완료로 인정할지 + 선지급 뒤 거절·UNKNOWN·후발 취소·미입금 처리",
+      "recommended": "전송 기록은 유지하되 정산 적격성은 재확인 근거만, 자동 회수 없음 — 지급 보류 + 대사 건, 회수·상계는 계약 근거 + 2인 승인",
+      "alternative": "RENAMED 인정 / 다음 정산 자동 차감",
+      "impact": "선지급 모델",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "재확인 근거만 인정 + 자동 회수 없음 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-002"
+    },
+    {
+      "id": "Q-GOV-U05",
+      "status": "ANSWERED",
+      "question": "운영 홈 KPI 날짜 문언(D-ADMIN-HOME-001 ② vs 002 ③) 정리",
+      "recommended": "KPI는 PG 확정 시각 유지, ② 문언의 '정산일 규칙과 같은' 표현만 정정, 정산 = 기관 거래일(BR-FIN-077·079 확정)",
+      "alternative": "KPI도 기관 거래일",
+      "impact": "KPI·정산 정합",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "KPI는 PG 확정 시각 유지, 문구만 정리 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-002"
+    },
+    {
+      "id": "Q-GOV-U06",
+      "status": "ANSWERED",
+      "question": "생성 외화 허용 vs 승인 KRW 한정",
+      "recommended": "정산 통화 결정 전까지 기준정보(가맹점 통화 활성화)에서 외화 비활성, 결제 생성 규칙(D-CP-002)은 그대로",
+      "alternative": "생성 단계 거절 / 현행",
+      "impact": "외화 Demo",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "기준정보에서 외화 비활성 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-002"
+    },
+    {
+      "id": "Q-GOV-U07a",
+      "status": "ANSWERED",
+      "question": "한 가맹점 같은 서비스 종류 유효 계약 복수 허용",
+      "recommended": "기간 겹치는 유효 계약 금지(갱신은 Revision)",
+      "alternative": "허용 + 근거 계약 하나 지정",
+      "impact": "수수료·정산 근거",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "기간 겹치는 유효 계약 금지 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-003"
+    },
+    {
+      "id": "Q-GOV-U07b",
+      "status": "ANSWERED",
+      "question": "수수료·정산 정책 배정 수준과 스냅샷 전달 채널",
+      "recommended": "서비스 계약(CSA) 기본 + MID 개별 우선(D-MS2-001 준용), MASTER→FINANCIAL 정책 스냅샷 Outbox 이벤트",
+      "alternative": "MID별만 / 정산 계약 작업에서",
+      "impact": "SETTLEMENT-CONTRACT-001",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "서비스 계약 기본 + MID 개별 우선, 정책 스냅샷을 이벤트로 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-003"
+    },
+    {
+      "id": "Q-GOV-U08a",
+      "status": "ANSWERED",
+      "question": "승인 상세 대상 표시(내부 키)와 apr_ 표시",
+      "recommended": "사람용 값 + 접힌 기술 정보, apr_는 승인함 참조 식별자로 표시 허용(규칙에 예외 명시). 질문 설명: '내부 키는 접힌 기술 정보에서도 빼기' — 세부는 구현 명세에서 확인",
+      "alternative": "내부 키 표시 유지(예외) / apr_도 숨김",
+      "impact": "승인 상세 화면, PII #25",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "사람용 값 + 접힌 기술 정보, apr_는 예외 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-003"
+    },
+    {
+      "id": "Q-GOV-U08b",
+      "status": "ANSWERED",
+      "question": "Coordinator 해석 확인: ① 가맹점 목록 4역할 BRN 원문 무감사 ② 삭제 대표자 생년월일 저장만·비응답(D-FLOW-009 적용) ③ 승인 목록·상세 API 4역할 조회",
+      "recommended": "①② 수용, ③은 승인자와 그 요청의 요청자만으로 좁힘",
+      "alternative": "모두 현행 / ①도 조정",
+      "impact": "권한·개인정보 노출",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "①② 수용, ③은 승인자·요청자만으로 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-003"
+    },
+    {
+      "id": "Q-GOV-U09a",
+      "status": "ANSWERED",
+      "question": "심사 거절 Site의 같은 채널 재신청(D-MS-005 vs D-MD-008 채널 중복)",
+      "recommended": "거절되면 채널 점유 해제(채널 중복 검사에서 제외), 거절 기록 유지, 같은 주소로 새 Site 신청 가능",
+      "alternative": "재신청 전 Site 종료 / 같은 Site 재심사",
+      "impact": "Site 심사 운영",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "거절되면 채널 점유 해제 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-004"
+    },
+    {
+      "id": "Q-GOV-U10a",
+      "status": "ANSWERED",
+      "question": "취소 사고 보류 중 추가 취소(D-CANCEL-006 문언 vs 구현)",
+      "recommended": "가맹점 추가 취소만 차단, 운영자 보정 취소(2인) 허용 — D-CANCEL-006 문언을 '가맹점 추가 취소 차단'으로 정정",
+      "alternative": "운영자 보정도 차단",
+      "impact": "취소·hold 해제 경로",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "가맹점만 차단, 운영자 보정 허용 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-004"
+    },
+    {
+      "id": "Q-GOV-U10b",
+      "status": "ANSWERED",
+      "question": "가맹점 웹훅 순서 보장·GAVE_UP 뒤 늦은 2xx",
+      "recommended": "순서 비보장(일련번호 + 조회 API) 계약 확정·baseline 03 대체 표시, GAVE_UP 유지하고 늦은 성공은 시도 기록만(경보 유지)",
+      "alternative": "늦은 성공 = DELIVERED(현행) / 결제 단위 순서 보장",
+      "impact": "가맹점 웹훅 계약, 경보",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "순서 비보장 확정 + 포기 상태 유지 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-004"
+    },
+    {
+      "id": "Q-GOV-U09b",
+      "status": "ANSWERED",
+      "question": "추가 MID·Default 교체(Q-MD-06·07)·한 Site 복수 MID 조건",
+      "recommended": "MASTER-LIFECYCLE-001 명세 착수 때 함께 질문(후보: 같은 Merchant + 별도 계약/기관 경로 근거 + 2인), 그 전 가맹점당 MID 1 유지",
+      "alternative": "지금 진단 후보로 확정",
+      "impact": "MASTER-LIFECYCLE-001",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "생명주기 작업 착수 때 정함 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-005"
+    },
+    {
+      "id": "Q-GOV-U09c",
+      "status": "ANSWERED",
+      "question": "생명주기 기능 착수 순서·사업자 사용중지",
+      "recommended": "정비(문서 정합·보안 선행) 후 MASTER-LIFECYCLE-001을 차단 기록 → Site 종료 → 연결 종료/교체 → 철회 순, 사업자 사용중지(REGISTERED→INACTIVE)는 그때까지 업무 거절",
+      "alternative": "FLOW 다음",
+      "impact": "MASTER-LIFECYCLE-001",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "정비 후 차단→종료→교체→철회 순, 사용중지는 그때까지 거절 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-005"
+    },
+    {
+      "id": "Q-GOV-U10c",
+      "status": "ANSWERED",
+      "question": "PAYMENT→FINANCIAL 사실 전달 재시도 상한·4xx 분류(I-2)",
+      "recommended": "(권장안 없음)",
+      "alternative": "상한 없이 재시도 유지 + 밀린 사실 경보 / 상한 도달 시 격리 + 경보 / 해당 작업 때",
+      "impact": "사실 유실·경보",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "상한 없이 재시도 유지 + 오래 밀린 사실 경보",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-005"
+    },
+    {
+      "id": "Q-GOV-U11",
+      "status": "ANSWERED",
+      "question": "사용자 결정 없이 정해진 업무 규칙 119개(대장 '제안') 확인 방식",
+      "recommended": "일괄 확인 + 금융 영향 있는 것만 개별(매입 효과 C-5·I-5·L-6 CC-4→CC-8, 운영 홈 KPI 정의, 최신 접수 건 관문, 첫 계약 승인 정의, 취소 운영 해석 Q-CAN-3·5~8)",
+      "alternative": "도메인별 / 작업 착수 때",
+      "impact": "대장 확정 → RULE-TRACE",
+      "dependentTasks": [
+        "GOV-DIAG-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6",
+      "humanAnswer": "일괄 확인 + 금융 영향 있는 것만 개별 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-005"
+    },
+    {
+      "id": "Q-GOV-U12A",
+      "status": "ANSWERED",
+      "question": "CLAUDE.md:42 '통화/체크카드/할부·인증 범위 추가안은 사용자 채택 전' 문구 갱신(사용자 지침 변경)",
+      "recommended": "현재 결정(D-AUTH-001·D-AUTH1-003)에 맞게 그 줄만 고침, 문구를 먼저 보여 줌",
+      "alternative": "그대로 둠",
+      "impact": "CLAUDE.md",
+      "dependentTasks": [
+        "GOV-DIAG-001",
+        "RULE-GOV-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6 U-12",
+      "humanAnswer": "현재 결정에 맞게 고침 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-006"
+    },
+    {
+      "id": "Q-GOV-U12B1",
+      "status": "ANSWERED",
+      "question": "업무 규칙 대장(docs/rules)을 현재 유효 규칙 정본으로 지정",
+      "recommended": "대장 정본, CLAUDE.md는 상위 지침(대장은 인용), DECISIONS는 이력, 결정 변경 시 대장·정책서·DECISIONS 같은 커밋",
+      "alternative": "DECISIONS 정본·대장 색인",
+      "impact": "관리체계",
+      "dependentTasks": [
+        "GOV-DIAG-001",
+        "RULE-GOV-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6 U-12",
+      "humanAnswer": "대장을 정본으로 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-006"
+    },
+    {
+      "id": "Q-GOV-U12B2",
+      "status": "ANSWERED",
+      "question": "착수 전 관문·추적 게이트 강제 시점",
+      "recommended": "대장 확정 후 단계적: 착수 전 관문은 대장 확정 즉시(새 작업부터), 추적 게이트는 경고 → 시험에 BR-ID 연결이 끝난 도메인부터 실패",
+      "alternative": "지금 둘 다 / 권고만",
+      "impact": "하네스",
+      "dependentTasks": [
+        "GOV-DIAG-001",
+        "RULE-GOV-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6 U-12",
+      "humanAnswer": "대장 확정 후 단계적 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-006"
+    },
+    {
+      "id": "Q-GOV-U12B3",
+      "status": "ANSWERED",
+      "question": "baseline 대체 표시 방식",
+      "recommended": "원문 보존 + BASELINE-INDEX 대체 표(절 → 결정)",
+      "alternative": "본문 주석",
+      "impact": "BASELINE-INDEX",
+      "dependentTasks": [
+        "GOV-DIAG-001",
+        "RULE-GOV-001"
+      ],
+      "askedAt": "2026-11-25",
+      "origin": "docs/governance/NORMALIZATION-PLAN.md §6 U-12",
+      "humanAnswer": "원문 보존 + 대체 표 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
+      "appliedSpec": "D-GOV-006"
     }
   ]
 }
