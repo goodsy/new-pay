@@ -33,6 +33,11 @@ interface BusinessProfileQueryUseCase {
      * 중복 거절의 기존 사업자 요약(§6.7 D-BIZ-003·C-14 — 저장된 거절 reference로 TX 밖에서 읽는다). 없으면 null(삭제 경로가 없으므로 결함 — 호출자는 503, m-1).
      */
     fun existingSummary(businessId: BusinessId): BusinessSummary?
+
+    /**
+     * 사업자 상세 '계약 진행' 섹션(MERCHANT-FLOW-001 FLOW-1 — 읽기 전용). 사업자가 없으면 null. 열람 감사는 사업자 상세 열람 감사에 포함한다(ADMIN — D-FLOW-004 ④).
+     */
+    fun contractIntakes(businessId: BusinessId): ContractIntakeSectionView?
 }
 
 /**

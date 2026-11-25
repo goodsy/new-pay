@@ -18,6 +18,7 @@ object BusinessBodies {
 
     fun detail(businessId: String) = "/internal/v1/admin/businesses/$businessId"
     fun history(businessId: String, after: Long = 0) = "/internal/v1/admin/businesses/$businessId/history/after/$after"
+    fun contractIntakes(businessId: String) = "/internal/v1/admin/businesses/$businessId/contract-intakes"
 
     val mapper: JsonMapper = JsonMapper.builder().build()
 

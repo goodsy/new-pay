@@ -107,6 +107,13 @@ enum class MasterRejection {
     BUSINESS_VERSION_CONFLICT,
     BUSINESS_CHANGE_REASON_REQUIRED,
     BUSINESS_PROFILE_UNCHANGED,
+
+    // MERCHANT-FLOW-001 §4A.3(FLOW-1 — 순수 Domain 규칙, 명령 경로는 FLOW-2): 새 접수 건 생성 조건(D-FLOW-003 ① 열린 건 ≤ 1, D-FLOW-004 ① 계약 완료 건이 있으면 해지 뒤에만),
+    // 허용 전이 표 밖·같은 상태·종결 되돌리기, 요청 version ≠ 잠근 접수 건 version(덮어쓰기 거부). 모두 reference 없음. 이름은 [구현 관례](명세 §4A.3 "code 후보").
+    CONTRACT_INTAKE_OPEN_EXISTS,
+    CONTRACT_INTAKE_COMPLETED_EXISTS,
+    CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED,
+    CONTRACT_INTAKE_VERSION_CONFLICT,
 }
 
 /**

@@ -4,6 +4,7 @@ import com.paycore.master.merchant.application.provided.BusinessDetailView
 import com.paycore.master.merchant.application.provided.BusinessDirectoryPage
 import com.paycore.master.merchant.application.provided.BusinessHistoryPage
 import com.paycore.master.merchant.application.provided.BusinessSummary
+import com.paycore.master.merchant.application.provided.ContractIntakeSectionView
 import com.paycore.master.merchant.domain.BusinessFieldError
 
 /**
@@ -49,6 +50,24 @@ object BusinessProfileJson {
             linkedMapOf("addressType" to it.addressType, "postalCode" to it.postalCode, "baseAddress" to it.baseAddress, "detailAddress" to it.detailAddress)
         },
         "contacts" to v.contacts.map { linkedMapOf("name" to it.name, "email" to it.email, "phoneNumber" to it.phoneNumber, "primary" to it.primary) },
+    )
+
+    /** MERCHANT-FLOW-001 FLOW-1: '계약 진행' 섹션(접수 건 최신부터, 이력 순번 오름차순). 이관 건의 접수 항목·근거·담당자는 null(화면 '이관' 표시 — R-6). */
+    fun contractIntakes(v: ContractIntakeSectionView): Map<String, Any?> = linkedMapOf(
+        "businessId" to v.businessId,
+        "intakes" to v.intakes.map { i ->
+            linkedMapOf(
+                "intakeSeq" to i.intakeSeq, "status" to i.status, "migrated" to i.migrated, "receivedOn" to i.receivedOn?.toString(), "intakeChannel" to i.intakeChannel,
+                "contractManager" to i.contractManager, "desiredServices" to i.desiredServices, "version" to i.version,
+                "createdAt" to AdminChannelResponses.time(i.createdAt), "updatedAt" to AdminChannelResponses.time(i.updatedAt),
+                "transitions" to i.transitions.map { t ->
+                    linkedMapOf(
+                        "transitionSeq" to t.transitionSeq, "fromStatus" to t.fromStatus, "toStatus" to t.toStatus, "migrated" to t.migrated,
+                        "documentRef" to t.documentRef, "actorRef" to t.actorRef, "occurredAt" to AdminChannelResponses.time(t.occurredAt),
+                    )
+                },
+            )
+        },
     )
 
     /** 이력(§6.5 — 저장된 마스킹 값 그대로). */

@@ -20,6 +20,7 @@ import java.time.format.ResolverStyle
 /**
  * [BusinessQueryUseCase](BUSINESS-PROFILE-001 §7.2). 순서 = 앞단(감사 없음) → 권한 [BusinessPermissions.VIEW](D-BIZ-006 ①) → 형식(MASTER `BusinessSearchRequestParser` 규칙 복제 — 400, MASTER 미호출)
  * → 사업자 조회 창([BusinessReadWindow] — 번호 조회와 공유, m-2) → MASTER(TX 밖) → (상세만) 감사 `BUSINESS_VIEWED` → 반환.
+ * - 상세(MERCHANT-FLOW-001 FLOW-1): 찾은 상세에는 '계약 진행' 섹션([BusinessContractProgress] — 키 `contractProgress`)을 붙인다. 섹션 조회 실패는 상세를 실패시키지 않는다.
  * - 상세(D-BIZ-006 ②): 개인정보 원문을 돌려주므로 **열람마다 반환 전 감사**(OK·NOT_FOUND·UNAVAILABLE), 역할 부족 `FORBIDDEN`·창 초과 `RATE_LIMITED`도 1행(열람 시도 기록). 감사 실패 →
  *   [BusinessQueryResult.AuditUnavailable](결과 미반환). targetRef = businessId(형식이 맞을 때).
  * - 목록·이력: 감사 없음(D-MOPS-002), 창 초과는 지표 `rate_limited{kind=BUSINESS_READ}`만.
@@ -36,6 +37,7 @@ class BusinessQueryService(
 ) : BusinessQueryUseCase {
 
     private val audit = BusinessAudit(transactionManager, sessions, recorder)
+    private val contractProgress = BusinessContractProgress(sessions)
 
     override fun search(actorId: String, criteria: BusinessSearchCriteria, context: AdminRequestContext): BusinessQueryResult {
         viewer(actorId) ?: return BusinessQueryResult.Forbidden
@@ -60,7 +62,7 @@ class BusinessQueryService(
             return audited("RATE_LIMITED", BusinessQueryResult.RateLimited)
         }
         return when (val result = gateway.detail(target)) {
-            is MasterCallResult.Found -> audited("OK", BusinessQueryResult.Found(result.document))
+            is MasterCallResult.Found -> audited("OK", BusinessQueryResult.Found(withContractProgress(result.document, target)))
             MasterCallResult.NotFound -> audited("NOT_FOUND", BusinessQueryResult.NotFound)
             is MasterCallResult.Unavailable -> audited("UNAVAILABLE", BusinessQueryResult.Unavailable(result.reason))
         }.also { log.info("operation=business-detail result={}", it.javaClass.simpleName) }
@@ -77,6 +79,22 @@ class BusinessQueryService(
             is MasterCallResult.Unavailable -> BusinessQueryResult.Unavailable(result.reason)
         }.also { log.info("operation=business-history result={}", it.javaClass.simpleName) }
     }
+
+    /**
+     * MERCHANT-FLOW-001 FLOW-1(Coordinator 결정 Q1 — D-FLOW-004 ④ 적용): 상세를 찾았을 때만 같은 열람 처리 안에서 MASTER '계약 진행' 섹션을 함께 부른다(DB TX 밖, 사업자 조회 창 추가 소모 없음).
+     * 섹션 전용·조회별 감사는 없다 — 감사는 상세 열람 1행(`BUSINESS_VIEWED`, 반환 전)뿐이고 근거 참조 원문 열람도 그 행에 포함된다. 섹션 실패는 섹션만 `available=false`(fail-safe).
+     */
+    private fun withContractProgress(document: Map<String, Any?>, businessId: String): Map<String, Any?> =
+        LinkedHashMap(document).apply {
+            // 표시명 조회(ADMIN 계정)·재구성 중 예외도 섹션만 불러오지 못함으로 닫는다 — 예외가 새어 상세 열람 감사 행이 빠지지 않게(로그 = 분류만).
+            val section = try {
+                contractProgress.of(gateway.contractIntakes(businessId))
+            } catch (e: RuntimeException) {
+                log.warn("operation=business-contract-progress result=unavailable failure={}", e.javaClass.simpleName)
+                BusinessContractProgress.unavailable()
+            }
+            put(BusinessContractProgress.KEY, section)
+        }
 
     /** 앞단 + 조회 권한(감사 없음 — 목록·이력). */
     private fun viewer(actorId: String): AdminSessionView? = audit.frontGate(actorId)?.takeIf { v -> v.roles.any { it in BusinessPermissions.VIEW } }

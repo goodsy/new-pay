@@ -219,6 +219,9 @@ class MasterDatabaseAccountSpec(
             "card_route_activation" to "SELECT, INSERT, UPDATE",
             "card_route_activation_event" to "SELECT, INSERT",
             "contract" to "SELECT, INSERT, UPDATE",
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 V20 — 목록 증가): 접수 건 현재 상태(전이 UPDATE, @Version)·전이 이력 INSERT 전용(SELECT, INSERT만 — UPDATE·DELETE 1142, §4A.14 M-2).
+            "contract_intake" to "SELECT, INSERT, UPDATE",
+            "contract_intake_transition" to "SELECT, INSERT",
             "contract_revision" to "SELECT, INSERT",
             "contract_revision_approval" to "SELECT, INSERT",
             "contract_revision_scope_site" to "SELECT, INSERT",

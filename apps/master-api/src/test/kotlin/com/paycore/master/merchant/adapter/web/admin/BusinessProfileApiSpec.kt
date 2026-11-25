@@ -115,10 +115,13 @@ class BusinessProfileApiSpec(
     val allPaths = listOf(
         "POST" to BusinessBodies.SEARCHES, "POST" to BusinessBodies.LOOKUPS, "GET" to BusinessBodies.detail("biz_01JC0000000000000000000001"),
         "GET" to BusinessBodies.history("biz_01JC0000000000000000000001"), "POST" to BusinessBodies.CREATE, "POST" to BusinessBodies.UPDATE, "POST" to BusinessBodies.COMPLETE,
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 — 목록 증가): '계약 진행' 섹션 조회도 같은 서명 채널·401·403 규칙 대상.
+        "GET" to BusinessBodies.contractIntakes("biz_01JC0000000000000000000001"),
     )
 
     Given("BIZ-2-1 the signed admin channel in front of the business endpoints") {
-        Then("the handlers under /internal/v1/admin/businesses are exactly the seven endpoints of §6.1") {
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 — 목록 증가): §6.1의 7개 + 사업자 상세 '계약 진행' 섹션 조회(읽기 전용) 1개.
+        Then("the handlers under /internal/v1/admin/businesses are exactly the seven endpoints of §6.1 plus the FLOW-1 contract-intake section") {
             val routes = mappings.flatMap { it.handlerMethods.keys }.flatMap { info ->
                 info.patternValues.filter { it.startsWith("/internal/v1/admin/businesses") }.flatMap { p -> info.methodsCondition.methods.map { "${it.name} $p" } }
             }.toSet()
@@ -127,6 +130,7 @@ class BusinessProfileApiSpec(
                 "POST /internal/v1/admin/businesses/registration-number-lookups",
                 "GET /internal/v1/admin/businesses/{businessId}",
                 "GET /internal/v1/admin/businesses/{businessId}/history/after/{seq}",
+                "GET /internal/v1/admin/businesses/{businessId}/contract-intakes",
                 "POST /internal/v1/admin/businesses/commands/create",
                 "POST /internal/v1/admin/businesses/commands/update",
                 "POST /internal/v1/admin/businesses/commands/complete-registration",

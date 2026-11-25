@@ -351,6 +351,43 @@ internal sealed interface MasterResponseShape {
             "nextAfter" to opt(Whole(1)),
         )
 
+        // ---------------------------------------------------------------- MERCHANT-FLOW-001 FLOW-1(골든 contract-intake-section-v1, ADMIN 바이트 동일 사본)
+
+        /** 접수 건 상태(MASTER `ContractIntakeStatus` — DB CHECK `ck_cin_status`와 같은 5개). */
+        private val INTAKE_STATUS = oneOf("CONSULTING", "DOCUMENT_RECEIVED", "COMPLETED", "REJECTED", "TERMINATED")
+
+        /** 접수 경로 — 지금 저장 가능한 4개(DB CHECK `ck_cin_channel`). `SALES_AGENCY`는 대행사 표·열이 생기는 FLOW-4에서 대행사 필드와 함께 연다(리뷰 m-2 — 그 전에 오면 해석 불가). */
+        private val INTAKE_CHANNEL = oneOf("DIRECT_SALES", "PHONE", "WEBSITE", "OTHER")
+
+        /** 계약 담당자 = 관리자 계정 참조만(§4A.6 — ACTIVE OPERATOR 검사는 ADMIN). 다른 형식(시스템 참조 등)은 해석 불가. 화면 응답에는 이 값 대신 ADMIN 표시명을 싣는다(m-11). */
+        private val ADMIN_ACTOR = Text(Regex("^admin:adm_$ULID$"))
+
+        /** 계약서 수령 근거 참조(§4A.4 — D-MOPS-008 ① 형식, DB CHECK `ck_cint_document_format`). 원문은 사업자 조회 역할에 표시(D-FLOW-004 ④) — 로그·감사에는 옮기지 않는다. */
+        private val CONTRACT_DOCUMENT_REF = Text(Regex("^[A-Za-z0-9._:#/-]{1,128}$"))
+
+        /**
+         * 사업자 상세 '계약 진행' 섹션(§6 FLOW-1 — 읽기 전용). 접수 건은 최신부터, 각 건의 전이 이력은 1건 이상(생성·이관 행). 희망 서비스는 선택 가능한 2개만(가상계좌는 저장 값 없음).
+         * '사유 및 비고' 원문은 섹션에 없다(키가 오면 해석 불가 — 이력 탭). 목록 상한은 응답 읽기 상한(32 KiB)이 실제 한계다([구현 관례]).
+         */
+        val CONTRACT_INTAKE_SECTION: MasterResponseShape = obj(
+            "businessId" to BUSINESS_ID,
+            "intakes" to list(
+                obj(
+                    "intakeSeq" to Whole(1), "status" to INTAKE_STATUS, "migrated" to Flag, "receivedOn" to opt(DATE), "intakeChannel" to opt(INTAKE_CHANNEL),
+                    "contractManager" to opt(ADMIN_ACTOR), "desiredServices" to Arr(oneOf("CARD_AUTH", "CARD_KEYIN"), max = 2), "version" to COUNT,
+                    "createdAt" to TIME, "updatedAt" to TIME,
+                    "transitions" to Arr(
+                        obj(
+                            "transitionSeq" to Whole(1), "fromStatus" to opt(INTAKE_STATUS), "toStatus" to INTAKE_STATUS, "migrated" to Flag,
+                            "documentRef" to opt(CONTRACT_DOCUMENT_REF), "actorRef" to ACTOR, "occurredAt" to TIME,
+                        ),
+                        max = MAX_ITEMS,
+                        min = 1,
+                    ),
+                ),
+            ),
+        )
+
         /** 사업자 명령 성공(첫 응답·재생 같은 모양 — reference = `biz_`, C-18). */
         val BUSINESS_COMMAND_SUCCEEDED: MasterResponseShape = obj("outcome" to oneOf("SUCCEEDED"), "reference" to BUSINESS_ID, "replayed" to Flag)
 

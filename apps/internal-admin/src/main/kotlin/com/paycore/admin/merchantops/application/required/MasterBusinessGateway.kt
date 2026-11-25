@@ -19,6 +19,12 @@ interface MasterBusinessGateway {
     /** 상세(§6.4). 404 `BUSINESS_NOT_FOUND` → [MasterCallResult.NotFound]. */
     fun detail(businessId: String): MasterCallResult
 
+    /**
+     * 사업자 상세 '계약 진행' 섹션(MERCHANT-FLOW-001 FLOW-1 — `GET …/{businessId}/contract-intakes`, 읽기 전용). 404 `BUSINESS_NOT_FOUND` → [MasterCallResult.NotFound].
+     * 상세 열람 처리 안에서만 부른다(별도 화면 API·별도 감사 없음 — Coordinator 결정 Q1, D-FLOW-004 ④).
+     */
+    fun contractIntakes(businessId: String): MasterCallResult
+
     /** 이력(§6.5 — `/history/after/{seq}`). 404 `BUSINESS_NOT_FOUND` → [MasterCallResult.NotFound]. */
     fun history(businessId: String, afterSeq: Long): MasterCallResult
 

@@ -49,6 +49,14 @@ class BusinessQueryController(private val query: BusinessProfileQueryUseCase, pr
         AdminChannelResponses.json(request, OK, BusinessProfileJson.detail(view))
     }
 
+    /** MERCHANT-FLOW-001 FLOW-1: 사업자 상세 '계약 진행' 섹션(읽기 전용). 경로 ID 형식 위반 400, 없는 사업자 404, 접수 건 없음 = 빈 `intakes`. */
+    @GetMapping("/{businessId}/contract-intakes")
+    fun contractIntakes(@PathVariable businessId: String, request: HttpServletRequest): ResponseEntity<ByteArray> = guarded(request, "businessContractIntakes") {
+        if (!BusinessSearchRequestParser.BUSINESS_ID.matches(businessId)) return@guarded malformed(request)
+        val view = query.contractIntakes(BusinessId(businessId)) ?: return@guarded notFound(request)
+        AdminChannelResponses.json(request, OK, BusinessProfileJson.contractIntakes(view))
+    }
+
     @GetMapping("/{businessId}/history/after/{seq}")
     fun history(@PathVariable businessId: String, @PathVariable seq: String, request: HttpServletRequest): ResponseEntity<ByteArray> =
         guarded(request, "businessHistory") {

@@ -119,6 +119,10 @@ internal object PersistenceFailures {
         "business_address.uk_badr_current_type" to StoreConstraint.BUSINESS_PROFILE_ROW,
         "business_contact.uk_bcon_current_order" to StoreConstraint.BUSINESS_PROFILE_ROW,
         "business_contact.uk_bcon_current_primary" to StoreConstraint.BUSINESS_PROFILE_ROW,
+        // MERCHANT-FLOW-001 §4A.3(V19): 접수 건·전이 이력 — 결함 분류(businessKey = false).
+        "contract_intake.uk_cin_active" to StoreConstraint.CONTRACT_INTAKE_ROW,
+        "contract_intake.PRIMARY" to StoreConstraint.CONTRACT_INTAKE_ROW,
+        "contract_intake_transition.PRIMARY" to StoreConstraint.CONTRACT_INTAKE_ROW,
         "business.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant_site.PRIMARY" to StoreConstraint.IDENTIFIER,

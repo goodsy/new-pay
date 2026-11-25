@@ -22,6 +22,7 @@ import { defaultSubmissionId, type BusinessRef, type HandoffState } from '../lib
 import { displayRegistrationNumber, isRegistrationNumber } from '../lib/registrationNumber'
 import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { BusinessProfileFormScreen } from './BusinessProfileFormScreen'
+import { BusinessContractProgressSection } from './BusinessContractProgressSection'
 
 /**
  * 사업자 조회 탭(BUSINESS-PROFILE-001 §8.2 — BIZ-4): 목록·검색(keyset "더 보기") → 상세(섹션 1~6 원문 — D-BIZ-006 ②, 열람마다 서버 감사) → 이력·수정·등록 완료.
@@ -502,6 +503,8 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 { key: 'history', label: '변경 이력', panel: <HistoryTable history={history?.businessId === current.business.businessId ? history : null} onMore={() => loadHistory(current.business.businessId, true)} /> },
               ]}
             />
+            {/* MERCHANT-FLOW-001 FLOW-1: 읽기 전용 '계약 진행' 섹션 — 탭 패널 밖(하단 저장 편집 폼에 묶이지 않는 별도 섹션, D-FLOW-007 ② 섹션 원칙), 상세 문서와 같은 응답. */}
+            <BusinessContractProgressSection progress={current.contractProgress} />
           </>
         )}
       </section>

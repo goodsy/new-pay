@@ -71,6 +71,11 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         return query("business-detail", HttpMethod.GET, "$BASE/$businessId", ByteArray(0), MasterResponseShape.BUSINESS_DETAIL)
     }
 
+    override fun contractIntakes(businessId: String): MasterCallResult {
+        require(BUSINESS_ID.matches(businessId)) { "businessId" }
+        return query("business-contract-intakes", HttpMethod.GET, "$BASE/$businessId/contract-intakes", ByteArray(0), MasterResponseShape.CONTRACT_INTAKE_SECTION)
+    }
+
     override fun history(businessId: String, afterSeq: Long): MasterCallResult {
         require(BUSINESS_ID.matches(businessId) && afterSeq >= 0) { "history arguments" }
         return query("business-history", HttpMethod.GET, "$BASE/$businessId/history/after/$afterSeq", ByteArray(0), MasterResponseShape.BUSINESS_HISTORY)

@@ -112,7 +112,13 @@ class BusinessHttpSpec(
                 it.getHeader("Cache-Control")!! shouldContain "no-store"
                 json.readTree(it.contentAsString) shouldBe golden.get("list")
             }
-            send(client, get("/api/businesses/$id")).let { json.readTree(it.contentAsString) shouldBe golden.get("detail") }
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 — 완화 아님): 상세 응답 = MASTER 상세 문서 그대로 + ADMIN '계약 진행' 섹션 키 1개. 이 시험은 섹션 응답을 등록하지 않았으므로
+            // 섹션은 fail-safe 표시(available=false — Coordinator 결정 Q1)이고 상세 문서 부분은 이전과 같은 골든과 정확히 같아야 한다.
+            send(client, get("/api/businesses/$id")).let {
+                val body = json.readTree(it.contentAsString) as ObjectNode
+                body.remove("contractProgress") shouldBe json.readTree("""{"available":false,"intakes":[]}""")
+                body shouldBe golden.get("detail")
+            }
             send(client, get("/api/businesses/$id/history")).let { json.readTree(it.contentAsString) shouldBe golden.get("history") }
             send(client, post("/api/businesses/registration-number-lookups"), """{"registrationNumber":"0000000000"}""").let {
                 json.readTree(it.contentAsString) shouldBe golden.get("lookupFound")
@@ -160,16 +166,22 @@ class BusinessHttpSpec(
             // 리뷰 MINOR-1: 창은 벽시계 분 고정 창(ActorMinuteWindows) — 34회 호출이 분 경계를 넘지 않게, 분의 끝 근처면 다음 분 시작까지 기다린다(기대값 불변 — 저장소 관례).
             awaitFreshMinute()
             val before = StubMasterOpsServer.received.size
+            // MERCHANT-FLOW-001 FLOW-1(Coordinator 결정 Q1): 상세 1회는 MASTER 상세 + 섹션 조회를 함께 부른다 — 창 소모는 상세 1회(섹션은 창을 쓰지 않는다).
+            // 기대값 유지: 섹션 경로를 뺀 MASTER 호출 수는 이전과 같은 30, 섹션 호출은 상세 수(10)와 같다.
+            fun masterCalls() = StubMasterOpsServer.received.drop(before).count { !it.path.endsWith("/contract-intakes") }
+            fun sectionCalls() = StubMasterOpsServer.received.drop(before).count { it.path.endsWith("/contract-intakes") }
             repeat(10) { send(client, post("/api/businesses/searches"), "{}").status shouldBe 200 }
             repeat(10) { send(client, get("/api/businesses/$id")).status shouldBe 200 }
             repeat(5) { send(client, get("/api/businesses/$id/history")).status shouldBe 200 }
             repeat(5) { send(client, post("/api/businesses/registration-number-lookups"), """{"registrationNumber":"${BusinessInputFixture.randomNumber()}"}""").status shouldBe 200 }
-            StubMasterOpsServer.received.size - before shouldBe 30
+            masterCalls() shouldBe 30
+            sectionCalls() shouldBe 10
             send(client, get("/api/businesses/$id")).let { (it.status to it.contentAsString) shouldBe (429 to """{"error":"RATE_LIMITED"}""") }
             send(client, post("/api/businesses/searches"), "{}").status shouldBe 429
             send(client, get("/api/businesses/$id/history")).status shouldBe 429
             send(client, post("/api/businesses/registration-number-lookups"), """{"registrationNumber":"${BusinessInputFixture.randomNumber()}"}""").status shouldBe 429
-            StubMasterOpsServer.received.size - before shouldBe 30
+            masterCalls() shouldBe 30
+            sectionCalls() shouldBe 10
             audits(account.account.id.value).map { it.split('|').let { c -> "${c[0]}|${c[1]}" } }.takeLast(2) shouldBe
                 listOf("BUSINESS_VIEWED|RATE_LIMITED", "BUSINESS_BRN_LOOKUP|RATE_LIMITED")
         }
@@ -184,6 +196,56 @@ class BusinessHttpSpec(
             }
             yaml("application.yml")["paycore.admin.merchant-ops.business-reads-per-minute"].toString() shouldBe "30"
             yaml("config/application.yml")["paycore.admin.merchant-ops.business-reads-per-minute"].toString() shouldBe "30"
+        }
+    }
+
+    Given("MERCHANT-FLOW-001 FLOW-1 contract-progress section over HTTP (Coordinator 결정 Q1 · 리뷰 m-11 · D-FLOW-004 ④)") {
+        Then("detail + section: one BUSINESS_VIEWED OK row only; manager and actor names come from ADMIN accounts; no login name, no adm_ key, no MASTER actor ref; document ref raw") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val manager = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            val managerRef = "admin:${manager.account.id.value}"
+            val section = String(requireNotNull(BusinessHttpSpec::class.java.getResourceAsStream("/contracts/contract-intake-section-v1.golden.json")).readAllBytes(), Charsets.UTF_8)
+                .replace("biz_01JC0000000000000000000001", id).replace("admin:adm_01JC00000000000000000000V1", managerRef)
+            replyMaster("$base/$id", 200, g("detail"))
+            replyMaster("$base/$id/contract-intakes", 200, section)
+            val before = StubMasterOpsServer.received.size
+            val response = send(client, get("/api/businesses/$id"))
+            response.status shouldBe 200
+            response.getHeader("Cache-Control")!! shouldContain "no-store"
+            StubMasterOpsServer.received.drop(before).map { it.method + " " + it.path } shouldBe listOf("GET $base/$id", "GET $base/$id/contract-intakes")
+            val progress = json.readTree(response.contentAsString).get("contractProgress")
+            progress.get("available").asBoolean() shouldBe true
+            val intakes = progress.get("intakes")
+            fun items(node: JsonNode): List<JsonNode> = node.iterator().asSequence().toList()
+            items(intakes).map { it.get("intakeSeq").asLong() } shouldBe listOf(2L, 1L)
+            intakes.get(0).get("contractManagerName").asString() shouldBe manager.account.displayName.value
+            intakes.get(1).get("contractManagerName").isNull shouldBe true
+            items(intakes.get(1).get("transitions")).map { "${it.get("actorKind").asString()}|${it.get("documentRef")}" } shouldBe listOf("SYSTEM|null", "ADMIN|\"DEMO-TERM-0001\"")
+            val text = progress.toString()
+            listOf(manager.loginName, operator.loginName, manager.account.id.value, "adm_", "admin:", "system:migration", "actorRef", id).forEach { needle ->
+                withClue(needle) { text shouldNotContain needle }
+            }
+            response.contentAsString shouldNotContain manager.loginName
+            audits(operator.account.id.value).map { it.split('|').let { c -> "${c[0]}|${c[1]}|${c[2]}|${c[3]}" } } shouldBe listOf("BUSINESS_VIEWED|OK|-|$id")
+        }
+        Then("section failure (MASTER 503 / unreadable) → detail still 200 with available=false; audit is the same single OK row") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            replyMaster("$base/$id", 200, g("detail"))
+            replyMaster("$base/$id/contract-intakes", 503, """{"error":"TEMPORARILY_UNAVAILABLE"}""")
+            send(client, get("/api/businesses/$id")).let {
+                it.status shouldBe 200
+                json.readTree(it.contentAsString).get("contractProgress") shouldBe json.readTree("""{"available":false,"intakes":[]}""")
+            }
+            replyMaster("$base/$id/contract-intakes", 200, """{"businessId":"$id","intakes":[],"extra":1}""")
+            send(client, get("/api/businesses/$id")).let {
+                it.status shouldBe 200
+                json.readTree(it.contentAsString).get("contractProgress").get("available").asBoolean() shouldBe false
+            }
+            audits(operator.account.id.value).map { it.split('|').let { c -> "${c[0]}|${c[1]}" } } shouldBe listOf("BUSINESS_VIEWED|OK", "BUSINESS_VIEWED|OK")
         }
     }
 

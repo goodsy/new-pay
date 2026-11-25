@@ -98,6 +98,29 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             reply("$base/$id/history/after/0", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
             gateway().history(id, 0) shouldBe MasterCallResult.NotFound
         }
+        Then("MERCHANT-FLOW-001 FLOW-1 contract intakes: signed GET /businesses/{id}/contract-intakes without body; the golden parses; 404 BUSINESS_NOT_FOUND → NotFound; unknown key → unreadable; no document ref in logs") {
+            val id = businessId()
+            val section = String(requireNotNull(javaClass.getResourceAsStream("/contracts/contract-intake-section-v1.golden.json")).readAllBytes(), Charsets.UTF_8)
+            reply("$base/$id/contract-intakes", 200, section)
+            val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            root.addAppender(appender)
+            try {
+                val found = gateway().contractIntakes(id).shouldBeInstanceOf<MasterCallResult.Found>()
+                json.writeValueAsString(found.document) shouldBe json.writeValueAsString(json.readTree(section))
+            } finally {
+                root.detachAppender(appender)
+            }
+            val messages = appender.list.map { it.formattedMessage }
+            messages.forEach { it shouldNotContain "DEMO-TERM-0001" }
+            messages.any { it.contains("operation=master-ops-business-contract-intakes result=Found") } shouldBe true
+            StubMasterOpsServer.requestsForPath("$base/$id/contract-intakes").last().let { listOf(it.method, it.query, it.signatureValid, it.body.size) shouldBe listOf("GET", null, true, 0) }
+            reply("$base/$id/contract-intakes", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
+            gateway().contractIntakes(id) shouldBe MasterCallResult.NotFound
+            reply("$base/$id/contract-intakes", 200, section.replaceFirst("\"intakes\"", "\"extra\":1,\"intakes\""))
+            gateway().contractIntakes(id) shouldBe MasterCallResult.Unavailable("RESPONSE_UNREADABLE")
+            shouldThrow<IllegalArgumentException> { gateway().contractIntakes("biz_x") }
+        }
     }
 
     Given("commands (§6.7 mapping — BIZ-2 인계 ②③)") {

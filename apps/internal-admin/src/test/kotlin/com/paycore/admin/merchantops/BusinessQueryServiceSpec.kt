@@ -107,6 +107,8 @@ class BusinessQueryServiceSpec : BehaviorSpec({
             override fun search(criteria: BusinessSearchCriteria): MasterCallResult = MasterCallResult.Found(linkedMapOf("items" to emptyList<Any>(), "next" to null)).also { calls += "search" }
             override fun lookup(registrationNumber: String): MasterCallResult = lookupReply.also { calls += "lookup" }
             override fun detail(businessId: String): MasterCallResult = detailReply.also { calls += "detail" }
+            // MERCHANT-FLOW-001 FLOW-1: 상세가 섹션도 함께 부른다 — 이 Spec의 기존 호출 순서 기대값은 섹션을 세지 않는다(섹션 동작은 BusinessContractProgressSpec).
+            override fun contractIntakes(businessId: String): MasterCallResult = MasterCallResult.NotFound
             override fun history(businessId: String, afterSeq: Long): MasterCallResult =
                 MasterCallResult.Found(linkedMapOf("items" to emptyList<Any>(), "nextAfter" to null)).also { calls += "history:$afterSeq" }
             override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult =

@@ -625,6 +625,47 @@ export interface BusinessDetail {
   categories: { categoryType: string; name: string }[]
   addresses: { addressType: string; postalCode: string; baseAddress: string; detailAddress: string | null }[]
   contacts: { name: string; email: string; phoneNumber: string; primary: boolean }[]
+  /**
+   * MERCHANT-FLOW-001 FLOW-1 '계약 진행' 섹션(ADMIN이 상세 열람 안에서 MASTER 섹션을 함께 읽어 붙인다 — 감사는 상세 열람 1행). 서버는 늘 보낸다. 없으면(옛 문서) 불러오지 못함으로 그린다.
+   */
+  contractProgress?: ContractProgress
+}
+
+/** 계약 접수 건 상태(MERCHANT-FLOW-001 §4A.3). '계약 완료'는 영업 기록 — 가맹점 계약 승인(결제 허용)과 다르다(R-1). */
+export type ContractIntakeStatus = 'CONSULTING' | 'DOCUMENT_RECEIVED' | 'COMPLETED' | 'REJECTED' | 'TERMINATED'
+
+/** 계약 진행 섹션(읽기 전용). `available=false` = 섹션 조회 실패(fail-safe — 상세는 그대로). */
+export interface ContractProgress {
+  available: boolean
+  intakes: ContractIntakeView[]
+}
+
+/** 접수 건(최신부터). 이관 건([migrated])은 접수일·경로·담당자 없음(R-6 — 화면은 '이관'). [version]은 FLOW-2 전이 명령의 기대값(화면에 그리지 않는다). */
+export interface ContractIntakeView {
+  intakeSeq: number
+  status: ContractIntakeStatus
+  migrated: boolean
+  receivedOn: string | null
+  intakeChannel: string | null
+  /** ADMIN이 채운 계약 담당자 표시명(m-11 — 로그인 이름·계정 키 없음). 이관 건이거나 계정을 찾지 못하면 null. */
+  contractManagerName: string | null
+  desiredServices: string[]
+  version: number
+  createdAt: string
+  updatedAt: string
+  transitions: ContractTransitionView[]
+}
+
+/** 전이 이력(순번 오름차순). 근거 참조는 원문(사업자 조회 역할 — D-FLOW-004 ④). 처리자는 ADMIN 표시명 또는 SYSTEM(이름 없음). '사유 및 비고'는 없다(이력 탭). */
+export interface ContractTransitionView {
+  transitionSeq: number
+  fromStatus: ContractIntakeStatus | null
+  toStatus: ContractIntakeStatus
+  migrated: boolean
+  documentRef: string | null
+  actorKind: 'ADMIN' | 'SYSTEM'
+  actorName: string | null
+  occurredAt: string
 }
 
 /** 이력 항목의 바뀐 값(저장 시점 마스킹 값 그대로 — §9). 행 목록 항목은 `ended`·`added`. */

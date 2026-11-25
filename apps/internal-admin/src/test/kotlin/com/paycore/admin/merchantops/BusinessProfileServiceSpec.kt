@@ -89,6 +89,7 @@ class BusinessProfileServiceSpec : BehaviorSpec({
             override fun search(criteria: BusinessSearchCriteria): MasterCallResult = error("not used")
             override fun lookup(registrationNumber: String): MasterCallResult = error("not used")
             override fun detail(businessId: String): MasterCallResult = error("not used")
+            override fun contractIntakes(businessId: String): MasterCallResult = error("not used")
             override fun history(businessId: String, afterSeq: Long): MasterCallResult = error("not used")
             override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult {
                 callInTx += TransactionSynchronizationManager.isActualTransactionActive()

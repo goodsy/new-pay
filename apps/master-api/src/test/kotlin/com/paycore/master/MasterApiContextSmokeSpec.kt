@@ -50,7 +50,8 @@ class MasterApiContextSmokeSpec(
         // 기대값 변경(MERCHANT-CODE-001 MC-1 — 목록 증가): + V13(가맹점 코드 배정 표)·V14(그 runtime 권한).
         // 기대값 변경(BUSINESS-PROFILE-001 BIZ-1 — 목록 증가): + V15(사업자 기본정보 schema)·V16(그 runtime 권한).
         // 기대값 변경(MERCHANT-NAME-SEARCH-001 — V17): 가맹점명 검색 색인 ix_merchant_name_id(schema만 — 새 표·열 없음 → runtime 권한 변경 없음, V18은 의도적으로 비운다).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16", "17", "900", "901")
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 — 목록 증가): + V19(계약 접수 건·전이 이력 schema + 기존 사업자 이관)·V20(그 runtime 권한). V18은 빈 번호 그대로.
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16", "17", "19", "20", "900", "901")
         rootStrings("SELECT DISTINCT installed_by FROM paycore_master.flyway_schema_history") shouldBe
             listOf(MasterDbAccounts.MASTER_MIGRATION_USER)
     }
@@ -90,6 +91,8 @@ class MasterApiContextSmokeSpec(
             "JpaMerchantCodeAssignmentEntity",
             // 기대값 변경(BUSINESS-PROFILE-001 BIZ-1 — 목록 증가): 사업자 등록정보(1:1)·대표자·업태/종목·주소·등록 담당자(유효기간 행).
             "JpaBusinessRegistrationEntity", "JpaBusinessRepresentativeEntity", "JpaBusinessCategoryEntity", "JpaBusinessAddressEntity", "JpaBusinessContactEntity",
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 — 목록 증가): 계약 접수 건(현재 상태, @Version)·전이 이력(@Immutable, INSERT 전용).
+            "JpaContractIntakeEntity", "JpaContractIntakeTransitionEntity",
         )
     }
 }

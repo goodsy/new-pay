@@ -33,7 +33,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
     val businessTables = listOf(
         // 기대값 변경(BUSINESS-PROFILE-001 V15 — 목록 증가, 명세 §5.2): 사업자 등록정보·대표자·업태/종목·주소·등록 담당자 표 — DELETE 1142 검사 대상에도 들어간다.
         "admin_approval_evidence", "admin_request", "business", "business_address", "business_category", "business_contact", "business_registration",
-        "business_representative", "card_route_activation", "card_route_activation_event", "contract", "contract_revision",
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 V19 — 목록 증가, 완화 아님): 계약 접수 건·전이 이력 표 — DELETE 1142 검사 대상에도 들어간다.
+        "business_representative", "card_route_activation", "card_route_activation_event", "contract", "contract_intake", "contract_intake_transition", "contract_revision",
         "contract_revision_approval", "contract_revision_scope_site", "contract_service_agreement", "currency_enablement", "currency_unit",
         "default_designation", "entitlement_snapshot_ack", "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account",
         // 기대값 변경(MERCHANT-CODE-001 MC-1 V13): 새 업무 표 `merchant_code_assignment`(append-only 코드 배정 이력) — DELETE 1142 검사 대상에도 들어간다(표 목록 증가, 완화 아님).

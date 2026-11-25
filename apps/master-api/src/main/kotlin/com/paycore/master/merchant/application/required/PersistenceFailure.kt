@@ -57,6 +57,10 @@ enum class StoreConstraint(val businessKey: Boolean) {
     // **업무 유일키가 아니다** — Domain 규칙(§4.3)과 business FOR UPDATE 직렬화가 먼저 막으므로 위반은 diff·flush 순서 결함 또는 잠금 우회다.
     // 결함 — 재시도·재판정 없음(실행기 새 TX 재판정 대상 아님 → 503 TEMPORARILY_UNAVAILABLE + 결함 로그(제약 이름만)).
     BUSINESS_PROFILE_ROW(false),
+
+    // MERCHANT-FLOW-001 §4A.3(V19): 접수 건 열린·완료 건 하나(uk_cin_active)·(사업자, 순번) PK·전이 이력 PK. **업무 유일키가 아니다** — Domain 생성 조건과 사업자 행
+    // FOR UPDATE 직렬화가 먼저 막으므로 위반은 순번 부여 결함 또는 잠금 우회다(BUSINESS_PROFILE_ROW와 같은 결함 분류 — 재시도·재판정 없음).
+    CONTRACT_INTAKE_ROW(false),
     IDENTIFIER(false),
     OUTBOX_EVENT_ID(false),
     OUTBOX_EFFECT_KEY(false),

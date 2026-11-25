@@ -6,10 +6,12 @@ import com.paycore.master.merchant.application.provided.BusinessHistoryPage
 import com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase
 import com.paycore.master.merchant.application.provided.BusinessSearchFilter
 import com.paycore.master.merchant.application.provided.BusinessSummary
+import com.paycore.master.merchant.application.provided.ContractIntakeSectionView
 import com.paycore.master.merchant.application.required.BusinessDetailReader
 import com.paycore.master.merchant.application.required.BusinessDirectoryReader
 import com.paycore.master.merchant.application.required.BusinessHistoryReader
 import com.paycore.master.merchant.application.required.BusinessLookupReader
+import com.paycore.master.merchant.application.required.ContractIntakeReader
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import org.springframework.stereotype.Service
@@ -24,6 +26,7 @@ class BusinessProfileQueryService(
     private val lookups: BusinessLookupReader,
     private val details: BusinessDetailReader,
     private val histories: BusinessHistoryReader,
+    private val contractIntakes: ContractIntakeReader,
 ) : BusinessProfileQueryUseCase {
 
     override fun search(filter: BusinessSearchFilter): BusinessDirectoryPage = directory.search(filter)
@@ -38,4 +41,6 @@ class BusinessProfileQueryService(
     }
 
     override fun existingSummary(businessId: BusinessId): BusinessSummary? = details.summary(businessId)
+
+    override fun contractIntakes(businessId: BusinessId): ContractIntakeSectionView? = contractIntakes.section(businessId)
 }
