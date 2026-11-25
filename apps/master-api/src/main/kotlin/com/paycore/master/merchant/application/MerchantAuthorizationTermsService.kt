@@ -30,6 +30,7 @@ import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
 import com.paycore.master.merchant.application.required.PolicyAssignmentRepository
 import com.paycore.master.merchant.application.required.PolicyVersionRepository
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.application.required.TransactionLimitPolicyRepository
 import com.paycore.master.merchant.application.required.Versioned
 import com.paycore.master.merchant.domain.ActivationTransition
@@ -86,9 +87,10 @@ class MerchantAuthorizationTermsService(
     private val versions: PolicyVersionRepository,
     private val policyAssignments: PolicyAssignmentRepository,
     private val routes: CardRouteActivationRepository,
+    fingerprints: RequestFingerprintDigester,
 ) : MerchantAuthorizationTermsUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints)
 
     // ── 거래 한도 정책(D-AUTH-006, D-MS2-001·002) ─────────────────────────────────────────────
 

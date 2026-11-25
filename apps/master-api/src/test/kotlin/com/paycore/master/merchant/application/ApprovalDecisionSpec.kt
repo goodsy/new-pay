@@ -57,6 +57,7 @@ class ApprovalDecisionSpec(
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
     evidences: ApprovalEvidenceStore,
+    fingerprints: com.paycore.master.merchant.application.required.RequestFingerprintDigester,
 ) : BehaviorSpec({
 
     afterEach {
@@ -64,7 +65,7 @@ class ApprovalDecisionSpec(
         faults.reset()
     }
 
-    val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints, evidences)
 
     fun count(sql: String, vararg args: Any?): Long = runtime(container).use { it.scalar(sql, *args).toString().toLong() }
     fun evidence(approvalId: String) = runtime(container).use { evidenceRow(it, approvalId) }

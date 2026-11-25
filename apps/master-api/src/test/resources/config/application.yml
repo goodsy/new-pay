@@ -40,3 +40,6 @@ paycore:
       signing-keys:
         - key-id: mops-test-k1
           secret: dGVzdC1vbmx5LW1hc3Rlci1hZG1pbi1jaGFubmVsLWtleS0wMDAx
+      # SEC-BIZ-001 M-2(D-MOPS-010 ②): 관리 명령 요청 지문 HMAC 키 — 시험·Demo 전용 값(운영값 아님, 서명 키들과 다른 바이트). 운영 application.yml에는 기본값이 없다(없으면 기동 실패).
+      # 이 값은 저장소에 공개된 "알려진 Demo 키"라 LIVE(deployment-mode ≠ DEMO)에서는 기동이 거부된다(HmacRequestFingerprintDigester).
+      request-fingerprint-key: dGVzdC1vbmx5LW1hc3Rlci1yZXF1ZXN0LWZpbmdlcnByaW50LWtleS0wMDAx

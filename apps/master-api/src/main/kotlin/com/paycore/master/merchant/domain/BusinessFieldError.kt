@@ -19,4 +19,7 @@ enum class BusinessFieldErrorCode {
     PRIMARY_MULTIPLE,
     ACTUAL_SAME_AS_REGISTERED,
     BUSINESS_TYPE_ITEM_REQUIRED,
+
+    /** SEC-BIZ-001 M-1(BR-BIZ-305): '사유 및 비고'에 카드번호 패턴 — 고정 code(ADMIN `OperatorCancelInputRules.CARD_NUMBER_PATTERN`·MERCHANT-FLOW-001과 같은 이름). */
+    CARD_NUMBER_PATTERN,
 }

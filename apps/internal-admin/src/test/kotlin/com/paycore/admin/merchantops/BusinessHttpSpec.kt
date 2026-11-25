@@ -308,6 +308,26 @@ class BusinessHttpSpec(
             }
             StubMasterOpsServer.received.size shouldBe before
         }
+        Then("SEC-BIZ-001 M-1 (BR-BIZ-305): a card-number-like '사유 및 비고' on update and complete → 400 INVALID_INPUT [reason CARD_NUMBER_PATTERN], the value is not echoed, MASTER is not called") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            val before = StubMasterOpsServer.received.size
+            val auditsBefore = audits(operator.account.id.value).size
+            listOf(
+                put("/api/businesses/$id") to "상호 정정 카드 4111-1111-1111-1111",
+                post("/api/businesses/$id/registration") to "card ４１１１１１１１１１１１１１１１",
+            ).forEach { (request, reason) ->
+                send(client, request, BusinessInputFixture.changeJson(sub(), reason = reason)).let {
+                    (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"reason","code":"CARD_NUMBER_PATTERN"}]}""")
+                    it.contentAsString.contains("4111") shouldBe false
+                    it.contentAsString.contains("１１１１") shouldBe false
+                }
+            }
+            StubMasterOpsServer.received.size shouldBe before
+            // update·등록 완료의 ADMIN 규칙 위반은 감사 없음(기존 BIZ-3-1 규칙 — 지표만).
+            audits(operator.account.id.value).size shouldBe auditsBefore
+        }
     }
 
     Given("BIZ-3-5 lost response and resend with the same submissionId") {

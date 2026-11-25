@@ -128,7 +128,7 @@ class BusinessLegacySeedMigrationSpec(
                     ps.setString(1, AdminOperation.REGISTER_BUSINESS.code)
                     ps.setString(2, DemoSeedStep.REGISTER_BUSINESS.key(DemoMerchantSeedValues.KEY_PREFIX).value)
                     ps.setString(3, "req_legacy_seed_step_01")
-                    ps.setString(4, AdminCommandExecutor.fingerprintOf(AdminOperation.REGISTER_BUSINESS, listOf(v.registrationNumber.value, v.businessName.value)))
+                    ps.setString(4, AdminCommandExecutor.legacyFingerprintOf(AdminOperation.REGISTER_BUSINESS, listOf(v.registrationNumber.value, v.businessName.value)))
                     ps.setString(5, DemoMerchantSeedValues.ACTOR.value)
                     ps.setString(6, LEGACY_BUSINESS_ID)
                     ps.setTimestamp(7, at); ps.setTimestamp(8, at)
@@ -158,7 +158,7 @@ class BusinessLegacySeedMigrationSpec(
                     ps.setString(3, "req_legacy_seed_step_02")
                     ps.setString(
                         4,
-                        AdminCommandExecutor.fingerprintOf(AdminOperation.REGISTER_MERCHANT, listOf(LEGACY_BUSINESS_ID, v.merchantName.value, v.merchantCode.value)),
+                        AdminCommandExecutor.legacyFingerprintOf(AdminOperation.REGISTER_MERCHANT, listOf(LEGACY_BUSINESS_ID, v.merchantName.value, v.merchantCode.value)),
                     )
                     ps.setString(5, DemoMerchantSeedValues.ACTOR.value)
                     ps.setString(6, LEGACY_MERCHANT_ID)

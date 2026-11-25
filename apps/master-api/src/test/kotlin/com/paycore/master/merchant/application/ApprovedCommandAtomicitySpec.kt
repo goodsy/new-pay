@@ -63,6 +63,7 @@ class ApprovedCommandAtomicitySpec(
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
     evidences: ApprovalEvidenceStore,
+    fingerprints: com.paycore.master.merchant.application.required.RequestFingerprintDigester,
 ) : BehaviorSpec({
 
     afterEach {
@@ -72,7 +73,7 @@ class ApprovedCommandAtomicitySpec(
     }
 
     /** 대역 본문용 실행기(운영과 같은 Store·TX — operation만 다르다). */
-    val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints, evidences)
 
     class Injected : RuntimeException("injected")
 

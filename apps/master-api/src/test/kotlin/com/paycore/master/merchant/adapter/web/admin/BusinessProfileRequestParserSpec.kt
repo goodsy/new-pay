@@ -175,6 +175,14 @@ class BusinessProfileRequestParserSpec : BehaviorSpec({
         Then("update parses with the DRAFT common rules only — REGISTERED-only requirements are judged inside the TX on the locked state (BIZ-2-11)") {
             update(with(updateBase, "representatives", emptyList<Any>())).shouldBeInstanceOf<BusinessCommandParse.Parsed<UpdateBusinessCommand>>()
             errors(update(with(updateBase, "reason", ""))) shouldBe listOf(BusinessFieldError("reason", BusinessFieldErrorCode.REQUIRED))
+            // SEC-BIZ-001 M-1(BR-BIZ-305): 사유 칸 카드번호 패턴은 값 단계 필드 오류(공통 벡터 전부 — update·complete 둘 다), 카드번호가 아닌 숫자열은 통과.
+            com.paycore.master.merchant.domain.CardNumberVectors.CARD_LIKE.forEach { reason ->
+                errors(update(with(updateBase, "reason", reason))) shouldBe listOf(BusinessFieldError("reason", BusinessFieldErrorCode.CARD_NUMBER_PATTERN))
+                errors(complete(with(updateBase, "reason", reason))) shouldBe listOf(BusinessFieldError("reason", BusinessFieldErrorCode.CARD_NUMBER_PATTERN))
+            }
+            com.paycore.master.merchant.domain.CardNumberVectors.NOT_CARD.forEach { reason ->
+                update(with(updateBase, "reason", reason)).shouldBeInstanceOf<BusinessCommandParse.Parsed<UpdateBusinessCommand>>()
+            }
             errors(update(with(updateBase, "displayName", "가".repeat(101)))) shouldBe listOf(BusinessFieldError("displayName", BusinessFieldErrorCode.TOO_LONG))
         }
     }

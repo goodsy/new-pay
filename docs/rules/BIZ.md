@@ -90,7 +90,7 @@
 | BR-BIZ-045 | 사업자 등록 중복 시 "이미 등록된 번호"만 표시하고 기존 businessId는 ADMIN 응답·화면·감사에 내보내지 않는다 | 대체됨→BR-BIZ-044 | 사용자 | D-MOPS-006 ③ → D-BIZ-003 | MERCHANT-OPS-002 §4.4(옛) | — |
 | BR-BIZ-046 | 사업자등록번호는 어디서나(화면·응답 포함) 마스킹한다 | 대체됨→BR-BIZ-030 | 사용자 | D-BIZ-006 ② → D-BIZ-007, D-PII-001 | BUSINESS-PROFILE-001 §9(옛) | — |
 | BR-BIZ-047 | 번호 검색·사업자 번호 조회·중복 안내·가맹점 등록의 사업자 표시 응답은 마스킹 번호(앞 3자리)만 준다 | 대체됨→BR-BIZ-030 | 사용자 | D-MOPS-003, D-ADMIN-UI-004 ⑦, D-BIZ-003, D-MCODE-003 ② → D-BIZ-007, D-PII-001 | MERCHANT-OPS-001 §5(옛) | — |
-| BR-BIZ-048 | 사업자 명령 요청 지문의 사업자등록번호 자리는 원문 무염 SHA-256이 아니라 MASTER 비밀 키 HMAC 값으로 저장한다(같은 키·다른 내용=충돌 유지, 기존 행 호환 비교는 Demo 한정) | 확정 | 사용자 | D-MOPS-010 ②(Q-MOPS-26) | MERCHANT-OPS-002 §9.29, PII-MASKING-POLICY §7.1 X-2 | 없음(미구현 — 진단 e-1) |
+| BR-BIZ-048 | 사업자 명령 요청 지문의 사업자등록번호 자리는 원문 무염 SHA-256이 아니라 MASTER 비밀 키 HMAC 값으로 저장한다(같은 키·다른 내용=충돌 유지, 기존 행 호환 비교는 Demo 한정) | 확정 | 사용자 | D-MOPS-010 ②(Q-MOPS-26), D-GOV-001 ② | MERCHANT-OPS-002 §9.29·C-46·C-47 rev 0.9.5, PII-MASKING-POLICY §7.1 X-2 | AdminRequestFingerprintSpec(M)::h1: HMAC = canonical 전체 MAC·다른 키 다른 값·m1과 다름; AdminRequestFingerprintHmacSpec(M)::DB 지문 원문·무염 사전 대조 불가, 같은 키 재생·다른 내용 409, m1 행 Demo 재생·다른 내용 409·LIVE 409; RequestFingerprintKeySpec(M)::키 없음·Base64 아님·32바이트 미만·서명 키 동일·LIVE Demo 키 기동 실패, toString 가림 (SEC-BIZ-001 — 리뷰·검증 전) |
 | BR-BIZ-049 | 사업자등록번호 마스킹 해제(UNMASK) 절차는 두지 않는다 | 확정 | 사용자 | D-PII-001 ③, Q-MOPS-04 | PII-MASKING-POLICY §8 | 없음 |
 
 ## 3. 가맹점(Merchant)·가맹점 코드
@@ -292,7 +292,7 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 | BR-BIZ-302 | KYC 보관·파기 기간은 LIVE 전에 정하고 그때까지 파기 기능이 없다(Demo는 지금 수집) | 확정 | 사용자 | D-FLOW-002 ④ | MERCHANT-FLOW-001 §4A.11 | 없음 |
 | BR-BIZ-303 | 사업자 메모는 추가만 가능(ADMIN 소유 append-only, 종류 고정 일반·상담·계약·리스크, 1~1,000자, 카드번호 패턴 거부)이며 종료 사업자에도 허용한다 | 확정 | 사용자 | D-FLOW-003 ⑧, D-FLOW-004 ③, D-FLOW-007 ⑤ | MERCHANT-FLOW-001 §4A.12 | 없음 |
 | BR-BIZ-304 | 저장(또는 전이) 한 번에 공통 '사유 및 비고' 칸 하나를 두며, 그 저장에 사유 필수 항목이 하나라도 있으면 필수, 없으면 선택이다 | 확정 | 사용자 | D-FLOW-006 | MERCHANT-FLOW-001 §4A.3a | 없음 |
-| BR-BIZ-305 | 공통 '사유 및 비고' 칸 전체에 항상 카드번호 패턴 검사를 적용한다(기존 사업자 중요정보 사유 포함, 새 저장부터) | 확정 | 사용자 | D-FLOW-007 ①, Q-PII-6 | MERCHANT-FLOW-001 §4A.3a | 없음(미구현 — 진단 e-2) |
+| BR-BIZ-305 | 공통 '사유 및 비고' 칸 전체에 항상 카드번호 패턴 검사를 적용한다(기존 사업자 중요정보 사유 포함, 새 저장부터) | 확정 | 사용자 | D-FLOW-007 ①, Q-PII-6 | MERCHANT-FLOW-001 §4A.3a, BUSINESS-PROFILE-001 §4.2 `BusinessChangeReason`, PII-MASKING-POLICY §4.4 | BusinessProfileRulesSpec(M)::공통 벡터 양성 10 CARD_NUMBER_PATTERN·음성 6 통과, 문자 규칙 먼저; BusinessProfileRequestParserSpec(M)::update·complete 사유 CARD_NUMBER_PATTERN; BusinessProfileApiSpec(M)::400 값 없음·admin_request·이력 0행·version 불변; BusinessProfileServiceSpec(A)::MASTER 미호출 400·정본 containsCardNumber와 벡터 일치; MasterBusinessGatewaySpec(A)::MASTER 400 code 수용; businessProfile.test.ts(F)::reasonError 공통 벡터·안내 문구 (SEC-BIZ-001 — 리뷰·검증 전. 사업자 중요정보 사유에 적용 — 새 섹션 칸은 FLOW-2) |
 | BR-BIZ-306 | KYC·리스크 표시·담보는 섹션별로 따로 저장한다(섹션 저장 1회 = MASTER 명령·TX 1개) | 확정 | 사용자 | D-FLOW-007 ② | MERCHANT-FLOW-001 §4A.3a | 없음 |
 | BR-BIZ-307 | 기존 대표자·담당자 개인정보 표시는 현행(원문) 유지한다 | 확정 | 사용자 | D-FLOW-003 ⑩ | MERCHANT-FLOW-001 §4A.13 | BusinessReaderSpec(M)::상세 원문 개인정보(현행) |
 | BR-BIZ-308 | 대표자 생년월일·국적·지분·실소유자 등 AML/KYB 자료는 최초 등록 화면에서 받지 않는다 | 대체됨→BR-BIZ-294 | 기준 | POL POL-003 → D-FLOW-001 ④ | — | — |
@@ -341,14 +341,14 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 
 ### (d) 시험 없는 확정 규칙
 
-- 미구현 기능이라 시험 없음: BR-BIZ-110·111·112(계약 철회·CSA 철회·갱신 — MASTER-LIFECYCLE-001), BR-BIZ-144(ADDITIONAL 공유 조건 명령), BR-BIZ-169(재개 등록자 규칙 — B3-4), BR-BIZ-178·179(기관 가맹점 참조 입력·마스킹, Route 등록자 — B3-3), BR-BIZ-196(한도·정책 배정 2인/1인 — B4·B5), BR-BIZ-048(BRN 지문 HMAC — B3-3a), BR-BIZ-072(정산서 코드), BR-BIZ-251~256(SITE-CONTRACT-CODE-001 BACKLOG), BR-BIZ-270~306 중 확정 전부(MERCHANT-FLOW-001 미병합).
+- 미구현 기능이라 시험 없음: BR-BIZ-110·111·112(계약 철회·CSA 철회·갱신 — MASTER-LIFECYCLE-001), BR-BIZ-144(ADDITIONAL 공유 조건 명령), BR-BIZ-169(재개 등록자 규칙 — B3-4), BR-BIZ-178·179(기관 가맹점 참조 입력·마스킹, Route 등록자 — B3-3), BR-BIZ-196(한도·정책 배정 2인/1인 — B4·B5), BR-BIZ-072(정산서 코드), BR-BIZ-251~256(SITE-CONTRACT-CODE-001 BACKLOG), BR-BIZ-270~306 중 확정 전부(MERCHANT-FLOW-001 미병합).
 - 구현은 있으나 직접 단언 시험을 찾지 못함: BR-BIZ-001(사업자 1:N 가맹점), BR-BIZ-006(법인번호 자동 병합 없음), BR-BIZ-008(REGISTERED ≠ 심사 승인), BR-BIZ-015(INACTIVE 전이 없음·결제 비연결), BR-BIZ-060(Merchant 소속 불변), BR-BIZ-062(같은 이름 허용), BR-BIZ-115(GID 비상속), BR-BIZ-135(Default 비상속), BR-BIZ-149(결제 중 MID 변경 금지 — PAY 쪽 확인 필요), BR-BIZ-197.
 - 부분 검증: BR-BIZ-061(평가 매핑만, 차단 기록 생성·해제·다건 독립 없음), BR-BIZ-140(종료 명령 없음), BR-BIZ-147(교체 한 TX 명령 없음), BR-BIZ-194(LIVE Gate 차단 시험 없음), BR-BIZ-214(2키 교체·mTLS 없음), BR-BIZ-230(1인 즉시 안전 방향 명령은 Site 심사 거절만).
 
 ### (e) 코드가 규칙과 다른 곳
 
-1. BR-BIZ-048(D-MOPS-010 ②): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/AdminCommandExecutor.kt:427-428` — 모든 관리 명령 지문이 `m1:` 무염 SHA-256(사업자등록번호 원문 포함 필드). PII-MASKING-POLICY X-2와 같음, 예정 배치 B3-3a(LIVE Gate).
-2. BR-BIZ-305(D-FLOW-007 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessChangeReason.kt:8-21` — 사업자 중요정보 사유에 카드번호 패턴 검사 없음(`BusinessTextRule`만).
+1. BR-BIZ-048(D-MOPS-010 ②): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/AdminCommandExecutor.kt:427-428` — 모든 관리 명령 지문이 `m1:` 무염 SHA-256(사업자등록번호 원문 포함 필드). PII-MASKING-POLICY X-2와 같음, 예정 배치 B3-3a(LIVE Gate). **→ SEC-BIZ-001(2026-11-25)에서 지문 전체 `h1:` HMAC으로 시행(리뷰·검증 전)**.
+2. BR-BIZ-305(D-FLOW-007 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessChangeReason.kt:8-21` — 사업자 중요정보 사유에 카드번호 패턴 검사 없음(`BusinessTextRule`만). **→ SEC-BIZ-001(2026-11-25)에서 화면·ADMIN·MASTER Domain 세 계층 시행(리뷰·검증 전)**.
 3. BR-BIZ-082·085 상호작용: `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantOnboardingService.kt:128-129` — 채널 중복을 `findActiveByChannel`(활성 Site 기준)로만 본다. 종료 Site 채널은 다른 가맹점이 재사용 가능(Q-MD-18 미결인데 코드가 "허용"으로 정해 둔 상태 — 다만 Site 종료 명령이 없어 지금은 발생 경로 없음), REJECTED Site 채널은 재신청을 막는다((b)-1).
 4. BR-BIZ-169(D-MOPS-010 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/PaymentMethodActivation.kt:82`·`CardRouteActivation.kt:50` `resume(...)`에 원 등록자 검사 없음 — 2인 재개 경로가 아직 없어 위반은 아니나, 경로를 열 때 함께 넣어야 한다.
 5. BR-BIZ-279(D-FLOW-001 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/MasterRejection.kt:105` 근처 — 계약 완료 관문 거절 코드 없음, `Merchant.register`는 REGISTERED만 본다(main 기준 미구현).

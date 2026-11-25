@@ -51,6 +51,7 @@ internal object BusinessProfileInputRules {
     private val ADDRESS_TYPES = listOf("REGISTERED", "ACTUAL")
     private val DATE_TEXT = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
     private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT)
+    private const val CARD_NUMBER_PATTERN = "CARD_NUMBER_PATTERN"
 
     /** 값 규칙 위반 목록(비면 통과). 식별자(submissionId·경로 businessId)는 [identifiersWellFormed]가 따로 본다(필드 오류 없는 400). */
     fun errors(request: BusinessProfileRequest): List<BusinessFieldError> {
@@ -60,7 +61,7 @@ internal object BusinessProfileInputRules {
         }
         when (request) {
             is BusinessProfileRequest.Create -> add("registrationNumber", digits(request.registrationNumber, REGISTRATION_NUMBER_LENGTH))
-            is BusinessProfileRequest.Change -> request.reason?.let { add("reason", text(it, MAX_REASON)) }
+            is BusinessProfileRequest.Change -> request.reason?.let { add("reason", reason(it)) }
         }
         formatErrors(request.content, ::add)
         if (errors.isNotEmpty()) return sorted(errors)
@@ -166,6 +167,14 @@ internal object BusinessProfileInputRules {
         raw.codePointCount(0, raw.length) > maxCodePoints -> "TOO_LONG"
         else -> null
     }
+
+    /**
+     * '사유 및 비고'(MASTER `BusinessChangeReason.errorOf`): 문자 규칙 뒤 카드번호 패턴이면 `CARD_NUMBER_PATTERN`(SEC-BIZ-001 M-1 — BR-BIZ-305, D-FLOW-007 ①). MASTER 호출 전 400 —
+     * 원문이 MASTER 요청 본문·이력에 가지 않는다. 판정은 정본 `approval.domain.OperatorCancelInputRules.containsCardNumber`의 복제인 같은 패키지 [RegistrationInputRules.CARD_NUMBER]를 쓴다(모듈 경계 —
+ * merchantops는 approval 내부 타입을 쓰지 않는다),
+     * 같은 판정인지는 공통 벡터 시험(`BusinessCardNumberVectors`)이 정본과 함께 고정한다.
+     */
+    private fun reason(raw: String): String? = text(raw, MAX_REASON) ?: CARD_NUMBER_PATTERN.takeIf { RegistrationInputRules.CARD_NUMBER.containsMatchIn(raw) }
 
     /** MASTER `BusinessTextRule.digitsErrorOf`. */
     private fun digits(raw: String, length: Int): String? = when {

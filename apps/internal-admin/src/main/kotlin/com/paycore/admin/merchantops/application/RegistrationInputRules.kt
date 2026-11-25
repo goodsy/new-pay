@@ -60,8 +60,11 @@ internal object RegistrationInputRules {
     val REJECT_REASONS = setOf("DOCUMENT_INSUFFICIENT", "PROHIBITED_BUSINESS", "SITE_UNREACHABLE", "OTHER_POLICY")
     private val EVIDENCE = Regex("^[A-Za-z0-9._:#/-]{1,128}$")
 
-    /** 카드 번호 모양(13~19자리, 공백·하이픈 구분 허용 — 근거 참조에 받지 않는다. approval `OperatorCancelInputRules.CARD_NUMBER`와 같은 규칙 복제, 모듈 경계). */
-    private val CARD_NUMBER = Regex("(?<!\\p{Nd})(?:\\p{Nd}[ -]?){12,18}\\p{Nd}(?!\\p{Nd})")
+    /**
+     * 카드 번호 모양(13~19자리, 공백·하이픈 구분 허용 — 근거 참조에 받지 않는다. approval `OperatorCancelInputRules.CARD_NUMBER`와 같은 규칙 복제, 모듈 경계).
+     * 같은 패키지의 사업자 '사유 및 비고' 검사([BusinessProfileInputRules] — SEC-BIZ-001 M-1)도 이 식을 쓴다(merchantops 안 복제본 하나).
+     */
+    val CARD_NUMBER = Regex("(?<!\\p{Nd})(?:\\p{Nd}[ -]?){12,18}\\p{Nd}(?!\\p{Nd})")
 
     /** 근거 참조(§9.3 형식 — MASTER `EvidenceRef`와 같다) + 카드 번호 모양 거부. */
     private fun evidence(value: String): Boolean = EVIDENCE.matches(value) && !CARD_NUMBER.containsMatchIn(value)

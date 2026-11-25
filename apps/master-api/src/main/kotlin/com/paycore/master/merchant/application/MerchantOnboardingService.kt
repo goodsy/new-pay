@@ -30,6 +30,7 @@ import com.paycore.master.merchant.application.required.MerchantSiteRepository
 import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.Contract
@@ -83,9 +84,10 @@ class MerchantOnboardingService(
     publisher: EntitlementSnapshotPublisher,
     evidences: ApprovalEvidenceStore,
     private val deploymentMode: DeploymentModePort,
+    fingerprints: RequestFingerprintDigester,
 ) : MerchantOnboardingUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints, evidences)
     private val log = LoggerFactory.getLogger(MerchantOnboardingService::class.java)
 
     override fun registerMerchant(command: RegisterMerchantCommand): AdminCommandResult =

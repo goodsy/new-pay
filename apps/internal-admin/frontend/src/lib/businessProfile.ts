@@ -201,8 +201,14 @@ function textError(value: string, max: number): string | null {
   return [...value].length > max ? 'TOO_LONG' : null
 }
 
-/** 변경 사유(§4.2 `BusinessChangeReason` — 1~200 code point, 같은 문자 규칙·줄바꿈 불가). */
-export const reasonError = (value: string) => textError(value, 200)
+/**
+ * 카드번호 패턴(SEC-BIZ-001 M-1 — BR-BIZ-305, D-FLOW-007 ①): 서버 정본 `OperatorCancelInputRules.containsCardNumber`와 같은 규칙(십진 숫자 13~19자리, 숫자 사이 공백·하이픈
+ * 1개 허용, Luhn 없음 — `ReacquisitionRequest`와 같은 식). 화면은 즉시 안내만 하고 판정 권위는 서버(ADMIN 400·MASTER Domain)다.
+ */
+const CARD_NUMBER = /(?<!\p{Nd})(?:\p{Nd}[ -]?){12,18}\p{Nd}(?!\p{Nd})/u
+
+/** '사유 및 비고'(§4.2 `BusinessChangeReason` — 1~200 code point, 같은 문자 규칙·줄바꿈 불가, 문자 규칙 뒤 카드번호 패턴 거부 — BR-BIZ-305). */
+export const reasonError = (value: string) => textError(value, 200) ?? (CARD_NUMBER.test(value) ? 'CARD_NUMBER_PATTERN' : null)
 
 const DIGITS = (n: string) => new RegExp(`^[0-9]{${n}}$`)
 const REGISTRATION_NUMBER = DIGITS('10')
@@ -337,6 +343,7 @@ const FIELD_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   PRIMARY_MULTIPLE: '기본 등록 담당자는 1명만 고를 수 있습니다.',
   ACTUAL_SAME_AS_REGISTERED: '실사업장 주소가 사업장 주소와 같습니다(다를 때만 입력하세요).',
   BUSINESS_TYPE_ITEM_REQUIRED: '업태와 종목을 각각 1개 이상 입력하세요.',
+  CARD_NUMBER_PATTERN: '카드 번호처럼 보이는 13~19자리 숫자가 있어 저장할 수 없습니다. 카드 번호는 적지 말고, 다른 번호라면 숫자 묶음 사이에 구분 기호를 더 넣어 주세요.',
 }
 
 /** 칸별 형식 안내(FORMAT일 때 무엇이 맞는 형식인지). */

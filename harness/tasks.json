@@ -1253,6 +1253,45 @@
       ],
       "nextResumeAction": "완료(문서 작업: 독립 리뷰 재리뷰 MAJOR 해소 + SCOPED PASS, README 문구 사용자 승인 2026-11-25). 후속 화면 문구 정렬은 정상화 구현 작업에서",
       "detail": null
+    },
+    {
+      "id": "SEC-BIZ-001",
+      "title": "정상화 사업자 보안 선행: 사유 칸 카드번호 거부(M-1) + MASTER 관리 명령 지문 비밀 키 HMAC(M-2)",
+      "status": "IN_PROGRESS",
+      "phase": "MASTER",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-BIZ-001"
+      ],
+      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-1·M-2, D-FLOW-007 ①, D-FLOW-005 ⑧(마스킹 해제 사유는 범위 밖 — 사업자 기능만), D-MOPS-010 ②(HMAC·기존 m1 행 호환 비교는 Demo 한정·제거 조건 기록), D-GOV-001 ①②(정비 첫 작업, 지문 개인정보 필드 전부 HMAC), MERCHANT-OPS-002 §9.29, BR-BIZ-305",
+      "allowedWritePaths": [
+        "apps/master-api/**",
+        "apps/internal-admin/src/**",
+        "apps/internal-admin/frontend/src/**",
+        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md",
+        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
+        "docs/repository/PII-MASKING-POLICY.md",
+        "docs/rules/BIZ.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "SEC-gate1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/SEC-BIZ-001-2026-11-25T082603Z.json"
+      },
+      "openItems": [
+        "Coordinator 구현 결정(GOV-BIZ-001 M-2): 지문 전체 HMAC",
+        "Demo 키는 운영값 아님, LIVE는 키 없거나 Demo 키면 기동 거부(fail-closed)",
+        "[구현 관례] 지문 형식 h1: + HMAC-SHA256(키, canonical 전체) hex(67자), canonical = 기존 m1 입력 바이트 그대로(AdminCommandExecutor.canonicalOf), Port RequestFingerprintDigester(digest·legacyComparisonAllowed) → adapter.integration HmacRequestFingerprintDigester(+RequestFingerprintSettings·RequestFingerprintConfiguration)",
+        "[구현 관례] legacy m1 비교는 operation 한정 없음(모든 관리 명령이 m1으로 저장돼 왔음), 호출마다 DeploymentModePort.isDemo(), 일치 시 INFO 로그(연산·상관 ID만) — 제거 조건 MERCHANT-OPS-002 L-25 rev 0.9.5",
+        "[구현 관례] 키 분리 대상 = admin-channel signing-keys 전부 + 권리 dispatch 키(Binder로 읽음), 알려진 Demo 키 = 시험 설정 키 SHA-256 1개. MasterApiMainMigrationsBootSpec은 운영 DeploymentMode를 쓰므로 deployment-mode=DEMO 속성 추가",
+        "[구현 관례] 카드번호 판정은 MASTER domain CardNumberPattern(internal)·ADMIN BusinessProfileInputRules 내부 정규식·화면 CARD_NUMBER 상수로 복제, 공통 벡터 양성 10·음성 6(CardNumberVectors·BusinessCardNumberVectors·businessProfile.test.ts). 문자 규칙(REQUIRED·FORMAT·TOO_LONG) 뒤 마지막 판정",
+        "독립 리뷰 APPROVED(r2), FULL SEC-gate1 PASS fp sha256:705aa7b1…f9e",
+        "Coordinator 결정: Demo master 웹 LIVE 판정 유지 + Demo 전용 무작위 지문 키(C-47/L-25), 재기동 전 확인 admin_request 18건 m1 SUCCESS·승인 1건 EXECUTED(재전송 대상 0)"
+      ],
+      "nextResumeAction": "커밋 → Demo 재기동·확인 → DONE",
+      "detail": null
     }
   ]
 }

@@ -26,6 +26,9 @@ data class BusinessFieldError(val path: String, val code: String) {
         val CODES = setOf(
             "REQUIRED", "FORMAT", "TOO_LONG", "TOO_MANY", "DUPLICATE", "NOT_ALLOWED", "SOLE_WITH_OTHERS", "PRIMARY_REQUIRED", "PRIMARY_MULTIPLE",
             "ACTUAL_SAME_AS_REGISTERED", "BUSINESS_TYPE_ITEM_REQUIRED",
+            // SEC-BIZ-001 M-1(BR-BIZ-305): '사유 및 비고' 카드번호 패턴. 이 code를 만드는 곳은 `reason` 검사뿐이다(ADMIN 복제 규칙·MASTER `BusinessChangeReason`).
+            // 집합 검사는 path와 짝짓지 않는다(다른 code와 같은 방식 — MASTER 400 응답 모양 검사도 path·code를 따로 본다).
+            "CARD_NUMBER_PATTERN",
         )
 
         /** 한 응답 최대 개수(§4.6). */

@@ -140,7 +140,7 @@ class BusinessDemoSeedSpec(
                 ps.setString(2, "req_" + UUID.randomUUID().toString().replace("-", "").take(26))
                 ps.setString(
                     3,
-                    AdminCommandExecutor.fingerprintOf(
+                    AdminCommandExecutor.legacyFingerprintOf(
                         com.paycore.master.merchant.application.provided.AdminOperation.REGISTER_BUSINESS, listOf(c.values.registrationNumber.value, c.values.businessName.value),
                     ),
                 )

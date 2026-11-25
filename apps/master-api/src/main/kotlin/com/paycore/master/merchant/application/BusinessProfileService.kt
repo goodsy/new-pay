@@ -13,6 +13,7 @@ import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
 import com.paycore.master.merchant.application.required.MasterOperationalMetrics
 import com.paycore.master.merchant.application.required.OutboxStore
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessChangeEntry
 import com.paycore.master.merchant.domain.BusinessChangeReason
@@ -26,7 +27,8 @@ import org.springframework.transaction.PlatformTransactionManager
 
 /**
  * 사업자 기본정보 명령 Use Case(BUSINESS-PROFILE-001 §6.7 — BIZ-1, M-3). 기존 [AdminCommandExecutor](MASTER 로컬 TX 하나 — `admin_request` 멱등·업무 변경·
- * `master_change_history`·Outbox 같은 TX, 응답은 commit 뒤)와 기존 `m1:` 지문(C-9 — [BusinessCommandFingerprintFields])을 쓴다. 새 키·설정 없음.
+ * `master_change_history`·Outbox 같은 TX, 응답은 commit 뒤)와 실행기 공통 요청 지문(C-9 — 필드 [BusinessCommandFingerprintFields], 형식은 SEC-BIZ-001부터 `h1:` HMAC —
+ * [AdminCommandExecutor] 참조, 키 [RequestFingerprintDigester])을 쓴다.
  *
  * - create: lockedNow → 번호 사전 조회(있으면 저장된 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`, reference = 기존 ID — D-BIZ-003 요약의 근거) → Domain 생성(규칙 재검사)
  *   → beginWrites → 저장(business + 등록정보 + 하위 행, flush) → 이력·Outbox `BusinessCreated`. 동시 생성 경합 진 쪽은 1062(업무 유일키) → 실행기 새 TX 재판정 → 중복 거절로 수렴.
@@ -47,9 +49,10 @@ class BusinessProfileService(
     clock: MasterClock,
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
+    fingerprints: RequestFingerprintDigester,
 ) : BusinessProfileCommandUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints)
 
     override fun create(command: CreateBusinessCommand): AdminCommandResult =
         executor.execute(AdminOperation.CREATE_BUSINESS, command.request, BusinessCommandFingerprintFields.of(command)) { work ->

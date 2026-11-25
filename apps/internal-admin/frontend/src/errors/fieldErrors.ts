@@ -11,6 +11,8 @@ export interface FieldError {
 export const FIELD_ERROR_CODES = [
   'REQUIRED', 'FORMAT', 'TOO_LONG', 'TOO_MANY', 'DUPLICATE', 'NOT_ALLOWED', 'SOLE_WITH_OTHERS', 'PRIMARY_REQUIRED', 'PRIMARY_MULTIPLE',
   'ACTUAL_SAME_AS_REGISTERED', 'BUSINESS_TYPE_ITEM_REQUIRED',
+  // SEC-BIZ-001 M-1(BR-BIZ-305): '사유 및 비고' 카드번호 패턴.
+  'CARD_NUMBER_PATTERN',
 ] as const
 
 /** §4.6 path 문법(i = 0부터, 상한 안 정수 — 화면은 두 자리까지만 믿는다). */

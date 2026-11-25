@@ -531,6 +531,30 @@ class BusinessProfileApiSpec(
         }
     }
 
+    Given("SEC-BIZ-001 M-1 a change reason with a card-number-like digit run (BR-BIZ-305, D-FLOW-007 ① — new saves only)") {
+        Then("update and complete are 400 BUSINESS_VALIDATION_FAILED [reason CARD_NUMBER_PATTERN] with no value echoed; admin_request·history 0 rows, version unchanged") {
+            val id = created(status = "DRAFT")
+            val v = versionOf(id)
+            val historyBefore = count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", id)
+            listOf(BusinessBodies.UPDATE, BusinessBodies.COMPLETE).forEach { path ->
+                val s = Submission()
+                val r = post(path, BusinessBodies.update(s, id, v, reason = "상호 정정 카드 4111-1111-1111-1111"))
+                r.response.status shouldBe 400
+                r.body() shouldBe """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"reason","code":"CARD_NUMBER_PATTERN"}]}"""
+                adminRows(s.idempotencyKey) shouldBe 0L
+            }
+            versionOf(id) shouldBe v
+            count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", id) shouldBe historyBefore
+            count("SELECT COUNT(*) FROM master_change_history WHERE CAST(detail AS CHAR) LIKE ?", "%4111-1111%") shouldBe 0L
+        }
+        Then("control: a digit run that is not card-like (date + serial with separators) is stored as the reason") {
+            val id = created(status = "DRAFT")
+            val r = post(BusinessBodies.UPDATE, BusinessBodies.update(businessId = id, version = versionOf(id), reason = "요청 문서 RECON-2026-0001", content = BusinessBodies.individual(name = "새 상호")))
+            withClue(r.body()) { r.response.status shouldBe 200 }
+            r.tree().get("outcome").asString() shouldBe "SUCCEEDED"
+        }
+    }
+
     Given("BIZ-2-11 rule violations found on the locked state (rev 0.2.3 m-1 — C-16)") {
         Then("REGISTERED update removing the primary contact → 400 BUSINESS_VALIDATION_FAILED [contacts PRIMARY_REQUIRED], nothing stored; the same body again → the same 400") {
             val id = created()

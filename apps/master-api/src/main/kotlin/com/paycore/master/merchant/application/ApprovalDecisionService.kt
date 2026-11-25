@@ -11,6 +11,7 @@ import com.paycore.master.merchant.application.required.MasterClock
 import com.paycore.master.merchant.application.required.MasterIdGenerator
 import com.paycore.master.merchant.application.required.MasterOperationalMetrics
 import com.paycore.master.merchant.application.required.OutboxStore
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.domain.ApprovalEvidence
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
@@ -35,9 +36,10 @@ class ApprovalDecisionService(
     metrics: MasterOperationalMetrics,
     publisher: EntitlementSnapshotPublisher,
     private val evidences: ApprovalEvidenceStore,
+    fingerprints: RequestFingerprintDigester,
 ) : ApprovalDecisionUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints, evidences)
 
     private val readOnly = DefaultTransactionDefinition().apply {
         propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRED

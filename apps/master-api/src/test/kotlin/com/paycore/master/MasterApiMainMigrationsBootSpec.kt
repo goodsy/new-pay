@@ -18,13 +18,24 @@ import org.testcontainers.mysql.MySQLContainer
  * 기존 로컬 compose volume: 앱 기동 시 Flyway가 V1·V2를 적용하므로 추가 수동 절차는 없다. 단 PAYMENT-DBACCOUNT-001 이전 volume은
  * .env.example의 (a) down -v 또는 (b) 초기화 스크립트 1회 재실행이 먼저 필요하다(procedure·grantor가 있어야 V2가 성공).
  */
-@SpringBootTest
+// SEC-BIZ-001 M-2(리뷰 MINOR-1): 이 컨텍스트는 시험 대역 배포 모드 없이 운영 `EnvironmentDeploymentMode`를 쓴다 — deployment-mode 미지정 = LIVE 판정 그대로.
+// 시험 설정의 fingerprint 키는 저장소 Demo 키라 LIVE에서 거부되므로, 알려진 Demo 목록에 없는 이 시험 전용 키(48바이트, 서명·dispatch 키와 다름 — 운영값 아님)로 덮어
+// "LIVE + 정상 키로 전체 컨텍스트 기동"을 함께 증명한다.
+@SpringBootTest(properties = ["paycore.master.admin-channel.request-fingerprint-key=Ym9vdC1zcGVjLW9ubHktbGl2ZS1yZXF1ZXN0LWZpbmdlcnByaW50LWtleS0wMDAx"])
 @Import(MasterDbTestConfig::class)
 class MasterApiMainMigrationsBootSpec(
     private val jdbcTemplate: JdbcTemplate,
     private val flyway: Flyway,
     private val container: MySQLContainer,
+    private val deploymentMode: com.paycore.master.merchant.application.required.DeploymentModePort,
+    private val fingerprints: com.paycore.master.merchant.application.required.RequestFingerprintDigester,
 ) : FunSpec({
+
+    test("SEC-BIZ-001 (review MINOR-1): the full context starts in LIVE mode (no deployment-mode) with a non-Demo fingerprint key; legacy m1 comparison is off") {
+        deploymentMode.isDemo() shouldBe false
+        fingerprints.legacyComparisonAllowed() shouldBe false
+        fingerprints.digest("x".toByteArray()).size shouldBe 32
+    }
 
     test("only the production Flyway locations are applied (V1·V3·V5·V7·V9·V11 business schema, V2·V4·V6·V10 runtime table privileges)") {
         flyway.configuration.locations.map { it.descriptor } shouldBe listOf(MasterDbAccounts.MAIN_MIGRATIONS, MasterDbAccounts.RUNTIME_PRIVILEGES)

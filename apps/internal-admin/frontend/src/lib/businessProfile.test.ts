@@ -4,8 +4,8 @@ import { businessSearchBody } from '../api/adminApi'
 import { parseFieldErrors } from '../errors/fieldErrors'
 import { individualRegisteredDetail, draftMinimalDetail, jointRegisteredDetail } from '../test/businessFixtures'
 import {
-  compactForm, contentOf, contentOfDetail, EMPTY_FORM, fieldKeyOf, formatCorporateNumber, formatPhone, formOf, importantChange, representativeSummary, validateForm,
-  verificationLabel,
+  compactForm, contentOf, contentOfDetail, EMPTY_FORM, fieldErrorMessage, fieldKeyOf, formatCorporateNumber, formatPhone, formOf, importantChange, reasonError,
+  representativeSummary, validateForm, verificationLabel,
 } from './businessProfile'
 
 /** BUSINESS-PROFILE-001 BIZ-4 화면 규칙(§4.2·§4.3 복제, §4.5 변경 감지 표 — r-6, BIZ-3 리뷰 1·2). 서버가 권위 — 이 시험은 화면 복제가 같은 규칙인지 고정한다. */
@@ -102,5 +102,30 @@ describe('content / validation / field keys', () => {
     expect(representativeSummary('홍**', 3)).toBe('홍** 외 2명')
     expect(representativeSummary(null, 0)).toBe('미입력')
     expect(verificationLabel('NOT_CHECKED')).toBe('미검증')
+  })
+})
+
+/**
+ * SEC-BIZ-001 M-1(BR-BIZ-305, D-FLOW-007 ①): '사유 및 비고' 칸 카드번호 패턴 거부. 공통 시험 벡터 — 판정 정본 ADMIN `OperatorCancelInputRules.containsCardNumber`,
+ * MASTER `CardNumberVectors`·ADMIN `BusinessCardNumberVectors`와 같은 목록(복제 — 바꾸면 세 곳 함께). 서버가 권위, 화면은 즉시 안내.
+ */
+describe('reasonError card-number pattern (common vector)', () => {
+  const CARD_LIKE = [
+    'card 4111111111111111', '4111 1111 1111 1111', '4111-1111-1111-1111', '1234567890123', '1234567890123456789', 'ref 5500-0000-0000-0004 x',
+    'card ' + '４１１１'.repeat(4), 'card ' + '٤١١١'.repeat(4), 'card 4111 １１１１ 1111 1111', 'RECON-20261028-000001',
+  ]
+  const NOT_CARD = ['amount 7000 won', 'ticket 123456789012', 'tel 010-1234-5678', '12345678901234567890 is too long to be a card', 'RECON-2026-0001', 'INQ-2026-1105-0001']
+  it('card-like digit runs → CARD_NUMBER_PATTERN; other digit runs pass', () => {
+    expect(CARD_LIKE.map(reasonError)).toEqual(CARD_LIKE.map(() => 'CARD_NUMBER_PATTERN'))
+    expect(NOT_CARD.map(reasonError)).toEqual(NOT_CARD.map(() => null))
+  })
+  it('existing character rules come first (FORMAT · TOO_LONG); the message never repeats the value', () => {
+    expect([' 4111111111111111', '4111111111111111\n', '4111111111111111' + '가'.repeat(185)].map(reasonError)).toEqual(['FORMAT', 'FORMAT', 'TOO_LONG'])
+    const message = fieldErrorMessage('reason', 'CARD_NUMBER_PATTERN')
+    expect(message).toContain('카드 번호')
+    expect(message).not.toContain('4111')
+  })
+  it('the server field error code is accepted by parseFieldErrors', () => {
+    expect(parseFieldErrors({ fieldErrors: [{ path: 'reason', code: 'CARD_NUMBER_PATTERN' }] })).toEqual([{ path: 'reason', code: 'CARD_NUMBER_PATTERN' }])
   })
 })

@@ -54,6 +54,7 @@ class CurrencyEnablementApprovalAtomicitySpec(
     private val clock: MutableMasterClock,
     private val faults: MasterFaultInjector,
     private val mode: SwitchableDeploymentMode,
+    private val digester: com.paycore.master.merchant.application.required.RequestFingerprintDigester,
 ) : BehaviorSpec({
 
     afterEach {
@@ -143,7 +144,7 @@ class CurrencyEnablementApprovalAtomicitySpec(
             val first = entitlement.enableCurrencyWithEvidence(command).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
             // 지문 = 명령 필드(mid, KRW, "AT_EXECUTION", "") + 근거 필드 — 확정 시각이 들어가지 않는다.
             text("SELECT request_fingerprint FROM admin_request WHERE idempotency_key = ?", command.request.idempotencyKey.value) shouldBe
-                AdminCommandExecutor.fingerprintOf(AdminOperation.ENABLE_CURRENCY, ApprovedCommands.fingerprintFields(command))
+                AdminCommandExecutor.fingerprintOf(digester, AdminOperation.ENABLE_CURRENCY, ApprovedCommands.fingerprintFields(command)) // SEC-BIZ-001: 같은 입력의 h1: 지문
             ApprovedCommands.fingerprintFields(command).take(4) shouldBe listOf(mid.value, "KRW", "AT_EXECUTION", "")
             clock.set(OnboardingFixture.t0.plusSeconds(30))
             entitlement.enableCurrencyWithEvidence(command) shouldBe AdminCommandResult.Succeeded(first.reference, replayed = true)

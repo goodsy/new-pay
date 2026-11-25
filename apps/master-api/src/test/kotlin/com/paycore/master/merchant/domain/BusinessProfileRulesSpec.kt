@@ -77,6 +77,17 @@ class BusinessProfileRulesSpec : BehaviorSpec({
             PersonName("홍 길동").value shouldBe "홍 길동"
         }
 
+        Then("SEC-BIZ-001 M-1 (BR-BIZ-305, D-FLOW-007 ①): a change reason with a card-number-like digit run is CARD_NUMBER_PATTERN (common vector); other digit runs pass") {
+            CardNumberVectors.CARD_LIKE.map(BusinessChangeReason.Companion::errorOf) shouldBe CardNumberVectors.CARD_LIKE.map { BusinessFieldErrorCode.CARD_NUMBER_PATTERN }
+            CardNumberVectors.NOT_CARD.map(BusinessChangeReason.Companion::errorOf) shouldBe CardNumberVectors.NOT_CARD.map { null }
+            // 값 객체 불변식: 생성자도 같은 판정으로 거절하고, 예외 메시지에 입력 값이 없다.
+            shouldThrow<IllegalArgumentException> { BusinessChangeReason("상호 정정 카드 4111-1111-1111-1111") }.message!! shouldNotContain "4111"
+            BusinessChangeReason("상호 정정 요청 문서 2026-0001").value shouldBe "상호 정정 요청 문서 2026-0001"
+            // 판정 순서: 기존 문자 규칙(REQUIRED → FORMAT → TOO_LONG)이 먼저, 카드번호 패턴은 마지막(ADMIN 정본 reasonProblem 순서와 같다).
+            listOf(" 4111111111111111", "4111111111111111\n", "4111111111111111" + "가".repeat(185)).map(BusinessChangeReason.Companion::errorOf) shouldBe
+                listOf(FORMAT, FORMAT, TOO_LONG)
+        }
+
         Then("English business name allows printable ASCII only (0x20..0x7E), no leading/trailing space") {
             listOf("Demo Corp.", "A-B & C (1)", "~", "데모", "Demo\u007F", " Demo", "Demo ").map(EnglishBusinessName.Companion::errorOf) shouldBe
                 listOf(null, null, null, FORMAT, FORMAT, FORMAT, FORMAT)

@@ -1,5 +1,6 @@
 # PayCore(뉴피지) 개인정보·민감정보 마스킹 규칙
 
+- **rev 0.1c** (2026-11-25) — SEC-BIZ-001 반영(§3 #1·#21, §4.4, §7, §8 Q-PII-6 닫힘 — §9).
 - **rev 0.1** (2026-11-24) — PII-MASKING-POLICY-001 초안. 사용자 요청(2026-11-24): "개인정보 마스킹 규칙도 별도로 문서로 만들어줘. 대신 뉴피지의 내부관리자 시스템에서는 사업자번호는 마스킹 안 할게."
 - 이 문서는 **새 정책을 만들지 않는다.** `docs/DECISIONS.md`의 사용자·Coordinator 결정과 각 작업 명세의 규칙을 데이터 항목별로 모은 색인이다. 결정 원문과 이 문서가 다르면 **결정 원문이 우선**하고, 이 문서를 고친다.
 - 결정이 없는 칸은 **"미정(결정 없음)"**으로 적었다. 미정 항목은 추측으로 채우지 않고 §8 질문으로 올린다.
@@ -56,7 +57,7 @@
 
 | # | 항목 | 등급 | 관리자 화면 | 조회 응답 | 감사 detail | 변경 이력 | 로그·지표·오류 | 저장 | 원문 조회(누가·조건·감사) | 근거 결정 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **사업자등록번호** | 개인정보일 수 있음 | **뉴피지 관리자 화면은 원문(하이픈 표시)** — 사업자 목록·상세, 가맹점 목록·상세, 가맹점 등록 ① 번호 조회 결과, 사업자 등록 중복 안내 **(사용자 재확인 2026-11-24)**. 구현 완료(BRN-UNMASK-001, 2026-11-24 — 조회 응답 필드 `registrationNumber` 원문 10자리, 화면 하이픈, 계약 golden v2; 변경 이력 저장값 `registrationNumberMasked`는 마스킹 유지) | 위 화면 값을 주는 ADMIN·MASTER 조회 응답은 원문. 원문 번호는 번호 조회·등록 **요청 본문**으로 보낸다(조회 키로 쓰지 않음 — D-BIZLOOKUP-001) | 마스킹 `brn=123*******`, 형식 오류 `brn=INVALID`. 번호가 오간 모든 시도 감사 | 마스킹(`registrationNumberMasked` = 앞 3자리) | 원문 금지(로그·지표·오류에 값 없음). 번호 조회는 oracle 취급(찾음/못 찾음 같은 모양·호출 전 형식 검사) | MASTER `business` UNIQUE(D-MD-008). 요청 지문은 **MASTER 비밀 키 HMAC**(D-MOPS-010 ② — 현재 미구현, 무염 SHA-256 `m1:`) | 별도 원문 조회 없음 — 화면 원문 표시로 대체(D-BIZ-007). 번호 조회 = OPERATOR·APPROVER, 매 시도 감사, 등록번호 공유 횟수 제한 버킷 유지 | D-MD-008, D-MOPS-002, D-MOPS-003, D-MOPS-006 ④, D-BIZ-003, D-BIZ-006 ①, **D-BIZ-007**, D-BIZLOOKUP-001, D-MOPS-010 ② |
+| 1 | **사업자등록번호** | 개인정보일 수 있음 | **뉴피지 관리자 화면은 원문(하이픈 표시)** — 사업자 목록·상세, 가맹점 목록·상세, 가맹점 등록 ① 번호 조회 결과, 사업자 등록 중복 안내 **(사용자 재확인 2026-11-24)**. 구현 완료(BRN-UNMASK-001, 2026-11-24 — 조회 응답 필드 `registrationNumber` 원문 10자리, 화면 하이픈, 계약 golden v2; 변경 이력 저장값 `registrationNumberMasked`는 마스킹 유지) | 위 화면 값을 주는 ADMIN·MASTER 조회 응답은 원문. 원문 번호는 번호 조회·등록 **요청 본문**으로 보낸다(조회 키로 쓰지 않음 — D-BIZLOOKUP-001) | 마스킹 `brn=123*******`, 형식 오류 `brn=INVALID`. 번호가 오간 모든 시도 감사 | 마스킹(`registrationNumberMasked` = 앞 3자리) | 원문 금지(로그·지표·오류에 값 없음). 번호 조회는 oracle 취급(찾음/못 찾음 같은 모양·호출 전 형식 검사) | MASTER `business` UNIQUE(D-MD-008). 요청 지문은 **MASTER 비밀 키 HMAC**(D-MOPS-010 ②·D-GOV-001 ② — **구현(SEC-BIZ-001, 2026-11-25)**: 모든 MASTER 관리 명령 지문 = `h1:` + HMAC-SHA256(fingerprint 키, canonical 전체). HMAC 전 `m1:` 무염 행은 Demo에서만 호환 비교 — MERCHANT-OPS-002 C-47 rev·L-25) | 별도 원문 조회 없음 — 화면 원문 표시로 대체(D-BIZ-007). 번호 조회 = OPERATOR·APPROVER, 매 시도 감사, 등록번호 공유 횟수 제한 버킷 유지 | D-MD-008, D-MOPS-002, D-MOPS-003, D-MOPS-006 ④, D-BIZ-003, D-BIZ-006 ①, **D-BIZ-007**, D-BIZLOOKUP-001, D-MOPS-010 ② |
 | 2 | 법인등록번호 | 개인정보 | 사업자 상세·수정 화면에 원문(조회 역할). 목록 없음 | 상세 응답만 원문 | 없음 | 마스킹 `110111*******`(앞 6자리) | 원문 금지 | MASTER 원문 | 상세 열람 = OPERATOR·APPROVER, 열람마다 `BUSINESS_VIEWED` 감사 + 조회 창(속도 제한) | D-BIZ-006 ②, BUSINESS-PROFILE-001 §9 |
 | 3 | 대표자·담당자 이름 | 개인정보 | 상세·수정 화면 원문. 목록은 대표자 첫 글자 + `*`(예 `홍**`, "외 N명") | 상세 응답 원문, 목록 응답 `representativeNameMasked`(SQL 마스킹) | 없음 | 마스킹 `홍**`(1글자면 `김*`) | 원문 금지 | MASTER 원문 | 2와 같음 | D-BIZ-006 ②, BUSINESS-PROFILE-001 §9·C-2 |
 | 4 | 전화(사업체·담당자) | 개인정보 | 상세·수정 화면 원문. 목록 없음 | 상세 응답만 원문 | 없음 | 마스킹 `****5678` | 원문 금지 | MASTER 원문 | 2와 같음 | D-BIZ-006 ②, BUSINESS-PROFILE-001 §9·C-2 |
@@ -76,7 +77,7 @@
 | 18 | 관리자 표시명·actorId(운영자 신원) | 미정(결정 없음) | 뉴피지 화면·감사에 표시(기록 시점 표시명 스냅샷) | 가맹점 대상 조회·Webhook에는 운영자 신원·사유·approvalId 비노출(`initiator: OPERATOR`만) | actorId + 표시명 스냅샷 | actorRef | 미정(결정 없음) | ADMIN 원문 | 해당 없음 | D-ADMIN-004, D-CPQ-002, D-TXOPS-005 |
 | 19 | 근거 참조(보정 취소 `purposeReference`, 재매입·가맹점 승인 `evidenceRef`) | 민감 조회 대상 | 승인 상세에서 **APPROVER와 요청자 본인만** 별도 조회로 보임. 목록·VIEWER·그 밖 역할에는 숨김 | 별도 조회 응답만 | 조회마다 `APPROVAL_JUSTIFICATION_VIEWED`(detail 없음) | MASTER 승인 근거 행·지문에 포함(가맹점 승인) | 원문 금지. 카드번호 패턴 거부(§4.4) | ADMIN 명령 행, 소유 서비스 감사·근거 행 | APPROVER 또는 요청자 본인, ACTIVE, 조회 속도 제한, 조회마다 감사 | D-OPS-004, D-OPS-010, D-ACQA-005, D-MOPS-008 ① |
 | 20 | 사유 문구 — 운영자 보정 취소·재매입 | 민감 조회 대상 | 보정 취소 사유: 19와 같이 APPROVER·요청자 본인만. 재매입 사유: ADMIN에만 저장, 화면·감사에 표시하지 않음 | 같음 | 없음(자유 문구는 감사 detail 불가) | 해당 없음 | 원문 금지. 카드번호 패턴 거부 | ADMIN 명령 행 | 19와 같음(보정 취소). 재매입 사유는 조회 없음 | D-OPS-010, D-ACQA-005, ADMIN-PAYMENT-OPS-001 R-12 |
-| 21 | 사유 문구 — 사업자 중요정보 변경 | 미정(결정 없음 — 운영자가 개인정보를 적을 수 있음, L-4) | 사업자 이력 탭에 원문(조회 역할). 입력 칸 안내 "개인정보를 적지 마세요" | 이력 응답 원문 | `reason=PRESENT`/`ABSENT`만 | MASTER 이력 원문(1~200자) | 원문 금지 | MASTER `master_change_history` | 사업자 이력 = OPERATOR·APPROVER | BUSINESS-PROFILE-001 C-13·L-4 (결정 없음) |
+| 21 | 사유 문구 — 사업자 '사유 및 비고'(중요정보 변경 사유, 공통 칸) | 자유 문구(운영자가 개인정보를 적을 수 있음, L-4). **카드번호 패턴은 입력 거부**(D-FLOW-007 ① — 칸 전체에 항상, BR-BIZ-305, §4.4) | 사업자 이력 탭에 원문(조회 역할). 입력 칸 안내 "개인정보를 적지 마세요", 카드번호 패턴이면 저장 전 안내 | 이력 응답 원문 | `reason=PRESENT`/`ABSENT`만 | MASTER 이력 원문(1~200자) — 카드번호 패턴은 저장되지 않음(새 저장부터, 기존 이력 행 소급 없음) | 원문 금지. 거부 오류는 고정 code `CARD_NUMBER_PATTERN`만(값 없음) | MASTER `master_change_history`. 요청 지문에는 HMAC으로만(#1 저장 칸) | 사업자 이력 = OPERATOR·APPROVER | BUSINESS-PROFILE-001 C-13·L-4, **D-FLOW-007 ①**(Q-PII-6 닫음), 구현 SEC-BIZ-001 |
 | 22 | 사유 문구 — 마스킹 해제 | 민감 조회 대상 | 해당 없음(입력만) | 없음 | **원문 저장**(길이 상한 500, 제어 문자 거부). 자유 문구 `reason`은 `UNMASK_REQUESTED` 행에만 허용 | 해당 없음 | 원문 금지 | ADMIN 감사 | 감사 조회 권한(SECURITY_ADMIN·APPROVER 전체, VIEWER·OPERATOR 자기 기록) | D-ADMIN-002, D-ADMIN1-019, D-ADMIN1-008 |
 | 23 | 결제창 토큰·인증 결과 참조 | 미정(결정 없음 — 토큰 원문 저장 금지만 결정) | 해당 없음 | 해당 없음 | 미정(결정 없음) | 해당 없음 | 미정(결정 없음) | DB에는 hash만(256bit 난수, 1회 교환) | 없음 | D-AUTHN-001, D-AUTHN-003 |
 | 24 | 정산 지급 계좌 | 개인정보·계좌(baseline) | **미정(결정 없음)** — 미구현(MASTER-PAYOUT-ACCOUNT-001 BACKLOG) | 미정 | 미정 | 미정 | 미정 | 미정(baseline: 필드 단위 접근·마스킹·암호화) | 미정. 변경은 2인 승인 대상으로만 결정됨 | D-ADMIN-003, baseline 05 §22 |
@@ -112,8 +113,9 @@
 ### 4.4 카드번호 패턴 거부(마스킹이 아니라 입력 거부)
 
 - 판정: 십진 숫자(`\p{Nd}` — 전각·아랍-인도 숫자 포함) 13~19자리, 숫자 사이 공백 또는 하이픈 1개 허용, 앞뒤가 숫자가 아님, Luhn 검사 없음(오탐을 받아들이고 거부 쪽).
-- 적용: 운영자 보정 취소 근거·사유(ADMIN-PAYMENT-OPS-001 I-17·R-12), 재매입 근거 참조(ADMIN + FINANCIAL 이중), 가맹점 승인 근거 참조(MERCHANT-OPS-002). 오류 응답은 고정 code `CARD_NUMBER_PATTERN`만, 값은 넣지 않는다.
-- 적용하지 않는 곳: 마스킹 해제 사유(D-ADMIN1-019 — "원문 유지 + 마스킹 해제 첫 적용 후속 작업에서 PAN 패턴 거부 재검토"), 사업자 중요정보 변경 사유(결정 없음 — §8 Q-PII-6).
+- 적용: 운영자 보정 취소 근거·사유(ADMIN-PAYMENT-OPS-001 I-17·R-12), 재매입 근거 참조(ADMIN + FINANCIAL 이중), 가맹점 승인 근거 참조(MERCHANT-OPS-002), **사업자 '사유 및 비고'(중요정보 변경 사유 — D-FLOW-007 ①, BR-BIZ-305; 화면 `reasonError` + ADMIN `BusinessProfileInputRules`(MASTER 호출 전 400) + MASTER Domain `BusinessChangeReason` 세 계층, 구현 SEC-BIZ-001)**. 오류 응답은 고정 code `CARD_NUMBER_PATTERN`만, 값은 넣지 않는다.
+- 판정 정본은 ADMIN `OperatorCancelInputRules.containsCardNumber` 하나다. 다른 곳은 모듈 경계를 넘지 않게 같은 식을 복제하고 공통 시험 벡터(양성 10·음성 6)로 묶는다(MASTER `CardNumberVectors`, ADMIN `BusinessCardNumberVectors`·`OperatorCancelInputRulesSpec`, FINANCIAL `ReacquisitionCommandParserSpec`, 화면 `lib/businessProfile.test.ts`). FINANCIAL `CardNumberPattern`의 정규식은 정본과 같은 문자열이다(2026-11-25 대조).
+- 적용하지 않는 곳: 마스킹 해제 사유(D-ADMIN1-019 — "원문 유지 + 마스킹 해제 첫 적용 후속 작업에서 PAN 패턴 거부 재검토"; D-FLOW-005 ⑧과 함께 SEC-BIZ-001 범위 밖).
 
 ## 5. 원문 조회 절차
 
@@ -168,7 +170,7 @@
 | # | 항목 | 결정 | 현재 구현 | 위치 | 후속 |
 |---|---|---|---|---|---|
 | X-1 | 사업자등록번호 화면·조회 응답 원문 | D-BIZ-007(사용자 재확인 2026-11-24): 뉴피지 화면·ADMIN·MASTER 조회 응답 원문(하이픈) | MASTER가 SQL에서 앞 3자리 마스킹해 응답, ADMIN 응답 모양 검사가 마스킹 형식만 허용, 화면은 마스킹 값 표시 | `apps/master-api/.../adapter/query/MasterSqlText.kt:31`(사용처 `JooqBusinessDirectoryReader.kt:49`, `JooqBusinessDetailReader.kt:35·90`, `JooqBusinessLookupReader.kt:21`, `JooqMerchantDetailReader.kt:58`, `JooqMerchantDirectoryReader.kt:47`), `apps/internal-admin/.../merchantops/adapter/integration/MasterResponseShape.kt:86`, 화면 `BusinessesScreen.tsx:445·454·489`, `BusinessProfileFormScreen.tsx:269·339·388`, `lib/historyTarget.ts:46` | **BRN-UNMASK-001**(READY). 감사 `brn=123*******`(`BusinessAudit.kt:56-57`, `MerchantLookupService.kt:79`)·이력 마스킹은 유지해야 함  **해소(2026-11-24, BRN-UNMASK-001)** — 남은 위험: jOOQ DEBUG 실행 로그에 결과 행 원문(L-4, LIVE 전 검토), VIEWER·SECURITY_ADMIN 목록 열람 감사 없음(L-5, D-PII-001 범위) |
-| X-2 | 사업자 명령 요청 지문 | D-MOPS-010 ②: 사업자등록번호 원문 무염 SHA-256 → MASTER 비밀 키 HMAC | 모든 MASTER 관리 명령이 `m1:` 무염 SHA-256(번호·개인정보 포함 필드) | `apps/master-api/.../application/AdminCommandExecutor.kt:428` | MERCHANT-OPS-002 B3-3a(hmac1). BUSINESS-PROFILE-001 C-9·L-13 — **LIVE 사용 전 필수(LIVE Gate)** |
+| X-2 | 사업자 명령 요청 지문 | D-MOPS-010 ②: 사업자등록번호 원문 무염 SHA-256 → MASTER 비밀 키 HMAC. D-GOV-001 ②: 다른 관리 명령 지문의 개인정보 필드도 전부 HMAC | 모든 MASTER 관리 명령이 `m1:` 무염 SHA-256(번호·개인정보 포함 필드) | `apps/master-api/.../application/AdminCommandExecutor.kt:428` | **해소(2026-11-25, SEC-BIZ-001 — 리뷰·검증 전)**: 지문 전체 `h1:` HMAC-SHA256(`RequestFingerprintDigester` → `HmacRequestFingerprintDigester`, 키 `paycore.master.admin-channel.request-fingerprint-key` — 기본값 없음·32바이트 이상·서명 키와 다름·LIVE Demo 키 거부). `m1:` 행 호환 비교는 Demo만(L-25). 남은 LIVE Gate: 키 보관·교체 절차(L-23) |
 | X-3 | 기관 가맹점 참조 관리 조회 `****1234` | D-MOPS-009 ① | 미구현(B3-3 대기). 현재 MASTER 상세는 그 열을 SELECT하지 않아 **아예 미노출**(결정보다 엄격 — 위반 아님) | `JooqMerchantDetailReader.kt:47`, `MerchantDetailView.kt:95`, 값 객체 가림 `InstitutionRefs.kt:24` | MERCHANT-OPS-002 B3-3 |
 | X-4 | 마스킹 해제 실제 적용 | D-ADMIN-002/004: 별도 권한 + 사유 + 직전 TOTP | 틀만(권한·사유·TOTP·감사), 데이터 공급 없음 → `NoDataSource` | `apps/internal-admin/.../account/application/UnmaskService.kt:31-68`, `UnmaskController.kt:22` | 첫 적용 대상 미정(§8 Q-PII-3). 그때 PAN 패턴 거부 재검토(D-ADMIN1-019) |
 | X-5 | 데모 재인증 생략 | D-ADMIN-AUTH-DEMO-001 ③ | 작업 트리에 구현 중(미커밋): 간편 로그인 세션 + 켜짐이면 TOTP 생략, 감사 `STEP_UP_SKIPPED` | `AdminOwnedCommandService.kt:92-104`, `UnmaskService.kt:35-37` | ADMIN-DEMO-LOGIN-001 리뷰·검증 |
@@ -189,7 +191,8 @@
 | 승인 대상 스냅샷 login_name 미저장 | D-ADMIN1-020 | `ApprovalService.kt:440` |
 | 미인증 login_name HMAC·LIVE Demo 키 거부 | ADMIN-BOOT-001 n-2 | `AccountSecurityConfiguration.kt:93`, `LiveModeStartupGuard.kt:28` |
 | 근거 참조 별도 조회(APPROVER·요청자, 감사, 속도 제한) | D-OPS-010, D-ACQA-005, D-MOPS-008 ① | `apps/internal-admin/.../approval/application/OperatorCancelJustificationService.kt:47-75·112` |
-| 카드번호 패턴 거부 | ADMIN-PAYMENT-OPS-001 I-17, ACQ-ADMIN-001 | `OperatorCancelInputRules.kt:15·30·47·51`, `MerchantOpsInputRules.kt:85-88`, `ReacquisitionInputRules.kt:19`, FINANCIAL `CardNumberPattern.kt`·`ReacquisitionExecutionRule.kt:131-132`, 화면 `ReacquisitionRequest.tsx:40` |
+| 카드번호 패턴 거부 | ADMIN-PAYMENT-OPS-001 I-17, ACQ-ADMIN-001, D-FLOW-007 ① | `OperatorCancelInputRules.kt:15·30·47·51`, `MerchantOpsInputRules.kt:85-88`, `ReacquisitionInputRules.kt:19`, FINANCIAL `CardNumberPattern.kt`·`ReacquisitionExecutionRule.kt:131-132`, 화면 `ReacquisitionRequest.tsx:40`; 사업자 사유(SEC-BIZ-001): MASTER `domain/CardNumberPattern.kt`·`BusinessChangeReason.kt`, ADMIN `BusinessProfileInputRules.kt`(`reason`), 화면 `lib/businessProfile.ts`(`reasonError`) |
+| 관리 명령 요청 지문 HMAC·LIVE Demo 키 거부 | D-MOPS-010 ②, D-GOV-001 ② | MASTER `AdminCommandExecutor.kt`(`fingerprintOf`·`legacyFingerprintOf`), `application/required/RequestFingerprintDigester.kt`, `adapter/integration/HmacRequestFingerprintDigester.kt`·`RequestFingerprintConfiguration.kt` |
 | 기관 가맹점 참조 toString·응답 비노출 | D-MS2-005 | `InstitutionRefs.kt:24`, `MerchantOpsQuery.kt:13`, PAYMENT `AuthorizationTermsQuery.kt:52`, ADMIN `MasterResponseShape.kt:10` |
 | 카드번호 열 없음(가상 카드 참조) | baseline 05 §21 | Simulator `V1__authentication.sql:1`, `V2__van.sql:2`, FINANCIAL `V2__payment_fact_inbox.sql:60` |
 | TOTP 시크릿 암호문 저장 | D-ADMIN-001 | ADMIN `V1__admin_core.sql:23` |
@@ -198,7 +201,7 @@
 
 ### 7.3 결정 없음 — 현재 구현이 정한 동작(확인 필요)
 
-- 사업자 중요정보 변경 사유: 카드번호 패턴 검사 없음, 이력 탭에 원문(`BusinessChangeReason.kt:3-13` — L-4 화면 안내만) → §8 Q-PII-6.
+- ~~사업자 중요정보 변경 사유: 카드번호 패턴 검사 없음~~ → D-FLOW-007 ①로 결정·SEC-BIZ-001로 구현(§4.4). 이력 탭 원문(L-4)은 그대로.
 - 상호: 마스킹 없음(L-3) → §8 Q-PII-7.
 
 ## 8. 미결·사용자 확인 질문
@@ -221,6 +224,8 @@
 
 **답(2026-11-24, D-PII-001)**: Q-PII-1 → 뉴피지 관리자 **전체**(가맹점 등록 마법사·변경 이력 대상 표시 포함; 가맹점용 화면·외부 API·내보내기는 생길 때 결정). Q-PII-11 → 원문(Q-PII-1 답에 포함). Q-PII-4 → 목록 조회는 감사하지 않음(상세 열람·번호 조회 감사 유지). Q-PII-2(Q-MOPS-04) → 닫음(D-BIZ-007로 대체). 나머지 Q-PII-3·5~10은 미결.
 
+**답(2026-11-25, D-FLOW-007 ①)**: Q-PII-6 → **적용**(공통 '사유 및 비고' 칸 전체에 항상 카드번호 패턴 검사, 기존 사업자 중요정보 사유 포함) — 닫음. 구현 SEC-BIZ-001(§4.4).
+
 ## 9. 개정 이력
 
 | rev | 날짜 | 작성 | 내용 |
@@ -228,3 +233,4 @@
 | 0.1 | 2026-11-24 | Implementer(PII-MASKING-POLICY-001, 문서만 — 코드·tasks·DECISIONS 변경 없음, 자기 완료 판정 아님) | 최초 작성. DECISIONS 결정 통합(§3 25행), 마스킹 형식, 원문 조회 절차(UNMASK·지정 역할 별도 조회·데모 재인증 생략 DEMO 한정), 로그·감사 공통 규칙, 현재 구현 대조(불일치·미구현 8건), 미결 질문 11건. 사용자 재확인(2026-11-24) "뉴피지 내부관리자 시스템에서는 사업자번호 마스킹 안 함" = D-BIZ-007 그대로 반영 |
 | 0.1a | 2026-11-24 | Coordinator | §8 Q-PII-1·2·4·11 사용자 답 반영(D-PII-001) |
 | 0.1b | 2026-11-24 | Coordinator | §3 #1·§7 X-1 구현 완료 반영(BRN-UNMASK-001) |
+| 0.1c | 2026-11-25 | Implementer(SEC-BIZ-001 — 결정 기록만, 새 정책 없음. 자기 완료 판정 아님) | D-FLOW-007 ①: §3 #21 카드번호 패턴 거부·§4.4 적용 목록(사업자 '사유 및 비고', 세 계층·공통 벡터·FINANCIAL 정규식 대조 일치)·§7.3 해소·§8 Q-PII-6 닫음. D-MOPS-010 ②·D-GOV-001 ②: §3 #1 저장 칸·§7.1 X-2 해소(지문 전체 `h1:` HMAC, m1 Demo 한정 호환)·§7.2 행 추가 |

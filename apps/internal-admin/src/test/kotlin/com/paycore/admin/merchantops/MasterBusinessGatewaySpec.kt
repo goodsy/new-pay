@@ -164,6 +164,9 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"categories","code":"TOO_MANY"},{"path":"representatives[0].type","code":"FORMAT"}]}""")
             gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe
                 MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("categories", "TOO_MANY"), BusinessFieldError("representatives[0].type", "FORMAT")))
+            // SEC-BIZ-001 M-1(BR-BIZ-305): MASTER 사유 카드번호 거절 code는 §4.6 집합 안(효과 없음 확정 — 결과 불명이 아님).
+            reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"reason","code":"CARD_NUMBER_PATTERN"}]}""")
+            gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("reason", "CARD_NUMBER_PATTERN")))
             reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"representatives[0].representativeType","code":"FORMAT"}]}""")
             gateway().command(command(BusinessProfileOperation.CREATE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE")
             reply(create, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"displayName","code":"FORMAT","value":"x"}]}""")

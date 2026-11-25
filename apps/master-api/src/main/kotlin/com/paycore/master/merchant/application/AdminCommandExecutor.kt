@@ -20,6 +20,7 @@ import com.paycore.master.merchant.application.required.MasterOperationalMetrics
 import com.paycore.master.merchant.application.required.OutboxEvent
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PersistenceFailure
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.application.required.StoreConstraint
 import com.paycore.master.merchant.application.required.StoredAdminResult
 import com.paycore.master.merchant.domain.ApprovalEvidence
@@ -67,6 +68,11 @@ import java.util.HexFormat
  * → 업무 본문. 본문의 [Work.lockedNow]가 시각을 읽은 **직후** 판정 4(만료) 훅이 돈다(본문이 빠뜨릴 수 없게 — m-4). 근거 모드에서 [Work.lockedNow] 없이 [Work.beginWrites]는 결함
  * (IllegalState → rollback). 성공은 쓰기 단계에서 EXECUTED 근거 행, 저장되는 거절(판정 3 제외)은 같은 TX에 REJECTED 근거 행을 쓴 뒤 `admin_request` 결과를 완료한다(불변식 n-a).
  * 근거 행 PK 충돌은 Store가 flush 시점에 `StoreConstraint.APPROVAL_EVIDENCE`(업무 유일키)로 번역 → 새 TX 재판정에서 판정 3으로 수렴한다(m-1).
+ *
+ * **요청 지문**(SEC-BIZ-001 M-2 — D-MOPS-010 ②·D-GOV-001 ②, MERCHANT-OPS-002 C-46·C-47 rev): 저장 값 = `h1:` + HMAC-SHA256(MASTER fingerprint 키, [canonicalOf] 전체)
+ * — 모든 관리 명령 공통이라 명령 필드에 든 개인정보(사업자등록번호·대표자·담당자 이름·전화·이메일, 기관 가맹점 참조 등)가 무염 해시로 남지 않는다. 같은 키·같은 내용 = 재생,
+ * 같은 키·다른 내용 = [AdminCommandResult.IdempotencyKeyReused](판정 규칙 불변). HMAC 전 저장 행(`m1:` 무염 SHA-256)은 [RequestFingerprintDigester.legacyComparisonAllowed]
+ * (Demo 배포만)일 때만 같은 요청의 [legacyFingerprintOf]로 비교한다 — 저장 값은 바꾸지 않는다(append-only). LIVE는 비교하지 않아 legacy 행 + 같은 내용도 409(L-25 제거 조건).
  */
 internal class AdminCommandExecutor(
     transactionManager: PlatformTransactionManager,
@@ -77,13 +83,14 @@ internal class AdminCommandExecutor(
     private val clock: MasterClock,
     private val metrics: MasterOperationalMetrics,
     private val publisher: EntitlementSnapshotPublisher,
+    private val fingerprints: RequestFingerprintDigester,
     private val evidences: ApprovalEvidenceStore? = null,
 ) {
     private val transactions = LocalTransactions(transactionManager, MAX_ATTEMPTS)
     private val log = LoggerFactory.getLogger(AdminCommandExecutor::class.java)
 
     fun execute(operation: AdminOperation, request: AdminRequest, fingerprintFields: List<String?>, body: (Work) -> String): AdminCommandResult {
-        val fingerprint = fingerprintOf(operation, fingerprintFields)
+        val fingerprint = requestFingerprint(operation, fingerprintFields)
         return classified(operation, request) { transactions.execute(::isRetryable) { once(operation, request, fingerprint, body) } }
     }
 
@@ -101,7 +108,7 @@ internal class AdminCommandExecutor(
         body: (Work) -> String,
     ): AdminCommandResult {
         val store = checkNotNull(evidences) { "approved commands need the approval evidence store" }
-        val fingerprint = fingerprintOf(operation, fingerprintFields)
+        val fingerprint = requestFingerprint(operation, fingerprintFields)
         return classified(operation, request) {
             transactions.execute(::isRetryable) { onceApproved(store, operation, request, fingerprint, evidence, window, body) }
         }
@@ -120,7 +127,7 @@ internal class AdminCommandExecutor(
         fingerprintFields: List<String?>,
     ): DeadlineConfirmationResult {
         val store = checkNotNull(evidences) { "deadline confirmation needs the approval evidence store" }
-        val fingerprint = fingerprintOf(operation, fingerprintFields)
+        val fingerprint = requestFingerprint(operation, fingerprintFields)
         return try {
             DeadlineConfirmationResult.Decided(
                 classified(operation, request) { transactions.execute(::isRetryable) { onceDeadline(store, operation, request, fingerprint, evidence, window) } },
@@ -180,7 +187,7 @@ internal class AdminCommandExecutor(
         else -> e::class.simpleName ?: "persistence"
     }
 
-    private fun once(operation: AdminOperation, request: AdminRequest, fingerprint: String, body: (Work) -> String): AdminCommandResult {
+    private fun once(operation: AdminOperation, request: AdminRequest, fingerprint: RequestFingerprint, body: (Work) -> String): AdminCommandResult {
         val now = clock.now().truncatedTo(ChronoUnit.MILLIS)
         val scope = AdminRequestScope(operation, request.idempotencyKey)
         val recordId = ids.newUuid()
@@ -198,16 +205,36 @@ internal class AdminCommandExecutor(
     }
 
     /** 멱등 기록 예약/잠금. 이미 커밋된 기록이면 재생(같은 fingerprint) 또는 키 재사용(다른 fingerprint) 결과, 새로 예약했으면 null. */
-    private fun reserveOrReplay(scope: AdminRequestScope, recordId: String, fingerprint: String, request: AdminRequest, now: Instant): AdminCommandResult? {
+    private fun reserveOrReplay(scope: AdminRequestScope, recordId: String, fingerprint: RequestFingerprint, request: AdminRequest, now: Instant): AdminCommandResult? {
         val reserved = try {
-            requests.reserveOrLock(AdminReservation(scope, recordId, fingerprint, request.actor, now))
+            requests.reserveOrLock(AdminReservation(scope, recordId, fingerprint.value, request.actor, now))
         } catch (e: PersistenceFailure.LockTimeout) {
             throw AdminCommandFailure.RequestInProgress(e)
         }
         if (reserved !is AdminReservationOutcome.Existing) return null
         val record = reserved.record
-        if (record.requestFingerprint != fingerprint) return AdminCommandResult.IdempotencyKeyReused
+        if (!fingerprint.sameRequestAs(record.requestFingerprint, request)) return AdminCommandResult.IdempotencyKeyReused
         return present(checkNotNull(record.result) { "committed admin request has no result" }, replayed = true)
+    }
+
+    private fun requestFingerprint(operation: AdminOperation, fields: List<String?>): RequestFingerprint =
+        RequestFingerprint(operation, fields, fingerprintOf(fingerprints, operation, fields))
+
+    /**
+     * 이 요청의 지문(저장 값 [value] = `h1:`). 저장된 지문과 같으면 같은 요청이다. 저장 값이 HMAC 전 `m1:`이고 legacy 비교가 허용된 배포(Demo)면 같은 요청의 [legacyFingerprintOf]와 비교한다
+     * (그때만 계산 — 결과를 저장하지 않는다). 명령 필드 원문을 들고 있으므로 data class가 아니고 `toString`에 내용을 싣지 않는다.
+     */
+    private inner class RequestFingerprint(private val operation: AdminOperation, private val fields: List<String?>, val value: String) {
+        fun sameRequestAs(stored: String, request: AdminRequest): Boolean {
+            if (stored == value) return true
+            if (!stored.startsWith(LEGACY_PREFIX) || !fingerprints.legacyComparisonAllowed()) return false
+            val same = stored == legacyFingerprintOf(operation, fields)
+            // Observability(L-25 제거 판단 근거): legacy 행 재생이 아직 일어나는지 — 연산·상관 ID만(키·지문 값 없음).
+            if (same) log.info("admin request matched a legacy fingerprint operation={} correlationId={}", operation.code, request.correlationId)
+            return same
+        }
+
+        override fun toString(): String = "RequestFingerprint(${operation.code}, ****)"
     }
 
     @Suppress("LongParameterList")
@@ -215,7 +242,7 @@ internal class AdminCommandExecutor(
         store: ApprovalEvidenceStore,
         operation: AdminOperation,
         request: AdminRequest,
-        fingerprint: String,
+        fingerprint: RequestFingerprint,
         evidence: ApprovalEvidence,
         window: ApprovalWindow,
         body: (Work) -> String,
@@ -252,7 +279,7 @@ internal class AdminCommandExecutor(
         store: ApprovalEvidenceStore,
         operation: AdminOperation,
         request: AdminRequest,
-        fingerprint: String,
+        fingerprint: RequestFingerprint,
         evidence: ApprovalEvidence,
         window: ApprovalWindow,
     ): AdminCommandResult {
@@ -413,20 +440,30 @@ internal class AdminCommandExecutor(
             MasterRejection.MERCHANT_CODE_MISMATCH,
         )
 
+        /** 현재 지문 형식 접두(SEC-BIZ-001 — HMAC-SHA256). `h1:` + 64 hex = 67자(`request_fingerprint VARCHAR(80)` 안 — migration 없음). */
+        const val CURRENT_PREFIX = "h1:"
+
+        /** HMAC 전 지문 형식 접두(무염 SHA-256) — 기존 저장 행 호환 비교 전용(Demo 한정, L-25). */
+        const val LEGACY_PREFIX = "m1:"
+
         /**
-         * 요청 fingerprint `m1:` + SHA-256(연산 코드와 필드의 길이 접두 canonical 연결). null 필드는 `~`, 값은 `<UTF-8 byte 길이>:<값>`.
-         * 입력은 이미 domain 값 객체를 통과한 well-formed 문자열이다.
+         * 요청 canonical 바이트: 연산 코드와 필드의 길이 접두 연결(UTF-8). null 필드는 `~`, 값은 `<UTF-8 byte 길이>:<값>`, 각 항목 뒤 `|`.
+         * 입력은 이미 domain 값 객체를 통과한 well-formed 문자열이다. 형식은 SEC-BIZ-001 전과 같다(legacy `m1:` 비교가 같은 바이트를 쓴다).
          */
-        fun fingerprintOf(operation: AdminOperation, fields: List<String?>): String {
-            val canonical = buildString {
-                (listOf(operation.code) + fields).forEach { field ->
-                    if (field == null) append("~") else append(field.toByteArray(StandardCharsets.UTF_8).size).append(':').append(field)
-                    append('|')
-                }
+        fun canonicalOf(operation: AdminOperation, fields: List<String?>): ByteArray = buildString {
+            (listOf(operation.code) + fields).forEach { field ->
+                if (field == null) append("~") else append(field.toByteArray(StandardCharsets.UTF_8).size).append(':').append(field)
+                append('|')
             }
-            val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(StandardCharsets.UTF_8))
-            return "m1:" + HexFormat.of().formatHex(digest)
-        }
+        }.toByteArray(StandardCharsets.UTF_8)
+
+        /** 요청 지문 `h1:` + HMAC-SHA256([digester]의 키, [canonicalOf]) 소문자 hex. */
+        fun fingerprintOf(digester: RequestFingerprintDigester, operation: AdminOperation, fields: List<String?>): String =
+            CURRENT_PREFIX + HexFormat.of().formatHex(digester.digest(canonicalOf(operation, fields)))
+
+        /** HMAC 전 지문 `m1:` + SHA-256([canonicalOf]) 소문자 hex — 기존 행 호환 비교 전용(새로 저장하지 않는다). 제거 조건 MERCHANT-OPS-002 L-25. */
+        fun legacyFingerprintOf(operation: AdminOperation, fields: List<String?>): String =
+            LEGACY_PREFIX + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonicalOf(operation, fields)))
     }
 }
 

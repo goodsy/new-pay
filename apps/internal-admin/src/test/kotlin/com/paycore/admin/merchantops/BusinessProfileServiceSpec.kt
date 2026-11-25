@@ -7,6 +7,7 @@ import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionPolicy
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionView
+import com.paycore.admin.approval.domain.OperatorCancelInputRules
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
 import com.paycore.admin.audit.application.provided.AuditRecord
 import com.paycore.admin.merchantops.application.BusinessPermissions
@@ -237,6 +238,29 @@ class BusinessProfileServiceSpec : BehaviorSpec({
             f.commands.size shouldBe 1
             f.metrics.count { it == "command:CompleteBusinessRegistration:INVALID_INPUT" } shouldBe 1
             f.metrics.count { it == "command:UpdateBusiness:INVALID_INPUT" } shouldBe 3
+        }
+        Then("SEC-BIZ-001 M-1 (BR-BIZ-305): a card-number-like reason is 400 [reason CARD_NUMBER_PATTERN] before MASTER (no call, no audit); the verdict equals the canonical OperatorCancelInputRules.containsCardNumber on the common vector") {
+            // 정본 대조: 공통 벡터가 정본 판정과 같은 결과인지 먼저 고정(벡터가 정본에서 벗어나면 여기서 RED).
+            BusinessCardNumberVectors.CARD_LIKE.map(OperatorCancelInputRules::containsCardNumber) shouldBe BusinessCardNumberVectors.CARD_LIKE.map { true }
+            BusinessCardNumberVectors.NOT_CARD.map(OperatorCancelInputRules::containsCardNumber) shouldBe BusinessCardNumberVectors.NOT_CARD.map { false }
+            val f = Fixture()
+            val before = f.audits.size
+            BusinessCardNumberVectors.CARD_LIKE.forEach { reason ->
+                f.service.execute(operatorId, BusinessInputFixture.update(sub(), biz, reason = reason), ctx) shouldBe
+                    BusinessProfileResult.InvalidInput(listOf(BusinessFieldError("reason", OperatorCancelInputRules.CARD_NUMBER_PATTERN)))
+                f.service.execute(operatorId, BusinessInputFixture.complete(sub(), biz, reason = reason), ctx) shouldBe
+                    BusinessProfileResult.InvalidInput(listOf(BusinessFieldError("reason", OperatorCancelInputRules.CARD_NUMBER_PATTERN)))
+            }
+            f.commands.size shouldBe 0
+            f.audits.size shouldBe before
+            f.reply = { MasterBusinessCommandResult.Decided(true, biz, null, false, null) }
+            BusinessCardNumberVectors.NOT_CARD.forEach { reason ->
+                f.service.execute(operatorId, BusinessInputFixture.update(sub(), biz, reason = reason), ctx).shouldBeInstanceOf<BusinessProfileResult.Decided>()
+            }
+            f.commands.size shouldBe BusinessCardNumberVectors.NOT_CARD.size
+            // 기존 문자 규칙이 먼저(FORMAT·TOO_LONG — 카드 패턴은 마지막 판정).
+            f.service.execute(operatorId, BusinessInputFixture.update(sub(), biz, reason = "4111111111111111" + "가".repeat(185)), ctx) shouldBe
+                BusinessProfileResult.InvalidInput(listOf(BusinessFieldError("reason", "TOO_LONG")))
         }
         Then("rule table (MASTER parity): categories 11+9 → categories TOO_MANY (MINOR-2), representative type path representatives[i].type, SOLE with others, duplicate category, individual with corporate number") {
             fun errors(content: BusinessProfileContent, status: String = "REGISTERED") = Fixture().service.execute(operatorId, BusinessInputFixture.create(sub(), status, content = content), ctx)

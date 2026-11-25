@@ -123,7 +123,7 @@ class MerchantCodeSeedRerunSpec(
         val businessId = runtime(container).use { conn ->
             conn.prepareStatement("SELECT business_id FROM merchant WHERE merchant_id = ?").use { ps -> ps.setString(1, merchantId); ps.executeQuery().use { rs -> rs.next(); rs.getString(1) } }
         }
-        val legacyFingerprint = AdminCommandExecutor.fingerprintOf(AdminOperation.REGISTER_MERCHANT, listOf(businessId, c.values.merchantName.value))
+        val legacyFingerprint = AdminCommandExecutor.legacyFingerprintOf(AdminOperation.REGISTER_MERCHANT, listOf(businessId, c.values.merchantName.value))
         MasterDbAccounts.root(container).use { root ->
             root.update(
                 "UPDATE admin_request SET request_fingerprint = ? WHERE operation = ? AND idempotency_key = ?",

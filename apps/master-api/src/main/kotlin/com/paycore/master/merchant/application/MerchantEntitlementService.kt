@@ -30,6 +30,7 @@ import com.paycore.master.merchant.application.required.MerchantSiteRepository
 import com.paycore.master.merchant.application.required.MerchantRepository
 import com.paycore.master.merchant.application.required.OutboxStore
 import com.paycore.master.merchant.application.required.PaymentMethodActivationRepository
+import com.paycore.master.merchant.application.required.RequestFingerprintDigester
 import com.paycore.master.merchant.application.required.SiteActivationConfirmationRepository
 import com.paycore.master.merchant.application.required.SiteReviewStore
 import com.paycore.master.merchant.application.required.Versioned
@@ -90,9 +91,10 @@ class MerchantEntitlementService(
     private val reviews: SiteReviewStore,
     evidences: ApprovalEvidenceStore,
     private val deploymentMode: DeploymentModePort,
+    fingerprints: RequestFingerprintDigester,
 ) : MerchantEntitlementUseCase {
 
-    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, evidences)
+    private val executor = AdminCommandExecutor(transactionManager, requests, changeLog, outbox, ids, clock, metrics, publisher, fingerprints, evidences)
     private val log = LoggerFactory.getLogger(MerchantEntitlementService::class.java)
 
     /** 근거 없는 개통 승인 — Demo seed 경로 전용(MERCHANT-OPS-002 C-40, D-MOPS-008 ②): 행위자 정확히 `system:demo-seed` + Demo 모드. 관리 채널은 [approvePaymentMethodActivationWithEvidence]. */

@@ -47,7 +47,7 @@ import javax.sql.DataSource
 
 /**
  * BUSINESS-PROFILE-001 BIZ-1 Use Case 시험(실제 MySQL 8.4, runtime 계정 권한 — M-3: web 없이 Use Case 수준):
- * BIZ-1-5(실행기 결함 분류 — 재판정·재시도 0회·503·제약 이름만 로그), BIZ-1-7(TC-17 rollback), BIZ-1-11(멱등 `m1:`·지문 평탄화·canary), BIZ-1-12(TC-16 + M-1 등록 완료),
+ * BIZ-1-5(실행기 결함 분류 — 재판정·재시도 0회·503·제약 이름만 로그), BIZ-1-7(TC-17 rollback), BIZ-1-11(멱등 `h1:` — SEC-BIZ-001 전 `m1:`·지문 평탄화·canary), BIZ-1-12(TC-16 + M-1 등록 완료),
  * BIZ-1-13(변경 계산·이력 — TC-12·TC-13, M-2), BIZ-1-14(TC-19 — 금융·권리 데이터 불변, Outbox `Business*`만·payload 키 집합).
  * 변이: (f) complete에 UNCHANGED 적용 → BIZ-1-12 RED, (g) REGISTERED 대표자 추가만 일반 → BIZ-1-13 RED, (j) BUSINESS_PROFILE_ROW businessKey=true → BIZ-1-5 RED,
  * (k) Snapshot/다른 이벤트 발행 추가 → BIZ-1-14 RED.
@@ -61,6 +61,7 @@ class BusinessProfileServiceSpec(
     private val ids: ScriptedIdGenerator,
     private val dataSource: DataSource,
     private val onboarding: com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase,
+    private val digester: com.paycore.master.merchant.application.required.RequestFingerprintDigester,
 ) : BehaviorSpec({
 
     afterEach {
@@ -163,7 +164,8 @@ class BusinessProfileServiceSpec(
         }
     }
 
-    Given("BIZ-1-11 idempotency (C-9 — existing m1: fingerprint)") {
+    // 기대값 변경(SEC-BIZ-001 M-2 — D-MOPS-010 ②·D-GOV-001 ②): 지문 형식 m1:(무염 SHA-256) → h1:(MASTER 비밀 키 HMAC, canonical 전체). 재생·409 판정은 그대로.
+    Given("BIZ-1-11 idempotency (C-9 — keyed h1: fingerprint since SEC-BIZ-001)") {
         Then("same key + same command replays without new rows; same key + only the representative order differs is IDEMPOTENCY_KEY_REUSED") {
             val k = key()
             val two = individualProfile().copy(representatives = listOf(joint("가공동"), joint("나공동")))
@@ -175,7 +177,7 @@ class BusinessProfileServiceSpec(
             footprint(id) shouldBe before
         }
 
-        Then("the stored fingerprint is m1: SHA-256 of the flattened fields; list counts prefix rows (1 vs 2 rows never collide); no canary value is stored or logged") {
+        Then("the stored fingerprint is h1: HMAC of the flattened fields (not the unkeyed m1 digest); list counts prefix rows (1 vs 2 rows never collide); no canary value is stored or logged") {
             val k = key()
             // 공유 DB: BIZ-2 ApiSpec(BIZ-2-8)이 고정 캔어리 번호를 먼저 쓸 수 있다(실행 순서 비결정) — 이 시험은 매번 새 번호를 캔어리로 쓴다.
             val canaryNumber = BusinessFixtures.registrationNumber()
@@ -183,8 +185,9 @@ class BusinessProfileServiceSpec(
             val logs = CapturedLogs()
             val id = logs.use { succeeded(service.create(command)) }
             val stored = text("SELECT request_fingerprint FROM admin_request WHERE operation = 'CreateBusiness' AND idempotency_key = ?", k.value)!!
-            stored shouldStartWith "m1:"
-            stored shouldBe AdminCommandExecutor.fingerprintOf(AdminOperation.CREATE_BUSINESS, BusinessCommandFingerprintFields.of(command))
+            stored shouldStartWith "h1:"
+            stored shouldBe AdminCommandExecutor.fingerprintOf(digester, AdminOperation.CREATE_BUSINESS, BusinessCommandFingerprintFields.of(command))
+            (stored == AdminCommandExecutor.legacyFingerprintOf(AdminOperation.CREATE_BUSINESS, BusinessCommandFingerprintFields.of(command))) shouldBe false
             // 경계 모호성 없음: 대표자 [가, 나]를 한 행 이름 "가|나"처럼 이어 붙여도 같은 필드 목록이 되지 않는다(개수 접두).
             val oneRow = create(individualProfile().copy(representatives = listOf(joint("가공동"))))
             val twoRows = oneRow.copy(profile = oneRow.profile.copy(representatives = listOf(joint("가공동"), joint("가공동"))))
