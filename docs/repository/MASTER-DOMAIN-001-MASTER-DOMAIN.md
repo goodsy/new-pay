@@ -1,6 +1,8 @@
 # MASTER-DOMAIN-001 Master 도메인 명세 (1단계: 명세·질문 후보)
 
-작성 2026-10-09 KST(1단계 명세), 같은 날 2단계 반영. 기준 commit `a123bab`. 1단계 질문 중 Q-MD-01·02·03·04·05·11은 사용자가 권장안으로 답했다(D-MD-003~008, `docs/DECISIONS.md`). 2단계 TDD 구현 기록은 §9다. 이 문서는 새 업무 정책을 채택하지 않는다 — 미결(Q-MD-06~10, Q-ADMIN-AUTH)은 구현하지 않았다.
+> **정합 표시(S3-DOC-001, 2026-11-25 — 원문 보존, 현행만 덧붙임)**: 제목의 "1단계: 명세·질문 후보"는 작성 당시 단계다. → 현행: MASTER-DOMAIN-001은 2단계 구현까지 DONE(`harness/archive/tasks-done-2026-11-22.json`). 아래 본문에서 "미결"로 남은 질문 중 **답이 난 것**: Q-MD-08 → D-MD-016, Q-MD-09 → D-MD-017, Q-MD-10 → D-MD-018(모두 2026-10-13, 구현 MASTER-SNAPSHOT-001), Q-MD-18 → D-GOV-004 ②, Q-ADMIN-AUTH → D-ADMIN-001·002, Q-AUTH-SCOPE → D-AUTH-001. **아직 미결**: Q-MD-06·Q-MD-07(PROPOSED). 관리자 web adapter는 ADMIN-BOOT-001·MERCHANT-OPS-001/002에서 생겼다(`apps/master-api/src/main/kotlin/com/paycore/master/merchant/adapter/web/admin/`). entitlement_revision 증가 지점의 현행 기준은 MASTER-SNAPSHOT-001 §4.6(§3.3 표시 참고). 사업자 용어 정본은 `docs/rules/BIZ.md` §0(D-GOV-008 ⑨, D-GOV-006 ②), 현재 유효 업무 규칙 정본은 `docs/rules/BIZ.md` 대장이다.
+
+작성 2026-10-09 KST(1단계 명세), 같은 날 2단계 반영. 기준 commit `a123bab`. 1단계 질문 중 Q-MD-01·02·03·04·05·11은 사용자가 권장안으로 답했다(D-MD-003~008, `docs/DECISIONS.md`). 2단계 TDD 구현 기록은 §9다. 이 문서는 새 업무 정책을 채택하지 않는다 — 미결(Q-MD-06~10, Q-ADMIN-AUTH)은 구현하지 않았다. → 정정(답 D-MD-016~018·D-ADMIN-001·002): 남은 미결은 Q-MD-06·07뿐이다(머리 정합 표시).
 
 표시: **확정(출처)** = 채택 문서 또는 D-* 결정, **관례** = 가역적 구현 선택(§6, 사용자 질문 대상 아님), **미결(Q-MD-xx)** = §5 질문 후보. **Demo** = Simulator/시험 전용 값(운영값 아님).
 
@@ -31,7 +33,7 @@
 | MASTER-SNAPSHOT-001 | 권리 Snapshot 계산·버전·lease·긴급 차단·ACK(허용 §4.2), Outbox Relay → PAYMENT Inbox, `PaymentEligibilityPort` 구현(CP계약 §13) | domain 원본 변경 |
 | 후속(제안: MASTER-LIFECYCLE-001) | 질문 답변이 필요한 생명주기 명령: 중지/재개/종료, PRIMARY 교체, ADDITIONAL 공유, Default 교체·종료, 추가 MID 발급, 개통 상태 변경, 통화 활성화 | — |
 | 후속(제안: MASTER-POLICY-001 / SETTLEMENT-CONTRACT-001) | FeeSchedule·SettlementPolicy·AdvancePayout·AutoCorrection 정책 정의·Version·Assignment, BusinessCalendar(구조 §1–§4, 구조 경계 §3–§4) | — |
-| 후속(관리자 화면·API) | 관리자 web adapter·Thymeleaf 화면 | Q-ADMIN-AUTH(미답) 전까지 **만들지 않는다**. 이번 use case는 시험·향후 adapter가 부르는 `application.provided`까지만 |
+| 후속(관리자 화면·API) | 관리자 web adapter·Thymeleaf 화면 | Q-ADMIN-AUTH(미답) 전까지 **만들지 않는다**. 이번 use case는 시험·향후 adapter가 부르는 `application.provided`까지만 → 대체: D-ADMIN-001·002(Q-ADMIN-AUTH 답), 현행은 ADMIN-BOOT-001(관리자 인증·권한)·MERCHANT-OPS-001/002(MASTER `adapter.web.admin` 서명 채널·관리 명령)가 만들었고, 관리자 화면은 Thymeleaf가 아니라 React 정적 번들(D-ADMIN-008·D-FE-001) |
 | 후속(보안/연동) | Credential(API 키) 메타데이터, 기관 Route/프로파일, 지급계좌(허용 §4.1-10, A05 예시 흐름) | 민감정보·별도 보안 계약 필요 |
 
 이유: 질문 없이 확정 규칙만으로 끝까지 검증할 수 있는 수직 기능은 "최초 Default MID 발급"이다(초기 §가맹점·계약·MID, 구조 경계 §1, 착수검토 §7-3). 생명주기 명령은 출처가 "상세 구현 계약에서 구체화"로 명시 보류했다(구조 경계 §2 셋째 문단, 초기 §v0.1 마지막 문단). 그래서 domain 모델은 확장 가능하게 두되, 보류된 명령은 답변 뒤 별도 카드로 만든다.
@@ -71,8 +73,8 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 | 식별 | `BusinessId` (서버 생성, §6) | 관례 |
 | 규칙 | 하나의 Business가 복수 Merchant. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다 | **확정** 초기 §가맹점·계약·MID 첫 줄·§23행 |
 | 속성 | 표시 이름, 국내 사업자등록번호(10자리 숫자만, UNIQUE, 로그·이벤트 평문 금지·이력은 마스킹) | **확정 D-MD-008** |
-| 상태 | 생명주기 ACTIVE/TERMINATED(비가역), 신규 결제 중지는 별도 차단 기록(사유·행위자, 여럿 독립, 신규 승인만 막음) | **확정 D-MD-006**. 차단 기록·종료 명령은 MASTER-LIFECYCLE-001 |
-| 용어 | DOMAIN-DEFINITION "사업 주체 / Business" | — |
+| 상태 | 생명주기 ACTIVE/TERMINATED(비가역), 신규 결제 중지는 별도 차단 기록(사유·행위자, 여럿 독립, 신규 승인만 막음) | **확정 D-MD-006**. 차단 기록·종료 명령은 MASTER-LIFECYCLE-001. → 추가(D-BIZ-001): 생명주기와 별개 축인 등록 상태 DRAFT/REGISTERED/INACTIVE(`Business.kt:8,20`, BUSINESS-PROFILE-001). 현행 규칙은 `docs/rules/BIZ.md` §1 |
+| 용어 | DOMAIN-DEFINITION "사업 주체 / Business" | — → 대체: D-GOV-008 ⑨, 현행 정식 용어 '사업자'(정의 정본 `docs/rules/BIZ.md` §0, D-GOV-006 ②) |
 
 #### Merchant
 
@@ -93,7 +95,7 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 | 식별 | `MerchantSiteId`(PG 발급, PAYMENT `MerchantSiteId`가 그대로 비교하는 값), 소속 `merchantId`(불변) | CP계약 §3·§12(길이 64 이하 후보), 관례 |
 | 규칙 | 같은 Merchant 소속 MID와만 연결 | **확정** 구조 §8, 허용 §4.1-5 |
 | 속성 | 채널 유형(WEB/APP), 채널 식별값(소문자 host / 소문자 앱 ID — 관례) | 활성 값 Merchant 안·Merchant 간 중복 거절 **확정 D-MD-008**(예외 승인 기록은 후속) |
-| 상태 | 등록/종료. Site 심사 상태(허용 §4.1-5, 구조 경계 §1 "Site 심사")의 소유·의미 | **미결 Q-MD-08** |
+| 상태 | 등록/종료. Site 심사 상태(허용 §4.1-5, 구조 경계 §1 "Site 심사")의 소유·의미 | **미결 Q-MD-08** → 답: D-MD-016(Site 심사 = Site별 적용 확인 기록과 별개인 PG 심사 상태로 MerchantSite에 둠). 현행 심사 기록·전이는 MASTER-SNAPSHOT-001 §4.4(D-MS-002), REJECTED 종결·재신청은 새 Site(D-MS-005), 심사 거절 Site 채널 점유 해제(D-GOV-004 ①), 종료 Site 채널의 다른 가맹점 재사용은 예외 승인 없으면 거절(D-GOV-004 ②, Q-MD-18) |
 | 용어 | 사이트 / MerchantSite | — |
 
 #### Contract (+ ContractRevision)
@@ -155,7 +157,7 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 | 유효 연결 없음 | 신규 결제 불가, 연결 복구/승인 절차 요구 | **확정** 구조 경계 §1 셋째 문단 |
 | PRIMARY 동시 유효 수·교체 직렬화 | MID당 유효 PRIMARY 최대 1, 교체 = 기존 종료 + 새 시작 한 TX, 자동 승격 없음, ADDITIONAL만 남으면 신규 결제 차단(fail-closed) | **확정 D-MD-007**. domain 규칙 + 열린 PRIMARY UNIQUE 구현, 교체 명령은 MASTER-LIFECYCLE-001 |
 | 상태 전이·기간 중첩·시간 단위·소급 | UTC 시각 [from, to), 같은 MID–Site 중첩 금지·재연결은 새 행, 소급 시작·종료 금지, 미래 종료 예약 허용, 상태 ACTIVE/SUSPENDED/ENDED | **확정 D-MD-005** |
-| 공유 증거·승인과 개통 범위 | | **미결 Q-MD-08** |
+| 공유 증거·승인과 개통 범위 | | **미결 Q-MD-08** → 답: D-MD-016(Site별 개통 적용 확인 기록 append-only, 결제 허용 = Assignment 유효 ∧ Activation 유효 ∧ 해당 Site 적용 확인, PRIMARY는 개통 승인 시 함께 기록, ADDITIONAL은 기록 전 차단, ADDITIONAL 생성 명령은 공유 조건 증거를 받음 — 생성 명령은 MASTER-LIFECYCLE-001) |
 | 용어 | PRIMARY / ADDITIONAL, MerchantAccountSiteAssignment | — |
 
 #### PaymentMethodActivation (개통)
@@ -167,12 +169,12 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 | 분리 | 발급과 개통은 별개. MID 발급만으로 결제 허용 안 함 | **확정** 구조 §11, 초기 §4 |
 | 부분 개통 | 카드 일부 개통은 개통된 카드사/Route만 사용 | **확정** 허용 §4.1-6 |
 | 결제수단 상세 | D-MD-002로 결제수단 세부는 Activation이 담당 | **확정 D-MD-002** |
-| 상태·카드사 단위·심사 근거 기록 방식 | | **미결 Q-MD-09** |
+| 상태·카드사 단위·심사 근거 기록 방식 | | **미결 Q-MD-09** → 답: D-MD-017((MID, 결제수단) + 상태 UNDER_REVIEW/ACTIVE/SUSPENDED/TERMINATED + 근거 참조, 카드사/Route별 사용 가능 목록은 기관 기준정보, CreatePayment eligibility는 수단 단위). 전이는 D-MS-003(MASTER-SNAPSHOT-001) |
 | 용어 | 개통 / PaymentMethodActivation | — |
 
 #### 통화 활성화
 
-허용 통화는 MID·기관 계약별 기준정보로 활성화(**확정 D-CP-002**), 통화는 Assignment 범위 CSA+MID+Currency에서 다룸(**확정 D-MD-002**). 그러나 "통화 활성화 사실"이 별도 기록인지, 정책 Assignment 존재로 갈음하는지는 정해지지 않았다 → **미결 Q-MD-10**. CurrencyUnit(ISO 4217 minor unit: KRW 0, USD 2)은 표준 사실 기준정보이며 허용 여부와 별개다(관례: MASTER 기준정보 표, CP계약 §4).
+허용 통화는 MID·기관 계약별 기준정보로 활성화(**확정 D-CP-002**), 통화는 Assignment 범위 CSA+MID+Currency에서 다룸(**확정 D-MD-002**). 그러나 "통화 활성화 사실"이 별도 기록인지, 정책 Assignment 존재로 갈음하는지는 정해지지 않았다 → **미결 Q-MD-10**. → 답: D-MD-018(별도 통화 활성화 기록(MID, 통화, 기간, 근거)이 CURRENCY_NOT_ENABLED 판정 근거 + 승인 시작에는 (CSA, MID, 통화) 정책 Assignment 존재도 요구, 둘 중 하나만으로 허용하지 않음). 구현 MASTER-SNAPSHOT-001(`currency_enablement`)·AUTH-001. CurrencyUnit(ISO 4217 minor unit: KRW 0, USD 2)은 표준 사실 기준정보이며 허용 여부와 별개다(관례: MASTER 기준정보 표, CP계약 §4).
 
 ### 2.3 상태와 전이(확정 부분만 코드화, 나머지는 답변 후)
 
@@ -180,9 +182,9 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 |---|---|---|
 | ContractRevision | 등록(내용 불변) → 승인 사실 기록(append-only, 행위자·시각) | 철회·종료·재활성화(D-MD-004, MASTER-LIFECYCLE-001) |
 | MerchantAccount | (없음) → `ACTIVE`(최초 Default 발급, D-MD-006) | `TERMINATED`(비가역)·신규 결제 차단 기록(D-MD-006, MASTER-LIFECYCLE-001) |
-| SiteAssignment | (없음) → PRIMARY `ACTIVE`, effectiveFrom = 발급 시각, effectiveTo 없음. 기간·PRIMARY 규칙(D-MD-005·007)은 domain `SiteAssignmentRules`로 전부 강제 | 종료·중지·교체(MASTER-LIFECYCLE-001), ADDITIONAL(Q-MD-08) |
-| DefaultDesignation | (없음) → 최초 지정 | 교체·해제(Q-MD-07) |
-| PaymentMethodActivation | 모델·저장만(상태 이름은 Q-MD-09 전까지 최소: 개통 전 기본값만 허용) | 심사·개통·중지(Q-MD-09) |
+| SiteAssignment | (없음) → PRIMARY `ACTIVE`, effectiveFrom = 발급 시각, effectiveTo 없음. 기간·PRIMARY 규칙(D-MD-005·007)은 domain `SiteAssignmentRules`로 전부 강제 | 종료·중지·교체(MASTER-LIFECYCLE-001), ADDITIONAL(Q-MD-08 → 답: D-MD-016, 생성 명령은 MASTER-LIFECYCLE-001) |
+| DefaultDesignation | (없음) → 최초 지정 | 교체·해제(Q-MD-07 — 미결, PROPOSED) |
+| PaymentMethodActivation | 모델·저장만(상태 이름은 Q-MD-09 전까지 최소: 개통 전 기본값만 허용) | 심사·개통·중지(Q-MD-09 → 답: D-MD-017, 전이 D-MS-003 — 구현 MASTER-SNAPSHOT-001·MERCHANT-OPS-002) |
 
 시험으로 막을 전이(확정): 발급된 MID의 merchantId·발급 근거 변경 불가 / 다른 Merchant Site와의 Assignment 생성 거절 / Scope 밖 Site로 최초 발급 거절 / 미승인 Revision 근거 발급 거절 / 이미 MID가 있는 Merchant의 "최초 Default" 발급 거절 / Site 없는 최초 발급 거절.
 
@@ -190,7 +192,7 @@ Assignment·Activation을 MID Aggregate 안에 넣지 않는 이유: 이력이 �
 
 | 용어사전 | 코드(제안) | 비고 |
 |---|---|---|
-| 사업 주체 / Business | `Business`, `BusinessId` | |
+| 사업 주체 / Business | `Business`, `BusinessId` | → 대체: D-GOV-008 ⑨, 현행 정식 용어 '사업자'(`docs/rules/BIZ.md` §0) |
 | 가맹점 / Merchant | `Merchant`, `MerchantId` | |
 | 사이트 / MerchantSite | `MerchantSite`, `MerchantSiteId` | PAYMENT의 `MerchantSiteId`와 같은 값(별도 타입, 공유 코드 없음 — A10 "shared 우회 금지") |
 | MID / MerchantAccount | `MerchantAccount`, `MerchantAccountId` | PAYMENT `MerchantAccountId`와 같은 값 |
@@ -217,7 +219,7 @@ DOMAIN-DEFINITION §3.1에 이 문서 포인터를 한 줄 추가했다(정의 �
 | RegisterContract(Scope, 첫 Revision) / AddServiceAgreement / ApproveContractRevision | 이번(최소) | 멱등 + Contract/Revision/CSA/승인 사실 + Outbox | D-MD-001·002, 초기 |
 | **IssueFirstDefaultMerchantAccount**(merchantId, contractId, agreementId, revisionNo, primarySiteId) | 이번(핵심) | 멱등 기록(결과 SUCCESS + MID 참조) + MerchantAccount(ACTIVE) + DefaultDesignation + SiteAssignment(PRIMARY) + merchant.entitlement_revision + 이력 + Outbox(MerchantAccountIssued·DefaultMerchantAccountDesignated·SiteAssignmentStarted) | **확정** 구조 경계 §1, 초기 마지막 문단 |
 | RegisterPaymentMethodActivation | 이번(모델만, 상태는 최소) | 멱등 + Activation + Outbox | 구조 §11–§12 |
-| 중지/재개/종료, PRIMARY 교체, ADDITIONAL, Default 교체, 추가 MID, 통화 활성화 | 후속 | 같은 원칙 | MASTER-LIFECYCLE-001(D-MD-004~007 확정분), Q-MD-06~10 |
+| 중지/재개/종료, PRIMARY 교체, ADDITIONAL, Default 교체, 추가 MID, 통화 활성화 | 후속 | 같은 원칙 | MASTER-LIFECYCLE-001(D-MD-004~007 확정분), Q-MD-06~10 → 정정(답 D-MD-016~018): Q-MD-08~10은 답이 났고(통화 활성화·개통 전이는 MASTER-SNAPSHOT-001·MERCHANT-OPS-002에서 구현), 미결은 Q-MD-06·07 |
 
 최초 Default 발급 TX의 순서(잠금 순서 §3.3과 같다):
 
@@ -236,8 +238,8 @@ COMMIT → 응답(커밋 후). 어느 단계 실패도 전체 rollback(잔존 MI
 
 | 항목 | 제안 | 성격 |
 |---|---|---|
-| 범위 | UNIQUE(`operation`, `idempotency_key`) — 관리 명령에는 가맹점 MID 컨텍스트가 없다. 운영자 신원은 Q-ADMIN-AUTH 이후 행위자 컬럼으로 기록(범위 키에는 넣지 않는다: 같은 키를 다른 운영자가 재사용하면 충돌로 드러나는 편이 안전) | 관례 |
-| 비교 | 요청 fingerprint(`m1:` 접두, CP계약 §6과 같은 길이 접두 canonical + SHA-256)와 저장 결과 | 관례 |
+| 범위 | UNIQUE(`operation`, `idempotency_key`) — 관리 명령에는 가맹점 MID 컨텍스트가 없다. 운영자 신원은 Q-ADMIN-AUTH 이후 행위자 컬럼으로 기록(범위 키에는 넣지 않는다: 같은 키를 다른 운영자가 재사용하면 충돌로 드러나는 편이 안전) | 관례 (Q-ADMIN-AUTH → 답: D-ADMIN-001·002) |
+| 비교 | 요청 fingerprint(`m1:` 접두, CP계약 §6과 같은 길이 접두 canonical + SHA-256)와 저장 결과 | 관례 → 대체: D-MOPS-010 ②·D-GOV-001 ②, 현행은 `h1:` + HMAC-SHA256(MASTER fingerprint 키, canonical 전체)(SEC-BIZ-001, `AdminCommandExecutor.kt:72,444`). `m1:`은 HMAC 전 저장 행의 호환 비교 전용(Demo 한정, `AdminCommandExecutor.kt:447,464`) |
 | 같은 키·같은 내용 | 최초 결과 재생(D-CP-003의 "저장된 결과만" 방식을 관리 명령에도 같은 모양으로 적용 — 관리 명령은 그 결정의 대상 API는 아니므로 관례로 기록) | 관례 |
 | 같은 키·다른 내용 | 충돌 거절 | CLAUDE.md 핵심 규칙 |
 | 다른 키·같은 최초 Default 발급 | **하나만 성공**, 나머지는 거절(기존 MID 참조) | **확정** 초기 마지막 문단 |
@@ -251,6 +253,7 @@ COMMIT → 응답(커밋 후). 어느 단계 실패도 전체 rollback(잔존 MI
 
 - **Merchant 행이 Merchant 안 모든 관계 변경의 직렬화 지점**이다: 최초 Default 발급, Default 교체, MID 추가, Assignment 변경 모두 merchant를 FOR UPDATE로 먼저 잡는다. 서로 다른 Assignment 행 사이의 경쟁(예: PRIMARY 둘 동시 생성)은 낙관적 version으로 막을 수 없기 때문이다(관례 §9.1 비관적 잠금 설명과 같은 이유).
 - `merchant.entitlement_revision`(BIGINT, 단조 증가): 결제 허용 판정 입력을 바꾸는 TX에서 영향받는 Merchant 행을 +1한다. **현재 코드의 증가 지점은 셋**: Revision 승인(Scope Merchant), 최초 Default 발급, 개통 등록. Business·Merchant·Site 등록, 계약·Revision 등록(미승인), CSA 추가는 그 자체로 판정 결과를 바꾸지 않아 올리지 않는다(생명주기·차단·통화 명령이 생기면 각 작업이 증가 지점을 추가). MASTER-SNAPSHOT-001이 "과거 허용 이벤트로 차단 되돌림 금지"(허용 §4.2 둘째 줄)를 버전 비교로 구현할 수 있게 하는 **제안**이다(관례, Snapshot 작업이 다른 방식을 고르면 바꿀 수 있다). JPA `@Version`(기술 동시 수정 감지)과 별개의 업무 값이다.
+  - **→ 정정(S3-DOC-001, PC-18·DC-M-20 — 문서가 옛 내용, 코드가 현행)**: 위 "증가 지점은 셋"·"Site 등록 … 올리지 않는다"는 2026-10-09 시점 서술이다. 현행 기준은 MASTER-SNAPSHOT-001 §4.6 — **권리 Snapshot 입력을 바꾸는 TX마다** 같은 TX에서 revision +1 + Snapshot 발행. Site 등록도 올린다(Site가 Snapshot `sites[]`·contractWindows에 실리므로 — MASTER-SNAPSHOT-001 review M-2, `MerchantOnboardingService.kt:131-135`, MERCHANT-OPS-002 L-6). 코드의 `recordEntitlementChange()` 호출은 `apps/master-api/src/main` 안 23곳(정의 `Merchant.kt:79`와 KDoc 언급 `MerchantOnboardingService.kt:390` 제외)(등록·승인·발급·코드·Site 심사·개통·통화·한도·정책 명령 등, 2026-11-25 grep). 이 문서대로 증가 지점을 줄이면 같은 revision·다른 내용으로 PAYMENT가 INTEGRITY_CONFLICT fail-closed가 된다(MASTER-SNAPSHOT-001 §15-2).
 - 교착은 InnoDB가 감지하고 서비스가 rollback 후 새 TX로 재실행(최대 3회, PAYMENT와 같은 기술 설정).
 
 ### 3.4 DB 제약으로 표현하는 규칙(MySQL 8.4, 모든 문자열 `utf8mb4_0900_bin`)
@@ -285,7 +288,7 @@ MySQL에는 기간 배제(exclusion) 제약이 없으므로 "닫힌 구간끼리
 | `merchant_account` | MID root | SELECT, INSERT, UPDATE | 잠금 읽기, 이후 상태 변경. 발급 근거 컬럼은 `updatable=false` |
 | `default_designation` | 현재 Default(교체 시 UPDATE) | SELECT, INSERT (교체 작업이 UPDATE 추가) | 이번 경로는 INSERT만 |
 | `merchant_account_site_assignment` | 기간 종료 시 UPDATE 필요(effective_to) | SELECT, INSERT (종료 작업이 UPDATE 추가) | 이번 경로는 INSERT만 |
-| `payment_method_activation` | 상태 보유 | SELECT, INSERT | 상태 전이는 Q-MD-09 후 |
+| `payment_method_activation` | 상태 보유 | SELECT, INSERT | 상태 전이는 Q-MD-09 후 (→ 답: D-MD-017·D-MS-003 — 현행 권한은 이후 migration 기준, 이 표는 2026-10-09 계획) |
 | `master_change_history` | **append-only 감사**(대상·변경 전후·행위자·사유·request_record_id) | SELECT, INSERT | Auditability(A05 "변경 전후 값·사유") |
 | `admin_request` | 멱등 기록 | SELECT, INSERT, UPDATE | IODKU·결과 기록. DELETE 없음(§3.2) |
 | `outbox_event` | Outbox | SELECT, INSERT | Relay(UPDATE)는 MASTER-SNAPSHOT-001 |
@@ -313,6 +316,8 @@ CP계약 §13 `PaymentEligibilityPort.evaluate(environment, authenticatedMid, me
 | MID 운영 중지(허용 §4.1-3) | merchant_account.status | §13의 고정 4종 reason에 **대응 reason이 없다**(§7 충돌 2) |
 | snapshotVersion·차단 우선 | `merchant.entitlement_revision` 제안 | Snapshot 작업 확정 |
 | currencyUnit | (미구현) | Q-MD-10 |
+
+→ 정정(답 D-MD-016~018, D-MS-002): 위 표의 Q-MD-08·09·10 공백은 답이 났고 MASTER-SNAPSHOT-001에서 구현됐다(Site 적용 확인·Site 심사·Activation 상태·`currency_unit`·`currency_enablement`). 현행 판정 순서·매핑은 MASTER-SNAPSHOT-001 §6.
 
 ---
 
@@ -347,7 +352,7 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 
 ## 5. 미결(질문 후보)
 
-2026-10-09 상태: Q-MD-01~05·11은 답변됨(D-MD-003~008). **남은 미결은 Q-MD-06~10**과 기존 Q-ADMIN-AUTH이며 구현하지 않았다. 아래 원문은 이력으로 보존한다.
+2026-10-09 상태: Q-MD-01~05·11은 답변됨(D-MD-003~008). **남은 미결은 Q-MD-06~10**과 기존 Q-ADMIN-AUTH이며 구현하지 않았다. 아래 원문은 이력으로 보존한다. → 정정(2026-11-25 현행): Q-MD-08~10 답 D-MD-016~018(2026-10-13), Q-ADMIN-AUTH 답 D-ADMIN-001·002(2026-10-16), Q-MD-18(MASTER-DOMAIN-001 리뷰 QC-2) 답 D-GOV-004 ②. **남은 미결은 Q-MD-06·Q-MD-07**(PROPOSED, MASTER-LIFECYCLE-001 착수 전).
 
 출처와 D-* 결정에 답이 없는 **금융·정책·보안 의미**만 적었다. 이미 결정된 것(D-MD-001·002, 관계 기본 구조, 최초 Default 원자성, 선발급 허용, 공유 금지 등)은 다시 묻지 않는다. 권장안은 질문 후보일 뿐 채택이 아니다. HARNESS-GUIDE §4-6(한 번에 3개 정도)에 따라 묶음을 나눴다.
 
@@ -390,14 +395,14 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 - 영향: 생성 컬럼 UNIQUE 유지 여부, 교체 명령, Snapshot.
 - 막히는 부분: PRIMARY 교체 명령.
 
-**Q-MD-06 추가 MID 발급 근거·승인**
+**Q-MD-06 추가 MID 발급 근거·승인** — (미결 Q-MD-06, PROPOSED 유지 — 2026-11-25 확인)
 - 질문: 추가 MID 발급에 필요한 근거와 승인자는? 같은 CSA 아래 복수 MID를 허용하는가?
 - 권장안: 추가 MID는 근거 CSA·사유 코드(새 서비스 계약 / Site 격리 / 기관·정산 운영 필요)·요청자·승인자 기록 필수, 같은 CSA 아래 복수 MID 허용, 단순 정산주기 차이는 사유로 인정하지 않음(대안 §3 제안 — 미채택이라 질문). 요청자≠승인자 강제는 Q-ADMIN-AUTH 답변 후.
 - 대안: CSA당 MID 1개 / 사유 없이 운영자 판단.
 - 영향: 추가 발급 명령, 정산 경계(MID별 정산).
 - 막히는 부분: 추가 MID 발급 명령.
 
-**Q-MD-07 Default 교체·종료**
+**Q-MD-07 Default 교체·종료** — (미결 Q-MD-07, PROPOSED 유지 — 2026-11-25 확인)
 - 질문: Default MID를 바꾸거나 Default MID가 종료되면 어떻게 하는가?
 - 권장안: Default는 발급 전·종료 후 0개, 그 밖 최대 1개. 교체는 명시 명령(같은 Merchant의 ISSUED MID만, merchant 잠금), Default MID 종료 시 다른 MID 자동 승격 없음(Default 0개 상태 허용). Default 변경은 결제 권리·정산 조건을 바꾸지 않음(초기 비상속 규칙 그대로).
 - 대안: Default 종료 전 교체 강제 / 가장 오래된 MID 자동 승격.
@@ -436,8 +441,8 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 
 ### 기존 질문과의 연결
 
-- **Q-ADMIN-AUTH**(PROPOSED): 관리 명령의 행위자 신원·권한·2인 승인. 이번 작업은 web adapter를 만들지 않고 `actor`(불투명 운영자 참조)를 명령 입력으로 받아 기록만 한다.
-- **Q-AUTH-SCOPE**: 서비스 종류 값(체크카드·할부)과 Q-MD-09.
+- **Q-ADMIN-AUTH**(PROPOSED): 관리 명령의 행위자 신원·권한·2인 승인. 이번 작업은 web adapter를 만들지 않고 `actor`(불투명 운영자 참조)를 명령 입력으로 받아 기록만 한다. → 답: D-ADMIN-001·002(2026-10-16). 현행 관리자 인증·권한·2인 승인은 ADMIN-BOOT-001, 대장 `docs/rules/ADM.md`.
+- **Q-AUTH-SCOPE**: 서비스 종류 값(체크카드·할부)과 Q-MD-09. → 답: D-AUTH-001(2026-10-15, 국내 신용+체크·일시불+일반 할부·체크카드 할부 금지), Q-MD-09는 D-MD-017.
 - **Q-SETTLE-CURRENCY**: Q-MD-10과 별개(정산 통화).
 
 ---
@@ -447,7 +452,7 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 | 항목 | 선택 | 이유 |
 |---|---|---|
 | 모듈 | `com.paycore.master.merchant` 하나(모든 Aggregate). 정책 정의는 후속 `com.paycore.master.policy` | 최초 Default 발급이 MID·Default·Assignment·Contract 확인을 한 TX에서 하며, 모듈을 나누면 Modulith가 domain 공유를 막아 provided DTO 복사가 필요해진다(payment 모듈 결정과 같은 이유, 관례 §7) |
-| 계층 | `domain` / `application`(provided·required) / `adapter.persistence`·`adapter.query`. web 없음 | 관례 §2, Q-ADMIN-AUTH |
+| 계층 | `domain` / `application`(provided·required) / `adapter.persistence`·`adapter.query`. web 없음 | 관례 §2, Q-ADMIN-AUTH → 대체: D-ADMIN-001·002, 현행은 `adapter.web.admin`(MERCHANT-OPS-001 §3 서명 채널)·`adapter.integration`·`adapter.batch`도 있음(`master/merchant/adapter/` 아래) |
 | 식별자 형식 | 서버 생성 `<prefix>_` + ULID 26자(Crockford 대문자): `biz_`, `mer_`, `site_`, `mid_`, `ctr_`, `csa_`, `asg_`, `act_`. 모두 ASCII 30자 이하, `utf8mb4_0900_bin`, VARCHAR(64) | CP계약 §12의 MID·Site 64자 후보와 PAYMENT 값 객체(빈 값·서로게이트 거부)에 맞음. 순번을 드러내지 않음. 형식은 **확장만** 허용(기존 키 복원). MID·Site는 가맹점에 노출되는 값이라 사람이 읽기 쉬운 형식을 원하면 Coordinator가 사용자 선호를 확인할 수 있다(금융 의미 없음) |
 | ID 생성 | `application.required` `MasterIdGenerator` Port, 구현은 adapter | domain 순수성(시계·난수 Port 주입, 관례 §3 "강제하지 않는 것") |
 | 시계 | application.required `MasterClock` Port(운영 `SystemMasterClock`, 시험 `MutableMasterClock`). 명령 시각은 요청이 아니라 이 Port에서 오고 ms로 자른다. 명령 입력 기간은 `EffectivePeriod.ofMillis`(ms 버림, 비면 EFFECTIVE_PERIOD_EMPTY) | review m-3·m-4. 시각은 fingerprint 대상이 아니라 요청 필드에서 뺐다 |
@@ -460,11 +465,11 @@ BOM: 새 라이브러리 없음. jOOQ codegen·Fixture Monkey(테스트 전용)�
 
 ## 7. 출처 간 충돌·공백(Coordinator 확인용)
 
-1. **개통 단위 긴장**: 구조 §12 "Phase 1은 MID 단위로 시작" ↔ 구조 경계 §1·초기 §v0.1 "추가 Site는 개통 자동 상속 없음, 기관 근거가 Site 포함 확인". MID 단위 개통만으로는 ADDITIONAL Site 허용을 증명할 수 없다 → Q-MD-08.
+1. **개통 단위 긴장**: 구조 §12 "Phase 1은 MID 단위로 시작" ↔ 구조 경계 §1·초기 §v0.1 "추가 Site는 개통 자동 상속 없음, 기관 근거가 Site 포함 확인". MID 단위 개통만으로는 ADDITIONAL Site 허용을 증명할 수 없다 → Q-MD-08. → 답: D-MD-016(Site별 적용 확인 기록).
 2. **Eligibility reason 공백**: CP계약 §13의 NotEligible reason은 고정 4종(D-CPC-008 연계, 한도 없음)인데 허용 §4.1-3 "MID 운영 중지"에 대응하는 reason이 없다(MERCHANT_SUSPENDED로 합칠지, NotFoundOrForbidden으로 볼지). MASTER-SNAPSHOT-001에서 계약 개정 또는 매핑 결정 필요(이번 작업은 MID 상태만 저장).
-3. **통화 활성화 위치**: D-CP-002 "MID·기관 계약별 기준정보" ↔ D-MD-002 "Assignment 범위 CSA+MID+Currency" → Q-MD-10.
+3. **통화 활성화 위치**: D-CP-002 "MID·기관 계약별 기준정보" ↔ D-MD-002 "Assignment 범위 CSA+MID+Currency" → Q-MD-10. → 답: D-MD-018(둘 다 요구).
 4. **선지급 정책 Scope 모양 차이**(이번 범위 밖, SETTLEMENT-CONTRACT-001 참고): 정산 §11 "CSA 또는 명시적 MerchantAccount Override" ↔ D-MD-002/정산지급 상세권장안(채택 전) "CSA+MID+Currency Assignment". 정산 결정 C는 Override와 Assignment가 하나로 수렴해야 한다고만 한다.
-5. **"Production MID"와 TEST 환경**: A10 INV-17·구조 §7 ↔ D-CPD-001 environment 축 → Q-MD-01.
+5. **"Production MID"와 TEST 환경**: A10 INV-17·구조 §7 ↔ D-CPD-001 environment 축 → Q-MD-01. → 답: D-MD-003.
 6. **"Contract ACTIVE"/"Contract valid" 표현**(구조 §11, 정산 §12): 구조 경계 §1이 상태 enum이 아니라 유효 조건 표현이라고 정리했으므로 충돌은 아니다. 코드에서 `ACTIVE` 계약 상태를 만들지 않고 "승인 ∧ 효력 기간 ∧ 철회 없음" 판정으로 구현한다.
 7. **지급계좌 준비(허용 §4.1-10)**: MASTER 데이터(A05 예시 흐름)지만 보안·민감정보 계약이 없어 이번 범위 밖. LIVE 허용 전 별도 작업 필요.
 8. **대안 문서의 Default/추가 MID/PRIMARY 규칙**은 구조 경계 §2가 자동 채택하지 않았다고 명시했다. 이 문서는 그 내용을 권장안으로만 인용했다(Q-MD-05~07).
@@ -578,3 +583,9 @@ RED: 새 규칙을 하나씩 되돌린 변이(mutation) 상태로 `:apps:master-
 - GREEN·최종 실행(전체 `--no-build-cache --rerun-tasks check`, not-before 2026-10-11T01:29:45Z): BUILD SUCCESSFUL, TEST-SUMMARY PASS 755건
   (실패·오류·skip 0). 모듈별 master-api 178 / payment-api 410 / financial-batch 26 / internal-admin 29 / libs/test-support 112. HARNESS-SELFTEST Ran 68 OK.
   GRADLE-DEPS-MASTER-API exit 0(runtime에 시험 도구 없음). `commands.json` 하한 750 → 755.
+
+## 개정 이력
+
+| 일자 | 내용 |
+|---|---|
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-94·DC-M-20·PC-18·PC-58 일부): 머리 정합 표시 추가(제목 단계·답이 난 질문·관리자 web 생성·용어 정본). §1.1 관리자 화면 행, §2.2 Business 상태·용어·MerchantSite 상태·SiteAssignment 공유 증거·Activation 상태·통화 활성화, §2.3, §2.4, §3.1, §3.2 지문(`h1:` HMAC), §3.3 entitlement_revision 증가 지점(→ MASTER-SNAPSHOT-001 §4.6), §3.5 activation 행, §3.7, §5 머리·기존 질문 연결, §6 계층, §7-1·3·5에 '→ 답/대체/정정' 표시. 원문 무변경, 정책 변경 없음. Q-MD-06·07은 미결로 표시만 |

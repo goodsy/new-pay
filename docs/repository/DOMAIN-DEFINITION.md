@@ -2,6 +2,8 @@
 
 작성 2026-10-06 KST. 흩어져 있던 채택 문서의 도메인 정의를 한곳에 모은 **색인 문서**다. 새 업무 정책을 정하지 않는다. 내용이 근거 문서와 다르면 근거 문서가 우선하며, 이 문서를 고친다.
 
+> **정합 표시(S3-DOC-001, 2026-11-25 — NP-93·PC-61·DC-M-19)**: 본문 대부분은 2026-10-20(`b82e5d1`) 기준으로 쓰였다. 그 뒤 답이 난 항목은 원문 옆에 '→ 답/대체/정정: D-…'로 표시했다(원문 보존). **현재 유효 업무 규칙의 정본은 업무 규칙 대장 `docs/rules/*.md`**(D-GOV-006 ②)이고 사업자 용어 정본은 `docs/rules/BIZ.md` §0(D-GOV-008 ⑨)이다. 이 문서는 색인으로만 쓰고, 규칙을 인용할 때는 대장과 DECISIONS 원문을 확인한다. 이번 표시는 MASTER·ADMIN 쪽과 이 문서에 직접 적힌 stale 항목만 다뤘다 — 결제·취소·금융 쪽 세부 행의 전수 대조는 하지 않았다.
+
 ## 0. 읽는 법
 
 | 표시 | 뜻 |
@@ -32,7 +34,7 @@ PayCore는 가맹점에 카드 결제를 직접 제공하는 **1차 PG**다(초�
 - 최초 결제수단: **국내 신용카드**. 다른 결제수단·해외결제는 경계만 열어 둔다.
 - 외부 기관(VAN·매입기관·은행·인증기관)은 실제 기관 대신 **별도 프로세스의 가상 기관(Simulator)** 으로 개발한다. 가상 기관 성공은 실서비스 인증이 아니다(허용 §5.6).
 - 결제 흐름: 가맹점 주문 → 결제 생성 → (고객 인증) → 기관 승인 → 매입 → 기관 입금 → 정산 → 가맹점 지급, 그리고 각 단계의 대사.
-- 통화: KRW + 일부 외화. 허용 통화는 MID·기관 계약별 기준정보로 활성화하고 초기 구현·검증은 KRW·USD(D-CP-002). 외화 거래의 정산 통화·환율은 미결(Q-SETTLE-CURRENCY).
+- 통화: KRW + 일부 외화. 허용 통화는 MID·기관 계약별 기준정보로 활성화하고 초기 구현·검증은 KRW·USD(D-CP-002). 외화 거래의 정산 통화·환율은 미결(Q-SETTLE-CURRENCY). → 정정(답 D-AUTH-001·D-AUTH1-002): 승인 범위는 **KRW만**(Demo 경로 capability supportedCurrencies=[KRW], 다른 통화는 422 PAYMENT_NOT_ELIGIBLE — 저장·전송 없음). 결제 생성 단계의 통화 활성화 판정은 D-MD-018. 외화는 정산 통화 결정 전까지 기준정보(가맹점 통화 활성화)에서 비활성(D-GOV-002 ④ — 결제 생성 규칙 D-CP-002는 그대로). Q-SETTLE-CURRENCY는 여전히 미결.
 - 확정(D-AUTH-001, 2026-10-15): KRW, 국내 발급 신용+체크카드(기관 프로파일 allowlist), 일시불 + 일반 유이자 할부(체크카드 할부 금지), 고객 인증은 PG 결제창 → 인증기관 → 가맹점 서버 confirm → PG 승인. 할부 개월·최소금액 등 운영 수치는 Demo(D-AUTH-009). 승인 계약은 `docs/repository/AUTH-CONTRACT-001-AUTHORIZATION-CONTRACT.md`.
 
 ## 2. 컨텍스트 지도
@@ -69,7 +71,7 @@ flowchart LR
 | Master | Business, Merchant, MerchantSite, Contract/Agreement, MID, 개통, 기관 기준정보, 정책 정의·버전, Credential 메타데이터 | MASTER | `apps/master-api` (`com.paycore.master`, MASTER-BOOT-001에서 생성 — D-CPC-006). 첫 업무 모듈 `com.paycore.master.merchant`·MASTER V1 표(MASTER-DOMAIN-001, 관례 §10) |
 | Transaction | 주문 결제 통제, Payment, Authorization/Attempt, 취소·환불 거래 상태, 기관 거래 식별자, Routing 실행 결과 | PAYMENT | `apps/payment-api` (`com.paycore.payment`) |
 | Financial | Acquisition, Settlement, AgentSettlement, Payable, Payout, Adjustment, 대사 결과, Hold | FINANCIAL | `apps/financial-batch` (`com.paycore.financial`) |
-| (화면) | 내부 관리자 화면. 데이터는 소유 플랫폼 API에 위임 | 없음 | `apps/internal-admin` (인증 방식 미결: Q-ADMIN-AUTH) |
+| (화면) | 내부 관리자 화면. 데이터는 소유 플랫폼 API에 위임 | 없음 → 대체: D-ADMIN-005, 현행은 internal-admin 소유 **ADMIN DB**(관리자 계정·역할·TOTP·세션·승인 요청·관리자 감사만, 업무 데이터 없음 — baseline 01 편차 승인) | `apps/internal-admin` (인증 방식 미결: Q-ADMIN-AUTH → 답: D-ADMIN-001·002 — 자체 계정 DB + TOTP, 고정 역할 VIEWER/OPERATOR/APPROVER/SECURITY_ADMIN. 화면은 React 같은 출처 정적 번들 D-ADMIN-008. 현행 규칙 `docs/rules/ADM.md`) |
 
 규칙(확정·불변식, A02·A10·CLAUDE.md):
 
@@ -87,19 +89,24 @@ flowchart LR
 ### 3.1 Master — 가맹점·계약·MID·정책 원본
 
 > 상세 Aggregate·불변식·TX·질문(Q-MD-01~05·11~17·19 답변 = D-MD-003~015, Q-MD-06~10·18 미결): `docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md` (MASTER-DOMAIN-001 명세·구현 기록).
+> → 정정(2026-11-25): Q-MD-08·09·10 답 D-MD-016·017·018(2026-10-13), Q-MD-18 답 D-GOV-004 ②(2026-11-25). **미결은 Q-MD-06·07뿐**. 현재 유효 규칙 정본은 `docs/rules/BIZ.md`(사업자·가맹점 기준정보 대장).
 
 | 개념 | 정의 | 핵심 규칙 | 상태 |
 |---|---|---|---|
-| Business | 법적 사업 주체(정식 용어 '사업자' — 정의 정본 `docs/rules/BIZ.md` §0). Merchant/Agent/Seller 역할을 가질 수 있다 | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다. 국내 사업자등록번호로 하나(10자리 숫자, 평문 로그·이벤트 금지·이력은 마스킹, D-MD-008). 계약 당사자(D-MD-004). 생명주기 ACTIVE/TERMINATED + 별도 신규 결제 차단 기록(D-MD-006) | 확정(초기, D-MD-004·006·008) |
+| Business | 법적 사업 주체(정식 용어 '사업자' — 정의 정본 `docs/rules/BIZ.md` §0). Merchant/Agent/Seller 역할을 가질 수 있다 → 정정(D-GOV-008 ⑨): 정의는 BIZ.md §0 '사업자'가 정본('법적 사업 주체'는 옛 표현). 'Merchant/Agent/Seller 역할'은 A00 초기 표현이며 현재 모델(`Business.kt`)·결정에 역할 개념이 없다 — 대체 결정 없음, 유지·삭제는 미정(NORMALIZATION-PLAN DC-M §4.5 '문서 정리' 후보) | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다. 국내 사업자등록번호로 하나(10자리 숫자, 평문 로그·이벤트 금지·이력은 마스킹, D-MD-008). 계약 당사자(D-MD-004). 생명주기 ACTIVE/TERMINATED + 별도 신규 결제 차단 기록(D-MD-006) → 추가(D-BIZ-001·D-GOV-008 ①): 생명주기와 별개인 **등록 상태** 임시저장/등록 완료/사용중지(DRAFT/REGISTERED/INACTIVE), 새 가맹점 등록은 등록 완료 사업자만. 관리자 화면·조회 응답의 사업자등록번호는 원문(D-BIZ-007·D-PII-001 ①), 감사·이력·로그는 마스킹 유지 — 현행 BIZ.md §1·§2 | 확정(초기, D-MD-004·006·008) |
 | Merchant | PG 서비스를 받는 가맹점 단위 | Merchant 1:N MerchantSite, 1:N MerchantAccount(MID) | 확정(구조 §13) |
 | MerchantSite | 결제가 일어나는 채널(웹·앱 등) | 같은 Merchant 소속 MID와만 연결. 활성 채널 식별값은 같은 Merchant 안·다른 Merchant와 중복 거절(D-MD-008, 예외 승인 기록은 후속). 식별값은 소문자 정규형만(WEB = 도메인 host만, IP 리터럴 거절, 서브도메인은 다른 채널 — D-MD-009·014) | 확정 |
 | MerchantAccount (MID) | 계약 단위 결제 계정. 발급 근거 계약 서비스 하나와 Revision을 명시한다 | 하나의 Merchant에만 속한다(다른 Merchant 간 공유 금지). BusinessId·카드사 가맹점번호·GID와 다른 개념. MID 하나 = 계약 계정이고 TEST/LIVE는 Credential·요청 축, 발급 MID는 모두 Production MID(계약 승인 필수, D-MD-003). 생명주기 ACTIVE/TERMINATED(비가역) + 별도 차단 기록(D-MD-006) | 확정(초기·구조 §8, D-MD-003·006) |
 | Default MID | Merchant의 기본 계정 선택용 MID | 계약·권한·정산 조건을 자동 상속하지 않는다. 최초 Default 발급은 MID·Default 지정·최초 SiteAssignment·요청 결과·Outbox를 같은 MASTER TX로 저장. 교체·종료 규칙은 미결 | 확정 + 잔여 미결 |
-| MerchantAccountSiteAssignment | MID–Site 연결(N:M 수용) | 기본 1:1. 복수 Site 공유는 동일 Merchant·Agreement·개통 적용 가능·정산 정책·기관 심사 허용을 모두 만족할 때만(증거·승인 방식은 Q-MD-08 미결). 역할 PRIMARY/ADDITIONAL, Production MID는 최초 Site 연결 필수. 기간 UTC [from, to)·같은 MID–Site 중첩 금지·소급 금지·미래 종료 예약 허용·상태 ACTIVE/SUSPENDED/ENDED(D-MD-005). MID당 유효 PRIMARY 하나·교체는 종료+시작 한 TX·자동 승격 없음·ADDITIONAL만 남으면 신규 결제 차단(D-MD-007) | 확정(구조 §6–10, D-MD-005·007) |
+| MerchantAccountSiteAssignment | MID–Site 연결(N:M 수용) | 기본 1:1. 복수 Site 공유는 동일 Merchant·Agreement·개통 적용 가능·정산 정책·기관 심사 허용을 모두 만족할 때만(증거·승인 방식은 Q-MD-08 미결 → 답: D-MD-016 — Site별 개통 적용 확인 기록, ADDITIONAL은 기록 전 차단, 생성 명령이 공유 조건 증거를 받음). 역할 PRIMARY/ADDITIONAL, Production MID는 최초 Site 연결 필수. 기간 UTC [from, to)·같은 MID–Site 중첩 금지·소급 금지·미래 종료 예약 허용·상태 ACTIVE/SUSPENDED/ENDED(D-MD-005). MID당 유효 PRIMARY 하나·교체는 종료+시작 한 TX·자동 승격 없음·ADDITIONAL만 남으면 신규 결제 차단(D-MD-007) | 확정(구조 §6–10, D-MD-005·007) |
 | Contract / ContractServiceAgreement | 당사자·Scope·Revision과 서비스 권리 | Contract 1:N CSA(D-MD-001), CSA 1건 = 서비스 종류 1개(D-MD-002). 당사자 = Business, Scope MERCHANT 또는 SITES(≥1)·변경은 새 Revision, Revision 내용 불변·승인 사실 append-only·효력 [from, to), 철회 ≠ 종료·CSA 단위 철회, 재활성화 = 새 Revision 승인 + 명시 명령, 같은 CSA 갱신은 MID 유지(D-MD-004). 한 계약의 모든 Revision은 같은 Merchant(D-MD-013), SITES Scope는 한 Merchant의 Site만(D-MD-010). 시각 t에 적용되는 Revision = t를 포함하는 승인 Revision 중 번호 최대(D-MD-011), MID 발급 근거는 발급 시각의 적용 Revision만(D-MD-012), 효력 전에는 자기 시작 시각에 적용될 승인 Revision으로 선발급(D-MD-015), 끝난 Revision 승인 거절(D-MD-014). GID 자동 상속 없음 | 확정(초기, D-MD-001·002·004·010~015) |
-| PaymentMethodActivation (개통) | MID(향후 +Site)의 결제수단·카드사·Route 사용 승인 | 발급과 개통은 별개. Phase 1은 MID 단위, Site Scope로 확장 가능하게 | 확정(구조 §11–12) |
+| PaymentMethodActivation (개통) | MID(향후 +Site)의 결제수단·카드사·Route 사용 승인 | 발급과 개통은 별개. Phase 1은 MID 단위, Site Scope로 확장 가능하게 → 추가(D-MD-016·017, D-MS-003): (MID, 결제수단) + 상태 UNDER_REVIEW/ACTIVE/SUSPENDED/TERMINATED + 근거 참조, Site별 적용 확인 기록, 카드사/Route 목록은 기관 기준정보 | 확정(구조 §11–12) |
 | 정책 정의 | FeeSchedule/FeeRule, SettlementPolicy, AdvancePayoutPolicy, AutoCorrectionPolicy, BusinessCalendar와 각 Assignment | 원본은 MASTER, 적용 Snapshot·계산은 FINANCIAL, 승인 당시 근거 버전은 PAYMENT가 보존. 변경은 UPDATE가 아니라 새 Version | 확정(구조 기존결정 §3) |
 | 권리 Snapshot·lease | PAYMENT가 신규 승인 판정에 쓰는 로컬 권리 사본과 만료 있는 허용 기간 | 만료·누락·확인 불가 버전은 신규 승인 차단. 긴급 차단 우선 전파·ACK. 전파 지연·lease 수치는 미결 | 확정 + 수치 미결 |
+| (추가 2026-11-25, 참조만) 사업자 등록 상태 | 기본정보 입력이 어디까지 끝났는지의 축(임시저장/등록 완료/사용중지) — 정의는 BIZ.md §0 | 생명주기와 별개. 진위확인·AML/KYB·계약 승인이 아님 | 확정(D-BIZ-001, D-GOV-008 ①) — 규칙 BIZ.md §1 |
+| (추가 2026-11-25, 참조만) Site 심사 | MerchantSite의 PG 심사 상태 PENDING/APPROVED/REJECTED/SUSPENDED(결정 append-only) | 결제는 APPROVED만. REJECTED 종결·재신청은 새 Site(D-MS-005), 심사 거절 Site 채널 점유 해제(D-GOV-004 ①) | 확정(D-MD-016, D-MS-002·005, D-GOV-004) — 규칙 BIZ.md §4, 명세 MASTER-SNAPSHOT-001 §4.4. D-GOV-004 ① 다른 가맹점 재사용 범위는 RULE-CONFIRM Q14 대기 |
+| (추가 2026-11-25, 참조만) 가맹점 코드 | 사람이 읽는 가맹점 식별 코드(영문 소문자+숫자, 전체에서 하나) | 첫 계약 승인 전 1회 변경(2인), 이후 불변·재사용 금지, 외부 응답에는 출력 전용(식별·인증은 MID·API 키) | 확정(D-MCODE-001·002) — 규칙 BIZ.md §3. Site·계약 코드(D-ADMIN-UI-007)는 SITE-CONTRACT-CODE-001(BACKLOG, main 미구현) |
+| (추가 2026-11-25, 참조만) 사업자 계약 접수 | MASTER 소유 사업자 하위 '계약 접수 건'(1:N), 상담 중 → 계약서 접수 → 계약 완료 / 계약 불가, 계약 완료 → 계약 해지 | 결제 권리 효과 없음. 새 가맹점 등록 = 등록 완료 + 계약 완료(D-FLOW-001 ①) | 확정(D-FLOW-001~009) — 규칙 BIZ.md §12, 명세 MERCHANT-FLOW-001(IN_PROGRESS, 일부 main 반영 `V19__contract_intake.sql`). '최신 접수 건' 관문 해석은 BR-BIZ-280 제안(RULE-CONFIRM Q4 대기) |
 
 ### 3.2 Transaction — 주문 결제 통제·승인·취소
 
@@ -110,11 +117,11 @@ flowchart LR
 | Payment | 고객의 한 결제 시도 | 주문 1:N Payment 이력. 새 시도는 새 paymentId/paymentKey. REQUESTED 포함 **활성 하나**. 승인된 주문의 금액·통화·MID·Site는 바꾸지 않는다 | 확정(시도 §1·§3) |
 | Payment 상태 | REQUESTED, AUTHORIZING, UNKNOWN, AUTHORIZED, FAILED, EXPIRED | §4.1 표 참조 | 확정(시도 §2) |
 | Authorization | Payment의 논리 승인. 초기에는 Payment당 하나 | 요청 전액 승인만. 부분 승인·다중 수단 분할 미지원 | 확정(시도 §1) |
-| AuthorizationAttempt | 승인 실행 시도(기관 요청 ID·Route·권리 버전·판정 입력 연결) | 여러 Attempt 가능, 동시 실행 중인 외부 승인은 하나. TX1에서 영속화 후 TX 밖에서 전송 | 확정(시도 §1·§5, 허용 §5.3) |
+| AuthorizationAttempt | 승인 실행 시도(기관 요청 ID·Route·권리 버전·판정 입력 연결) | 여러 Attempt 가능, 동시 실행 중인 외부 승인은 하나. TX1에서 영속화 후 TX 밖에서 전송 → 정정(PC-25·DC-P-15, 두 칸으로 읽음): **허용 범위** = 여러 Attempt(시도 §1), **현재 구현** = Authorization당 dispatch Attempt 1개(초기 계약 CA-13, `PaymentAuthorization.kt:33` — UNKNOWN에서 새 Attempt를 만들지 않음). 아래 'PaymentAuthorization / AuthorizationAttempt' 행과 같은 뜻 | 확정(시도 §1·§5, 허용 §5.3) |
 | 안전한 종료 근거 (TerminationEvidence) | 같은 주문에 새 Payment를 허용하는 근거 | 상태–근거 짝이 표와 맞을 때만 인정하고 교차 조합은 불인정(D-CPD-003). FAILED: 기관 확정 거절 / 전송 전 실패 확정 / 기관 무효과 종결 확인. EXPIRED: (미전송 그리고 인증·세션 폐기) / 기관 무효과 종결 확인. timeout·조회 NOT_FOUND·lease 만료·근거 없음은 불충분 | 확정(D-CPD-002) |
 | Incident hold (IncidentHold) | 늦은 성공(SUCCESS_AFTER_TERMINATION)·기관 상충 결과(CONFLICTING_INSTITUTION_RESULT) 시 주문의 추가 승인 차단 | hold 중 같은 입력 재요청은 Blocked(INCIDENT_HOLD) + 기존 paymentId 참조(D-CPD-004). 자동 보상취소 없음, 해제는 2인 승인(요청자≠승인자) + 재대사 MATCH(`IncidentHoldRelease`, 기록 append-only), 실제 승인 확인 시 주문 승인 성공 이력(D-AUTH-002, AUTH-CONTRACT-001 §8) | 확정(취소 사건 사유 CANCEL_RESULT_CONFLICT = 그 Payment의 추가 가맹점 취소 차단, 해제는 RECON-CONTRACT-001 전까지 거절 — D-CANCEL-006) |
 | IdempotencyRequest | API 요청 멱등 기록. 범위는 (environment, 인증된 MID, operation, key) + payload fingerprint | 같은 키·같은 내용은 저장된 최초 생성 결과만 반환하고 현재 상태는 조회 API로 제공(D-CP-003), 다른 내용은 충돌. 재조회에도 현재 권한 검사. 보존 30일(D-CPC-004), 409 업무 거절도 결과로 저장·재생(D-CPC-007) | 규칙 확정 / 물리 초안 |
-| Cancellation (승인취소) | 카드 승인 거래의 전액·부분취소. 코드 `PaymentCancellation`(취소 요청 1건 = 1 operation, Payment 1:N)·`ReturnBalance`(Payment 1:1 반환 가능 금액)·`CancelStart`·`CancellationResolution` | 신규 승인 권리와 분리된 반환 권한·원 경로(허용 §4.3). 반환 가능 금액 = max(0, 승인 − 완료 − 진행 중 − FORCED), 완료 + 진행 중 ≤ 승인. 업무 키 (Payment, merchantCancelId)·운영자 approvalId(영구), Payment당 진행 중 1건(UNKNOWN도 차단), 이 Payment 대상 hold면 가맹점 거절·운영자 보정 허용(2인, 승인 대상 fingerprint), PG 자체 기한 없음, 상충·늦은 성공은 CANCEL_RESULT_CONFLICT hold + FORCED, 수수료·VAT는 원승인 Snapshot 누적 비례(계산 SETTLEMENT), 일 한도 미복원, 정산 거래일 = 기관 취소 거래일. 이중 승인 보정은 늦게 확정된 P1을 운영자 보정 취소(P1 Payment는 FAILED/EXPIRED 유지, RECON이 거래 기록 — 그 TX의 PaymentAuthorized는 D-CANCEL-012 예외). `docs/repository/CANCEL-CONTRACT-001-CANCELLATION-CONTRACT.md`. 실행(CANCEL-001): 가맹점 `POST /v1/payments/{paymentId}/cancel`(TX1 → TXd → TX 밖 가상 VAN `sim-van-2` → TX2), 취소 UNKNOWN 회복(원 취소 요청 ID 조회만, 예산 소진 → `CancellationOutcomeUnresolved` — 상태·예약 유지, 임시 출구 없음 D-CANCEL1-003), 운영자 보정 취소는 provided Use Case만(진입점 없음 D-CANCEL1-001) — `docs/repository/CANCEL-001-CANCELLATION.md` | 확정(D-CANCEL-001~013, D-CANCEL1-001~008) |
+| Cancellation (승인취소) | 카드 승인 거래의 전액·부분취소. 코드 `PaymentCancellation`(취소 요청 1건 = 1 operation, Payment 1:N)·`ReturnBalance`(Payment 1:1 반환 가능 금액)·`CancelStart`·`CancellationResolution` | 신규 승인 권리와 분리된 반환 권한·원 경로(허용 §4.3). 반환 가능 금액 = max(0, 승인 − 완료 − 진행 중 − FORCED), 완료 + 진행 중 ≤ 승인. 업무 키 (Payment, merchantCancelId)·운영자 approvalId(영구), Payment당 진행 중 1건(UNKNOWN도 차단), 이 Payment 대상 hold면 가맹점 거절·운영자 보정 허용(2인, 승인 대상 fingerprint), PG 자체 기한 없음, 상충·늦은 성공은 CANCEL_RESULT_CONFLICT hold + FORCED, 수수료·VAT는 원승인 Snapshot 누적 비례(계산 SETTLEMENT), 일 한도 미복원, 정산 거래일 = 기관 취소 거래일. 이중 승인 보정은 늦게 확정된 P1을 운영자 보정 취소(P1 Payment는 FAILED/EXPIRED 유지, RECON이 거래 기록 — 그 TX의 PaymentAuthorized는 D-CANCEL-012 예외). `docs/repository/CANCEL-CONTRACT-001-CANCELLATION-CONTRACT.md`. 실행(CANCEL-001): 가맹점 `POST /v1/payments/{paymentId}/cancel`(TX1 → TXd → TX 밖 가상 VAN `sim-van-2` → TX2), 취소 UNKNOWN 회복(원 취소 요청 ID 조회만, 예산 소진 → `CancellationOutcomeUnresolved` — 상태·예약 유지, 임시 출구 없음 D-CANCEL1-003), 운영자 보정 취소는 provided Use Case만(진입점 없음 D-CANCEL1-001 → 현행: 진입점은 ADMIN-PAYMENT-OPS-001(DONE)이 열었다 — `payment/adapter/web/admin/AdminOperatorCancellationController.kt`, 서명 D-OPS-001) — `docs/repository/CANCEL-001-CANCELLATION.md` | 확정(D-CANCEL-001~013, D-CANCEL1-001~008) |
 | Refund (환불) | 결제수단별 승인취소와 구분되는 반환(계좌환불 등). 거래 상태 원본은 PAYMENT, 실제 지급 실행 원본은 FINANCIAL | **v1 범위 밖**(카드 반환은 카드 취소로만, API·운영 안내에 미지원 표시 — 안내 문구는 CANCEL-001 §4.11). Refund 완료일은 외부 반환 사실의 업무시각 기준 | 확정(D-CANCEL-007) |
 | PaymentTransaction | 기관이 확정한 금융 효과 1건(append-only). 승인 성공 = `AuthorizationTransaction`, 취소·부분취소 = 각각 `CancelTransaction`(원 AUTHORIZATION 거래 참조, CANCEL-CONTRACT-001) | 거절·무효과·UNKNOWN·중복 수신은 거래가 아니라 관찰(InstitutionObservation·CancelObservation). PaymentAuthorized·PaymentCancelled 1건 = 거래 1건, FINANCIAL 업무 키 = transactionId. 늦은/상충 결과는 hold 해제 판정 전 미생성 | 확정(D-AUTH-003) |
 | AuthenticationSession | 고객 카드 인증 lifecycle(CREATED/IN_PROGRESS/VERIFIED/FAILED/EXPIRED). 인증 성공 ≠ 승인 성공 | 인증 근거는 하나의 논리 승인 operation에만 귀속(한 번, 되돌리지 않음), 귀속 뒤 TTL 만료가 승인을 바꾸지 않음. 승인 시작 거절 시 미귀속(D-AUTH-005). AUTHN-001: VERIFIED는 서버 간 결과 조회로만(state 256bit·바인딩 paymentId·금액·통화·MID·환경·Plan·카드사·유효기간 대조, 조회 실패·timeout은 IN_PROGRESS 유지 — 효과 없음 단정 금지, D-AUTHN-003), 만료 원인 `AuthenticationExpiryCause`(SUPERSEDED/TTL_ELAPSED/PAYMENT_CLOSED), 대체·만료된 VERIFIED 증거 보존, 전이 이벤트 append-only(`authentication_session_event`). 코드 `payment.domain.AuthenticationSession`·`AuthenticationResultCheck`·`AuthenticationSessionStart` | 확정(D-AUTH-001, D-AUTHN-003) |
@@ -135,8 +142,8 @@ flowchart LR
 | 개념 | 정의 | 핵심 규칙 | 상태 |
 |---|---|---|---|
 | Payment Projection | PAYMENT 확정 금융 사실의 FINANCIAL 로컬 투영 | 원본이 아니며 이벤트로만 갱신 | 확정(A02) |
-| Acquisition (매입) | 승인/취소 거래를 매입기관에 제출하고 결과를 받는 업무 | 원 SALE 결과 불명확이면 취소 매입 HOLD | 확정(허용 §5.4) |
-| AcquisitionSubmission | 매입 제출 단위(파일 membership·회차·건수·총액·checksum·checkpoint) | 같은 Submission은 확정된 bytes/hash 유지. 업로드·수신 ACK·레코드별 ACCEPTED는 서로 다른 상태 | 확정(허용 §5.4) |
+| Acquisition (매입) | 승인/취소 거래를 매입기관에 제출하고 결과를 받는 업무 | 원 SALE 결과 불명확이면 취소 매입 HOLD → 정정(답 D-ACQ-009, PC-25·DC-P-17): 원 SALE **ACCEPTED일 때만** 취소 매입, 대기면 자동 대기, UNKNOWN(·상충)이면 보내지 않고 **대사 입력·경보**(코드 `RECONCILE`), REJECTED면 '취소 매입 불요' 기록(`CancelRecordRule.kt:11-16`) | 확정(허용 §5.4) |
+| AcquisitionSubmission | 매입 제출 단위(파일 membership·회차·건수·총액·checksum·checkpoint) → 정정(PC-25·DC-P-17): 코드 이름은 `AcquisitionFile`(`apps/financial-batch/.../acquiring/domain/AcquisitionFile.kt:14`, 봉인 뒤 바이트·membership 불변) | 같은 Submission은 확정된 bytes/hash 유지. 업로드·수신 ACK·레코드별 ACCEPTED는 서로 다른 상태 | 확정(허용 §5.4) |
 | 매입 전송 완료 | 선지급 기준 중 "매입 요청"의 인정 시점 | **외부기관에 전송 완료**. 내부 저장·파일 생성만으로는 아니며, 불명확하면 인정하지 않음 | 확정(초기) |
 | Settlement / SettlementEntry | 거래별 정산 계산. 승인·취소는 각각 독립 Entry | transactionDate → settlementBaseDate → settlementDueDate 순서 계산, 계산 결과 Snapshot 보존 | 확정(정산 §3–7) |
 | SettlementStatement | 정산 확정 묶음 | 선택한 거래 단계에 맞춘 적격성 판정 후 확정 | 확정(정산 기존결정 A) |
@@ -160,7 +167,7 @@ flowchart LR
 | 매입기관 | 매입 제출·결과 수신 | FINANCIAL | SFTP 파일 |
 | 기관 입금 | 기관→PG 입금내역 | FINANCIAL | 결과/입금 파일 Simulator |
 | 은행 | 가맹점 지급·결과 | FINANCIAL | 가상 은행 |
-| 인증기관 | 고객 카드 인증 | PAYMENT | 미결(범위 문서 채택 전) |
+| 인증기관 | 고객 카드 인증 | PAYMENT | 미결(범위 문서 채택 전) → 답: D-AUTH-001(범위 채택 — PG 결제창 → 인증기관 → 가맹점 서버 confirm → PG 승인)·D-AUTHN-004(가상 인증기관 = 별도 실행 단위 `apps/institution-simulator`, payment-api는 HTTP Adapter로만 연결, REAL Adapter 없음) |
 
 - Domain은 업무 의도(authorize/cancel/inquire/submitAcquisition 등)만 다룬다. Socket/SFTP/기관 DTO는 `adapter.integration`에만 둔다(관례 §3).
 - 기관 결과 분류: APPROVED / DECLINED / 확정 무효과 기술 실패 / PENDING / UNKNOWN / 조회 NOT_FOUND. NOT_FOUND는 기관 확정성 규칙 없이는 실패가 아니다.
@@ -200,14 +207,14 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 
 - 전송 성공 ≠ 파일 업로드 ≠ 기관 수신 ACK ≠ 매입 ACCEPTED ≠ 기관 입금 ≠ 가맹점 지급(허용 §5.4, 초기).
 - 정산 계산 ≠ 지급채무 확정 ≠ 지급 실행 ≠ 기관 입금(초기).
-- 인증 성공 ≠ 승인 성공(범위 §3 — 원칙은 승인 흐름 규칙과 일치하지만 문서 자체는 채택 전).
+- 인증 성공 ≠ 승인 성공(범위 §3 — 원칙은 승인 흐름 규칙과 일치하지만 문서 자체는 채택 전). → 정정: 범위 §1~§3은 D-AUTH-001(2026-10-15)로 채택됨(§0 근거 약어 '범위' 행과 같음).
 
 ## 5. 용어사전
 
 | 용어 | 코드/영문 | 정의 | 혼동 주의 | 근거 |
 |---|---|---|---|---|
 | 1차 PG | — | 가맹점과 직접 계약하고 기관과 직접 연동하는 PG | — | 초기 |
-| 가맹점 | Merchant | PG 서비스를 받는 가맹 단위. Business의 역할 | Business(법적 주체)와 다름 | 초기, A00 |
+| 가맹점 | Merchant | PG 서비스를 받는 가맹 단위. Business의 역할 | Business(법적 주체)와 다름 → 정정(D-GOV-008 ⑨): Business의 정식 용어는 '사업자'(BIZ.md §0). '역할'은 A00 표현이며 현재 모델에는 역할 개념이 없고 사업자 1:N 가맹점 관계다(§3.1 Business 행 표시 참고) | 초기, A00 |
 | 사업자 | Business | 정의 정본: `docs/rules/BIZ.md` §0 용어(D-GOV-006 ②·D-GOV-008 ⑨). 이 표는 참조만 | '사업 주체'(옛 표현) | A00, D-GOV-008 ⑨ |
 | 사이트 | MerchantSite | 결제 채널(웹·앱) | — | 구조 |
 | MID | MerchantAccount, merchantAccountId | 계약 단위 결제 계정 | 카드사 가맹점번호·BusinessId·GID 아님 | 초기 |
@@ -272,11 +279,11 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 | ID | 내용 | 막히는 작업 |
 |---|---|---|
 | Q-SETTLE-CURRENCY | 외화 거래의 가맹점 정산 통화·환율(사용자: 나중에 결정) | SETTLEMENT-CONTRACT-001 |
-| Q-AUTH-SCOPE | 할부·체크카드·고객 인증 범위 | AUTH-CONTRACT-001 |
+| Q-AUTH-SCOPE | 할부·체크카드·고객 인증 범위 | AUTH-CONTRACT-001 → 답: D-AUTH-001(ANSWERED) |
 | Q-CALENDAR | D+N 계산·마감·시간대·휴일 변경 적용 | SETTLEMENT-CONTRACT-001 |
 | Q-CORRECTION | 자동 보정 허용 범위·고위험 차단 기준 | RECON-CONTRACT-001 |
-| Q-ADMIN-AUTH | 관리자 화면 인증·권한 | 관리자 화면 작업 |
-| Q-BATCH-META, Q-BATCH-JOBPARAM | Batch metadata 위치, Job 식별 파라미터 | 첫 financial Job |
+| Q-ADMIN-AUTH | 관리자 화면 인증·권한 | 관리자 화면 작업 → 답: D-ADMIN-001·002(ANSWERED) |
+| Q-BATCH-META, Q-BATCH-JOBPARAM | Batch metadata 위치, Job 식별 파라미터 | 첫 financial Job → Q-BATCH-META 답: D-ACQ-007(ANSWERED). Q-BATCH-JOBPARAM은 미결(PROPOSED) |
 
 ### 6.2 이 정리에서 발견한 갭(질문 후보, 해당 작업 착수 시 확인)
 
@@ -284,7 +291,7 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 - ~~G-2 PaymentTransaction 정의 없음.~~ **해결(D-AUTH-003, 2026-10-15).** 기관 확정 금융 효과 1건 = 거래 1건(append-only), 관찰과 분리.
 - ~~G-3 계약 용어 변형.~~ **해결(D-MD-001·D-MD-002, 2026-10-08).** Contract 1:N ContractServiceAgreement 2단 구조, ServiceAgreement·Agreement는 ContractServiceAgreement 줄임말. ContractServiceAgreement 1건 = 서비스 종류 1개, 결제수단은 PaymentMethodActivation, 통화는 Assignment 범위.
 - ~~G-4 incident hold 해제와 자동 보상취소.~~ **해결(D-AUTH-002, 2026-10-15).** 자동 보상취소 없음, hold + 대사 Case(HIGH/CRITICAL) 수동 검토, 해제는 2인 승인 + 재대사 MATCH. 해제 실행 Use Case는 RECON-CONTRACT-001·Q-ADMIN-AUTH 이후.
-- ~~G-5 Cancellation / Refund 상세.~~ **해결(D-CANCEL-001~012, 2026-10-17).** 전액·부분취소·반환 가능 금액 불변식·취소 UNKNOWN 회복·hold·운영자 보정은 CANCEL-CONTRACT-001(2단계 domain 구현), 계좌환불은 v1 범위 밖. 영속·API·가상 VAN 취소·취소 UNKNOWN 회복은 CANCEL-001에서 구현(D-CANCEL1-001~008). 남은 것: CANCEL_RESULT_CONFLICT 해제 판정·FORCED 출구·이관된 취소 UNKNOWN 확정·P1 거래 기록 Use Case(RECON-CONTRACT-001 — 모양은 D-CANCEL-011, PaymentAuthorized 예외는 D-CANCEL-012, LIVE Gate 조건 D-CANCEL1-003), 운영자 보정 취소 진입점(ADMIN-BOOT-001).
+- ~~G-5 Cancellation / Refund 상세.~~ **해결(D-CANCEL-001~012, 2026-10-17).** 전액·부분취소·반환 가능 금액 불변식·취소 UNKNOWN 회복·hold·운영자 보정은 CANCEL-CONTRACT-001(2단계 domain 구현), 계좌환불은 v1 범위 밖. 영속·API·가상 VAN 취소·취소 UNKNOWN 회복은 CANCEL-001에서 구현(D-CANCEL1-001~008). 남은 것: CANCEL_RESULT_CONFLICT 해제 판정·FORCED 출구·이관된 취소 UNKNOWN 확정·P1 거래 기록 Use Case(RECON-CONTRACT-001 — 모양은 D-CANCEL-011, PaymentAuthorized 예외는 D-CANCEL-012, LIVE Gate 조건 D-CANCEL1-003), 운영자 보정 취소 진입점(ADMIN-BOOT-001). → 현행: 진입점은 ADMIN-PAYMENT-OPS-001(DONE, D-OPS-001~003)이 열었다(`AdminOperatorCancellationController.kt`).
 
 ## 7. 갱신 규칙
 
@@ -292,3 +299,10 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 - 코드에 Aggregate/모듈이 생기면 "코드/영문" 열에 실제 타입 이름을 맞춘다(CP-DOMAIN-001: OrderKey, Environment, OrderIntentFingerprint, PaymentId, Payment, PaymentStatus, TerminationEvidence, OrderPaymentControl, PaymentSlotDecision, BlockReason, IncidentHold; MASTER-DOMAIN-001: Business, BusinessRegistrationNumber, Merchant, MerchantSite, SiteChannel, Contract, ContractRevision, ContractScope, ContractServiceAgreement, MerchantAccount, DefaultDesignation, SiteAssignment, SiteAssignmentRole/Status, PaymentMethodActivation, MerchantAccountIssuance; AUTH-CONTRACT-001: PaymentPlan, CardType, AuthenticationSession, AuthenticationStatus, PaymentAuthorization, AuthorizationAttempt, AttemptState, InstitutionObservation, PaymentTransaction, TransactionLimitPolicy, DailyLimitUsage, LimitReservation, IncidentHoldRelease, AuthorizationStart, AuthorizationResolution, RequestedPaymentExpiry; AUTHN-001: CheckoutWindow, AuthenticationResultCheck, AuthenticationSessionStart, AuthenticationRef, AuthenticationEventKind, MerchantReturnUrl, ProviderResultLookup, SecretDigest — 결제창 토큰·세션은 domain이 아니라 application.required 기록 타입; CANCEL-CONTRACT-001: AuthorizationTransaction, CancelTransaction, PaymentCancellation, CancelAttempt, CancelObservation, CancelConfirmedTerms, CancelScope, CancelInitiator, CancelRequestKey, OperatorCancelPurpose, OperatorCancelTarget, OperatorApprovalId, MerchantCancelId, ReturnBalance, ReturnReservation, ReturnStatus, CancelCapability, CancelStart, CancellationResolution, IncidentReason.CANCEL_RESULT_CONFLICT; AUTH-001: TerminationEvidenceSource, TerminationEvidenceSourceKind, TerminationEvidenceRecord, ObservationRef, IncidentHold.sourceObservation·occurrence, Payment.authorizationStarted, ApprovedTerms.institutionBusinessDate, PaymentAuthorization.reconstitute, AuthorizationStart.preflight — application.required 기록·값 타입 RecoverySchedule, AuthorizationCallResult, InquiryCallResult, InstitutionRouteProfile, RouteCapabilities, EscalationReason; Simulator van: VanAuthorization, VanInquiry, VanLedgerEntry, VanPendingDecision, VanProfile, VanNamespace; CANCEL-001: PaymentCancellation.reconstitute·incidentCount, CancelAttempt.routeProfileVersion, CancelResolutionOutcome.Incident(incidentSeq), ReturnExcess, CancelCapabilityResolution — application.required 기록·값 타입 CancellationRecoverySchedule, CancellationCallResult, CancelInquiryCallResult, RouteCancelCapabilities, OperatorCancelRejection; Simulator van 취소: VanCancellation, VanCancelInquiry, VanCancelEntry, VanCancelProfile, VanCancelBehaviour, VanCancelJudgement, VanCancelInquiryJudgement).
 - 코드 이름 대응(ARCH-STRUCTURE-001, 관례): 용어사전의 MerchantAccountSiteAssignment는 코드 `SiteAssignment`(`master.merchant.domain`)다. Domain 이름은 그대로 두고 Port 이름만 역할에 맞췄다(Aggregate 저장 `…Repository`, 기록 저장 `…Store`) — `docs/repository/ARCH-STRUCTURE-001-MAPPING.md` §1·§6.
 - 이 문서만 근거로 정책을 판단하지 않는다. 항상 근거 열의 원문을 확인한다.
+
+## 8. 개정 이력
+
+| 일자 | 내용 |
+|---|---|
+| 2026-10-06 ~ 2026-10-20 | 최초 작성·갱신(`git log` 기준 마지막 본문 갱신 `b82e5d1`). 2026-11-25 `9121a50`(SKILL-PILOT-001)에서 §3.1 Business·§5 사업자 용어를 BIZ.md §0 참조로 전환 |
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-93·PC-61·PC-25 일부·DC-M-19·DC-P-15·17·PAY (c)-9·BIZ (c)-14): 머리 정합 표시(대장 정본 D-GOV-006 ②), §1 통화(D-AUTH1-002·D-GOV-002 ④), §2.1 화면 행(D-ADMIN-005·001·002·008), §3.1 질문 포인터(D-MD-016~018·D-GOV-004 ②)·Business(용어·역할·등록 상태)·Assignment(D-MD-016)·Activation(D-MD-017·D-MS-003)에 표시, §3.1 끝에 참조 전용 행 4개(사업자 등록 상태·Site 심사·가맹점 코드·사업자 계약 접수 — 정의는 대장), §3.2 Attempt 수 두 칸·운영자 보정 취소 진입점(ADMIN-PAYMENT-OPS-001), §3.3 취소 매입 HOLD→RECONCILE(D-ACQ-009)·AcquisitionSubmission→`AcquisitionFile`, §3.4 인증기관(D-AUTH-001·D-AUTHN-004), §4.3 범위 채택, §5 가맹점 행, §6.1 답이 난 질문(Q-AUTH-SCOPE·Q-ADMIN-AUTH·Q-BATCH-META), §6.2 G-5 진입점. 원문 무변경, 정책 변경 없음. Merchant/Agent/Seller 역할 표현은 대체 결정이 없어 원문 유지 + 사실 표시만 |

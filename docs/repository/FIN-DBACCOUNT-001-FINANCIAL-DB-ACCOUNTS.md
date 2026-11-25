@@ -1,6 +1,6 @@
 # FIN-DBACCOUNT-001 — FINANCIAL DB migration/runtime 계정 분리
 
-- rev 0.1 (2026-11-05, Implementer). 상태: 구현·대상 시험 실행 완료, **Verifier/Reviewer 판정 전**(DONE 아님).
+- rev 0.1 (2026-11-05, Implementer). 상태: 구현·대상 시험 실행 완료, **Verifier/Reviewer 판정 전**(DONE 아님). **→ 현행화(S3-DOC-001 2026-11-25 — 문서 정합 표시만, NP-100·PC-60·FIN 대장 진단 (c)-4): `harness/archive/tasks-done-2026-11-22.json`에서 FIN-DBACCOUNT-001 = DONE**
 - 근거 결정: **D-FFR-002**(Q-FFR-02 사용자 답 "매입 전에 별도 작업", 2026-11-05). 선행: FIN-FACT-RELAY-001 §9 **L-1**(FINANCIAL 단일 계정 — append-only를 DB가 강제하지 못함).
 - 참고 패턴: PAYMENT-DBACCOUNT-001(payment-api `DatabaseAccountSeparationSpec`), ADMIN-BOOT-001 §4.2.1(열 단위 helper), master-api `MasterDatabaseAccountSpec`.
 - 표기: "사용자 결정"은 DECISIONS.md의 결정만이다. 이 문서의 나머지 선택은 **Implementer 해석(I-n)** 이며 사용자 승인이 아니다.

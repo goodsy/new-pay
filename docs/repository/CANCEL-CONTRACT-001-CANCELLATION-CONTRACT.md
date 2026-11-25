@@ -1,5 +1,7 @@
 # CANCEL-CONTRACT-001 전액/부분취소 계약 명세 (rev 1.3 — 사용자 답변 D-CANCEL-001~012 + 명세·중간 코드 review 반영 + 2단계 T1~T7)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 계약·코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: 제목·입력 표의 "D-CANCEL-001~012"는 작성 당시 표기다 — **본문은 D-CANCEL-013까지 반영했다**(§4.10). 이후 결정으로 바뀐 문장 옆에 `→ 대체`/`→ 정정`/`→ 답` 표시만 붙였다(원문 보존). 바뀐 곳: §4.5 D-CANCEL-002 질문 배경·CC-12(→ D-OPS-005), §4.10 D-CANCEL-006(→ D-GOV-004 ③), §5.1 질문 배경(→ D-CANCEL-008·009), §6 권장 문단(→ D-CANCEL-007), §9.1 직렬화 지점(→ CANCEL-001 §4.7 정정 참조), §9.3 effect key 2건(→ CN-13·D-CANCEL1-002), §0 H-2 행. 근거 NP-99·PC-59·PC-25, CAN 대장 진단 (c)-1~3·(c)-6. 현재 유효 규칙 정본은 `docs/rules/CAN.md`(D-GOV-006 ②).
+
 > **rev 1.1(2026-10-17)**: §13 질문 8개는 모두 답변됐다(**D-CANCEL-001~008**, `docs/DECISIONS.md`) — 모두 권장안 채택, Q-CANCEL-08은 "지금 확정"(SETTLEMENT로 미루지 않음).
 > Coordinator 판정: N-2(UNKNOWN 승인 망취소 없음)는 도출로 채택, 나머지 N 항목은 기술대로. 구현 작업은 새 작업 **CANCEL-001**(AUTH-001 뒤 — API·영속·Simulator 취소·UNKNOWN 회복),
 > AUTH-001 범위는 그대로. 선지급과 반환 예약은 SETTLEMENT-CONTRACT-001 AC에 추가됨. 아래 본문의 "미결 Q-CANCEL-xx"·"권장" 표현은 해당 D-CANCEL 결정이 우선한다(§13.0 대응표).
@@ -49,7 +51,7 @@
 | 지적 | 반영 | 위치 |
 |---|---|---|
 | **H-1** FORCED 초과가 CHECK·reconstitute를 깸 | FORCED는 별도 합(`forcedMinor`). CHECK·domain은 `completed + reserved ≤ authorized`만 강제, `cancellable = max(0, authorized − completed − reserved − forced)`, `excess = max(0, completed + reserved + forced − authorized)`(FORCED에서만). reconstitute는 FORCED발 초과만 허용. CB-07·`paymentWithForcedReturnAfterLateCancelSuccess()` | §4.3, §4.1, §9.2, §10 INV-C1·C8, §11.3 |
-| **H-2** 운영자 보정 취소 영구 업무 키 | **CC-12: UNIQUE(approvalId)** — ADMIN 2인 승인 요청 ID(`OperatorApprovalId`)를 `PaymentCancellation`에 저장. 같은 승인 = 기존 operation, 같은 승인·다른 내용 = 충돌 | §4.5, §4.11, §9.2, §12, CX-16 |
+| **H-2** 운영자 보정 취소 영구 업무 키 | **CC-12: UNIQUE(approvalId)** — ADMIN 2인 승인 요청 ID(`OperatorApprovalId`)를 `PaymentCancellation`에 저장. 같은 승인 = 기존 operation, 같은 승인·다른 내용 = 충돌 **→ 대체: D-OPS-005(§4.5 표시 참조)** | §4.5, §4.11, §9.2, §12, CX-16 |
 | m-1 FORCED 출구·취소 hold 해제 | 새 `IncidentReason.CANCEL_RESULT_CONFLICT`, 그 hold 해제는 RECON-CONTRACT-001 전까지 거절(fail-closed). INV-C2가 미래 출구 자리를 남김. §14 RECON 인계 | §4.6, §10, §14-5 |
 | m-2 이중 승인 보정 대상 | 대상·P1 거래 기록 시점은 RECON-CONTRACT-001 미결(U-2 질문 중)로 다시 씀 | §4.10 |
 | m-3 소유 서비스 재검사 | 운영자 입력 = 요청자·승인자·approvalId·사유·목적/근거·승인 대상 fingerprint(`OperatorCancelTarget` = paymentId·금액·통화·ReturnBalance revision). CancelStart가 같은 사람·사유 없음·근거 없음·stale 대상을 거절 | §4.4-7, §4.11, CX-17 |
@@ -257,13 +259,13 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
 - **구현 결정 CC-05 — 재요청 응답**: 같은 키 재요청은 취소 operation의 **현재 결과**(D-AUTH-004 confirm 선례: 확정 후 불변, 미확정은 진행 중/확인 중),
   시작 전 거절은 저장된 거절 재생. 근거: 취소도 confirm처럼 비동기 금융 결과를 갖는 operation이다(선례 적용 — Coordinator가 다르게 보면 질문으로 올린다).
 - **구현 결정 CC-12 — 운영자 업무 키(review H-2)**: 운영자 보정 취소는 ADMIN 2인 승인 요청 ID(`OperatorApprovalId`)를 영구 업무 효과 키로 쓴다 — UNIQUE(approval_id).
-  같은 approvalId·같은 금액 = 기존 operation 결과, 같은 approvalId·다른 금액 = 409 충돌(`PaymentCancellation.compareRequest`). 근거: 재시도나 같은 Case의 이중 승인이 두 번
+  같은 approvalId·같은 금액 = 기존 operation 결과, 같은 approvalId·다른 금액 = 409 충돌(`PaymentCancellation.compareRequest`). **→ 대체(S3-DOC-001): D-OPS-005 — PAYMENT는 approvalId별 첫 확정 결정(실행 수락 또는 업무 거절)을 INSERT 전용 UNIQUE(approval_id) 기록으로 남기고 같은 approvalId에는 같은 결정을 돌려준다(일시 거절도 승인 소진, 거절 감사 행은 요청마다). PAYMENT의 APPROVAL_CONFLICT·APPROVAL_IDENTITY_MISMATCH는 확정 응답이 아니다(D-OPS-007). 요청자·승인자가 다르면 같은 요청이 아니라는 판정(CN-32, BR-CAN-052)은 `제안` — RULE-CONFIRM-001 Q10 사용자 확인 대기. 현행 대장 BR-CAN-051·052(BR-CAN-106 대체됨)** 근거: 재시도나 같은 Case의 이중 승인이 두 번
   반환하지 않게(정산 말미 D: Case 안정키와 업무 유일키 유지). 대안 (Case 안정키, 보정 종류, Payment)은 Case 하나가 여러 보정 취소를 낳을 수 있어 택하지 않았다.
 - **업무 키의 영속성**: (Payment, merchantCancelId)·approvalId UNIQUE는 **영구**다 — 멱등 기록 30일 보존(D-CPC-004)이 끝나도 같은 ID는 같은 취소로 판정한다.
 - **구현 결정 CC-06 — fingerprint**: `x1:` 길이 접두 canonical SHA-256(paymentId, merchantCancelId(D-CANCEL-002), amount, currency). 사유 문구 등 표시
   정보는 비교하지 않는다(D-CPC-001 "표시 정보 비교 안 함" 선례).
 - **확정 D-CANCEL-002**: `merchantCancelId` 필수(D-CPC-002 형식, D-CP-001 그대로 비교), (Payment, merchantCancelId) UNIQUE = 업무 효과 키. 같은 ID·같은 내용은
-  Idempotency-Key가 달라도 같은 operation, 같은 ID·다른 내용 409 `CANCEL_REQUEST_CONFLICT`, 실패한 취소의 재시도는 새 ID. (질문 배경 기록:)
+  Idempotency-Key가 달라도 같은 operation, 같은 ID·다른 내용 409 `CANCEL_REQUEST_CONFLICT`, 실패한 취소의 재시도는 새 ID. **(→ 아래 '질문 배경 기록'은 답 전 문장이다 — 답 D-CANCEL-002가 이 bullet 앞부분으로 확정, §13 Q-CANCEL-02. 업무 거절된 ID 재사용 경계 BR-CAN-022는 `제안` — RULE-CONFIRM-001 Q13 대기, S3-DOC-001)** (질문 배경 기록:)
   서로 다른 취소 요청의 동일성 — 승인에서는 "다른 키·같은 주문·같은 내용 = 같은 시도 재사용"(CLAUDE.md)이 맞지만, 부분취소는
   **같은 금액의 정당한 두 번째 취소**(예: 상품 두 개를 각각 10,000원 반환)가 있어 내용만으로 같은 요청인지 알 수 없다. 키를 바꾼 가맹점 재시도가
   이중 부분취소가 될 위험과 정당한 반복 부분취소를 막을 위험이 맞선다 → §13.
@@ -349,7 +351,7 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
   "hold 중 PaymentAuthorized 없음"과 D-AUTH-003 "해제 판정 전 거래 없음"의 **명시적 유일한 예외**이며 구현은 RECON 몫이다.
 - **확정 D-CANCEL-001**: hold 대상이 **이 Payment**면 가맹점 취소 거절(`ORDER_ON_HOLD`, 결과 저장), 운영자 보정 취소만 허용. hold가 같은 주문의 **다른 Payment**에만 있으면
   가맹점 취소 허용.
-- **확정 D-CANCEL-006**: 취소 결과 사건으로 연 hold도 같은 방식으로 그 Payment의 추가 (가맹점) 취소를 막는다.
+- **확정 D-CANCEL-006**: 취소 결과 사건으로 연 hold도 같은 방식으로 그 Payment의 추가 (가맹점) 취소를 막는다. **→ 정정 확정(답 D-GOV-004 ③, S3-DOC-001): D-CANCEL-006 문언 '추가 취소 차단'은 '가맹점 추가 취소 차단'으로 정정됐다 — 운영자 보정 취소(2인)는 hold 중에도 허용(`CancelStart.kt:96`과 같음). 대장 BR-CAN-037은 RULE-CONFIRM-001 C(제안 → 확정) 반영 대기**
 - hold 대상 Payment에 확정 거래가 없으면(FAILED + 늦은 승인) 이 계약으로 취소할 수 없다 — RECON이 hold를 유지한 채 그 승인을 거래로 먼저 기록하고(D-CANCEL-010·011), 그 뒤 운영자 보정 취소만 가능하다(§4.8).
 
 ### 4.11 개시자: 가맹점 vs 운영자
@@ -373,7 +375,7 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
   (`pa1:fee=…;stl=…`)·권리 revision을 **원 Authorization에서 복사**한다. 취소 시작은 정책 입력을 받지 않는다(현재 정책을 끼울 경로가 없다 — 2단계 시험).
 - **확정 D-CANCEL-008(K-10 해소)**: 누적 비례 — k번째 반환 수수료 = round(원 수수료 × 누적 취소액 ÷ 승인액) − 이전 반환 합, VAT 동일, 반올림은 원승인 Snapshot 규칙,
   마지막 취소가 끝전을 정확히 흡수, 고정 수수료는 "전액 취소" 때만 반환, 별도 취소 수수료 없음. **D-CANCEL-009(U-1, 사용자 확정)**: "전액 취소" = 누적 취소액을 승인액에 닿게 하는 취소(한 번의 FULL 취소 또는 마지막 PARTIAL) — 그 취소가 고정 수수료와 그 VAT를 반환하고, 누적 비례식은 정률 부분과 그 VAT에만 적용한다. 최소 수수료 하한은 고정 부분으로 본다. PAYMENT가 주는 판정 입력: `PaymentCancelled`의 `authorizedAmount`·반환 후 누적 금액·`returnStatusAfter`(FULLY_CANCELLED = 이 취소가 "전액 취소") — domain `CancelResolutionOutcome.Completed(completion, authorized, statusAfter)`. **계산 구현 소유는 SETTLEMENT(SETTLEMENT-CONTRACT-001)**이며 PAYMENT는 계산하지
-  않는다. PAYMENT 의무: `PaymentCancelled`에 원승인 정책 버전·원거래 ID(+ CC-08의 반환 순번·누적 금액). (질문 배경 기록:) 부분취소의 수수료/VAT 반환 배분(정률/정액 반환 비율, 고정비 반환 여부, minor unit 배분 시 마지막 잔액 처리 주체,
+  않는다. PAYMENT 의무: `PaymentCancelled`에 원승인 정책 버전·원거래 ID(+ CC-08의 반환 순번·누적 금액). **(→ 아래 '질문 배경 기록'의 반환 비율·고정비·끝전·별도 취소비는 답 D-CANCEL-008·009로 위 문장대로 확정됐다. 실제 반올림 방식 값만 미고정 — S3-DOC-001)** (질문 배경 기록:) 부분취소의 수수료/VAT 반환 배분(정률/정액 반환 비율, 고정비 반환 여부, minor unit 배분 시 마지막 잔액 처리 주체,
   별도 취소비). 결정 소유는 SETTLEMENT-CONTRACT-001(그 AC "미확정 요율·반올림·계산 숫자는 필요 시 질문")이며 **이 계약 2단계를 막지 않는다** — PAYMENT는
   배분에 필요한 사실(각 취소 금액, Payment 안 반환 순번, 반환 후 누적 금액)을 이벤트로 넘긴다(구현 결정 CC-08).
 - 반올림: PAYMENT의 취소 금액은 가맹점이 준 minor unit 정수 그대로라 PAYMENT에는 반올림이 없다. 반올림은 FINANCIAL 배분에서 원 Snapshot의 반올림 방식으로
@@ -404,7 +406,7 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
 - 기준 문서: Refund는 결제수단별 승인취소와 구분되는 반환(계좌환불 등)이며 거래 상태 원본은 PAYMENT, 지급 실행 원본은 FINANCIAL(A00, 정의 §3.2), 반환 권한·
   예약·수취인·재원·송금 통제를 별도 검사(허용 §4.3), Refund 완료일은 확정 외부 반환 사실의 업무시각(K-9). 최초 범위 표(범위 §1, D-AUTH-001 채택)에는
   카드 "취소"만 있고 계좌환불은 없다. 상세(분산 프로토콜·수취인 계좌 보안·재원 부담·은행 사후 반환)는 미결이다(검토 문서 "취소·환불", 정의 G-5).
-- **권장**: v1 카드 결제의 반환은 **카드 승인취소만** 지원하고 계좌환불은 범위 밖으로 명시한다(API·운영 안내에 미지원 표기). 근거 — 최초 결제수단이 국내
+- **권장**: v1 카드 결제의 반환은 **카드 승인취소만** 지원하고 계좌환불은 범위 밖으로 명시한다(API·운영 안내에 미지원 표기). **(→ 답 D-CANCEL-007로 이 권장안이 확정됐다 — 같은 절 끝 문장, S3-DOC-001)** 근거 — 최초 결제수단이 국내
   카드이고 카드 반환의 원 경로는 승인취소다(K-3 "원 경로"), 계좌환불은 수취인 계좌(민감정보)·송금 실행·재원 통제가 필요해 MASTER-PAYOUT-ACCOUNT-001·
   SETTLEMENT-001 수준의 별도 계약이 선행돼야 한다. 기관이 기한 경과로 카드 취소를 거절한 건의 처리는 D-CANCEL-004·007: 기관 거절 → FAILED, PayCore 계좌 환불 없음.
 - 2단계 domain은 반환 종류를 카드 취소 하나로 두되 `ReturnBalance`의 예약을 "반환" 일반으로 이름 지어 향후 Refund가 같은 불변식(완료 + 예약 ≤ 승인액, K-16의
@@ -459,7 +461,7 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
 ### 9.1 잠금 순서(후속 구현 — 구현 결정 CC-10, AUTH §4.1 순서의 확장)
 
 멱등 기록 → `order_payment_control`(hold 판정·사건 hold 개설과 직렬화) → `payment` → `payment_authorization`(읽기) → `return_balance`(FOR UPDATE —
-반환 합계 불변식의 직렬화 지점) → `payment_cancellation`. TXd는 이 순서의 부분열만 쓰고, **TX2·회복 Use Case는 항상 `order_payment_control`부터 잠근다**(CancellationResolution이 CANCEL_RESULT_CONFLICT hold를 열 수 있음 — review m-7). 승인 TX2는 `return_balance`를 건드리지 않는다
+반환 합계 불변식의 직렬화 지점 **→ 정정 참조: CANCEL-001 §4.7 — 실제 직렬화 지점은 `order_payment_control` X 잠금이고 `return_balance`는 두 번째 방어. 구현 관례 정정이며 사용자 결정 아님, S3-DOC-001**) → `payment_cancellation`. TXd는 이 순서의 부분열만 쓰고, **TX2·회복 Use Case는 항상 `order_payment_control`부터 잠근다**(CancellationResolution이 CANCEL_RESULT_CONFLICT hold를 열 수 있음 — review m-7). 승인 TX2는 `return_balance`를 건드리지 않는다
 (CC-02 지연 개설) → 승인·취소 경로 사이 교착 없음.
 
 ### 9.2 동시 취소 요청(같은 Payment)
@@ -476,10 +478,10 @@ excess      = max(0, completed + reserved + forced − authorized)   ← FORCED�
 
 | 이벤트 v1 | category | 시점(같은 TX) | effect_key | 의미 |
 |---|---|---|---|---|
-| `PaymentCancelled` | `FINANCIAL_FACT` | TX2 COMPLETED | `PaymentCancelled:{transactionId}`(CANCEL-001이 `{cancellationId}` 검토 — m-6) | FINANCIAL: 취소 SettlementEntry·매입 취소 후보. payload = paymentId·authorizationId·**originalTransactionId**·cancellationId·transactionId·MID·Site·주문 ID·취소 Money·범위·**authorizedAmount**·Payment 안 반환 순번·반환 후 누적 금액·**returnStatusAfter**·기관 취소 승인번호·ProviderTransactionId·**기관 취소 거래일**·PG 확정 시각·**원 Authorization의 policyAssignmentVersion·권리 revision**·개시자 종류(카드번호·Secret·운영자 개인정보 없음) |
+| `PaymentCancelled` | `FINANCIAL_FACT` | TX2 COMPLETED | `PaymentCancelled:{transactionId}`(CANCEL-001이 `{cancellationId}` 검토 — m-6) **→ 확정: CANCEL-001 CN-13 `{transactionId}`(구현 결정, `CancellationEvents.kt:41`) — 검토 종결** | FINANCIAL: 취소 SettlementEntry·매입 취소 후보. payload = paymentId·authorizationId·**originalTransactionId**·cancellationId·transactionId·MID·Site·주문 ID·취소 Money·범위·**authorizedAmount**·Payment 안 반환 순번·반환 후 누적 금액·**returnStatusAfter**·기관 취소 승인번호·ProviderTransactionId·**기관 취소 거래일**·PG 확정 시각·**원 Authorization의 policyAssignmentVersion·권리 revision**·개시자 종류(카드번호·Secret·운영자 개인정보 없음) |
 | `PaymentCancelFailed` | `INTEGRATION_NON_FINANCIAL` | TX2 FAILED | `PaymentCancelFailed:{cancellationId}` | 가맹점 통지·조회. 금융 효과 없음 |
 | `CancellationOutcomeUnresolved` | `OPERATIONAL_RISK` | 회복 예산 소진·연령 초과 | `CancellationOutcomeUnresolved:{attemptId}` | RECON 대사 이관. 상태 변화 없음 |
-| `CancellationIncidentDetected` | `RISK_INCIDENT` | TX2 사건 | `CancellationIncidentDetected:{cancellationId}:{occurrence}` | RECON Case(HIGH — "Unexpected refund" K-26, 승인액 초과 가능 시 CRITICAL — D-CANCEL-006). 정산 대상 아님 |
+| `CancellationIncidentDetected` | `RISK_INCIDENT` | TX2 사건 | `CancellationIncidentDetected:{cancellationId}:{occurrence}` **→ 대체: D-CANCEL1-002, 현행 `CancellationIncidentDetected:{cancellationId}:{incidentSeq}`(`CancellationEvents.kt:77`, §18 편차 표)** | RECON Case(HIGH — "Unexpected refund" K-26, 승인액 초과 가능 시 CRITICAL — D-CANCEL-006). 정산 대상 아님 |
 
 - FINANCIAL 순서: 승인보다 취소가 먼저 도착하면 보류(K-18) — payload의 originalTransactionId와 반환 순번이 선행관계를 준다. Payment 단위 전달 순서 유지,
   소비자는 Inbox + 업무 키(transactionId)로 중복 제거(INV-06).

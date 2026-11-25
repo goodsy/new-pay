@@ -1,5 +1,7 @@
 # ADMIN-BOOT-001 internal-admin 기반 명세 (rev 0.5 — D-ADMIN1-001~012·분할 판정·spec-1~4 검토 반영, 변경 기록 §16.3)
 
+> **정합 표시(S3-DOC-001, 2026-11-25 — NP-97·PC-54·PC-58·ADM (a)-1·(c)-6·(c)-7, 원문 보존)**: 이 문서 작성(2026-10-24) 뒤 바뀐 것 — ① 부트스트랩 인원: D-ADMIN1-002(SECURITY_ADMIN 1 + APPROVER 1) → **D-ADMIN1-022(SECURITY_ADMIN 2 + APPROVER 1)**, 현행 명세 ADMIN-BOOT-002(§4.9.1·§12.1 표시). ② 마스킹 해제 첫 적용: '후속(첫 마스킹 데이터 화면)·틀만' → **D-FLOW-002 ①(KYC)**·D-FLOW-005 ⑧(§1.2·§4.5.1·§4.5.3 표시). ③ 직전 TOTP 재인증의 DEMO 예외: **D-ADMIN-AUTH-DEMO-001 ③**(데모 간편 로그인 세션만 생략, 감사 기록, 2인 승인 그대로 — ADMIN-DEMO-LOGIN-001 DONE)(§4.7.4 표시). ④ 복구 작업 B 직후 SA 1명 상태: ADMIN-BOOT-002 §8 Q-1은 **D-ADMIN1-023**(복구 조건 유지 + 운영 하한 활성 SA ≥ 2·APPROVER ≥ 2 미만 지표·경보)으로 답이 났으나, 작업 B 자체가 SA 2명을 만들지는 결정이 없다(ADM 대장 (f)-6 확인 후보) — §4.9.2 본문은 바꾸지 않고 표시만 했다. 시험 이름 정정(PC-26 계열)은 이 작업 범위 밖. 현행 규칙 정본: `docs/rules/ADM.md`.
+
 > **S1 구현 기록(2026-10-24, 2단계 Implementer)**: §18. Coordinator가 §17.10 Q-S0-1~3을 모두 권장안으로 판정했다(§18.1). 자기 완료 판정 아님.
 >
 > **S0 실측 기록(2026-10-24, 2단계 Implementer)**: §10 S0 결과는 §17. 설계 결정은 바꾸지 않았고 각 절에는 §17 참조만 붙였다. **Coordinator 판단이 필요한 항목은 §17.10**(14일 규칙과 알려진 취약점 충돌 2건, test-summary의 Vitest 보고서 형식 문제 1건). 저장소 코드·빌드 파일 변경 없음(실측은 저장소 밖 임시 디렉터리).
@@ -74,7 +76,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 | Webhook GAVE_UP 조회·수동 재전송·LIVE endpoint 2인 승인 | **WEBHOOK-ENDPOINT-001** | 분할 판정, D-WH-008 |
 | 결제창 React 전환 | CHECKOUT-REACT-001 | D-FE-001 — 이 작업은 convention plugin으로 재사용만 보장 |
 | MASTER 명령 화면·LIVE API key | MASTER-LIFECYCLE-001·MASTER-CREDENTIAL-001 등 | D-ADMIN-003 |
-| 마스킹 해제 첫 적용 화면 | 후속(첫 마스킹 데이터 화면) | AC10, Coordinator 판정 |
+| 마스킹 해제 첫 적용 화면 | 후속(첫 마스킹 데이터 화면) | AC10, Coordinator 판정 → 답(D-FLOW-002 ①, 2026-11-25 — Q-PII-3 일부): 마스킹 해제의 **첫 실제 적용 데이터 = KYC(대표자 생년월일·실소유자 정보)**, 구현은 MERCHANT-FLOW-001(IN_PROGRESS — main 코드는 아직 틀만, `UnmaskService.kt:18,63` `NoDataSource`). `UNMASK`는 Demo seed에 미리 주지 않고 SECURITY_ADMIN이 기존 2인 역할 부여로 부여, 사유에 카드번호 패턴 거부 적용(D-FLOW-005 ⑧ — 코드 미적용, `UnmaskService.kt:32-33`) |
 | 운영 mTLS·KMS·운영 IP·운영 보안 수치·APPROVER 인원 | LIVE Gate | Q-ADMIN-SEC-VALUES, Q-ADMIN-APPROVER-STAFF |
 | 브라우저 E2E, npm 번들 SBOM | 후속 후보 | §13 |
 | Kafka·Redis | 도입 안 함 | §9 |
@@ -275,7 +277,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 | 계정 생성·`ENROLL` 코드 재발급·정지·역할 회수(1인 즉시) | — | — | — | O |
 | ADMIN 소유 2인 승인 명령 **요청** | — | — | — | O |
 | 감사 조회 | 자기 기록 | 자기 기록 | 전체 | 전체 |
-| 마스킹 해제 | 별도 권한 `UNMASK`(역할과 독립, 부여는 `ROLE_GRANT`와 같은 2인 승인) + 사유 + 직전 TOTP — 틀만(AC10) | | | |
+| 마스킹 해제 | 별도 권한 `UNMASK`(역할과 독립, 부여는 `ROLE_GRANT`와 같은 2인 승인) + 사유 + 직전 TOTP — 틀만(AC10) → 첫 적용 KYC(D-FLOW-002 ①), 사유 카드번호 패턴 거부(D-FLOW-005 ⑧), DEMO 간편 로그인 세션은 직전 TOTP 생략(D-ADMIN-AUTH-DEMO-001 ③) | | | |
 
 - 겸직 허용. 한 승인 요청에서 요청자·승인자·대상 계정은 모두 달라야 한다(D-ADMIN1-004). 권한 판정은 domain `AdminPermission` 하나(서버) — React는 표시만.
 - 역할 회수는 SECURITY_ADMIN 1인 즉시: TX에서 대상 계정 `FOR UPDATE` → 현재 역할 집합 갱신·`REVOKE` 이벤트·`security_version`+1·세대+1·감사. 대상 = 요청자 본인이면 거부(본인 권한 변경 불가).
@@ -284,7 +286,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 - `adm_` + ULID, 갱신 불가(`updatable=false` + 열 권한 1143), 계정 DELETE 없음. login_name 변경 기능 없음(D-06). 감사·승인 행은 actor ID + 기록 시점 표시명 스냅샷.
 
 #### 4.5.3 마스킹 해제 틀(AC10)
-- `UnmaskUseCase`(권한·사유 필수·길이 상한·직전 TOTP·감사 1행, 대상 데이터 공급 Port는 비어 있음) + 시험(`UnmaskFrameworkSpec` — 권한 없음 403·사유 없음 400·TOTP 필수·감사). 첫 실제 화면은 후속.
+- `UnmaskUseCase`(권한·사유 필수·길이 상한·직전 TOTP·감사 1행, 대상 데이터 공급 Port는 비어 있음) + 시험(`UnmaskFrameworkSpec` — 권한 없음 403·사유 없음 400·TOTP 필수·감사). 첫 실제 화면은 후속. → 답(D-FLOW-002 ①, 2026-11-25 — Q-PII-3 일부): 마스킹 해제의 **첫 실제 적용 데이터 = KYC(대표자 생년월일·실소유자 정보)**, 구현은 MERCHANT-FLOW-001(IN_PROGRESS — main 코드는 아직 틀만, `UnmaskService.kt:18,63` `NoDataSource`). `UNMASK`는 Demo seed에 미리 주지 않고 SECURITY_ADMIN이 기존 2인 역할 부여로 부여, 사유에 카드번호 패턴 거부 적용(D-FLOW-005 ⑧ — 코드 미적용, `UnmaskService.kt:32-33`).
 
 ### 4.6 관리자 감사
 
@@ -344,6 +346,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 
 #### 4.7.4 직전 TOTP 재입력(AC6, m-3)
 - 승인·거절·마스킹 해제 요청 본문에 `totpCode`(신선도 창 없음 — D-11). 성공 단계 소비는 **승인 TX 안**(§4.7.3-5).
+- → 추가(D-ADMIN-AUTH-DEMO-001 ③, 2026-11-24 — 대체가 아닌 좁은 예외): `deployment-mode=DEMO` + 명시 설정이 켜져 있고 **데모 간편 로그인으로 만든 세션**일 때만 승인·반려·마스킹 해제 직전 TOTP를 생략하고 감사에 생략 사실(`STEP_UP_SKIPPED`·`DEMO_SKIPPED`)을 남긴다. 2인 승인(요청자≠승인자)은 그대로, LIVE에서 설정이 켜져 있으면 기동 거부. 운영 규칙은 위 문장 그대로. 명세 ADMIN-DEMO-LOGIN-001(DONE), PII-MASKING-POLICY §5.3.
 - 실패: 승인 TX rollback → **별도 TX**에서 승인자 계정 `FOR UPDATE` → 계수+1(D-ADMIN1-005 합산), 한도면 `LOCKED`·세대+1(현재 세션도 끊김)·`security_version`+1 → 감사 → 커밋. 승인 행은 바뀌지 않는다.
 - `StepUpTotpReuseRaceSpec`: 같은 승인자가 같은 코드로 서로 다른 두 요청을 동시에 승인 → 계정 행 잠금으로 직렬화되어 하나만 성공, 다른 하나는 단계 재사용 거부(+ 계수+1). `StepUpFailureCountsSpec`: 재인증 실패가 로그인 실패와 같은 계수기에 쌓여 한도에서 잠김·세션 종료.
 
@@ -404,9 +407,9 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 
 #### 4.9.1 부트스트랩
 - (현행화 2026-10-30 — [ADMIN-BOOT-002](ADMIN-BOOT-002-BOOTSTRAP-SECOND-SA.md), D-ADMIN1-022) 아래 "SECURITY_ADMIN 1 + APPROVER 1"은 **SECURITY_ADMIN 2 + APPROVER 1**(인자 `--second-security-admin-login/-name` 추가·필수, 세 login·표시명 모두 다름, 코드 3개, 고정 행 열은 SA-A·APPROVER 그대로)로 바뀌었다. 1회성·출력·감사 규칙과 복구 조건(§4.9.2)은 그대로다.
-- 같은 TX: `admin_account` 비어 있음 확인(비잠금 — 판정 보조일 뿐) → `admin_bootstrap(id=1)` INSERT → SECURITY_ADMIN 1 + APPROVER 1 계정(서로 다른 login_name·표시명 인자 — 같은 사람 금지는 운영 절차, 시스템은 서로 다른 계정만 강제) + 역할 GRANT 이벤트(actor `SYSTEM_BOOTSTRAP`) + 등록 코드 2개 + 감사 → 커밋 → 코드 출력.
+- 같은 TX: `admin_account` 비어 있음 확인(비잠금 — 판정 보조일 뿐) → `admin_bootstrap(id=1)` INSERT → SECURITY_ADMIN 1 + APPROVER 1 계정(→ 대체: D-ADMIN1-022, 현행 SECURITY_ADMIN 2 + APPROVER 1·등록 코드 3개 — ADMIN-BOOT-002) (서로 다른 login_name·표시명 인자 — 같은 사람 금지는 운영 절차, 시스템은 서로 다른 계정만 강제) + 역할 GRANT 이벤트(actor `SYSTEM_BOOTSTRAP`) + 등록 코드 2개 + 감사 → 커밋 → 코드 출력.
 - 동시 실행 패자는 `admin_bootstrap` PK 1062로 TX 전체 rollback → 패배 감사(별도 TX)·비영 exit. 빈 표 `COUNT … FOR UPDATE`에 의존하지 않는다(InnoDB 빈 범위 잠금은 경합 패자를 막지 못하거나 교착을 만든다).
-- `BootstrapConcurrencySpec`: 실제 MySQL 두 연결에서 동시 실행 → 계정 정확히 2개(한 쌍)·`admin_bootstrap` 1행·패자 감사 1행·패자 비영 exit. `BootstrapSpec`: 계정이 있으면 거부, TTY 없고 file 미지정이면 DB 무변경 거부, 파일 권한 0600.
+- `BootstrapConcurrencySpec`: 실제 MySQL 두 연결에서 동시 실행 → 계정 정확히 2개(한 쌍)(→ 대체: D-ADMIN1-022, 현행 기대값은 ADMIN-BOOT-002 기준 — 이 문서에서 시험 단언을 재대조하지 않음)·`admin_bootstrap` 1행·패자 감사 1행·패자 비영 exit. `BootstrapSpec`: 계정이 있으면 거부, TTY 없고 file 미지정이면 DB 무변경 거부, 파일 권한 0600.
 
 #### 4.9.2 오프라인 복구(D-ADMIN1-010) — 회차별 반복 가능, 동시 실행만 차단
 
@@ -420,7 +423,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 | 작업 A(D-ADMIN1-012, rev 0.3 m-B) | 기존 계정에 복구 등록 코드 발급: 같은 TX에서 대상 계정 `FOR UPDATE` → 대상이 **복구 시점에 보유(활성 또는 정지)한 SECURITY_ADMIN·APPROVER 집합을 코드 행에 기록** → 대상의 **모든** 활성 역할 `SUSPEND`(원인 = 회차 번호), 그리고 **기록 대상 역할 중 이미 정지돼 있던 것(재설정 D-ADMIN1-009 등)에도 원인 = 회차인 `SUSPEND` 이벤트를 다시 append**(rev 0.4 m-1 — 완료 조건 "여전히 이 회차 원인으로 정지"를 이벤트 하나로 판정, 이력은 보존). (rev 0.5 n-2) 이벤트 재생 규칙: **이미 정지된 역할에 대한 SUSPEND 재append는 유효한 전이**(상태는 정지 그대로, 원인만 바뀜)이고, 역할의 정지 원인 = **그 역할의 최신 SUSPEND 이벤트 원인**이다. 따라서 원인이 회차로 바뀐 뒤에는 이전 재설정 approvalId를 근거로 한 `ROLE_REACTIVATE`는 "그 재설정 원인으로 정지된 역할 없음"으로 거부된다(fail-closed) → 기존 미사용 코드 폐기 → `PENDING_ENROLLMENT`(대기 사유 RECOVERY·근거 회차) → 세대+1·`security_version`+1 → 감사 |
 | 작업 A 완료 TX | 잠금 순서 회차 행 → 계정 행 → 코드 행(§4.13). 등록 완료 공통 검사(§4.3.6) 뒤 **코드 행에 기록된 역할만** 대상으로, 역할마다: 회차가 열려 있고 만료 전이며, 그 역할이 대상에서 **여전히 이 회차 원인으로 정지 상태**(그 사이 REVOKE 이벤트 없음)이고, **그 역할의 활성 계정 수가 여전히 0**일 때만 `REACTIVATE`(actor `SYSTEM_RECOVERY`, 원인 = 회차). 조건을 못 맞춘 역할과 기록 밖 역할(OPERATOR·VIEWER·`UNMASK`, 복구 시점 이후 회수된 역할)은 정지 상태로 남아 **일반 `ROLE_REACTIVATE` 2인 승인**으로만 복원(Coordinator fail-closed 판정). 그다음 회차 종료 판정 |
 | 활성 수 판정의 직렬화 | SECURITY_ADMIN·APPROVER를 활성화하는 모든 TX(작업 A 완료, 작업 B 계정 등록 완료, 부트스트랩 계정 등록 완료, `ROLE_GRANT`·`ROLE_REACTIVATE`·`ACCOUNT_UNLOCK`·`ACCOUNT_REACTIVATE` 실행)는 열린 회차가 있으면 회차 행을 먼저 잠근다(§4.13) — 활성 수 계산과 자동 재활성이 동시 활성화와 겹치지 않는다 |
-| 작업 B | 새 계정 쌍(SECURITY_ADMIN + APPROVER) 생성 + 등록 코드 2개(부트스트랩과 같은 형태, 회차 번호 기록, actor `SYSTEM_RECOVERY`) — 역할은 생성 시 부여되며 계정 등록 완료로 활성. (rev 0.4 n-4) **작업 B 코드의 만료 시각 = 그 회차의 `expires_at`**(같은 TX에서 같은 값으로 기록 — 회차 만료 뒤 남은 B 코드가 회차 밖에서 SA·APPROVER를 활성화하는 경로 없음, 작업 A 코드도 같음). 역할 보유 계정이므로 코드 1인 재발급 불가(§4.3.6 H-1) |
+| 작업 B | (표시 2026-11-25: 작업 B 직후 SA 1명이면 역할 부여 교착 가능 — D-ADMIN1-022는 bootstrap만 2명, D-ADMIN1-023은 복구 조건 유지 + 운영 하한 경보로 답함. 작업 B 인원 변경은 결정 없음 — ADM 대장 (f)-6 확인 후보. 본문 그대로) 새 계정 쌍(SECURITY_ADMIN + APPROVER) 생성 + 등록 코드 2개(부트스트랩과 같은 형태, 회차 번호 기록, actor `SYSTEM_RECOVERY`) — 역할은 생성 시 부여되며 계정 등록 완료로 활성. (rev 0.4 n-4) **작업 B 코드의 만료 시각 = 그 회차의 `expires_at`**(같은 TX에서 같은 값으로 기록 — 회차 만료 뒤 남은 B 코드가 회차 밖에서 SA·APPROVER를 활성화하는 경로 없음, 작업 A 코드도 같음). 역할 보유 계정이므로 코드 1인 재발급 불가(§4.3.6 H-1) |
 | 직렬화 한계(rev 0.4 n-3 — spec-3 §2(1)) | 회차 행이 **없을 때** 시작한 SA·APPROVER 활성화 TX(0단계에서 열린 회차 없음 판정)는 회차 행을 잠그지 않는다. 그 TX가 진행 중에 복구 명령이 새 회차를 열면, 복구 TX의 "0명" 판정과 그 활성화가 직렬화되지 않아 결과적으로 활성 SA·APPROVER가 0이 아닌데 회차가 열리거나(복구가 불필요하게 실행됨) 활성 수가 1 늘어난 상태가 될 수 있다. **수용 근거**: (1) 이 경합은 권한을 **늘리는 쪽**(관리자가 하나 더 생김)으로만 어긋난다 — 복구 TX는 작업 A 대상 계정의 역할만 정지하고(대상 계정 행 잠금으로 같은 계정의 활성화와는 직렬화) 다른 계정의 활성 역할을 줄이지 않는다 — 복구가 막으려는 위험(관리 불능)과 반대 방향, (2) 복구는 호스트·DB 자격 보유자의 오프라인 실행이라 웹 활성화와 동시에 일어날 일이 드물고 감사(`SYSTEM_RECOVERY`·승인 실행)로 사후 확인된다, (3) (rev 0.5 n-3) 회차가 열린 뒤 시작한 활성화 TX와 작업 A 완료의 자동 재활성은 회차 행 잠금으로 직렬화되고 완료 TX가 회차 잠금 아래 활성 수를 다시 센다. 회차 없음으로 판정한 활성화 TX가 아직 커밋 전일 때 자동 재활성이 함께 일어나는 경우는 **그 TX의 잠금 대기 상한(1205) 안에서만 이론상 가능**하며, 어긋나는 방향은 (1)과 같다(관리자 증가). 완전 직렬화(항상 존재하는 고정 직렬화 행 잠금)는 모든 역할 활성화가 한 행을 잠가 처리량이 줄어 채택하지 않는다 — Coordinator가 다르게 보면 대안으로 승격 |
 | 시험(rev 0.3 m-B) | `RecoveryRoleRestoreSpec`: ① 복구 중(회차 열림) 작업 B 또는 부트스트랩 계정이 먼저 등록 완료해 APPROVER 활성 수 > 0 → 작업 A 완료 시 APPROVER 자동 재활성 안 됨(정지 유지), ② 같은 회차 코드 2개를 두 연결로 동시 완료 → 회차 행 잠금으로 직렬화, 마지막 완료가 회차를 닫음(닫힌 회차 1·열린 회차 0), 같은 역할이 두 번 자동 재활성되지 않음, ③ 복구 시점 이후 회수된 역할은 복원 안 됨, ④ 복구 시점 기록에 없는 OPERATOR는 정지 유지, ⑤ 회차 만료 뒤 완료 → 등록은 거부(코드 만료), ⑥(rev 0.4 m-1) 재설정으로 이미 정지된 APPROVER를 가진 계정에 작업 A → 원인 = 회차 SUSPEND 이벤트 재기록 확인 → 완료 시 APPROVER 활성 수 0이면 복원, 그리고(rev 0.5 n-2) 원인이 회차로 바뀐 뒤 **이전 재설정 approvalId 근거 `ROLE_REACTIVATE` 요청·승인은 거부**, `RoleStateConsistencySpec` 재생에서 정지 → 정지(원인 교체)가 유효 전이, ⑦(n-4) 작업 B 코드 만료 시각 = 회차 만료 시각 |
 
@@ -633,7 +636,7 @@ rev 0.1 작성 2026-10-24 KST, rev 0.2 같은 날. 기준 commit `e53ee4b`(WEBHO
 | 결정 | 요지 | 반영 절 |
 |---|---|---|
 | D-ADMIN1-001 | 새 로그인이 기존 세션을 끊음(세대+1), 기존 화면 안내, 감사 | §4.3.2, §4.4.2 |
-| D-ADMIN1-002 | 계정 표가 빌 때만 1회용 비웹 부트스트랩(runtime 계정), SECURITY_ADMIN 1 + APPROVER 1, 코드 1회, `SYSTEM_BOOTSTRAP` | §4.9.1 |
+| D-ADMIN1-002 | 계정 표가 빌 때만 1회용 비웹 부트스트랩(runtime 계정), SECURITY_ADMIN 1 + APPROVER 1, 코드 1회, `SYSTEM_BOOTSTRAP` → 대체(인원): D-ADMIN1-022(SECURITY_ADMIN 2 + APPROVER 1, ADMIN-BOOT-002) | §4.9.1 |
 | D-ADMIN1-003 | 역할 없는 계정 생성·정지 1인, 등록 코드(Demo 24시간) 별도 채널, 정지 해제 2인 | §4.3.6, §4.7.1 |
 | D-ADMIN1-004 | 겸직 허용, 요청자·승인자·대상 모두 다름, 부여 2인·회수 1인 즉시 | §4.5.1, §4.7.3 |
 | D-ADMIN1-005 | 실패 합산·성공 시 0·자동 해제 없음·비구별 응답·IP 밖 미계수 | §4.3.2·§4.3.5 |
@@ -1536,7 +1539,7 @@ Q-S5-4는 D-ADMIN1-016(현재 유지 + S8 지표)으로 확정. RED: 시험을 �
 ### 24.5 질문 후보(보안·운영 의미 — 결정하지 않음)
 - **Q-S7-1** TOTP 등록 QR: 명세 §4.10은 "TOTP QR"인데 QR 인코더가 없다. 대안 (a) npm QR 라이브러리 추가(14일 규칙·CVE·lockfile·라이선스 검토), (b) 자체 QR 인코더(시험 부담), (c) 현재처럼 설정 키 수동 입력만. 권장: (c) 유지 + LIVE 전 (a) 검토.
 - **Q-S7-2** `ROLE_REACTIVATE` 요청 화면(원인 재설정 ID·`episode:<n>` 선택)은 만들지 않았다 — 원인 후보 목록 조회 API가 없다. 권장: 후속(화면에서 원인을 자유 입력받지 않도록 조회 API와 함께).
-- 마스킹 해제 화면은 AC10대로 틀까지(대상 데이터 공급자 없음 — 첫 실제 화면은 후속).
+- 마스킹 해제 화면은 AC10대로 틀까지(대상 데이터 공급자 없음 — 첫 실제 화면은 후속). (→ 답: 첫 적용 = KYC, D-FLOW-002 ① — MERCHANT-FLOW-001)
 
 ### 24.6 8대 원칙(S7 범위)
 
@@ -1680,7 +1683,7 @@ Kafka/Redis는 도입하지 않았다 — 세션·잠금·멱등은 ADMIN DB와 
 ### 25.11 S8 리뷰(PASS_WITH_FIXES) 반영(2026-10-26 KST — 이 절이 §25.1~25.10과 다르면 이 절이 우선)
 
 Coordinator 체크포인트(분리 실행): check 31m43s BUILD SUCCESSFUL, TEST-SUMMARY 2811/0(internal-admin 377), 프론트 39, SELFTEST 139, CVE PASS, DEPS ok(`~/gate-logs/s8-gate`) → commands.json Kotlin 2811·프론트 39.
-사용자 결정: **D-ADMIN1-018**(Q-S8-A — 거부마다 감사 1행 유지 + `ip_denied` 지표 경보, 앞단 속도 제한은 배치 항목), **D-ADMIN1-019**(Q-S8-B — 사유 원문 유지·길이 상한, PAN 패턴 거부는 첫 실제 마스킹 해제 작업에서 재검토),
+사용자 결정: **D-ADMIN1-018**(Q-S8-A — 거부마다 감사 1행 유지 + `ip_denied` 지표 경보, 앞단 속도 제한은 배치 항목), **D-ADMIN1-019**(Q-S8-B — 사유 원문 유지·길이 상한, PAN 패턴 거부는 첫 실제 마스킹 해제 작업에서 재검토 → 재검토 답: D-FLOW-005 ⑧ PAN 패턴 거부 적용 — 코드 미적용 `UnmaskService.kt:32-33`),
 **D-ADMIN1-020**(Q-S8-C — 리뷰 M-1), **D-ADMIN1-021**(Q-S8-D).
 
 | 항목 | 반영 |
@@ -1745,3 +1748,9 @@ TEST-ASSERT-001(Kotest 동등 비교 함정 저장소 전체 감사 — 입력: 
 | management 포트 | `PAYCORE_ADMIN_MANAGEMENT_PORT`(빈 값 금지)·주소(기본 loopback — 수집기 위치에 맞게 명시), 웹 포트와 다른 네트워크 노출 정책 |
 | 로그 수준 | `org.springframework.web`·`org.springframework.security` DEBUG 금지(요청 단편) |
 | 키 | TOTP 암호화 키·login_name HMAC 키는 비밀 저장소 주입(저장소·이미지에 없음), 키 회전 절차(키 버전 표) |
+
+## 27. 개정 이력 — 문서 정합
+
+| 일자 | 내용 |
+|---|---|
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-97·PC-54·PC-58 일부·ADM (a)-1·(c)-6·(c)-7): 머리 정합 표시 추가, §1.2 마스킹 해제 첫 적용·§4.5.1 권한 표·§4.5.3·§24 S7 구현 기록 줄(마스킹 해제 화면)에 D-FLOW-002 ①·D-FLOW-005 ⑧ 표시, §4.7.4에 D-ADMIN-AUTH-DEMO-001 ③ 예외 추가 표시, §4.9.1 본문·`BootstrapConcurrencySpec` 줄·§12.1 D-ADMIN1-002 행에 D-ADMIN1-022 표시, §4.9.2 작업 B에 D-ADMIN1-023 답·남은 확인 후보 표시(ADM (f)-6), D-ADMIN1-019 기록 줄에 재검토 답 표시. 원문 무변경, 정책·시험 이름·코드 변경 없음 |

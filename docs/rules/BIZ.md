@@ -119,7 +119,7 @@
 |---|---|---|---|---|---|---|
 | BR-BIZ-080 | Site 채널 식별값은 소문자 정규형만 받는다(WEB = 도메인 host만, APP = 점 구분 ID) — 대문자·scheme·경로·포트·IP 리터럴은 자동 정규화 없이 거절하고 www. 등 서브도메인은 다른 채널이다 | 확정 | 사용자 | D-MD-009, D-MD-014 | MASTER-DOMAIN-001 §2.2 MerchantSite | MasterValuesSpec(M)::대문자·scheme·포트·IP 거절; SiteChannelHostVectorsSpec(M)::WEB 벡터 |
 | BR-BIZ-081 | 활성 채널 식별값은 같은 Merchant 안에서도, 다른 Merchant와도 중복 등록할 수 없다(예외는 승인 기록 — 후속), 동시 등록도 하나만 성공한다 | 확정 | 사용자 | D-MD-008 | MASTER-DOMAIN-001 §2.2 | MerchantOnboardingServiceSpec(M)::다른 Merchant 활성 채널 거절; MerchantOperationsConcurrencySpec(M)::같은 채널 두 Merchant 1건만 |
-| BR-BIZ-082 | 다른 Merchant의 Site가 종료된 뒤 그 채널 식별값을 다른 Merchant가 등록할 수 있는지 | 미결(Q-MD-18) | — | Q-MD-18 | MASTER-DOMAIN-001 §5 | 없음 |
+| BR-BIZ-082 | 다른 Merchant의 Site가 종료된 뒤 그 채널 식별값을 다른 Merchant가 등록할 수 있는지 | 미결(Q-MD-18) — **반영 대기: D-GOV-004 ② 답(같은 가맹점 허용, 다른 가맹점은 예외 승인 없으면 거절), 대장 상태 전환은 RULE-CONFIRM 반영 때** | — | Q-MD-18, D-GOV-004 ② | MASTER-DOMAIN-001 §5 | 없음 |
 | BR-BIZ-083 | 신규 Site의 PG 심사 상태는 PENDING이고 상태는 PENDING/APPROVED/REJECTED/SUSPENDED, 결정은 사유·행위자를 가진 append-only 기록이며 현재 상태는 마지막 결정이다 | 확정 | 사용자 | D-MS-002(a), D-MD-016 | MASTER-SNAPSHOT-001 §4.4 | SiteConfirmationAndReviewSpec(M)::PENDING 시작, 현재 = 마지막 결정 |
 | BR-BIZ-084 | Site 심사 전이는 PENDING→APPROVED/REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED/REJECTED만 허용하고 같은 상태·PENDING 결정은 거절한다 | 제안 | 적용 | MASTER-SNAPSHOT-001 §4.4(관례 — 출처에 개별 전이 없음) | MASTER-SNAPSHOT-001 §4.4 | SiteConfirmationAndReviewSpec(M)::REJECTED 종결, 같은 상태·PENDING 거절 |
 | BR-BIZ-085 | Site 심사 REJECTED는 종료 상태로 재심사·재승인하지 않으며, 재신청은 새 Site 등록으로 처음부터 심사한다 | 확정 | 사용자 | D-MS-005 | MASTER-SNAPSHOT-001 §4.4 | SiteConfirmationAndReviewSpec(M)::REJECTED terminal |

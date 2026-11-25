@@ -177,7 +177,7 @@ head(Merchant별 현재 적용 상태) 잠금 아래 한 PAYMENT 로컬 TX에서
 
 ### 4.4 Site 심사 상태(D-MD-016 "PG 심사 상태로 MerchantSite에")
 
-**확정 D-MS-002(a)**: append-only `merchant_site_review_decision`(site, seq, decision APPROVED/REJECTED/SUSPENDED — PENDING은 결정이 아니라 초기 상태, reason, evidenceRef?, actor, at, request_record_id) + Snapshot `sites[].reviewStatus` = 최신 결정(없으면 PENDING). 명령 `DecideSiteReview`. 결제는 APPROVED만(E3 → METHOD_NOT_ENABLED, 내부 로그 SITE_REVIEW). 개별 전이는 출처에 없어 좁게 골랐다(관례): PENDING→APPROVED|REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED|REJECTED, REJECTED 종결(재심사 허용 여부는 새 질문 후보 Q-MS-05).
+**확정 D-MS-002(a)**: append-only `merchant_site_review_decision`(site, seq, decision APPROVED/REJECTED/SUSPENDED — PENDING은 결정이 아니라 초기 상태, reason, evidenceRef?, actor, at, request_record_id) + Snapshot `sites[].reviewStatus` = 최신 결정(없으면 PENDING). 명령 `DecideSiteReview`. 결제는 APPROVED만(E3 → METHOD_NOT_ENABLED, 내부 로그 SITE_REVIEW). 개별 전이는 출처에 없어 좁게 골랐다(관례): PENDING→APPROVED|REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED|REJECTED, REJECTED 종결(재심사 허용 여부는 새 질문 후보 Q-MS-05). → 답: D-MS-005(2026-10-13 — REJECTED는 종료 상태로 재심사·재승인하지 않고, 재신청은 새 Site 등록으로 처음부터 심사. 구현은 이미 REJECTED 종결이라 변경 없음, §9·§15-6). 추가 결정 D-GOV-004 ①(2026-11-25): 심사 거절 Site는 채널 점유를 해제(채널 중복 검사에서 제외, 거절 기록 유지)해 같은 주소로 새 Site 재신청 가능 — 현재 코드는 생명주기 ACTIVE Site 전부를 중복 검사 대상으로 본다(`MerchantOnboardingService.kt:131`, 질의 `MerchantSiteJpaRepository.kt:8-12` — 심사 상태 조건 없음) → 결정 미적용, 구현은 별도 작업. 현행 규칙 정본은 `docs/rules/BIZ.md` §4.
 
 결정 기록이 없는 Site = PENDING = 결제 차단(구조 경계 §1 "Site 심사 … 준비되지 않으면 결제 차단"과 일치).
 
@@ -507,3 +507,8 @@ Coordinator 채택(2026-10-13, 질문으로 승격하지 않음): §4.3 통화 �
 9. **스케줄 위치**: Relay·갱신 주기 실행은 `adapter.batch`(application.provided만 호출), 설정 바인딩·HTTP Dispatcher·Micrometer 지표는 `adapter.integration`.
 10. **계약 golden(S7)**: `contracts/entitlement-snapshot-v1.golden.json`(두 앱 시험 자원에 같은 파일)은 두 앱 코드와 독립적으로 명세 §10 규칙으로 생성했다. 생성 절차는 저장소의 `harness/tests/test_entitlement_golden.py`(Python 표준 라이브러리 `json.dumps(sort_keys, separators)`·`hashlib`·`hmac`만 사용)이며, HARNESS-SELFTEST가 매번 같은 절차로 다시 만들어 두 파일과 바이트 비교한다(독립성·동일성 확인). MASTER는 같은 상태로 바이트 동일한 정규 내용·payload·봉투·서명을 만들고, PAYMENT는 그 봉투를 서명 검증·해석해 같은 contentHash를 다시 계산한다.
 
+## 개정 이력
+
+| 일자 | 내용 |
+|---|---|
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-94·PC-58 일부): §4.4 "재심사 허용 여부는 새 질문 후보 Q-MS-05"에 '→ 답: D-MS-005' 표시, 관련 후속 결정 D-GOV-004 ①(심사 거절 Site 채널 점유 해제) 참조 추가. 원문 무변경, 정책 변경 없음 |

@@ -1,5 +1,7 @@
 # AUTH-CONTRACT-001 가상 승인·조회·UNKNOWN 회복 계약 명세 (1단계 명세 → 2단계 domain 구현 반영)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: 이후 결정으로 바뀐 문장 옆에 `→ 대체`/`→ 정정` 표시만 붙였다(원문 보존). 바뀐 곳: §3 표 `CardType` 행 근거(범위 §5 채택 기록 없음 — PAY 대장 진단 (c)-7), §8 해제 실행 의존의 Q-ADMIN-AUTH(답변됨 D-ADMIN-001·002 — PC-58, (c)-6), §11 이벤트 표 `AuthorizationIncidentDetected` effect key(occurrence — DC-P-14·PC-25). §14·§18의 Q-ADMIN-AUTH 언급(568·570·660행 부근)도 같은 뜻으로 읽는다(작성 당시 기록이라 표시하지 않음). 현재 유효 규칙 정본은 `docs/rules/PAY.md`(D-GOV-006 ②).
+
 > **2단계 갱신(2026-10-15)**: §16 질문 7개는 모두 답변됐다(**D-AUTH-003~009**, `docs/DECISIONS.md`). 범위는 Coordinator가 결정했다(S1~S9, B-2·B-3 포함, §17 결함 1~6 처리·7·8은 AUTH-001, 신규 BACKLOG AUTHN-001·MASTER-SNAPSHOT-002·WEBHOOK-001·CANCEL-CONTRACT-001). 2단계 domain 구현과 명세 편차는 §19에 적었다. 아래 1단계 문장의 "미결"·"권장" 표현은 해당 D-AUTH 결정과 §19가 우선한다.
 
 작성 2026-10-15 KST. **1단계 명세이며 코드 변경 없음.** 기준 commit `0aa3c1e`(CP-API-001, push 완료). 작업 트리에는 Coordinator 소유 상태 파일
@@ -67,7 +69,7 @@ coordinatorDecisions 2026-10-15).
 | 타입 | 종류 | 의미·불변식 | 근거 |
 |---|---|---|---|
 | `PaymentPlan` | sealed 값 | `LumpSum`(일시불) / `Installment(months)`(기관·카드·가맹점이 허용하는 일반 유이자 할부). domain은 기술 범위만 강제(months ≥ 2, 2자리 이하 — 구현 결정 CA-03). 허용 개월·최소금액은 버전 있는 Capability 정책(Demo)이 판정. 무이자·부분무이자는 타입 없음(초기 제외) | 확정 D-AUTH-001, 범위 §1·§2 |
-| `CardType` | enum | `CREDIT`, `CHECK`. 기프트·선불·직불망은 값 없음(초기 제외 → 기관 결과에 오면 상충/미지원). 최종 근거는 기관 결과, 클라이언트 선택만 신뢰하지 않음 | 확정 D-AUTH-001, 범위 §5 |
+| `CardType` | enum | `CREDIT`, `CHECK`. 기프트·선불·직불망은 값 없음(초기 제외 → 기관 결과에 오면 상충/미지원). 최종 근거는 기관 결과, 클라이언트 선택만 신뢰하지 않음 | 확정 D-AUTH-001, 범위 §5 **→ 정정 표시(S3-DOC-001): D-AUTH-001은 범위 §1~§3만 채택했다 — 값 집합 CREDIT·CHECK는 D-AUTH-001(BR-PAY-075 확정). '최종 근거는 기관 결과'는 범위 §5(채택 기록 없음) 문장이라 대장 BR-PAY-081 `제안`(RULE-CONFIRM-001 A — 일괄 확인 대기)** |
 | `AuthenticationSession` | Aggregate Root(PAYMENT DB) | 고객 카드 인증 lifecycle. 한 Payment에 여러 세션 이력 가능(인증 실패 후 같은 결제창에서 재인증), **비종료(CREATED·IN_PROGRESS) 세션은 Payment당 하나**, 귀속(bound) 세션은 Payment당 최대 하나 | 확정 D-AUTH-001, 범위 §3 |
 | `PaymentAuthorization` | Aggregate Root(PAYMENT DB) | Payment의 논리 승인. **Payment당 하나**(1:1, `authorizationId`). 요청 Money·PaymentPlan·인증 시 cardType·귀속 세션·승인 시작 판정 근거(권리 revision·정책 Assignment·Route 프로파일/프로토콜 버전·한도 정책 버전·evaluatedAt)를 생성 시 고정. Attempt 목록·기관 관찰 목록(append-only)을 가진다 | 확정 시도 §1, 허용 §4.1 끝·§5.1 |
 | `AuthorizationAttempt` | `PaymentAuthorization` 안의 Entity | 기관 승인 실행 시도. `attemptId`, 기관 요청 ID(namespace = 기관+환경+기관 계약계정+operation+요청 ID), Route Snapshot, dispatch 상태(§5.2). **dispatch된(또는 dispatch 여부 불명확) Attempt는 Authorization당 동시에 하나** | 확정 시도 §1·§4, 허용 §5.2 |
@@ -311,7 +313,7 @@ PaymentPlan·카드사는 인증 세션·승인 요청·기관 결과·Route 근
 | hold 해제 기록 | PAYMENT(control) | append-only `IncidentHoldRelease`(holdId, requestedBy, approvedBy, reconMatchRef, 사유, 시각). hold 행은 지우지 않는다. 여러 hold 중 하나 해제가 다른 hold를 없애지 않는다 |
 
 - **도출(시도 §2 + 결정 D-CPD-002)**: 해제 뒤 주문 효과 — 재대사가 늦은 승인이 **실제 기관 승인**이었음을 확인했다면 그 주문은 승인 성공 이력이 있는 주문이다(취소 여부와 무관하게 새 Payment 금지, 재구매는 새 주문 ID). 기관 무효과가 확인됐다면 원 종료 근거가 유지되고 D-CPD-002대로 새 Payment가 가능하다. 현재 코드는 늦은 승인을 성공 이력으로 남기지 않아 해제 기능이 생기면 첫 경우에 새 Payment를 허용하게 된다(§17-1). 해제 연산은 이 판정 결과(`REAL_APPROVAL_CONFIRMED`/`NO_EFFECT_CONFIRMED`)를 입력으로 받아 control에 반영해야 한다.
-- 해제 실행 의존: RECON-CONTRACT-001(MATCH 증거 형식), Q-ADMIN-AUTH(운영자 인증·역할 — PROPOSED). 둘 전까지 hold는 해제되지 않는다(fail-closed, 현재 동작 유지).
+- 해제 실행 의존: RECON-CONTRACT-001(MATCH 증거 형식), Q-ADMIN-AUTH(운영자 인증·역할 — PROPOSED). 둘 전까지 hold는 해제되지 않는다(fail-closed, 현재 동작 유지). **→ 정정(답 D-ADMIN-001·002, S3-DOC-001): Q-ADMIN-AUTH는 답변됐다(자체 계정 + TOTP, 고정 역할). 해제 실행을 막는 남은 의존은 RECON-CONTRACT-001(BACKLOG)뿐이며 hold는 그때까지 해제되지 않는다(fail-closed 그대로)**
 
 ---
 
@@ -400,7 +402,7 @@ Adapter(`adapter.institution` — 구현 결정 CA-17 패키지)는 TCP/전문/S
 | `PaymentAuthorizationFailed` | `INTEGRATION_NON_FINANCIAL` | TX2 FAILED | `PaymentAuthorizationFailed:{authorizationId}` | 가맹점 통지·조회 projection. 금융 효과 없음 |
 | `PaymentExpired`(**AUTHN-001 추가**, D-AUTHN-008) | `INTEGRATION_NON_FINANCIAL` | REQUESTED → EXPIRED 만료 TX(결제창 시각 경과 — 주기 작업·CreatePayment/토큰 발급 inline·confirm TX1 inline) | `PaymentExpired:{paymentId}` | 가맹점 통지·조회 projection. 금융 효과 없음(미전송). payload·envelope은 AUTHN-001 명세 §7.5.7(paymentKey·카드정보·Secret·개인정보 없음) |
 | `AuthorizationOutcomeUnresolved` | `OPERATIONAL_RISK` | 회복 예산 소진·연령 초과(§7) | `AuthorizationOutcomeUnresolved:{attemptId}` | RECON: 대사 이관(Case 후보). 상태 변화 없음 |
-| `AuthorizationIncidentDetected` | `RISK_INCIDENT` | TX2 hold 생성 | `AuthorizationIncidentDetected:{paymentId}:{reason}` | RECON: Case(HIGH/CRITICAL). 관찰(금액·통화·승인번호 등) 포함. **정산 대상 아님** |
+| `AuthorizationIncidentDetected` | `RISK_INCIDENT` | TX2 hold 생성 | `AuthorizationIncidentDetected:{paymentId}:{reason}` **→ 대체(D-AUTH-012·013 — 같은 사유 재hold의 occurrence, S3-DOC-001): 현행 `AuthorizationIncidentDetected:{paymentId}:{reason}:{occurrence}`(AUTH-001 §4.10 표, `AuthorizationEvents.kt:80`)** | RECON: Case(HIGH/CRITICAL). 관찰(금액·통화·승인번호 등) 포함. **정산 대상 아님** |
 | (없음) | — | TX1 승인 시작·인증 세션 전이·한도 점유 | — | 내부 상태. 필요 시 관측 로그 |
 
 - 기존 `PaymentRequested`(INTEGRATION_NON_FINANCIAL)와 이름·의미를 구분(D-CPC-003). aggregateType = `PaymentAuthorization`, aggregateVersion = Authorization JPA version(관례 §9 선례).

@@ -1,5 +1,7 @@
 # FIN-FACT-RELAY-001 PAYMENT → FINANCIAL 결제 사실 전달 명세 (rev 0.2)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: 이후 사용자 결정으로 확정·보완된 해석 옆에 `→ 확정`/`→ 결정됨`/`→ 현행화` 표시만 붙였다(원문 보존). 바뀐 곳: §2 I-2(상한 없는 재시도 + 밀림 경보 = 사용자 답 D-GOV-005 ③ / 4xx 격리 기준 유지·경보의 LIVE 조건 = Coordinator 기록), §1 제외 열의 RISK_INCIDENT 전달(D-GOV-001 ④ — OPERATIONAL_RISK는 결정 없음), §9 L-1(FIN-DBACCOUNT-001 DONE). 근거 FIN 대장 (b)·WH 대장 진단 (b)-2·(b)-3, RULE-CONFIRM-001 C(BR-FIN-008·BR-WH-077). 현재 유효 규칙 정본은 `docs/rules/FIN.md`·`WH.md`(D-GOV-006 ②).
+
 작성 2026-11-05 KST(rev 0.2 — 사용자 결정 D-FFR-001~004·독립 리뷰 REVIEW_FAIL M-1/m-1~m-3/NIT 반영, §12), branch `feat/foundation-setup`(기준 commit `df6fa0e` + Coordinator의 미커밋 harness/DECISIONS 변경). Implementer 작성 — 자기 완료 판정 아님(Verifier·Reviewer 별도).
 
 근거: 사용자 결정 D-ACQ-001(Q-ACQ-01)·D-ACQ-002(Q-ACQ-02)·D-ACQ-007(Q-BATCH-META), AUTH-001 §4.10·CANCEL-001 §4.10(PaymentAuthorized·PaymentCancelled v1 payload — `OutboxStore.kt`),
@@ -11,7 +13,7 @@ ADMIN-PAYMENT-OPS-001 §4.2(시각 창 있는 서명 v1 형식), WEBHOOK-001 D-W
 | 포함 | 제외(후속) |
 |---|---|
 | PAYMENT: FINANCIAL_FACT Outbox 행(PaymentAuthorized·PaymentCancelled v1)을 서명 내부 HTTP로 FINANCIAL에 push하는 Relay(발견·claim lease·backoff 재시도·격리·ACK 기록·적체 gauge) | 매입 파일 생성·전송·결과(ACQUIRING-001), 보류 해제 규칙(ACQUIRING-001 — D-ACQ-002), 정산(SETTLEMENT-*) |
-| FINANCIAL(financial-batch): 내부 Inbox(서명·시각 창·봉투 검증) + 결제 사실 투영(승인·취소) + 보류(Hold) — Inbox와 투영이 같은 로컬 TX | RISK_INCIDENT·OPERATIONAL_RISK 이벤트 전달(RECON 작업), 격리·UNSUPPORTED 재처리 도구 |
+| FINANCIAL(financial-batch): 내부 Inbox(서명·시각 창·봉투 검증) + 결제 사실 투영(승인·취소) + 보류(Hold) — Inbox와 투영이 같은 로컬 TX | RISK_INCIDENT·OPERATIONAL_RISK 이벤트 전달(RECON 작업), 격리·UNSUPPORTED 재처리 도구 **→ RISK_INCIDENT만 결정됨(D-GOV-001 ④, S3-DOC-001): PAYMENT 사고 보류는 사고 사실을 FINANCIAL로 전달해 매입 후보·정산을 보류한다 — 구현은 후속 작업(이 명세 범위 밖 그대로, 미구현). OPERATIONAL_RISK(`*OutcomeUnresolved` 등) 전달은 결정 없음** |
 | FINANCIAL 첫 migration: Spring Batch metadata(BATCH_*) main V1(D-ACQ-007) + 결제 사실 V2 | FINANCIAL DB 계정 분리·표 단위 runtime 권한(D-FFR-002 → 별도 작업 FIN-DBACCOUNT-001, ACQUIRING-001 전) |
 | 두 앱 독립 계약 golden `payment-fact-relay-v1.golden.json`(harness Python 생성) | mTLS·내부망 바인딩·운영 키 배포(LIVE Gate) |
 
@@ -29,7 +31,7 @@ Kafka/Redis는 도입하지 않는다(ADR-001). 전달 안전성은 PAYMENT Outb
 | D-FFR-003 (Q-FFR-03) | 정합성 보류 5종 유지. ORIGINAL_UNKNOWN은 원승인 도착 + 금액·통화·식별 MATCH 시 append-only 해제 기록으로 자동 해제, 불일치는 운영자 검토, 보류 원본 기록은 수정하지 않음 — **구현은 ACQUIRING-001** | 사용자 결정 |
 | D-FFR-004 (Q-FFR-04) | 모르는 schema 버전 사실은 UNSUPPORTED로 원문 보존 후 ACK. 재처리 도구는 후속 | 사용자 결정 |
 | ~~I-1~~ | (rev 0.2) D-FFR-001로 대체. rev 0.1 해석: PAYMENT Outbox 행·열을 바꾸지 않는다. 전달 상태는 새 표 `financial_fact_relay`(Outbox 행당 1행)에 둔다. `publish_status`(V1에서 "FINANCIAL 전달 표시"로 예약)를 갱신하려면 runtime에 그 열의 UPDATE 권한이 필요한데 D-WH-009가 "publish_status 수정은 계속 거부(1143)"로 정했기 때문이다. 대가: 발견 비용이 FINANCIAL_FACT 행 수에 비례 | 대체됨(D-FFR-001) |
-| I-2 | HTTP 분류: **400·409·422 + 본문 `error`가 그 상태의 FINANCIAL 계약 코드일 때만 격리**(rev 0.2 검토 m-1 — 프록시·다른 서버의 4xx로 격리하지 않는다. 그 내용은 다시 보내도 거절된다). 401(키 교체 실수·시계 오차)·404·411·413·415·429·3xx·5xx·연결 실패·읽을 수 없는 ACK는 **재시도**(상한 없음, 연령 gauge 경보). MASTER Relay(모든 4xx 격리)와 다른 점: 금융 사실은 설정 오류가 고쳐지면 스스로 전달돼야 하고 재처리 도구가 아직 없다 | Implementer 해석 |
+| I-2 **→ 일부 사용자 답(S3-DOC-001): '상한 없이 재시도 유지 + 오래 밀린 사실 경보'는 사용자 답(Q-GOV-U10c → D-GOV-005 ③). '현 4xx 격리 기준 유지'·'밀림 경보는 LIVE 조건'은 Coordinator 기록 — RULE-CONFIRM-001 Q-C 확인 대기(대장 BR-FIN-008·BR-WH-077 `제안`)** | HTTP 분류: **400·409·422 + 본문 `error`가 그 상태의 FINANCIAL 계약 코드일 때만 격리**(rev 0.2 검토 m-1 — 프록시·다른 서버의 4xx로 격리하지 않는다. 그 내용은 다시 보내도 거절된다). 401(키 교체 실수·시계 오차)·404·411·413·415·429·3xx·5xx·연결 실패·읽을 수 없는 ACK는 **재시도**(상한 없음, 연령 gauge 경보). MASTER Relay(모든 4xx 격리)와 다른 점: 금융 사실은 설정 오류가 고쳐지면 스스로 전달돼야 하고 재처리 도구가 아직 없다 | Implementer 해석 |
 | I-3 → D-FFR-004 | 지원하지 않는 (eventType, schemaVersion)은 FINANCIAL Inbox에 **UNSUPPORTED로 원문 보존 + ACK**(투영 없음, error 로그·counter). PAYMENT는 DELIVERED로 두고 error 로그. 권리 Inbox의 UNSUPPORTED 처리와 같은 모양. 재처리 도구는 없음(§9 L-5) | **사용자 결정 D-FFR-004**(rev 0.1에서는 해석) |
 | I-4 → D-FFR-003 | 보류는 append-only `payment_fact_hold`. **해제 경로·표를 만들지 않는다**(늦게 도착한 원승인도 보류를 풀지 않는다 — 현재 연결 여부는 원승인 표 join으로 판단 가능). 해제 규칙(원승인 도착 + MATCH → append-only 해제 기록, 불일치 운영자 검토)은 ACQUIRING-001이 구현 | **사용자 결정 D-FFR-003**(이 작업은 해제를 구현하지 않음) |
 | I-5 → D-FFR-003 | ORIGINAL_UNKNOWN 외 fail-closed 정합성 보류 5종: ORIGINAL_MISMATCH(원승인과 승인 ID·Payment·통화·승인액·기관 원거래번호 불일치), RETURN_SEQUENCE_CONFLICT(같은 원승인·같은 반환 순번의 다른 취소), RETURN_EXCEEDS_AUTHORIZED(받은 취소 합계 > 원승인액), AUTHORIZATION_CONFLICT(같은 Payment의 두 번째 다른 승인 거래), IDENTITY_MISMATCH(같은 Payment의 환경·MID·사이트·주문번호 불일치). 사실은 잃지 않고 투영하되 보류로 표시 | **사용자 결정 D-FFR-003**(유지) |
@@ -182,7 +184,7 @@ Fixture: FINANCIAL `PaymentFactFixture`(Named — 취소는 원승인에서 파�
 
 ### 9.1 알려진 한계·LIVE Gate 항목
 
-- **L-1 FINANCIAL DB 계정 분리 없음**: 단일 계정(ALL)이라 Inbox·사실·보류 append-only를 DB가 1142로 강제하지 못한다. D-FFR-002에 따라 별도 작업 **FIN-DBACCOUNT-001**(ACQUIRING-001 전)이 계정·role·runtime 권한 migration을 만든다. → **해소 예정: FIN-DBACCOUNT-001 DONE 시**(docs/repository/FIN-DBACCOUNT-001-FINANCIAL-DB-ACCOUNTS.md).
+- **L-1 FINANCIAL DB 계정 분리 없음**: 단일 계정(ALL)이라 Inbox·사실·보류 append-only를 DB가 1142로 강제하지 못한다. D-FFR-002에 따라 별도 작업 **FIN-DBACCOUNT-001**(ACQUIRING-001 전)이 계정·role·runtime 권한 migration을 만든다. → **해소 예정: FIN-DBACCOUNT-001 DONE 시**(docs/repository/FIN-DBACCOUNT-001-FINANCIAL-DB-ACCOUNTS.md). **→ 현행화(S3-DOC-001): FIN-DBACCOUNT-001 = DONE(`harness/archive/tasks-done-2026-11-22.json`)**
 - **L-2 mTLS·내부망**: 채널 인증은 HMAC 서명 + 시각 창. 운영은 내부망 바인딩 + mTLS, ACK 응답 위조 방어(현재는 TLS 없는 loopback Demo — 응답 본문은 서명되지 않는다)는 LIVE Gate.
 - **L-3 발견 질의 비용**: (rev 0.2 해소 — D-FFR-001) 발견·미발견 gauge는 `publish_status = PENDING` FINANCIAL_FACT 행만 본다. 비용 = 미전달 행(PENDING·QUARANTINED 전달 행 포함) 수. 격리 행이 쌓이면 그만큼 남는다(격리 gauge 경보).
 - **L-4 순서**: 같은 Payment의 사실도 재시도가 끼면 순서가 바뀔 수 있다(취소가 먼저 도착 → ORIGINAL_UNKNOWN 보류). Relay가 앞 사실 실패 시 뒤 사실을 막지는 않는다(보류가 정의된 처리 — D-ACQ-002).

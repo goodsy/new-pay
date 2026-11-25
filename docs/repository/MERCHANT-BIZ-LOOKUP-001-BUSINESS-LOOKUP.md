@@ -8,13 +8,15 @@
 - 근거: **D-ADMIN-UI-004 ⑦(Q-ADMIN-UI-7 "사업자 조회 기능 추가")**, **D-BIZLOOKUP-001(Q-BL-1)**, D-MOPS-002·003(Q-MOPS-03·05·06·07·08)·005·006 ③④·010 ①, D-MD-008, D-ADMIN-UI-004 ③④, `harness/tasks.json` MERCHANT-BIZ-LOOKUP-001 수용 기준,
   MERCHANT-OPS-001 §3·§4·§5(등록번호 검색·oracle 방어), MERCHANT-OPS-002 §4.3·C-13(등록번호 버킷 공유)·§9.29, ADMIN-UI-MERCHANT-002, ARCHITECTURE-CONVENTIONS §14, 테스트 아키텍처 Test Fixture Policy.
 
+> **정합 표시(S3-DOC-001, 2026-11-25 — NP-95·PC-59·BIZ (c)-9·DC-M-22, 원문 보존)**: 이 명세(rev 0.3)는 별도로 실행되지 않았다. **D-BIZ-004(2026-11-17)**로 이 작업은 BUSINESS-PROFILE-001에 합쳐졌고 그 작업 완료(DONE, `harness/archive/tasks-done-2026-11-22.json`) 때 함께 닫기로 했다(`harness/tasks.json`의 BACKLOG 상태 정리는 Coordinator 소관 — 이 문서에서 바꾸지 않음). 이 문서의 아래 내용은 그 뒤 결정으로 바뀌었다: ① 권한 'OPERATOR만'(수용 기준) → **D-BIZ-006 ①: OPERATOR·APPROVER** ② 응답 '상호·마스킹 번호·내부 키만' → **D-BIZ-006 ③**(등록 상태 `registrationStatus` 포함) + **D-BIZ-007·D-PII-001 ①**(번호는 원문 `registrationNumber`, 감사 detail은 마스킹 유지) ③ D-MOPS-006 ③(중복 거절에 기존 사업자 비노출) → **D-BIZ-003**(조회 권한자에게 기존 사업자 상호·번호·상세 링크) ④ 이 문서의 'D-MOPS-010 ①'(등록 지문 HMAC)은 DECISIONS 번호로 **D-MOPS-010 ②**(PC-63), SEC-BIZ-001에서 지문 전체 `h1:` HMAC으로 시행. 현행 구현(코드 확인): ADMIN `POST /api/businesses/registration-number-lookups`(`apps/internal-admin/.../merchantops/adapter/web/BusinessQueryController.kt:39`), 역할 `BusinessPermissions.VIEW` = OPERATOR·APPROVER(`BusinessLookupService.kt:17`), MASTER `…/registration-number-lookups`(`apps/master-api/.../adapter/web/admin/BusinessQueryController.kt:37`), 응답 항목 = `businessId`·`businessName`·`registrationNumber`(원문)·`registrationStatus`(`BusinessProfileJson.kt:100-103`). 이 문서의 endpoint 이름(`/api/business-lookups`)·`registrationNumberMasked` 필드는 구현되지 않았다. 현행 규칙 정본: `docs/rules/BIZ.md` §2, 현행 명세: BUSINESS-PROFILE-001 §6.3.
+
 ## 0. 한눈에
 
 | 항목 | 결정·제안 |
 |---|---|
 | 무엇 | 사업자등록번호 10자리 **정확 일치**로 **사업자(Business)** 하나를 찾는다 — 가맹점이 0개인 사업자도 "가맹점 등록 ① 사업자 선택"에서 고를 수 있게(D-ADMIN-UI-004 ⑦) |
-| 권한 | **OPERATOR만**(수용 기준 — 가맹점 등록 화면과 같은 역할, D-ADMIN-UI-004 ④). 기존 가맹점 BRN 검색(OPERATOR·APPROVER)은 그대로 |
-| 응답 | `{"items":[…]}` 0개 또는 1개, 항목 = **상호·마스킹 번호(`123*******`)·내부 키 `businessId`**만. 평문 번호 없음. 찾음·못 찾음 같은 모양(200) |
+| 권한 | **OPERATOR만**(수용 기준 — 가맹점 등록 화면과 같은 역할, D-ADMIN-UI-004 ④). 기존 가맹점 BRN 검색(OPERATOR·APPROVER)은 그대로 → 대체: D-BIZ-006 ①, 현행은 OPERATOR·APPROVER |
+| 응답 | `{"items":[…]}` 0개 또는 1개, 항목 = **상호·마스킹 번호(`123*******`)·내부 키 `businessId`**만. 평문 번호 없음. 찾음·못 찾음 같은 모양(200) → 대체: D-BIZ-006 ③(등록 상태 포함)·D-BIZ-007·D-PII-001 ①(번호 원문), 현행 항목은 `businessId`·`businessName`·`registrationNumber`·`registrationStatus` |
 | 내부 키 | **`businessId`는 응답에 포함, 화면에 그리지 않는다**(D-BIZLOOKUP-001) — 가맹점 등록 요청 본문에만 쓴다. 평문 번호는 **조회 요청에서만 1회** 전송. D-MOPS-006 ③은 사업자 등록 **명령 거절 응답** 범위로 해석·유지 |
 | 감사 | **모든 시도**(D-MOPS-003): 새 action `MERCHANT_BUSINESS_BRN_LOOKUP`, detail `brn=123*******;results=N`(형식 위반 `brn=INVALID`), 찾으면 `targetRef = businessId` |
 | 속도 제한 | 기존 **등록번호 버킷 공유**(`RegistrationNumberBudget` — 가맹점 BRN 검색·사업자 등록 중복 결과와 같은 버킷, Demo 10/분 — **실제로 묶는 통제**) + `BusinessLookupService` **자체** 일반 조회 창(Demo 30/분 — 가맹점 조회 창과 별개, C-12) — C-3 |
@@ -55,12 +57,12 @@
 |---|---|
 | D-ADMIN-UI-004 ⑦ / Q-ADMIN-UI-7 "사업자 조회 기능 추가 (Recommended)" | 등록번호 정확 일치 사업자 조회, D-MOPS-003 감사·한도, 응답 상호·마스킹 번호, 별도 작업 = 이 문서 |
 | **D-BIZLOOKUP-001 / Q-BL-1 "내부 키 응답, 화면 미표시 (Recommended)"** | 조회 응답에 `biz_` 내부 키 포함 — **화면에 그리지 않고** 가맹점 등록 요청 본문에만 사용. 원문 번호는 조회 요청에서만 1회 전송(가맹점 등록 요청·ADMIN 요청 기록·재전송 바이트에 원문 없음). 사업자등록번호를 식별자로 쓰는 안은 D-MD-008 마스킹·D-MOPS-010 HMAC 방향과 충돌하고 정정 가능 값이라 채택하지 않음(사용자 확인). **D-MOPS-006 ③**(사업자 등록 중복 거절 응답에 기존 businessId 비노출)은 **등록 명령 거절 응답 범위**로 해석·유지 → 결정 고정 시험 BL-2-9·BL-3-1·BL-3-2 |
-| tasks.json 수용 기준 | ① 정확 일치만, 매 시도 감사·한도, 응답 상호·마스킹 번호·내부 키만(평문 미노출) ② 가맹점 등록 ①에 연결 ③ 권한 **OPERATOR**, 기존 규칙 불변 |
+| tasks.json 수용 기준 | ① 정확 일치만, 매 시도 감사·한도, 응답 상호·마스킹 번호·내부 키만(평문 미노출) ② 가맹점 등록 ①에 연결 ③ 권한 **OPERATOR**, 기존 규칙 불변 → 대체: D-BIZ-006 ①·③(권한 OPERATOR·APPROVER, 응답에 등록 상태), D-BIZ-007·D-PII-001 ①(응답 번호 원문 — '평문 미노출'은 감사·로그·이력에만 남음), D-BIZ-004(작업 자체는 BUSINESS-PROFILE-001에 합침) |
 | D-MOPS-003(Q-MOPS-03·05·06) | 모든 시도 감사, 감사·로그·지표·오류에 평문 금지, oracle 취급(같은 모양·속도 제한·호출 전 형식 검사), 감사 = 앞 3자리 + 결과 수 + 찾으면 targetRef = businessId(keyed hash 미사용) |
 | Q-MOPS-07 | JSON 자료형이 깨진 본문도 시도면 `INVALID_INPUT`(`brn=INVALID`) 감사, 중복 key 거부 |
 | Q-MOPS-08 | 상한 초과 본문은 해석 없이 413·감사 없음(16 KiB Demo 값) |
 | D-MOPS-006 ④ | 등록번호 결과(중복 포함)는 등록번호 검색 횟수 제한에 포함 → 이 조회도 같은 버킷(C-3) |
-| D-MOPS-006 ③ | 사업자 등록 **명령**의 중복 거절은 "이미 등록된 번호"만 — 그 응답·화면·감사에 기존 businessId 없음(불변 — D-BIZLOOKUP-001 해석) |
+| D-MOPS-006 ③ | 사업자 등록 **명령**의 중복 거절은 "이미 등록된 번호"만 — 그 응답·화면·감사에 기존 businessId 없음(불변 — D-BIZLOOKUP-001 해석) → 대체: D-BIZ-003(조회 권한자에게 기존 사업자 상호·번호·상세 링크, 내부 키는 화면 비표시)·D-BIZ-007(번호 원문) |
 | D-MOPS-002 | 목록은 감사 없음 — 단, 등록번호가 오가는 조회는 예외(D-MOPS-003) |
 | D-MD-008 | 번호 10자리 숫자만(하이픈 정규화 없음 — 화면 자동 하이픈은 표시만, 보낼 때 숫자만), Business 하나 |
 | D-ADMIN-UI-004 ③ | `businessId`는 화면에 그리지 않는다(내부 키 — 저장 본문에만) |
@@ -92,7 +94,7 @@
 
 ### 4.2 판정 순서(Use Case — `BusinessLookupService` 분리, C-4: 역할 집합이 달라 `MerchantLookupService`에 두면 상수 혼동 위험)
 1. 계정 현재 행 ACTIVE + 조회 역할(`VIEW_ROLES`) — 아니면 403, **감사 없음**(MERCHANT-OPS-001 §5.2와 같은 앞단: 세션이 없거나 조회 권한조차 없는 호출).
-2. **사업자 조회 역할 = OPERATOR** — 아니면 403 + 감사 `FORBIDDEN`(APPROVER 단독·VIEWER·SECURITY_ADMIN 계정의 시도도 남긴다).
+2. **사업자 조회 역할 = OPERATOR** — 아니면 403 + 감사 `FORBIDDEN`(APPROVER 단독·VIEWER·SECURITY_ADMIN 계정의 시도도 남긴다). → 대체: D-BIZ-006 ①, 현행 역할은 OPERATOR·APPROVER(`BusinessLookupService.kt:17`).
 3. 형식(ASCII 숫자 10자리) / 본문 해석 실패 → 400 + 감사 `INVALID_INPUT`(detail 고정 `brn=INVALID`, targetRef 없음).
 4. 등록번호 버킷(`RegistrationNumberBudget.admit` — **공유**, C-3) → 초과 429 + 감사 `RATE_LIMITED` + 지표 `rate_limited{kind=REGISTRATION_NUMBER}`.
 5. 일반 조회 창 — **`BusinessLookupService` 자체 창**(C-12: actor별 분당 `lookupPerMinute`(Demo 30) 값을 쓰되 `MerchantLookupService`의 `lookupWindows`와 공유하지 않는 별도 `ActorMinuteWindows`) → 초과 429 + 감사 `RATE_LIMITED` + 지표 `rate_limited{kind=LOOKUP}`.
@@ -243,3 +245,10 @@ C-9 사업자 등록 중복 거절에서 번호 자동 전달 없음(안내 문�
 | 0.1 | 초안. D-ADMIN-UI-004 ⑦·수용 기준 적용, C-1~C-10 권장, Q-BL-1 PENDING |
 | 0.2 | **Q-BL-1 답 적용(D-BIZLOOKUP-001 "내부 키 응답, 화면 미표시", 권장)**: §0·§2·§4.1·§5.4·§6 반영, D-MOPS-006 ③ = 등록 명령 거절 응답 범위로 해석 명시, 결정 고정 시험(BL-1-3 키 집합, BL-2-9, BL-3-1 DOM `biz_` 0건(속성 포함)·원문 번호는 조회 요청에서만·저장소/URL 0건, BL-3-2 대조)·변이 추가, L-5, 질문 표 ANSWERED. **저장소 대조(HEAD `7a50459`)**: `startWithBusiness` 위치 정정(`lib/registration.ts` L155 → **`MerchantRegistrationScreen.tsx:155`** — `registration.ts`는 29줄), 감사 틀 `audited` L151-164 → **L143-164**, KDoc 범위 L25-30 → L24-31(한계 문장 L29), `BusinessRef` KDoc L20-28, `business` 표 V1:20-34, `Business.kt:14-16`, `BusinessRepository.kt:12-13`, parser Jackson 설정 L20-23, Reader `REPEATABLE_READ` L25, 조회 permit `guarded` L51-52·busy code `ADMIN_READ_BUSY`, 지표 전체 이름(`MerchantController.kt:55·102`, `MerchantOpsMetrics`), Demo 한도 `application.yml:140-141`, Vitest 기대 반전 범위를 실제 줄로 구체화(L84-101·L116-132 반전, L136-140·L187·L768 대역만, L1021 불변), action 길이 31 → 28자 정정. 그 밖 참조(`MerchantOpsController.kt:27-34`, `JooqMerchantDirectoryReader.kt:31·38-39`, `MasterSqlText.kt:18`, `MerchantController.kt:37-49`, `MerchantSearchBodyParser.kt:38-76`, `MerchantLookupService.kt:61-70·72-103`, `RegistrationNumberBudget.kt:7-28`, `MerchantOpsLimits.kt:7-13`, `AdminAuditEvent.kt:54`, ADMIN `V1:150`, `App.tsx:235-238`, `BusinessRegistrationScreen.tsx:63·108·129`, `adminApi.ts:734·809`) 확인 — 변경 없음 |
 | 0.3 | rev 0.2 독립 리뷰 **REVIEW_PASS(minor)** 반영. m-1: 403 문구 새로 만들지 않음 — 기존 `ERROR_MESSAGES.FORBIDDEN`(C-11, BL-3-3 문구 변경 삭제), m-2: `BusinessLookupService` 자체 일반 조회 창(C-12 — §0·§4.2·BL-2-3 창 분리 시험), NIT: `search_body_rejected` tag key 일관성(C-6 보강·BL-2-6·BL-2-7), L-1에 MASTER endpoint의 `ADMIN_SERVICE` 키 유출 oracle 위험 추가 |
+
+## 개정 이력
+
+| 일자 | 내용 |
+|---|---|
+| 2026-11-14 | rev 0.1~0.3(머리 목록, §12 기록) |
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-95·PC-59·BIZ (c)-9): §0 앞 정합 표시(D-BIZ-004 합침, D-BIZ-006 ①③·D-BIZ-007·D-PII-001 ①·D-BIZ-003, D-MOPS-010 번호 PC-63, 현행 구현 file:line), §0 권한·응답 행, §2 수용 기준·D-MOPS-006 ③ 행, §4 판정 2단계에 '→ 대체' 표시. 원문 무변경, 정책 변경 없음. 작업 카드 상태(BACKLOG)는 Coordinator 소관이라 그대로 |

@@ -1,5 +1,7 @@
 # CP-API-001 CreatePayment Application/API·통합 검증 명세 (1단계 명세 → 2단계 구현 반영)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: §19-7·§20-9 "반환(취소·환불) 모델이 아직 없다" 옆에 `→ 현행화` 표시만 붙였다(원문 보존, NP-98·PC-26). 시험 이름 `CreatePaymentApiSpec.kt:260`의 "refund is not modelled yet"은 코드라 이 작업에서 고치지 않는다.
+
 > **2단계 갱신(2026-10-14)**: Q-CPA-01은 사용자가 "Bearer API Key (Recommended)"로 답했다(**D-CPA-001**, `docs/DECISIONS.md`). §19의 범위 항목은
 > Coordinator가 결정했다(§19 각 항목 끝 "결정"). 2단계 TDD 구현이 반영됐고 명세와 다른 점은 §20에 적었다. 아래 1단계 문장 중 "답 전에는"·"미결"로
 > 남은 표현은 §5·§18·§20의 확정 내용이 우선한다.
@@ -599,7 +601,7 @@ Verifier: VERIFY-GATE(payment-api 포함)·HARNESS-SELFTEST(새 golden 시험)·
 4. **L-10 배포 문서(AC 18)**: 루트 `.env.example`은 허용 경로 밖이다. 규칙은 `docs/repository`에 적고, `.env.example` 주석 갱신이 필요하면 허용 경로 확장을 Coordinator가 정한다. **결정: docs/repository에만(TECH-BASELINE §8), `.env.example`은 손대지 않음.**
 5. **AC 3(동일 fingerprint 검증 + 독립 리뷰)**은 Verifier/Reviewer 역할이며 구현자가 충족을 주장하지 않는다. **결정: 동의.**
 6. **재시작(AC 2)**: 같은 JVM 안의 Spring 컨텍스트 종료·재기동으로 시험한다(§9.2). 프로세스 강제 종료 수준 시험이 필요하면 별도 하네스 명령(컨테이너화된 앱)이 필요하다 — 현재 commands.json에 없다. **결정: 같은 JVM 컨텍스트 재기동으로 충분.**
-7. **CP-05 "전액 반환 후"**: 반환(취소·환불) 모델이 아직 없어 승인 이력(control `authorized_payment_id`)으로만 확인한다. 반환 후 시나리오의 실제 시험은 취소·환불 작업. **결정: control의 승인 이력으로 확인하고 한계를 명세에 적는다(§20-9).**
+7. **CP-05 "전액 반환 후"**: 반환(취소·환불) 모델이 아직 없어 승인 이력(control `authorized_payment_id`)으로만 확인한다. **→ 현행화(S3-DOC-001): 카드 취소 모델은 CANCEL-CONTRACT-001·CANCEL-001에서 생겼고, 계좌 환불은 v1 범위 밖이다(D-CANCEL-007). '전액 반환 뒤에도 같은 주문 재승인 금지' 규칙은 그대로(CLAUDE.md, BR-PAY 대장). 전액 취소 뒤 재요청 시험의 현재 위치는 이 표시에서 확인하지 않았다** 반환 후 시나리오의 실제 시험은 취소·환불 작업. **결정: control의 승인 이력으로 확인하고 한계를 명세에 적는다(§20-9).**
 8. **G-1(§3.7)**: MASTER-SNAPSHOT-001 구현의 분류 공백(entitlement 기술 실패가 500)이다. entitlement provided API를 바꾸므로 Reviewer가 MS 시험 회귀도 함께 봐야 한다. **결정: 고치고 MASTER-SNAPSHOT-001 시험 전부 통과 유지.**
 9. **Fixture Monkey(AC 4)**는 CP-DB-001에서 이미 도입·검사됨 — 이 작업은 요청 Fixture 추가와 main 유입 규칙 확장만 한다.
 10. **S4·S5 묶음**(§16 끝): 운영 인증 bean 없이 기동 실패를 유지하는 처리안이 Coordinator 판단과 맞는지 확인 필요(대안: 운영 "전부 401" 구현 — 관례상 비권장). **결정: 운영 인증 bean 없음 = 기동 실패 관례 유지, S4·S5 함께 검증.** (결과: S5를 같은 단계에서 구현해 운영 bean이 있다 — 투영이 비어 모든 요청 401, §20-2.)
@@ -618,7 +620,7 @@ Verifier: VERIFY-GATE(payment-api 포함)·HARNESS-SELFTEST(새 golden 시험)·
 6. **`+`·선행 0 금액**: JSON 문법 오류라 Jackson이 거절하지만 계약 §3.1대로 `INVALID_AMOUNT`로 분류한다(두 표기만 허용하는 분류 전용 재해석, 값은 받지 않음).
 7. **commit 결과 불명확 문구**: code는 계약대로 `TEMPORARILY_UNAVAILABLE`, 문구만 "같은 Idempotency-Key로 확인, 새 키 금지".
 8. **health 본문**: 상태와 probe `groups`만(세부 없음). 시험은 `status`·`groups` 외 키가 없음을 본다.
-9. **CP-05 "전액 반환 후"**: 반환 모델이 없어 control `authorized_payment_id`로만 확인한다(Coordinator 결정). 반환 뒤 재요청 시험은 취소·환불 작업.
+9. **CP-05 "전액 반환 후"**: 반환 모델이 없어 control `authorized_payment_id`로만 확인한다(Coordinator 결정). **→ 현행화: §19-7 표시와 같음(S3-DOC-001)** 반환 뒤 재요청 시험은 취소·환불 작업.
 10. **인접 갭 잠금 재현**: 같은 범위에서 키 `kb-…`의 KEY_REUSED 재요청(IODKU 중복 경로)이 잡은 next-key 잠금 앞 갭에 `ka-…` 새 예약이 대기 → 409 IN_PROGRESS로 실제 MySQL에서 재현됐다.
 11. **HTTP 동시 8건**: 같은 키 8건은 모두 시험 lock wait(8초) 안에 직렬화돼 201 1건 + 200 재생 7건이다(IN_PROGRESS는 timeout 시나리오에서 따로 본다).
 12. **1062 로그**: 멱등 키·control은 IODKU라 정상 경로에 1062가 없다. 1062가 나는 경로(서버 생성 paymentId·paymentKey 충돌, 주문 동시 최초 요청 6건)에서 로그에 키·주문 값·"Duplicate entry"가 없음을 확인했다.

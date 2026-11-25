@@ -1,5 +1,7 @@
 # AUTH-001 가상 TCP 승인·조회·UNKNOWN 회복 구현 명세 (rev 0.8 — S8 gap 대응·D-AUTH1-007)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: 이미 사용자 결정으로 답이 난 내용만 해당 문장 옆에 `→ 대체`/`→ 보완` 표시를 붙였다. **원문은 지우거나 고치지 않았다** — 표시가 있는 문장은 표시된 현행을 따른다. 바뀐 곳: §4.2 그림의 TXd 게이트 줄(인증 증거 유효 확인 — D-AUTH1-004로 미채택, NP-98·PC-25·PAY 대장 진단 (c)-5), §13 Q-AUTH1-02 배경(외화 활성화 — D-GOV-002 ④). 현재 유효 규칙 정본은 `docs/rules/PAY.md`(D-GOV-006 ②).
+
 > **rev 0.8 갱신(2026-10-19, 구현자)**: §16.17 발견 1~4 대응(관찰 지표·로컬 Demo 승인 설정 예시·Simulator 할부 Demo 정렬·main yml 주석)과 사용자 결정 **D-AUTH1-007**(Q-S8-1 = A — 전송 때 Route
 > profile version을 Attempt에 고정, 회복은 버전 일치 때만 무효과 종결 요청) 구현. 본문 변경: §5.8 끝, §6.1 ③, §9 Auditability·Observability, §20-1(V14)·§20-3·§20-6(임시 전제 대체). 기록 §16.18.
 
@@ -244,6 +246,8 @@ POST /v1/payments/{paymentId}/confirm           (공개 포트, Authorization: B
           · 한도 예약 · 멱등 결과 ACCEPTED(authorizationId) ── 커밋
  TXd  head(S) → control(X) → payment(X) → payment_authorization(X) → attempt(X) → (session 읽기)
       게이트: A0~A2 재판정(now) + 인증 증거 유효(providerValidUntil) + 프로파일·Health
+      ↑ → 대체(S3-DOC-001): '인증 증거 유효(providerValidUntil)' 확인은 D-AUTH1-004(AU-26 미채택)로 없다. 현행 게이트 = A0~A2 admission 재판정(now)·preparedDeadline·Route 프로파일 —
+        `AuthorizationDispatchService.kt:136`, §4.4. 만료된 증거는 기관(가상 VAN)이 재검증해 확정 거절한다(BR-PAY-054)
       ├ 통과 → Attempt PREPARED → DISPATCHING(조건부 갱신, dispatch lease) ── 커밋
       └ 거절 → abandonBeforeDispatch(GATE_REFUSED): Payment·Authorization FAILED(PRE_TRANSMISSION) + 한도 RELEASED + PaymentAuthorizationFailed ── 커밋 → 200 FAILED(NOT_SENT)
  [TX 밖] AuthorizationPort.authorize(기관 요청 ID, Route Snapshot, Money, Plan, 인증 증거 참조)  — 잠금·DB TX 없음, 자기 deadline 재확인 뒤에만 connect
@@ -887,7 +891,7 @@ Simulator 원장 Port는 `VanLedgerRepository`가 아니라 **`VanLedgerStore`**
 ### Q-AUTH1-02 KRW 외 통화(예: USD) Payment의 승인
 
 - **배경**: D-CP-002는 CreatePayment가 ISO 통화를 일반적으로 다루고 초기 구현·검증을 KRW·USD로 하며 허용 통화는 MID·기관 계약별 기준정보로 연다고 정했다. 그 뒤 D-AUTH-001은 카드 승인 범위로 범위 문서 §1(KRW)을
-  채택했다. 외화 정산 통화·환율은 미결(Q-SETTLE-CURRENCY). 지금 MID에 USD 통화 활성화·정책 Assignment·한도 정책이 있으면 USD Payment가 결제창·인증(Plan Demo 정책 통화 KRW)을 지나 confirm까지 올 수 있다.
+  채택했다. 외화 정산 통화·환율은 미결(Q-SETTLE-CURRENCY). 지금 MID에 USD 통화 활성화·정책 Assignment·한도 정책이 있으면 USD Payment가 결제창·인증(Plan Demo 정책 통화 KRW)을 지나 confirm까지 올 수 있다. **→ 보완(답 D-GOV-002 ④, S3-DOC-001): 외화는 정산 통화 결정 전까지 기준정보(가맹점 통화 활성화)에서 비활성으로 둔다 — 생성 규칙 D-CP-002·승인 KRW 한정 D-AUTH1-002는 그대로. Q-SETTLE-CURRENCY는 계속 미결**
 - **권장안**: **승인은 KRW만 연다** — 가상 VAN Route 프로파일 Capability `supportedCurrencies = [KRW]`(Demo, 버전 있는 설정)로 KRW 외 confirm은 승인 시작 거절(422 `PAYMENT_NOT_ELIGIBLE`, 저장, 전송 없음,
   Payment REQUESTED 유지). 이유: D-AUTH-001이 카드 승인 범위를 더 뒤에·더 구체적으로 정했고, USD `PaymentAuthorized`가 나가면 FINANCIAL이 정산 통화·환율 기준 없이 받게 된다. 코드는 통화 일반(minor unit)을
   그대로 다루므로 나중에 프로파일 값만 바꾸면 열린다.

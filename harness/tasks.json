@@ -1423,7 +1423,7 @@
     {
       "id": "S3-DOC-001",
       "title": "정상화 S3 문서 정합 — 이미 답이 난 결정만 명세·색인·대장에 반영(NP-92~101 문서 부분)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "PROCESS",
       "owner": "Coordinator",
       "dependsOn": [
@@ -1438,12 +1438,18 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "S3-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/S3-DOC-001-2026-11-25T121812Z.json"
+      },
       "openItems": [
         "결정 완료분만 — 미결·제안은 표시만, 정책 변경·코드·시험 변경 없음",
-        "A(MASTER·ADMIN 명세)·B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX·DECISIONS) 두 갈래 병렬, 파일 겹침 없음"
+        "A(MASTER·ADMIN 명세)·B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX·DECISIONS) 두 갈래 병렬, 파일 겹침 없음",
+        "갈래 A(MASTER·ADMIN 명세 9) + 갈래 B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX BI-PAY/CAN/FIN/WH/ADM + DECISIONS 역참조 8), 독립 리뷰 재리뷰 APPROVED, DECISIONS word-diff 삭제 0",
+        "남은 정비 후보(코드): D-GOV-004 ① 거절 Site 채널 해제(MerchantSiteJpaRepository.kt:8-12), D-FLOW-005 ⑧ 마스킹 해제 사유 PAN(UnmaskService.kt:32-33), 웹훅 GAVE_UP→DELIVERED(MerchantWebhookDelivery.kt:76-80); 대장 상태 전환(BR-BIZ-082, BR-FIN-102, C 항목)은 RULE-CONFIRM 반영 때"
       ],
-      "nextResumeAction": "작성 → 독립 리뷰 → SCOPED → 커밋",
+      "nextResumeAction": "완료(커밋).",
       "detail": null
     }
   ]

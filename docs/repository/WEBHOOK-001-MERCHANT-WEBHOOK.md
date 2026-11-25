@@ -1,5 +1,7 @@
 # WEBHOOK-001 가맹점 서명 Webhook 전달 명세 (rev 0.3 — rev 0.2 + MERCHANT-CODE-001 MC-4 가산 필드 `merchantCode`)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: rev 0.1 본문에 남은 답 전·폐기 설계 문장 옆에 `→ 대체`/`→ 확정`/`→ 현행` 표시만 붙였다(원문 보존). 바뀐 곳: §0 요약의 Q-WH-01~07(→ D-WH-001~008)·순서 비보장·GAVE_UP(→ D-GOV-004 ④), §1.2 relay 소유(→ FIN-FACT-RELAY-001), §4.1 `payment.failed`·`payment.expired` 조건 "항상", §4.2.1 `createdAt`·`failedAt`·`expiredAt`, §4.4 미결 2행(→ D-WH-001·002), §5.1·§5.3·§11 `HELD_DECISION`, §5.3 표 단위 UPDATE(→ D-WH-009·D-FFR-001), §5.0 성공 단조·§5.8 포기(→ D-GOV-004 ④ — GAVE_UP 유지, 현 코드 GAVE_UP→DELIVERED는 정비 대상), §5.7 WH-11(→ D-GOV-004 ④). 근거 NP-101·PC-58·PC-59·PC-06, WH 대장 진단 (a)-3·(b)-1·(c)-1~5·(c)-7·(c)-8. 표시하지 않은 것: §7.2 응답 크기(D-WH-007 문구 ↔ 구현 — NP-107 별도), baseline 03 격리 큐 재처리(WEBHOOK-ENDPOINT-001 BACKLOG). 현재 유효 규칙 정본은 `docs/rules/WH.md`(D-GOV-006 ②).
+
 > **rev 0.3 갱신(2026-11-17, MERCHANT-CODE-001 MC-4 — Coordinator 결정 C-36(MC-4), 새 정책 없음)**: 봉투 최상위에 출력 전용 **가산 필드 `merchantCode`**(사람이 읽는 가맹점 코드 — D-MCODE-001 Q-MC-1·D-MCODE-002 Q-MC-8)를
 > `merchantAccountId` 바로 뒤에 둔다. 코드가 전파되지 않은 MID(권리 Snapshot v1~v3 head·빈 head)는 **키를 생략**한다(null을 쓰지 않는다). **`schemaVersion`은 1 그대로**다 — §4.2.1 "추가 필드는 가산적, 의미 변경은 새 버전"
 > 규칙이며 V21 CHECK `schema_version = 1`도 그대로다. 나머지 키·순서·값 의미 불변, 이미 저장된 이벤트는 그 바이트 그대로 재전송한다(WH-08 — 승격 전에 만든 이벤트는 코드 없이 재전송).
@@ -88,13 +90,13 @@ reviewRounds spec-1, WEBHOOK-ENDPOINT-001 신설, ADMIN-BOOT-001 AC 추가), `ha
   `GET /v1/payments/{paymentId}`(CP-QUERY-001)다(§8). Webhook 실패는 어떤 금융 상태도 바꾸지 않는다(도출 — §17.9).
 - **이벤트(§4)**: 기존 Outbox 이벤트 10종 중 5종만 가맹점 이벤트로 바꾼다 — `payment.authorized`·`payment.failed`·`payment.expired`·`payment.cancelled`·`payment.cancel_failed`.
   내부 위험·운영 이벤트(`*IncidentDetected`·`*OutcomeUnresolved`)와 `PaymentRequested`는 보내지 않는다. **P1**(가맹점에 FAILED/EXPIRED로 알려진 Payment)의 늦은 승인·그 운영자 취소는 보내지 않는다(도출 D-CPQ-002·D-CANCEL-013).
-  AUTHORIZED Payment의 운영자 보정 취소 통지 여부는 **Q-WH-01**, 보류(hold) 통지는 **Q-WH-02**.
+  AUTHORIZED Payment의 운영자 보정 취소 통지 여부는 **Q-WH-01**, 보류(hold) 통지는 **Q-WH-02**. **→ 답(S3-DOC-001): D-WH-001(`payment.cancelled`/`payment.cancel_failed` + `initiator: OPERATOR`만), D-WH-002(v1 hold 이벤트·필드 없음)**
 - **공개 계약(§4.3)**: Outbox payload를 그대로 노출하지 않는 별도 v1 봉투(확정 AC1 §10.2). 본문 필드는 GetPayment 응답이 이미 노출하는 값의 부분집합(WH-06) — 카드정보·Secret·기관 원문·PTX·내부 버전·운영자 정보·hold 사유 없음.
 - **전달(§5)**: 업무 TX는 **바꾸지 않는다**. 별도 PAYMENT 로컬 TX인 **fan-out**이 `outbox_event`의 미처리 행을 읽어 가맹점 이벤트(본문 바이트 고정·Payment별 연속 `sequence`)와 전달 행을 만들고,
   **delivery worker**가 `FOR UPDATE SKIP LOCKED` claim(짧은 TX) → **TX 밖 HTTP** → 결과 TX(행마다)로 보낸다. at-least-once·순서 비보장·중복 가능, 가맹점은 `eventId`로 중복 제거(§5.7).
-  재시도는 지수 backoff + jitter, 시도 수·경과 상한 도달 시 `GAVE_UP`(완료 아님 — 경보)(Demo 값, 형태는 **Q-WH-06**).
-- **서명(§6)**: 권장 HMAC-SHA256(`{t}.{body}`), `PayCore-Signature: t=…,kid=…,v1=…`, 교체 중 서명 2개, 재전송 방지 창(Demo) — 방식은 **Q-WH-03**, 비밀 발급·보관·교체는 **Q-WH-05**.
-- **목적지(§7)**: endpoint 소유·등록 경로 **Q-WH-04**, SSRF·허용 목적지 정책 **Q-WH-07**. MASTER·PAYMENT 어디에도 가맹점 Webhook URL·서명 비밀이 없다(F-2) → **이 작업은 TEST 환경 Demo endpoint(설정 주입)만 전달하고 LIVE는 fail-closed**로 두는 분할을 제안한다(§18-1).
+  재시도는 지수 backoff + jitter, 시도 수·경과 상한 도달 시 `GAVE_UP`(완료 아님 — 경보)(Demo 값, 형태는 **Q-WH-06**). **→ 답·확정(S3-DOC-001): 형태는 D-WH-006(유한 재시도 → GAVE_UP, 4xx도 재시도). 순서 비보장(sequence + GET)은 D-GOV-004 ④로 공개 계약 확정, GAVE_UP 상태 유지·늦은 성공은 시도 기록만(§5.8 표시)**
+- **서명(§6)**: 권장 HMAC-SHA256(`{t}.{body}`), `PayCore-Signature: t=…,kid=…,v1=…`, 교체 중 서명 2개, 재전송 방지 창(Demo) — 방식은 **Q-WH-03**, 비밀 발급·보관·교체는 **Q-WH-05**. **→ 답: D-WH-003(이 권장안), D-WH-005(PAYMENT 발급·봉투 암호화 — 등록·발급은 WEBHOOK-ENDPOINT-001 BACKLOG)**
+- **목적지(§7)**: endpoint 소유·등록 경로 **Q-WH-04**, SSRF·허용 목적지 정책 **Q-WH-07**. **→ 답: D-WH-004(MASTER 소유·ADMIN 등록, LIVE 2인), D-WH-007(https 443·공인 IP만), 분할은 D-WH-008(아래 '제안'은 확정)** MASTER·PAYMENT 어디에도 가맹점 Webhook URL·서명 비밀이 없다(F-2) → **이 작업은 TEST 환경 Demo endpoint(설정 주입)만 전달하고 LIVE는 fail-closed**로 두는 분할을 제안한다(§18-1).
 - **Simulator(§9)**: `apps/institution-simulator`에 가상 가맹점 수신기 모듈 `merchant`(서명 검증·수신 원장·장애 시나리오) + 두 앱이 공유하는 서명 golden.
 - **발견 9건**(§3.2), **질문 후보 7개**(§17), **범위 관찰 12건**(§18). 규모: AUTH-001의 약 0.6~0.8배(§20).
 
@@ -124,7 +126,7 @@ reviewRounds spec-1, WEBHOOK-ENDPOINT-001 신설, ADMIN-BOOT-001 AC 추가), `ha
 | 서명 비밀 발급·교체·폐기 명령, 운영 비밀 저장소·관리 키 | 같은 후속 + LIVE Gate | Q-WH-05, D-MS-004 선례 "운영 키는 LIVE 허용 전 별도" |
 | 수동 재전송(GAVE_UP 재개) 진입점·화면 | ADMIN-BOOT-001(진입점) + 후속(Use Case) — §5.9 | D-CANCEL1-001 진입점 관례, 관측 문서 재처리 감사 |
 | hold 통지 이벤트 | Q-WH-02 답 전 없음 | D-CPQ-001 일관성 |
-| FINANCIAL Inbox·PAYMENT→FINANCIAL relay(`publish_status`) | ACQUIRING-001·SETTLEMENT·RECON 계열 | AU §1.2 "Outbox Relay", F-1 |
+| FINANCIAL Inbox·PAYMENT→FINANCIAL relay(`publish_status`) | ACQUIRING-001·SETTLEMENT·RECON 계열 **→ 현행: FIN-FACT-RELAY-001(DONE)이 구현(D-FFR-001~004)** | AU §1.2 "Outbox Relay", F-1 |
 | 결제창 브라우저 return(redirect) | AUTHN-001(완료) | AN |
 | 기관 → PG 통보(push) | AU §1.2 범위 관찰 | — |
 | Kafka·Redis·외부 메시지 큐 | 도입 안 함 | ADR-001, §14 |
@@ -230,8 +232,8 @@ reviewRounds spec-1, WEBHOOK-ENDPOINT-001 신설, ADMIN-BOOT-001 AC 추가), `ha
 |---|---|---|---|
 | `PaymentAuthorized`(FINANCIAL_FACT) | `payment.authorized` | fan-out 시점 Payment `status = AUTHORIZED` | **도출**(범위 40행·AC1 §10.2 — 승인 결과 통지가 이 작업의 제목) |
 | 〃 | (보내지 않음) | Payment `status ∈ {FAILED, EXPIRED}` = **P1**(D-CANCEL-012로 발행된 늦은 승인) | **도출**(D-CPQ-002 "P1 늦은 승인은 숨김" + D-CANCEL-013 "가맹점은 실패를 통보받음" — D-CPQ-002의 영향 작업에 WEBHOOK-001) |
-| `PaymentAuthorizationFailed`(INTEGRATION_NON_FINANCIAL) | `payment.failed` | 항상 | **확정**(AC1 §11 398행 "가맹점 통지") |
-| `PaymentExpired`(INTEGRATION_NON_FINANCIAL) | `payment.expired` | 항상 | **확정**(AC1 §11 399행 "가맹점 통지") |
+| `PaymentAuthorizationFailed`(INTEGRATION_NON_FINANCIAL) | `payment.failed` | 항상 **→ 현행(rev 0.2 H-3 — 같은 표 FANOUT_FAILED 행): Payment `status = FAILED`일 때만, 아니면 FANOUT_FAILED(`MerchantNotificationPolicy.kt:56`)** | **확정**(AC1 §11 398행 "가맹점 통지") |
+| `PaymentExpired`(INTEGRATION_NON_FINANCIAL) | `payment.expired` | 항상 **→ 현행(rev 0.2 H-3): Payment `status = EXPIRED`일 때만, 아니면 FANOUT_FAILED(`MerchantNotificationPolicy.kt:58`)** | **확정**(AC1 §11 399행 "가맹점 통지") |
 | `PaymentCancelled`(FINANCIAL_FACT) `initiatorKind=MERCHANT` | `payment.cancelled` | Payment `status = AUTHORIZED` | **확정**(CC §14-6) |
 | 〃 `initiatorKind=OPERATOR`, Payment AUTHORIZED | `payment.cancelled`(`initiator: OPERATOR`, `merchantCancelId` 없음) | — | **확정 D-WH-001**(rev 0.2) |
 | 〃 Payment FAILED/EXPIRED(P1 운영자 취소) | (보내지 않음 — SUPPRESSED) | — | **도출**(D-CPQ-002 (ii)) |
@@ -296,7 +298,7 @@ PayCore-Delivery-Attempt: 2
 | `type` | §4.1 다섯 값 | §4.1 |
 | `schemaVersion` | 1. 추가 필드는 가산적, 의미 변경은 새 버전(이벤트 51행) | 확정(이벤트 51행) |
 | `environment`·`merchantAccountId` | 인증된 (MID, 환경) — 가맹점이 자기 것인지 대조(다중 MID 가맹점·잘못된 전달 탐지). 가맹점 자신의 식별자라 비노출 대상 아님(D-CPA-001 키 접두와 같은 축) | 도출(보안 13행 MID 축) |
-| `createdAt` | 원 업무 사실 시각(Outbox `occurred_at`, UTC ms `Z`) — 전달 시각이 아니다 | WH-06 |
+| `createdAt` | 원 업무 사실 시각(Outbox `occurred_at`, UTC ms `Z`) — 전달 시각이 아니다 **→ 대체(rev 0.2 m-1 Coordinator 판정): 가맹점 이벤트 생성(fan-out) 시각 — 업무 시각 아님(`MerchantWebhookEventStore.kt:12`)** | WH-06 |
 | `payment.sequence` | 그 Payment의 가맹점 이벤트 연속 순번(1부터, 억제된 이벤트는 번호를 쓰지 않음) | WH-04 |
 | `data` | 아래 표 | WH-06 |
 
@@ -305,10 +307,10 @@ PayCore-Delivery-Attempt: 2
 | type | `data` 키 집합(정확) | 출처 |
 |---|---|---|
 | `payment.authorized` | `status`=`AUTHORIZED`, `authorizationId`, `amount`, `currency`, `plan`{`kind`, `months`?}, `cardType`, `approvalNumber`, `approvedAt` | payload(이벤트 시점, 불변 거래) — GET `authorization` terms와 같은 값 |
-| `payment.failed` | `status`=`FAILED`, `authorizationId`, `failureCategory`(DECLINED·NOT_SENT·NO_EFFECT), `failedAt` | payload `failureCategory` |
-| `payment.expired` | `status`=`EXPIRED`, `expiredAt` | payload |
+| `payment.failed` | `status`=`FAILED`, `authorizationId`, `failureCategory`(DECLINED·NOT_SENT·NO_EFFECT), `failedAt` **→ 대체(rev 0.2 m-1): `failedAt` 없음(GET 부분집합)** | payload `failureCategory` |
+| `payment.expired` | `status`=`EXPIRED`, `expiredAt` **→ 대체(rev 0.2 m-1): `expiredAt` 없음** | payload |
 | `payment.cancelled` | `cancellationId`, `initiator`(MERCHANT·OPERATOR), `merchantCancelId`(MERCHANT만), `amount`, `currency`, `cancelTransactionId`, `cancelApprovalNumber`(있으면), `cancelledAt`, `returnAfter`{`authorizedAmount`, `cancelledAmount`(누적), `returnStatus`} | payload(`returnSequence`·누적·`returnStatusAfter` = 이벤트 시점) + `merchantCancelId`는 불변 취소 행(F-8) |
-| `payment.cancel_failed` | `cancellationId`, `initiator`, `merchantCancelId`(MERCHANT만), `amount`, `currency`, `failureCategory`, `failedAt` | payload + 불변 취소 행 |
+| `payment.cancel_failed` | `cancellationId`, `initiator`, `merchantCancelId`(MERCHANT만), `amount`, `currency`, `failureCategory`, `failedAt` **→ 대체(rev 0.2 m-1): 취소 실패 시각 없음** | payload + 불변 취소 행 |
 
 - **노출하지 않는 것(확정 — CPQ §4.4 "노출 안 함" 행·AC1 §10.1·CC §8·D-MS2-005·D-ADMIN-004)**: 카드번호(저장 안 함), 인증 증거, 기관 원문, ProviderTransactionId·원거래 PTX, 기관 거래일/업무일, issuer/acquirer 코드(GET에 없음),
   기관 계약계정, 정책·권리·Route·Capability 버전, `failureEvidence`·`terminationEvidence` 원 이름, 운영자 신원·사유·approvalId·목적, JPA version, `merchantSiteId`·`orderName`·`paymentKey`, hold 사유·회차·FORCED·excess, Outbox `event_id`·`effect_key`.
@@ -327,8 +329,8 @@ PayCore-Delivery-Attempt: 2
 | 사실 | GET(확정) | Webhook | 표시 |
 |---|---|---|---|
 | P1 늦은 승인·그 운영자 취소 | 숨김, FAILED·분류만(D-CPQ-002 (ii)) | 보내지 않음(§4.1) | 도출 |
-| AUTHORIZED의 운영자 보정 취소 | 이력에 `initiator: OPERATOR`만(D-CPQ-002 (i)) | Q-WH-01(권장: `payment.cancelled` + `initiator: OPERATOR`, 같은 최소 내용) | 미결 |
-| hold | `onHold` boolean(D-CPQ-001) | Q-WH-02(권장: v1 hold 이벤트·필드 없음) | 미결 |
+| AUTHORIZED의 운영자 보정 취소 | 이력에 `initiator: OPERATOR`만(D-CPQ-002 (i)) | Q-WH-01(권장: `payment.cancelled` + `initiator: OPERATOR`, 같은 최소 내용) | 미결 **→ 확정 D-WH-001(권장안대로, S3-DOC-001)** |
+| hold | `onHold` boolean(D-CPQ-001) | Q-WH-02(권장: v1 hold 이벤트·필드 없음) | 미결 **→ 확정 D-WH-002(권장안대로 — RECON hold 해제와 함께 재결정)** |
 | FORCED·excess | `cancellableAmount`에만 반영(D-CPQ-005) | 넣지 않음(WH-06) | 구현 결정 |
 | UNKNOWN·IN_PROGRESS | `UNKNOWN`·`IN_PROGRESS` + notice | 이벤트 없음(F-5) — 확정 시 결과 이벤트 | 도출 |
 
@@ -373,7 +375,7 @@ PayCore-Delivery-Attempt: 2
 - **권한(m-7, D-WH-009 — n-1 정정)**: fan-out이 바꾸는 열은 `merchant_notification_*` 두 개뿐(native PK UPDATE), runtime 권한도 그 두 열의 열 단위 UPDATE(측정·적용 완료 — §21.1·§21.4), `JpaOutboxEventEntity`는 `@Immutable`,
   T-F6 열 고정 시험. 같은 Payment의 앞 미종결 행이 있으면 행 TX 안에서 DEFERRED(검토 #1 H-1 — §21.5).
 - **delivery(m-2·n-1·n-3·n-4 — S3)**: claim TX에서 `attempt_count`를 +1 해 이번 시도 번호를 예약하고 claim 소유자·`claim_until`을 적는다. 결과 TX는 그 번호로 `merchant_webhook_attempt`를 INSERT(UNIQUE(delivery_id, attempt_no) — lease 인수 시 두 시도 행 모두 남는다).
-  2xx는 소유를 잃었어도 DELIVERED로 표시할 수 있다(성공 단조 — 이미 DELIVERED면 그대로), 실패는 소유자일 때만 다음 시각·포기를 반영한다. claim·lease 비교 시각은 주입 `PaymentClock`(UTC — DB `NOW()` 아님).
+  2xx는 소유를 잃었어도 DELIVERED로 표시할 수 있다(성공 단조 — 이미 DELIVERED면 그대로) **(→ 일부 대체, S3-DOC-001: GAVE_UP 뒤 늦게 확인된 2xx는 D-GOV-004 ④로 'GAVE_UP 유지·시도 기록만' — §5.8 표시. PENDING 중 소유를 잃은 시도의 2xx → DELIVERED와 성공 단조 자체는 대장 BR-WH-035 (a)(c) `제안` — RULE-CONFIRM-001 A 일괄 확인 대기)**, 실패는 소유자일 때만 다음 시각·포기를 반영한다. claim·lease 비교 시각은 주입 `PaymentClock`(UTC — DB `NOW()` 아님).
   전송 직전 저장 본문 sha256을 재계산해 다르면 보내지 않고 `BODY_INTEGRITY` 실패로 기록. claim 커밋 뒤 전송 전 crash면 예약 번호의 시도 행이 없는 틈이 생긴다(n-2 — 허용·문서화, 다음 claim은 다음 번호).
 
 ### 5.1 흐름(rev 0.1 원문 — fan-out 부분은 §5.0이 대체)
@@ -389,6 +391,7 @@ PayCore-Delivery-Attempt: 2
              → merchant_webhook_event INSERT(source_event_id UNIQUE)
              → endpoint 있음(그 환경·MID): merchant_webhook_delivery INSERT(PENDING) / 없음: event.delivery_plan = NO_ENDPOINT
        outbox_event.merchant_notification_status = NOTIFIED | SUPPRESSED | NOT_APPLICABLE | HELD_DECISION
+       ↑ → 대체(rev 0.2 H-1·D-WH-001, S3-DOC-001): HELD_DECISION 없음. 비종결 실패는 FANOUT_FAILED(V23 CHECK 18·19행)
   → COMMIT
 
 [delivery worker — 인스턴스 여러 개 가능]
@@ -415,6 +418,7 @@ PayCore-Delivery-Attempt: 2
 ALTER outbox_event
   + merchant_notification_status VARCHAR(16) NOT NULL DEFAULT 'PENDING'
       CHECK IN ('PENDING','NOTIFIED','SUPPRESSED','NOT_APPLICABLE','HELD_DECISION','SKIPPED_PRE_DEPLOY')
+      ↑ → 대체: 현행 CHECK = NOTIFIED·SUPPRESSED·NOT_APPLICABLE(알린 시각 있음) / PENDING·FANOUT_FAILED·SKIPPED_PRE_DEPLOY(없음) — `V23__outbox_merchant_notification.sql:18-19`
   + merchant_notified_at DATETIME(3) NULL
   + INDEX ix_outbox_event_merchant_notification (merchant_notification_status, id)
   (기존 행 처리 = 범위 관찰 §18-4: 권장 SKIPPED_PRE_DEPLOY로 한 번 갱신)
@@ -439,7 +443,7 @@ merchant_webhook_attempt(
   UNIQUE(delivery_id, attempt_no))                                       -- insert-only(append-only)
 ```
 
-- 권한 migration(관례 §9.2): `outbox_event` UPDATE 추가(V2 주석이 예고한 경로. 열 단위 GRANT를 helper가 지원하지 않으면 표 단위 + **ArchUnit/시험으로 갱신 열 고정** — S2에서 확인), `merchant_webhook_event`·`merchant_webhook_attempt`
+- 권한 migration(관례 §9.2): `outbox_event` UPDATE 추가(V2 주석이 예고한 경로. 열 단위 GRANT를 helper가 지원하지 않으면 표 단위 + **ArchUnit/시험으로 갱신 열 고정** — S2에서 확인) **→ 대체(D-WH-009, S3-DOC-001): 표 단위가 아니라 `merchant_notification_status`·`merchant_notified_at` 두 열 열 단위 UPDATE(`V24__outbox_merchant_notification_privileges.sql:9`). 이후 D-FFR-001이 `publish_status`·`published_at` 두 열을 더했다(V34) — 나머지 열 UPDATE 1143·DELETE 1142 유지**, `merchant_webhook_event`·`merchant_webhook_attempt`
   SELECT·INSERT만(UPDATE/DELETE 1142 시험), `merchant_webhook_delivery`·`merchant_webhook_stream` SELECT·INSERT·UPDATE(DELETE 없음), guard SELECT·UPDATE.
 - **WH-03(Outbox 처리 표시 위치)**: 별도 열(`merchant_notification_status`)을 Outbox에 둔다. 대안 비교 — (A) 업무 TX에 webhook 행 INSERT: 업무 TX 위험(기각, WH-02), (B) **열 추가(채택)**: 업무 코드 무변경(DEFAULT),
   미처리 탐색이 인덱스 하나, (C) Outbox anti-join(`NOT EXISTS merchant_webhook_event`): 전체 이력 스캔 또는 시각/ID 창 필요 — id는 커밋 순서가 아니라 창은 유실 위험(이벤트 56행) → 기각.
@@ -477,12 +481,12 @@ merchant_webhook_attempt(
 | 서로 다른 Payment | 순서·sequence 관계 없음 |
 | 이벤트 = 사실 시점 | `data`는 그 사실 시점 값. 현재 상태는 GET |
 
-- **구현 결정 WH-11(엄격 순서 전달을 하지 않음)**: Payment 단위 head-of-line 대기(앞 sequence 전달 전 뒤 sequence 보류)는 앞 이벤트가 포기되면 뒤가 영원히 막히거나 별도 해제 규칙이 필요하다. 비보장 + sequence + GET이 더 단순하고,
+- **구현 결정 WH-11(엄격 순서 전달을 하지 않음)** **(→ 확정(답 D-GOV-004 ④, S3-DOC-001): 가맹점 웹훅 순서 비보장 + Payment별 `sequence` + 조회 API를 공개 계약으로 확정, baseline 03 "Payment 단위 전달 순서 유지"는 가맹점 웹훅에 대해 대체 — BASELINE-INDEX BI-WH-1. 아래 끝 문장의 '질문' 필요성은 해소. 대장 BR-WH-033은 RULE-CONFIRM-001 C(제안 → 확정) 반영 대기)**: Payment 단위 head-of-line 대기(앞 sequence 전달 전 뒤 sequence 보류)는 앞 이벤트가 포기되면 뒤가 영원히 막히거나 별도 해제 규칙이 필요하다. 비보장 + sequence + GET이 더 단순하고,
   나중에 엄격 순서로 바꾸는 것은 가맹점에 더 강한 보장이라 호환된다(가역). Coordinator가 공개 계약 의미로 보아 질문이 필요하다고 판단하면 Q로 올린다(§17.9).
 
 ### 5.8 포기(dead-letter)
 
-- 포기 = `GAVE_UP`(완료 아님 — **확정** 이벤트 50행 "DLQ는 완료 상태가 아니다"). 지표·경보 대상(§11). 금융 상태·Payment·정산에 영향 없음(§17.9).
+- 포기 = `GAVE_UP`(완료 아님 — **확정** 이벤트 50행 "DLQ는 완료 상태가 아니다"). 지표·경보 대상(§11). 금융 상태·Payment·정산에 영향 없음(§17.9). **→ 확정·보완(답 D-GOV-004 ④, S3-DOC-001): GAVE_UP 상태 유지, GAVE_UP 뒤 늦게 확인된 성공(2xx)은 시도 기록만 남기고 상태·경보를 유지한다. 현 코드 `MerchantWebhookDelivery.kt:76-80` `recordSuccess`는 GAVE_UP을 DELIVERED로 바꾼다 — 정비 대상(아직 정비 안 됨)**
 - 자동 endpoint 비활성·가맹점 차단 없음(정책 필요 — Q-WH-06 대안 (c)).
 - 포기 행은 삭제하지 않는다(보관 정책 전 — §5.12).
 
@@ -611,7 +615,7 @@ header         = PayCore-Signature: t=<t>,kid=<keyId>,v1=<hex>[,kid=<keyId2>,v1=
 
 - 본문 키 집합 고정(§4.2), 헤더에 비밀 없음(kid만). 로그: `operation=WebhookDelivery webhookEventId deliveryId attemptNo outcome httpStatus endpointRef` — 본문·서명 hex·비밀·URL 경로/query·응답 본문 없음.
   설정 객체 `toString` 마스킹(`EntitlementSettings.Dispatch` 선례), 예외 메시지에 URL·본문 금지(`SafeThrowable` 관례).
-- 지표(label에 ID 없음 — 원칙 §1): counter `paycore.webhook.fanout{result=NOTIFIED|SUPPRESSED|NOT_APPLICABLE|HELD_DECISION|NO_ENDPOINT}`, `paycore.webhook.delivery{result=DELIVERED|RETRY|GAVE_UP|CLAIM_LOST|BLOCKED}`,
+- 지표(label에 ID 없음 — 원칙 §1) **(→ 대체: `HELD_DECISION` 결과 없음 — rev 0.2 H-1, 현행 지표 이름은 바로 아래 rev 0.2 줄, S3-DOC-001)**: counter `paycore.webhook.fanout{result=NOTIFIED|SUPPRESSED|NOT_APPLICABLE|HELD_DECISION|NO_ENDPOINT}`, `paycore.webhook.delivery{result=DELIVERED|RETRY|GAVE_UP|CLAIM_LOST|BLOCKED}`,
   timer `paycore.webhook.delivery.duration`, gauge `paycore.webhook.pending`·`paycore.webhook.pending.oldest.age`·`paycore.webhook.gave_up`·`paycore.webhook.fanout.oldest.age`(미처리 Outbox 최고 연령 — 관측 문서 "Outbox 최고 연령").
 - **구현된 지표(최종 검토 m-1 — 이 목록이 위 계획을 대체한다; label은 `result` 하나뿐, ID·URL·MID 없음, domain·application은 Micrometer를 모르고 batch adapter가 회차 결과로 기록 — AUTH-001 선례)**:
   - counter `paycore.webhook.fanout{result=notified|no_endpoint|suppressed|not_applicable|failed|deferred}`(`notified` = 전달 행을 만든 통지, HELD_DECISION은 rev 0.2에서 폐기 — §4.5).

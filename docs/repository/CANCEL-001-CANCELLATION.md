@@ -1,5 +1,7 @@
 # CANCEL-001 전액/부분취소 구현 명세 — API·영속화·가상 기관 취소·UNKNOWN 회복 (rev 0.3 — 명세 review CHANGES_REQUIRED 반영)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: §5 머리 현행화 주석(2026-10-29)만 있던 §5.1~§5.3 본문의 해당 문장 옆에 `→ 대체` 표시를 붙였고(D-OPS-001·D-OPS-005 — 진입점·서비스 간 인증은 ADMIN-PAYMENT-OPS-001이 열었다), §4.1 CN-02 원문에 정정 우선 표시를 붙였다(원문 보존). 근거 NP-99·PC-59, CAN 대장 진단 (a)-1·(a)-2·(a)-8·(c)-4. 현재 유효 규칙 정본은 `docs/rules/CAN.md`(D-GOV-006 ②).
+
 > **rev 0.3 갱신(2026-10-20)**: 명세 review(CHANGES_REQUIRED)의 H-1·m-1~m-10·n-2~n-9를 §19 대응표로 반영한다(본문 해당 절에도 표시). 보류했던 두 항목은 사용자 답변(모두 권장안)으로
 > 확정됐다 — **D-CANCEL1-005**(H-1 사건 동일성: 사건 있는 진행 중 취소의 새 상충 확정 관찰도 +1, 같은 기관 결정의 다른 출처 재수신은 같은 사건 — CN-31), **D-CANCEL1-006**(m-9: 운영자 명령 거절을
 > 같은 로컬 TX의 append-only 감사 행으로 — 표 `operator_cancel_rejection`, CN-30). 2단계 실행 기록은 §18(Coordinator 지시의 "§17 2단계 실행 기록"은 이 문서에서 §18 — §17은 규모 추정).
@@ -239,7 +241,7 @@ POST /v1/payments/{paymentId}/cancel          (공개 포트, Authorization: Bea
 - 응답 본문(**확정 CC §8**): `paymentId`, `cancellationId`, `status`(COMPLETED·FAILED·IN_PROGRESS·UNKNOWN), 취소 `amount`·`currency`, COMPLETED면 `cancelTransactionId`·`cancelApprovalNumber`(있으면)·
   `cancelledAt`(PG 확정 시각), FAILED면 `failureCategory`(DECLINED·NOT_SENT·NO_EFFECT), 반환 후 `cancellableAmount`·`returnStatus`. 카드번호·기관 원문·내부 정책 버전·기관 계약계정 없음.
   202에는 "새 키·새 merchantCancelId로 재시도 금지 — 같은 키로 확인" 안내.
-- **구현 결정 CN-02**: FAILED(DECLINED)일 때 기관 거절 분류를 고정 enum으로만 노출(`declineCategory`: `CANCEL_PERIOD_EXPIRED`·`EXCEEDS_REMAINING`·`PARTIAL_NOT_SUPPORTED`·`ISSUER_DECLINED`·`OTHER`).
+- **구현 결정 CN-02** **(→ 아래 '정정'이 현행 — 가맹점 응답에 거절 분류 미노출. Coordinator 판정이며 사용자 결정 아님, 대장 BR-CAN-107 대체됨→BR-CAN-085, S3-DOC-001)**: FAILED(DECLINED)일 때 기관 거절 분류를 고정 enum으로만 노출(`declineCategory`: `CANCEL_PERIOD_EXPIRED`·`EXCEEDS_REMAINING`·`PARTIAL_NOT_SUPPORTED`·`ISSUER_DECLINED`·`OTHER`).
   기한 경과(D-CANCEL-004)를 가맹점이 알아야 계좌 환불 미지원 안내(D-CANCEL-007)를 따를 수 있다. 기관 원문 코드는 노출하지 않는다.
   **(정정 — CP-QUERY-001 F-7, 2026-10-20 Coordinator 판정 11)**: 실제 구현(S4 D-S4-5)은 고정 분류를 기관 메시지·required Port 결과(`CancellationCallResult.Declined`·`CancelInquiryCallResult.Found`)까지만
   싣고 **가맹점 응답에는 노출하지 않는다(v1, 영속도 하지 않음)**. 응답의 FAILED 분류는 `failureCategory`(DECLINED·NOT_SENT·NO_EFFECT)뿐이다. 노출이 필요해지면 영속 열과 함께 새 결정으로 추가한다.
@@ -410,18 +412,18 @@ D-CANCEL-007("1차 범위 밖. 카드 반환은 카드 취소로만, API·운영
 - **확정 D-ADMIN-007**: 승인 요청·상태는 ADMIN이 관리하고, 소유 서비스 명령은 요청자·승인자·승인 ID·대상 버전을 받아 **요청자 ≠ 승인자와 대상 버전 일치를 다시 검사**하고 자기 감사에 기록. 관리자
   앱 단독으로 실행할 수 없다.
 - **확정 D-CANCEL-001·010·011·013**: 운영자 보정 취소는 이 Payment 대상 hold 중에도 시작, P1(FAILED + RECON 기록 거래)은 운영자만.
-- **확정 CC-12·CC-13**(구현 결정, 계약 반영): 영구 업무 키 = `approvalId` UNIQUE, 승인 대상 지문 `oct1:`(paymentId·금액·통화·잔액 revision·approvalId·요청자·승인자·목적 종류·근거 — 사유 제외).
+- **확정 CC-12·CC-13**(구현 결정, 계약 반영) **(→ 대체: CC-12의 '같은 승인 = 기존 결과' 판정은 D-OPS-005 — approvalId별 첫 확정 결정 INSERT 전용 기록·재생, S3-DOC-001)**: 영구 업무 키 = `approvalId` UNIQUE, 승인 대상 지문 `oct1:`(paymentId·금액·통화·잔액 revision·approvalId·요청자·승인자·목적 종류·근거 — 사유 제외).
 
 ### 5.2 책임 나눔(도출 — D-ADMIN-007 문언 + 현재 코드)
 
 | 검사 | 어디서 | 이 작업 |
 |---|---|---|
 | 요청자 ≠ 승인자, 사유 있음, 목적 근거 있음, 승인 대상 지문 = 실행 시점 값 | PAYMENT(`CancelStart` 업무 거절 — 기존 domain) | Use Case·영속·감사 열·시험 |
-| approvalId 영구 유일·같은 승인 다른 금액 충돌·다른 Payment 충돌 | PAYMENT(`compareRequest` + UNIQUE(approval_id)) | 영속·시험 |
+| approvalId 영구 유일·같은 승인 다른 금액 충돌·다른 Payment 충돌 **→ 보완: 같은 내용 재요청 = 첫 확정 결정 재생(D-OPS-005), ADMIN의 충돌 응답 처리(D-OPS-007 — 비종결·경보). 다른 내용 충돌 판정 자체는 BR-CAN-052 `제안` — RULE-CONFIRM-001 Q10 대기** | PAYMENT(`compareRequest` + UNIQUE(approval_id)) | 영속·시험 |
 | 승인자 역할 APPROVER·요청자 역할·TOTP 재입력·승인 요청 상태(승인됨·무효화 안 됨)·요청 뒤 대상 변경 시 무효 | ADMIN | ADMIN-BOOT-001 인계 |
-| 호출자 인증(ADMIN 서비스만 이 명령을 부를 수 있음) | 서비스 간 인증(운영 mTLS는 LIVE Gate) | **ADMIN-BOOT-001 — 이 작업은 진입점을 열지 않는다(확정 D-CANCEL1-001)** |
+| 호출자 인증(ADMIN 서비스만 이 명령을 부를 수 있음) | 서비스 간 인증(운영 mTLS는 LIVE Gate) | **ADMIN-BOOT-001 — 이 작업은 진입점을 열지 않는다(확정 D-CANCEL1-001)** **→ 대체: D-OPS-001(ADMIN→PAYMENT HMAC 서명 채널), 진입점 `POST /internal/v1/admin/operator-cancellations`(`AdminOperatorCancellationController.kt:22`)는 ADMIN-PAYMENT-OPS-001이 열었다** |
 | 승인 상태(승인됨·무효화 안 됨) 실재 확인 | ADMIN(인증된 호출자 책임) — **PAYMENT는 ADMIN에 동기 조회하지 않는다**(확정 D-CANCEL1-001) | 콜백 Port 없음 |
-| 승인 대상 조회(현재 cancellable·revision·통화) | PAYMENT 조회 API(내부) | ADMIN-BOOT-001(호출 경로와 함께) — 이 작업은 provided Query만(§5.3) |
+| 승인 대상 조회(현재 cancellable·revision·통화) | PAYMENT 조회 API(내부) | ADMIN-BOOT-001(호출 경로와 함께) — 이 작업은 provided Query만(§5.3) **→ 현행: ADMIN-PAYMENT-OPS-001이 `GET /internal/v1/admin/payments/{id}/operator-cancel-target`(`OperatorCancelTargetController.kt:29`)로 열었다** |
 | `oct1:` 지문 정규화가 두 서비스에서 같음 | 공유 계약 golden(harness 생성) | 이 작업에서 golden 생성·PAYMENT 쪽 바이트 비교 시험, ADMIN 쪽 대조는 ADMIN-BOOT-001(CN-11) |
 
 ### 5.3 이 작업이 만드는 것
@@ -433,7 +435,7 @@ D-CANCEL-007("1차 범위 밖. 카드 반환은 카드 취소로만, API·운영
 - 감사: 취소 행에 initiator_kind·requested_by·approved_by·approval_id·operator_reason·purpose_kind·purpose_ref·approved_target_fingerprint(§8.1). 같은 로컬 TX라 감사 저장 실패 = 취소 시작 실패.
 - 시험: hold 중 시작(D-CANCEL-001), P1 운영자 시작·가맹점 거절(D-CANCEL-011), 같은 사람·사유·근거·stale 거절과 거절 시 행 0, approvalId 재사용(같은 금액 = 기존 결과, 다른 금액·다른 Payment = 충돌),
   운영자 보정이 가맹점 hold에도 결과 반영(CC-16).
-- **하지 않는 것(확정 D-CANCEL1-001)**: HTTP/내부 진입점, 서비스 간 인증, ADMIN 승인 상태 조회(동기 콜백 없음). 그 전까지 운영 환경에서 운영자 보정 취소는 실행 경로가 없다(Demo·시험만) — AC 2의 완료 의미는
+- **하지 않는 것(확정 D-CANCEL1-001)** **(→ 대체: 진입점·서비스 간 인증 부분은 D-OPS-001로 ADMIN-PAYMENT-OPS-001이 열었다 — 대장 BR-CAN-105 대체됨→BR-CAN-057. 'PAYMENT는 ADMIN에 승인 상태를 동기 조회하지 않는다'는 유지(BR-CAN-049). 아래 '운영 환경 실행 경로 없음'·ArchUnit 규칙 문장은 CANCEL-001 당시 기록, S3-DOC-001)**: HTTP/내부 진입점, 서비스 간 인증, ADMIN 승인 상태 조회(동기 콜백 없음). 그 전까지 운영 환경에서 운영자 보정 취소는 실행 경로가 없다(Demo·시험만) — AC 2의 완료 의미는
   "Use Case·재검사·영속·경계 문서까지"다. 구조 시험: `OperatorCorrectionCancelUseCase`를 부르는 `..adapter.web..`·`..adapter.batch..` 클래스가 없음(ArchUnit, 위반 fixture 포함 — ADMIN-BOOT-001이 진입점을 열 때 이 규칙을 그 adapter 허용으로 바꾼다).
 - **ADMIN-BOOT-001 인계(Coordinator가 AC에 추가함 — §15-2)**: 진입점 + 서비스 간 인증, `OperatorCancelTargetQuery` 내부 조회, `oct1:` golden ADMIN 쪽 대조, 대상 revision 변경 시 승인 무효, APPROVER·TOTP 재입력, Q-ADMIN-APPROVER-STAFF.
 

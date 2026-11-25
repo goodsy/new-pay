@@ -1,5 +1,7 @@
 # MERCHANT-OPS-001 가맹점 조회(read-only) 명세 (rev 0.1)
 
+> **정합 표시(S3-DOC-001, 2026-11-25 — NP-95·PC-58·PC-59·BIZ (c)-8, 원문 보존)**: 사업자등록번호의 화면·조회 응답 노출은 이 문서(rev 0.1, D-MOPS-003 '응답은 마스킹 값만') 뒤에 **D-BIZ-007(2026-11-19)·D-PII-001 ①(2026-11-24)로 바뀌었다** — 뉴피지 관리자 화면과 그 값을 주는 ADMIN·MASTER 조회 응답은 원문(하이픈 표시), 감사 detail·변경 이력·로그·지표는 마스킹(`brn=123*******`) 유지. 구현은 BRN-UNMASK-001(DONE): 응답 필드 이름 `registrationNumberMasked` → `registrationNumber`(v2, `MasterSqlText.kt:14,31-33`, ADMIN은 옛 키를 fail-closed로 거부 `MasterResponseShape.kt:11`). Q-MOPS-04는 D-PII-001 ③으로 **닫혔다**(ANSWERED). 원문 목록 조회는 감사하지 않고 상세 열람·번호 조회 감사·횟수 제한은 유지(D-PII-001 ②). 현행 규칙 정본: `docs/rules/BIZ.md` §2, `docs/rules/ADM.md` §12·§13, `docs/repository/PII-MASKING-POLICY.md` §3 #1.
+
 작성 2026-11-03 KST, branch `feat/foundation-setup`(기준 commit `cc0a882`). Implementer 작성 — 자기 완료 판정 아님(Verifier·Reviewer 별도).
 
 근거: 사용자 결정 2026-11-03(AskUserQuestion — 범위 read-only 먼저, Q-MOPS-02 상세 조회만 감사, Q-MOPS-03 전체 사업자등록번호 검색 포함·OPERATOR 이상·매 검색 감사),
@@ -10,8 +12,8 @@ ADMIN-PAYMENT-OPS-001 §4.1–4.3·§4.9–4.20(ADMIN → 소유 서비스 서�
 
 | 포함 | 제외(후속) |
 |---|---|
-| ADMIN → MASTER 서명 내부 채널(MASTER 검증 측 + ADMIN 호출 측) | 등록·개통·정지 명령(maker-checker) → **MERCHANT-OPS-002**(BACKLOG, Q-MOPS-01 대기) |
-| 가맹점 목록·검색(keyset), 상세(한 번의 일관 읽기), 변경 이력(감사 항목 투영) | 사업자등록번호 마스킹 해제(UNMASK) → Q-MOPS-04(PROPOSED, 보류) |
+| ADMIN → MASTER 서명 내부 채널(MASTER 검증 측 + ADMIN 호출 측) | 등록·개통·정지 명령(maker-checker) → **MERCHANT-OPS-002**(BACKLOG, Q-MOPS-01 대기) → 답: D-MOPS-004(Q-MOPS-01). 현행은 MERCHANT-OPS-002 명세·구현 |
+| 가맹점 목록·검색(keyset), 상세(한 번의 일관 읽기), 변경 이력(감사 항목 투영) | 사업자등록번호 마스킹 해제(UNMASK) → Q-MOPS-04(PROPOSED, 보류) → 답: D-PII-001 ③(Q-MOPS-04는 대체되어 닫힘 — 관리자 화면·응답이 원문이라 번호 해제 절차 불필요) |
 | 전체 사업자등록번호 정확 일치 검색(OPERATOR·APPROVER, 매 시도 감사) | 대표자명·정산 계좌(MASTER에 없음 — MASTER-PAYOUT-ACCOUNT-001 backlog) |
 | 상세 조회 감사(`MERCHANT_VIEWED`) | 이름 부분 검색(색인 없는 LIKE — 규모 검토 후) |
 | 관리자 화면 "가맹점 관리"(목록·상세 패널·이력) | mTLS(LIVE Gate — ADMIN-PAYMENT-OPS-001과 같다) |
@@ -24,7 +26,7 @@ ADMIN-PAYMENT-OPS-001 §4.1–4.3·§4.9–4.20(ADMIN → 소유 서비스 서�
 |---|---|---|
 | D-MOPS-001 | 범위 read-only 먼저(목록·상세·이력 + 서명 채널). 명령은 MERCHANT-OPS-002. 이번 작업에 UNMASK 없음 | 사용자 결정 |
 | D-MOPS-002 (Q-MOPS-02) | 접근 감사는 **상세 조회만**(`MERCHANT_VIEWED`: 행위자·시각·merchantId). 목록·이력 조회는 감사하지 않는다. 결제 대상 조회(I-23 — 조회 감사 없음)와 다른 이유: 개인사업자의 사업자등록번호는 개인정보일 수 있고 상세는 한 사업자를 특정해 보는 행위다 | 사용자 결정 |
-| D-MOPS-003 (Q-MOPS-03) | 전체 사업자등록번호 정확 일치 검색을 이번 작업에 포함. **OPERATOR·APPROVER 역할**만(아래 §5.3), **모든 시도 감사**, 감사에 평문 저장 금지, oracle 취급(찾음/못 찾음 응답 모양 동일, 속도 제한, 형식 검사 후 호출, 오류·로그에 값 없음). 응답은 마스킹 값만 | 사용자 결정 + 역할·감사 형태는 사용자 직접 답변(Q-MOPS-05/06, 2026-11-04) |
+| D-MOPS-003 (Q-MOPS-03) | 전체 사업자등록번호 정확 일치 검색을 이번 작업에 포함. **OPERATOR·APPROVER 역할**만(아래 §5.3), **모든 시도 감사**, 감사에 평문 저장 금지, oracle 취급(찾음/못 찾음 응답 모양 동일, 속도 제한, 형식 검사 후 호출, 오류·로그에 값 없음). 응답은 마스킹 값만 → 대체: D-BIZ-007·D-PII-001 ①, 현행은 **응답 원문**(필드 `registrationNumber`), 감사 detail은 마스킹 유지 | 사용자 결정 + 역할·감사 형태는 사용자 직접 답변(Q-MOPS-05/06, 2026-11-04) |
 | R-1 | 감사 detail은 마스킹 값(`brn=123*******`)과 결과 수만, 대상은 `targetRef = businessId`(찾은 경우). keyed hash는 쓰지 않는다(§5.4 근거) | 가역 구현 선택(보안 의미 — Reviewer 확인 대상) |
 | R-2 | MASTER 채널 키 공간은 PAYMENT 채널·권리 채널과 분리(`paycore.master.admin-channel.*` / `paycore.admin.master-ops.*`) — ADMIN은 기동 때 PAYMENT ops 키와 같으면 거부 | 가역 구현 선택 |
 | R-3 | 목록 검색은 ADMIN에서 `POST /api/merchant-searches`(본문 — 등록번호가 URL·접근 로그·브라우저 기록에 남지 않게), MASTER에서도 `POST`(서명 호출 query 금지) | 가역 구현 선택 |
@@ -58,7 +60,7 @@ ADMIN-PAYMENT-OPS-001 §4.2 계약과 **같은 서명 v1**(헤더 `PayCore-Admin
 - 검색 본문: 알 수 없는 키·타입 불일치·형식 위반은 400(어느 필드인지 말하지 않는다 — 등록번호를 되돌려 주지 않는다). `limit` 1..50(없으면 20), `after`는 merchantId 형식,
   `lifecycle` ∈ {ACTIVE, TERMINATED}, `registrationNumber` 정확히 ASCII 숫자 10자리. 정렬 merchant_id 오름차순 keyset(`merchant_id > after`), `limit + 1` 행으로 다음 cursor 판정.
 - 검색 본문 필드는 MERCHANT-NAME-SEARCH-001로 확장(`displayNamePrefix` 가맹점명 앞부분 — [MERCHANT-NAME-SEARCH-001](MERCHANT-NAME-SEARCH-001-MERCHANT-NAME-SEARCH.md)).
-- 목록 항목: `merchantId, merchantName, businessId, businessName, registrationNumberMasked, lifecycle, entitlementRevision, midCount, createdAt`.
+- 목록 항목: `merchantId, merchantName, businessId, businessName, registrationNumberMasked, lifecycle, entitlementRevision, midCount, createdAt`. → 대체: D-BIZ-007·D-PII-001 ①, 현행 필드는 `registrationNumber`(원문, BRN-UNMASK-001 M-1). 목록에는 그 뒤 가맹점 코드 등 필드가 더해졌을 수 있다(MERCHANT-CODE-001 — 이 문서에서 전수 대조하지 않음).
   **찾음/못 찾음 응답 모양 동일**(항목 수만 다르다).
 - 상세(§3.2)와 이력(§3.3) 모양. 시각은 `…T…Z` ms 3자리 UTC 문자열.
 
@@ -70,7 +72,7 @@ ADMIN-PAYMENT-OPS-001 §4.2 계약과 **같은 서명 v1**(헤더 `PayCore-Admin
 
 ```
 merchant {merchantId, name, lifecycle, entitlementRevision, createdAt}
-business {businessId, name, registrationNumberMasked, lifecycle}
+business {businessId, name, registrationNumberMasked, lifecycle}   ← 대체(D-BIZ-007·D-PII-001 ①): 현행 `registrationNumber`(원문)
 sites[] {merchantSiteId, channelType, channelIdentifier, lifecycle, review: {decision, decidedAt} | null}   // 최신 심사 결정
 contracts[] {contractId, createdAt, revisions[] {revisionNo, scopeKind, effectiveFrom, effectiveTo, approvedAt, scopeSiteIds[]},
              agreements[] {agreementId, serviceKind, addedAt}}
@@ -183,7 +185,7 @@ MASTER 검색 본문은 서명 채널로만, query 문자열 금지. 지표 `pay
 1. MASTER: 무서명·틀린 서명·오래된 t·모르는 kid → 401 `UNAUTHENTICATED`(원인 비구별), query → 400, 16 KiB 초과 → 413, 등록된 `/internal/v1/admin/` handler 전부 무서명 401.
    `/internal/v1/admin` 밖 경로는 health 외 401. golden 서명 벡터·검증 사례 전부가 MASTER 필터에서 같은 결과.
 2. MASTER 기동 거부: admin-channel 설정 없음·키 형식 위반·context path·권리 채널 키와 kid/바이트 같음. 실패 메시지에 키 없음. demo-seed 명령(비웹)은 admin-channel 설정 없이 동작.
-3. 목록: 필터(merchantId·businessId·lifecycle·등록번호) 정확 일치, keyset 다음 cursor, limit 상한, 마스킹 등록번호·MID 수, 찾음/못 찾음 같은 모양.
+3. 목록: 필터(merchantId·businessId·lifecycle·등록번호) 정확 일치, keyset 다음 cursor, limit 상한, 마스킹 등록번호·MID 수, 찾음/못 찾음 같은 모양. (→ 대체: 등록번호 표시는 D-BIZ-007·D-PII-001 ①로 원문 — 이 수락 기준은 rev 0.1 당시 기준, 현행 시험 기대값은 BRN-UNMASK-001)
 4. 상세: §3.2 모양 전부, 한 RO·RR TX, Asia/Seoul JVM에서도 UTC 시각 그대로, 없는 ID 404.
 5. **비노출**: 응답 바이트(목록·상세·이력)에 `institutionMerchantRef` 키·값, `detail` 키, 등록번호 평문이 없다 — 대조군으로 같은 DB에 그 값이 실제로 있음(카드 Route 기관 번호, 이력 detail)을 확인한다.
 6. 이력: 가맹점 소유 집계 이력만, `detail` 없음, keyset cursor.
@@ -225,7 +227,7 @@ mTLS(LIVE Gate), §9.1의 각 한계 항목.
 
 ## 9. 위험·미결
 
-- Q-MOPS-01(PROPOSED — 명령의 2인 승인 범위, MERCHANT-OPS-002만 막음), Q-MOPS-04(PROPOSED·보류 — 등록번호 해제 필요성).
+- Q-MOPS-01(PROPOSED — 명령의 2인 승인 범위, MERCHANT-OPS-002만 막음), Q-MOPS-04(PROPOSED·보류 — 등록번호 해제 필요성). → 답: Q-MOPS-01 = D-MOPS-004, Q-MOPS-04 = D-PII-001 ③(닫힘). 둘 다 ANSWERED.
 - 다중 인스턴스 속도 제한 합산, mTLS, 운영 timeout·permit 값은 LIVE Gate(Demo 값).
 - 집계가 매우 많은 가맹점의 이력 IN 목록·상세 크기(256 KiB 상한 초과 시 ADMIN이 해석 불가로 503) — 규모가 커지면 상세를 블록별 endpoint로 나누는 것을 검토.
 - master-api는 이제 `paycore.master.admin-channel` 설정이 없으면 웹 프로세스가 기동하지 않는다 → 로컬 Demo 실행에 Demo 키 추가 필요(`.env.example` 안내, 저장소에 키 값 없음).
@@ -290,3 +292,9 @@ admin `MerchantLookupHttpSpec` +1(MASTER_UNAVAILABLE) — 기존 OPERATOR/APPROV
 Q-MOPS-07 추가 시험: admin `MerchantLookupServiceSpec` +3, `MerchantLookupHttpSpec` +2 → minTests 3435 → 3440(같은 방식 — 하한 + 추가 수).
 Q-MOPS-08 추가 시험: admin `MerchantSearchBodyLimitSpec` +3, `MerchantLookupHttpSpec` +2(413·415 — 기존 Q-MOPS-07 시험에는 행 3개 추가, 시험 수 불변) → minTests 3440 → 3445.
 
+## 개정 이력
+
+| 일자 | 내용 |
+|---|---|
+| 2026-11-03 ~ 2026-11-04 | rev 0.1 작성·리뷰 반영(§10 검증 기록) |
+| 2026-11-25 | S3-DOC-001 갈래 A(문서 정합, NP-95·PC-58·PC-59·BIZ (c)-8): 머리 정합 표시 추가, §1(Q-MOPS-04·Q-MOPS-01), §2 D-MOPS-003 '응답은 마스킹 값만', §3 목록·상세 응답 필드, §7 수락 기준 3, §9 미결 목록에 '→ 대체/답' 표시(D-BIZ-007·D-PII-001·D-MOPS-004). 감사 detail 마스킹(R-1·§5.4)은 현행과 같아 표시하지 않음. 원문 무변경, 정책 변경 없음 |

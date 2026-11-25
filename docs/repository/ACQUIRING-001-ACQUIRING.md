@@ -1,5 +1,6 @@
 # ACQUIRING-001 — 가상 SFTP 매입과 전송/확정 상태
 
+- **S3-DOC-001 문서 정합 표시** (2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님): 낡은 상태 문구와 근거 인용, 이후 사용자 결정으로 보완된 해석 옆에 `→ 현행화`/`→ 근거 정정`/`→ 보완` 표시만 붙였다(원문 보존). 바뀐 곳: 머리 '상태'(DONE 아님 → archive DONE), 근거 문서의 역사 자료 인용(정산지급방식 → 초기-확정사항 '확정: 선지급 기준' 절), §2 D-ACQ-005·기준선 행(D-GOV-002 ①②), §3 I-5(통화 근거)·I-9(RENAMED — D-GOV-002 ②). 근거 NP-100·PC-60·PC-02·PC-67, FIN 대장 진단 (c)-4·(c)-5. 현재 유효 규칙 정본은 `docs/rules/FIN.md`(D-GOV-006 ②).
 - **rev 0.2** (2026-11-05, Implementer). rev 0.1(1단계 명세 초안) 뒤 사용자 결정 D-ACQ-008~012(Q-ACQ-07~11)와 Coordinator 결정(sshd 2.20.1 허용·jOOQ codegen 미도입·허용 경로 추가·배치 분할)을 반영했다.
 - **rev 0.3** (2026-11-05, Implementer): 배치1 리뷰 REVIEW_FAIL(MAJOR 2·MINOR 4·NIT) 반영 — MJ-1 표현 불가 값은 거래 단위 대기(UNREPRESENTABLE), MJ-2 Payment 단위 보류 대기(PAYMENT_HELD — **Coordinator 결정**), m-1 SWEEP 같은 Payment 조건, m-2 잠금 뒤 판정 재확인 + lane 잠금 시험(AQ-C4), m-3 AlreadySealed 우선 + 마감 정책 소급 변경 거부, m-4 isolation mutation, NIT(파일 분리·바이트 행 hash 대조·후속 항목). §17.1에 실행 기록.
 - **rev 0.4** (2026-11-05, Implementer): 배치1 재리뷰 REVIEW_PASS 뒤 **배치2 중 2-D(SFTP 전송 상태기계·회복·sshd 2.20.1 고정)만 구현**. NIT-1(전송은 저장 봉인 바이트를 직접 읽고 봉인을 다시 부르지 않음) 반영. 2-E(Simulator acquirer)·2-F(결과 수신·마감·CANCEL 연결·지표·스케줄러)·2-G(재매입 기록)·E2E는 **미착수**(§16). 새 해석 I-22~I-27(§3), §4.5, §17.2 실행 기록.
@@ -10,10 +11,10 @@
 - **rev 0.9** (2026-11-05, Implementer): 2-E 재리뷰 REVIEW_PASS(조건부 — MINOR 6·NIT) 반영. m-1 V13을 V10에 합침(2-E 미커밋 — V10 이상이 적용된 볼륨 없음, 있으면 Simulator 볼륨 재생성; 백필은 상계액을 되살릴 값이 없어 택하지 않음), m-2 업로드 16 MiB 상한을 열린 쓰기 채널(`BoundedUploadChannel`)에서 지킴(copy-data 우회 차단), m-3 I-31 "원승인 단위 금액 상한" 표현·상계 식별 책임(FINANCIAL `acquisition_netting`)·계약 v2 후보, m-4 기동 검사가 append-only 4표 모든 열 탐침, m-5 VAN client 공유 명시, m-6 임시 파일 상한과 FINANCIAL 재시도(상한 도달 시 같은 파일 ID의 닫힌 이전 시도 정리), n-4 CANCEL 근거의 원승인 행 = 수락 SALE 근거 행 대조, n-6 문서 정리, 재리뷰 NIT n-1·n-2·n-3·n-5·n-7 기록(§16). §17.6 실행 기록. apps/financial-batch는 바꾸지 않았다.
 - **rev 1.0** (2026-11-05, Implementer): **배치2 2-F·2-G 구현 + E2E 스크립트 작성(실행 안 함)**. 2-F: ACK·결과 수신(§5.1 golden financial 사본·TARGETS 추가, (매입사, 이름, SHA-256) 처리 기록, 격리), 수신 축·레코드 결과 축(append-only), 결과 마감 UNKNOWN·늦은 결과(D-ACQ-010), ACK·결과 hash 일치 = 전송 완료 근거(I-9), D-ACQ-009 CANCEL 봉인 연결(+ NIT-3 거래 단위 대기·저장 행 계약 위반 INTEGRITY_VIOLATION, NIT-2 카드 종류 열거값, 상계 금액 DB 대조), JPA native count 지표(Micrometer), 스케줄러(기본 비활성). 2-G: 재매입 2인 승인 기록·검사(입력 경로 없음 — 서명 채널 운영 구현 언제나 거부 + runtime INSERT 1142 + 실행 Use Case 언제나 거절). 2-E 재리뷰 NIT n-1·n-2·n-3·n-5·n-7 원문 기록(§16). 새 해석 I-45~I-53(§3), §4.6·§4.7, §9·§10·§11·§12·§14·§16·§17.7. apps/institution-simulator는 바꾸지 않았다(golden은 financial-batch에 바이트 복사).
 - **rev 1.1** (2026-11-06, Implementer): 2-F·2-G 리뷰 REVIEW_PASS(MINOR 5·NIT 7) + **사용자 결정 D-ACQ-013(Q-2G-1)·D-ACQ-014(Q-2G-2)** 반영. D-ACQ-013: 재매입 금액 = 원승인액 − 실행 시점까지 받은 모든 취소(`ReacquisitionRule.netAmountMinor` — 승인 기록에는 금액을 넣지 않음, I-54). D-ACQ-014: UNKNOWN 대상은 대사 미매입 확정 근거 필요 → 대사 기능 전에는 거절(UNKNOWN_NOT_RECONCILED), 세대를 넘는 ACCEPTED 하나 = 앱 규칙(다른 세대 ACCEPTED 뒤 ACCEPTED → CONFLICT) + DB(V14 `acquisition_accepted_record` PK(거래, 종류)), 승인 무효 재검사 `revalidate`(TARGET_CHANGED). m-1 불요 취소의 원 SALE CONFLICT 지표·error 로그, m-2 전송 축 격리 파일 응답 격리(TRANSMISSION_QUARANTINED), m-3 "같은 세대" 서술 정정, m-4 B2를 증거에서 한계로, m-5 다음 봉인일 결과 구분(NO_CUTOFF_POLICY 로그·지표), n-1 B2 근거 정정, n-2 FILE_REJECTED 뒤 결과, n-3 합계 오버플로 = FORMAT_INVALID, n-4·n-6 메모·체류 시계, n-5 재전송 비교. 새 해석 I-54~I-58. §17.8 실행 기록.
-- 상태: 배치1 구현·재리뷰 REVIEW_PASS(Verifier 판정 전). 배치2-D rev 0.8(C-9 반영). 배치2-E rev 0.9(재리뷰 MINOR 반영). 배치2-F·2-G rev 1.0 리뷰 REVIEW_PASS(조건부) → **rev 1.1 리뷰 반영 — 대상 spec·mutation 실행 완료, 모듈 전체 실행은 Coordinator 별도 프로세스(지시), Verifier/Reviewer 판정 전**(DONE 아님). **E2E는 스크립트만(실행은 Coordinator — C-6)**.
+- 상태: 배치1 구현·재리뷰 REVIEW_PASS(Verifier 판정 전). 배치2-D rev 0.8(C-9 반영). 배치2-E rev 0.9(재리뷰 MINOR 반영). 배치2-F·2-G rev 1.0 리뷰 REVIEW_PASS(조건부) → **rev 1.1 리뷰 반영 — 대상 spec·mutation 실행 완료, 모듈 전체 실행은 Coordinator 별도 프로세스(지시), Verifier/Reviewer 판정 전**(DONE 아님). **→ 현행화(S3-DOC-001): `harness/archive/tasks-done-2026-11-22.json`에서 ACQUIRING-001 = DONE** **E2E는 스크립트만(실행은 Coordinator — C-6)**.
 - 기준: branch `feat/foundation-setup`, HEAD `12c6b5e` + 작업 트리(미커밋 — 이 작업 변경 + Coordinator의 harness 상태 파일 변경).
 - 표기: "사용자 결정"은 `docs/DECISIONS.md`의 결정만이다. **I-n = Implementer 해석**(가역 구현 선택 또는 결정에서 끌어낸 보수적 해석)이며 사용자 승인이 아니다. **C-n = Coordinator 결정**(가역, 사용자 결정 아님).
-- 근거 문서: DECISIONS D-ACQ-001~012·D-FFR-002/003·D-CPD-001·D-MS2-005·D-ADMIN-003/007·D-INST-CODE-001, `docs/baseline/PayCore-결제허용-기관연동-권장안.md` §5.2·§5.4·§5.5, `docs/baseline/PayCore-정산지급방식-확정과-상세권장안.md`(매입 요청 = 외부기관 전송 완료), architecture 04·10(INV-05·06·09·11·12·13·16·18), FIN-FACT-RELAY-001 rev 0.2, FIN-DBACCOUNT-001 rev 0.1, ARCHITECTURE-CONVENTIONS §2·§3·§9.2·§14·§23, TECHNOLOGY-AND-PRINCIPLES §1~§5.
+- 근거 문서: DECISIONS D-ACQ-001~012·D-FFR-002/003·D-CPD-001·D-MS2-005·D-ADMIN-003/007·D-INST-CODE-001, `docs/baseline/PayCore-결제허용-기관연동-권장안.md` §5.2·§5.4·§5.5, `docs/baseline/PayCore-정산지급방식-확정과-상세권장안.md`(매입 요청 = 외부기관 전송 완료) **→ 근거 정정(S3-DOC-001): 이 파일은 BASELINE-INDEX상 역사 자료다. 같은 규칙의 채택 근거는 `docs/baseline/PayCore-초기-확정사항.md` '확정: 선지급 기준' 절("매입 요청 인정 시점은 … '외부기관에 전송완료'로 확정")**, architecture 04·10(INV-05·06·09·11·12·13·16·18), FIN-FACT-RELAY-001 rev 0.2, FIN-DBACCOUNT-001 rev 0.1, ARCHITECTURE-CONVENTIONS §2·§3·§9.2·§14·§23, TECHNOLOGY-AND-PRINCIPLES §1~§5.
 
 ## 1. 범위와 제외
 
@@ -37,7 +38,7 @@ Kafka/Redis는 쓰지 않는다(ADR-001). 매입의 중복 방지·순서·재�
 | D-ACQ-002 | SALE = 승인 투영만. 전송 전(= membership 확정 전, D-ACQ-012) 전액 취소 → `acquisition_exclusion`(FULLY_CANCELLED_BEFORE_SUBMISSION) + 상계 기록, 부분 취소 → 순액 SALE + 상계 기록. 원거래 모르는 취소 → 보류(후보 아님) |
 | D-ACQ-003 | (매입사, 환경, 업무일)당 정기 파일 1개(버전 001). 마감 = 버전 관리 설정 `paycore.financial.acquiring.cutoff-policies`(Demo 값), 업무일 = Asia/Seoul 달력일(Demo 한정, Q-CALENDAR 전) |
 | D-ACQ-004 | 파일 상태 3축 분리(전송·수신 ACK·결과), REJECTED 종결, UNKNOWN → 대사, 자동 재전송 없음 — 상태 열·CHECK는 배치1, 전송 축 전이 2-D, 수신·결과 축 전이·결과 마감 UNKNOWN 2-F(§4.6) |
-| D-ACQ-005 | 매입 모듈은 지급·보류 효과를 만들지 않는다(기록·알림만) |
+| D-ACQ-005 | 매입 모듈은 지급·보류 효과를 만들지 않는다(기록·알림만) **→ 보완(답 D-GOV-002 ①②, S3-DOC-001): D-ACQ-005는 선지급에만 적용하고 선지급 기준 3종(승인 완료·매입 전송 완료·매입 확정)은 유지. 선지급 뒤 거절·UNKNOWN·후발 취소·미입금은 자동 회수 없음 — 지급 보류 + 대사 건, 회수·상계는 계약 근거 + 2인 승인(적용은 SETTLEMENT-CONTRACT-001)** |
 | D-ACQ-006 | 클라이언트 키 인증 + 호스트 키 고정, 키는 환경변수/파일로만(배치2) |
 | D-ACQ-007 | Job은 FINANCIAL DB BATCH_* JobRepository(V1)를 쓴다 |
 | **D-ACQ-008** (Q-ACQ-07) | 레코드 `merchantRef` = PayCore MID(`merchant_account_id`) + 기관 거래 참조(providerTransactionId·승인번호·매입사·거래일)로 대조. 실제 계약번호는 후속 PaymentAuthorized v2. **LIVE 매입 차단**: 봉인 Use Case가 LIVE lane을 `LIVE_BLOCKED`로 거부, 후보 규칙도 LIVE를 대기로 둔다(이중 방어). payment-api 변경 없음 |
@@ -49,7 +50,7 @@ Kafka/Redis는 쓰지 않는다(ADR-001). 매입의 중복 방지·순서·재�
 | **D-ACQ-014** (Q-2G-2) | UNKNOWN은 대사로 미매입이 확정된 경우에만 재매입 대상(대사 기능 전 → 거절 UNKNOWN_NOT_RECONCILED, I-55), 재매입 뒤 앞 세대 ACCEPTED → 승인 무효(TARGET_CHANGED — `revalidate`), 거래·종류당 세대를 넘는 ACCEPTED 하나(앱 규칙 + V14 PK — I-56, AQ-R14) |
 | D-FFR-002 | 새 표 7개마다 runtime 최소 권한(V6) + FinancialDatabaseAccountSpec 기대값 추가 |
 | D-FFR-003 | 원승인 도착 + MATCH → `payment_fact_hold_release` RELEASED(append-only), 불일치 → REVIEW_REQUIRED. 보류 원본 행 불변 |
-| 기준선(정산지급방식) | "매입 요청" = 외부기관 전송 완료(전송 축 TRANSMITTED만, 배치2). "매입 확정" = 레코드 ACCEPTED |
+| 기준선(정산지급방식) **→ 근거 정정: 초기-확정사항 '확정: 선지급 기준' 절(S3-DOC-001)** | "매입 요청" = 외부기관 전송 완료(전송 축 TRANSMITTED만, 배치2). "매입 확정" = 레코드 ACCEPTED |
 
 ### 2.1 Coordinator 결정(가역 — 사용자 결정 아님)
 
@@ -68,11 +69,11 @@ Kafka/Redis는 쓰지 않는다(ADR-001). 매입의 중복 방지·순서·재�
 | I-2 | 업무일 D 정기 파일 대상 = `approved_at ≤ cutoffInstant(D)`이고 봉인 시점에 FINANCIAL이 이미 받은, 아직 판정 안 된 승인. 마감 뒤 늦게 relay된 승인은 다음 업무일 파일로 간다. **마감 전 봉인 거부**(`BEFORE_CUTOFF`) | 승인일 기준 수수료·정산일과 무관(금액 의미 변화 없음). 매입 기한은 LIVE Gate |
 | I-3 | 정기 파일은 업무일 순서로만(lane 마지막 봉인일 + 1만 허용 — `OUT_OF_ORDER`). 대상 0건이어도 헤더 + 0 트레일러 파일을 봉인 | 가역. 대안: 빈 날 생략 |
 | I-4 → **C-5** | **Coordinator 결정(리뷰 MJ-2, 가역 — 사용자 결정 아님)**: 같은 Payment에 미해제 보류(RELEASED 해제 기록 없는 보류)가 하나라도 있으면 그 Payment의 **모든** 후보를 대기(`PAYMENT_HELD`, 기록 없음, 다음 봉인에서 다시 판정). 승인 자신·딸린 취소의 보류는 더 구체적인 사유(`AUTHORIZATION_HELD`·`CANCELLATION_HELD`)로 표시한다. rev 0.2는 승인·딸린 취소의 보류만 봐서, 다른 원거래를 가리키는 이른 취소나 같은 Payment의 두 번째 승인(AUTHORIZATION_CONFLICT)이 보류된 채 A1을 총액으로 매입했다(AQ-DB7a·b) | fail-closed 쪽으로 좁힘 |
-| I-5 | KRW 외 통화 승인은 **대기**(`UNSUPPORTED_CURRENCY` — rev 0.1의 "제외 기록"에서 바꿈: 통화 범위 채택 전 종결 판정을 기록하지 않는다). 파일·레코드·상계·제외 표 CHECK는 KRW만 | 사용자 지정 "원화 정수", CLAUDE.md 통화 범위 미채택 |
+| I-5 | KRW 외 통화 승인은 **대기**(`UNSUPPORTED_CURRENCY` — rev 0.1의 "제외 기록"에서 바꿈: 통화 범위 채택 전 종결 판정을 기록하지 않는다). 파일·레코드·상계·제외 표 CHECK는 KRW만 | 사용자 지정 "원화 정수", CLAUDE.md 통화 범위 미채택 **→ 근거 정정 표시(S3-DOC-001): '통화 범위 미채택'은 D-AUTH-001(KRW 채택·외화 초기 제외)·D-AUTH1-002(승인 KRW만)·D-GOV-002 ④(외화는 기준정보에서 비활성) 이후 낡은 근거다. 대기 판정 자체(BR-FIN-020)는 `제안` — RULE-CONFIRM-001 Q6 사용자 확인 대기** |
 | I-6 | TEST 거래 → Simulator 매입사(D-CPD-001). LIVE는 D-ACQ-008로 차단 | TEST 매입분의 정산 포함은 SETTLEMENT 판단 |
 | I-7 | 파일 전체 거절(ACK FILE_REJECTED)도 재매입 절차(D-ACQ-011이 명시적으로 포함 — 이제 사용자 결정) | |
 | I-8 | 유효 결과 파일은 ACK가 없어도 수신 근거(RESULT_IMPLIED). ACK hash ≠ 봉인 hash → 격리 | 배치2 |
-| I-9 | 전송 완료 근거 3종(RENAMED·VERIFIED_FINAL_PRESENT·ACK_HASH_MATCH), 없으면 TRANSMISSION_UNKNOWN | 배치2 |
+| I-9 | 전송 완료 근거 3종(RENAMED·VERIFIED_FINAL_PRESENT·ACK_HASH_MATCH), 없으면 TRANSMISSION_UNKNOWN **→ 보완(답 D-GOV-002 ②, S3-DOC-001): RENAMED(이름 변경 응답만, 재확인 실패)는 전송 기록으로는 남기되 정산 적격성('매입 전송 완료' 선지급 근거)은 재확인 근거만 인정 — 적용은 SETTLEMENT-CONTRACT-001, 이 매입 전송 축 판정은 그대로** | 배치2 |
 | I-10 | 같은 파일 ID 재업로드 허용(같은 봉인 바이트), 새 ID 재전송 없음 | 배치2 |
 | I-11 | 봉인 바이트는 `acquisition_file_content`(불변)에 보관. 같은 봉인을 다시 부르면(재시작) 저장 헤더·레코드로 다시 렌더링해 저장 바이트·hash·합계와 대조 → 다르면 `INTEGRITY_VIOLATION`(전송 금지·error 로그) | Demo 크기 전제(MEDIUMBLOB). 대용량은 LIVE Gate |
 | I-12 | 재매입 파일 = 원 업무일 다음 버전(002~), 레코드는 원 파일·순번 참조(`reacquisitionOf = {fileId}#{seq}`), generation ≥ 1 | 배치2. golden에 형태만 고정 |

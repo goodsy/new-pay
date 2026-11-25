@@ -1,5 +1,7 @@
 # CP-CONTRACT-001 CreatePayment 확정 계약 v1.1
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 계약·코드·시험 변경 없음, 자기 완료 판정 아님)**: 이후 결정·작업 완료로 낡은 문장 옆에 `→ 대체`/`→ 현행화`/`→ 보완` 표시만 붙였다(원문 보존). 바뀐 곳: 머리 10행(구현 작업 상태 — PC-60), §1 첫 결제수단·§3 `paymentMethod` 표시(국내 신용카드 → D-AUTH-001·D-AUTH1-003 — PAY 대장 진단 (c)-8·NP-98), §3 `currency`(외화 기준정보 비활성 — D-GOV-002 ④). 현재 유효 규칙 정본은 `docs/rules/PAY.md`(D-GOV-006 ②).
+
 > **v1.1(2026-11-17, MERCHANT-CODE-001 MC-4 — D-MCODE-001 Q-MC-1·D-MCODE-002 Q-MC-8, Coordinator 결정 C-37(MC-4), 업무 규칙 변경 없음)**: 응답(§5)에 출력 전용 가산 필드 `merchantCode`(사람이 읽는 가맹점 코드).
 > 요청 schema(§3)·고정 입력·OrderIntentFingerprint·멱등 요청 지문은 그대로다(요청 본문의 `merchantCode`는 §3.1 "알 수 없는 필드" → 400). 재생은 D-CP-003 "저장된 최초 결과만" 그대로 — 코드도 생성 결과와 함께 저장한 값이다(MERCHANT-CODE-001 §6.1⑥).
 
@@ -7,11 +9,11 @@
 
 표시: **확정(D-…)** = 사용자 결정(`docs/DECISIONS.md`), **관례** = 금융 의미가 없는 가역적 구현 선택(이 문서에서 결정·기록), **미결** = §16 질문 후보 또는 후속 작업.
 
-이 문서는 계약이다. 코드로 구현된 범위는 §14에 따로 적는다(CP-CONTRACT-001: domain 값 객체·fingerprint 계산, CP-DB-001: PAYMENT migration·영속 Port/adapter·로컬 TX Use Case·Outbox append — §14.1, Verifier/Reviewer 판정 전). API·eligibility Port 구현은 MASTER-SNAPSHOT-001 / CP-API-001이며 아직 없다.
+이 문서는 계약이다. 코드로 구현된 범위는 §14에 따로 적는다(CP-CONTRACT-001: domain 값 객체·fingerprint 계산, CP-DB-001: PAYMENT migration·영속 Port/adapter·로컬 TX Use Case·Outbox append — §14.1, Verifier/Reviewer 판정 전). API·eligibility Port 구현은 MASTER-SNAPSHOT-001 / CP-API-001이며 아직 없다. **→ 현행화(S3-DOC-001): 두 작업 모두 DONE(`harness/archive/tasks-done-2026-11-22.json`) — API·eligibility 구현은 CP-API-001 명세**
 
 ## 1. 범위
 
-- PAYMENT가 결제 의도(Payment REQUESTED)와 주문 활성 슬롯 점유(OrderPaymentControl)를 만든다. 첫 결제수단은 국내 신용카드(CARD).
+- PAYMENT가 결제 의도(Payment REQUESTED)와 주문 활성 슬롯 점유(OrderPaymentControl)를 만든다. 첫 결제수단은 국내 신용카드(CARD). **→ 대체: D-AUTH-001(결제수단 CARD = 국내 발급 신용+체크카드, 일시불·일반 할부, KRW)·D-AUTH1-003(신용 일시불·체크 일시불·일반 할부 동시 개방), 현행은 BR-PAY-075·078**
 - 기관 인증·승인·매입·정산·송금은 하지 않는다. PaymentTransaction·AuthorizationAttempt를 만들지 않는다. 외부 호출 없음.
 - MASTER를 같은 DB TX로 읽거나 쓰지 않는다. MID 소유·Site 관계·계약/개통 준비·허용 통화·Snapshot freshness는 PAYMENT의 required Port(§13)로만 검사한다(D-CPC-006: Port 계약만 정의, 구현은 MASTER-SNAPSHOT-001/CP-API-001).
 - Simulator/REAL은 이 API의 축이 아니다(D-CPD-001). TEST 환경 요청은 실기관으로 전송되지 않는다(Route 규칙은 AUTH).
@@ -39,8 +41,8 @@ OrderKey = (environment[컨텍스트], merchantAccountId[=authenticatedMid], mer
 | merchantSiteId | string | 예 | 비어 있지 않음, 짝 없는 서로게이트 거절(§3.1), 입력 그대로 비교. 형식은 MASTER 발급 규칙 | 관례 |
 | merchantOrderId | string | 예 | 1~64자, `^[A-Za-z0-9\-_.:]{1,64}$`, 공백·비ASCII·제어문자 거절, 대소문자 구분 | **확정 D-CPC-002, D-CP-001** |
 | amount | integer | 예 | 통화 minor unit 정수, 1 ≤ amount ≤ 9223372036854775807 | **확정 D-CPC-005** |
-| currency | string | 예 | ISO 4217 alphabetic `^[A-Z]{3}$`, 대소문자 변환 없음. 허용 여부는 기준정보(§4) | **확정 D-CP-002**, 형식 엄격성은 관례 |
-| paymentMethod | string | 예 | 현재 `CARD`만. 허용 여부는 개통 기준정보(§13) | 초기 확정(국내 신용카드) |
+| currency | string | 예 | ISO 4217 alphabetic `^[A-Z]{3}$`, 대소문자 변환 없음. 허용 여부는 기준정보(§4) | **확정 D-CP-002**, 형식 엄격성은 관례 **→ 보완(답 D-GOV-002 ④): 정산 통화 결정 전까지 기준정보(가맹점 통화 활성화)에서 외화 비활성, 이 생성 규칙은 그대로. 승인은 KRW만(D-AUTH1-002)** |
+| paymentMethod | string | 예 | 현재 `CARD`만. 허용 여부는 개통 기준정보(§13) | 초기 확정(국내 신용카드) **→ 대체: D-AUTH-001·D-AUTH1-003, 현행 `CARD` = 국내 발급 신용+체크카드(cardType은 승인 단계 — AUTH-CONTRACT-001 §3)** |
 | orderName | string | 아니오 | 표시용. 1~100자(길이 단위 — UTF-16 code unit/code point/UTF-8 byte — 는 CP-API-001에서 확정, 이월 L-8), 제어문자·짝 없는 서로게이트 거절(관례, §3.1). 고정 입력 아님 | 관례, D-CPC-001 |
 
 헤더 `Idempotency-Key`: 1~64자, `^[A-Za-z0-9\-_.:]{1,64}$`, 대소문자 구분 — **확정 D-CPC-002, D-CP-001**.

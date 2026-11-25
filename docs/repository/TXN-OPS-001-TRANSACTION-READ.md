@@ -1,5 +1,7 @@
 # TXN-OPS-001 거래 목록·상세 조회(read-only) 명세 (rev 0.2)
 
+> **S3-DOC-001 문서 정합 표시(2026-11-25 — 코드·시험·정책 변경 없음, 자기 완료 판정 아님)**: §2 표의 D-TXOPS-001 '기간 필수'와 바로 아래 I-3(정확 조회는 기간 면제)이 같은 표 안에서 다르다(CAN 대장 진단 (c)-8, NP-99). 사용자 결정이 아직 없으므로 문장은 바꾸지 않고 **미결 표시**만 붙였다 — RULE-CONFIRM-001 Q11(BR-CAN-089·094) 답 전까지 현행 동작(I-3) 유지.
+
 작성 2026-11-04 KST, branch `feat/foundation-setup`(기준 commit `2148eca`). Implementer 작성 — 자기 완료 판정 아님(Verifier·Reviewer 별도).
 
 근거: 사용자 결정 2026-11-04(AskUserQuestion — Q-TXOPS-01..05 → D-TXOPS-001..005), ADMIN-PAYMENT-OPS-001 §4.2–4.3·§4.7·§4.20(ADMIN → PAYMENT 서명 채널·조회 permit·질의 시간 상한),
@@ -29,7 +31,7 @@ TZ-FIX-001(시각은 `DATE_FORMAT` 문자열), ARCHITECTURE-CONVENTIONS §9·§1
 | D-TXOPS-005 (Q-TXOPS-05) | 거래 조회의 취소 이력에는 **개시 주체 종류(`initiatorKind` = MERCHANT·OPERATOR)만** 표시한다. 운영자 보정 취소의 사유(`operator_reason`)·근거(`purpose_kind`·`purpose_ref`)·요청자·승인자·approvalId는 이 화면·API에 없고 **기존 승인 화면에서만** 본다 | 사용자 결정(AskUserQuestion 2026-11-04 "표시만 유지 (Recommended)" — rev 0.1의 I-2 해석을 확정) |
 | I-1 | 조회 역할 = VIEW_MASKED 4역할(VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN) — 기존 결제 대상 조회(I-23)·가맹점 조회와 같은 역할 집합 | **Implementer 해석**(사용자 결정 아님 — Reviewer 확인 대상) |
 | ~~I-2~~ | (rev 0.2) 사용자 결정 D-TXOPS-005로 확정되어 해석 목록에서 뺐다 | — |
-| I-3 | 기간 필수는 **목록(필터) 검색**에 적용한다. 결제 ID 정확 조회와 MID + 주문번호 조회는 색인으로 범위가 묶이므로 기간 없이 허용(주면 같은 검사 후 함께 적용). 기간은 `[createdFrom, createdTo)` UTC 순간, `createdFrom < createdTo ≤ createdFrom + 31일` | **Implementer 해석**(조회 모양 — 금융 의미 없음) |
+| I-3 **(미결 표시 — D-TXOPS-001 문언 '기간 필수'와 다른 해석. 사용자 확인은 RULE-CONFIRM-001 Q11(BR-CAN-089 `제안`), S3-DOC-001)** | 기간 필수는 **목록(필터) 검색**에 적용한다. 결제 ID 정확 조회와 MID + 주문번호 조회는 색인으로 범위가 묶이므로 기간 없이 허용(주면 같은 검사 후 함께 적용). 기간은 `[createdFrom, createdTo)` UTC 순간, `createdFrom < createdTo ≤ createdFrom + 31일` | **Implementer 해석**(조회 모양 — 금융 의미 없음) |
 | I-4 | 화면 날짜는 Asia/Seoul 달력일로 입력받아 그 날 00:00 KST 순간(UTC)으로 바꿔 보낸다(끝 날짜 포함 → 다음 날 00:00 KST 미만). 서버는 순간만 받는다 | Implementer 해석(표시 관례) |
 | I-5 | 목록 주문명 앞 10자는 SQL `LEFT(order_name, 10)`(utf8mb4 문자 = code point)로만 읽는다 — 전체 주문명이 목록 경로의 애플리케이션 메모리로 오지 않는다. `orderNameTruncated`(10자 초과 여부)만 함께 준다 | Implementer 해석 |
 | I-6 | 반환 잔액은 저장 값(승인·완료·예약·FORCED·revision)만 보여 준다. 취소 가능액 계산식은 화면·조회에서 다시 만들지 않는다(금융 식 중복 금지 — 기존 대상 조회 `cancellableMinor`가 권위) | Implementer 해석 |
