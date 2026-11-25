@@ -5840,6 +5840,97 @@
       "humanAnswer": "세 가지 모두 정리 (권장)",
       "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-25)",
       "appliedSpec": "D-GOV-009"
+    },
+    {
+      "id": "Q-PII-3",
+      "status": "PROPOSED",
+      "question": "마스킹 해제(UNMASK) 틀의 **첫 실제 적용 데이터**는 무엇인지(D-BIZ-006 ②로 사업자 개인정보는 이미 원문, D-BIZ-007로 등록번호도 원문)",
+      "recommended": "실제 필요가 생길 때까지 보류(정산 지급 계좌 등 후보)",
+      "alternative": "지금 대상 지정",
+      "impact": "UNMASK 데이터 Port, D-ADMIN1-019 PAN 재검토 시점",
+      "dependentTasks": [],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "note": "일부 해소: D-FLOW-002 ①(2026-11-25)이 대표자 생년월일·실소유자 정보를 마스킹 해제 틀의 첫 실제 적용 데이터로 정함('Q-PII-3 일부 해소'). 남은 부분 = KYC 항목 밖의 적용 대상(PC-47 'Q-PII-3 남은 부분(KYC 외 대상)')"
+    },
+    {
+      "id": "Q-PII-5",
+      "status": "PROPOSED",
+      "question": "개인정보 보관·파기 기간(종료 행·이력·감사·백업)",
+      "recommended": "컴플라이언스 확인 후 결정, 그 전까지 파기 기능 없음(BUSINESS-PROFILE-001 L-3·POL-006 TBD 유지)",
+      "alternative": "임시 기간 지정",
+      "impact": "LIVE Gate",
+      "dependentTasks": [
+        "LIVE Gate"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "note": "관련: BR-BIZ-024(미결), D-FLOW-002 ④(KYC 보관·파기 기간은 LIVE 전 결정 — Q-PII-5 연결). GOV-BIZ-001 §6 Q-3: 지금 답 불필요, LIVE Gate 질문으로 묶어 제시"
+    },
+    {
+      "id": "Q-PII-7",
+      "status": "PROPOSED",
+      "question": "개인사업자 상호(개인 이름 포함 가능)를 계속 마스킹하지 않을지",
+      "recommended": "현행 유지(L-3)",
+      "alternative": "감사·로그에만 마스킹",
+      "impact": "낮음",
+      "dependentTasks": [],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null,
+      "note": "관련: BR-BIZ-023(미결). GOV-BIZ-001 §6 Q-3: 지금 답 불필요, LIVE Gate 질문으로 묶어 제시"
+    },
+    {
+      "id": "Q-PII-8",
+      "status": "PROPOSED",
+      "question": "주문명·merchantOrderId(가맹점 자유 텍스트) 등급: 로그·오류 규칙",
+      "recommended": "개인정보가 들어갈 수 있는 값으로 보고 로그·지표·오류에 원문 금지",
+      "alternative": "일반 업무 정보",
+      "impact": "PAYMENT 로그 규칙",
+      "dependentTasks": [],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-PII-9",
+      "status": "PROPOSED",
+      "question": "정산 지급 계좌의 화면 마스킹 형식·원문 조회 절차·저장(암호화)",
+      "recommended": "MASTER-PAYOUT-ACCOUNT-001 착수 때 질문(이 문서에서 정하지 않음)",
+      "alternative": "—",
+      "impact": "MASTER-PAYOUT-ACCOUNT-001",
+      "dependentTasks": [
+        "MASTER-PAYOUT-ACCOUNT-001"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-PII-10",
+      "status": "PROPOSED",
+      "question": "내보내기·다운로드(CSV 등) 규칙 — 현재 기능 없음(D-TXOPS-004), 마스킹 해제 데이터 대량 다운로드만 2인 승인(D-ADMIN-003)",
+      "recommended": "기능이 생길 때 별도 결정",
+      "alternative": "—",
+      "impact": "후속",
+      "dependentTasks": [],
+      "askedAt": null,
+      "origin": "docs/repository/PII-MASKING-POLICY.md §8(rev 0.1c) 원문 — BIZ-NORM-003 등록(GOV-BIZ-001 M-8, NP-103·PC-47·DC-M-23)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
     }
   ]
 }

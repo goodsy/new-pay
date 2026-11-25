@@ -90,7 +90,7 @@
 | BR-BIZ-045 | 사업자 등록 중복 시 "이미 등록된 번호"만 표시하고 기존 businessId는 ADMIN 응답·화면·감사에 내보내지 않는다 | 대체됨→BR-BIZ-044 | 사용자 | D-MOPS-006 ③ → D-BIZ-003 | MERCHANT-OPS-002 §4.4(옛) | — |
 | BR-BIZ-046 | 사업자등록번호는 어디서나(화면·응답 포함) 마스킹한다 | 대체됨→BR-BIZ-030 | 사용자 | D-BIZ-006 ② → D-BIZ-007, D-PII-001 | BUSINESS-PROFILE-001 §9(옛) | — |
 | BR-BIZ-047 | 번호 검색·사업자 번호 조회·중복 안내·가맹점 등록의 사업자 표시 응답은 마스킹 번호(앞 3자리)만 준다 | 대체됨→BR-BIZ-030 | 사용자 | D-MOPS-003, D-ADMIN-UI-004 ⑦, D-BIZ-003, D-MCODE-003 ② → D-BIZ-007, D-PII-001 | MERCHANT-OPS-001 §5(옛) | — |
-| BR-BIZ-048 | 사업자 명령 요청 지문의 사업자등록번호 자리는 원문 무염 SHA-256이 아니라 MASTER 비밀 키 HMAC 값으로 저장한다(같은 키·다른 내용=충돌 유지, 기존 행 호환 비교는 Demo 한정) | 확정 | 사용자 | D-MOPS-010 ②(Q-MOPS-26), D-GOV-001 ② | MERCHANT-OPS-002 §9.29·C-46·C-47 rev 0.9.5, PII-MASKING-POLICY §7.1 X-2 | AdminRequestFingerprintSpec(M)::h1: HMAC = canonical 전체 MAC·다른 키 다른 값·m1과 다름; AdminRequestFingerprintHmacSpec(M)::DB 지문 원문·무염 사전 대조 불가, 같은 키 재생·다른 내용 409, m1 행 Demo 재생·다른 내용 409·LIVE 409; RequestFingerprintKeySpec(M)::키 없음·Base64 아님·32바이트 미만·서명 키 동일·LIVE Demo 키 기동 실패, toString 가림 (SEC-BIZ-001 — 리뷰·검증 전) |
+| BR-BIZ-048 | 사업자 명령 요청 지문의 사업자등록번호 자리는 원문 무염 SHA-256이 아니라 MASTER 비밀 키 HMAC 값으로 저장한다(같은 키·다른 내용=충돌 유지, 기존 행 호환 비교는 Demo 한정) | 확정 | 사용자 | D-MOPS-010 ②(Q-MOPS-26), D-GOV-001 ② | MERCHANT-OPS-002 §9.29·C-46·C-47 rev 0.9.5, PII-MASKING-POLICY §7.1 X-2 | AdminRequestFingerprintSpec(M)::h1: HMAC = canonical 전체 MAC·다른 키 다른 값·m1과 다름; AdminRequestFingerprintHmacSpec(M)::DB 지문 원문·무염 사전 대조 불가, 같은 키 재생·다른 내용 409, m1 행 Demo 재생·다른 내용 409·LIVE 409; RequestFingerprintKeySpec(M)::키 없음·Base64 아님·32바이트 미만·서명 키 동일·LIVE Demo 키 기동 실패, toString 가림 (SEC-BIZ-001 — 리뷰 APPROVED·FULL SEC-gate1 PASS·Demo 확인(439fa1a)) |
 | BR-BIZ-049 | 사업자등록번호 마스킹 해제(UNMASK) 절차는 두지 않는다 | 확정 | 사용자 | D-PII-001 ③, Q-MOPS-04 | PII-MASKING-POLICY §8 | 없음 |
 
 ## 3. 가맹점(Merchant)·가맹점 코드
@@ -291,8 +291,8 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 | BR-BIZ-301 | KYC 현재 값·마스킹 표시·원문 조회는 현재 대표자 행만 대상으로 하고 종료된 대표자 행은 저장만 하며 응답하지 않는다 | 제안 | 적용 | D-FLOW-009 Coordinator 적용 메모(3차 리뷰 MAJOR-3) | MERCHANT-FLOW-001 §4A.11 | 없음 |
 | BR-BIZ-302 | KYC 보관·파기 기간은 LIVE 전에 정하고 그때까지 파기 기능이 없다(Demo는 지금 수집) | 확정 | 사용자 | D-FLOW-002 ④ | MERCHANT-FLOW-001 §4A.11 | 없음 |
 | BR-BIZ-303 | 사업자 메모는 추가만 가능(ADMIN 소유 append-only, 종류 고정 일반·상담·계약·리스크, 1~1,000자, 카드번호 패턴 거부)이며 종료 사업자에도 허용한다 | 확정 | 사용자 | D-FLOW-003 ⑧, D-FLOW-004 ③, D-FLOW-007 ⑤ | MERCHANT-FLOW-001 §4A.12 | 없음 |
-| BR-BIZ-304 | 저장(또는 전이) 한 번에 공통 '사유 및 비고' 칸 하나를 두며, 그 저장에 사유 필수 항목이 하나라도 있으면 필수, 없으면 선택이다 | 확정 | 사용자 | D-FLOW-006 | MERCHANT-FLOW-001 §4A.3a | BusinessesScreen.bizNorm002.test.tsx(F)::칸 이름 '사유 및 비고'(중요정보 변경 — 필수)·'사유 및 비고(선택)'(일반정보만), '변경 사유' 이름 없음 (BIZ-NORM-002 — 칸 이름만, 필수 규칙 시험은 기존 BusinessProfileFormScreen.test·iaB5 — 리뷰·검증 전) |
-| BR-BIZ-305 | 공통 '사유 및 비고' 칸 전체에 항상 카드번호 패턴 검사를 적용한다(기존 사업자 중요정보 사유 포함, 새 저장부터) | 확정 | 사용자 | D-FLOW-007 ①, Q-PII-6 | MERCHANT-FLOW-001 §4A.3a, BUSINESS-PROFILE-001 §4.2 `BusinessChangeReason`, PII-MASKING-POLICY §4.4 | BusinessProfileRulesSpec(M)::공통 벡터 양성 10 CARD_NUMBER_PATTERN·음성 6 통과, 문자 규칙 먼저; BusinessProfileRequestParserSpec(M)::update·complete 사유 CARD_NUMBER_PATTERN; BusinessProfileApiSpec(M)::400 값 없음·admin_request·이력 0행·version 불변; BusinessProfileServiceSpec(A)::MASTER 미호출 400·정본 containsCardNumber와 벡터 일치; MasterBusinessGatewaySpec(A)::MASTER 400 code 수용; businessProfile.test.ts(F)::reasonError 공통 벡터·안내 문구 (SEC-BIZ-001 — 리뷰·검증 전. 사업자 중요정보 사유에 적용 — 새 섹션 칸은 FLOW-2) |
+| BR-BIZ-304 | 저장(또는 전이) 한 번에 공통 '사유 및 비고' 칸 하나를 두며, 그 저장에 사유 필수 항목이 하나라도 있으면 필수, 없으면 선택이다 | 확정 | 사용자 | D-FLOW-006 | MERCHANT-FLOW-001 §4A.3a | BusinessesScreen.bizNorm002.test.tsx(F)::칸 이름 '사유 및 비고'(중요정보 변경 — 필수)·'사유 및 비고(선택)'(일반정보만), '변경 사유' 이름 없음 (BIZ-NORM-002 — 칸 이름만, 필수 규칙 시험은 기존 BusinessProfileFormScreen.test·iaB5 — 리뷰 APPROVED·FULL NORM2-gate1 PASS(bdf4e42)) |
+| BR-BIZ-305 | 공통 '사유 및 비고' 칸 전체에 항상 카드번호 패턴 검사를 적용한다(기존 사업자 중요정보 사유 포함, 새 저장부터) | 확정 | 사용자 | D-FLOW-007 ①, Q-PII-6 | MERCHANT-FLOW-001 §4A.3a, BUSINESS-PROFILE-001 §4.2 `BusinessChangeReason`, PII-MASKING-POLICY §4.4 | BusinessProfileRulesSpec(M)::공통 벡터 양성 10 CARD_NUMBER_PATTERN·음성 6 통과, 문자 규칙 먼저; BusinessProfileRequestParserSpec(M)::update·complete 사유 CARD_NUMBER_PATTERN; BusinessProfileApiSpec(M)::400 값 없음·admin_request·이력 0행·version 불변; BusinessProfileServiceSpec(A)::MASTER 미호출 400·정본 containsCardNumber와 벡터 일치; MasterBusinessGatewaySpec(A)::MASTER 400 code 수용; businessProfile.test.ts(F)::reasonError 공통 벡터·안내 문구 (SEC-BIZ-001 — 리뷰 APPROVED·FULL SEC-gate1 PASS·Demo 확인(439fa1a). 사업자 중요정보 사유에 적용 — 새 섹션 칸은 FLOW-2) |
 | BR-BIZ-306 | KYC·리스크 표시·담보는 섹션별로 따로 저장한다(섹션 저장 1회 = MASTER 명령·TX 1개) | 확정 | 사용자 | D-FLOW-007 ② | MERCHANT-FLOW-001 §4A.3a | 없음 |
 | BR-BIZ-307 | 기존 대표자·담당자 개인정보 표시는 현행(원문) 유지한다 | 확정 | 사용자 | D-FLOW-003 ⑩ | MERCHANT-FLOW-001 §4A.13 | BusinessReaderSpec(M)::상세 원문 개인정보(현행) |
 | BR-BIZ-308 | 대표자 생년월일·국적·지분·실소유자 등 AML/KYB 자료는 최초 등록 화면에서 받지 않는다 | 대체됨→BR-BIZ-294 | 기준 | POL POL-003 → D-FLOW-001 ④ | — | — |
@@ -317,17 +317,18 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 2. **D-MOPS-010 번호 매김 불일치**: DECISIONS는 ① 재개 승인자 규칙(Q-25) ② BRN 지문 HMAC(Q-26) ③ Route 종료 먼저(Q-27)인데, MERCHANT-OPS-002 §9.29·L-4는 HMAC을 "D-MOPS-010 ①", §11.2는 Q-MOPS-25를 "D-MOPS-010 ②"로 적고 시험 `SiteConfirmationAndReviewSpec`도 "D-MOPS-010 ②"를 재승인 규칙으로 쓴다. 의미 충돌은 아니나 BR-ID 연결 시 혼동 — 대장은 DECISIONS 번호를 따랐다.
 3. **가맹점 코드와 Site·계약 코드의 감사 대상 방침 차이**: D-MCODE-001 Q-MC-4(새 감사·승인 대상 = 코드) vs D-ADMIN-UI-007 ⑤/Q-SC-9(Site·계약은 내부 키 유지 + 화면 라벨). 둘 다 사용자 답이라 충돌은 아니지만 대상 종류마다 저장 규칙이 다르다 — 의도 확인 권장.
 4. **가맹점 코드 외부 노출 범위**: D-MCODE-001 Q-MC-1 "외부 연동·정산서에도 노출" vs D-MCODE-002 Q-MC-8 "응답에 보여주기만" — 후자는 "출력 전용(입력·식별 아님)"이라는 한정으로 읽히며 충돌 아님. 정산서 노출(BR-BIZ-072)은 정산서 기능이 없어 미검증.
-5. **D-BIZ-003 "마스킹 번호(앞 3자리)" 문구가 D-BIZ-007 후에도 DECISIONS 행에 그대로**: D-BIZ-007이 "응답 마스킹 번호의 화면·응답 부분을 변경"이라고만 적어, D-BIZ-003 행 자체에는 대체 표지가 없다(D-MOPS-006 ③처럼 굵은 대체 표기 없음).
+5. **D-BIZ-003 "마스킹 번호(앞 3자리)" 문구가 D-BIZ-007 후에도 DECISIONS 행에 그대로**: D-BIZ-007이 "응답 마스킹 번호의 화면·응답 부분을 변경"이라고만 적어, D-BIZ-003 행 자체에는 대체 표지가 없다(D-MOPS-006 ③처럼 굵은 대체 표기 없음). **→ 해소(BIZ-NORM-003): D-BIZ-003과 BR-BIZ-045~047 원천 옛 행(D-MOPS-003·D-MOPS-006 ③·D-ADMIN-UI-004 ⑦·D-MCODE-003 ②·D-BIZ-006 ②)에 `[변경: D-BIZ-007·D-PII-001 ① — …]` 역참조 추가(결정 문언 무변경 — GOV-BIZ-001 M-5, NP-06·PC-52)**
 6. **D-FLOW-001 ① "사업자 REGISTERED + 계약 완료" vs MERCHANT-FLOW-001 §4A.5 "최신 접수 건이 계약 완료"**: 사용자 문구에는 "최신"이 없다. 계약 완료 건이 있으면 새 접수를 막으므로(D-FLOW-004 ①) "해지 뒤 새 접수 진행 중"인 경우만 차이가 난다 — 그때 관문을 막는 것이 맞는지(해지된 이력이 있어도 새 건이 완료되기 전까지 막힘) 확인 필요. BR-BIZ-280 제안.
 7. **도메인 경계 중복**: §9(결제 허용 판정)·§8(한도·정책 Assignment)는 D-MD/D-MS/D-MS2 결정이라 BIZ에 두었지만 판정 소유자는 PAYMENT(PAY 대장), 요율·Snapshot(BR-BIZ-197)은 FIN. 3단계 종합 때 한 곳을 정본으로 정하고 다른 쪽은 참조만 두어야 한다.
+8. **BR-BIZ-002 근거 분류와 정규화 문언 불일치**(BIZ-NORM-003 리뷰 MINOR-2): BR-BIZ-002는 `확정`·`사용자`(근거 D-MD-008·POL §5)인데, D-MD-008 문언에는 정규화 내용이 없고("사업자번호 UNIQUE … 등록번호 노출 통제"), POL §5·DEV §6 제약 1은 "10자리 숫자 정규화"라고 적는다. "정규화 없이 거절"은 BUSINESS-PROFILE-001 X-14가 정한 처리다(외부 동작: 하이픈 입력 400). 행 상태는 바꾸지 않았다 — D-GOV-005 ④ 일괄 확인 후보(BASELINE-INDEX BI-BIZ-7).
 
 ### (c) 정책서·명세 본문이 현재 결정과 다른 곳
 
 1. `docs/repository/MASTER-DOMAIN-001-MASTER-DOMAIN.md` §2.2 MerchantSite·SiteAssignment·PaymentMethodActivation·통화 활성화 행, §2.3: "미결 Q-MD-08/09/10"으로 남아 있음 — D-MD-016·017·018(2026-10-13)로 답해졌다.
 2. `MASTER-DOMAIN-001` §3.3: "Site 등록은 entitlement revision을 올리지 않는다" — 코드·MERCHANT-OPS-002 L-6은 올린다(review M-2). 문서 정정 미완.
-3. `docs/baseline/PayCore-사업자관리-업무정의-정책서-v1.1.md` §1-5·§6 POL-003("생년월일·실제소유자 정보 등 AML/KYB 자료는 받지 않는다"): D-FLOW-001 ④로 변경됐으나 본문 미반영(RULE-GOV-001 P-3 사례).
-4. 같은 정책서 §7 범위 밖 표: "접수일·접수경로·상담중 → 이용신청·영업관리", "담보·보증보험 → 리스크/수납", "가상자산 취급 → AML/KYB·위험평가"로 분리돼 있으나 D-FLOW-001·003은 이들을 사업자 하위(MASTER)에 둔다 — 본문 미반영.
-5. 같은 정책서 §4 업무 흐름 "사업자 등록 → … → Merchant 신청": D-FLOW-001 ① 관문(계약 완료)이 흐름에 없음.
+3. `docs/baseline/PayCore-사업자관리-업무정의-정책서-v1.1.md` §1-5·§6 POL-003("생년월일·실제소유자 정보 등 AML/KYB 자료는 받지 않는다"): D-FLOW-001 ④로 변경됐으나 본문 미반영(RULE-GOV-001 P-3 사례). **→ 해소(BIZ-NORM-003): baseline 원문은 보존하고 `docs/BASELINE-INDEX.md` 'baseline 대체 표' BI-BIZ-1에 대체 결정·현행(BR-BIZ-294) 기록(D-GOV-006 ④)**
+4. 같은 정책서 §7 범위 밖 표: "접수일·접수경로·상담중 → 이용신청·영업관리", "담보·보증보험 → 리스크/수납", "가상자산 취급 → AML/KYB·위험평가"로 분리돼 있으나 D-FLOW-001·003은 이들을 사업자 하위(MASTER)에 둔다 — 본문 미반영. **→ 해소(BIZ-NORM-003): BASELINE-INDEX 대체 표 BI-BIZ-8(원문 보존, D-GOV-006 ④)**
+5. 같은 정책서 §4 업무 흐름 "사업자 등록 → … → Merchant 신청": D-FLOW-001 ① 관문(계약 완료)이 흐름에 없음. **→ 해소(BIZ-NORM-003): BASELINE-INDEX 대체 표 BI-BIZ-2(원문 보존, D-GOV-006 ④). 관문 구현(BR-BIZ-279, (e)-5)은 별개로 남음**
 6. `MERCHANT-OPS-002` §4.4·L-7: D-MOPS-006 ③(기존 businessId 비노출)을 현행처럼 서술 — D-BIZ-003으로 변경됨(L-7에 일부 언급).
 7. `MERCHANT-OPS-002` §9.29·§11.2·L-4: D-MOPS-010 ①/② 번호가 DECISIONS와 반대((b)-2).
 8. `MERCHANT-OPS-001` §2(27행) "응답은 마스킹 값만"(D-MOPS-003 원문)·§1(14행) "Q-MOPS-04(PROPOSED, 보류)": D-BIZ-007·D-PII-001로 응답 원문, Q-MOPS-04는 ANSWERED(닫힘). BRN-UNMASK-001은 반영했으나 MERCHANT-OPS-001 본문은 rev 0.1 그대로.
@@ -335,8 +336,8 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 10. `docs/repository/PII-MASKING-POLICY.md` §7.3·§8 Q-PII-6: "결정 없음"으로 남아 있음 — D-FLOW-007 ①(2026-11-25)로 닫힘.
 11. `MASTER-SNAPSHOT-001` §4.4: "재심사 허용 여부는 새 질문 후보 Q-MS-05" — D-MS-005로 답해짐.
 
-12. BR-BIZ-309(제안): 정책서 POL §5는 대표자 유형을 공동·각자만 정의('단독' 없음) — 일괄 확인 시 정책서 대체 표 대상.
-13. BR-BIZ-310(제안): POL-004는 개업일자를 단서 없이 중요정보로 적음 — 첫 입력 예외 반영 여부는 일괄 확인 결과로.
+12. BR-BIZ-309(제안): 정책서 POL §5는 대표자 유형을 공동·각자만 정의('단독' 없음) — 일괄 확인 시 정책서 대체 표 대상. **→ 해소(BIZ-NORM-003 — 대체 표 행만): BASELINE-INDEX BI-BIZ-5에 '제안 — 일괄 확인 대기'로 등록. 규칙 확정(D-GOV-005 ④ 일괄 확인)은 남음**
+13. BR-BIZ-310(제안): POL-004는 개업일자를 단서 없이 중요정보로 적음 — 첫 입력 예외 반영 여부는 일괄 확인 결과로. **→ 해소(BIZ-NORM-003 — 대체 표 행만): BASELINE-INDEX BI-BIZ-6에 '제안 — 일괄 확인 대기'로 등록. 규칙 확정은 일괄 확인 결과로(남음)**
 14. 용어 정본 이동(D-GOV-008 ⑨) 후속: DOMAIN-DEFINITION §3.1(:93) Business 정의 '법적 사업 주체', MASTER-DOMAIN-001:75·193의 DD 용어 참조, NORMALIZATION-PLAN:272(Glossary 정본 = DD 제안)는 기준선 문서 정리(S3) 때 BIZ.md §0 참조로 전환.
 
 ### (d) 시험 없는 확정 규칙
@@ -347,8 +348,8 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 
 ### (e) 코드가 규칙과 다른 곳
 
-1. BR-BIZ-048(D-MOPS-010 ②): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/AdminCommandExecutor.kt:427-428` — 모든 관리 명령 지문이 `m1:` 무염 SHA-256(사업자등록번호 원문 포함 필드). PII-MASKING-POLICY X-2와 같음, 예정 배치 B3-3a(LIVE Gate). **→ SEC-BIZ-001(2026-11-25)에서 지문 전체 `h1:` HMAC으로 시행(리뷰·검증 전)**.
-2. BR-BIZ-305(D-FLOW-007 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessChangeReason.kt:8-21` — 사업자 중요정보 사유에 카드번호 패턴 검사 없음(`BusinessTextRule`만). **→ SEC-BIZ-001(2026-11-25)에서 화면·ADMIN·MASTER Domain 세 계층 시행(리뷰·검증 전)**.
+1. BR-BIZ-048(D-MOPS-010 ②): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/AdminCommandExecutor.kt:427-428` — 모든 관리 명령 지문이 `m1:` 무염 SHA-256(사업자등록번호 원문 포함 필드). PII-MASKING-POLICY X-2와 같음, 예정 배치 B3-3a(LIVE Gate). **→ SEC-BIZ-001(2026-11-25)에서 지문 전체 `h1:` HMAC으로 시행(리뷰 APPROVED·FULL SEC-gate1 PASS·Demo 확인(439fa1a))**.
+2. BR-BIZ-305(D-FLOW-007 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/BusinessChangeReason.kt:8-21` — 사업자 중요정보 사유에 카드번호 패턴 검사 없음(`BusinessTextRule`만). **→ SEC-BIZ-001(2026-11-25)에서 화면·ADMIN·MASTER Domain 세 계층 시행(리뷰 APPROVED·FULL SEC-gate1 PASS·Demo 확인(439fa1a))**.
 3. BR-BIZ-082·085 상호작용: `apps/master-api/src/main/kotlin/com/paycore/master/merchant/application/MerchantOnboardingService.kt:128-129` — 채널 중복을 `findActiveByChannel`(활성 Site 기준)로만 본다. 종료 Site 채널은 다른 가맹점이 재사용 가능(Q-MD-18 미결인데 코드가 "허용"으로 정해 둔 상태 — 다만 Site 종료 명령이 없어 지금은 발생 경로 없음), REJECTED Site 채널은 재신청을 막는다((b)-1).
 4. BR-BIZ-169(D-MOPS-010 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/PaymentMethodActivation.kt:82`·`CardRouteActivation.kt:50` `resume(...)`에 원 등록자 검사 없음 — 2인 재개 경로가 아직 없어 위반은 아니나, 경로를 열 때 함께 넣어야 한다.
 5. BR-BIZ-279(D-FLOW-001 ①): `apps/master-api/src/main/kotlin/com/paycore/master/merchant/domain/MasterRejection.kt:105` 근처 — 계약 완료 관문 거절 코드 없음, `Merchant.register`는 REGISTERED만 본다(main 기준 미구현).
@@ -364,6 +365,6 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 6. **"첫 계약 승인" 정의(BR-BIZ-067, C-14)**: 효력 전 승인·철회된 계약도 "승인 뒤"로 보는 해석 — 가맹점 코드 불변 시점(외부 노출 키) 의미라 확인 권장.
 7. **Site 심사 개별 전이(BR-BIZ-084)·통화 활성화 소급 금지(BR-BIZ-172)·재개 "새 근거" 정의(BR-BIZ-162)·판정 순서(BR-BIZ-213)**: 명세가 "관례/해석"으로 정한 상태·금융 판정 — 사용자 확인 전 `제안`.
 8. **사업체 구분·대표자 추가의 중요정보 취급(BR-BIZ-017)·중요정보 1인 처리(BR-BIZ-018, TBD-07 기본값)**: 감사·승인 수준 의미 — 확인 필요.
-9. **Q-PII-5(개인정보 보관·파기)**·**Q-PII-7(상호 마스킹)**: 미결. KYC 수집(D-FLOW-002 ④ LIVE 전 결정)과 묶어 LIVE Gate 질문으로.
+9. **Q-PII-5(개인정보 보관·파기)**·**Q-PII-7(상호 마스킹)**: 미결. KYC 수집(D-FLOW-002 ④ LIVE 전 결정)과 묶어 LIVE Gate 질문으로. **→ 해소(BIZ-NORM-003 — 질문 대장 누락만): `harness/questions.json`에 Q-PII-3(남은 부분)·5·7·8·9·10 PROPOSED 등록(답 없음 — 미결 상태 그대로, NP-103·PC-47)**
 10. **업무 근거 참조 원천 대조(BR-BIZ-234)·HMAC 키 관리(L-23)**: LIVE Gate 메모 수준 — 사용자 결정 필요 여부 Coordinator 판단.
-11. **사업자 번호 조회 작업 상태**: D-BIZ-004로 MERCHANT-BIZ-LOOKUP-001을 합쳤는데 `harness/tasks.json`에는 BACKLOG — 질문이 아니라 Coordinator 정리 항목.
+11. **사업자 번호 조회 작업 상태**: D-BIZ-004로 MERCHANT-BIZ-LOOKUP-001을 합쳤는데 `harness/tasks.json`에는 BACKLOG — 질문이 아니라 Coordinator 정리 항목. **→ 부분(BIZ-NORM-003): 닫기 제안을 BIZ-NORM-003 openItems에 기록(근거 D-BIZ-004, BUSINESS-PROFILE-001 DONE). 카드 status 변경은 Coordinator — 남음. (c)-9 명세 본문도 그대로**

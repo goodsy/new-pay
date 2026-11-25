@@ -1330,6 +1330,84 @@
       ],
       "nextResumeAction": "완료. 다음: GOV-BIZ-001 문서 정리(M-4·M-5·M-8, GOV-BIZ-001:171 정정)",
       "detail": null
+    },
+    {
+      "id": "BIZ-NORM-003",
+      "title": "사업자 정상화 3묶음(문서): M-4 명세 대체 표시, M-5 결정 역참조, M-8 기록 정리, GOV-BIZ-001 사실 정정",
+      "status": "DONE",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "BIZ-NORM-002"
+      ],
+      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-4·M-5·M-8(NP-06·92·102·103), D-GOV-006 ②④(대장 정본·baseline 원문 보존 + BASELINE-INDEX 대체 표), 사용자 지시 2026-11-25 '마무리'",
+      "allowedWritePaths": [
+        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
+        "docs/DECISIONS.md(기존 행 문언 보존 — 대체 역참조 표기만 추가)",
+        "harness/questions.json",
+        "harness/tasks.json",
+        "docs/BASELINE-INDEX.md",
+        "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md",
+        "docs/rules/BIZ.md"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": {
+        "tag": "NORM3-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/BIZ-NORM-003-2026-11-25T114958Z.json"
+      },
+      "openItems": [
+        "문서만 — 소스·시험·정책 변경 없음, 결정 이력 삭제 금지",
+        "Coordinator 처리 제안(M-8 ②, NP-102·PC-60·DC-M-22·BIZ (f)-11): MERCHANT-BIZ-LOOKUP-001 닫기 제안 — 근거 D-BIZ-004('별도로 실행하지 않고 BUSINESS-PROFILE-001 완료 때 함께 닫는다'), BUSINESS-PROFILE-001은 DONE(harness/archive/tasks-done-2026-11-22.json, lastGate PASS evidence build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T200446Z.json). 카드 nextResumeAction도 'BUSINESS-PROFILE-001 DONE 때 status DONE + closedBy 기록'. 이 작업은 카드 status를 바꾸지 않음 — Coordinator가 status·closedBy 기록",
+        "BIZ-NORM-003 문서 정리(Implementer 2026-11-25, 자기 완료 판정 아님): M-4 BUSINESS-PROFILE-001 rev 0.2.12 대체 표시, M-5 DECISIONS 역참조 6행(D-ADMIN-UI-004 ⑦·D-MCODE-003 ②·D-MOPS-003·D-MOPS-006 ③·D-BIZ-003·D-BIZ-006 ② — 대상은 BIZ.md BR-BIZ-045~047 대체 원천과 대조), M-8 ① questions.json Q-PII-3·5·7·8·9·10 PROPOSED 등록(humanAnswer 없음), M-8 ③ BASELINE-INDEX 'baseline 대체 표'(사업자 항목만), GOV-BIZ-001 rev 0.1b 사실 정정·M-1~M-7 시행 표시, BIZ.md 진단 해소 표시 → 독립 리뷰 대상",
+        "독립 리뷰 재리뷰 APPROVED, DECISIONS word-diff 삭제 0(삽입만) 기계 확인"
+      ],
+      "nextResumeAction": "완료(SCOPED 후 커밋). MERCHANT-BIZ-LOOKUP-001 닫기는 Coordinator 후속",
+      "detail": null
+    },
+    {
+      "id": "GOV-MER-001",
+      "title": "정상화: 가맹점 등록·조회·수정 기능 정합성 확인(분석 보고서만)",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-DIAG-001"
+      ],
+      "spec": "사용자 승인 밤 작업 2026-11-25 ①, GOV-BIZ-001과 같은 형식, docs/rules/README 용어 절 절차(D-GOV-009)",
+      "allowedWritePaths": [
+        "docs/governance/GOV-MER-001-*.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "분석만 — 소스·시험·정책 변경 없음, 질문은 아침에 묶음(라운드 3개 이하)"
+      ],
+      "nextResumeAction": "조사·작성 → 독립 리뷰 → SCOPED → 커밋",
+      "detail": null
+    },
+    {
+      "id": "RULE-CONFIRM-001",
+      "title": "규칙 대장 '제안' 119행 일괄 확인 목록 준비(D-GOV-005 ④) — 확정은 사용자 답 후",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-DIAG-001"
+      ],
+      "spec": "D-GOV-005 ④, D-GOV-006 ②③, 사용자 승인 밤 작업 2026-11-25 ②",
+      "allowedWritePaths": [
+        "docs/governance/RULE-CONFIRM-001-*.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "목록만 — 대장 상태 변경은 사용자 답 후"
+      ],
+      "nextResumeAction": "목록 작성 → 독립 리뷰 → SCOPED → 커밋 → 아침 질문",
+      "detail": null
     }
   ]
 }

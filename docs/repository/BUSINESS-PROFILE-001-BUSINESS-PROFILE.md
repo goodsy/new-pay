@@ -1,5 +1,6 @@
-# BUSINESS-PROFILE-001 사업자 기본정보 관리 명세 (rev 0.2.11)
+# BUSINESS-PROFILE-001 사업자 기본정보 관리 명세 (rev 0.2.12)
 
+- **rev 0.2.12** (2026-11-25, BIZ-NORM-003 문서 정리 — 자기 완료 판정 아님, GOV-BIZ-001 M-4/G-05: 이후 결정으로 바뀐 문장 옆에 '→ 대체: D-…, 현행은 …' 표시만 추가. **본문 원문은 지우거나 고치지 않았다** — 대체 표시가 있는 문장은 표시된 현행을 따른다. 현행 화면 정본 = MERCHANT-IA-001 rev 0.3i §4.2·§4.2a, 사업자등록번호 노출 정본 = BRN-UNMASK-001·PII-MASKING-POLICY §3 #1, 현재 유효 규칙 정본 = `docs/rules/BIZ.md`(D-GOV-006 ②). 정책·기대값 변경 없음 — §18).
 - **rev 0.2.11** (2026-11-25, Implementer — BIZ-NORM-002: 사용중지 사업자 수정 업무 거절 `BUSINESS_INACTIVE`(BR-BIZ-311, D-GOV-005 ② — §4.4·§8.5·§8.6), 사유 칸 이름 '사유 및 비고'(D-FLOW-006), 사업자 용어 화면 문구(D-GOV-008 ①~④ — §8.6). 저장 코드값·API 필드·감사 action code 불변. 정책·기대 완화 없음, 자기 완료 판정 아님 — §18).
 - **rev 0.2.10** (2026-11-25, Implementer — SEC-BIZ-001 반영: 사유 카드번호 패턴 거부(D-FLOW-007 ①, BR-BIZ-305 — §4.2)·지문 HMAC 시행(D-MOPS-010 ②·D-GOV-001 ② — C-9·L-13 갱신). 정책·기대 완화 없음 — §18).
 - **rev 0.2.9** (2026-11-18, Implementer — BIZ-4 독립 리뷰 REVIEW_PASS 조건부(BLOCKER·MAJOR 없음)의 MINOR-1~3·NIT-1~6을 Coordinator 지시로 반영. MINOR-2는 Coordinator 선택 (a). 정책·결정·기대 완화 없음 — §18).
@@ -33,12 +34,12 @@
 | 기존 데이터 | 기존 사업자(번호+상호만)는 migration으로 **DRAFT**, `business_type` NULL(D-BIZ-001, C-3). BIZ-1~BIZ-4 사이 옛 등록 경로로 만든 사업자도 같은 형태(DRAFT·구분 NULL — D-BIZ-002 적용 시점 = BIZ-4 전환, M-7) |
 | 가맹점 등록 | **새** 가맹점 등록은 `REGISTERED` 사업자만(MASTER 새 거절 `BUSINESS_NOT_REGISTERED`, BIZ-4 전환부터). 기존 가맹점·계약·MID·Snapshot 무영향(D-BIZ-001) |
 | DRAFT 최소 | 사업체 구분 + 사업자등록번호(10자리) + 상호(D-BIZ-002 — 새 경로 즉시, 전체 강제는 BIZ-4 전환). 만료·삭제는 TBD-05(구현 없음). 번호 오입력 DRAFT도 그대로 두고 등록 화면에 "저장 후 번호 변경 불가" 안내(D-BIZ-005) |
-| 중복 | DB UNIQUE가 권위. 중복이면 조회 권한자에게 **기존 사업자 상호·마스킹 번호·상세 링크**(D-BIZ-003 — D-MOPS-006 ③ 변경). 모든 시도 감사·공유 등록번호 버킷 |
+| 중복 | DB UNIQUE가 권위. 중복이면 조회 권한자에게 **기존 사업자 상호·마스킹 번호·상세 링크**(D-BIZ-003 — D-MOPS-006 ③ 변경). 모든 시도 감사·공유 등록번호 버킷 **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 번호를 원문(하이픈 표시)으로 안내 — 감사·버킷 유지(BR-BIZ-044)** |
 | 하위 정보 | 등록정보 1:1(`business_registration`), 대표자·업태/종목·주소·등록 담당자는 **유효기간 행**(종료 = `effective_to` 기록, 물리 삭제 없음 — 교체 이력 보존) |
 | 수정 | 낙관적 잠금(`business.version`), **중요정보 변경 시 사유 필수**(상호·대표자·개업일·법인등록번호·구분 — 기존 값이 있던 항목의 변경·삭제, REGISTERED 사업자는 현재 대표자 집합의 모든 변경), 변경 전후(마스킹) 이력 = MASTER `master_change_history`. 사업자등록번호는 생성 후 변경 불가(TBD-04·D-BIZ-005). 등록 완료는 상태 전이 자체가 변경(같은 내용도 성공 — M-1) |
 | 권한 | 조회(목록·검색·상세·이력·번호 조회) = **OPERATOR·APPROVER**, 등록·수정·등록 완료 = **OPERATOR**(1인 — **D-BIZ-006 ①**, D-MOPS-004·006 ①). 비활성화(P1) 없음 |
-| 개인정보 | 사업자등록번호는 목록·상세·감사·로그·이력 **모두 마스킹**(`123*******`). 대표자·담당자 이름·이메일·전화·주소·법인등록번호는 **상세·수정 화면에서 조회 역할에 원문**(**D-BIZ-006 ②** — 상세 열람마다 감사 `BUSINESS_VIEWED` + 조회 창), 목록·이력·감사·로그는 마스킹 또는 없음(§9) |
-| API | ADMIN `/api/businesses…`, MASTER `/internal/v1/admin/businesses…`(서명 v1·`ADMIN_SERVICE`, 명령 ID는 서명 본문 — 기존 C-2). 목록 = keyset cursor(안정 정렬, limit ≤ 50). 번호 조회는 **POST 본문**(URL·로그에 번호 없음), 응답에 `registrationStatus`(D-BIZ-006 ③). 명령 지문 = 기존 `m1:` SHA-256(C-9 — HMAC 전환은 B3-3a 일괄, L-13) |
+| 개인정보 | 사업자등록번호는 목록·상세·감사·로그·이력 **모두 마스킹**(`123*******`). **→ 대체: D-BIZ-007·D-PII-001 ①②, 현행은 관리자 화면(목록·상세·번호 조회 결과·중복 안내·가맹점 등록 마법사)과 그 조회 응답은 원문(하이픈 표시), 감사 detail·이력 저장값·로그·지표만 마스킹, 목록 조회는 감사 없음(BR-BIZ-030·032, PII-MASKING-POLICY §3 #1)** 대표자·담당자 이름·이메일·전화·주소·법인등록번호는 **상세·수정 화면에서 조회 역할에 원문**(**D-BIZ-006 ②** — 상세 열람마다 감사 `BUSINESS_VIEWED` + 조회 창), 목록·이력·감사·로그는 마스킹 또는 없음(§9) |
+| API | ADMIN `/api/businesses…`, MASTER `/internal/v1/admin/businesses…`(서명 v1·`ADMIN_SERVICE`, 명령 ID는 서명 본문 — 기존 C-2). 목록 = keyset cursor(안정 정렬, limit ≤ 50). 번호 조회는 **POST 본문**(URL·로그에 번호 없음), 응답에 `registrationStatus`(D-BIZ-006 ③). 명령 지문 = 기존 `m1:` SHA-256(C-9 — HMAC 전환은 B3-3a 일괄, L-13) **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)** |
 | 화면 | "사업자·가맹점" 메뉴에 **사업자 조회** 탭(목록·상세·이력·수정) + **사업자 등록** 탭(기존 화면을 새 폼으로 교체, 섹션 1~6·8). 가맹점 등록 ①은 새 번호 조회 사용 |
 | 제외 | P1(증빙 F-009, 진위확인 F-010, 사용중지 F-011), AML/KYB·계약·MID·정산·본점/지점 판정, 기존 IMS 연동 일체 |
 | migration | MASTER **V15**(schema)·**V16**(privilege). ADMIN·PAYMENT·FINANCIAL migration 없음 |
@@ -88,7 +89,7 @@
 | X-5 | 지침서 `GET …/duplicates?businessNo=…`(번호가 URL·접근 로그에) ↔ D-MOPS-003 oracle 방어 | POST 본문 번호 조회 하나(C-6) |
 | X-6 | 지침서 표 분리안(`BUSINESS_REGISTRATION`에 번호·상호) ↔ 기존 `business` 열·UNIQUE·FK·조회 | 번호·상호는 `business`에 유지, 그 밖 등록정보만 `business_registration`(C-8, §5.3) |
 | X-7 | 변경 사유 저장 ↔ ADMIN 감사 `reason`은 UNMASK만 | 사유 원문은 MASTER 변경 이력에만, ADMIN 감사 detail은 `reason=PRESENT`(C-13) |
-| X-8 | D-MOPS-010 ② HMAC 미구현(B3-3a 대기) ↔ 새 사업자 명령의 지문에 번호·개인정보가 들어감 | **Coordinator 결정 C-9**: 새 명령 3종도 기존 `m1:` SHA-256 지문(모든 현 MASTER 관리 명령과 같음). HMAC 전환은 MERCHANT-OPS-002 B3-3a(hmac1 필드 단위 설계)가 모든 명령에 함께 적용. 이 작업에 새 키·`.env` 없음. 알려진 한계 L-13 |
+| X-8 | D-MOPS-010 ② HMAC 미구현(B3-3a 대기) ↔ 새 사업자 명령의 지문에 번호·개인정보가 들어감 | **Coordinator 결정 C-9**: 새 명령 3종도 기존 `m1:` SHA-256 지문(모든 현 MASTER 관리 명령과 같음). HMAC 전환은 MERCHANT-OPS-002 B3-3a(hmac1 필드 단위 설계)가 모든 명령에 함께 적용. 이 작업에 새 키·`.env` 없음. 알려진 한계 L-13 **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)** |
 | X-9 | 하위 행 종료 UPDATE를 열 단위로 막을 procedure가 MASTER에 없음 | 표 단위 `SELECT, INSERT, UPDATE` + Entity `updatable = false`(기존 MASTER 관례 — V2 주석) + 시험(C-11). 대안: init 스크립트에 MASTER 열 procedure 추가(인프라 변경 — 채택 안 함) |
 | X-10 | 옛 등록 경로(번호+상호만, ACTIVE)·Demo seed가 그 경로 사용 | 전환 전까지 옛 경로는 DRAFT·구분 NULL로 저장(과도기 — **D-BIZ-002 적용 시점 = BIZ-4 전환**, 그 사이 만든 행은 migration 행과 같은 형태, Coordinator가 사용자에게 알림 — M-7, L-6), Demo seed는 BIZ-2에서 새 생성(REGISTERED) 사용 + 기존 seed 기록 선확인(C-24), 옛 경로 제거는 BIZ-4 전환(C-27) |
 | X-11 | 지침서 PUT "버전·변경사유 필수" ↔ 정책 POL-004(중요정보만 사유 필수)·Coordinator 기본값 | 사유 필수 = 중요정보 변경 시(§4.5, C-12). 일반정보는 선택 |
@@ -103,25 +104,25 @@
 |---|---|
 | **D-BIZ-001**(Q-BIZ-1) | `lifecycle`(ACTIVE/TERMINATED, D-MD-006) 유지 + `registration_status`(DRAFT/REGISTERED/INACTIVE) 추가. 기존 사업자 → DRAFT. **새 가맹점 등록은 REGISTERED 사업자만**(MASTER `BUSINESS_NOT_REGISTERED`), 기존 가맹점·계약 무영향. (Demo seed 처리는 사용자 결정이 아니라 Coordinator 선택 C-24 — m-8) |
 | **D-BIZ-002**(Q-BIZ-2, TBD-05 일부 해소) | DRAFT 최소 = 사업체 구분 + 사업자등록번호 10자리 + 상호. DRAFT 만료·삭제는 TBD(구현 없음). **적용 시점(M-7)**: 새 경로(BIZ-1 Use Case·BIZ-2 API)는 즉시, 전체 강제는 BIZ-4 전환(옛 경로 제거). BIZ-1~BIZ-4 사이 옛 등록 경로로 만든 사업자는 migration 행과 같은 DRAFT·`business_type` NULL(Coordinator가 사용자에게 알림, L-6) |
-| **D-BIZ-003**(Q-BIZ-3, D-MOPS-006 ③ 변경) | 중복 번호면 조회 권한자에게 기존 사업자 상호·마스킹 번호·상세 링크. 모든 시도 감사·공유 등록번호 버킷 |
+| **D-BIZ-003**(Q-BIZ-3, D-MOPS-006 ③ 변경) | 중복 번호면 조회 권한자에게 기존 사업자 상호·마스킹 번호·상세 링크. 모든 시도 감사·공유 등록번호 버킷 **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 '마스킹 번호' 자리가 원문 번호(나머지 그대로)** |
 | **D-BIZ-004**(Q-BIZ-4) | MC-4 먼저. MERCHANT-BIZ-LOOKUP-001을 이 작업에 합침(가맹점 0개 사업자 목록·검색, 가맹점 등록 ① 사업자 선택) |
 | **D-BIZ-005**(Q-BIZ-5) | DRAFT 사업자의 사업자등록번호 오입력: 이번 작업은 **그대로 둔다**(번호 변경·DRAFT 삭제 없음). 등록 화면에 "사업자등록번호는 저장 후 변경할 수 없습니다" 안내(§8.3). 정정 정책은 TBD-04/05 유지(별도 작업) |
-| **D-BIZ-006**(Q-BIZ-6) | ① 사업자 목록·상세·이력 조회 = OPERATOR·APPROVER, 등록·수정·등록 완료 = OPERATOR. 합친 번호 조회(가맹점 등록 ① 사업자 선택)도 OPERATOR·APPROVER — **MERCHANT-BIZ-LOOKUP-001 수용 기준 "권한 OPERATOR"를 사용자 결정으로 변경**. ② 상세는 조회 역할에 개인정보(대표자·담당자 이름, 전화, 이메일, 주소, 법인등록번호) **원문** 표시, 상세 열람마다 감사 + 조회 창(속도 제한). 사업자등록번호는 어디서나 마스킹. 로그·감사·이력은 항상 마스킹. ③ 번호 조회 응답에 `registrationStatus` 포함(**D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위를 사용자 결정으로 확장**), DRAFT 선택 시 "사업자 등록 완료 후 가맹점 등록 가능" + 상세 링크 |
+| **D-BIZ-006**(Q-BIZ-6) | ① 사업자 목록·상세·이력 조회 = OPERATOR·APPROVER, 등록·수정·등록 완료 = OPERATOR. 합친 번호 조회(가맹점 등록 ① 사업자 선택)도 OPERATOR·APPROVER — **MERCHANT-BIZ-LOOKUP-001 수용 기준 "권한 OPERATOR"를 사용자 결정으로 변경**. ② 상세는 조회 역할에 개인정보(대표자·담당자 이름, 전화, 이메일, 주소, 법인등록번호) **원문** 표시, 상세 열람마다 감사 + 조회 창(속도 제한). 사업자등록번호는 어디서나 마스킹 **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 관리자 화면·조회 응답 원문**. 로그·감사·이력은 항상 마스킹. ③ 번호 조회 응답에 `registrationStatus` 포함(**D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위를 사용자 결정으로 확장**), DRAFT 선택 시 "사업자 등록 완료 후 가맹점 등록 가능" + 상세 링크 |
 | D-MD-008 | 번호당 사업자 하나(UNIQUE 유지), 10자리 숫자만(정규화 없음 — 화면 하이픈은 표시만), 평문을 로그·이벤트·이력에 남기지 않음 |
 | D-MD-006 | 생명주기 축 불변. INACTIVE ≠ TERMINATED(INACTIVE는 내부 관리 상태, POL-006 — 결제·정산 정지와 무관) |
 | D-MD-004 | 계약 당사자 = Business 그대로. 계약 등록은 등록 상태를 보지 않는다(D-BIZ-001은 가맹점 등록만) |
 | D-MOPS-002 | 목록·이력 미감사, **상세는 감사**(`BUSINESS_VIEWED` — D-BIZ-006 ② 확정) |
-| D-MOPS-003 | 번호 정확 일치 조회 = OPERATOR·APPROVER(D-BIZ-006 ①과 같은 집합), 매 시도 감사, oracle 취급(같은 모양·버킷·형식 선검사·값 비노출), 응답 번호 마스킹 |
+| D-MOPS-003 | 번호 정확 일치 조회 = OPERATOR·APPROVER(D-BIZ-006 ①과 같은 집합), 매 시도 감사, oracle 취급(같은 모양·버킷·형식 선검사·값 비노출), 응답 번호 마스킹 **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 응답 번호 원문(감사는 `brn=123*******` 유지)** |
 | D-MOPS-004·006 ① | 등록·수정·등록 완료 = OPERATOR 1인(D-BIZ-006 ①) |
 | D-MOPS-006 ② | ADMIN 감사는 MASTER 호출 전 시도(`REQUESTED`) + 결과 두 행, ADMIN 명령 표 없음 |
 | D-MOPS-006 ③ | **D-BIZ-003으로 변경**(위) |
 | D-MOPS-006 ④ | 번호가 오간 모든 시도 감사(`brn=앞3*******`·`brn=INVALID`), 중복 결과는 등록번호 버킷 소모 |
 | D-MOPS-005 | MASTER 채널 = 기존 `ADMIN_SERVICE` 키 하나 |
-| D-MOPS-010 ② | 사업자 등록 지문 HMAC — **이 작업에서 구현하지 않는다**. 새 명령 3종도 기존 `m1:`(C-9), 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령에 함께(L-13) |
+| D-MOPS-010 ② | 사업자 등록 지문 HMAC — **이 작업에서 구현하지 않는다**. 새 명령 3종도 기존 `m1:`(C-9), 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령에 함께(L-13) **→ 대체(C-9 보류): D-GOV-001 ①②(적용 시점·개인정보 필드 전부), 현행은 모든 MASTER 관리 명령 지문 `h1:` 비밀 키 HMAC — SEC-BIZ-001 커밋 `439fa1a`, rev 0.2.10(BR-BIZ-048)** |
 | D-ADMIN-UI-003·004 ③④ | 서버 기능이 있는 화면만 메뉴에, `biz_` 화면 미표시, 사업자·가맹점 화면 분리(등록은 OPERATOR) |
-| D-ADMIN-UI-004 ⑦ | 번호 조회 응답 = 상호·마스킹 번호(+키) — **D-BIZ-006 ③으로 `registrationStatus` 확장** |
+| D-ADMIN-UI-004 ⑦ | 번호 조회 응답 = 상호·마스킹 번호(+키) — **D-BIZ-006 ③으로 `registrationStatus` 확장** **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 상호·원문 번호·등록 상태(+키)** |
 | D-BIZLOOKUP-001 | 번호 조회 응답에 `businessId` 포함·화면 미표시, 원문 번호는 조회 요청에서만 전송(합친 조회에 그대로). 응답 필드는 D-BIZ-006 ③으로 `registrationStatus` 추가 |
-| D-MCODE-003 ② | 사업자 표시 = "<상호> · <마스킹 번호>" |
+| D-MCODE-003 ② | 사업자 표시 = "<상호> · <마스킹 번호>" **→ 대체: D-BIZ-007·D-PII-001 ①(가맹점 등록 마법사 포함), 현행은 "<상호> · <원문 번호>"** |
 | D-DEMO-001 | seed 값은 명시 Demo fixture(운영값 아님) |
 
 ## 3. 범위·제외·TBD 처리
@@ -394,6 +395,8 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 
 ## 6. MASTER API(web = BIZ-2 — `master.merchant.adapter.web.admin`; Use Case §6.7 = BIZ-1 — M-3)
 
+> **→ 대체(rev 0.2.12 표시 — 리뷰 MAJOR-1): 이 절과 §10~§14의 ① 응답 필드 `registrationNumberMasked`(목록·번호 조회·상세·중복 `existing`)는 D-BIZ-007·D-PII-001 ①·BRN-UNMASK-001로 바뀌어 현행 필드는 `registrationNumber` 원문 10자리다(`BusinessProfileJson.kt:19,35,101`). 변경 이력 저장값 `registrationNumberMasked`(§5.6)는 그대로 마스킹이다. ② 명령 지문 `m1:` 무염 SHA-256(C-9)은 D-GOV-001 ①②로 보류가 끝나 SEC-BIZ-001(`439fa1a`)에서 `h1:` 비밀 키 HMAC이 됐다(`AdminCommandExecutor.kt:444`). §1(:60) 등 조사 당시 사실 서술은 그 시점 기록이라 표시하지 않았다.**
+
 **계층(r-2)**: web controller는 provided Use Case(`BusinessProfileQueryUseCase` — 목록·번호 조회·상세·이력·existingSummary, `BusinessProfileCommandUseCase` — 명령)만 호출한다. `JooqBusiness*Reader`는 required `…Reader` Port 구현이며 Application Query Service만 쓴다(ArchUnit `webAdapterUsesOnlyApplication` 유지).
 
 채널 공통(기존 그대로): 서명 v1·`hasAuthority(ADMIN_SERVICE)`(D-MOPS-005), 본문 16 KiB, query 문자열 금지, `Cache-Control: no-store`, `PayCore-Request-Id`, 조회 = 조회 permit(`AdminChannelPermits.read`), 명령 = 쓰기 permit(`write`), 로그 = operation·결과 분류·상관 ID만(번호·이름·값·예외 문구 없음).
@@ -414,12 +417,12 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 ### 6.2 목록(`BusinessSearchRequestParser` — 엄격 해석, 모든 필드 선택)
 - 필드: `displayNamePrefix`(1~100 code point, `DisplayName` 문자 규칙 — SQL `LIKE ? ESCAPE '!'`, `%`·`_`·`!` 이스케이프, **앞부분 일치**, C-5), `businessType`, `registrationStatus`, `createdFrom`·`createdTo`(KST 날짜 `yyyy-MM-dd`, from ≤ to, `createdTo`는 그 날 끝 포함 — 서버가 KST 00:00 경계의 UTC로 변환), `after`(`biz_` ULID), `limit`(정수 1..50, 기본 20). **`registrationNumber` 필드 없음** — 번호 검색은 §6.3만(목록을 감사 없이 유지, C-6).
 - 정렬: `business_id` **내림차순**(ULID — 생성 순 최신 먼저, 유일 → 안정), keyset `business_id < after`, `limit + 1`행.
-- 항목(jOOQ `JooqBusinessDirectoryReader`, `REPEATABLE_READ` 읽기 전용): `businessId`, `businessName`, `registrationNumberMasked`(SQL 마스킹), `businessType`(null 가능), `registrationStatus`, `verificationStatus`, `representativeNameMasked`(현재 대표자 첫 순서 이름 — SQL에서 첫 글자 + `*`, 없으면 null), `representativeCount`(현재), `merchantCount`, `updatedAt`. 응답 `{"items":[…],"next":"biz_…"|null}`.
+- 항목(jOOQ `JooqBusinessDirectoryReader`, `REPEATABLE_READ` 읽기 전용): `businessId`, `businessName`, `registrationNumberMasked`(SQL 마스킹) **→ 대체: D-BIZ-007·D-PII-001 ①·BRN-UNMASK-001, 현행 필드는 `registrationNumber` 원문 10자리(`BusinessProfileJson.kt:19,35,101`)**, `businessType`(null 가능), `registrationStatus`, `verificationStatus`, `representativeNameMasked`(현재 대표자 첫 순서 이름 — SQL에서 첫 글자 + `*`, 없으면 null), `representativeCount`(현재), `merchantCount`, `updatedAt`. 응답 `{"items":[…],"next":"biz_…"|null}`.
 - **원문 번호·대표자 원문·연락처는 SELECT 목록에 없다**(시험: select 필드 집합 단언).
 
 ### 6.3 번호 조회(합친 MERCHANT-BIZ-LOOKUP-001 — `BusinessLookupRequestParser`)
 - 본문 정확히 `{"registrationNumber":"<10자리>"}`(중복 key·모르는 필드·비문자열·뒤따르는 토큰 → 400, 값 미반환).
-- 응답 200 `{"items":[]}` 또는 `{"items":[{"businessId","businessName","registrationNumberMasked","registrationStatus"}]}`(UNIQUE — 0/1). 찾음·못 찾음 같은 모양(404 없음). `registrationStatus`는 **D-BIZ-006 ③**(사용자 결정 — D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위 확장, C-15는 구현 방식만).
+- 응답 200 `{"items":[]}` 또는 `{"items":[{"businessId","businessName","registrationNumberMasked","registrationStatus"}]}`(UNIQUE — 0/1). **→ 대체: D-BIZ-007·D-PII-001 ①·BRN-UNMASK-001, 현행 필드는 `registrationNumber` 원문 10자리(`BusinessProfileJson.kt:19,35,101`)** 찾음·못 찾음 같은 모양(404 없음). `registrationStatus`는 **D-BIZ-006 ③**(사용자 결정 — D-ADMIN-UI-004 ⑦·D-BIZLOOKUP-001 응답 범위 확장, C-15는 구현 방식만).
 - jOOQ `JooqBusinessLookupReader`: `WHERE registration_number = ?`(바인드), 원문 열 SELECT 없음. 명령 측 `findIdByRegistrationNumber` 재사용 안 함(CQRS).
 
 ### 6.4 상세(`JooqBusinessDetailReader`)
@@ -431,7 +434,7 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
  "addresses":[{"addressType","postalCode","baseAddress","detailAddress"}],
  "contacts":[{"name","email","phoneNumber","primary"}]}
 ```
-- 현재 행만, `display_order` 순. 개인정보·법인등록번호 **원문**(**D-BIZ-006 ②** — 상세·수정 화면, 감사는 ADMIN `BUSINESS_VIEWED` + 조회 창). 사업자등록번호는 마스킹만(D-BIZ-006 ② "어디서나 마스킹" — 평문 열람은 Q-MOPS-04 UNMASK 대기 그대로).
+- 현재 행만, `display_order` 순. 개인정보·법인등록번호 **원문**(**D-BIZ-006 ②** — 상세·수정 화면, 감사는 ADMIN `BUSINESS_VIEWED` + 조회 창). 사업자등록번호는 마스킹만(D-BIZ-006 ② "어디서나 마스킹" — 평문 열람은 Q-MOPS-04 UNMASK 대기 그대로). **→ 대체: D-BIZ-007·D-PII-001 ①③, 현행은 상세 응답 `registrationNumber` 원문 10자리(BRN-UNMASK-001, `BusinessProfileJson.kt`) — 위 JSON의 `registrationNumberMasked` 키도 이 표시로 읽는다, Q-MOPS-04는 닫힘(ANSWERED)**
 - `version`은 수정 요청의 기대값.
 
 ### 6.5 이력
@@ -445,12 +448,12 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 - 해석 결과: 구조 위반(JSON·key·자료형·목록 상한 초과) → 400 `REQUEST_MALFORMED`(기존, 필드 없음). 구조는 맞고 값 규칙 위반 → **400 `BUSINESS_VALIDATION_FAILED` + `fieldErrors`**(§4.6 — path·code만, 값 없음, **저장 안 함 — `admin_request` 0행**, C-16).
 
 ### 6.7 명령 판정(BIZ-1 Application — MASTER 로컬 TX 하나, `BusinessProfileService`(provided `BusinessProfileCommandUseCase`), 실행기 `AdminCommandExecutor`)
-- 지문(C-9): **기존 `AdminCommandExecutor.fingerprintOf(operation, fields)` 그대로 — `m1:` 무염 SHA-256**(모든 현 MASTER 관리 명령과 같음, 새 Port·키·`.env` 없음). `fields`는 명령 필드의 정규 평탄화(`BusinessCommandFingerprintFields` — 고정 순서: 공통 제외 필드 → `registration` 6필드 → 목록마다 개수 + 행별 필드를 순서대로, null은 그대로 null → `~`). 같은 키·다른 내용 → 409 `IDEMPOTENCY_KEY_REUSED`. HMAC 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령에 함께(L-13).
+- 지문(C-9): **기존 `AdminCommandExecutor.fingerprintOf(operation, fields)` 그대로 — `m1:` 무염 SHA-256**(모든 현 MASTER 관리 명령과 같음, 새 Port·키·`.env` 없음). `fields`는 명령 필드의 정규 평탄화(`BusinessCommandFingerprintFields` — 고정 순서: 공통 제외 필드 → `registration` 6필드 → 목록마다 개수 + 행별 필드를 순서대로, null은 그대로 null → `~`). 같은 키·다른 내용 → 409 `IDEMPOTENCY_KEY_REUSED`. HMAC 전환은 MERCHANT-OPS-002 B3-3a가 모든 명령에 함께(L-13). **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)**
 - create: `lockedNow()` → `findIdByRegistrationNumber` 있으면 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`(reference = 기존 ID — `admin_request`에 저장) → `Business.createDraft|createRegistered` → `beginWrites` → `insert`(business + 등록정보 + 하위 행, flush) → `record("BusinessCreated")`. 경합 진 쪽은 1062 → 새 TX 재판정 → 중복 거절로 수렴(기존 경로).
 - update / complete-registration: `businesses.lockWithProfile(id)`(없으면 `BUSINESS_NOT_FOUND`) → `lockedNow()` → 생명주기 → 상태(`complete`는 DRAFT만 — `BUSINESS_NOT_DRAFT`) → version 비교(`BUSINESS_VERSION_CONFLICT`) → 변경 계산(**update만** `BUSINESS_PROFILE_UNCHANGED` — complete는 적용 안 함(M-1), 중요 변경·사유 없음 `BUSINESS_CHANGE_REASON_REQUIRED` — 둘 다) → Domain 전이(규칙 재검사 — 위반은 결함) → `beginWrites` → `update`(종료 → flush → 추가, 등록정보 제자리, business 행 version +1) → `record`.
 - 잠금 순서: `admin_request` → `business` → (하위 행 — 같은 business 범위). 가맹점 등록(`business` → `merchant`)과 같은 앞 순서라 교착 없음.
 - 응답(기존 틀 그대로): 성공 `{"outcome":"SUCCEEDED","reference":"biz_…","replayed"}` — 첫 응답·재생 응답 같은 모양(`admin_request`에는 reference만 저장되므로 상태·version을 응답에 싣지 않는다. 화면은 성공 뒤 상세를 다시 읽는다 — C-18).
-  거절 `{"outcome":"REJECTED","rejection":"…","replayed"}` — **예외: `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`만** `"existing":{"businessId","businessName","registrationNumberMasked","registrationStatus"}`(저장 reference로 `BusinessProfileQueryUseCase.existingSummary` 조회, TX 밖 — D-BIZ-003, C-14, r-2). 다른 거절은 reference 제거(C-12 유지).
+  거절 `{"outcome":"REJECTED","rejection":"…","replayed"}` — **예외: `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`만** `"existing":{"businessId","businessName","registrationNumberMasked","registrationStatus"}` **→ 대체: D-BIZ-007·D-PII-001 ①·BRN-UNMASK-001, 현행 필드는 `registrationNumber` 원문 10자리(`BusinessProfileJson.kt:19,35,101`)**(저장 reference로 `BusinessProfileQueryUseCase.existingSummary` 조회, TX 밖 — D-BIZ-003, C-14, r-2). 다른 거절은 reference 제거(C-12 유지).
   - **existing 조회 실패(m-1)**: 거절은 이미 `admin_request`에 커밋됐다. 요약 조회(TX 밖 — **web은 provided `BusinessProfileQueryUseCase.existingSummary(businessId)`만 호출**하고 Use Case가 required `BusinessDetailReader`(jOOQ)를 쓴다. web adapter가 jOOQ Reader를 직접 쓰지 않는다 — ArchUnit `webAdapterUsesOnlyApplication`, r-2)가 실패하면 **503 `TEMPORARILY_UNAVAILABLE`**(기존 code, 본문에 값 없음, 로그 = operation·결과·상관 ID·예외 클래스만)로 응답하고 existing 없는 REJECTED를 내보내지 않는다(D-BIZ-003 안내 누락 방지). 같은 키 재전송 = 저장 거절 **재생 + 요약 재조회**(`replayed: true`, 새 업무 효과 0). 저장 reference의 사업자가 없는 경우(삭제 경로 없음 — 결함)도 같은 503. ADMIN은 이 503을 기존 `MASTER_RETRY_SAME_KEY`로 처리(버킷 확정 — 결과가 중복일 수 있으므로 환불하지 않는다).
 - 새 거절(`MasterRejection` 끝에 추가 — 영속 이름): `BUSINESS_NOT_REGISTERED`, `BUSINESS_NOT_DRAFT`, `BUSINESS_VERSION_CONFLICT`, `BUSINESS_CHANGE_REASON_REQUIRED`, `BUSINESS_PROFILE_UNCHANGED`. 새 `AdminOperation`: `CREATE_BUSINESS("CreateBusiness")`, `UPDATE_BUSINESS("UpdateBusiness")`, `COMPLETE_BUSINESS_REGISTRATION("CompleteBusinessRegistration")`(기존 `REGISTER_BUSINESS`는 영속 값이라 enum 유지 — 경로만 BIZ-4에서 제거).
 - 지표: 기존 `paycore.master.admin_channel.command{operation,outcome}` + 조회 `…{endpoint}` 기존 계열(값 label 없음).
@@ -501,22 +504,25 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 
 ## 8. 화면(BIZ-4 — React, D-ADMIN-UI-003·004)
 
+> **→ 대체(rev 0.2.12 표시 — GOV-BIZ-001 G-05): §8.1~§8.3은 BIZ-4 당시 설계다. 현행 화면은 MERCHANT-IA-001 rev 0.3i §4.2·§4.2a(탭 2개 — D-ADMIN-UI-006, 등록 = 번호 확인 먼저·상세 = 항상 편집 폼 — D-ADMIN-UI-011 ①②, 늘 같은 값 숨김·짧은 번호 조회 결과·'연결 가맹점' 탭 — D-ADMIN-UI-010 ②⑦⑧), 사업자등록번호 표시는 BRN-UNMASK-001(D-BIZ-007·D-PII-001), 사유 칸 이름·사용중지·용어는 §8.6을 따른다. 아래 문장별 표시가 그 대응이다.**
+
 ### 8.1 메뉴·라우팅
-- "사업자·가맹점" 탭: **가맹점 조회 · 사업자 조회(새) · 사업자 등록(교체) · 가맹점 등록**(`navigation.ts:80-81`). `pagesFor`: 사업자 조회 = OPERATOR·APPROVER, 사업자 등록 = OPERATOR(표시만 — 판정 서버). 지침서 "사업자 관리 > 사업자 기본정보" 메뉴 이름 대신 기존 메뉴 구조를 따른다(C-26).
+- "사업자·가맹점" 탭: **가맹점 조회 · 사업자 조회(새) · 사업자 등록(교체) · 가맹점 등록**(`navigation.ts:80-81`). **→ 대체: D-ADMIN-UI-006, 현행은 탭 '사업자'·'가맹점' 2개 + 각 목록 위 '＋ 사업자 등록'·'＋ 가맹점 등록' 버튼(OPERATOR만 — 권한 불변), 등록은 같은 탭 안 하위 화면**. `pagesFor`: 사업자 조회 = OPERATOR·APPROVER, 사업자 등록 = OPERATOR(표시만 — 판정 서버). 지침서 "사업자 관리 > 사업자 기본정보" 메뉴 이름 대신 기존 메뉴 구조를 따른다(C-26).
 - 화면 상태 라우팅(App 메모리 — `screenMemory`): 사업자 조회 탭 안에서 목록 → 상세(선택한 `businessId`는 메모리만) → 이력·수정. **URL·`location`·브라우저 저장소에 `biz_`·원문 번호 없음**. 상세 링크(중복 안내·가맹점 등록 ①의 "사업자 상세 보기")는 App의 `openBusiness(ref)` 콜백으로 탭 전환 + 메모리 선택.
 
 ### 8.2 사업자 조회 탭(`BusinessesScreen.tsx`)
-- 검색: 사업자등록번호(`RegistrationNumberInput` — 입력 시 다른 조건 비활성, "조회"는 번호 조회 API, 결과 0/1을 같은 표 모양으로), 상호(앞부분 일치 안내), 사업체 구분, 등록 상태, 등록일 기간. 서버 페이징("더 보기" — keyset).
-- 표 열: 사업자등록번호(마스킹), 상호, 대표자(마스킹 + "외 N명"), 사업체 구분(미입력 = "미입력"), 등록 상태(임시저장/등록 완료), 진위확인("미검증"), 가맹점 수, 수정일. **Business ID 열 없음**(X-4).
-- 상세: 섹션 1~6 읽기(원문), 상태 배지, "등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다." 한 줄(정책 §4), 버튼(OPERATOR): 수정, (DRAFT) 이어서 입력·등록 완료, (REGISTERED) "이 사업자로 가맹점 등록"(기존 handoff `startWithBusiness`·`registrationHandoffState` 재사용). 이력 탭: 시각·행위자·종류·사유·항목별 전후(마스킹).
+- 검색: 사업자등록번호(`RegistrationNumberInput` — 입력 시 다른 조건 비활성, "조회"는 번호 조회 API, 결과 0/1을 같은 표 모양으로 **→ 대체: D-ADMIN-UI-010 ⑦, 현행은 짧은 결과 모양(번호·상호·등록 상태·상세)**), 상호(앞부분 일치 안내), 사업체 구분, 등록 상태, 등록일 기간. 서버 페이징("더 보기" — keyset).
+- 표 열: 사업자등록번호(마스킹), 상호, 대표자(마스킹 + "외 N명"), 사업체 구분(미입력 = "미입력"), 등록 상태(임시저장/등록 완료), 진위확인("미검증"), 가맹점 수, 수정일. **Business ID 열 없음**(X-4). **→ 대체: D-BIZ-007·D-PII-001 ①②(번호 열), D-ADMIN-UI-010 ②(진위확인 열), 현행은 사업자등록번호 원문(하이픈)·목록 조회 감사 없음, 진위확인 열 없음(늘 같은 값 — DB·API 유지)**
+- 상세: 섹션 1~6 읽기(원문) **→ 대체: D-ADMIN-UI-011 ②(D-ADMIN-UI-010 ⑥ 대체), 현행은 OPERATOR에게 항상 편집 폼 + 하단 '저장'(조회 역할은 읽기 표시, 사용중지 사업자는 §8.6), 별도 '수정' 버튼 없음. 탭 = 기본정보·연결 가맹점(D-ADMIN-UI-010 ⑧)·변경 이력**, 상태 배지, "등록 완료는 내부 기본정보 등록 완료를 뜻하며 진위확인·AML/KYB·계약 승인이 아닙니다." 한 줄(정책 §4), 버튼(OPERATOR): 수정, (DRAFT) 이어서 입력·등록 완료, (REGISTERED) "이 사업자로 가맹점 등록"(기존 handoff `startWithBusiness`·`registrationHandoffState` 재사용). 이력 탭: 시각·행위자·종류·사유·항목별 전후(마스킹).
 
 ### 8.3 사업자 등록 탭 / 수정(`BusinessProfileFormScreen.tsx` — 기존 `BusinessRegistrationScreen.tsx` 교체)
+**→ 대체: D-ADMIN-UI-006(탭 → 목록의 '＋ 사업자 등록' 하위 화면), D-ADMIN-UI-011 ①②, 현행은 등록 = 1단계 '등록 여부 확인'(번호만 — 이미 있으면 기존 사업자 안내·이동, 없을 때만 입력 폼) → 2단계 입력, 수정 = 사업자 상세의 항상 편집 폼(MERCHANT-IA-001 §4.2·§4.2a)**
 섹션(지침서 §3): 1 사업자 기본(구분 라디오, 번호 + "중복 확인", 상호, 법인등록번호(법인만 표시), 개업일, 국가 KR(읽기 전용), 영문 상호) · 2 사업 내용(업태·종목 각 추가/삭제 행) · 3 주소(사업장, "실사업장이 다름" 체크 시 별도 주소) · 4 대표자(1명 이상, 유형 단독/공동/각자, 행 추가) · 5 사업체 연락(전화 필수 표시, 이메일 선택) · 6 등록 담당자(이름·이메일·전화, 기본 담당자 선택) · 7 증빙 — **표시하지 않음**(P1) · 8 버튼: 임시저장 / 등록 완료 / 취소.
 - 하이픈 자동: 사업자등록번호 `000-00-00000`(기존 컴포넌트), 전화 표시용 하이픈(보낼 때 숫자만), 법인등록번호 `000000-0000000` 표시(보낼 때 숫자만).
 - **번호 변경 불가 사전 안내(D-BIZ-005)**: 등록(생성) 모드의 사업자등록번호 칸 아래 고정 문구 "사업자등록번호는 저장 후 변경할 수 없습니다. 저장 전에 번호를 확인하세요." — 임시저장·등록 완료 버튼 근처에도 같은 뜻 한 줄. 확인 대화상자는 두지 않는다(문구만 — 사용자 결정 범위).
-- **중복 확인**: 번호 조회 API(감사·버킷 1회). 결과 "등록 가능" 또는 "이미 등록된 사업자: <상호> · <마스킹 번호> [상세 보기]"(D-BIZ-003). **번호가 바뀌면 결과 즉시 무효**(지침서 §3) — 저장 버튼은 중복 확인 여부와 무관하게 동작(권위는 DB — 확인은 안내), 저장 시 중복이면 같은 안내.
+- **중복 확인**: 번호 조회 API(감사·버킷 1회). 결과 "등록 가능" 또는 "이미 등록된 사업자: <상호> · <마스킹 번호> [상세 보기]"(D-BIZ-003). **번호가 바뀌면 결과 즉시 무효**(지침서 §3) — 저장 버튼은 중복 확인 여부와 무관하게 동작(권위는 DB — 확인은 안내), 저장 시 중복이면 같은 안내. **→ 대체: D-ADMIN-UI-011 ①(선택형 중복 확인 → 번호 확인 먼저), D-BIZ-007·D-PII-001 ①(마스킹 번호 → 원문), 현행은 입력 폼이 확인 뒤에만 열리고 안내는 "이미 등록한 사업자입니다" + 상호·원문 번호·등록 상태 + '정보 보기'. 저장 때 서버 중복 검사가 최종 판정인 점은 그대로(MERCHANT-IA-001 §4.2a)**
 - 평문 번호: 입력 상태에만, 저장·조회 요청 본문에만, 보낸 뒤 입력란 유지 여부는 기존 규칙(제출 후 비움 — `BusinessRegistrationScreen.tsx:62`)을 따른다. 재전송 payload만 메모리(기존 리뷰 MINOR-2 규칙).
-- 수정 모드: 번호 읽기 전용(마스킹) + "사업자등록번호 변경은 정책 미정으로 지원하지 않습니다"(TBD-04). 중요정보 변경 감지 시 "변경 사유"(필수) 칸 표시 — 서버 판정이 권위(`BUSINESS_CHANGE_REASON_REQUIRED` → 그 칸 오류). 사유 칸 안내 "개인정보를 적지 마세요"(L-4).
+- 수정 모드: 번호 읽기 전용(마스킹) + "사업자등록번호 변경은 정책 미정으로 지원하지 않습니다"(TBD-04). **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 번호 읽기 전용 원문(하이픈 — BRN-UNMASK-001 #4)** 중요정보 변경 감지 시 "변경 사유"(필수) 칸 표시 — 서버 판정이 권위(`BUSINESS_CHANGE_REASON_REQUIRED` → 그 칸 오류). 사유 칸 안내 "개인정보를 적지 마세요"(L-4).
 - 서버 `fieldErrors` → 해당 칸 오류 문구(path → 칸 매핑, code → 문구 표). 클라이언트 형식 검사는 같은 규칙 복제(`lib/businessProfile.ts`) — 서버가 권위.
 - 등록 완료 성공 → 상세로 이동, `REGISTERED` 표시(지침서 §3). 결과 불명(503)·재전송은 기존 `RegistrationStep` 잠금 규칙("같은 내용 다시 보내기").
 - CSP: inline `style` 없음(Tailwind 클래스만 — `noRuntimeStyles.test.tsx`), 외부 자원 없음.
@@ -535,9 +541,11 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 
 ## 9. 개인정보·식별번호 노출 규칙(D-BIZ-006 ② — 세부 마스킹 형식은 C-2)
 
+> **→ 대체(rev 0.2.12 표시 — GOV-BIZ-001 G-05): 아래 표의 사업자등록번호 행은 D-BIZ-007·D-PII-001로 바뀌었다. 현행 노출 규칙 정본은 PII-MASKING-POLICY §3·§4(BR-BIZ-030~034·049). 다른 행(대표자·연락처·주소 등)은 표시가 없는 한 현행이다.**
+
 | 값 | 목록 | 상세·수정(조회 역할, 감사) | MASTER 이력·화면 이력 | ADMIN 감사 | 로그·지표·오류 본문·Outbox |
 |---|---|---|---|---|---|
-| 사업자등록번호 | `123*******` | `123*******`(평문 없음 — D-BIZ-006 ②, Q-MOPS-04 대기) | `123*******` | `brn=123*******` | 없음 |
+| 사업자등록번호 | `123*******` **→ 대체: D-BIZ-007·D-PII-001 ①②, 현행은 원문(하이픈)·목록 감사 없음** | `123*******`(평문 없음 — D-BIZ-006 ②, Q-MOPS-04 대기) **→ 대체: D-BIZ-007·D-PII-001 ①③, 현행은 원문(하이픈), Q-MOPS-04 닫힘** | `123*******`(저장값 — 현행 그대로) | `brn=123*******`(현행 그대로) | 없음 |
 | 법인등록번호 | 없음 | 원문 | `110111*******` | 없음 | 없음 |
 | 상호·영문 상호·업태·종목·개업일 | 상호만 | 원문 | 원문(비개인정보로 취급 — 개인사업자 상호에 이름이 들어갈 수 있음은 L-3) | 없음 | 없음 |
 | 대표자·담당자 이름 | 대표자 첫 글자 + `*`(예 `홍**`) | 원문 | `홍**`(첫 code point + 나머지 `*`, 1글자면 `김*`) | 없음 | 없음 |
@@ -559,7 +567,7 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 | 기존 사업자 등록 경로(MASTER `merchant-operations/businesses`, ADMIN `/api/merchant-registrations/businesses`, `RegistrationKind.BUSINESS`, `MasterCommandKind.REGISTER_BUSINESS`, 화면 `registerBusiness`) | BIZ-4 전환에서 제거(C-27). `AdminOperation.REGISTER_BUSINESS`·감사 action은 영속 값으로 유지 | 제거 시험(404·라우트 목록), 기존 시험은 제거 또는 새 경로로 이관(목록 보고) |
 | Demo seed | 새 DB: 단계 1 = `CreateBusiness`(REGISTERED Demo fixture). 기존 Demo DB: `RegisterBusiness` 기록 선확인 → 재사용(그 사업자는 DRAFT로 남음 — 가맹점 이미 등록됨) | C-24, BIZ-2-9 |
 | MERCHANT-BIZ-LOOKUP-001 | 이 작업에 합침. 수용 기준 "권한 OPERATOR" → OPERATOR·APPROVER, 응답에 `registrationStatus`(D-BIZ-006 ①③ — 사용자 결정) | tasks.json 상태 변경(§13 끝) |
-| MERCHANT-OPS-002 B3-3a(HMAC) | 새 명령 3종도 `m1:` — B3-3a가 hmac1 필드 단위 설계로 **이 작업의 `CreateBusiness`·`UpdateBusiness`·`CompleteBusinessRegistration`을 포함한 모든 명령**을 함께 전환(C-9) | B3-3a 범위에 세 operation 추가 필요(Coordinator가 tasks.json B3-3a 메모에 기록, L-13) |
+| MERCHANT-OPS-002 B3-3a(HMAC) | 새 명령 3종도 `m1:` — B3-3a가 hmac1 필드 단위 설계로 **이 작업의 `CreateBusiness`·`UpdateBusiness`·`CompleteBusinessRegistration`을 포함한 모든 명령**을 함께 전환(C-9) | B3-3a 범위에 세 operation 추가 필요(Coordinator가 tasks.json B3-3a 메모에 기록, L-13) **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)** |
 | harness 시험(`harness/tests/**`) | Demo E2E에 사업자 등록 단계가 있으면 새 화면·API로 갱신 | BIZ-4에서 대상 목록 확인·보고 |
 | 운영 홈·거래·매입·승인 화면 | 없음 | — |
 
@@ -569,7 +577,7 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 |---|---|---|
 | Financial Consistency | 금액·권리·정산 효과 없음. 사업자 등록이 KYB·계약·MID·정산·Snapshot을 만들지 않음. 새 가맹점 등록은 REGISTERED 사업자만(기준정보 일관성) | BIZ-1-14(TC-19 — merchant·contract·merchant_account·entitlement_issue 행 수 불변, Outbox는 `Business*`만), BIZ-4-1(`BUSINESS_NOT_REGISTERED`), 골든 불변 |
 | Transaction Safety | Business·등록정보·하위 행·변경 이력·Outbox·멱등 결과가 MASTER 로컬 TX 하나. MASTER 호출은 ADMIN DB TX 밖, ADMIN 감사는 별도 로컬 TX | BIZ-1-7(TC-17 하위 행 실패 → 전체 rollback, 이력·Outbox·admin_request 0행), BIZ-3-4(감사 실패 → 결과 미반환·MASTER 미호출) |
-| Idempotency | submissionId → `mo1.` 키, 기존 `m1:` 지문(같은 키·같은 내용 = 재생, 다른 내용 = 409 — C-9, HMAC 전환은 B3-3a·L-13), 더블클릭 = 같은 키, 중복 요약 조회 실패 → 같은 키 재전송 = 재생 + 재조회 | BIZ-1-11(재생·409·지문 `m1:`·원문 없음), BIZ-2-4(HTTP 재생·existing 실패 503 → 재전송), BIZ-4-2(화면 재전송 같은 submissionId) |
+| Idempotency | submissionId → `mo1.` 키, 기존 `m1:` 지문(같은 키·같은 내용 = 재생, 다른 내용 = 409 — C-9, HMAC 전환은 B3-3a·L-13), 더블클릭 = 같은 키, 중복 요약 조회 실패 → 같은 키 재전송 = 재생 + 재조회 | BIZ-1-11(재생·409·지문 `m1:`·원문 없음 **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)**), BIZ-2-4(HTTP 재생·existing 실패 503 → 재전송), BIZ-4-2(화면 재전송 같은 submissionId) |
 | Concurrency Control | 번호 UNIQUE(동시 생성 1건만), `business` FOR UPDATE + version 명시 비교(동시 수정 1건만), 현재 행 생성 열 UNIQUE(기본 담당자·주소 유형·순서 — 위반은 결함 분류, M-4), 버킷 원자 예약 | BIZ-1-8(TC-07 실제 MySQL 다중 연결), BIZ-1-9(TC-14 동시 수정), BIZ-1-5(flush 순서·결함 분류), BIZ-3-3(버킷 동시 20 → 정확히 한도) |
 | Recoverability | 결과 불명(503·응답 유실) → 같은 submissionId 재전송이 저장 결과 재생, 1062 → 새 TX 재판정으로 중복 거절 수렴, 중복 요약 조회 실패 503 → 재전송이 재생 + 재조회(m-1), 등록 완료 재요청 무해 | BIZ-2-5(commit 후 응답 유실 재생), BIZ-2-4(existing 실패 → 재전송), BIZ-1-8, BIZ-1-12(TC-16), BIZ-3-5 |
 | Reconciliation | 금융 대사 대상 아님(기관·원장 없음). 대응 기록 대조: ADMIN 감사 `mos.<sub>` ↔ MASTER `admin_request`·`master_change_history`(같은 correlation), `business` 1 : `business_registration` 1 불변식 점검 | BIZ-1-2(1:1 — TC-18, migration 뒤 전 행), BIZ-3-7(감사 ↔ 이력 상관 ID 대조) |
@@ -580,7 +588,7 @@ CALL ${flyway:database}_privilege.set_runtime_table_privileges('business_contact
 - **JPA**: §5.5 — 순수 Domain + `Jpa*Entity` + Mapper 분리, 연관 매핑 없음, `@Version` + FOR UPDATE 명시 비교, flush 순서, `updatable = false`. 명령 전용.
 - **jOOQ(CQRS)**: 목록·번호 조회·상세·이력 = `JooqBusinessDirectoryReader`·`JooqBusinessLookupReader`·`JooqBusinessDetailReader`·`JooqBusinessHistoryReader`(required `…Reader` Port, `adapter.query`, 읽기 전용 TX, SQL 마스킹, 시각 UTC 문자열 `MasterSqlText.instant` — TZ-FIX-001). 조회에 Aggregate를 로드하지 않는다. jOOQ codegen은 V15 schema에서 재생성(생성기는 `db/migration/master`만 적용 — 권한 migration 제외 기존 구조).
 - **버전**: 새 의존성 없음. Boot BOM 관리(Hibernate·jOOQ·Jackson 3) 그대로 — 라이브러리 개별 override 금지(TECHNOLOGY §2). 프론트도 새 npm 패키지 없음(lockfile 검사 D-ADMIN-UI-002 불변).
-- **멱등 지문**: 새 암호 키·라이브러리 없음 — 기존 `m1:` SHA-256 재사용(C-9, L-13).
+- **멱등 지문**: 새 암호 키·라이브러리 없음 — 기존 `m1:` SHA-256 재사용(C-9, L-13). **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)**
 - **Kafka/Redis**: 도입하지 않는다. 동시 생성 방지는 DB UNIQUE, 동시 수정은 version·행 잠금, 속도 제한은 기존 인스턴스 메모리 버킷(L-9 LIVE Gate). Redis 분산 잠금·캐시나 Kafka 이벤트가 이 정확성을 대신하지 않는다 — Outbox 기록은 기존 MASTER 참조 이벤트 범주에 쌓일 뿐 소비자 도입은 별도 판단.
 
 ## 13. 배치(전달 순서 = 이 순서, 각 배치 RED → 최소 구현 → 관련 검증 → Verifier → Reviewer)
@@ -613,7 +621,7 @@ BIZ-1의 Application Use Case는 web 없이 Use Case 시험(실제 MySQL)으로 
 8. **동시 생성(TC-07)**: 같은 번호 서로 다른 키 2~8 연결 동시 → 정확히 1 SUCCEEDED, 나머지 저장된 `BUSINESS_REGISTRATION_NUMBER_DUPLICATE`(503 아님, reference = 이긴 쪽 ID), business 1행.
 9. **동시 수정(TC-14)**: 같은 version 두 수정 동시 → 1 성공·1 `BUSINESS_VERSION_CONFLICT`, 이력 1건. 수정 vs 가맹점 등록 동시 → 교착 없음(잠금 순서).
 10. TC-21: Domain에 VERIFIED 생성 경로 없음(enum 값 1개 단언), DB CHECK가 다른 값 거부. ArchUnit: `master.merchant.domain`의 새 타입이 Spring/JPA/jOOQ 비의존(기존 규칙 대상 포함 확인).
-11. **멱등(C-9 — BIZ-2-4에서 이동)**: 같은 키·같은 명령 재생(`replayed = true`, 새 행 0), 같은 키·다른 내용(목록 순서만 다른 경우 포함) → `IDEMPOTENCY_KEY_REUSED`, `admin_request` 지문 열이 `m1:`로 시작하고 `AdminCommandExecutor.fingerprintOf(operation, BusinessCommandFingerprintFields.of(command))`와 같음(평탄화 결정성 — 목록 개수 접두로 경계 모호성 없음: 대표자 `["a","b"]` 1행 vs 2행 다른 지문), 지문 열·로그에 canary 원문 0건. 새 설정 키·환경변수 없이 기동(키 기동 검사 없음 — 대조).
+11. **멱등(C-9 — BIZ-2-4에서 이동)**: 같은 키·같은 명령 재생(`replayed = true`, 새 행 0), 같은 키·다른 내용(목록 순서만 다른 경우 포함) → `IDEMPOTENCY_KEY_REUSED`, `admin_request` 지문 열이 `m1:`로 시작하고 `AdminCommandExecutor.fingerprintOf(operation, BusinessCommandFingerprintFields.of(command))`와 같음(평탄화 결정성 — 목록 개수 접두로 경계 모호성 없음: 대표자 `["a","b"]` 1행 vs 2행 다른 지문), 지문 열·로그에 canary 원문 0건. 새 설정 키·환경변수 없이 기동(키 기동 검사 없음 — 대조). **→ 대체(C-9 보류): D-GOV-001 ①②·SEC-BIZ-001 `439fa1a`, 현행 지문은 `h1:` 비밀 키 HMAC(`AdminCommandExecutor.kt:444`), 기존 `m1:` 행 비교는 Demo 한정(L-25)**(시험 기대 `m1:`→`h1:` 치환, 키 기동 검사 추가 — rev 0.2.10)
 12. **TC-16 + 등록 완료(M-1)**: DRAFT에 **저장 내용과 같은 내용 + complete → SUCCEEDED, version +1, 이력 `BusinessRegistrationCompleted` 정확히 1건**(`changes` 첫 항목 registrationStatus DRAFT → REGISTERED), 같은 키 재요청 = 재생, 다른 키 재요청 = `BUSINESS_NOT_DRAFT`·데이터·version 불변. complete + 중요 변경 + 사유 없음 → `BUSINESS_CHANGE_REASON_REQUIRED`(상태 DRAFT 유지). 대조: update 같은 내용 → `BUSINESS_PROFILE_UNCHANGED`(version·이력 불변).
 13. **변경 계산·이력(TC-12·TC-13 — BIZ-2-7에서 이동)**: `BusinessProfileChangeSpec` §4.5 표 전 행 — 첫 입력 비중요, 기존 값 변경·삭제 중요, 구분 변경 중요, **DRAFT 대표자 0 → 1 일반 / REGISTERED 대표자 추가만 중요 / REGISTERED 대표자 유형만 변경 중요 / REGISTERED 대표자 순서만 변경 중요(M-2·M-4)**, 업태 순서만 변경 일반(이력 ended/added 기록). Use Case: 일반정보만 수정(사유 없음) 성공 + 이력 항목·마스킹 전후, 중요정보 사유 없음 → `BUSINESS_CHANGE_REASON_REQUIRED`(이력 0), 사유 있음 → 이력 `reason` 원문·대표자 ended/added 마스킹, version 불일치 → `BUSINESS_VERSION_CONFLICT`.
 14. **TC-19(BIZ-2-10에서 이동)**: create·update·complete 전후 `merchant`·`contract*`·`merchant_account`·`default_designation`·`entitlement_issue` 행 수 불변, Outbox 새 행 eventType ⊂ {BusinessCreated, BusinessProfileUpdated, BusinessRegistrationCompleted}, payload 키 집합 = {businessId, registrationStatus, version, occurredAt}(occurredAt은 실행기 자동 추가 — N-1).
@@ -621,7 +629,7 @@ BIZ-1의 Application Use Case는 web 없이 Use Case 시험(실제 MySQL)으로 
 
 **BIZ-2 MASTER web**
 1. 채널: 서명 없음·창 밖 401, `ADMIN_SERVICE` 아님 403, query 400, 16 KiB 초과 413, 조회 permit 소진 503 `ADMIN_READ_BUSY`(쓰기 permit과 독립), 명령 permit 소진 503 `ADMIN_WRITE_BUSY`, 경로 ID 형식 위반 400.
-2. create: DRAFT 최소(TC-04)·개인 REGISTERED(TC-01)·법인 REGISTERED(TC-02) 200 SUCCEEDED, 중복(TC-06) → REJECTED + `existing` 키 집합 정확(`businessId`·`businessName`·`registrationNumberMasked`·`registrationStatus`), **다른 거절에는 reference·existing 키 없음**(C-12 대조).
+2. create: DRAFT 최소(TC-04)·개인 REGISTERED(TC-01)·법인 REGISTERED(TC-02) 200 SUCCEEDED, 중복(TC-06) → REJECTED + `existing` 키 집합 정확(`businessId`·`businessName`·`registrationNumberMasked`·`registrationStatus`) **→ 대체: D-BIZ-007·D-PII-001 ①·BRN-UNMASK-001, 현행 필드는 `registrationNumber` 원문 10자리(`BusinessProfileJson.kt:19,35,101`)**, **다른 거절에는 reference·existing 키 없음**(C-12 대조).
 3. parser: 모르는 key·누락 key·null 불가 필드 null·자료형·목록 상한 초과 → 400 `REQUEST_MALFORMED`, 값 규칙 위반 → 400 `BUSINESS_VALIDATION_FAILED` + fieldErrors(값 미포함), 두 경우 `admin_request` 0행. **API 수준 fieldErrors 정확 단언(m-9)**: create REGISTERED CORPORATION 법인등록번호 null → `{"path":"registration.corporateRegistrationNumber","code":"REQUIRED"}`(TC-03), 대표자 0명 → `{"path":"representatives","code":"REQUIRED"}`(TC-09), 담당자 0명 → `{"path":"contacts","code":"REQUIRED"}`(TC-11) — complete-registration 본문에도 같은 세 경우. 번호 필드 포함 update 본문 → 400 `REQUEST_MALFORMED`(TC-13). **최대 크기 유효 본문(모든 목록 상한·최대 길이 다중바이트) ≤ 16 KiB** 단언.
 4. 멱등(HTTP): 같은 키·같은 본문 재생 응답 모양 = 첫 응답 + `replayed: true`, 같은 키·다른 본문 409 `IDEMPOTENCY_KEY_REUSED`. **existing 조회 실패(m-1)**: 중복 거절 저장 후 요약 Reader 실패 주입 → 503 `TEMPORARILY_UNAVAILABLE`(본문에 `outcome`·`existing`·값 없음), `admin_request` 1행(거절 저장됨); 같은 키 재전송(Reader 복구) → 200 REJECTED + `existing` + `replayed: true`, `admin_request`·`business` 행 수 불변.
 5. 응답 유실: commit 후 응답 차단(대역 필터) → 같은 키 재전송 = 저장 결과 재생.
@@ -658,7 +666,7 @@ BIZ-1의 Application Use Case는 web 없이 Use Case 시험(실제 MySQL)으로 
 
 ## 15. Coordinator 결정(가역 — 권장안, Reviewer 확인 대상)
 - **C-1** 사업자 기능은 기존 `master.merchant`·`admin.merchantops` 모듈 안(새 Modulith 모듈 없음 — Business가 이미 그곳, 버킷·서명 재사용).
-- **C-2** 개인정보 노출 표 §9의 **세부 마스킹 형식**(이름 첫 글자·이메일·전화 끝 4자리·주소 두 어절 등). 노출 범위 자체(상세 원문·사업자등록번호 전면 마스킹·로그/감사/이력 마스킹)는 사용자 결정 D-BIZ-006 ②.
+- **C-2** 개인정보 노출 표 §9의 **세부 마스킹 형식**(이름 첫 글자·이메일·전화 끝 4자리·주소 두 어절 등). 노출 범위 자체(상세 원문·사업자등록번호 전면 마스킹·로그/감사/이력 마스킹)는 사용자 결정 D-BIZ-006 ②. **→ 대체: D-BIZ-007·D-PII-001 ①, 현행은 사업자등록번호가 관리자 화면·조회 응답 원문(전면 마스킹 아님)**
 - **C-3** migration 행만 `business_type` NULL(DRAFT 한정 CHECK), 수정 시 구분 필수(X-1).
 - **C-4** 역할 집합은 사용자 결정 D-BIZ-006 ①. 구현 방식만 Coordinator 선택: `AdminAction` enum은 바꾸지 않고 `BusinessPermissions`의 **분리 상수 VIEW·CREATE·UPDATE·COMPLETE**(m-6 — 동작별 상수, 공유 금지)를 Use Case가 쓴다(기존 merchantops 방식).
 - **C-5** 상호 검색은 앞부분 일치(색인 사용). 포함 검색은 운영 규모 확인 뒤(LIVE Gate).
@@ -751,3 +759,4 @@ BIZ-1의 Application Use Case는 web 없이 Use Case 시험(실제 MySQL)으로 
 | 0.2.9 | BIZ-4 독립 리뷰 REVIEW_PASS 조건부 → 반영(Coordinator 지시, 2026-11-18). **MINOR-1(낙관적 잠금 우회 차단)**: 수정 화면은 편집 기준 상세(`edit.base` — 수정을 연 시점 문서)로만 그리고 보내는 `version`은 항상 기준 version(지금 다시 읽은 상세 version이 아님). 결과 불명 편집을 "그래도 새로 입력"으로 포기하면 편집 메모리를 비우고 상세를 다시 읽는다(옛 내용 + 새 version 조합 금지). 결과 확인이 필요한 편집(보내는 중·결과 불명)은 상세 링크(`openBusinessIn`)·다른 사업자 수정 시작으로 버려지지 않는다 — 같은 사업자는 그 편집으로 이어서 열고, 다른 사업자 수정은 막고 안내(같은 submissionId 재전송·`hasUnresolvedRequest` 유지). 회귀 시험(v3 결과 불명 → v4 재조회 → 재전송·새 저장 모두 version 3, 서버 `BUSINESS_VERSION_CONFLICT`, 다시 불러오기 뒤 v4 기준 저장)·변이 (o) 지금 상세 version 전송 → RED. **MINOR-2 (a)**: MC-1 동작 유지(`requireAssignable`이 사업자 잠금 전) — §4.4·E-38을 실제 순서(예약어 → NOT_FOUND → NOT_ACTIVE → NOT_REGISTERED → TAKEN)로 정정, Use Case 시험 "DRAFT + 예약어 → `MERCHANT_CODE_RESERVED`"(대조: 같은 DRAFT·일반 코드 → `BUSINESS_NOT_REGISTERED`) 추가, `MerchantRegistrationGateUseCaseSpec` KDoc 정정. **MINOR-3**: 시험 대역 호출 인수 전수 검사(`fakeApi.callsContaining`·`leakedCalls` — 원문 사업자등록번호는 `lookupBusinessByRegistrationNumber`·`createBusiness` 호출에만), 등록 폼·사업자 조회·가맹점 등록 ① 시험에 단언, 변이 (p) 목록 검색·(q) 상세 조회·(r) 가맹점 등록 본문으로 번호 유출 → 모두 RED. **NIT-1**: 칸이 없는 fieldErrors — `contacts[i].primary`는 등록 담당자 묶음 오류, `registration.countryCode`·`version`·숨은 칸은 일반 문구("화면 칸에 표시할 수 없는 오류 — 다시 불러온 뒤"), `reason`은 사유 칸 강제 표시. 사유 TOO_LONG 문구 200자. **NIT-2**: 일반 변경만 있으면 "변경 사유(선택)" 칸(비우면 null, 입력하면 전송 — §4.5 "사유 선택"). **NIT-3**: MERCHANT-OPS-002 §4.3 표(L180)·MASTER 명령 표(L110)에 옛 사업자 등록 경로 "제거됨(C-27)" 표기, `MerchantRegistrationService` KDoc 정정. 남은 언급은 역사 기록(MERCHANT-OPS-002 L48·L270·L514·L1050 — 설계 당시 서술, DEMO-SEED-001 L69 — allowedWritePaths 밖이라 미수정, Coordinator 확인 대상). **NIT-4**: INACTIVE 표시 "비활성(사용중지)"(전이 경로 없음 — TBD-08), 가맹점 등록 ①의 INACTIVE 문구는 "비활성(사용중지) 사업자 — 가맹점 등록 불가"(DRAFT 결정 문구와 구분). **NIT-5**: 등록 폼 "법인등록번호는 법인만" 시험이 제목대로 개인 전환 시 칸 없음을 단언. **NIT-6**: 첫 목록 읽기 실패는 메모리에 남겨 탭 재진입 시 자동 재조회하지 않고 "다시 시도" 버튼으로만 다시 읽는다 |
 | 0.2.10 | SEC-BIZ-001(2026-11-25, Implementer — 정책·기대 완화 없음, 자기 완료 판정 아님). §4.2 `BusinessChangeReason`에 카드번호 패턴 거부(D-FLOW-007 ①, BR-BIZ-305 — MASTER Domain·ADMIN 복제·화면 세 계층, 고정 code `CARD_NUMBER_PATTERN`, 새 저장부터). C-9·L-13: 지문 HMAC 전환 시행(지문 전체 `h1:` — MERCHANT-OPS-002 rev 0.9.5). 화면 칸 이름 '사유 및 비고'는 M-7(별도) |
 | 0.2.11 | BIZ-NORM-002(2026-11-25, Implementer — 정책·기대 완화 없음, 자기 완료 판정 아님). §4.4 사용중지 사업자 수정 → 저장 업무 거절 `BUSINESS_INACTIVE`(BR-BIZ-311, D-GOV-005 ② — GOV-BIZ-001 M-3/G-03), 등록 완료는 `BUSINESS_NOT_DRAFT` 유지(기대값 고정). §8.5 거절 문구 정정 3개(`BUSINESS_NOT_DRAFT`·`BUSINESS_NOT_ACTIVE`·`BUSINESS_CHANGE_REASON_REQUIRED`)·추가 1개(`BUSINESS_INACTIVE`), §8.6 신설(INACTIVE 읽기 표시 + 안내, 사유 칸 '사유 및 비고' — M-7, 용어 화면 문구 D-GOV-008 ①~④). 주석 M-6(`BusinessCommandController` 중복 요약 '원문 번호', `BusinessRegistrationNumber.masked()` 용도). |
+| 0.2.12 | BIZ-NORM-003(2026-11-25 — 문서만, 자기 완료 판정 아님, GOV-BIZ-001 M-4/G-05). 이후 결정으로 바뀐 문장에 '→ 대체: D-…, 현행은 …' 표시 추가(본문 원문 보존): §0 중복·개인정보 행, §2 D-BIZ-003·D-BIZ-006 ②·D-MOPS-003·D-MOPS-010 ②·D-ADMIN-UI-004 ⑦·D-MCODE-003 ② 행, §6.4 번호 마스킹, §8 머리 안내, §8.1 탭(D-ADMIN-UI-006), §8.2 표 열·번호 결과 모양·상세(D-BIZ-007·D-PII-001, D-ADMIN-UI-010 ②⑦⑧, D-ADMIN-UI-011 ②), §8.3 머리·중복 확인·수정 모드 번호(D-ADMIN-UI-006, D-ADMIN-UI-011 ①, D-BIZ-007·D-PII-001), §9 머리·번호 행, §15 C-2. 정책·기대값·코드 변경 없음 |
