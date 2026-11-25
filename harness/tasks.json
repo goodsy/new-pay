@@ -1402,11 +1402,17 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "RC-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/RULE-CONFIRM-001-2026-11-25T115622Z.json"
+      },
       "openItems": [
-        "목록만 — 대장 상태 변경은 사용자 답 후"
+        "목록만 — 대장 상태 변경은 사용자 답 후",
+        "rev 0.1a 독립 재리뷰 APPROVED(N-1~3 Coordinator 반영): 121행 = A 95·B 17(질문 14, 라운드 1~5)·C 8·D 1, 라운드 0 = Q-A·Q-C",
+        "아침 질문 순서: 라운드 0 → B 라운드 1(돈 흐름) …; 답 후 대장 상태·DECISIONS·questions 갱신, BR-WH-035 (b) 대체 + 웹훅 GAVE_UP 정비 카드 등록"
       ],
-      "nextResumeAction": "목록 작성 → 독립 리뷰 → SCOPED → 커밋 → 아침 질문",
+      "nextResumeAction": "커밋 완료 후 사용자 답 대기(아침)",
       "detail": null
     }
   ]
