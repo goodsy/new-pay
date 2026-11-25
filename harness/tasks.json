@@ -1368,7 +1368,7 @@
     {
       "id": "GOV-MER-001",
       "title": "정상화: 가맹점 등록·조회·수정 기능 정합성 확인(분석 보고서만)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "PROCESS",
       "owner": "Coordinator",
       "dependsOn": [
@@ -1380,11 +1380,16 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
+      "lastGate": {
+        "tag": "MER-scoped1",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/GOV-MER-001-2026-11-25T120907Z.json"
+      },
       "openItems": [
-        "분석만 — 소스·시험·정책 변경 없음, 질문은 아침에 묶음(라운드 3개 이하)"
+        "분석만 — 소스·시험·정책 변경 없음, 질문은 아침에 묶음(라운드 3개 이하)",
+        "rev 0.1b 독립 재리뷰 APPROVED: 불일치 9(P1 GM-02 거절 Site 채널 해제 미시행·migration 필요, GM-03 겹치는 계약 금지 미시행·CSA 잠금 공백 / P3 2 / P4 5), 최소 수정 MF-1~8, 질문 QM-7·2·3(+QM-4~6 다음 라운드), 거절 채널 범위는 RULE-CONFIRM-001 Q14(rev 0.1b 확대)로 통합"
       ],
-      "nextResumeAction": "조사·작성 → 독립 리뷰 → SCOPED → 커밋",
+      "nextResumeAction": "완료(분석 보고서). 아침 질문 QM-7·2·3, 최소 수정 MF-1~8은 사용자 지시 후",
       "detail": null
     },
     {
@@ -1413,6 +1418,32 @@
         "아침 질문 순서: 라운드 0 → B 라운드 1(돈 흐름) …; 답 후 대장 상태·DECISIONS·questions 갱신, BR-WH-035 (b) 대체 + 웹훅 GAVE_UP 정비 카드 등록"
       ],
       "nextResumeAction": "커밋 완료 후 사용자 답 대기(아침)",
+      "detail": null
+    },
+    {
+      "id": "S3-DOC-001",
+      "title": "정상화 S3 문서 정합 — 이미 답이 난 결정만 명세·색인·대장에 반영(NP-92~101 문서 부분)",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-DIAG-001"
+      ],
+      "spec": "docs/governance/NORMALIZATION-PLAN.md §5 S3·NP-92~101, D-GOV-006 ②④, 사용자 승인 밤 작업 2026-11-25 ③",
+      "allowedWritePaths": [
+        "docs/repository/*.md(명세 본문 — 원문 보존 + 대체/정정 표시)",
+        "docs/BASELINE-INDEX.md",
+        "docs/DECISIONS.md(역참조 표지만, 문언 불변)",
+        "docs/rules/*.md(진단 해소 표시만)",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "결정 완료분만 — 미결·제안은 표시만, 정책 변경·코드·시험 변경 없음",
+        "A(MASTER·ADMIN 명세)·B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX·DECISIONS) 두 갈래 병렬, 파일 겹침 없음"
+      ],
+      "nextResumeAction": "작성 → 독립 리뷰 → SCOPED → 커밋",
       "detail": null
     }
   ]

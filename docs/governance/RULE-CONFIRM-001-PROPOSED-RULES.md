@@ -183,10 +183,10 @@ Q-A 첨부(도메인별 목록, `⚑` = 금융·키·상태 의미 있음 — �
 
 **Q14 (BR-BIZ-084, MASTER-SNAPSHOT-001 §4.4 관례, PC-72) Site 심사 전이와 거절 Site의 채널 해제**
 - 현재: Site 심사 전이는 PENDING→APPROVED/REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED/REJECTED만 허용(출처에 개별 전이 없음 — 명세 관례). 시험 `SiteConfirmationAndReviewSpec(M)::REJECTED 종결`.
-- 상호작용: D-GOV-004 ①("심사 거절 Site는 채널 점유 해제, 같은 주소로 새 Site 재신청 가능")과 합치면 **정지(SUSPENDED) Site를 REJECTED로 바꿔 채널을 풀고 재신청**하는 경로가 생긴다. 다른 가맹점 재사용은 D-GOV-004 ②(종료 Site 채널 — 예외 승인 없으면 거절)와의 관계가 정해져 있지 않다(**미확인**).
-- 권장안: **현행 전이 유지 + SUSPENDED→REJECTED로 풀린 채널의 재사용도 D-GOV-004 ②와 같은 기준(같은 가맹점만 허용, 다른 가맹점은 예외 승인)**. 권장안도 정책 선택이라 사용자 확인 필요.
+- 상호작용: D-GOV-004 ①("심사 거절 Site는 채널 점유 해제, 같은 주소로 새 Site 재신청 가능")과 합치면 **정지(SUSPENDED) Site를 REJECTED로 바꿔 채널을 풀고 재신청**하는 경로가 생긴다. 거절 경로(직접 거절·SUSPENDED→REJECTED)와 무관하게, 풀린 채널을 다른 가맹점이 쓰는 경우와 D-GOV-004 ②(종료 Site 채널 — 예외 승인 없으면 거절)의 관계가 정해져 있지 않다 — 이 질문으로 묻는다.
+- 권장안: **현행 전이 유지 + 거절 경로(직접 PENDING→REJECTED·SUSPENDED→REJECTED)와 무관하게 풀린 채널의 다른 가맹점 재사용은 D-GOV-004 ②와 같은 기준(예외 승인 없으면 거절), 같은 가맹점 재신청은 허용**. 권장안도 정책 선택이라 사용자 확인 필요. [rev 0.1b — GOV-MER-001 재리뷰 N-1: 직접 거절 경로의 다른 가맹점 재사용도 이 한 질문에 포함]
 - 대안: (b) SUSPENDED→REJECTED 금지(정지 Site는 종료 절차로만 닫음, MASTER-LIFECYCLE-001) (c) 현행 그대로(REJECTED면 누구나 같은 채널 재신청).
-- 영향: 결제 채널(사이트 주소) 점유·이전 권리, 정지 Site 우회 위험. 권장안을 고르면 D-GOV-004 ①(거절 Site 채널 해제 — 가맹점 제한 없음)의 적용 범위를 이 경로(SUSPENDED→REJECTED)에 한해 좁히는 것이다. 대안 (c)는 D-GOV-004 ①을 글자 그대로 적용한 경우다.
+- 영향: 결제 채널(사이트 주소) 점유·이전 권리, 정지 Site 우회 위험. 권장안을 고르면 D-GOV-004 ①(거절 Site 채널 해제 — 가맹점 제한 없음)의 적용 범위를 '다른 가맹점 재사용'에 한해 좁히는 것이다(같은 가맹점 재신청은 문언 그대로). 대안 (c)는 D-GOV-004 ①을 글자 그대로 적용한 경우다.
 - 막히는 작업: BIZ 대장 확정, MASTER-LIFECYCLE-001 Site 종료 설계.
 
 ## 3. C — 이미 사용자 결정으로 확정·대체 가능(근거만)
@@ -222,7 +222,7 @@ Q-A 첨부(도메인별 목록, `⚑` = 금융·키·상태 의미 있음 — �
 | BR-BIZ-310 | 개업일·법인등록번호를 처음 입력하는 저장은 일반정보 변경으로 보아 사유를 요구하지 않는다(이미 값이 있을 때 바꾸면 중요정보) | 적용: D-GOV-008 ⑦(대장 행 추가 후 D-GOV-005 ④ 일괄 확인에서 현행 유지 확인 예정), BUSINESS-PROFILE-001 §4.5 | 일치(대장 검증 열) — BusinessProfileChangeSpec(M)::first input is general | **A** | D-GOV-008 ⑦이 현행을 택했고 확정은 이 일괄 확인으로 미룸. POL-004 대체 표(BI-BIZ-6) 연결; `BIZ.md` L67 |
 | BR-BIZ-064 | 가맹점 코드 형식은 첫 글자 영문, 6~14자(^[a-z][a-z0-9]{5,13}$)이며 예약어(paycore·admin·system·test·live·demo·api·root·null·undefined) 완전·접두 일치는 거절한다 | 적용: MERCHANT-CODE-001 C-1·C-2 | 일치(대장 검증 열) — MerchantCodeSpec(M)::MC-1-1 형식·경계, 예약어 MERCHANT_CODE_RESERVED | **A** | [금융·키·상태 의미 있음 — 안전 방향이라 A] 외부 노출 키 형식이지만 거절(제한) 방향; `BIZ.md` L104 |
 | BR-BIZ-067 | "첫 계약 승인"은 그 가맹점 대상 계약의 어느 Revision이든 승인 사실이 하나라도 있는 것이다(효력 시작 전 승인 포함, 철회·종료 뒤에도 승인 뒤로 본다) | 적용: MERCHANT-CODE-001 C-14 | 일치(대장 검증 열) — MerchantCodeChangeApprovalSpec(M)::LOCKED(계약 승인 뒤) | **B** | → §2 R2-Q5; `BIZ.md` L107 |
-| BR-BIZ-084 | Site 심사 전이는 PENDING→APPROVED/REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED/REJECTED만 허용하고 같은 상태·PENDING 결정은 거절한다 | 적용: MASTER-SNAPSHOT-001 §4.4(관례 — 출처에 개별 전이 없음) | 일치(대장 검증 열) — SiteConfirmationAndReviewSpec(M)::REJECTED 종결, 같은 상태·PENDING 거절 | **B** | → §2 R5-Q14; SUSPENDED→REJECTED 허용 포함. D-GOV-004 ①(심사 거절 Site는 채널 점유 해제)과 겹치면 정지 Site를 거절해 채널을 풀고 같은 주소로 재신청할 수 있게 됨 — PC-72 개별 확인 권고에 따라 B; `BIZ.md` L124 |
+| BR-BIZ-084 | Site 심사 전이는 PENDING→APPROVED/REJECTED, APPROVED→SUSPENDED, SUSPENDED→APPROVED/REJECTED만 허용하고 같은 상태·PENDING 결정은 거절한다 | 적용: MASTER-SNAPSHOT-001 §4.4(관례 — 출처에 개별 전이 없음) | 일치(대장 검증 열) — SiteConfirmationAndReviewSpec(M)::REJECTED 종결, 같은 상태·PENDING 거절 | **B** | → §2 R5-Q14; SUSPENDED→REJECTED 허용 포함. D-GOV-004 ①(심사 거절 Site는 채널 점유 해제)과 겹치면 정지 Site를 거절해 채널을 풀고 같은 주소로 재신청할 수 있게 됨; 다른 가맹점 재사용(직접 거절 포함)도 같은 질문(rev 0.1b) — PC-72 개별 확인 권고에 따라 B; `BIZ.md` L124 |
 | BR-BIZ-162 | 재개의 "새 기관 근거"는 그 개통에서 한 번도 쓰지 않은 근거 참조여야 한다 | 적용: MASTER-SNAPSHOT-001 §4.1(관례 해석), review m-2 | 일치(대장 검증 열) — ActivationSpec(M)::이전에 쓴 근거로 재개 거절 | **A** | [금융·키·상태 의미 있음 — 안전 방향이라 A] 재개 조건을 좁히는 방향; `BIZ.md` L182 |
 | BR-BIZ-167 | 개통이 UNDER_REVIEW인 동안 PRIMARY Site의 별도 적용 확인은 거절하고, 같은 (개통, Site)의 유효 확인은 하나만 둔다 | 적용: MASTER-SNAPSHOT-001 §4.2 review M-1 | 일치(대장 검증 열) — SiteConfirmationAndReviewSpec(M)::승인 전 PRIMARY 확인 거절; ActivationSpec(M)::두 번째 유효 PRIMARY 확인 없음 | **A** | `BIZ.md` L187 |
 | BR-BIZ-172 | 통화 활성화는 소급 시작·소급 종료 금지, 미래 종료 예약 허용, 같은 (MID, 통화) 기간 중첩 금지다 | 적용: MASTER-SNAPSHOT-001 §4.3·§14-10(D-MD-005 유추 해석) | 일치(대장 검증 열) — CurrencyEnablementSpec(M)::소급 시작 거절, 중첩 거절, 미래 종료 1회 | **A** | [금융·키·상태 의미 있음 — 안전 방향이라 A] D-GOV-002 ④(외화 기준정보 비활성)와 충돌 없음; `BIZ.md` L192 |
@@ -369,3 +369,4 @@ Q-A 첨부(도메인별 목록, `⚑` = 금융·키·상태 의미 있음 — �
 |---|---|---|
 | 0.1 | 2026-11-25 | 최초 작성(RULE-CONFIRM-001 — 기준 `6da29e7` + 작업 트리, `제안` 121행) |
 | 0.1a | 2026-11-25 | 독립 리뷰 CHANGES_REQUIRED 반영: M-1 A·C를 라운드 0 질문 2개로(질문 수 3개 이하), M-2 BR-WH-035 (a)(b)(c) 분리 — (b)만 대체·reconstitute 불변식·중복 재전송 위험 명시, M-3 BR-FIN-100 보류(D)·BR-FIN-111 "후보 목록으로서 확정" 문구, m-1 인용 줄 정정(CancelStart.kt:88-93·95-97, CancelCandidateRule.kt:48-53, MerchantNotificationPolicy.kt:50-53), m-2 fail-closed 우선순위 명시·⚑ 표시, m-3 BR-BIZ-084 → B(D-GOV-004 ① 상호작용), m-4 Q7 대안에 CLAUDE.md 개정 필요, m-5 BR-CAN-019 Capability 검사 영향, m-6 범위 밖 잔여 |
+| 0.1b | 2026-11-25 | Coordinator: Q14 권장안을 거절 경로와 무관하게 다른 가맹점 재사용으로 넓혀 하나로 묻게 함(GOV-MER-001 재리뷰 N-1 — 직접 거절 경로 누락 방지), 영향 문구 정정 |
