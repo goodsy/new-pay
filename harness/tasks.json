@@ -1214,6 +1214,35 @@
       ],
       "nextResumeAction": "사용자 보고 후 다음 정상화 작업은 사용자 지시 대기(한 번에 하나씩)",
       "detail": null
+    },
+    {
+      "id": "SKILL-PILOT-001",
+      "title": "Matt Pocock Skills 시범(grill-with-docs·domain-modeling 절차만) — Business 등록·조회·수정",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-BIZ-001"
+      ],
+      "spec": "D-GOV-007, 사용자 적용 원칙 1~7(2026-11-25)",
+      "allowedWritePaths": [
+        "docs/governance/GOV-BIZ-001-*.md",
+        "harness/questions.json",
+        "harness/tasks.json",
+        "docs/DECISIONS.md",
+        "docs/rules/BIZ.md(용어 절 — 사용자 승인 후)"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "소스·시험·정책·전역 설정 변경 금지",
+        "평가 지표: 확정 정책 재질문 0, 허용 밖 파일 0, 새 발견 수, 시간·하네스 중복",
+        "BIZ.md '## 0. 용어 (사업자)' 25개 반영(사용자 승인 2026-11-25 '네'), D-GOV-008",
+        "후속(구현 별도): 화면 문구 정렬(등록일→최초 저장일, 비활성(사용중지)→사용중지, 번호 확인 명칭, 담당자 명칭, BUSINESS_NOT_ACTIVE 문구), 대장 BR 행 추가(첫 입력 면제·대표자 유형 단독), DOMAIN-DEFINITION §5 참조 전환",
+        "새 사실(biz-terms-draft §6): BusinessRegistrationNumber.kt:14 주석 stale, INACTIVE 등록 완료 거절 문구 '이미 등록 완료' 부정확, merchantCount 종료 포함"
+      ],
+      "nextResumeAction": "평가 보고 → 정식 도입 여부 사용자 결정",
+      "detail": null
     }
   ]
 }
