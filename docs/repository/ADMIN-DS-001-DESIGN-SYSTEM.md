@@ -117,7 +117,7 @@
   - 장식 구분선(line)과 카드 경계는 SC 1.4.11 대상이 아니다.
 - **알려진 미달**: control-border가 흰 바탕에서 약 1.2:1이고 다크에서 약 1.8:1이다.
   - B1은 이 값을 바꾸지 않는다. 대신 대비 시험에 **이름 붙은 미달 목록**(값·대비비·후속 배치 V1)으로 명시한다.
-  - V1에서 이 값을 보정한 뒤 목록을 비운다. 목록에 새 항목을 더하는 것은 리뷰 지적 대상이다.
+  - V1에서 이 값을 보정한 뒤 목록을 비운다. 목록에 새 항목을 더하는 것은 리뷰 지적 대상이다. **V1(2026-11-24)에서 보정해 목록을 비웠다 — §11.2.**
 - **새 토큰을 추가하는 조건**: 아래 셋을 모두 만족해야 한다.
   1. 기존 토큰으로 표현할 수 없다.
   2. 라이트·다크 값이 둘 다 있다.
@@ -318,6 +318,8 @@
 | 0.1 | 2026-11-22 | 최초 작성(D-PROC-003 해제 조건, D-ADMIN-UI-008 ①~③) |
 | 0.2 | 2026-11-22 | 독립 리뷰(CHANGES_REQUIRED) 반영. 재리뷰 REVIEW_PASS 뒤 MINOR 3건(줄 범위, §7.1 WorkspaceShell 범위, assetsInlineLimit 시험 부재) 반영 |
 | 0.2 | 2026-11-23 | 본문 규칙 변경 없음. §11.1 B1 배치 기록(토큰 이름 확정·결정·매핑표·캡처 요약·미결) 추가 |
+| 0.3 | 2026-11-24 | 본문 규칙 변경 없음. §11.2 V1 경계 대비 보정 배치 기록(바뀐 값 표·시험·캡처 판정) 추가. §4.3 알려진 미달은 V1에서 해소 |
+| 0.3a | 2026-11-25 | 본문 규칙 변경 없음. §11.2 V1 리뷰 반영: 12폭 캡처 2·§7.4 판정 항목별 결과(렌더 대비 검사 포함)·속성+선택자 분류·얇은 여유 쌍과 범위 밖 기존 미달·위치 이동 원인 |
 
 **0.2 반영 내용**
 
@@ -416,3 +418,54 @@
 - `.notice` 글자 대비 4.47:1(라이트) — 결정됨: V1 범위에 포함(값 변경, Demo 사용자 확인). 위 미달 목록.
 - Tailwind가 시험 파일 문자열을 utility 후보로 읽는다(위 "시험 안 토큰 이름"). B5에서 `@source not` 등으로 시험 파일을 소스 검색에서 빼는 방법을 검토한다.
 - §4.1 "두 곳에 같은 값" 시험(designTokens.test.ts `same` 목록)의 적용 범위: 지금은 styles.css shadcn token과 이름이 1:1로 대응하는 15쌍만 본다(`--sidebar-*`·`--chip-success-*`처럼 대응 토큰이 없거나 값이 다른 것은 대상 아님). 범위를 문서에 명시할지 B5 전까지 정한다.
+
+### 11.2 V1 경계 대비 보정 (ADMIN-DS-V1, 2026-11-24, 기준 `f03ac71`)
+
+**규칙**: 토큰 값만 바꿨다(규칙·class·새 토큰 없음). 색조(H)·채도(S)는 그대로 두고 HSL 명도(L)만 0.001 단위로 움직여, 실제로 놓이는 바탕 모두에서 기준을 넘는 가장 작은 변화로 정했다.
+
+| 토큰 | 전 | 후 | 대비 전 → 후 (바탕) | 쓰이는 곳 |
+|---|---|---|---|---|
+| `--ds-control-border` 라이트 | `#e2e8ef` | `#7592b3` | surface·input-bg 1.23 → 3.22, canvas 1.17 → 3.05, surface-subtle 1.16 → 3.03 (기준 3:1) | 시안 입력·선택(`.filters`·`.formrow`·`.modal`·`.rolebar`·`.matrix`·`.filtercontrol`) |
+| `--ds-control-border` 다크 | `#334155` | `#566e8f` | surface 1.68 → 3.33, input-bg·canvas 1.81 → 3.59, surface-subtle 1.51 → 3.00 | 같음 |
+| `--ds-control-border-btn` 라이트 | `#e3e8ef` | `#7991b3` | surface 1.23 → 3.22, canvas 1.17 → 3.06, surface-subtle 1.16 → 3.03 | `.btn`(목록·필터 묶음 버튼·날짜 칩 `.datechip`) |
+| `--ds-control-border-btn` 다크 | `#334155` | `#566e8f` | `--ds-control-border` 다크와 같음 | 같음 |
+| `--ds-text-muted` 라이트 | `#64748b` | `#637389` | surface-subtle 4.47 → 4.54(`.notice` 12px), surface 4.76 → 4.83, canvas 4.51 → 4.58 (기준 4.5:1) | 보조 글자 전체(표 보조·시각·label·small·`.notice`·`.mapnote` 등). `.notice` 실제 사용처 4곳은 글자색을 `text-foreground`로 덮어써 렌더 검사에는 4.47이 나타나지 않았다 — 이 보정은 토큰 수준 해소(재리뷰 NIT-1) |
+| styles.css `--input` 라이트·다크 | `#e2e8f0`·`#334155` | `#7592b3`·`#566e8f` | `--ds-control-border`와 같음 | shadcn `Input`·`NativeSelect`·`Textarea` 테두리(`border-input`). §4.1 "두 곳 같은 값" 시험에 `['--input','--ds-control-border']` 추가 |
+| styles.css `--muted-foreground` 라이트 | `#64748b` | `#637389` | `--ds-text-muted`와 같음 | shadcn 보조 글자·placeholder(`text-muted-foreground`) — 기존 같은 값 시험 그대로 |
+
+- 그대로 둔 것: `--ds-placeholder`(#64748b — 4.5:1 이미 통과), `--eyebrow`·`--sidebar-label`(styles.css #64748b — 별도 토큰), 장식 선 `--ds-line`(SC 1.4.11 대상 아님), 다크 `--ds-text-muted`(이미 통과).
+- **시험**: `designTokens.test.ts` 미달 목록(KNOWN_SHORTFALLS) 7항목 → 0. 대비 쌍 추가(검사 추가만): control-border / canvas·surface-subtle, control-border-btn / surface-subtle·canvas, 두 곳 같은 값 `--input` = `--ds-control-border`. RED: 옛 값 + 빈 목록 → 쌍 15개 미달·`--input` 불일치로 실패(`~/gate-logs/admin-ds-v1/red.log`). §7.1 보호 시험 무변경.
+- **캡처**(§7.4, `build/harness-evidence/ADMIN-DS-V1-capture-20261124T125052Z/`): 메뉴 모든 화면 20상태(로그인 전 2 + 운영자 16 + 승인자 2, 사업자 등록 2단계 포함) × 6폭 × 2테마 = 240쌍을 **같은 DOM**에서 served(전 CSS)·alt(후 CSS) 두 번 찍었다. 재빌드한 Demo의 CSS는 alt와 바이트 동일(`served-after-rebuild.css`).
+  - computed style 차이 12,368건 모두 "옛 토큰 색 → 새 값"(테마별 대응표)과 일치 — 예상 밖 0. 바뀐 요소는 위 표의 사용처뿐(`.btn` 테두리, 입력·선택 테두리, 보조 글자·placeholder·caret·아이콘 stroke).
+  - 픽셀 차이는 바뀐 요소 상자 안(±1px). 예외 셋: (1) 메뉴 검색 대화상자 12장 — `.overlay` `backdrop-filter: blur(2px)`가 바뀐 테두리를 몇 px 번지게 해 상자 밖 ±6px 안(±6px 밖 0); (2) `audit` 라이트 1440 첫 장 — 전 CSS 쪽 사이드바 메뉴가 22px 스크롤된 상태로 찍힘(탭 클릭 뒤 `nav` 내부 스크롤, 재촬영에서도 첫 장만 재현, 같은 상태의 다른 11장은 위치 동일 — 도구 순서 문제이며 CSS 차이 아님); (3) `business-detail` 다크 2장의 3px — 둥근 입력 모서리 안티에일리어싱으로 추정(색 변화가 새 테두리 색 혼합과 일치).
+  - 가로 넘침·style 속성·CSP 위반 0. 저장 호출 0(번호 조회 2회 — 사업자 등록 2단계).
+- 사용자용(1440, dsf 2, 라이트·다크 전후): `build/harness-evidence/ADMIN-DS-V1-capture-20261124T125052Z/user/` — 사업자 등록 2단계, 가맹점 목록 필터, 가맹점 상세 개요.
+
+**V1 리뷰 반영(2026-11-25 — 증거·문서만, 값·시험 무변경)**
+
+- **캡처 2**(`build/harness-evidence/ADMIN-DS-V1-capture2-20261124T221336Z/`): §7.4·D-ADMIN-UI-008 ④의 12폭(1440·1101·1100·**1024·1023·768·767**·721·720·**640·639**·390 — 첫 캡처에 없던 6폭 포함) × 2테마 × 20상태 = 480쌍. 재빌드한 Demo가 후 CSS를 내보내므로 이번에는 served = 후(`served-after.css`, V1 alt.css와 바이트 동일), alt = 전(`before.css`)로 같은 DOM에서 찍었다. 도구 `v1-capture2.mjs`(렌더 대비 검사 추가), 판정 `v1-analysis2.json`(`v1-analyze2.mjs`, ORIENT=reverse).
+- **§7.4 판정 항목별 결과**(캡처 2, 480쌍):
+
+  | 항목 | 결과 |
+  |---|---|
+  | 1. 가로 넘침 | 0(960장) |
+  | 2. style 속성·CSP 위반 | 0·0 |
+  | 3. 렌더된 글자/바탕·경계 대비 미달 | 전 3,384건 → 후 240건. 후 240건은 모두 사업자 상세 대표자 줄의 shadcn outline 버튼 '삭제'(테두리 = `--border`/`--ds-line` 장식 선 토큰 #e2e8f0·다크 #26324a, 1.23·1.36:1) — V1 대상 토큰이 아니고, 글자 '삭제'로 식별되는 버튼이라 SC 1.4.11 경계가 필수는 아니다(검사 규칙이 WCAG보다 엄격: 채움·테두리 어느 것도 3:1이 아니면 셈). 후속 후보로 남긴다(값 변경 없음). 글자 대비 미달: 전 24건(라이트 #64748b / #f5f7fa 4.43 — 가맹점 상세 '기본 MID' 배지) → 후 0. |
+  | 4. 테마 불일치 | 0 |
+  | 5. 예상 외 차이 | computed style 24,640건 모두 아래 속성+선택자 규칙 안 — 예상 외 0. 위치 이동 24건(아래 MINOR-3). 바뀐 상자 밖 픽셀: 메뉴 검색 대화상자 24장은 ±6px 안(blur), ±6px 밖 16px = audit 라이트 768 10px(파란 버튼 글리프 색 채널 ±1 — 래스터화 흔들림)·business-detail 3장 6px(같은 ±1~5 흔들림/모서리 안티에일리어싱 추정) |
+
+  - 렌더 대비 검사 방법·한계: 화면에 보이는 모든 요소의 직접 글자(입력값·placeholder 포함)와 입력·선택·`.btn`·shadcn 버튼 경계를 셌다(검사 35,464건/쪽 변형). 바탕은 DOM 조상 배경색을 알파 합성해 정한다 — 배경 이미지가 끼면 "알 수 없음"으로 빼는데 0건이었다. 비활성(disabled·aria-disabled·opacity<1)은 SC 예외라 뺐다. 위치 지정으로 DOM 조상과 다른 바탕 위에 그려지는 요소, 찍지 않은 상태(대화상자 열림 등 일부)는 계산 밖이다. 큰 글자 기준 3:1(24px 이상 또는 18.66px·700 이상).
+  - 불안정 촬영 2장(같은 장면을 5번 찍어도 연속 두 장이 같지 않음: businesses 다크 390 전, business-detail 라이트 1100 후) — 판정은 마지막 장으로 했다.
+  - 저장 호출 0(POST는 검색·라벨 조회·간편 로그인·번호 조회 1회).
+- **MINOR-1 분류**: 색 값만이 아니라 "토큰 → 허용 속성 + 선택자" 규칙으로 판정했다(첫 캡처도 같은 규칙으로 다시 판정 — 예상 외 0).
+  - `--ds-control-border` #e2e8ef → #7592b3: border-*-color, input·select·textarea만(1,296건)
+  - `--input` #e2e8f0 → #7592b3: border-*-color, input·select·textarea만(1,920건) — 같은 #e2e8f0을 쓰는 `--border`·`--ds-line`·`--sidebar-border` 요소가 바뀌었다면 버튼·div 등에서 걸린다(0건)
+  - `--ds-control-border-btn` #e3e8ef → #7991b3: border-*-color, `.btn`만(3,024건)
+  - `--ds-text-muted`/`--muted-foreground` #64748b → #637389: color·caret·stroke·fill·placeholder(12,160건) — 같은 #64748b를 쓰는 `--ds-placeholder`·`--eyebrow`·`--sidebar-label`은 값이 그대로라 차이를 만들 수 없다(전·후 CSS 차이는 토큰 선언 8줄뿐 — `served.css`/`alt.css` 비교). 한계: 이 규칙은 "글자 색 속성 어디서나"를 허용하므로, 어떤 요소가 어느 토큰에서 #64748b를 받았는지까지는 구별하지 않는다(CSS 선언 차이로 보증).
+  - 다크 #334155 → #566e8f: border-*-color, 입력·선택·`.btn`만(6,240건)
+- **MINOR-2 여유가 얇은 쌍·범위 밖 기존 미달**(이번에 시험 추가 없음):
+  - 얇은 여유: 다크 control-border / surface-subtle 3.001(표시 3.00), 라이트 `--muted-foreground` / #f5f7fa(`--ds-surface-muted`·shadcn `--muted`) 4.504. 값을 다시 움직이면 먼저 깨질 쌍이다.
+  - PAIRS에 없는 shadcn 조합: `--muted-foreground` × `--muted`·`--secondary`·`--chip-info-bg`.
+  - **범위 밖 기존 미달**: 라이트 `--muted-foreground` / #edf4ff(`--chip-info-bg`·`--ds-brand-soft` 계열) 4.37:1(옛 값 4.29 — V1로 나아졌고 회귀 아님). V1 범위(control-border·.notice)가 아니어서 값은 그대로 두고 후속 항목으로 남긴다.
+- **MINOR-3 위치 이동 24건**: 두 캡처 모두 `audit` 라이트 1440 한 장뿐이고, 24건 전부 사이드바 메뉴(`nav#nav` 안 — x 18~217, y 145.5~576) 버튼·아이콘·묶음 이름이 22px 위아래로 옮겨진 것이다. 원인은 그 상태 첫 촬영에서 메뉴 클릭 뒤 `nav` 안쪽 스크롤이 남아 있던 것(첫 캡처는 전 쪽, 캡처 2는 served = 후 쪽 — 어느 CSS든 먼저 찍힌 쪽에만 생긴다). 같은 상태의 다른 11장은 위치가 같아 CSS 차이가 아니다.
+

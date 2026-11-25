@@ -42,15 +42,17 @@
   --ds-line-timeline:#e8effb;
   --ds-line-step:#eaf0f7;
   --ds-banner-border:#e0ebfd;
-  --ds-control-border:#e2e8ef;
-  --ds-control-border-btn:#e3e8ef;
+  /* ADMIN-DS-V1(SC 1.4.11 3:1 — 색조·채도 유지, 명도만 낮춤 — §11.2): #e2e8ef → #7592b3, #e3e8ef → #7991b3 */
+  --ds-control-border:#7592b3;
+  --ds-control-border-btn:#7991b3;
   /* 글자 */
   --ds-text-heading:#0f172a;
   --ds-text-body:#334155;
   --ds-text-secondary:#475569;
   --ds-text-workspace:#475569;
   --ds-text-quiet:#475569;
-  --ds-text-muted:#64748b;
+  /* ADMIN-DS-V1(.notice 글자 / surface-subtle 4.47 → 4.5:1 — 명도만, §11.2): #64748b → #637389 */
+  --ds-text-muted:#637389;
   --ds-text-muted-strong:#617086;
   --ds-placeholder:#64748b;
   --ds-eyebrow:#526984;
@@ -131,8 +133,9 @@
   --ds-line-timeline:#26324a;
   --ds-line-step:#26324a;
   --ds-banner-border:#23406e;
-  --ds-control-border:#334155;
-  --ds-control-border-btn:#334155;
+  /* ADMIN-DS-V1(다크 SC 1.4.11 3:1 — 명도만 높임, §11.2): #334155 → #566e8f */
+  --ds-control-border:#566e8f;
+  --ds-control-border-btn:#566e8f;
   --ds-text-heading:#f1f5f9;
   --ds-text-body:#dbe4f0;
   --ds-text-secondary:#cbd5e1;

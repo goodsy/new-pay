@@ -41,7 +41,7 @@
   --secondary: #f5f7fa;
   --secondary-foreground: #263445;
   --muted: #f5f7fa;
-  --muted-foreground: #64748b;
+  --muted-foreground: #637389; /* ADMIN-DS-V1: --ds-text-muted와 같은 값(§4.1 두 곳 같은 값 — 시험) */
   --accent: #f5f7fa;
   --accent-foreground: #263445;
   --destructive: oklch(0.577 0.245 27.325);
@@ -50,7 +50,7 @@
   --success: oklch(0.527 0.154 150.069);
   --warning: oklch(0.666 0.179 58.318);
   --border: #e2e8f0;
-  --input: #e2e8f0;
+  --input: #7592b3; /* ADMIN-DS-V1: 입력 테두리 = --ds-control-border(SC 1.4.11 3:1, §4.1 두 곳 같은 값 — 시험) */
   --table-head: #f9fafc;
   --chip-info-bg: #edf4ff;
   --chip-info-fg: #1d4ed8;
@@ -95,7 +95,7 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --border: #26324a;
-  --input: #334155;
+  --input: #566e8f; /* ADMIN-DS-V1: = --ds-control-border 다크 */
   --table-head: #18233a;
   --chip-info-bg: #172b4d;
   --chip-info-fg: #93c5fd;

@@ -51,6 +51,11 @@ const PAIRS: [string, string, number, string][] = [
   ['--ds-text-muted-strong', '--ds-surface-muted', 4.5, 'kbd(라이트 대비 보정)'],
   ['--ds-text-muted-strong', '--ds-brand-soft', 4.5, '안내 띠 설명(라이트 대비 보정)'],
   ['--ds-placeholder', '--ds-input-bg', 4.5, '입력 placeholder'],
+  // ADMIN-DS-V1(검사 추가만): 입력·버튼 경계가 실제 놓이는 다른 바탕(쪽 바탕·보조 바탕 — 로그인 칸, 필터 묶음 버튼 줄 등).
+  ['--ds-control-border', '--ds-canvas', 3, '쪽 바탕 위 입력 경계'],
+  ['--ds-control-border', '--ds-surface-subtle', 3, '보조 바탕 위 입력 경계'],
+  ['--ds-control-border-btn', '--ds-surface-subtle', 3, '필터 묶음 버튼 줄(.filteractions)·보조 바탕 위 버튼 경계'],
+  ['--ds-control-border-btn', '--ds-canvas', 3, '쪽 바탕 위 버튼 경계'],
   // MERCHANT-IA-001 B6 리뷰 NIT-4(검사 추가만): 목록 필터 묶음 칸 안(.filtercontrol 바탕 = --ds-input-bg)의 오류·설명 글자.
   ['--ds-tone-danger-fg', '--ds-input-bg', 4.5, '필터 묶음 칸 오류(.filtererror)'],
   ['--ds-text-muted', '--ds-input-bg', 4.5, '필터 묶음 칸 설명(.filterhint)·기간 ~'],
@@ -85,16 +90,9 @@ const PAIRS: [string, string, number, string][] = [
  * 알려진 미달(§4.3): 값은 B1에서 바꾸지 않는다. 목록에 새 항목을 더하는 것은 리뷰 지적 대상이다. 보정 배치에서 값을 고친 뒤 비운다.
  * 각 항목은 실제로 아직 미달이어야 한다(고쳤는데 남은 항목도 실패).
  */
-const KNOWN_SHORTFALLS: { pair: string; theme: Theme; followUp: string }[] = [
-  { pair: '--ds-control-border / --ds-input-bg', theme: 'light', followUp: 'V1' },
-  { pair: '--ds-control-border / --ds-input-bg', theme: 'dark', followUp: 'V1' },
-  { pair: '--ds-control-border / --ds-surface', theme: 'light', followUp: 'V1' },
-  { pair: '--ds-control-border / --ds-surface', theme: 'dark', followUp: 'V1' },
-  { pair: '--ds-control-border-btn / --ds-surface', theme: 'light', followUp: 'V1' },
-  { pair: '--ds-control-border-btn / --ds-surface', theme: 'dark', followUp: 'V1' },
-  // B1 대비 계산에서 처음 드러난 기존 값(.notice 12px 글자 / 바탕 = 4.47:1). Coordinator 결정: 목록 추가 수용, V1 범위에 포함(값 변경, Demo 사용자 확인) — ADMIN-DS-001 §11.1.
-  { pair: '--ds-text-muted / --ds-surface-subtle', theme: 'light', followUp: 'V1 범위에 포함(값 변경, Demo 사용자 확인)' },
-]
+// ADMIN-DS-V1(값 변경 배치 — ADMIN-DS-001 §8·§11.2): control-border·control-border-btn(라이트·다크)과 .notice 글자(text-muted / surface-subtle)를 보정해 목록을 비웠다.
+// 목록에 새 항목을 더하는 것은 리뷰 지적 대상이다(§4.3).
+const KNOWN_SHORTFALLS: { pair: string; theme: Theme; followUp: string }[] = []
 
 /** 대비 쌍이 아닌 색 토큰(이유): 장식 선(SC 1.4.11 대상 아님)·반투명 scrim·시안 그대로 둔 표 안 선택 상자 강조색. */
 const NOT_A_PAIR: Record<string, string> = {
@@ -146,7 +144,7 @@ describe('ADMIN-DS-B1 §7.3 — token contrast (WCAG 2.1 AA, light and dark)', (
       ['--brand', '--ds-brand', ['light']], ['--primary', '--ds-brand', ['light', 'dark']], ['--ring', '--ds-focus-ring', ['dark']],
       ['--canvas', '--ds-canvas', THEMES], ['--card', '--ds-surface', THEMES], ['--heading', '--ds-text-heading', THEMES], ['--foreground', '--ds-text-body', THEMES],
       ['--subtle', '--ds-text-secondary', THEMES], ['--muted-foreground', '--ds-text-muted', THEMES], ['--border', '--ds-line', THEMES], ['--table-head', '--ds-table-head', THEMES],
-      ['--chip-info-bg', '--ds-tone-info-bg', THEMES], ['--chip-info-fg', '--ds-tone-info-fg', THEMES], ['--chip-warning-bg', '--ds-tone-warning-bg', THEMES], ['--chip-warning-fg', '--ds-tone-warning-fg', THEMES],
+      ['--input', '--ds-control-border', THEMES] /* ADMIN-DS-V1: shadcn 입력 테두리도 같은 값 */, ['--chip-info-bg', '--ds-tone-info-bg', THEMES], ['--chip-info-fg', '--ds-tone-info-fg', THEMES], ['--chip-warning-bg', '--ds-tone-warning-bg', THEMES], ['--chip-warning-fg', '--ds-tone-warning-fg', THEMES],
     ]
     for (const [shadcnName, token, themes] of same) for (const theme of themes) expect(t(theme, token), `${shadcnName} ${theme}`).toBe(shadcn(theme, shadcnName))
   })
