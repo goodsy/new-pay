@@ -1190,6 +1190,30 @@
       ],
       "nextResumeAction": "S2 결정 완료(D-GOV-001~006). 다음: CLAUDE.md:42 문구 사용자 확인 → S3 문서 정합(대장 제안 119 일괄 확인, 결정 역참조, baseline 대체 표, 명세 stale) → S4 관문·RULE-TRACE → S5 보안 선행 작업(HMAC·카드번호)",
       "detail": null
+    },
+    {
+      "id": "GOV-BIZ-001",
+      "title": "정상화 1번: Business 등록·조회·수정 기능 정합성 확인(분석 보고서만)",
+      "status": "IN_PROGRESS",
+      "phase": "PROCESS",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-DIAG-001"
+      ],
+      "spec": "사용자 지시 2026-11-25 '정상화 작업을 한 번에 하나씩 — 이번은 Business 등록·조회·수정 정합성 확인만', 구현·리팩터링·테스트 변경 없음, 정책 변경 금지, 다른 도메인 제외(직접 선행 조건만)",
+      "allowedWritePaths": [
+        "docs/governance/GOV-BIZ-001-*.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "산출물 docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md rev 0.1a — 독립 리뷰 재리뷰 APPROVED(NIT 2 반영)",
+        "불일치 7(P0 2 G-01·G-02, P3 1 G-03, P4 4), 최소 수정 M-1~M-8(대부분 결정 완료 — 시행만), 새 사용자 질문 없음(Q-2 → D-GOV-005 ④ 일괄 확인, Q-3 Q-PII-5·7 LIVE Gate 등록)",
+        "Coordinator 구현 결정: 지문 전체 비밀 키 HMAC(M-2)"
+      ],
+      "nextResumeAction": "사용자 보고 후 다음 정상화 작업은 사용자 지시 대기(한 번에 하나씩)",
+      "detail": null
     }
   ]
 }
