@@ -10,30 +10,30 @@
 사업자 기능의 정식 용어. 형식 `**용어**: 정의. _Avoid_: 피할 말` — 정의에 구현 세부는 넣지 않는다. 근거는 결정 ID. 화면 문구가 아직 이 용어와 다른 곳은 GOV-BIZ-001·SKILL-PILOT-001 후속 구현 대상이다.
 
 - **사업자**: PayCore에 등록된 개인·법인 사업자. 여러 가맹점을 가질 수 있다. _Avoid_: 사업 주체, 회사, 법인(개인사업자 포함), 가맹점. — D-GOV-008 ⑨
-- **사업자등록번호**: 국세청이 부여한 숫자 10자리 번호. 사업자 하나에 하나이며 저장 뒤 바꾸지 않고, 사업자를 가리키는 식별자로 쓰지 않는다. `000-00-00000` 모양은 관리자 화면 표시일 뿐이다. _Avoid_: 사업자번호, 등록번호, 사업자 ID. — D-MD-008, D-BIZ-005·007, D-PII-001
-- **사업자 키**: 시스템 내부 식별자. 요청·응답에만 쓰고 화면에 보이지 않는다. _Avoid_: 사업자 ID(화면). — D-ADMIN-UI-004 ③
+- **사업자등록번호**: 국세청이 부여한 숫자 10자리 번호. `000-00-00000` 모양은 관리자 화면 표시일 뿐이다(유일·불변·식별자 미사용은 BR-BIZ-003·004·034). _Avoid_: 사업자번호, 등록번호, 사업자 ID. — D-MD-008, D-BIZ-005·007, D-PII-001
+- **사업자 키**: 시스템 내부 식별자(화면 노출 규칙은 BR-BIZ-034). _Avoid_: 사업자 ID(화면). — D-ADMIN-UI-004 ③
 - **상호**: 사업자등록증에 적힌 사업자 이름. _Avoid_: 사업자명, 회사명, 가맹점 이름. — D-BIZ-002
 - **사업체 구분**: 개인사업자인지 법인사업자인지. _Avoid_: 사업자 유형, 업태. — D-BIZ-002
 - **업태·종목**: 사업자등록증의 업종 표시(각 여러 개). _Avoid_: 사업체 구분, 업종분류(계약 접수 리스크 표시 항목). — D-FLOW-003 ⑥
-- **대표자 유형**: 대표자가 단독·공동·각자 중 어느 방식인지. 단독은 대표자가 1명일 때만이다. _Avoid_: 대표자 구분. — D-GOV-008 ⑧
+- **대표자 유형**: 대표자가 단독·공동·각자 중 어느 방식인지. _Avoid_: 대표자 구분. — D-GOV-008 ⑧ (조합 규칙은 BR-BIZ-309)
 - **등록 담당자**: 사업자 측에서 PayCore와 연락하는 사람. 그중 한 명이 **기본 등록 담당자**다. _Avoid_: 담당자(단독), 기본 담당자, 연락처. — D-GOV-008 ④
 - **계약 담당자**: 계약 접수 건을 맡은 PayCore 내부 관리자. _Avoid_: 담당자(단독), 등록 담당자. — D-FLOW-003 ⑤, D-FLOW-004 ③
 - **등록 상태**: 기본정보 입력이 어디까지 끝났는지의 축 — 임시저장 / 등록 완료 / 사용중지. 생명주기와 별개다. _Avoid_: 상태(단독), 활성/비활성. — D-BIZ-001
-- **임시저장**: 사업체 구분·사업자등록번호·상호만으로 저장해 둔 등록 상태. 새 가맹점을 등록할 수 없다. _Avoid_: 초안, 미등록. — D-BIZ-001·002
+- **임시저장**: 필수 기본정보를 다 채우기 전 저장해 둔 등록 상태(최소 입력 BR-BIZ-009, 가맹점 등록 관문 BR-BIZ-022). _Avoid_: 초안, 미등록. — D-BIZ-001·002
 - **등록 완료**: 필수 기본정보를 갖춘 등록 상태. 진위확인·AML/KYB·계약 승인이 아니다. _Avoid_: 승인, 검증 완료, 계약 완료. — D-BIZ-001
-- **사용중지**: 등록 완료 사업자를 내부 관리상 멈춘 등록 상태. 결제·정산 정지가 아니다. 사용중지 사업자는 수정할 수 없다. _Avoid_: 비활성, 비활성화, 정지. — D-GOV-008 ①, D-GOV-005 ②
+- **사용중지**: 사업자를 내부 관리상 멈춘 등록 상태(대상 범위는 생명주기 작업 때 결정 — SKILL-PILOT-001 QT-10). 결제·정산 정지가 아니다. _Avoid_: 비활성, 비활성화, 정지. — D-GOV-008 ① (수정 거절 규칙은 BR-BIZ-311)
 - **생명주기**: 사업자가 존속하는지의 축 — 사용 중 / 종료. _Avoid_: 등록 상태, 활성/비활성. — D-MD-006, D-BIZ-001
-- **종료**: 생명주기가 끝난 사업자. 되돌릴 수 없고 사용중지와 다른 축이다. _Avoid_: 비활성, '활성 상태가 아닌', 해지. — D-GOV-008 ①
+- **종료**: 생명주기가 끝난 사업자. 사용중지와 다른 축이다(비가역 규칙은 BR-BIZ-007). _Avoid_: 비활성, '활성 상태가 아닌', 해지. — D-GOV-008 ①
 - **사업자 등록**: 새 사업자를 처음 저장하는 일(임시저장 포함). 등록 완료와 다르다. _Avoid_: 생성, 등록 완료. — D-GOV-008 ②
 - **최초 저장일**: 사업자를 처음 저장한 날. 등록 완료한 날이 아니다. _Avoid_: 등록일, 등록 완료일. — D-GOV-008 ②
 - **등록 여부 확인**: 사업자등록번호가 PayCore에 이미 있는지 보는 내부 조회(등록 1단계). 목록·가맹점 쪽 같은 조회는 **번호 조회**라 한다. 외부 진위확인이 아니다. _Avoid_: 번호 확인, 중복확인, 번호 검색. — D-GOV-008 ③, D-ADMIN-UI-011 ①
-- **진위확인**: 외부 기관에서 사업자등록번호의 실재·영업상태를 확인한 결과. 지금은 미검증뿐이고 통신 실패를 성공으로 보지 않는다. _Avoid_: 등록 여부 확인, 등록 완료. — BR-BIZ-013
-- **중요정보**: 바꿀 때 사유와 변경 전후 이력이 반드시 남는 정보(상호·대표자·개업일·법인등록번호 등). 개업일·법인등록번호를 처음 입력하는 것은 일반정보다. _Avoid_: 민감정보, 개인정보. — BR-BIZ-016, D-GOV-008 ⑦
-- **사유 및 비고**: 한 번 저장할 때 함께 적는 공통 칸 하나. 사유 필수 항목이 있으면 필수, 없으면 선택이다. 카드번호처럼 보이는 글은 받지 않는다. _Avoid_: 변경 사유, 메모. — D-FLOW-006, D-FLOW-007 ①
+- **진위확인**: 외부 기관에서 사업자등록번호의 실재·영업상태를 확인한 결과. (현재 상태·실패 처리 규칙은 BR-BIZ-013). _Avoid_: 등록 여부 확인, 등록 완료. — BR-BIZ-013
+- **중요정보**: 바꿀 때 사유와 변경 전후 이력이 반드시 남는 정보. 범위는 BR-BIZ-016, 첫 입력 예외는 BR-BIZ-310. _Avoid_: 민감정보, 개인정보. — BR-BIZ-016, D-GOV-008 ⑦
+- **사유 및 비고**: 한 번 저장할 때 함께 적는 공통 칸 하나. 필수 여부·입력 검사는 BR-BIZ-304·305. _Avoid_: 변경 사유, 메모. — D-FLOW-006
 - **변경 이력**: 언제 누가 무엇을 바꿨는지의 기록(개인정보는 가린 값). _Avoid_: 감사 기록(열람·조회·명령 시도를 남기는 별도 기록). — BR-BIZ-040·043, D-PII-001
-- **연결 가맹점**: 그 사업자에 속한 가맹점. 탭·목록의 수는 종료된 가맹점을 포함하고, 계약 해지 안내의 수는 종료되지 않은 가맹점만 센다. _Avoid_: 하위 가맹점, 관련 가맹점. — D-GOV-008 ⑤
+- **연결 가맹점**: 그 사업자에 속한 가맹점. 화면별 개수 기준은 BR-BIZ-312. _Avoid_: 하위 가맹점, 관련 가맹점. — D-GOV-008 ⑤
 - **계약 완료**: 계약 접수 건에서 계약서 수령까지 끝났다는 영업 기록. 결제 허용 근거가 아니다(결제 허용은 가맹점 계약 승인). _Avoid_: 계약 승인, 승인. — D-FLOW-001, D-GOV-008 ⑥
-- **계약 해지**: 계약 접수 건을 끝내는 기록. 새 가맹점 등록만 막고 기존 가맹점은 바꾸지 않는다. _Avoid_: 사업자 종료, 계약 철회. — D-FLOW-003 ②
+- **계약 해지**: 계약 접수 건을 끝내는 기록(효과 규칙은 BR-BIZ-281). _Avoid_: 사업자 종료, 계약 철회. — D-FLOW-003 ②
 
 ## 1. 사업자(Business) 기본정보·상태
 
@@ -54,7 +54,7 @@
 | BR-BIZ-013 | 진위확인 결과는 등록 상태와 별도 속성이며, 연동 전에는 NOT_CHECKED만 가능하고 외부기관 통신 실패를 검증 성공으로 보지 않는다 | 확정 | 기준 | POL POL-002·POL-005, TBD-06 | BUSINESS-PROFILE-001 §3.3 | BusinessProfileChangeSpec(M)::TC-21 NOT_CHECKED only; BusinessSchemaSpec(M)::NOT_CHECKED 외 3819 |
 | BR-BIZ-014 | 상태 전이는 생성→DRAFT/REGISTERED, DRAFT→DRAFT, DRAFT→REGISTERED, REGISTERED→REGISTERED만 허용하고, 등록 완료는 DRAFT에서만 된다(REGISTERED 재요청은 BUSINESS_NOT_DRAFT) | 확정 | 기준 | DEV §4, POL §4 | BUSINESS-PROFILE-001 §4.4 | BusinessProfileChangeSpec(M)::M-1 REGISTERED는 다시 완료 불가; BusinessProfileApiSpec(M)::다른 키 BUSINESS_NOT_DRAFT |
 | BR-BIZ-015 | INACTIVE 전이·재활성화는 정책(TBD-08) 결정 전까지 만들지 않으며, INACTIVE가 생겨도 결제·정산 정지로 연결하지 않는다 | 확정 | 기준 | POL §4·POL-006, DEV §4, TBD-08 | BUSINESS-PROFILE-001 §3.3·§4.4 | 없음 |
-| BR-BIZ-016 | 상호·대표자·개업일·법인등록번호 등 중요정보 변경에는 사유가 필수이고 변경 전후 이력을 남긴다(일반정보 변경은 사유 선택) | 확정 | 기준 | POL POL-004 | BUSINESS-PROFILE-001 §4.5 | BusinessProfileServiceSpec(M)::TC-12 일반 변경 사유 없이 성공, TC-13 중요 변경 사유 없으면 거절 |
+| BR-BIZ-016 | 상호·대표자·개업일·법인등록번호 등 중요정보 변경에는 사유가 필수이고 변경 전후 이력을 남긴다(일반정보 변경은 사유 선택, 첫 입력 예외는 BR-BIZ-310) | 확정 | 기준 | POL POL-004 | BUSINESS-PROFILE-001 §4.5 | BusinessProfileServiceSpec(M)::TC-12 일반 변경 사유 없이 성공, TC-13 중요 변경 사유 없으면 거절 |
 | BR-BIZ-017 | 사업체 구분 변경과 REGISTERED 사업자의 대표자 추가만 하는 변경도 중요정보 변경으로 본다 | 제안 | 적용 | BUSINESS-PROFILE-001 C-12·M-2(Coordinator·리뷰) | BUSINESS-PROFILE-001 §4.5 | BusinessProfileChangeSpec(M)::TC-13 구분 변경 중요, M-2 대표자 추가만도 중요 |
 | BR-BIZ-018 | 중요정보 변경은 2인 승인·재검증 없이 OPERATOR 1인 + 사유 + 전후 이력으로 처리한다(TBD-07 결정 전 기본값) | 제안 | 적용 | POL TBD-07, BUSINESS-PROFILE-001 §3.3 | BUSINESS-PROFILE-001 §3.3 | BusinessProfileServiceSpec(A)::CREATE=UPDATE=COMPLETE={OPERATOR} |
 | BR-BIZ-019 | 사업자 수정은 version 비교로 동시 수정 덮어쓰기를 거절한다(BUSINESS_VERSION_CONFLICT) | 확정 | 기준 | POL POL-004, DEV §8 | BUSINESS-PROFILE-001 §4.5 | BusinessProfileConcurrencySpec(M)::1건 성공 1건 VERSION_CONFLICT; BusinessProfileChangeSpec(M)::version 불일치 거절 |
@@ -63,6 +63,10 @@
 | BR-BIZ-022 | 새 가맹점 등록은 REGISTERED 사업자만 허용하고(DRAFT는 BUSINESS_NOT_REGISTERED), 이미 있는 가맹점·계약·MID의 후속 명령은 등록 상태의 영향을 받지 않는다 | 확정 | 사용자 | D-BIZ-001 | BUSINESS-PROFILE-001 §4.4·§6.7 | MerchantRegistrationGateSpec(M)::DRAFT 거절; MerchantRegistrationGateUseCaseSpec(M)::기존 가맹점 후속 명령 성공; MerchantRegistrationGateApiSpec(M)::DRAFT REJECTED |
 | BR-BIZ-023 | 사업자 상호(개인 이름 포함 가능)는 마스킹하지 않는다 | 미결(Q-PII-7) | — | PII-MASKING-POLICY §7.3·§8 | BUSINESS-PROFILE-001 L-3 | 없음 |
 | BR-BIZ-024 | 사업자 개인정보(종료 행·이력·감사·백업)의 보관·파기 기간은 결정 전까지 파기 기능 없이 보관한다 | 미결(Q-PII-5) | — | POL POL-006, D-FLOW-002 ④ | BUSINESS-PROFILE-001 §3.3 | 없음 |
+| BR-BIZ-309 | 대표자 유형 '단독'은 현재 대표자가 1명일 때만 쓰고, 공동·각자는 한 사업자 안에서 섞일 수 있다 | 제안 | 적용 | D-GOV-008 ⑧(대장 행 추가 후 D-GOV-005 ④ 일괄 확인에서 현행 유지 확인 예정), BUSINESS-PROFILE-001 §4.3 C-22 | BUSINESS-PROFILE-001 §4.3 | BusinessProfileRulesSpec(M)::SOLE means exactly one representative; JOINT/EACH mixes are allowed (C-22) |
+| BR-BIZ-310 | 개업일·법인등록번호를 처음 입력하는 저장은 일반정보 변경으로 보아 사유를 요구하지 않는다(이미 값이 있을 때 바꾸면 중요정보) | 제안 | 적용 | D-GOV-008 ⑦(대장 행 추가 후 D-GOV-005 ④ 일괄 확인에서 현행 유지 확인 예정), BUSINESS-PROFILE-001 §4.5 | BUSINESS-PROFILE-001 §4.5 | BusinessProfileChangeSpec(M)::first input is general |
+| BR-BIZ-311 | 사용중지(INACTIVE) 사업자의 정보 수정은 업무 거절로 처리한다 | 확정 | 사용자 | D-GOV-005 ②(U-09 권장안 원문 '그 전 INACTIVE 수정은 업무 거절'), GOV-BIZ-001 M-3 | BUSINESS-PROFILE-001 §4.4 | 없음(미구현 — GOV-BIZ-001 G-03) |
+| BR-BIZ-312 | 사업자의 연결 가맹점 수는 연결 가맹점 탭·목록에서는 종료된 가맹점을 포함하고, 계약 해지 안내에서는 종료되지 않은 가맹점만 센다 | 확정 | 사용자 | D-GOV-008 ⑤ | MERCHANT-FLOW-001 §4A.3 | 없음 |
 
 ## 2. 사업자등록번호·사업자 개인정보 노출·조회 감사
 
@@ -330,6 +334,10 @@ FLOW 배치는 미병합(wip/flow-1 보존)이라 아래 규칙의 검증은 모
 9. `docs/repository/MERCHANT-BIZ-LOOKUP-001-BUSINESS-LOOKUP.md`: 수용 기준 "권한 OPERATOR"·응답 마스킹 — D-BIZ-006 ①③·D-BIZ-007로 변경(작업은 BACKLOG로 남아 있으나 D-BIZ-004로 BUSINESS-PROFILE-001에 합쳐짐 — tasks 상태와 결정 불일치).
 10. `docs/repository/PII-MASKING-POLICY.md` §7.3·§8 Q-PII-6: "결정 없음"으로 남아 있음 — D-FLOW-007 ①(2026-11-25)로 닫힘.
 11. `MASTER-SNAPSHOT-001` §4.4: "재심사 허용 여부는 새 질문 후보 Q-MS-05" — D-MS-005로 답해짐.
+
+12. BR-BIZ-309(제안): 정책서 POL §5는 대표자 유형을 공동·각자만 정의('단독' 없음) — 일괄 확인 시 정책서 대체 표 대상.
+13. BR-BIZ-310(제안): POL-004는 개업일자를 단서 없이 중요정보로 적음 — 첫 입력 예외 반영 여부는 일괄 확인 결과로.
+14. 용어 정본 이동(D-GOV-008 ⑨) 후속: DOMAIN-DEFINITION §3.1(:93) Business 정의 '법적 사업 주체', MASTER-DOMAIN-001:75·193의 DD 용어 참조, NORMALIZATION-PLAN:272(Glossary 정본 = DD 제안)는 기준선 문서 정리(S3) 때 BIZ.md §0 참조로 전환.
 
 ### (d) 시험 없는 확정 규칙
 

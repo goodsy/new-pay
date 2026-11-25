@@ -90,7 +90,7 @@ flowchart LR
 
 | 개념 | 정의 | 핵심 규칙 | 상태 |
 |---|---|---|---|
-| Business | 법적 사업 주체. Merchant/Agent/Seller 역할을 가질 수 있다 | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다. 국내 사업자등록번호로 하나(10자리 숫자, 평문 로그·이벤트 금지·이력은 마스킹, D-MD-008). 계약 당사자(D-MD-004). 생명주기 ACTIVE/TERMINATED + 별도 신규 결제 차단 기록(D-MD-006) | 확정(초기, D-MD-004·006·008) |
+| Business | 법적 사업 주체(정식 용어 '사업자' — 정의 정본 `docs/rules/BIZ.md` §0). Merchant/Agent/Seller 역할을 가질 수 있다 | 하나의 Business가 복수 Merchant를 가질 수 있다. 같은 사업자의 모든 브랜드를 한 Merchant로 강제하지 않는다. 국내 사업자등록번호로 하나(10자리 숫자, 평문 로그·이벤트 금지·이력은 마스킹, D-MD-008). 계약 당사자(D-MD-004). 생명주기 ACTIVE/TERMINATED + 별도 신규 결제 차단 기록(D-MD-006) | 확정(초기, D-MD-004·006·008) |
 | Merchant | PG 서비스를 받는 가맹점 단위 | Merchant 1:N MerchantSite, 1:N MerchantAccount(MID) | 확정(구조 §13) |
 | MerchantSite | 결제가 일어나는 채널(웹·앱 등) | 같은 Merchant 소속 MID와만 연결. 활성 채널 식별값은 같은 Merchant 안·다른 Merchant와 중복 거절(D-MD-008, 예외 승인 기록은 후속). 식별값은 소문자 정규형만(WEB = 도메인 host만, IP 리터럴 거절, 서브도메인은 다른 채널 — D-MD-009·014) | 확정 |
 | MerchantAccount (MID) | 계약 단위 결제 계정. 발급 근거 계약 서비스 하나와 Revision을 명시한다 | 하나의 Merchant에만 속한다(다른 Merchant 간 공유 금지). BusinessId·카드사 가맹점번호·GID와 다른 개념. MID 하나 = 계약 계정이고 TEST/LIVE는 Credential·요청 축, 발급 MID는 모두 Production MID(계약 승인 필수, D-MD-003). 생명주기 ACTIVE/TERMINATED(비가역) + 별도 차단 기록(D-MD-006) | 확정(초기·구조 §8, D-MD-003·006) |
@@ -208,7 +208,7 @@ TX2 실패나 응답 유실 시에는 새 승인을 보내지 않는다. 원 Att
 |---|---|---|---|---|
 | 1차 PG | — | 가맹점과 직접 계약하고 기관과 직접 연동하는 PG | — | 초기 |
 | 가맹점 | Merchant | PG 서비스를 받는 가맹 단위. Business의 역할 | Business(법적 주체)와 다름 | 초기, A00 |
-| 사업 주체 | Business | 법적 사업 주체. Merchant/Agent/Seller 역할 | — | A00 |
+| 사업자 | Business | 정의 정본: `docs/rules/BIZ.md` §0 용어(D-GOV-006 ②·D-GOV-008 ⑨). 이 표는 참조만 | '사업 주체'(옛 표현) | A00, D-GOV-008 ⑨ |
 | 사이트 | MerchantSite | 결제 채널(웹·앱) | — | 구조 |
 | MID | MerchantAccount, merchantAccountId | 계약 단위 결제 계정 | 카드사 가맹점번호·BusinessId·GID 아님 | 초기 |
 | Default MID | — | 기본 계정 선택용 MID | Site 연결의 PRIMARY와 다른 개념. 조건을 자동 상속하지 않음 | 초기, 구조 |
