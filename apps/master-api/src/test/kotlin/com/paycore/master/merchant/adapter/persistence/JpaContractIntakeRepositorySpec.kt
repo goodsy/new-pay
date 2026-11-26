@@ -10,9 +10,13 @@ import com.paycore.master.merchant.domain.BusinessFixtures
 import com.paycore.master.merchant.domain.ContractIntake
 import com.paycore.master.merchant.domain.ContractIntakeChannel
 import com.paycore.master.merchant.domain.ContractIntakeFixtures
+import com.paycore.master.merchant.domain.ContractIntakeKind
 import com.paycore.master.merchant.domain.ContractIntakeStatus
 import com.paycore.master.merchant.domain.ContractIntakeTransition
+import com.paycore.master.merchant.domain.ContractIntakeTransitionInput
 import com.paycore.master.merchant.domain.DesiredService
+import com.paycore.master.merchant.domain.MasterRejection
+import com.paycore.master.merchant.domain.MasterRuleViolation
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -58,7 +62,7 @@ class JpaContractIntakeRepositorySpec(
     /** Application 순서(FLOW-2 명령과 같음): 사업자 잠금 → 최신 → Domain 생성 → insert + 이력. */
     fun open(business: Business, items: com.paycore.master.merchant.domain.ContractIntakeItems = fixtures.items()): ContractIntake = tx {
         val locked = checkNotNull(businesses.lock(business.id))
-        val change = ContractIntake.open(locked, intakes.latest(business.id), items, fixtures.t0, operator)
+        val change = ContractIntake.open(locked, intakes.latest(business.id), null, ContractIntakeKind.NEW, items, fixtures.t0, operator)
         intakes.insert(change.intake)
         transitions.append(change.transition) shouldBe 1
         change.intake
@@ -67,7 +71,8 @@ class JpaContractIntakeRepositorySpec(
     fun move(business: Business, target: ContractIntakeStatus): Pair<ContractIntake, Int> = tx {
         val locked = checkNotNull(businesses.lock(business.id))
         val latest = checkNotNull(intakes.latest(business.id))
-        val change = latest.transitionTo(locked, target, latest.version, fixtures.t0.plusSeconds(60), operator)
+        // FLOW-2a: 입력 없음(NONE) — 사유가 필요한 전이(계약 불가)는 Domain이 먼저 막는다(MINOR-1). DB CHECK(ck_cint_reason_required)는 ContractIntakeSchemaSpec이 검사한다.
+        val change = latest.transitionTo(locked, target, latest.version, ContractIntakeTransitionInput.NONE, fixtures.t0.plusSeconds(60), operator)
         intakes.update(change.intake)
         change.intake to transitions.append(change.transition)
     }
@@ -96,7 +101,8 @@ class JpaContractIntakeRepositorySpec(
             val (received, seq2) = move(business, ContractIntakeStatus.DOCUMENT_RECEIVED)
             listOf(received.version, seq2, received.status) shouldBe listOf(1L, 2, ContractIntakeStatus.DOCUMENT_RECEIVED)
             query("SELECT status, version FROM contract_intake WHERE business_id = ? AND intake_seq = 1", business.id.value).single() shouldBe listOf("DOCUMENT_RECEIVED", "1")
-            // 계약 불가 전이는 '사유 및 비고' 필수(DB ck_cint_reason_required — 사유 입력 명령은 FLOW-2) → 저장된 상태를 SQL로 만든다(runtime 계정 — 접수 건 UPDATE 권한 범위).
+            // 계약 불가 전이는 '사유 및 비고' 필수(Domain이 먼저 막는다 — MINOR-1, DB CHECK는 ContractIntakeSchemaSpec이 검사; 사유 입력 명령은 FLOW-2b) → 저장된 상태를 SQL로 만든다
+            // (runtime 계정 — 접수 건 UPDATE 권한 범위).
             MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_RUNTIME_USER).use { c ->
                 c.prepareStatement("UPDATE contract_intake SET status = 'REJECTED', version = version + 1 WHERE business_id = ? AND intake_seq = 1").use {
                     it.setString(1, business.id.value); it.executeUpdate()
@@ -117,10 +123,11 @@ class JpaContractIntakeRepositorySpec(
             )
         }
 
-        Then("a transition that needs input the FLOW-1 domain does not carry yet (계약 불가 without '사유 및 비고') is refused by the DB CHECK and rolls back the intake update") {
+        // FLOW-2a MINOR-1: 계약 불가 + 사유 없음은 Domain이 먼저 막는다(CONTRACT_INTAKE_REASON_REQUIRED). DB CHECK(ck_cint_reason_required)는 ContractIntakeSchemaSpec이 검사한다.
+        Then("계약 불가 without '사유 및 비고' is refused by the domain first (CONTRACT_INTAKE_REASON_REQUIRED) and nothing is written (the DB CHECK is checked by ContractIntakeSchemaSpec)") {
             val business = storedBusiness()
             open(business)
-            shouldThrow<RuntimeException> { move(business, ContractIntakeStatus.REJECTED) }
+            shouldThrow<MasterRuleViolation> { move(business, ContractIntakeStatus.REJECTED) }.rejection shouldBe MasterRejection.CONTRACT_INTAKE_REASON_REQUIRED
             query("SELECT status, version FROM contract_intake WHERE business_id = ?", business.id.value).single() shouldBe listOf("CONSULTING", "0")
             history(business.id.value).size shouldBe 1
         }
@@ -131,15 +138,15 @@ class JpaContractIntakeRepositorySpec(
             val business = storedBusiness()
             val created = open(business)
             move(business, ContractIntakeStatus.DOCUMENT_RECEIVED)
-            val stale = created.transitionTo(business, ContractIntakeStatus.DOCUMENT_RECEIVED, 0, fixtures.t0, operator).intake // 저장 전 version 0 기대 — 저장된 행은 이미 1
+            val stale = created.transitionTo(business, ContractIntakeStatus.DOCUMENT_RECEIVED, 0, ContractIntakeTransitionInput.NONE, fixtures.t0, operator).intake // 저장 전 version 0 기대 — 저장된 행은 이미 1
             shouldThrow<PersistenceFailure.OptimisticConflict> { tx { intakes.update(stale) } }
             query("SELECT status, version FROM contract_intake WHERE business_id = ?", business.id.value).single() shouldBe listOf("DOCUMENT_RECEIVED", "1")
         }
 
-        Then("a second open intake that bypasses the domain check is a CONTRACT_INTAKE_ROW defect (uk_cin_active), not a business key; nothing is committed") {
+        Then("a second open intake that bypasses the domain check is a CONTRACT_INTAKE_ROW defect (uk_cin_open — V21), not a business key; nothing is committed") {
             val business = storedBusiness()
             open(business)
-            val bypass = ContractIntake.open(business, null, fixtures.items(), fixtures.t0, operator).intake // 최신 건을 무시한 잠금 우회(결함) — 순번 1 중복
+            val bypass = ContractIntake.open(business, null, null, ContractIntakeKind.NEW, fixtures.items(), fixtures.t0, operator).intake // 최신 건을 무시한 잠금 우회(결함) — 순번 1 중복
             val again = ContractIntake.reconstitute(business.id, 2, ContractIntakeStatus.CONSULTING, false, fixtures.items(), fixtures.t0, operator, fixtures.t0, operator, 0)
             listOf(bypass, again).forEach { duplicate ->
                 val failure = shouldThrow<PersistenceFailure.UniqueConflict> { tx { intakes.insert(duplicate) } }
@@ -167,6 +174,10 @@ class JpaContractIntakeRepositorySpec(
             // 사업자 행은 FOR UPDATE로만 잠그고(version 증가 UPDATE 없음) 접수 건 UPDATE는 version 조건부(@Version).
             sql.filter { Regex("^\\s*update\\s+business\\b", RegexOption.IGNORE_CASE).containsMatchIn(it) }.shouldBeEmpty()
             sql.filter { Regex("^\\s*update\\s+contract_intake\\b", RegexOption.IGNORE_CASE).containsMatchIn(it) }.forEach { it.contains("version", true) shouldBe true }
+            // FLOW-2a V22 주석: 종류·대상 열은 INSERT 때만 쓴다 — 전이 UPDATE의 SET에 kind·target_contract_seq가 없다(Entity updatable = false).
+            val intakeUpdates = sql.filter { Regex("^\\s*update\\s+contract_intake\\s", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            (intakeUpdates.size >= 1) shouldBe true
+            intakeUpdates.filter { Regex("\\b(kind|target_contract_seq)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it.lowercase().substringBefore(" where ")) }.shouldBeEmpty()
             sql.any { Regex("^\\s*select.+from\\s+business\\b.+for update", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).containsMatchIn(it) } shouldBe true
         }
 
@@ -174,8 +185,9 @@ class JpaContractIntakeRepositorySpec(
             val business = storedBusiness()
             MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_RUNTIME_USER).use { c ->
                 c.prepareStatement(
-                    "INSERT INTO contract_intake (business_id, intake_seq, status, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
-                        "created_at, created_by, updated_at, updated_by, version) VALUES (?, 1, 'COMPLETED', 1, NULL, NULL, NULL, 0, 0, NOW(3), 'system:migration', NOW(3), " +
+                    // 행 작성 열 목록만 갱신(FLOW-2a V21 — kind NOT NULL, 기본값 없음): 이관 건 = 신규. 기대값은 바뀌지 않는다.
+                    "INSERT INTO contract_intake (business_id, intake_seq, status, kind, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
+                        "created_at, created_by, updated_at, updated_by, version) VALUES (?, 1, 'COMPLETED', 'NEW', 1, NULL, NULL, NULL, 0, 0, NOW(3), 'system:migration', NOW(3), " +
                         "'system:migration', 0)",
                 ).use { it.setString(1, business.id.value); it.executeUpdate() }
             }

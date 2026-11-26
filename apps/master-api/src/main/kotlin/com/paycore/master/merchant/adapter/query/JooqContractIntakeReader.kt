@@ -43,14 +43,14 @@ class JooqContractIntakeReader(private val dsl: DSLContext) : ContractIntakeRead
         val i = CONTRACT_INTAKE
         val intakes = dsl.select(
             i.INTAKE_SEQ, i.STATUS, i.MIGRATED, i.RECEIVED_ON, i.INTAKE_CHANNEL, i.CONTRACT_MANAGER, i.DESIRES_CARD_AUTH, i.DESIRES_CARD_KEYIN, i.VERSION,
-            MasterSqlText.instant(i.CREATED_AT), MasterSqlText.instant(i.UPDATED_AT),
+            MasterSqlText.instant(i.CREATED_AT), MasterSqlText.instant(i.UPDATED_AT), i.KIND,
         )
             .from(i)
             .where(i.BUSINESS_ID.eq(id))
             .orderBy(i.INTAKE_SEQ.desc())
             .fetch { r ->
                 ContractIntakeSectionView.Intake(
-                    intakeSeq = r.value1(), status = r.value2(), migrated = r.value3() == 1.toByte(), receivedOn = r.value4(), intakeChannel = r.value5(),
+                    intakeSeq = r.value1(), status = r.value2(), kind = r.value12(), migrated = r.value3() == 1.toByte(), receivedOn = r.value4(), intakeChannel = r.value5(),
                     contractManager = r.value6(),
                     desiredServices = buildList {
                         if (r.value7() == 1.toByte()) add("CARD_AUTH")

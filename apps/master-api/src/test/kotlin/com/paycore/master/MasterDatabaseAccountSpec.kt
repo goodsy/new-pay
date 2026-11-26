@@ -215,6 +215,12 @@ class MasterDatabaseAccountSpec(
             "business_contact" to "SELECT, INSERT, UPDATE",
             "business_registration" to "SELECT, INSERT, UPDATE",
             "business_representative" to "SELECT, INSERT, UPDATE",
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2a V22 — 목록 증가): 사업자 계약 표 5개 INSERT 전용(SELECT, INSERT만 — UPDATE·DELETE 1142, §4B.10 V22·§4A.14 M-2).
+            "business_contract" to "SELECT, INSERT",
+            "business_contract_event" to "SELECT, INSERT",
+            "business_contract_version" to "SELECT, INSERT",
+            "business_contract_version_close" to "SELECT, INSERT",
+            "business_contract_version_service" to "SELECT, INSERT",
             // MASTER-SNAPSHOT-002 V6: 카드사 개통 상태 전이(UPDATE, @Version)·이력(append-only).
             "card_route_activation" to "SELECT, INSERT, UPDATE",
             "card_route_activation_event" to "SELECT, INSERT",

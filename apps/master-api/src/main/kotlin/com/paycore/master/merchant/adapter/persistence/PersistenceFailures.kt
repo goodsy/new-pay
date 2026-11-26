@@ -119,10 +119,19 @@ internal object PersistenceFailures {
         "business_address.uk_badr_current_type" to StoreConstraint.BUSINESS_PROFILE_ROW,
         "business_contact.uk_bcon_current_order" to StoreConstraint.BUSINESS_PROFILE_ROW,
         "business_contact.uk_bcon_current_primary" to StoreConstraint.BUSINESS_PROFILE_ROW,
-        // MERCHANT-FLOW-001 §4A.3(V19): 접수 건·전이 이력 — 결함 분류(businessKey = false).
-        "contract_intake.uk_cin_active" to StoreConstraint.CONTRACT_INTAKE_ROW,
+        // MERCHANT-FLOW-001 §4A.3(V19 — V21이 uk_cin_active를 uk_cin_open으로 교체): 접수 건·전이 이력 — 결함 분류(businessKey = false).
+        "contract_intake.uk_cin_open" to StoreConstraint.CONTRACT_INTAKE_ROW,
         "contract_intake.PRIMARY" to StoreConstraint.CONTRACT_INTAKE_ROW,
         "contract_intake_transition.PRIMARY" to StoreConstraint.CONTRACT_INTAKE_ROW,
+        // MERCHANT-FLOW-001 §4B.5(V21): 사업자 계약 표 — 잠금 직렬화·Domain이 먼저 막으므로 위반은 결함(businessKey = false). 해지 2회 UNIQUE의 고정 code 응답은 FLOW-2c 명령이 정한다.
+        "business_contract.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract.uk_bc_origin_intake" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_version.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_version.uk_bcv_origin_intake" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_version_service.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_version_close.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_event.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        "business_contract_event.uk_bce_terminate" to StoreConstraint.BUSINESS_CONTRACT_ROW,
         "business.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant_site.PRIMARY" to StoreConstraint.IDENTIFIER,

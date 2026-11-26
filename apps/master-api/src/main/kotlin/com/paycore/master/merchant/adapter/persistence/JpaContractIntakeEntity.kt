@@ -21,7 +21,9 @@ import java.time.LocalDate
  *   주의: 사업자 version은 올리지 않는다 — 접수 건 명령은 사업자 행을 `PESSIMISTIC_WRITE`(version 증가 없음)로 잠근다(리뷰 m-4).
  * - **수정 가능 열**: 상태·갱신 시각·행위자뿐(`updatable = true`). 소속·순번·이관 표시·생성 값·접수 항목은 `updatable = false` — 변경 감지 UPDATE의 SET에 들어가지 않는다
  *   (열린 건 접수 항목 수정은 FLOW-2가 명시적으로 연다 — D-FLOW-007 ④).
- * - **생성 열** `active_key`(열린·완료 건일 때만 business_id — UNIQUE `uk_cin_active`)는 매핑하지 않는다(DB가 계산하는 이중 방어). 복합 PK는 `@IdClass`(V13 코드 배정 선례).
+ * - **생성 열** `open_key`(열린 건일 때만 business_id — UNIQUE `uk_cin_open`, V21이 V19 `active_key`·`uk_cin_active`를 대체 — D-GOV-014 ①)는 매핑하지 않는다
+ *   (DB가 계산하는 이중 방어). 복합 PK는 `@IdClass`(V13 코드 배정 선례).
+ * - **종류·대상 열**(`kind`·`target_contract_seq` — FLOW-2a V21, BR-BIZ-324·325): 생성 때 Domain이 판정한 값을 INSERT 때만 쓴다(`updatable = false` — 전이 UPDATE의 SET에 없다).
  * - **연관 매핑 없음**: 사업자 Entity와 `@ManyToOne`/`@OneToMany`를 두지 않는다 — 사업자 수정이 접수 건 컬렉션을 다시 저장하거나 지연 로딩이 판정 입력을 오래된 값으로 만드는 위험을 없앤다.
  * - data class가 아니다. equals/hashCode는 바뀌지 않는 키만, toString은 키·상태만.
  */
@@ -45,6 +47,14 @@ class JpaContractIntakeEntity protected constructor() {
 
     @field:Column(name = "migrated", nullable = false, updatable = false)
     var migrated: Boolean = false
+        protected set
+
+    @field:Column(name = "kind", nullable = false, updatable = false, length = 8)
+    lateinit var kind: String
+        protected set
+
+    @field:Column(name = "target_contract_seq", updatable = false)
+    var targetContractSeq: Int? = null
         protected set
 
     @field:Column(name = "received_on", updatable = false)
@@ -106,7 +116,7 @@ class JpaContractIntakeEntity protected constructor() {
 
     override fun hashCode(): Int = 31 * businessId.hashCode() + intakeSeq
 
-    override fun toString(): String = "JpaContractIntakeEntity(businessId=$businessId, intakeSeq=$intakeSeq, status=$status, migrated=$migrated, version=$version)"
+    override fun toString(): String = "JpaContractIntakeEntity(businessId=$businessId, intakeSeq=$intakeSeq, status=$status, kind=$kind, migrated=$migrated, version=$version)"
 
     companion object {
         @Suppress("LongParameterList")
@@ -114,6 +124,8 @@ class JpaContractIntakeEntity protected constructor() {
             businessId: String,
             seq: Int,
             status: String,
+            kind: String,
+            targetContractSeq: Int?,
             receivedOn: LocalDate,
             channel: String,
             manager: String,
@@ -126,6 +138,8 @@ class JpaContractIntakeEntity protected constructor() {
             it.intakeSeq = seq
             it.status = status
             it.migrated = false
+            it.kind = kind
+            it.targetContractSeq = targetContractSeq
             it.receivedOn = receivedOn
             it.intakeChannel = channel
             it.contractManager = manager

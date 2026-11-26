@@ -190,7 +190,9 @@ class ContractIntakeMigrationSpec : FunSpec({
         }
 
         // 마지막: 실패 기록 없이 V19(전체)·V20 적용.
-        real().migrate()
+        // 기대값 변경(§4B.15 ContractIntakeMigrationSpec.kt:158 — 강화, D-GOV-018 ②ⓑ): 이 시험은 V19 시점 정확성 그대로 두고 Flyway target을 V20으로 고정한다(V21이 V19 CHECK·
+        // 생성 열을 바꾸므로 — 아래 active_key 판정·완료 DB 되돌림 거부는 V20 schema 기준). V21 이후 guard(1146)·복구는 BusinessContractMigrationSpec이 시험한다.
+        real(target = "20").migrate()
         real().info().applied().filter { it.version?.version in setOf("19", "20") }.map { it.version.version to it.state.isApplied } shouldBe listOf("19" to true, "20" to true)
         inspect() shouldBe listOf("1", "1", "4", "4", "4", "4", "4")
         untouched() shouldBe before

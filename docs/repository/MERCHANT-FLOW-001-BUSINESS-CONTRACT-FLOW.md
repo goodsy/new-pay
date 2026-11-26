@@ -1,5 +1,6 @@
-# MERCHANT-FLOW-001 사업자·가맹점 업무 흐름 재설계 명세 (rev 0.4a)
+# MERCHANT-FLOW-001 사업자·가맹점 업무 흐름 재설계 명세 (rev 0.4b)
 
+- rev 0.4b (2026-11-26, FLOW-2a 구현 뒤 독립 리뷰(BLOCKER·MAJOR 없음) 반영 — §4B.15 표: `ContractIntakeSectionSpec.kt:222-225` 배치 2a → 2b(Coordinator 결정 — ADMIN golden 바이트 사본, 가역 배치 결정), 이관 건 '모든 목표 거절' 행 추가(강화). MINOR-3: §4B.10 6항·R-19 '3819로 멈춤' → guard 1146 먼저·3819는 이중 방어, §4B.5 I-6·§4B.10 4 `terminate_key` = UNIQUE(business_id, contract_seq, terminate_key)+생성 열(구현 관례), §4B.12 Transaction Safety 실제 주입 지점. 보강(재리뷰 MAJOR-1): §4B.8·§4B.12 ③ 판정 함수 fail-closed(`statusAt`은 저장된 사건을 모두 셈), 불변식 위반 load 실패 = 운영 알림 대상. 업무 규칙 변경 없음).
 - rev 0.4a (2026-11-26, 독립 리뷰 CHANGES_REQUIRED 반영 — MINOR-1 Q-FLOW-38 배경(권장안이 BR-BIZ-336 문언보다 좁은 해석), MINOR-2 V21 문장 구성(표마다 ALTER 한 문장·`_v21` 이름, `uk_cin_open` 먼저, 전제 guard 1146), MINOR-3 바뀌는 FLOW-1 시험 표(강화/허용 확대 구분), MINOR-4 오늘 시작 효과·기록 시각 병기·근거 = 기록 시점 사실, MINOR-5 잠금 뒤 JPQL/native 직접 읽기, MINOR-6 MASTER `CardNumberPattern` 정정, NIT 5건. 업무 규칙 변경 없음, 문서만).
 - rev 0.4 (2026-11-26, **사업자 계약 모델 반영** — D-GOV-011 ①, D-GOV-013 ①②, D-GOV-014 ①, D-GOV-018 ①②③, D-GOV-021(해석 15행 확정), 정책 정본 후보 GOV-MER-ELIG-001 rev 0.3a, 대장 BIZ §13 BR-BIZ-313~347. §4B 신설(도메인 모델·상태 계산·불변식·명령·거절 code·관문·동시성·migration·API·화면·시험·8대 원칙·BR 대응), §4A.1·4A.2·4A.3·4A.3a·4A.4·4A.5·4A.6·4A.9·4A.14·4A.15 개정(접수 건 해지 전이 삭제, '최신 접수 건' 관문 폐기), §5.5 질문 후보 Q-FLOW-38, §6 FLOW-2를 2a·2b·2c·2d로 나누고 FLOW-3 재정의, openItems MINOR-1·G~I 반영, §7 R-18~R-20. FLOW-1(접수 건 읽기 전용·V19) 구현 완료 상태 위에서 개정. 문서만 — 코드·DB·결정·작업 상태 변경 없음, 자기 완료 판정 아님).
 - rev 0.3d (2026-11-25, 4차 리뷰 CHANGES_REQUIRED MAJOR-A·MINOR-A~F 반영 — 대표자 key migration을 SQL로(Coordinator 결정 [구현 관례]), 관문 Port 이름·반환 값, 담보 중복 검사 위치, 섹션 첫 저장 기대값, KYC 새 버전 범위, 원문 조회 스냅샷. 사용자 결정 변경 없음, 남은 사용자 질문 없음. 문서만, 자기 완료 판정 아님).
@@ -462,7 +463,7 @@ PII-MASKING-POLICY.md §3 표에 추가해야 할 행(FLOW-2·6·7·8·9b·10 �
 | I-3 | 버전 번호는 계약 안 1, 2, …, 연속 | Domain + PK(사업자, 계약, 버전) + 닫기 표 CHECK(닫은 번호 = 닫힌 번호 + 1) | BR-BIZ-317 |
 | I-4 | 예정 버전 ≤ 1, 적용 중 버전 ≤ 1 | Domain(§4B.3) + 잠금 직렬화 | BR-BIZ-341 |
 | I-5 | 버전 범위 ≥ 1개, 지금은 `CARD_PG_PAYMENT`만 | Domain + 범위 표 CHECK + 버전마다 범위 행 ≥ 1(Domain·저장 시험 — DB는 표현 못 함) | BR-BIZ-315·329 |
-| I-6 | 해지 사건은 계약당 최대 1개, 해지·만료 뒤 사건·버전 없음 | Domain + 생성 열 UNIQUE(`terminate_key`) | BR-BIZ-342 |
+| I-6 | 해지 사건은 계약당 최대 1개, 해지·만료 뒤 사건·버전 없음 | Domain + 생성 열 `terminate_key`(해지일 때만 1) + UNIQUE(business_id, contract_seq, terminate_key)(`uk_bce_terminate` — [rev 0.4b 구현 관례], NULL은 UNIQUE에서 빠짐) | BR-BIZ-342 |
 | I-7 | 이관 계약·버전만 근거·시작일 없음 | DB CHECK(`migrated = 1`일 때만 NULL 허용) | BR-BIZ-343 |
 | I-8 | 시작 시각 = 시작일 KST 00:00(일반 버전) | Domain + DB CHECK `starts_at = TIMESTAMP(start_date) - INTERVAL 9 HOUR`(KST 고정 +9 — 저장 시각은 UTC) | BR-BIZ-335 |
 | I-9 | 변경 접수 건은 변경 대상 계약을 가리키고, 신규 접수 건은 가리키지 않는다 | DB CHECK `(kind = 'NEW') = (target_contract_seq IS NULL)` + FK | BR-BIZ-324·325 |
@@ -523,7 +524,7 @@ PII-MASKING-POLICY.md §3 표에 추가해야 할 행(FLOW-2·6·7·8·9b·10 �
 - 판정 순서: `BUSINESS_NOT_ACTIVE` → `BUSINESS_NOT_REGISTERED` → **`BUSINESS_CONTRACT_NOT_EFFECTIVE`** → 코드 예약어(Domain `Merchant.register`의 `requireRegistered()` 바로 다음 — Application의 예약어 선검사 순서는 지금 그대로).
 - 입력: 사업자 행 잠금(`MerchantOnboardingService`가 이미 잠금) 뒤 같은 TX에서 **`BusinessContractRepository.latest(businessId)`**(JPA — 그 사업자의 최신 계약, 버전·사건 포함, 없으면 null)로 읽고(**잠금 뒤 JPQL/native로 DB를 직접 읽는다** — 같은 TX 영속성 컨텍스트에 있던 관리 Entity를 재사용하지 않는다. 선례 `JpaContractRepository.kt:83`(`hasApprovedRevisionFor` — "JPQL은 영속성 컨텍스트를 거치지 않고 DB를 읽는다"), ARCHITECTURE-CONVENTIONS §'잠금 읽기'(226행). 리뷰 MINOR-5), Domain이 `t = lockedNow`로 판정한다. jOOQ Reader로 판정하지 않는다.
 - 근거 기록은 **기록 시점 사실**이다: 뒤에 그 계약이 정지·해지·만료되거나 새 버전이 생겨도 근거 행은 바뀌지 않는다(시험: 등록 → 해지 → 근거 행 그대로, 등록 → 새 버전 → 근거 버전 번호 그대로 — 리뷰 MINOR-4).
-- 판정: 최신 계약이 있고 `statusAt(t) = ACTIVE`이며 적용 중 버전 범위에 `CARD_PG_PAYMENT`가 있으면 통과. 그 밖(없음·효력 전·정지·해지·만료·범위 없음) → `BUSINESS_CONTRACT_NOT_EFFECTIVE` 하나(사유별 code는 두지 않는다 — 화면은 사업자 상세 링크로 상태를 보여 줌 [구현 관례]). 접수 건은 읽지 않는다(BR-BIZ-319 — 변경 접수 진행·반려와 무관).
+- 판정: 최신 계약이 있고 **판정 함수** `statusAt(t)`(t = `lockedNow`) = `ACTIVE`이며 적용 중 버전 범위에 `CARD_PG_PAYMENT`가 있으면 통과. **[rev 0.4b — 재리뷰 MAJOR-1, fail-closed]** 판정 함수는 저장된 정지·해지 사건을 발생 시각과 관계없이 모두 세고, t가 마지막 사건보다 앞서면(서버 시계 역행) 판정 시각을 max(t, 마지막 사건 시각)으로 올린다 — 해지·정지가 기록된 계약은 어떤 t로도 유효로 판정되지 않는다. 과거 시점 표시용 계산이 필요해지면 조회 전용 이름(`statusAsOf` 후보)으로 따로 두고 판정에 쓰지 않는다(지금은 만들지 않음). 그 밖(없음·효력 전·정지·해지·만료·범위 없음) → `BUSINESS_CONTRACT_NOT_EFFECTIVE` 하나(사유별 code는 두지 않는다 — 화면은 사업자 상세 링크로 상태를 보여 줌 [구현 관례]). 접수 건은 읽지 않는다(BR-BIZ-319 — 변경 접수 진행·반려와 무관).
 - 매트릭스(GOV-MER-ELIG-001 §3.1 4행 + §3.2 14행)가 인수 기준이다(§4B.13 시험).
 - **근거 기록(BR-BIZ-337)**: 통과하면 같은 TX에서 `merchant_registration_basis` 1행(가맹점 ID, 사업자 ID, 계약 순번, 적용 중 버전 번호, 기록 시각 = `lockedNow`, 행위자) INSERT. 이 행은 판정·권리·Snapshot·Outbox에 쓰지 않는다(ArchUnit — §4B.12). 기존 `work.record("MerchantRegistered", …)` detail·Outbox payload는 **바꾸지 않는다**(PAYMENT 계약 golden 불변 — 근거는 별도 표가 정본).
 - **기존 가맹점 후속 명령**(Site·계약·CSA·MID·개통)은 사업자 계약을 보지 않는다(BR-BIZ-340). 시험으로 고정: 해지·정지·만료 사업자의 기존 가맹점 Site 등록·계약 Revision 승인·MID 발급·개통 명령이 지금과 같은 결과.
@@ -556,11 +557,11 @@ PII-MASKING-POLICY.md §3 표에 추가해야 할 행(FLOW-2·6·7·8·9b·10 �
 | `business_contract_version` | business_id, contract_seq, version_no, origin_intake_seq, migrated, starts_at, start_date NULL, end_date NULL, document_ref NULL, reason NULL, created_at, created_by | PK(…, version_no), UNIQUE(business_id, origin_intake_seq)(계약 표 UNIQUE와 겹쳐 보이지만 이유가 다름 — 계약 표는 '신규 완료 1건 = 계약 1개', 버전 표는 '변경 완료 1건 = 버전 1개'. 이관은 두 표 모두 접수 건 순번 1이라 같은 값이 두 표에 한 번씩 있을 뿐 중복 아님), FK 계약, `end_date ≥ start_date`, 일반 = start_date·document_ref NOT NULL·`starts_at = TIMESTAMP(start_date) - INTERVAL 9 HOUR`, 이관 = version_no 1·start_date·end_date·document_ref NULL, document_ref 형식 REGEXP(V19 관례), reason 1~200 |
 | `business_contract_version_service` | business_id, contract_seq, version_no, service_kind | PK(전부), FK 버전, `service_kind IN ('CARD_PG_PAYMENT')` |
 | `business_contract_version_close` | business_id, contract_seq, version_no, closed_at, closed_by_version_no, created_at, created_by | PK(…, version_no) — 버전당 닫기 1개, `closed_by_version_no = version_no + 1`, FK 두 버전 |
-| `business_contract_event` | business_id, contract_seq, event_seq, kind, reason, evidence_ref NULL, actor_ref, occurred_at, `terminate_key` STORED 생성 열 | PK(…, event_seq), UNIQUE(terminate_key), `kind IN ('SUSPEND','RESUME','TERMINATE')`, reason NOT NULL 1~200, evidence_ref 형식, `evidence_ref IS NULL OR kind = 'TERMINATE'`(Q-FLOW-38 답이 '정지 근거 허용/필수'면 FLOW-2c migration에서 바꿈) |
+| `business_contract_event` | business_id, contract_seq, event_seq, kind, reason, evidence_ref NULL, actor_ref, occurred_at, `terminate_key` STORED 생성 열 | PK(…, event_seq), UNIQUE(business_id, contract_seq, terminate_key)(`uk_bce_terminate` — `terminate_key` = 해지일 때만 1인 STORED 생성 열, [rev 0.4b 구현 관례]), `kind IN ('SUSPEND','RESUME','TERMINATE')`, reason NOT NULL 1~200, evidence_ref 형식, `evidence_ref IS NULL OR kind = 'TERMINATE'`(Q-FLOW-38 답이 '정지 근거 허용/필수'면 FLOW-2c migration에서 바꿈) |
 
    그 뒤 `contract_intake`에 FK(business_id, target_contract_seq) → `business_contract`.
 5. **이관(BR-BIZ-334·343)**: 이관 접수 건(`migrated = 1 AND status = 'COMPLETED'`)마다 `business_contract`(seq 1, 생성 접수 건 = 그 건, 이관, `created_at = UTC_TIMESTAMP(3)` = 이관 시각, `system:migration`) → `business_contract_version`(1, 이관, `starts_at = business_contract.created_at`, 시작일·종료일·근거 없음) → 범위 `CARD_PG_PAYMENT` 1행. 열 목록 명시, 한 문장씩.
-6. **정확성 시험**: 이관 계약 수 = 이관 완료 접수 건 수 = V19 시점 사업자 수, 계약마다 버전 1·범위 1행, 이관 버전 시작 = 계약 생성 시각, 이관 계약은 판정 시각에 `ACTIVE`(가맹점 등록이 끊기지 않음), 전제 위반 데이터(TERMINATED 1행 심기) → 1단계 3819로 멈춤, 복구 SQL로 되돌림 후 재실행 성공.
+6. **정확성 시험**: 이관 계약 수 = 이관 완료 접수 건 수 = V19 시점 사업자 수, 계약마다 버전 1·범위 1행, 이관 버전 시작 = 계약 생성 시각, 이관 계약은 판정 시각에 `ACTIVE`(가맹점 등록이 끊기지 않음), 전제 위반 데이터(TERMINATED 1행 심기) → **0단계 guard가 1146으로 DDL 전에 먼저 멈춤**(1단계 CHECK 교체의 3819는 이중 방어 — [rev 0.4b]), 복구 SQL로 되돌림 후 재실행 성공.
 
 **V22 runtime 권한**: 새 표 5개 + `merchant_registration_basis`(FLOW-3) = `SELECT, INSERT`(UPDATE·DELETE 없음 — 1142 시험). `contract_intake`는 지금처럼 `SELECT, INSERT, UPDATE`(종류·대상 열은 INSERT 때만 쓴다 — 저장 adapter가 UPDATE에 넣지 않음을 시험).
 
@@ -596,8 +597,8 @@ API(이름 후보 [구현 관례] — 기존 `/api/businesses/{businessId}` 아�
 
 | 원칙 | 의미 | 완료 증거(시험) |
 |---|---|---|
-| Financial Consistency | 사업자 계약은 금융 값이 아니다. 결제 권리·정산·Snapshot 효과 0 | 모든 명령·가맹점 등록 근거 기록 전후 `entitlement_revision`·권리 Snapshot 불변, 사업자 계약 명령의 `outbox_event` 증가 0. ArchUnit: ① 권리 타입(`Entitlement*`·Snapshot 발행기)과 payment-api 쪽은 `BusinessContract*`·`MerchantRegistrationBasis*`에 의존하지 않음 ② 사업자 계약·접수 건 명령 서비스는 `Work.record`·`publishEntitlement`·`OutboxStore`를 부르지 않음(`recordHistory`만) ③ **메서드 호출 단위(MINOR-H)**: 가맹점 등록 경로(`MerchantOnboardingService`·`Merchant`)가 부르는 새 메서드는 `BusinessContractRepository.latest`·`BusinessContract`의 조회 메서드(`statusAt`·`applyingVersionAt` 등 읽기)·`MerchantRegistrationBasisStore.insert`뿐 — 계약 변경 메서드(`suspend`·`terminate`·`addVersion` 등) 호출 금지 ④ `MerchantRegistrationBasis`를 읽는 판정 코드 없음(Reader만) |
-| Transaction Safety | 업무 행·전이 이력·사업자 계약 행·변경 이력·`admin_request` 결과가 MASTER 한 로컬 TX | 계약 완료에서 버전 INSERT 실패 주입 → 접수 건 상태·전이 이력 rollback, 이력 쓰기 실패 → 사건 행 rollback, 근거 기록 INSERT 실패 → 가맹점 등록 rollback |
+| Financial Consistency | 사업자 계약은 금융 값이 아니다. 결제 권리·정산·Snapshot 효과 0 | 모든 명령·가맹점 등록 근거 기록 전후 `entitlement_revision`·권리 Snapshot 불변, 사업자 계약 명령의 `outbox_event` 증가 0. ArchUnit: ① 권리 타입(`Entitlement*`·Snapshot 발행기)과 payment-api 쪽은 `BusinessContract*`·`MerchantRegistrationBasis*`에 의존하지 않음 ② 사업자 계약·접수 건 명령 서비스는 `Work.record`·`publishEntitlement`·`OutboxStore`를 부르지 않음(`recordHistory`만) ③ **메서드 호출 단위(MINOR-H)**: 가맹점 등록 경로(`MerchantOnboardingService`·`Merchant`)가 부르는 새 메서드는 `BusinessContractRepository.latest`·`BusinessContract`의 **판정** 조회 메서드(`statusAt`·`hasContractAt`·`applyingVersionAt`·`judgedAt` 등 읽기 — [rev 0.4b] `statusAt`은 fail-closed 판정 함수, 과거 시점 표시용 조회 함수는 이 목록에 넣지 않는다)·`MerchantRegistrationBasisStore.insert`뿐 — 계약 변경 메서드(`suspend`·`terminate`·`addVersion` 등) 호출 금지 ④ `MerchantRegistrationBasis`를 읽는 판정 코드 없음(Reader만) |
+| Transaction Safety | 업무 행·전이 이력·사업자 계약 행·변경 이력·`admin_request` 결과가 MASTER 한 로컬 TX | 계약 완료 TX에서 사업자 계약 INSERT 실패 주입(잠금 우회 결함 — 이미 있는 계약 순번 1을 모르는 Domain 판정 → 계약 PK 1062, `JpaBusinessContractRepositorySpec` — [rev 0.4b] 실제 주입 지점) → 접수 건 상태·전이 이력 rollback, 이력 쓰기 실패 → 사건 행 rollback, 근거 기록 INSERT 실패 → 가맹점 등록 rollback |
 | Idempotency | 같은 키 + 같은 내용 = 과거 결과, 다른 내용 = 충돌 | 계약 완료·해지 재전송 → 계약·버전·사건 추가 0, 다른 시작일로 같은 키 → 409, 저장된 거절 재생 |
 | Concurrency Control | §4B.9 | 실제 MySQL 경합 시험 6종(§4B.9), `business.version` 불변 |
 | Recoverability | ADMIN→MASTER 응답 유실, migration 부분 실패 | 같은 키 재전송으로 결과 회수, V21 복구 SQL 정확성 시험 |
@@ -607,6 +608,7 @@ API(이름 후보 [구현 관례] — 기존 `/api/businesses/{businessId}` 아�
 
 JPA 선택(이번 코드 기준):
 - **Aggregate 한 번에 load**: `BusinessContractRepository.latest`는 계약 행 + 버전·범위·닫기·사건을 읽어 Domain 객체 하나로 만든다(Mapper). 이유: 상태가 여러 행에서 계산되므로 판정 입력을 한 곳에 모은다. 주의: 사업자 행 잠금 뒤에 읽어야 판정과 쓰기 사이에 다른 TX가 끼지 않는다. 읽기는 JPQL/native 조회로 DB를 직접 본다(`em.find`·이미 관리되는 Entity 재사용 금지 — §4B.8, `JpaContractRepository.kt:83` 선례). 시험: 같은 TX에서 앞서 load한 뒤 다른 TX가 해지를 커밋하고 잠금을 얻은 경우 최신 해지를 본다. N+1을 피하려고 사업자 기준 조회 몇 개(계약 1 + 하위 표 4)로 고정하고 SQL 수 시험을 둔다.
+- **불변식 위반 load 실패 = 운영 알림 대상**([rev 0.4b]): `BusinessContract.reconstitute`가 저장 행의 불변식 위반(번호 공백·닫기 불일치·사건 시각 역행 등)으로 load를 거부하면 그 사업자의 계약 명령·관문은 결함(5xx — 업무 거절 아님)으로 멈춘다. 데이터 손상 신호이므로 운영 알림·조사 대상으로 둔다(값 없는 구조화 로그 — 사업자 ID·제약 종류만, 명령 경로를 만드는 FLOW-2b·2c·3에서 연결).
 - **INSERT 전용 Entity**: 새 표 Entity는 `@Immutable`·persist만(기존 `JpaContractIntakeTransitionStore` 관례). `save`(merge) 금지. DB 권한(UPDATE 없음)으로 이중 방어.
 - **`@Version` 없음**: 사업자 계약 행은 바뀌지 않으므로 낙관적 잠금 열이 없다. 동시성은 사업자 행 잠금 + `expectedEventCount` + DB UNIQUE.
 - **생성 열 UNIQUE는 DB 쪽**: `open_key`·`terminate_key`는 JPA가 쓰지 않는다(`insertable = false, updatable = false` 또는 매핑 안 함).
@@ -672,10 +674,11 @@ JPA 선택(이번 코드 기준):
 | `T/domain/ContractIntakeSpec.kt:70-92` | 종결은 되돌리지 못함 — `COMPLETED`만 `TERMINATED`로, `REJECTED`·`TERMINATED`는 끝, version 거절 예시에 `TERMINATED` 목표 | `COMPLETED`·`REJECTED` 모두 어떤 목표든 `CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED`, `TERMINATED` 값 없음(version 거절 예시는 다른 표 밖 목표로) | D-GOV-018 ②ⓑ | 강화 | 2a |
 | `T/domain/ContractIntakeSpec.kt:131-176` | 최신 건 `COMPLETED`(이관 포함) → 새 접수 `CONTRACT_INTAKE_COMPLETED_EXISTS`, 계약 불가·해지 뒤에만 새 접수 | 완료 건이 있어도 새 접수 허용 — 종류는 사업자 계약 상태로(계약 있음 → `CHANGE`, 없음·해지·만료 → `NEW`), expectedKind 불일치 거절, 열린 건 있음 거절은 유지 | D-GOV-014 ①, D-GOV-018 ①ⓔ | 허용 확대 | 2a |
 | `T/domain/ContractIntakeSpec.kt:182-202` | 이관 건 불변식: 순번 1 + `COMPLETED`/`TERMINATED` | 순번 1 + `COMPLETED`만(`TERMINATED` 이관 건은 불변식 위반) | D-GOV-018 ②ⓑ | 강화 | 2a |
+| `T/domain/ContractIntakeSpec.kt:342-354`([rev 0.4b] 추가 — FLOW-2a 구현 줄 번호, 옛 167-180) | 이관 건은 `TERMINATED`로만 이동 가능 | 이관 건도 `COMPLETED` 종결 — 모든 목표 `CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED`(해지 전이 없음) | D-GOV-018 ②ⓑ | 강화 | 2a |
 | `T/domain/ContractIntakeFixtures.kt:46` | `aTerminatedIntake()` | **삭제**(해지 Fixture는 `BusinessContractFixtures.aTerminatedContract`로) | D-GOV-018 ②ⓑ | 강화 | 2a |
 | `T/domain/ContractIntakeFixtures.kt:59` | `inStatus(TERMINATED)` 갈래 | 갈래 삭제(enum 값 없음) | D-GOV-018 ②ⓑ | 강화 | 2a |
 | `T/adapter/query/ContractIntakeSectionSpec.kt:101-139` | 이관 건을 SQL로 `TERMINATED` + 해지 전이 행(`DEMO-TERM-0001`)으로 만든 뒤 새 접수 → 섹션에 해지 근거 표시 | 이관 건 `COMPLETED` 그대로 + (변경 접수는 2a에서 사업자 계약 이관 행이 있으므로) 새 접수 = `CHANGE`, 섹션에 해지 근거 표시 없음(사업자 계약 표시는 2b) | D-GOV-018 ②ⓑ, D-GOV-014 ① | 강화 + 허용 확대 | 2a(표시 확장 2b) |
-| `T/adapter/query/ContractIntakeSectionSpec.kt:222-225` | 기대 View에 `TERMINATED` 건·`COMPLETED → TERMINATED` 전이 | 해당 행 삭제, 종류 필드 추가 | D-GOV-018 ②ⓑ | 강화 | 2a |
+| `T/adapter/query/ContractIntakeSectionSpec.kt:222-225` | 기대 View에 `TERMINATED` 건·`COMPLETED → TERMINATED` 전이 | 해당 행 삭제, 종류 필드 추가 | D-GOV-018 ②ⓑ | 강화 | **2b**([rev 0.4b] Coordinator 결정 — 이 golden은 ADMIN `ContractIntakeShapeGoldenSpec`의 바이트 동일 사본이라 ADMIN golden 새 판과 함께 바꾼다. 2a는 View에 `kind`만 넣고 응답 생성기·golden은 그대로) |
 | `T/adapter/persistence/ContractIntakeSchemaSpec.kt:112` | `TERMINATED` 건은 `active_key` NULL | `TERMINATED`는 CHECK 3819(상태 값 없음), `COMPLETED` 건의 `open_key` NULL(완료 건이 UNIQUE에서 빠짐) | D-GOV-018 ②ⓑ, D-GOV-014 ① | 강화 + 허용 확대 | 2a |
 | `T/adapter/persistence/ContractIntakeSchemaSpec.kt:145` | 이관 건 = 순번 1 `COMPLETED`/`TERMINATED` | `COMPLETED`만 | D-GOV-018 ②ⓑ | 강화 | 2a |
 | `T/adapter/persistence/ContractIntakeSchemaSpec.kt:172-227` | 상태 목록에 `TERMINATED`, 허용 이동 쌍에 `COMPLETED → TERMINATED`, 사유·근거 CHECK에 해지 | 상태·이동 쌍에서 삭제, 해지 갈래 INSERT는 3819, 종류·대상 CHECK(`ck_cin_kind`·`ck_cin_target`) 시험 추가 | D-GOV-018 ②ⓑ, D-GOV-014 ① | 강화 | 2a |
@@ -1019,7 +1022,7 @@ rev 0.3에서 새로 묻고 rev 0.3a에서 답을 받은 질문이다. 질문 �
 | R-16 | 섹션별 저장(D-FLOW-007 ②)과 하단 저장이 한 화면에 공존 → 운영자가 하단 저장으로 KYC가 저장된다고 오해 | 섹션마다 저장 버튼·'사유 및 비고' 칸을 섹션 안에 두고, 저장되지 않은 섹션 입력이 있으면 이동 전 안내 [구현 관례] |
 | R-17 | 삭제된 대표자의 생년월일이 저장은 남아 있음(파기 기능 없음) | 어떤 응답에도 내보내지 않음([적용 메모]), 파기는 KYC-RETENTION-001(LIVE 전) |
 | R-18 | **시각 계산 상태**(효력 전·유효·만료)라 "사업자당 유효 1개"를 DB UNIQUE로 표현할 수 없음 | 계약 생성 경로를 신규 접수 계약 완료 하나로 제한 + 열린 접수 건 ≤ 1(`uk_cin_open`) + 생성 접수 건 UNIQUE + 사업자 행 잠금 직렬화, 실제 MySQL 경합 시험(§4B.9) |
-| R-19 | V21이 V19 CHECK·생성 열을 바꿈 — 전제(해지 0건)가 틀리면 상태 의미가 바뀐 데이터가 남음 | 전제 점검 SQL·CHECK 교체를 먼저(3819로 멈춤), 자동 변환 없음 → Coordinator 보고, 복구 SQL·정확성 시험 |
+| R-19 | V21이 V19 CHECK·생성 열을 바꿈 — 전제(해지 0건)가 틀리면 상태 의미가 바뀐 데이터가 남음 | 전제 점검 SQL + V21 0단계 guard가 먼저 1146으로 멈춤(CHECK 교체 3819는 이중 방어 — [rev 0.4b]), 자동 변환 없음 → Coordinator 보고, 복구 SQL·정확성 시험 |
 | R-20 | '계약 완료'(접수 건)·'사업자 계약 유효'·'가맹점 계약 승인' 세 개념 혼동 | 용어 정본 BIZ §0(사업자 계약·계약 버전·변경 접수·정지·만료·계약 해지·계약 완료), 화면 문구 "사업자 계약은 새 가맹점 등록 자격 — 결제 허용은 가맹점 계약 승인"(§4B.11) |
 | 미결 | Q-FLOW-1~37·2b·3b·5b~5e·28b 모두 답(D-FLOW-001~009). **rev 0.4 질문 후보 Q-FLOW-38**(정지·정지 해제 근거 필수 여부 — FLOW-2c 정지·정지 해제만 막음, §5.5) | |
 
@@ -1039,3 +1042,4 @@ rev 0.3에서 새로 묻고 rev 0.3a에서 답을 받은 질문이다. 질문 �
 
 | 0.3d | 2026-11-25 | Implementer(문서만 — 코드·DB·DECISIONS·questions·tasks 변경 없음, 자기 완료 판정 아님) | 4차 리뷰 반영: MAJOR-A(대표자 key는 SQL migration·이관 형식 + 앱 ULID 두 형식 CHECK, Java migration 제거 — Coordinator 결정 [구현 관례], `generateJooqMain` 근거), MINOR-A(최종 key 집합 중복 검사), MINOR-B(관문 = `ContractIntakeRepository.latestStatus` 상태 값 → Domain 판정, ArchUnit ③), MINOR-C(담보 중복 잠금 아래 앱 검사·DB 방어 없음·정정 중복 거절), MINOR-D(섹션 첫 저장 기대값 0), MINOR-E(새 KYC 버전에 종료 key 행 제외), MINOR-F(원문 조회 한 스냅샷), R-15 한계 한 줄 |
 | 0.4 | 2026-11-26 | Implementer(문서만 — 소스·시험·DB·DECISIONS·questions·tasks 변경 없음, 자기 완료 판정 아님) | 사업자 계약 모델 반영(D-GOV-011 ①·013 ①②·014 ①·018 ①②③·021, GOV-MER-ELIG-001 rev 0.3a, BIZ §13 BR-BIZ-313~347). §4B 신설, §4A 해지 전이·'최신 접수 건' 관문 폐기 표시, FLOW-2 → 2a(Domain·V21/V22)·2b(접수 명령·계약 완료·화면)·2c(해지 + 답 뒤 정지)·2d(항목 수정), FLOW-3 = 사업자 계약 관문 + 근거 기록(V23/V24), openItems MINOR-1·G·H·I 배치 배정, 질문 후보 Q-FLOW-38, R-18~R-20 |
+| 0.4b | 2026-11-26 | Implementer(문서만 — Coordinator 결정·독립 리뷰 반영, 자기 완료 판정 아님) | FLOW-2a 구현 뒤 리뷰 반영: §4B.15 SectionSpec:222-225 배치 2b(Coordinator 결정 — ADMIN golden 바이트 사본), 이관 건 모든 목표 거절 행 추가, §4B.10 6항·R-19 guard 1146 먼저, §4B.5 I-6·§4B.10 terminate_key 복합 UNIQUE, §4B.12 Transaction Safety 실제 주입 지점. 업무 규칙 변경 없음. **보강(재리뷰 MAJOR-1)**: §4B.8 관문 판정 문구·§4B.12 ③ ArchUnit 목록을 fail-closed 판정 함수 기준으로 정정(`statusAt`은 저장된 사건을 모두 셈, 판정 시각 = max(t, 마지막 사건 시각)), 불변식 위반 load 실패 = 운영 알림 대상 한 줄 |

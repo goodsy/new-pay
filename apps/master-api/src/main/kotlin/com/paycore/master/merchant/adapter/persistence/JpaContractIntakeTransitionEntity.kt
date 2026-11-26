@@ -18,7 +18,8 @@ import java.time.Instant
  *   runtime DB 권한도 SELECT, INSERT만이라 UPDATE·DELETE는 1142로 이중 방어한다(V20).
  * - 새 행은 `persist`만(Spring Data `save`는 merge가 될 수 있다 — `PessimisticRowLock.kt` 관례). 순번은 사업자 행 잠금 아래 [JpaContractIntakeTransitionStore]가 부여하고
  *   PK(사업자, 접수 건, 순번)가 이중 방어한다.
- * - 사유(`reason`)·근거 참조(`document_ref`)는 전이 명령(FLOW-2)이 채운다. 원문은 이 표와 `master_change_history`에만 둔다 — toString·로그에 넣지 않는다.
+ * - 사유(`reason`)·근거 참조(`document_ref`)는 Domain 전이 결과(FLOW-2a MINOR-1 — [com.paycore.master.merchant.domain.ContractIntakeTransition])를 그대로 옮긴다.
+ *   원문은 이 표와 `master_change_history`에만 둔다 — toString·로그에 넣지 않는다.
  */
 @Entity
 @Immutable
@@ -84,7 +85,18 @@ class JpaContractIntakeTransitionEntity protected constructor() {
 
     companion object {
         @Suppress("LongParameterList")
-        fun newRow(businessId: String, intakeSeq: Int, transitionSeq: Int, from: String?, to: String, migrated: Boolean, at: Instant, by: String) =
+        fun newRow(
+            businessId: String,
+            intakeSeq: Int,
+            transitionSeq: Int,
+            from: String?,
+            to: String,
+            migrated: Boolean,
+            reason: String?,
+            documentRef: String?,
+            at: Instant,
+            by: String,
+        ) =
             JpaContractIntakeTransitionEntity().also {
                 it.businessId = businessId
                 it.intakeSeq = intakeSeq
@@ -92,6 +104,8 @@ class JpaContractIntakeTransitionEntity protected constructor() {
                 it.fromStatus = from
                 it.toStatus = to
                 it.migrated = migrated
+                it.reason = reason
+                it.documentRef = documentRef
                 it.actorRef = by
                 it.occurredAt = at
             }

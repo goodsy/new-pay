@@ -108,12 +108,33 @@ enum class MasterRejection {
     BUSINESS_CHANGE_REASON_REQUIRED,
     BUSINESS_PROFILE_UNCHANGED,
 
-    // MERCHANT-FLOW-001 §4A.3(FLOW-1 — 순수 Domain 규칙, 명령 경로는 FLOW-2): 새 접수 건 생성 조건(D-FLOW-003 ① 열린 건 ≤ 1, D-FLOW-004 ① 계약 완료 건이 있으면 해지 뒤에만),
-    // 허용 전이 표 밖·같은 상태·종결 되돌리기, 요청 version ≠ 잠근 접수 건 version(덮어쓰기 거부). 모두 reference 없음. 이름은 [구현 관례](명세 §4A.3 "code 후보").
+    // MERCHANT-FLOW-001 §4A.3(FLOW-1 — 순수 Domain 규칙, 명령 경로는 FLOW-2): 새 접수 건 생성 조건(D-FLOW-003 ① 열린 건 ≤ 1), 허용 전이 표 밖·같은 상태·종결 되돌리기,
+    // 요청 version ≠ 잠근 접수 건 version(덮어쓰기 거부). 모두 reference 없음. 이름은 [구현 관례](명세 §4A.3 "code 후보").
+    // FLOW-2a(§4B.7): `CONTRACT_INTAKE_COMPLETED_EXISTS`는 삭제(D-GOV-014 ① — 완료 건이 있어도 새 접수). FLOW-1에는 생성 명령이 없어 저장된 거절 행이 0이어야 하고
+    // V21 첫 단계 guard가 0행을 확인한다(0이 아니면 V21이 1146으로 멈춤 — 재생 호환용 enum 값을 남길 필요가 없다).
     CONTRACT_INTAKE_OPEN_EXISTS,
-    CONTRACT_INTAKE_COMPLETED_EXISTS,
     CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED,
     CONTRACT_INTAKE_VERSION_CONFLICT,
+
+    // MERCHANT-FLOW-001 §4B.6·§4B.7(FLOW-2a — 순수 Domain 규칙, 명령 경로는 FLOW-2b·2c): 접수 종류 불일치(화면이 본 종류 ≠ 잠금 뒤 판정 — BR-BIZ-325),
+    // 전이 입력 Domain 검사(MINOR-1 — 되돌리기·계약 불가 사유 필수, 계약 완료 근거 필수, 그 밖 근거 금지 — BR-BIZ-274·339). 모두 reference 없음. 이름은 [구현 관례].
+    CONTRACT_INTAKE_KIND_MISMATCH,
+    CONTRACT_INTAKE_REASON_REQUIRED,
+    CONTRACT_INTAKE_DOCUMENT_REQUIRED,
+    CONTRACT_INTAKE_DOCUMENT_NOT_ALLOWED,
+
+    // MERCHANT-FLOW-001 §4B.4·§4B.7(FLOW-2a — 사업자 계약 순수 Domain): 대상 식별 틀림(최신 아님 포함 — 명령은 2b·2c) / 변경 완료 대상 해지·만료(BR-BIZ-333) /
+    // 신규 완료인데 계약 있음(BR-BIZ-315 방어) / 예정 버전 있음(BR-BIZ-345) / 시작일 소급(BR-BIZ-335) / 기간 위반(BR-BIZ-317·346) / 범위 없음(BR-BIZ-329) /
+    // 전이표 '거절' 칸(BR-BIZ-336·342·344) / 기대 사건 수 불일치. 모두 reference 없음. 관문 거절 `BUSINESS_CONTRACT_NOT_EFFECTIVE`는 FLOW-3이 더한다.
+    BUSINESS_CONTRACT_NOT_FOUND,
+    BUSINESS_CONTRACT_NOT_CHANGEABLE,
+    BUSINESS_CONTRACT_EXISTS,
+    BUSINESS_CONTRACT_SCHEDULED_VERSION_EXISTS,
+    BUSINESS_CONTRACT_START_RETROACTIVE,
+    BUSINESS_CONTRACT_PERIOD_INVALID,
+    BUSINESS_CONTRACT_SCOPE_INVALID,
+    BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED,
+    BUSINESS_CONTRACT_STATE_CONFLICT,
 
     // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②): 사용중지(INACTIVE) 사업자의 정보 수정(update) 거절. reference 없음. 등록 완료는 그대로 `BUSINESS_NOT_DRAFT`.
     // 추가만(기존 저장 행 영향 없음 — `admin_request.result_code` VARCHAR(48), 값 집합 CHECK 없음).

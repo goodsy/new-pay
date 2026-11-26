@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional
  *
  * - `@Transactional(MANDATORY)`: 사업자 행을 잠근 Application TX 안에서만 동작한다(잠금 순서 사업자 → 접수 건).
  * - [latest]: 잠금 없는 일반 SELECT(순번 내림차순 첫 행). 같은 사업자의 접수 건을 바꾸는 모든 경로가 사업자 행을 먼저 잠그므로 잠금 뒤 읽은 값이 최신 커밋이다.
- * - [insert]: persist + flush — 열린·완료 건 중복(uk_cin_active)·순번 중복(PK) 1062가 Port 안에서 [PersistenceFailure.UniqueConflict]로 드러난다.
+ * - [insert]: persist + flush — 열린 건 중복(uk_cin_open — V21)·순번 중복(PK) 1062가 Port 안에서 [PersistenceFailure.UniqueConflict]로 드러난다. 종류·대상 열은 INSERT 때만 쓴다.
  * - [update]: 저장된 version = 전이 전 version인지 확인(결함 방어 — 잠금 우회 시 덮어쓰지 않는다) → 변경 감지 UPDATE(`@Version` +1) → 저장 뒤 version 확인.
  */
 @Component
@@ -42,6 +42,7 @@ class JpaContractIntakeRepository(
         val row = entityManager.find(JpaContractIntakeEntity::class.java, key) ?: error("intake is not stored")
         if (row.version != intake.version - 1) throw PersistenceFailure.OptimisticConflict(ENTITY)
         check(row.migrated == intake.migrated) { "the migration flag never changes" }
+        check(row.kind == intake.kind.name && row.targetContractSeq == intake.targetContractSeq) { "kind and target never change" }
         row.applyTransition(intake.status.name, intake.updatedAt, intake.updatedBy.value)
         entityManager.flush()
         check(row.version == intake.version) { "intake version must advance exactly once per transition" }

@@ -24,7 +24,8 @@ class JpaContractIntakeTransitionStore(
         val seq = transitions.lastSeq(businessId, transition.intakeSeq) + 1
         check((seq == 1) == (transition.from == null)) { "the creation row is transition 1 and only it" }
         val row = JpaContractIntakeTransitionEntity.newRow(
-            businessId, transition.intakeSeq, seq, transition.from?.name, transition.to.name, transition.migrated, transition.at, transition.by.value,
+            businessId, transition.intakeSeq, seq, transition.from?.name, transition.to.name, transition.migrated, transition.reason?.value, transition.document?.value,
+            transition.at, transition.by.value,
         )
         entityManager.persist(row)
         entityManager.flush()

@@ -5,6 +5,7 @@ import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.ContractIntake
 import com.paycore.master.merchant.domain.ContractIntakeChannel
 import com.paycore.master.merchant.domain.ContractIntakeItems
+import com.paycore.master.merchant.domain.ContractIntakeKind
 import com.paycore.master.merchant.domain.ContractIntakeStatus
 import com.paycore.master.merchant.domain.DesiredService
 
@@ -15,7 +16,7 @@ internal object ContractIntakePersistenceMapper {
         check(!intake.migrated) { "migrated intakes are created by the V19 migration only" }
         val items = checkNotNull(intake.items) { "a non-migrated intake has intake items" }
         return JpaContractIntakeEntity.newRow(
-            intake.businessId.value, intake.seq, intake.status.name, items.receivedOn, items.channel.name, items.contractManager.value,
+            intake.businessId.value, intake.seq, intake.status.name, intake.kind.name, intake.targetContractSeq, items.receivedOn, items.channel.name, items.contractManager.value,
             DesiredService.CARD_AUTH in items.desiredServices, DesiredService.CARD_KEYIN in items.desiredServices, intake.createdAt, intake.createdBy.value,
         )
     }
@@ -34,7 +35,7 @@ internal object ContractIntakePersistenceMapper {
         }
         return ContractIntake.reconstitute(
             BusinessId(row.businessId), row.intakeSeq, ContractIntakeStatus.valueOf(row.status), row.migrated, items, row.createdAt, ActorRef(row.createdBy),
-            row.updatedAt, ActorRef(row.updatedBy), checkNotNull(row.version) { "stored intake has a version" },
+            row.updatedAt, ActorRef(row.updatedBy), checkNotNull(row.version) { "stored intake has a version" }, ContractIntakeKind.valueOf(row.kind), row.targetContractSeq,
         )
     }
 }

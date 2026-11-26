@@ -12,12 +12,15 @@ import java.time.LocalDate
  * - [Transition.documentRef]는 계약서 수령 근거 참조 원문(D-FLOW-004 ④ — 사업자 조회 역할 전체, 열람은 사업자 상세 열람 감사에 포함). 목록·현황에는 넣지 않는다.
  * - '사유 및 비고' 원문은 이 섹션에 싣지 않는다(이력 탭 — `master_change_history`, PII #33).
  * - [Intake.version]은 다음 전이 명령(FLOW-2)의 기대값(낙관적 잠금)이다.
+ * - [Intake.kind]는 접수 건 종류(`NEW`·`CHANGE` — FLOW-2a V21, BR-BIZ-324·325). ADMIN 응답 생성기·golden `contract-intake-section-v1`에는 아직 싣지 않는다(ADMIN 바이트 동일 사본 —
+ *   golden 새 판·사업자 계약 칸은 FLOW-2b).
  */
 data class ContractIntakeSectionView(val businessId: String, val intakes: List<Intake>) {
 
     data class Intake(
         val intakeSeq: Int,
         val status: String,
+        val kind: String,
         val migrated: Boolean,
         val receivedOn: LocalDate?,
         val intakeChannel: String?,

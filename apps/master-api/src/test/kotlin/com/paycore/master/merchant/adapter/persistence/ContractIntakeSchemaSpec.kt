@@ -22,7 +22,9 @@ import java.util.concurrent.TimeUnit
 /**
  * MERCHANT-FLOW-001 FLOW-1(§4A.3·§4A.4 n-2·§4A.9·§4A.14 M-2, §6 FLOW-1 수용 기준 — DB 측): V19 접수 건·전이 이력 표의 제약을 실제 MySQL 8.4.11에서 **runtime 계정**(운영과 같은
  * 표 단위 권한 — V20)으로 확인한다(Domain 규칙의 이중 방어).
- * - 생성 열 UNIQUE `uk_cin_active`: 사업자당 열린·완료 건 ≤ 1(동시 INSERT 포함), 불가·해지 건은 여러 개.
+ * **FLOW-2a 개정(V21 — §4B.10·§4B.15 표의 행과 1:1)**: `TERMINATED` 상태·해지 전이는 CHECK 3819(D-GOV-018 ②ⓑ), 열린 건 UNIQUE는 `uk_cin_open`(완료 건은 빠진다 — D-GOV-014 ①),
+ * 종류·대상 CHECK(`ck_cin_kind`·`ck_cin_target`·`ck_cin_migrated_kind`)와 대상 FK(`fk_cin_target`) 추가.
+ * - 생성 열 UNIQUE `uk_cin_open`: 사업자당 열린 건 ≤ 1(동시 INSERT 포함), 완료·불가 건은 여러 개.
  * - 이관 건만 근거·담당자 NULL(접수 건 표 `ck_cin_manager`·전이 이력 표 `ck_cint_document` 각각), 표에 결정된 열만(대행사 열 없음 — m-2).
  * - 전이 이력 CHECK: 허용 전이 표·생성 행·사유 필수 전이·근거 위치·형식. INSERT 전용(UPDATE·DELETE 1142), 접수 건 DELETE 1142.
  * 오류 코드: 1062 중복, 1452 FK, 3819 CHECK, 1142 권한 없음.
@@ -50,10 +52,13 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
         manager: String? = "admin:adm_01JCFL0000000000000000OP01",
         channel: String? = "DIRECT_SALES",
         receivedOn: String? = "2026-11-25",
+        kind: String = "NEW",
+        targetContractSeq: Int? = null,
     ): Int? = c.errorCodeOfUpdate(
-        "INSERT INTO contract_intake (business_id, intake_seq, status, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
-            "created_at, created_by, updated_at, updated_by, version) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 0)",
-        businessId, seq, status, migrated, receivedOn, channel, manager, ts, ACTOR, ts, ACTOR,
+        // 행 작성 열 목록만 갱신(FLOW-2a V21 — kind NOT NULL·기본값 없음, target_contract_seq): 기본 = 신규 접수. 기존 시험의 기대값은 바뀌지 않는다.
+        "INSERT INTO contract_intake (business_id, intake_seq, status, kind, target_contract_seq, migrated, received_on, intake_channel, contract_manager, desires_card_auth, " +
+            "desires_card_keyin, created_at, created_by, updated_at, updated_by, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 0)",
+        businessId, seq, status, kind, targetContractSeq, migrated, receivedOn, channel, manager, ts, ACTOR, ts, ACTOR,
     )
 
     fun migratedIntake(c: Connection, businessId: String, seq: Int = 1, status: String = "COMPLETED"): Int? =
@@ -77,6 +82,7 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
     )
 
     Given("V19 contract_intake: the decided columns only and the generated UNIQUE key") {
+        // 기대값 변경(FLOW-2a V21 §4B.10 2·3 — 열 목록 증가·교체, 완화 아님): + kind·target_contract_seq(BR-BIZ-324·325), 생성 열 active_key → open_key(D-GOV-014 ①).
         Then("m-2: the intake table has exactly the decided columns (no sales-agency column before FLOW-4); the history table has the n-2 columns") {
             root { c ->
                 c.column(
@@ -86,8 +92,8 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
                 )
             } shouldBe (
                 listOf(
-                    "business_id", "intake_seq", "status", "migrated", "received_on", "intake_channel", "contract_manager", "desires_card_auth", "desires_card_keyin",
-                    "created_at", "created_by", "updated_at", "updated_by", "version", "active_key",
+                    "business_id", "intake_seq", "status", "kind", "target_contract_seq", "migrated", "received_on", "intake_channel", "contract_manager",
+                    "desires_card_auth", "desires_card_keyin", "created_at", "created_by", "updated_at", "updated_by", "version", "open_key",
                 ) to listOf(
                     "business_id", "intake_seq", "transition_seq", "from_status", "to_status", "migrated", "reason", "document_ref", "actor_ref", "occurred_at",
                 )
@@ -101,20 +107,24 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
             }.shouldBeEmpty()
         }
 
-        Then("D-FLOW-003 ①·D-FLOW-004 ①: a second open or completed intake of the same business is a 1062 (uk_cin_active); rejected/terminated intakes do not count") {
+        // 기대값 변경(§4B.15 ContractIntakeSchemaSpec.kt:112 — 강화 + 허용 확대, D-GOV-018 ②ⓑ·D-GOV-014 ①): TERMINATED 건은 CHECK 3819(상태 값 없음),
+        // 완료 건은 UNIQUE에서 빠진다(open_key NULL — 완료 건이 있어도 새 접수). 열린 건 둘은 그대로 1062.
+        Then("D-FLOW-003 ①·D-GOV-014 ①: a second open intake of the same business is a 1062 (uk_cin_open); completed/rejected intakes do not count; TERMINATED is 3819") {
             runtime { c ->
                 val b = business(c)
                 intake(c, b, 1) shouldBe null
                 intake(c, b, 2) shouldBe 1062 // 열린 건 둘
                 intake(c, b, 2, status = "DOCUMENT_RECEIVED") shouldBe 1062
-                intake(c, b, 2, status = "COMPLETED") shouldBe 1062 // 열린 건 + 완료 건
-                intake(c, b, 2, status = "REJECTED") shouldBe null
-                intake(c, b, 3, status = "TERMINATED") shouldBe null
+                intake(c, b, 2, status = "COMPLETED") shouldBe null // 열린 건 + 완료 건 — 완료 건은 UNIQUE에서 빠진다
+                intake(c, b, 3, status = "COMPLETED") shouldBe null // 완료 건 여러 개
+                intake(c, b, 4, status = "REJECTED") shouldBe null
+                intake(c, b, 5, status = "TERMINATED") shouldBe 3819 // ck_cin_status — 상태 값 없음
+                c.column("SELECT COUNT(*) FROM contract_intake WHERE business_id = '$b' AND status = 'COMPLETED' AND open_key IS NULL").single() shouldBe "2"
                 // 열린 건이 계약 불가가 되면(상태 UPDATE — runtime UPDATE 허용) 새 상담 중 건을 넣을 수 있다.
                 c.update("UPDATE contract_intake SET status = 'REJECTED', version = version + 1 WHERE business_id = ? AND intake_seq = 1", b) shouldBe 1
-                intake(c, b, 4) shouldBe null
+                intake(c, b, 6) shouldBe null
                 // 같은 순번은 PK 중복.
-                intake(c, b, 4, status = "REJECTED") shouldBe 1062
+                intake(c, b, 6, status = "REJECTED") shouldBe 1062
                 // 다른 사업자의 열린 건은 서로 막지 않는다.
                 intake(c, business(c), 1) shouldBe null
             }
@@ -139,10 +149,12 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
             val codes = results.map { it.get(30, TimeUnit.SECONDS) }
             pool.shutdown()
             codes.sortedBy { it ?: 0 } shouldBe listOf(null, 1062)
-            runtime { c -> c.column("SELECT COUNT(*) FROM contract_intake WHERE business_id = '$b' AND active_key IS NOT NULL").single() } shouldBe "1"
+            // FLOW-2a V21: 생성 열 이름만 교체(active_key → open_key) — 열린 건 1개라는 기대값은 그대로.
+            runtime { c -> c.column("SELECT COUNT(*) FROM contract_intake WHERE business_id = '$b' AND open_key IS NOT NULL").single() } shouldBe "1"
         }
 
-        Then("§4A.4 n-2 / R-6: only a migrated intake may lack the contract manager and intake items; a migrated intake is intake 1 in COMPLETED/TERMINATED") {
+        // 기대값 변경(§4B.15 ContractIntakeSchemaSpec.kt:145 — 강화, D-GOV-018 ②ⓑ): 이관 건은 순번 1 + COMPLETED만(TERMINATED·REJECTED 이관 건 3819), 신규 종류만.
+        Then("§4A.4 n-2 / R-6: only a migrated intake may lack the contract manager and intake items; a migrated intake is intake 1 in COMPLETED (kind NEW)") {
             runtime { c ->
                 val b = business(c)
                 intake(c, b, 1, manager = null) shouldBe 3819 // ck_cin_manager
@@ -150,6 +162,8 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
                 intake(c, b, 1, channel = null) shouldBe 3819
                 migratedIntake(c, b, seq = 2) shouldBe 3819 // ck_cin_migrated — 이관 건은 순번 1
                 migratedIntake(c, b, status = "CONSULTING") shouldBe 3819
+                migratedIntake(c, b, status = "TERMINATED") shouldBe 3819
+                migratedIntake(c, b, status = "REJECTED") shouldBe 3819
                 intake(c, b, 1, status = "COMPLETED", migrated = 1) shouldBe 3819 // 이관 건에 접수 항목 값
                 migratedIntake(c, b) shouldBe null
             }
@@ -165,14 +179,37 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
                     listOf(null, null, null, null)
             }
         }
+
+        // 추가(§4B.15 ContractIntakeSchemaSpec.kt:172-227 행의 "종류·대상 CHECK 시험 추가", §4B.5 I-9).
+        Then("FLOW-2a V21 kind / target: NEW ⇔ no target, CHANGE ⇔ a target contract of the same business (FK 1452), unknown kind 3819, a migrated intake is NEW") {
+            runtime { c ->
+                val b = business(c)
+                intake(c, b, 1, status = "COMPLETED") shouldBe null
+                c.update(
+                    "INSERT INTO business_contract (business_id, contract_seq, origin_intake_seq, migrated, created_at, created_by) VALUES (?, 1, 1, 0, ?, ?)", b, ts, ACTOR,
+                ) shouldBe 1
+                intake(c, b, 2, kind = "CHANGE", targetContractSeq = 1) shouldBe null
+                c.update("UPDATE contract_intake SET status = 'REJECTED', version = version + 1 WHERE business_id = ? AND intake_seq = 2", b) shouldBe 1
+                intake(c, b, 3, kind = "NEW", targetContractSeq = 1) shouldBe 3819 // ck_cin_target
+                intake(c, b, 3, kind = "CHANGE", targetContractSeq = null) shouldBe 3819
+                intake(c, b, 3, kind = "CHANGE", targetContractSeq = 0) shouldBe 3819
+                intake(c, b, 3, kind = "RENEWAL") shouldBe 3819 // ck_cin_kind
+                intake(c, b, 3, kind = "CHANGE", targetContractSeq = 9) shouldBe 1452 // fk_cin_target — 없는 계약
+                intake(c, business(c), 1, kind = "CHANGE", targetContractSeq = 1) shouldBe 1452 // 다른 사업자의 계약 순번
+                val other = business(c)
+                intake(c, other, 1, status = "COMPLETED", migrated = 1, manager = null, channel = null, receivedOn = null, kind = "CHANGE", targetContractSeq = 1) shouldBe 3819
+                // 종류·대상 열은 runtime UPDATE 권한 범위 안이지만 앱은 INSERT 때만 쓴다(Entity updatable = false — ContractIntakeArchitectureSpec).
+            }
+        }
     }
 
     Given("V19 contract_intake_transition: INSERT-only history with the transition table as a CHECK") {
-        Then("§4A.3 table: creation rows (none → CONSULTING, migrated none → COMPLETED) and the 6 moves are accepted; every other pair and same-state rows are 3819") {
+        // 기대값 변경(§4B.15 ContractIntakeSchemaSpec.kt:172-227 — 강화, D-GOV-018 ②ⓑ): 상태 목록·이동 쌍에서 TERMINATED·COMPLETED → TERMINATED 삭제(그 행은 3819).
+        Then("§4A.3 table: creation rows (none → CONSULTING, migrated none → COMPLETED) and the 5 moves are accepted; every other pair, same-state and TERMINATED rows are 3819") {
             val statuses = listOf("CONSULTING", "DOCUMENT_RECEIVED", "COMPLETED", "REJECTED", "TERMINATED")
             val allowed = setOf(
                 "CONSULTING" to "DOCUMENT_RECEIVED", "DOCUMENT_RECEIVED" to "CONSULTING", "DOCUMENT_RECEIVED" to "COMPLETED", "CONSULTING" to "REJECTED",
-                "DOCUMENT_RECEIVED" to "REJECTED", "COMPLETED" to "TERMINATED",
+                "DOCUMENT_RECEIVED" to "REJECTED",
             )
             runtime { c ->
                 val b = business(c)
@@ -203,7 +240,7 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
             }
         }
 
-        Then("§4A.4 n-2: a COMPLETED row needs a document reference unless it is the migration row; document only on COMPLETED/TERMINATED, fixed format") {
+        Then("§4A.4 n-2: a COMPLETED row needs a document reference unless it is the migration row; document only on COMPLETED, fixed format; no 계약 해지 row (3819)") {
             runtime { c ->
                 val b = business(c)
                 intake(c, b, 1, status = "REJECTED") shouldBe null
@@ -213,7 +250,8 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
                 transition(c, b, 1, 3, "DOCUMENT_RECEIVED", "COMPLETED", document = "bad ref with spaces") shouldBe 3819
                 transition(c, b, 1, 3, "DOCUMENT_RECEIVED", "COMPLETED", document = "x".repeat(129)) shouldBe 1406 // 열 길이(strict mode)가 먼저 막는다
                 transition(c, b, 1, 3, "DOCUMENT_RECEIVED", "COMPLETED", document = "CONTRACT/2026-11:A#1_v.2") shouldBe null
-                transition(c, b, 1, 4, "COMPLETED", "TERMINATED", reason = "해지 요청") shouldBe null // 해지 근거는 선택
+                transition(c, b, 1, 4, "COMPLETED", "TERMINATED", reason = "해지 요청") shouldBe 3819 // 접수 건 해지 전이 없음(사업자 계약 명령 — BR-BIZ-338)
+                transition(c, b, 1, 4, "COMPLETED", "TERMINATED", reason = "해지 요청", document = "DOC-1") shouldBe 3819
                 val other = business(c)
                 intake(c, other, 1, status = "REJECTED") shouldBe null
                 transition(c, other, 1, 1, null, "CONSULTING", document = "DOC-1") shouldBe 3819 // 근거 위치
@@ -224,11 +262,11 @@ class ContractIntakeSchemaSpec(private val container: MySQLContainer) : Behavior
                 transition(c, migrated, 1, 1, null, "COMPLETED", migrated = 1, reason = "이관") shouldBe 3819
                 transition(c, migrated, 1, 1, null, "COMPLETED", migrated = 1) shouldBe null
                 transition(c, migrated, 1, 2, "COMPLETED", "TERMINATED", migrated = 1, reason = "해지") shouldBe 3819 // 이관 표시는 생성 행만
-                transition(c, migrated, 1, 2, "COMPLETED", "TERMINATED", reason = "해지") shouldBe null
+                transition(c, migrated, 1, 2, "COMPLETED", "TERMINATED", reason = "해지") shouldBe 3819 // 이관 건도 해지 전이 없음
             }
         }
 
-        Then("D-FLOW-004 ②·D-FLOW-005 ②: 되돌리기·계약 불가·계약 해지 rows need '사유 및 비고' (1..200 code points); 계약서 접수 does not") {
+        Then("D-FLOW-004 ②·D-FLOW-005 ②: 되돌리기·계약 불가 rows need '사유 및 비고' (1..200 code points); 계약서 접수 does not") {
             runtime { c ->
                 val b = business(c)
                 intake(c, b, 1, status = "REJECTED") shouldBe null

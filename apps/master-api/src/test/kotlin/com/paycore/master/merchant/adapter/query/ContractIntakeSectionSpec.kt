@@ -5,6 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
+import com.paycore.master.merchant.adapter.persistence.JpaBusinessContractRepository
 import com.paycore.master.merchant.adapter.persistence.JpaContractIntakeRepository
 import com.paycore.master.merchant.adapter.persistence.JpaContractIntakeTransitionStore
 import com.paycore.master.merchant.adapter.web.admin.AdminCallSignature
@@ -17,14 +18,23 @@ import com.paycore.master.merchant.application.provided.ContractIntakeSectionVie
 import com.paycore.master.merchant.application.required.BusinessRepository
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessFixtures
+import com.paycore.master.merchant.domain.BusinessChangeReason
+import com.paycore.master.merchant.domain.BusinessContractTerms
 import com.paycore.master.merchant.domain.BusinessId
+import com.paycore.master.merchant.domain.ContractDocumentRef
 import com.paycore.master.merchant.domain.ContractIntake
 import com.paycore.master.merchant.domain.ContractIntakeChannel
+import com.paycore.master.merchant.domain.ContractIntakeCompletion
 import com.paycore.master.merchant.domain.ContractIntakeFixtures
+import com.paycore.master.merchant.domain.ContractIntakeKind
+import com.paycore.master.merchant.domain.ContractIntakeStatus
+import com.paycore.master.merchant.domain.ContractIntakeTransitionInput
 import com.paycore.master.merchant.domain.DesiredService
+import com.paycore.master.merchant.domain.ServiceKind
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.slf4j.LoggerFactory
 import org.springframework.test.web.servlet.MockMvc
@@ -56,6 +66,7 @@ class ContractIntakeSectionSpec(
     private val businesses: BusinessRepository,
     private val intakes: JpaContractIntakeRepository,
     private val transitions: JpaContractIntakeTransitionStore,
+    private val contracts: JpaBusinessContractRepository,
     private val transactionManager: PlatformTransactionManager,
     private val recorder: JooqStatementRecorder,
     private val container: MySQLContainer,
@@ -68,6 +79,8 @@ class ContractIntakeSectionSpec(
     val fixtures = ContractIntakeFixtures
     val operator = fixtures.operator
     val reasonCanary = "캔어리해지사유"
+    // FLOW-2a: 근거 참조가 있는 행은 일반 계약 완료 전이뿐이다(해지 전이 삭제 — D-GOV-018 ②ⓑ). 캔어리 근거는 변경 계약 완료의 근거로 둔다.
+    val documentCanary = "DEMO-DOC-0001"
 
     fun <T> tx(block: () -> T): T = TransactionTemplate(transactionManager).execute { block() }
 
@@ -79,15 +92,17 @@ class ContractIntakeSectionSpec(
     fun storedBusiness(): Business = BusinessFixtures.individualRegistered().also { tx { businesses.insert(it.business, it.profile) } }.business
 
     /**
-     * 이관 건(V19 문장 3·4와 같은 행) → 해지(사유·근거 — 해지 명령은 FLOW-2라 SQL로) → 새 상담 중 건(FLOW-1 JPA adapter 경로). 결과: 접수 건 2개, 이력 3행.
+     * 기대값 변경(§4B.15 ContractIntakeSectionSpec.kt:101-139 — 강화 + 허용 확대, D-GOV-018 ②ⓑ·D-GOV-014 ①): 이관 건(V19 문장 3·4와 같은 행)은 `COMPLETED` 그대로 +
+     * 그 사업자 계약 이관 행(V21 문장 5와 같은 행 — 순번 1·버전 1·범위 카드 PG 결제) → 새 접수 건(JPA adapter 경로) = 계약 있음이라 `CHANGE`. 결과: 접수 건 2개, 이력 2행.
+     * 해지 전이 행은 더 이상 만들 수 없다(V21 CHECK 3819).
      */
-    fun migratedTerminatedThenConsulting(business: Business) {
+    fun migratedThenChangeIntake(business: Business) {
         runtime { c ->
             exec(
                 c,
-                "INSERT INTO contract_intake (business_id, intake_seq, status, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
-                    "created_at, created_by, updated_at, updated_by, version) VALUES (?, 1, 'COMPLETED', 1, NULL, NULL, NULL, 0, 0, '2026-10-01 00:00:00.000', 'system:migration', " +
-                    "'2026-10-01 00:00:00.000', 'system:migration', 0)",
+                "INSERT INTO contract_intake (business_id, intake_seq, status, kind, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
+                    "created_at, created_by, updated_at, updated_by, version) VALUES (?, 1, 'COMPLETED', 'NEW', 1, NULL, NULL, NULL, 0, 0, '2026-10-01 00:00:00.000', " +
+                    "'system:migration', '2026-10-01 00:00:00.000', 'system:migration', 0)",
                 business.id.value,
             )
             exec(
@@ -98,22 +113,50 @@ class ContractIntakeSectionSpec(
             )
             exec(
                 c,
-                "UPDATE contract_intake SET status = 'TERMINATED', version = 1, updated_at = '2026-11-24 01:00:00.000', updated_by = ? WHERE business_id = ? AND intake_seq = 1",
-                operator.value, business.id.value,
+                "INSERT INTO business_contract (business_id, contract_seq, origin_intake_seq, migrated, created_at, created_by) " +
+                    "VALUES (?, 1, 1, 1, '2026-11-01 00:00:00.000', 'system:migration')",
+                business.id.value,
             )
             exec(
                 c,
-                "INSERT INTO contract_intake_transition (business_id, intake_seq, transition_seq, from_status, to_status, migrated, reason, document_ref, actor_ref, occurred_at) " +
-                    "VALUES (?, 1, 2, 'COMPLETED', 'TERMINATED', 0, ?, 'DEMO-TERM-0001', ?, '2026-11-24 01:00:00.000')",
-                business.id.value, reasonCanary, operator.value,
+                "INSERT INTO business_contract_version (business_id, contract_seq, version_no, origin_intake_seq, migrated, starts_at, start_date, end_date, document_ref, " +
+                    "reason, created_at, created_by) VALUES (?, 1, 1, 1, 1, '2026-11-01 00:00:00.000', NULL, NULL, NULL, NULL, '2026-11-01 00:00:00.000', 'system:migration')",
+                business.id.value,
+            )
+            exec(
+                c,
+                "INSERT INTO business_contract_version_service (business_id, contract_seq, version_no, service_kind) VALUES (?, 1, 1, 'CARD_PG_PAYMENT')",
+                business.id.value,
             )
         }
         tx {
             val locked = checkNotNull(businesses.lock(business.id))
             val items = fixtures.items(LocalDate.parse("2026-11-25"), ContractIntakeChannel.PHONE, desired = setOf(DesiredService.CARD_KEYIN, DesiredService.CARD_AUTH))
-            val change = ContractIntake.open(locked, intakes.latest(business.id), items, fixtures.t0, operator)
+            val change = ContractIntake.open(locked, intakes.latest(business.id), contracts.latest(business.id), ContractIntakeKind.CHANGE, items, fixtures.t0, operator)
             intakes.insert(change.intake)
             transitions.append(change.transition)
+        }
+    }
+
+    /**
+     * [migratedThenChangeIntake] 뒤 그 변경 접수 건을 계약서 접수('사유 및 비고' = [reasonCanary] — 선택 사유) → 계약 완료(근거 = [documentCanary], 새 버전 2 + 닫기)까지
+     * Domain + JPA adapter 경로로 진행한다(입력 데이터만 — HTTP·로그 시험의 기대값은 그대로: 사유 원문 없음·근거·사유 원문이 로그에 없음).
+     */
+    fun migratedThenCompletedChange(business: Business) {
+        migratedThenChangeIntake(business)
+        // Application 순서(FLOW-2b 명령과 같음): 사업자 잠금 → 최신 접수 건·최신 사업자 계약 → Domain 전이 → 저장(접수 건·이력·사업자 계약 새 행).
+        fun move(target: ContractIntakeStatus, input: (com.paycore.master.merchant.domain.BusinessContract?) -> ContractIntakeTransitionInput) = tx {
+            val locked = checkNotNull(businesses.lock(business.id))
+            val latest = checkNotNull(intakes.latest(business.id))
+            val change = latest.transitionTo(locked, target, latest.version, input(contracts.latest(business.id)), fixtures.t0.plusSeconds(60), operator)
+            intakes.update(change.intake)
+            transitions.append(change.transition)
+            change.contract?.let(contracts::insert)
+        }
+        move(ContractIntakeStatus.DOCUMENT_RECEIVED) { ContractIntakeTransitionInput(reason = BusinessChangeReason(reasonCanary)) }
+        val terms = BusinessContractTerms(LocalDate.parse("2026-11-26"), null, setOf(ServiceKind.CARD_PG_PAYMENT))
+        move(ContractIntakeStatus.COMPLETED) { latest ->
+            ContractIntakeTransitionInput(document = ContractDocumentRef(documentCanary), completion = ContractIntakeCompletion(terms, latest))
         }
     }
 
@@ -122,21 +165,21 @@ class ContractIntakeSectionSpec(
     ).andReturn()
 
     Given("FLOW-1 the '계약 진행' section reader (jOOQ, CQRS)") {
-        Then("intakes newest first with their transitions in order; the migrated intake has no items / document / manager; the terminate document is shown; no reason column is read") {
+        Then("intakes newest first with their transitions in order (kind NEW / CHANGE); the migrated intake has no items / document / manager and stays COMPLETED; no reason column is read") {
             val business = storedBusiness()
-            migratedTerminatedThenConsulting(business)
+            migratedThenChangeIntake(business)
             recorder.statements.clear(); recorder.observations.clear()
             recorder.recording = true
             val view = checkNotNull(query.contractIntakes(business.id))
             recorder.recording = false
 
-            view.intakes.map { listOf(it.intakeSeq, it.status, it.migrated, it.receivedOn, it.intakeChannel, it.contractManager, it.desiredServices, it.version) } shouldBe listOf(
-                listOf(2, "CONSULTING", false, LocalDate.parse("2026-11-25"), "PHONE", operator.value, listOf("CARD_AUTH", "CARD_KEYIN"), 0L),
-                listOf(1, "TERMINATED", true, null, null, null, emptyList<String>(), 1L),
-            )
+            view.intakes.map { listOf(it.intakeSeq, it.status, it.kind, it.migrated, it.receivedOn, it.intakeChannel, it.contractManager, it.desiredServices, it.version) } shouldBe
+                listOf(
+                    listOf(2, "CONSULTING", "CHANGE", false, LocalDate.parse("2026-11-25"), "PHONE", operator.value, listOf("CARD_AUTH", "CARD_KEYIN"), 0L),
+                    listOf(1, "COMPLETED", "NEW", true, null, null, null, emptyList<String>(), 0L),
+                )
             view.intakes[1].transitions shouldBe listOf(
                 ContractIntakeSectionView.Transition(1, null, "COMPLETED", true, null, "system:migration", Instant.parse("2026-10-01T00:00:00Z")),
-                ContractIntakeSectionView.Transition(2, "COMPLETED", "TERMINATED", false, "DEMO-TERM-0001", operator.value, Instant.parse("2026-11-24T01:00:00Z")),
             )
             view.intakes[0].transitions.map { listOf(it.transitionSeq, it.fromStatus, it.toStatus) } shouldBe listOf(listOf(1, null, "CONSULTING"))
 
@@ -144,7 +187,7 @@ class ContractIntakeSectionSpec(
             recorder.observations.map { listOf(it.inTransaction, it.readOnly, it.isolation) }.toSet() shouldBe
                 setOf(listOf(true, true, java.sql.Connection.TRANSACTION_REPEATABLE_READ))
             recorder.statements.filter { it.contains("`reason`") }.shouldBeEmpty()
-            view.toString() shouldNotContain "DEMO-TERM-0001"
+            view.toString() shouldNotContain documentCanary
         }
 
         Then("a business created after the FLOW-1 migration has no intake (empty list — m-12); an unknown business is null") {
@@ -156,11 +199,13 @@ class ContractIntakeSectionSpec(
     Given("FLOW-1 GET /internal/v1/admin/businesses/{id}/contract-intakes (signed channel)") {
         Then("200 with the section shape; the stored '사유 및 비고' never appears; 400 for a malformed id (no echo); 404 for an unknown id") {
             val business = storedBusiness()
-            migratedTerminatedThenConsulting(business)
+            migratedThenCompletedChange(business)
             val ok = get(BusinessBodies.contractIntakes(business.id.value))
             ok.response.status shouldBe 200
             val body = ok.response.getContentAsString(Charsets.UTF_8)
             body shouldNotContain reasonCanary
+            // 양성 대조(NIT-2): 근거 참조 원문은 섹션에 보인다(D-FLOW-004 ④) — 캔어리 데이터가 실제로 저장·조회됐다.
+            body shouldContain documentCanary
             val tree = json.readTree(body)
             tree.propertyNames().toList() shouldBe listOf("businessId", "intakes")
             val items = tree.get("intakes")
@@ -168,7 +213,8 @@ class ContractIntakeSectionSpec(
             tree.get("intakes").get(1).propertyNames().toList() shouldBe listOf(
                 "intakeSeq", "status", "migrated", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "version", "createdAt", "updatedAt", "transitions",
             )
-            tree.get("intakes").get(1).get("transitions").get(1).propertyNames().toList() shouldBe
+            // 입력 데이터 변경(FLOW-2a — 해지 전이 삭제): 두 번째 이력 행이 있는 건은 변경 접수 건(index 0)이다. 기대 열 목록은 그대로.
+            tree.get("intakes").get(0).get("transitions").get(1).propertyNames().toList() shouldBe
                 listOf("transitionSeq", "fromStatus", "toStatus", "migrated", "documentRef", "actorRef", "occurredAt")
 
             listOf("biz_short", "mer_01JC0000000000000000000001").forEach { bad ->
@@ -181,15 +227,20 @@ class ContractIntakeSectionSpec(
 
         Then("§4A.14 Observability: while the section is read (reader and HTTP 200/400/404) no MASTER log event carries the document reference or the stored reason") {
             val business = storedBusiness()
-            migratedTerminatedThenConsulting(business)
+            migratedThenCompletedChange(business)
             val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
             val appender = ListAppender<ILoggingEvent>().also { it.start() }
             root.addAppender(appender)
             try {
                 // 캡처 연결 확인(대상 0건 공허 통과 방지): 실행 설정의 수준 그대로 MASTER 패키지 INFO가 잡힌다.
                 LoggerFactory.getLogger("com.paycore.master.observability.probe").info("contract-intake-section-log-probe")
-                checkNotNull(query.contractIntakes(business.id))
-                get(BusinessBodies.contractIntakes(business.id.value)).response.status shouldBe 200
+                // 양성 대조(NIT-2): 조회 결과에는 근거 캔어리가 있다(로그에만 없어야 한다 — 공허 통과 방지). 사유 캔어리는 DB 전이 이력에 저장돼 있다.
+                checkNotNull(query.contractIntakes(business.id)).intakes.flatMap { it.transitions }.mapNotNull { it.documentRef } shouldBe listOf(documentCanary)
+                runtime { c -> c.prepareStatement("SELECT COUNT(*) FROM contract_intake_transition WHERE business_id = ? AND reason = ?").use { ps ->
+                    ps.setString(1, business.id.value); ps.setString(2, reasonCanary); ps.executeQuery().use { rs -> rs.next(); rs.getInt(1) } } } shouldBe 1
+                val ok = get(BusinessBodies.contractIntakes(business.id.value))
+                ok.response.status shouldBe 200
+                ok.response.getContentAsString(Charsets.UTF_8) shouldContain documentCanary
                 get(BusinessBodies.contractIntakes("biz_short")).response.status shouldBe 400
                 get(BusinessBodies.contractIntakes("biz_01JC0000000000000000000000")).response.status shouldBe 404
             } finally {
@@ -204,7 +255,7 @@ class ContractIntakeSectionSpec(
                 var t = e.throwableProxy
                 while (t != null) { add(t.message ?: ""); t = t.cause }
             }
-            events.flatMap(::texts).filter { it.contains("DEMO-TERM-0001") || it.contains(reasonCanary) }.shouldBeEmpty()
+            events.flatMap(::texts).filter { it.contains(documentCanary) || it.contains(reasonCanary) }.shouldBeEmpty()
         }
 
         Then("the response generator output for fixed Demo values equals the MASTER golden contract-intake-section-v1 (keys, order, values)") {
@@ -213,13 +264,14 @@ class ContractIntakeSectionSpec(
             val view = ContractIntakeSectionView(
                 "biz_01JC0000000000000000000001",
                 listOf(
+                    // FLOW-2a: View에 종류(kind)가 생겼지만 응답 생성기·golden v1은 그대로다(ADMIN 바이트 동일 사본 — golden 새 판·TERMINATED 행 제거는 2b, §4B.15 ADMIN 행).
                     ContractIntakeSectionView.Intake(
-                        2, "CONSULTING", false, LocalDate.parse("2026-11-25"), "PHONE", actor, listOf("CARD_AUTH", "CARD_KEYIN"), 0,
+                        2, "CONSULTING", "CHANGE", false, LocalDate.parse("2026-11-25"), "PHONE", actor, listOf("CARD_AUTH", "CARD_KEYIN"), 0,
                         Instant.parse("2026-11-25T01:00:00Z"), Instant.parse("2026-11-25T01:00:00Z"),
                         listOf(ContractIntakeSectionView.Transition(1, null, "CONSULTING", false, null, actor, Instant.parse("2026-11-25T01:00:00Z"))),
                     ),
                     ContractIntakeSectionView.Intake(
-                        1, "TERMINATED", true, null, null, null, emptyList(), 1, Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-24T01:00:00Z"),
+                        1, "TERMINATED", "NEW", true, null, null, null, emptyList(), 1, Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-24T01:00:00Z"),
                         listOf(
                             ContractIntakeSectionView.Transition(1, null, "COMPLETED", true, null, "system:migration", Instant.parse("2026-10-01T00:00:00Z")),
                             ContractIntakeSectionView.Transition(2, "COMPLETED", "TERMINATED", false, "DEMO-TERM-0001", actor, Instant.parse("2026-11-24T01:00:00Z")),
