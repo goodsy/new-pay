@@ -20,7 +20,8 @@
   "archive": [
     "harness/archive/tasks-2026-11-20.json (schemaVersion 1 원본, sha256 4d917a68e27822b05b505f3c782a24c1bd4471f72f21a160d9d778bb10f37e02)",
     "harness/archive/progress-2026-11-13.json (2026-11-13 이후 갱신 중단된 progress.json 원본, sha256 2dc4e3afa5352a3b08e6a7d177f807852c3ea69ebd4699ea9e1b61c9c4af7f49)",
-    "harness/archive/tasks-done-2026-11-22.json (2026-11-22까지 DONE task 53개 원문, sha256 7750e6f2d418c85deaa6ffd30315274699cc757d694cb3a24558f05fc2e95d08)"
+    "harness/archive/tasks-done-2026-11-22.json (2026-11-22까지 DONE task 53개 원문, sha256 7750e6f2d418c85deaa6ffd30315274699cc757d694cb3a24558f05fc2e95d08)",
+    "harness/archive/tasks-done-2026-11-26.json (2026-11-23~26 DONE task 22개 원문, sha256 67accd1703d1efafe29807afb6f81d969c3fa15e7b4f5e569ec326da8c1441a1)"
   ],
   "tasks": [
     {
@@ -535,33 +536,6 @@
       "detail": "harness/archive/tasks-2026-11-20.json (id SITE-CONTRACT-CODE-001)"
     },
     {
-      "id": "ONESHOT-LOCK-001",
-      "title": "개통 화면 1인 명령(useOneShot) 결과 불명 잠금을 §4.2·§5.3 규칙에 맞춤",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "PROC-GATE-001"
-      ],
-      "spec": "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §4.2·§5.3·§9.16(1인 = B1 틀), docs/assessment/RECOVERY-ROADMAP.md 2-2",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/components/MerchantActivationArea.tsx",
-        "apps/internal-admin/frontend/src/screens/MerchantsScreen.activation.test.tsx",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "TZ-BIND-gate3",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
-      },
-      "openItems": [
-        "[후속] 상태 유실 문제는 LOCK-UNIFY-001에서 해결"
-      ],
-      "nextResumeAction": "완료(FULL PASS)",
-      "detail": null
-    },
-    {
       "id": "ADMIN-DS-001",
       "title": "관리자 공통 디자인 시스템·컴포넌트 관리·회귀 검증 기준 (D-PROC-003 해제 조건)",
       "status": "IN_PROGRESS",
@@ -587,321 +561,6 @@
         "[후속] §8 B1·V1·B2~B5 이행(RECOVERY-ROADMAP 4단계) — 배치마다 리뷰·SCOPED 게이트·§7.4 캡처·§11 매핑표"
       ],
       "nextResumeAction": "§8 B1(토큰 편입, 화면 변화 0) 착수: 매핑표·픽셀/computed style 비교·SCOPED 게이트. DONE은 B1~B5 뒤 FULL PASS",
-      "detail": null
-    },
-    {
-      "id": "BUILD-MAC-001",
-      "title": "프런트엔드 빌드 darwin-arm64(Apple Silicon 맥) 지원",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "docs/MAC-SETUP.md §3, docs/repository/TECH-BASELINE.md §9 Node 행",
-      "allowedWritePaths": [
-        "build-logic/src/main/kotlin/paycore.frontend.gradle.kts",
-        "gradle/libs.versions.toml",
-        "docs/repository/TECH-BASELINE.md",
-        "docs/MAC-SETUP.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "TZ-BIND-gate3",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
-      },
-      "openItems": [
-        "[후속] 다른 호스트(Intel 맥·Linux arm64)는 frontendNodeVerify 실패 — 필요 시 같은 절차로 catalog 키 추가"
-      ],
-      "nextResumeAction": "완료(FULL PASS, 리뷰 REVIEW_PASS). 후속 없음",
-      "detail": null
-    },
-    {
-      "id": "TZ-BIND-001",
-      "title": "관리자 회복 선점(lockDue) 시각 바인딩이 JVM 시간대에 따라 밀리는 결함 수정",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "docs/repository/ARCHITECTURE-CONVENTIONS.md 시각 바인딩 행(LocalDateTime 바인딩은 JVM 기본 시간대 영향), 기존 회복 규칙(next_attempt_at ≤ now) — 정책 변경 없음",
-      "allowedWritePaths": [
-        "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/adapter/persistence/JpaOwnerExecutionRepository.kt",
-        "apps/internal-admin/src/test/kotlin/com/paycore/admin/approval/**",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "TZ-BIND-gate3",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/TZ-BIND-001-2026-11-22T122742Z.json"
-      },
-      "openItems": [
-        "[후속] 시험 중 TimeZone.setDefault — Kotest 병렬 실행을 켜면 재검토(현재 maxParallelForks=1, 스케줄러 비활성)"
-      ],
-      "nextResumeAction": "완료(FULL PASS, 리뷰 REVIEW_PASS, 변이 RED 확인). 후속 없음",
-      "detail": null
-    },
-    {
-      "id": "LOCK-UNIFY-001",
-      "title": "관리자 화면 결과 불명 잠금 3벌을 공용 hook 하나로 통합(ScreenMemory 기반)",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "ONESHOT-LOCK-001"
-      ],
-      "spec": "docs/assessment/RECOVERY-ROADMAP.md 2-1, docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md §4.2·§5.3",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/**",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "LOCKU-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/LOCK-UNIFY-001-2026-11-22T124110Z.json"
-      },
-      "openItems": [
-        "FULL PASS 충족: FLAKY-gate1..3(2026-11-23, 7c2290b 포함 트리) — HARNESS-GUIDE §11",
-        "구현·독립 리뷰 REVIEW_PASS(MINOR-2·NIT-3 반영, MINOR-1은 git 대조로 동작 동일 확인 — 옛 3벌 모두 SERVER_ERROR 포함). 기존 시험 무수정",
-        "결정(Coordinator, 가역·안전 방향): 결과 불명 뒤 상세가 이미 결정된 것처럼 보여도 잠금 유지 — §5.3 결과는 200/409로만. 세션 동안 로그인 안내가 남음",
-        "[후속] 리뷰 MINOR-3: 같은 세션에서 개통 처리→해지 뒤 첫 '개통 등록'이 옛 submissionId replay(이중 효과 없음) — 결제수단별 one-shot 분리 때 정리",
-        "[후속] 리뷰 NIT-1·2: Site 거절 잠금이 MID별 영역 간 공유(표시만), 다른 Site 거절 차단 유지 여부는 화면 결정"
-      ],
-      "nextResumeAction": "완료(SCOPED LOCKU-gate2 + FULL FLAKY-gate1..3 PASS). 후속은 openItems [후속]",
-      "detail": null
-    },
-    {
-      "id": "FLAKY-FIX-001",
-      "title": "불안정 시험 3유형 결정화(timeout·기대값 불변) — 재정비 2-3",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "docs/assessment/RECOVERY-ROADMAP.md 2-3, docs/assessment/COMPLEXITY-ASSESSMENT.md §2.2",
-      "allowedWritePaths": [
-        "apps/payment-api/src/test/**",
-        "apps/internal-admin/frontend/src/**/*.test.tsx",
-        "apps/internal-admin/frontend/src/test/**",
-        "harness/tasks.json",
-        "docs/repository/ADMIN-PAYMENT-OPS-001-PAYMENT-OPS.md"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "FLAKY-gate3",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/FLAKY-FIX-001-2026-11-23T053802Z.json"
-      },
-      "openItems": [
-        "대상 3유형 수정 완료(2026-11-23, 시험 코드만): (1) AdminReadIsolationSpec 순서 단언 — 고정 SLEEP(6) 벽시계 경주 → 공개 부하 종료 신호까지 점유 유지(시험 전용 상한 45초, 관리 client 60초·future 90초보다 짧음), 합격 기준 §4.7 불변, 명세 I-61 한 줄 갱신 (2) ApprovalsScreen.targetLabels — 기본 1초 findBy polling → settle()(act flush)+getBy (3) 관리자 Vitest 첫 시험 5초 — setup.ts beforeAll 환경 warm-up + 카드 입력 붙여넣기 + settle()",
-        "MINOR-2 기록: warm-up은 화면 코드가 아닌 jsdom·접근 이름·user-event 환경 초기화만 beforeAll로 옮김. 시험 timeout·hookTimeout·기대값 변경 없음. hook 실패 시 파일 전체 FAIL로 집계(skip 아님)",
-        "증거: ~/gate-logs/flaky-fix-001/ (수정 전 재현 targetLabels 43/48·reacquisition 65/72 실패 → 수정 후 0/1728·0/1152, 회귀 복제본 RED 확인, 관리자 Vitest 687, tsc 0). 독립 리뷰 REVIEW_PASS(MINOR-1·NIT-1·NIT-2 반영)",
-        "후속(범위 밖): AuditScreen.targetLabels.test.tsx 기본 1초 findBy 다수(같은 유형)",
-        "게이트: FLAKY-gate1(…051223Z)·gate2(…052516Z)·gate3(…053802Z) evidence build/harness-evidence/FLAKY-FIX-001-2026-11-23T*.json, 모두 PASS, buildFingerprint 86f8409e…",
-        "완료 기준 충족: FULL 3회 연속 PASS(2026-11-23 05:12~05:50Z, 같은 fingerprint 9e79fec7…, Kotlin 5097/FE 712, 실패·skip 0). CVE-SCAN은 맥에 osv-scanner 미설치로 ENVIRONMENT(성공 아님) — 의존성 변경 없는 시험 전용 변경. 후속 MAC-OSV-001"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "MAC-OSV-001",
-      "title": "맥(darwin-arm64)용 osv-scanner 설치·체크섬 등록 — CVE-SCAN 복구",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "harness/scripts/cve-scan.py, harness/commands.json CVE-SCAN",
-      "allowedWritePaths": [
-        "harness/commands.json",
-        "harness/scripts/cve-scan.py",
-        "harness/tests/test_cve_scan.py",
-        "docs/MAC-SETUP.md",
-        "docs/repository/TECH-BASELINE.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "MACOSV-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/MAC-OSV-001-2026-11-23T120409Z.json"
-      },
-      "openItems": [
-        "2026-11-23 FLAKY-FIX-001 DONE 때 CVE-SCAN ENVIRONMENT: osv-scanner not installed at ~/.local/bin (WSL 시절 linux-x64 바이너리 SHA만 등록)",
-        "설치(2026-11-23): 공식 v2.6.0 osv-scanner_darwin_arm64 SHA-256 98c460dc…56b4 = osv-scanner_SHA256SUMS 항목, 같은 SUMS의 linux_amd64 = 기존 등록값 ca69b3d3…b108(일치) → ~/.local/bin/osv-scanner",
-        "설계: externalTool.sha256(단일) → sha256ByPlatform {linux-x64, darwin-arm64}; 등록 없는 플랫폼은 ScanError(ENVIRONMENT, exit 3)",
-        "CVE-SCAN 실행 PASS(2026-11-23, ~/gate-logs/MACOSV-cve1.log): 5모듈 canary 8·프론트 2 canary 5 검출, 취약점 0. 독립 리뷰 REVIEW_PASS — MINOR 2(commands.json purpose·technology-baseline.json 문구)·NIT 2(빈 표/옛 필드·정규화 경계 시험) 반영",
-        "MACOSV-gate1 FAIL: HARNESS-SELFTEST minTests 258 != 실제 시험 수(시험 추가) → minTests 262(시험 4+1 추가 후 실제 262, 기준 규칙 '하한 = 실제 수' 그대로)",
-        "완료: MACOSV-gate2 FULL PASS(fp 8e3647a5…, GRADLE-CHECK 6m06s, Kotlin 5120/FE 712, harness 262, 실패·skip 0) + CVE-SCAN 재실행 PASS(~/gate-logs/MACOSV-cve2.log, cve_exit=0)"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "BUILD-PERF-MAC-001",
-      "title": "메모리 큰 호스트에서 게이트 병렬도 상향(저장소 기본값 불변, 호스트별 gradle 속성) — 32GB 맥",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "docs/repository/TECH-BASELINE.md §7.3, docs/repository/TEST-PERF-001-GATE-DURATION.md",
-      "allowedWritePaths": [
-        "build-logic/src/main/kotlin/**",
-        "build-logic/src/test/**",
-        "docs/repository/TECH-BASELINE.md",
-        "docs/MAC-SETUP.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "PERF-gate-default",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BUILD-PERF-MAC-001-2026-11-23T085346Z.json"
-      },
-      "openItems": [
-        "기준선: FLAKY-gate1..3 GRADLE-CHECK 11m38s/11m32s/11m39s (DB test JVM 1, workers 4, test heap 1g, daemon 2g)",
-        "설계: 저장소 기본값(1개 직렬)은 그대로, gradle 속성(예: paycore.dbTestJvmSlots)으로만 상향 — 맥은 ~/.gradle/gradle.properties(저장소 밖). 시험·판정 기준·timeout 불변",
-        "구현: build-logic BuildConcurrency(paycore.dbTestJvmSlots/kotlinCompileSlots/testMaxHeap, 기본 1/1/1g, 잘못된 값 거부, 비기본이면 'paycore concurrency:' 로그 1줄) + BuildConcurrencySpec 23건. 이 맥 ~/.gradle/gradle.properties: dbTestJvmSlots=3, kotlinCompileSlots=2, workers.max=6, daemon -Xmx3g. 측정(fp 152f9a10…): 기본 701s, slots2 492s, 채택안 367~374s, slots5 355s, swap 0. 독립 리뷰 REVIEW_PASS(MINOR-1~3·NIT-1~3 반영)",
-        "완료 기준 충족(fp c2e49b9b…, Kotlin 5120/FE 712, 실패·skip 0): 상향 설정 PERF-gate1..3 PASS — GRADLE-CHECK 6m17s/6m16s/6m15s(…083108Z/083841Z/084614Z, 로그에 'paycore concurrency' 1줄) + 기본값 경로 PERF-gate-default PASS 11m37s(…085346Z, 사용자 속성 파일 치움, 로그 0줄). 기준선 FLAKY-gate 11m32s~11m39s. CVE-SCAN 미실행(의존성 변경 없음) → MAC-OSV-001 이후 2026-11-23 CVE-SCAN PASS",
-        "gradle.properties 주석 후속은 FOLLOWUP-SMALL-001에서 완료"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "ADMIN-DS-B1",
-      "title": "관리자 디자인 시스템 B1 — 토큰 편입(값 변경 0)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "ADMIN-DS-001"
-      ],
-      "spec": "docs/repository/ADMIN-DS-001-DESIGN-SYSTEM.md rev 0.2 §4·§7.2~§7.4·§8 B1·§11",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/**",
-        "docs/repository/ADMIN-DS-001-DESIGN-SYSTEM.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "ADSB1-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/ADMIN-DS-B1-2026-11-23T142354Z.json"
-      },
-      "openItems": [
-        "완료 기준(§8 B1): 원본 블록·적응 규칙 값을 §4 토큰 var()로, 다크 선택자를 토큰 재정의로 축소, workspace.css:12 낡은 주석 수정, §7.2 둘째 행 원문 정규식 단언 전환(WorkspaceShell은 :294·:312만), §7.3 B1 시험 4종 추가, §7.1 시험 무변경 통과, §7.4 픽셀·computed style 차이 0(12폭×2테마), §11 매핑표·캡처 요약",
-        "Demo 데이터: 2026-11-23 Mac 재seed mer_01M848F144EG96CWK9FRZJ18F9 / mid_01M848F174PB3DPCPHTFRGCZTN, 결제는 2026-11-24 00:00 KST 이후",
-        "구현 완료(2026-11-23): workspace.css 색·글자 크기·radius·그림자 → --ds- 토큰(:root / :root[data-theme=dark]), 다크 선택자 약 63개 → 토큰 재정의(이유 주석 예외 1건 .btn), 원문 정규식 단언 7개 전환(매핑표 §11.1 14행), designTokens.test.ts 13건 + cssModel.ts(시험 전용). 캡처: 20상태×12폭×2테마 480장, computed style 차이 0, 픽셀 차이는 pixelmatch AA 분류만(build/harness-evidence/ADMIN-DS-B1-capture-20261123T133503Z). 변이 18건 모두 검출(tool/mutation/mutations.log). Vitest 693(=687−7+13), tsc 0",
-        "리뷰: 1차 REVIEW_FAIL(MAJOR-1 초점 링 3px solid 보장 누락) → 반영 후 재리뷰 REVIEW_PASS. Coordinator 결정: theme.test :159·:229·:238 단언 방식 변경 수용(같은 쌍·4.5:1, 리뷰 전후 대조 PASS), .notice 4.47:1(#64748b/#f6f8fb) 알려진 미달 목록 추가 수용 → V1에서 값 보정·Demo 사용자 확인",
-        "[후속] B5: Tailwind가 시험 파일 문자열을 utility 후보로 읽음(@source not 검토), §4.1 same 목록 범위 명시, 간격 px 토큰화 범위 결정",
-        "완료: ADSB1-gate1 FULL PASS(fp 5f7db1d0…, GRADLE-CHECK 6m07s, Kotlin 5120/FE 718, 실패·skip 0). Demo 관리자는 새 CSS로 재빌드됨(화면 변화 없음)"
-      ],
-      "nextResumeAction": "완료. 다음 배치 V1(값 변경 — control-border 3:1, .notice 대비) — 사용자 Demo 확인 필요",
-      "detail": null
-    },
-    {
-      "id": "FOLLOWUP-SMALL-001",
-      "title": "작은 후속 묶음: AuditScreen.targetLabels 1초 findBy 결정화 + gradle.properties 호스트별 상향 안내 주석",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "FLAKY-FIX-001 후속(리뷰 f), BUILD-PERF-MAC-001 리뷰 MINOR-2 후속",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/screens/AuditScreen.targetLabels.test.tsx",
-        "apps/internal-admin/frontend/src/test/**",
-        "gradle.properties",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "FUS-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/FOLLOWUP-SMALL-001-2026-11-23T144513Z.json"
-      },
-      "openItems": [
-        "gradle.properties 주석 3줄 추가(값 불변)",
-        "AuditScreen.targetLabels: 기본 1초 findBy → FLAKY-FIX-001과 같은 settle()+getBy 방식(timeout·기대값 불변, 실제 타이머 경로는 유지)",
-        "구현: AuditScreen.targetLabels findBy*/vi.waitFor → settle()+getBy*, userEvent delay:null, 가맹점 코드 입력 paste(형식 판정은 제출 시 최종값) — FLAKY-FIX-001·TEST-PERF-003 선례. 재현 x96/부하192 원본 75/96·71/96 파일 실패 → 0/96×3, settle no-op 12/12 실패, Vitest 693, tsc 0(~/gate-logs/followup-small-001). 독립 리뷰 REVIEW_PASS(NIT-1 gradle.properties 문구 반영)",
-        "완료: FUS-gate1 FULL PASS(fp 267d8599…, GRADLE-CHECK 6m03s, Kotlin 5120/FE 718, 실패·skip 0)"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "MERCHANT-DETAIL-VIEW-001",
-      "title": "가맹점 상세 화면 전환 + 기술 정보 접기(D-ADMIN-UI-009)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "사용자 요청 2026-11-24 '기준정보 상세보기 화면 아래가 아닌 화면 전환으로'. 기존 관례: BusinessesScreen View {list|detail|edit} + ScreenMemory",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/**",
-        "docs/DECISIONS.md",
-        "harness/questions.json",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "BRN-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
-      },
-      "openItems": [
-        "Coordinator 결정(가역 UI 세부, 저장소 관례): 사업자 상세와 같은 화면 전환 패턴, '← 목록으로'로 복귀 시 검색 조건·결과·스크롤 유지, URL 불변(콘솔 전체 관례), 내부 키 DOM 노출 금지(C-14) 유지, 상세 기능·시험 기대값 불변",
-        "D-PROC-007: 리뷰 + SCOPED → 커밋 → 묶음 FULL",
-        "1단계 구현(화면 전환) 완료: Vitest 705, tsc 0, Demo 캡처 24장 넘침·style·CSP 0, §7.1 activationMemory 시험 2건은 닫기 경로만 '목록으로' 추가(단언 불변 — 리뷰 확인)",
-        "2단계: 권리 revision·권리 전파 → 상세의 접힌 '기술 정보'(목록 열 제거). [관찰] ctr_·csa_ 식별자가 상세에 원래부터 표시 — SITE-CONTRACT-CODE-001(사람용 코드) 대상, 이번 범위 밖",
-        "2단계 + 리뷰 반영 완료: 기술 정보 <details>(목록 권리 revision 열 제거), 세션 경계 초기화 App 시험 2, 상세↔목록 전환 시 h2 초점(가맹점·사업자 모두, 사업자 상세 제목 h3→h2 모양 불변), 이력만 재조회. Vitest 714, tsc 0, 캡처 24장 넘침·style·CSP·mer_/biz_ 0(build/harness-evidence/MERCHANT-DETAIL-VIEW-001-capture-20261124T012520Z). 독립 리뷰 REVIEW_PASS → 재리뷰 REVIEW_PASS. §7.1 activationMemory 시험은 '목록으로' 클릭 한 줄·주석만 추가(Coordinator diff 확인)",
-        "[후속 NIT] 세션 끝 메모리 초기화 두 줄은 이중 방어라 단독 변이 미검출(관측 성질은 시험) / 이력 진행 중 탭 왕복 시 이력 1회 추가 조회 / 2인 승인 요청 폼 busy는 화면 자체 상태(서버 DUPLICATE_UNRESOLVED가 막음) / 복원 상세는 재조회 안 함(사용자 결정 ①)",
-        "SCOPED MDV-scoped1 PASS(units INTERNAL-ADMIN·ADMIN-FRONTEND, fp 1e70ce22…). D-PROC-007: 커밋 후 FULL 대기 — DONE은 다음 묶음 FULL PASS 뒤",
-        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "MERCHANT-IA-001",
-      "title": "사업자·가맹점 화면 항목 정리(정보 구조 재설계) — 업무 단위 묶음·탭·필요 항목만",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "MERCHANT-DETAIL-VIEW-001"
-      ],
-      "spec": "사용자 요청 2026-11-24 '가맹점 사업자 관리 화면부터 항목 정리 — 불필요 항목이 너무 많고 중구난방'. 참고: 사용자 제공 토스페이먼츠 상점관리자 사용 설명서 PDF(저장소 밖, 계약·운영 회사정보/이용정보/사용자관리 화면 구조 원칙만 참고)",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/**",
-        "docs/DECISIONS.md",
-        "docs/repository/MERCHANT-IA-001-*.md",
-        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md",
-        "harness/questions.json",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "IAB6-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T095028Z.json"
-      },
-      "openItems": [
-        "1단계: 정리안(현재 항목 전수 → 남김/묶음 이동/접기/빼기, 목표 구조, 질문) 작성 → 사용자 승인 전 화면 구현 금지",
-        "참고 원칙: 업무 단위 섹션(회사/대표자/담당자), MID 선택 + 계약 상태·계약일 머리, 탭(정산/수수료/결제·부가서비스), 칩·이용가능 표, 기술 정보 비노출",
-        "사용자 답 Q-IA-1~8 → D-ADMIN-UI-010(Q-IA-4만 권장안과 다름: MID 선택 상세 맨 위). 명세 rev 0.2 반영 → 배치 B1(잡음 제거)→B2(고정값·번호 검색)→B3(내부 식별자)→B4(머리·탭·MID 선택)→B5(사업자 섹션·연결 가맹점)→B6(목록·용어). 배치마다 리뷰+SCOPED+커밋(D-PROC-007), Demo 확인",
-        "B1 완료(명세 rev 0.2a): 중복 통화 표 1개로(종료 처리 열 합침), Site 심사 표 가맹점에서 1회(Site 패널 아래, 잠금 키·2인 요청·거절 확인 불변, 요청 API는 MID 무관), 이력 '연산' 열 제거·변경 종류 한국어 이름(lib/merchantChangeTypes.ts 34종, 모르는 값 원문), 작업 배치 이름 → '준비 전', 안내문 축소, API 키 안내 문구. Vitest 722, tsc 0, 캡처(4폭) 넘침·style·CSP·mer_/biz_ 0. 리뷰 REVIEW_FAIL(명세 MAJOR-1 Q-IA-4 해석 기록 오류 → 사용자 재확인 Q-IA-4b 'MID 것만 따라감'으로 해소, DECISIONS 정정) + MINOR-1~4·NIT-1 반영",
-        "D-ADMIN-UI-011(pg-lab 참고): 화면 패턴 먼저 — 사업자 등록 번호 확인 먼저, 결제 준비 상태 줄+탭, 필터 묶음, 사업자 상세 항상 편집 폼+저장(Q-IA-6 대체). B2 뒤 명세 rev 0.3에 반영. 참고 캡처 scratchpad/pglab/*.png",
-        "B2 완료(명세 rev 0.2b): 사업자 목록 진위확인 열·상세 진위확인 배지/진위확인·국가·등록 상태(머리 배지와 중복) 줄 제거, 번호 검색 결과 4열, 가맹점 목록 상태 열·필터와 상세 가맹점/사업자 상태 줄 제거(DB·API 유지, '등록 완료 ≠ 진위확인' 안내 유지·시험 고정). Vitest 731, tsc 0, 캡처 6폭×2테마×5화면 이상 없음(build/harness-evidence/MERCHANT-IA-001-B2-capture-20261124T034046Z). 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영)",
-        "명세 rev 0.3a(D-ADMIN-UI-011 pg-lab 패턴 반영, 배치 재편 B4·B5·B5b·B6) + B3 완료: 가맹점 상세 내부 식별자(site_·ctr_·csa_·act_·apr_·sac_·cra_·tlp_·pas_·cur_·asg_) → 사람용 값(Site='종류 · 식별값', 계약 n, 서비스: …, 승인함에서 보기), 명령 인자·잠금 메모리 키는 내부 키 그대로, FirstMid select는 순번 value + 상태 키(사라지면 첫 값). Vitest 753, tsc 0, 캡처 6폭×2테마 내부 키 0(build/harness-evidence/MERCHANT-IA-001-B3-capture-20261124T035805Z/after-review). 독립 리뷰 REVIEW_PASS(MINOR-1~3, NIT-1·3 반영). 미결: 등록자 adm_ 표시, 승인함 대상 이름 통일",
-        "B1~B3 FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL. 남은 배치 B4·B5·B5b·B6",
-        "B4 완료(명세 rev 0.3c): 가맹점 상세 머리(제목·사업자·선택 MID 정보·첫 MID 발급·결제 준비 줄(참고, 기존 계산만)·승인 대기·결과 확인 필요 배너) + 공용 DetailTabs(카탈로그 등록, WAI-ARIA, 패널 hidden 유지) 탭 6개, MID 범위 Q-IA-4b, 잠금 표시(폼 없으면 '상세 다시 읽기'), 사업자 상세 탭 교체(픽셀 차이 0). Vitest 774, tsc 0, 캡처 72장 이상 없음. 독립 리뷰 REVIEW_PASS(MINOR-1~5·NIT-1~4 반영). 미결: 2인 폼 실패 표시가 숨은 영역에 묻힘(후속), 계약 상태 배지, 개요 기본정보 축소, 탭 모양 정본화",
-        "B4 FULL IAB4-gate1 PASS(2026-11-24 08:30~08:38Z, fp 693ba737…, Kotlin 5162/FE 799, 실패·skip 0). 남은 배치 B5·B5b·B6",
-        "B5 완료(명세 rev 0.3e): 사업자 상세 = 항상 편집 폼(OPERATOR, 회사/대표자/담당자 2열, 하단 저장 — 바뀐 칸 없으면 비활성, 사유·version 충돌·결과 불명 잠금·감사 불변, 편집 기준 상세 열 때 고정) / 조회 역할 읽기, 화면 안 이탈 확인(접근성), 저장 안 한 입력 폐기 안내, 연결 가맹점 (n) 탭(businessId 검색, 감사 없음·속도 제한 공유, 가맹점 상세 이동), 입력 칸 공유. Vitest 788, tsc 0, 캡처 48장 이상 없음. 독립 리뷰 REVIEW_PASS(§7.1 잠금 시험 변경 Coordinator diff 대조 — 약화 없음, MINOR-1~3·NIT 반영). 후속: 편집 폼 '취소' 버튼",
-        "B5b 완료(명세 rev 0.3g): 사업자 등록 1단계 사업자등록번호 확인(기존 번호 조회 API — 매 시도 감사·공유 버킷, 형식 오류면 호출 0, 보낸 즉시 입력 비움, 요청 세대로 늦은 결과 버림) → 이미 있음 안내(상호·원문 하이픈 번호·등록 상태·정보 보기) / 없음 → 2단계 입력(번호 고정, 번호 다시 입력), 확인~등록 재조회 없음, 최종 중복은 서버 등록 응답, 결과 불명 잠금 시 잠긴 번호로 재개. Vitest 798, tsc 0, 캡처 36장 이상 없음. 독립 리뷰 REVIEW_PASS(MINOR-1·2, NIT-1·2 반영, noRuntimeStyles 검사 추가만 — Coordinator diff 확인)",
-        "B6 완료(명세 rev 0.3i): 두 목록 필터 묶음(FilterPanel — 항목명|입력 2열, 초기화·검색, 카탈로그 등록), 건수(다 읽으면 '총 n건', 더 있으면 'n건 표시 · 더 있음'), 가맹점 목록 '더 보기' 이어 붙이기, 사업자 열 '상호 · 번호', 도움말 축소(은퇴 코드 안내는 칸 설명), 용어 Site·검색·더 보기·상세 통일. 검색 동작·감사·제한 불변. Vitest 813, tsc 0, 캡처 48장 이상 없음. 독립 리뷰 REVIEW_PASS(M-1·NIT 반영; MerchantsScreen 재적용 사고는 Coordinator diff 확인 — 회귀 없음)",
-        "완료: FULL IAB6-gate1 PASS(2026-11-24 09:50~09:58Z, fp b820527a…, Kotlin 5162/FE 838, 실패·skip 0) — B1~B6 전부. 남은 후속(별도 작업): 2인 폼 실패 표시가 숨은 영역에 묻힘, 계약 상태 배지, 개요 기본정보 축소, 탭 모양 정본화, 편집 폼 '취소', 등록자 adm_ 표시, 승인함 대상 이름 통일. 업무 흐름 변경은 MERCHANT-FLOW-001"
-      ],
-      "nextResumeAction": "완료",
       "detail": null
     },
     {
@@ -936,103 +595,6 @@
       "detail": null
     },
     {
-      "id": "ADMIN-DEMO-LOGIN-001",
-      "title": "데모 간편 로그인(데모 계정 고르기, DEMO 모드+명시 설정 한정, LIVE 기동 거부)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "docs/repository/ADMIN-DEMO-LOGIN-001-DEMO-QUICK-LOGIN.md, D-ADMIN-AUTH-DEMO-001",
-      "allowedWritePaths": [
-        "apps/internal-admin/src/main/**",
-        "apps/internal-admin/src/test/**",
-        "apps/internal-admin/frontend/src/App.tsx",
-        "apps/internal-admin/frontend/src/screens/LoginScreen*",
-        "apps/internal-admin/frontend/src/api/**",
-        "apps/internal-admin/frontend/src/layout/**",
-        "apps/internal-admin/frontend/src/components/**",
-        "apps/internal-admin/.env.example",
-        "docs/repository/ADMIN-DEMO-LOGIN-001-DEMO-QUICK-LOGIN.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "BRN-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
-      },
-      "openItems": [
-        "보안 기능(데모 한정): 독립 리뷰 필수, 운영 준비 체크리스트에 '반드시 끔' 항목",
-        "재인증(민감 작업 TOTP 재확인) 처리는 구현자 조사 후 사용자 확인",
-        "구현 완료(명세 rev 0.3): 데모 계정 고르기 간편 로그인(정상 세션·CSRF·세대, 감사 LOGIN_SUCCEEDED method=DEMO_QUICK), 켜짐 = DEMO + enabled + 허용 계정(LIVE·모든 주소 허용 목록이면 기동 거부, WARN+gauge), 재인증 생략(③: 간편 로그인 세션만, 요청마다 판정, STEP_UP_SKIPPED 같은 TX 감사, 2인 승인 검사 먼저), 기능 끈 뒤 남은 간편 세션 폐기, deployment-mode 비교 정규화, 프런트 패널·배너·계정 바꾸기·승인 화면 생략 안내, 감사 라벨. 독립 보안 리뷰 PASS → 재리뷰 PASS(MINOR-A~C·NIT 반영). 기존 시험 기대값 불변(LoginReadyAccounts 선택 인자만)",
-        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
-      "id": "PII-MASKING-POLICY-001",
-      "title": "개인정보·민감정보 마스킹 규칙 문서(결정 통합 + 현재 구현 대조)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "사용자 요청 2026-11-24 '개인정보 마스킹 규칙도 별도로 문서로'. 근거 DECISIONS(D-MS2-005, D-ADMIN-002/004, D-ADMIN1-017/019, D-OPS-010, D-MOPS-003/006/009, D-BIZ-003/006/007, D-ACQA-005, D-BIZLOOKUP-001 등)",
-      "allowedWritePaths": [
-        "docs/repository/PII-MASKING-POLICY.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "BRN-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
-      },
-      "openItems": [
-        "결정 출처별 규칙 표(대상 데이터 × 화면/조회 응답/감사/변경 이력/로그/지표/오류/요청 본문/저장), 현재 구현 대조·불일치 목록, 미결 질문",
-        "rev 0.1a: 규칙 표 25행, 구현 대조 X-1~X-8, 미결 Q-PII-1~11 중 1·2·4·11 답(D-PII-001). 남은 미결 Q-PII-3·5~10",
-        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL"
-      ],
-      "nextResumeAction": "완료 — 남은 미결 Q-PII-3·5~10은 관련 기능 착수 때",
-      "detail": null
-    },
-    {
-      "id": "BRN-UNMASK-001",
-      "title": "관리자 화면·조회 응답의 사업자등록번호 원문 표시(D-BIZ-007 구현)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "MERCHANT-IA-001"
-      ],
-      "spec": "D-BIZ-007(2026-11-19) — 사용자 재확인 2026-11-24 '뉴피지 내부관리자 시스템에서는 사업자번호 마스킹 안 함'. 화면·ADMIN/MASTER 조회 응답 원문(하이픈 표시), 감사 detail·변경 이력·로그·지표는 마스킹 유지, 번호 조회 횟수 제한·감사 유지",
-      "allowedWritePaths": [
-        "apps/internal-admin/frontend/src/**",
-        "apps/internal-admin/src/**",
-        "apps/internal-admin/src/test/resources/contracts/**",
-        "apps/master-api/src/**",
-        "apps/master-api/src/test/resources/contracts/**",
-        "docs/repository/BRN-UNMASK-001-*.md",
-        "docs/repository/PII-MASKING-POLICY.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "BRN-gate2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BRN-UNMASK-001-2026-11-24T052846Z.json"
-      },
-      "openItems": [
-        "MERCHANT-IA-001 B3 커밋 뒤(같은 화면 파일) 시작",
-        "PII-MASKING-POLICY.md 규칙과 일치",
-        "D-PII-001: 범위 관리자 전체(마법사·이력 대상 포함), 목록 감사 없음. 구현 대상 PII-MASKING-POLICY.md §7 X-1(MasterSqlText·Reader 6곳, MasterResponseShape 형식 검사, 화면 3파일·historyTarget), 감사 마스킹(BusinessAudit, MerchantLookupService)은 유지",
-        "구현 완료(명세 rev 0.2): MASTER 조회 Reader 6곳 원문 SELECT(MasterSqlText.registrationNumber), 응답 필드 registrationNumberMasked→registrationNumber(golden v2, v1 삭제, ADMIN은 새 이름만 fail-closed), 화면 하이픈 표시·라벨, 원문 담는 View/결과 toString 마스킹. 유지: 감사 brn=123*******, 이력 저장값, 로그·지표·오류·admin_request·outbox 원문 0(캔어리 시험 강화), 목록 감사 없음, 번호 조회 제한·감사. MASTER·ADMIN 동시 배포 필수. 독립 리뷰 REVIEW_PASS(조건부 → M-1~M-4·N 반영). master 966, admin 1217, Vitest 757, tsc 0",
-        "완료: FULL BRN-gate2 PASS(2026-11-24 05:28~05:36Z, fp e8a153e7…, Kotlin 5159/FE 782, 실패·skip 0) — D-PROC-007 묶음 FULL (BRN-gate1은 지운 v1 golden 미반영으로 지문 단계 거부 — 시험 미실행)"
-      ],
-      "nextResumeAction": "완료",
-      "detail": null
-    },
-    {
       "id": "LOG-JOOQ-001",
       "title": "jOOQ 실행 로그(DEBUG) 원문 노출 방지 — org.jooq DEBUG 금지 또는 executeLogging=false",
       "status": "BACKLOG",
@@ -1050,37 +612,6 @@
         "LIVE 전 필수 검토"
       ],
       "nextResumeAction": "LIVE 준비 단계에서",
-      "detail": null
-    },
-    {
-      "id": "CLEANUP-PONY-001",
-      "title": "ponytail 리뷰(7d4a849..cd9faa4) 정리 6건 — 동작 불변 중복 제거·시험 보강",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [],
-      "spec": "ponytail-review 결과(2026-11-24, Ship): 1 DemoQuickLoginController 늘 참 조건·/me 본문 복사 → 공유 함수, 2 AuthController 위임 함수 2개 삭제, 3 AccountSecurityConfiguration 겹치는 조건, 4 DemoQuickLoginPanel/Status 조회 훅 공유, 5 오소유·매입 승인 데모 생략 HTTP 시험, 6 재인증 생략 판정 단일 함수(waivesStepUp)",
-      "allowedWritePaths": [
-        "apps/internal-admin/src/main/kotlin/com/paycore/admin/account/**",
-        "apps/internal-admin/src/main/kotlin/com/paycore/admin/approval/**",
-        "apps/internal-admin/src/test/**",
-        "apps/internal-admin/frontend/src/components/DemoQuickLogin*",
-        "apps/internal-admin/frontend/src/lib/**",
-        "apps/internal-admin/frontend/src/**/*.test.*",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "IAB4-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/MERCHANT-IA-001-2026-11-24T083037Z.json"
-      },
-      "openItems": [
-        "동작 불변(보안 판정 동일), 기대값 변경 금지",
-        "완료: 6건 반영(AdminMeBody 공유, 위임 함수 삭제, active 단순화, useDemoQuickLoginAccounts 훅, Owner·Acquiring 데모 생략 HTTP 시험 3건(RED 확인), waivesStepUp 단일화). 동작 불변 재리뷰 REVIEW_PASS. SCOPED CP-scoped PASS(별도 작업 트리). D-PROC-007: DONE은 다음 묶음 FULL",
-        "완료: FULL IAB4-gate1 PASS(2026-11-24 08:30~08:38Z, fp 693ba737…, Kotlin 5162/FE 799, 실패·skip 0)"
-      ],
-      "nextResumeAction": "완료",
       "detail": null
     },
     {
@@ -1216,183 +747,6 @@
       "detail": null
     },
     {
-      "id": "SKILL-PILOT-001",
-      "title": "Matt Pocock Skills 시범(grill-with-docs·domain-modeling 절차만) — Business 등록·조회·수정",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "GOV-BIZ-001"
-      ],
-      "spec": "D-GOV-007, 사용자 적용 원칙 1~7(2026-11-25)",
-      "allowedWritePaths": [
-        "docs/governance/GOV-BIZ-001-*.md",
-        "harness/questions.json",
-        "harness/tasks.json",
-        "docs/DECISIONS.md",
-        "docs/rules/BIZ.md(§0 용어 — D-GOV-007 ②, §1 BR 행·§진단 — D-GOV-009 ②·Q-SKILL-4)",
-        "docs/rules/README.md(용어 절 — D-GOV-009 ①·Q-SKILL-3)",
-        "docs/repository/DOMAIN-DEFINITION.md(용어 정본 참조 — D-GOV-009 ②·Q-SKILL-4)"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "SKILL-scoped2",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/SKILL-PILOT-001-2026-11-25T064438Z.json"
-      },
-      "openItems": [
-        "소스·시험·정책·전역 설정 변경 금지",
-        "평가 지표: 확정 정책 재질문 0, 허용 밖 파일 0, 새 발견 수, 시간·하네스 중복",
-        "BIZ.md '## 0. 용어 (사업자)' 25개 반영(사용자 승인 2026-11-25 '네'), D-GOV-008",
-        "새 사실(biz-terms-draft §6): BusinessRegistrationNumber.kt:14 주석 stale, INACTIVE 등록 완료 거절 문구 '이미 등록 완료' 부정확, merchantCount 종료 포함",
-        "독립 평가 → E안 채택(D-GOV-009), README 용어 절 규칙 고정, 시범 정리 3가지 반영",
-        "시범 반성(독립 평가 지적): 9문항 일괄(HARNESS-GUIDE §4 위반), 용어 절 규칙 누출, 임시 파일 참조, BIZ.md 반영 전 독립 리뷰 누락 — E안 규칙으로 재발 방지",
-        "후속: DOMAIN-DEFINITION §3.1·MASTER-DOMAIN-001:75·193·NORMALIZATION-PLAN:272 용어 정본 참조 전환은 S3 기준선 정리 때",
-        "후속(구현 별도): 화면 문구 정렬(등록일→최초 저장일, 비활성(사용중지)→사용중지, 번호 확인 명칭, 담당자 명칭, BUSINESS_NOT_ACTIVE 문구)",
-        "허용 범위는 D-GOV-009(사용자 E안·정리 승인)로 README·DOMAIN-DEFINITION·BIZ.md §1·§진단까지 확장"
-      ],
-      "nextResumeAction": "완료(문서 작업: 독립 리뷰 재리뷰 MAJOR 해소 + SCOPED PASS, README 문구 사용자 승인 2026-11-25). 후속 화면 문구 정렬은 정상화 구현 작업에서",
-      "detail": null
-    },
-    {
-      "id": "SEC-BIZ-001",
-      "title": "정상화 사업자 보안 선행: 사유 칸 카드번호 거부(M-1) + MASTER 관리 명령 지문 비밀 키 HMAC(M-2)",
-      "status": "DONE",
-      "phase": "MASTER",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "GOV-BIZ-001"
-      ],
-      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-1·M-2, D-FLOW-007 ①, D-FLOW-005 ⑧(마스킹 해제 사유는 범위 밖 — 사업자 기능만), D-MOPS-010 ②(HMAC·기존 m1 행 호환 비교는 Demo 한정·제거 조건 기록), D-GOV-001 ①②(정비 첫 작업, 지문 개인정보 필드 전부 HMAC), MERCHANT-OPS-002 §9.29, BR-BIZ-305",
-      "allowedWritePaths": [
-        "apps/master-api/**",
-        "apps/internal-admin/src/**",
-        "apps/internal-admin/frontend/src/**",
-        "docs/repository/MERCHANT-OPS-002-MERCHANT-ONBOARDING.md",
-        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
-        "docs/repository/PII-MASKING-POLICY.md",
-        "docs/rules/BIZ.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "SEC-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/SEC-BIZ-001-2026-11-25T082603Z.json"
-      },
-      "openItems": [
-        "Coordinator 구현 결정(GOV-BIZ-001 M-2): 지문 전체 HMAC",
-        "Demo 키는 운영값 아님, LIVE는 키 없거나 Demo 키면 기동 거부(fail-closed)",
-        "[구현 관례] 지문 형식 h1: + HMAC-SHA256(키, canonical 전체) hex(67자), canonical = 기존 m1 입력 바이트 그대로(AdminCommandExecutor.canonicalOf), Port RequestFingerprintDigester(digest·legacyComparisonAllowed) → adapter.integration HmacRequestFingerprintDigester(+RequestFingerprintSettings·RequestFingerprintConfiguration)",
-        "[구현 관례] legacy m1 비교는 operation 한정 없음(모든 관리 명령이 m1으로 저장돼 왔음), 호출마다 DeploymentModePort.isDemo(), 일치 시 INFO 로그(연산·상관 ID만) — 제거 조건 MERCHANT-OPS-002 L-25 rev 0.9.5",
-        "[구현 관례] 키 분리 대상 = admin-channel signing-keys 전부 + 권리 dispatch 키(Binder로 읽음), 알려진 Demo 키 = 시험 설정 키 SHA-256 1개. MasterApiMainMigrationsBootSpec은 운영 DeploymentMode를 쓰므로 deployment-mode=DEMO 속성 추가",
-        "[구현 관례] 카드번호 판정은 MASTER domain CardNumberPattern(internal)·ADMIN BusinessProfileInputRules 내부 정규식·화면 CARD_NUMBER 상수로 복제, 공통 벡터 양성 10·음성 6(CardNumberVectors·BusinessCardNumberVectors·businessProfile.test.ts). 문자 규칙(REQUIRED·FORMAT·TOO_LONG) 뒤 마지막 판정",
-        "독립 리뷰 APPROVED(r2), FULL SEC-gate1 PASS fp sha256:705aa7b1…f9e",
-        "Coordinator 결정: Demo master 웹 LIVE 판정 유지 + Demo 전용 무작위 지문 키(C-47/L-25), 재기동 전 확인 admin_request 18건 m1 SUCCESS·승인 1건 EXECUTED(재전송 대상 0)",
-        "Demo 확인 2026-11-25(커밋 439fa1a, master·admin 재빌드, Demo 전용 지문 키 추가 — ~/paycore-demo demo.env·app-json.py·gen-env.sh, 백업 bak-wsl/*.before-fpkey-*): 사유 카드번호 PUT → 400 CARD_NUMBER_PATTERN(값 미노출), 정상 사유 수정 200, 같은 submission 재전송 replayed=true, 새 admin_request 지문 h1:(67자), 기존 m1 행 유지. Demo 시험 사업자 biz_01M88XEHKG0MJ5E35X0KE9W4EF('SEC 시험 사업자 (Demo) 2', DRAFT) 생성됨"
-      ],
-      "nextResumeAction": "완료. 다음: GOV-BIZ-001 나머지(M-3 사용중지 수정 거절, M-7·용어 화면 문구, 문서 M-4~M-6·M-8)",
-      "detail": null
-    },
-    {
-      "id": "BIZ-NORM-002",
-      "title": "사업자 정상화 2묶음: 사용중지 사업자 수정 업무 거절(M-3) + '사유 및 비고' 칸 이름(M-7) + 사업자 용어 화면 문구 정렬(D-GOV-008) + 주석 정정(M-6)",
-      "status": "DONE",
-      "phase": "ADMIN",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "SEC-BIZ-001"
-      ],
-      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-3·M-6·M-7, BR-BIZ-311, D-GOV-005 ②, D-FLOW-006, D-GOV-008 ①~④, docs/rules/BIZ.md §0 용어, SKILL-PILOT-001 biz-terms 새 사실(BusinessRegistrationNumber.kt:14 주석, INACTIVE 등록 완료 거절 문구)",
-      "allowedWritePaths": [
-        "apps/master-api/**",
-        "apps/internal-admin/src/**",
-        "apps/internal-admin/frontend/src/**",
-        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
-        "docs/rules/BIZ.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "NORM2-gate1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BIZ-NORM-002-2026-11-25T112249Z.json"
-      },
-      "openItems": [
-        "사용자 지시 2026-11-25 'M-3과 화면 문구 정렬을 한 묶음으로 진행'",
-        "저장된 코드값·감사 action code·API 필드 이름은 바꾸지 않음(화면 표시 문구만)",
-        "ADMIN-DS §7.1 보호 시험 불변",
-        "Implementer 2026-11-25: 가맹점 등록 ① 사업자 선택 MerchantRegistrationScreen.tsx:350 '비활성(사용중지) 사업자 — 가맹점 등록 불가'는 가맹점 화면 문구라 이번 범위 밖으로 남김 — D-GOV-008 ① 적용 여부 Coordinator 판단 → 2026-11-25 Coordinator: 적용, '사용중지 사업자 — 가맹점 등록 불가'로 반영함",
-        "Implementer 2026-11-25: 연결 가맹점 탭·가맹점 목록의 '등록일'은 가맹점 등록일이라 그대로(D-GOV-008 ②는 사업자 최초 저장일)",
-        "독립 리뷰 APPROVED(MINOR 3·NIT 반영), FULL NORM2-gate1 PASS fp sha256:1404cd94…109b",
-        "Coordinator 후속: GOV-BIZ-001:171('INACTIVE 수정은 결함 처리')은 이제 사실과 다름 — 다음 문서 정리 묶음(M-4~M-8)에서 정정",
-        "Demo 확인 2026-11-25(커밋 bdf4e42, master·admin 재빌드): Demo 시험 사업자 biz_01M88XEHKG0MJ5E35X0KE9W4EF를 SQL로 INACTIVE 전환(앱 전이 경로 없음 — 시험 행만), 수정 PUT → 200 REJECTED BUSINESS_INACTIVE, 같은 요청 재전송 replayed=true"
-      ],
-      "nextResumeAction": "완료. 다음: GOV-BIZ-001 문서 정리(M-4·M-5·M-8, GOV-BIZ-001:171 정정)",
-      "detail": null
-    },
-    {
-      "id": "BIZ-NORM-003",
-      "title": "사업자 정상화 3묶음(문서): M-4 명세 대체 표시, M-5 결정 역참조, M-8 기록 정리, GOV-BIZ-001 사실 정정",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "BIZ-NORM-002"
-      ],
-      "spec": "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md §5 M-4·M-5·M-8(NP-06·92·102·103), D-GOV-006 ②④(대장 정본·baseline 원문 보존 + BASELINE-INDEX 대체 표), 사용자 지시 2026-11-25 '마무리'",
-      "allowedWritePaths": [
-        "docs/repository/BUSINESS-PROFILE-001-BUSINESS-PROFILE.md",
-        "docs/DECISIONS.md(기존 행 문언 보존 — 대체 역참조 표기만 추가)",
-        "harness/questions.json",
-        "harness/tasks.json",
-        "docs/BASELINE-INDEX.md",
-        "docs/governance/GOV-BIZ-001-BUSINESS-CRUD-CONSISTENCY.md",
-        "docs/rules/BIZ.md"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "NORM3-scoped1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/BIZ-NORM-003-2026-11-25T114958Z.json"
-      },
-      "openItems": [
-        "문서만 — 소스·시험·정책 변경 없음, 결정 이력 삭제 금지",
-        "Coordinator 처리 제안(M-8 ②, NP-102·PC-60·DC-M-22·BIZ (f)-11): MERCHANT-BIZ-LOOKUP-001 닫기 제안 — 근거 D-BIZ-004('별도로 실행하지 않고 BUSINESS-PROFILE-001 완료 때 함께 닫는다'), BUSINESS-PROFILE-001은 DONE(harness/archive/tasks-done-2026-11-22.json, lastGate PASS evidence build/harness-evidence/BUSINESS-PROFILE-001-2026-11-17T200446Z.json). 카드 nextResumeAction도 'BUSINESS-PROFILE-001 DONE 때 status DONE + closedBy 기록'. 이 작업은 카드 status를 바꾸지 않음 — Coordinator가 status·closedBy 기록",
-        "BIZ-NORM-003 문서 정리(Implementer 2026-11-25, 자기 완료 판정 아님): M-4 BUSINESS-PROFILE-001 rev 0.2.12 대체 표시, M-5 DECISIONS 역참조 6행(D-ADMIN-UI-004 ⑦·D-MCODE-003 ②·D-MOPS-003·D-MOPS-006 ③·D-BIZ-003·D-BIZ-006 ② — 대상은 BIZ.md BR-BIZ-045~047 대체 원천과 대조), M-8 ① questions.json Q-PII-3·5·7·8·9·10 PROPOSED 등록(humanAnswer 없음), M-8 ③ BASELINE-INDEX 'baseline 대체 표'(사업자 항목만), GOV-BIZ-001 rev 0.1b 사실 정정·M-1~M-7 시행 표시, BIZ.md 진단 해소 표시 → 독립 리뷰 대상",
-        "독립 리뷰 재리뷰 APPROVED, DECISIONS word-diff 삭제 0(삽입만) 기계 확인"
-      ],
-      "nextResumeAction": "완료(SCOPED 후 커밋). MERCHANT-BIZ-LOOKUP-001 닫기는 Coordinator 후속",
-      "detail": null
-    },
-    {
-      "id": "GOV-MER-001",
-      "title": "정상화: 가맹점 등록·조회·수정 기능 정합성 확인(분석 보고서만)",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "GOV-DIAG-001"
-      ],
-      "spec": "사용자 승인 밤 작업 2026-11-25 ①, GOV-BIZ-001과 같은 형식, docs/rules/README 용어 절 절차(D-GOV-009)",
-      "allowedWritePaths": [
-        "docs/governance/GOV-MER-001-*.md",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "MER-scoped1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/GOV-MER-001-2026-11-25T120907Z.json"
-      },
-      "openItems": [
-        "분석만 — 소스·시험·정책 변경 없음, 질문은 아침에 묶음(라운드 3개 이하)",
-        "rev 0.1b 독립 재리뷰 APPROVED: 불일치 9(P1 GM-02 거절 Site 채널 해제 미시행·migration 필요, GM-03 겹치는 계약 금지 미시행·CSA 잠금 공백 / P3 2 / P4 5), 최소 수정 MF-1~8, 질문 QM-7·2·3(+QM-4~6 다음 라운드), 거절 채널 범위는 RULE-CONFIRM-001 Q14(rev 0.1b 확대)로 통합"
-      ],
-      "nextResumeAction": "완료(분석 보고서). 아침 질문 QM-7·2·3, 최소 수정 MF-1~8은 사용자 지시 후",
-      "detail": null
-    },
-    {
       "id": "RULE-CONFIRM-001",
       "title": "규칙 대장 '제안' 119행 일괄 확인 목록 준비(D-GOV-005 ④) — 확정은 사용자 답 후",
       "status": "IN_PROGRESS",
@@ -1419,73 +773,6 @@
         "BR-WH-035 → 081·082 분할, BR-FIN-019 → 138"
       ],
       "nextResumeAction": "Q-ARC·Q-KPI·ELIG·MCODE 질문 후 라운드 3(Q7~Q9)",
-      "detail": null
-    },
-    {
-      "id": "S3-DOC-001",
-      "title": "정상화 S3 문서 정합 — 이미 답이 난 결정만 명세·색인·대장에 반영(NP-92~101 문서 부분)",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "GOV-DIAG-001"
-      ],
-      "spec": "docs/governance/NORMALIZATION-PLAN.md §5 S3·NP-92~101, D-GOV-006 ②④, 사용자 승인 밤 작업 2026-11-25 ③",
-      "allowedWritePaths": [
-        "docs/repository/*.md(명세 본문 — 원문 보존 + 대체/정정 표시)",
-        "docs/BASELINE-INDEX.md",
-        "docs/DECISIONS.md(역참조 표지만, 문언 불변)",
-        "docs/rules/*.md(진단 해소 표시만)",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "tag": "S3-scoped1",
-        "verdict": "PASS",
-        "evidence": "build/harness-evidence/S3-DOC-001-2026-11-25T121812Z.json"
-      },
-      "openItems": [
-        "결정 완료분만 — 미결·제안은 표시만, 정책 변경·코드·시험 변경 없음",
-        "A(MASTER·ADMIN 명세)·B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX·DECISIONS) 두 갈래 병렬, 파일 겹침 없음",
-        "갈래 A(MASTER·ADMIN 명세 9) + 갈래 B(PAY·CAN·FIN·WH 명세 + BASELINE-INDEX BI-PAY/CAN/FIN/WH/ADM + DECISIONS 역참조 8), 독립 리뷰 재리뷰 APPROVED, DECISIONS word-diff 삭제 0",
-        "남은 정비 후보(코드): D-GOV-004 ① 거절 Site 채널 해제(MerchantSiteJpaRepository.kt:8-12), D-FLOW-005 ⑧ 마스킹 해제 사유 PAN(UnmaskService.kt:32-33), 웹훅 GAVE_UP→DELIVERED(MerchantWebhookDelivery.kt:76-80); 대장 상태 전환(BR-BIZ-082, BR-FIN-102, C 항목)은 RULE-CONFIRM 반영 때"
-      ],
-      "nextResumeAction": "완료(커밋).",
-      "detail": null
-    },
-    {
-      "id": "RULE-TRACE-001",
-      "title": "규칙·시험 연결 검사 도구 RULE-TRACE(경고 모드) — 대장 형식·근거 ID·확정 규칙 시험 연결·대체 규칙 시험 잔존 보고",
-      "status": "DONE",
-      "phase": "PROCESS",
-      "owner": "Coordinator",
-      "dependsOn": [
-        "RULE-GOV-001"
-      ],
-      "spec": "docs/repository/RULE-GOV-001-BUSINESS-RULE-GOVERNANCE.md §2.3(RULE-TRACE 1~4), D-GOV-006 ③(대장 확정 후 단계적 — 처음엔 경고만, BR-ID 연결 끝난 도메인부터 실패), 사용자 승인 밤 작업 2026-11-25 ④",
-      "allowedWritePaths": [
-        "harness/scripts/rule-trace.py",
-        "harness/tests/test_rule_trace.py",
-        "harness/fixtures/rule-trace/**",
-        "harness/commands.json(HARNESS-SELFTEST minTests 하한 갱신만)",
-        "docs/HARNESS-GUIDE.md(명령 안내 한 절)",
-        "docs/rules/README.md(검사 안내 한 줄)",
-        "harness/tasks.json"
-      ],
-      "maxRepairAttempts": 3,
-      "lastGate": {
-        "mode": "FULL",
-        "verdict": "PASS",
-        "at": "2026-11-25T12:40:06Z",
-        "codeFingerprint": "sha256:7d30aa08648a4918d351a922e6657e3f8834fbe1aed4ade6f6fa1c9759a25576",
-        "evidence": "build/harness-evidence/RULE-TRACE-001-2026-11-25T123315Z.json",
-        "harnessTests": 280
-      },
-      "openItems": [
-        "실제 실행(경고): 확정 615 중 시험 연결 없음 157(BIZ 57·PAY 4·CAN 9·FIN 61·WH 8·ADM 18), 근거 ID 없음 4(Q-PII-6×2·Q-PII-11·Q-PII-2 — questions.json 누락), 파싱 불가 3(FIN-053 D-OPS, ADM-017 D-08, ADM-064 D-SV), 카드 비확정 참조 4",
-        "strict 도메인 활성·판정 기준(파일 존재 vs BR-ID 표기)은 사용자 확인 후"
-      ],
-      "nextResumeAction": "없음 — 결손 근거 ID 정리는 RULE-CONFIRM 답 반영 때 함께",
       "detail": null
     },
     {
@@ -1610,6 +897,111 @@
       "lastGate": null,
       "openItems": [],
       "nextResumeAction": "검증 문서 → 리뷰 → 충돌 보고 → 정비 카드",
+      "detail": null
+    },
+    {
+      "id": "BIZ-CRIT-APPROVAL-001",
+      "title": "사업자 중요정보 변경 2인 승인·대표자 재검증(BR-BIZ-018, TBD-07 확정)",
+      "status": "BACKLOG",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-016 ③",
+      "allowedWritePaths": [
+        "docs/repository/**(명세)",
+        "apps/master/**",
+        "apps/internal-admin/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "명세(중요/일반 구분·승인 흐름 재사용 범위·증빙 재검증·주체 변경 경로) → 금융·보안 의미 질문 → TDD 구현",
+      "detail": null
+    },
+    {
+      "id": "CAN-OPS-POL-001",
+      "title": "취소 운영 정책(BR-CAN-002·065·067·068) 정합 검증",
+      "status": "IN_PROGRESS",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-015, docs/governance/CAN-OPS-POL-001-CANCEL-OPERATIONS-POLICY.md",
+      "allowedWritePaths": [
+        "docs/governance/CAN-OPS-POL-001-CANCEL-OPERATIONS-POLICY.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "검증 문서 → 리뷰 → 불일치 보고·정비 카드",
+      "detail": null
+    },
+    {
+      "id": "TXOPS-QUERY-POL-001",
+      "title": "거래 조회 기간 면제·역할 정책(BR-CAN-089·094) 구현 충족 검증",
+      "status": "BACKLOG",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-016 ②",
+      "allowedWritePaths": [
+        "docs/governance/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "구현 대조(유일성 보장 조건, 최대 기간·페이지, 원문 조회 권한, 서버 검증) → 불일치만 정비",
+      "detail": null
+    },
+    {
+      "id": "MCODE-SNAPSHOT-GUARD-001",
+      "title": "PAYMENT 가맹점 코드 불변 방어 — 코드 변경 Snapshot 차단·기존 코드 유지·Hold(D-GOV-019 ③)",
+      "status": "BACKLOG",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "GOV-MCODE-001"
+      ],
+      "spec": "D-GOV-019 ③, docs/governance/GOV-MCODE-001-MERCHANT-CODE-IMMUTABILITY.md C-05(현행 적용+경보 merchant_code_changed_with_mid)",
+      "allowedWritePaths": [
+        "apps/payment-api/**",
+        "docs/repository/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "영향 범위·기존 Snapshot 적용·Hold 구조 조사 → 명세·시험 시나리오 → TDD",
+      "detail": null
+    },
+    {
+      "id": "SITE-CHANNEL-POL-001",
+      "title": "Site 심사·운영 상태 분리와 채널 점유 정책 영향 분석(BR-BIZ-084, D-GOV-004)",
+      "status": "IN_PROGRESS",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-020 ②",
+      "allowedWritePaths": [
+        "docs/governance/SITE-CHANNEL-POL-001-SITE-REVIEW-CHANNEL.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [
+        "정책 확정 전 소스·DB 변경 금지"
+      ],
+      "nextResumeAction": "영향 분석 문서 → 리뷰 → 사용자 확인 → 대장·구현 카드",
       "detail": null
     }
   ]
