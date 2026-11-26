@@ -578,7 +578,10 @@
         "docs/repository/MERCHANT-FLOW-001-*.md",
         "harness/tasks.json",
         "harness/questions.json",
-        "docs/DECISIONS.md"
+        "docs/DECISIONS.md",
+        "docs/rules/BIZ.md",
+        "docs/governance/GOV-MER-ELIG-001-MERCHANT-REGISTRATION-ELIGIBILITY.md",
+        "docs/BASELINE-INDEX.md(BI-BIZ-2 행)"
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
@@ -589,9 +592,11 @@
       "openItems": [
         "pg-lab 대비 차이: 사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료/불가/해지)·계약 완료 후 상점 등록, 수수료·담보·신청 서비스가 사업자 계약 조건, 접수 경로·영업대행사·계약 담당자, 가맹점 등급·업종분류·가상자산 취급, 대표자 생년월일·성별·지분율·실소유자, 메모(append-only), 개인정보 원문 조회(감사). 우리: 계약 Revision이 가맹점에 붙고 2인 승인",
         "[명세 APPROVED rev 0.3d, 5차 리뷰] FLOW-9a 착수 전 반영: MINOR-G 대표자 key 전용 값 타입(두 형식 수용, 새 발급 ULID만, MasterIdFormat 불변, 이관 key 추측 가능 편차 기록) / MINOR-H ArchUnit을 메서드 호출 단위(latestStatus만) / MINOR-I STORED 생성 열 ALGORITHM 명시·key UPDATE 1142 시험 / 담보 명령 경로 단일·사업자 잠금 선행 고정",
-        "[FLOW-1 리뷰 APPROVED a12819c, MINOR 7] FLOW-2로: MINOR-1 Domain transitionTo 근거·사유 필수(현재 DB CHECK만), Fixture aCompletedIntake(evidenceRef). 후속 메모: MINOR-6 처리자 표시명 = 계정 현재값(표시명 변경 기능 도입 시 재검토), MINOR-7 상세 1회 MASTER 순차 2회(Demo 지연 확인), MINOR-4 vitest RED 제목과 최종 시험 차이 확인. MINOR-2·3·5 보완 중"
+        "[FLOW-1 리뷰 APPROVED a12819c, MINOR 7] FLOW-2로: MINOR-1 Domain transitionTo 근거·사유 필수(현재 DB CHECK만), Fixture aCompletedIntake(evidenceRef). 후속 메모: MINOR-6 처리자 표시명 = 계정 현재값(표시명 변경 기능 도입 시 재검토), MINOR-7 상세 1회 MASTER 순차 2회(Demo 지연 확인), MINOR-4 vitest RED 제목과 최종 시험 차이 확인. MINOR-2·3·5 보완 중",
+        "[D-GOV-021, 2026-11-26] 사업자 계약 모델로 FLOW-2·3 재설계: 대장 BIZ 반영(GOV-MER-ELIG-001 §4, 313~347 확정) → 명세 rev 0.4(사업자 계약·버전·변경 접수·해지 이동·관문) → 리뷰 → TDD 구현 → 게이트 → Demo",
+        "[명세 rev 0.4a APPROVED 2026-11-26] NIT: GOV §1.1 제목 범위(I03·I16은 정의·귀결), FLOW-3 명세에서 등록 근거의 변경 이력 탭 표시 여부 정함(BR-BIZ-337). Q-FLOW-38은 FLOW-2c 착수 시 질문(답 전 근거 필수)"
       ],
-      "nextResumeAction": "FLOW-1 main 병합 cf86c67·Demo 확인(API). 다음 FLOW-2는 GOV 정비 S3 이후(D-GOV-001 ① 보안 선행 작업 뒤). 미결 연동: PC-45 최신 접수 건(FLOW-3 전 개별 확인, D-GOV-005 ④)",
+      "nextResumeAction": "FLOW-2a TDD 구현(MASTER Domain BusinessContract + V21 guard/CHECK/표/이관 + V22 권한 + §4B.15 시험 표) → 리뷰 → FULL",
       "detail": null
     },
     {
@@ -862,7 +867,7 @@
     {
       "id": "GOV-MER-ELIG-001",
       "title": "가맹점 등록 자격 — 유효 계약 기준 정책 차이 분석(BR-BIZ-280)",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "phase": "SPEC",
       "owner": "Coordinator",
       "dependsOn": [
@@ -874,9 +879,15 @@
         "harness/tasks.json"
       ],
       "maxRepairAttempts": 3,
-      "lastGate": null,
-      "openItems": [],
-      "nextResumeAction": "분석 문서 → 리뷰 → 사용자 질문 → 정책 확정 → MERCHANT-FLOW-001 FLOW-3",
+      "lastGate": {
+        "mode": "SCOPED",
+        "verdict": "PASS",
+        "evidence": "build/harness-evidence/RULE-CONFIRM-001-2026-11-26T072647Z.json"
+      },
+      "openItems": [
+        "정책 확정 D-GOV-011①·013①②·014①·018·021, 구현은 MERCHANT-FLOW-001"
+      ],
+      "nextResumeAction": "없음 — MERCHANT-FLOW-001로 이관",
       "detail": null
     },
     {

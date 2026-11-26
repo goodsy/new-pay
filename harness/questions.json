@@ -6488,6 +6488,38 @@
       "humanAnswer": "권장안 미채택 — 심사 상태와 운영 상태 분리, 운영 정지는 채널 유지·신규 신청 제한, 최초 심사 거절만 채널 해제·같은 가맹점 재신청, 다른 가맹점 재사용은 예외 승인 + 소유권 확인, 이력 보존, 전이표·점유·재신청·예외 승인 조건 정의, 영향 분석 먼저·소스/DB 변경 금지",
       "humanEvidence": "Claude Code 세션 사용자 답 (2026-11-26)",
       "appliedSpec": "D-GOV-020"
+    },
+    {
+      "id": "Q-ELIG-INTERP",
+      "status": "ANSWERED",
+      "question": "사업자 계약 해석 제안 15행(BR-BIZ-324,326~334,340,344~347) 일괄 확정?",
+      "recommended": "그대로 확정",
+      "alternative": "개별 검토",
+      "impact": "FLOW-2·3 착수",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-26",
+      "origin": "docs/governance/GOV-MER-ELIG-001-MERCHANT-REGISTRATION-ELIGIBILITY.md §4",
+      "humanAnswer": "응 확정하고 1번 시작해줘",
+      "humanEvidence": "Claude Code 세션 사용자 답 (2026-11-26)",
+      "appliedSpec": "D-GOV-021"
+    },
+    {
+      "id": "Q-FLOW-38",
+      "status": "PROPOSED",
+      "question": "사업자 계약 정지·정지 해제에 근거 참조가 필수인가? (확정 문언 BR-BIZ-336 'OPERATOR 1인 + 근거·사유', 해지만 BR-BIZ-339로 근거 선택 명시)",
+      "recommended": "사유 필수 + 근거 참조 선택(해지와 같은 규칙) — 확정 문언 '근거·사유'를 '근거 = 사유'로 좁게 읽는 해석",
+      "alternative": "(b) 정지·정지 해제 모두 근거 참조 필수 (c) 정지는 선택, 정지 해제는 필수",
+      "impact": "감사 증거 수준",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5.5 (FLOW-2c 착수 시 질문)",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
     }
   ]
 }
