@@ -1,6 +1,8 @@
 # RULE-CONFIRM-001 — 업무 규칙 대장 `제안` 행 일괄 확인 목록
 
-> **목록 준비 문서다. 정책을 확정하지 않는다.** 대장(`docs/rules/*.md`) 상태·DECISIONS·questions·소스·시험은 이 작업에서 바꾸지 않았다.
+> **목록 준비 문서다. 정책을 확정하지 않는다.** rev 0.1 당시 대장(`docs/rules/*.md`) 상태·DECISIONS·questions·소스·시험은 이 작업에서 바꾸지 않았다(대장 반영은 아래 적용 결과·§5 개정 이력).
+> **적용 결과(rev 0.2, 2026-11-26 — D-GOV-010)**: 라운드 0(Q-A A 95행 + BR-WH-035 (a)(c), Q-C C 8행)과 R1-Q1(BR-FIN-019)을 대장에 반영했다. BR-WH-035 → BR-WH-081((a)(c))·BR-WH-082((b) 대체, D-GOV-004 ④), BR-FIN-019 → BR-FIN-138(보류 걸린 사실만 대기). R1-Q2(BR-FIN-040)·Q3(BR-CAN-102·BR-ADM-137)는 별도 작업, 라운드 2~5 B·D 행은 `제안` 그대로(rev 0.2 시점, 0.2a에서 갱신).
+> **적용 결과(rev 0.2a, 2026-11-26)**: D-GOV-011 ②③ — BR-BIZ-067·BR-FIN-020 `확정`(Coordinator 반영). D-GOV-011 ① BR-BIZ-280은 미확정(GOV-MER-ELIG-001 유효 계약 기준 분석). D-GOV-010 ⑤ — BR-CAN-102·BR-ADM-137 현행 문장 `확정`, KPI-POLICY-001 §2.2 N-1~N-3 원칙을 새 확정 행 BR-CAN-109·110·111로 추가(N-4~N-7은 Q-KPI-1~3 답·명세 도출이라 미반영). 누계: `제안`→`확정` 106행(A 95 + C 7 + D-GOV-011 2 + D-GOV-010 ⑤ 2), 새 확정 행 6(BR-WH-081·082, BR-FIN-138, BR-CAN-109·110·111), `대체됨` 2(BR-WH-035, BR-FIN-019). BR-FIN-040은 정책 분석 중(D-GOV-010 ④).
 > 근거 결정: D-GOV-005 ④(일괄 확인 + 금융 영향 있는 것만 개별 질문), NORMALIZATION-PLAN §6 U-11, POLICY-CONFLICTS §5.1(PC-65)·§5.2(PC-66~74). 질문 수 상한: HARNESS-GUIDE §4·D-GOV-009 ①(한 번에 3개 이하).
 
 ## 0. 기준
@@ -370,3 +372,5 @@ Q-A 첨부(도메인별 목록, `⚑` = 금융·키·상태 의미 있음 — �
 | 0.1 | 2026-11-25 | 최초 작성(RULE-CONFIRM-001 — 기준 `6da29e7` + 작업 트리, `제안` 121행) |
 | 0.1a | 2026-11-25 | 독립 리뷰 CHANGES_REQUIRED 반영: M-1 A·C를 라운드 0 질문 2개로(질문 수 3개 이하), M-2 BR-WH-035 (a)(b)(c) 분리 — (b)만 대체·reconstitute 불변식·중복 재전송 위험 명시, M-3 BR-FIN-100 보류(D)·BR-FIN-111 "후보 목록으로서 확정" 문구, m-1 인용 줄 정정(CancelStart.kt:88-93·95-97, CancelCandidateRule.kt:48-53, MerchantNotificationPolicy.kt:50-53), m-2 fail-closed 우선순위 명시·⚑ 표시, m-3 BR-BIZ-084 → B(D-GOV-004 ① 상호작용), m-4 Q7 대안에 CLAUDE.md 개정 필요, m-5 BR-CAN-019 Capability 검사 영향, m-6 범위 밖 잔여 |
 | 0.1b | 2026-11-25 | Coordinator: Q14 권장안을 거절 경로와 무관하게 다른 가맹점 재사용으로 넓혀 하나로 묻게 함(GOV-MER-001 재리뷰 N-1 — 직접 거절 경로 누락 방지), 영향 문구 정정 |
+| 0.2 | 2026-11-26 | 라운드 0(Q-A·Q-C)·R1-Q1 적용(D-GOV-010 ①②③): 대장 `제안`→`확정` 102행(A 95 + C 7), BR-WH-035 `대체됨→BR-WH-081, BR-WH-082`(새 확정 2행), BR-FIN-019 `대체됨→BR-FIN-138`(새 확정 1행), FIN 진단 (a)-11 추가. R1-Q2(BR-FIN-040)·Q3(BR-CAN-102·BR-ADM-137)는 별도 작업. 이 문서 본문 목록·분류는 바꾸지 않음 |
+| 0.2a | 2026-11-26 | 리뷰 CHANGES_REQUIRED 반영: 머리 문장을 rev 0.1 당시로 한정. D-GOV-011 ②③ BR-BIZ-067·BR-FIN-020 `확정`(Coordinator 반영), ① BR-BIZ-280 미확정(GOV-MER-ELIG-001 분석). D-GOV-010 ⑤ BR-CAN-102·BR-ADM-137 `확정`(검증 열에 건수 셈 없음 G-1 표시), 새 확정 BR-CAN-109·110·111(KPI-POLICY-001 N-1~N-3). FIN-138 검증 열 `:23-24`로 정정, FIN·WH 진단 낡은 문장에 처리 표시·FIN (b)-5 충돌 추가. 정확 집계: `제안`→`확정` 106(0.2 102 + 0.2a 4), 새 확정 6(0.2 3 + 0.2a 3) |

@@ -18,7 +18,7 @@
 | BR-FIN-005 | FINANCIAL이 모르는 (eventType, schemaVersion) 사실은 UNSUPPORTED로 원문을 보존한 뒤 ACK하고 투영하지 않는다. | 확정 | 사용자 | D-FFR-004 | FIN-FACT-RELAY-001 §2 I-3 | PaymentFactInboxDbSpec::FR-I6 |
 | BR-FIN-006 | 결제 사실은 보류 대상이어도 버리지 않고 append-only로 투영하며 기록된 사실은 수정하지 않는다. | 확정 | 사용자 | D-FFR-003(보류 원본 불변), CLAUDE.md 확정 금융 사실 append-only | FIN-FACT-RELAY-001 §4.3 | PaymentFactInboxDbSpec::FR-I11 append-only 투영, PaymentFactRepositorySurfaceSpec::save/delete 없음 |
 | BR-FIN-007 | PAYMENT runtime 계정은 outbox_event의 publish_status·published_at 두 열(FINANCIAL 전달 표시)만 갱신할 수 있고 payload 등 나머지 열 수정과 DELETE는 DB가 거부한다. | 확정 | 사용자 | D-FFR-001, D-WH-009 | FIN-FACT-RELAY-001 §2 | DatabaseAccountSeparationSpec::D-WH-009 + D-FFR-001 outbox 열 권한, FinancialFactRelayDbSpec::FR-R8b |
-| BR-FIN-008 | 전달 실패는 재시도(상한 없음, 연령 경보)하고, FINANCIAL 계약 코드가 붙은 400·409·422만 격리하며 격리는 완료가 아니다. | 제안 | 적용 | FIN-FACT-RELAY-001 I-2(Implementer 해석) | FIN-FACT-RELAY-001 §2·§4.1 | FinancialFactRelayContractSpec::FR-P3, FinancialFactRelayDbSpec::FR-R2·FR-R4 |
+| BR-FIN-008 | 전달 실패는 재시도(상한 없음, 연령 경보)하고, FINANCIAL 계약 코드가 붙은 400·409·422만 격리하며 격리는 완료가 아니다. | 확정 | 사용자 | FIN-FACT-RELAY-001 I-2(Implementer 해석), D-GOV-005 ③, D-GOV-010 ② | FIN-FACT-RELAY-001 §2·§4.1 | FinancialFactRelayContractSpec::FR-P3, FinancialFactRelayDbSpec::FR-R2·FR-R4 |
 
 ## 2. 결제 사실 정합성 보류
 
@@ -27,8 +27,8 @@
 | BR-FIN-009 | 원거래(원승인)를 모르는 취소 사실은 ORIGINAL_UNKNOWN 보류로 투영한다. | 확정 | 사용자 | D-ACQ-002 | FIN-FACT-RELAY-001 §3 | PaymentFactProjectionRuleSpec::FR-D2, PaymentFactInboxDbSpec::FR-I4 |
 | BR-FIN-010 | 정합성 보류 5종(ORIGINAL_MISMATCH·RETURN_SEQUENCE_CONFLICT·RETURN_EXCEEDS_AUTHORIZED·AUTHORIZATION_CONFLICT·IDENTITY_MISMATCH)에 해당하는 사실은 fail-closed로 보류한다. | 확정 | 사용자 | D-FFR-003(5종 유지) | FIN-FACT-RELAY-001 §2 I-5 | PaymentFactProjectionRuleSpec::FR-D4~FR-D7, PaymentFactInboxDbSpec::FR-I5·FR-I12 |
 | BR-FIN-011 | ORIGINAL_UNKNOWN 보류는 원승인이 도착하고 금액·통화·식별이 MATCH하면 append-only 해제 기록으로 자동 해제하고, 불일치면 REVIEW_REQUIRED(운영자 검토)로 남기며 보류 원본 행은 수정하지 않는다. | 확정 | 사용자 | D-FFR-003 | docs/repository/ACQUIRING-001-ACQUIRING.md §4.3 | HoldReleaseRuleSpec::HR-D1·HR-D2, HoldReleaseDbSpec::HR-1·HR-2·HR-7 |
-| BR-FIN-012 | 원승인 자체가 정합성 보류이면 딸린 ORIGINAL_UNKNOWN 취소는 자동 해제하지 않고 REVIEW_REQUIRED로 둔다. | 제안 | 적용 | ACQUIRING-001 I-13 | ACQUIRING-001 §3 I-13 | HoldReleaseRuleSpec::HR-D5, HoldReleaseDbSpec::HR-5 |
-| BR-FIN-013 | REVIEW_REQUIRED 보류의 운영자 해소는 2인 승인("강제 Hold 해제")이다. | 제안 | 적용 | D-ADMIN-003 적용(ACQ-ADMIN-001 §2) | docs/repository/ACQ-ADMIN-001-ACQUIRING-OPERATIONS.md §3.3 | 없음 |
+| BR-FIN-012 | 원승인 자체가 정합성 보류이면 딸린 ORIGINAL_UNKNOWN 취소는 자동 해제하지 않고 REVIEW_REQUIRED로 둔다. | 확정 | 사용자 | ACQUIRING-001 I-13, D-GOV-010 ① | ACQUIRING-001 §3 I-13 | HoldReleaseRuleSpec::HR-D5, HoldReleaseDbSpec::HR-5 |
+| BR-FIN-013 | REVIEW_REQUIRED 보류의 운영자 해소는 2인 승인("강제 Hold 해제")이다. | 확정 | 사용자 | D-ADMIN-003 적용(ACQ-ADMIN-001 §2), D-GOV-010 ① | docs/repository/ACQ-ADMIN-001-ACQUIRING-OPERATIONS.md §3.3 | 없음 |
 | BR-FIN-014 | REVIEW_REQUIRED 해소 결과는 "현재 사실로 재판정해 불일치가 없을 때만 해제" 또는 "보류 유지 + 대사 이관" 두 가지뿐이고 운영자가 불일치를 덮는 강제 해제는 없다. | 미결(Q-ACQA-07) | — | Q-ACQA-07 권장안 | ACQ-ADMIN-001 §3.3 | 없음 |
 
 ## 3. 매입 대상·상계
@@ -39,8 +39,9 @@
 | BR-FIN-016 | 파일 대상 목록(membership) 확정 전에 받은 취소는 상계한다: 부분 취소는 차감한 순액으로 매입하고, 누적 전액 취소면 매입 제외로 기록한다. | 확정 | 사용자 | D-ACQ-002, D-ACQ-012 | ACQUIRING-001 §2·§4.2 | AcquisitionCandidateRuleSpec::AQ-D2·AQ-D3, AcquisitionSealDbSpec::AQ-C2 취소 먼저 |
 | BR-FIN-017 | membership 확정 이후 받은 취소는 상계하지 않고 원거래를 참조하는 별도 CANCEL 레코드로 처리한다(최종 순액은 같다). | 확정 | 사용자 | D-ACQ-012, D-ACQ-002 | ACQUIRING-001 §2·§4.7 | AcquisitionSealDbSpec::AQ-C3 봉인 먼저, CancelCandidateRuleSpec::CC-6 |
 | BR-FIN-018 | LIVE 매입은 실제 기관 계약번호가 승인 시점 값으로 전달(PaymentAuthorized v2)되기 전까지 차단하고, Demo 매입은 PayCore MID + 기관 거래 참조로 대조한다. | 확정 | 사용자 | D-ACQ-008 | ACQUIRING-001 §2·§14-2 | AcquisitionCandidateRuleSpec::AQ-D5 LIVE, AcquisitionTransmissionDbSpec::AQ-T19 LIVE 파일 |
-| BR-FIN-019 | 같은 Payment에 해제되지 않은 결제 사실 보류가 하나라도 있으면 그 Payment의 모든 매입 후보를 대기시킨다. | 제안 | 적용 | ACQUIRING-001 C-5(Coordinator 결정, 리뷰 MJ-2) | ACQUIRING-001 §3 I-4 | AcquisitionCandidateRuleSpec::AQ-D4, AcquisitionSealDbSpec::AQ-DB7a·AQ-DB7b |
-| BR-FIN-020 | KRW 외 통화 승인은 매입하지 않고 대기시키며 종결 판정을 기록하지 않는다. | 제안 | 적용 | ACQUIRING-001 I-5, D-AUTH1-002(승인 KRW만), Q-SETTLE-CURRENCY | ACQUIRING-001 §3 I-5 | AcquisitionCandidateRuleSpec::AQ-D5 non-KRW |
+| BR-FIN-019 | 같은 Payment에 해제되지 않은 결제 사실 보류가 하나라도 있으면 그 Payment의 모든 매입 후보를 대기시킨다. | 대체됨→BR-FIN-138 | 적용 | ACQUIRING-001 C-5(Coordinator 결정, 리뷰 MJ-2), D-GOV-010 ③ | ACQUIRING-001 §3 I-4 | AcquisitionCandidateRuleSpec::AQ-D4, AcquisitionSealDbSpec::AQ-DB7a·AQ-DB7b |
+| BR-FIN-138 | 같은 Payment의 결제 사실 중 해제되지 않은 보류가 걸린 사실(그 승인 또는 그 취소)만 매입 대기하고, 보류가 없는 사실은 매입을 진행한다. | 확정 | 사용자 | D-GOV-010 ③ | ACQUIRING-001 C-5(정비 대상) | 없음 — 정비 대상(AcquisitionCandidateRule.kt:23-24 현재 CANCELLATION_HELD·PAYMENT_HELD로 보류 없는 원승인까지 대기) |
+| BR-FIN-020 | KRW 외 통화 승인은 매입하지 않고 대기시키며 종결 판정을 기록하지 않는다. | 확정 | 사용자 | ACQUIRING-001 I-5, D-AUTH1-002(승인 KRW만), Q-SETTLE-CURRENCY, D-GOV-011 ③ | ACQUIRING-001 §3 I-5 | AcquisitionCandidateRuleSpec::AQ-D5 non-KRW |
 | BR-FIN-021 | 매입 기능은 거절·UNKNOWN 사실 기록과 알림만 하고 지급 보류·회수 등 돈의 효과는 만들지 않는다(돈의 효과는 정산에서 정함). | 확정 | 사용자 | D-ACQ-005 | ACQUIRING-001 §2 | 없음 |
 
 ## 4. 매입 파일·마감·전송
@@ -49,11 +50,11 @@
 |---|---|---|---|---|---|---|
 | BR-FIN-022 | 매입사별로 업무일(Asia/Seoul)당 정기 매입 파일 하나를 만든다. | 확정 | 사용자 | D-ACQ-003 | ACQUIRING-001 §2(매입사·환경·업무일) | AcquisitionSealDbSpec::AQ-C1 같은 lane·날 경합, AcquisitionSubmissionJobSpec::AQ-J1 |
 | BR-FIN-023 | 매입 마감 시각은 버전 관리 설정으로 정한다. | 확정 | 사용자 | D-ACQ-003 | ACQUIRING-001 §2 | AcquisitionCandidateRuleSpec::AQ-D8 |
-| BR-FIN-024 | 이미 봉인한 업무일의 마감 정책 버전이 바뀌었거나 사라졌으면 그 날 재봉인을 거부한다(새 값은 새 버전·새 시행일로). | 제안 | 적용 | ACQUIRING-001 I-21(D-ACQ-003 버전 관리에서 끌어냄) | ACQUIRING-001 §3 I-21 | AcquisitionSealDbSpec::AQ-DB8 |
+| BR-FIN-024 | 이미 봉인한 업무일의 마감 정책 버전이 바뀌었거나 사라졌으면 그 날 재봉인을 거부한다(새 값은 새 버전·새 시행일로). | 확정 | 사용자 | ACQUIRING-001 I-21(D-ACQ-003 버전 관리에서 끌어냄), D-GOV-010 ① | ACQUIRING-001 §3 I-21 | AcquisitionSealDbSpec::AQ-DB8 |
 | BR-FIN-025 | 매입 업무일을 달력일로 보는 것은 Q-CALENDAR 확정 전 Demo 한정 임시 규칙이다. | Demo값 | 사용자 | D-ACQ-003, Q-CALENDAR | ACQUIRING-001 §2·§14-4 | AcquisitionCandidateRuleSpec::AQ-D8 |
 | BR-FIN-026 | "매입 요청" 인정은 외부기관 전송 완료 근거가 영속된 경우만이다: 내부 저장·파일 생성·부분 업로드는 불충분하고, 기관 접수 ACK·매입 확정은 선행 요구가 아니며, 불명확하면 확인 전까지 인정하지 않고, 파일에 실제 포함된 거래에만 연결한다. | 확정 | 기준 | PayCore-초기-확정사항 "선지급 기준"(매입 요청 = 외부기관 전송 완료) | ACQUIRING-001 §2(기준선 행)·§4.5 | AcquisitionTransmissionDbSpec::AQ-T2·AQ-T3·AQ-T11, AcquisitionTransmissionRuleSpec::AQ-TD2 |
 | BR-FIN-027 | 전송 결과가 불명확하면(응답 유실·lease 만료·조회 NOT_FOUND) 실패나 미수신으로 단정하지 않고 결과 불명 상태로 두어 확인한다. | 확정 | 기준 | PayCore-초기-확정사항 §5, CLAUDE.md 핵심 규칙(timeout·NOT_FOUND·lease), INV-11 | ACQUIRING-001 §3 I-24·I-25 | AcquisitionTransmissionDbSpec::AQ-T3·AQ-T4·AQ-T8, AcquisitionTransmissionRuleSpec::AQ-TD3·AQ-TD4 |
-| BR-FIN-028 | 전송 불명 회복은 같은 파일 ID·같은 봉인 바이트의 확인 후 재업로드로만 하고 새 파일 ID로 다시 보내지 않는다. | 제안 | 적용 | ACQUIRING-001 I-10·I-25 | ACQUIRING-001 §4.5 | AcquisitionTransmissionDbSpec::AQ-T10·AQ-T16 |
+| BR-FIN-028 | 전송 불명 회복은 같은 파일 ID·같은 봉인 바이트의 확인 후 재업로드로만 하고 새 파일 ID로 다시 보내지 않는다. | 확정 | 사용자 | ACQUIRING-001 I-10·I-25, D-GOV-010 ① | ACQUIRING-001 §4.5 | AcquisitionTransmissionDbSpec::AQ-T10·AQ-T16 |
 | BR-FIN-029 | 같은 파일 ID 최종명에 봉인과 다른 바이트가 있으면 덮어쓰지 않고 격리(TRANSMISSION_QUARANTINED)하며 자동 처리하지 않는다. | 확정 | 기준 | PayCore-결제허용-기관연동-권장안 §5.4(같은 ID 다른 내용 격리), ACQUIRING-001 I-23 | ACQUIRING-001 §4.5 | AcquisitionTransmissionDbSpec::AQ-T5 |
 | BR-FIN-030 | 전송 격리 해소는 2인 승인 + 기관 확인 근거로 TRANSMISSION_UNKNOWN에 되돌리고 그 뒤 같은 바이트 확인일 때만 전송 완료로 본다(운영자가 전송 완료를 지정하지 않음). | 미결(Q-ACQA-05) | — | Q-ACQA-05 권장안 | ACQ-ADMIN-001 §3.4 | 없음 |
 | BR-FIN-031 | 격리 응답 재반영은 TRANSMISSION_QUARANTINED 사유 응답만 같은 규칙으로 다시 판정하고 운영자가 결과를 고르지 않는다(승인 수준 포함 미정). | 미결(Q-ACQA-06) | — | Q-ACQA-06 권장안 | ACQ-ADMIN-001 §3.5 | 없음 |
@@ -76,7 +77,7 @@
 |---|---|---|---|---|---|---|
 | BR-FIN-039 | 전송 후 취소의 CANCEL 레코드는 원 SALE이 ACCEPTED일 때만 보낸다: 결과 대기면 자동 대기, UNKNOWN이면 대사·경보, REJECTED면 '취소 매입 불요'로 기록한다. | 확정 | 사용자 | D-ACQ-009 | ACQUIRING-001 §4.7 | CancelCandidateRuleSpec::CC-1·CC-2, AcquirerResponseDbSpec::AQ-X1 |
 | BR-FIN-040 | 원 SALE이 재매입된 경우 그 뒤 받은 취소는 가장 높은 세대 원 SALE의 결과를 기준으로 판정한다. | 제안 | 적용 | ACQ-ADMIN-001 I-14·L-6(CC-4 기대값 변경) | ACQ-ADMIN-001 §15 L-6 | CancelCandidateRuleSpec::CC-8, ReacquisitionResultDbSpec::RR-1·RR-2 |
-| BR-FIN-041 | 원 SALE 상계액 + 이미 봉인한 CANCEL + 이번 취소가 원승인액을 넘거나 원거래와 값이 어긋나면 CANCEL 레코드를 만들지 않고 그 취소만 대기시킨다. | 제안 | 적용 | ACQUIRING-001 I-47 | ACQUIRING-001 §3 I-47 | CancelCandidateRuleSpec::CC-3·CC-4 |
+| BR-FIN-041 | 원 SALE 상계액 + 이미 봉인한 CANCEL + 이번 취소가 원승인액을 넘거나 원거래와 값이 어긋나면 CANCEL 레코드를 만들지 않고 그 취소만 대기시킨다. | 확정 | 사용자 | ACQUIRING-001 I-47, D-GOV-010 ① | ACQUIRING-001 §3 I-47 | CancelCandidateRuleSpec::CC-3·CC-4 |
 
 ## 7. 재매입
 
@@ -90,10 +91,10 @@
 | BR-FIN-047 | 실행 시점 순액이 0원이면 파일 없이 '재매입 불요'로 종결하고 재매입 검토 표시를 끈다. | 확정 | 사용자 | D-ACQA-004 | ACQ-ADMIN-001 §2 | ReacquisitionExecutionRuleSpec::EX-3, ReacquisitionExecutionDbSpec::RX-3 |
 | BR-FIN-048 | 결과 UNKNOWN 레코드는 대사로 미매입이 확정된 경우에만 재매입 대상이다(대사 근거가 없으면 거절). | 확정 | 사용자 | D-ACQ-014 | ACQUIRING-001 §3 I-55 | ReacquisitionRuleSpec::RQ-2, ReacquisitionExecutionDbSpec::RX-4U |
 | BR-FIN-049 | 어느 세대든 이미 ACCEPTED인 거래·종류는 재매입 대상이 아니다. | 확정 | 사용자 | D-ACQ-014 | ACQUIRING-001 §3 I-50 | ReacquisitionRuleSpec::RQ-7 |
-| BR-FIN-050 | CANCEL 레코드의 재매입은 원 SALE이 현재 ACCEPTED일 때만 한다. | 제안 | 적용 | ACQ-ADMIN-001 I-7(D-ACQ-009에서 끌어냄) | ACQ-ADMIN-001 §2·§3.2 | 없음 |
-| BR-FIN-051 | 봉인한 재매입 파일의 레코드가 그 사이 다른 세대에서 ACCEPTED되면 그 파일 전송을 보류(TRANSMISSION_WITHHELD)한다. | 제안 | 적용 | ACQ-ADMIN-001 L-9(D-ACQ-014에서 끌어냄) | ACQ-ADMIN-001 §15 L-9 | AcquisitionTransmissionRuleSpec::AQ-TD6, ReacquisitionResultDbSpec::RR-3·RR-4 |
+| BR-FIN-050 | CANCEL 레코드의 재매입은 원 SALE이 현재 ACCEPTED일 때만 한다. | 확정 | 사용자 | ACQ-ADMIN-001 I-7(D-ACQ-009에서 끌어냄), D-GOV-010 ① | ACQ-ADMIN-001 §2·§3.2 | 없음 |
+| BR-FIN-051 | 봉인한 재매입 파일의 레코드가 그 사이 다른 세대에서 ACCEPTED되면 그 파일 전송을 보류(TRANSMISSION_WITHHELD)한다. | 확정 | 사용자 | ACQ-ADMIN-001 L-9(D-ACQ-014에서 끌어냄), D-GOV-010 ① | ACQ-ADMIN-001 §15 L-9 | AcquisitionTransmissionRuleSpec::AQ-TD6, ReacquisitionResultDbSpec::RR-3·RR-4 |
 | BR-FIN-052 | 전송 보류(TRANSMISSION_WITHHELD) 재매입 파일은 해소하지 않고 종결하며 대사 기록만 남긴다. | 미결(Q-ACQA-10) | — | Q-ACQA-10 권장안 | ACQ-ADMIN-001 §17.11 | 없음 |
-| BR-FIN-053 | 재매입 승인은 승인 뒤 실행 기한 안에서만 실행되고 기한이 지나면 실행하지 않는다(운영자 보정 취소 D-OPS-002·009 선례). | 제안 | 적용 | ACQ-ADMIN-001 I-2·I-3(D-OPS 선례 적용) | ACQ-ADMIN-001 §12 끝 | ReacquisitionExecutionDbSpec::RX-8·RX-10 |
+| BR-FIN-053 | 재매입 승인은 승인 뒤 실행 기한 안에서만 실행되고 기한이 지나면 실행하지 않는다(운영자 보정 취소 D-OPS-002·009 선례). | 확정 | 사용자 | ACQ-ADMIN-001 I-2·I-3(D-OPS 선례 적용), D-GOV-010 ① | ACQ-ADMIN-001 §12 끝 | ReacquisitionExecutionDbSpec::RX-8·RX-10 |
 
 ## 8. 매입 조회·노출·감사
 
@@ -102,7 +103,7 @@
 | BR-FIN-054 | 매입 현황 조회는 VIEW_MASKED 4역할(VIEWER·OPERATOR·APPROVER·SECURITY_ADMIN)만 하고, 파일 상세·레코드 조회만 반환 전에 ACQUISITION_FILE_VIEWED 감사를 남기며 감사 실패 시 결과를 주지 않고, 목록 검색은 감사하지 않는다. | 확정 | 사용자 | D-ACQV-001 | docs/repository/ACQ-VIEW-001-ACQUIRING-VIEW.md §2 | AcquisitionLookupServiceSpec::the view roles·audit (D-ACQV-001), AcquisitionAuditFailureHttpSpec::503 AUDIT_UNAVAILABLE |
 | BR-FIN-055 | 매입 레코드 화면·API는 승인번호·기관 거래번호·원 기관 거래번호·발급사·카드 종류·할부를 내보내지 않는다(읽는 SQL에 열이 없다). | 확정 | 사용자 | D-ACQV-002 | ACQ-VIEW-001 §4.3·§4.5 | AcquisitionFileViewReaderSpec::the statements the reader sends |
 | BR-FIN-056 | 재매입 승인 상세의 근거 참조는 APPROVER와 요청자 본인만 별도 조회로 보고 조회마다 감사하며 그 밖 역할·목록에는 숨긴다. | 확정 | 사용자 | D-ACQA-005, D-OPS-010 | ACQ-ADMIN-001 §5.2 | AcquiringOpsApprovalHttpSpec::HT-3 |
-| BR-FIN-057 | 재매입 근거 참조가 카드번호 패턴이면 거부한다. | 제안 | 적용 | ACQ-ADMIN-001 rev 0.5 M-1·I-23 | ACQ-ADMIN-001 §11 | ReacquisitionCommandParserSpec::card number verdict |
+| BR-FIN-057 | 재매입 근거 참조가 카드번호 패턴이면 거부한다. | 확정 | 사용자 | ACQ-ADMIN-001 rev 0.5 M-1·I-23, D-GOV-010 ① | ACQ-ADMIN-001 §11 | ReacquisitionCommandParserSpec::card number verdict |
 
 ## 9. FINANCIAL 채널·DB
 
@@ -186,7 +187,7 @@
 | BR-FIN-108 | 초기에는 SettlementHold와 PayoutHold를 별도로 둔다. | 확정 | 기준 | SCP §14, PayCore-초기-확정사항 | 없음 | 없음 |
 | BR-FIN-109 | Hold가 여러 개면 하나를 해제해도 다른 유효 Hold는 유지된다. | 확정 | 기준 | SCP 연결 D | 없음 | 없음 |
 | BR-FIN-110 | High/Critical 대사 Case가 생기면 위험 영향범위에 맞는 Scope로 Hold를 걸고 처음부터 전 가맹점을 막지 않는다. | 확정 | 기준 | SCP §20 | 없음 | 없음 |
-| BR-FIN-111 | HoldType 후보는 RISK·RECONCILIATION·CONTRACT·ACCOUNT·ADVANCE_LIMIT·MANUAL이고 Scope 후보는 MERCHANT_ACCOUNT·SETTLEMENT_ENTRY·SETTLEMENT_STATEMENT·PAYABLE·PAYOUT이다. | 제안 | 기준 | SCP §14·§20("후보") | 없음 | 없음 |
+| BR-FIN-111 | HoldType 후보는 RISK·RECONCILIATION·CONTRACT·ACCOUNT·ADVANCE_LIMIT·MANUAL이고 Scope 후보는 MERCHANT_ACCOUNT·SETTLEMENT_ENTRY·SETTLEMENT_STATEMENT·PAYABLE·PAYOUT이다. | 확정 | 사용자 | SCP §14·§20("후보"), D-GOV-010 ① | 없음 | 없음 |
 
 ## 15. 대사·자동 보정·Adjustment
 
@@ -203,7 +204,7 @@
 | BR-FIN-120 | 자동 보정 한도 최소 엔진은 건당 금액·일 금액·일 건수다. | 확정 | 기준 | 도메인구조 연결 §4 | 없음 | 없음 |
 | BR-FIN-121 | 보정은 소유 도메인의 Recovery·Adjustment API로만 하고, 대사가 PAYMENT DB를 직접 조회·수정하거나 mismatch를 맞추는 SQL UPDATE를 하지 않으며, 외부 재전송·재송금은 별도 통제 명령이다. | 확정 | 기준 | SCP 연결 D, INV-02 | 없음 | 없음 |
 | BR-FIN-122 | 재처리는 미생성 데이터 = 멱등 Backfill, 확정 전 결과 = Rebuild, 확정 후 금융 오류 = Adjustment, 대사 결과 = 새 Observation·Case로 하고 확정 원장을 단순 UPDATE하지 않는다. | 확정 | 기준 | SCP §27 | 없음 | 없음 |
-| BR-FIN-123 | FeePolicy·SettlementPolicy·BusinessCalendar·AutoCorrectionPolicy 변경은 운영 적용 전 과거 업무일 대상 Dry Run(기존 결과 대비)으로 비교한다. | 제안 | 기준 | SCP §26("권장") | 없음 | 없음 |
+| BR-FIN-123 | FeePolicy·SettlementPolicy·BusinessCalendar·AutoCorrectionPolicy 변경은 운영 적용 전 과거 업무일 대상 Dry Run(기존 결과 대비)으로 비교한다. | 확정 | 사용자 | SCP §26("권장"), D-GOV-010 ① | 없음 | 없음 |
 | BR-FIN-124 | 거절·만료 종결 뒤 기관의 늦은 성공·상충 결과는 자동 보상취소하지 않고 incident hold + 대사 Case(HIGH/CRITICAL)로 다루며, 해제는 2인 승인 + 재대사 MATCH(이중 승인이면 보정 취소 참조 추가) 뒤에만 한다. | 확정 | 사용자 | D-AUTH-002, D-AUTH-011, D-AUTH-012, D-AUTH-013 | docs/repository/AUTH-001-AUTHORIZATION.md(해제 실행은 RECON-CONTRACT-001) | 없음(해제 실행 Use Case 미구현) |
 | BR-FIN-125 | 대사로 이관된 취소 UNKNOWN은 임시 출구 없이 예약·차단을 유지하며 RECON이 정리할 수 있기 전에는 LIVE를 열지 않는다. | 확정 | 사용자 | D-CANCEL1-003 | docs/repository/CANCEL-001-CANCELLATION.md | 없음 |
 | BR-FIN-126 | 보정 근거 참조(사고·대사 Case)의 원천 대조는 LIVE 허용 Gate 차단 조건이고 Demo·TEST에서는 형식 검사만 한다. | 확정 | 사용자 | D-OPS-004 | docs/repository/ADMIN-PAYMENT-OPS-001-PAYMENT-OPS.md | 없음 |
@@ -248,6 +249,7 @@
 8. 금융통제-자동대사 대안 문서 → SCP v0.1(충돌 시 SCP 우선).
 9. CancelCandidateRule CC-4(세대 0만 정합) → ACQ-ADMIN-001 L-6(rev 0.7, 세대 ≥ 1 개방, 시험 기대값을 CC-8로 이동). 사용자 결정 없이 Implementer 근거로 바뀐 규칙(BR-FIN-040).
 10. Q-ACQA-04 권장안 문구("결정 EXECUTED(NET_ZERO)") → D-ACQA-004·구현(결정 NOT_REQUIRED).
+11. BR-FIN-019(Payment 전체 대기) → **BR-FIN-138**(보류 걸린 사실만 대기, D-GOV-010 ③). 원승인 선매입 뒤 보류 취소의 상계·대사 경로는 정비 명세에서 정함(D-GOV-010 ③).
 
 ### (b) 결정 간 충돌
 
@@ -255,6 +257,7 @@
 2. **D-ACQ-005 "지급 기준"의 적용 범위**: 질문(Q-ACQ-05)은 선지급 건이었는데, 답은 "지급 기준"이라 입금 후 지급에도 적용되는지 모호하다(BR-FIN-091).
 3. **정산 거래일의 시각 원천**: D-ADMIN-HOME-001은 운영 홈 순승인액을 "정산일 규칙과 같은 완료일 기준"이라 하면서 PG 확정 시각(confirmed_at, KST)을 원천으로 정했다. SCP 연결 B는 Refund 완료일을 "확정 외부 반환 사실의 업무 시각"으로 하고 PAYMENT 수신 시각과 구분한다. 결제 사실에는 `approvedAt`·`institutionTransactionDate`·`institutionBusinessDate`(nullable)가 함께 있다(AuthorizedPaymentFact.kt:21-23). 정산 거래일이 어느 값인지 정해야 한다(KPI는 "정산 금액 아님" 표지가 있어 직접 충돌은 아님).
 4. **Assignment 수준**: SCP §8·§11·연결 C는 CSA 단위 Assignment + 명시적 MID Override 수렴을 말하지만, D-MD-018과 MASTER V5 `policy_assignment`는 (CSA, MID, 통화, 종류) MID별 배정만 있다(CSA 기본 배정 + MID Override 구조 없음). 한도 정책만 D-MS2-001(Override 우선·전체 대체)로 정해졌고, 수수료·정산 정책의 CSA 기본/Override 해석 규칙은 결정이 없다.
+5. **BR-FIN-016(membership 확정 전 받은 취소는 상계) vs BR-FIN-138(보류 취소 미판정인 채 원승인 매입 진행)**: 보류가 걸린 취소는 상계되지 않은 채 원승인이 먼저 매입될 수 있다. 보류 취소 상계 시점은 정비 명세에서 정함(D-GOV-010 ③).
 
 ### (c) 정책서·명세 본문이 현재 결정과 다른 곳
 
@@ -276,11 +279,11 @@
 
 ### (e) 코드가 규칙과 다른 곳·규칙을 앞서 간 곳
 
-1. `apps/financial-batch/src/main/kotlin/com/paycore/financial/acquiring/domain/AcquisitionCandidateRule.kt:24` — PAYMENT_HELD(같은 Payment의 다른 보류로 전체 대기)는 Coordinator 결정 C-5다. 사용자 결정 없이 매입 대기(돈 흐름 지연) 효과를 만든다. fail-closed 방향이지만 BR-FIN-019 확인이 필요하다.
-2. 같은 파일 `:25` — KRW 외 대기(I-5). D-AUTH1-002(승인 KRW만)와는 맞지만 FIN 결정은 아니다(BR-FIN-020).
+1. `apps/financial-batch/src/main/kotlin/com/paycore/financial/acquiring/domain/AcquisitionCandidateRule.kt:24` — PAYMENT_HELD(같은 Payment의 다른 보류로 전체 대기)는 Coordinator 결정 C-5다. 사용자 결정 없이 매입 대기(돈 흐름 지연) 효과를 만든다. fail-closed 방향이지만 BR-FIN-019 확인이 필요하다. [처리: D-GOV-010 ③ BR-FIN-019→BR-FIN-138(보류 걸린 사실만 대기) — `:23-24` CANCELLATION_HELD·PAYMENT_HELD 정비 대상]
+2. 같은 파일 `:25` — KRW 외 대기(I-5). D-AUTH1-002(승인 KRW만)와는 맞지만 FIN 결정은 아니다(BR-FIN-020). [처리: D-GOV-011 ③ BR-FIN-020 확정]
 3. `.../acquiring/domain/ReacquisitionRule.kt:33` — UNKNOWN은 언제나 UNKNOWN_NOT_RECONCILED로 거절된다. D-ACQ-014가 허용한 "대사 미매입 확정 후 재매입" 경로가 없다(RECON 미구현). 결과적으로 UNKNOWN 매입 레코드는 RECON 전까지 출구가 없다(D-ACQ-004 "UNKNOWN → 대사"의 대사 쪽 공백).
 4. `.../acquiring/domain/CutoffPolicy.kt:28` — 업무일 = Asia/Seoul 달력일(D-ACQ-003 Demo 한정). Q-CALENDAR가 확정되면 바꿔야 한다. LIVE는 `AcquisitionCandidateRule.kt:20` LIVE_BLOCKED로 막혀 있다.
-5. `.../acquiring/domain/CancelCandidateRule.kt:48` — 세대 ≥ 1 원 SALE 판정 개방(L-6). D-ACQ-009를 재매입 세대로 넓힌 해석이 코드와 시험 기대값(CC-4 → CC-8)을 바꿨다(BR-FIN-040, 사용자 확인 대상).
+5. `.../acquiring/domain/CancelCandidateRule.kt:48` — 세대 ≥ 1 원 SALE 판정 개방(L-6). D-ACQ-009를 재매입 세대로 넓힌 해석이 코드와 시험 기대값(CC-4 → CC-8)을 바꿨다(BR-FIN-040, 사용자 확인 대상). [처리: BR-FIN-040 확정 보류·정책 분석 중(D-GOV-010 ④)]
 6. `apps/master-api/src/main/resources/db/migration/master/V5__authorization_terms.sql:87` — `content_status IN ('UNDEFINED','DEMO')`라 수수료·정산 내용이 없다. FINANCIAL 사실은 `policyAssignmentVersion` 문자열만 가진다(`.../paymentfact/domain/AuthorizedPaymentFact.kt:24`). 원승인 FeeCalculation Snapshot(SCP §1)을 만들 입력이 아직 없다. D-MS2-003대로라 위반은 아니지만, LIVE 전 필수 공백이다.
 7. 같은 V5 `:110·:113` — 열린 배정 UNIQUE가 (MID, 통화, 종류)다. CSA 기본 배정 + MID Override 구조(SCP 연결 C)는 표현되지 않는다(b-4).
 
@@ -299,5 +302,5 @@
 | Q-FIN-RG-05 | 정산 거래일의 시각 원천(기관 거래일 vs PG 확정 시각 KST)과 Refund 완료일의 정의 | 기관 확정 사실의 업무 시각(기관 거래일) 기준, PAYMENT 수신·확정 시각과 구분(SCP 연결 B). 기관 거래일이 없으면 정산 대기 | PG 확정 시각(KST) 기준 | BR-FIN-077·079, 운영 홈 KPI와의 정합 |
 | Q-FIN-RG-06 | 수수료·정산 정책 Assignment의 CSA 기본 + MID Override 수준 | 한도와 같이 CSA_DEFAULT + MID_OVERRIDE, Override 우선·전체 대체(D-MS2-001 준용), 그 밖 모호는 AmbiguousPolicy | 지금처럼 MID별 배정만 | BR-FIN-070·071·076, MASTER V5 |
 | Q-FIN-RG-07 | 결제 사실 정합성 보류(5종·ORIGINAL_UNKNOWN)가 걸린 거래의 정산·지급 포함 여부 | 해제·대사 이관 전에는 정산 Entry 생성 대기(매입과 같은 fail-closed) | 정산 포함 + PayoutHold | SETTLEMENT-CONTRACT-001 |
-| Q-FIN-RG-08 | Coordinator·Implementer가 정한 매입 규칙의 사용자 확인: PAYMENT_HELD(BR-FIN-019), KRW 외 대기(020), 재봉인 거부(024), 같은 ID 재업로드(028), 재매입 세대 취소 판정(040), 누적 초과 취소 대기(041), CANCEL 재매입(050), 전송 보류(051), 재매입 실행 기한(053), REVIEW_REQUIRED 해소 2인(013) | 일괄 확인(모두 fail-closed 방향 유지) | 항목별 재검토 | 해당 BR을 `확정`으로 올리기 |
+| Q-FIN-RG-08 | Coordinator·Implementer가 정한 매입 규칙의 사용자 확인: PAYMENT_HELD(BR-FIN-019), KRW 외 대기(020), 재봉인 거부(024), 같은 ID 재업로드(028), 재매입 세대 취소 판정(040), 누적 초과 취소 대기(041), CANCEL 재매입(050), 전송 보류(051), 재매입 실행 기한(053), REVIEW_REQUIRED 해소 2인(013) | 일괄 확인(모두 fail-closed 방향 유지) | 항목별 재검토 | 해당 BR을 `확정`으로 올리기 [처리: D-GOV-010 ① 013·024·028·041·050·051·053 확정, D-GOV-010 ③ BR-FIN-019→BR-FIN-138, D-GOV-011 ③ BR-FIN-020 확정, BR-FIN-040 정책 분석 중(D-GOV-010 ④)] |
 | Q-FIN-RG-09 | 대사(RECON) 없이 쌓이는 UNKNOWN(매입 결과·전송·이관 취소)의 LIVE 전 처리 | RECON-CONTRACT-001을 LIVE 필수 선행으로 명시, 그 전 LIVE 매입·LIVE 취소 차단 유지 | 임시 운영자 확인 절차 | BR-FIN-034·048·125 |

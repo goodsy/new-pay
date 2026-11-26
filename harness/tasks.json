@@ -1413,11 +1413,12 @@
         "evidence": "build/harness-evidence/RULE-CONFIRM-001-2026-11-25T115622Z.json"
       },
       "openItems": [
-        "목록만 — 대장 상태 변경은 사용자 답 후",
-        "rev 0.1a 독립 재리뷰 APPROVED(N-1~3 Coordinator 반영): 121행 = A 95·B 17(질문 14, 라운드 1~5)·C 8·D 1, 라운드 0 = Q-A·Q-C",
-        "아침 질문 순서: 라운드 0 → B 라운드 1(돈 흐름) …; 답 후 대장 상태·DECISIONS·questions 갱신, BR-WH-035 (b) 대체 + 웹훅 GAVE_UP 정비 카드 등록"
+        "라운드 0·1·2 답 반영(D-GOV-010·011): 확정 +109행, 남은 제안 15(B 14 + D BR-FIN-100)",
+        "확정 보류: BR-FIN-040(ACQ-REACQ-CANCEL-001), BR-BIZ-280(GOV-MER-ELIG-001)",
+        "남은 라운드 3~5(Q7~Q14) 질문 대기",
+        "BR-WH-035 → 081·082 분할, BR-FIN-019 → 138"
       ],
-      "nextResumeAction": "커밋 완료 후 사용자 답 대기(아침)",
+      "nextResumeAction": "Q-ARC·Q-KPI·ELIG·MCODE 질문 후 라운드 3(Q7~Q9)",
       "detail": null
     },
     {
@@ -1485,6 +1486,130 @@
         "strict 도메인 활성·판정 기준(파일 존재 vs BR-ID 표기)은 사용자 확인 후"
       ],
       "nextResumeAction": "없음 — 결손 근거 ID 정리는 RULE-CONFIRM 답 반영 때 함께",
+      "detail": null
+    },
+    {
+      "id": "WH-GAVEUP-FIX-001",
+      "title": "웹훅 GAVE_UP 뒤 늦은 2xx — GAVE_UP 유지·시도 기록만·경보 유지(BR-WH-082)",
+      "status": "BACKLOG",
+      "phase": "IMPLEMENTATION",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "docs/rules/WH.md BR-WH-082·081, D-GOV-004 ④, D-GOV-010 ②; 현 코드 MerchantWebhookDelivery.kt:76-80 GAVE_UP→DELIVERED, reconstitute :122-127, 반대 기대 시험 MerchantWebhookDeliverySpec 'late 2xx after GAVE_UP still delivers'·MerchantWebhookDeliveryDbSpec T-D3 일부",
+      "allowedWritePaths": [
+        "apps/payment/**(웹훅 전달 Domain·adapter·시험)",
+        "docs/repository/WEBHOOK-001*",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "정비 명세 작성 → 사용자 확인 없이 확정된 규칙만 구현(TDD) → 리뷰 → 게이트",
+      "detail": null
+    },
+    {
+      "id": "ACQ-HOLD-SCOPE-001",
+      "title": "매입 후보 보류 범위 — 보류 걸린 사실만 대기(BR-FIN-138)",
+      "status": "BACKLOG",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "docs/rules/FIN.md BR-FIN-138, D-GOV-010 ③; 현 코드 AcquisitionCandidateRule.kt:23-24(CANCELLATION_HELD·PAYMENT_HELD), 충돌 BR-FIN-016(보류 취소 상계 시점), 대체 규칙 시험 AcquisitionCandidateRuleSpec AQ-D4·AcquisitionSealDbSpec AQ-DB7a·7b",
+      "allowedWritePaths": [
+        "docs/repository/ACQUIRING-001*",
+        "apps/financial*/**",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "정비 명세(보류 취소의 상계·대사 경로, BR-FIN-016 관계) 작성 → 금융 의미 질문 → 구현",
+      "detail": null
+    },
+    {
+      "id": "ACQ-REACQ-CANCEL-001",
+      "title": "재매입 원승인의 최종 유효 매입 상태 기준 취소 매입 판정(BR-FIN-040) — 정책·전이표·시험 시나리오",
+      "status": "WAITING_DECISION",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "docs/governance/ACQ-REACQ-CANCEL-001-FINAL-EFFECTIVE-ACQUISITION.md, D-GOV-010 ④(승인 전 소스·기대값 변경 금지)",
+      "allowedWritePaths": [
+        "docs/governance/ACQ-REACQ-CANCEL-001-FINAL-EFFECTIVE-ACQUISITION.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "Q-ARC 질문 → 정책 확정 → 구현 카드",
+      "detail": null
+    },
+    {
+      "id": "KPI-POLICY-001",
+      "title": "운영 홈 KPI 집계 정책 문서화·구현 정합 검증",
+      "status": "WAITING_DECISION",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "docs/governance/KPI-POLICY-001-OPS-HOME-KPI.md, D-GOV-010 ⑤, D-ADMIN-HOME-001·002",
+      "allowedWritePaths": [
+        "docs/governance/KPI-POLICY-001-OPS-HOME-KPI.md",
+        "docs/rules/CAN.md",
+        "docs/rules/ADM.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "Q-KPI 질문 → 불일치 G-1~G-10 정비 카드(ADMIN-HOME-ATTENTION-001 등)",
+      "detail": null
+    },
+    {
+      "id": "GOV-MER-ELIG-001",
+      "title": "가맹점 등록 자격 — 유효 계약 기준 정책 차이 분석(BR-BIZ-280)",
+      "status": "IN_PROGRESS",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-011 ①, docs/governance/GOV-MER-ELIG-001-MERCHANT-REGISTRATION-ELIGIBILITY.md",
+      "allowedWritePaths": [
+        "docs/governance/GOV-MER-ELIG-001-MERCHANT-REGISTRATION-ELIGIBILITY.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "분석 문서 → 리뷰 → 사용자 질문 → 정책 확정 → MERCHANT-FLOW-001 FLOW-3",
+      "detail": null
+    },
+    {
+      "id": "GOV-MCODE-001",
+      "title": "가맹점 코드 불변 식별자 — 정책·도메인·API·화면·시험 일관성 검증(BR-BIZ-067)",
+      "status": "IN_PROGRESS",
+      "phase": "SPEC",
+      "owner": "Coordinator",
+      "dependsOn": [
+        "RULE-CONFIRM-001"
+      ],
+      "spec": "D-GOV-011 ②, docs/governance/GOV-MCODE-001-MERCHANT-CODE-IMMUTABILITY.md",
+      "allowedWritePaths": [
+        "docs/governance/GOV-MCODE-001-MERCHANT-CODE-IMMUTABILITY.md",
+        "harness/tasks.json"
+      ],
+      "maxRepairAttempts": 3,
+      "lastGate": null,
+      "openItems": [],
+      "nextResumeAction": "검증 문서 → 리뷰 → 충돌 보고 → 정비 카드",
       "detail": null
     }
   ]
