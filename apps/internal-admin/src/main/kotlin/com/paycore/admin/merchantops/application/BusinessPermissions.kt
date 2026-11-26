@@ -18,6 +18,9 @@ object BusinessPermissions {
     /** 등록 완료(DRAFT → REGISTERED — D-BIZ-006 ①). */
     val COMPLETE: Set<String> = setOf("OPERATOR")
 
+    /** 계약 접수 건 생성·전이·계약 완료(MERCHANT-FLOW-001 §4A.3 '누가' = OPERATOR 1인, §4B.11 — APPROVER는 조회만). */
+    val CONTRACT_INTAKE: Set<String> = setOf("OPERATOR")
+
     /**
      * 앞단(MERCHANT-OPS-001 §5.2·MERCHANT-BIZ-LOOKUP-001 §4.2 ①): 세션 계정이 업무 조회 역할조차 없으면 403 **감사 없음**(세션 없음·비활성·역할 없음 — BIZ-3-1).
      * 이 집합 안이지만 위 상수 밖이면 403 + 감사 `FORBIDDEN`(감사 대상 action만).

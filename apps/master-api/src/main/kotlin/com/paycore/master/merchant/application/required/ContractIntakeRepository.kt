@@ -12,6 +12,9 @@ interface ContractIntakeRepository {
     /** 그 사업자의 최신 접수 건(생성 순번이 가장 큰 건 — 리뷰 m-3), 없으면 null. 새 접수 생성 조건의 입력으로만 쓴다(관문 입력 아님 — BR-BIZ-319, ELIG F-4). */
     fun latest(businessId: BusinessId): ContractIntake?
 
+    /** 그 사업자의 접수 건 [seq](명령 대상 — FLOW-2b), 없으면 null. 잠금 뒤 DB를 직접 읽는다(영속성 컨텍스트의 관리 Entity를 덮어 읽음). */
+    fun find(businessId: BusinessId, seq: Int): ContractIntake?
+
     /** 새 접수 건 persist(version 0, 종류·대상 포함 — INSERT 때만 쓴다). 열린 건 중복은 DB `uk_cin_open`이 이중 방어 — 위반은 결함([StoreConstraint.CONTRACT_INTAKE_ROW]). */
     fun insert(intake: ContractIntake)
 

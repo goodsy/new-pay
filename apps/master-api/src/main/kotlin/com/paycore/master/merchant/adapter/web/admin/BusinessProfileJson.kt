@@ -53,11 +53,37 @@ object BusinessProfileJson {
     )
 
     /** MERCHANT-FLOW-001 FLOW-1: '계약 진행' 섹션(접수 건 최신부터, 이력 순번 오름차순). 이관 건의 접수 항목·근거·담당자는 null(화면 '이관' 표시 — R-6). */
+    /**
+     * 사업자 상세 '계약 진행' 섹션 — golden `contract-intake-section-v2`(MERCHANT-FLOW-001 FLOW-2b, §4B.15 ADMIN 행: `TERMINATED` 제거·`kind`·사업자 계약 칸 추가).
+     * 키 순서 고정. 시각은 UTC ms 문자열, 날짜는 `yyyy-MM-dd`. 사유 원문 없음(이력 탭), 근거 참조는 원문(D-FLOW-004 ④).
+     */
     fun contractIntakes(v: ContractIntakeSectionView): Map<String, Any?> = linkedMapOf(
         "businessId" to v.businessId,
+        "judgedAt" to v.judgedAt?.let(AdminChannelResponses::time),
+        "businessContract" to v.businessContract?.let { c ->
+            linkedMapOf(
+                "contractSeq" to c.contractSeq, "migrated" to c.migrated, "status" to c.status, "applyingVersionNo" to c.applyingVersionNo,
+                "scheduledVersionNo" to c.scheduledVersionNo, "linkedMerchantCount" to c.linkedMerchantCount, "createdAt" to AdminChannelResponses.time(c.createdAt),
+                "createdBy" to c.createdBy,
+                "versions" to c.versions.map { x ->
+                    linkedMapOf(
+                        "versionNo" to x.versionNo, "migrated" to x.migrated, "originIntakeSeq" to x.originIntakeSeq, "startsAt" to AdminChannelResponses.time(x.startsAt),
+                        "startDate" to x.startDate?.toString(), "endDate" to x.endDate?.toString(), "services" to x.services, "documentRef" to x.documentRef,
+                        "closedAt" to x.closedAt?.let(AdminChannelResponses::time), "createdAt" to AdminChannelResponses.time(x.createdAt), "createdBy" to x.createdBy,
+                    )
+                },
+                "events" to c.events.map { e ->
+                    linkedMapOf(
+                        "eventSeq" to e.eventSeq, "kind" to e.kind, "evidenceRef" to e.evidenceRef, "actorRef" to e.actorRef,
+                        "occurredAt" to AdminChannelResponses.time(e.occurredAt),
+                    )
+                },
+            )
+        },
         "intakes" to v.intakes.map { i ->
             linkedMapOf(
-                "intakeSeq" to i.intakeSeq, "status" to i.status, "migrated" to i.migrated, "receivedOn" to i.receivedOn?.toString(), "intakeChannel" to i.intakeChannel,
+                "intakeSeq" to i.intakeSeq, "status" to i.status, "kind" to i.kind, "targetContractSeq" to i.targetContractSeq, "migrated" to i.migrated,
+                "receivedOn" to i.receivedOn?.toString(), "intakeChannel" to i.intakeChannel,
                 "contractManager" to i.contractManager, "desiredServices" to i.desiredServices, "version" to i.version,
                 "createdAt" to AdminChannelResponses.time(i.createdAt), "updatedAt" to AdminChannelResponses.time(i.updatedAt),
                 "transitions" to i.transitions.map { t ->

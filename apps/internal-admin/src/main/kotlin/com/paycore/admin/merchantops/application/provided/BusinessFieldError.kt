@@ -6,7 +6,7 @@ package com.paycore.admin.merchantops.application.provided
  */
 data class BusinessFieldError(val path: String, val code: String) {
     init {
-        require(PATH.matches(path) && code in CODES) { "field error path/code outside the §4.6 grammar" }
+        require((PATH.matches(path) || CONTRACT_INTAKE_PATH.matches(path)) && code in CODES) { "field error path/code outside the §4.6 grammar" }
     }
 
     companion object {
@@ -20,6 +20,14 @@ data class BusinessFieldError(val path: String, val code: String) {
                 "|categories($INDEX\\.(type|name))?" +
                 "|addresses($INDEX\\.(type|postalCode|baseAddress|detailAddress))?" +
                 "|contacts($INDEX\\.(name|email|phoneNumber|primary))?)$",
+        )
+
+        /**
+         * MERCHANT-FLOW-001 FLOW-2b 계약 접수 건 명령 path 문법(MASTER `ContractIntakeRequestParser` 값 단계 + ADMIN 1차 검사 — 같은 이름). 사업자 명령 응답 모양([PATH])과 따로 둔다
+         * (한 명령의 400 응답에 다른 명령의 path가 오면 해석 불가 — fail-closed). `reason`은 두 문법에 다 있다.
+         */
+        val CONTRACT_INTAKE_PATH = Regex(
+            "^(receivedOn|intakeChannel|contractManager|desiredServices(\\[[01]\\])?|reason|documentRef|startDate|endDate|services(\\[0\\])?)$",
         )
 
         /** §4.6 code 집합(MASTER `BusinessFieldErrorCode`와 같다). */

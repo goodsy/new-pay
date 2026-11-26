@@ -206,7 +206,8 @@ class BusinessHttpSpec(
             val client = loggedIn(operator)
             val id = businessId()
             val managerRef = "admin:${manager.account.id.value}"
-            val section = String(requireNotNull(BusinessHttpSpec::class.java.getResourceAsStream("/contracts/contract-intake-section-v1.golden.json")).readAllBytes(), Charsets.UTF_8)
+            // 기대값 변경(FLOW-2b — golden v1 → v2, §4B.15 ADMIN 행): v2 골든은 TERMINATED 전이가 없고 계약 완료 근거(DEMO-DOC-0001)·사업자 계약 칸을 싣는다.
+            val section = String(requireNotNull(BusinessHttpSpec::class.java.getResourceAsStream("/contracts/contract-intake-section-v2.golden.json")).readAllBytes(), Charsets.UTF_8)
                 .replace("biz_01JC0000000000000000000001", id).replace("admin:adm_01JC00000000000000000000V1", managerRef)
             replyMaster("$base/$id", 200, g("detail"))
             replyMaster("$base/$id/contract-intakes", 200, section)
@@ -222,7 +223,16 @@ class BusinessHttpSpec(
             items(intakes).map { it.get("intakeSeq").asLong() } shouldBe listOf(2L, 1L)
             intakes.get(0).get("contractManagerName").asString() shouldBe manager.account.displayName.value
             intakes.get(1).get("contractManagerName").isNull shouldBe true
-            items(intakes.get(1).get("transitions")).map { "${it.get("actorKind").asString()}|${it.get("documentRef")}" } shouldBe listOf("SYSTEM|null", "ADMIN|\"DEMO-TERM-0001\"")
+            items(intakes.get(1).get("transitions")).map { "${it.get("actorKind").asString()}|${it.get("documentRef")}" } shouldBe listOf("SYSTEM|null")
+            items(intakes.get(0).get("transitions")).map { "${it.get("actorKind").asString()}|${it.get("documentRef")}" } shouldBe
+                listOf("ADMIN|null", "ADMIN|null", "ADMIN|\"DEMO-DOC-0001\"")
+            items(intakes).map { it.get("kind").asString() } shouldBe listOf("CHANGE", "NEW")
+            val contract = progress.get("businessContract")
+            contract.get("status").asString() shouldBe "ACTIVE"
+            items(contract.get("versions")).map { "${it.get("versionNo").asLong()}|${it.get("actorKind").asString()}|${it.get("actorName")}|${it.get("createdAt").asString()}" } shouldBe listOf(
+                "1|SYSTEM|null|2026-11-21T03:00:00.000Z", "2|ADMIN|\"${manager.account.displayName.value}\"|2026-11-26T01:00:00.000Z",
+            )
+            progress.get("today").asString().matches(Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) shouldBe true
             val text = progress.toString()
             listOf(manager.loginName, operator.loginName, manager.account.id.value, "adm_", "admin:", "system:migration", "actorRef", id).forEach { needle ->
                 withClue(needle) { text shouldNotContain needle }
@@ -456,9 +466,11 @@ class BusinessHttpSpec(
             // 메서드와 무관하게 매핑 자체가 없다(라우트 목록 단언 — POST·PUT의 상태 코드는 정적 자원 처리기 응답에 따라 404/405).
             val routes = (context.getBean("requestMappingHandlerMapping") as org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping)
                 .handlerMethods.keys.flatMap { it.patternValues }
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2b §4B.11 표 2b 행 — 추가형): 계약 접수 건 명령 경로 3개가 더해진다(기존 7개 그대로). documents·deactivate는 여전히 없다.
             routes.filter { it.startsWith("/api/businesses") }.sorted() shouldBe listOf(
                 "/api/businesses", "/api/businesses/registration-number-lookups", "/api/businesses/searches", "/api/businesses/{businessId}",
-                "/api/businesses/{businessId}", "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
+                "/api/businesses/{businessId}", "/api/businesses/{businessId}/contract-intakes", "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion",
+                "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions", "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
             )
             routes.none { it.contains("documents") || it.contains("deactivate") } shouldBe true
             val migrations = File(System.getProperty("user.dir")).resolve("src/main/resources/db/migration/admin").list()!!.sorted()

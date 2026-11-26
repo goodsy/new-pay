@@ -79,6 +79,21 @@ class BusinessContractArchitectureSpec : FunSpec({
         forbidden(users(setOf("$base.application.required.OutboxStore"))) shouldContainAll listOf("AdminCommandExecutor -> OutboxStore", "BusinessProfileService calls Work.record")
     }
 
+    test("FLOW-2b review NIT-2: command services never read the section reader (Reader results are display only — judgement uses the locked JPA ports)") {
+        fun inApplication(c: JavaClass) = c.packageName == "$base.application" || c.packageName.startsWith("$base.application.")
+        val commandPorts = setOf("$base.application.required.ContractIntakeRepository", "$base.application.required.BusinessContractRepository")
+        val readerTypes = setOf(
+            "$base.application.required.ContractIntakeReader", "$base.application.required.ContractIntakeSection", "$base.adapter.query.JooqContractIntakeReader",
+        )
+        val byOwner = classes.filter(::inApplication).groupBy { it.name.substringBefore('$') }
+        fun dependsOn(group: List<JavaClass>, targets: Set<String>) = group.any { c -> c.directDependenciesFromSelf.any { it.targetClass.fullName in targets } }
+        val commandSide = byOwner.filterValues { dependsOn(it, commandPorts) }
+        commandSide.keys shouldContainAll setOf("$base.application.ContractIntakeCommandService")
+        commandSide.filterValues { dependsOn(it, readerTypes) }.keys.shouldBeEmpty()
+        // 대조군(검출력): 같은 판정이 Reader를 쓰는 조회 서비스를 실제로 잡는다.
+        byOwner.filterValues { dependsOn(it, readerTypes) }.keys shouldContainAll setOf("$base.application.BusinessProfileQueryService")
+    }
+
     test("FLOW-2a §4B.12 ④ no code outside the registration-basis store / reader / persistence adapter depends on MerchantRegistrationBasis types") {
         fun allowed(c: JavaClass) = c.simpleName.startsWith("MerchantRegistrationBasis") || c.simpleName.contains("RegistrationBasisStore") ||
             c.simpleName.contains("RegistrationBasisReader") || c.packageName.startsWith("$base.adapter.persistence") || c.packageName.startsWith("$base.adapter.query")

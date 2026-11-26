@@ -29,6 +29,13 @@ class JpaContractIntakeRepository(
         intakes.findFirstByBusinessIdOrderByIntakeSeqDesc(businessId.value)?.let(ContractIntakePersistenceMapper::toIntake)
     }
 
+    override fun find(businessId: BusinessId, seq: Int): ContractIntake? = translate(ENTITY) {
+        entityManager.find(JpaContractIntakeEntity::class.java, JpaContractIntakeEntity.Key(businessId.value, seq))
+            // 같은 TX에 앞서 관리되던 행이면 최신 커밋으로 다시 읽는다(ARCHITECTURE-CONVENTIONS '잠금 읽기' — 사업자 행 잠금 뒤 호출).
+            ?.also { entityManager.refresh(it) }
+            ?.let(ContractIntakePersistenceMapper::toIntake)
+    }
+
     override fun insert(intake: ContractIntake): Unit = translate(ENTITY) {
         check(intake.version == 0L) { "a new intake starts at version 0" }
         val row = ContractIntakePersistenceMapper.newRow(intake)

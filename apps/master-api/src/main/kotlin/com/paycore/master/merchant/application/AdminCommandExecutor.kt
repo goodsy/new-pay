@@ -73,16 +73,20 @@ import java.util.HexFormat
  * — 모든 관리 명령 공통이라 명령 필드에 든 개인정보(사업자등록번호·대표자·담당자 이름·전화·이메일, 기관 가맹점 참조 등)가 무염 해시로 남지 않는다. 같은 키·같은 내용 = 재생,
  * 같은 키·다른 내용 = [AdminCommandResult.IdempotencyKeyReused](판정 규칙 불변). HMAC 전 저장 행(`m1:` 무염 SHA-256)은 [RequestFingerprintDigester.legacyComparisonAllowed]
  * (Demo 배포만)일 때만 같은 요청의 [legacyFingerprintOf]로 비교한다 — 저장 값은 바꾸지 않는다(append-only). LIVE는 비교하지 않아 legacy 행 + 같은 내용도 409(L-25 제거 조건).
+ *
+ * **이력 전용 모드**(MERCHANT-FLOW-001 §4A.2 M-1 — FLOW-2b): `outbox`·`publisher` 없이 만든 실행기는 [Work.recordHistory]만 쓸 수 있다([Work.record]·[Work.publishEntitlement]는
+ * 결함 — IllegalState로 TX rollback). 접수 건·사업자 계약 명령이 이 모드를 쓴다 — 소비자 없는 Outbox 이벤트를 만들지 않고, 그 서비스는 `OutboxStore`·Snapshot 발행기에 의존하지 않는다
+ * (ArchUnit ②). 기존 명령의 [Work.record] 동작은 바뀌지 않는다.
  */
 internal class AdminCommandExecutor(
     transactionManager: PlatformTransactionManager,
     private val requests: AdminRequestStore,
     private val changeLog: MasterChangeLog,
-    private val outbox: OutboxStore,
+    private val outbox: OutboxStore?,
     private val ids: MasterIdGenerator,
     private val clock: MasterClock,
     private val metrics: MasterOperationalMetrics,
-    private val publisher: EntitlementSnapshotPublisher,
+    private val publisher: EntitlementSnapshotPublisher?,
     private val fingerprints: RequestFingerprintDigester,
     private val evidences: ApprovalEvidenceStore? = null,
 ) {
@@ -389,6 +393,8 @@ internal class AdminCommandExecutor(
             historyDetail: Map<String, Any?> = payload,
         ) {
             check(writing) { "records are written after the decision" }
+            // 이력 전용 모드에서는 이력을 쓰기 **전에** 결함으로 멈춘다(리뷰 NIT-1 — 이력만 쓰고 Outbox에서 실패하는 반쪽 기록 시도를 만들지 않는다; TX는 어느 쪽이든 rollback).
+            val outbox = checkNotNull(outbox) { "this executor writes history only (no outbox)" }
             changeLog.append(
                 ChangeRecord(requestRecordId, operation, aggregateType, aggregateId, eventType, request.actor, now, historyDetail),
             )
@@ -412,12 +418,20 @@ internal class AdminCommandExecutor(
         }
 
         /**
+         * 변경 이력만(append-only `master_change_history`) 같은 TX에 남긴다 — **Outbox 없음**(MERCHANT-FLOW-001 §4A.2 M-1, 이름 후보 `recordHistory`). 증거: 명령 전후 `outbox_event` 증가 0.
+         */
+        fun recordHistory(aggregateType: String, aggregateId: String, eventType: String, historyDetail: Map<String, Any?>) {
+            check(writing) { "records are written after the decision" }
+            changeLog.append(ChangeRecord(requestRecordId, operation, aggregateType, aggregateId, eventType, request.actor, now, historyDetail))
+        }
+
+        /**
          * 권리 입력 변경 뒤(같은 TX, 쓰기 단계) [merchant]의 현재 권리 Snapshot을 발행한다(revision은 본문이 이미 +1·저장했다). MID가 없는
          * Merchant는 발행하지 않는다(PAYMENT가 물을 일이 없다 — 명세 §3.2).
          */
         fun publishEntitlement(merchant: Merchant) {
             check(writing) { "the entitlement snapshot is published after the decision" }
-            publisher.publishChange(merchant, now, request.correlationId, requestRecordId)
+            checkNotNull(publisher) { "this executor writes history only (no entitlement snapshot)" }.publishChange(merchant, now, request.correlationId, requestRecordId)
         }
     }
 

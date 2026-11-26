@@ -6,6 +6,8 @@ import com.paycore.admin.merchantops.application.required.MasterBusinessCommand
 import com.paycore.admin.merchantops.application.required.MasterBusinessCommandResult
 import com.paycore.admin.merchantops.application.required.MasterBusinessGateway
 import com.paycore.admin.merchantops.application.required.MasterCallResult
+import com.paycore.admin.merchantops.application.required.MasterContractIntakeCommand
+import com.paycore.admin.merchantops.application.required.MasterContractIntakeGateway
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
@@ -35,7 +37,8 @@ import java.util.concurrent.Semaphore
  * - timeout·연결 끊김·모양 위반(fieldErrors 문법 위반 포함)·그 밖 상태 → Unknown(효과 유무를 모른다 — 효과 없음으로 단정하지 않는다).
  * 목록 검색은 null 필드를 **보내지 않는다**(MASTER parser는 생략만 허용 — BIZ-2 인계 ④). 로그는 연산·결과 분류만(본문·서명·키·번호·이름 없음).
  */
-class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private val signer: MasterCallSigner, private val clock: () -> Instant) : MasterBusinessGateway {
+class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private val signer: MasterCallSigner, private val clock: () -> Instant) :
+    MasterBusinessGateway, MasterContractIntakeGateway {
 
     private val json: JsonMapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
     private val permits = Semaphore(settings.permits)
@@ -82,18 +85,39 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
     }
 
     override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult {
+        val body = linkedMapOf<String, Any?>("idempotencyKey" to command.idempotencyKey, "actor" to command.actor, "correlationId" to command.correlationId)
+        body.putAll(command.body)
+        return post("business-command-${command.operation.masterPath}", "$BASE/commands/${command.operation.masterPath}", body, ::decided, ::invalid)
+    }
+
+    /**
+     * MERCHANT-FLOW-001 FLOW-2b 계약 접수 건 명령(§4B.7 — `POST …/contract-intakes/commands/{open|move|complete}`). 사업자 명령과 같은 permit·서명·상한·상태 매핑. 200은 성공(`biz_`)·
+     * 접수 건 거절 code([MasterResponseShape.CONTRACT_INTAKE_REJECTIONS])만, 400은 접수 건 path 문법([MasterResponseShape.CONTRACT_INTAKE_VALIDATION_FAILED])만 — 그 밖은 Unknown(fail-closed).
+     */
+    override fun contractIntakeCommand(command: MasterContractIntakeCommand): MasterBusinessCommandResult {
+        val body = linkedMapOf<String, Any?>("idempotencyKey" to command.idempotencyKey, "actor" to command.actor, "correlationId" to command.correlationId)
+        body.putAll(command.body)
+        return post(
+            "contract-intake-command-${command.operation.masterPath}", "$BASE/contract-intakes/commands/${command.operation.masterPath}", body,
+            ::contractIntakeDecided, ::contractIntakeInvalid,
+        )
+    }
+
+    private fun post(
+        operation: String,
+        path: String,
+        body: Map<String, Any?>,
+        decide: (ByteArray?) -> MasterBusinessCommandResult,
+        invalidOf: (ByteArray?) -> MasterBusinessCommandResult,
+    ): MasterBusinessCommandResult {
         check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (BUSINESS-PROFILE-001 §7.2)" }
-        val operation = "business-command-${command.operation.masterPath}"
         if (!writePermits.tryAcquire()) return MasterBusinessCommandResult.Busy(BUSY).also { logCommand(operation, it) }
         try {
-            val body = linkedMapOf<String, Any?>("idempotencyKey" to command.idempotencyKey, "actor" to command.actor, "correlationId" to command.correlationId)
-            body.putAll(command.body)
-            val path = "$BASE/commands/${command.operation.masterPath}"
             val result = when (val response = exchange(HttpMethod.POST, path, json.writeValueAsBytes(body), COMMAND_RESPONSE_MAX_BYTES)) {
                 is Raw.Failed -> MasterBusinessCommandResult.Unknown(response.failure)
                 is Raw.Http -> when (response.status) {
-                    OK -> decided(response.body)
-                    BAD_REQUEST -> invalid(response.body)
+                    OK -> decide(response.body)
+                    BAD_REQUEST -> invalidOf(response.body)
                     CONFLICT -> if (errorCode(response.body) == "IDEMPOTENCY_KEY_REUSED") MasterBusinessCommandResult.KeyReused else MasterBusinessCommandResult.Unknown("HTTP_409")
                     SERVICE_UNAVAILABLE -> when (val code = errorCode(response.body)) {
                         "ADMIN_WRITE_BUSY" -> MasterBusinessCommandResult.Busy(code)
@@ -108,6 +132,29 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         } finally {
             writePermits.release()
         }
+    }
+
+    /** 계약 접수 건 200: 성공(reference `biz_`) 또는 접수 건 거절 code만(existing·reference 없음). 그 밖 모양은 Unknown(RESPONSE_UNREADABLE). */
+    @Suppress("UNCHECKED_CAST")
+    private fun contractIntakeDecided(body: ByteArray?): MasterBusinessCommandResult {
+        val node = tree(body)?.takeIf { it.isObject } ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+        val shape = when (node.get("outcome")?.takeIf { it.isString }?.asString()) {
+            "SUCCEEDED" -> MasterResponseShape.BUSINESS_COMMAND_SUCCEEDED
+            "REJECTED" -> MasterResponseShape.CONTRACT_INTAKE_REJECTED
+            else -> return MasterBusinessCommandResult.Unknown(UNREADABLE)
+        }
+        val read = runCatching { shape.read(node) as Map<String, Any?> }.getOrNull() ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+        return decidedOf(read)
+    }
+
+    /** 계약 접수 건 400: 접수 건 path 문법의 `BUSINESS_VALIDATION_FAILED`면 Invalid(효과 없음 확정), 그 밖은 Unknown. */
+    @Suppress("UNCHECKED_CAST")
+    private fun contractIntakeInvalid(body: ByteArray?): MasterBusinessCommandResult {
+        val node = tree(body)?.takeIf { it.isObject } ?: return MasterBusinessCommandResult.Unknown("HTTP_400")
+        if (node.get("error")?.takeIf { it.isString }?.asString() != "BUSINESS_VALIDATION_FAILED") return MasterBusinessCommandResult.Unknown("HTTP_400")
+        val read = runCatching { MasterResponseShape.CONTRACT_INTAKE_VALIDATION_FAILED.read(node) as Map<String, Any?> }.getOrNull()
+            ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+        return invalidOf(read["fieldErrors"] as List<Map<String, Any?>>)
     }
 
     /** 200 → 저장된 판정. 성공·중복 거절(existing 필수)·다른 거절(existing 없음) 모양과 정확히 같지 않으면 Unknown(RESPONSE_UNREADABLE). */

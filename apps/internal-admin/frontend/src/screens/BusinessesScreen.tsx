@@ -47,6 +47,9 @@ interface Props {
   onOpenMerchant?: (merchantId: string) => void
   onSessionEnded?: (code: ConsoleErrorCode) => void
   newSubmissionId?: () => string
+  /** MERCHANT-FLOW-001 FLOW-2b: 로그인한 운영자(계약 담당자 = 본인 — 계정 키는 명령 본문에만, 화면에 그리지 않는다). 없으면 접수 명령 버튼 없음. */
+  actorId?: string
+  actorName?: string
 }
 
 type View = { kind: 'list' } | { kind: 'detail'; businessId: string } | { kind: 'edit'; businessId: string }
@@ -108,7 +111,9 @@ export function showBusinessListIn(memory: ScreenMemory) {
 const messageOf = (code: ConsoleErrorCode, lookup = false) =>
   code === 'RATE_LIMITED' ? (lookup ? BRN_RATE_LIMITED : BUSINESS_READ_RATE_LIMITED) : ERROR_MESSAGES[code]
 
-export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId, onOpenMerchant }: Props) {
+export function BusinessesScreen({
+  api, memory, canEdit, onContinue, onRegister, handoffState = () => 'empty', onSessionEnded, newSubmissionId = defaultSubmissionId, onOpenMerchant, actorId, actorName,
+}: Props) {
   const [view, setView] = useRemembered<View>(memory, 'view', LIST)
   const [filters, setFilters] = useRemembered<Filters>(memory, 'filters', NO_FILTERS)
   const [list, setList] = useRemembered<ListState | null>(memory, 'list', null)
@@ -251,6 +256,16 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
     const trigger = leaveTrigger.current
     focusAfter.current = () => trigger
     setLeave(null)
+  }
+
+  /** FLOW-2b: 계약 진행 명령 뒤 상세 다시 읽기(열람 감사 1행 — 서버). 그 사이 다른 사업자를 열었으면 버린다. 실패는 상세 오류 줄. */
+  const refreshDetail = (businessId: string) => {
+    api.businessDetail(businessId)
+      .then((d) => {
+        const v = memory.read('view') as View | undefined
+        if (v !== undefined && v.kind !== 'list' && v.businessId === businessId) setDoc(d)
+      })
+      .catch((e) => fail(e, false, setDetailError))
   }
 
   const loadHistory = async (businessId: string, more: boolean) => {
@@ -509,8 +524,20 @@ export function BusinessesScreen({ api, memory, canEdit, onContinue, onRegister,
                 { key: 'history', label: '변경 이력', panel: <HistoryTable history={history?.businessId === current.business.businessId ? history : null} onMore={() => loadHistory(current.business.businessId, true)} /> },
               ]}
             />
-            {/* MERCHANT-FLOW-001 FLOW-1: 읽기 전용 '계약 진행' 섹션 — 탭 패널 밖(하단 저장 편집 폼에 묶이지 않는 별도 섹션, D-FLOW-007 ② 섹션 원칙), 상세 문서와 같은 응답. */}
-            <BusinessContractProgressSection progress={current.contractProgress} />
+            {/* MERCHANT-FLOW-001 '계약 진행' 섹션 — 탭 패널 밖(하단 저장 편집 폼에 묶이지 않는 별도 섹션, D-FLOW-007 ② 섹션 원칙), 상세 문서와 같은 응답.
+                FLOW-2b: 접수 건 생성·전이·계약 완료(OPERATOR) — 성공·거절 뒤 상세를 다시 읽는다(사업자 version은 바뀌지 않는다 — 편집 기준 그대로). */}
+            <BusinessContractProgressSection
+              progress={current.contractProgress}
+              businessId={current.business.businessId}
+              api={api}
+              memory={memory}
+              canEdit={canEdit}
+              actorId={actorId}
+              actorName={actorName}
+              newSubmissionId={newSubmissionId}
+              onSessionEnded={onSessionEnded}
+              onChanged={() => refreshDetail(current.business.businessId)}
+            />
           </>
         )}
       </section>

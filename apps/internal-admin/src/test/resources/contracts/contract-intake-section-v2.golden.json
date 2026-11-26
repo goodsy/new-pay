@@ -1,0 +1,120 @@
+{
+  "businessId": "biz_01JC0000000000000000000001",
+  "judgedAt": "2026-11-26T01:00:00.000Z",
+  "businessContract": {
+    "contractSeq": 1,
+    "migrated": true,
+    "status": "ACTIVE",
+    "applyingVersionNo": 1,
+    "scheduledVersionNo": 2,
+    "linkedMerchantCount": 2,
+    "createdAt": "2026-11-21T03:00:00.000Z",
+    "createdBy": "system:migration",
+    "versions": [
+      {
+        "versionNo": 1,
+        "migrated": true,
+        "originIntakeSeq": 1,
+        "startsAt": "2026-11-21T03:00:00.000Z",
+        "startDate": null,
+        "endDate": null,
+        "services": [
+          "CARD_PG_PAYMENT"
+        ],
+        "documentRef": null,
+        "closedAt": "2026-11-26T15:00:00.000Z",
+        "createdAt": "2026-11-21T03:00:00.000Z",
+        "createdBy": "system:migration"
+      },
+      {
+        "versionNo": 2,
+        "migrated": false,
+        "originIntakeSeq": 2,
+        "startsAt": "2026-11-26T15:00:00.000Z",
+        "startDate": "2026-11-27",
+        "endDate": "2027-11-26",
+        "services": [
+          "CARD_PG_PAYMENT"
+        ],
+        "documentRef": "DEMO-DOC-0001",
+        "closedAt": null,
+        "createdAt": "2026-11-26T01:00:00.000Z",
+        "createdBy": "admin:adm_01JC00000000000000000000V1"
+      }
+    ],
+    "events": []
+  },
+  "intakes": [
+    {
+      "intakeSeq": 2,
+      "status": "COMPLETED",
+      "kind": "CHANGE",
+      "targetContractSeq": 1,
+      "migrated": false,
+      "receivedOn": "2026-11-25",
+      "intakeChannel": "PHONE",
+      "contractManager": "admin:adm_01JC00000000000000000000V1",
+      "desiredServices": [
+        "CARD_AUTH",
+        "CARD_KEYIN"
+      ],
+      "version": 2,
+      "createdAt": "2026-11-25T01:00:00.000Z",
+      "updatedAt": "2026-11-26T01:00:00.000Z",
+      "transitions": [
+        {
+          "transitionSeq": 1,
+          "fromStatus": null,
+          "toStatus": "CONSULTING",
+          "migrated": false,
+          "documentRef": null,
+          "actorRef": "admin:adm_01JC00000000000000000000V1",
+          "occurredAt": "2026-11-25T01:00:00.000Z"
+        },
+        {
+          "transitionSeq": 2,
+          "fromStatus": "CONSULTING",
+          "toStatus": "DOCUMENT_RECEIVED",
+          "migrated": false,
+          "documentRef": null,
+          "actorRef": "admin:adm_01JC00000000000000000000V1",
+          "occurredAt": "2026-11-25T02:00:00.000Z"
+        },
+        {
+          "transitionSeq": 3,
+          "fromStatus": "DOCUMENT_RECEIVED",
+          "toStatus": "COMPLETED",
+          "migrated": false,
+          "documentRef": "DEMO-DOC-0001",
+          "actorRef": "admin:adm_01JC00000000000000000000V1",
+          "occurredAt": "2026-11-26T01:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "intakeSeq": 1,
+      "status": "COMPLETED",
+      "kind": "NEW",
+      "targetContractSeq": null,
+      "migrated": true,
+      "receivedOn": null,
+      "intakeChannel": null,
+      "contractManager": null,
+      "desiredServices": [],
+      "version": 0,
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z",
+      "transitions": [
+        {
+          "transitionSeq": 1,
+          "fromStatus": null,
+          "toStatus": "COMPLETED",
+          "migrated": true,
+          "documentRef": null,
+          "actorRef": "system:migration",
+          "occurredAt": "2026-10-01T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

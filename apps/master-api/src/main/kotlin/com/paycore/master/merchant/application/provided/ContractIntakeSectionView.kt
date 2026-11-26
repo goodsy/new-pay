@@ -12,15 +12,56 @@ import java.time.LocalDate
  * - [Transition.documentRef]는 계약서 수령 근거 참조 원문(D-FLOW-004 ④ — 사업자 조회 역할 전체, 열람은 사업자 상세 열람 감사에 포함). 목록·현황에는 넣지 않는다.
  * - '사유 및 비고' 원문은 이 섹션에 싣지 않는다(이력 탭 — `master_change_history`, PII #33).
  * - [Intake.version]은 다음 전이 명령(FLOW-2)의 기대값(낙관적 잠금)이다.
- * - [Intake.kind]는 접수 건 종류(`NEW`·`CHANGE` — FLOW-2a V21, BR-BIZ-324·325). ADMIN 응답 생성기·golden `contract-intake-section-v1`에는 아직 싣지 않는다(ADMIN 바이트 동일 사본 —
- *   golden 새 판·사업자 계약 칸은 FLOW-2b).
+ * - [Intake.kind]는 접수 건 종류(`NEW`·`CHANGE` — BR-BIZ-324·325), [Intake.targetContractSeq]는 변경 접수의 대상 계약 순번.
+ * - [businessContract](FLOW-2b — §4B.11 1): 그 사업자의 **최신** 사업자 계약 표시(없으면 null). 상태·적용 중 버전·예정 버전은 [judgedAt](조회 시각 — MASTER 시계)에 Domain이 계산한 값이다
+ *   (표시용 — 판정은 명령 TX 안 `BusinessContractRepository`). 버전 행마다 기록 시각(created_at)을 함께 싣는다(MINOR-4 — 오늘 시작 버전의 표시 효과). 정지·해지 사유 원문은 싣지 않는다
+ *   (이력 탭 — 근거 참조는 원문, D-FLOW-004 ④).
  */
-data class ContractIntakeSectionView(val businessId: String, val intakes: List<Intake>) {
+data class ContractIntakeSectionView(
+    val businessId: String,
+    val intakes: List<Intake>,
+    val judgedAt: java.time.Instant? = null,
+    val businessContract: BusinessContractView? = null,
+) {
+
+    data class BusinessContractView(
+        val contractSeq: Int,
+        val migrated: Boolean,
+        val status: String,
+        val applyingVersionNo: Int?,
+        val scheduledVersionNo: Int?,
+        val linkedMerchantCount: Int,
+        val createdAt: Instant,
+        val createdBy: String,
+        val versions: List<Version>,
+        val events: List<Event>,
+    )
+
+    data class Version(
+        val versionNo: Int,
+        val migrated: Boolean,
+        val originIntakeSeq: Int,
+        val startsAt: Instant,
+        val startDate: LocalDate?,
+        val endDate: LocalDate?,
+        val services: List<String>,
+        val documentRef: String?,
+        val closedAt: Instant?,
+        val createdAt: Instant,
+        val createdBy: String,
+    ) {
+        override fun toString(): String = "Version(versionNo=$versionNo, migrated=$migrated, documentRef=${documentRef?.let { "PRESENT" } ?: "ABSENT"})"
+    }
+
+    data class Event(val eventSeq: Int, val kind: String, val evidenceRef: String?, val actorRef: String, val occurredAt: Instant) {
+        override fun toString(): String = "Event(eventSeq=$eventSeq, kind=$kind, evidenceRef=${evidenceRef?.let { "PRESENT" } ?: "ABSENT"})"
+    }
 
     data class Intake(
         val intakeSeq: Int,
         val status: String,
         val kind: String,
+        val targetContractSeq: Int?,
         val migrated: Boolean,
         val receivedOn: LocalDate?,
         val intakeChannel: String?,
@@ -46,5 +87,6 @@ data class ContractIntakeSectionView(val businessId: String, val intakes: List<I
             "Transition(transitionSeq=$transitionSeq, fromStatus=$fromStatus, toStatus=$toStatus, migrated=$migrated, documentRef=${documentRef?.let { "PRESENT" } ?: "ABSENT"})"
     }
 
-    override fun toString(): String = "ContractIntakeSectionView(businessId=$businessId, intakes=${intakes.size})"
+    override fun toString(): String =
+        "ContractIntakeSectionView(businessId=$businessId, intakes=${intakes.size}, businessContract=${businessContract?.let { "#${it.contractSeq}:${it.status}" } ?: "NONE"})"
 }

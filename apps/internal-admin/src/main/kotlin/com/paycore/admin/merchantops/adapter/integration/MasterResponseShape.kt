@@ -351,10 +351,13 @@ internal sealed interface MasterResponseShape {
             "nextAfter" to opt(Whole(1)),
         )
 
-        // ---------------------------------------------------------------- MERCHANT-FLOW-001 FLOW-1(골든 contract-intake-section-v1, ADMIN 바이트 동일 사본)
+        // ---------------------------------------------------------------- MERCHANT-FLOW-001 FLOW-2b(골든 contract-intake-section-v2, ADMIN 바이트 동일 사본)
 
-        /** 접수 건 상태(MASTER `ContractIntakeStatus` — DB CHECK `ck_cin_status`와 같은 5개). */
-        private val INTAKE_STATUS = oneOf("CONSULTING", "DOCUMENT_RECEIVED", "COMPLETED", "REJECTED", "TERMINATED")
+        /** 접수 건 상태(MASTER `ContractIntakeStatus` — DB CHECK `ck_cin_status`와 같은 4개). FLOW-2b: `TERMINATED` 제거(D-GOV-018 ②ⓑ — 오면 해석 불가). */
+        private val INTAKE_STATUS = oneOf("CONSULTING", "DOCUMENT_RECEIVED", "COMPLETED", "REJECTED")
+
+        /** 접수 건 종류(BR-BIZ-324·325 — `ck_cin_kind`). */
+        private val INTAKE_KIND = oneOf("NEW", "CHANGE")
 
         /** 접수 경로 — 지금 저장 가능한 4개(DB CHECK `ck_cin_channel`). `SALES_AGENCY`는 대행사 표·열이 생기는 FLOW-4에서 대행사 필드와 함께 연다(리뷰 m-2 — 그 전에 오면 해석 불가). */
         private val INTAKE_CHANNEL = oneOf("DIRECT_SALES", "PHONE", "WEBSITE", "OTHER")
@@ -365,17 +368,46 @@ internal sealed interface MasterResponseShape {
         /** 계약서 수령 근거 참조(§4A.4 — D-MOPS-008 ① 형식, DB CHECK `ck_cint_document_format`). 원문은 사업자 조회 역할에 표시(D-FLOW-004 ④) — 로그·감사에는 옮기지 않는다. */
         private val CONTRACT_DOCUMENT_REF = Text(Regex("^[A-Za-z0-9._:#/-]{1,128}$"))
 
+        /** 사업자 계약 상태(§4B.2 `BusinessContractStatus` — 계산 값). */
+        private val BUSINESS_CONTRACT_STATUS = oneOf("NOT_YET_EFFECTIVE", "ACTIVE", "SUSPENDED", "TERMINATED", "EXPIRED")
+
+        /** 사업자 계약 범위(BR-BIZ-329 — 지금은 카드 PG 결제만, DB CHECK `business_contract_version_service`). */
+        private val CONTRACT_SERVICE = oneOf("CARD_PG_PAYMENT")
+
+        /** 사업자 계약 사건(§4B.2 — 정지·정지 해제·해지). 사유 원문은 섹션에 없다(이력 탭). */
+        private val CONTRACT_EVENT_KIND = oneOf("SUSPEND", "RESUME", "TERMINATE")
+
+        /** 사업자 계약 칸(§4B.11 1 — 최신 계약 하나, 없으면 null). 버전은 1개 이상, 버전마다 기록 시각(createdAt — MINOR-4). 상태·적용 중·예정 버전은 MASTER가 [judgedAt]에 계산한 표시 값. */
+        private val BUSINESS_CONTRACT = obj(
+            "contractSeq" to Whole(1), "migrated" to Flag, "status" to BUSINESS_CONTRACT_STATUS, "applyingVersionNo" to opt(Whole(1)), "scheduledVersionNo" to opt(Whole(1)),
+            "linkedMerchantCount" to COUNT, "createdAt" to TIME, "createdBy" to ACTOR,
+            "versions" to Arr(
+                obj(
+                    "versionNo" to Whole(1), "migrated" to Flag, "originIntakeSeq" to Whole(1), "startsAt" to TIME, "startDate" to opt(DATE), "endDate" to opt(DATE),
+                    "services" to Arr(CONTRACT_SERVICE, max = 1, min = 1), "documentRef" to opt(CONTRACT_DOCUMENT_REF), "closedAt" to opt(TIME), "createdAt" to TIME,
+                    "createdBy" to ACTOR,
+                ),
+                max = MAX_ITEMS,
+                min = 1,
+            ),
+            "events" to list(
+                obj("eventSeq" to Whole(1), "kind" to CONTRACT_EVENT_KIND, "evidenceRef" to opt(CONTRACT_DOCUMENT_REF), "actorRef" to ACTOR, "occurredAt" to TIME),
+            ),
+        )
+
         /**
-         * 사업자 상세 '계약 진행' 섹션(§6 FLOW-1 — 읽기 전용). 접수 건은 최신부터, 각 건의 전이 이력은 1건 이상(생성·이관 행). 희망 서비스는 선택 가능한 2개만(가상계좌는 저장 값 없음).
+         * 사업자 상세 '계약 진행' 섹션(§6 FLOW-2b — v2). 접수 건은 최신부터, 각 건의 전이 이력은 1건 이상(생성·이관 행). 희망 서비스는 선택 가능한 2개만(가상계좌는 저장 값 없음).
          * '사유 및 비고' 원문은 섹션에 없다(키가 오면 해석 불가 — 이력 탭). 목록 상한은 응답 읽기 상한(32 KiB)이 실제 한계다([구현 관례]).
          */
         val CONTRACT_INTAKE_SECTION: MasterResponseShape = obj(
             "businessId" to BUSINESS_ID,
+            "judgedAt" to opt(TIME),
+            "businessContract" to opt(BUSINESS_CONTRACT),
             "intakes" to list(
                 obj(
-                    "intakeSeq" to Whole(1), "status" to INTAKE_STATUS, "migrated" to Flag, "receivedOn" to opt(DATE), "intakeChannel" to opt(INTAKE_CHANNEL),
-                    "contractManager" to opt(ADMIN_ACTOR), "desiredServices" to Arr(oneOf("CARD_AUTH", "CARD_KEYIN"), max = 2), "version" to COUNT,
-                    "createdAt" to TIME, "updatedAt" to TIME,
+                    "intakeSeq" to Whole(1), "status" to INTAKE_STATUS, "kind" to INTAKE_KIND, "targetContractSeq" to opt(Whole(1)), "migrated" to Flag,
+                    "receivedOn" to opt(DATE), "intakeChannel" to opt(INTAKE_CHANNEL), "contractManager" to opt(ADMIN_ACTOR),
+                    "desiredServices" to Arr(oneOf("CARD_AUTH", "CARD_KEYIN"), max = 2), "version" to COUNT, "createdAt" to TIME, "updatedAt" to TIME,
                     "transitions" to Arr(
                         obj(
                             "transitionSeq" to Whole(1), "fromStatus" to opt(INTAKE_STATUS), "toStatus" to INTAKE_STATUS, "migrated" to Flag,
@@ -385,6 +417,29 @@ internal sealed interface MasterResponseShape {
                         min = 1,
                     ),
                 ),
+            ),
+        )
+
+        /** 계약 접수 건 명령의 저장된 거절 code(§4B.7 — MASTER `MasterRejection` 중 이 명령이 내는 것만). 그 밖 code는 해석 불가(fail-closed — 결과 불명). */
+        val CONTRACT_INTAKE_REJECTIONS: List<String> = listOf(
+            "BUSINESS_NOT_FOUND", "BUSINESS_NOT_ACTIVE", "CONTRACT_INTAKE_NOT_FOUND", "CONTRACT_INTAKE_OPEN_EXISTS", "CONTRACT_INTAKE_KIND_MISMATCH",
+            "CONTRACT_INTAKE_RECEIVED_ON_FUTURE", "CONTRACT_INTAKE_VERSION_CONFLICT", "CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED", "CONTRACT_INTAKE_REASON_REQUIRED",
+            "CONTRACT_INTAKE_DOCUMENT_REQUIRED", "BUSINESS_CONTRACT_EXISTS", "BUSINESS_CONTRACT_NOT_CHANGEABLE", "BUSINESS_CONTRACT_SCHEDULED_VERSION_EXISTS",
+            "BUSINESS_CONTRACT_START_RETROACTIVE", "BUSINESS_CONTRACT_PERIOD_INVALID", "BUSINESS_CONTRACT_SCOPE_INVALID",
+        )
+
+        /** 계약 접수 건 명령 거절(reference·existing 없음 — C-12). */
+        val CONTRACT_INTAKE_REJECTED: MasterResponseShape = obj(
+            "outcome" to oneOf("REJECTED"), "rejection" to oneOf(*CONTRACT_INTAKE_REJECTIONS.toTypedArray()), "replayed" to Flag,
+        )
+
+        /** 계약 접수 건 400 값 규칙 위반(MASTER `ContractIntakeRequestParser` 값 단계 — path는 접수 건 문법만, code 집합·최대 50, 값 없음). */
+        val CONTRACT_INTAKE_VALIDATION_FAILED: MasterResponseShape = obj(
+            "error" to oneOf("BUSINESS_VALIDATION_FAILED"),
+            "fieldErrors" to Arr(
+                obj("path" to Text(BusinessFieldError.CONTRACT_INTAKE_PATH), "code" to oneOf(*BusinessFieldError.CODES.toTypedArray())),
+                max = BusinessFieldError.MAX,
+                min = 1,
             ),
         )
 

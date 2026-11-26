@@ -134,6 +134,10 @@ class BusinessProfileApiSpec(
                 "POST /internal/v1/admin/businesses/commands/create",
                 "POST /internal/v1/admin/businesses/commands/update",
                 "POST /internal/v1/admin/businesses/commands/complete-registration",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2b §4B.7 — 목록 증가): 계약 접수 건 명령 3개(1인 OPERATOR, 이력 전용 — 완화 아님).
+                "POST /internal/v1/admin/businesses/contract-intakes/commands/open",
+                "POST /internal/v1/admin/businesses/contract-intakes/commands/move",
+                "POST /internal/v1/admin/businesses/contract-intakes/commands/complete",
             )
         }
 

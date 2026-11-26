@@ -50,7 +50,10 @@ class MicrometerMerchantOpsMetrics(private val registry: MeterRegistry) : Mercha
         const val BUSINESS_LOOKUP = "paycore.admin.merchant_ops.business_lookup"
         const val BUSINESS_RULE_DRIFT = "paycore.admin.merchant_ops.business_rule_drift"
         val BUSINESS_LOOKUP_RESULTS = setOf("FORBIDDEN_FRONT", "FORBIDDEN", "INVALID_INPUT", "RATE_LIMITED", "OK", "UNAVAILABLE", "AUDIT_UNAVAILABLE")
-        val BUSINESS_OPERATIONS = setOf("CreateBusiness", "UpdateBusiness", "CompleteBusinessRegistration")
+        // MERCHANT-FLOW-001 FLOW-2b: 계약 접수 건 명령 3개(MASTER operation 이름 — ContractIntakeOperation.masterOperation).
+        val BUSINESS_OPERATIONS = setOf(
+            "CreateBusiness", "UpdateBusiness", "CompleteBusinessRegistration", "OpenContractIntake", "MoveContractIntake", "CompleteContractIntake",
+        )
 
         /** 허용 분류. SKIPPED: 이 API는 0개 요청이 400이라 내보내지 않음(TXN-LIST-ENRICH-001 분류 집합과 맞추려고 남겨 둔다). */
         val TARGET_LABEL_RESULTS = setOf("OK", "SKIPPED", "BUSY", "UNAVAILABLE", "UNREADABLE", "RATE_LIMITED")

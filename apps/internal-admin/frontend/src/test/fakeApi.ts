@@ -48,6 +48,10 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     createBusiness: notStubbed('createBusiness'),
     updateBusiness: notStubbed('updateBusiness'),
     completeBusinessRegistration: notStubbed('completeBusinessRegistration'),
+    // MERCHANT-FLOW-001 FLOW-2b: 계약 접수 건 명령.
+    openContractIntake: notStubbed('openContractIntake'),
+    moveContractIntake: notStubbed('moveContractIntake'),
+    completeContractIntake: notStubbed('completeContractIntake'),
     registerMerchant: notStubbed('registerMerchant'),
     registerMerchantSite: notStubbed('registerMerchantSite'),
     registerContract: notStubbed('registerContract'),

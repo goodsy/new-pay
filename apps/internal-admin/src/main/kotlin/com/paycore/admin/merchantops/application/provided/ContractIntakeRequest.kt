@@ -1,0 +1,60 @@
+package com.paycore.admin.merchantops.application.provided
+
+/**
+ * 화면 → ADMIN 계약 접수 건 명령 입력(MERCHANT-FLOW-001 §4B.7 — MASTER 본문 필드 + `submissionId`, "모든 key 필수·선택 null"). 구조(key 집합·자료형·열거·목록 길이)는 adapter가 엄격 해석했고,
+ * 값 규칙(날짜·경로·담당자 형식·사유·근거 참조)은 Use Case가 `ContractIntakeInputRules`로 검사한다(즉시 안내용 1차 검사 — 권위는 MASTER).
+ * 대상 [businessId]·[ContractIntakeRequest.Move.intakeSeq]는 경로 값이다. 모든 toString은 값을 가린다(사유·근거 원문 — 로그·예외 비노출).
+ */
+sealed interface ContractIntakeRequest {
+    val operation: ContractIntakeOperation
+    val businessId: String
+    val submissionId: String
+    val reason: String?
+
+    /** 접수 건 생성(§4A.6 접수 항목). [expectedKind] = 화면이 판정한 종류(NEW·CHANGE — 잠금 뒤 판정과 다르면 MASTER `CONTRACT_INTAKE_KIND_MISMATCH`). [contractManagerId] = `adm_` 계정 키. */
+    class Open(
+        override val businessId: String,
+        override val submissionId: String,
+        val expectedKind: String,
+        val receivedOn: String,
+        val intakeChannel: String,
+        val contractManagerId: String,
+        val desiredServices: List<String>,
+        override val reason: String?,
+    ) : ContractIntakeRequest {
+        override val operation: ContractIntakeOperation get() = ContractIntakeOperation.OPEN
+
+        override fun toString(): String = "ContractIntakeRequest.Open(kind=$expectedKind, ***)"
+    }
+
+    /** 전이(계약서 접수·되돌리기·계약 불가). [target] ∈ DOCUMENT_RECEIVED·CONSULTING·REJECTED. */
+    class Move(
+        override val businessId: String,
+        val intakeSeq: Int,
+        override val submissionId: String,
+        val expectedVersion: Long,
+        val target: String,
+        override val reason: String?,
+    ) : ContractIntakeRequest {
+        override val operation: ContractIntakeOperation get() = ContractIntakeOperation.MOVE
+
+        override fun toString(): String = "ContractIntakeRequest.Move(target=$target, version=$expectedVersion, ***)"
+    }
+
+    /** 계약 완료(사업자 계약 생성 또는 새 버전 — §4B.6). 근거 참조 필수, 시작일(KST 날짜) 필수, 종료일 선택, 범위 1개 이상. */
+    class Complete(
+        override val businessId: String,
+        val intakeSeq: Int,
+        override val submissionId: String,
+        val expectedVersion: Long,
+        val documentRef: String,
+        val startDate: String,
+        val endDate: String?,
+        val services: List<String>,
+        override val reason: String?,
+    ) : ContractIntakeRequest {
+        override val operation: ContractIntakeOperation get() = ContractIntakeOperation.COMPLETE
+
+        override fun toString(): String = "ContractIntakeRequest.Complete(version=$expectedVersion, ***)"
+    }
+}

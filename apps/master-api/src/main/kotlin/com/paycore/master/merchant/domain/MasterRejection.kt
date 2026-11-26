@@ -122,6 +122,9 @@ enum class MasterRejection {
     CONTRACT_INTAKE_REASON_REQUIRED,
     CONTRACT_INTAKE_DOCUMENT_REQUIRED,
     CONTRACT_INTAKE_DOCUMENT_NOT_ALLOWED,
+    // FLOW-2b(명령 경로): 명령 대상 접수 건 순번이 그 사업자에 없음 / 접수일이 MASTER 판정 시각의 KST 오늘보다 뒤(§4A.6 n-4 이중 검사). reference 없음. 이름은 [구현 관례].
+    CONTRACT_INTAKE_NOT_FOUND,
+    CONTRACT_INTAKE_RECEIVED_ON_FUTURE,
 
     // MERCHANT-FLOW-001 §4B.4·§4B.7(FLOW-2a — 사업자 계약 순수 Domain): 대상 식별 틀림(최신 아님 포함 — 명령은 2b·2c) / 변경 완료 대상 해지·만료(BR-BIZ-333) /
     // 신규 완료인데 계약 있음(BR-BIZ-315 방어) / 예정 버전 있음(BR-BIZ-345) / 시작일 소급(BR-BIZ-335) / 기간 위반(BR-BIZ-317·346) / 범위 없음(BR-BIZ-329) /

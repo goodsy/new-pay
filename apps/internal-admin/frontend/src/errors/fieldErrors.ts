@@ -25,6 +25,11 @@ const PATH = new RegExp(
     '|contacts\[[0-9]{1,2}\]\.(name|email|phoneNumber|primary))$',
 )
 
+/**
+ * MERCHANT-FLOW-001 FLOW-2b 계약 접수 건 명령 path 문법(ADMIN `BusinessFieldError.CONTRACT_INTAKE_PATH`와 같다 — 접수 항목·근거 참조·기간·범위·'사유 및 비고').
+ */
+const CONTRACT_INTAKE_PATH = /^(receivedOn|intakeChannel|contractManager|desiredServices(\[[01]\])?|reason|documentRef|startDate|endDate|services(\[0\])?)$/
+
 const MAX_FIELD_ERRORS = 50
 
 export function parseFieldErrors(body: unknown): FieldError[] | undefined {
@@ -35,7 +40,7 @@ export function parseFieldErrors(body: unknown): FieldError[] | undefined {
   for (const item of list) {
     if (typeof item !== 'object' || item === null) return undefined
     const { path, code } = item as { path?: unknown; code?: unknown }
-    if (typeof path !== 'string' || typeof code !== 'string' || !PATH.test(path) || !(FIELD_ERROR_CODES as readonly string[]).includes(code)) return undefined
+    if (typeof path !== 'string' || typeof code !== 'string' || !(PATH.test(path) || CONTRACT_INTAKE_PATH.test(path)) || !(FIELD_ERROR_CODES as readonly string[]).includes(code)) return undefined
     parsed.push({ path, code })
   }
   return parsed

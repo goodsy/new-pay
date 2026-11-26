@@ -294,6 +294,8 @@ export function App({ api: injected }: { api?: AdminApi } = {}) {
                 api={api}
                 memory={businessesMemory}
                 canEdit={me.roles.includes('OPERATOR')}
+                actorId={me.actorId}
+                actorName={me.displayName}
                 handoffState={() => registrationHandoffState(registrationMemory)}
                 onContinue={continueToMerchantRegistration}
                 onRegister={opener('businessRegistration')}

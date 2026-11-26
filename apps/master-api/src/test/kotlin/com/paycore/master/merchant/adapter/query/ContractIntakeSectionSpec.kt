@@ -55,7 +55,7 @@ import java.time.LocalDate
  * MERCHANT-FLOW-001 FLOW-1(§6 — jOOQ 상세 조회 + MASTER 조회 endpoint, 실제 MySQL 8.4·실제 서명 채널): 사업자 상세 '계약 진행' 섹션.
  * - Reader: 접수 건 최신부터·이력 순번 오름차순, 이관 건은 접수 항목·근거·담당자 null(R-6 — ADMIN이 '이관'으로 표시), 근거 참조 원문(D-FLOW-004 ④), 한 읽기 전용 REPEATABLE READ TX,
  *   '사유 및 비고'(`reason`) 열을 SELECT하지 않음, 접수 건 없는 사업자 = 빈 목록(FLOW-1 뒤 만든 사업자 — m-12), 없는 사업자 = null.
- * - HTTP: `GET /internal/v1/admin/businesses/{id}/contract-intakes` — 200 모양 = 골든 `contract-intake-section-v1`(MASTER 생산자 판 — ADMIN 사본은 ADMIN 섹션 작업이 더한다),
+ * - HTTP: `GET /internal/v1/admin/businesses/{id}/contract-intakes` — 200 모양 = 골든 `contract-intake-section-v2`(FLOW-2b 새 판 — MASTER 생산자 판, ADMIN이 바이트 동일 사본을 둔다),
  *   400 REQUEST_MALFORMED(형식 위반, 값 미반환)·404 BUSINESS_NOT_FOUND·401(서명 없음 — BusinessProfileApiSpec allPaths).
  * - Observability(§4A.14): 섹션 조회 처리 중 MASTER 로그(ROOT appender 캡처)에 근거 참조 원문·'사유 및 비고' 원문이 없다(리뷰 MINOR-3).
  */
@@ -70,9 +70,13 @@ class ContractIntakeSectionSpec(
     private val transactionManager: PlatformTransactionManager,
     private val recorder: JooqStatementRecorder,
     private val container: MySQLContainer,
+    private val clock: com.paycore.master.merchant.application.MutableMasterClock,
 ) : BehaviorSpec({
 
-    afterAny { recorder.recording = false }
+    afterAny {
+        recorder.recording = false
+        clock.reset()
+    }
 
     val mvc: MockMvc = MockMvcBuilders.webAppContextSetup(context).apply<DefaultMockMvcBuilder>(SecurityMockMvcConfigurers.springSecurity()).build()
     val json = JsonMapper.builder().build()
@@ -168,6 +172,7 @@ class ContractIntakeSectionSpec(
         Then("intakes newest first with their transitions in order (kind NEW / CHANGE); the migrated intake has no items / document / manager and stays COMPLETED; no reason column is read") {
             val business = storedBusiness()
             migratedThenChangeIntake(business)
+            clock.set(Instant.parse("2026-11-26T01:00:00Z")) // 조회 시각(사업자 계약 칸 계산 — 이관 시각 2026-11-01 뒤)
             recorder.statements.clear(); recorder.observations.clear()
             recorder.recording = true
             val view = checkNotNull(query.contractIntakes(business.id))
@@ -182,6 +187,10 @@ class ContractIntakeSectionSpec(
                 ContractIntakeSectionView.Transition(1, null, "COMPLETED", true, null, "system:migration", Instant.parse("2026-10-01T00:00:00Z")),
             )
             view.intakes[0].transitions.map { listOf(it.transitionSeq, it.fromStatus, it.toStatus) } shouldBe listOf(listOf(1, null, "CONSULTING"))
+            // FLOW-2b(§4B.11 1): 사업자 계약 칸 — 이관 계약(V21 모양 행)은 조회 시각에 유효, 적용 중 버전 1(이관), 예정 없음, 연결 가맹점 0.
+            checkNotNull(view.businessContract).let {
+                listOf(it.contractSeq, it.migrated, it.status, it.applyingVersionNo, it.scheduledVersionNo, it.linkedMerchantCount, it.versions.map { v -> v.migrated })
+            } shouldBe listOf(1, true, "ACTIVE", 1, null, 0, listOf(true))
 
             recorder.observations.isNotEmpty() shouldBe true
             recorder.observations.map { listOf(it.inTransaction, it.readOnly, it.isolation) }.toSet() shouldBe
@@ -207,11 +216,13 @@ class ContractIntakeSectionSpec(
             // 양성 대조(NIT-2): 근거 참조 원문은 섹션에 보인다(D-FLOW-004 ④) — 캔어리 데이터가 실제로 저장·조회됐다.
             body shouldContain documentCanary
             val tree = json.readTree(body)
-            tree.propertyNames().toList() shouldBe listOf("businessId", "intakes")
+            // 기대값 변경(§4B.15 ADMIN golden 행 — FLOW-2b golden v2, 추가형): 판정 시각·사업자 계약 칸, 접수 건 kind·targetContractSeq.
+            tree.propertyNames().toList() shouldBe listOf("businessId", "judgedAt", "businessContract", "intakes")
             val items = tree.get("intakes")
             (0 until items.size()).map { items.get(it).get("intakeSeq").asInt() } shouldBe listOf(2, 1)
             tree.get("intakes").get(1).propertyNames().toList() shouldBe listOf(
-                "intakeSeq", "status", "migrated", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "version", "createdAt", "updatedAt", "transitions",
+                "intakeSeq", "status", "kind", "targetContractSeq", "migrated", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "version", "createdAt",
+                "updatedAt", "transitions",
             )
             // 입력 데이터 변경(FLOW-2a — 해지 전이 삭제): 두 번째 이력 행이 있는 건은 변경 접수 건(index 0)이다. 기대 열 목록은 그대로.
             tree.get("intakes").get(0).get("transitions").get(1).propertyNames().toList() shouldBe
@@ -258,25 +269,41 @@ class ContractIntakeSectionSpec(
             events.flatMap(::texts).filter { it.contains(documentCanary) || it.contains(reasonCanary) }.shouldBeEmpty()
         }
 
-        Then("the response generator output for fixed Demo values equals the MASTER golden contract-intake-section-v1 (keys, order, values)") {
-            val golden = json.readTree(ContractIntakeSectionSpec::class.java.getResource("/contracts/contract-intake-section-v1.golden.json")!!.readText(Charsets.UTF_8))
+        // 기대값 변경(§4B.15 ContractIntakeSectionSpec.kt:222-225 — rev 0.4b 배치 2b, ADMIN golden 새 판과 함께): golden v1 → v2(TERMINATED 행 삭제, kind·targetContractSeq·
+        // 판정 시각·사업자 계약 칸 추가 — 추가형, 기존 필드 기대값 유지).
+        Then("the response generator output for fixed Demo values equals the MASTER golden contract-intake-section-v2 (keys, order, values)") {
+            val golden = json.readTree(ContractIntakeSectionSpec::class.java.getResource("/contracts/contract-intake-section-v2.golden.json")!!.readText(Charsets.UTF_8))
             val actor = "admin:adm_01JC00000000000000000000V1"
+            val migratedAt = Instant.parse("2026-11-21T03:00:00Z")
+            val v2Start = Instant.parse("2026-11-26T15:00:00Z")
             val view = ContractIntakeSectionView(
                 "biz_01JC0000000000000000000001",
                 listOf(
-                    // FLOW-2a: View에 종류(kind)가 생겼지만 응답 생성기·golden v1은 그대로다(ADMIN 바이트 동일 사본 — golden 새 판·TERMINATED 행 제거는 2b, §4B.15 ADMIN 행).
                     ContractIntakeSectionView.Intake(
-                        2, "CONSULTING", "CHANGE", false, LocalDate.parse("2026-11-25"), "PHONE", actor, listOf("CARD_AUTH", "CARD_KEYIN"), 0,
-                        Instant.parse("2026-11-25T01:00:00Z"), Instant.parse("2026-11-25T01:00:00Z"),
-                        listOf(ContractIntakeSectionView.Transition(1, null, "CONSULTING", false, null, actor, Instant.parse("2026-11-25T01:00:00Z"))),
-                    ),
-                    ContractIntakeSectionView.Intake(
-                        1, "TERMINATED", "NEW", true, null, null, null, emptyList(), 1, Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-24T01:00:00Z"),
+                        2, "COMPLETED", "CHANGE", 1, false, LocalDate.parse("2026-11-25"), "PHONE", actor, listOf("CARD_AUTH", "CARD_KEYIN"), 2,
+                        Instant.parse("2026-11-25T01:00:00Z"), Instant.parse("2026-11-26T01:00:00Z"),
                         listOf(
-                            ContractIntakeSectionView.Transition(1, null, "COMPLETED", true, null, "system:migration", Instant.parse("2026-10-01T00:00:00Z")),
-                            ContractIntakeSectionView.Transition(2, "COMPLETED", "TERMINATED", false, "DEMO-TERM-0001", actor, Instant.parse("2026-11-24T01:00:00Z")),
+                            ContractIntakeSectionView.Transition(1, null, "CONSULTING", false, null, actor, Instant.parse("2026-11-25T01:00:00Z")),
+                            ContractIntakeSectionView.Transition(2, "CONSULTING", "DOCUMENT_RECEIVED", false, null, actor, Instant.parse("2026-11-25T02:00:00Z")),
+                            ContractIntakeSectionView.Transition(3, "DOCUMENT_RECEIVED", "COMPLETED", false, "DEMO-DOC-0001", actor, Instant.parse("2026-11-26T01:00:00Z")),
                         ),
                     ),
+                    ContractIntakeSectionView.Intake(
+                        1, "COMPLETED", "NEW", null, true, null, null, null, emptyList(), 0, Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-10-01T00:00:00Z"),
+                        listOf(ContractIntakeSectionView.Transition(1, null, "COMPLETED", true, null, "system:migration", Instant.parse("2026-10-01T00:00:00Z"))),
+                    ),
+                ),
+                judgedAt = Instant.parse("2026-11-26T01:00:00Z"),
+                businessContract = ContractIntakeSectionView.BusinessContractView(
+                    1, true, "ACTIVE", 1, 2, 2, migratedAt, "system:migration",
+                    listOf(
+                        ContractIntakeSectionView.Version(1, true, 1, migratedAt, null, null, listOf("CARD_PG_PAYMENT"), null, v2Start, migratedAt, "system:migration"),
+                        ContractIntakeSectionView.Version(
+                            2, false, 2, v2Start, LocalDate.parse("2026-11-27"), LocalDate.parse("2027-11-26"), listOf("CARD_PG_PAYMENT"), "DEMO-DOC-0001", null,
+                            Instant.parse("2026-11-26T01:00:00Z"), actor,
+                        ),
+                    ),
+                    emptyList(),
                 ),
             )
             json.writeValueAsString(BusinessProfileJson.contractIntakes(view)) shouldBe json.writeValueAsString(golden)

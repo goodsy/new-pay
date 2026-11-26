@@ -102,7 +102,9 @@ class ContractIntake private constructor(
 
         /**
          * 새 접수 건(상담 중, version 0). [latest] = 그 사업자의 최신 접수 건, [latestContract] = 최신 사업자 계약(둘 다 사업자 행 잠금 뒤 같은 TX에서 읽은 값, 없으면 null).
-         * 판정 순서: 사업자 생명주기 → 열린 건(`CONTRACT_INTAKE_OPEN_EXISTS`) → 종류 판정(BR-BIZ-325) ≠ [expectedKind]면 `CONTRACT_INTAKE_KIND_MISMATCH`.
+         * 판정 순서: 사업자 생명주기 → 열린 건(`CONTRACT_INTAKE_OPEN_EXISTS`) → 종류 판정(BR-BIZ-325) ≠ [expectedKind]면 `CONTRACT_INTAKE_KIND_MISMATCH` →
+         * 접수일이 판정 시각의 KST 오늘보다 뒤면 `CONTRACT_INTAKE_RECEIVED_ON_FUTURE`(§4A.6 n-4 — ADMIN 시계 검사 뒤 MASTER 판정 시각 이중 검사, MASTER가 최종).
+         * [reason]('사유 및 비고' — 선택)은 생성 이력 행에 남는다.
          */
         fun open(
             business: Business,
@@ -112,6 +114,7 @@ class ContractIntake private constructor(
             items: ContractIntakeItems,
             at: Instant,
             by: ActorRef,
+            reason: BusinessChangeReason? = null,
         ): ContractIntakeChange {
             business.requireActive()
             if (latest != null) {
@@ -122,9 +125,10 @@ class ContractIntake private constructor(
             val target = latestContract?.takeIf { it.hasContractAt(at) }?.id?.contractSeq
             val kind = if (target == null) ContractIntakeKind.NEW else ContractIntakeKind.CHANGE
             if (kind != expectedKind) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_KIND_MISMATCH)
+            if (items.receivedOn.isAfter(at.atZone(SeoulMidnight.ZONE).toLocalDate())) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_RECEIVED_ON_FUTURE)
             val seq = (latest?.seq ?: 0) + 1
             val intake = ContractIntake(business.id, seq, ContractIntakeStatus.CONSULTING, false, items, at, by, at, by, 0, kind, target)
-            return ContractIntakeChange(intake, ContractIntakeTransition(business.id, seq, null, ContractIntakeStatus.CONSULTING, false, at, by))
+            return ContractIntakeChange(intake, ContractIntakeTransition(business.id, seq, null, ContractIntakeStatus.CONSULTING, false, at, by, reason))
         }
 
         /** persistence Mapper 전용 복원(이관 건 포함 — 이관 건은 migration SQL만 만든다, §4A.9). 종류 기본값은 신규(이관 건·FLOW-1 행 모양). */

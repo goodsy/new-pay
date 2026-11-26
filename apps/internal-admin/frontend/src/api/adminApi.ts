@@ -631,19 +631,101 @@ export interface BusinessDetail {
   contractProgress?: ContractProgress
 }
 
-/** 계약 접수 건 상태(MERCHANT-FLOW-001 §4A.3). '계약 완료'는 영업 기록 — 가맹점 계약 승인(결제 허용)과 다르다(R-1). */
-export type ContractIntakeStatus = 'CONSULTING' | 'DOCUMENT_RECEIVED' | 'COMPLETED' | 'REJECTED' | 'TERMINATED'
+/**
+ * 계약 접수 건 상태(MERCHANT-FLOW-001 §4A.3·§4B.6). '계약 완료'는 영업 기록 — 가맹점 계약 승인(결제 허용)과 다르다(R-1). FLOW-2b: `TERMINATED`(계약 해지) 없음 — 해지는 사업자 계약 명령(D-GOV-018 ②ⓑ).
+ */
+export type ContractIntakeStatus = 'CONSULTING' | 'DOCUMENT_RECEIVED' | 'COMPLETED' | 'REJECTED'
+/** 접수 건 종류(BR-BIZ-324·325 — 생성 때 서버가 사업자 계약 상태로 판정, 화면은 판정한 종류를 expectedKind로 보낸다). */
+export type ContractIntakeKind = 'NEW' | 'CHANGE'
+/** 사업자 계약 상태(§4B.4 — 서버 계산 값). */
+export type BusinessContractStatus = 'NOT_YET_EFFECTIVE' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | 'EXPIRED'
 
-/** 계약 진행 섹션(읽기 전용). `available=false` = 섹션 조회 실패(fail-safe — 상세는 그대로). */
+/**
+ * 계약 진행 섹션. `available=false` = 섹션 조회 실패(fail-safe — 상세는 그대로, today·businessContract 없음).
+ * [today] = ADMIN 시계의 KST 날짜(접수일·시작일 기본값 — 브라우저 날짜를 쓰지 않는다, §4A.6 n-4). [businessContract] = 최신 사업자 계약(없으면 null — FLOW-2b).
+ */
 export interface ContractProgress {
   available: boolean
+  today?: string
+  businessContract?: BusinessContractView | null
   intakes: ContractIntakeView[]
+}
+
+/** 사업자 계약 칸(§4B.11 1). 상태·적용 중·예정 버전 번호는 서버 계산 값. 처리자 표시명은 ADMIN이 채운다(m-11 — 계정 키·행위자 참조 없음). */
+export interface BusinessContractView {
+  contractSeq: number
+  migrated: boolean
+  status: BusinessContractStatus
+  applyingVersionNo: number | null
+  scheduledVersionNo: number | null
+  linkedMerchantCount: number
+  createdAt: string
+  versions: BusinessContractVersionView[]
+  events: BusinessContractEventView[]
+}
+
+/** 버전(번호 오름차순, 불변). 이관 버전은 시작일·종료일·근거 없음. [createdAt] = 기록 시각(MINOR-4 — 시작일과 함께 보인다). */
+export interface BusinessContractVersionView {
+  versionNo: number
+  migrated: boolean
+  startsAt: string
+  startDate: string | null
+  endDate: string | null
+  services: string[]
+  documentRef: string | null
+  closedAt: string | null
+  createdAt: string
+  actorKind: 'ADMIN' | 'SYSTEM'
+  actorName: string | null
+}
+
+/** 정지·정지 해제·해지 기록(FLOW-2c에서 생긴다 — 표시만). 사유 원문은 이력 탭. */
+export interface BusinessContractEventView {
+  eventSeq: number
+  kind: 'SUSPEND' | 'RESUME' | 'TERMINATE'
+  evidenceRef: string | null
+  actorKind: 'ADMIN' | 'SYSTEM'
+  actorName: string | null
+  occurredAt: string
+}
+
+/** 접수 건 생성(§4B.11 — 모든 key 필수, 선택 값 null). [contractManagerId] = 계약 담당자 계정 키(화면에 그리지 않는다 — 본문에만). */
+export interface ContractIntakeOpenInput {
+  submissionId: string
+  expectedKind: ContractIntakeKind
+  receivedOn: string
+  intakeChannel: string
+  contractManagerId: string
+  desiredServices: string[]
+  reason: string | null
+}
+
+/** 전이(계약서 접수·되돌리기·계약 불가). [expectedVersion] = 접수 건 version(낙관적 잠금). */
+export interface ContractIntakeMoveInput {
+  submissionId: string
+  expectedVersion: number
+  target: 'DOCUMENT_RECEIVED' | 'CONSULTING' | 'REJECTED'
+  reason: string | null
+}
+
+/** 계약 완료(근거 필수, 시작일 KST 날짜, 종료일 선택, 범위 1개 이상 — 희망 서비스와 별개). */
+export interface ContractIntakeCompleteInput {
+  submissionId: string
+  expectedVersion: number
+  documentRef: string
+  startDate: string
+  endDate: string | null
+  services: string[]
+  reason: string | null
 }
 
 /** 접수 건(최신부터). 이관 건([migrated])은 접수일·경로·담당자 없음(R-6 — 화면은 '이관'). [version]은 FLOW-2 전이 명령의 기대값(화면에 그리지 않는다). */
 export interface ContractIntakeView {
   intakeSeq: number
   status: ContractIntakeStatus
+  kind: ContractIntakeKind
+  /** 변경 접수의 대상 사업자 계약 순번(신규는 null). */
+  targetContractSeq: number | null
   migrated: boolean
   receivedOn: string | null
   intakeChannel: string | null
@@ -1034,6 +1116,10 @@ export interface AdminApi {
   createBusiness(input: BusinessCreateInput): Promise<BusinessCommandOutcome>
   updateBusiness(businessId: string, input: BusinessChangeInput): Promise<BusinessCommandOutcome>
   completeBusinessRegistration(businessId: string, input: BusinessChangeInput): Promise<BusinessCommandOutcome>
+  /** MERCHANT-FLOW-001 FLOW-2b(§4B.11 표 2b 행): 접수 건 생성·전이·계약 완료(OPERATOR — 서버 판정, 결과 불명은 같은 submissionId 재전송). */
+  openContractIntake(businessId: string, input: ContractIntakeOpenInput): Promise<RegistrationOutcome>
+  moveContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeMoveInput): Promise<RegistrationOutcome>
+  completeContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeCompleteInput): Promise<RegistrationOutcome>
   registerMerchant(input: MerchantRegistrationInput): Promise<RegistrationOutcome>
   registerMerchantSite(input: SiteRegistrationInput): Promise<RegistrationOutcome>
   /** MERCHANT-OPS-002 §4.3 B1-2(OPERATOR만). 시작일 소급 판정은 MASTER(§3.4 — 화면 최솟값은 안내일 뿐). */
@@ -1140,6 +1226,11 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     createBusiness: (input) => call('/api/businesses', 'POST', input),
     updateBusiness: (businessId, input) => call(`/api/businesses/${segment(businessId)}`, 'PUT', input),
     completeBusinessRegistration: (businessId, input) => call(`/api/businesses/${segment(businessId)}/registration`, 'POST', input),
+    openContractIntake: (businessId, input) => call(`/api/businesses/${segment(businessId)}/contract-intakes`, 'POST', input),
+    moveContractIntake: (businessId, intakeSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/contract-intakes/${segment(String(intakeSeq))}/transitions`, 'POST', input),
+    completeContractIntake: (businessId, intakeSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/contract-intakes/${segment(String(intakeSeq))}/completion`, 'POST', input),
     registerMerchant: (input) => call('/api/merchant-registrations/merchants', 'POST', input),
     registerMerchantSite: (input) => call('/api/merchant-registrations/merchant-sites', 'POST', input),
     registerContract: (input) => call('/api/merchant-registrations/contracts', 'POST', input),

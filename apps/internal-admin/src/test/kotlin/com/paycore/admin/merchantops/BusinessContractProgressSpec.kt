@@ -27,6 +27,7 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
+import java.time.Instant
 
 /**
  * MERCHANT-FLOW-001 FLOW-1 ADMIN '계약 진행' 섹션(§6 FLOW-1 — 읽기 전용, 대역 Port, Spring 없음):
@@ -49,28 +50,46 @@ class BusinessContractProgressSpec : BehaviorSpec({
         "occurredAt" to "2026-11-25T01:00:00.000Z",
     )
 
-    /** MASTER 섹션 문서(golden `contract-intake-section-v1`과 같은 모양 — 모양 검사를 통과한 값으로 Gateway가 돌려주는 형태). */
-    fun section() = linkedMapOf<String, Any?>(
+    /** MASTER 섹션 문서(golden `contract-intake-section-v2`와 같은 모양 — 모양 검사를 통과한 값으로 Gateway가 돌려주는 형태). FLOW-2b: 종류·대상·사업자 계약 칸, `TERMINATED` 없음. */
+    fun version(no: Int, migrated: Boolean, actor: String, startDate: String?, endDate: String?, documentRef: String?, closedAt: String?) = linkedMapOf<String, Any?>(
+        "versionNo" to no.toLong(), "migrated" to migrated, "originIntakeSeq" to no.toLong(), "startsAt" to (if (migrated) "2026-11-21T03:00:00.000Z" else "2026-11-26T15:00:00.000Z"),
+        "startDate" to startDate, "endDate" to endDate, "services" to listOf("CARD_PG_PAYMENT"), "documentRef" to documentRef, "closedAt" to closedAt,
+        "createdAt" to (if (migrated) "2026-11-21T03:00:00.000Z" else "2026-11-26T01:00:00.000Z"), "createdBy" to actor,
+    )
+
+    fun contract(status: String = "ACTIVE") = linkedMapOf<String, Any?>(
+        "contractSeq" to 1L, "migrated" to true, "status" to status, "applyingVersionNo" to 1L, "scheduledVersionNo" to 2L, "linkedMerchantCount" to 2L,
+        "createdAt" to "2026-11-21T03:00:00.000Z", "createdBy" to "system:migration",
+        "versions" to listOf(
+            version(1, true, "system:migration", null, null, null, "2026-11-26T15:00:00.000Z"),
+            version(2, false, "admin:$managerId", "2026-11-27", "2027-11-26", "DEMO-DOC-0001", null),
+        ),
+        "events" to listOf(
+            linkedMapOf<String, Any?>("eventSeq" to 1L, "kind" to "SUSPEND", "evidenceRef" to null, "actorRef" to "admin:$viewerId", "occurredAt" to "2026-11-26T02:00:00.000Z"),
+        ),
+    )
+
+    fun section(businessContract: Map<String, Any?>? = contract()) = linkedMapOf<String, Any?>(
         "businessId" to biz,
+        "judgedAt" to "2026-11-26T01:00:00.000Z",
+        "businessContract" to businessContract,
         "intakes" to listOf(
             linkedMapOf<String, Any?>(
-                "intakeSeq" to 2L, "status" to "DOCUMENT_RECEIVED", "migrated" to false, "receivedOn" to "2026-11-25", "intakeChannel" to "PHONE",
-                "contractManager" to "admin:$managerId", "desiredServices" to listOf("CARD_AUTH"), "version" to 1L,
+                "intakeSeq" to 2L, "status" to "DOCUMENT_RECEIVED", "kind" to "CHANGE", "targetContractSeq" to 1L, "migrated" to false, "receivedOn" to "2026-11-25",
+                "intakeChannel" to "PHONE", "contractManager" to "admin:$managerId", "desiredServices" to listOf("CARD_AUTH"), "version" to 1L,
                 "createdAt" to "2026-11-25T01:00:00.000Z", "updatedAt" to "2026-11-25T02:00:00.000Z",
                 "transitions" to listOf(transition(1, null, "CONSULTING", "admin:$viewerId"), transition(2, "CONSULTING", "DOCUMENT_RECEIVED", "admin:$managerId")),
             ),
             linkedMapOf<String, Any?>(
-                "intakeSeq" to 1L, "status" to "TERMINATED", "migrated" to true, "receivedOn" to null, "intakeChannel" to null, "contractManager" to null,
-                "desiredServices" to emptyList<String>(), "version" to 1L, "createdAt" to "2026-10-01T00:00:00.000Z", "updatedAt" to "2026-11-24T01:00:00.000Z",
-                "transitions" to listOf(
-                    transition(1, null, "COMPLETED", "system:migration", migrated = true),
-                    transition(2, "COMPLETED", "TERMINATED", "admin:$viewerId", documentRef = "DEMO-TERM-0001"),
-                ),
+                "intakeSeq" to 1L, "status" to "COMPLETED", "kind" to "NEW", "targetContractSeq" to null, "migrated" to true, "receivedOn" to null, "intakeChannel" to null,
+                "contractManager" to null, "desiredServices" to emptyList<String>(), "version" to 0L, "createdAt" to "2026-10-01T00:00:00.000Z",
+                "updatedAt" to "2026-10-01T00:00:00.000Z",
+                "transitions" to listOf(transition(1, null, "COMPLETED", "system:migration", migrated = true)),
             ),
         ),
     )
 
-    class Fixture(roles: Set<String> = setOf("OPERATOR"), businessReads: Int = 30) {
+    class Fixture(roles: Set<String> = setOf("OPERATOR"), businessReads: Int = 30, var now: Instant = Instant.parse("2026-11-25T15:30:00Z")) {
         val audits = mutableListOf<AuditRecord>()
         val calls = mutableListOf<String>()
         var failAudit = false
@@ -118,7 +137,7 @@ class BusinessContractProgressSpec : BehaviorSpec({
         val window = BusinessReadWindow(object : BusinessReadLimits {
             override val businessReadsPerMinute = businessReads
         }) { 0L }
-        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, metrics)
+        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, metrics) { now }
         fun auditRows() = audits.map { "${it.action}|${it.resultCode}|${it.detail}|${it.targetRef}" }
     }
 
@@ -150,8 +169,12 @@ class BusinessContractProgressSpec : BehaviorSpec({
             val intakes = progress["intakes"] as List<Map<String, Any?>>
             val open = intakes[0]
             open.keys shouldBe setOf(
-                "intakeSeq", "status", "migrated", "receivedOn", "intakeChannel", "contractManagerName", "desiredServices", "version", "createdAt", "updatedAt", "transitions",
+                // 기대값 변경(FLOW-2b §4B.11 — 추가형): kind·targetContractSeq 추가(기존 키 그대로).
+                "intakeSeq", "status", "kind", "targetContractSeq", "migrated", "receivedOn", "intakeChannel", "contractManagerName", "desiredServices", "version", "createdAt",
+                "updatedAt", "transitions",
             )
+            open["kind"] shouldBe "CHANGE"
+            open["targetContractSeq"] shouldBe 1L
             open["contractManagerName"] shouldBe "영업 담당"
             @Suppress("UNCHECKED_CAST")
             val moves = open["transitions"] as List<Map<String, Any?>>
@@ -163,18 +186,19 @@ class BusinessContractProgressSpec : BehaviorSpec({
             }
         }
 
-        Then("R-6: a migrated intake has no manager name and its migration row is a SYSTEM actor without name; the document ref of the later termination is shown raw (D-FLOW-004 ④)") {
+        Then("R-6: a migrated intake has no manager name and its migration row is a SYSTEM actor without name (FLOW-2b: no termination transition — D-GOV-018 ②ⓑ)") {
             val f = Fixture(roles = setOf("APPROVER"))
             f.sectionReply = MasterCallResult.Found(section())
             @Suppress("UNCHECKED_CAST")
             val migrated = (progressOf(f.query.detail(viewerId, biz, ctx))["intakes"] as List<Map<String, Any?>>)[1]
             migrated["migrated"] shouldBe true
+            migrated["kind"] shouldBe "NEW"
             migrated["contractManagerName"] shouldBe null
             @Suppress("UNCHECKED_CAST")
             val moves = migrated["transitions"] as List<Map<String, Any?>>
+            // 기대값 변경(FLOW-2b — TERMINATED 제거, §4B.15 강화): 옛 두 번째 행 `COMPLETED → TERMINATED`(DEMO-TERM-0001)는 없다. 해지는 사업자 계약 사건으로만 온다.
             moves.map { listOf(it["toStatus"], it["migrated"], it["actorKind"], it["actorName"], it["documentRef"]) } shouldBe listOf(
                 listOf("COMPLETED", true, "SYSTEM", null, null),
-                listOf("TERMINATED", false, "ADMIN", "조회 담당", "DEMO-TERM-0001"),
             )
         }
 
@@ -242,8 +266,62 @@ class BusinessContractProgressSpec : BehaviorSpec({
             val f = Fixture()
             f.sectionReply = MasterCallResult.Found(section())
             val text = f.query.detail(viewerId, biz, ctx).toString()
-            text shouldNotContain "DEMO-TERM-0001"
+            text shouldNotContain "DEMO-DOC-0001"
             text shouldNotContain "영업 담당"
+        }
+    }
+
+    Given("FLOW-2b the business-contract column and the ADMIN today (§4B.11 1 · §4A.6 n-4 · MINOR-4)") {
+        Then("the business contract is reshaped: status, applying / scheduled version, linked merchant count, versions with their record time (createdAt) and actor names, events; no raw refs") {
+            val f = Fixture()
+            f.sectionReply = MasterCallResult.Found(section())
+            val progress = progressOf(f.query.detail(viewerId, biz, ctx))
+            progress.keys shouldBe setOf("available", "today", "businessContract", "intakes")
+            @Suppress("UNCHECKED_CAST")
+            val c = progress["businessContract"] as Map<String, Any?>
+            c.keys shouldBe setOf("contractSeq", "migrated", "status", "applyingVersionNo", "scheduledVersionNo", "linkedMerchantCount", "createdAt", "versions", "events")
+            listOf(c["contractSeq"], c["migrated"], c["status"], c["applyingVersionNo"], c["scheduledVersionNo"], c["linkedMerchantCount"]) shouldBe
+                listOf(1L, true, "ACTIVE", 1L, 2L, 2L)
+            @Suppress("UNCHECKED_CAST")
+            val versions = c["versions"] as List<Map<String, Any?>>
+            versions[0].keys shouldBe setOf(
+                "versionNo", "migrated", "startsAt", "startDate", "endDate", "services", "documentRef", "closedAt", "createdAt", "actorKind", "actorName",
+            )
+            versions.map { listOf(it["versionNo"], it["migrated"], it["startDate"], it["endDate"], it["documentRef"], it["closedAt"], it["createdAt"], it["actorKind"], it["actorName"]) } shouldBe
+                listOf(
+                    listOf(1L, true, null, null, null, "2026-11-26T15:00:00.000Z", "2026-11-21T03:00:00.000Z", "SYSTEM", null),
+                    listOf(2L, false, "2026-11-27", "2027-11-26", "DEMO-DOC-0001", null, "2026-11-26T01:00:00.000Z", "ADMIN", "영업 담당"),
+                )
+            versions[1]["services"] shouldBe listOf("CARD_PG_PAYMENT")
+            @Suppress("UNCHECKED_CAST")
+            val events = c["events"] as List<Map<String, Any?>>
+            events.map { listOf(it["eventSeq"], it["kind"], it["evidenceRef"], it["actorKind"], it["actorName"], it["occurredAt"]) } shouldBe
+                listOf(listOf(1L, "SUSPEND", null, "ADMIN", "조회 담당", "2026-11-26T02:00:00.000Z"))
+            val text = json.writeValueAsString(progress)
+            listOf("adm_", "admin:", "system:", "createdBy", "actorRef", "originIntakeSeq", "judgedAt", biz).forEach { needle ->
+                withClue(needle) { text shouldNotContain needle }
+            }
+        }
+        Then("no business contract → businessContract null (the screen shows '사업자 계약 없음')") {
+            val f = Fixture()
+            f.sectionReply = MasterCallResult.Found(section(businessContract = null))
+            progressOf(f.query.detail(viewerId, biz, ctx))["businessContract"] shouldBe null
+        }
+        Then("n-4: today = the ADMIN clock instant converted to Asia/Seoul (KST midnight boundary), never the browser") {
+            listOf(
+                "2026-11-25T14:59:59.999Z" to "2026-11-25",
+                "2026-11-25T15:00:00Z" to "2026-11-26",
+                "2026-11-25T15:30:00Z" to "2026-11-26",
+            ).forEach { (instant, today) ->
+                val f = Fixture(now = Instant.parse(instant))
+                f.sectionReply = MasterCallResult.Found(section())
+                withClue(instant) { progressOf(f.query.detail(viewerId, biz, ctx))["today"] shouldBe today }
+            }
+        }
+        Then("fail-safe form is unchanged: {available=false, intakes=[]} (no today, no businessContract)") {
+            val f = Fixture()
+            f.sectionReply = MasterCallResult.NotFound
+            progressOf(f.query.detail(viewerId, biz, ctx)) shouldBe linkedMapOf("available" to false, "intakes" to emptyList<Any>())
         }
     }
 })

@@ -66,6 +66,10 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   BUSINESS_CREATE: '사업자 등록(저장)',
   BUSINESS_UPDATE: '사업자 수정',
   BUSINESS_REGISTRATION_COMPLETE: '사업자 등록 완료',
+  // MERCHANT-FLOW-001 FLOW-2b(§4B.11 — 계약 접수 건 명령 감사 action)
+  BUSINESS_CONTRACT_INTAKE_OPEN: '계약 접수',
+  BUSINESS_CONTRACT_INTAKE_MOVE: '계약 접수 상태 변경',
+  BUSINESS_CONTRACT_INTAKE_COMPLETE: '계약 완료(사업자 계약)',
   // TXN-OPS-001 §5.1(admin.paymentops)
   PAYMENT_VIEWED: '거래 상세 조회',
   // ACQ-VIEW-001 §4.6(admin.financialops — D-ACQV-001)

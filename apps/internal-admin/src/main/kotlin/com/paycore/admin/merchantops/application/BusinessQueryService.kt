@@ -11,8 +11,10 @@ import com.paycore.admin.merchantops.application.required.MasterBusinessGateway
 import com.paycore.admin.merchantops.application.required.MasterCallResult
 import com.paycore.admin.merchantops.application.required.MerchantOpsMetrics
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
@@ -27,17 +29,28 @@ import java.time.format.ResolverStyle
  * 로그: 연산·결과 분류만(상호 접두·번호·이름 없음).
  */
 @Service
-class BusinessQueryService(
+class BusinessQueryService internal constructor(
     transactionManager: PlatformTransactionManager,
     sessions: AdminSessionQuery,
     recorder: AdminAuditRecorder,
     private val gateway: MasterBusinessGateway,
     private val window: BusinessReadWindow,
     private val metrics: MerchantOpsMetrics,
+    clock: () -> Instant,
 ) : BusinessQueryUseCase {
 
+    @Autowired
+    constructor(
+        transactionManager: PlatformTransactionManager,
+        sessions: AdminSessionQuery,
+        recorder: AdminAuditRecorder,
+        gateway: MasterBusinessGateway,
+        window: BusinessReadWindow,
+        metrics: MerchantOpsMetrics,
+    ) : this(transactionManager, sessions, recorder, gateway, window, metrics, Instant::now)
+
     private val audit = BusinessAudit(transactionManager, sessions, recorder)
-    private val contractProgress = BusinessContractProgress(sessions)
+    private val contractProgress = BusinessContractProgress(sessions, clock)
 
     override fun search(actorId: String, criteria: BusinessSearchCriteria, context: AdminRequestContext): BusinessQueryResult {
         viewer(actorId) ?: return BusinessQueryResult.Forbidden

@@ -12,6 +12,10 @@ import com.paycore.master.merchant.application.required.BusinessDirectoryReader
 import com.paycore.master.merchant.application.required.BusinessHistoryReader
 import com.paycore.master.merchant.application.required.BusinessLookupReader
 import com.paycore.master.merchant.application.required.ContractIntakeReader
+import com.paycore.master.merchant.application.required.MasterClock
+import com.paycore.master.merchant.domain.BusinessContract
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import org.springframework.stereotype.Service
@@ -27,6 +31,7 @@ class BusinessProfileQueryService(
     private val details: BusinessDetailReader,
     private val histories: BusinessHistoryReader,
     private val contractIntakes: ContractIntakeReader,
+    private val clock: MasterClock,
 ) : BusinessProfileQueryUseCase {
 
     override fun search(filter: BusinessSearchFilter): BusinessDirectoryPage = directory.search(filter)
@@ -42,5 +47,22 @@ class BusinessProfileQueryService(
 
     override fun existingSummary(businessId: BusinessId): BusinessSummary? = details.summary(businessId)
 
-    override fun contractIntakes(businessId: BusinessId): ContractIntakeSectionView? = contractIntakes.section(businessId)
+    /** FLOW-2b(§4B.11 1): 사업자 계약 칸 = 최신 계약의 상태·적용 중/예정 버전을 조회 시각(MASTER 시계, ms)에 Domain이 계산(표시용 — 판정 아님). */
+    override fun contractIntakes(businessId: BusinessId): ContractIntakeSectionView? = contractIntakes.section(businessId)?.let { section ->
+        val at = clock.now().truncatedTo(ChronoUnit.MILLIS)
+        section.view.copy(judgedAt = at, businessContract = section.contract?.let { contractView(it, section.linkedMerchantCount, at) })
+    }
+
+    private fun contractView(c: BusinessContract, linked: Int, at: Instant) = ContractIntakeSectionView.BusinessContractView(
+        contractSeq = c.id.contractSeq, migrated = c.migrated, status = c.statusAt(at).name, applyingVersionNo = c.applyingVersionAt(at)?.versionNo,
+        scheduledVersionNo = c.scheduledVersionAt(at)?.versionNo, linkedMerchantCount = linked, createdAt = c.createdAt, createdBy = c.createdBy.value,
+        versions = c.versions.map { v ->
+            ContractIntakeSectionView.Version(
+                versionNo = v.versionNo, migrated = v.migrated, originIntakeSeq = v.originIntakeSeq, startsAt = v.startsAt, startDate = v.startDate, endDate = v.endDate,
+                services = v.services.map { it.name }.sorted(), documentRef = v.document?.value, closedAt = c.closes.firstOrNull { it.versionNo == v.versionNo }?.closedAt,
+                createdAt = v.createdAt, createdBy = v.createdBy.value,
+            )
+        },
+        events = c.events.map { ContractIntakeSectionView.Event(it.eventSeq, it.kind.name, it.evidence?.value, it.actor.value, it.occurredAt) },
+    )
 }

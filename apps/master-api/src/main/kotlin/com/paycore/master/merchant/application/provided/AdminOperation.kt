@@ -47,6 +47,12 @@ enum class AdminOperation(val code: String) {
     CREATE_BUSINESS("CreateBusiness"),
     UPDATE_BUSINESS("UpdateBusiness"),
     COMPLETE_BUSINESS_REGISTRATION("CompleteBusinessRegistration"),
+
+    // MERCHANT-FLOW-001 §4B.7(FLOW-2b): 접수 건 생성(종류 시스템 판정 + expectedKind 대조)·전이(계약서 접수·되돌리기·계약 불가)·계약 완료(사업자 계약 + 버전 1 / 새 버전 + 닫기).
+    // OPERATOR 1인, 이력 전용 실행기(Outbox 없음 — §4A.2 M-1). 해지·정지는 FLOW-2c.
+    OPEN_CONTRACT_INTAKE("OpenContractIntake"),
+    MOVE_CONTRACT_INTAKE("MoveContractIntake"),
+    COMPLETE_CONTRACT_INTAKE("CompleteContractIntake"),
     ;
 
     companion object {

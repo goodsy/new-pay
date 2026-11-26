@@ -9,6 +9,8 @@ import com.paycore.admin.merchantops.adapter.integration.MasterOpsSettings
 import com.paycore.admin.merchantops.application.provided.BusinessFieldError
 import com.paycore.admin.merchantops.application.provided.BusinessProfileOperation
 import com.paycore.admin.merchantops.application.provided.BusinessSearchCriteria
+import com.paycore.admin.merchantops.application.provided.ContractIntakeOperation
+import com.paycore.admin.merchantops.application.required.MasterContractIntakeCommand
 import com.paycore.admin.merchantops.application.required.MasterBusinessCommand
 import com.paycore.admin.merchantops.application.required.MasterBusinessCommandResult
 import com.paycore.admin.merchantops.application.required.MasterCallResult
@@ -98,9 +100,10 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             reply("$base/$id/history/after/0", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
             gateway().history(id, 0) shouldBe MasterCallResult.NotFound
         }
+        // 기대값 변경(FLOW-2b — golden v1 → v2, §4B.15 ADMIN 행): 골든 파일 이름과 로그 비노출 대상 근거 참조 값(옛 v1 해지 근거 DEMO-TERM-0001 → v2 계약 근거 DEMO-DOC-0001)만 바뀐다.
         Then("MERCHANT-FLOW-001 FLOW-1 contract intakes: signed GET /businesses/{id}/contract-intakes without body; the golden parses; 404 BUSINESS_NOT_FOUND → NotFound; unknown key → unreadable; no document ref in logs") {
             val id = businessId()
-            val section = String(requireNotNull(javaClass.getResourceAsStream("/contracts/contract-intake-section-v1.golden.json")).readAllBytes(), Charsets.UTF_8)
+            val section = String(requireNotNull(javaClass.getResourceAsStream("/contracts/contract-intake-section-v2.golden.json")).readAllBytes(), Charsets.UTF_8)
             reply("$base/$id/contract-intakes", 200, section)
             val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
             val appender = ListAppender<ILoggingEvent>().apply { start() }
@@ -112,7 +115,7 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
                 root.detachAppender(appender)
             }
             val messages = appender.list.map { it.formattedMessage }
-            messages.forEach { it shouldNotContain "DEMO-TERM-0001" }
+            messages.forEach { it shouldNotContain "DEMO-DOC-0001" }
             messages.any { it.contains("operation=master-ops-business-contract-intakes result=Found") } shouldBe true
             StubMasterOpsServer.requestsForPath("$base/$id/contract-intakes").last().let { listOf(it.method, it.query, it.signatureValid, it.body.size) shouldBe listOf("GET", null, true, 0) }
             reply("$base/$id/contract-intakes", 404, """{"error":"BUSINESS_NOT_FOUND"}""")
@@ -266,6 +269,99 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             lines.forEach { line -> listOf(BusinessInputFixture.CANARY_NUMBER, cmd.idempotencyKey, "DEMO 사업자").forEach { withClue(line) { line.contains(it) shouldBe false } } }
             shouldThrow<IllegalArgumentException> { gateway().lookup("731-90-24865") }.message!! shouldNotContain "731"
             cmd.toString() shouldNotContain BusinessInputFixture.CANARY_NUMBER
+        }
+    }
+
+    Given("MERCHANT-FLOW-001 FLOW-2b contract-intake commands (§4B.7 — signed POST /businesses/contract-intakes/commands/{open|move|complete})") {
+        val intakeBase = "$base/contract-intakes/commands"
+        val bizId = "biz_01JC0000000000000000000001"
+        fun intakeCommand(op: ContractIntakeOperation, body: Map<String, Any?> = linkedMapOf("businessId" to bizId, "reason" to null)) =
+            MasterContractIntakeCommand(op, "mo1.01JC00000000000000000000V1." + "%032x".format(++seq), "admin:adm_01JC00000000000000000000V1", "mos.x", body)
+        Then("path per operation, signature valid, common fields first then the command body (JSON null kept); success → Decided(reference = businessId)") {
+            listOf(ContractIntakeOperation.OPEN to "open", ContractIntakeOperation.MOVE to "move", ContractIntakeOperation.COMPLETE to "complete").forEach { (op, path) ->
+                reply("$intakeBase/$path", 200, """{"outcome":"SUCCEEDED","reference":"$bizId","replayed":false}""")
+                withClue(path) {
+                    gateway().contractIntakeCommand(intakeCommand(op)) shouldBe MasterBusinessCommandResult.Decided(true, bizId, null, false, null)
+                    val req = StubMasterOpsServer.requestsForPath("$intakeBase/$path").last()
+                    listOf(req.method, req.signatureValid) shouldBe listOf("POST", true)
+                    json.readTree(req.body).propertyNames().toList() shouldBe listOf("idempotencyKey", "actor", "correlationId", "businessId", "reason")
+                    json.readTree(req.body).get("reason").isNull shouldBe true
+                }
+            }
+        }
+        Then("stored rejections: only the §4B.7 contract-intake codes are read (replayed kept); an unknown code, existing or reference on a rejection, a non-biz reference → Unknown(RESPONSE_UNREADABLE)") {
+            val open = "$intakeBase/open"
+            listOf(
+                "BUSINESS_NOT_FOUND", "BUSINESS_NOT_ACTIVE", "CONTRACT_INTAKE_NOT_FOUND", "CONTRACT_INTAKE_OPEN_EXISTS", "CONTRACT_INTAKE_KIND_MISMATCH",
+                "CONTRACT_INTAKE_RECEIVED_ON_FUTURE", "CONTRACT_INTAKE_VERSION_CONFLICT", "CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED", "CONTRACT_INTAKE_REASON_REQUIRED",
+                "CONTRACT_INTAKE_DOCUMENT_REQUIRED", "BUSINESS_CONTRACT_EXISTS", "BUSINESS_CONTRACT_NOT_CHANGEABLE", "BUSINESS_CONTRACT_SCHEDULED_VERSION_EXISTS",
+                "BUSINESS_CONTRACT_START_RETROACTIVE", "BUSINESS_CONTRACT_PERIOD_INVALID", "BUSINESS_CONTRACT_SCOPE_INVALID",
+            ).forEach { code ->
+                reply(open, 200, """{"outcome":"REJECTED","rejection":"$code","replayed":true}""")
+                withClue(code) { gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.OPEN)) shouldBe MasterBusinessCommandResult.Decided(false, null, code, true, null) }
+            }
+            listOf(
+                """{"outcome":"REJECTED","rejection":"BUSINESS_VERSION_CONFLICT","replayed":false}""",
+                """{"outcome":"REJECTED","rejection":"CONTRACT_INTAKE_COMPLETED_EXISTS","replayed":false}""",
+                """{"outcome":"REJECTED","rejection":"CONTRACT_INTAKE_OPEN_EXISTS","reference":"$bizId","replayed":false}""",
+                """{"outcome":"SUCCEEDED","reference":"mer_01JC0000000000000000000001","replayed":false}""",
+                """{"outcome":"SUCCEEDED","reference":"$bizId","replayed":false,"contractSeq":1}""",
+            ).forEach { body ->
+                reply(open, 200, body)
+                withClue(body) { gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.OPEN)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE") }
+            }
+        }
+        Then("400 BUSINESS_VALIDATION_FAILED with contract-intake paths → Invalid (no effect); a business-profile path, an unknown path or a value key → Unknown; REQUEST_MALFORMED → Unknown(HTTP_400)") {
+            val complete = "$intakeBase/complete"
+            reply(complete, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"documentRef","code":"CARD_NUMBER_PATTERN"},{"path":"services[0]","code":"FORMAT"}]}""")
+            gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.COMPLETE)) shouldBe
+                MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("documentRef", "CARD_NUMBER_PATTERN"), BusinessFieldError("services[0]", "FORMAT")))
+            reply(complete, 400, """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"intakeChannel","code":"NOT_ALLOWED"},{"path":"desiredServices[1]","code":"FORMAT"}]}""")
+            gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.COMPLETE)) shouldBe
+                MasterBusinessCommandResult.Invalid(listOf(BusinessFieldError("intakeChannel", "NOT_ALLOWED"), BusinessFieldError("desiredServices[1]", "FORMAT")))
+            listOf(
+                """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"displayName","code":"FORMAT"}]}""",
+                """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"agencyId","code":"FORMAT"}]}""",
+                """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"reason","code":"FORMAT","value":"x"}]}""",
+                """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[]}""",
+            ).forEach { body ->
+                reply(complete, 400, body)
+                withClue(body) { gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.COMPLETE)) shouldBe MasterBusinessCommandResult.Unknown("RESPONSE_UNREADABLE") }
+            }
+            reply(complete, 400, """{"error":"REQUEST_MALFORMED"}""")
+            gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.COMPLETE)) shouldBe MasterBusinessCommandResult.Unknown("HTTP_400")
+        }
+        Then("409 → KeyReused, 503 codes → RetrySameKey/Busy, timeout → Unknown(TIMEOUT); called inside a DB transaction → IllegalStateException; logs carry no body value") {
+            val move = "$intakeBase/move"
+            reply(move, 409, """{"error":"IDEMPOTENCY_KEY_REUSED"}""")
+            gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE)) shouldBe MasterBusinessCommandResult.KeyReused
+            listOf("TEMPORARILY_UNAVAILABLE", "REQUEST_IN_PROGRESS", "OUTCOME_UNKNOWN").forEach { code ->
+                reply(move, 503, """{"error":"$code"}""")
+                gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE)) shouldBe MasterBusinessCommandResult.RetrySameKey(code)
+            }
+            reply(move, 503, """{"error":"ADMIN_WRITE_BUSY"}""")
+            gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE)) shouldBe MasterBusinessCommandResult.Busy("ADMIN_WRITE_BUSY")
+            reply(move, 200, """{"outcome":"SUCCEEDED","reference":"$bizId","replayed":false}""", delay = 1_500)
+            gateway(settings(read = Duration.ofMillis(300))).contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE)) shouldBe MasterBusinessCommandResult.Unknown("TIMEOUT")
+            TransactionSynchronizationManager.setActualTransactionActive(true)
+            try {
+                shouldThrow<IllegalStateException> { gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE)) }
+            } finally {
+                TransactionSynchronizationManager.setActualTransactionActive(false)
+            }
+            val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            root.addAppender(appender)
+            try {
+                reply(move, 200, """{"outcome":"REJECTED","rejection":"CONTRACT_INTAKE_REASON_REQUIRED","replayed":false}""")
+                gateway().contractIntakeCommand(intakeCommand(ContractIntakeOperation.MOVE, linkedMapOf("businessId" to bizId, "reason" to "고객 요청 CANARY-REASON-7")))
+            } finally {
+                root.detachAppender(appender)
+            }
+            val messages = appender.list.map { it.formattedMessage }
+            messages.forEach { it shouldNotContain "CANARY-REASON-7" }
+            messages.any { it.contains("operation=master-ops-contract-intake-command-move result=REJECTED:CONTRACT_INTAKE_REASON_REQUIRED") } shouldBe true
+            intakeCommand(ContractIntakeOperation.MOVE, linkedMapOf("reason" to "CANARY-REASON-7")).toString() shouldNotContain "CANARY-REASON-7"
         }
     }
 })
