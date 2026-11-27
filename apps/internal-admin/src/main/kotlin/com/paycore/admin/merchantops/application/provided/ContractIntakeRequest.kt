@@ -57,4 +57,24 @@ sealed interface ContractIntakeRequest {
 
         override fun toString(): String = "ContractIntakeRequest.Complete(version=$expectedVersion, ***)"
     }
+
+    /**
+     * FLOW-2c 사업자 계약 정지·정지 해제·해지([operation] ∈ SUSPEND·RESUME·TERMINATE). [contractSeq] = 경로 값(화면이 본 최신 계약), [expectedEventCount] = 화면이 본 사건 수,
+     * '사유 및 비고' [reason] 필수, 근거 참조 [evidenceRef] 선택(D-GOV-022 — 세 명령 같은 규칙).
+     */
+    class ContractEvent(
+        override val operation: ContractIntakeOperation,
+        override val businessId: String,
+        val contractSeq: Int,
+        override val submissionId: String,
+        val expectedEventCount: Int,
+        override val reason: String?,
+        val evidenceRef: String?,
+    ) : ContractIntakeRequest {
+        init {
+            require(operation.isContractEvent) { "contract event operations only" }
+        }
+
+        override fun toString(): String = "ContractIntakeRequest.ContractEvent(op=$operation, count=$expectedEventCount, ***)"
+    }
 }

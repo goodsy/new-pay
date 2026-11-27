@@ -227,4 +227,42 @@ class ContractIntakeHttpSpec(
             audits(operator.account.id.value).map { it.split('|')[1] } shouldBe listOf("REQUESTED", "OUTCOME_UNKNOWN")
         }
     }
+
+    Given("FLOW-2c business contract command HTTP (suspensions · resumptions · termination)") {
+        Then("OPERATOR → signed MASTER business-contracts call with every key → 200; APPROVER → 403; reason missing → 400 (MASTER not called); CSRF required") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            val contractBase = "/internal/v1/admin/businesses/business-contracts/commands"
+            listOf("suspensions" to "suspend", "resumptions" to "resume", "termination" to "terminate").forEach { (pathPart, masterOp) ->
+                StubMasterOpsServer.reply("$contractBase/$masterOp", StubMasterOpsServer.Reply(200, succeeded(id)))
+                val before = StubMasterOpsServer.requestsForPath("$contractBase/$masterOp").size
+                val s = sub()
+                send(client, post("/api/businesses/$id/business-contracts/1/$pathPart"), """{"submissionId":"$s","expectedEventCount":0,"reason":"확인 필요","evidenceRef":null}""").let {
+                    (it.status to it.contentAsString) shouldBe (200 to succeeded(id))
+                }
+                val sent = json.readTree(StubMasterOpsServer.requestsForPath("$contractBase/$masterOp").drop(before).single().body)
+                sent.propertyNames().toList() shouldBe listOf("idempotencyKey", "actor", "correlationId", "businessId", "contractSeq", "expectedEventCount", "reason", "evidenceRef")
+                listOf(sent.get("contractSeq").asInt(), sent.get("expectedEventCount").asInt(), sent.get("evidenceRef").isNull) shouldBe listOf(1, 0, true)
+            }
+            send(client, post("/api/businesses/$id/business-contracts/1/termination"), """{"submissionId":"${sub()}","expectedEventCount":0,"reason":null,"evidenceRef":null}""").let {
+                (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"reason","code":"REQUIRED"}]}""")
+            }
+            send(client, post("/api/businesses/$id/business-contracts/x/termination"), """{"submissionId":"${sub()}","expectedEventCount":0,"reason":"r","evidenceRef":null}""").status shouldBe 400
+            send(client, post("/api/businesses/$id/business-contracts/1/termination"), """{"submissionId":"${sub()}","expectedEventCount":0,"reason":"r","evidenceRef":null}""", xsrf = false)
+                .status shouldBe 403
+            val approver = loggedIn(withRole(AdminRole.APPROVER))
+            send(approver, post("/api/businesses/$id/business-contracts/1/suspensions"), """{"submissionId":"${sub()}","expectedEventCount":0,"reason":"r","evidenceRef":null}""").status shouldBe 403
+            AdminDbAccounts.root(container).use {
+                it.column(
+                    "SELECT CONCAT(action, '|', result_code) FROM admin_audit_event WHERE actor_id = ? AND action IN " +
+                        "('BUSINESS_CONTRACT_SUSPEND', 'BUSINESS_CONTRACT_RESUME', 'BUSINESS_CONTRACT_TERMINATE') ORDER BY event_id",
+                    operator.account.id.value,
+                )
+            } shouldBe listOf(
+                "BUSINESS_CONTRACT_SUSPEND|REQUESTED", "BUSINESS_CONTRACT_SUSPEND|OK", "BUSINESS_CONTRACT_RESUME|REQUESTED", "BUSINESS_CONTRACT_RESUME|OK",
+                "BUSINESS_CONTRACT_TERMINATE|REQUESTED", "BUSINESS_CONTRACT_TERMINATE|OK",
+            )
+        }
+    }
 })

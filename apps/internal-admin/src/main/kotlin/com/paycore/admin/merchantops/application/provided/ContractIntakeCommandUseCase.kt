@@ -15,9 +15,19 @@ interface ContractIntakeCommandUseCase {
     fun rejectMalformed(actorId: String, operation: ContractIntakeOperation, businessId: String?, context: AdminRequestContext): BusinessProfileResult
 }
 
-/** 계약 접수 건 명령 종류(감사 action / MASTER 경로·operation — §4B.7). 감사 action은 사업자 관리 감사 이름공간(`BUSINESS_…`)을 쓴다. */
-enum class ContractIntakeOperation(val auditAction: String, val masterPath: String, val masterOperation: String) {
+/**
+ * 계약 접수 건·사업자 계약 명령 종류(감사 action / MASTER 경로 묶음·경로·operation — §4B.7). 감사 action은 사업자 관리 감사 이름공간(`BUSINESS_…`)을 쓴다.
+ * FLOW-2c: 사업자 계약 정지·정지 해제·해지는 MASTER `business-contracts/commands/{suspend|resume|terminate}`(같은 서명·응답 틀).
+ */
+enum class ContractIntakeOperation(val auditAction: String, val masterPath: String, val masterOperation: String, val masterBase: String = "contract-intakes") {
     OPEN("BUSINESS_CONTRACT_INTAKE_OPEN", "open", "OpenContractIntake"),
     MOVE("BUSINESS_CONTRACT_INTAKE_MOVE", "move", "MoveContractIntake"),
     COMPLETE("BUSINESS_CONTRACT_INTAKE_COMPLETE", "complete", "CompleteContractIntake"),
+    SUSPEND("BUSINESS_CONTRACT_SUSPEND", "suspend", "SuspendBusinessContract", "business-contracts"),
+    RESUME("BUSINESS_CONTRACT_RESUME", "resume", "ResumeBusinessContract", "business-contracts"),
+    TERMINATE("BUSINESS_CONTRACT_TERMINATE", "terminate", "TerminateBusinessContract", "business-contracts"),
+    ;
+
+    /** 사업자 계약 사건 명령(정지·정지 해제·해지)인가. */
+    val isContractEvent: Boolean get() = masterBase == "business-contracts"
 }

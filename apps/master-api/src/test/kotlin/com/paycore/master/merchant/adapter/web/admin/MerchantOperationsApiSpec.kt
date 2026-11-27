@@ -152,6 +152,10 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/complete",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 쓰기 경로 목록 증가): 사업자 계약 정지·정지 해제·해지(Outbox·권리 효과 없음 — 개통·한도·정지 경로는 여전히 없다).
+                "POST /internal/v1/admin/businesses/business-contracts/commands/suspend",
+                "POST /internal/v1/admin/businesses/business-contracts/commands/resume",
+                "POST /internal/v1/admin/businesses/business-contracts/commands/terminate",
             )
             // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 `merchant-operations/businesses` 제거 — 쓰기 경로가 하나 줄었다(완화 아님, 사업자 생성은 위 `businesses/commands/create`).
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals

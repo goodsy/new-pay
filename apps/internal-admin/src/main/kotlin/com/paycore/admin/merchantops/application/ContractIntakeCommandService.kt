@@ -169,8 +169,13 @@ class ContractIntakeCommandService internal constructor(
                 body["endDate"] = request.endDate
                 body["services"] = request.services
             }
+            is ContractIntakeRequest.ContractEvent -> {
+                body["contractSeq"] = request.contractSeq
+                body["expectedEventCount"] = request.expectedEventCount
+            }
         }
         body["reason"] = request.reason
+        if (request is ContractIntakeRequest.ContractEvent) body["evidenceRef"] = request.evidenceRef
         return MasterContractIntakeCommand(request.operation, key, ACTOR_PREFIX + actorId, correlationId, body)
     }
 
@@ -210,9 +215,10 @@ class ContractIntakeCommandService internal constructor(
                 is ContractIntakeRequest.Open -> request.expectedKind.takeIf { it in ContractIntakeInputRules.KINDS }?.let { "kind=$it" }
                 is ContractIntakeRequest.Move -> request.target.takeIf { it in ContractIntakeInputRules.MOVE_TARGETS }?.let { "target=$it" }
                 is ContractIntakeRequest.Complete -> "target=$COMPLETED"
+                is ContractIntakeRequest.ContractEvent -> "kind=${request.operation.name}"
             },
             "reason=" + if (request.reason == null) ABSENT else PRESENT,
-            "evidence=" + if (request is ContractIntakeRequest.Complete) PRESENT else ABSENT,
+            "evidence=" + if (request is ContractIntakeRequest.Complete || (request is ContractIntakeRequest.ContractEvent && request.evidenceRef != null)) PRESENT else ABSENT,
         )
         val target: String? = request.businessId.takeIf { BusinessAudit.BUSINESS_ID.matches(it) }
 

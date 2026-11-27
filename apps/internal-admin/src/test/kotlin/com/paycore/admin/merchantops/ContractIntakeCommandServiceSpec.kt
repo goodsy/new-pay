@@ -62,6 +62,9 @@ class ContractIntakeCommandServiceSpec : BehaviorSpec({
     fun move(target: String, reason: String? = null, s: String = sub()) = ContractIntakeRequest.Move(biz, 2, s, 1, target, reason)
     fun complete(s: String = sub(), documentRef: String = "DEMO-DOC-0001", start: String = todayKst, end: String? = null, services: List<String> = listOf("CARD_PG_PAYMENT"), reason: String? = null) =
         ContractIntakeRequest.Complete(biz, 2, s, 1, documentRef, start, end, services, reason)
+    /** FLOW-2c 사업자 계약 정지·정지 해제·해지(계약 #1, 기대 사건 수 0). */
+    fun event(op: ContractIntakeOperation, reason: String? = "거래 확인 필요", evidence: String? = null, s: String = sub(), seq: Int = 1, count: Int = 0) =
+        ContractIntakeRequest.ContractEvent(op, biz, seq, s, count, reason, evidence)
 
     class Fixture(roles: Set<String> = setOf("OPERATOR"), status: String = "ACTIVE", var now: Instant, perMinute: Int = 100) {
         val audits = mutableListOf<AuditRecord>()
@@ -428,6 +431,55 @@ class ContractIntakeCommandServiceSpec : BehaviorSpec({
             a.service.rejectMalformed(operatorId, ContractIntakeOperation.COMPLETE, biz, ctx) shouldBe BusinessProfileResult.Forbidden
             a.service.rejectMalformed(operatorId, ContractIntakeOperation.MOVE, "biz_bad", ctx) shouldBe BusinessProfileResult.Forbidden
             a.rows() shouldBe listOf("BUSINESS_CONTRACT_INTAKE_COMPLETE|FORBIDDEN|null|$biz", "BUSINESS_CONTRACT_INTAKE_MOVE|FORBIDDEN|null|null")
+        }
+    }
+
+    Given("FLOW-2c business contract commands (suspend · resume · terminate — D-GOV-022: reason required, evidence optional)") {
+        val ops = listOf(ContractIntakeOperation.SUSPEND, ContractIntakeOperation.RESUME, ContractIntakeOperation.TERMINATE)
+
+        Then("OPERATOR → REQUESTED → MASTER (business-contracts path, every key, reason / evidence passed) → OK; audit detail kind + presence only") {
+            ops.forEach { op ->
+                val f = Fixture(now = now)
+                val s = sub()
+                f.service.execute(operatorId, event(op, evidence = if (op == ContractIntakeOperation.RESUME) null else "CASE/2026-11:77", s = s), ctx) shouldBe
+                    BusinessProfileResult.Decided("SUCCEEDED", biz, null, false)
+                val c = f.commands.single()
+                listOf(c.operation, c.idempotencyKey, c.correlationId, c.body.keys.toList()) shouldBe
+                    listOf(op, "mo1.01JC00000000000000000000V1.$s", "mos.$s", listOf("businessId", "contractSeq", "expectedEventCount", "reason", "evidenceRef"))
+                listOf(c.body["contractSeq"], c.body["expectedEventCount"], c.body["reason"]) shouldBe listOf(1, 0, "거래 확인 필요")
+                val evidence = if (op == ContractIntakeOperation.RESUME) "ABSENT" else "PRESENT"
+                f.rows() shouldBe listOf(
+                    "${op.auditAction}|REQUESTED|sub=${s.take(8)};kind=${op.name};reason=PRESENT;evidence=$evidence|$biz",
+                    "${op.auditAction}|OK|sub=${s.take(8)};replayed=false;kind=${op.name};reason=PRESENT;evidence=$evidence|$biz",
+                )
+                f.rows().joinToString().contains("거래 확인 필요") shouldBe false
+                f.rows().joinToString().contains("CASE/2026-11:77") shouldBe false
+            }
+            ops.map { it.auditAction } shouldBe listOf("BUSINESS_CONTRACT_SUSPEND", "BUSINESS_CONTRACT_RESUME", "BUSINESS_CONTRACT_TERMINATE")
+        }
+
+        Then("reason required (REQUIRED / TOO_LONG / CARD_NUMBER_PATTERN), evidence format and card pattern → 400 without MASTER call; bad contractSeq / count → 400 without fields") {
+            val f = Fixture(now = now)
+            f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE, reason = null), ctx) shouldBe invalid("reason" to "REQUIRED")
+            f.service.execute(operatorId, event(ContractIntakeOperation.SUSPEND, reason = "가".repeat(201)), ctx) shouldBe invalid("reason" to "TOO_LONG")
+            f.service.execute(operatorId, event(ContractIntakeOperation.SUSPEND, reason = "card 4111 1111 1111 1111"), ctx) shouldBe invalid("reason" to "CARD_NUMBER_PATTERN")
+            f.service.execute(operatorId, event(ContractIntakeOperation.RESUME, evidence = "bad ref"), ctx) shouldBe invalid("evidenceRef" to "FORMAT")
+            f.service.execute(operatorId, event(ContractIntakeOperation.RESUME, evidence = "4111-1111-1111-1111"), ctx) shouldBe invalid("evidenceRef" to "CARD_NUMBER_PATTERN")
+            f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE, seq = 0), ctx) shouldBe BusinessProfileResult.InvalidInput()
+            f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE, count = -1), ctx) shouldBe BusinessProfileResult.InvalidInput()
+            f.commands.size shouldBe 0
+        }
+
+        Then("APPROVER → 403 + FORBIDDEN audit; a stored MASTER rejection → 200 REJECTED with the code in the audit") {
+            Fixture(roles = setOf("APPROVER"), now = now).let { f ->
+                f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE), ctx) shouldBe BusinessProfileResult.Forbidden
+                f.rows().map { it.split('|').take(2) } shouldBe listOf(listOf("BUSINESS_CONTRACT_TERMINATE", "FORBIDDEN"))
+            }
+            val f = Fixture(now = now)
+            f.reply = { MasterBusinessCommandResult.Decided(false, null, "BUSINESS_CONTRACT_STATE_CONFLICT", false, null) }
+            f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE), ctx) shouldBe
+                BusinessProfileResult.Decided("REJECTED", null, "BUSINESS_CONTRACT_STATE_CONFLICT", false)
+            f.rows().last().split('|')[2].contains("rejection=BUSINESS_CONTRACT_STATE_CONFLICT") shouldBe true
         }
     }
 })

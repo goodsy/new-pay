@@ -2,6 +2,7 @@ package com.paycore.master.merchant.adapter.web.admin
 
 import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminRequest
+import com.paycore.master.merchant.application.provided.BusinessContractEventCommand
 import com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand
 import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
 import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
@@ -46,6 +47,7 @@ object ContractIntakeRequestParser {
     private val OPEN = COMMON + setOf("expectedKind", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "reason")
     private val MOVE = COMMON + setOf("intakeSeq", "expectedVersion", "target", "reason")
     private val COMPLETE = COMMON + setOf("intakeSeq", "expectedVersion", "documentRef", "startDate", "endDate", "services", "reason")
+    private val CONTRACT_EVENT = COMMON + setOf("contractSeq", "expectedEventCount", "reason", "evidenceRef")
     private val BUSINESS_ID = Regex("^biz_[0-9A-HJKMNP-TV-Z]{26}$")
     private val DATE_TEXT = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
     private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT)
@@ -101,6 +103,25 @@ object ContractIntakeRequestParser {
                 request, id, seq, version, requireNotNull(document), BusinessContractTerms(requireNotNull(start), end, services.map { requireNotNull(it) }.toSet()), reason,
             )
         }
+    }
+
+    /**
+     * FLOW-2c 사업자 계약 정지·정지 해제·해지(세 명령 같은 본문): contractSeq ≥ 1·expectedEventCount ≥ 0(구조), '사유 및 비고' **필수**(null·빈 값 → `reason` REQUIRED —
+     * BR-BIZ-336·339), 근거 참조 선택([ContractDocumentRef] — D-GOV-022).
+     */
+    fun contractEvent(body: ByteArray): BusinessCommandParse<BusinessContractEventCommand> = parse(body, CONTRACT_EVENT) { root, v ->
+        val (request, id) = common(root)
+        val seq = int(root, "contractSeq", min = 1)
+        val count = int(root, "expectedEventCount", min = 0)
+        val rawReason = optText(root, "reason")
+        val reason = if (rawReason == null) {
+            v.missing("reason")
+            null
+        } else {
+            v.value("reason", rawReason, BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        }
+        val evidence = v.optValue("evidenceRef", optText(root, "evidenceRef"), ContractDocumentRef::errorOf, ::ContractDocumentRef)
+        v.finish { BusinessContractEventCommand(request, id, seq, count, requireNotNull(reason), evidence) }
     }
 
     private fun managerError(raw: String): BusinessFieldErrorCode? = when {
@@ -174,6 +195,10 @@ object ContractIntakeRequestParser {
                 return null
             }
             return build(raw)
+        }
+
+        fun missing(path: String) {
+            errors += BusinessFieldError(path, BusinessFieldErrorCode.REQUIRED)
         }
 
         fun <T> optValue(path: String, raw: String?, errorOf: (String) -> BusinessFieldErrorCode?, build: (String) -> T): T? = raw?.let { value(path, it, errorOf, build) }

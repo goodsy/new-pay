@@ -52,6 +52,10 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     openContractIntake: notStubbed('openContractIntake'),
     moveContractIntake: notStubbed('moveContractIntake'),
     completeContractIntake: notStubbed('completeContractIntake'),
+    // MERCHANT-FLOW-001 FLOW-2c: 사업자 계약 정지·정지 해제·해지.
+    suspendBusinessContract: notStubbed('suspendBusinessContract'),
+    resumeBusinessContract: notStubbed('resumeBusinessContract'),
+    terminateBusinessContract: notStubbed('terminateBusinessContract'),
     registerMerchant: notStubbed('registerMerchant'),
     registerMerchantSite: notStubbed('registerMerchantSite'),
     registerContract: notStubbed('registerContract'),

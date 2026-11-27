@@ -19,6 +19,7 @@ import java.util.UUID
  * - 접수 건 생성 `POST /api/businesses/{businessId}/contract-intakes`
  * - 전이(계약서 접수·되돌리기·계약 불가) `POST /api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions`
  * - 계약 완료(사업자 계약·버전 생성) `POST /api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion`
+ * - FLOW-2c 사업자 계약 정지·정지 해제·해지 `POST /api/businesses/{businessId}/business-contracts/{contractSeq}/{suspensions|resumptions|termination}`
  * 세션 + CSRF(보안 체인), 모두 `no-store`. 멱등 키 = 본문 `submissionId`([BusinessCommandController] 관례). 읽기 전 거절(감사 없음): JSON이 아니면 415, 16 KiB 초과 413.
  * 그 뒤 [ContractIntakeBodyParser] 엄격 해석 → Use Case. 응답은 [BusinessCommandResponses](사업자 명령과 같은 모양 — 성공 응답에 상태·version 없음, 화면은 성공 뒤 상세를 다시 읽는다).
  */
@@ -36,6 +37,18 @@ class ContractIntakeCommandController(private val commands: ContractIntakeComman
     @PostMapping("/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion")
     fun complete(@PathVariable businessId: String, @PathVariable intakeSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
         handle(ContractIntakeOperation.COMPLETE, businessId, intakeSeq, authentication, request)
+
+    @PostMapping("/api/businesses/{businessId}/business-contracts/{contractSeq}/suspensions")
+    fun suspend(@PathVariable businessId: String, @PathVariable contractSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(ContractIntakeOperation.SUSPEND, businessId, contractSeq, authentication, request)
+
+    @PostMapping("/api/businesses/{businessId}/business-contracts/{contractSeq}/resumptions")
+    fun resume(@PathVariable businessId: String, @PathVariable contractSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(ContractIntakeOperation.RESUME, businessId, contractSeq, authentication, request)
+
+    @PostMapping("/api/businesses/{businessId}/business-contracts/{contractSeq}/termination")
+    fun terminate(@PathVariable businessId: String, @PathVariable contractSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(ContractIntakeOperation.TERMINATE, businessId, contractSeq, authentication, request)
 
     private fun handle(
         operation: ContractIntakeOperation,

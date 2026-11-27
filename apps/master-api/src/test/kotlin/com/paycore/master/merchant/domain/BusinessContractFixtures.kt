@@ -49,7 +49,7 @@ object BusinessContractFixtures {
 
     /** 해지 계약: 유효 계약을 [at] + 1분에 해지(근거 선택 — 없음). */
     fun aTerminatedContract(business: Business = business(), at: Instant = t0): BusinessContract =
-        anEffectiveBusinessContract(business, at = at).terminate(business, 0, reason, null, at.plus(Duration.ofMinutes(1)), operator).contract
+        anEffectiveBusinessContract(business, at = at).terminate(business, 0, reason, at.plus(Duration.ofMinutes(1)), operator).contract
 
     /**
      * 만료 계약: 시작일 [start]·종료일 [endDate]인 계약(시작일 당일에 기록). [endDate] 다음 날 00:00 KST부터 만료 — 판정은 [expiredJudgedAt].

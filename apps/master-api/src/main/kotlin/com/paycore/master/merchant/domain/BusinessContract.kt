@@ -131,28 +131,45 @@ class BusinessContract private constructor(
     }
 
     /** 정지(BR-BIZ-336·344): 효력 전·유효 → 정지. 정지·해지·만료는 `BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED`. 즉시 효력(예약 없음). */
-    fun suspend(business: Business, expectedEventCount: Int, reason: BusinessChangeReason, at: Instant, by: ActorRef): BusinessContractChange {
+    fun suspend(
+        business: Business,
+        expectedEventCount: Int,
+        reason: BusinessChangeReason,
+        at: Instant,
+        by: ActorRef,
+        evidence: ContractDocumentRef? = null,
+    ): BusinessContractChange {
         requireCommand(business, expectedEventCount)
         val status = statusAt(at)
         if (status.isClosed || status == BusinessContractStatus.SUSPENDED) throw MasterRuleViolation(MasterRejection.BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED)
-        return withEvent(BusinessContractEventKind.SUSPEND, reason, null, at, by)
+        return withEvent(BusinessContractEventKind.SUSPEND, reason, evidence, at, by)
     }
 
     /** 정지 해제: 정지 → (다시 계산 — 유효 또는 효력 전). 그 밖 `BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED`. 정지 이전 상태를 되살리는 기록이 아니다(§4B.4). */
-    fun resume(business: Business, expectedEventCount: Int, reason: BusinessChangeReason, at: Instant, by: ActorRef): BusinessContractChange {
+    fun resume(
+        business: Business,
+        expectedEventCount: Int,
+        reason: BusinessChangeReason,
+        at: Instant,
+        by: ActorRef,
+        evidence: ContractDocumentRef? = null,
+    ): BusinessContractChange {
         requireCommand(business, expectedEventCount)
         if (statusAt(at) != BusinessContractStatus.SUSPENDED) throw MasterRuleViolation(MasterRejection.BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED)
-        return withEvent(BusinessContractEventKind.RESUME, reason, null, at, by)
+        return withEvent(BusinessContractEventKind.RESUME, reason, evidence, at, by)
     }
 
-    /** 해지(BR-BIZ-336·339·342·344): 효력 전·유효·정지 → 해지(종결, 사유 필수·근거 선택). 해지·만료는 `BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED`. */
+    /**
+     * 해지(BR-BIZ-336·339·342·344): 효력 전·유효·정지 → 해지(종결, 사유 필수·근거 선택). 해지·만료는 `BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED`.
+     * 인자 순서는 [suspend]·[resume]과 같다(…, 사유, 시각, 행위자, 근거 — FLOW-2c 리뷰 NIT, 가역).
+     */
     fun terminate(
         business: Business,
         expectedEventCount: Int,
         reason: BusinessChangeReason,
-        evidence: ContractDocumentRef?,
         at: Instant,
         by: ActorRef,
+        evidence: ContractDocumentRef? = null,
     ): BusinessContractChange {
         requireCommand(business, expectedEventCount)
         if (statusAt(at).isClosed) throw MasterRuleViolation(MasterRejection.BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED)

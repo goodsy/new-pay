@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BusinessesScreen } from './BusinessesScreen'
 import type { BusinessContractView, BusinessDetail, ContractIntakeView, ContractProgress } from '../api/adminApi'
@@ -15,7 +15,8 @@ import { bizId, individualRegisteredDetail, listItemOf } from '../test/businessF
  *   계약 없음 → "사업자 계약 없음 — 신규 접수 후 계약 완료가 필요합니다".
  * - 접수 건: 종류 배지(신규·변경), 상태, 그 상태에서 허용되는 동작 버튼만(OPERATOR — APPROVER는 버튼 없음), '새 접수' 버튼 이름 = 화면이 판정한 종류(열린 건 있으면 없음).
  * - 계약 완료 대화상자: 근거 참조 필수·시작일 기본 = 서버(ADMIN) KST 오늘·과거 불가·종료일 선택(≥ 시작일)·범위 카드 PG 결제(희망 서비스와 별개)·'사유 및 비고'(선택)·오타 정정 안내.
- * - 변경 접수가 열려 있고 계약이 해지·만료면 계약 완료 버튼 대신 안내. 되돌리기·계약 불가는 '사유 및 비고' 필수. `TERMINATED` 접수 상태 표시 없음. 해지·정지 버튼은 FLOW-2c(없음).
+ * - 변경 접수가 열려 있고 계약이 해지·만료면 계약 완료 버튼 대신 안내. 되돌리기·계약 불가는 '사유 및 비고' 필수. `TERMINATED` 접수 상태 표시 없음.
+ * - FLOW-2c: 사업자 계약 칸의 정지·정지 해제·해지(허용되는 것만 — D-GOV-022 사유 필수·근거 선택), 해지 확인 단계·정지 대화상자의 연결 가맹점 n개 안내, 연 때의 계약 순번·사건 수 고정(MAJOR-1).
  * - 내부 키(biz_·adm_)·MASTER 행위자 참조·계정 키는 DOM·URL·저장소에 없다(근거 참조 원문만 — D-FLOW-004 ④). 결과 불명은 같은 submissionId 재전송.
  * 기대값 변경(FLOW-2b — 보고서 목록): 옛 PROGRESS의 TERMINATED 이관 건·해지 전이 행 삭제(D-GOV-018 ②ⓑ), OPERATOR의 '버튼·입력 없음' → 허용 버튼만(§4B.11 2).
  */
@@ -185,8 +186,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 사업자 계약 칸(§4B.11 1)', () => 
       ['1', '이관', '카드 PG 결제', '이관', '이관', '2026-11-21 12:00:00'],
       ['2', '2026-11-27 ~ 2027-11-26', '카드 PG 결제', 'DEMO-DOC-0001', '영업 담당', '2026-11-26 10:00:00'],
     ])
-    // 해지·정지 버튼은 FLOW-2c(Q-FLOW-38) — 이 배치에는 없다.
-    expect(within(column).queryAllByRole('button')).toHaveLength(0)
+    // 기대값 변경(FLOW-2c §4B.11 3 — FLOW-2b 때 "해지·정지 버튼은 FLOW-2c(없음)"로 둔 자리): OPERATOR + 유효 계약 → 정지·해지 버튼(허용되는 것만 — FLOW-2c 시험이 상태별로 고정).
+    expect(within(column).queryAllByRole('button').map((b) => b.textContent)).toEqual(['정지', '해지'])
   })
 
   it.each([
@@ -429,5 +430,153 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 명령 대화상자', () => {
     expect(window.location.href).toBe(before)
     expect(window.location.href).not.toContain('biz_')
     expect(storageIsEmpty()).toBe(true)
+  })
+})
+
+describe('MERCHANT-FLOW-001 FLOW-2c — 사업자 계약 정지·정지 해제·해지(§4B.11 3, D-GOV-022)', () => {
+  const contractButtons = (section: HTMLElement) => buttonNames(contractColumn(section))
+
+  it('OPERATOR: 허용되는 버튼만 — 효력 전·유효 [정지, 해지], 정지 [정지 해제, 해지], 해지·만료 없음; APPROVER는 버튼 없음', async () => {
+    const cases: [BusinessContractView['status'], string[]][] = [
+      ['NOT_YET_EFFECTIVE', ['정지', '해지']], ['ACTIVE', ['정지', '해지']], ['SUSPENDED', ['정지 해제', '해지']], ['TERMINATED', []], ['EXPIRED', []],
+    ]
+    for (const [status, expected] of cases) {
+      const { view } = renderScreen(detailWith(progress(contract(status), [MIGRATED_INTAKE])), true)
+      expect(contractButtons(await openSection())).toEqual(expected)
+      view.unmount()
+    }
+    renderScreen(detailWith(progress(contract('ACTIVE'), [MIGRATED_INTAKE])), false)
+    expect(contractButtons(await openSection())).toEqual([])
+  })
+
+  it('정지: "사유 및 비고" 필수(카드번호 패턴 거부)·근거 참조 선택(형식 검사) → 본문(expectedEventCount = 본 사건 수) → 상세 다시 읽기', async () => {
+    const suspendBusinessContract = vi.fn(async () => ({ outcome: 'SUCCEEDED' as const, reference: 'biz_x', replayed: false }))
+    const withEvent = contract('ACTIVE', {
+      events: [{ eventSeq: 1, kind: 'SUSPEND', evidenceRef: null, occurredAt: '2026-11-25T01:00:00.000Z', actorKind: 'ADMIN', actorName: '운영 담당' },
+        { eventSeq: 2, kind: 'RESUME', evidenceRef: null, occurredAt: '2026-11-25T02:00:00.000Z', actorKind: 'ADMIN', actorName: '운영 담당' }],
+    })
+    const { api } = renderScreen(detailWith(progress(withEvent, [MIGRATED_INTAKE])), true, { suspendBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지' })
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    expect(dialog).toHaveTextContent("'사유 및 비고'를 입력하세요.")
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), 'card 4111 1111 1111 1111')
+    await user.type(within(dialog).getByLabelText('근거 참조(선택)'), 'bad ref')
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    expect(suspendBusinessContract).not.toHaveBeenCalled()
+    await user.clear(within(dialog).getByLabelText('사유 및 비고'))
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '거래 확인 필요')
+    await user.clear(within(dialog).getByLabelText('근거 참조(선택)'))
+    await user.type(within(dialog).getByLabelText('근거 참조(선택)'), 'CASE/2026-11:77')
+    const reads = (api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    expect(suspendBusinessContract).toHaveBeenCalledWith(expect.any(String), 1, {
+      submissionId: expect.any(String), expectedEventCount: 2, reason: '거래 확인 필요', evidenceRef: 'CASE/2026-11:77',
+    })
+    await waitFor(() => expect((api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(reads))
+  })
+
+  it('해지: 입력 뒤 확인 단계에 "연결 가맹점 n개(종료 제외) — 기존 가맹점의 결제·정산은 바뀌지 않습니다" 안내 → 해지 확정에서만 API 호출(근거 없음 = null)', async () => {
+    const terminateBusinessContract = vi.fn(async () => ({ outcome: 'SUCCEEDED' as const, reference: 'biz_x', replayed: false }))
+    renderScreen(detailWith(progress(contract('SUSPENDED'), [MIGRATED_INTAKE])), true, { terminateBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '해지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 해지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '계약 종료 합의')
+    await user.click(within(dialog).getByRole('button', { name: '다음' }))
+    expect(terminateBusinessContract).not.toHaveBeenCalled()
+    expect(dialog).toHaveTextContent('연결 가맹점 2개(종료 제외) — 기존 가맹점의 결제·정산은 바뀌지 않습니다. 필요하면 가맹점마다 중지/철회하세요.')
+    expect(dialog).toHaveTextContent('해지는 되돌릴 수 없습니다')
+    await user.click(within(dialog).getByRole('button', { name: '해지 확정' }))
+    expect(terminateBusinessContract).toHaveBeenCalledTimes(1)
+    expect(terminateBusinessContract).toHaveBeenCalledWith(expect.any(String), 1, {
+      submissionId: expect.any(String), expectedEventCount: 0, reason: '계약 종료 합의', evidenceRef: null,
+    })
+  })
+
+  it('정지 해제: 저장된 거절(기대 사건 수 불일치)은 한국어 안내(code 원문 없음)', async () => {
+    const resumeBusinessContract = vi.fn(async () => ({ outcome: 'REJECTED' as const, rejection: 'BUSINESS_CONTRACT_STATE_CONFLICT', replayed: false }))
+    renderScreen(detailWith(progress(contract('SUSPENDED'), [MIGRATED_INTAKE])), true, { resumeBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지 해제' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지 해제' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '확인 완료')
+    await user.click(within(dialog).getByRole('button', { name: '정지 해제 저장' }))
+    await within(dialog).findByText('다른 사람이 먼저 사업자 계약을 바꿨습니다. 다시 불러온 내용을 확인하세요.')
+    expect(dialog).not.toHaveTextContent('BUSINESS_CONTRACT_STATE_CONFLICT')
+  })
+
+  it('리뷰 NIT-B: 결과 불명 잠금 뒤 같은 submissionId 재전송이 400(INVALID_INPUT)이면 잠금이 풀리고(입력·취소 가능) 상세를 다시 읽는다', async () => {
+    const suspendBusinessContract = vi.fn()
+      .mockRejectedValueOnce(apiError(503, 'MASTER_OUTCOME_UNKNOWN'))
+      .mockRejectedValueOnce(apiError(400, 'INVALID_INPUT'))
+    const { api } = renderScreen(detailWith(progress(contract('ACTIVE'), [MIGRATED_INTAKE])), true, { suspendBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '거래 확인 필요')
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    await within(dialog).findByText('처리되었는지 알 수 없습니다. 같은 내용으로 다시 보내 확인해 주세요.')
+    expect(within(dialog).getByLabelText('사유 및 비고')).toBeDisabled()
+    const reads = (api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length
+    await user.click(within(dialog).getByRole('button', { name: '같은 내용으로 다시 보내기' }))
+    expect(suspendBusinessContract.mock.calls[1]).toEqual(suspendBusinessContract.mock.calls[0])
+    await waitFor(() => expect(within(dialog).getByLabelText('사유 및 비고')).not.toBeDisabled())
+    expect(within(dialog).getByRole('button', { name: '취소' })).toBeInTheDocument()
+    await waitFor(() => expect((api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(reads))
+  })
+
+  it('리뷰 MINOR-2: 정지 대화상자에도 연결 가맹점 n개(종료 제외 — 대화상자 직전 섹션 조회 값) 안내', async () => {
+    renderScreen(detailWith(progress(contract('ACTIVE'), [MIGRATED_INTAKE])), true)
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    expect(within(column).getByRole('dialog', { name: '사업자 계약 정지' })).toHaveTextContent(
+      '연결 가맹점 2개(종료 제외) — 기존 가맹점의 결제·정산은 바뀌지 않습니다. 필요하면 가맹점마다 중지/철회하세요.',
+    )
+  })
+
+  it('리뷰 MAJOR-1: 대화상자를 연 때의 계약 순번·사건 수로만 보낸다 — 거절 뒤 재조회에서 다른 계약(#2)이 보이면 대화상자를 닫고 다시 열라고 안내(전송 없음)', async () => {
+    // 명령을 보낸 뒤(거절)부터 재조회는 새 계약 #2를 돌려준다(그 사이 다른 사람이 해지 → 신규 계약 완료).
+    let changed = false
+    const second = contract('ACTIVE', { contractSeq: 2, migrated: false })
+    const terminateBusinessContract = vi.fn(async () => {
+      changed = true
+      return { outcome: 'REJECTED' as const, rejection: 'BUSINESS_CONTRACT_STATE_CONFLICT', replayed: false }
+    })
+    renderScreen(() => detailWith(progress(changed ? second : contract('ACTIVE'), [MIGRATED_INTAKE])), true, { terminateBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '해지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 해지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '계약 종료 합의')
+    await user.click(within(dialog).getByRole('button', { name: '다음' }))
+    await user.click(within(dialog).getByRole('button', { name: '해지 확정' }))
+    expect(terminateBusinessContract).toHaveBeenCalledTimes(1)
+    expect(terminateBusinessContract).toHaveBeenCalledWith(expect.any(String), 1, expect.objectContaining({ expectedEventCount: 0 }))
+    const section = await screen.findByRole('region', { name: '계약 진행' })
+    await within(section).findByText('사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')
+    expect(within(section).queryByRole('dialog', { name: '사업자 계약 해지' })).toBeNull()
+    expect(terminateBusinessContract).toHaveBeenCalledTimes(1)
+  })
+
+  it('리뷰 MAJOR-1: 같은 계약이라도 재조회에서 사건 수가 달라지면(다른 사람이 정지) 대화상자를 닫는다 — 옛 사건 수로 다시 보낼 수 없다', async () => {
+    let changed = false
+    const suspendedByOther = contract('SUSPENDED', {
+      events: [{ eventSeq: 1, kind: 'SUSPEND', evidenceRef: null, occurredAt: '2026-11-26T01:00:00.000Z', actorKind: 'ADMIN', actorName: '다른 운영자' }],
+    })
+    const suspendBusinessContract = vi.fn(async () => {
+      changed = true
+      return { outcome: 'REJECTED' as const, rejection: 'BUSINESS_CONTRACT_STATE_CONFLICT', replayed: false }
+    })
+    renderScreen(() => detailWith(progress(changed ? suspendedByOther : contract('ACTIVE'), [MIGRATED_INTAKE])), true, { suspendBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '확인 필요')
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    const section = await screen.findByRole('region', { name: '계약 진행' })
+    await within(section).findByText('사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')
+    expect(within(section).queryByRole('dialog', { name: '사업자 계약 정지' })).toBeNull()
+    expect(suspendBusinessContract).toHaveBeenCalledTimes(1)
   })
 })

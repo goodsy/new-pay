@@ -193,19 +193,19 @@ class BusinessContractSchemaSpec(private val container: MySQLContainer) : Behavi
             }
         }
 
-        Then("I-6 / BR-BIZ-336·339: reason required (1..200), evidence only on TERMINATE (Q-FLOW-38), TERMINATE at most once per contract (uk_bce_terminate 1062)") {
+        // 기대값 변경(FLOW-2c V23 — 사용자 답 D-GOV-022): 정지·정지 해제 사건도 근거 참조 허용(NULL 허용 유지). 근거 형식 CHECK는 모든 종류에 그대로.
+        Then("I-6 / BR-BIZ-336·339: reason required (1..200), evidence optional on every kind (D-GOV-022, V23), TERMINATE at most once per contract (uk_bce_terminate 1062)") {
             runtime { c ->
                 val b = businessWithIntakes(c)
                 contract(c, b, 1, 1) shouldBe null
                 contract(c, b, 2, 2) shouldBe null
                 event(c, b, 1, 1, "SUSPEND", reason = null) shouldBe 1048 // NOT NULL
                 event(c, b, 1, 1, "SUSPEND", reason = "") shouldBe 3819
-                event(c, b, 1, 1, "SUSPEND", evidence = "DOC-1") shouldBe 3819 // 정지 근거는 Q-FLOW-38 답 전 받지 않는다
-                event(c, b, 1, 1, "RESUME", evidence = "DOC-1") shouldBe 3819
+                event(c, b, 1, 1, "SUSPEND", evidence = "bad ref") shouldBe 3819 // 근거 형식은 모든 종류에
                 event(c, b, 1, 1, "CANCEL") shouldBe 3819
-                event(c, b, 1, 1, "SUSPEND") shouldBe null
-                event(c, b, 1, 2, "RESUME") shouldBe null
-                event(c, b, 1, 3, "SUSPEND") shouldBe null // 정지 계열은 여러 번
+                event(c, b, 1, 1, "SUSPEND", evidence = "SUSP/2026-11:1") shouldBe null // D-GOV-022: 정지 근거 선택
+                event(c, b, 1, 2, "RESUME", evidence = "RESU/2026-11:1") shouldBe null
+                event(c, b, 1, 3, "SUSPEND") shouldBe null // 정지 계열은 여러 번, 근거 없음도 허용
                 event(c, b, 1, 4, "TERMINATE", evidence = "bad ref") shouldBe 3819
                 event(c, b, 1, 4, "TERMINATE", evidence = "TERM/2026-11:1") shouldBe null
                 event(c, b, 1, 5, "TERMINATE") shouldBe 1062 // 해지 2회 — DB도 막는다

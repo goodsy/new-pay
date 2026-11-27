@@ -251,5 +251,33 @@ export const CONTRACT_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   BUSINESS_CONTRACT_START_RETROACTIVE: '시작일은 오늘(한국 시간) 이전으로 고를 수 없습니다.',
   BUSINESS_CONTRACT_PERIOD_INVALID: '기간이 올바르지 않습니다. 종료일은 시작일 이후, 새 시작일은 직전 버전 시작일 뒤이고 직전 종료일 이하여야 합니다.',
   BUSINESS_CONTRACT_SCOPE_INVALID: '계약 범위를 하나 이상 고르세요.',
+  BUSINESS_CONTRACT_NOT_FOUND: '최신 사업자 계약이 아닙니다. 계약 진행을 다시 불러왔습니다.',
+  BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED: '지금 사업자 계약 상태에서는 할 수 없는 동작입니다. 다시 불러온 내용을 확인하세요.',
+  BUSINESS_CONTRACT_STATE_CONFLICT: '다른 사람이 먼저 사업자 계약을 바꿨습니다. 다시 불러온 내용을 확인하세요.',
+}
+
+/** FLOW-2c 사업자 계약 명령(§4B.4 전이표 — 허용되는 것만 버튼). */
+export type ContractEventAction = 'SUSPEND' | 'RESUME' | 'TERMINATE'
+export const CONTRACT_EVENT_ACTION_LABELS: Readonly<Record<ContractEventAction, string>> = { SUSPEND: '정지', RESUME: '정지 해제', TERMINATE: '해지' }
+export function allowedContractActions(c: BusinessContractView | null | undefined): ContractEventAction[] {
+  if (!c) return []
+  if (c.status === 'NOT_YET_EFFECTIVE' || c.status === 'ACTIVE') return ['SUSPEND', 'TERMINATE']
+  if (c.status === 'SUSPENDED') return ['RESUME', 'TERMINATE']
+  return []
+}
+/** 해지 확인 단계 안내(BR-BIZ-312·321 — 연결 가맹점 수는 종료 제외, 서버 값). */
+export const terminationNotice = (linkedMerchantCount: number) =>
+  `연결 가맹점 ${linkedMerchantCount}개(종료 제외) — 기존 가맹점의 결제·정산은 바뀌지 않습니다. 필요하면 가맹점마다 중지/철회하세요.`
+export const TERMINATION_IRREVERSIBLE = '해지는 되돌릴 수 없습니다. 새 계약은 신규 접수 → 계약 완료로 만듭니다.'
+/** 정지·정지 해제·해지 입력 검사: '사유 및 비고' 필수, 근거 참조 선택(입력하면 형식·카드번호 검사 — D-GOV-022). */
+export function contractEventErrors(reason: string, evidenceRef: string): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const r = reasonMessage(reason, true)
+  if (r) errors.reason = r
+  if (evidenceRef !== '') {
+    const e = documentRefMessage(evidenceRef)
+    if (e) errors.evidenceRef = e
+  }
+  return errors
 }
 export const rejectionMessage = (code: string | undefined) => (code && CONTRACT_REJECTION_MESSAGES[code]) || '처리하지 못했습니다. 계약 진행을 다시 불러와 확인하세요.'

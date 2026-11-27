@@ -24,6 +24,7 @@ object ContractIntakeBodyParser {
     private val OPEN = setOf("submissionId", "expectedKind", "receivedOn", "intakeChannel", "contractManagerId", "desiredServices", "reason")
     private val MOVE = setOf("submissionId", "expectedVersion", "target", "reason")
     private val COMPLETE = setOf("submissionId", "expectedVersion", "documentRef", "startDate", "endDate", "services", "reason")
+    private val CONTRACT_EVENT = setOf("submissionId", "expectedEventCount", "reason", "evidenceRef")
     private val KINDS = setOf("NEW", "CHANGE")
     private val TARGETS = setOf("DOCUMENT_RECEIVED", "CONSULTING", "REJECTED")
     private val INTAKE_SEQ = Regex("^[1-9][0-9]{0,8}$")
@@ -54,6 +55,15 @@ object ContractIntakeBodyParser {
                     ContractIntakeRequest.Complete(
                         businessId, seq(intakeSeq), text(root, "submissionId"), version(root), text(root, "documentRef"), text(root, "startDate"), optText(root, "endDate"),
                         strings(root.get("services"), MAX_SERVICES), optText(root, "reason"),
+                    )
+                }
+                // FLOW-2c 사업자 계약 정지·정지 해제·해지: 경로 contractSeq(intakeSeq와 같은 문법), 사건 수(정수 ≥ 0), 사유(문자열|null — null은 Use Case가 REQUIRED), 근거(문자열|null).
+                ContractIntakeOperation.SUSPEND, ContractIntakeOperation.RESUME, ContractIntakeOperation.TERMINATE -> {
+                    exact(root, CONTRACT_EVENT)
+                    val count = root.get("expectedEventCount")
+                    if (count == null || !count.isIntegralNumber || !count.canConvertToInt() || count.asInt() < 0) throw Malformed()
+                    ContractIntakeRequest.ContractEvent(
+                        operation, businessId, seq(intakeSeq), text(root, "submissionId"), count.asInt(), optText(root, "reason"), optText(root, "evidenceRef"),
                     )
                 }
             }

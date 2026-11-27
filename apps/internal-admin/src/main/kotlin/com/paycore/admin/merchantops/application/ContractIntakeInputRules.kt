@@ -52,6 +52,7 @@ internal object ContractIntakeInputRules {
             is ContractIntakeRequest.Open -> true
             is ContractIntakeRequest.Move -> request.intakeSeq >= 1 && request.expectedVersion >= 0
             is ContractIntakeRequest.Complete -> request.intakeSeq >= 1 && request.expectedVersion >= 0
+            is ContractIntakeRequest.ContractEvent -> request.contractSeq >= 1 && request.expectedEventCount >= 0
         }
 
     /** [today] = ADMIN 시계의 KST 날짜. */
@@ -79,6 +80,11 @@ internal object ContractIntakeInputRules {
                 if (start != null && end != null && end.isBefore(start)) add(format, "endDate", NOT_ALLOWED)
                 if (request.services.isEmpty()) add(format, "services", REQUIRED)
                 request.services.forEachIndexed { i, s -> add(format, "services[$i]", if (s in CONTRACT_SERVICES) null else FORMAT) }
+            }
+            // FLOW-2c(BR-BIZ-336·339, D-GOV-022): 사유 필수, 근거 참조 선택(계약서 근거와 같은 형식·카드번호 패턴 거부).
+            is ContractIntakeRequest.ContractEvent -> {
+                if (request.reason == null) add(format, "reason", REQUIRED)
+                request.evidenceRef?.let { add(format, "evidenceRef", documentRef(it)) }
             }
         }
         return Checks(sorted(format), sorted(timely))

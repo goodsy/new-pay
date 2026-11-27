@@ -316,7 +316,7 @@ class ContractIntakeSpec : BehaviorSpec({
             val b1 = fixtures.activeBusiness()
             val active1 = bf.anEffectiveBusinessContract(b1, at = bf.t0.minusSeconds(60))
             val intake1 = receivedChange(b1, active1)
-            val terminated = active1.terminate(b1, 0, bf.reason, null, bf.t0, operator).contract
+            val terminated = active1.terminate(b1, 0, bf.reason, bf.t0, operator).contract
             shouldThrow<MasterRuleViolation> { complete(b1, intake1, terminated) }.rejection shouldBe MasterRejection.BUSINESS_CONTRACT_NOT_CHANGEABLE
             // 대상 계약이 최신이 아니면(그 뒤 다른 계약이 생김 — 결함 방어) 같은 거절.
             shouldThrow<MasterRuleViolation> { complete(b1, intake1, null) }.rejection shouldBe MasterRejection.BUSINESS_CONTRACT_NOT_CHANGEABLE

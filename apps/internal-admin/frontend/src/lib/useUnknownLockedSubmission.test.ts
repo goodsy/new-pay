@@ -146,3 +146,26 @@ describe('useUnknownLockedSubmission', () => {
     expect(hasUnresolvedRequest(memory)).toBe(true)
   })
 })
+
+describe('sendUnknownLocked — releaseOnInvalidInput(MERCHANT-FLOW-001 FLOW-2c 리뷰 MINOR-4)', () => {
+  it('기본(false): 결과 불명 뒤 재전송이 400 INVALID_INPUT이어도 잠금 유지(같은 submissionId·본문 보존)', async () => {
+    const memory = createScreenMemory()
+    const sent = { submissionId: 'a'.repeat(32) }
+    const result = await sendUnknownLocked(memory, KEY, sent, true, () => Promise.reject(apiError(400, 'INVALID_INPUT')))
+    expect(result.kind).toBe('unknown')
+    expect(submissionStatusOf(memory, KEY)).toEqual({ kind: 'unknown', code: 'INVALID_INPUT' })
+    expect(pendingSubmissionOf(memory, KEY)).toEqual(sent)
+  })
+
+  it('true: 재전송 400 INVALID_INPUT은 확정 실패 — 잠금 해제, 보낸 내용 지움(다음 제출은 새 submissionId); 첫 제출이 아니면(재전송 아님) 원래대로 확정 실패', async () => {
+    const memory = createScreenMemory()
+    const sent = { submissionId: 'b'.repeat(32) }
+    const result = await sendUnknownLocked(memory, KEY, sent, true, () => Promise.reject(apiError(400, 'INVALID_INPUT')), undefined, true)
+    expect(result.kind).toBe('failed')
+    expect(submissionStatusOf(memory, KEY)).toEqual({ kind: 'failed', code: 'INVALID_INPUT' })
+    expect(pendingSubmissionOf(memory, KEY)).toBeNull()
+    // 같은 옵션이어도 다른 재전송 오류(503 MASTER_BUSY)는 결과를 모르므로 잠금 유지.
+    const busy = await sendUnknownLocked(memory, KEY, sent, true, () => Promise.reject(apiError(503, 'MASTER_BUSY')), undefined, true)
+    expect(busy.kind).toBe('unknown')
+  })
+})

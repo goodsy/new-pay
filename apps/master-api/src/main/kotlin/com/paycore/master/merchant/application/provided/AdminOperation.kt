@@ -53,6 +53,11 @@ enum class AdminOperation(val code: String) {
     OPEN_CONTRACT_INTAKE("OpenContractIntake"),
     MOVE_CONTRACT_INTAKE("MoveContractIntake"),
     COMPLETE_CONTRACT_INTAKE("CompleteContractIntake"),
+
+    // MERCHANT-FLOW-001 §4B.7(FLOW-2c): 사업자 계약 정지·정지 해제·해지(OPERATOR 1인, 사유 필수·근거 선택 — D-GOV-022, 이력 전용 실행기).
+    SUSPEND_BUSINESS_CONTRACT("SuspendBusinessContract"),
+    RESUME_BUSINESS_CONTRACT("ResumeBusinessContract"),
+    TERMINATE_BUSINESS_CONTRACT("TerminateBusinessContract"),
     ;
 
     companion object {

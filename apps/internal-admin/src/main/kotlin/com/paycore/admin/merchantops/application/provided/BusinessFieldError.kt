@@ -27,7 +27,7 @@ data class BusinessFieldError(val path: String, val code: String) {
          * (한 명령의 400 응답에 다른 명령의 path가 오면 해석 불가 — fail-closed). `reason`은 두 문법에 다 있다.
          */
         val CONTRACT_INTAKE_PATH = Regex(
-            "^(receivedOn|intakeChannel|contractManager|desiredServices(\\[[01]\\])?|reason|documentRef|startDate|endDate|services(\\[0\\])?)$",
+            "^(receivedOn|intakeChannel|contractManager|desiredServices(\\[[01]\\])?|reason|documentRef|evidenceRef|startDate|endDate|services(\\[0\\])?)$",
         )
 
         /** §4.6 code 집합(MASTER `BusinessFieldErrorCode`와 같다). */

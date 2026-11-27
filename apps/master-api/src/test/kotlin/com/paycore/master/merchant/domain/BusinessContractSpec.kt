@@ -60,7 +60,7 @@ class BusinessContractSpec : BehaviorSpec({
             suspended.statusAt(later(later(f.t0))) shouldBe SUSPENDED
             suspended.statusAt(midnight(end.plusDays(1))) shouldBe EXPIRED // 만료가 정지보다 앞선다
 
-            val terminated = suspended.terminate(business, 1, f.reason, null, later(later(f.t0)), operator).contract
+            val terminated = suspended.terminate(business, 1, f.reason, later(later(f.t0)), operator).contract
             terminated.statusAt(later(later(later(f.t0)))) shouldBe TERMINATED
             terminated.statusAt(midnight(end.plusDays(1))) shouldBe TERMINATED // 해지가 만료보다 앞선다
 
@@ -85,7 +85,7 @@ class BusinessContractSpec : BehaviorSpec({
             val suspendAt = later(f.t0)
             val terminateAt = later(suspendAt)
             val suspended = f.anEffectiveBusinessContract(business).suspend(business, 0, f.reason, suspendAt, operator).contract
-            val terminated = suspended.terminate(business, 1, f.reason, null, terminateAt, operator).contract
+            val terminated = suspended.terminate(business, 1, f.reason, terminateAt, operator).contract
             listOf(f.t0, suspendAt.minusMillis(1), suspendAt).map { suspended.statusAt(it) } shouldBe List(3) { SUSPENDED }
             listOf(f.t0, suspendAt.minusMillis(1), terminateAt.minusMillis(1), terminateAt).map { terminated.statusAt(it) } shouldBe List(4) { TERMINATED }
             listOf(suspended.hasContractAt(f.t0), terminated.hasContractAt(f.t0)) shouldBe listOf(true, false)
@@ -148,7 +148,7 @@ class BusinessContractSpec : BehaviorSpec({
         fun run(contract: BusinessContract, business: Business, command: String, at: Instant): BusinessContractChange = when (command) {
             "SUSPEND" -> contract.suspend(business, contract.events.size, f.reason, at, operator)
             "RESUME" -> contract.resume(business, contract.events.size, f.reason, at, operator)
-            "TERMINATE" -> contract.terminate(business, contract.events.size, f.reason, null, at, operator)
+            "TERMINATE" -> contract.terminate(business, contract.events.size, f.reason, at, operator)
             else -> contract.addVersion(business, 9, f.terms(f.today.plusDays(1)), f.document, null, at, operator)
         }
 
@@ -209,10 +209,10 @@ class BusinessContractSpec : BehaviorSpec({
         Then("expectedEventCount ≠ the stored event count is BUSINESS_CONTRACT_STATE_CONFLICT before the transition table") {
             val business = f.business()
             val active = f.anEffectiveBusinessContract(business)
-            shouldThrow<MasterRuleViolation> { active.terminate(business, 1, f.reason, null, later(f.t0), operator) }.rejection shouldBe
+            shouldThrow<MasterRuleViolation> { active.terminate(business, 1, f.reason, later(f.t0), operator) }.rejection shouldBe
                 MasterRejection.BUSINESS_CONTRACT_STATE_CONFLICT
             val terminated = f.aTerminatedContract(business)
-            shouldThrow<MasterRuleViolation> { terminated.terminate(business, 0, f.reason, null, later(f.t0), operator) }.rejection shouldBe
+            shouldThrow<MasterRuleViolation> { terminated.terminate(business, 0, f.reason, later(f.t0), operator) }.rejection shouldBe
                 MasterRejection.BUSINESS_CONTRACT_STATE_CONFLICT
         }
 
@@ -226,7 +226,7 @@ class BusinessContractSpec : BehaviorSpec({
             listOf<() -> Unit>(
                 { contract.suspend(terminatedBusiness, 99, f.reason, later(f.t0), operator) },
                 { contract.resume(terminatedBusiness, 99, f.reason, later(f.t0), operator) },
-                { contract.terminate(terminatedBusiness, 99, f.reason, null, later(f.t0), operator) },
+                { contract.terminate(terminatedBusiness, 99, f.reason, later(f.t0), operator) },
                 { contract.addVersion(terminatedBusiness, 2, f.terms(f.today.plusDays(1)), f.document, null, later(f.t0), operator) },
                 { BusinessContract.create(terminatedBusiness, null, 1, f.terms(), f.document, null, f.t0, operator) },
             ).forEach { shouldThrow<MasterRuleViolation> { it() }.rejection shouldBe MasterRejection.BUSINESS_NOT_ACTIVE }
@@ -234,13 +234,19 @@ class BusinessContractSpec : BehaviorSpec({
             BusinessContract.create(draft, null, 1, f.terms(), f.document, null, f.t0, operator).contract.statusAt(f.t0) shouldBe ACTIVE
         }
 
-        Then("events: reason required (BusinessChangeReason), evidence only on TERMINATE (Q-FLOW-38 — suspend/resume take no evidence until answered); sequence 1, 2, …") {
+        // 기대값 변경(FLOW-2c — 사용자 답 D-GOV-022, Q-FLOW-38 = 정지·정지 해제도 사유 필수 + 근거 참조 선택, 해지와 같은 규칙): 정지·정지 해제 사건의 근거 참조 허용(이전: 거절).
+        Then("events: reason required (BusinessChangeReason), evidence optional on SUSPEND / RESUME / TERMINATE (D-GOV-022); sequence 1, 2, …") {
             val business = f.business()
-            val change = f.anEffectiveBusinessContract(business).terminate(business, 0, f.reason, f.document, later(f.t0), operator)
+            val change = f.anEffectiveBusinessContract(business).terminate(business, 0, f.reason, later(f.t0), operator, f.document)
             val event = checkNotNull(change.event)
             listOf(event.eventSeq, event.kind, event.reason, event.evidence, event.actor, event.occurredAt) shouldBe
                 listOf(1, BusinessContractEventKind.TERMINATE, f.reason, f.document, operator, later(f.t0))
-            shouldThrow<IllegalArgumentException> { BusinessContractEvent(1, BusinessContractEventKind.SUSPEND, f.reason, f.document, operator, f.t0) }
+            BusinessContractEvent(1, BusinessContractEventKind.SUSPEND, f.reason, f.document, operator, f.t0).evidence shouldBe f.document
+            val suspended = f.anEffectiveBusinessContract(business).suspend(business, 0, f.reason, later(f.t0), operator, f.document)
+            checkNotNull(suspended.event).evidence shouldBe f.document
+            checkNotNull(suspended.contract.resume(business, 1, f.reason, later(later(f.t0)), operator, f.document).event).let { listOf(it.kind, it.evidence) } shouldBe
+                listOf(BusinessContractEventKind.RESUME, f.document)
+            checkNotNull(f.anEffectiveBusinessContract(business).suspend(business, 0, f.reason, later(f.t0), operator).event).evidence shouldBe null
             shouldThrow<IllegalArgumentException> { BusinessContractEvent(0, BusinessContractEventKind.SUSPEND, f.reason, null, operator, f.t0) }
         }
     }

@@ -43,7 +43,8 @@ class HistoryOnlyExecutorSpec(
         }
 
     fun counts(aggregateId: String) = listOf(
-        count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", aggregateId), count("SELECT COUNT(*) FROM outbox_event"),
+        // 리뷰 NIT-C: Outbox 수는 이 시험의 aggregate로 범위를 한정한다(공유 DB의 다른 시험·Relay 행과 섞이지 않게).
+        count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", aggregateId), count("SELECT COUNT(*) FROM outbox_event WHERE aggregate_id = ?", aggregateId),
     )
 
     Given("history-only executor") {

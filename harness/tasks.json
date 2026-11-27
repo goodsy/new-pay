@@ -585,11 +585,11 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "FLOW2b-gate2",
+        "tag": "FLOW2c-gate2",
         "mode": "FULL",
         "verdict": "PASS",
-        "codeFingerprint": "sha256:534671bd4e66283a8710f9e6caa24d527fb1bd1beecb656aff2e3f9bb27b3016",
-        "evidence": "build/harness-evidence/MERCHANT-FLOW-001-2026-11-26T105108Z.json"
+        "codeFingerprint": "sha256:eda8dc1a02e7106a7886893aaa2902e523d46f6dd1cf945d078c7ab504b4f7a4",
+        "evidence": "build/harness-evidence/MERCHANT-FLOW-001-2026-11-27T013729Z.json"
       },
       "openItems": [
         "pg-lab 대비 차이: 사업자 단계 계약 진행(상담 중→계약서 접수→계약 완료/불가/해지)·계약 완료 후 상점 등록, 수수료·담보·신청 서비스가 사업자 계약 조건, 접수 경로·영업대행사·계약 담당자, 가맹점 등급·업종분류·가상자산 취급, 대표자 생년월일·성별·지분율·실소유자, 메모(append-only), 개인정보 원문 조회(감사). 우리: 계약 Revision이 가맹점에 붙고 2인 승인",
@@ -598,9 +598,11 @@
         "[D-GOV-021, 2026-11-26] 사업자 계약 모델로 FLOW-2·3 재설계: 대장 BIZ 반영(GOV-MER-ELIG-001 §4, 313~347 확정) → 명세 rev 0.4(사업자 계약·버전·변경 접수·해지 이동·관문) → 리뷰 → TDD 구현 → 게이트 → Demo",
         "[명세 rev 0.4a APPROVED 2026-11-26] NIT: GOV §1.1 제목 범위(I03·I16은 정의·귀결), FLOW-3 명세에서 등록 근거의 변경 이력 탭 표시 여부 정함(BR-BIZ-337). Q-FLOW-38은 FLOW-2c 착수 시 질문(답 전 근거 필수)",
         "[FLOW-2a 리뷰 APPROVED 2026-11-26] FLOW-3 수용 기준에 추가: 관문은 applyingVersionAt(judgedAt(lockedNow))로 statusAt과 같은 기준, 효력 전 경계 시계 어긋남 시험. 2b로: SectionSpec:222-225·ADMIN golden 새 판, NIT-5 V21 결과 행을 latest로 읽는 시험, 불변식 위반 load 실패 운영 알림 연결. DB 계층 RED 별도 캡처 없음(구현자 고지 — 과정 증거 부족 기록)",
-        "[FLOW-2b 재리뷰 APPROVED 2026-11-26] 배포: MASTER·ADMIN 같은 배포 단위(엄격 섹션 모양 — 단독 배포 시 섹션 available=false·명령 OUTCOME_UNKNOWN, 운영은 동시 배포). Coordinator 결정: 재전송 시 시각 의존 검사만 생략·담당자 검사 항상(MINOR-1), 계약 담당자는 화면에서 본인만(목록은 2d), ADMIN 입력 오류는 지표만(감사 없음). TDD 위반: 2b MASTER 명령 RED 없음(변이 시험으로 보강, 명세 rev 0.4c 기록). 2c로: NIT-A ApiSpec:108 주석, NIT-B 결과 불명 잠금이 INVALID_INPUT으로 풀리고 상세 재조회하는 프런트 시험, NIT-C HistoryOnlyExecutorSpec outbox 전체 수(병렬 시), LIVE 전: admin_audit_event (actor_id, action, correlation_id) 색인"
+        "[FLOW-2b 재리뷰 APPROVED 2026-11-26] 배포: MASTER·ADMIN 같은 배포 단위(엄격 섹션 모양 — 단독 배포 시 섹션 available=false·명령 OUTCOME_UNKNOWN, 운영은 동시 배포). Coordinator 결정: 재전송 시 시각 의존 검사만 생략·담당자 검사 항상(MINOR-1), 계약 담당자는 화면에서 본인만(목록은 2d), ADMIN 입력 오류는 지표만(감사 없음). TDD 위반: 2b MASTER 명령 RED 없음(변이 시험으로 보강, 명세 rev 0.4c 기록). 2c로: NIT-A ApiSpec:108 주석, NIT-B 결과 불명 잠금이 INVALID_INPUT으로 풀리고 상세 재조회하는 프런트 시험, NIT-C HistoryOnlyExecutorSpec outbox 전체 수(병렬 시), LIVE 전: admin_audit_event (actor_id, action, correlation_id) 색인",
+        "[D-GOV-022 2026-11-27] Q-FLOW-38 = 사유 필수·근거 선택. 화면 검토는 나중에 몰아서 — 검토 대기 목록: FLOW-2b '계약 진행'(http://localhost:8090 사업자 상세, OPERATOR/APPROVER)",
+        "[FLOW-2c 재리뷰 APPROVED 2026-11-27] RED 기록 불완전: MAJOR-1 화면 시험 RED에 시험 데이터 결함 혼입(HEAD 상태 로그로 대체), lib 시험·ADMIN 실행 RED 없음 — 기대값 완화 없음. 다음 배치로: 화면 시험 (a) 성공 뒤 CONTRACT_CHANGED 미표시 단정 (b) 결과 불명 잠금 중 재조회 변경 시 닫히지 않음. Coordinator 결정: 해지 안내 n = 직전 섹션 조회 값, uk_bce_terminate 위반 = 503 결함. 화면 검토 대기 목록 추가: FLOW-2c 정지·정지 해제·해지 대화상자(사업자 상세 '계약 진행')"
       ],
-      "nextResumeAction": "Demo 배포(MASTER·ADMIN 동시, V21 이관 확인) → 사용자 화면 확인 → FLOW-2c(Q-FLOW-38 질문 먼저)",
+      "nextResumeAction": "FLOW-3: 새 가맹점 등록 관문(사업자 REGISTERED + 사업자 계약 유효·범위, applyingVersionAt(judgedAt(lockedNow))) + 근거 계약·버전 불변 기록(V24·V25) + Demo seed·Fixture, 매트릭스 18행 인수 기준. FLOW-2d(접수 항목 수정·담당자 목록)는 그 뒤",
       "detail": null
     },
     {

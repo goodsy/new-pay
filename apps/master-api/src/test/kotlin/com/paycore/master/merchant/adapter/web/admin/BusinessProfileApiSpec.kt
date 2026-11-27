@@ -138,6 +138,10 @@ class BusinessProfileApiSpec(
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/complete",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 목록 증가): 사업자 계약 정지·정지 해제·해지 명령 3개(1인 OPERATOR, 이력 전용 — 완화 아님).
+                "POST /internal/v1/admin/businesses/business-contracts/commands/suspend",
+                "POST /internal/v1/admin/businesses/business-contracts/commands/resume",
+                "POST /internal/v1/admin/businesses/business-contracts/commands/terminate",
             )
         }
 

@@ -144,6 +144,10 @@ class MerchantOpsApiSpec(
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/complete",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 새 명령 handler 3개, 401 검사 대상). 경로 목록 갱신이지 완화가 아니다.
+                "POST" to "/internal/v1/admin/businesses/business-contracts/commands/suspend",
+                "POST" to "/internal/v1/admin/businesses/business-contracts/commands/resume",
+                "POST" to "/internal/v1/admin/businesses/business-contracts/commands/terminate",
             )
             // review n-c: 집합 비교는 같은 (method, path)가 두 handler에 중복 매핑돼도 하나로 합쳐 숨긴다 — 목록 크기를 따로 고정해 중복 매핑(모호한 handler)을 잡는다.
             // 기대값 변경(MERCHANT-CODE-001 명세 §5.6.3·§7 MC-3b): 20 → 21(`merchant-labels` 1개 추가 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
@@ -151,7 +155,8 @@ class MerchantOpsApiSpec(
             // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 28 → 27(옛 `merchant-operations/businesses` handler 제거 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 §6): 27 → 28('계약 진행' 섹션 조회 handler 1개 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-2b §4B.7): 28 → 31(계약 접수 건 명령 handler 3개 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
-            mapped.size shouldBe 31
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7): 31 → 34(사업자 계약 명령 handler 3개 — 위 집합과 같은 근거).
+            mapped.size shouldBe 34
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {

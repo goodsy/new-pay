@@ -140,7 +140,7 @@ class JpaBusinessContractRepositorySpec(
     fun terminate(business: Business, expectedEvents: Int, when_: Instant, afterLock: () -> Unit = {}) = tx {
         val locked = checkNotNull(businesses.lock(business.id))
         afterLock()
-        val change = checkNotNull(contracts.latest(business.id)).terminate(locked, expectedEvents, bf.reason, null, when_, operator)
+        val change = checkNotNull(contracts.latest(business.id)).terminate(locked, expectedEvents, bf.reason, when_, operator)
         contracts.insert(change)
         change
     }
@@ -296,7 +296,7 @@ class JpaBusinessContractRepositorySpec(
             val failure = shouldThrow<PersistenceFailure.UniqueConflict> {
                 tx {
                     val locked = checkNotNull(businesses.lock(business.id))
-                    contracts.insert(stale.terminate(locked, 1, bf.reason, null, at.plusSeconds(40), operator))
+                    contracts.insert(stale.terminate(locked, 1, bf.reason, at.plusSeconds(40), operator))
                 }
             }
             failure.constraint shouldBe StoreConstraint.BUSINESS_CONTRACT_ROW

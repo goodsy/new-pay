@@ -3,7 +3,8 @@ package com.paycore.master.merchant.domain
 /**
  * 계약서 수령 근거 참조(MERCHANT-FLOW-001 §4A.4 — D-FLOW-001 ②, D-FLOW-003 ⑨, D-MOPS-008 ① 형식): **자유 문구 불가**, 1~128자 `[A-Za-z0-9._:#/-]`, 카드번호 패턴 거부(고정 code
  * [BusinessFieldErrorCode.CARD_NUMBER_PATTERN] — 리뷰 m-5). 기존 승인 근거 [EvidenceRef]는 형식만 보고 바꾸지 않는다(그래서 별도 값 객체).
- * 쓰는 곳: 접수 건 계약 완료(필수 — 사업자 계약 버전의 근거로도 저장), 사업자 계약 해지(선택 — BR-BIZ-339). 원문은 MASTER 표에만 — toString·오류 메시지에 값을 넣지 않는다.
+ * 쓰는 곳: 접수 건 계약 완료(필수 — 사업자 계약 버전의 근거로도 저장), 사업자 계약 정지·정지 해제·해지(선택 — BR-BIZ-339, D-GOV-022). 원문은 MASTER 표에만 — toString·오류 메시지에
+ * 값을 넣지 않는다.
  */
 @JvmInline
 value class ContractDocumentRef(val value: String) {

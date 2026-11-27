@@ -51,6 +51,7 @@ export async function sendUnknownLocked<Pd extends PendingSubmission, O>(
   retrying: boolean,
   call: (pending: Pd) => Promise<O>,
   onSessionEnded?: (code: ConsoleErrorCode) => void,
+  releaseOnInvalidInput = false,
 ): Promise<SendResult<O>> {
   const setPending = (value: Pd | null) => memory.write(`${key}.pending`, value)
   const setStatus = (value: SubmissionStatus<O>) => memory.write(`${key}.status`, value)
@@ -68,7 +69,11 @@ export async function sendUnknownLocked<Pd extends PendingSubmission, O>(
       return { kind: 'session' }
     }
     const conflict = e instanceof ApiError && e.status === 409
-    if (UNKNOWN_CODES.includes(code) || (retrying && !conflict)) {
+    // [releaseOnInvalidInput](MERCHANT-FLOW-001 FLOW-2c 리뷰 NIT-B — 기대값 보호 명령 전용): 재전송이 400 INVALID_INPUT(ADMIN 1차 검사 — 이번엔 MASTER 미호출)이면 확정 실패로 잠금을 푼다.
+    // 앞 시도가 MASTER에서 처리됐더라도 그 명령의 중복은 서버가 막는다(전이·완료 = 기대 version, 정지·해지 = 기대 사건 수, 접수 생성 = 열린 건 UNIQUE uk_cin_open·expectedKind).
+    // 호출자는 상세를 다시 읽어 실제 상태를 보여 준다. 남은 결과 불명 감사 행의 회수 정본은 MASTER 변경 이력이다. 기본값(false)은 기존 동작(잠금 유지) 그대로.
+    const confirmedInvalid = releaseOnInvalidInput && retrying && code === 'INVALID_INPUT'
+    if (UNKNOWN_CODES.includes(code) || (retrying && !conflict && !confirmedInvalid)) {
       // 결과 불명 — 같은 submissionId·같은 본문을 메모리에 그대로 둔다(잠금).
       setStatus({ kind: 'unknown', code })
       return { kind: 'unknown', code }
@@ -84,7 +89,13 @@ export async function sendUnknownLocked<Pd extends PendingSubmission, O>(
  * 1인 명령 하나의 결과 불명 잠금(상태는 [memory]의 [key]에). [run]은 잠겨 있으면 앞서 보낸 내용을 같은 submissionId로 다시 보내고([payload] 무시),
  * 아니면 [payload]를 새 submissionId로 보낸다. 보내는 중에는 두 번째 요청을 내지 않는다.
  */
-export function useUnknownLockedSubmission<P, O>(memory: ScreenMemory, key: string, newSubmissionId: () => string, onSessionEnded?: (code: ConsoleErrorCode) => void) {
+export function useUnknownLockedSubmission<P, O>(
+  memory: ScreenMemory,
+  key: string,
+  newSubmissionId: () => string,
+  onSessionEnded?: (code: ConsoleErrorCode) => void,
+  releaseOnInvalidInput = false,
+) {
   type Pending = PendingSubmission & { payload: P }
   const [status] = useRemembered<SubmissionStatus<O>>(memory, `${key}.status`, IDLE)
   const [pending] = useRemembered<Pending | null>(memory, `${key}.pending`, null)
@@ -94,7 +105,7 @@ export function useUnknownLockedSubmission<P, O>(memory: ScreenMemory, key: stri
     const sent = pendingSubmissionOf<Pending>(memory, key)
     const retrying = current.kind === 'unknown' && sent !== null
     const next: Pending = retrying ? sent : { submissionId: newSubmissionId(), payload }
-    const result = await sendUnknownLocked(memory, key, next, retrying, (p) => send(p.submissionId, p.payload), onSessionEnded)
+    const result = await sendUnknownLocked(memory, key, next, retrying, (p) => send(p.submissionId, p.payload), onSessionEnded, releaseOnInvalidInput)
     if (result.kind === 'decided') onDecided?.(result.outcome)
   }
   /** 잠기지 않은 지난 결과를 지운다(새로 여는 폼이 이전 결정·실패 표시를 이어받지 않게). 잠겨 있으면 그대로. */

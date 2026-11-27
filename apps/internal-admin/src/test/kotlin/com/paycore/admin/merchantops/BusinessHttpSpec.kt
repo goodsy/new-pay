@@ -467,9 +467,12 @@ class BusinessHttpSpec(
             val routes = (context.getBean("requestMappingHandlerMapping") as org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping)
                 .handlerMethods.keys.flatMap { it.patternValues }
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-2b §4B.11 표 2b 행 — 추가형): 계약 접수 건 명령 경로 3개가 더해진다(기존 7개 그대로). documents·deactivate는 여전히 없다.
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.11 표 2c 행 — 추가형): 사업자 계약 정지·정지 해제·해지 경로 3개가 더해진다. documents·deactivate는 여전히 없다.
             routes.filter { it.startsWith("/api/businesses") }.sorted() shouldBe listOf(
                 "/api/businesses", "/api/businesses/registration-number-lookups", "/api/businesses/searches", "/api/businesses/{businessId}",
-                "/api/businesses/{businessId}", "/api/businesses/{businessId}/contract-intakes", "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion",
+                "/api/businesses/{businessId}", "/api/businesses/{businessId}/business-contracts/{contractSeq}/resumptions",
+                "/api/businesses/{businessId}/business-contracts/{contractSeq}/suspensions", "/api/businesses/{businessId}/business-contracts/{contractSeq}/termination",
+                "/api/businesses/{businessId}/contract-intakes", "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion",
                 "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions", "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
             )
             routes.none { it.contains("documents") || it.contains("deactivate") } shouldBe true

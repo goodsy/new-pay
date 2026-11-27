@@ -719,6 +719,14 @@ export interface ContractIntakeCompleteInput {
   reason: string | null
 }
 
+/** FLOW-2c 사업자 계약 정지·정지 해제·해지(§4B.7): '사유 및 비고' 필수, 근거 참조 선택(D-GOV-022), 기대 사건 수 = 화면이 본 사건 수(다르면 MASTER `BUSINESS_CONTRACT_STATE_CONFLICT`). */
+export interface BusinessContractEventInput {
+  submissionId: string
+  expectedEventCount: number
+  reason: string
+  evidenceRef: string | null
+}
+
 /** 접수 건(최신부터). 이관 건([migrated])은 접수일·경로·담당자 없음(R-6 — 화면은 '이관'). [version]은 FLOW-2 전이 명령의 기대값(화면에 그리지 않는다). */
 export interface ContractIntakeView {
   intakeSeq: number
@@ -1120,6 +1128,10 @@ export interface AdminApi {
   openContractIntake(businessId: string, input: ContractIntakeOpenInput): Promise<RegistrationOutcome>
   moveContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeMoveInput): Promise<RegistrationOutcome>
   completeContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeCompleteInput): Promise<RegistrationOutcome>
+  /** MERCHANT-FLOW-001 FLOW-2c(§4B.11 3): 사업자 계약 정지·정지 해제·해지(OPERATOR — 즉시 효력, 새 가맹점 등록 자격만 바뀜). */
+  suspendBusinessContract(businessId: string, contractSeq: number, input: BusinessContractEventInput): Promise<RegistrationOutcome>
+  resumeBusinessContract(businessId: string, contractSeq: number, input: BusinessContractEventInput): Promise<RegistrationOutcome>
+  terminateBusinessContract(businessId: string, contractSeq: number, input: BusinessContractEventInput): Promise<RegistrationOutcome>
   registerMerchant(input: MerchantRegistrationInput): Promise<RegistrationOutcome>
   registerMerchantSite(input: SiteRegistrationInput): Promise<RegistrationOutcome>
   /** MERCHANT-OPS-002 §4.3 B1-2(OPERATOR만). 시작일 소급 판정은 MASTER(§3.4 — 화면 최솟값은 안내일 뿐). */
@@ -1231,6 +1243,12 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
       call(`/api/businesses/${segment(businessId)}/contract-intakes/${segment(String(intakeSeq))}/transitions`, 'POST', input),
     completeContractIntake: (businessId, intakeSeq, input) =>
       call(`/api/businesses/${segment(businessId)}/contract-intakes/${segment(String(intakeSeq))}/completion`, 'POST', input),
+    suspendBusinessContract: (businessId, contractSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/business-contracts/${segment(String(contractSeq))}/suspensions`, 'POST', input),
+    resumeBusinessContract: (businessId, contractSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/business-contracts/${segment(String(contractSeq))}/resumptions`, 'POST', input),
+    terminateBusinessContract: (businessId, contractSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/business-contracts/${segment(String(contractSeq))}/termination`, 'POST', input),
     registerMerchant: (input) => call('/api/merchant-registrations/merchants', 'POST', input),
     registerMerchantSite: (input) => call('/api/merchant-registrations/merchant-sites', 'POST', input),
     registerContract: (input) => call('/api/merchant-registrations/contracts', 'POST', input),

@@ -1,6 +1,6 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type {
-  AdminApi, BusinessContractView, ContractIntakeCompleteInput, ContractIntakeKind, ContractIntakeMoveInput, ContractIntakeOpenInput, ContractIntakeView, ContractProgress,
+  AdminApi, BusinessContractEventInput, BusinessContractView, ContractIntakeCompleteInput, ContractIntakeKind, ContractIntakeMoveInput, ContractIntakeOpenInput, ContractIntakeView, ContractProgress,
   RegistrationOutcome,
 } from '../api/adminApi'
 import { ApiError } from '../api/client'
@@ -23,6 +23,7 @@ import {
   intakeChannel, intakeSummary, MIGRATED, NO_BUSINESS_CONTRACT, NOT_CHANGEABLE_NOTE, nextIntakeKind, openErrors, reasonMessage, reasonRequired, rejectionMessage,
   serverFieldMessage, transitionActor, transitionChange, transitionEvidence, VERSION_IMMUTABLE_NOTE, versionEvidence, versionLine, versionOf, versionPeriod,
   type CompletionForm, type IntakeAction, type OpenForm,
+  allowedContractActions, CONTRACT_EVENT_ACTION_LABELS, contractEventErrors, TERMINATION_IRREVERSIBLE, terminationNotice, type ContractEventAction,
 } from '../lib/contractProgress'
 import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { useUnknownLockedSubmission } from '../lib/useUnknownLockedSubmission'
@@ -53,14 +54,18 @@ type Dialog =
   | { kind: 'open'; businessId: string; intakeKind: ContractIntakeKind; form: OpenForm }
   | { kind: 'move'; businessId: string; intakeSeq: number; action: Exclude<IntakeAction, 'COMPLETE'>; reason: string }
   | { kind: 'complete'; businessId: string; intakeSeq: number; form: CompletionForm }
+  // 리뷰 MAJOR-1: 대화상자를 연 때 본 계약 순번·사건 수를 고정한다 — 전송은 이 값만 쓰고, 재조회 결과가 다르면 대화상자를 닫는다(다른 계약·옛 사건 수로 보내지 않게).
+  | { kind: 'event'; businessId: string; contractSeq: number; expectedEventCount: number; action: ContractEventAction; reason: string; evidenceRef: string; confirming: boolean }
 
 type Payload =
   | { op: 'open'; businessId: string; body: Omit<ContractIntakeOpenInput, 'submissionId'> }
   | { op: 'move'; businessId: string; intakeSeq: number; body: Omit<ContractIntakeMoveInput, 'submissionId'> }
   | { op: 'complete'; businessId: string; intakeSeq: number; body: Omit<ContractIntakeCompleteInput, 'submissionId'> }
+  | { op: 'event'; action: ContractEventAction; businessId: string; contractSeq: number; body: Omit<BusinessContractEventInput, 'submissionId'> }
 
 const KEY = 'contract.cmd'
 const SAVED = '저장했습니다. 계약 진행을 다시 불러왔습니다.'
+const CONTRACT_CHANGED = '사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.'
 const nullIfEmpty = (value: string) => (value === '' ? null : value)
 
 const STATUS_TONE: Readonly<Record<string, BadgeVariant>> = {
@@ -72,13 +77,33 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null)
   const [saved, setSaved] = useState(false)
-  const command = useUnknownLockedSubmission<Payload, RegistrationOutcome>(memory, KEY, newSubmissionId, onSessionEnded)
+  // 리뷰 NIT-B: 이 섹션의 명령은 중복이 서버에서 막힌다(전이·완료 = 기대 version, 정지·해지 = 기대 사건 수, 접수 생성 = 열린 건 UNIQUE uk_cin_open·expectedKind) —
+  // 그래서 재전송 400(INVALID_INPUT)에 잠금을 풀고 상세를 다시 읽는다(남은 결과 불명 감사의 정본은 MASTER 이력).
+  const command = useUnknownLockedSubmission<Payload, RegistrationOutcome>(memory, KEY, newSubmissionId, onSessionEnded, true)
   const current = dialog && dialog.businessId === businessId ? dialog : null
+  const [stale, setStale] = useState(false)
+  const shownContract = progress?.available ? (progress.businessContract ?? null) : undefined
+  useEffect(() => {
+    if (current?.kind !== 'event' || command.locked || shownContract === undefined) return
+    if (shownContract === null || shownContract.contractSeq !== current.contractSeq || shownContract.events.length !== current.expectedEventCount) {
+      setDialog(null)
+      setFieldErrors({})
+      setNotice(null)
+      setStale(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 표시 계약이 바뀔 때만 본다
+  }, [shownContract, current?.kind])
   const writable = canEdit && actorId !== undefined && progress?.available === true
 
   const send = (submissionId: string, p: Payload): Promise<RegistrationOutcome> => {
     if (p.op === 'open') return api.openContractIntake(p.businessId, { submissionId, ...p.body })
     if (p.op === 'move') return api.moveContractIntake(p.businessId, p.intakeSeq, { submissionId, ...p.body })
+    if (p.op === 'event') {
+      const body = { submissionId, ...p.body }
+      if (p.action === 'SUSPEND') return api.suspendBusinessContract(p.businessId, p.contractSeq, body)
+      if (p.action === 'RESUME') return api.resumeBusinessContract(p.businessId, p.contractSeq, body)
+      return api.terminateBusinessContract(p.businessId, p.contractSeq, body)
+    }
     return api.completeContractIntake(p.businessId, p.intakeSeq, { submissionId, ...p.body })
   }
 
@@ -101,6 +126,7 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
     setNotice(null)
     setSaved(false)
     lastFieldErrors.current = undefined
+    const resend = command.locked
     await command.run(payload, sendCapturing, (outcome) => {
       if (outcome.outcome === 'SUCCEEDED') {
         setDialog(null)
@@ -112,11 +138,16 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
       onChanged()
     })
     const status = memory.read(`${KEY}.status`) as { kind: string; code?: ConsoleErrorCode } | undefined
-    if (status?.kind === 'failed' && status.code) failed(status.code)
+    if (status?.kind === 'failed' && status.code) {
+      failed(status.code)
+      // 리뷰 NIT-B: 결과 불명 잠금 뒤 재전송이 확정 실패(400 등)로 끝나면 잠금이 풀린다 — 그 사이 바뀌었을 수 있는 상태를 다시 읽는다.
+      if (resend) onChanged()
+    }
   }
 
   const openDialog = (next: Dialog) => {
     if (command.locked) return
+    setStale(false)
     command.resetIfUnlocked()
     setFieldErrors({})
     setNotice(null)
@@ -148,7 +179,29 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
   return (
     <Shell>
       {saved && <StatusNotice tone="success">{SAVED}</StatusNotice>}
-      <ContractColumn contract={contract} />
+      {stale && <WarningNote>{CONTRACT_CHANGED}</WarningNote>}
+      <ContractColumn contract={contract} writable={writable && current === null}
+        onAction={(action) => contract && openDialog({
+          kind: 'event', businessId, contractSeq: contract.contractSeq, expectedEventCount: contract.events.length, action, reason: '', evidenceRef: '', confirming: false,
+        })}>
+        {current?.kind === 'event' && contract && (
+          <ContractEventDialog dialog={current} linkedMerchantCount={contract.linkedMerchantCount} {...shared}
+            onChange={(next) => setDialog({ ...current, ...next })}
+            onSubmit={() => {
+              const errors = contractEventErrors(current.reason, current.evidenceRef)
+              setFieldErrors(errors)
+              if (Object.keys(errors).length > 0) return
+              if (current.action === 'TERMINATE' && !current.confirming) {
+                setDialog({ ...current, confirming: true })
+                return
+              }
+              void runCapturing({
+                op: 'event', action: current.action, businessId, contractSeq: current.contractSeq,
+                body: { expectedEventCount: current.expectedEventCount, reason: current.reason, evidenceRef: nullIfEmpty(current.evidenceRef) },
+              })
+            }} />
+        )}
+      </ContractColumn>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
         <h4 className="text-sm font-semibold">접수 건</h4>
         {writable && nextKind !== null && current === null && (
@@ -233,7 +286,12 @@ function Shell({ children }: { children: ReactNode }) {
 
 // ── 사업자 계약 칸(§4B.11 1) ─────────────────────────────────────
 
-function ContractColumn({ contract }: { contract: BusinessContractView | null }) {
+function ContractColumn({ contract, writable, onAction, children }: {
+  contract: BusinessContractView | null
+  writable: boolean
+  onAction: (action: ContractEventAction) => void
+  children?: ReactNode
+}) {
   if (!contract) {
     return (
       <div role="group" aria-label="사업자 계약" className="flex flex-col gap-2">
@@ -250,7 +308,13 @@ function ContractColumn({ contract }: { contract: BusinessContractView | null })
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="text-sm font-semibold">사업자 계약</h4>
         <Badge variant={STATUS_TONE[contract.status] ?? 'secondary'}>{BUSINESS_CONTRACT_STATUS_LABELS[contract.status] ?? contract.status}</Badge>
+        {writable && allowedContractActions(contract).map((action) => (
+          <Button key={action} type="button" size="sm" variant={action === 'TERMINATE' ? 'outline' : 'secondary'} onClick={() => onAction(action)}>
+            {CONTRACT_EVENT_ACTION_LABELS[action]}
+          </Button>
+        ))}
       </div>
+      {children}
       <p className="text-xs text-muted-foreground">{BUSINESS_CONTRACT_NOTE}</p>
       <dl>
         <Row term="적용 중 버전">{applying ? versionLine(applying) : '-'}</Row>
@@ -504,6 +568,42 @@ function CompleteDialog({ dialog, today, onChange, onSubmit, ...shared }: Shared
         {errors.services && <span className="text-xs text-destructive">{errors.services}</span>}
       </fieldset>
       <ReasonRow value={f.reason} required={false} error={errors.reason} onChange={(reason) => onChange({ ...f, reason })} />
+    </DialogShell>
+  )
+}
+
+/** FLOW-2c 정지·정지 해제·해지 대화상자(§4B.11 3): '사유 및 비고' 필수, 근거 참조 선택(D-GOV-022). 해지는 확인 단계에서 연결 가맹점 안내 뒤 확정(BR-BIZ-312·321). */
+function ContractEventDialog({ dialog, linkedMerchantCount, onChange, onSubmit, ...shared }: Shared & {
+  dialog: Extract<Dialog, { kind: 'event' }>
+  linkedMerchantCount: number
+  onChange: (next: { reason?: string; evidenceRef?: string; confirming?: boolean }) => void
+  onSubmit: () => void
+}) {
+  const label = CONTRACT_EVENT_ACTION_LABELS[dialog.action]
+  const confirming = dialog.action === 'TERMINATE' && dialog.confirming
+  const submitLabel = dialog.action === 'TERMINATE' ? (confirming ? '해지 확정' : '다음') : `${label} 저장`
+  return (
+    <DialogShell name={`사업자 계약 ${label}`} shared={shared} submitLabel={submitLabel} onSubmit={onSubmit}>
+      {confirming ? (
+        <div className="flex flex-col gap-1 text-sm">
+          <WarningNote>{terminationNotice(linkedMerchantCount)}</WarningNote>
+          <p className="text-xs text-muted-foreground">{TERMINATION_IRREVERSIBLE}</p>
+          <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ confirming: false })}>입력 고치기</Button>
+        </div>
+      ) : (
+        <>
+          <ReasonRow value={dialog.reason} required error={shared.fieldErrors.reason} onChange={(reason) => onChange({ reason })} />
+          <FormRow label="근거 참조(선택)" hint="영문·숫자와 . _ : # / - 만 1~128자. 비워 두어도 됩니다." error={shared.fieldErrors.evidenceRef}>
+            {(describedBy, id) => (
+              <Input id={id} value={dialog.evidenceRef} onChange={(e) => onChange({ evidenceRef: e.target.value })} aria-describedby={describedBy}
+                aria-invalid={!!shared.fieldErrors.evidenceRef || undefined} />
+            )}
+          </FormRow>
+          {/* 리뷰 MINOR-2: 정지·정지 해제에도 같은 n 안내(n = 대화상자 직전 섹션 조회 값, 종료 제외 — BR-BIZ-312·321). */}
+          {dialog.action !== 'TERMINATE' && <p className="text-xs text-muted-foreground">{terminationNotice(linkedMerchantCount)}</p>}
+          <p className="text-xs text-muted-foreground">즉시 효력 — 새 가맹점 등록 자격만 바뀌고 기존 가맹점의 결제·정산·계약은 바뀌지 않습니다.</p>
+        </>
+      )}
     </DialogShell>
   )
 }

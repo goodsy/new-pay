@@ -105,7 +105,9 @@ class ContractIntakeCommandApiSpec(
                 post("$base/open", openBody(key(), id, reason = reasonCanary)).response.status shouldBe 200
                 post("$base/move", moveBody(key(), id, 1, 0, "DOCUMENT_RECEIVED", reason = reasonCanary)).response.status shouldBe 200
                 post("$base/complete", completeBody(key(), id, 1, 1, document = docCanary)).response.status shouldBe 200
-                post("$base/open", openBody(key(), id, reason = reasonCanary)).response.status shouldBe 200 // 저장된 거절(열린 건 있음) 경로
+                // 리뷰 NIT-A: 계약 완료 뒤라 열린 건은 없다 — 이 호출은 '계약 있음'인데 NEW를 보낸 저장된 거절(종류 불일치) 경로다.
+                body(post("$base/open", openBody(key(), id, reason = reasonCanary))) shouldBe
+                    """{"outcome":"REJECTED","rejection":"CONTRACT_INTAKE_KIND_MISMATCH","replayed":false}"""
             } finally {
                 root.detachAppender(appender)
             }

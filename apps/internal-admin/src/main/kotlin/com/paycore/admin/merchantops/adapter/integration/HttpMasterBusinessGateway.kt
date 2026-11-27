@@ -98,7 +98,8 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         val body = linkedMapOf<String, Any?>("idempotencyKey" to command.idempotencyKey, "actor" to command.actor, "correlationId" to command.correlationId)
         body.putAll(command.body)
         return post(
-            "contract-intake-command-${command.operation.masterPath}", "$BASE/contract-intakes/commands/${command.operation.masterPath}", body,
+            (if (command.operation.isContractEvent) "business-contract-command-" else "contract-intake-command-") + command.operation.masterPath,
+            "$BASE/${command.operation.masterBase}/commands/${command.operation.masterPath}", body,
             ::contractIntakeDecided, ::contractIntakeInvalid,
         )
     }

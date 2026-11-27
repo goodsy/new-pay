@@ -6507,7 +6507,7 @@
     },
     {
       "id": "Q-FLOW-38",
-      "status": "PROPOSED",
+      "status": "ANSWERED",
       "question": "사업자 계약 정지·정지 해제에 근거 참조가 필수인가? (확정 문언 BR-BIZ-336 'OPERATOR 1인 + 근거·사유', 해지만 BR-BIZ-339로 근거 선택 명시)",
       "recommended": "사유 필수 + 근거 참조 선택(해지와 같은 규칙) — 확정 문언 '근거·사유'를 '근거 = 사유'로 좁게 읽는 해석",
       "alternative": "(b) 정지·정지 해제 모두 근거 참조 필수 (c) 정지는 선택, 정지 해제는 필수",
@@ -6515,11 +6515,11 @@
       "dependentTasks": [
         "MERCHANT-FLOW-001"
       ],
-      "askedAt": null,
+      "askedAt": "2026-11-26",
       "origin": "docs/repository/MERCHANT-FLOW-001-BUSINESS-CONTRACT-FLOW.md §5.5 (FLOW-2c 착수 시 질문)",
-      "humanAnswer": null,
-      "humanEvidence": null,
-      "appliedSpec": null
+      "humanAnswer": "권장으로 해줘 — 사유 필수 + 근거 참조 선택",
+      "humanEvidence": "Claude Code 세션 사용자 답 (2026-11-27)",
+      "appliedSpec": "D-GOV-022"
     }
   ]
 }
