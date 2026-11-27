@@ -15,7 +15,10 @@ object MerchantFixtures {
     data class Scenario(val merchant: Merchant, val contractApproved: Boolean)
 
     fun registered(code: String = MerchantCodeFixtures.VALID, by: ActorRef = MasterFixture.operator): Merchant =
-        Merchant.register(MasterFixture.merchantId(), MasterFixture.business(), DisplayName("Demo Merchant"), MerchantCode(code), MasterFixture.t0, by)
+        MasterFixture.business().let { business ->
+            // FLOW-3(§4B.8): 유효 사업자 계약 입력만 보강.
+            Merchant.register(MasterFixture.merchantId(), business, BusinessContractFixtures.storedEffectiveFor(business.id, MasterFixture.t0), DisplayName("Demo Merchant"), MerchantCode(code), MasterFixture.t0, by)
+        }
 
     /** 첫 계약 승인 **전**(승인 사실 행 없음 — 1회 변경 가능 상태). */
     fun beforeContractApproval(code: String = MerchantCodeFixtures.VALID) = Scenario(registered(code), contractApproved = false)

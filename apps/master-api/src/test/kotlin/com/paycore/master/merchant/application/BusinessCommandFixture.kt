@@ -45,6 +45,7 @@ object BusinessCommandFixture {
         name: String = "가맹점 있는 사업자",
     ): Pair<Created, MerchantId> {
         val created = withoutMerchants(businesses, number, name)
+        OnboardingFixture.contracted(onboarding, created.businessId) // FLOW-3(§4B.8 — 입력 보강): 새 가맹점 등록 전 유효 사업자 계약
         val merchant = succeeded(onboarding.registerMerchant(RegisterMerchantCommand(request(), created.businessId, DisplayName("시험 가맹점"), MerchantCodeFixtures.unique())))
         return created to MerchantId(merchant)
     }

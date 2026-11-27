@@ -94,6 +94,8 @@ class MerchantOpsShapeGoldenSpec : BehaviorSpec({
                     MerchantDetailView.CodeAssignmentDetail("shopxyz789", 2, "CHANGE", "shopabcd12", at("2026-10-09T03:00:00Z"), "admin:adm_01JC00000000000000000000V2", "TYPO_CORRECTION"),
                 ),
                 merchantCodeChangeable = false,
+                // MERCHANT-FLOW-001 FLOW-3: 고정 Demo 근거(사업자 계약 순번 1·버전 1).
+                registrationBasis = MerchantDetailView.RegistrationBasisDetail(1, 1),
             )
             val produced = mapper.writeValueAsString(MerchantOpsJson.detail(view))
             produced shouldBe mapper.writeValueAsString(golden.get("detail"))

@@ -55,6 +55,9 @@ enum class MasterFaultPoint {
 
     // BUSINESS-PROFILE-001 BIZ-2-4(m-1): 중복 거절 요약 읽기(BusinessDetailReader.summary — 명령 commit 뒤·TX 밖) 직후 — 요약 실패 503·재전송 재생 시험.
     BUSINESS_EXISTING_SUMMARY,
+
+    // MERCHANT-FLOW-001 FLOW-3(리뷰 MAJOR-1): 가맹점 등록 근거 행 INSERT+flush 직후(같은 TX·commit 전).
+    REGISTRATION_BASIS_INSERT,
 }
 
 /**
@@ -276,6 +279,17 @@ class MasterFaultInjectionConfig {
         object : com.paycore.master.merchant.application.required.ApprovalEvidenceStore by real {
             override fun record(record: com.paycore.master.merchant.application.required.ApprovalEvidenceRecord) =
                 f.around(MasterFaultPoint.APPROVAL_EVIDENCE_RECORD) { real.record(record) }
+        }
+
+    @Bean
+    @Primary
+    fun faultInjectingRegistrationBasisStore(
+        real: com.paycore.master.merchant.adapter.persistence.JpaMerchantRegistrationBasisStore,
+        f: MasterFaultInjector,
+    ): com.paycore.master.merchant.application.required.MerchantRegistrationBasisStore =
+        object : com.paycore.master.merchant.application.required.MerchantRegistrationBasisStore {
+            override fun insert(basis: com.paycore.master.merchant.domain.MerchantRegistrationBasis) =
+                f.around(MasterFaultPoint.REGISTRATION_BASIS_INSERT) { real.insert(basis) }
         }
 
     @Bean

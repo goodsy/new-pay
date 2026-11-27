@@ -149,6 +149,7 @@ class BusinessProfileConcurrencySpec(
             repeat(3) { round ->
                 val id = succeeded(service.create(CreateBusinessCommand(request(), BusinessRegistrationStatus.REGISTERED, BusinessType.INDIVIDUAL,
                     BusinessFixtures.registrationNumber(), DisplayName("가맹점 있는 사업자"), BusinessFixtures.individualProfile())))
+                OnboardingFixture.contracted(BusinessId(id)) // FLOW-3 입력 보강: 유효 사업자 계약(접수 명령은 사업자 version을 올리지 않는다 — 수정 기대 version 0 그대로)
                 val results = concurrently(2) { i ->
                     if (i == 0) {
                         service.update(UpdateBusinessCommand(request(), BusinessId(id), 0, null, BusinessType.INDIVIDUAL, DisplayName("가맹점 있는 사업자"),

@@ -57,6 +57,7 @@ class MerchantRegistrationGateApiSpec(
             count("SELECT COUNT(*) FROM merchant WHERE business_id = ?", draft) shouldBe 0L
 
             val registered = create("REGISTERED", BusinessBodies.individual())
+                .also { OnboardingFixture.contracted(com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강: 유효 사업자 계약
             val ok = post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(registered))
             json.readTree(ok.body()).get("outcome").asString() shouldBe "SUCCEEDED"
         }

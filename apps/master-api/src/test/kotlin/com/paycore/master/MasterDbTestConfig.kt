@@ -38,8 +38,13 @@ class MasterDbTestConfig {
 
     /** BUSINESS-PROFILE-001 C-27: 시험 준비 함수가 같은 컨텍스트의 사업자 생성 Use Case를 찾게 짝짓는다([OnboardingFixture.bind] — 시험 전용). */
     @Bean
-    fun onboardingFixtureBinding(onboarding: MerchantOnboardingUseCase, businesses: BusinessProfileCommandUseCase): OnboardingFixture.Binding =
-        OnboardingFixture.Binding(onboarding, businesses).also(OnboardingFixture::bind)
+    fun onboardingFixtureBinding(
+        onboarding: MerchantOnboardingUseCase,
+        businesses: BusinessProfileCommandUseCase,
+        intakes: com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase,
+        clock: com.paycore.master.merchant.application.required.MasterClock,
+    ): OnboardingFixture.Binding =
+        OnboardingFixture.Binding(onboarding, businesses, intakes, clock).also(OnboardingFixture::bind)
 
     @Bean
     fun masterDbProperties(container: MySQLContainer): DynamicPropertyRegistrar = DynamicPropertyRegistrar { registry ->

@@ -113,6 +113,9 @@ object StubMasterOpsServer {
     fun rejected(rejection: String, replayed: Boolean = false) = """{"outcome":"REJECTED","rejection":"$rejection","replayed":$replayed}"""
     const val INSTITUTION_CANARY = "SIMMERCH0001"
 
+    /** MERCHANT-FLOW-001 FLOW-3: 기본 등록 근거(Demo — 사업자 계약 순번 1·버전 1). */
+    const val REGISTRATION_BASIS = """{"contractSeq":1,"versionNo":1}"""
+
     fun merchantPath(merchantId: String) = "/internal/v1/admin/merchants/$merchantId"
 
     fun historyPath(merchantId: String, after: Long) = "/internal/v1/admin/merchants/$merchantId/history/after/$after"
@@ -174,6 +177,8 @@ object StubMasterOpsServer {
     fun detailJson(
         merchantId: String, routeExtra: String = "", revisions: String = revisionJson(1), sites: String? = null, assignments: String? = null, paymentMethods: String? = null,
         siteConfirmations: String? = null, currencies: String? = null, merchantCode: String = "shopabcd12", codeChangeable: Boolean = false, codeHistory: String? = null,
+        // MERCHANT-FLOW-001 FLOW-3: 등록 근거(JSON 객체 문자열, "null" = 관문 전 등록).
+        registrationBasis: String = REGISTRATION_BASIS,
     ): String {
         val ulid = merchantId.removePrefix("mer_")
         // B3-2: [currencies]를 주면 그 목록 JSON(빈 문자열 = 통화 기록 없음), 기본은 기존 열린 KRW 한 줄.
@@ -198,7 +203,9 @@ object StubMasterOpsServer {
             """"propagation":{"latestRevision":5,"latestRevisionIssuedAt":"2026-10-09T02:00:00.000Z","latestAckRevision":null,"latestAckAt":null,"effectConfirmedAt":null,"effectBasis":null},""" +
             // MERCHANT-CODE-001 MC-1b: [merchantCode]·[codeChangeable]·[codeHistory](이력 JSON — 기본 seq 1 하나)로 변경 가능·변경 뒤 상태를 만든다.
             """"merchantCodeHistory":[${codeHistory ?: codeHistoryJson(merchantCode)}],""" +
-            """"merchantCodeChangeable":$codeChangeable}"""
+            """"merchantCodeChangeable":$codeChangeable,""" +
+            // MERCHANT-FLOW-001 FLOW-3: MASTER 상세 최상위 registrationBasis를 대역도 따른다.
+            """"registrationBasis":$registrationBasis}"""
     }
 
     /** MC-1b 코드 이력 seq 1(등록). */

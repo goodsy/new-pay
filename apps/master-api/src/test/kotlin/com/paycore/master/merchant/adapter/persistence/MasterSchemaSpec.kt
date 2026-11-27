@@ -41,7 +41,9 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
         "contract_revision_approval", "contract_revision_scope_site", "contract_service_agreement", "currency_enablement", "currency_unit",
         "default_designation", "entitlement_snapshot_ack", "entitlement_snapshot_issue", "master_change_history", "merchant", "merchant_account",
         // 기대값 변경(MERCHANT-CODE-001 MC-1 V13): 새 업무 표 `merchant_code_assignment`(append-only 코드 배정 이력) — DELETE 1142 검사 대상에도 들어간다(표 목록 증가, 완화 아님).
-        "merchant_account_site_assignment", "merchant_code_assignment", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
+        "merchant_account_site_assignment", "merchant_code_assignment",
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 V24 — 목록 증가, 완화 아님): 가맹점 등록 근거 표 — DELETE 1142 검사 대상에도 들어간다.
+        "merchant_registration_basis", "merchant_site", "merchant_site_review_decision", "outbox_event", "payment_method_activation",
         "payment_method_activation_event", "policy_assignment", "policy_version", "site_activation_confirmation",
         "site_activation_confirmation_revocation", "transaction_limit_policy",
     )

@@ -482,6 +482,11 @@ export interface MerchantDetail {
    */
   merchantCodeHistory?: { code: string; seq: number; source: string; replacesCode: string | null; assignedAt: string; assignedBy: string; reasonCode: string | null }[]
   merchantCodeChangeable?: boolean
+  /**
+   * MERCHANT-FLOW-001 FLOW-3(BR-BIZ-337): 등록 관문 근거(사업자 계약 순번·적용 중이던 버전 번호 — 등록 때 기록, 뒤의 변경·해지에 바뀌지 않음). null = 관문 전 등록.
+   * MASTER는 늘 보내지만 시험 Fixture가 생략할 수 있어 선택 필드다(없으면 줄을 그리지 않는다).
+   */
+  registrationBasis?: { contractSeq: number; versionNo: number } | null
 }
 
 /** 변경 이력 항목(§3.3 — 감사 항목 투영, `detail` 없음). */

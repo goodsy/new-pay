@@ -1356,6 +1356,16 @@ describe('App wiring (MERCHANT-OPS-002 §5.1 + BUSINESS-PROFILE-001 §8.1 — �
       expect(api.registerMerchant).not.toHaveBeenCalled()
     })
 
+    it('MERCHANT-FLOW-001 FLOW-3: MASTER BUSINESS_CONTRACT_NOT_EFFECTIVE shows the Korean guidance (no code text)', async () => {
+      const api = fakeApi({ registerMerchant: vi.fn().mockResolvedValueOnce(rejected('BUSINESS_CONTRACT_NOT_EFFECTIVE')) })
+      render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} memory={withBusiness()} />)
+      const merchant = step('가맹점')
+      await typeMerchant(merchant, '데모 가맹점', 'shopabcd12')
+      await click(merchant, '가맹점 등록')
+      expect(await within(merchant).findByText(/사업자 계약이 유효하지 않습니다 — 사업자 상세 '계약 진행'에서 계약 완료가 필요합니다/)).toBeInTheDocument()
+      expect(merchant).not.toHaveTextContent('BUSINESS_CONTRACT_NOT_EFFECTIVE')
+    })
+
     it('MC-1-9 MASTER MERCHANT_CODE_TAKEN / MERCHANT_CODE_RESERVED show their fixed messages', async () => {
       const api = fakeApi({
         registerMerchant: vi.fn().mockResolvedValueOnce(rejected('MERCHANT_CODE_TAKEN')).mockResolvedValueOnce(rejected('MERCHANT_CODE_RESERVED')),

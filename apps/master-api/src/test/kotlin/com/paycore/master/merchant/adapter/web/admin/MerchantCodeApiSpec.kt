@@ -123,7 +123,10 @@ class MerchantCodeApiSpec(
 
         Then("MC-1-6 detail: merchant.merchantCode is the current code, history has both rows (no approval id), changeable is false after the change; no registeredBy on the merchant") {
             val node = get("/internal/v1/admin/merchants/$merchantId").node()
-            keys(node) shouldBe setOf("merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable")
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 BR-BIZ-337 — 응답 키 증가, 완화 아님): 최상위 registrationBasis(값은 MerchantOpsApiSpec이 확인).
+            keys(node) shouldBe setOf(
+                "merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable", "registrationBasis",
+            )
             node.get("merchant").propertyNames().toList() shouldBe listOf("merchantId", "name", "lifecycle", "entitlementRevision", "createdAt", "merchantCode")
             node.get("merchant").get("merchantCode").asString() shouldBe current.value
             val history = node.get("merchantCodeHistory")

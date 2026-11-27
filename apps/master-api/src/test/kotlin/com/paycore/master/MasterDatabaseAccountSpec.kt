@@ -244,6 +244,8 @@ class MasterDatabaseAccountSpec(
             "merchant_account_site_assignment" to "SELECT, INSERT",
             // 기대값 변경(MERCHANT-CODE-001 MC-1 V14 — 목록 증가): 코드 배정 이력 append-only(SELECT, INSERT만).
             "merchant_code_assignment" to "SELECT, INSERT",
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 V25 — 목록 증가): 가맹점 등록 근거 INSERT 전용(SELECT, INSERT만 — UPDATE·DELETE 1142, BR-BIZ-337).
+            "merchant_registration_basis" to "SELECT, INSERT",
             "merchant_site" to "SELECT, INSERT",
             "merchant_site_review_decision" to "SELECT, INSERT",
             // V4: Relay claim·PUBLISHED·QUARANTINED(AC m-7) — 이전 기대값 SELECT, INSERT에서 검토된 확대.

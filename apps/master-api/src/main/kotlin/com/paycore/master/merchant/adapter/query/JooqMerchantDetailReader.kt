@@ -13,6 +13,7 @@ import com.paycore.master.jooq.generated.Tables.MERCHANT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_ACCOUNT_SITE_ASSIGNMENT
 import com.paycore.master.jooq.generated.Tables.MERCHANT_CODE_ASSIGNMENT
+import com.paycore.master.jooq.generated.Tables.MERCHANT_REGISTRATION_BASIS
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE
 import com.paycore.master.jooq.generated.Tables.MERCHANT_SITE_REVIEW_DECISION
 import com.paycore.master.jooq.generated.Tables.SITE_ACTIVATION_CONFIRMATION
@@ -77,8 +78,16 @@ class JooqMerchantDetailReader(private val dsl: DSLContext) : MerchantDetailRead
             merchantCodeHistory = history,
             // §3.8 advisory: seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE(권위 판정은 MC-1b 변경 명령).
             merchantCodeChangeable = history.size == 1 && head.value3() == "ACTIVE" && !contractApproved(id),
+            registrationBasis = registrationBasis(id),
         )
     }
+
+    /** MERCHANT-FLOW-001 FLOW-3: 등록 근거(PK = merchant_id — 0 또는 1행; 없으면 관문 전 등록). */
+    private fun registrationBasis(merchantId: String): MerchantDetailView.RegistrationBasisDetail? =
+        dsl.select(MERCHANT_REGISTRATION_BASIS.CONTRACT_SEQ, MERCHANT_REGISTRATION_BASIS.VERSION_NO)
+            .from(MERCHANT_REGISTRATION_BASIS)
+            .where(MERCHANT_REGISTRATION_BASIS.MERCHANT_ID.eq(merchantId))
+            .fetchOne { MerchantDetailView.RegistrationBasisDetail(it.value1().toInt(), it.value2().toInt()) }
 
     /** MERCHANT-CODE-001 §3.8: 배정 이력(seq 오름차순 — approval_id는 읽지 않는다). */
     private fun codeHistory(merchantId: String): List<MerchantDetailView.CodeAssignmentDetail> =

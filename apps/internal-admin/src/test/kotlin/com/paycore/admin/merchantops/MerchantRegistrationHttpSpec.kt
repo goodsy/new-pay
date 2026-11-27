@@ -143,6 +143,19 @@ class MerchantRegistrationHttpSpec(
             StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("MERCHANT_CODE_TAKEN")))
             register(client, "merchants", merchantBody(sub(), code = "shopabcd12")).contentAsString shouldBe """{"outcome":"REJECTED","rejection":"MERCHANT_CODE_TAKEN","replayed":false}"""
         }
+
+        Then("MERCHANT-FLOW-001 FLOW-3: MASTER BUSINESS_CONTRACT_NOT_EFFECTIVE (no effective business contract) is a stored rejection passed through as is and audited REJECTED with the code") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val s = sub()
+            StubMasterOpsServer.reply(StubMasterOpsServer.MERCHANTS, StubMasterOpsServer.Reply(200, StubMasterOpsServer.rejected("BUSINESS_CONTRACT_NOT_EFFECTIVE")))
+            register(client, "merchants", merchantBody(s, code = "shopabcd12")).let { (it.status to it.contentAsString) } shouldBe
+                (200 to """{"outcome":"REJECTED","rejection":"BUSINESS_CONTRACT_NOT_EFFECTIVE","replayed":false}""")
+            audits(operator.account.id.value).map { it.substringBefore('|') + "|" + it.split('|')[1] + "|" + it.split('|')[2] } shouldBe listOf(
+                "MERCHANT_REGISTER|REQUESTED|sub=${s.take(8)};code=shopabcd12",
+                "MERCHANT_REGISTER|REJECTED|sub=${s.take(8)};replayed=false;rejection=BUSINESS_CONTRACT_NOT_EFFECTIVE;code=shopabcd12",
+            )
+        }
     }
 
     Given("requests refused before the use case") {

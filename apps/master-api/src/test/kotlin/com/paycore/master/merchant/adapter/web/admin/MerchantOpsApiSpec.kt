@@ -283,7 +283,14 @@ class MerchantOpsApiSpec(
             val text = res.body()
             val node = json.readTree(text)
             // 기대값 변경(MERCHANT-CODE-001 MC-1 §3.8 — 응답 키 증가, 완화 아님): 최상위에 merchantCodeHistory·merchantCodeChangeable(MC-1-6 MerchantCodeApiSpec이 값·모양 확인).
-            node.propertyNames().toList() shouldBe listOf("merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable")
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 BR-BIZ-337 — 응답 키 증가, 완화 아님): 최상위 끝에 registrationBasis(등록 관문 근거 — 사업자 계약 순번·버전 번호).
+            node.propertyNames().toList() shouldBe listOf(
+                "merchant", "business", "sites", "contracts", "accounts", "limits", "propagation", "merchantCodeHistory", "merchantCodeChangeable", "registrationBasis",
+            )
+            // FLOW-3: 등록 때 기록한 근거(Fixture 계약 = 순번 1·버전 1). 키는 정확히 contractSeq·versionNo.
+            node.get("registrationBasis").propertyNames().toList() shouldBe listOf("contractSeq", "versionNo")
+            node.get("registrationBasis").get("contractSeq").asInt() shouldBe 1
+            node.get("registrationBasis").get("versionNo").asInt() shouldBe 1
             // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
             node.get("business").get("registrationNumber").asString() shouldBe brn
             node.get("accounts").get(0).get("cardRoutes").get(0).propertyNames().toList() shouldBe
@@ -446,6 +453,19 @@ class MerchantOpsApiSpec(
             val v1s = sentHeaders.map { it.substringAfter("v1=") }
             v1s.forEach { it.length shouldBe 64 }
             (secrets + sentHeaders + v1s + brn).forEach { s -> lines.filter { s in it }.shouldBeEmpty() }
+        }
+    }
+
+    Given("MERCHANT-FLOW-001 FLOW-3: a merchant without a registration basis row (registered before the gate — e.g. V21-era Demo data)") {
+        val ready = OnboardingFixture.readyMerchant(onboarding)
+        // 관문 전 등록 재현: 근거 행이 없는 가맹점(root 계정 — runtime은 DELETE 권한이 없다).
+        MasterDbAccounts.root(container).use { c ->
+            c.prepareStatement("DELETE FROM merchant_registration_basis WHERE merchant_id = ?").use { it.setString(1, ready.merchantId.value); it.executeUpdate() } shouldBe 1
+        }
+        Then("detail is 200 with registrationBasis null (the screen shows it as registered before the gate)") {
+            val res = get("/internal/v1/admin/merchants/${ready.merchantId.value}")
+            res.response.status shouldBe 200
+            json.readTree(res.body()).get("registrationBasis").isNull shouldBe true
         }
     }
 })

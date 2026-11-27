@@ -116,10 +116,45 @@ object OnboardingFixture {
      */
     private val businessUseCases = ConcurrentHashMap<MerchantOnboardingUseCase, BusinessProfileCommandUseCase>()
 
-    class Binding(val onboarding: MerchantOnboardingUseCase, val businesses: BusinessProfileCommandUseCase)
+    /**
+     * FLOW-3(§4B.8): [intakes]·[clock]은 새 가맹점 등록 전 **유효 사업자 계약**을 공식 Use Case로 만드는 데 쓴다([contracted] — 신규 접수 → 계약서 접수 → 계약 완료,
+     * 시작일 = MASTER 시계의 KST 오늘, 범위 카드 PG 결제, 시험 근거 참조). 기존 시험의 기대값은 바꾸지 않는다(입력 보강).
+     */
+    class Binding(
+        val onboarding: MerchantOnboardingUseCase,
+        val businesses: BusinessProfileCommandUseCase,
+        val intakes: com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase,
+        val clock: com.paycore.master.merchant.application.required.MasterClock,
+    )
+
+    private val bindings = java.util.concurrent.ConcurrentHashMap<MerchantOnboardingUseCase, Binding>()
 
     fun bind(binding: Binding) {
         businessUseCases[binding.onboarding] = binding.businesses
+        bindings[binding.onboarding] = binding
+    }
+
+    /** FLOW-3: HTTP 경로로 만든 사업자용 — 이 시험 컨텍스트의 유일한 binding으로 [contracted]를 부른다(입력 보강). */
+    fun contracted(businessId: BusinessId) = contracted(bindings.keys.single(), businessId)
+
+    /** FLOW-3: [businessId]에 유효 사업자 계약을 만든다(신규 접수 → 계약서 접수 → 계약 완료 — 각 단계 성공을 단언: 리뷰 NIT, 조용히 건너뛰지 않는다). */
+    fun contracted(service: MerchantOnboardingUseCase, businessId: BusinessId) {
+        val b = checkNotNull(bindings[service]) { "no binding for this context" }
+        val today = b.clock.now().atZone(com.paycore.master.merchant.domain.SeoulMidnight.ZONE).toLocalDate()
+        val items = com.paycore.master.merchant.domain.ContractIntakeItems(
+            today, com.paycore.master.merchant.domain.ContractIntakeChannel.PHONE, operator, setOf(com.paycore.master.merchant.domain.DesiredService.CARD_AUTH),
+        )
+        succeeded(b.intakes.open(com.paycore.master.merchant.application.provided.OpenContractIntakeCommand(request(), businessId, com.paycore.master.merchant.domain.ContractIntakeKind.NEW, items, null)))
+        val seq = 1 // 시험 사업자는 이관 건이 없다 — 첫 접수 건
+        succeeded(b.intakes.move(com.paycore.master.merchant.application.provided.MoveContractIntakeCommand(request(), businessId, seq, 0, com.paycore.master.merchant.domain.ContractIntakeStatus.DOCUMENT_RECEIVED, null)))
+        succeeded(
+            b.intakes.complete(
+                com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand(
+                    request(), businessId, seq, 1, com.paycore.master.merchant.domain.ContractDocumentRef("TEST-CONTRACT-0001"),
+                    com.paycore.master.merchant.domain.BusinessContractTerms(today, null, setOf(ServiceKind.CARD_PG_PAYMENT)), null,
+                ),
+            ),
+        )
     }
 
     fun businessesOf(service: MerchantOnboardingUseCase): BusinessProfileCommandUseCase =
@@ -133,7 +168,10 @@ object OnboardingFixture {
         adminRequest: AdminRequest = request(),
     ): AdminCommandResult = businessesOf(service).create(
         CreateBusinessCommand(adminRequest, BusinessRegistrationStatus.REGISTERED, BusinessType.INDIVIDUAL, number, DisplayName(name), BusinessFixtures.individualProfile()),
-    )
+    ).also { created ->
+        // FLOW-3(§4B.8 — 입력 보강): 가맹점 등록 시험 준비의 사업자는 유효 사업자 계약을 갖는다.
+        if (created is AdminCommandResult.Succeeded && !created.replayed) contracted(service, BusinessId(created.reference))
+    }
 
     fun registeredBusinessId(service: MerchantOnboardingUseCase, number: BusinessRegistrationNumber = registrationNumber(), name: String = "Demo Business"): BusinessId =
         BusinessId(succeeded(registeredBusiness(service, number, name)))

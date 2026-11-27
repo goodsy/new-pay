@@ -188,6 +188,19 @@ function DetailPanels({ detail, contractAction, revisionAction, activation, site
             <span className="font-medium">{business.name}</span>
           </DetailRow>
           <DetailRow term="사업자등록번호"><span className="font-mono">{displayRegistrationNumber(business.registrationNumber)}</span></DetailRow>
+          {/* MERCHANT-FLOW-001 FLOW-3(BR-BIZ-337): 등록 관문 근거 — 사업자 계약 순번·버전 번호(등록 때 기록한 사실). null = 관문 전 등록, 필드 없음(옛 Fixture) = 줄 없음. */}
+          {detail.registrationBasis !== undefined && (
+            <DetailRow term="등록 근거">
+              {detail.registrationBasis === null ? (
+                <span>관문 전 등록 — 근거 기록 없음</span>
+              ) : (
+                <span className="flex flex-col">
+                  <span>사업자 계약 {detail.registrationBasis.contractSeq} · 버전 {detail.registrationBasis.versionNo}</span>
+                  <span className="text-xs text-muted-foreground">등록 때 기록 — 뒤의 계약 변경·해지로 바뀌지 않습니다</span>
+                </span>
+              )}
+            </DetailRow>
+          )}
         </dl>
         {/* MERCHANT-CODE-001 MC-1b(§3.8·§5.5): 코드 이력(seq 1·2 — 바뀐 뒤 옛 코드는 "은퇴 — 다시 쓸 수 없음") + 변경 가능 여부(advisory). */}
         {(detail.merchantCodeHistory ?? []).length > 0 && (

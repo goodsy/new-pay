@@ -66,4 +66,15 @@ object BusinessContractFixtures {
         listOf(BusinessContractVersion(1, 1, true, migratedAt, null, null, cardPg, null, null, migratedAt, migrationActor)),
         emptyList(), emptyList(),
     )
+
+    /**
+     * FLOW-3 관문 입력용 저장 행 모양의 유효 계약(계약 #1·버전 1 — 시작일 = [at]의 KST 날짜, 범위 카드 PG 결제). 사업자 생명주기와 무관하게 복원한다(종료 사업자 관문 시험 — 판정은 사업자 축이 먼저).
+     */
+    fun storedEffectiveFor(businessId: BusinessId, at: Instant, seq: Int = 1): BusinessContract {
+        val date = at.atZone(SeoulMidnight.ZONE).toLocalDate()
+        return BusinessContract.reconstitute(
+            BusinessContractId(businessId, seq), seq, false, at, operator,
+            listOf(BusinessContractVersion(1, seq, false, midnight(date), date, null, cardPg, document, null, at, operator)), emptyList(), emptyList(),
+        )
+    }
 }

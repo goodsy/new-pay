@@ -18,7 +18,15 @@ data class MerchantDetailView(
     val merchantCodeHistory: List<CodeAssignmentDetail>,
     /** §3.8 advisory(= seq 2 없음 ∧ 계약 승인 사실 없음 ∧ ACTIVE). 권위 판정은 변경 명령(MC-1b §3.7.3)이다. */
     val merchantCodeChangeable: Boolean,
+    /**
+     * MERCHANT-FLOW-001 FLOW-3(BR-BIZ-337): 등록 관문을 통과할 때 기록한 근거(사업자 계약 순번·적용 중이던 버전 번호 — 기록 시점 사실, 뒤의 해지·새 버전에 바뀌지 않는다).
+     * null = 관문 전에 등록된 가맹점(근거 행 없음).
+     */
+    val registrationBasis: RegistrationBasisDetail?,
 ) {
+    /** 등록 근거(`merchant_registration_basis` — 계약 순번·버전 번호만). */
+    data class RegistrationBasisDetail(val contractSeq: Int, val versionNo: Int)
+
     /** [merchantCode] = 현재 코드(가장 큰 seq — MERCHANT-CODE-001 §3.8). */
     data class MerchantSummary(val merchantId: String, val name: String, val lifecycle: String, val entitlementRevision: Long, val createdAt: Instant, val merchantCode: String)
 

@@ -62,6 +62,7 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
         Then("same channel on two merchants: exactly one SUCCEEDED and one SITE_CHANNEL_DUPLICATE, one active site row") {
             fun merchant(): String {
                 val biz = reference(post(BusinessBodies.CREATE, BusinessBodies.create(number = OnboardingFixture.registrationNumber().value)).second)
+                    .also { OnboardingFixture.contracted(com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강
                 return reference(post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(biz)).second)
             }
             val merchants = listOf(merchant(), merchant())
@@ -97,6 +98,7 @@ class MerchantOperationsConcurrencySpec(context: WebApplicationContext, private 
     Given("B1-2: two operators racing on the same contract (§8.1 B1-2-1 — same matrix as B1-1)") {
         fun merchantOf(biz: String): String = reference(post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(biz)).second)
         fun business(): String = reference(post(BusinessBodies.CREATE, BusinessBodies.create(number = OnboardingFixture.registrationNumber().value)).second)
+            .also { OnboardingFixture.contracted(com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강
 
         /** 같은 키·같은 본문 동시 2건 → 503 REQUEST_IN_PROGRESS면 같은 본문 재전송으로 결과를 받는다. */
         fun settle(path: String, body: String, results: List<Pair<Int, String>>): List<String> = results.map { (status, text) ->

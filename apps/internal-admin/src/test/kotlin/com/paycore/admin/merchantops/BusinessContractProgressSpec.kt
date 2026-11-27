@@ -186,6 +186,24 @@ class BusinessContractProgressSpec : BehaviorSpec({
             }
         }
 
+        Then("FLOW-3 Coordinator 결정: a Demo-seed intake (contract manager system:demo-seed) shows the manager as 'Demo seed' without an account lookup; the raw ref is absent") {
+            val f = Fixture()
+            f.failNames = true // 계정 조회를 하면 실패한다 — Demo seed 담당자는 계정 조회 없이 고정 표시.
+            val demo = section(businessContract = null).also { s ->
+                @Suppress("UNCHECKED_CAST")
+                val intakes = s["intakes"] as List<MutableMap<String, Any?>>
+                intakes[0]["contractManager"] = "system:demo-seed"
+                intakes[0]["transitions"] = listOf(transition(1, null, "CONSULTING", "system:demo-seed"), transition(2, "CONSULTING", "DOCUMENT_RECEIVED", "system:demo-seed"))
+            }
+            f.sectionReply = MasterCallResult.Found(demo)
+            val progress = progressOf(f.query.detail(viewerId, biz, ctx))
+            progress["available"] shouldBe true
+            @Suppress("UNCHECKED_CAST")
+            val open = (progress["intakes"] as List<Map<String, Any?>>)[0]
+            open["contractManagerName"] shouldBe "Demo seed"
+            json.writeValueAsString(progress) shouldNotContain "system:demo-seed"
+        }
+
         Then("R-6: a migrated intake has no manager name and its migration row is a SYSTEM actor without name (FLOW-2b: no termination transition — D-GOV-018 ②ⓑ)") {
             val f = Fixture(roles = setOf("APPROVER"))
             f.sectionReply = MasterCallResult.Found(section())

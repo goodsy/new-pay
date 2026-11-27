@@ -142,7 +142,8 @@ class MerchantOpsReaderSpec(
             // merchant+business 1, sites 2(심사·Site), contracts 4(범위 Site·revision·CSA·계약), accounts 6(Default·연결·개통·통화·Route·MID), 한도 1
             // 기대값 변경(MERCHANT-OPS-002 B3-1 §8.3 B3-1-7): accounts에 Site 적용 확인 1문장 = 15. 모든 문장이 같은 읽기 전용 REPEATABLE READ TX라는 단언은 그대로다.
             // 기대값 변경(MERCHANT-CODE-001 MC-1 §3.8): 코드 배정 이력 1문장 + 계약 승인 사실 존재(merchantCodeChangeable advisory) 1문장 = 17 — 같은 TX 단언은 그대로.
-            recorder.observations shouldBe List(17) {
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 BR-BIZ-337): 등록 근거 1문장 = 18 — 같은 읽기 전용 REPEATABLE READ TX 단언은 그대로(찢어진 상세 없음).
+            recorder.observations shouldBe List(18) {
                 JooqStatementRecorder.Observation(inTransaction = true, readOnly = true, isolation = Connection.TRANSACTION_REPEATABLE_READ)
             }
         }

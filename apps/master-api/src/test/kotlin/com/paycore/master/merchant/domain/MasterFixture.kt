@@ -35,7 +35,8 @@ object MasterFixture {
         Business.createRegistered(businessId(), BusinessType.INDIVIDUAL, registrationNumber(), DisplayName("Demo Business"), BusinessFixtures.individualProfile(), at, operator).business
 
     fun merchant(business: Business = business(), at: Instant = t0): Merchant =
-        Merchant.register(merchantId(), business, DisplayName("Demo Merchant"), MerchantCodeFixtures.unique(), at, operator)
+        // FLOW-3(§4B.8): 새 가맹점 등록에는 유효 사업자 계약이 필요하다 — 입력만 보강(저장 행 모양의 유효 계약).
+        Merchant.register(merchantId(), business, BusinessContractFixtures.storedEffectiveFor(business.id, at), DisplayName("Demo Merchant"), MerchantCodeFixtures.unique(), at, operator)
 
     fun site(merchant: Merchant, channel: SiteChannel = webChannel(), at: Instant = t0): MerchantSite =
         MerchantSite.register(siteId(), merchant, channel, at, operator)

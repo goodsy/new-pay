@@ -84,19 +84,19 @@ class MerchantRegistrationGateUseCaseSpec(
         }
 
         Then("a REGISTERED business registers the merchant (control); an unknown business is BUSINESS_NOT_FOUND") {
-            val registered = BusinessCommandFixture.withoutMerchants(businesses, name = "등록 완료 사업자").businessId
+            val registered = BusinessCommandFixture.withoutMerchants(businesses, name = "등록 완료 사업자").businessId.also { OnboardingFixture.contracted(onboarding, it) } // FLOW-3 입력 보강: 유효 사업자 계약
             registerMerchant(registered).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
             registerMerchant(BusinessId("biz_01JC0000000000000000000000")).shouldBeInstanceOf<AdminCommandResult.Rejected>().rejection shouldBe
                 MasterRejection.BUSINESS_NOT_FOUND
         }
 
         Then("§4.4 order: a DRAFT business with an already taken code is BUSINESS_NOT_REGISTERED (registration status before the code duplicate check)") {
-            val registered = BusinessCommandFixture.withoutMerchants(businesses, name = "코드 소유 사업자").businessId
+            val registered = BusinessCommandFixture.withoutMerchants(businesses, name = "코드 소유 사업자").businessId.also { OnboardingFixture.contracted(onboarding, it) } // FLOW-3 입력 보강: 유효 사업자 계약
             val taken = MerchantCodeFixtures.unique().value
             registerMerchant(registered, taken).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
             registerMerchant(draft(), taken).shouldBeInstanceOf<AdminCommandResult.Rejected>().rejection shouldBe MasterRejection.BUSINESS_NOT_REGISTERED
             // 대조: REGISTERED 사업자의 같은 코드는 기존 MERCHANT_CODE_TAKEN.
-            val other = BusinessCommandFixture.withoutMerchants(businesses, name = "다른 등록 사업자").businessId
+            val other = BusinessCommandFixture.withoutMerchants(businesses, name = "다른 등록 사업자").businessId.also { OnboardingFixture.contracted(onboarding, it) } // FLOW-3 입력 보강: 유효 사업자 계약
             registerMerchant(other, taken).shouldBeInstanceOf<AdminCommandResult.Rejected>().rejection shouldBe MasterRejection.MERCHANT_CODE_TAKEN
         }
 
@@ -111,7 +111,7 @@ class MerchantRegistrationGateUseCaseSpec(
 
     Given("D-BIZ-001 결정 고정 — existing merchants of a DRAFT business are unaffected (Site·contract·approval·CSA·first MID·activation)") {
         Then("every follow-up command of the existing merchant succeeds while a new merchant for the same business is BUSINESS_NOT_REGISTERED") {
-            val business = BusinessCommandFixture.withoutMerchants(businesses, name = "기존 가맹점 사업자").businessId
+            val business = BusinessCommandFixture.withoutMerchants(businesses, name = "기존 가맹점 사업자").businessId.also { OnboardingFixture.contracted(onboarding, it) } // FLOW-3 입력 보강: 유효 사업자 계약
             val merchant = MerchantId(succeeded(registerMerchant(business)))
             backfillAsDraft(business)
             count("SELECT COUNT(*) FROM business WHERE business_id = ? AND registration_status = 'DRAFT' AND business_type IS NULL", business.value) shouldBe 1L

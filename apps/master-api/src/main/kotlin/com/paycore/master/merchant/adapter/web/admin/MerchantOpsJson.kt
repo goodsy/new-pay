@@ -102,6 +102,8 @@ object MerchantOpsJson {
             )
         },
         "merchantCodeChangeable" to v.merchantCodeChangeable,
+        // MERCHANT-FLOW-001 FLOW-3(BR-BIZ-337): 등록 근거 — null = 관문 전 등록.
+        "registrationBasis" to v.registrationBasis?.let { linkedMapOf("contractSeq" to it.contractSeq, "versionNo" to it.versionNo) },
     )
 
     private fun account(a: MerchantDetailView.AccountDetail): Map<String, Any?> = linkedMapOf(

@@ -579,4 +579,61 @@ describe('MERCHANT-FLOW-001 FLOW-2c — 사업자 계약 정지·정지 해제·
     expect(within(section).queryByRole('dialog', { name: '사업자 계약 정지' })).toBeNull()
     expect(suspendBusinessContract).toHaveBeenCalledTimes(1)
   })
+
+  it('FLOW-2c 재리뷰 이월 (a): 성공 뒤 재조회로 사건 수가 바뀌어도(내 정지) "사업자 계약이 바뀌었습니다"는 보이지 않고 저장 안내만 보인다', async () => {
+    let changed = false
+    const suspendedByMe = contract('SUSPENDED', {
+      events: [{ eventSeq: 1, kind: 'SUSPEND', evidenceRef: null, occurredAt: '2026-11-26T01:00:00.000Z', actorKind: 'ADMIN', actorName: '운영 담당' }],
+    })
+    const suspendBusinessContract = vi.fn(async () => {
+      changed = true
+      return { outcome: 'SUCCEEDED' as const, reference: 'biz_x', replayed: false }
+    })
+    renderScreen(() => detailWith(progress(changed ? suspendedByMe : contract('ACTIVE'), [MIGRATED_INTAKE])), true, { suspendBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '거래 확인 필요')
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    const section = await screen.findByRole('region', { name: '계약 진행' })
+    await within(section).findByText('저장했습니다. 계약 진행을 다시 불러왔습니다.')
+    // 재조회 결과(정지 — 버튼이 [정지 해제, 해지])가 그려진 뒤에도 바뀜 안내가 없다.
+    await waitFor(() => expect(buttonNames(contractColumn(section))).toEqual(['정지 해제', '해지']))
+    expect(within(section).queryByText('사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')).toBeNull()
+    expect(within(section).queryByRole('dialog', { name: '사업자 계약 정지' })).toBeNull()
+    expect(suspendBusinessContract).toHaveBeenCalledTimes(1)
+  })
+
+  it('FLOW-2c 재리뷰 이월 (b): 결과 불명 잠금 중 재조회에서 계약 사건 수가 바뀌어도 대화상자는 닫히지 않는다(잠금·같은 submissionId 재전송 유지)', async () => {
+    let changed = false
+    const suspendedNow = contract('SUSPENDED', {
+      events: [{ eventSeq: 1, kind: 'SUSPEND', evidenceRef: null, occurredAt: '2026-11-26T01:00:00.000Z', actorKind: 'ADMIN', actorName: '운영 담당' }],
+    })
+    const suspendBusinessContract = vi.fn()
+      .mockImplementationOnce(async () => {
+        changed = true
+        throw apiError(503, 'MASTER_OUTCOME_UNKNOWN')
+      })
+      .mockResolvedValueOnce({ outcome: 'SUCCEEDED' as const, reference: 'biz_x', replayed: true })
+    const { api } = renderScreen(() => detailWith(progress(changed ? suspendedNow : contract('ACTIVE'), [MIGRATED_INTAKE])), true, { suspendBusinessContract })
+    const column = contractColumn(await openSection())
+    await user.click(within(column).getByRole('button', { name: '정지' }))
+    const dialog = within(column).getByRole('dialog', { name: '사업자 계약 정지' })
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '거래 확인 필요')
+    await user.click(within(dialog).getByRole('button', { name: '정지 저장' }))
+    await within(dialog).findByText('처리되었는지 알 수 없습니다. 같은 내용으로 다시 보내 확인해 주세요.')
+    // 잠금 중 목록으로 갔다가 상세를 다시 연다 → 재조회가 바뀐 계약(사건 1건)을 돌려준다.
+    const reads = (api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length
+    await user.click(screen.getAllByRole('button', { name: '목록으로' })[0]!)
+    await user.click(await screen.findByRole('button', { name: '데모 사업자 상세' }))
+    await waitFor(() => expect((api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(reads))
+    const section = await screen.findByRole('region', { name: '계약 진행' })
+    // 바뀐 계약이 실제로 그려졌다(정지 기록 표 — 재조회 전에는 사건이 없어 표가 없다).
+    await within(section).findByRole('table', { name: '사업자 계약 정지·해지 기록' })
+    const locked = within(section).getByRole('dialog', { name: '사업자 계약 정지' })
+    expect(within(locked).getByLabelText('사유 및 비고')).toBeDisabled()
+    expect(within(section).queryByText('사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')).toBeNull()
+    await user.click(within(locked).getByRole('button', { name: '같은 내용으로 다시 보내기' }))
+    expect(suspendBusinessContract.mock.calls[1]).toEqual(suspendBusinessContract.mock.calls[0])
+  })
 })

@@ -41,6 +41,7 @@ import com.paycore.master.merchant.domain.EffectivePeriod
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MasterRuleViolation
 import com.paycore.master.merchant.domain.Merchant
+import com.paycore.master.merchant.domain.MerchantRegistrationBasis
 import com.paycore.master.merchant.domain.MerchantAccountId
 import com.paycore.master.merchant.domain.MerchantAccountIssuance
 import com.paycore.master.merchant.domain.MerchantId
@@ -84,6 +85,9 @@ class MerchantOnboardingService(
     publisher: EntitlementSnapshotPublisher,
     evidences: ApprovalEvidenceStore,
     private val deploymentMode: DeploymentModePort,
+    // MERCHANT-FLOW-001 FLOW-3(§4B.8): 가맹점 등록 관문 입력(최신 사업자 계약 — 잠금 뒤)·등록 근거 기록(INSERT 전용).
+    private val businessContracts: com.paycore.master.merchant.application.required.BusinessContractRepository,
+    private val registrationBases: com.paycore.master.merchant.application.required.MerchantRegistrationBasisStore,
     fingerprints: RequestFingerprintDigester,
 ) : MerchantOnboardingUseCase {
 
@@ -100,12 +104,22 @@ class MerchantOnboardingService(
             command.merchantCode.requireAssignable()
             val business = businesses.lock(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
+            // MERCHANT-FLOW-001 FLOW-3(§4B.8): 사업자 행 잠금 뒤 같은 TX에서 최신 사업자 계약을 DB에서 직접 읽어(Repository — JPQL 투영) Domain이 lockedNow로 판정한다.
+            // 저장 행 불변식 위반(데이터 손상)은 2b·2c와 같은 값 없는 ERROR 경보 뒤 결함으로 올린다(업무 거절 아님 — 리뷰 MAJOR-2, §4B.12).
+            val contract = try {
+                businessContracts.latest(business.id)
+            } catch (e: IllegalArgumentException) {
+                log.error("stored rows violate a domain invariant alert=BUSINESS_CONTRACT_LOAD_INVARIANT businessId={} aggregate=contract", business.id.value)
+                throw e
+            }
             val merchant = Merchant.register(
-                MerchantId(work.newId(MerchantId.PREFIX)), business, command.displayName, command.merchantCode, work.now, command.request.actor,
+                MerchantId(work.newId(MerchantId.PREFIX)), business, contract, command.displayName, command.merchantCode, work.now, command.request.actor,
             )
             merchants.findCodeOwner(command.merchantCode)?.let { throw MasterRuleViolation(MasterRejection.MERCHANT_CODE_TAKEN) }
             work.beginWrites()
             merchants.insert(merchant)
+            // BR-BIZ-337: 근거 사업자 계약 ID·적용 중 버전을 같은 TX에 불변 기록(이력·Outbox payload는 그대로 — 근거는 별도 표가 정본).
+            registrationBases.insert(MerchantRegistrationBasis.of(merchant, checkNotNull(contract), work.now, command.request.actor))
             work.record(
                 AGG_MERCHANT, merchant.id.value, 0, "MerchantRegistered",
                 mapOf(

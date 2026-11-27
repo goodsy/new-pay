@@ -38,6 +38,8 @@ export const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   MERCHANT_CODE_RESERVED: '사용할 수 없는 코드입니다',
   // BUSINESS-PROFILE-001 §8.5(BIZ-4): 사업자 명령 거절 + 가맹점 등록의 새 거절(C-27 — D-BIZ-001 새 가맹점은 REGISTERED 사업자만).
   BUSINESS_NOT_REGISTERED: '등록 완료된 사업자만 가맹점을 등록할 수 있습니다',
+  // MERCHANT-FLOW-001 FLOW-3(§4B.8 — BR-BIZ-319·320): 유효 사업자 계약(유효 상태 ∧ 적용 중 버전에 카드 PG 결제)이 없으면 MASTER가 저장한 거절 — 효력 전·정지·해지·만료·계약 없음을 구별하지 않는다.
+  BUSINESS_CONTRACT_NOT_EFFECTIVE: "사업자 계약이 유효하지 않습니다 — 사업자 상세 '계약 진행'에서 계약 완료가 필요합니다",
   // BIZ-NORM-002: 등록 완료(complete)는 DRAFT만 — 이미 등록 완료(REGISTERED)와 사용중지(INACTIVE) 둘 다 이 거절이다. 화면이 아는 상태는 연 시점 값이라(그 사이 바뀔 수 있다)
   // 상태로 문구를 고르지 않고 두 경우에 맞는 공통 문구를 쓴다.
   BUSINESS_NOT_DRAFT: '등록 완료할 수 없는 상태입니다(이미 등록 완료됐거나 사용중지된 사업자)',

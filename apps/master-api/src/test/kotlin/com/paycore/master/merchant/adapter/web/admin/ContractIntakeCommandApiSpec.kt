@@ -53,8 +53,8 @@ class ContractIntakeCommandApiSpec(
     fun common(key: String, businessId: String) = """"idempotencyKey":"$key","actor":"$actor","correlationId":"corr-$key","businessId":"$businessId""""
     fun key() = "ci-" + UUID.randomUUID().toString().take(18)
 
-    fun openBody(key: String, id: String, kind: String = "NEW", channel: String = "PHONE", reason: String? = null, receivedOn: String = "2026-11-26") =
-        """{${common(key, id)},"expectedKind":"$kind","receivedOn":"$receivedOn","intakeChannel":"$channel","contractManager":"$actor",""" +
+    fun openBody(key: String, id: String, kind: String = "NEW", channel: String = "PHONE", reason: String? = null, receivedOn: String = "2026-11-26", manager: String = actor) =
+        """{${common(key, id)},"expectedKind":"$kind","receivedOn":"$receivedOn","intakeChannel":"$channel","contractManager":"$manager",""" +
             """"desiredServices":["CARD_AUTH"],"reason":${reason?.let { "\"$it\"" } ?: "null"}}"""
 
     fun moveBody(key: String, id: String, seq: Int, version: Long, target: String, reason: String? = null) =
@@ -159,6 +159,10 @@ class ContractIntakeCommandApiSpec(
                 return listOf("${r.response.status}", t.get("error")?.asString() ?: body(r)) + errors
             }
             fieldErrors(post("$base/open", openBody(key(), id, channel = "SALES_AGENCY"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "intakeChannel:NOT_ALLOWED")
+            // FLOW-3 Coordinator 결정(가역): `system:demo-seed` 계약 담당자는 Demo seed 경로만 쓴다 — 관리 채널은 admin: 접두만 받는다(다른 system:* 도 같음).
+            listOf("system:demo-seed", "system:migration").forEach { manager ->
+                fieldErrors(post("$base/open", openBody(key(), id, manager = manager))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "contractManager:FORMAT")
+            }
             fieldErrors(post("$base/open", openBody(key(), id, reason = "card 4111 1111 1111 1111"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "reason:CARD_NUMBER_PATTERN")
             fieldErrors(post("$base/complete", completeBody(key(), id, 1, 1, document = "4111-1111-1111-1111"))) shouldBe
                 listOf("400", "BUSINESS_VALIDATION_FAILED", "documentRef:CARD_NUMBER_PATTERN")

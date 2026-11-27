@@ -227,7 +227,7 @@ class BusinessContractCommandServiceSpec(
                 ),
             )
             runtime { c -> c.prepareStatement("UPDATE merchant SET lifecycle = 'TERMINATED' WHERE merchant_id = ?").use { it.setString(1, second); it.executeUpdate() } }
-            contracted(id)
+            // FLOW-3 입력 정리: 가맹점 등록 Fixture(withMerchant)가 이미 유효 사업자 계약 #1을 만든다(관문) — 여기서 다시 신규 접수하지 않는다.
             checkNotNull(checkNotNull(query.contractIntakes(id)).businessContract).linkedMerchantCount shouldBe 1
             val merchants = rows("SELECT CONCAT_WS('|', merchant_id, lifecycle, entitlement_revision, version) FROM merchant WHERE business_id = ? ORDER BY merchant_id", id.value)
             ok(service.terminate(cmd(id, 0)))

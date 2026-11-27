@@ -50,7 +50,8 @@ internal class BusinessContractProgress(private val sessions: AdminSessionQuery,
             linkedMapOf(
                 "intakeSeq" to intake["intakeSeq"], "status" to intake["status"], "kind" to intake["kind"], "targetContractSeq" to intake["targetContractSeq"],
                 "migrated" to intake["migrated"], "receivedOn" to intake["receivedOn"], "intakeChannel" to intake["intakeChannel"],
-                "contractManagerName" to (intake["contractManager"] as String?)?.let(::nameOf),
+                // FLOW-3 Coordinator 결정: Demo seed 담당자는 계정 조회 없이 고정 표시(원문 참조는 싣지 않는다).
+                "contractManagerName" to (intake["contractManager"] as String?)?.let { if (it == DEMO_SEED_ACTOR) DEMO_SEED_NAME else nameOf(it) },
                 "desiredServices" to intake["desiredServices"], "version" to intake["version"], "createdAt" to intake["createdAt"], "updatedAt" to intake["updatedAt"],
                 "transitions" to (intake["transitions"] as List<Map<String, Any?>>).map { t ->
                     val (kind, name) = actor(t["actorRef"] as String)
@@ -74,6 +75,8 @@ internal class BusinessContractProgress(private val sessions: AdminSessionQuery,
         private const val ADMIN = "ADMIN"
         private const val SYSTEM = "SYSTEM"
         private val ADMIN_ACTOR = Regex("^admin:adm_[0-9A-HJKMNP-TV-Z]{26}$")
+        private const val DEMO_SEED_ACTOR = "system:demo-seed"
+        private const val DEMO_SEED_NAME = "Demo seed"
         val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
 
         fun unavailable(): Map<String, Any?> = linkedMapOf("available" to false, "intakes" to emptyList<Any>())

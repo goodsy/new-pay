@@ -75,6 +75,9 @@ class DemoMerchantSeedService(
     private val requests: AdminRequestStore,
     private val clock: MasterClock,
     private val transactionManager: PlatformTransactionManager,
+    // MERCHANT-FLOW-001 FLOW-3(§4B.8 Demo seed): 가맹점 등록 전 신규 접수 → 계약서 접수 → 계약 완료(재실행 때 '계약 있음'이면 건너뜀).
+    private val intakes: com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase,
+    private val sections: com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase,
 ) : DemoMerchantSeedUseCase {
 
     override fun seed(command: DemoMerchantSeedCommand): DemoMerchantSeedResult {
@@ -155,6 +158,62 @@ class DemoMerchantSeedService(
             }
         }
 
+        /**
+         * FLOW-3(§4B.8): Demo 사업자에 '계약 있음'(효력 전·유효·정지) 사업자 계약이 없으면 공식 명령으로 신규 접수 → 계약서 접수 → 계약 완료를 한다(시작일 = MASTER 시계 KST 오늘, 종료일 없음,
+         * 범위 카드 PG 결제, Demo 근거 참조, 행위자·계약 담당자 = seed 행위자 `system:demo-seed` — Coordinator 결정 2026-11-27). 키는 seed 단계 키(`<prefix>:NN-…`)와 다른 이름공간
+         * (`<prefix>-bc<n>:…`, n = 만들 사업자 계약 순번)이라 단계 수·재생 판정에 섞이지 않는다. 리뷰 NIT: 순번을 키에 넣어, 계약 준비 뒤 가맹점 등록 전에 그 계약이 해지된 경우 재실행이
+         * 옛 계약의 키를 재생(또는 내용 충돌)하지 않고 새 계약을 준비한다.
+         * 같은 키 재전송은 저장된 결과(재생). 거절은 가맹점 등록 단계의 거절로 멈춘다(근거 없는 Demo 예외는 만들지 않는다).
+         */
+        private fun ensureBusinessContract(business: BusinessId) {
+            fun section() = checkNotNull(sections.contractIntakes(business)) { "the demo business exists" }
+            val latest = section().businessContract
+            if (latest?.status in setOf("NOT_YET_EFFECTIVE", "ACTIVE", "SUSPENDED")) return
+            val nextContract = (latest?.contractSeq ?: 0) + 1
+            val today = clock.now().atZone(com.paycore.master.merchant.domain.SeoulMidnight.ZONE).toLocalDate()
+            fun req(slug: String) = AdminRequest(com.paycore.master.merchant.application.provided.AdminIdempotencyKey("${c.keyPrefix}-bc$nextContract:$slug"), c.actor, c.correlationId)
+            fun check(result: AdminCommandResult) {
+                when (result) {
+                    is AdminCommandResult.Succeeded -> if (!result.replayed) allReplayed = false
+                    is AdminCommandResult.Rejected -> throw Stop(DemoMerchantSeedResult.StepRejected(DemoSeedStep.REGISTER_MERCHANT, result.rejection))
+                    AdminCommandResult.IdempotencyKeyReused -> throw Stop(DemoMerchantSeedResult.ContentConflict(DemoSeedStep.REGISTER_MERCHANT))
+                }
+            }
+            fun call(block: () -> AdminCommandResult) = try {
+                check(block())
+            } catch (_: AdminCommandFailure) {
+                throw Stop(DemoMerchantSeedResult.RetryLater(DemoSeedStep.REGISTER_MERCHANT))
+            }
+            val open = section().intakes.firstOrNull { it.status == "CONSULTING" || it.status == "DOCUMENT_RECEIVED" }
+            val seq = if (open != null) {
+                open.intakeSeq
+            } else {
+                val items = com.paycore.master.merchant.domain.ContractIntakeItems(
+                    today, com.paycore.master.merchant.domain.ContractIntakeChannel.OTHER, c.actor, emptySet(),
+                )
+                call { intakes.open(com.paycore.master.merchant.application.provided.OpenContractIntakeCommand(req("open"), business, com.paycore.master.merchant.domain.ContractIntakeKind.NEW, items, null)) }
+                section().intakes.first().intakeSeq
+            }
+            if (section().intakes.first { it.intakeSeq == seq }.status == "CONSULTING") {
+                call {
+                    intakes.move(
+                        com.paycore.master.merchant.application.provided.MoveContractIntakeCommand(
+                            req("move-$seq"), business, seq, 0, com.paycore.master.merchant.domain.ContractIntakeStatus.DOCUMENT_RECEIVED, null,
+                        ),
+                    )
+                }
+            }
+            val received = section().intakes.first { it.intakeSeq == seq }
+            call {
+                intakes.complete(
+                    com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand(
+                        req("complete-$seq"), business, seq, received.version, com.paycore.master.merchant.domain.ContractDocumentRef(DEMO_CONTRACT_DOCUMENT),
+                        com.paycore.master.merchant.domain.BusinessContractTerms(today, null, setOf(ServiceKind.CARD_PG_PAYMENT)), null,
+                    ),
+                )
+            }
+        }
+
         fun execute(): DemoMerchantSeedResult = try {
             run()
         } catch (stop: Stop) {
@@ -171,6 +230,7 @@ class DemoMerchantSeedService(
                     )
                 },
             )
+            if (recordedSuccess(DemoSeedStep.REGISTER_MERCHANT) == null) ensureBusinessContract(business)
             val merchant = MerchantId(step(DemoSeedStep.REGISTER_MERCHANT) { onboarding.registerMerchant(RegisterMerchantCommand(it, business, v.merchantName, v.merchantCode)) })
             val site = MerchantSiteId(
                 step(DemoSeedStep.REGISTER_SITE) { onboarding.registerMerchantSite(RegisterMerchantSiteCommand(it, merchant, ChannelType.WEB, v.siteHost)) },
@@ -232,6 +292,9 @@ class DemoMerchantSeedService(
 
     private companion object {
         const val FIRST_REVISION = 1
+
+        /** FLOW-3 Demo 계약 완료 근거 참조(시험·Demo 값 — 운영값 아님). */
+        const val DEMO_CONTRACT_DOCUMENT = "DEMO-SEED-CONTRACT-0001"
         val MIN_LEAD: Duration = Duration.ofMinutes(10)
     }
 }

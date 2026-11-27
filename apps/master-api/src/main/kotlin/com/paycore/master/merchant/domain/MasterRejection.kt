@@ -139,6 +139,9 @@ enum class MasterRejection {
     BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED,
     BUSINESS_CONTRACT_STATE_CONFLICT,
 
+    // MERCHANT-FLOW-001 §4B.8(FLOW-3): 새 가맹점 등록 관문 — 최신 사업자 계약이 판정 시각에 유효가 아니거나 적용 중 버전 범위에 카드 PG 결제가 없음(사유별 code 없음 — 화면은 사업자 상세 링크).
+    BUSINESS_CONTRACT_NOT_EFFECTIVE,
+
     // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②): 사용중지(INACTIVE) 사업자의 정보 수정(update) 거절. reference 없음. 등록 완료는 그대로 `BUSINESS_NOT_DRAFT`.
     // 추가만(기존 저장 행 영향 없음 — `admin_request.result_code` VARCHAR(48), 값 집합 CHECK 없음).
     BUSINESS_INACTIVE,

@@ -100,6 +100,7 @@ class MerchantOperationsApiSpec(
     /** 준비용 사업자(새 생성 경로 REGISTERED — D-BIZ-001, BIZ-4 C-27). */
     fun registerBusiness(brn: String = OnboardingFixture.registrationNumber().value): String =
         post(BusinessBodies.CREATE, BusinessBodies.create(number = brn)).also { it.response.status shouldBe 200 }.field("reference")
+            .also { OnboardingFixture.contracted(com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강: 유효 사업자 계약
 
     fun registerMerchant(businessId: String): String =
         post(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId)).also { it.response.status shouldBe 200 }.field("reference")
@@ -614,6 +615,7 @@ class MerchantOperationsApiSpec(
             val lines = CapturedLogs().use { logs ->
                 // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 사업자는 새 생성 경로(번호가 오가는 명령 — 로그에 번호 없음 단언 유지), 재생·거절 운반은 가맹점·Site 명령으로(같은 5건).
                 val businessId = signedPost(BusinessBodies.CREATE, BusinessBodies.create(Submission().also { submissions += it }, number = brn)).field("reference")
+                    .also { OnboardingFixture.contracted(com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강
                 val s1 = Submission().also { submissions += it }
                 val merchantBody = MerchantOperationsBodies.registerMerchant(businessId, s1)
                 val merchantId = signedPost(MerchantOperationsBodies.MERCHANTS, merchantBody).field("reference")

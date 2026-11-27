@@ -41,6 +41,7 @@ class BusinessDemoSeedSpec(
     private val seed: DemoMerchantSeedUseCase,
     private val onboarding: MerchantOnboardingUseCase,
     private val query: BusinessProfileQueryUseCase,
+    private val contracts: com.paycore.master.merchant.application.provided.BusinessContractCommandUseCase,
     private val faults: MasterFaultInjector,
     private val clock: MutableMasterClock,
     private val container: MySQLContainer,
@@ -105,13 +106,48 @@ class BusinessDemoSeedSpec(
             d.contacts.single().primary shouldBe true
         }
 
+        Then("FLOW-3 (fresh Demo — no migrated contract): the seed completes a business contract before registering; the intake's contract manager is exactly system:demo-seed and the section reads") {
+            val section = query.contractIntakes(BusinessId(businessId)).shouldNotBeNull()
+            section.businessContract.shouldNotBeNull().let { listOf(it.contractSeq, it.status, it.migrated) } shouldBe listOf(1, "ACTIVE", false)
+            section.intakes.map { listOf(it.status, it.kind, it.migrated, it.contractManager) } shouldBe listOf(listOf("COMPLETED", "NEW", false, "system:demo-seed"))
+            count("SELECT COUNT(*) FROM merchant_registration_basis WHERE merchant_id = ? AND contract_seq = 1 AND version_no = 1", done.merchantId.value) shouldBe 1L
+        }
+
         Then("running the seed again replays every step (no new admin_request row)") {
             val rows = count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key LIKE ?", "${c.keyPrefix}:%")
+            // 리뷰 NIT(FLOW-3): 사업자 계약 준비 키(`<prefix>-bc…`)도 재실행에 늘지 않는다(가맹점 등록 성공이 기록돼 있으면 계약 준비를 건너뛴다).
+            val contractKeys = count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key LIKE ?", "${c.keyPrefix}-bc%")
+            (contractKeys > 0L) shouldBe true
             val again = seed.seed(c).shouldBeInstanceOf<DemoMerchantSeedResult.Done>()
             again.replayed shouldBe true
             again.merchantId shouldBe done.merchantId
             count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key LIKE ?", "${c.keyPrefix}:%") shouldBe rows
+            count("SELECT COUNT(*) FROM admin_request WHERE idempotency_key LIKE ?", "${c.keyPrefix}-bc%") shouldBe contractKeys
             stepOneOperations(c.keyPrefix) shouldBe listOf("CreateBusiness")
+        }
+    }
+
+    Given("FLOW-3 review NIT: the seed prepared a business contract, failed before registering the merchant, and the contract was terminated before the re-run") {
+        val c = command()
+        faults.after(MasterFaultPoint.MERCHANT_INSERT) { throw IllegalStateException("injected merchant insert failure") }
+        runCatching { seed.seed(c) }.getOrNull().shouldNotBeInstanceOfDone()
+        faults.reset()
+        val businessId = BusinessId(
+            runtime(container).use { it.scalar("SELECT result_reference FROM admin_request WHERE idempotency_key = ?", DemoSeedStep.REGISTER_BUSINESS.key(c.keyPrefix).value) as String },
+        )
+        query.contractIntakes(businessId).shouldNotBeNull().businessContract.shouldNotBeNull().status shouldBe "ACTIVE"
+        contracts.terminate(
+            com.paycore.master.merchant.application.provided.BusinessContractEventCommand(
+                OnboardingFixture.request(), businessId, 1, 0, com.paycore.master.merchant.domain.BusinessChangeReason("시험 해지"), null,
+            ),
+        ).shouldBeInstanceOf<com.paycore.master.merchant.application.provided.AdminCommandResult.Succeeded>()
+
+        Then("the re-run prepares a new contract (#2) with fresh keys instead of replaying the first contract's keys, then registers the merchant") {
+            val done = seed.seed(c).shouldBeInstanceOf<DemoMerchantSeedResult.Done>()
+            businessOf(done.merchantId.value) shouldBe businessId.value
+            val section = query.contractIntakes(businessId).shouldNotBeNull()
+            section.businessContract.shouldNotBeNull().let { listOf(it.contractSeq, it.status) } shouldBe listOf(2, "ACTIVE")
+            count("SELECT COUNT(*) FROM merchant_registration_basis WHERE merchant_id = ? AND contract_seq = 2", done.merchantId.value) shouldBe 1L
         }
     }
 
@@ -167,3 +203,7 @@ class BusinessDemoSeedSpec(
         }
     }
 })
+
+private fun DemoMerchantSeedResult?.shouldNotBeInstanceOfDone() {
+    (this is DemoMerchantSeedResult.Done) shouldBe false
+}

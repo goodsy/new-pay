@@ -49,7 +49,7 @@ class MerchantCodeSpec : BehaviorSpec({
         val business = MasterFixture.business()
 
         Then("MC-1-1 registration creates exactly one seq-1 REGISTRATION assignment and it is the current code") {
-            val merchant = Merchant.register(MasterFixture.merchantId(), business, DisplayName("Demo Merchant"), MerchantCode("shopabcd12"), MasterFixture.t0, MasterFixture.operator)
+            val merchant = Merchant.register(MasterFixture.merchantId(), business, BusinessContractFixtures.storedEffectiveFor(business.id, MasterFixture.t0), DisplayName("Demo Merchant"), MerchantCode("shopabcd12"), MasterFixture.t0, MasterFixture.operator)
             merchant.codeAssignments shouldHaveSize 1
             val only = merchant.codeAssignments.single()
             listOf(only.seq, only.code.value, only.source, only.replacesCode, only.approvalId, only.reasonCode, only.assignedAt, only.assignedBy) shouldBe
@@ -59,7 +59,7 @@ class MerchantCodeSpec : BehaviorSpec({
 
         Then("MC-1-1 a reserved code is refused by the domain (MERCHANT_CODE_RESERVED)") {
             shouldThrow<MasterRuleViolation> {
-                Merchant.register(MasterFixture.merchantId(), business, DisplayName("Demo Merchant"), MerchantCode("adminshop"), MasterFixture.t0, MasterFixture.operator)
+                Merchant.register(MasterFixture.merchantId(), business, BusinessContractFixtures.storedEffectiveFor(business.id, MasterFixture.t0), DisplayName("Demo Merchant"), MerchantCode("adminshop"), MasterFixture.t0, MasterFixture.operator)
             }.rejection shouldBe MasterRejection.MERCHANT_CODE_RESERVED
         }
 

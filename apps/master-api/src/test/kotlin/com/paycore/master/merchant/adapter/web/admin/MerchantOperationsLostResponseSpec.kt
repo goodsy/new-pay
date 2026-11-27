@@ -42,7 +42,11 @@ import java.time.Instant
     ],
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class MerchantOperationsLostResponseSpec(environment: Environment, private val container: MySQLContainer) : BehaviorSpec({
+class MerchantOperationsLostResponseSpec(
+    environment: Environment,
+    private val container: MySQLContainer,
+    private val onboarding: com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase,
+) : BehaviorSpec({
 
     val port = environment.getRequiredProperty("local.server.port").toInt()
     fun count(sql: String, vararg args: Any?): Long = OnboardingFixture.runtime(container).use { it.scalar(sql, *args).toString().toLong() }
@@ -110,6 +114,7 @@ class MerchantOperationsLostResponseSpec(environment: Environment, private val c
         Then("resending the same key and body replays the committed contract; exactly one admin_request row and one contract row for the merchant") {
             // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 준비용 사업자는 새 생성 경로(REGISTERED — D-BIZ-001).
             val businessId = reference(send(BusinessBodies.CREATE, BusinessBodies.create(number = OnboardingFixture.registrationNumber().value).toByteArray(Charsets.UTF_8)))
+                .also { OnboardingFixture.contracted(onboarding, com.paycore.master.merchant.domain.BusinessId(it)) } // FLOW-3 입력 보강(이 실제 HTTP 컨텍스트의 Use Case)
             val merchantId = reference(send(MerchantOperationsBodies.MERCHANTS, MerchantOperationsBodies.registerMerchant(businessId).toByteArray(Charsets.UTF_8)))
             val target = MerchantOperationsBodies.CONTRACTS
             val s = Submission()

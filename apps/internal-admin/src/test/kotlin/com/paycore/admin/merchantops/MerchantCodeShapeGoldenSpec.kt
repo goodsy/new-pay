@@ -59,6 +59,16 @@ class MerchantCodeShapeGoldenSpec : BehaviorSpec({
             parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("merchant") as ObjectNode).put("registeredBy", "admin:adm_01JC00000000000000000000V1") }) shouldBe false
         }
 
+        Then("MERCHANT-FLOW-001 FLOW-3: detail registrationBasis {contractSeq, versionNo} parses; null (registered before the gate) parses; missing, extra key or a non-positive number fails") {
+            val detail = MasterResponseShape.DETAIL.read(golden.get("detail")) as Map<*, *>
+            (detail["registrationBasis"] as Map<*, *>).let { listOf(it["contractSeq"], it["versionNo"]) } shouldBe listOf(1L, 1L)
+            (MasterResponseShape.DETAIL.read(copy("detail").also { it.putNull("registrationBasis") }) as Map<*, *>)["registrationBasis"] shouldBe null
+            parses(MasterResponseShape.DETAIL, copy("detail").also { it.remove("registrationBasis") }) shouldBe false
+            parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("registrationBasis") as ObjectNode).put("contractId", "bc_1") }) shouldBe false
+            parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("registrationBasis") as ObjectNode).put("versionNo", 0) }) shouldBe false
+            parses(MasterResponseShape.DETAIL, copy("detail").also { (it.get("registrationBasis") as ObjectNode).put("contractSeq", "1") }) shouldBe false
+        }
+
         Then("T-E2-10 account labels → MERCHANT_ACCOUNT_LABELS parses (3 keys per item); an internal key or a missing key fails") {
             val labels = MasterResponseShape.MERCHANT_ACCOUNT_LABELS.read(golden.get("accountLabels")) as Map<*, *>
             (labels["items"] as List<*>).map { (it as Map<*, *>).values.toList() } shouldBe listOf(

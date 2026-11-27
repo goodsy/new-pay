@@ -362,8 +362,11 @@ internal sealed interface MasterResponseShape {
         /** 접수 경로 — 지금 저장 가능한 4개(DB CHECK `ck_cin_channel`). `SALES_AGENCY`는 대행사 표·열이 생기는 FLOW-4에서 대행사 필드와 함께 연다(리뷰 m-2 — 그 전에 오면 해석 불가). */
         private val INTAKE_CHANNEL = oneOf("DIRECT_SALES", "PHONE", "WEBSITE", "OTHER")
 
-        /** 계약 담당자 = 관리자 계정 참조만(§4A.6 — ACTIVE OPERATOR 검사는 ADMIN). 다른 형식(시스템 참조 등)은 해석 불가. 화면 응답에는 이 값 대신 ADMIN 표시명을 싣는다(m-11). */
-        private val ADMIN_ACTOR = Text(Regex("^admin:adm_$ULID$"))
+        /**
+         * 계약 담당자(§4A.6 — ACTIVE OPERATOR 검사는 ADMIN, 화면 응답에는 이 값 대신 ADMIN 표시명 — m-11): 관리자 계정 참조, 또는 **정확히** `system:demo-seed`(MERCHANT-FLOW-001 FLOW-3 Coordinator 결정(가역) — 이관 계약이 없는 새 Demo에서 seed가 계약을 완료할 때의
+         * 담당자. MASTER 관리 채널은 admin: 접두만 받으므로 이 값은 Demo seed 경로에서만 생긴다). 다른 system:* 는 거부(fail-closed).
+         */
+        private val CONTRACT_MANAGER = Text(Regex("^(admin:adm_$ULID|system:demo-seed)$"))
 
         /** 계약서 수령 근거 참조(§4A.4 — D-MOPS-008 ① 형식, DB CHECK `ck_cint_document_format`). 원문은 사업자 조회 역할에 표시(D-FLOW-004 ④) — 로그·감사에는 옮기지 않는다. */
         private val CONTRACT_DOCUMENT_REF = Text(Regex("^[A-Za-z0-9._:#/-]{1,128}$"))
@@ -406,7 +409,7 @@ internal sealed interface MasterResponseShape {
             "intakes" to list(
                 obj(
                     "intakeSeq" to Whole(1), "status" to INTAKE_STATUS, "kind" to INTAKE_KIND, "targetContractSeq" to opt(Whole(1)), "migrated" to Flag,
-                    "receivedOn" to opt(DATE), "intakeChannel" to opt(INTAKE_CHANNEL), "contractManager" to opt(ADMIN_ACTOR),
+                    "receivedOn" to opt(DATE), "intakeChannel" to opt(INTAKE_CHANNEL), "contractManager" to opt(CONTRACT_MANAGER),
                     "desiredServices" to Arr(oneOf("CARD_AUTH", "CARD_KEYIN"), max = 2), "version" to COUNT, "createdAt" to TIME, "updatedAt" to TIME,
                     "transitions" to Arr(
                         obj(
@@ -540,6 +543,8 @@ internal sealed interface MasterResponseShape {
                 max = 2,
             ),
             "merchantCodeChangeable" to Flag,
+            // MERCHANT-FLOW-001 FLOW-3(BR-BIZ-337): 등록 근거(사업자 계약 순번·버전 번호 — 1 이상) 또는 null(관문 전 등록).
+            "registrationBasis" to opt(obj("contractSeq" to Whole(1), "versionNo" to Whole(1))),
         )
     }
 }

@@ -132,6 +132,8 @@ internal object PersistenceFailures {
         "business_contract_version_close.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
         "business_contract_event.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
         "business_contract_event.uk_bce_terminate" to StoreConstraint.BUSINESS_CONTRACT_ROW,
+        // MERCHANT-FLOW-001 FLOW-3(V24): 가맹점당 근거 1행 — 가맹점 ID는 서버 생성이라 PK 중복은 결함(BUSINESS_CONTRACT_ROW 분류, businessKey = false).
+        "merchant_registration_basis.PRIMARY" to StoreConstraint.BUSINESS_CONTRACT_ROW,
         "business.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant.PRIMARY" to StoreConstraint.IDENTIFIER,
         "merchant_site.PRIMARY" to StoreConstraint.IDENTIFIER,

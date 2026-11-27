@@ -74,7 +74,13 @@ class ContractIntakeShapeGoldenSpec : BehaviorSpec({
                 "toStatus APPROVED" to copy().also { transition(it, 0, 0).put("toStatus", "APPROVED") },
                 "kind RENEWAL" to copy().also { intake(it, 0).put("kind", "RENEWAL") },
                 "channel SALES_AGENCY" to copy().also { intake(it, 0).put("intakeChannel", "SALES_AGENCY") },
-                "manager system" to copy().also { intake(it, 0).put("contractManager", "system:demo-seed") },
+                // 기대값 변경(FLOW-3 Coordinator 결정(가역) — Demo seed 담당자 허용): `system:demo-seed` **정확히 그 값만** 허용으로 바뀌었다(아래 Then). 다른 system:* 와
+                // 비슷한 값은 여전히 거부 — 대조군을 늘렸다(완화는 그 한 값뿐).
+                "manager system:migration" to copy().also { intake(it, 0).put("contractManager", "system:migration") },
+                "manager system:demo-seed2" to copy().also { intake(it, 0).put("contractManager", "system:demo-seed2") },
+                "manager system:demo-seed with space" to copy().also { intake(it, 0).put("contractManager", "system:demo-seed ") },
+                "manager SYSTEM:DEMO-SEED" to copy().also { intake(it, 0).put("contractManager", "SYSTEM:DEMO-SEED") },
+                "manager admin:demo-seed" to copy().also { intake(it, 0).put("contractManager", "admin:demo-seed") },
                 "manager bare id" to copy().also { intake(it, 0).put("contractManager", "adm_01JC00000000000000000000V1") },
                 "document ref space" to copy().also { transition(it, 0, 2).put("documentRef", "DEMO DOC") },
                 "version document ref space" to copy().also { version(it, 1).put("documentRef", "DEMO DOC") },
@@ -88,6 +94,10 @@ class ContractIntakeShapeGoldenSpec : BehaviorSpec({
                 "event kind CLOSE" to copy().also { (contract(it).get("events") as ArrayNode).add(event("CLOSE", null)) },
                 "event evidence space" to copy().also { (contract(it).get("events") as ArrayNode).add(event("TERMINATE", "DEMO TERM")) },
             ).forEach { (name, node) -> withClue(name) { parses(node) shouldBe false } }
+        }
+        Then("FLOW-3 Coordinator 결정: a Demo-seed intake (contract manager exactly system:demo-seed — fresh Demo without a migrated contract) parses") {
+            val node = copy().also { intake(it, 0).put("contractManager", "system:demo-seed") }
+            parses(node) shouldBe true
         }
         Then("an empty section (business without contract nor intakes) parses; every contract status and a TERMINATE event with evidence parse") {
             parses(copy().also { it.set("intakes", mapper.createArrayNode()); it.putNull("businessContract") }) shouldBe true

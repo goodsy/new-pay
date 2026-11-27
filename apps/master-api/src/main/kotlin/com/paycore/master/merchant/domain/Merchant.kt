@@ -84,15 +84,34 @@ class Merchant private constructor(
 
     companion object {
         /**
-         * B1 등록(MERCHANT-CODE-001 §3.3): 코드 필수 — 예약어면 `MERCHANT_CODE_RESERVED`, seq 1 `REGISTRATION` 배정 하나. 중복(배정 이력 존재)은 Application 사전 조회 + DB UNIQUE.
-         * BUSINESS-PROFILE-001 C-27 전환(D-BIZ-001): 새 가맹점은 REGISTERED 사업자만 — 판정 순서 `BUSINESS_NOT_ACTIVE` → `BUSINESS_NOT_REGISTERED` → 코드 예약어(§4.4).
-         * 기존 가맹점의 Site·계약·MID·개통 명령은 사업자 등록 상태를 보지 않는다(D-BIZ-001 "기존 무영향").
+         * 새 가맹점 등록(B1, MERCHANT-CODE-001 §3.3 + D-BIZ-001 + MERCHANT-FLOW-001 FLOW-3 §4B.8). 판정 순서: 사업자 생명주기(`BUSINESS_NOT_ACTIVE`) → 등록 상태(`BUSINESS_NOT_REGISTERED`) →
+         * **사업자 계약 관문**([requireEffective] — `BUSINESS_CONTRACT_NOT_EFFECTIVE`) → 코드 예약어(`MERCHANT_CODE_RESERVED`). 코드는 필수이고 seq 1 `REGISTRATION` 배정 하나를 만든다
+         * (중복 = Application 사전 조회 + DB UNIQUE). [contract] = 사업자 행 잠금 뒤 같은 TX에서 읽은 그 사업자의 최신 사업자 계약(없으면 null). 접수 건은 입력이 아니다(BR-BIZ-319).
+         * 기존 가맹점의 Site·계약·MID·개통 명령은 사업자 등록 상태·사업자 계약을 보지 않는다(D-BIZ-001 "기존 무영향", BR-BIZ-340).
          */
-        fun register(id: MerchantId, business: Business, displayName: DisplayName, code: MerchantCode, at: Instant, by: ActorRef): Merchant {
+        @Suppress("LongParameterList")
+        fun register(id: MerchantId, business: Business, contract: BusinessContract?, displayName: DisplayName, code: MerchantCode, at: Instant, by: ActorRef): Merchant {
             business.requireActive()
             business.requireRegistered()
+            requireEffective(business, contract, at)
             code.requireAssignable()
             return Merchant(id, business.id, displayName, Lifecycle.ACTIVE, 0, at, by, listOf(MerchantCodeAssignment.registration(code, at, by)))
+        }
+
+        /**
+         * FLOW-3 관문(BR-BIZ-320·327·328): 최신 사업자 계약이 판정 시각에 유효(`statusAt` — fail-closed, 2a MAJOR-1)이고 적용 중 버전(판정 시각 = `judgedAt`) 범위에 카드 PG 결제가
+         * 있어야 한다. 그 밖(없음·효력 전·정지·해지·만료·범위 없음)은 `BUSINESS_CONTRACT_NOT_EFFECTIVE` 하나. 통과하면 근거 버전을 돌려준다(등록 근거 기록 — BR-BIZ-337).
+         * 읽기 메서드만 부른다(ArchUnit ③ — 계약 변경 메서드 호출 없음).
+         */
+        fun requireEffective(business: Business, contract: BusinessContract?, at: Instant): BusinessContractVersion = requireEffectiveFor(business.id, contract, at)
+
+        /** [requireEffective]의 사업자 ID 판(등록 근거 계산용 — 같은 식). */
+        fun requireEffectiveFor(businessId: BusinessId, contract: BusinessContract?, at: Instant): BusinessContractVersion {
+            require(contract == null || contract.id.businessId == businessId) { "the contract belongs to another business" }
+            if (contract == null || contract.statusAt(at) != BusinessContractStatus.ACTIVE) throw MasterRuleViolation(MasterRejection.BUSINESS_CONTRACT_NOT_EFFECTIVE)
+            val applying = contract.applyingVersionAt(contract.judgedAt(at))
+            if (applying == null || ServiceKind.CARD_PG_PAYMENT !in applying.services) throw MasterRuleViolation(MasterRejection.BUSINESS_CONTRACT_NOT_EFFECTIVE)
+            return applying
         }
 
         @Suppress("LongParameterList")
