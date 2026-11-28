@@ -338,7 +338,14 @@ function BusinessPicker({ api, memory, onSessionEnded, onOpenBusiness, disabled 
                       <BusinessText business={business} />
                       <span className="text-xs text-muted-foreground">{labelIn(REGISTRATION_STATUS_LABELS, item.registrationStatus)}</span>
                     </span>
-                    {item.registrationStatus === 'REGISTERED' ? (
+                    {item.registrationStatus === 'REGISTERED' && item.businessContractStatus !== undefined && item.businessContractStatus !== 'ACTIVE' ? (
+                      // MERCHANT-FLOW-001 FLOW-2d([rev 0.4f 후속] §4B.8): 유효한 사업자 계약이 없으면(없음·효력 전·정지·해지·만료) 고를 수 없다 — 안내 + 사업자 상세 링크(DRAFT 안내와 같은 모양).
+                      // 표시용 안내일 뿐 — MASTER 등록 관문(BUSINESS_CONTRACT_NOT_EFFECTIVE)이 최종 판정.
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-warning">유효한 사업자 계약이 있어야 가맹점을 등록할 수 있습니다</span>
+                        {onOpenBusiness && <button type="button" className="btn" onClick={() => onOpenBusiness(item.businessId)}>사업자 상세 보기</button>}
+                      </span>
+                    ) : item.registrationStatus === 'REGISTERED' ? (
                       <button type="button" className="btn primary" disabled={disabled || selected?.businessId === item.businessId} onClick={() => offerBusiness(memory, business)}>
                         {selected?.businessId === item.businessId ? '선택됨' : '선택'}
                       </button>

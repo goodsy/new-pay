@@ -21,7 +21,8 @@ import org.hibernate.annotations.Immutable
  *   범위는 `application`과 하위 패키지. 대상이 0개라 공허하게 통과하지 않음을 대조군(같은 필터가 기존 Outbox·`publishEntitlement` 사용 서비스의 위반을 잡음)으로 보인다(리뷰 MINOR-2).
  * - ③ 가맹점 등록 경로(`MerchantOnboardingService`·`Merchant`)는 FLOW-1에서 접수 건 타입을 전혀 참조하지 않는다(관문은 FLOW-3 — 그때 `ContractIntakeRepository.latestStatus`와
  *   상태 enum만 허용하도록 이 규칙을 좁힌다).
- * - Entity: 전이 이력 Entity는 `@Immutable`·모든 열 `updatable = false`, 접수 건 Entity는 상태·갱신 시각·행위자·version만 수정 가능, 공개 setter 없음.
+ * - Entity: 전이 이력 Entity는 `@Immutable`·모든 열 `updatable = false`, 접수 건 Entity는 상태·갱신 시각·행위자·version + **접수 항목 5열**(FLOW-2d 열린 건 접수 항목 수정 —
+ *   D-FLOW-007 ④·D-FLOW-009 ①)만 수정 가능(종류·대상·이관 표시·소속·순번·생성 값은 수정 불가), 공개 setter 없음.
  */
 class ContractIntakeArchitectureSpec : FunSpec({
 
@@ -83,13 +84,16 @@ class ContractIntakeArchitectureSpec : FunSpec({
         } shouldBe mapOf("$base.application.MerchantOnboardingService" to emptySet(), "$base.domain.Merchant" to emptySet())
     }
 
-    test("FLOW-1 §4A.15 entities: the history entity is @Immutable with no updatable column; the intake entity updates only status / updated_* / version; no public setters") {
+    test("FLOW-1 §4A.15 + FLOW-2d entities: the history entity is @Immutable with no updatable column; the intake entity updates only status / updated_* / version and the 5 item columns (kind, target, migrated, key and creation columns stay fixed); no public setters") {
         val history = classes.get("$base.adapter.persistence.JpaContractIntakeTransitionEntity")
         history.isAnnotatedWith(Immutable::class.java) shouldBe true
         val intake = classes.get("$base.adapter.persistence.JpaContractIntakeEntity")
         fun updatable(e: JavaClass) = e.fields.filter { it.isAnnotatedWith(Column::class.java) && it.getAnnotationOfType(Column::class.java).updatable }.map { it.name }.toSet()
         updatable(history) shouldBe emptySet()
-        updatable(intake) shouldBe setOf("status", "updatedAt", "updatedBy", "version")
+        // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — §4A.3 D-FLOW-007 ④·D-FLOW-009 ① 열린 건 접수 항목 수정, §4B.10 "kind·target_contract_seq는 updatable = false — 전이·항목 수정
+        // UPDATE에 들어가지 않게"): 접수 항목 5열이 수정 가능으로 열렸다. 종류·대상·이관 표시·소속·순번·생성 값은 여전히 수정 불가(아래 단언).
+        updatable(intake) shouldBe setOf("status", "updatedAt", "updatedBy", "version", "receivedOn", "intakeChannel", "contractManager", "desiresCardAuth", "desiresCardKeyin")
+        listOf("kind", "targetContractSeq", "migrated", "businessId", "intakeSeq", "createdAt", "createdBy").forEach { intake.getField(it).getAnnotationOfType(Column::class.java).updatable shouldBe false }
         listOf(history, intake).flatMap { e -> e.methods.filter { it.name.startsWith("set") && JavaModifier.PUBLIC in it.modifiers }.map { "${e.simpleName}.${it.name}" } }
             .shouldBeEmpty()
     }

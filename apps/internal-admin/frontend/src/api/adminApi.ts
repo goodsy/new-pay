@@ -602,6 +602,11 @@ export interface BusinessLookupItem {
   businessName: string
   registrationNumber: string
   registrationStatus: BusinessRegistrationStatus
+  /**
+   * MERCHANT-FLOW-001 FLOW-2d([rev 0.4f 후속]): 최신 사업자 계약 상태(null = 계약 없음) — 가맹점 등록 ① 사전 안내용(판정은 MASTER 등록 관문이 최종).
+   * MASTER는 늘 보내지만 시험 Fixture가 생략할 수 있어 선택 필드다(없으면 안내하지 않는다).
+   */
+  businessContractStatus?: 'NOT_YET_EFFECTIVE' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | 'EXPIRED' | null
 }
 
 export interface BusinessDetail {
@@ -694,15 +699,43 @@ export interface BusinessContractEventView {
   occurredAt: string
 }
 
-/** 접수 건 생성(§4B.11 — 모든 key 필수, 선택 값 null). [contractManagerId] = 계약 담당자 계정 키(화면에 그리지 않는다 — 본문에만). */
+/**
+ * 접수 건 생성(§4B.11 — 모든 key 필수, 선택 값 null). [contractManagerRef] = 계약 담당자 **불투명 참조**(FLOW-2d — D-GOV-024: [AdminApi.listContractManagers]가
+ * 이 세션에 발급한 값, 계정 키 아님 — 만료·새 목록·다른 세션이면 400 `contractManager NOT_ALLOWED`).
+ */
 export interface ContractIntakeOpenInput {
   submissionId: string
   expectedKind: ContractIntakeKind
   receivedOn: string
   intakeChannel: string
-  contractManagerId: string
+  contractManagerRef: string
   desiredServices: string[]
   reason: string | null
+}
+
+/** FLOW-2d 접수 항목 수정(열린 건 — §4A.3). [expectedVersion] = 대화상자를 연 때 본 접수 건 version(고정). 접수일을 바꾸면 사유 필수(MASTER 최종). */
+export interface ContractIntakeItemsInput {
+  submissionId: string
+  expectedVersion: number
+  receivedOn: string
+  intakeChannel: string
+  contractManagerRef: string
+  desiredServices: string[]
+  reason: string | null
+}
+
+/** FLOW-2d 계약 담당자 후보(D-GOV-024 Q-FLOW-39): 활성 운영자 표시명 + 이 세션 불투명 참조 + 본인 표시. 로그인 이름·계정 키 없음. */
+export interface ContractManagerCandidate {
+  ref: string
+  displayName: string
+  self: boolean
+  /** 재리뷰 MAJOR-1: 대상 접수 건을 주고 받은 목록에서만 — 서버가 저장된 담당자와 같은 계정(계정 키 비교)에 true. 대상 없이 받으면 없음. */
+  current?: boolean
+}
+
+export interface ContractManagerList {
+  items: ContractManagerCandidate[]
+  truncated: boolean
 }
 
 /** 전이(계약서 접수·되돌리기·계약 불가). [expectedVersion] = 접수 건 version(낙관적 잠금). */
@@ -1131,6 +1164,10 @@ export interface AdminApi {
   completeBusinessRegistration(businessId: string, input: BusinessChangeInput): Promise<BusinessCommandOutcome>
   /** MERCHANT-FLOW-001 FLOW-2b(§4B.11 표 2b 행): 접수 건 생성·전이·계약 완료(OPERATOR — 서버 판정, 결과 불명은 같은 submissionId 재전송). */
   openContractIntake(businessId: string, input: ContractIntakeOpenInput): Promise<RegistrationOutcome>
+  /** FLOW-2d: 접수 항목 수정(열린 건). */
+  updateContractIntakeItems(businessId: string, intakeSeq: number, input: ContractIntakeItemsInput): Promise<RegistrationOutcome>
+  /** FLOW-2d(D-GOV-024): 계약 담당자 후보 — 부를 때마다 새 참조(옛 참조 무효). OPERATOR만(403). [target]을 주면 그 접수 건의 저장된 담당자에 `current`. */
+  listContractManagers(target?: { businessId: string; intakeSeq: number }): Promise<ContractManagerList>
   moveContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeMoveInput): Promise<RegistrationOutcome>
   completeContractIntake(businessId: string, intakeSeq: number, input: ContractIntakeCompleteInput): Promise<RegistrationOutcome>
   /** MERCHANT-FLOW-001 FLOW-2c(§4B.11 3): 사업자 계약 정지·정지 해제·해지(OPERATOR — 즉시 효력, 새 가맹점 등록 자격만 바뀜). */
@@ -1244,6 +1281,10 @@ export function createAdminApi(deps?: ApiDeps): AdminApi {
     updateBusiness: (businessId, input) => call(`/api/businesses/${segment(businessId)}`, 'PUT', input),
     completeBusinessRegistration: (businessId, input) => call(`/api/businesses/${segment(businessId)}/registration`, 'POST', input),
     openContractIntake: (businessId, input) => call(`/api/businesses/${segment(businessId)}/contract-intakes`, 'POST', input),
+    updateContractIntakeItems: (businessId, intakeSeq, input) =>
+      call(`/api/businesses/${segment(businessId)}/contract-intakes/${intakeSeq}/items`, 'POST', input),
+    listContractManagers: (target) =>
+      call(target ? `/api/contract-managers?businessId=${encodeURIComponent(target.businessId)}&intakeSeq=${target.intakeSeq}` : '/api/contract-managers', 'GET'),
     moveContractIntake: (businessId, intakeSeq, input) =>
       call(`/api/businesses/${segment(businessId)}/contract-intakes/${segment(String(intakeSeq))}/transitions`, 'POST', input),
     completeContractIntake: (businessId, intakeSeq, input) =>

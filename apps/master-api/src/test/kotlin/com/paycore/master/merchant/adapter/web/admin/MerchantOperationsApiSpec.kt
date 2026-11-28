@@ -153,6 +153,8 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/complete",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d §4B.7 — 쓰기 경로 1개 증가: 접수 항목 수정, 1인 OPERATOR·이력 전용 — 권리·정산 효과 없음).
+                "POST /internal/v1/admin/businesses/contract-intakes/commands/update-items",
                 // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 쓰기 경로 목록 증가): 사업자 계약 정지·정지 해제·해지(Outbox·권리 효과 없음 — 개통·한도·정지 경로는 여전히 없다).
                 "POST /internal/v1/admin/businesses/business-contracts/commands/suspend",
                 "POST /internal/v1/admin/businesses/business-contracts/commands/resume",

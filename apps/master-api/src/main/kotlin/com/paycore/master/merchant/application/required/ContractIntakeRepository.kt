@@ -20,4 +20,10 @@ interface ContractIntakeRepository {
 
     /** 전이 결과 저장([intake].version = 저장 후 기대 version, 정확히 +1). 저장된 version이 [intake].version - 1이 아니면 [PersistenceFailure.OptimisticConflict]. */
     fun update(intake: ContractIntake)
+
+    /**
+     * FLOW-2d 접수 항목 수정 결과 저장(접수일·경로·담당자·희망 서비스 + 갱신 시각·행위자, version 정확히 +1). 상태·종류·대상·이관 표시는 바뀌지 않는다(adapter가 확인).
+     * 저장된 version이 [intake].version - 1이 아니면 [PersistenceFailure.OptimisticConflict].
+     */
+    fun updateItems(intake: ContractIntake)
 }

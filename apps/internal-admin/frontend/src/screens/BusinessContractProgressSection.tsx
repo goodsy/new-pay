@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type {
-  AdminApi, BusinessContractEventInput, BusinessContractView, ContractIntakeCompleteInput, ContractIntakeKind, ContractIntakeMoveInput, ContractIntakeOpenInput, ContractIntakeView, ContractProgress,
-  RegistrationOutcome,
+  AdminApi, BusinessContractEventInput, BusinessContractView, ContractIntakeCompleteInput, ContractIntakeItemsInput, ContractIntakeKind, ContractIntakeMoveInput, ContractIntakeOpenInput,
+  ContractIntakeView, ContractManagerCandidate, ContractProgress, RegistrationOutcome,
 } from '../api/adminApi'
 import { ApiError } from '../api/client'
 import { KstTime } from '../components/DataBits'
@@ -24,6 +24,7 @@ import {
   serverFieldMessage, transitionActor, transitionChange, transitionEvidence, VERSION_IMMUTABLE_NOTE, versionEvidence, versionLine, versionOf, versionPeriod,
   type CompletionForm, type IntakeAction, type OpenForm,
   allowedContractActions, CONTRACT_EVENT_ACTION_LABELS, contractEventErrors, TERMINATION_IRREVERSIBLE, terminationNotice, type ContractEventAction,
+  CONTRACT_INPUT_MESSAGES, itemsErrors, type ItemsForm,
 } from '../lib/contractProgress'
 import { useRemembered, type ScreenMemory } from '../lib/screenMemory'
 import { useUnknownLockedSubmission } from '../lib/useUnknownLockedSubmission'
@@ -35,7 +36,9 @@ import { useUnknownLockedSubmission } from '../lib/useUnknownLockedSubmission'
  * - 명령은 화면 안 대화상자(role=dialog — 브라우저 confirm 아님). 결과 불명은 입력 잠금 + 같은 submissionId 재전송([useUnknownLockedSubmission] — App 메모리, 브라우저 저장소 아님).
  *   성공하면 상세를 다시 읽는다([onChanged] — 성공 응답에 상태·version이 없다, C-18). 저장된 거절은 한국어 안내(code 원문 없음).
  * - 내부 키(biz_·adm_)·계정 키·로그인 이름·version 값은 그리지 않는다(계정 키는 요청 본문에만). 근거 참조 원문은 사업자 조회 역할 전체(D-FLOW-004 ④).
- * - 계약 담당자 = 로그인한 운영자 본인([actorId]·[actorName] — [구현 관례]: 다른 운영자 지정 목록은 FLOW-2d 접수 항목 수정 때 검토, 서버는 ACTIVE OPERATOR를 검사).
+ * - 계약 담당자(FLOW-2d — D-GOV-024): 대화상자를 열 때 받은 담당자 후보(활성 운영자 표시명 + 이 세션 불투명 참조, 본인 표시)에서 고른다 — 생성 기본 = 본인, 항목 수정 기본 = 서버가
+ *   저장된 담당자(계정 키 비교)로 표시한 `current` 후보뿐(재리뷰 MAJOR-1 — 표시명 비교 없음, 없으면 빈 값 + 안내). 계정 키는 화면에 없다. 서버는 참조를 세션 대응표로 풀고 ACTIVE OPERATOR를 매번 검사한다(400이면 목록을 다시 받는다).
+ * - FLOW-2d 접수 항목 수정(열린 건): 연 때의 version·값을 고정하고, 재조회에서 version이 바뀌면 닫고 다시 열라고 안내(2c MAJOR-1 원칙). 접수일을 바꾸면 사유 필수.
  */
 interface Props {
   progress: ContractProgress | undefined
@@ -51,7 +54,11 @@ interface Props {
 }
 
 type Dialog =
-  | { kind: 'open'; businessId: string; intakeKind: ContractIntakeKind; form: OpenForm }
+  // FLOW-2d(D-GOV-024): 담당자 = 이 세션 담당자 목록의 불투명 참조([managerRef] — 목록을 받기 전·다시 받은 뒤에는 기본값으로 채운다).
+  | { kind: 'open'; businessId: string; intakeKind: ContractIntakeKind; form: OpenForm; managerRef: string }
+  // FLOW-2d 접수 항목 수정: 연 때의 version·값을 고정한다(2c MAJOR-1 원칙 — 재조회에서 version이 다르면 닫는다).
+  // 재리뷰 MAJOR-1: 기본 담당자 = 서버가 current로 표시한 후보뿐(표시명 비교 없음). [currentMissing] = 목록에 그 후보가 없음(안내 + 직접 선택).
+  | { kind: 'items'; businessId: string; intakeSeq: number; expectedVersion: number; currentMissing: boolean; original: ItemsForm; form: ItemsForm }
   | { kind: 'move'; businessId: string; intakeSeq: number; action: Exclude<IntakeAction, 'COMPLETE'>; reason: string }
   | { kind: 'complete'; businessId: string; intakeSeq: number; form: CompletionForm }
   // 리뷰 MAJOR-1: 대화상자를 연 때 본 계약 순번·사건 수를 고정한다 — 전송은 이 값만 쓰고, 재조회 결과가 다르면 대화상자를 닫는다(다른 계약·옛 사건 수로 보내지 않게).
@@ -60,19 +67,21 @@ type Dialog =
 type Payload =
   | { op: 'open'; businessId: string; body: Omit<ContractIntakeOpenInput, 'submissionId'> }
   | { op: 'move'; businessId: string; intakeSeq: number; body: Omit<ContractIntakeMoveInput, 'submissionId'> }
+  | { op: 'items'; businessId: string; intakeSeq: number; body: Omit<ContractIntakeItemsInput, 'submissionId'> }
   | { op: 'complete'; businessId: string; intakeSeq: number; body: Omit<ContractIntakeCompleteInput, 'submissionId'> }
   | { op: 'event'; action: ContractEventAction; businessId: string; contractSeq: number; body: Omit<BusinessContractEventInput, 'submissionId'> }
 
 const KEY = 'contract.cmd'
 const SAVED = '저장했습니다. 계약 진행을 다시 불러왔습니다.'
 const CONTRACT_CHANGED = '사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.'
+const INTAKE_CHANGED = '접수 건이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.'
 const nullIfEmpty = (value: string) => (value === '' ? null : value)
 
 const STATUS_TONE: Readonly<Record<string, BadgeVariant>> = {
   NOT_YET_EFFECTIVE: 'default', ACTIVE: 'success', SUSPENDED: 'warning', TERMINATED: 'secondary', EXPIRED: 'secondary',
 }
 
-export function BusinessContractProgressSection({ progress, businessId, api, memory, canEdit, actorId, actorName, newSubmissionId, onSessionEnded, onChanged }: Props) {
+export function BusinessContractProgressSection({ progress, businessId, api, memory, canEdit, actorId, newSubmissionId, onSessionEnded, onChanged }: Props) {
   const [dialog, setDialog] = useRemembered<Dialog | null>(memory, 'contract.dialog', null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null)
@@ -81,7 +90,9 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
   // 그래서 재전송 400(INVALID_INPUT)에 잠금을 풀고 상세를 다시 읽는다(남은 결과 불명 감사의 정본은 MASTER 이력).
   const command = useUnknownLockedSubmission<Payload, RegistrationOutcome>(memory, KEY, newSubmissionId, onSessionEnded, true)
   const current = dialog && dialog.businessId === businessId ? dialog : null
-  const [stale, setStale] = useState(false)
+  const [stale, setStale] = useState<string | null>(null)
+  // FLOW-2d(D-GOV-024): 담당자 후보(이 세션 참조). undefined = 불러오는 중, 'failed' = 실패(저장 불가 안내).
+  const [managers, setManagers] = useState<ContractManagerCandidate[] | 'failed' | undefined>(undefined)
   const shownContract = progress?.available ? (progress.businessContract ?? null) : undefined
   useEffect(() => {
     if (current?.kind !== 'event' || command.locked || shownContract === undefined) return
@@ -89,15 +100,48 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
       setDialog(null)
       setFieldErrors({})
       setNotice(null)
-      setStale(true)
+      setStale(CONTRACT_CHANGED)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 표시 계약이 바뀔 때만 본다
   }, [shownContract, current?.kind])
+  // FLOW-2d 항목 수정: 결과 불명 잠금 중이 아니면, 재조회한 그 접수 건의 version이 연 때와 다를 때 닫는다(옛 version으로 다시 보내지 않게 — 2c MAJOR-1 원칙).
+  const shownIntakes = progress?.available ? progress.intakes : undefined
+  useEffect(() => {
+    if (current?.kind !== 'items' || command.locked || shownIntakes === undefined) return
+    const now = shownIntakes.find((i) => i.intakeSeq === current.intakeSeq)
+    if (!now || now.version !== current.expectedVersion) {
+      setDialog(null)
+      setFieldErrors({})
+      setNotice(null)
+      setStale(INTAKE_CHANGED)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 표시 접수 건이 바뀔 때만 본다
+  }, [shownIntakes, current?.kind])
+
+  /**
+   * 담당자 후보를 (다시) 받고, 열린 대화상자의 담당자를 기본값으로 채운다 — 생성 = 본인, 수정 = 서버가 저장된 담당자(계정 키 비교)로 표시한 current 후보(없으면 빈 값 + 안내).
+   * 옛 참조는 무효가 된다.
+   */
+  const loadManagers = () => {
+    setManagers(undefined)
+    const opened = memory.read('contract.dialog') as Dialog | null | undefined
+    const target = opened?.kind === 'items' ? { businessId: opened.businessId, intakeSeq: opened.intakeSeq } : undefined
+    ;(target ? api.listContractManagers(target) : api.listContractManagers()).then((list) => {
+      setManagers(list.items)
+      const open = memory.read('contract.dialog') as Dialog | null | undefined
+      if (open?.kind === 'open') setDialog({ ...open, managerRef: list.items.find((m) => m.self)?.ref ?? '' })
+      if (open?.kind === 'items') {
+        const ref = list.items.find((m) => m.current === true)?.ref ?? ''
+        setDialog({ ...open, currentMissing: ref === '', original: { ...open.original, managerRef: ref }, form: { ...open.form, managerRef: ref } })
+      }
+    }, () => setManagers('failed'))
+  }
   const writable = canEdit && actorId !== undefined && progress?.available === true
 
   const send = (submissionId: string, p: Payload): Promise<RegistrationOutcome> => {
     if (p.op === 'open') return api.openContractIntake(p.businessId, { submissionId, ...p.body })
     if (p.op === 'move') return api.moveContractIntake(p.businessId, p.intakeSeq, { submissionId, ...p.body })
+    if (p.op === 'items') return api.updateContractIntakeItems(p.businessId, p.intakeSeq, { submissionId, ...p.body })
     if (p.op === 'event') {
       const body = { submissionId, ...p.body }
       if (p.action === 'SUSPEND') return api.suspendBusinessContract(p.businessId, p.contractSeq, body)
@@ -118,6 +162,8 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
     const errors = lastFieldErrors.current
     if (code === 'INVALID_INPUT' && errors && errors.length > 0) {
       setFieldErrors(Object.fromEntries(errors.map((e) => [e.path.replace(/\[[0-9]+\]$/, ''), serverFieldMessage(e.path, e.code)])))
+      // D-GOV-024: 담당자 참조가 만료·교체됐을 수 있다 — 목록을 다시 받아 새 참조로 고르게 한다.
+      if (errors.some((e) => e.path === 'contractManager')) loadManagers()
       return
     }
     setNotice({ tone: 'error', text: code === 'RATE_LIMITED' ? COMMAND_RATE_LIMITED : ERROR_MESSAGES[code] })
@@ -147,12 +193,13 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
 
   const openDialog = (next: Dialog) => {
     if (command.locked) return
-    setStale(false)
+    setStale(null)
     command.resetIfUnlocked()
     setFieldErrors({})
     setNotice(null)
     setSaved(false)
     setDialog(next)
+    if (next.kind === 'open' || next.kind === 'items') loadManagers()
   }
   const close = () => {
     if (command.locked) return
@@ -163,6 +210,7 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
 
   const unknownText = command.status.kind === 'unknown' ? ERROR_MESSAGES[command.status.code] : null
   const shared = { locked: command.locked, busy: command.status.kind === 'busy', unknownText, notice, fieldErrors, onCancel: close }
+  const managerOptions = managers === undefined || managers === 'failed' ? managers : managers
 
   if (!progress?.available) {
     return (
@@ -179,7 +227,7 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
   return (
     <Shell>
       {saved && <StatusNotice tone="success">{SAVED}</StatusNotice>}
-      {stale && <WarningNote>{CONTRACT_CHANGED}</WarningNote>}
+      {stale && <WarningNote>{stale}</WarningNote>}
       <ContractColumn contract={contract} writable={writable && current === null}
         onAction={(action) => contract && openDialog({
           kind: 'event', businessId, contractSeq: contract.contractSeq, expectedEventCount: contract.events.length, action, reason: '', evidenceRef: '', confirming: false,
@@ -206,22 +254,24 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
         <h4 className="text-sm font-semibold">접수 건</h4>
         {writable && nextKind !== null && current === null && (
           <Button type="button" size="sm" variant="outline"
-            onClick={() => openDialog({ kind: 'open', businessId, intakeKind: nextKind, form: { receivedOn: today, intakeChannel: '', desiredServices: [], reason: '' } })}>
+            onClick={() => openDialog({ kind: 'open', businessId, intakeKind: nextKind, managerRef: '', form: { receivedOn: today, intakeChannel: '', desiredServices: [], reason: '' } })}>
             {kindLabel}
           </Button>
         )}
       </div>
       {current?.kind === 'open' && (
-        <OpenDialog dialog={current} today={today} actorName={actorName ?? ''} {...shared}
+        <OpenDialog dialog={current} today={today} managers={managerOptions} {...shared}
           onChange={(form) => setDialog({ ...current, form })}
+          onManager={(managerRef) => setDialog({ ...current, managerRef })}
           onSubmit={() => {
             const errors = openErrors(current.form, today)
+            if (current.managerRef === '') errors.contractManager = CONTRACT_INPUT_MESSAGES.managerRequired
             setFieldErrors(errors)
             if (Object.keys(errors).length > 0 || actorId === undefined) return
             void runCapturing({
               op: 'open', businessId,
               body: {
-                expectedKind: current.intakeKind, receivedOn: current.form.receivedOn, intakeChannel: current.form.intakeChannel, contractManagerId: actorId,
+                expectedKind: current.intakeKind, receivedOn: current.form.receivedOn, intakeChannel: current.form.intakeChannel, contractManagerRef: current.managerRef,
                 desiredServices: current.form.desiredServices, reason: nullIfEmpty(current.form.reason),
               },
             })
@@ -232,9 +282,34 @@ export function BusinessContractProgressSection({ progress, businessId, api, mem
       ) : (
         progress.intakes.map((intake) => (
           <Intake key={intake.intakeSeq} intake={intake} contract={contract} writable={writable && current === null}
+            onEditItems={() => {
+              const items: ItemsForm = {
+                receivedOn: intake.receivedOn ?? '', intakeChannel: intake.intakeChannel ?? '', managerRef: '', desiredServices: [...intake.desiredServices], reason: '',
+              }
+              openDialog({
+                kind: 'items', businessId, intakeSeq: intake.intakeSeq, expectedVersion: intake.version, currentMissing: false, original: items, form: items,
+              })
+            }}
             onAction={(action) => openDialog(action === 'COMPLETE'
               ? { kind: 'complete', businessId, intakeSeq: intake.intakeSeq, form: { documentRef: '', startDate: today, endDate: '', services: ['CARD_PG_PAYMENT'], reason: '' } }
               : { kind: 'move', businessId, intakeSeq: intake.intakeSeq, action, reason: '' })}>
+            {current?.kind === 'items' && current.intakeSeq === intake.intakeSeq && (
+              <ItemsDialog dialog={current} today={today} managers={managerOptions} {...shared}
+                onChange={(form) => setDialog({ ...current, form })}
+                onSubmit={() => {
+                  const errors = itemsErrors(current.form, current.original, today)
+                  setFieldErrors(errors)
+                  if (Object.keys(errors).length > 0) return
+                  const f = current.form
+                  void runCapturing({
+                    op: 'items', businessId, intakeSeq: intake.intakeSeq,
+                    body: {
+                      expectedVersion: current.expectedVersion, receivedOn: f.receivedOn, intakeChannel: f.intakeChannel, contractManagerRef: f.managerRef,
+                      desiredServices: f.desiredServices, reason: nullIfEmpty(f.reason),
+                    },
+                  })
+                }} />
+            )}
             {current?.kind === 'move' && current.intakeSeq === intake.intakeSeq && (
               <MoveDialog dialog={current} {...shared}
                 onChange={(reason) => setDialog({ ...current, reason })}
@@ -366,15 +441,18 @@ function ContractColumn({ contract, writable, onAction, children }: {
 
 // ── 접수 건(§4B.11 2) ─────────────────────────────────────
 
-function Intake({ intake, contract, writable, onAction, children }: {
+function Intake({ intake, contract, writable, onAction, onEditItems, children }: {
   intake: ContractIntakeView
   contract: BusinessContractView | null
   writable: boolean
   onAction: (action: IntakeAction) => void
+  /** FLOW-2d: 열린 건(상담 중·계약서 접수)의 '접수 항목 수정'. */
+  onEditItems: () => void
   children?: ReactNode
 }) {
   const name = `계약 접수 ${intake.intakeSeq}`
   const actions = writable ? allowedActions(intake, contract) : []
+  const editable = writable && !intake.migrated && (intake.status === 'CONSULTING' || intake.status === 'DOCUMENT_RECEIVED')
   return (
     <div role="group" aria-label={name} className="flex flex-col gap-2 border-t pt-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -392,13 +470,14 @@ function Intake({ intake, contract, writable, onAction, children }: {
         </Row>
       </dl>
       {changeBlocked(intake, contract) && <WarningNote>{NOT_CHANGEABLE_NOTE}</WarningNote>}
-      {actions.length > 0 && (
+      {(actions.length > 0 || editable) && (
         <div className="flex flex-wrap gap-2">
           {actions.map((action) => (
             <Button key={action} type="button" size="sm" variant={action === 'REJECTED' ? 'outline' : action === 'COMPLETE' ? 'default' : 'secondary'} onClick={() => onAction(action)}>
               {INTAKE_ACTION_LABELS[action]}
             </Button>
           ))}
+          {editable && <Button type="button" size="sm" variant="ghost" onClick={onEditItems}>접수 항목 수정</Button>}
         </div>
       )}
       {children}
@@ -435,10 +514,12 @@ interface Shared {
   onCancel: () => void
 }
 
-function DialogShell({ name, shared, submitLabel, onSubmit, children }: { name: string; shared: Shared; submitLabel: string; onSubmit: () => void; children: ReactNode }) {
+function DialogShell({ name, shared, submitLabel, onSubmit, children, submitDisabled = false }: {
+  name: string; shared: Shared; submitLabel: string; onSubmit: () => void; children: ReactNode; submitDisabled?: boolean
+}) {
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!shared.busy) onSubmit()
+    if (!shared.busy && !submitDisabled) onSubmit()
   }
   return (
     <form role="dialog" aria-label={name} onSubmit={submit} noValidate className="flex flex-col gap-2 rounded-lg border p-3">
@@ -446,8 +527,9 @@ function DialogShell({ name, shared, submitLabel, onSubmit, children }: { name: 
       <fieldset disabled={shared.locked} className="flex flex-col gap-1">{children}</fieldset>
       {shared.unknownText && <ErrorNotice>{shared.unknownText}</ErrorNotice>}
       {shared.notice && <ErrorNotice>{shared.notice.text}</ErrorNotice>}
+      {shared.fieldErrors.form && <p className="text-xs text-destructive">{shared.fieldErrors.form}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="sm" disabled={shared.busy}>{shared.unknownText ? '같은 내용으로 다시 보내기' : submitLabel}</Button>
+        <Button type="submit" size="sm" disabled={shared.busy || submitDisabled}>{shared.unknownText ? '같은 내용으로 다시 보내기' : submitLabel}</Button>
         {!shared.locked && <Button type="button" size="sm" variant="outline" onClick={shared.onCancel}>취소</Button>}
       </div>
     </form>
@@ -464,18 +546,37 @@ function ReasonRow({ value, required, error, onChange }: { value: string; requir
   )
 }
 
-function OpenDialog({ dialog, today, actorName, onChange, onSubmit, ...shared }: Shared & {
+/** FLOW-2d(D-GOV-024): 계약 담당자 선택 — 표시명(본인 표시)만, 값은 이 세션 불투명 참조. 목록을 못 받으면 안내 + 저장 막음. */
+function ManagerRow({ managers, value, error, onChange }: {
+  managers: ContractManagerCandidate[] | 'failed' | undefined; value: string; error?: string; onChange: (ref: string) => void
+}) {
+  if (managers === 'failed') return <ErrorNotice>{CONTRACT_INPUT_MESSAGES.managersUnavailable}</ErrorNotice>
+  if (managers === undefined) return <p className="text-xs text-muted-foreground">계약 담당자 목록을 불러오는 중…</p>
+  return (
+    <FormRow label="계약 담당자" error={error}>
+      {(describedBy, id) => (
+        <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-describedby={describedBy} aria-invalid={!!error || undefined}>
+          {value === '' && <option value="">고르세요</option>}
+          {managers.map((m) => <option key={m.ref} value={m.ref}>{m.self ? `${m.displayName}(본인)` : m.displayName}</option>)}
+        </NativeSelect>
+      )}
+    </FormRow>
+  )
+}
+
+function OpenDialog({ dialog, today, managers, onChange, onManager, onSubmit, ...shared }: Shared & {
   dialog: Extract<Dialog, { kind: 'open' }>
   today: string
-  actorName: string
+  managers: ContractManagerCandidate[] | 'failed' | undefined
   onChange: (form: OpenForm) => void
+  onManager: (ref: string) => void
   onSubmit: () => void
 }) {
   const f = dialog.form
   const toggle = (code: string) =>
     onChange({ ...f, desiredServices: f.desiredServices.includes(code) ? f.desiredServices.filter((s) => s !== code) : [...f.desiredServices, code] })
   return (
-    <DialogShell name={dialog.intakeKind === 'CHANGE' ? '변경 접수' : '신규 접수'} shared={shared} submitLabel="접수 저장" onSubmit={onSubmit}>
+    <DialogShell name={dialog.intakeKind === 'CHANGE' ? '변경 접수' : '신규 접수'} shared={shared} submitLabel="접수 저장" onSubmit={onSubmit} submitDisabled={managers === 'failed'}>
       <FormRow label="접수일" hint="한국 시간 기준 오늘 이후는 고를 수 없습니다." error={shared.fieldErrors.receivedOn}>
         {(describedBy, id) => (
           <Input id={id} type="date" max={today} value={f.receivedOn} onChange={(e) => onChange({ ...f, receivedOn: e.target.value })} aria-describedby={describedBy}
@@ -491,10 +592,7 @@ function OpenDialog({ dialog, today, actorName, onChange, onSubmit, ...shared }:
           </NativeSelect>
         )}
       </FormRow>
-      <dl>
-        <Row term="계약 담당자">{`${actorName}(본인)`}</Row>
-      </dl>
-      {shared.fieldErrors.contractManager && <p className="text-xs text-destructive">{shared.fieldErrors.contractManager}</p>}
+      <ManagerRow managers={managers} value={dialog.managerRef} error={shared.fieldErrors.contractManager} onChange={onManager} />
       <fieldset aria-label="희망 서비스" className="flex flex-col gap-1 py-1">
         <legend className="text-xs text-muted-foreground">희망 서비스</legend>
         {Object.entries(DESIRED_SERVICE_LABELS).map(([code, text]) => (
@@ -510,6 +608,50 @@ function OpenDialog({ dialog, today, actorName, onChange, onSubmit, ...shared }:
         <span className="text-xs text-muted-foreground">{DESIRED_SERVICE_NOTE}</span>
       </fieldset>
       <ReasonRow value={f.reason} required={false} error={shared.fieldErrors.reason} onChange={(reason) => onChange({ ...f, reason })} />
+    </DialogShell>
+  )
+}
+
+/** FLOW-2d 접수 항목 수정(§4A.3 — 열린 건): 접수일·경로·담당자·희망 서비스. 접수일을 바꾸면 '사유 및 비고' 필수(D-FLOW-009 ①). */
+function ItemsDialog({ dialog, today, managers, onChange, onSubmit, ...shared }: Shared & {
+  dialog: Extract<Dialog, { kind: 'items' }>
+  today: string
+  managers: ContractManagerCandidate[] | 'failed' | undefined
+  onChange: (form: ItemsForm) => void
+  onSubmit: () => void
+}) {
+  const f = dialog.form
+  const toggle = (code: string) =>
+    onChange({ ...f, desiredServices: f.desiredServices.includes(code) ? f.desiredServices.filter((s) => s !== code) : [...f.desiredServices, code] })
+  return (
+    <DialogShell name="접수 항목 수정" shared={shared} submitLabel="수정 저장" onSubmit={onSubmit} submitDisabled={managers === 'failed'}>
+      <FormRow label="접수일" hint="한국 시간 기준 오늘 이후는 고를 수 없습니다. 바꾸면 사유가 필요합니다." error={shared.fieldErrors.receivedOn}>
+        {(describedBy, id) => (
+          <Input id={id} type="date" max={today} value={f.receivedOn} onChange={(e) => onChange({ ...f, receivedOn: e.target.value })} aria-describedby={describedBy}
+            aria-invalid={!!shared.fieldErrors.receivedOn || undefined} />
+        )}
+      </FormRow>
+      <FormRow label="접수 경로" error={shared.fieldErrors.intakeChannel}>
+        {(describedBy, id) => (
+          <NativeSelect id={id} value={f.intakeChannel} onChange={(e) => onChange({ ...f, intakeChannel: e.target.value })} aria-describedby={describedBy}
+            aria-invalid={!!shared.fieldErrors.intakeChannel || undefined}>
+            {INTAKE_CHANNEL_OPTIONS.map((o) => <option key={o.code} value={o.code} disabled={o.disabled}>{o.label}</option>)}
+          </NativeSelect>
+        )}
+      </FormRow>
+      <ManagerRow managers={managers} value={f.managerRef} error={shared.fieldErrors.contractManager} onChange={(managerRef) => onChange({ ...f, managerRef })} />
+      {dialog.currentMissing && Array.isArray(managers) && <WarningNote>{CONTRACT_INPUT_MESSAGES.currentManagerMissing}</WarningNote>}
+      <fieldset aria-label="희망 서비스" className="flex flex-col gap-1 py-1">
+        <legend className="text-xs text-muted-foreground">희망 서비스</legend>
+        {Object.entries(DESIRED_SERVICE_LABELS).map(([code, text]) => (
+          <label key={code} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={f.desiredServices.includes(code)} onChange={() => toggle(code)} />
+            {text}
+          </label>
+        ))}
+        <span className="text-xs text-muted-foreground">{DESIRED_SERVICE_NOTE}</span>
+      </fieldset>
+      <ReasonRow value={f.reason} required={f.receivedOn !== dialog.original.receivedOn} error={shared.fieldErrors.reason} onChange={(reason) => onChange({ ...f, reason })} />
     </DialogShell>
   )
 }

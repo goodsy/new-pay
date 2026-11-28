@@ -22,6 +22,24 @@ interface ContractIntakeCommandUseCase {
 
     /** 계약서 접수 → 계약 완료 + 신규 = 사업자 계약·버전 1 / 변경 = 새 버전·직전 버전 닫기(BR-BIZ-314·324). */
     fun complete(command: CompleteContractIntakeCommand): AdminCommandResult
+
+    /**
+     * FLOW-2d 접수 항목 수정(§4A.3 — D-FLOW-007 ④·D-FLOW-009 ①): 열린 건의 접수일·경로·계약 담당자·희망 서비스. 접수일을 바꾸면 '사유 및 비고' 필수. 상태 전이가 아니다(전이 이력 없음).
+     */
+    fun updateItems(command: UpdateContractIntakeItemsCommand): AdminCommandResult
+}
+
+data class UpdateContractIntakeItemsCommand(
+    val request: AdminRequest,
+    val businessId: BusinessId,
+    val intakeSeq: Int,
+    val expectedVersion: Long,
+    val items: ContractIntakeItems,
+    val reason: BusinessChangeReason?,
+) {
+    init {
+        require(intakeSeq >= 1 && expectedVersion >= 0) { "intake sequence starts at 1 and versions are not negative" }
+    }
 }
 
 data class OpenContractIntakeCommand(

@@ -57,8 +57,11 @@ class ContractIntakeCommandServiceSpec : BehaviorSpec({
     val now = Instant.parse("2026-11-25T15:30:00Z")
     val todayKst = "2026-11-26"
 
-    fun open(s: String = sub(), receivedOn: String = todayKst, channel: String = "PHONE", manager: String = managerId, services: List<String> = listOf("CARD_AUTH"), reason: String? = null, kind: String = "NEW") =
+    fun open(s: String = sub(), receivedOn: String = todayKst, channel: String = "PHONE", manager: String? = managerId, services: List<String> = listOf("CARD_AUTH"), reason: String? = null, kind: String = "NEW") =
         ContractIntakeRequest.Open(biz, s, kind, receivedOn, channel, manager, services, reason)
+    /** FLOW-2d 접수 항목 수정(접수 건 #2, 기대 version 1). [manager] = 화면 참조를 웹 adapter가 푼 계정 키(풀리지 않으면 null). */
+    fun items(s: String = sub(), receivedOn: String = todayKst, channel: String = "WEBSITE", manager: String? = managerId, services: List<String> = listOf("CARD_AUTH"), reason: String? = null) =
+        ContractIntakeRequest.UpdateItems(biz, 2, s, 1, receivedOn, channel, manager, services, reason)
     fun move(target: String, reason: String? = null, s: String = sub()) = ContractIntakeRequest.Move(biz, 2, s, 1, target, reason)
     fun complete(s: String = sub(), documentRef: String = "DEMO-DOC-0001", start: String = todayKst, end: String? = null, services: List<String> = listOf("CARD_PG_PAYMENT"), reason: String? = null) =
         ContractIntakeRequest.Complete(biz, 2, s, 1, documentRef, start, end, services, reason)
@@ -480,6 +483,57 @@ class ContractIntakeCommandServiceSpec : BehaviorSpec({
             f.service.execute(operatorId, event(ContractIntakeOperation.TERMINATE), ctx) shouldBe
                 BusinessProfileResult.Decided("REJECTED", null, "BUSINESS_CONTRACT_STATE_CONFLICT", false)
             f.rows().last().split('|')[2].contains("rejection=BUSINESS_CONTRACT_STATE_CONFLICT") shouldBe true
+        }
+    }
+
+    Given("FLOW-2d 접수 항목 수정(§4A.3 — D-FLOW-007 ④·D-FLOW-009 ①) and the contract-manager reference (D-GOV-024)") {
+        Then("OPERATOR: REQUESTED → MASTER update-items (outside a DB TX, every key, manager admin:adm_…) → OK; audit detail target=ITEMS + presence only") {
+            val f = Fixture(now = now)
+            val s = sub()
+            f.service.execute(operatorId, items(s = s, reason = "CANARY-ITEMS-REASON", services = listOf("CARD_AUTH", "CARD_KEYIN")), ctx) shouldBe
+                BusinessProfileResult.Decided("SUCCEEDED", biz, null, false)
+            f.events shouldBe listOf("audit:REQUESTED", "call", "audit:OK")
+            f.callInTx shouldBe listOf(false)
+            val c = f.commands.single()
+            listOf(c.operation, c.operation.masterPath, c.idempotencyKey, c.correlationId) shouldBe
+                listOf(ContractIntakeOperation.UPDATE_ITEMS, "update-items", "mo1.01JC00000000000000000000V1.$s", "mos.$s")
+            c.body shouldBe linkedMapOf(
+                "businessId" to biz, "intakeSeq" to 2, "expectedVersion" to 1L, "receivedOn" to todayKst, "intakeChannel" to "WEBSITE", "contractManager" to "admin:$managerId",
+                "desiredServices" to listOf("CARD_AUTH", "CARD_KEYIN"), "reason" to "CANARY-ITEMS-REASON",
+            )
+            f.rows() shouldBe listOf(
+                "BUSINESS_CONTRACT_INTAKE_ITEMS|REQUESTED|sub=${s.take(8)};target=ITEMS;reason=PRESENT;evidence=ABSENT|$biz",
+                "BUSINESS_CONTRACT_INTAKE_ITEMS|OK|sub=${s.take(8)};replayed=false;target=ITEMS;reason=PRESENT;evidence=ABSENT|$biz",
+            )
+            f.audits.forEach { a -> listOf(a.detail, a.toString()).forEach { (it ?: "") shouldNotContain "CANARY"; (it ?: "") shouldNotContain managerId } }
+            f.metrics shouldBe listOf("command:UpdateContractIntakeItems:OK")
+        }
+
+        Then("an unresolved manager reference (null — unknown, expired or another session's) → contractManager NOT_ALLOWED on open and update, no audit, MASTER not called") {
+            val f = Fixture(now = now)
+            f.service.execute(operatorId, open(manager = null), ctx) shouldBe invalid("contractManager" to "NOT_ALLOWED")
+            f.service.execute(operatorId, items(manager = null), ctx) shouldBe invalid("contractManager" to "NOT_ALLOWED")
+            f.commands.shouldBeEmpty()
+            f.audits.shouldBeEmpty()
+        }
+
+        Then("the manager is always re-checked (suspended / APPROVER-only → NOT_ALLOWED, also on a same-submissionId resend); a future received date NOT_ALLOWED; card number in the reason; APPROVER → 403 + FORBIDDEN") {
+            val f = Fixture(now = now)
+            listOf("adm_01JC00000000000000000000V3", "adm_01JC00000000000000000000V4").forEach { m ->
+                withClue(m) { f.service.execute(operatorId, items(manager = m), ctx) shouldBe invalid("contractManager" to "NOT_ALLOWED") }
+            }
+            f.service.execute(operatorId, items(receivedOn = "2026-11-27"), ctx) shouldBe invalid("receivedOn" to "NOT_ALLOWED")
+            f.service.execute(operatorId, items(reason = "카드 4111 1111 1111 1111"), ctx) shouldBe invalid("reason" to "CARD_NUMBER_PATTERN")
+            f.service.execute(operatorId, items(channel = "SALES_AGENCY"), ctx) shouldBe invalid("intakeChannel" to "NOT_ALLOWED")
+            val s = sub()
+            f.reply = { MasterBusinessCommandResult.Unknown("TIMEOUT") }
+            f.service.execute(operatorId, items(s = s), ctx) shouldBe BusinessProfileResult.OutcomeUnknown
+            f.views["adm_01JC00000000000000000000V2"] = AdminSessionView("adm_01JC00000000000000000000V2", "영업 담당", "SUSPENDED", 1, 1, setOf("OPERATOR"))
+            f.service.execute(operatorId, items(s = s), ctx) shouldBe invalid("contractManager" to "NOT_ALLOWED")
+            f.commands.size shouldBe 1
+            val approver = Fixture(roles = setOf("APPROVER"), now = now)
+            approver.service.execute(operatorId, items(), ctx) shouldBe BusinessProfileResult.Forbidden
+            approver.rows() shouldBe listOf("BUSINESS_CONTRACT_INTAKE_ITEMS|FORBIDDEN|sub=${"%032x".format(subSeq).take(8)};target=ITEMS;reason=ABSENT;evidence=ABSENT|$biz")
         }
     }
 })

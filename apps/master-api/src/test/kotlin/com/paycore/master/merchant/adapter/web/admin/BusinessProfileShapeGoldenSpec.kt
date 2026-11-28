@@ -60,8 +60,9 @@ class BusinessProfileShapeGoldenSpec : BehaviorSpec({
                 ),
                 "list",
             )
-            same(BusinessProfileJson.lookup(listOf(summary)), "lookupFound")
-            same(BusinessProfileJson.lookup(emptyList()), "lookupNotFound")
+            // FLOW-2d: 고정 Demo 계약 상태(ACTIVE).
+            same(BusinessProfileJson.lookup(listOf(summary)) { "ACTIVE" }, "lookupFound")
+            same(BusinessProfileJson.lookup(emptyList()) { null }, "lookupNotFound")
             same(
                 BusinessProfileJson.detail(
                     BusinessDetailView(

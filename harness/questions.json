@@ -6520,6 +6520,38 @@
       "humanAnswer": "권장으로 해줘 — 사유 필수 + 근거 참조 선택",
       "humanEvidence": "Claude Code 세션 사용자 답 (2026-11-27)",
       "appliedSpec": "D-GOV-022"
+    },
+    {
+      "id": "Q-FLOW-39",
+      "status": "ANSWERED",
+      "question": "계약 담당자 목록에 보일 정보",
+      "recommended": "활성 OPERATOR 표시명만 + 본인 표시, OPERATOR만 호출",
+      "alternative": "표시명+역할 / 본인만",
+      "impact": "개인정보·내부 키 노출",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-28",
+      "origin": "FLOW-2d 구현자 질문 후보",
+      "humanAnswer": "표시명만 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-28)",
+      "appliedSpec": "D-GOV-024"
+    },
+    {
+      "id": "Q-FLOW-40",
+      "status": "ANSWERED",
+      "question": "담당자 계정 참조 방식과 접수 생성 본문",
+      "recommended": "세션 묶인 무작위 참조 + 접수 생성도 전환",
+      "alternative": "세션 참조만 / 서버 비밀 HMAC 고정 참조",
+      "impact": "개인정보·내부 키 노출",
+      "dependentTasks": [
+        "MERCHANT-FLOW-001"
+      ],
+      "askedAt": "2026-11-28",
+      "origin": "FLOW-2d 구현자 질문 후보",
+      "humanAnswer": "세션 참조 + 접수 생성도 전환 (권장)",
+      "humanEvidence": "Claude Code 세션 사용자 선택 (2026-11-28)",
+      "appliedSpec": "D-GOV-024"
     }
   ]
 }

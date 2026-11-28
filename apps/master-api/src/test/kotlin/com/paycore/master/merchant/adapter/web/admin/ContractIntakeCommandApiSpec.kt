@@ -66,6 +66,13 @@ class ContractIntakeCommandApiSpec(
 
     fun business(): String = BusinessCommandFixture.withoutMerchants(businesses).businessId.value
 
+    /** FLOW-2d 접수 항목 수정 본문(열린 건의 접수일·경로·담당자·희망 서비스 + 사유). */
+    fun itemsBody(
+        key: String, id: String, seq: Int, version: Long, receivedOn: String = "2026-11-26", channel: String = "WEBSITE", manager: String = actor,
+        desired: String = "\"CARD_AUTH\",\"CARD_KEYIN\"", reason: String? = null,
+    ) = """{${common(key, id)},"intakeSeq":$seq,"expectedVersion":$version,"receivedOn":"$receivedOn","intakeChannel":"$channel","contractManager":"$manager",""" +
+        """"desiredServices":[$desired],"reason":${reason?.let { "\"$it\"" } ?: "null"}}"""
+
     Given("FLOW-2b signed command channel") {
         Then("open → move → complete succeed (reference = businessId); the section then shows business contract #1 ACTIVE with version 1 and the intake kind NEW") {
             clock.set(Instant.parse("2026-11-26T01:00:00Z"))
@@ -90,6 +97,32 @@ class ContractIntakeCommandApiSpec(
             tree.get("intakes").get(0).let { listOf(it.get("kind").asString(), it.get("status").asString(), it.get("targetContractSeq").isNull) } shouldBe
                 listOf("NEW", "COMPLETED", true)
             tree.get("judgedAt").asString() shouldBe "2026-11-26T01:00:00.000Z"
+        }
+
+        Then("FLOW-2d update-items: 200 SUCCEEDED (reference = businessId) and the section shows the new items; a stale version is a stored REJECTED; 400 SALES_AGENCY / manager format / structure") {
+            clock.set(Instant.parse("2026-11-26T01:00:00Z"))
+            val id = business()
+            post("$base/open", openBody(key(), id)).response.status shouldBe 200
+            val ok = post("$base/update-items", itemsBody(key(), id, 1, 0))
+            listOf(ok.response.status, body(ok)) shouldBe listOf(200, """{"outcome":"SUCCEEDED","reference":"$id","replayed":false}""")
+            val path = BusinessBodies.contractIntakes(id)
+            val section = json.readTree(body(mvc.perform(MockMvcRequestBuilders.get(path).header(AdminCallSignature.HEADER, MasterAdminChannelFixture.springHeader("GET", path))).andReturn()))
+            section.get("intakes").get(0).let { listOf(it.get("intakeChannel").asString(), it.get("desiredServices").size(), it.get("version").asInt()) } shouldBe listOf("WEBSITE", 2, 1)
+            val stale = post("$base/update-items", itemsBody(key(), id, 1, 0, channel = "OTHER"))
+            body(stale) shouldBe """{"outcome":"REJECTED","rejection":"CONTRACT_INTAKE_VERSION_CONFLICT","replayed":false}"""
+            fun fieldErrors(r: MvcResult): List<String> {
+                val t = json.readTree(body(r))
+                return listOf("${r.response.status}", t.get("error")?.asString() ?: body(r)) +
+                    (t.get("fieldErrors")?.let { f -> (0 until f.size()).map { i -> "${f.get(i).get("path").asString()}:${f.get(i).get("code").asString()}" } } ?: emptyList())
+            }
+            fieldErrors(post("$base/update-items", itemsBody(key(), id, 1, 1, channel = "SALES_AGENCY"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "intakeChannel:NOT_ALLOWED")
+            fieldErrors(post("$base/update-items", itemsBody(key(), id, 1, 1, manager = "system:demo-seed"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "contractManager:FORMAT")
+            fieldErrors(post("$base/update-items", itemsBody(key(), id, 1, 1, reason = "card 4111 1111 1111 1111"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "reason:CARD_NUMBER_PATTERN")
+            fieldErrors(post("$base/update-items", itemsBody(key(), id, 1, 1, receivedOn = "2026-02-30"))) shouldBe listOf("400", "BUSINESS_VALIDATION_FAILED", "receivedOn:FORMAT")
+            listOf(itemsBody(key(), id, 0, 1), itemsBody(key(), id, 1, -1), """{${common(key(), id)},"intakeSeq":1,"expectedVersion":1}""").forEach { b ->
+                listOf(post("$base/update-items", b).response.status, body(post("$base/update-items", b))) shouldBe listOf(400, """{"error":"REQUEST_MALFORMED"}""")
+            }
+            post("$base/update-items", itemsBody(key(), id, 1, 1), signed = false).response.status shouldBe 401
         }
 
         // 리뷰 MINOR-2(Observability): 명령 처리 중 MASTER 로그(ROOT appender — Controller·AdminCommandExecutor·Service 경로)에 사유·근거 원문이 없다 + 양성 대조.

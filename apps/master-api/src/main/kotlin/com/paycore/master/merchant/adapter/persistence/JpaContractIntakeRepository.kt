@@ -3,6 +3,7 @@ package com.paycore.master.merchant.adapter.persistence
 import com.paycore.master.merchant.adapter.persistence.PersistenceFailures.translate
 import com.paycore.master.merchant.application.required.ContractIntakeRepository
 import com.paycore.master.merchant.application.required.PersistenceFailure
+import com.paycore.master.merchant.domain.DesiredService
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.ContractIntake
 import jakarta.persistence.EntityManager
@@ -53,6 +54,22 @@ class JpaContractIntakeRepository(
         row.applyTransition(intake.status.name, intake.updatedAt, intake.updatedBy.value)
         entityManager.flush()
         check(row.version == intake.version) { "intake version must advance exactly once per transition" }
+    }
+
+    override fun updateItems(intake: ContractIntake): Unit = translate(ENTITY) {
+        val key = JpaContractIntakeEntity.Key(intake.businessId.value, intake.seq)
+        val row = entityManager.find(JpaContractIntakeEntity::class.java, key) ?: error("intake is not stored")
+        if (row.version != intake.version - 1) throw PersistenceFailure.OptimisticConflict(ENTITY)
+        check(!row.migrated && !intake.migrated) { "a migrated intake has no intake items to update" }
+        check(row.status == intake.status.name) { "an item update never changes the status" }
+        check(row.kind == intake.kind.name && row.targetContractSeq == intake.targetContractSeq) { "kind and target never change" }
+        val items = checkNotNull(intake.items) { "a non-migrated intake has intake items" }
+        row.applyItems(
+            items.receivedOn, items.channel.name, items.contractManager.value, DesiredService.CARD_AUTH in items.desiredServices, DesiredService.CARD_KEYIN in items.desiredServices,
+            intake.updatedAt, intake.updatedBy.value,
+        )
+        entityManager.flush()
+        check(row.version == intake.version) { "intake version must advance exactly once per item update" }
     }
 
     private companion object {

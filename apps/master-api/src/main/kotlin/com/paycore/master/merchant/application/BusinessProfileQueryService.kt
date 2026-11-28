@@ -18,6 +18,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessRegistrationNumber
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 /**
@@ -37,6 +38,21 @@ class BusinessProfileQueryService(
     override fun search(filter: BusinessSearchFilter): BusinessDirectoryPage = directory.search(filter)
 
     override fun lookup(number: BusinessRegistrationNumber): List<BusinessSummary> = listOfNotNull(lookups.lookup(number))
+
+    /**
+     * 저장 행 불변식 위반(데이터 손상 신호)은 null로 숨기지 않는다 — 명령 경로(2b·2c·FLOW-3)와 같은 값 없는 ERROR 경보 뒤 결함으로 올린다(리뷰 MINOR-3 — 호출자 503).
+     */
+    override fun businessContractStatus(businessId: BusinessId): String? {
+        val contract = try {
+            contractIntakes.latestContract(businessId)
+        } catch (e: IllegalArgumentException) {
+            log.error("stored rows violate a domain invariant alert=BUSINESS_CONTRACT_LOAD_INVARIANT businessId={} aggregate=contract", businessId.value)
+            throw e
+        }
+        return contract?.statusAt(clock.now().truncatedTo(ChronoUnit.MILLIS))?.name
+    }
+
+    private val log = LoggerFactory.getLogger(BusinessProfileQueryService::class.java)
 
     override fun detail(businessId: BusinessId): BusinessDetailView? = details.read(businessId)
 

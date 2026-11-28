@@ -11,6 +11,9 @@ import com.paycore.master.merchant.domain.BusinessId
 interface ContractIntakeReader {
     /** 접수 건·전이 이력 + 최신 사업자 계약(복원된 Domain — 표시 계산용) + 연결 가맹점 수(종료 제외 — BR-BIZ-312)를 **한 스냅샷**에서 읽는다. */
     fun section(businessId: BusinessId): ContractIntakeSection?
+
+    /** FLOW-2d(번호 조회 사전 안내 — 표시용): 그 사업자의 최신 사업자 계약만(복원된 Domain). 없으면 null. 판정은 등록 명령의 잠금 뒤 JPA Port가 한다(§4B.8). */
+    fun latestContract(businessId: BusinessId): BusinessContract?
 }
 
 /** [ContractIntakeReader.section] 결과. [view]의 사업자 계약 칸은 비어 있다 — Query Service가 [contract]·판정 시각으로 채운다. */

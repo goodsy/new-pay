@@ -72,7 +72,8 @@ class MasterBusinessGatewaySpec : BehaviorSpec({
             reply("$base/registration-number-lookups", 200, g("lookupFound"))
             val r = gateway().lookup("9120000001").shouldBeInstanceOf<MasterCallResult.Found>()
             @Suppress("UNCHECKED_CAST")
-            ((r.document["items"] as List<Map<String, Any?>>).single()).keys shouldBe setOf("businessId", "businessName", "registrationNumber", "registrationStatus")
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — Coordinator 결정 (a): 응답 키 추가, 완화 아님): businessContractStatus.
+            ((r.document["items"] as List<Map<String, Any?>>).single()).keys shouldBe setOf("businessId", "businessName", "registrationNumber", "registrationStatus", "businessContractStatus")
             val req = StubMasterOpsServer.requestsForPath("$base/registration-number-lookups").last()
             String(req.body, Charsets.UTF_8) shouldBe """{"registrationNumber":"9120000001"}"""
             req.path shouldNotContain "9120000001"

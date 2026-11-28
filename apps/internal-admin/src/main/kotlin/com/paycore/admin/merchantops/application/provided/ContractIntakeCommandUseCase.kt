@@ -23,6 +23,8 @@ enum class ContractIntakeOperation(val auditAction: String, val masterPath: Stri
     OPEN("BUSINESS_CONTRACT_INTAKE_OPEN", "open", "OpenContractIntake"),
     MOVE("BUSINESS_CONTRACT_INTAKE_MOVE", "move", "MoveContractIntake"),
     COMPLETE("BUSINESS_CONTRACT_INTAKE_COMPLETE", "complete", "CompleteContractIntake"),
+    // FLOW-2d 접수 항목 수정(열린 건 — §4A.3, MASTER `UPDATE_CONTRACT_INTAKE_ITEMS`).
+    UPDATE_ITEMS("BUSINESS_CONTRACT_INTAKE_ITEMS", "update-items", "UpdateContractIntakeItems"),
     SUSPEND("BUSINESS_CONTRACT_SUSPEND", "suspend", "SuspendBusinessContract", "business-contracts"),
     RESUME("BUSINESS_CONTRACT_RESUME", "resume", "ResumeBusinessContract", "business-contracts"),
     TERMINATE("BUSINESS_CONTRACT_TERMINATE", "terminate", "TerminateBusinessContract", "business-contracts"),

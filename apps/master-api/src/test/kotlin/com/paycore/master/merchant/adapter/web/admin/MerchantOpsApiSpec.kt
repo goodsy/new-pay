@@ -144,6 +144,7 @@ class MerchantOpsApiSpec(
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/complete",
+                "POST" to "/internal/v1/admin/businesses/contract-intakes/commands/update-items", // FLOW-2d(목록 증가 — 서명 없는 호출 401 대상)
                 // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 새 명령 handler 3개, 401 검사 대상). 경로 목록 갱신이지 완화가 아니다.
                 "POST" to "/internal/v1/admin/businesses/business-contracts/commands/suspend",
                 "POST" to "/internal/v1/admin/businesses/business-contracts/commands/resume",
@@ -156,7 +157,8 @@ class MerchantOpsApiSpec(
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-1 §6): 27 → 28('계약 진행' 섹션 조회 handler 1개 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-2b §4B.7): 28 → 31(계약 접수 건 명령 handler 3개 — 위 집합과 같은 근거, 중복 매핑 검사 의도 유지).
             // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7): 31 → 34(사업자 계약 명령 handler 3개 — 위 집합과 같은 근거).
-            mapped.size shouldBe 34
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d §4B.7): 34 → 35(접수 항목 수정 handler 1개 — 위 집합과 같은 근거).
+            mapped.size shouldBe 35
             (mapped + listOf("GET" to "/internal/v1/admin/merchants/mer_00000000000000000000000000", "DELETE" to "/internal/v1/admin/anything")).forEach { (method, path) ->
                 val r = mvc.perform(MockMvcRequestBuilders.request(org.springframework.http.HttpMethod.valueOf(method), path)).andReturn()
                 withClue("$method $path") {

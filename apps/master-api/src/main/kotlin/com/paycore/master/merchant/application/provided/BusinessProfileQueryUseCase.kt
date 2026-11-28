@@ -23,6 +23,12 @@ interface BusinessProfileQueryUseCase {
     /** 번호 정확 일치(§6.3 — 합친 MERCHANT-BIZ-LOOKUP-001, UNIQUE라 0/1). 찾음·못 찾음 같은 모양(목록 길이만 다르다). */
     fun lookup(number: BusinessRegistrationNumber): List<BusinessSummary>
 
+    /**
+     * MERCHANT-FLOW-001 FLOW-2d([rev 0.4f 후속] — Coordinator 결정 (a)): 번호 조회 결과에 싣는 최신 사업자 계약 상태(조회 시각 MASTER 시계로 Domain 계산 — 섹션과 같은 식).
+     * 계약 없음 = null. **표시용 안내** — 가맹점 등록 판정은 등록 명령의 관문이 최종이다(§4B.8).
+     */
+    fun businessContractStatus(businessId: BusinessId): String?
+
     /** 상세(§6.4 — 현재 행만). 없으면 null. */
     fun detail(businessId: BusinessId): BusinessDetailView?
 

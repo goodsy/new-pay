@@ -34,7 +34,8 @@
         "businessId": "biz_01JC0000000000000000000001",
         "businessName": "DEMO 사업자 (운영값 아님)",
         "registrationNumber": "0000000000",
-        "registrationStatus": "REGISTERED"
+        "registrationStatus": "REGISTERED",
+        "businessContractStatus": "ACTIVE"
       }
     ]
   },

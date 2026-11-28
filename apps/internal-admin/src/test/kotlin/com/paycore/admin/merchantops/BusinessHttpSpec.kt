@@ -473,6 +473,8 @@ class BusinessHttpSpec(
                 "/api/businesses/{businessId}", "/api/businesses/{businessId}/business-contracts/{contractSeq}/resumptions",
                 "/api/businesses/{businessId}/business-contracts/{contractSeq}/suspensions", "/api/businesses/{businessId}/business-contracts/{contractSeq}/termination",
                 "/api/businesses/{businessId}/contract-intakes", "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — 추가형): 접수 항목 수정 경로 1개. documents·deactivate는 여전히 없다.
+                "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/items",
                 "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions", "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
             )
             routes.none { it.contains("documents") || it.contains("deactivate") } shouldBe true

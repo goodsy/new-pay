@@ -35,6 +35,7 @@ import java.time.LocalDate
  * 6. 결과 감사 → 응답(실패하면 503 — 같은 submissionId 재전송이 재생 결과로 감사를 다시 시도).
  *
  * 감사 detail(§4B.11): `sub=<8>;replayed;rejection;kind|target=…;reason=PRESENT|ABSENT;evidence=PRESENT|ABSENT` — 사유·근거 원문·담당자 키는 없다(원문은 MASTER 전이·변경 이력, 근거는 상세 열람).
+ * FLOW-2d 접수 항목 수정은 `target=ITEMS`(바뀐 항목 이름·값은 MASTER 변경 이력에만). 담당자는 화면 불투명 참조를 웹 adapter가 푼 계정 키(D-GOV-024 — 풀리지 않으면 400 NOT_ALLOWED).
  * 로그: 연산·결과 분류·상관 ID만. 금융 효과 없음(사업자 계약은 새 가맹점 등록 자격 — 결제 권리·Snapshot·Outbox와 무관, §4B.12).
  */
 @Service
@@ -133,10 +134,18 @@ class ContractIntakeCommandService internal constructor(
         return finish(operation, "FORBIDDEN", if (audited) BusinessProfileResult.Forbidden else BusinessProfileResult.AuditUnavailable, context.correlationId)
     }
 
-    /** §4A.6 n-3: 계약 담당자는 ACTIVE + OPERATOR 역할 계정(ADMIN 자기 `admin_account` — 계정 현재 행). 형식이 맞을 때만 조회한다(형식 위반은 [ContractIntakeInputRules]). */
+    /**
+     * §4A.6 n-3: 계약 담당자는 ACTIVE + OPERATOR 역할 계정(ADMIN 자기 `admin_account` — 계정 현재 행). FLOW-2d(D-GOV-024): 화면 참조가 이 세션 대응표로 풀리지 않았으면(null)
+     * 같은 `contractManager NOT_ALLOWED`(fail-closed). 형식 위반 키는 [ContractIntakeInputRules]가 FORMAT으로 본다(웹 경로에서는 생기지 않는 방어).
+     */
     private fun managerErrors(request: ContractIntakeRequest): List<BusinessFieldError> {
-        if (request !is ContractIntakeRequest.Open || !ContractIntakeInputRules.ADMIN_ACCOUNT_ID.matches(request.contractManagerId)) return emptyList()
-        val manager: AdminSessionView? = sessions.current(request.contractManagerId)
+        val managerId = when (request) {
+            is ContractIntakeRequest.Open -> request.contractManagerId
+            is ContractIntakeRequest.UpdateItems -> request.contractManagerId
+            else -> return emptyList()
+        } ?: return listOf(BusinessFieldError(CONTRACT_MANAGER, NOT_ALLOWED))
+        if (!ContractIntakeInputRules.ADMIN_ACCOUNT_ID.matches(managerId)) return emptyList()
+        val manager: AdminSessionView? = sessions.current(managerId)
         return if (manager != null && manager.isActive && OPERATOR in manager.roles) emptyList() else listOf(BusinessFieldError(CONTRACT_MANAGER, NOT_ALLOWED))
     }
 
@@ -153,7 +162,7 @@ class ContractIntakeCommandService internal constructor(
                 body["expectedKind"] = request.expectedKind
                 body["receivedOn"] = request.receivedOn
                 body["intakeChannel"] = request.intakeChannel
-                body["contractManager"] = ACTOR_PREFIX + request.contractManagerId
+                body["contractManager"] = ACTOR_PREFIX + checkNotNull(request.contractManagerId) { "manager checked before the call" }
                 body["desiredServices"] = request.desiredServices
             }
             is ContractIntakeRequest.Move -> {
@@ -168,6 +177,14 @@ class ContractIntakeCommandService internal constructor(
                 body["startDate"] = request.startDate
                 body["endDate"] = request.endDate
                 body["services"] = request.services
+            }
+            is ContractIntakeRequest.UpdateItems -> {
+                body["intakeSeq"] = request.intakeSeq
+                body["expectedVersion"] = request.expectedVersion
+                body["receivedOn"] = request.receivedOn
+                body["intakeChannel"] = request.intakeChannel
+                body["contractManager"] = ACTOR_PREFIX + checkNotNull(request.contractManagerId) { "manager checked before the call" }
+                body["desiredServices"] = request.desiredServices
             }
             is ContractIntakeRequest.ContractEvent -> {
                 body["contractSeq"] = request.contractSeq
@@ -216,6 +233,7 @@ class ContractIntakeCommandService internal constructor(
                 is ContractIntakeRequest.Move -> request.target.takeIf { it in ContractIntakeInputRules.MOVE_TARGETS }?.let { "target=$it" }
                 is ContractIntakeRequest.Complete -> "target=$COMPLETED"
                 is ContractIntakeRequest.ContractEvent -> "kind=${request.operation.name}"
+                is ContractIntakeRequest.UpdateItems -> "target=ITEMS"
             },
             "reason=" + if (request.reason == null) ABSENT else PRESENT,
             "evidence=" + if (request is ContractIntakeRequest.Complete || (request is ContractIntakeRequest.ContractEvent && request.evidenceRef != null)) PRESENT else ABSENT,

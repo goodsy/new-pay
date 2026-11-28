@@ -53,6 +53,7 @@ internal object ContractIntakeInputRules {
             is ContractIntakeRequest.Move -> request.intakeSeq >= 1 && request.expectedVersion >= 0
             is ContractIntakeRequest.Complete -> request.intakeSeq >= 1 && request.expectedVersion >= 0
             is ContractIntakeRequest.ContractEvent -> request.contractSeq >= 1 && request.expectedEventCount >= 0
+            is ContractIntakeRequest.UpdateItems -> request.intakeSeq >= 1 && request.expectedVersion >= 0
         }
 
     /** [today] = ADMIN 시계의 KST 날짜. */
@@ -68,7 +69,7 @@ internal object ContractIntakeInputRules {
                 val received = date(request.receivedOn).also { (code, _) -> add(format, "receivedOn", code) }.second
                 if (received != null && received.isAfter(today)) add(timely, "receivedOn", NOT_ALLOWED)
                 add(format, "intakeChannel", channel(request.intakeChannel))
-                add(format, "contractManager", if (ADMIN_ACCOUNT_ID.matches(request.contractManagerId)) null else FORMAT)
+                request.contractManagerId?.let { add(format, "contractManager", if (ADMIN_ACCOUNT_ID.matches(it)) null else FORMAT) }
                 request.desiredServices.forEachIndexed { i, s -> add(format, "desiredServices[$i]", if (s in DESIRED_SERVICES) null else FORMAT) }
             }
             is ContractIntakeRequest.Move -> if (request.reason == null && request.target in REASON_REQUIRED_TARGETS) add(format, "reason", REQUIRED)
@@ -82,6 +83,14 @@ internal object ContractIntakeInputRules {
                 request.services.forEachIndexed { i, s -> add(format, "services[$i]", if (s in CONTRACT_SERVICES) null else FORMAT) }
             }
             // FLOW-2c(BR-BIZ-336·339, D-GOV-022): 사유 필수, 근거 참조 선택(계약서 근거와 같은 형식·카드번호 패턴 거부).
+            // FLOW-2d 접수 항목 수정(§4A.3): 생성과 같은 항목 규칙(접수일 미래는 시각 의존). 접수일을 바꿀 때 사유 필수는 저장 값과 비교해야 해 MASTER Domain이 판정한다(저장된 거절).
+            is ContractIntakeRequest.UpdateItems -> {
+                val received = date(request.receivedOn).also { (code, _) -> add(format, "receivedOn", code) }.second
+                if (received != null && received.isAfter(today)) add(timely, "receivedOn", NOT_ALLOWED)
+                add(format, "intakeChannel", channel(request.intakeChannel))
+                request.contractManagerId?.let { add(format, "contractManager", if (ADMIN_ACCOUNT_ID.matches(it)) null else FORMAT) }
+                request.desiredServices.forEachIndexed { i, s -> add(format, "desiredServices[$i]", if (s in DESIRED_SERVICES) null else FORMAT) }
+            }
             is ContractIntakeRequest.ContractEvent -> {
                 if (request.reason == null) add(format, "reason", REQUIRED)
                 request.evidenceRef?.let { add(format, "evidenceRef", documentRef(it)) }

@@ -21,7 +21,8 @@ interface MasterBusinessGateway {
 
     /**
      * 사업자 상세 '계약 진행' 섹션(MERCHANT-FLOW-001 FLOW-1 — `GET …/{businessId}/contract-intakes`, 읽기 전용). 404 `BUSINESS_NOT_FOUND` → [MasterCallResult.NotFound].
-     * 상세 열람 처리 안에서만 부른다(별도 화면 API·별도 감사 없음 — Coordinator 결정 Q1, D-FLOW-004 ④).
+     * 상세 열람 처리 안에서 부른다(별도 화면 API·별도 감사 없음 — Coordinator 결정 Q1, D-FLOW-004 ④). 예외(FLOW-2d 재리뷰 MAJOR-1 — Coordinator 결정 "예 1"): 담당자 목록이
+     * 대상 접수 건의 저장된 담당자를 계정 키로 비교하는 데만 쓴다([ContractManagerQueryService] — 섹션 내용은 응답에 싣지 않고 후보의 current 불리언만).
      */
     fun contractIntakes(businessId: String): MasterCallResult
 

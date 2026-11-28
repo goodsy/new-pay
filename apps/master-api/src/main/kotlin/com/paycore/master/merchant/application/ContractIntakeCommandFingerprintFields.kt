@@ -2,6 +2,7 @@ package com.paycore.master.merchant.application
 
 import com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand
 import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
+import com.paycore.master.merchant.application.provided.UpdateContractIntakeItemsCommand
 import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
 
 /**
@@ -12,6 +13,15 @@ internal object ContractIntakeCommandFingerprintFields {
 
     fun of(c: OpenContractIntakeCommand): List<String?> = buildList {
         add(c.businessId.value); add(c.expectedKind.name); add(c.items.receivedOn.toString()); add(c.items.channel.name); add(c.items.contractManager.value)
+        val desired = c.items.desiredServices.map { it.name }.sorted()
+        add(desired.size.toString()); addAll(desired)
+        add(c.reason?.value)
+    }
+
+    /** FLOW-2d 접수 항목 수정: 순번·기대 version·접수 항목(희망 서비스 이름순)·사유. */
+    fun of(c: UpdateContractIntakeItemsCommand): List<String?> = buildList {
+        add(c.businessId.value); add(c.intakeSeq.toString()); add(c.expectedVersion.toString())
+        add(c.items.receivedOn.toString()); add(c.items.channel.name); add(c.items.contractManager.value)
         val desired = c.items.desiredServices.map { it.name }.sorted()
         add(desired.size.toString()); addAll(desired)
         add(c.reason?.value)

@@ -289,8 +289,20 @@ internal sealed interface MasterResponseShape {
             "next" to opt(BUSINESS_ID),
         )
 
-        /** 번호 조회(§6.3 — 0/1, 찾음·못 찾음 같은 모양). */
-        val BUSINESS_LOOKUP: MasterResponseShape = obj("items" to Arr(BUSINESS_SUMMARY, max = 1))
+        /**
+         * 번호 조회(§6.3 — 0/1, 찾음·못 찾음 같은 모양). 항목 = 요약 4키 + `businessContractStatus`(MERCHANT-FLOW-001 FLOW-2d — Coordinator 결정 (a): 최신 사업자 계약 상태 5개 중 하나,
+         * 계약 없음 null — 가맹점 등록 ① 사전 안내용 표시값, 판정은 MASTER 등록 관문). 중복 거절 `existing`은 4키 그대로. 상태 목록은 아래 섹션의 사업자 계약 상태와 같다
+         * (companion 초기화 순서 때문에 여기서 직접 적는다).
+         */
+        val BUSINESS_LOOKUP: MasterResponseShape = obj(
+            "items" to Arr(
+                obj(
+                    "businessId" to BUSINESS_ID, "businessName" to DISPLAY_NAME, "registrationNumber" to REGISTRATION_NUMBER, "registrationStatus" to REGISTRATION_STATUS,
+                    "businessContractStatus" to opt(oneOf("NOT_YET_EFFECTIVE", "ACTIVE", "SUSPENDED", "TERMINATED", "EXPIRED")),
+                ),
+                max = 1,
+            ),
+        )
 
         /** 상세(§6.4 — 개인정보 원문(D-BIZ-006 ②), 사업자등록번호도 원문(D-BIZ-007)). 목록 상한 = MASTER 구조 상한(대표자 5·업태+종목 20·주소 2·담당자 5). */
         val BUSINESS_DETAIL: MasterResponseShape = obj(
@@ -431,6 +443,8 @@ internal sealed interface MasterResponseShape {
             "BUSINESS_CONTRACT_START_RETROACTIVE", "BUSINESS_CONTRACT_PERIOD_INVALID", "BUSINESS_CONTRACT_SCOPE_INVALID",
             // FLOW-2c 사업자 계약 정지·정지 해제·해지(§4B.7).
             "BUSINESS_CONTRACT_NOT_FOUND", "BUSINESS_CONTRACT_TRANSITION_NOT_ALLOWED", "BUSINESS_CONTRACT_STATE_CONFLICT",
+            // FLOW-2d 접수 항목 수정(§4A.3 — MASTER [구현 관례 code]): 종결 건 수정, 바뀐 것 없음.
+            "CONTRACT_INTAKE_ITEMS_NOT_EDITABLE", "CONTRACT_INTAKE_ITEMS_UNCHANGED",
         )
 
         /** 계약 접수 건 명령 거절(reference·existing 없음 — C-12). */

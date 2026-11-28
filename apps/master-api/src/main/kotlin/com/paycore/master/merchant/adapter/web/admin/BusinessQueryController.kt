@@ -39,7 +39,8 @@ class BusinessQueryController(private val query: BusinessProfileQueryUseCase, pr
         val number = BusinessLookupRequestParser.parse(request.inputStream.readAllBytes()) ?: return@guarded malformed(request)
         val items = query.lookup(number)
         log.info("operation=BusinessLookup correlationId={} result=OK items={}", AdminChannelResponses.requestId(request), items.size)
-        AdminChannelResponses.json(request, OK, BusinessProfileJson.lookup(items))
+        // FLOW-2d: 계약 상태는 번호 조회와 **다른 읽기 TX**(표시용 안내 — 두 읽기 사이 계약이 바뀌면 다음 조회가 반영한다; 판정은 등록 명령의 잠금 뒤 관문이 최종).
+        AdminChannelResponses.json(request, OK, BusinessProfileJson.lookup(items) { query.businessContractStatus(BusinessId(it.businessId)) })
     }
 
     @GetMapping("/{businessId}")

@@ -52,6 +52,7 @@ enum class AdminOperation(val code: String) {
     // OPERATOR 1인, 이력 전용 실행기(Outbox 없음 — §4A.2 M-1). 해지·정지는 FLOW-2c.
     OPEN_CONTRACT_INTAKE("OpenContractIntake"),
     MOVE_CONTRACT_INTAKE("MoveContractIntake"),
+    UPDATE_CONTRACT_INTAKE_ITEMS("UpdateContractIntakeItems"),
     COMPLETE_CONTRACT_INTAKE("CompleteContractIntake"),
 
     // MERCHANT-FLOW-001 §4B.7(FLOW-2c): 사업자 계약 정지·정지 해제·해지(OPERATOR 1인, 사유 필수·근거 선택 — D-GOV-022, 이력 전용 실행기).

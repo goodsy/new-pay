@@ -1,5 +1,6 @@
 package com.paycore.master.merchant.adapter.web.admin
 
+import com.paycore.master.MasterDbAccounts
 import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.adapter.web.admin.MerchantOperationsBodies.Submission
 import com.paycore.master.merchant.application.CapturedLogs
@@ -9,12 +10,29 @@ import com.paycore.master.merchant.application.MasterFaultPoint
 import com.paycore.master.merchant.application.MutableMasterClock
 import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.merchant.application.provided.AdminCommandResult
+import com.paycore.master.merchant.application.provided.BusinessContractCommandUseCase
+import com.paycore.master.merchant.application.provided.BusinessContractEventCommand
 import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
+import com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand
+import com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase
+import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
+import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
 import com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase
 import com.paycore.master.merchant.application.provided.CompleteBusinessRegistrationCommand
 import com.paycore.master.merchant.application.provided.CreateBusinessCommand
 import com.paycore.master.merchant.application.provided.UpdateBusinessCommand
+import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.BusinessChangeReason
+import com.paycore.master.merchant.domain.BusinessContractTerms
 import com.paycore.master.merchant.domain.BusinessFieldError
+import com.paycore.master.merchant.domain.BusinessId
+import com.paycore.master.merchant.domain.ContractDocumentRef
+import com.paycore.master.merchant.domain.ContractIntakeChannel
+import com.paycore.master.merchant.domain.ContractIntakeItems
+import com.paycore.master.merchant.domain.ContractIntakeKind
+import com.paycore.master.merchant.domain.ContractIntakeStatus
+import com.paycore.master.merchant.domain.DesiredService
+import com.paycore.master.merchant.domain.ServiceKind
 import com.paycore.master.merchant.domain.BusinessFieldErrorCode
 import com.paycore.master.merchant.domain.BusinessFixtures
 import com.paycore.master.merchant.domain.BusinessProfileRuleViolation
@@ -68,6 +86,8 @@ class BusinessProfileApiSpec(
     private val faults: MasterFaultInjector,
     private val clock: MutableMasterClock,
     private val recorder: JooqStatementRecorder,
+    private val contracts: BusinessContractCommandUseCase,
+    private val intakes: ContractIntakeCommandUseCase,
 ) : BehaviorSpec({
 
     beforeSpec { faults.reset(); clock.reset() }
@@ -138,6 +158,8 @@ class BusinessProfileApiSpec(
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/open",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/move",
                 "POST /internal/v1/admin/businesses/contract-intakes/commands/complete",
+                // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d §4B.7 — 목록 증가): 접수 항목 수정 명령 1개(1인 OPERATOR, 이력 전용 — 완화 아님).
+                "POST /internal/v1/admin/businesses/contract-intakes/commands/update-items",
                 // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c §4B.7 — 목록 증가): 사업자 계약 정지·정지 해제·해지 명령 3개(1인 OPERATOR, 이력 전용 — 완화 아님).
                 "POST /internal/v1/admin/businesses/business-contracts/commands/suspend",
                 "POST /internal/v1/admin/businesses/business-contracts/commands/resume",
@@ -469,6 +491,68 @@ class BusinessProfileApiSpec(
         }
     }
 
+    Given("MERCHANT-FLOW-001 FLOW-2d [rev 0.4f 후속]: the registration-number lookup carries the latest business contract status (display only — the registration gate stays final)") {
+        fun status(n: String) = post(BusinessBodies.LOOKUPS, """{"registrationNumber":"$n"}""").tree().get("items").get(0).get("businessContractStatus")
+        val reason = BusinessChangeReason("조회 시험")
+
+        /** 신규 접수 → 계약서 접수 → 계약 완료(시작일·종료일 지정 — 효력 전·만료 상태를 만든다). */
+        fun contracted(id: BusinessId, start: java.time.LocalDate, end: java.time.LocalDate? = null) {
+            val items = ContractIntakeItems(clock.now().atZone(java.time.ZoneId.of("Asia/Seoul")).toLocalDate(), ContractIntakeChannel.PHONE, ActorRef("admin:adm_01JCFL0000000000000000OP01"), setOf(DesiredService.CARD_AUTH))
+            (intakes.open(OpenContractIntakeCommand(OnboardingFixture.request(), id, ContractIntakeKind.NEW, items, null)) is AdminCommandResult.Succeeded) shouldBe true
+            (intakes.move(MoveContractIntakeCommand(OnboardingFixture.request(), id, 1, 0, ContractIntakeStatus.DOCUMENT_RECEIVED, null)) is AdminCommandResult.Succeeded) shouldBe true
+            (
+                intakes.complete(
+                    CompleteContractIntakeCommand(OnboardingFixture.request(), id, 1, 1, ContractDocumentRef("DOC-1"), BusinessContractTerms(start, end, setOf(ServiceKind.CARD_PG_PAYMENT)), null),
+                ) is AdminCommandResult.Succeeded
+            ) shouldBe true
+        }
+
+        Then("no contract → null; completed → ACTIVE; suspended → SUSPENDED; terminated → TERMINATED (status at the MASTER clock — same calculation as the contract-progress section)") {
+            val n = number()
+            val id = BusinessId(created(n = n))
+            status(n).isNull shouldBe true
+            OnboardingFixture.contracted(id)
+            status(n).asString() shouldBe "ACTIVE"
+            contracts.suspend(BusinessContractEventCommand(OnboardingFixture.request(), id, 1, 0, reason, null)).shouldBeInstanceOfSucceeded()
+            status(n).asString() shouldBe "SUSPENDED"
+            contracts.terminate(BusinessContractEventCommand(OnboardingFixture.request(), id, 1, 1, reason, null)).shouldBeInstanceOfSucceeded()
+            status(n).asString() shouldBe "TERMINATED"
+        }
+
+        Then("review NIT-3: a contract starting later → NOT_YET_EFFECTIVE; after its end date (clock moved past it) → EXPIRED") {
+            clock.set(java.time.Instant.parse("2026-11-26T01:00:00Z")) // 2026-11-26 10:00 KST
+            try {
+                val later = number()
+                contracted(BusinessId(created(n = later)), java.time.LocalDate.parse("2026-11-29"))
+                status(later).asString() shouldBe "NOT_YET_EFFECTIVE"
+                val ending = number()
+                contracted(BusinessId(created(n = ending)), java.time.LocalDate.parse("2026-11-26"), java.time.LocalDate.parse("2026-11-26"))
+                status(ending).asString() shouldBe "ACTIVE"
+                clock.set(java.time.Instant.parse("2026-11-26T15:00:00Z")) // 2026-11-27 00:00 KST — 종료일 다음 날
+                status(ending).asString() shouldBe "EXPIRED"
+            } finally {
+                clock.reset()
+            }
+        }
+
+        Then("review MINOR-3: stored contract rows breaking a domain invariant → 503 TEMPORARILY_UNAVAILABLE (not hidden as null) with a value-free ERROR alert") {
+            val n = number()
+            val id = BusinessId(created(n = n))
+            OnboardingFixture.contracted(id)
+            MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_RUNTIME_USER).use { c ->
+                c.prepareStatement(
+                    "INSERT INTO business_contract_event (business_id, contract_seq, event_seq, kind, reason, evidence_ref, actor_ref, occurred_at) " +
+                        "VALUES (?, 1, 1, 'RESUME', 'CANARY-RESUME-REASON', NULL, 'admin:x', '2026-11-25 00:00:00.000')",
+                ).use { it.setString(1, id.value); it.executeUpdate() }
+            }
+            val (res, lines) = CapturedLogs().use { logs -> post(BusinessBodies.LOOKUPS, """{"registrationNumber":"$n"}""") to logs.lines() }
+            listOf(res.response.status, res.body()) shouldBe listOf(503, """{"error":"TEMPORARILY_UNAVAILABLE"}""")
+            lines.filter { it.contains("alert=BUSINESS_CONTRACT_LOAD_INVARIANT") }.map { it.substringAfter("alert=") } shouldBe
+                listOf("BUSINESS_CONTRACT_LOAD_INVARIANT businessId=${id.value} aggregate=contract")
+            lines.forEach { it shouldNotContain "CANARY-RESUME-REASON"; it shouldNotContain n }
+        }
+    }
+
     Given("BIZ-2-7 query endpoints over HTTP (shapes — Reader behaviour is BusinessReaderSpec)") {
         Then("list, lookup (found / not found same shape with registrationStatus), detail (raw personal data, raw number — D-BIZ-007) and history keys") {
             val n = number()
@@ -480,7 +564,9 @@ class BusinessProfileApiSpec(
                 "representativeCount", "merchantCount", "updatedAt",
             )
             val found = post(BusinessBodies.LOOKUPS, """{"registrationNumber":"$n"}""")
-            found.body() shouldBe """{"items":[{"businessId":"$id","businessName":"조회모양 법인","registrationNumber":"$n","registrationStatus":"REGISTERED"}]}""" // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            // 기대값 변경(BRN-UNMASK-001 — D-BIZ-007·D-PII-001 ①): 조회 응답 번호는 저장 원문 10자리(응답 필드 `registrationNumber` — v2 계약, M-1).
+            // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — Coordinator 결정(가역) (a): 가맹점 등록 ① 사전 안내용 응답 키 추가, 완화 아님): `businessContractStatus`(계약 없음 = null).
+            found.body() shouldBe """{"items":[{"businessId":"$id","businessName":"조회모양 법인","registrationNumber":"$n","registrationStatus":"REGISTERED","businessContractStatus":null}]}"""
             val missing = post(BusinessBodies.LOOKUPS, """{"registrationNumber":"${number()}"}""").tree()
             missing.keys() shouldBe listOf("items")
             missing.get("items").size() shouldBe 0
@@ -665,4 +751,8 @@ class BusinessProfileApiSpec(
             BusinessProfileQueryUseCase::class.java.classLoader, arrayOf(BusinessProfileQueryUseCase::class.java),
         ) { _, _, _ -> error("query not used") } as BusinessProfileQueryUseCase
     }
+}
+
+private fun AdminCommandResult.shouldBeInstanceOfSucceeded() {
+    (this is AdminCommandResult.Succeeded) shouldBe true
 }

@@ -25,8 +25,12 @@ object BusinessProfileJson {
         "next" to page.next,
     )
 
-    /** 번호 조회(§6.3): 찾음·못 찾음 같은 모양(`items` 길이만 다르다 — 404 없음). */
-    fun lookup(items: List<BusinessSummary>): Map<String, Any?> = linkedMapOf("items" to items.map(::summary))
+    /**
+     * 번호 조회(§6.3): 찾음·못 찾음 같은 모양(`items` 길이만 다르다 — 404 없음). MERCHANT-FLOW-001 FLOW-2d: 항목 끝에 `businessContractStatus`(최신 사업자 계약 상태 — 계약 없음 null,
+     * 가맹점 등록 ① 사전 안내용 표시값). 중복 거절의 `existing` 요약([summary])에는 싣지 않는다.
+     */
+    fun lookup(items: List<BusinessSummary>, contractStatus: (BusinessSummary) -> String?): Map<String, Any?> =
+        linkedMapOf("items" to items.map { summary(it) + ("businessContractStatus" to contractStatus(it)) })
 
     /** 상세(§6.4 — 개인정보 원문, 사업자등록번호 원문 — D-BIZ-007). */
     fun detail(v: BusinessDetailView): Map<String, Any?> = linkedMapOf(

@@ -166,7 +166,28 @@ export const CONTRACT_INPUT_MESSAGES = {
   channelRequired: '접수 경로를 고르세요.',
   channelNotAllowed: '영업대행사 경로는 아직 고를 수 없습니다.',
   managerNotAllowed: '계약 담당자는 활성 운영자 계정만 지정할 수 있습니다.',
+  // FLOW-2d 접수 항목 수정(§4A.3 — D-FLOW-009 ①).
+  managerRequired: '계약 담당자를 고르세요.',
+  reasonForDate: "접수일을 바꾸려면 '사유 및 비고'에 사유를 적어야 합니다.",
+  itemsUnchanged: '바뀐 내용이 없습니다.',
+  managersUnavailable: '계약 담당자 목록을 불러오지 못했습니다. 다시 열어 주세요.',
+  // 재리뷰 MAJOR-1: 저장된 담당자가 목록에 없음(비활성 등) — 표시명으로 추측하지 않고 직접 고르게 한다.
+  currentManagerMissing: '기존 담당자가 목록에 없습니다. 담당자를 다시 고르세요.',
 } as const
+
+/** FLOW-2d 접수 항목 수정 폼(접수 항목 4칸 + 담당자 참조 + 사유). [original] = 대화상자를 연 때의 값(바뀐 것 판단·접수일 사유 규칙). */
+export interface ItemsForm { receivedOn: string; intakeChannel: string; managerRef: string; desiredServices: string[]; reason: string }
+
+/** 항목 수정 검사(즉시 안내 — 서버가 권위): 생성과 같은 항목 규칙 + 담당자 필수 + 접수일을 바꾸면 사유 필수 + 바뀐 것 없음. */
+export function itemsErrors(form: ItemsForm, original: ItemsForm, today: string): Record<string, string> {
+  const errors = openErrors({ receivedOn: form.receivedOn, intakeChannel: form.intakeChannel, desiredServices: form.desiredServices, reason: form.reason }, today)
+  if (form.managerRef === '') errors.contractManager = CONTRACT_INPUT_MESSAGES.managerRequired
+  if (!errors.reason && form.receivedOn !== original.receivedOn && form.reason === '') errors.reason = CONTRACT_INPUT_MESSAGES.reasonForDate
+  const same = form.receivedOn === original.receivedOn && form.intakeChannel === original.intakeChannel && form.managerRef === original.managerRef &&
+    [...form.desiredServices].sort().join() === [...original.desiredServices].sort().join()
+  if (Object.keys(errors).length === 0 && same) errors.form = CONTRACT_INPUT_MESSAGES.itemsUnchanged
+  return errors
+}
 
 /** '사유 및 비고' 검사([required]면 빈 값 오류). 빈 칸은 null로 보낸다. */
 export function reasonMessage(value: string, required: boolean): string | null {
@@ -242,6 +263,9 @@ export const CONTRACT_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   CONTRACT_INTAKE_KIND_MISMATCH: '사업자 계약 상태가 바뀌어 접수 종류가 달라졌습니다. 다시 불러온 내용을 확인하고 접수하세요.',
   CONTRACT_INTAKE_RECEIVED_ON_FUTURE: '접수일은 오늘(한국 시간) 이후로 고를 수 없습니다. 날짜를 다시 고르세요.',
   CONTRACT_INTAKE_VERSION_CONFLICT: '다른 사람이 먼저 이 접수 건을 바꿨습니다. 다시 불러온 내용을 확인하세요.',
+  // FLOW-2d 접수 항목 수정(MASTER [구현 관례 code]).
+  CONTRACT_INTAKE_ITEMS_NOT_EDITABLE: '끝난 접수 건은 접수 항목을 바꿀 수 없습니다. 다시 불러온 내용을 확인하세요.',
+  CONTRACT_INTAKE_ITEMS_UNCHANGED: '바뀐 내용이 없습니다.',
   CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED: '지금 상태에서는 할 수 없는 동작입니다. 다시 불러온 내용을 확인하세요.',
   CONTRACT_INTAKE_REASON_REQUIRED: "'사유 및 비고'를 입력하세요.",
   CONTRACT_INTAKE_DOCUMENT_REQUIRED: '계약서 수령 근거 참조를 입력하세요.',

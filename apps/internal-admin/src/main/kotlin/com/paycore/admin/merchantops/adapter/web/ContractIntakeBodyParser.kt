@@ -21,7 +21,9 @@ object ContractIntakeBodyParser {
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
         .build()
 
-    private val OPEN = setOf("submissionId", "expectedKind", "receivedOn", "intakeChannel", "contractManagerId", "desiredServices", "reason")
+    // FLOW-2d(D-GOV-024 Q-FLOW-40): 계약 담당자는 계정 키 대신 이 세션의 불투명 참조 `contractManagerRef`(접수 생성·항목 수정). 푸는 것은 호출자가 준 [resolve](세션 대응표).
+    private val OPEN = setOf("submissionId", "expectedKind", "receivedOn", "intakeChannel", "contractManagerRef", "desiredServices", "reason")
+    private val ITEMS = setOf("submissionId", "expectedVersion", "receivedOn", "intakeChannel", "contractManagerRef", "desiredServices", "reason")
     private val MOVE = setOf("submissionId", "expectedVersion", "target", "reason")
     private val COMPLETE = setOf("submissionId", "expectedVersion", "documentRef", "startDate", "endDate", "services", "reason")
     private val CONTRACT_EVENT = setOf("submissionId", "expectedEventCount", "reason", "evidenceRef")
@@ -31,7 +33,8 @@ object ContractIntakeBodyParser {
     private const val MAX_DESIRED = 2
     private const val MAX_SERVICES = 1
 
-    fun parse(operation: ContractIntakeOperation, businessId: String, intakeSeq: String?, body: ByteArray): ContractIntakeRequest? = try {
+    /** [resolve] = 담당자 참조 → 계정 키(풀 수 없으면 null — Use Case가 `contractManager NOT_ALLOWED`). 담당자가 없는 명령에서는 부르지 않는다. */
+    fun parse(operation: ContractIntakeOperation, businessId: String, intakeSeq: String?, body: ByteArray, resolve: (String) -> String? = { null }): ContractIntakeRequest? = try {
         val root: JsonNode? = mapper.readTree(body)
         if (root == null || !root.isObject) {
             null
@@ -41,8 +44,15 @@ object ContractIntakeBodyParser {
                     exact(root, OPEN)
                     val kind = text(root, "expectedKind").also { if (it !in KINDS) throw Malformed() }
                     ContractIntakeRequest.Open(
-                        businessId, text(root, "submissionId"), kind, text(root, "receivedOn"), text(root, "intakeChannel"), text(root, "contractManagerId"),
+                        businessId, text(root, "submissionId"), kind, text(root, "receivedOn"), text(root, "intakeChannel"), resolve(text(root, "contractManagerRef")),
                         strings(root.get("desiredServices"), MAX_DESIRED), optText(root, "reason"),
+                    )
+                }
+                ContractIntakeOperation.UPDATE_ITEMS -> {
+                    exact(root, ITEMS)
+                    ContractIntakeRequest.UpdateItems(
+                        businessId, seq(intakeSeq), text(root, "submissionId"), version(root), text(root, "receivedOn"), text(root, "intakeChannel"),
+                        resolve(text(root, "contractManagerRef")), strings(root.get("desiredServices"), MAX_DESIRED), optText(root, "reason"),
                     )
                 }
                 ContractIntakeOperation.MOVE -> {

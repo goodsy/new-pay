@@ -6,6 +6,7 @@ import com.paycore.master.merchant.application.provided.CompleteContractIntakeCo
 import com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase
 import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
 import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
+import com.paycore.master.merchant.application.provided.UpdateContractIntakeItemsCommand
 import com.paycore.master.merchant.application.required.AdminRequestStore
 import com.paycore.master.merchant.application.required.BusinessContractRepository
 import com.paycore.master.merchant.application.required.BusinessRepository
@@ -20,6 +21,8 @@ import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessContractChange
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.ContractIntake
+import com.paycore.master.merchant.domain.ContractIntakeItems
+import com.paycore.master.merchant.domain.BusinessChangeReason
 import com.paycore.master.merchant.domain.ContractIntakeChange
 import com.paycore.master.merchant.domain.ContractIntakeCompletion
 import com.paycore.master.merchant.domain.ContractIntakeStatus
@@ -103,6 +106,41 @@ class ContractIntakeCommandService(
             command.businessId.value
         }
 
+    override fun updateItems(command: UpdateContractIntakeItemsCommand): AdminCommandResult =
+        executor.execute(AdminOperation.UPDATE_CONTRACT_INTAKE_ITEMS, command.request, ContractIntakeCommandFingerprintFields.of(command)) { work ->
+            val business = lock(command.businessId)
+            work.lockedNow()
+            val intake = target(business, command.businessId, command.intakeSeq)
+            val before = intake.items
+            val updated = intake.updateItems(business, command.expectedVersion, command.items, command.reason, work.now, command.request.actor)
+            work.beginWrites()
+            intakes.updateItems(updated)
+            work.recordHistory(AGG_INTAKE, updated.businessId.value, ITEMS_UPDATED, itemsDetail(updated, checkNotNull(before), command.reason))
+            command.businessId.value
+        }
+
+    /** FLOW-2d 항목 수정 이력 detail: 순번·종류·상태·version·바뀐 항목 이름(고정 순서)·전후 값·'사유 및 비고' 원문(있을 때만 — MASTER 이력에만, 로그 없음). */
+    private fun itemsDetail(intake: ContractIntake, before: ContractIntakeItems, reason: BusinessChangeReason?): Map<String, Any?> {
+        val after = checkNotNull(intake.items)
+        fun view(i: ContractIntakeItems) = linkedMapOf<String, Any?>(
+            "receivedOn" to i.receivedOn.toString(), "intakeChannel" to i.channel.name, "contractManager" to i.contractManager.value,
+            "desiredServices" to i.desiredServices.map { it.name }.sorted(),
+        )
+        val b = view(before)
+        val a = view(after)
+        return buildMap {
+            put("businessId", intake.businessId.value)
+            put("intakeSeq", intake.seq)
+            put("kind", intake.kind.name)
+            put("status", intake.status.name)
+            put("version", intake.version)
+            put("changedFields", a.keys.filter { a[it] != b[it] })
+            put("before", b)
+            put("after", a)
+            reason?.let { put("reason", it.value) }
+        }
+    }
+
     private fun lock(id: BusinessId): Business = businesses.lock(id) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
 
     /** 대상 존재(생명주기 다음 — §4B.7 판정 순서). */
@@ -156,5 +194,6 @@ class ContractIntakeCommandService(
         const val OPENED = "ContractIntakeOpened"
         const val MOVED = "ContractIntakeMoved"
         const val COMPLETED = "ContractIntakeCompleted"
+        const val ITEMS_UPDATED = "ContractIntakeItemsUpdated"
     }
 }

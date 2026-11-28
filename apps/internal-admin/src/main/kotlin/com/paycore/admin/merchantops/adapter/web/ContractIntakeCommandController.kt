@@ -19,12 +19,17 @@ import java.util.UUID
  * - 접수 건 생성 `POST /api/businesses/{businessId}/contract-intakes`
  * - 전이(계약서 접수·되돌리기·계약 불가) `POST /api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions`
  * - 계약 완료(사업자 계약·버전 생성) `POST /api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion`
+ * - FLOW-2d 접수 항목 수정 `POST /api/businesses/{businessId}/contract-intakes/{intakeSeq}/items`(담당자 = 세션 불투명 참조 `contractManagerRef` — D-GOV-024)
  * - FLOW-2c 사업자 계약 정지·정지 해제·해지 `POST /api/businesses/{businessId}/business-contracts/{contractSeq}/{suspensions|resumptions|termination}`
  * 세션 + CSRF(보안 체인), 모두 `no-store`. 멱등 키 = 본문 `submissionId`([BusinessCommandController] 관례). 읽기 전 거절(감사 없음): JSON이 아니면 415, 16 KiB 초과 413.
  * 그 뒤 [ContractIntakeBodyParser] 엄격 해석 → Use Case. 응답은 [BusinessCommandResponses](사업자 명령과 같은 모양 — 성공 응답에 상태·version 없음, 화면은 성공 뒤 상세를 다시 읽는다).
  */
 @RestController
-class ContractIntakeCommandController(private val commands: ContractIntakeCommandUseCase, private val registry: MeterRegistry) {
+class ContractIntakeCommandController(
+    private val commands: ContractIntakeCommandUseCase,
+    private val registry: MeterRegistry,
+    private val managers: ContractManagerReferences,
+) {
 
     @PostMapping("/api/businesses/{businessId}/contract-intakes")
     fun open(@PathVariable businessId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
@@ -37,6 +42,11 @@ class ContractIntakeCommandController(private val commands: ContractIntakeComman
     @PostMapping("/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion")
     fun complete(@PathVariable businessId: String, @PathVariable intakeSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
         handle(ContractIntakeOperation.COMPLETE, businessId, intakeSeq, authentication, request)
+
+    /** FLOW-2d 접수 항목 수정(열린 건 — 기대 version = 대화상자를 연 때 본 값). */
+    @PostMapping("/api/businesses/{businessId}/contract-intakes/{intakeSeq}/items")
+    fun updateItems(@PathVariable businessId: String, @PathVariable intakeSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        handle(ContractIntakeOperation.UPDATE_ITEMS, businessId, intakeSeq, authentication, request)
 
     @PostMapping("/api/businesses/{businessId}/business-contracts/{contractSeq}/suspensions")
     fun suspend(@PathVariable businessId: String, @PathVariable contractSeq: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
@@ -62,7 +72,8 @@ class ContractIntakeCommandController(private val commands: ContractIntakeComman
         val body = request.inputStream.readNBytes(BusinessCommandController.MAX_BODY_BYTES + 1)
         if (body.size > BusinessCommandController.MAX_BODY_BYTES) return rejectBody(HttpStatus.CONTENT_TOO_LARGE, "REQUEST_TOO_LARGE")
         val context = AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(REMOTE_IP_MAX))
-        val parsed = ContractIntakeBodyParser.parse(operation, businessId, intakeSeq, body)
+        // D-GOV-024: 담당자 참조는 **이 세션**의 대응표로만 푼다(다른 세션·만료·옛 목록 → null → 400 NOT_ALLOWED).
+        val parsed = ContractIntakeBodyParser.parse(operation, businessId, intakeSeq, body) { ref -> managers.resolve(request.getSession(false), ref) }
         return BusinessCommandResponses.of(
             if (parsed == null) commands.rejectMalformed(authentication.name, operation, businessId, context) else commands.execute(authentication.name, parsed, context),
         )

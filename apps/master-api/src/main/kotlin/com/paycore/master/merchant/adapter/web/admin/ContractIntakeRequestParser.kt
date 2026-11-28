@@ -6,6 +6,7 @@ import com.paycore.master.merchant.application.provided.BusinessContractEventCom
 import com.paycore.master.merchant.application.provided.CompleteContractIntakeCommand
 import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
 import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
+import com.paycore.master.merchant.application.provided.UpdateContractIntakeItemsCommand
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessChangeReason
 import com.paycore.master.merchant.domain.BusinessContractTerms
@@ -46,6 +47,7 @@ object ContractIntakeRequestParser {
     private val COMMON = setOf("idempotencyKey", "actor", "correlationId", "businessId")
     private val OPEN = COMMON + setOf("expectedKind", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "reason")
     private val MOVE = COMMON + setOf("intakeSeq", "expectedVersion", "target", "reason")
+    private val ITEMS = COMMON + setOf("intakeSeq", "expectedVersion", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "reason")
     private val COMPLETE = COMMON + setOf("intakeSeq", "expectedVersion", "documentRef", "startDate", "endDate", "services", "reason")
     private val CONTRACT_EVENT = COMMON + setOf("contractSeq", "expectedEventCount", "reason", "evidenceRef")
     private val BUSINESS_ID = Regex("^biz_[0-9A-HJKMNP-TV-Z]{26}$")
@@ -58,6 +60,26 @@ object ContractIntakeRequestParser {
     fun open(body: ByteArray): BusinessCommandParse<OpenContractIntakeCommand> = parse(body, OPEN) { root, v ->
         val (request, id) = common(root)
         val kind = ContractIntakeKind.entries.firstOrNull { it.name == text(root, "expectedKind") } ?: throw Malformed()
+        val items = items(root, v)
+        val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        v.finish { OpenContractIntakeCommand(request, id, kind, items(), reason) }
+    }
+
+    /**
+     * FLOW-2d 접수 항목 수정: 순번 ≥ 1·기대 version ≥ 0(구조), 접수 항목은 생성과 같은 값 규칙('영업대행사' 경로 NOT_ALLOWED, 담당자 admin: 접두), 사유 선택(접수일 변경 때 필수는 Domain —
+     * 저장된 `CONTRACT_INTAKE_REASON_REQUIRED`, 비교 대상이 저장 값이라 parser가 알 수 없다).
+     */
+    fun updateItems(body: ByteArray): BusinessCommandParse<UpdateContractIntakeItemsCommand> = parse(body, ITEMS) { root, v ->
+        val (request, id) = common(root)
+        val seq = int(root, "intakeSeq", min = 1)
+        val version = long(root, "expectedVersion")
+        val items = items(root, v)
+        val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        v.finish { UpdateContractIntakeItemsCommand(request, id, seq, version, items(), reason) }
+    }
+
+    /** 접수 항목 4칸(생성·수정 공통 값 규칙). 값 오류는 [v]에 쌓이고, 반환 함수는 [v]가 오류 없이 끝난 뒤에만 부른다. */
+    private fun items(root: JsonNode, v: Values): () -> ContractIntakeItems {
         val receivedOn = v.date("receivedOn", text(root, "receivedOn"))
         val channel = v.value("intakeChannel", text(root, "intakeChannel"), { r ->
             when {
@@ -71,10 +93,7 @@ object ContractIntakeRequestParser {
         val desired = strings(root.get("desiredServices"), DesiredService.entries.size).mapIndexed { i, raw ->
             v.value("desiredServices[$i]", raw, { r -> if (DesiredService.entries.none { it.name == r }) BusinessFieldErrorCode.FORMAT else null }, DesiredService::valueOf)
         }
-        val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
-        v.finish {
-            OpenContractIntakeCommand(request, id, kind, ContractIntakeItems(requireNotNull(receivedOn), requireNotNull(channel), requireNotNull(manager), desired.map { requireNotNull(it) }.toSet()), reason)
-        }
+        return { ContractIntakeItems(requireNotNull(receivedOn), requireNotNull(channel), requireNotNull(manager), desired.map { requireNotNull(it) }.toSet()) }
     }
 
     fun move(body: ByteArray): BusinessCommandParse<MoveContractIntakeCommand> = parse(body, MOVE) { root, v ->

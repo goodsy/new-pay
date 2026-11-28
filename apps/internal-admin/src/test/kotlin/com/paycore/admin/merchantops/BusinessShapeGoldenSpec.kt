@@ -89,6 +89,17 @@ class BusinessShapeGoldenSpec : BehaviorSpec({
             parses(MasterResponseShape.BUSINESS_LIST, copy("list").also { firstItem(it).put("registrationNumber", "7319024865") }) shouldBe true
         }
 
+        Then("MERCHANT-FLOW-001 FLOW-2d (Coordinator 결정 (a)): the lookup item carries businessContractStatus (null or one of the five contract statuses); missing or unknown fails; the duplicate existing keeps its 4 keys") {
+            golden.get("lookupFound").get("items").get(0).get("businessContractStatus").asString() shouldBe "ACTIVE"
+            listOf("NOT_YET_EFFECTIVE", "ACTIVE", "SUSPENDED", "TERMINATED", "EXPIRED").forEach { v ->
+                withClue(v) { parses(MasterResponseShape.BUSINESS_LOOKUP, copy("lookupFound").also { firstItem(it).put("businessContractStatus", v) }) shouldBe true }
+            }
+            parses(MasterResponseShape.BUSINESS_LOOKUP, copy("lookupFound").also { firstItem(it).putNull("businessContractStatus") }) shouldBe true
+            parses(MasterResponseShape.BUSINESS_LOOKUP, copy("lookupFound").also { firstItem(it).remove("businessContractStatus") }) shouldBe false
+            parses(MasterResponseShape.BUSINESS_LOOKUP, copy("lookupFound").also { firstItem(it).put("businessContractStatus", "APPROVED") }) shouldBe false
+            parses(MasterResponseShape.BUSINESS_DUPLICATE_REJECTED, copy("duplicateRejected").also { (it.get("existing") as ObjectNode).put("businessContractStatus", "ACTIVE") }) shouldBe false
+        }
+
         Then("control: verification other than NOT_CHECKED, two lookup items, an existing on another rejection and a duplicate without existing fail") {
             parses(MasterResponseShape.BUSINESS_DETAIL, copy("detail").also { (it.get("business") as ObjectNode).put("verificationStatus", "VERIFIED") }) shouldBe false
             parses(MasterResponseShape.BUSINESS_LOOKUP, copy("lookupFound").also { (it.get("items") as ArrayNode).add(firstItem(it).deepCopy()) }) shouldBe false

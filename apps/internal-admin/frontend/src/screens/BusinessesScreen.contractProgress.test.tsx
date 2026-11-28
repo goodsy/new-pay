@@ -7,6 +7,7 @@ import { CONTRACT_STATUS_LABELS } from '../lib/contractProgress'
 import { createScreenMemory } from '../lib/screenMemory'
 import { domOccurrences } from '../test/domScan'
 import { apiError, fakeApi, storageIsEmpty } from '../test/fakeApi'
+import { ApiError } from '../api/client'
 import { bizId, individualRegisteredDetail, listItemOf } from '../test/businessFixtures'
 
 /**
@@ -72,12 +73,21 @@ const PROGRESS = progress(contract(), [COMPLETED_CHANGE, MIGRATED_INTAKE])
 
 const detailWith = (contractProgress: ContractProgress): BusinessDetail => ({ ...individualRegisteredDetail(1), contractProgress })
 
+/** FLOW-2d(D-GOV-024): 담당자 후보 — 불투명 참조·표시명·본인 표시(계정 키 없음). */
+const SELF_REF = 'mgr_SELFSELFSELFSELFSELF00'
+const OTHER_REF = 'mgr_OTHEROTHEROTHEROTHER0'
+const MANAGERS = { items: [{ ref: SELF_REF, displayName: ME.actorName, self: true }, { ref: OTHER_REF, displayName: '영업 담당', self: false }], truncated: false }
+/** 재리뷰 MAJOR-1(Coordinator 결정 "예 1"): 대상 접수 건을 주면 서버가 저장된 담당자(계정 키 비교)에 current를 붙인다 — 시험 접수 건의 담당자 = 본인. */
+const MANAGERS_FOR_INTAKE = { items: [{ ...MANAGERS.items[0]!, current: true }, { ...MANAGERS.items[1]!, current: false }], truncated: false }
+const listManagers = (target?: { businessId: string; intakeSeq: number }) => (target ? MANAGERS_FOR_INTAKE : MANAGERS)
+
 function renderScreen(detail: BusinessDetail | (() => BusinessDetail), canEdit: boolean, overrides: Parameters<typeof fakeApi>[0] = {}) {
   const read = typeof detail === 'function' ? detail : () => detail
   let submissionSeq = 0
   const api = fakeApi({
     searchBusinesses: vi.fn(async () => ({ items: [listItemOf(read())], next: null })),
     businessDetail: vi.fn(async () => read()),
+    listContractManagers: vi.fn(async (target?: { businessId: string; intakeSeq: number }) => listManagers(target)),
     ...overrides,
   })
   const view = render(
@@ -245,7 +255,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 접수 건 종류·허용 버튼(§4B.11
   it('OPERATOR: 상담 중 → [계약서 접수, 계약 불가], 계약서 접수 → [되돌리기, 계약 완료, 계약 불가], 종결 건 → 버튼 없음; 열린 건이 있으면 새 접수 버튼 없음', async () => {
     renderScreen(detailWith(progress(contract(), [openIntake('CONSULTING', 'CHANGE', 4), COMPLETED_CHANGE, MIGRATED_INTAKE])), true)
     const section = await openSection()
-    expect(buttonNames(intakeGroup(section, 4))).toEqual(['계약서 접수', '계약 불가'])
+    // 기대값 변경(FLOW-2d — D-FLOW-007 ④ 열린 건 '접수 항목 수정' 버튼 추가, 전이 버튼 집합·순서는 그대로)
+    expect(buttonNames(intakeGroup(section, 4))).toEqual(['계약서 접수', '계약 불가', '접수 항목 수정'])
     expect(buttonNames(intakeGroup(section, 2))).toEqual([])
     expect(buttonNames(intakeGroup(section, 1))).toEqual([])
     expect(within(section).queryByRole('button', { name: /신규 접수|변경 접수/ })).toBeNull()
@@ -254,7 +265,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 접수 건 종류·허용 버튼(§4B.11
   it('OPERATOR: 계약서 접수 건 → [되돌리기, 계약 완료, 계약 불가]', async () => {
     renderScreen(detailWith(progress(null, [openIntake('DOCUMENT_RECEIVED', 'NEW')])), true)
     const section = await openSection()
-    expect(buttonNames(intakeGroup(section, 3))).toEqual(['되돌리기', '계약 완료', '계약 불가'])
+    // 기대값 변경(FLOW-2d — D-FLOW-007 ④ 열린 건 '접수 항목 수정' 버튼 추가, 전이 버튼 집합·순서는 그대로)
+    expect(buttonNames(intakeGroup(section, 3))).toEqual(['되돌리기', '계약 완료', '계약 불가', '접수 항목 수정'])
   })
 
   it.each([
@@ -274,7 +286,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 접수 건 종류·허용 버튼(§4B.11
   it.each([['TERMINATED'], ['EXPIRED']] as const)('변경 접수가 열려 있고 계약이 %s → 계약 완료 버튼 대신 안내, 계약 불가는 남는다(BR-BIZ-333)', async (status) => {
     renderScreen(detailWith(progress(contract(status), [openIntake('DOCUMENT_RECEIVED', 'CHANGE')])), true)
     const group = intakeGroup(await openSection(), 3)
-    expect(buttonNames(group)).toEqual(['되돌리기', '계약 불가'])
+    // 기대값 변경(FLOW-2d — D-FLOW-007 ④ 열린 건 '접수 항목 수정' 버튼 추가, 전이 버튼 집합·순서는 그대로)
+    expect(buttonNames(group)).toEqual(['되돌리기', '계약 불가', '접수 항목 수정'])
     expect(group).toHaveTextContent('계약이 해지·만료되어 계약 불가로만 닫을 수 있습니다')
   })
 })
@@ -295,7 +308,10 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 명령 대화상자', () => {
     expect([...channel.options].map((o) => `${o.textContent}${o.disabled ? '(disabled)' : ''}`)).toEqual([
       '고르세요', '직접 영업', '전화', '홈페이지', '영업대행사 — 준비 전(disabled)', '기타',
     ])
-    expect(dialog).toHaveTextContent('계약 담당자운영 담당(본인)')
+    // 기대값 변경(FLOW-2d — D-GOV-024: 담당자 선택 + 불투명 참조): 담당자 = 목록 선택, 기본 본인.
+    const managerSelect = await within(dialog).findByLabelText('계약 담당자') as HTMLSelectElement
+    expect([...managerSelect.options].map((o) => o.textContent)).toEqual(['운영 담당(본인)', '영업 담당'])
+    expect(managerSelect.value).toBe(SELF_REF)
     expect((within(dialog).getByLabelText('가상계좌 — 준비 전') as HTMLInputElement).disabled).toBe(true)
     expect(dialog).toHaveTextContent('희망 서비스 — 참고용, 실제 서비스는 가맹점 계약 승인·개통에서 정합니다')
     await user.click(within(dialog).getByRole('button', { name: '접수 저장' }))
@@ -311,7 +327,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 명령 대화상자', () => {
     await user.click(within(dialog).getByLabelText('카드 인증 결제'))
     await user.click(within(dialog).getByRole('button', { name: '접수 저장' }))
     expect(openContractIntake).toHaveBeenCalledWith(bizId(1), {
-      submissionId: `${'0'.repeat(31)}1`, expectedKind: 'NEW', receivedOn: '2026-11-25', intakeChannel: 'DIRECT_SALES', contractManagerId: ME.actorId,
+      // 기대값 변경(D-GOV-024 Q-FLOW-40 — 사용자 결정): 계정 키 `contractManagerId` → 세션 불투명 참조 `contractManagerRef`.
+      submissionId: `${'0'.repeat(31)}1`, expectedKind: 'NEW', receivedOn: '2026-11-25', intakeChannel: 'DIRECT_SALES', contractManagerRef: SELF_REF,
       desiredServices: ['CARD_AUTH'], reason: null,
     })
     await screen.findByText('저장했습니다. 계약 진행을 다시 불러왔습니다.')
@@ -425,7 +442,8 @@ describe('MERCHANT-FLOW-001 FLOW-2b — 명령 대화상자', () => {
     const dialog = within(section).getByRole('dialog', { name: '변경 접수' })
     await user.selectOptions(within(dialog).getByLabelText('접수 경로'), '전화')
     await user.click(within(dialog).getByRole('button', { name: '접수 저장' }))
-    expect(openContractIntake).toHaveBeenCalledWith(bizId(1), expect.objectContaining({ expectedKind: 'CHANGE', contractManagerId: ME.actorId }))
+    // 기대값 변경(D-GOV-024 Q-FLOW-40 — 사용자 결정): 담당자는 계정 키가 아니라 세션 불투명 참조(기본 본인). 아래 DOM 단언(adm_·계정 키 없음)은 그대로.
+    expect(openContractIntake).toHaveBeenCalledWith(bizId(1), expect.objectContaining({ expectedKind: 'CHANGE', contractManagerRef: SELF_REF }))
     for (const needle of ['biz_', 'adm_', 'admin:', 'system:', ME.actorId]) expect(domOccurrences(view.container, needle)).toEqual([])
     expect(window.location.href).toBe(before)
     expect(window.location.href).not.toContain('biz_')
@@ -635,5 +653,149 @@ describe('MERCHANT-FLOW-001 FLOW-2c — 사업자 계약 정지·정지 해제·
     expect(within(section).queryByText('사업자 계약이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')).toBeNull()
     await user.click(within(locked).getByRole('button', { name: '같은 내용으로 다시 보내기' }))
     expect(suspendBusinessContract.mock.calls[1]).toEqual(suspendBusinessContract.mock.calls[0])
+  })
+})
+
+describe('MERCHANT-FLOW-001 FLOW-2d — 접수 항목 수정·계약 담당자 선택(§4A.3, D-FLOW-007 ④·D-FLOW-009 ①, D-GOV-024)', () => {
+  const success = { outcome: 'SUCCEEDED' as const, reference: bizId(1), replayed: false }
+  const CONSULTING = openIntake('CONSULTING', 'NEW', 1)
+  const RECEIVED = openIntake('DOCUMENT_RECEIVED', 'NEW', 1)
+
+  it('신규 접수에서 다른 담당자를 고르면 그 참조로 보낸다 — DOM에 계정 키(adm_)·참조 외 키가 없다', async () => {
+    const openContractIntake = vi.fn(async () => success)
+    const { view } = renderScreen(detailWith(progress(null, [])), true, { openContractIntake })
+    const section = await openSection()
+    await user.click(within(section).getByRole('button', { name: '신규 접수' }))
+    const dialog = within(section).getByRole('dialog', { name: '신규 접수' })
+    await user.selectOptions(await within(dialog).findByLabelText('계약 담당자'), '영업 담당')
+    await user.selectOptions(within(dialog).getByLabelText('접수 경로'), '전화')
+    await user.click(within(dialog).getByRole('button', { name: '접수 저장' }))
+    expect(openContractIntake).toHaveBeenCalledWith(bizId(1), expect.objectContaining({ contractManagerRef: OTHER_REF }))
+    expect(view.container.innerHTML).not.toContain('adm_')
+  })
+
+  it('OPERATOR: 열린 건(상담 중·계약서 접수)에만 "접수 항목 수정" 버튼; 종결 건·APPROVER는 없음', async () => {
+    for (const intake of [CONSULTING, RECEIVED]) {
+      const { view } = renderScreen(detailWith(progress(null, [intake])), true)
+      const section = await openSection()
+      expect(within(intakeGroup(section, intake.intakeSeq)).getByRole('button', { name: '접수 항목 수정' })).toBeInTheDocument()
+      view.unmount()
+    }
+    const { view } = renderScreen(detailWith(progress(contract('ACTIVE'), [COMPLETED_CHANGE, MIGRATED_INTAKE])), true)
+    expect(within(await openSection()).queryByRole('button', { name: '접수 항목 수정' })).toBeNull()
+    view.unmount()
+    renderScreen(detailWith(progress(null, [CONSULTING])), false)
+    expect(within(await openSection()).queryByRole('button', { name: '접수 항목 수정' })).toBeNull()
+  })
+
+  it('항목 수정: 지금 값으로 채움(담당자 = 서버가 current로 표시한 후보 — 대상 접수 건을 넘겨 목록을 받는다), 접수일을 바꾸면 사유 필수(화면) → 본문(expectedVersion = 연 때 version, 참조) → 상세 다시 읽기', async () => {
+    const updateContractIntakeItems = vi.fn(async () => success)
+    const { api } = renderScreen(detailWith(progress(null, [CONSULTING])), true, { updateContractIntakeItems })
+    const group = intakeGroup(await openSection(), 1)
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const dialog = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    expect((within(dialog).getByLabelText('접수일') as HTMLInputElement).value).toBe('2026-11-25')
+    expect((within(dialog).getByLabelText('접수 경로') as HTMLSelectElement).value).toBe('DIRECT_SALES')
+    expect((await within(dialog).findByLabelText('계약 담당자') as HTMLSelectElement).value).toBe(SELF_REF)
+    expect(api.listContractManagers).toHaveBeenLastCalledWith({ businessId: bizId(1), intakeSeq: 1 })
+    expect((within(dialog).getByLabelText('카드 인증 결제') as HTMLInputElement).checked).toBe(true)
+    await user.clear(within(dialog).getByLabelText('접수일'))
+    await user.type(within(dialog).getByLabelText('접수일'), '2026-11-24')
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    expect(dialog).toHaveTextContent("접수일을 바꾸려면 '사유 및 비고'에 사유를 적어야 합니다.")
+    expect(updateContractIntakeItems).not.toHaveBeenCalled()
+    await user.type(within(dialog).getByLabelText('사유 및 비고'), '접수일 정정')
+    await user.selectOptions(within(dialog).getByLabelText('계약 담당자'), '영업 담당')
+    await user.click(within(dialog).getByLabelText('카드 키인 결제'))
+    const reads = (api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    expect(updateContractIntakeItems).toHaveBeenCalledWith(bizId(1), 1, {
+      submissionId: expect.any(String), expectedVersion: CONSULTING.version, receivedOn: '2026-11-24', intakeChannel: 'DIRECT_SALES', contractManagerRef: OTHER_REF,
+      desiredServices: ['CARD_AUTH', 'CARD_KEYIN'], reason: '접수일 정정',
+    })
+    await waitFor(() => expect((api.businessDetail as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(reads))
+  })
+
+  it('재리뷰 MAJOR-1 동명이인: 기존 담당자(비활성)는 목록에 없고 같은 표시명의 다른 운영자가 있으면 기본값은 비어 있다 — 안내 + 직접 선택 필수(조용히 바뀌지 않음)', async () => {
+    const sameName = { items: [{ ref: SELF_REF, displayName: '다른 이름', self: true, current: false }, { ref: OTHER_REF, displayName: ME.actorName, self: false, current: false }], truncated: false }
+    const updateContractIntakeItems = vi.fn(async () => success)
+    const { api } = renderScreen(detailWith(progress(null, [CONSULTING])), true, {
+      updateContractIntakeItems, listContractManagers: vi.fn(async () => sameName),
+    })
+    const group = intakeGroup(await openSection(), 1)
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const dialog = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    expect((await within(dialog).findByLabelText('계약 담당자') as HTMLSelectElement).value).toBe('')
+    expect(dialog).toHaveTextContent('기존 담당자가 목록에 없습니다. 담당자를 다시 고르세요.')
+    await user.selectOptions(within(dialog).getByLabelText('접수 경로'), '전화')
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    expect(dialog).toHaveTextContent('계약 담당자를 고르세요.')
+    expect(updateContractIntakeItems).not.toHaveBeenCalled()
+    await user.selectOptions(within(dialog).getByLabelText('계약 담당자'), ME.actorName)
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    expect(updateContractIntakeItems).toHaveBeenCalledWith(bizId(1), 1, expect.objectContaining({ contractManagerRef: OTHER_REF, intakeChannel: 'PHONE' }))
+    expect(api.listContractManagers).toHaveBeenCalledWith({ businessId: bizId(1), intakeSeq: 1 })
+  })
+
+  it('신규 접수 목록은 대상 없이 부른다(현행 — current 없음, 기본 본인)', async () => {
+    const { api } = renderScreen(detailWith(progress(null, [])), true)
+    const section = await openSection()
+    await user.click(within(section).getByRole('button', { name: '신규 접수' }))
+    await within(within(section).getByRole('dialog', { name: '신규 접수' })).findByLabelText('계약 담당자')
+    expect(api.listContractManagers).toHaveBeenCalledWith()
+  })
+
+  it('항목 수정: 바뀐 것 없이 저장하면 화면이 막는다("바뀐 내용이 없습니다"); 저장된 거절(종결 건)은 한국어 안내(code 원문 없음)', async () => {
+    const updateContractIntakeItems = vi.fn(async () => ({ outcome: 'REJECTED' as const, rejection: 'CONTRACT_INTAKE_ITEMS_NOT_EDITABLE', replayed: false }))
+    renderScreen(detailWith(progress(null, [CONSULTING])), true, { updateContractIntakeItems })
+    const group = intakeGroup(await openSection(), 1)
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const dialog = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    await within(dialog).findByLabelText('계약 담당자')
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    expect(dialog).toHaveTextContent('바뀐 내용이 없습니다.')
+    expect(updateContractIntakeItems).not.toHaveBeenCalled()
+    await user.selectOptions(within(dialog).getByLabelText('접수 경로'), '전화')
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    await within(dialog).findByText('끝난 접수 건은 접수 항목을 바꿀 수 없습니다. 다시 불러온 내용을 확인하세요.')
+    expect(dialog).not.toHaveTextContent('CONTRACT_INTAKE_ITEMS_NOT_EDITABLE')
+  })
+
+  it('2c MAJOR-1 원칙: 대화상자를 연 때의 version으로만 보낸다 — 거절 뒤 재조회에서 version이 바뀌면 대화상자를 닫고 다시 열라고 안내(전송 없음)', async () => {
+    let changed = false
+    const updateContractIntakeItems = vi.fn(async () => {
+      changed = true
+      return { outcome: 'REJECTED' as const, rejection: 'CONTRACT_INTAKE_VERSION_CONFLICT', replayed: false }
+    })
+    renderScreen(() => detailWith(progress(null, [changed ? { ...CONSULTING, version: CONSULTING.version + 1, intakeChannel: 'WEBSITE' } : CONSULTING])), true, { updateContractIntakeItems })
+    const group = intakeGroup(await openSection(), 1)
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const dialog = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    await within(dialog).findByLabelText('계약 담당자')
+    await user.selectOptions(within(dialog).getByLabelText('접수 경로'), '전화')
+    await user.click(within(dialog).getByRole('button', { name: '수정 저장' }))
+    const section = await screen.findByRole('region', { name: '계약 진행' })
+    await within(section).findByText('접수 건이 바뀌었습니다. 다시 불러온 내용을 확인하고 새로 여세요.')
+    expect(within(section).queryByRole('dialog', { name: '접수 항목 수정' })).toBeNull()
+    expect(updateContractIntakeItems).toHaveBeenCalledTimes(1)
+  })
+
+  it('담당자 목록을 불러오지 못하면 저장할 수 없다(안내) — 담당자 400 NOT_ALLOWED(참조 만료 등)는 칸 안내로 보이고 목록을 다시 불러온다(새 참조)', async () => {
+    const listContractManagers = vi.fn().mockRejectedValueOnce(apiError(503, 'SERVER_ERROR')).mockResolvedValue(MANAGERS_FOR_INTAKE) // 입력 보강(재리뷰 MAJOR-1: 대상 접수 건 목록 = current 포함)
+    const updateContractIntakeItems = vi.fn().mockRejectedValueOnce(new ApiError(400, 'INVALID_INPUT', undefined, [{ path: 'contractManager', code: 'NOT_ALLOWED' }]))
+    renderScreen(detailWith(progress(null, [CONSULTING])), true, { listContractManagers, updateContractIntakeItems })
+    const group = intakeGroup(await openSection(), 1)
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const dialog = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    await within(dialog).findByText('계약 담당자 목록을 불러오지 못했습니다. 다시 열어 주세요.')
+    expect(within(dialog).getByRole('button', { name: '수정 저장' })).toBeDisabled()
+    await user.click(within(dialog).getByRole('button', { name: '취소' }))
+    await user.click(within(group).getByRole('button', { name: '접수 항목 수정' }))
+    const again = within(group).getByRole('dialog', { name: '접수 항목 수정' })
+    await within(again).findByLabelText('계약 담당자')
+    await user.selectOptions(within(again).getByLabelText('접수 경로'), '전화')
+    await user.click(within(again).getByRole('button', { name: '수정 저장' }))
+    await within(again).findByText('계약 담당자는 활성 운영자 계정만 지정할 수 있습니다.')
+    expect(listContractManagers).toHaveBeenCalledTimes(3)
   })
 })

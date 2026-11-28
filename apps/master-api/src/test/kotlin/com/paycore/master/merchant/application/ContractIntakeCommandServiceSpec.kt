@@ -16,6 +16,7 @@ import com.paycore.master.merchant.application.provided.CompleteContractIntakeCo
 import com.paycore.master.merchant.application.provided.ContractIntakeCommandUseCase
 import com.paycore.master.merchant.application.provided.MoveContractIntakeCommand
 import com.paycore.master.merchant.application.provided.OpenContractIntakeCommand
+import com.paycore.master.merchant.application.provided.UpdateContractIntakeItemsCommand
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.BusinessChangeReason
 import com.paycore.master.merchant.domain.BusinessContractStatus
@@ -112,6 +113,15 @@ class ContractIntakeCommandServiceSpec(
 
     fun complete(id: BusinessId, seq: Int, version: Long, start: LocalDate = today, end: LocalDate? = null, req: AdminRequest = request()) =
         service.complete(CompleteContractIntakeCommand(req, id, seq, version, document, BusinessContractTerms(start, end, setOf(ServiceKind.CARD_PG_PAYMENT)), null))
+
+    fun update(id: BusinessId, seq: Int, version: Long, next: ContractIntakeItems, why: BusinessChangeReason? = null, req: AdminRequest = request()) =
+        service.updateItems(UpdateContractIntakeItemsCommand(req, id, seq, version, next, why))
+
+    fun intakeRow(id: BusinessId, seq: Int = 1): List<String> = rows(
+        "SELECT CONCAT_WS('|', status, kind, COALESCE(target_contract_seq, '-'), received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, version, updated_by) " +
+            "FROM contract_intake WHERE business_id = ? AND intake_seq = ?",
+        id.value, seq,
+    )
 
     fun rejected(result: AdminCommandResult): MasterRejection = result.shouldBeInstanceOf<AdminCommandResult.Rejected>().rejection
     fun ok(result: AdminCommandResult): String = result.shouldBeInstanceOf<AdminCommandResult.Succeeded>().reference
@@ -318,6 +328,80 @@ class ContractIntakeCommandServiceSpec(
         }
     }
 
+    Given("FLOW-2d 접수 항목 수정(§4A.3 — D-FLOW-007 ④·D-FLOW-009 ①, UPDATE_CONTRACT_INTAKE_ITEMS)") {
+        val other = ActorRef("admin:adm_01JCFL0000000000000000OP02")
+        val changed = ContractIntakeItems(today, ContractIntakeChannel.WEBSITE, other, setOf(DesiredService.CARD_AUTH, DesiredService.CARD_KEYIN))
+
+        Then("an open intake's channel / manager / desired services change (reason optional): items updated, version + 1, status·kind·target kept, no transition row, one history row, nothing financial") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            val before = untouched(id)
+            val transitionsBefore = count("SELECT COUNT(*) FROM contract_intake_transition WHERE business_id = ?", id.value)
+            val actor = ActorRef("admin:adm_01JCFL0000000000000000OP03")
+            ok(update(id, 1, 0, changed, req = request(actor = actor))) shouldBe id.value
+            intakeRow(id) shouldBe listOf("CONSULTING|NEW|-|2026-11-26|WEBSITE|${other.value}|1|1|1|${actor.value}")
+            count("SELECT COUNT(*) FROM contract_intake_transition WHERE business_id = ?", id.value) shouldBe transitionsBefore
+            rows(
+                "SELECT CONCAT_WS('|', change_type, JSON_EXTRACT(detail, '$.intakeSeq'), JSON_EXTRACT(detail, '$.version'), JSON_EXTRACT(detail, '$.changedFields'), " +
+                    "JSON_CONTAINS_PATH(detail, 'one', '$.reason')) FROM master_change_history WHERE aggregate_type = 'ContractIntake' AND aggregate_id = ? AND change_type = 'ContractIntakeItemsUpdated'",
+                id.value,
+            ) shouldBe listOf("ContractIntakeItemsUpdated|1|1|[\"intakeChannel\", \"contractManager\", \"desiredServices\"]|0")
+            untouched(id) shouldBe before
+        }
+
+        Then("D-FLOW-009 ①: changing the received date needs '사유 및 비고' (stored CONTRACT_INTAKE_REASON_REQUIRED, same key replays); with a reason it changes and the reason is in the history") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            val earlier = ContractIntakeItems(today.minusDays(3), ContractIntakeChannel.PHONE, manager, setOf(DesiredService.CARD_AUTH))
+            val key = request()
+            update(id, 1, 0, earlier, req = key) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_INTAKE_REASON_REQUIRED, null, false)
+            update(id, 1, 0, earlier, req = key) shouldBe AdminCommandResult.Rejected(MasterRejection.CONTRACT_INTAKE_REASON_REQUIRED, null, true)
+            ok(update(id, 1, 0, earlier, BusinessChangeReason("접수일 정정")))
+            intakeRow(id).single().split('|')[3] shouldBe "2026-11-23"
+            rows(
+                "SELECT JSON_UNQUOTE(JSON_EXTRACT(detail, '$.reason')) FROM master_change_history WHERE aggregate_id = ? AND change_type = 'ContractIntakeItemsUpdated'", id.value,
+            ) shouldBe listOf("접수일 정정")
+        }
+
+        Then("stored rejections: closed intake → CONTRACT_INTAKE_ITEMS_NOT_EDITABLE, stale version → CONTRACT_INTAKE_VERSION_CONFLICT, unchanged → CONTRACT_INTAKE_ITEMS_UNCHANGED, unknown intake → CONTRACT_INTAKE_NOT_FOUND, future date → CONTRACT_INTAKE_RECEIVED_ON_FUTURE") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            rejected(update(id, 1, 5, changed)) shouldBe MasterRejection.CONTRACT_INTAKE_VERSION_CONFLICT
+            rejected(update(id, 1, 0, items())) shouldBe MasterRejection.CONTRACT_INTAKE_ITEMS_UNCHANGED
+            rejected(update(id, 9, 0, changed)) shouldBe MasterRejection.CONTRACT_INTAKE_NOT_FOUND
+            rejected(update(id, 1, 0, ContractIntakeItems(today.plusDays(1), ContractIntakeChannel.PHONE, manager, setOf(DesiredService.CARD_AUTH)), reason)) shouldBe
+                MasterRejection.CONTRACT_INTAKE_RECEIVED_ON_FUTURE
+            ok(move(id, 1, 0, ContractIntakeStatus.REJECTED, reason))
+            rejected(update(id, 1, 1, changed)) shouldBe MasterRejection.CONTRACT_INTAKE_ITEMS_NOT_EDITABLE
+            intakeRow(id).single().split('|').let { listOf(it[0], it[4], it[8]) } shouldBe listOf("REJECTED", "PHONE", "1")
+        }
+
+        Then("§4A.6 n-4: a stored success replays with the same key after the clock moves on (no time-dependent re-check on resend)") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            val key = request()
+            val first = update(id, 1, 0, changed, req = key).shouldBeInstanceOf<AdminCommandResult.Succeeded>()
+            clock.set(now.plus(Duration.ofDays(2)))
+            update(id, 1, 0, changed, req = key) shouldBe first.copy(replayed = true)
+            update(id, 1, 0, changed.copy(channel = ContractIntakeChannel.OTHER), req = key) shouldBe AdminCommandResult.IdempotencyKeyReused
+        }
+
+        Then("Transaction Safety: a history write failure rolls the items and version back") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            val before = intakeRow(id)
+            faults.after(MasterFaultPoint.CHANGE_LOG_APPEND) { throw IllegalStateException("injected history failure") }
+            shouldThrowAny { update(id, 1, 0, changed) }
+            faults.reset()
+            intakeRow(id) shouldBe before
+        }
+    }
+
     Given("§4B.9 concurrency on real MySQL (two connections, contention forced)") {
         /**
          * 첫 명령은 변경 이력 쓰기 직후(같은 TX — 사업자 행 잠금을 쥔 채) 둘째 명령이 그 잠금을 기다리는 것을 볼 때까지 멈춘다(경합 강제 — 순서대로 실행돼 우연히 통과하지 않게).
@@ -372,6 +456,18 @@ class ContractIntakeCommandServiceSpec(
             rejected(b) shouldBe MasterRejection.CONTRACT_INTAKE_VERSION_CONFLICT
             count("SELECT COUNT(*) FROM business_contract WHERE business_id = ?", id.value) shouldBe 1
             count("SELECT COUNT(*) FROM business_contract_version WHERE business_id = ?", id.value) shouldBe 1
+        }
+
+        Then("FLOW-2d two item updates on the same intake with the same expected version → one applies; the other is CONTRACT_INTAKE_VERSION_CONFLICT after the lock") {
+            clock.set(now)
+            val id = business()
+            ok(open(id))
+            val first = ContractIntakeItems(today, ContractIntakeChannel.WEBSITE, manager, setOf(DesiredService.CARD_AUTH))
+            val second = ContractIntakeItems(today, ContractIntakeChannel.OTHER, manager, setOf(DesiredService.CARD_AUTH))
+            val (a, b) = race({ update(id, 1, 0, first) }, { update(id, 1, 0, second) })
+            ok(a)
+            rejected(b) shouldBe MasterRejection.CONTRACT_INTAKE_VERSION_CONFLICT
+            intakeRow(id).single().split('|').let { listOf(it[4], it[8]) } shouldBe listOf("WEBSITE", "1")
         }
     }
 

@@ -50,6 +50,9 @@ export function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     completeBusinessRegistration: notStubbed('completeBusinessRegistration'),
     // MERCHANT-FLOW-001 FLOW-2b: 계약 접수 건 명령.
     openContractIntake: notStubbed('openContractIntake'),
+    // MERCHANT-FLOW-001 FLOW-2d: 접수 항목 수정·계약 담당자 후보(D-GOV-024).
+    updateContractIntakeItems: notStubbed('updateContractIntakeItems'),
+    listContractManagers: notStubbed('listContractManagers'),
     moveContractIntake: notStubbed('moveContractIntake'),
     completeContractIntake: notStubbed('completeContractIntake'),
     // MERCHANT-FLOW-001 FLOW-2c: 사업자 계약 정지·정지 해제·해지.

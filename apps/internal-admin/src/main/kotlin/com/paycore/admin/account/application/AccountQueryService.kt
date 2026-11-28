@@ -3,6 +3,9 @@ package com.paycore.admin.account.application
 import com.paycore.admin.account.application.provided.AccountListPage
 import com.paycore.admin.account.application.provided.AccountListView
 import com.paycore.admin.account.application.provided.AccountQuery
+import com.paycore.admin.account.application.provided.ActiveOperatorPage
+import com.paycore.admin.account.application.provided.ActiveOperatorQuery
+import com.paycore.admin.account.application.provided.ActiveOperatorView
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.required.AdminAccountListReader
 import com.paycore.admin.account.application.provided.ReactivationCauseView
@@ -17,7 +20,13 @@ class AccountQueryService(
     private val sessions: AdminSessionQuery,
     private val reader: AdminAccountListReader,
     private val roleEvents: AdminRoleEventReader,
-) : AccountQuery {
+) : AccountQuery, ActiveOperatorQuery {
+
+    /** FLOW-2d(D-GOV-024): 활성 OPERATOR 표시명 목록 — 한 행 더 읽어 잘림을 안다. 로그인 이름은 읽지 않는다. */
+    override fun activeOperators(): ActiveOperatorPage {
+        val rows = reader.activeRoleHolders("OPERATOR", ActiveOperatorPage.LIMIT + 1)
+        return ActiveOperatorPage(rows.take(ActiveOperatorPage.LIMIT).map { ActiveOperatorView(it.actorId, it.displayName) }, truncated = rows.size > ActiveOperatorPage.LIMIT)
+    }
 
     override fun list(viewerActorId: String): AccountListPage? {
         val viewer = sessions.current(viewerActorId) ?: return null

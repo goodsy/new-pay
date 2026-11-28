@@ -61,6 +61,26 @@ class ContractIntake private constructor(
         return ContractIntakeChange(next, ContractIntakeTransition(businessId, seq, status, target, false, recordedAt, by, input.reason, input.document), contract)
     }
 
+    /**
+     * 접수 항목 수정(MERCHANT-FLOW-001 FLOW-2d — §4A.3, D-FLOW-007 ④·D-FLOW-009 ①). 판정 순서(§4B.7): 사업자 생명주기 → 기대 version → 열린 건(종결 건 =
+     * `CONTRACT_INTAKE_ITEMS_NOT_EDITABLE`) → 접수일이 판정 시각 KST 오늘보다 뒤면 `CONTRACT_INTAKE_RECEIVED_ON_FUTURE` → 바뀐 것 없음 `CONTRACT_INTAKE_ITEMS_UNCHANGED` →
+     * 접수일을 바꾸는데 '사유 및 비고'가 없으면 `CONTRACT_INTAKE_REASON_REQUIRED`(다른 항목은 사유 선택). 상태·종류·대상·생성 값은 그대로, version + 1(상태 전이가 아니라 전이 이력 행 없음).
+     * 계약 담당자의 ACTIVE OPERATOR 검사는 ADMIN이 한다(MASTER는 형식만 — §4A.6). [reason]은 호출자가 변경 이력에 남긴다.
+     */
+    @Suppress("LongParameterList")
+    fun updateItems(business: Business, expectedVersion: Long, next: ContractIntakeItems, reason: BusinessChangeReason?, at: Instant, by: ActorRef): ContractIntake {
+        require(business.id == businessId) { "intake belongs to another business" }
+        business.requireActive()
+        if (expectedVersion != version) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_VERSION_CONFLICT)
+        val current = items
+        if (!status.isOpen || current == null) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_ITEMS_NOT_EDITABLE)
+        if (next.receivedOn.isAfter(at.atZone(SeoulMidnight.ZONE).toLocalDate())) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_RECEIVED_ON_FUTURE)
+        if (next == current) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_ITEMS_UNCHANGED)
+        if (next.receivedOn != current.receivedOn && reason == null) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_REASON_REQUIRED)
+        val recordedAt = if (at.isBefore(updatedAt)) updatedAt else at
+        return ContractIntake(businessId, seq, status, migrated, next, createdAt, createdBy, recordedAt, by, version + 1, kind, targetContractSeq)
+    }
+
     /** MINOR-1 입력 검사(DB CHECK는 이중 방어로 남는다). */
     private fun requireInput(target: ContractIntakeStatus, input: ContractIntakeTransitionInput) {
         if (ContractIntakeTransition.requiresReason(status, target) && input.reason == null) throw MasterRuleViolation(MasterRejection.CONTRACT_INTAKE_REASON_REQUIRED)

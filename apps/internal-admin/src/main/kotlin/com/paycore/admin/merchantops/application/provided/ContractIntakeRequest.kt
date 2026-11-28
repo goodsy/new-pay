@@ -18,13 +18,33 @@ sealed interface ContractIntakeRequest {
         val expectedKind: String,
         val receivedOn: String,
         val intakeChannel: String,
-        val contractManagerId: String,
+        val contractManagerId: String?,
         val desiredServices: List<String>,
         override val reason: String?,
     ) : ContractIntakeRequest {
         override val operation: ContractIntakeOperation get() = ContractIntakeOperation.OPEN
 
         override fun toString(): String = "ContractIntakeRequest.Open(kind=$expectedKind, ***)"
+    }
+
+    /**
+     * FLOW-2d 접수 항목 수정(열린 건 — §4A.3 D-FLOW-007 ④·D-FLOW-009 ①). [intakeSeq] = 경로 값, [expectedVersion] = 대화상자를 연 때 본 version(고정).
+     * [contractManagerId] = 화면 불투명 참조를 웹 adapter가 이 세션의 대응표로 푼 계정 키(풀리지 않으면 null — Use Case가 `contractManager NOT_ALLOWED`, D-GOV-024).
+     */
+    class UpdateItems(
+        override val businessId: String,
+        val intakeSeq: Int,
+        override val submissionId: String,
+        val expectedVersion: Long,
+        val receivedOn: String,
+        val intakeChannel: String,
+        val contractManagerId: String?,
+        val desiredServices: List<String>,
+        override val reason: String?,
+    ) : ContractIntakeRequest {
+        override val operation: ContractIntakeOperation get() = ContractIntakeOperation.UPDATE_ITEMS
+
+        override fun toString(): String = "ContractIntakeRequest.UpdateItems(version=$expectedVersion, ***)"
     }
 
     /** 전이(계약서 접수·되돌리기·계약 불가). [target] ∈ DOCUMENT_RECEIVED·CONSULTING·REJECTED. */

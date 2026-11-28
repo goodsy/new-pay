@@ -38,6 +38,11 @@ class ContractIntakeCommandController(
     fun move(request: HttpServletRequest): ResponseEntity<ByteArray> =
         command(request, "MoveContractIntake", ContractIntakeRequestParser::move, { it.request }, commands::move)
 
+    /** FLOW-2d 접수 항목 수정(열린 건 — §4A.3). */
+    @PostMapping("/update-items")
+    fun updateItems(request: HttpServletRequest): ResponseEntity<ByteArray> =
+        command(request, "UpdateContractIntakeItems", ContractIntakeRequestParser::updateItems, { it.request }, commands::updateItems)
+
     @PostMapping("/complete")
     fun complete(request: HttpServletRequest): ResponseEntity<ByteArray> =
         command(request, "CompleteContractIntake", ContractIntakeRequestParser::complete, { it.request }, commands::complete)

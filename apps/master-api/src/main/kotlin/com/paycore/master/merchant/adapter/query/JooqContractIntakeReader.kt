@@ -81,11 +81,14 @@ class JooqContractIntakeReader(private val dsl: DSLContext) : ContractIntakeRead
             }
         val m = MERCHANT
         val linked = dsl.selectCount().from(m).where(m.BUSINESS_ID.eq(id).and(m.LIFECYCLE.ne(TERMINATED))).fetchOne(0, Int::class.java) ?: 0
-        return ContractIntakeSection(ContractIntakeSectionView(id, intakes), latestContract(businessId), linked)
+        return ContractIntakeSection(ContractIntakeSectionView(id, intakes), readLatestContract(businessId), linked)
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    override fun latestContract(businessId: BusinessId): BusinessContract? = readLatestContract(businessId)
+
     /** 최신 사업자 계약(계약 순번 최대) — 머리 1 + 하위 표 4문장. 없으면 null. */
-    private fun latestContract(businessId: BusinessId): BusinessContract? {
+    private fun readLatestContract(businessId: BusinessId): BusinessContract? {
         val id = businessId.value
         val c = BUSINESS_CONTRACT
         val head = dsl.select(c.CONTRACT_SEQ, c.ORIGIN_INTAKE_SEQ, c.MIGRATED, MasterSqlText.instant(c.CREATED_AT), c.CREATED_BY)

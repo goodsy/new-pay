@@ -114,6 +114,12 @@ enum class MasterRejection {
     // V21 첫 단계 guard가 0행을 확인한다(0이 아니면 V21이 1146으로 멈춤 — 재생 호환용 enum 값을 남길 필요가 없다).
     CONTRACT_INTAKE_OPEN_EXISTS,
     CONTRACT_INTAKE_TRANSITION_NOT_ALLOWED,
+
+    /** MERCHANT-FLOW-001 FLOW-2d(§4A.3 — D-FLOW-007 ④, [구현 관례 code]): 종결 건(계약 완료·계약 불가·이관)의 접수 항목 수정. */
+    CONTRACT_INTAKE_ITEMS_NOT_EDITABLE,
+
+    /** FLOW-2d([구현 관례 code]): 접수 항목 수정 요청이 저장된 값과 같다(이력·version을 늘리지 않는다). */
+    CONTRACT_INTAKE_ITEMS_UNCHANGED,
     CONTRACT_INTAKE_VERSION_CONFLICT,
 
     // MERCHANT-FLOW-001 §4B.6·§4B.7(FLOW-2a — 순수 Domain 규칙, 명령 경로는 FLOW-2b·2c): 접수 종류 불일치(화면이 본 종류 ≠ 잠금 뒤 판정 — BR-BIZ-325),

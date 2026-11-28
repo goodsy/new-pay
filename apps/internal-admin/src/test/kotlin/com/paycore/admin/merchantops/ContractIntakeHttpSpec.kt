@@ -14,6 +14,7 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldMatch
 import io.kotest.matchers.string.shouldNotContain
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.testcontainers.mysql.MySQLContainer
 import tools.jackson.databind.json.JsonMapper
@@ -64,9 +66,21 @@ class ContractIntakeHttpSpec(
     fun replyMaster(op: String, status: Int, body: String) = StubMasterOpsServer.reply("$masterBase/$op", StubMasterOpsServer.Reply(status, body))
     fun succeeded(id: String) = """{"outcome":"SUCCEEDED","reference":"$id","replayed":false}"""
     val today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString()
-    fun openJson(s: String, manager: String, reason: String? = null, extra: String = "") =
-        """{"submissionId":"$s","expectedKind":"NEW","receivedOn":"$today","intakeChannel":"PHONE","contractManagerId":"$manager","desiredServices":["CARD_AUTH"],""" +
+    // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — D-GOV-024 Q-FLOW-40 사용자 결정: 접수 생성도 담당자 **불투명 참조** 방식): 본문 `contractManagerId`(계정 키) → `contractManagerRef`.
+    fun openJson(s: String, managerRef: String, reason: String? = null, extra: String = "") =
+        """{"submissionId":"$s","expectedKind":"NEW","receivedOn":"$today","intakeChannel":"PHONE","contractManagerRef":"$managerRef","desiredServices":["CARD_AUTH"],""" +
             """"reason":${reason?.let { "\"$it\"" } ?: "null"}$extra}"""
+    /** D-GOV-024: 이 세션이 받은 담당자 목록에서 [account]의 참조(표시명 `Admin <ULID 끝 4자>` — 목록은 최신 계정부터). */
+    fun managerRef(client: AdminHttpClient, account: LoginReadyAccounts.LoginReady): String {
+        val res = client.perform(get("/api/contract-managers"), false)
+        res.status shouldBe 200
+        val items = json.readTree(res.contentAsString).get("items")
+        return (0 until items.size()).map { items.get(it) }.first { it.get("displayName").asString() == "Admin ${account.account.id.value.takeLast(4)}" }.get("ref").asString()
+    }
+    val unknownRef = "mgr_AAAAAAAAAAAAAAAAAAAAAA"
+    fun itemsJson(s: String, managerRef: String, receivedOn: String = today, reason: String? = null) =
+        """{"submissionId":"$s","expectedVersion":1,"receivedOn":"$receivedOn","intakeChannel":"WEBSITE","contractManagerRef":"$managerRef","desiredServices":["CARD_AUTH","CARD_KEYIN"],""" +
+            """"reason":${reason?.let { "\"$it\"" } ?: "null"}}"""
     fun moveJson(s: String, target: String, reason: String?) = """{"submissionId":"$s","expectedVersion":1,"target":"$target","reason":${reason?.let { "\"$it\"" } ?: "null"}}"""
     fun completeJson(s: String, documentRef: String = "DEMO-DOC-0001", start: String = today, end: String? = null) =
         """{"submissionId":"$s","expectedVersion":1,"documentRef":"$documentRef","startDate":"$start","endDate":${end?.let { "\"$it\"" } ?: "null"},""" +
@@ -80,7 +94,7 @@ class ContractIntakeHttpSpec(
             val id = businessId()
             listOf("open", "move", "complete").forEach { replyMaster(it, 200, succeeded(id)) }
             val (s1, s2, s3) = Triple(sub(), sub(), sub())
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s1, manager.account.id.value, reason = "CANARY-OPEN-1")).let {
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s1, managerRef(client, manager), reason = "CANARY-OPEN-1")).let {
                 it.status shouldBe 200
                 it.getHeader("Cache-Control")!! shouldContain "no-store"
                 it.contentAsString shouldBe succeeded(id)
@@ -140,7 +154,7 @@ class ContractIntakeHttpSpec(
             val client = loggedIn(approver)
             val id = businessId()
             val before = StubMasterOpsServer.received.size
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), approver.account.id.value)).let {
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), unknownRef)).let { // APPROVER는 목록을 받지 못한다(역할 검사 403이 먼저)
                 (it.status to it.contentAsString) shouldBe (403 to """{"error":"FORBIDDEN"}""")
             }
             send(client, post("/api/businesses/$id/contract-intakes/1/transitions"), moveJson(sub(), "DOCUMENT_RECEIVED", null)).status shouldBe 403
@@ -162,8 +176,8 @@ class ContractIntakeHttpSpec(
                 post("/api/businesses/$id/contract-intakes/1/transitions") to moveJson(sub(), "CONSULTING", null) to "reason|REQUIRED",
                 post("/api/businesses/$id/contract-intakes/1/completion") to completeJson(sub(), documentRef = "DOC-4111111111111111") to "documentRef|CARD_NUMBER_PATTERN",
                 post("/api/businesses/$id/contract-intakes/1/completion") to completeJson(sub(), start = yesterday) to "startDate|NOT_ALLOWED",
-                post("/api/businesses/$id/contract-intakes") to openJson(sub(), operator.account.id.value).replace("PHONE", "SALES_AGENCY") to "intakeChannel|NOT_ALLOWED",
-                post("/api/businesses/$id/contract-intakes") to openJson(sub(), approverManager.account.id.value) to "contractManager|NOT_ALLOWED",
+                post("/api/businesses/$id/contract-intakes") to openJson(sub(), managerRef(client, operator)).replace("PHONE", "SALES_AGENCY") to "intakeChannel|NOT_ALLOWED",
+                post("/api/businesses/$id/contract-intakes") to openJson(sub(), unknownRef) to "contractManager|NOT_ALLOWED", // 기대값 변경(D-GOV-024): APPROVER 계정은 목록에 없다 — 모르는 참조 = 같은 code
             ).forEach { (request, expected) ->
                 val (builder, body) = request
                 val (field, code) = expected.split('|')
@@ -183,9 +197,9 @@ class ContractIntakeHttpSpec(
             val id = businessId()
             val before = StubMasterOpsServer.received.size
             listOf(
-                post("/api/businesses/$id/contract-intakes") to openJson(sub(), operator.account.id.value, extra = ",\"agencyId\":null"),
-                post("/api/businesses/$id/contract-intakes") to openJson(sub(), operator.account.id.value).replace("\"NEW\"", "null"),
-                post("/api/businesses/$id/contract-intakes") to openJson(sub(), operator.account.id.value).replace("\"desiredServices\":[\"CARD_AUTH\"]", "\"desiredServices\":[\"CARD_AUTH\",\"CARD_AUTH\"]"),
+                post("/api/businesses/$id/contract-intakes") to openJson(sub(), managerRef(client, operator), extra = ",\"agencyId\":null"),
+                post("/api/businesses/$id/contract-intakes") to openJson(sub(), managerRef(client, operator)).replace("\"NEW\"", "null"),
+                post("/api/businesses/$id/contract-intakes") to openJson(sub(), managerRef(client, operator)).replace("\"desiredServices\":[\"CARD_AUTH\"]", "\"desiredServices\":[\"CARD_AUTH\",\"CARD_AUTH\"]"),
                 post("/api/businesses/$id/contract-intakes/0/transitions") to moveJson(sub(), "DOCUMENT_RECEIVED", null),
                 post("/api/businesses/$id/contract-intakes/01/transitions") to moveJson(sub(), "DOCUMENT_RECEIVED", null),
                 post("/api/businesses/$id/contract-intakes/1/transitions") to moveJson(sub(), "COMPLETED", null),
@@ -194,7 +208,7 @@ class ContractIntakeHttpSpec(
                 withClue(body.take(100)) { send(client, builder, body).let { (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT"}""") } }
             }
             client.perform(post("/api/businesses/$id/contract-intakes").contentType(MediaType.TEXT_PLAIN).content("x"), true).status shouldBe 415
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), operator.account.id.value), xsrf = false).status shouldBe 403
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), managerRef(client, operator)), xsrf = false).status shouldBe 403
             StubMasterOpsServer.received.size shouldBe before
         }
     }
@@ -208,23 +222,188 @@ class ContractIntakeHttpSpec(
             val id = businessId()
             val s = sub()
             replyMaster("open", 503, """{"error":"OUTCOME_UNKNOWN"}""")
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s, manager.account.id.value)).let {
+            val ref = managerRef(client, manager)
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s, ref)).let {
                 (it.status to it.contentAsString) shouldBe (503 to """{"error":"MASTER_RETRY_SAME_KEY"}""")
             }
             AdminDbAccounts.root(container).use {
                 it.update("UPDATE admin_account SET status = 'SUSPENDED', status_before_suspend = 'ACTIVE' WHERE actor_id = ?", manager.account.id.value) shouldBe 1
             }
             val calls = StubMasterOpsServer.requestsForPath("$masterBase/open").size
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s, manager.account.id.value)).let {
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(s, ref)).let {
                 (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"contractManager","code":"NOT_ALLOWED"}]}""")
             }
             StubMasterOpsServer.requestsForPath("$masterBase/open").size shouldBe calls
             StubMasterOpsServer.requestsForPath("$masterBase/open").takeLast(1).map { json.readTree(it.body).get("idempotencyKey").asString() } shouldBe
                 listOf("mo1.${operator.account.id.value.removePrefix("adm_")}.$s")
-            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), manager.account.id.value)).let {
+            send(client, post("/api/businesses/$id/contract-intakes"), openJson(sub(), ref)).let {
                 (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"contractManager","code":"NOT_ALLOWED"}]}""")
             }
             audits(operator.account.id.value).map { it.split('|')[1] } shouldBe listOf("REQUESTED", "OUTCOME_UNKNOWN")
+        }
+    }
+
+    Given("FLOW-2d contract-manager list (D-GOV-024 Q-FLOW-39·40 — display names only, OPERATOR only, session-bound opaque references)") {
+        Then("OPERATOR → 200 no-store {items:[{ref, displayName, self}], truncated}: active OPERATORs only (self once, marked); no account key, login name, other role or suspended account") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val manager = withRole(AdminRole.OPERATOR)
+            val approverOnly = withRole(AdminRole.APPROVER)
+            val suspended = withRole(AdminRole.OPERATOR)
+            AdminDbAccounts.root(container).use {
+                it.update("UPDATE admin_account SET status = 'SUSPENDED', status_before_suspend = 'ACTIVE' WHERE actor_id = ?", suspended.account.id.value) shouldBe 1
+            }
+            val client = loggedIn(operator)
+            val res = client.perform(get("/api/contract-managers"), false)
+            res.status shouldBe 200
+            res.getHeader("Cache-Control")!! shouldContain "no-store"
+            val tree = json.readTree(res.contentAsString)
+            tree.propertyNames().toList() shouldBe listOf("items", "truncated")
+            val items = (0 until tree.get("items").size()).map { tree.get("items").get(it) }
+            items.forEach { it.propertyNames().toList() shouldBe listOf("ref", "displayName", "self"); it.get("ref").asString() shouldMatch Regex("^mgr_[A-Za-z0-9_-]{22}$") }
+            fun nameOf(a: LoginReadyAccounts.LoginReady) = "Admin ${a.account.id.value.takeLast(4)}"
+            items.filter { it.get("self").asBoolean() }.map { it.get("displayName").asString() } shouldBe listOf(nameOf(operator))
+            items.any { it.get("displayName").asString() == nameOf(manager) } shouldBe true
+            items.none { it.get("displayName").asString() == nameOf(approverOnly) || it.get("displayName").asString() == nameOf(suspended) } shouldBe true
+            listOf("adm_", operator.loginName, manager.loginName, "OPERATOR", "APPROVER").forEach { res.contentAsString shouldNotContain it }
+        }
+
+        Then("재리뷰 MAJOR-1: with businessId + intakeSeq the stored manager (by account key, from the MASTER section) is current:true — others false; no account key; malformed / partial target → 400; unknown intake → 200 without current") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val manager = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            val section = (json.readTree(javaClass.getResource("/contracts/contract-intake-section-v2.golden.json")!!.readText()) as tools.jackson.databind.node.ObjectNode).also { root ->
+                root.put("businessId", id)
+                ((root.get("intakes") as tools.jackson.databind.node.ArrayNode).get(0) as tools.jackson.databind.node.ObjectNode).put("contractManager", "admin:${manager.account.id.value}")
+            }
+            StubMasterOpsServer.reply("/internal/v1/admin/businesses/$id/contract-intakes", StubMasterOpsServer.Reply(200, json.writeValueAsString(section)))
+            val seq = section.get("intakes").get(0).get("intakeSeq").asInt()
+            val res = client.perform(get("/api/contract-managers").param("businessId", id).param("intakeSeq", "$seq"), false)
+            res.status shouldBe 200
+            val items = json.readTree(res.contentAsString).get("items").let { arr -> (0 until arr.size()).map { arr.get(it) } }
+            items.forEach { it.propertyNames().toList() shouldBe listOf("ref", "displayName", "self", "current") }
+            items.filter { it.get("current").asBoolean() }.map { it.get("displayName").asString() } shouldBe listOf("Admin ${manager.account.id.value.takeLast(4)}")
+            res.contentAsString shouldNotContain "adm_"
+            // 대상 없음(현행) → current 키 없음.
+            json.readTree(client.perform(get("/api/contract-managers"), false).contentAsString).get("items").get(0).has("current") shouldBe false
+            // 없는 접수 건 순번 → 200, current 없음(존재 여부를 구별하지 않는다).
+            json.readTree(client.perform(get("/api/contract-managers").param("businessId", id).param("intakeSeq", "999"), false).contentAsString).get("items")
+                .let { arr -> (0 until arr.size()).none { arr.get(it).get("current").asBoolean() } } shouldBe true
+            listOf(
+                get("/api/contract-managers").param("businessId", id),
+                get("/api/contract-managers").param("intakeSeq", "1"),
+                get("/api/contract-managers").param("businessId", "biz_x").param("intakeSeq", "1"),
+                get("/api/contract-managers").param("businessId", id).param("intakeSeq", "0"),
+            ).forEach { r -> client.perform(r, false).let { (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT"}""") } }
+            val calls = StubMasterOpsServer.requestsForPath("/internal/v1/admin/businesses/$id/contract-intakes").size
+            loggedIn(withRole(AdminRole.APPROVER)).perform(get("/api/contract-managers").param("businessId", id).param("intakeSeq", "$seq"), false).status shouldBe 403
+            StubMasterOpsServer.requestsForPath("/internal/v1/admin/businesses/$id/contract-intakes").size shouldBe calls
+        }
+
+        Then("Observability/PII: no log line during the list and an item update carries a login name, a display name, a reference or the manager's account key") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val manager = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            replyMaster("update-items", 200, succeeded(id))
+            val root = org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as ch.qos.logback.classic.Logger
+            val appender = ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>().also { it.start() }
+            root.addAppender(appender)
+            val ref = try {
+                managerRef(client, manager).also { r ->
+                    send(client, post("/api/businesses/$id/contract-intakes/2/items"), itemsJson(sub(), r)).status shouldBe 200
+                }
+            } finally {
+                root.detachAppender(appender)
+            }
+            val lines = appender.list.map { it.formattedMessage }
+            (lines.isNotEmpty()) shouldBe true // 대조군: 명령 경로 로그가 실제로 잡혔다
+            lines.forEach { line ->
+                listOf(operator.loginName, manager.loginName, "Admin ${manager.account.id.value.takeLast(4)}", ref, manager.account.id.value).forEach { needle -> withClue(line) { line shouldNotContain needle } }
+            }
+        }
+
+        Then("APPROVER → 403; unauthenticated → 401; a reference issued to another session (or replaced by a newer list) → contractManager NOT_ALLOWED, MASTER not called") {
+            loggedIn(withRole(AdminRole.APPROVER)).perform(get("/api/contract-managers"), false).status shouldBe 403
+            AdminHttpClient(mockMvc).perform(get("/api/contract-managers"), false).status shouldBe 401
+            val operator = withRole(AdminRole.OPERATOR)
+            val a = loggedIn(operator)
+            val b = loggedIn(withRole(AdminRole.OPERATOR))
+            val foreign = managerRef(a, operator)
+            val id = businessId()
+            val before = StubMasterOpsServer.received.size
+            send(b, post("/api/businesses/$id/contract-intakes"), openJson(sub(), foreign)).let {
+                (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"contractManager","code":"NOT_ALLOWED"}]}""")
+            }
+            val stale = managerRef(a, operator)
+            managerRef(a, operator) // 새 목록 → 옛 참조 무효
+            send(a, post("/api/businesses/$id/contract-intakes"), openJson(sub(), stale)).let {
+                (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"contractManager","code":"NOT_ALLOWED"}]}""")
+            }
+            StubMasterOpsServer.received.size shouldBe before
+        }
+    }
+
+    Given("FLOW-2d 접수 항목 수정 over HTTP (POST /api/businesses/{id}/contract-intakes/{seq}/items)") {
+        Then("OPERATOR → signed MASTER update-items with every key (manager admin:adm_… resolved from the reference) → 200; audit target=ITEMS + presence only, no login name / account key of the manager") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val manager = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            replyMaster("update-items", 200, succeeded(id))
+            val s = sub()
+            send(client, post("/api/businesses/$id/contract-intakes/2/items"), itemsJson(s, managerRef(client, manager), reason = "CANARY-ITEMS")).let {
+                (it.status to it.contentAsString) shouldBe (200 to succeeded(id))
+                it.getHeader("Cache-Control")!! shouldContain "no-store"
+            }
+            val sent = StubMasterOpsServer.requestsForPath("$masterBase/update-items").last()
+            sent.signatureValid shouldBe true
+            json.readTree(sent.body).let { b ->
+                b.propertyNames().toList() shouldBe listOf(
+                    "idempotencyKey", "actor", "correlationId", "businessId", "intakeSeq", "expectedVersion", "receivedOn", "intakeChannel", "contractManager", "desiredServices", "reason",
+                )
+                listOf(b.get("intakeSeq").asInt(), b.get("expectedVersion").asLong(), b.get("contractManager").asString()) shouldBe listOf(2, 1L, "admin:${manager.account.id.value}")
+            }
+            AdminDbAccounts.root(container).use {
+                it.column(
+                    "SELECT CONCAT(action, '|', result_code, '|', COALESCE(detail, '-')) FROM admin_audit_event WHERE actor_id = ? AND action = 'BUSINESS_CONTRACT_INTAKE_ITEMS' ORDER BY event_id",
+                    operator.account.id.value,
+                )
+            } shouldBe listOf(
+                "BUSINESS_CONTRACT_INTAKE_ITEMS|REQUESTED|sub=${s.take(8)};target=ITEMS;reason=PRESENT;evidence=ABSENT",
+                "BUSINESS_CONTRACT_INTAKE_ITEMS|OK|sub=${s.take(8)};replayed=false;target=ITEMS;reason=PRESENT;evidence=ABSENT",
+            )
+            AdminDbAccounts.root(container).use { c ->
+                c.column(
+                    "SELECT CONCAT_WS('|', action, result_code, COALESCE(detail, ''), COALESCE(reason, ''), COALESCE(target_ref, '')) FROM admin_audit_event WHERE actor_id = ?",
+                    operator.account.id.value,
+                ).forEach { row -> listOf("CANARY", manager.account.id.value, manager.loginName, operator.loginName, "mgr_").forEach { needle -> withClue(row) { row shouldNotContain needle } } }
+            }
+        }
+
+        Then("stored MASTER rejections CONTRACT_INTAKE_ITEMS_UNCHANGED / CONTRACT_INTAKE_ITEMS_NOT_EDITABLE → 200 REJECTED; unknown reference → 400 NOT_ALLOWED; APPROVER → 403; strict body (unknown key, string version, bad seq) → 400") {
+            val operator = withRole(AdminRole.OPERATOR)
+            val client = loggedIn(operator)
+            val id = businessId()
+            listOf("CONTRACT_INTAKE_ITEMS_UNCHANGED", "CONTRACT_INTAKE_ITEMS_NOT_EDITABLE").forEach { code ->
+                replyMaster("update-items", 200, """{"outcome":"REJECTED","rejection":"$code","replayed":false}""")
+                send(client, post("/api/businesses/$id/contract-intakes/2/items"), itemsJson(sub(), managerRef(client, operator))).let {
+                    (it.status to it.contentAsString) shouldBe (200 to """{"outcome":"REJECTED","rejection":"$code","replayed":false}""")
+                }
+            }
+            val before = StubMasterOpsServer.received.size
+            send(client, post("/api/businesses/$id/contract-intakes/2/items"), itemsJson(sub(), unknownRef)).let {
+                (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT","fieldErrors":[{"path":"contractManager","code":"NOT_ALLOWED"}]}""")
+            }
+            val ref = managerRef(client, operator)
+            listOf(
+                "/api/businesses/$id/contract-intakes/2/items" to itemsJson(sub(), ref).replace("\"reason\":null", "\"reason\":null,\"x\":1"),
+                "/api/businesses/$id/contract-intakes/2/items" to itemsJson(sub(), ref).replace("\"expectedVersion\":1", "\"expectedVersion\":\"1\""),
+                "/api/businesses/$id/contract-intakes/0/items" to itemsJson(sub(), ref),
+                "/api/businesses/$id/contract-intakes/2/items" to itemsJson(sub(), ref).replace("contractManagerRef", "contractManagerId"),
+            ).forEach { (path, body) -> withClue(body.take(80)) { send(client, post(path), body).let { (it.status to it.contentAsString) shouldBe (400 to """{"error":"INVALID_INPUT"}""") } } }
+            StubMasterOpsServer.received.size shouldBe before
+            send(loggedIn(withRole(AdminRole.APPROVER)), post("/api/businesses/$id/contract-intakes/2/items"), itemsJson(sub(), unknownRef)).status shouldBe 403
         }
     }
 

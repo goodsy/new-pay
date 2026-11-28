@@ -17,7 +17,11 @@ import com.paycore.master.merchant.domain.ContractIntakeTransitionInput
 import com.paycore.master.merchant.domain.DesiredService
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MasterRuleViolation
+import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.BusinessChangeReason
+import com.paycore.master.merchant.domain.ContractIntakeItems
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -179,6 +183,63 @@ class JpaContractIntakeRepositorySpec(
             (intakeUpdates.size >= 1) shouldBe true
             intakeUpdates.filter { Regex("\\b(kind|target_contract_seq)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it.lowercase().substringBefore(" where ")) }.shouldBeEmpty()
             sql.any { Regex("^\\s*select.+from\\s+business\\b.+for update", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).containsMatchIn(it) } shouldBe true
+        }
+
+        Then("FLOW-2d review MINOR-1: the item update is one UPDATE contract_intake with a version condition; its SET has the 5 item columns + updated_* + version only (no kind, target, migrated, creation or key column); no transition INSERT") {
+            val business = storedBusiness()
+            val opened = open(business)
+            val next = ContractIntakeItems(LocalDate.parse("2026-11-24"), ContractIntakeChannel.WEBSITE, ActorRef("admin:adm_01JCFL0000000000000000OP02"), setOf(DesiredService.CARD_KEYIN))
+            val (_, sql) = capture.capture {
+                tx {
+                    val locked = checkNotNull(businesses.lock(business.id))
+                    val latest = checkNotNull(intakes.latest(business.id))
+                    intakes.updateItems(latest.updateItems(locked, latest.version, next, BusinessChangeReason("정정"), fixtures.t0.plusSeconds(60), operator))
+                }
+            }
+            val updates = sql.filter { Regex("^\\s*update\\s+contract_intake\\s", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            updates.size shouldBe 1
+            val set = updates.single().lowercase().substringAfter(" set ").substringBefore(" where ")
+            val where = updates.single().lowercase().substringAfter(" where ")
+            Regex("([a-z_]+)\\s*=").findAll(set).map { it.groupValues[1] }.toSet() shouldBe
+                setOf("contract_manager", "desires_card_auth", "desires_card_keyin", "intake_channel", "received_on", "status", "updated_at", "updated_by", "version")
+            (where.contains("version") && where.contains("business_id") && where.contains("intake_seq")) shouldBe true
+            sql.filter { it.contains("contract_intake_transition", ignoreCase = true) && !it.trimStart().startsWith("select", true) }.shouldBeEmpty()
+            query("SELECT received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, status, version FROM contract_intake WHERE business_id = ?", business.id.value)
+                .single() shouldBe listOf("2026-11-24", "WEBSITE", "admin:adm_01JCFL0000000000000000OP02", "0", "1", opened.status.name, "1")
+        }
+
+        Then("FLOW-2d review MINOR-2: the adapter's defensive branches — stale version (OptimisticConflict), a migrated row, a status change — refuse and leave the row unchanged") {
+            fun row(id: String) = query("SELECT CONCAT_WS('|', status, received_on, intake_channel, version) FROM contract_intake WHERE business_id = ?", id).single()
+            val changed = ContractIntakeItems(LocalDate.parse("2026-11-24"), ContractIntakeChannel.OTHER, operator, setOf(DesiredService.CARD_AUTH))
+            // ① stale version: 저장 version 0에 version 5인 결과를 쓰려 한다.
+            val b1 = storedBusiness()
+            val o1 = open(b1)
+            val before1 = row(b1.id.value)
+            val stale = ContractIntake.reconstitute(b1.id, o1.seq, o1.status, false, changed, o1.createdAt, o1.createdBy, fixtures.t0.plusSeconds(60), operator, 5, o1.kind, o1.targetContractSeq)
+            shouldThrow<PersistenceFailure.OptimisticConflict> { tx { intakes.updateItems(stale) } }
+            row(b1.id.value) shouldBe before1
+            // ② 이관 행(SQL 모양 — 항목 없음): Domain이 막는 경로를 우회해도 adapter가 거부한다.
+            val b2 = storedBusiness()
+            MasterDbAccounts.connect(container, MasterDbAccounts.MASTER_DATABASE, MasterDbAccounts.MASTER_RUNTIME_USER).use { c ->
+                c.prepareStatement(
+                    "INSERT INTO contract_intake (business_id, intake_seq, status, kind, migrated, received_on, intake_channel, contract_manager, desires_card_auth, desires_card_keyin, " +
+                        "created_at, created_by, updated_at, updated_by, version) VALUES (?, 1, 'COMPLETED', 'NEW', 1, NULL, NULL, NULL, 0, 0, NOW(3), 'system:migration', NOW(3), " +
+                        "'system:migration', 0)",
+                ).use { it.setString(1, b2.id.value); it.executeUpdate() }
+            }
+            val migratedRow = query("SELECT CONCAT_WS('|', status, COALESCE(received_on, '-'), COALESCE(intake_channel, '-'), version) FROM contract_intake WHERE business_id = ?", b2.id.value)
+            val asOpen = ContractIntake.reconstitute(b2.id, 1, ContractIntakeStatus.COMPLETED, false, changed, fixtures.t0, operator, fixtures.t0, operator, 1, ContractIntakeKind.NEW, null)
+            shouldThrowAny { tx { intakes.updateItems(asOpen) } }
+            query("SELECT CONCAT_WS('|', status, COALESCE(received_on, '-'), COALESCE(intake_channel, '-'), version) FROM contract_intake WHERE business_id = ?", b2.id.value) shouldBe migratedRow
+            // ③ 상태가 다른 결과(항목 수정은 상태를 바꾸지 않는다).
+            val b3 = storedBusiness()
+            val o3 = open(b3)
+            val before3 = row(b3.id.value)
+            val moved = ContractIntake.reconstitute(
+                b3.id, o3.seq, ContractIntakeStatus.DOCUMENT_RECEIVED, false, changed, o3.createdAt, o3.createdBy, fixtures.t0.plusSeconds(60), operator, 1, o3.kind, o3.targetContractSeq,
+            )
+            shouldThrowAny { tx { intakes.updateItems(moved) } }
+            row(b3.id.value) shouldBe before3
         }
 
         Then("reconstitution of a stored migration-shaped intake (SQL row like V19) reads back as migrated COMPLETED without items") {

@@ -186,6 +186,40 @@ describe('MerchantRegistrationScreen wizard (ADMIN-UI-MERCHANT-002 — ① 사�
     expect(api.registerMerchant).not.toHaveBeenCalled()
   })
 
+  it('① FLOW-2d [rev 0.4f 후속]: a REGISTERED business without an effective business contract (none / not yet effective / suspended / terminated / expired) cannot be selected — "유효한 사업자 계약이 있어야 가맹점을 등록할 수 있습니다" + 사업자 상세 보기; ACTIVE can', async () => {
+    for (const status of [null, 'NOT_YET_EFFECTIVE', 'SUSPENDED', 'TERMINATED', 'EXPIRED'] as const) {
+      const onOpenBusiness = vi.fn()
+      const api = fakeApi({
+        lookupBusinessByRegistrationNumber: vi.fn(async () => ({
+          items: [{ businessId: BIZ, businessName: '계약 없는 사업자', registrationNumber: '7781234567', registrationStatus: 'REGISTERED' as const, businessContractStatus: status }],
+        })),
+      })
+      const view = render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} onOpenBusiness={onOpenBusiness} newSubmissionId={ids()} />)
+      const picker = step('사업자 선택')
+      await typeIn(picker, '사업자등록번호', BRN)
+      await click(picker, '찾기')
+      const found = await within(picker).findByRole('list', { name: '찾은 사업자' })
+      expect(found).toHaveTextContent('유효한 사업자 계약이 있어야 가맹점을 등록할 수 있습니다')
+      expect(within(found).queryByRole('button', { name: '선택' })).toBeNull()
+      await user.click(within(found).getByRole('button', { name: '사업자 상세 보기' }))
+      expect(onOpenBusiness).toHaveBeenCalledWith(BIZ)
+      expect(domOccurrences(view.container, 'biz_')).toEqual([])
+      view.unmount()
+    }
+    const api = fakeApi({
+      lookupBusinessByRegistrationNumber: vi.fn(async () => ({
+        items: [{ businessId: BIZ, businessName: '계약 있는 사업자', registrationNumber: '7781234567', registrationStatus: 'REGISTERED' as const, businessContractStatus: 'ACTIVE' as const }],
+      })),
+    })
+    render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
+    const picker = step('사업자 선택')
+    await typeIn(picker, '사업자등록번호', BRN)
+    await click(picker, '찾기')
+    const found = await within(picker).findByRole('list', { name: '찾은 사업자' })
+    expect(within(found).getByRole('button', { name: '선택' })).toBeInTheDocument()
+    expect(found).not.toHaveTextContent('유효한 사업자 계약이 있어야')
+  })
+
   it('① "다음 단계 →" without a selected business stays on ① and sends nothing; no business for the number says to register it first; a malformed number is not sent', async () => {
     const api = fakeApi({ lookupBusinessByRegistrationNumber: vi.fn(async () => ({ items: [] })) })
     render(<MerchantRegistrationScreen api={api} onOpenLookup={vi.fn()} newSubmissionId={ids()} />)
