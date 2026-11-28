@@ -36,6 +36,10 @@ object AdminChannelResponses {
     const val BUSINESS_NOT_FOUND = "BUSINESS_NOT_FOUND"
     const val BUSINESS_VALIDATION_FAILED = "BUSINESS_VALIDATION_FAILED"
 
+    /** BIZ-CRIT-APPROVAL-001 §5.1: 그 사업자의 제안·1인 근거 이력 행이 없음(다른 사업자의 ID 포함 — 존재 여부를 구별해 알리지 않는다). */
+    const val CHANGE_PROPOSAL_NOT_FOUND = "CHANGE_PROPOSAL_NOT_FOUND"
+    const val CHANGE_EVIDENCE_NOT_FOUND = "CHANGE_EVIDENCE_NOT_FOUND"
+
     private const val REQUEST_ID_ATTRIBUTE = "paycore.master.admin.requestId"
     private val mapper: JsonMapper = JsonMapper.builder().build()
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)

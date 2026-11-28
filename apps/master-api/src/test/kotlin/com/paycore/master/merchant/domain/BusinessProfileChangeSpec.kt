@@ -1,8 +1,6 @@
-// BIZ-CRIT-APPROVAL-001 S1: 옛 1인 오버로드(@Deprecated, S2에서 제거·이 파일 호출 전환)를 아직 부른다.
-@file:Suppress("DEPRECATION")
-
 package com.paycore.master.merchant.domain
 
+import com.paycore.master.merchant.domain.BusinessCriticalChangeFixtures.NO_HISTORY
 import com.paycore.master.merchant.domain.BusinessFixtures.businessItem
 import com.paycore.master.merchant.domain.BusinessFixtures.businessType
 import com.paycore.master.merchant.domain.BusinessFixtures.contact
@@ -152,7 +150,7 @@ class BusinessProfileChangeSpec : BehaviorSpec({
         Then("update: version mismatch, unchanged content and a REGISTERED important change needing approval are rejected in that order") {
             val stored = BusinessFixtures.individualRegistered()
             val b = stored.business
-            val none = BusinessCriticalChangeFixtures.NO_HISTORY
+            val none = NO_HISTORY
             fun violation(block: () -> Unit) = shouldThrow<MasterRuleViolation>(block).rejection
             violation { b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, null, 7, none, t0, operator) } shouldBe MasterRejection.BUSINESS_VERSION_CONFLICT
             violation { b.updateProfile(stored.profile, INDIVIDUAL, b.displayName, stored.profile, null, 0, none, t0, operator) } shouldBe MasterRejection.BUSINESS_PROFILE_UNCHANGED
@@ -162,38 +160,41 @@ class BusinessProfileChangeSpec : BehaviorSpec({
 
         Then("M-1 completeRegistration with the stored content succeeds (status change is the change); REGISTERED cannot complete again") {
             val draft = Business.createDraft(MasterFixture.businessId(), INDIVIDUAL, BusinessFixtures.registrationNumber(), name, individualProfile(), t0, operator)
-            val done = draft.business.completeRegistration(draft.profile, INDIVIDUAL, name, individualProfile(), null, 0, t0, operator)
+            val done = draft.business.completeRegistration(draft.profile, INDIVIDUAL, name, individualProfile(), null, 0, NO_HISTORY, t0, operator)
             listOf(done.business.registrationStatus, done.business.version, done.change.entries.map { it.field }) shouldBe listOf(REGISTERED, 1L, listOf("registrationStatus"))
             (done.change.entries.first() as BusinessChangeEntry.Value).let { listOf(it.before, it.after) } shouldBe listOf("DRAFT", "REGISTERED")
             shouldThrow<MasterRuleViolation> {
-                done.business.completeRegistration(done.profile, INDIVIDUAL, name, individualProfile(), null, 1, t0, operator)
+                done.business.completeRegistration(done.profile, INDIVIDUAL, name, individualProfile(), null, 1, NO_HISTORY, t0, operator)
             }.rejection shouldBe MasterRejection.BUSINESS_NOT_DRAFT
         }
 
         Then("completeRegistration with an important change and no reason is rejected; a DRAFT missing REGISTERED fields is a rule defect") {
             val draft = Business.createDraft(MasterFixture.businessId(), INDIVIDUAL, BusinessFixtures.registrationNumber(), name, individualProfile(), t0, operator)
             shouldThrow<MasterRuleViolation> {
-                draft.business.completeRegistration(draft.profile, INDIVIDUAL, DisplayName("바뀐 상호"), individualProfile(), null, 0, t0, operator)
+                draft.business.completeRegistration(draft.profile, INDIVIDUAL, DisplayName("바뀐 상호"), individualProfile(), null, 0, NO_HISTORY, t0, operator)
             }.rejection shouldBe MasterRejection.BUSINESS_CHANGE_REASON_REQUIRED
             val minimal = BusinessFixtures.draftMinimal()
             shouldThrow<BusinessProfileRuleViolation> {
-                minimal.business.completeRegistration(minimal.profile, INDIVIDUAL, minimal.business.displayName, BusinessProfile.EMPTY, null, 0, t0, operator)
+                minimal.business.completeRegistration(minimal.profile, INDIVIDUAL, minimal.business.displayName, BusinessProfile.EMPTY, null, 0, NO_HISTORY, t0, operator)
             }
         }
 
         Then("X-1 a migration row (type NULL) must get a business type on its first update, which is not an important change") {
             val legacy = BusinessFixtures.legacyDraft()
-            val edit = legacy.updateProfile(BusinessProfile.EMPTY, INDIVIDUAL, legacy.displayName, BusinessProfile.EMPTY, null, 0, t0, operator)
+            val edit = legacy.updateProfile(BusinessProfile.EMPTY, INDIVIDUAL, legacy.displayName, BusinessProfile.EMPTY, null, 0, NO_HISTORY, t0, operator)
             listOf(edit.business.businessType, edit.change.important) shouldBe listOf(INDIVIDUAL, false)
         }
 
+        // BIZ-CRIT-APPROVAL-001 §7.1(m-4 행 — Coordinator 승인 Fixture 변경): 등록 완료 상호 변경은 이제 2인이라 수정 내용을 일반정보(사업체 전화번호)로 바꿨다. 시각 단언 기대값 불변.
         Then("m-4 the transition time never goes back: a clock earlier than the stored updatedAt keeps updatedAt (child rows effective_to >= effective_from)") {
             val stored = BusinessFixtures.individualRegistered()
-            val later = stored.business.updateProfile(stored.profile, INDIVIDUAL, DisplayName("나중 상호"), stored.profile, BusinessChangeReason("변경"), 0, t0.plusSeconds(60), operator)
-            val earlier = later.business.updateProfile(later.profile, INDIVIDUAL, DisplayName("또 상호"), later.profile, BusinessChangeReason("변경"), 1, t0.plusSeconds(10), operator)
+            fun phone(p: BusinessProfile, value: String) = p.copy(registration = p.registration.copy(phoneNumber = PhoneNumber(value)))
+            val name = stored.business.displayName
+            val later = stored.business.updateProfile(stored.profile, INDIVIDUAL, name, phone(stored.profile, "0211110001"), null, 0, NO_HISTORY, t0.plusSeconds(60), operator)
+            val earlier = later.business.updateProfile(later.profile, INDIVIDUAL, name, phone(later.profile, "0211110002"), null, 1, NO_HISTORY, t0.plusSeconds(10), operator)
             listOf(later.business.updatedAt, earlier.business.updatedAt, earlier.business.version) shouldBe listOf(t0.plusSeconds(60), t0.plusSeconds(60), 2L)
             // 대조: 시계가 앞으로 가면 그 시각을 쓴다.
-            earlier.business.updateProfile(earlier.profile, INDIVIDUAL, DisplayName("세번째 상호"), earlier.profile, BusinessChangeReason("변경"), 2, t0.plusSeconds(90), operator)
+            earlier.business.updateProfile(earlier.profile, INDIVIDUAL, name, phone(earlier.profile, "0211110003"), null, 2, NO_HISTORY, t0.plusSeconds(90), operator)
                 .business.updatedAt shouldBe t0.plusSeconds(90)
         }
 
@@ -202,7 +203,7 @@ class BusinessProfileChangeSpec : BehaviorSpec({
                 MasterFixture.businessId(), BusinessFixtures.registrationNumber(), name, INDIVIDUAL, DRAFT, BusinessVerificationStatus.NOT_CHECKED,
                 Lifecycle.TERMINATED, t0, operator, t0, operator, 0,
             )
-            shouldThrow<MasterRuleViolation> { closed.updateProfile(BusinessProfile.EMPTY, INDIVIDUAL, DisplayName("x"), BusinessProfile.EMPTY, null, 0, t0, operator) }
+            shouldThrow<MasterRuleViolation> { closed.updateProfile(BusinessProfile.EMPTY, INDIVIDUAL, DisplayName("x"), BusinessProfile.EMPTY, null, 0, NO_HISTORY, t0, operator) }
                 .rejection shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
         }
 
@@ -212,17 +213,17 @@ class BusinessProfileChangeSpec : BehaviorSpec({
             val profile = individualProfile()
             fun rejection(block: () -> Unit) = shouldThrow<MasterRuleViolation>(block).let { listOf(it.rejection.name, it.reference) }
             // 맞는 version·바뀐 내용·사유 있음 — 그래도 거절.
-            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, BusinessChangeReason("상호 변경"), 3, t0, operator) } shouldBe
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, BusinessChangeReason("상호 변경"), 3, NO_HISTORY, t0, operator) } shouldBe
                 listOf("BUSINESS_INACTIVE", null)
             // 판정 순서: 사용중지가 version 충돌·변경 없음보다 먼저(어느 입력이든 같은 거절 — 재생 결과가 입력에 따라 갈리지 않는다).
-            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, null, 99, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
-            rejection { inactive.updateProfile(profile, INDIVIDUAL, inactive.displayName, profile, null, 3, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, DisplayName("새 상호"), profile, null, 99, NO_HISTORY, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
+            rejection { inactive.updateProfile(profile, INDIVIDUAL, inactive.displayName, profile, null, 3, NO_HISTORY, t0, operator) } shouldBe listOf("BUSINESS_INACTIVE", null)
         }
 
         Then("M-3 completeRegistration of an INACTIVE business stays BUSINESS_NOT_DRAFT (expected value fixed — unchanged behaviour)") {
             val inactive = BusinessFixtures.inactiveRow()
             shouldThrow<MasterRuleViolation> {
-                inactive.completeRegistration(individualProfile(), INDIVIDUAL, inactive.displayName, individualProfile(), null, 3, t0, operator)
+                inactive.completeRegistration(individualProfile(), INDIVIDUAL, inactive.displayName, individualProfile(), null, 3, NO_HISTORY, t0, operator)
             }.rejection shouldBe MasterRejection.BUSINESS_NOT_DRAFT
         }
 
@@ -231,7 +232,7 @@ class BusinessProfileChangeSpec : BehaviorSpec({
                 MasterFixture.businessId(), BusinessFixtures.registrationNumber(), name, INDIVIDUAL, BusinessRegistrationStatus.INACTIVE, BusinessVerificationStatus.NOT_CHECKED,
                 Lifecycle.TERMINATED, t0, operator, t0, operator, 0,
             )
-            shouldThrow<MasterRuleViolation> { closed.updateProfile(individualProfile(), INDIVIDUAL, DisplayName("x"), individualProfile(), null, 0, t0, operator) }
+            shouldThrow<MasterRuleViolation> { closed.updateProfile(individualProfile(), INDIVIDUAL, DisplayName("x"), individualProfile(), null, 0, NO_HISTORY, t0, operator) }
                 .rejection shouldBe MasterRejection.BUSINESS_NOT_ACTIVE
         }
 

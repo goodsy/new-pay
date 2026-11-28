@@ -4,8 +4,10 @@ import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.CompleteBusinessRegistrationCommand
 import com.paycore.master.merchant.application.provided.CreateBusinessCommand
+import com.paycore.master.merchant.application.provided.ProposeBusinessCriticalChangeCommand
 import com.paycore.master.merchant.application.provided.UpdateBusinessCommand
 import com.paycore.master.merchant.domain.ActorRef
+import com.paycore.master.merchant.domain.ApprovalEvidence
 import com.paycore.master.merchant.domain.AddressLine
 import com.paycore.master.merchant.domain.BusinessAddress
 import com.paycore.master.merchant.domain.BusinessAddressType
@@ -23,11 +25,13 @@ import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.BusinessRegistrationStatus
 import com.paycore.master.merchant.domain.BusinessRepresentative
 import com.paycore.master.merchant.domain.BusinessType
+import com.paycore.master.merchant.domain.CardNumberPattern
 import com.paycore.master.merchant.domain.CategoryName
 import com.paycore.master.merchant.domain.CorporateRegistrationNumber
 import com.paycore.master.merchant.domain.DisplayName
 import com.paycore.master.merchant.domain.EmailAddress
 import com.paycore.master.merchant.domain.EnglishBusinessName
+import com.paycore.master.merchant.domain.EvidenceRef
 import com.paycore.master.merchant.domain.PersonName
 import com.paycore.master.merchant.domain.PhoneNumber
 import com.paycore.master.merchant.domain.PostalCode
@@ -77,6 +81,13 @@ object BusinessProfileRequestParser {
     private val PROFILE = setOf("businessType", "displayName", "registration", "representatives", "categories", "addresses", "contacts")
     private val CREATE = COMMON + setOf("registrationStatus", "registrationNumber") + PROFILE
     private val UPDATE = COMMON + setOf("businessId", "version", "reason") + PROFILE
+
+    /** BIZ-CRIT-APPROVAL-001 BR-BIZ-391: update·complete의 **선택 key** `evidenceRef`(없거나 null = 근거 없음 — 기존 ADMIN 본문 그대로 받는다). */
+    private const val EVIDENCE = "evidenceRef"
+
+    /** BIZ-CRIT-APPROVAL-001 §5.1 제안: update 본문 + `evidenceRef`(필수 문자열). 번호·등록 상태 key는 없다(오면 모르는 key → 400 — P-6). */
+    private val PROPOSAL = UPDATE + EVIDENCE
+    private val EVIDENCE_TEXT = Regex("^[A-Za-z0-9._:#/-]{1,128}$")
     private val REGISTRATION = setOf("corporateRegistrationNumber", "openingDate", "countryCode", "englishName", "phoneNumber", "email")
     private val REPRESENTATIVE = setOf("name", "representativeType")
     private val CATEGORY = setOf("categoryType", "name")
@@ -104,22 +115,47 @@ object BusinessProfileRequestParser {
         }
     }
 
-    fun update(body: ByteArray): BusinessCommandParse<UpdateBusinessCommand> = parse(body, UPDATE) { root, v ->
+    fun update(body: ByteArray): BusinessCommandParse<UpdateBusinessCommand> = parse(body, UPDATE, optional = setOf(EVIDENCE)) { root, v ->
         val (request, id, version) = target(root)
         val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        val evidence = root.get(EVIDENCE)?.let { v.optValue(EVIDENCE, optText(root, EVIDENCE), ::evidenceErrorOf, ::EvidenceRef) }
         val content = v.content(root)
         v.finish(BusinessRegistrationStatus.DRAFT, content.type, null, content.name, content.profile) { type, _, name, profile ->
-            UpdateBusinessCommand(request, id, version, reason, type, name, profile)
+            UpdateBusinessCommand(request, id, version, reason, type, name, profile, evidence)
         }
     }
 
-    fun completeRegistration(body: ByteArray): BusinessCommandParse<CompleteBusinessRegistrationCommand> = parse(body, UPDATE) { root, v ->
+    fun completeRegistration(body: ByteArray): BusinessCommandParse<CompleteBusinessRegistrationCommand> = parse(body, UPDATE, optional = setOf(EVIDENCE)) { root, v ->
         val (request, id, version) = target(root)
         val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        val evidence = root.get(EVIDENCE)?.let { v.optValue(EVIDENCE, optText(root, EVIDENCE), ::evidenceErrorOf, ::EvidenceRef) }
         val content = v.content(root)
         v.finish(BusinessRegistrationStatus.REGISTERED, content.type, null, content.name, content.profile) { type, _, name, profile ->
-            CompleteBusinessRegistrationCommand(request, id, version, reason, type, name, profile)
+            CompleteBusinessRegistrationCommand(request, id, version, reason, type, name, profile, evidence)
         }
+    }
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 §5.1 중요정보 변경 제안: update 본문 + `evidenceRef`(필수 — P-4). 요청자(`actor`)는 ADMIN 정규형 `admin:adm_<ULID>`만(M-6 — 실행 때 근거 요청자와 문자열로 대조한다;
+     * 아니면 400). 값 규칙은 update와 같다(목표 DRAFT 공통 — 잠근 상태 규칙은 Domain 재검사가 판정). 근거 참조 형식·카드번호 모양은 `evidenceRef` path 오류.
+     */
+    fun criticalChangeProposal(body: ByteArray): BusinessCommandParse<ProposeBusinessCriticalChangeCommand> = parse(body, PROPOSAL) { root, v ->
+        val (request, id, version) = target(root)
+        if (!ApprovalEvidence.ACTOR.matches(request.actor.value)) throw Malformed()
+        val reason = v.optValue("reason", optText(root, "reason"), BusinessChangeReason::errorOf, ::BusinessChangeReason)
+        val evidence = v.value(EVIDENCE, text(root, EVIDENCE), ::evidenceErrorOf, ::EvidenceRef)
+        val content = v.content(root)
+        v.finish(BusinessRegistrationStatus.DRAFT, content.type, null, content.name, content.profile) { type, _, name, profile ->
+            ProposeBusinessCriticalChangeCommand(request, id, version, reason, requireNotNull(evidence), type, name, profile)
+        }
+    }
+
+    /** 근거 참조 형식(BR-BIZ-232와 같은 문자 집합 — 빈 값 REQUIRED, 형식 FORMAT) → 카드번호 모양 거절(BR-BIZ-305 준용 — CARD_NUMBER_PATTERN). 값은 오류에 넣지 않는다. */
+    private fun evidenceErrorOf(raw: String): BusinessFieldErrorCode? = when {
+        raw.isEmpty() -> BusinessFieldErrorCode.REQUIRED
+        !EVIDENCE_TEXT.matches(raw) -> BusinessFieldErrorCode.FORMAT
+        CardNumberPattern.matches(raw) -> BusinessFieldErrorCode.CARD_NUMBER_PATTERN
+        else -> null
     }
 
     /** 구조 위반 신호(제어 흐름 전용 — 스택 추적 없음). */
@@ -144,9 +180,15 @@ object BusinessProfileRequestParser {
             .getOrElse { throw Malformed() }
     }
 
-    private fun <T> parse(body: ByteArray, names: Set<String>, build: (JsonNode, Values) -> BusinessCommandParse<T>): BusinessCommandParse<T> = try {
+    private fun <T> parse(
+        body: ByteArray,
+        names: Set<String>,
+        optional: Set<String> = emptySet(),
+        build: (JsonNode, Values) -> BusinessCommandParse<T>,
+    ): BusinessCommandParse<T> = try {
         val root: JsonNode? = mapper.readTree(body)
-        if (root == null || !root.isObject || root.propertyNames().toSet() != names) {
+        val present = root?.takeIf { it.isObject }?.propertyNames()?.toSet()
+        if (root == null || present == null || !present.containsAll(names) || !(names + optional).containsAll(present)) {
             BusinessCommandParse.Malformed
         } else {
             build(root, Values())

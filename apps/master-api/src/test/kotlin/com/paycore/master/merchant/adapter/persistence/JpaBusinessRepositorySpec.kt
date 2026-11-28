@@ -1,6 +1,3 @@
-// BIZ-CRIT-APPROVAL-001 S1: 옛 1인 오버로드(@Deprecated, S2에서 제거·이 파일 호출 전환)를 아직 부른다.
-@file:Suppress("DEPRECATION")
-
 package com.paycore.master.merchant.adapter.persistence
 
 import com.paycore.master.MasterDbAccounts
@@ -10,6 +7,7 @@ import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCas
 import com.paycore.master.merchant.application.required.EntitlementSourceStore
 import com.paycore.master.merchant.domain.Business
 import com.paycore.master.merchant.domain.BusinessChangeReason
+import com.paycore.master.merchant.domain.BusinessCriticalChangeFixtures.NO_HISTORY
 import com.paycore.master.merchant.domain.BusinessFixtures
 import com.paycore.master.merchant.domain.BusinessFixtures.actualAddress
 import com.paycore.master.merchant.domain.BusinessFixtures.businessItem
@@ -76,6 +74,12 @@ class JpaBusinessRepositorySpec(
 
     fun stored(edit: BusinessProfileEdit): BusinessProfileEdit = edit.also { tx { repository.insert(it.business, it.profile) } }
 
+    /** §7.1 Fixture: [BusinessFixtures.corporationRegistered]와 같은 법인 내용·시각·행위자의 이력 없는 DRAFT(1인 + 사유로 대표자 변경 가능 — BR-BIZ-374). */
+    fun draftCorporation(): BusinessProfileEdit = Business.createDraft(
+        com.paycore.master.merchant.domain.MasterFixture.businessId(), BusinessType.CORPORATION, BusinessFixtures.registrationNumber(), DisplayName("법인 상호"),
+        BusinessFixtures.corporationProfile(), t0, operator,
+    )
+
     /** 잠근 뒤 Domain 전이 → 저장(사업자 명령과 같은 순서, 한 TX). */
     fun update(business: Business, change: (com.paycore.master.merchant.application.required.BusinessWithProfile) -> BusinessProfileEdit): BusinessProfileEdit = tx {
         val locked = checkNotNull(repository.lockWithProfile(business.id))
@@ -113,7 +117,9 @@ class JpaBusinessRepositorySpec(
 
     Given("BIZ-1-3 / BIZ-1-5 / BIZ-1-6 update diff (identity = content + order)") {
         Then("kept rows keep id and effective_from; replaced rows are ended (effective_to, ended_by) and new rows added; primary contact and address swaps succeed; nothing is deleted") {
-            val created = stored(BusinessFixtures.corporationRegistered())
+            // BIZ-CRIT-APPROVAL-001 §7.1(Fixture 변경 — 기대값 불변): 등록 완료 사업자의 대표자 변경은 이제 2인이라, 같은 법인 내용을 **이력 없는 DRAFT**로 만들어 1인 + 사유 경로로 저장한다
+            // (근거 실행 함수는 갱신 행위자 = 승인자라 ended_by 기대값이 바뀐다 — Repository 단언 대상은 diff 저장 방식이므로 DRAFT 1인 경로가 같은 diff를 만든다).
+            val created = stored(draftCorporation())
             val id = created.business.id.value
             val before = listOf(representatives(id), categories(id), addresses(id), contacts(id))
             val at = t0.plusSeconds(1)
@@ -125,7 +131,7 @@ class JpaBusinessRepositorySpec(
                         addresses = listOf(registeredAddress("909호"), actualAddress()),
                         contacts = listOf(contact(primary = false), contact("최보조", primary = true, email = "sub@example.test", phone = "0298765432")),
                     )
-                    locked.business.updateProfile(locked.profile, BusinessType.CORPORATION, locked.business.displayName, after, BusinessChangeReason("대표자 교체"), 0, at, operator)
+                    locked.business.updateProfile(locked.profile, BusinessType.CORPORATION, locked.business.displayName, after, BusinessChangeReason("대표자 교체"), 0, NO_HISTORY, at, operator)
                 }
             }
 
@@ -169,14 +175,16 @@ class JpaBusinessRepositorySpec(
         }
 
         Then("M-4 order-only swaps (representatives and business types) end both rows and add both — no 1062 on the current-order keys") {
-            val created = stored(BusinessFixtures.corporationRegistered())
+            // BIZ-CRIT-APPROVAL-001 §7.1(Fixture 변경 — 기대값 불변): 등록 완료 사업자의 대표자 변경은 이제 2인이라, 같은 법인 내용을 **이력 없는 DRAFT**로 만들어 1인 + 사유 경로로 저장한다
+            // (근거 실행 함수는 갱신 행위자 = 승인자라 ended_by 기대값이 바뀐다 — Repository 단언 대상은 diff 저장 방식이므로 DRAFT 1인 경로가 같은 diff를 만든다).
+            val created = stored(draftCorporation())
             val id = created.business.id.value
             update(created.business) { locked ->
                 val after = locked.profile.copy(
                     representatives = locked.profile.representatives.reversed(),
                     categories = listOf(businessType("서비스"), businessType("도소매"), businessItem("소프트웨어"), businessItem("전자상거래")),
                 )
-                locked.business.updateProfile(locked.profile, BusinessType.CORPORATION, locked.business.displayName, after, BusinessChangeReason("순서 정정"), 0, t0, operator)
+                locked.business.updateProfile(locked.profile, BusinessType.CORPORATION, locked.business.displayName, after, BusinessChangeReason("순서 정정"), 0, NO_HISTORY, t0, operator)
             }
             representatives(id).map { it[1] to it[3] } shouldBe listOf("이공동/JOINT/1" to "01:00:00", "박공동/JOINT/2" to "01:00:00", "박공동/JOINT/1" to "open", "이공동/JOINT/2" to "open")
             categories(id).filter { it[3] != "open" }.map { it[1] } shouldBe listOf("BUSINESS_TYPE/도소매/1", "BUSINESS_TYPE/서비스/2")
@@ -192,14 +200,14 @@ class JpaBusinessRepositorySpec(
                 BusinessFixtures.individualProfile(), t0, operator,
             ))
             val id = draft.business.id.value
-            val renamed = update(draft.business) { it.business.updateProfile(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile, BusinessChangeReason("상호 변경"), 0, t0, operator) }
+            val renamed = update(draft.business) { it.business.updateProfile(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile, BusinessChangeReason("상호 변경"), 0, NO_HISTORY, t0, operator) }
             version(id) shouldBe 1L
             // 하위 행만(업태 추가 — 일반) + 같은 시각·같은 행위자 → Root 열 변경 없음 → 강제 증가 한 번.
             update(renamed.business) {
-                it.business.updateProfile(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile.copy(categories = it.profile.categories + businessType("추가업태")), null, 1, t0, operator)
+                it.business.updateProfile(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile.copy(categories = it.profile.categories + businessType("추가업태")), null, 1, NO_HISTORY, t0, operator)
             }
             version(id) shouldBe 2L
-            update(renamed.business) { it.business.completeRegistration(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile, null, 2, t0.plusSeconds(5), operator) }
+            update(renamed.business) { it.business.completeRegistration(it.profile, BusinessType.INDIVIDUAL, DisplayName("새 이름"), it.profile, null, 2, NO_HISTORY, t0.plusSeconds(5), operator) }
             listOf(version(id), query("SELECT registration_status FROM business WHERE business_id = ?", id).single()[0]) shouldBe listOf(3L, "REGISTERED")
         }
     }

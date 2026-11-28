@@ -2,6 +2,7 @@ package com.paycore.master.merchant.application
 
 import com.paycore.master.merchant.application.provided.CompleteBusinessRegistrationCommand
 import com.paycore.master.merchant.application.provided.CreateBusinessCommand
+import com.paycore.master.merchant.application.provided.ProposeBusinessCriticalChangeCommand
 import com.paycore.master.merchant.application.provided.UpdateBusinessCommand
 import com.paycore.master.merchant.domain.BusinessProfile
 
@@ -17,11 +18,22 @@ internal object BusinessCommandFingerprintFields {
     fun of(command: CreateBusinessCommand): List<String?> =
         listOf(command.registrationStatus.name, command.businessType.name, command.registrationNumber.value, command.displayName.value) + profile(command.profile)
 
+    /**
+     * BIZ-CRIT-APPROVAL-001 BR-BIZ-391: 선택 근거 참조는 **있을 때만** 끝에 붙인다 — 근거 없는 요청의 지문은 이전과 같은 바이트(이미 저장된 `admin_request` 재생 호환), 근거 있는 요청은
+     * 필드가 하나 더 있어 다르다(목록 개수 접두가 경계를 정하므로 모호하지 않다). 같은 키·다른 근거 = 409.
+     */
     fun of(command: UpdateBusinessCommand): List<String?> =
-        listOf(command.businessId.value, command.version.toString(), command.reason?.value, command.businessType.name, command.displayName.value) + profile(command.profile)
+        listOf(command.businessId.value, command.version.toString(), command.reason?.value, command.businessType.name, command.displayName.value) + profile(command.profile) +
+            listOfNotNull(command.evidenceRef?.value)
 
     fun of(command: CompleteBusinessRegistrationCommand): List<String?> =
-        listOf(command.businessId.value, command.version.toString(), command.reason?.value, command.businessType.name, command.displayName.value) + profile(command.profile)
+        listOf(command.businessId.value, command.version.toString(), command.reason?.value, command.businessType.name, command.displayName.value) + profile(command.profile) +
+            listOfNotNull(command.evidenceRef?.value)
+
+    /** BIZ-CRIT-APPROVAL-001 §5.1 제안: 대상·version·사유·근거 참조(필수)·내용. */
+    fun of(command: ProposeBusinessCriticalChangeCommand): List<String?> =
+        listOf(command.businessId.value, command.version.toString(), command.reason?.value, command.evidenceRef.value, command.businessType.name, command.displayName.value) +
+            profile(command.profile)
 
     private fun profile(p: BusinessProfile): List<String?> = buildList {
         val r = p.registration

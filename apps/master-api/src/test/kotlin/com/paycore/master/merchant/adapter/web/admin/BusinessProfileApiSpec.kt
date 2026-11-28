@@ -151,6 +151,12 @@ class BusinessProfileApiSpec(
                 "GET /internal/v1/admin/businesses/{businessId}",
                 "GET /internal/v1/admin/businesses/{businessId}/history/after/{seq}",
                 "GET /internal/v1/admin/businesses/{businessId}/contract-intakes",
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S2 §5.1 — 목록 증가, 완화 아님): 중요정보 변경 제안 명령 1개 + 조회 4개(A 단계 상태·제안·원문·1인 근거).
+                "POST /internal/v1/admin/businesses/commands/critical-change-proposals",
+                "GET /internal/v1/admin/businesses/{businessId}/approval-state",
+                "GET /internal/v1/admin/businesses/{businessId}/critical-change-proposals/{proposalId}",
+                "GET /internal/v1/admin/businesses/{businessId}/critical-change-proposals/{proposalId}/original",
+                "GET /internal/v1/admin/businesses/{businessId}/business-change-evidence/{historyId}",
                 "POST /internal/v1/admin/businesses/commands/create",
                 "POST /internal/v1/admin/businesses/commands/update",
                 "POST /internal/v1/admin/businesses/commands/complete-registration",
@@ -424,6 +430,9 @@ class BusinessProfileApiSpec(
                 },
                 AdminChannelPermits(MasterAdminChannelFixture.springSettings(), SimpleMeterRegistry()),
                 SimpleMeterRegistry(),
+                // BIZ-CRIT-APPROVAL-001 S2: 제안 명령 의존성(이 시험은 부르지 않는다 — 생성자 인자만 보강).
+                unused(com.paycore.master.merchant.application.provided.BusinessCriticalChangeUseCase::class.java),
+                unused(com.paycore.master.merchant.application.provided.BusinessCriticalChangeQuery::class.java),
             )
             val lines = CapturedLogs().use { logs ->
                 val r = controller.create(MockHttpServletRequest("POST", BusinessBodies.CREATE).apply { setContent(BusinessBodies.create(number = number()).toByteArray(Charsets.UTF_8)) })
@@ -703,17 +712,19 @@ class BusinessProfileApiSpec(
             adminRows(s.idempotencyKey) shouldBe 0L
             versionOf(id) shouldBe v
             count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ?", id) shouldBe historyBefore
-            // 사유가 있어도 REGISTERED 대표자 0명은 규칙 위반(대표자 변경은 중요 — 사유 판정 통과 뒤 규칙 재검사).
+            // BIZ-CRIT-APPROVAL-001 §7.1(이동): 사유 있음 + REGISTERED 대표자 0명의 규칙 위반 400은 제안 endpoint 시험(BusinessCriticalChangeApiSpec)으로 옮겼다.
+            // 1인 경로에서는 대표자 변경(중요)이 규칙 재검사보다 먼저 2인 필요 저장 거절이다(§3.3 판정 순서).
             val withReason = post(BusinessBodies.UPDATE, BusinessBodies.update(businessId = id, version = v, reason = "대표자 정리",
                 content = BusinessBodies.with(BusinessBodies.individual(), "representatives", emptyList<Any>())))
-            withReason.body() shouldBe """{"error":"BUSINESS_VALIDATION_FAILED","fieldErrors":[{"path":"representatives","code":"REQUIRED"}]}"""
+            withReason.body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED","replayed":false}"""
         }
 
-        Then("order: an important change without a reason plus a required-value removal is the stored BUSINESS_CHANGE_REASON_REQUIRED (200 REJECTED, admin_request 1 row)") {
+        // BIZ-CRIT-APPROVAL-001 §7.1(D-GOV-016 ③): 기대값 `BUSINESS_CHANGE_REASON_REQUIRED` → `BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED`(admin_request 1행 불변).
+        Then("order: an important change without a reason plus a required-value removal is the stored BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED (200 REJECTED, admin_request 1 row)") {
             val id = created()
             val s = Submission()
             val r = post(BusinessBodies.UPDATE, BusinessBodies.update(s, id, versionOf(id), content = BusinessBodies.with(BusinessBodies.individual(), "representatives", emptyList<Any>())))
-            r.body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_CHANGE_REASON_REQUIRED","replayed":false}"""
+            r.body() shouldBe """{"outcome":"REJECTED","rejection":"BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED","replayed":false}"""
             adminRows(s.idempotencyKey) shouldBe 1L
         }
 
@@ -728,6 +739,9 @@ class BusinessProfileApiSpec(
                 unusedQuery(),
                 AdminChannelPermits(MasterAdminChannelFixture.springSettings(), SimpleMeterRegistry()),
                 SimpleMeterRegistry(),
+                // BIZ-CRIT-APPROVAL-001 S2: 제안 명령 의존성(이 시험은 부르지 않는다 — 생성자 인자만 보강).
+                unused(com.paycore.master.merchant.application.provided.BusinessCriticalChangeUseCase::class.java),
+                unused(com.paycore.master.merchant.application.provided.BusinessCriticalChangeQuery::class.java),
             )
             fun request() = MockHttpServletRequest("POST", BusinessBodies.UPDATE).apply {
                 setContent(BusinessBodies.update(businessId = "biz_01JC0000000000000000000001", version = 1).toByteArray(Charsets.UTF_8))
@@ -747,6 +761,8 @@ class BusinessProfileApiSpec(
     }
 }) {
     private companion object {
+        fun <T> unused(type: Class<T>): T = type.cast(java.lang.reflect.Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { _, _, _ -> error("not used") })
+
         fun unusedQuery(): BusinessProfileQueryUseCase = java.lang.reflect.Proxy.newProxyInstance(
             BusinessProfileQueryUseCase::class.java.classLoader, arrayOf(BusinessProfileQueryUseCase::class.java),
         ) { _, _, _ -> error("query not used") } as BusinessProfileQueryUseCase

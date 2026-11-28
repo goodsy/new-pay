@@ -7,7 +7,9 @@ import java.time.Instant
  * **통째로**(일반 항목 포함 — P-8) 담는다. 상태 없음(INSERT 전용) — '적용됨'은 근거 EXECUTED 행이 이 제안을 가리키는 것으로 안다.
  *
  * - [content]: 변경 후 사업자 내용 전체(구분·상호·정규 profile). 사업자등록번호는 들어가지 않는다(불변 — P-6, 제안·실행 경로에 번호 필드 없음).
- * - [changes]: 제안 시점 기준 변경 항목(값은 §9 마스킹만 — 승인 상세 표시용). [changedFields]·[importantFields]·[representativeChanged]·[subjectCorrection]은 ADMIN pinned 값의 원천.
+ * - [changes]: 제안 시점 기준 변경 항목(값은 §9 마스킹만 — 승인 상세 표시용). [changedFields]·[importantFields]·[subjectCorrection]은 ADMIN pinned 값의 원천.
+ * - [representativeChanged](NIT-1): **대표자 집합이 바뀌었는가**(일반 포함 — 변경 항목에 대표자가 있음). ADMIN pinned·감사 `rep=Y`·조회 응답의 `representativeChanged`는 다른 뜻
+ *   (대표자 변경이 중요로 판정됨 = [importantFields]에 `representatives`) — 조회 adapter가 계산한다(Coordinator 결정).
  * - digest: [digestInput](정규 JSON — content + businessId + baseVersion)을 adapter가 MASTER fingerprint 키로 HMAC한다([BusinessChangeDigest]). 실행 때 저장된 내용으로 **다시 계산**해 승인 명령의 digest와 비교한다.
  *
  * 불변식(생성·복원 공통): baseVersion ≥ 0, 변경 항목 있음, 중요 항목 있음(2인 칸은 중요 변경에서만 생긴다), 중요 항목 ⊆ 변경 항목, [subjectCorrection] ⇔ 구분 또는 법인등록번호가 중요 항목,

@@ -58,6 +58,9 @@ enum class MasterFaultPoint {
 
     // MERCHANT-FLOW-001 FLOW-3(리뷰 MAJOR-1): 가맹점 등록 근거 행 INSERT+flush 직후(같은 TX·commit 전).
     REGISTRATION_BASIS_INSERT,
+
+    // BIZ-CRIT-APPROVAL-001 S2(§7.2 동시성): 사업자 Root 잠금(`BusinessRepository.lock` — 계약 생성·가맹점 등록 경로) 직후 — 정정 실행과 계약 생성의 직렬화 순서를 강제한다.
+    BUSINESS_LOCK,
 }
 
 /**
@@ -316,6 +319,8 @@ class MasterFaultInjectionConfig {
 
         override fun lockWithProfile(id: com.paycore.master.merchant.domain.BusinessId) =
             f.around(MasterFaultPoint.BUSINESS_LOCK_WITH_PROFILE) { real.lockWithProfile(id) }
+
+        override fun lock(id: com.paycore.master.merchant.domain.BusinessId) = f.around(MasterFaultPoint.BUSINESS_LOCK) { real.lock(id) }
 
         override fun update(business: Business, before: com.paycore.master.merchant.domain.BusinessProfile, after: com.paycore.master.merchant.domain.BusinessProfile) =
             f.around(MasterFaultPoint.BUSINESS_PROFILE_UPDATE) { real.update(business, before, after) }

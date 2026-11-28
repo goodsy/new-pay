@@ -163,7 +163,8 @@ object ApprovedCommandFixture {
             // B3-2: + EnableCurrency(불변식 대상 확장 — 완화 아님).
             "FROM admin_request r WHERE r.operation IN ('ApproveContractRevision', 'IssueFirstDefaultMerchantAccount', 'ApprovePaymentMethodActivation', 'DecideSiteReview', " +
             // MERCHANT-CODE-001 MC-1b: + ChangeMerchantCode(불변식 대상 확장 — 완화 아님).
-            "'EnableCurrency', 'ChangeMerchantCode') " +
+            // BIZ-CRIT-APPROVAL-001 S2: + ApplyBusinessCriticalChange(불변식 대상 확장 — 완화 아님).
+            "'EnableCurrency', 'ChangeMerchantCode', 'ApplyBusinessCriticalChange') " +
             "AND r.idempotency_key LIKE 'mop1.%' " +
             "AND r.result_kind <> 'PENDING' AND (" +
             "  (IFNULL(r.result_code, '') <> 'APPROVAL_ID_ALREADY_USED' AND (SELECT COUNT(*) FROM admin_approval_evidence e WHERE e.request_record_id = r.request_record_id) <> 1)" +

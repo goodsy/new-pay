@@ -4,7 +4,9 @@ import com.paycore.master.MasterDbTest
 import com.paycore.master.merchant.application.BusinessCommandFixture
 import com.paycore.master.merchant.application.JooqStatementRecorder
 import com.paycore.master.merchant.application.MutableMasterClock
+import com.paycore.master.merchant.application.OnboardingFixture
 import com.paycore.master.merchant.application.OnboardingFixture.request
+import com.paycore.master.scalar
 import com.paycore.master.merchant.application.OnboardingFixture.succeeded
 import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
 import com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase
@@ -49,6 +51,7 @@ class BusinessReaderSpec(
     private val recorder: JooqStatementRecorder,
     private val clock: MutableMasterClock,
     private val container: MySQLContainer,
+    private val changes: com.paycore.master.merchant.application.provided.BusinessCriticalChangeUseCase,
 ) : BehaviorSpec({
 
     /** 옛 `RegisterBusiness`가 남긴 사업자 한 건(V15 백필 모양 — DRAFT·구분 NULL·등록정보 1행·`BusinessRegistered` 이력, 과거 데이터 재현 — BIZ-4 C-27). */
@@ -234,11 +237,10 @@ class BusinessReaderSpec(
             val b = BusinessCommandFixture.withoutMerchants(businesses, name = "상세 법인", type = BusinessType.CORPORATION, profile = BusinessFixtures.corporationProfile())
             // 대표자 한 명 교체(종료 행은 상세에 나오지 않는다 — 현재 행만).
             val changed = BusinessFixtures.corporationProfile().copy(representatives = listOf(BusinessFixtures.joint("이공동"), BusinessFixtures.joint("정새로")))
-            succeeded(
-                businesses.update(
-                    UpdateBusinessCommand(request(), b.businessId, 0, BusinessChangeReason("공동대표 교체"), BusinessType.CORPORATION, b.name, changed),
-                ),
-            )
+            // BIZ-CRIT-APPROVAL-001(§7.1 표 밖 Fixture 변경 — 기대값 불변, Coordinator 확인 대상): 등록 완료 사업자의 대표자 교체는 2인이라 제안 → 근거 실행으로 만든다(version 1·현재 행 동일).
+            val proposal = succeeded(changes.propose(com.paycore.master.merchant.application.BusinessCriticalChangeCommandFixture.propose(b.businessId.value, 0, b.name.value, changed)))
+            val digest = OnboardingFixture.runtime(container).use { it.scalar("SELECT content_digest FROM business_change_proposal WHERE proposal_id = ?", proposal).toString() }
+            succeeded(changes.applyWithEvidence(com.paycore.master.merchant.application.BusinessCriticalChangeCommandFixture.apply(b.businessId.value, 0, proposal, digest)))
             val (view, _) = sql { query.detail(b.businessId) }
             recorder.observations.isNotEmpty() shouldBe true
             recorder.observations.forEach { it shouldBe JooqStatementRecorder.Observation(true, true, 4) }

@@ -235,6 +235,15 @@ class BusinessProfileServiceSpec(
             service.update(update(id, 0)) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_PROFILE_UNCHANGED, null, replayed = false)
             listOf(version(id), history(id).size) shouldBe listOf(0L, 1)
         }
+
+        // BIZ-CRIT-APPROVAL-001 §7.1(D-GOV-025 ④, D-GOV-026 ②): 계약 이력 있는 DRAFT의 등록 완료 + 상호 변경은 사유가 있어도 2인 — 저장된 거절, DRAFT 유지.
+        Then("DRAFT with a business contract: complete with a name change (even with a reason) → BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED, stays DRAFT") {
+            val id = succeeded(service.create(create(status = DRAFT)))
+            OnboardingFixture.contracted(onboarding, BusinessId(id))
+            service.completeRegistration(complete(id, 0, name = "바뀐 상호", reason = "상호 변경")) shouldBe
+                AdminCommandResult.Rejected(MasterRejection.BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED, null, replayed = false)
+            listOf(status(id), version(id), history(id).size) shouldBe listOf("DRAFT", 0L, 1)
+        }
     }
 
     // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②, GOV-BIZ-001 G-03): 사용중지 행은 앱 전이 경로가 없어(BR-BIZ-015) 이관·수동 데이터처럼 저장 행을 직접 바꿔 만든다.
@@ -291,31 +300,19 @@ class BusinessProfileServiceSpec(
             )
         }
 
-        Then("TC-13 important change without reason is rejected (no history); with reason it records the reason and masked representative ended/added") {
+        // BIZ-CRIT-APPROVAL-001 §7.1(D-GOV-016 ③): REGISTERED 상호 변경·대표자 추가만은 사유 유무와 관계없이 2인 — 기대값 `BUSINESS_CHANGE_REASON_REQUIRED` → `BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED`,
+        // 이력 1·version 0 불변. 사유 있으면 성공 + 이력 사유·마스킹 대표자 ended/added 단언은 근거 실행 시험(BusinessCriticalChangeServiceSpec)으로 이동.
+        Then("TC-13 important change (name, M-2 representative add only) is BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED with or without a reason (no history, version 0)") {
             val base = individualProfile().copy(representatives = listOf(joint("가공동")))
             val id = succeeded(service.create(create(base)))
-            service.update(update(id, 0, base, name = "새 상호")) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_CHANGE_REASON_REQUIRED, null, replayed = false)
-            // M-2(변이 (g)): REGISTERED 사업자의 대표자 **추가만**(기존 행 유지)도 중요 — 사유 없으면 거절.
+            service.update(update(id, 0, base, name = "새 상호")) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED, null, replayed = false)
+            // M-2(변이 (g)): REGISTERED 사업자의 대표자 **추가만**(기존 행 유지)도 중요.
             val added = base.copy(representatives = listOf(joint("가공동"), joint("나공동")))
-            service.update(update(id, 0, added)) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_CHANGE_REASON_REQUIRED, null, replayed = false)
-            history(id).size shouldBe 1
-
-            service.update(update(id, 0, added, name = "새 상호", reason = "공동대표 체제 전환")) shouldBe AdminCommandResult.Succeeded(id, replayed = false)
-            val detail = history(id).last().second
-            detail["reason"] shouldBe "공동대표 체제 전환"
-            (detail["changes"] as List<*>).map { it as Map<*, *> }.filter { it["field"] in setOf("displayName", "representatives") } shouldBe listOf(
-                mapOf("field" to "displayName", "before" to "사업자 상호", "after" to "새 상호"),
-                mapOf("field" to "representatives", "ended" to emptyList<Any>(), "added" to listOf(mapOf("name" to "나**", "type" to "JOINT", "order" to 2))),
-            )
-            // 대표자 교체(종료 + 추가)는 마스킹 전후가 남는다.
-            service.update(update(id, 1, base.copy(representatives = listOf(BusinessFixtures.sole("홍길동"))), name = "새 상호", reason = "단독대표 전환")) shouldBe
-                AdminCommandResult.Succeeded(id, replayed = false)
-            ((history(id).last().second["changes"] as List<*>).single() as Map<*, *>) shouldBe mapOf(
-                "field" to "representatives",
-                "ended" to listOf(mapOf("name" to "가**", "type" to "JOINT", "order" to 1), mapOf("name" to "나**", "type" to "JOINT", "order" to 2)),
-                "added" to listOf(mapOf("name" to "홍**", "type" to "SOLE", "order" to 1)),
-            )
-            service.update(update(id, 0, name = "또 다른 상호", reason = "x")) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_VERSION_CONFLICT, null, replayed = false)
+            service.update(update(id, 0, added)) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED, null, replayed = false)
+            service.update(update(id, 0, added, name = "새 상호", reason = "공동대표 체제 전환")) shouldBe
+                AdminCommandResult.Rejected(MasterRejection.BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED, null, replayed = false)
+            listOf(history(id).size, version(id)) shouldBe listOf(1, 0L)
+            service.update(update(id, 3, name = "또 다른 상호", reason = "x")) shouldBe AdminCommandResult.Rejected(MasterRejection.BUSINESS_VERSION_CONFLICT, null, replayed = false)
             service.update(update(BusinessFixtures.individualRegistered().business.id.value, 0)) shouldBe
                 AdminCommandResult.Rejected(MasterRejection.BUSINESS_NOT_FOUND, null, replayed = false)
         }
@@ -347,7 +344,8 @@ class BusinessProfileServiceSpec(
     Given("BIZ-1 review m-4 monotonic transition time") {
         Then("a server clock earlier than the stored updatedAt still succeeds (no 3819): updated_at stays, ended rows keep effective_to >= effective_from") {
             clock.set(OnboardingFixture.t0.plusSeconds(600))
-            val id = succeeded(service.create(create()))
+            // BIZ-CRIT-APPROVAL-001(§7.1 표 밖 Fixture 변경 — 기대값 불변, Coordinator 확인 대상): 대표자 교체가 등록 완료 사업자에서는 2인이라 이력 없는 DRAFT로 만든다(1인 + 사유).
+            val id = succeeded(service.create(create(status = DRAFT)))
             clock.set(OnboardingFixture.t0)
             service.update(update(id, 0, individualProfile().copy(representatives = listOf(joint("가공동"))), reason = "대표자 교체")) shouldBe
                 AdminCommandResult.Succeeded(id, replayed = false)
@@ -391,7 +389,8 @@ class BusinessProfileServiceSpec(
         }
 
         Then("an update failing after the diff was flushed leaves version, rows, history and admin_request unchanged") {
-            val id = succeeded(service.create(create()))
+            // BIZ-CRIT-APPROVAL-001(§7.1 표 밖 Fixture 변경 — 기대값 불변, Coordinator 확인 대상): 대표자 교체가 등록 완료 사업자에서는 2인이라 이력 없는 DRAFT로 만든다(1인 + 사유).
+            val id = succeeded(service.create(create(status = DRAFT)))
             val before = footprint(id)
             val k = key()
             faults.after(MasterFaultPoint.BUSINESS_PROFILE_UPDATE) { throw IllegalStateException("injected failure after diff") }

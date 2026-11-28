@@ -6,6 +6,7 @@ import com.paycore.master.merchant.application.provided.ApprovalDecision
 import com.paycore.master.merchant.application.provided.ApprovalDecisionUseCase
 import com.paycore.master.merchant.application.provided.ApprovalOutcome
 import com.paycore.master.merchant.application.provided.ApprovedCommand
+import com.paycore.master.merchant.application.provided.BusinessCriticalChangeUseCase
 import com.paycore.master.merchant.application.provided.DeadlineConfirmationResult
 import com.paycore.master.merchant.application.provided.MerchantOnboardingUseCase
 import com.paycore.master.merchant.domain.MasterRejection
@@ -43,6 +44,7 @@ class MerchantApprovalController(
     private val permits: AdminChannelPermits,
     private val settings: AdminApprovalSettings,
     private val registry: MeterRegistry,
+    private val businessChanges: BusinessCriticalChangeUseCase,
 ) {
     private val log = LoggerFactory.getLogger(MerchantApprovalController::class.java)
 
@@ -85,6 +87,22 @@ class MerchantApprovalController(
                 val result = onboarding.changeMerchantCodeWithEvidence(command)
                 observe(command, result, executed = true)
                 commandResponse(request, CHANGE_CODE, command.request.correlationId, result)
+            }
+        }
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 §3.3 C·§5.1 사업자 중요정보 변경 실행(2인 — 근거 있는 경로만). 성공 reference `biz_…`. 응답 §3.3 그대로(거절 reference 없음 — C-12).
+     * 이 컨트롤러가 `applyWithEvidence`의 유일한 호출자다(ArchUnit). 기한 확인·결정 조회는 아래 공용 endpoint가 같은 저장 바이트로 처리한다.
+     */
+    @PostMapping("/business-critical-changes")
+    fun applyBusinessCriticalChange(request: HttpServletRequest): ResponseEntity<ByteArray> =
+        permits.write(BUSINESS_CHANGE, { busy(request, AdminChannelResponses.ADMIN_WRITE_BUSY) }) {
+            val command = MerchantApprovalCommandParser.businessCriticalChange(request.inputStream.readAllBytes(), settings.window)
+                ?: return@write malformed(request, BUSINESS_CHANGE)
+            guarded(request, BUSINESS_CHANGE, command.request.correlationId) {
+                val result = businessChanges.applyWithEvidence(command)
+                observe(command, result, executed = true)
+                commandResponse(request, BUSINESS_CHANGE, command.request.correlationId, result)
             }
         }
 
@@ -218,6 +236,7 @@ class MerchantApprovalController(
         private const val EXECUTE = "ApproveContractRevision"
         private const val ISSUE = "IssueFirstDefaultMerchantAccount"
         private const val CHANGE_CODE = "ChangeMerchantCode"
+        private const val BUSINESS_CHANGE = "ApplyBusinessCriticalChange"
         private const val DEADLINE = "ConfirmApprovalDeadline"
         private const val DECISION = "ApprovalDecision"
         private const val DECISION_ENDPOINT = "approval-decision"

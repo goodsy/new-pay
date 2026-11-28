@@ -3,8 +3,11 @@ package com.paycore.master.merchant.adapter.web.admin
 import com.paycore.master.merchant.application.provided.AdminCommandFailure
 import com.paycore.master.merchant.application.provided.AdminCommandResult
 import com.paycore.master.merchant.application.provided.AdminRequest
+import com.paycore.master.merchant.application.provided.BusinessCriticalChangeQuery
+import com.paycore.master.merchant.application.provided.BusinessCriticalChangeUseCase
 import com.paycore.master.merchant.application.provided.BusinessProfileCommandUseCase
 import com.paycore.master.merchant.application.provided.BusinessProfileQueryUseCase
+import com.paycore.master.merchant.domain.BusinessChangeProposalId
 import com.paycore.master.merchant.domain.BusinessFieldError
 import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.BusinessProfileRuleViolation
@@ -33,6 +36,10 @@ import org.springframework.web.bind.annotation.RestController
  * 그 밖: 키 재사용 409, 진행 중·커밋 불명·기술 실패 503(같은 키로 다시), 쓰기 permit 없음 503 `ADMIN_WRITE_BUSY`(Use Case 미호출).
  *
  * 로그·지표: 연산·결과 분류·상관 ID·오류 개수만(입력 값·번호·이름·예외 문구 없음). 지표 `paycore.master.admin_channel.command{operation,outcome}`(기존 계열 — 값 label 없음).
+ *
+ * BIZ-CRIT-APPROVAL-001 §5.1 `critical-change-proposals`(제안 — 1인 기록 명령): 같은 틀. 성공 응답에 `proposal` 요약(proposalId·baseVersion·contentDigest·changedFields·
+ * representativeChanged(중요 대표자 변경만)·subjectCorrection·requestedBy — **상호·개인정보 원문 없음**, M-5)을 붙인다. 요약은 commit 뒤 조회 Use Case로 읽고(재생도 같은 경로),
+ * 읽지 못하면 503(제안은 이미 저장 — 같은 키 재전송이 재생 + 재조회).
  */
 @RestController
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -42,6 +49,8 @@ class BusinessCommandController(
     private val query: BusinessProfileQueryUseCase,
     private val permits: AdminChannelPermits,
     private val registry: MeterRegistry,
+    private val criticalChanges: BusinessCriticalChangeUseCase,
+    private val criticalChangeQuery: BusinessCriticalChangeQuery,
 ) {
     private val log = LoggerFactory.getLogger(BusinessCommandController::class.java)
 
@@ -57,13 +66,25 @@ class BusinessCommandController(
     fun completeRegistration(request: HttpServletRequest): ResponseEntity<ByteArray> =
         command(request, "CompleteBusinessRegistration", BusinessProfileRequestParser::completeRegistration, { it.request }, commands::completeRegistration)
 
-    /** permit(대기 0) → 엄격 해석 → Use Case → 응답. 해석 실패는 Use Case를 부르지 않는다(저장 없음). */
+    @PostMapping("/critical-change-proposals")
+    fun proposeCriticalChange(request: HttpServletRequest): ResponseEntity<ByteArray> =
+        command(request, "ProposeBusinessCriticalChange", BusinessProfileRequestParser::criticalChangeProposal, { it.request }, criticalChanges::propose) { command, reference ->
+            criticalChangeQuery.proposal(command.businessId, BusinessChangeProposalId(reference))?.let { p ->
+                linkedMapOf(
+                    "proposalId" to p.proposalId, "baseVersion" to p.baseVersion, "contentDigest" to p.contentDigest, "changedFields" to p.changedFields,
+                    "representativeChanged" to p.representativeChanged, "subjectCorrection" to p.subjectCorrection, "requestedBy" to p.requestedBy,
+                )
+            }
+        }
+
+    /** permit(대기 0) → 엄격 해석 → Use Case → 응답. 해석 실패는 Use Case를 부르지 않는다(저장 없음). [summary]가 있으면 성공 응답에 `proposal` 요약을 붙인다(null = 읽기 실패 → 503). */
     private fun <C> command(
         request: HttpServletRequest,
         operation: String,
         parse: (ByteArray) -> BusinessCommandParse<C>,
         adminRequest: (C) -> AdminRequest,
         execute: (C) -> AdminCommandResult,
+        summary: ((C, String) -> Map<String, Any?>?)? = null,
     ): ResponseEntity<ByteArray> =
         permits.write(operation, { AdminChannelResponses.error(request, SERVICE_UNAVAILABLE, AdminChannelResponses.ADMIN_WRITE_BUSY) }) {
             val command = when (val parsed = parse(request.inputStream.readAllBytes())) {
@@ -76,7 +97,23 @@ class BusinessCommandController(
             }
             val correlationId = adminRequest(command).correlationId
             try {
-                respond(request, operation, correlationId, execute(command))
+                val result = execute(command)
+                if (summary != null && result is AdminCommandResult.Succeeded) {
+                    val proposal = summary(command, result.reference) ?: run {
+                        count(operation, FAILED)
+                        log.warn(
+                            "operation={} requestId={} correlationId={} result=TEMPORARILY_UNAVAILABLE stage=PROPOSAL_SUMMARY failure=MISSING",
+                            operation, AdminChannelResponses.requestId(request), correlationId,
+                        )
+                        return@write AdminChannelResponses.error(request, SERVICE_UNAVAILABLE, AdminChannelResponses.TEMPORARILY_UNAVAILABLE)
+                    }
+                    count(operation, SUCCEEDED)
+                    log.info("operation={} requestId={} correlationId={} result={}", operation, AdminChannelResponses.requestId(request), correlationId, SUCCEEDED)
+                    return@write AdminChannelResponses.json(
+                        request, OK, LinkedHashMap(BusinessProfileJson.succeeded(result.reference, result.replayed)).apply { put("proposal", proposal) },
+                    )
+                }
+                respond(request, operation, correlationId, result)
             } catch (e: BusinessProfileRuleViolation) {
                 // rev 0.2.3 m-1(C-16 보충): Domain 재검사 위반만 400 — TX 전체 rollback이라 효과 없음 확정(ADMIN은 OUTCOME_UNKNOWN으로 다루지 않는다).
                 invalid(request, operation, correlationId, e.errors)

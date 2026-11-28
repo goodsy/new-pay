@@ -391,11 +391,11 @@ internal class AdminCommandExecutor(
             eventType: String,
             payload: Map<String, Any?>,
             historyDetail: Map<String, Any?> = payload,
-        ) {
+        ): Long {
             check(writing) { "records are written after the decision" }
             // 이력 전용 모드에서는 이력을 쓰기 **전에** 결함으로 멈춘다(리뷰 NIT-1 — 이력만 쓰고 Outbox에서 실패하는 반쪽 기록 시도를 만들지 않는다; TX는 어느 쪽이든 rollback).
             val outbox = checkNotNull(outbox) { "this executor writes history only (no outbox)" }
-            changeLog.append(
+            val historyId = changeLog.append(
                 ChangeRecord(requestRecordId, operation, aggregateType, aggregateId, eventType, request.actor, now, historyDetail),
             )
             outbox.append(
@@ -415,6 +415,7 @@ internal class AdminCommandExecutor(
                     payload = payload + ("occurredAt" to now),
                 ),
             )
+            return historyId
         }
 
         /**

@@ -4,6 +4,7 @@ import com.paycore.master.merchant.application.provided.AdminIdempotencyKey
 import com.paycore.master.merchant.application.provided.AdminOperation
 import com.paycore.master.merchant.application.provided.AdminRequest
 import com.paycore.master.merchant.application.provided.ApprovalFingerprint
+import com.paycore.master.merchant.application.provided.ApprovedBusinessCriticalChangeCommand
 import com.paycore.master.merchant.application.provided.ApprovedCommand
 import com.paycore.master.merchant.application.provided.ApprovedContractRevisionApprovalCommand
 import com.paycore.master.merchant.application.provided.ApprovedCurrencyEnablementCommand
@@ -15,6 +16,9 @@ import com.paycore.master.merchant.application.provided.CurrencyEffectiveStart
 import com.paycore.master.merchant.domain.ActorRef
 import com.paycore.master.merchant.domain.ApprovalEvidence
 import com.paycore.master.merchant.domain.ApprovalWindow
+import com.paycore.master.merchant.domain.BusinessChangeDigest
+import com.paycore.master.merchant.domain.BusinessChangeProposalId
+import com.paycore.master.merchant.domain.BusinessId
 import com.paycore.master.merchant.domain.ContractId
 import com.paycore.master.merchant.domain.ContractServiceAgreementId
 import com.paycore.master.merchant.domain.CurrencyCode
@@ -67,6 +71,10 @@ object MerchantApprovalCommandParser {
     /** MERCHANT-CODE-001 MC-1b(§3.7.2): 근거 공통 9 + `operation` + 명령 필드 4(등록자 필드 없음 — Q-MC-10). */
     private val MERCHANT_CODE_CHANGE = EVIDENCE_FIELDS + setOf("operation", "merchantId", "currentCode", "newCode", "reasonCode")
 
+    /** BIZ-CRIT-APPROVAL-001 §3.2·§5.1: 근거 공통 9 + `operation` + 명령 필드 4(businessId·baseVersion·proposalId·contentDigest). 번호·내용 필드 없음(P-6 — 내용은 MASTER 제안 행). */
+    private val BUSINESS_CRITICAL_CHANGE = EVIDENCE_FIELDS + setOf("operation", "businessId", "baseVersion", "proposalId", "contentDigest")
+    private val BASE_VERSION = Regex("^(0|[1-9][0-9]{0,17})$")
+
     /** C-41: 관리 채널 통화 활성화는 KRW만(실제 통화 범위 추가안은 사용자 채택 전). */
     private val ENABLED_CURRENCIES = setOf("KRW")
     private val DECISION = setOf("approvalId", "correlationId")
@@ -115,8 +123,24 @@ object MerchantApprovalCommandParser {
         // B3 본문은 `operation` 필드가 있어 B2 해석기(정확한 필드 집합)가 받지 않고, B2 본문은 B3 해석기가 받지 않는다(minor-4 — 정확히 하나).
         listOfNotNull<ApprovedCommand>(
             contractRevisionApproval(body, window), firstDefaultIssuance(body, window), paymentMethodActivationApproval(body, window), siteReviewApproval(body, window),
-            currencyEnablement(body, window), merchantCodeChange(body, window),
+            currencyEnablement(body, window), merchantCodeChange(body, window), businessCriticalChange(body, window),
         ).singleOrNull()
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 `business-critical-changes`(§3.2 실행 본문): 근거 공통 9 + `operation` = `ApplyBusinessCriticalChange` + `businessId`(`biz_`)·`baseVersion`(0 이상 10진)·
+     * `proposalId`(`bcp_`)·`contentDigest`(`h1:` 64 hex). 모르는 필드(`registrationNumber` 등)는 400. 제안 대조·요청자 일치·version·차단 칸은 저장된 거절(Use Case 판정)이다.
+     */
+    fun businessCriticalChange(body: ByteArray, window: ApprovalWindow): ApprovedBusinessCriticalChangeCommand? =
+        parse(body, BUSINESS_CRITICAL_CHANGE) { fields ->
+            require(fields.getValue("operation") == AdminOperation.APPLY_BUSINESS_CRITICAL_CHANGE.code) { "operation" }
+            val businessId = BusinessId(fields.getValue("businessId"))
+            val versionText = fields.getValue("baseVersion")
+            require(BASE_VERSION.matches(versionText)) { "baseVersion" }
+            val proposalId = BusinessChangeProposalId(fields.getValue("proposalId"))
+            val digest = BusinessChangeDigest(fields.getValue("contentDigest"))
+            val (request, evidence) = approved(fields, AdminOperation.APPLY_BUSINESS_CRITICAL_CHANGE, listOf(businessId.value, versionText, proposalId.value, digest.value))
+            ApprovedBusinessCriticalChangeCommand(request, evidence, window, businessId, versionText.toLong(), proposalId, digest)
+        }
 
     /**
      * B3-1 `payment-method-activation-approvals`(§9.14): 근거 공통 9 + **`operation` = `ApprovePaymentMethodActivation`**(C-39) + 명령 필드 `activationId`, `primarySiteId`(C-45 — `mop1` 끝 줄 순서).

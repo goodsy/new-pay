@@ -42,64 +42,6 @@ class Business private constructor(
     }
 
     /**
-     * **과도 경로(BIZ-CRIT-APPROVAL-001 S2에서 제거 — Coordinator 결정)**: 계약·가맹점 이력 없이 판정하는 옛 1인 수정 — 현재 Application(`BusinessProfileService`)만 부른다. S2가 잠금 뒤 이력 판정과 함께
-     * `history`를 받는 오버로드로 바꾸고 이 메서드를 지운다(S1은 Domain만 — 명세 §8). 동작은 변경 전과 같다.
-     *
-     * 같은 상태 안 수정(DRAFT → DRAFT, REGISTERED → REGISTERED — 명세 §4.4·§4.5). 판정 순서: 생명주기 → 사용중지(`BUSINESS_INACTIVE` — BR-BIZ-311) → version → 변경 계산(없으면 `BUSINESS_PROFILE_UNCHANGED`,
-     * 중요 변경 + 사유 없음 `BUSINESS_CHANGE_REASON_REQUIRED`) → 현재 상태 규칙 재검사(REGISTERED는 필수값을 지우는 수정 거절 — 위반은 [BusinessProfileRuleViolation]).
-     */
-    @Deprecated("BIZ-CRIT-APPROVAL-001: 계약·가맹점 이력을 받는 오버로드를 쓴다(S2에서 제거)", level = DeprecationLevel.WARNING)
-    @Suppress("LongParameterList")
-    fun updateProfile(
-        current: BusinessProfile,
-        type: BusinessType,
-        name: DisplayName,
-        profile: BusinessProfile,
-        reason: BusinessChangeReason?,
-        expectedVersion: Long,
-        at: Instant,
-        by: ActorRef,
-    ): BusinessProfileEdit {
-        requireActive()
-        // BR-BIZ-311(D-GOV-005 ②, BIZ-NORM-002 M-3): 사용중지 사업자 수정은 저장되는 업무 거절(전이 경로는 생명주기 작업 — TBD-08). version·내용보다 먼저 판정한다.
-        if (registrationStatus == BusinessRegistrationStatus.INACTIVE) throw MasterRuleViolation(MasterRejection.BUSINESS_INACTIVE)
-        requireVersion(expectedVersion)
-        val change = BusinessProfileChange.of(registrationStatus, BusinessContent(businessType, displayName, current), BusinessContent(type, name, profile))
-        if (change.isEmpty) throw MasterRuleViolation(MasterRejection.BUSINESS_PROFILE_UNCHANGED)
-        requireReason(change, reason)
-        BusinessProfileRules.require(type, registrationNumber, name, profile, registrationStatus)
-        return BusinessProfileEdit(next(type, name, registrationStatus, monotonic(at), by), profile.canonical(), change)
-    }
-
-    /**
-     * **과도 경로(BIZ-CRIT-APPROVAL-001 S2에서 제거)** — 위 [updateProfile] 옛 오버로드와 같다.
-     *
-     * DRAFT → REGISTERED(명세 §4.4 — M-1: 상태 전이 자체가 변경이므로 `BUSINESS_PROFILE_UNCHANGED`를 적용하지 않는다). 판정 순서: 생명주기 → DRAFT만(`BUSINESS_NOT_DRAFT`)
-     * → version → 내용 중요 변경 + 사유 없음 → REGISTERED 규칙(보낸 전체 내용 기준).
-     */
-    @Deprecated("BIZ-CRIT-APPROVAL-001: 계약·가맹점 이력을 받는 오버로드를 쓴다(S2에서 제거)", level = DeprecationLevel.WARNING)
-    @Suppress("LongParameterList")
-    fun completeRegistration(
-        current: BusinessProfile,
-        type: BusinessType,
-        name: DisplayName,
-        profile: BusinessProfile,
-        reason: BusinessChangeReason?,
-        expectedVersion: Long,
-        at: Instant,
-        by: ActorRef,
-    ): BusinessProfileEdit {
-        requireActive()
-        if (registrationStatus != BusinessRegistrationStatus.DRAFT) throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_DRAFT)
-        requireVersion(expectedVersion)
-        val content = BusinessProfileChange.of(registrationStatus, BusinessContent(businessType, displayName, current), BusinessContent(type, name, profile))
-        requireReason(content, reason)
-        BusinessProfileRules.require(type, registrationNumber, name, profile, BusinessRegistrationStatus.REGISTERED)
-        val change = content.withStatusTransition(BusinessRegistrationStatus.DRAFT, BusinessRegistrationStatus.REGISTERED)
-        return BusinessProfileEdit(next(type, name, BusinessRegistrationStatus.REGISTERED, monotonic(at), by), profile.canonical(), change)
-    }
-
-    /**
      * BIZ-CRIT-APPROVAL-001 §3.3 1인 경로 수정(§1.1 인원 판정 — D-GOV-016 ③·D-GOV-025·D-GOV-026). [history]는 Application이 **사업자 행 잠금 뒤** 판정한 계약·가맹점 이력이다.
      * 판정 순서: 생명주기 → 사용중지(`BUSINESS_INACTIVE`) → version → 변경 계산 → 변경 없음 → **정정 차단**(`BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED`) → **2인 필요**
      * (`BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED` — 사유가 있어도) → 사유(1인 + 사유 칸) → 현재 상태 규칙. 규칙 위반(400)보다 승인 필요(저장 거절)가 먼저다.
@@ -233,10 +175,6 @@ class Business private constructor(
 
     private fun requireVersion(expected: Long) {
         if (expected != version) throw MasterRuleViolation(MasterRejection.BUSINESS_VERSION_CONFLICT)
-    }
-
-    private fun requireReason(change: BusinessProfileChange, reason: BusinessChangeReason?) {
-        if (change.important && reason == null) throw MasterRuleViolation(MasterRejection.BUSINESS_CHANGE_REASON_REQUIRED)
     }
 
     private fun next(type: BusinessType, name: DisplayName, status: BusinessRegistrationStatus, at: Instant, by: ActorRef) = Business(

@@ -159,6 +159,9 @@ class MerchantOperationsApiSpec(
                 "POST /internal/v1/admin/businesses/business-contracts/commands/suspend",
                 "POST /internal/v1/admin/businesses/business-contracts/commands/resume",
                 "POST /internal/v1/admin/businesses/business-contracts/commands/terminate",
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S2 §5.1 — 쓰기 경로 2개 증가): 1인 제안(사업자 불변 기록) + 2인 근거 실행(사업자 중요정보 변경 — 권리·정산 효과 없음).
+                "POST /internal/v1/admin/businesses/commands/critical-change-proposals",
+                "POST /internal/v1/admin/merchant-operations/business-critical-changes",
             )
             // 기대값 변경(BUSINESS-PROFILE-001 BIZ-4 C-27): 옛 `merchant-operations/businesses` 제거 — 쓰기 경로가 하나 줄었다(완화 아님, 사업자 생성은 위 `businesses/commands/create`).
             nonGet shouldBe setOf("POST /internal/v1/admin/merchant-searches") + paths.map { "POST $it" }.toSet() + approvals

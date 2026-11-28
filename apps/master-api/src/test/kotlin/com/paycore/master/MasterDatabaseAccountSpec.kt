@@ -235,6 +235,9 @@ class MasterDatabaseAccountSpec(
             // MASTER-SNAPSHOT-001 V4: 통화 기록 종료(UPDATE), 기준정보 읽기만, 발행·ACK·이력·확인·철회·심사는 append-only.
             "currency_enablement" to "SELECT, INSERT, UPDATE",
             "currency_unit" to "SELECT",
+            // 기대값 변경(BIZ-CRIT-APPROVAL-001 S2 V27 — 목록 증가, 완화 아님): 중요정보 변경 제안·1인 근거 원문 INSERT 전용(UPDATE·DELETE 1142).
+            "business_change_evidence" to "SELECT, INSERT",
+            "business_change_proposal" to "SELECT, INSERT",
             "default_designation" to "SELECT, INSERT",
             "entitlement_snapshot_ack" to "SELECT, INSERT",
             "entitlement_snapshot_issue" to "SELECT, INSERT",

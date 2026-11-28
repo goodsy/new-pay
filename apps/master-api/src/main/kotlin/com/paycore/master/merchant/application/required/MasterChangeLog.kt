@@ -17,5 +17,6 @@ data class ChangeRecord(
 )
 
 interface MasterChangeLog {
-    fun append(record: ChangeRecord)
+    /** 이력 한 행을 append하고(flush) 생성된 행 ID를 돌려준다(BIZ-CRIT-APPROVAL-001 S2 — 1인 근거 원문 행이 이 ID에 연결된다). 다른 호출자는 무시한다. */
+    fun append(record: ChangeRecord): Long
 }

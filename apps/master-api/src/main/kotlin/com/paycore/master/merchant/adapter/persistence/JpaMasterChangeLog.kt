@@ -12,14 +12,14 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(propagation = Propagation.MANDATORY)
 class JpaMasterChangeLog(private val entityManager: EntityManager) : MasterChangeLog {
 
-    override fun append(record: ChangeRecord): Unit = translate(ENTITY) {
-        entityManager.persist(
-            JpaMasterChangeHistoryEntity.newRow(
-                record.requestRecordId, record.operation.code, record.aggregateType, record.aggregateId, record.changeType, record.actor.value,
-                record.occurredAt, MasterJson.serialize(record.detail),
-            ),
+    override fun append(record: ChangeRecord): Long = translate(ENTITY) {
+        val row = JpaMasterChangeHistoryEntity.newRow(
+            record.requestRecordId, record.operation.code, record.aggregateType, record.aggregateId, record.changeType, record.actor.value,
+            record.occurredAt, MasterJson.serialize(record.detail),
         )
+        entityManager.persist(row)
         entityManager.flush()
+        checkNotNull(row.id) { "an appended history row has an identity after flush" }
     }
 
     private companion object {

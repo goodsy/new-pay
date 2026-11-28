@@ -35,12 +35,17 @@ class MicrometerMasterOperationalMetrics(private val registry: MeterRegistry) : 
         registry.counter(SCHEMA_PROMOTIONS).increment()
     }
 
+    override fun integrityDefect(operation: String) {
+        registry.counter(INTEGRITY_DEFECTS, "operation", operation).increment()
+    }
+
     private fun adminFailure(kind: String, operation: String) {
         registry.counter(ADMIN_FAILURES, "kind", kind, "operation", operation).increment()
     }
 
     companion object {
         const val ADMIN_FAILURES = "paycore.master.admin.failures"
+        const val INTEGRITY_DEFECTS = "paycore.master.admin.integrity_defect"
         const val SNAPSHOTS_ISSUED = "paycore.master.entitlement.snapshots.issued"
         const val RELAY_RESULTS = "paycore.master.entitlement.relay.results"
         const val HASH_DRIFT = "paycore.master.entitlement.revision.hash.drift"

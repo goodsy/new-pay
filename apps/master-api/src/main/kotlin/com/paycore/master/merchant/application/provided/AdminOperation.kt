@@ -59,6 +59,10 @@ enum class AdminOperation(val code: String) {
     SUSPEND_BUSINESS_CONTRACT("SuspendBusinessContract"),
     RESUME_BUSINESS_CONTRACT("ResumeBusinessContract"),
     TERMINATE_BUSINESS_CONTRACT("TerminateBusinessContract"),
+
+    // BIZ-CRIT-APPROVAL-001 §3.3·§5.1(S2): 사업자 중요정보 변경 제안(OPERATOR 1인 기록 — 사업자 불변)·근거 경로 실행(2인 — 근거 operation CHECK는 V26).
+    PROPOSE_BUSINESS_CRITICAL_CHANGE("ProposeBusinessCriticalChange"),
+    APPLY_BUSINESS_CRITICAL_CHANGE("ApplyBusinessCriticalChange"),
     ;
 
     companion object {

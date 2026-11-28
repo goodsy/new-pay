@@ -7,6 +7,7 @@ import com.paycore.master.merchant.domain.BusinessRegistrationNumber
 import com.paycore.master.merchant.domain.BusinessRegistrationStatus
 import com.paycore.master.merchant.domain.BusinessType
 import com.paycore.master.merchant.domain.DisplayName
+import com.paycore.master.merchant.domain.EvidenceRef
 
 /**
  * 사업자 기본정보 명령(BUSINESS-PROFILE-001 §6.7 — BIZ-1 Application, web은 BIZ-2). 각 명령은 MASTER 로컬 TX 하나(`admin_request` 멱등·업무 변경·`master_change_history`·Outbox).
@@ -49,6 +50,8 @@ data class UpdateBusinessCommand(
     val businessType: BusinessType,
     val displayName: DisplayName,
     val profile: BusinessProfile,
+    /** BIZ-CRIT-APPROVAL-001 BR-BIZ-391(R3-m2): 1인 경로 선택 근거 참조. 원문은 `business_change_evidence`에만, 이력 detail은 `evidence=PRESENT|ABSENT`. */
+    val evidenceRef: EvidenceRef? = null,
 ) {
     init {
         require(version >= 0) { "version must not be negative" }
@@ -64,6 +67,8 @@ data class CompleteBusinessRegistrationCommand(
     val businessType: BusinessType,
     val displayName: DisplayName,
     val profile: BusinessProfile,
+    /** BIZ-CRIT-APPROVAL-001 BR-BIZ-391(R3-m2): 1인 경로 선택 근거 참조. 원문은 `business_change_evidence`에만, 이력 detail은 `evidence=PRESENT|ABSENT`. */
+    val evidenceRef: EvidenceRef? = null,
 ) {
     init {
         require(version >= 0) { "version must not be negative" }

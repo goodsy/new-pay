@@ -120,7 +120,9 @@ class AdminRequestFingerprintHmacSpec(
             val id = succeeded(service.create(create()))
             val k = key()
             val update = UpdateBusinessCommand(
-                request(k), BusinessId(id), 0, BusinessChangeReason("상호 정정"), BusinessType.INDIVIDUAL, DisplayName("정정 상호"), individualProfile(),
+                // BIZ-CRIT-APPROVAL-001(§7.1 표 밖 Fixture 변경 — 기대값 불변, Coordinator 확인 대상): 등록 완료 상호 변경은 2인이라 일반정보(사업체 전화번호) 수정으로 같은 명령 종류를 만든다.
+                request(k), BusinessId(id), 0, BusinessChangeReason("연락처 정정"), BusinessType.INDIVIDUAL, DisplayName("지문 상호"),
+                individualProfile().let { p -> p.copy(registration = p.registration.copy(phoneNumber = com.paycore.master.merchant.domain.PhoneNumber("0233334444"))) },
             )
             val result = service.update(update)
             result shouldBe AdminCommandResult.Succeeded(id, replayed = false)

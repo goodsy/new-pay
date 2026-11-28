@@ -44,6 +44,11 @@ class BusinessProfileConcurrencySpec(
 
     afterEach { faults.reset() }
 
+    /** 동시 수정 i번 요청의 내용(일반정보만 — 사업체 전화번호가 요청마다 다르다). */
+    fun winnerProfile(i: Int) = BusinessFixtures.individualProfile().let { p ->
+        p.copy(registration = p.registration.copy(phoneNumber = com.paycore.master.merchant.domain.PhoneNumber("0277770$i$i$i")))
+    }
+
     fun count(sql: String, vararg args: Any?): Long = runtime(container).use { it.scalar(sql, *args).toString().toLong() }
 
     fun label(r: Result<AdminCommandResult>): String = r.fold(
@@ -125,8 +130,9 @@ class BusinessProfileConcurrencySpec(
                         else -> {
                             if (i == 1) locked.await(20, TimeUnit.SECONDS)
                             service.update(
-                                UpdateBusinessCommand(request(), BusinessId(id), 0, BusinessChangeReason("상호 변경 $i"), BusinessType.INDIVIDUAL, DisplayName("새 상호 $i"),
-                                    BusinessFixtures.individualProfile()),
+                                // BIZ-CRIT-APPROVAL-001 §7.1(Fixture 변경 — 업무 의미 유지): 등록 완료 상호 변경은 2인이라 일반정보(사업체 전화번호)로 1인 경로를 유지한다.
+                                UpdateBusinessCommand(request(), BusinessId(id), 0, BusinessChangeReason("연락처 변경 $i"), BusinessType.INDIVIDUAL, DisplayName("원래 상호"),
+                                    winnerProfile(i)),
                             )
                         }
                     }
@@ -138,7 +144,8 @@ class BusinessProfileConcurrencySpec(
                     count("SELECT version FROM business WHERE business_id = ?", id) shouldBe 1
                     count("SELECT COUNT(*) FROM master_change_history WHERE aggregate_id = ? AND change_type = 'BusinessProfileUpdated'", id) shouldBe 1
                     val winner = results.indexOfFirst { (it.getOrNull() as? AdminCommandResult.Succeeded) != null }
-                    runtime(container).use { it.scalar("SELECT display_name FROM business WHERE business_id = ?", id) } shouldBe "새 상호 $winner"
+                    runtime(container).use { it.scalar("SELECT phone_number FROM business_registration WHERE business_id = ?", id) } shouldBe
+                        winnerProfile(winner).registration.phoneNumber!!.value
                 }
             }
         }

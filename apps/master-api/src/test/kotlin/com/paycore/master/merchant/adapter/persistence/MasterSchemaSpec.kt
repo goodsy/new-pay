@@ -32,7 +32,8 @@ class MasterSchemaSpec(private val container: MySQLContainer) : BehaviorSpec({
     // 기대값 변경(MERCHANT-OPS-002 B2-2 V9, 명세 §9.3·§8.2 B2-2-4): 새 업무 표 `admin_approval_evidence`(INSERT-only 승인 근거) — 아래 DELETE 1142 검사 대상에도 들어간다.
     val businessTables = listOf(
         // 기대값 변경(BUSINESS-PROFILE-001 V15 — 목록 증가, 명세 §5.2): 사업자 등록정보·대표자·업태/종목·주소·등록 담당자 표 — DELETE 1142 검사 대상에도 들어간다.
-        "admin_approval_evidence", "admin_request", "business", "business_address", "business_category", "business_contact",
+        // 기대값 변경(BIZ-CRIT-APPROVAL-001 S2 V26 — 목록 증가, 완화 아님): 중요정보 변경 제안·1인 근거 원문 표 — DELETE 1142 검사 대상에도 들어간다.
+        "admin_approval_evidence", "admin_request", "business", "business_address", "business_category", "business_change_evidence", "business_change_proposal", "business_contact",
         // 기대값 변경(MERCHANT-FLOW-001 FLOW-2a V21 — 목록 증가, 완화 아님): 사업자 계약·버전·범위·닫기·사건 표 — DELETE 1142 검사 대상에도 들어간다.
         "business_contract", "business_contract_event", "business_contract_version", "business_contract_version_close", "business_contract_version_service",
         "business_registration",

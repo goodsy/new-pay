@@ -244,6 +244,10 @@
 | EXECUTION_UNKNOWN | 회복 결정 조회 DECIDED | EXECUTED / OWNER_REJECTED |
 | EXECUTION_UNKNOWN | 기한 뒤 확정 불가 | 그대로 + `OWNER_UNRESOLVABLE` finding·경보(자동 종결 없음) |
 
+- **MASTER 실행 중 무결성 결함**(S2 리뷰 MINOR-2 — 재계산 변경 요약 ≠ 제안 요약, 승인 뒤 1인 칸, 승인 내용의 규칙 위반 등 정상 경로에서 불가능한 상태): 업무 거절로 저장하지 않는다. MASTER는 값 없는 WARN·지표
+  `paycore.master.admin.integrity_defect{operation}`을 남기고 TX를 rollback(근거 행 없음) → 503. ADMIN은 **EXECUTION_UNKNOWN**으로 받고 회복이 결정 조회 NONE을 보다가 **기한 뒤 기한 확인**으로
+  `APPROVAL_EXPIRED`가 저장되어 OWNER_REJECTED로 닫힌다(UNKNOWN → 만료 경로 — 자동 성공·자동 미실행 확정 없음). 결함 원인은 경보로 조사한다.
+
 ### 4.2 MASTER
 
 제안 행: 상태 없음(INSERT 전용). '적용됨' = 근거 EXECUTED 행이 그 제안을 가리킴. '대기' 권위 = ADMIN 승인 행 + MASTER version·이력(차단 칸) 재판정. 사업자: 실행 성공 때만 version +1.
@@ -317,7 +321,12 @@
 | `master-api/.../adapter/web/admin/BusinessProfileApiSpec.kt:706-709` | 사유 있음 + REGISTERED 대표자 0명 → 400 `REQUIRED` | 이동 | 제안 endpoint 시험(2인 경로에서 규칙 위반 400). 1인 경로에서는 `…APPROVAL_REQUIRED` 저장 거절(200 REJECTED) | 판정 순서(§3.3) |
 | 같은 파일 `:712-716` | 중요·사유 없음 + 필수값 제거 → 저장 거절 `REASON_REQUIRED`, admin_request 1행 | 변경 | 저장 거절 `BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED`, admin_request 1행 | D-GOV-016 ③ |
 | `master-api/.../application/BusinessProfileConcurrencySpec.kt:103-140`(`:25`, `:39`) | 같은 version 두 수정(상호 "새 상호 $winner") → 1성공·1충돌 | Fixture 변경 | 수정 내용을 일반정보(전화번호 등)로 바꿔 1인 경로 유지 — 기대값(1성공·1 `VERSION_CONFLICT`·이력 1·잠금 대기) 불변. 중요 변경 동시성은 새 시험(근거 실행 vs 1인 수정) | 업무 의미 유지 |
-| `master-api/.../adapter/persistence/JpaBusinessRepositorySpec.kt:125`, `:176` | Domain `updateProfile`(대표자 교체·순서 정정, 사유 있음)로 diff 저장 검증 | Fixture 변경 | 같은 내용을 근거 실행 Domain 함수로 만들어 저장 — 행 diff 기대값 불변 | Repository 단언 대상은 저장 방식 |
+| `master-api/.../adapter/persistence/JpaBusinessRepositorySpec.kt:125`, `:176` | Domain `updateProfile`(대표자 교체·순서 정정, 사유 있음)로 diff 저장 검증 | Fixture 변경(**S2 정정 — Coordinator 승인 2026-11-29**) | 같은 법인 내용을 **이력 없는 DRAFT**로 만들어 1인 + 사유 경로로 저장(근거 실행 함수는 갱신 행위자 = 승인자라 `ended_by` 기대값이 바뀌므로 쓰지 않음) — 행 diff 기대값 불변 | Repository 단언 대상은 저장 방식 |
+| `master-api/.../application/BusinessProfileServiceSpec.kt` m-4 단조 시각(서비스판) | REGISTERED 대표자 교체 + 사유 1인 수정 | Fixture 변경(표 밖 — Coordinator 승인 2026-11-29) | 이력 없는 DRAFT 사업자로(1인 + 사유) — 시각·종료 행 기대값 불변 | 업무 의미 유지 |
+| 같은 파일 BIZ-1-7 "update failing after the diff" | REGISTERED 대표자 교체 + 사유 → diff 뒤 실패 rollback | Fixture 변경(표 밖 — Coordinator 승인 2026-11-29) | 이력 없는 DRAFT 사업자로 — rollback 기대값 불변 | 업무 의미 유지 |
+| `master-api/.../application/AdminRequestFingerprintHmacSpec.kt` ③ update m1 재생 | REGISTERED 상호 변경 + 사유 1인 수정의 m1 행 재생 | Fixture 변경(표 밖 — Coordinator 승인 2026-11-29) | 일반정보(사업체 전화번호) 수정 — 재생 기대값 불변 | 단언 대상은 지문 호환 |
+| `master-api/.../adapter/query/BusinessReaderSpec.kt` BIZ-2-7 상세 | REGISTERED 대표자 교체 1인 수정 뒤 상세 | Fixture 변경(표 밖 — Coordinator 승인 2026-11-29) | 제안 → 근거 실행으로 같은 변경(version 1·현재 행 동일) — 상세 기대값 불변 | 단언 대상은 조회 모양 |
+| `master-api/.../domain/BusinessProfileChangeSpec.kt:186-194` m-4(S1 리뷰 뒤 추가 — Coordinator 승인) | REGISTERED 상호 변경 + 사유 1인 수정 3회로 갱신 시각 단조 확인 | Fixture 변경 | 수정 내용을 일반정보(사업체 전화번호, 사유 없음)로 — 시각·version 기대값 불변 | 업무 의미 유지(단언 대상은 시각) |
 | `master-api/.../domain/BusinessProfileChangeSpec.kt:39` | 상호·구분 변경은 두 상태 모두 중요, 이관 행 첫 구분은 일반(분류만) | 불변 | 분류 규칙 불변(인원·차단은 새 판정 함수 시험) | BR-BIZ-017·310 |
 | `internal-admin/.../BusinessHttpSpec.kt:297`, `:312` | 수정 본문 `registrationNumber` 400 | 불변 | + 새 승인 요청 본문에도 같은 400 | P-6 |
 | `frontend/src/screens/BusinessProfileFormScreen.test.tsx:355-362` | REGISTERED 상호 변경 → 사유 필수, 사유 넣으면 update 전송 | 변경 | 버튼 '승인 요청'·근거 칸 필수, 승인 요청 API 전송(update 미호출) | D-GOV-016 ③ |
@@ -360,6 +369,11 @@ Fixture: `aDraftBusinessWithoutHistory()`·`aDraftBusinessWithContractHistory()`
 | Observability | 대기·불명 누적 | 승인 지표 종류 label, 회복 지표, 로그 원문 없음 |
 
 ---
+
+### 7.4 S3 확인 메모 (S2 리뷰)
+
+- **S2 리뷰 NIT-5 (S3 확인 항목)**: MASTER 요청 지문에 행위자가 없어, 같은 멱등 키·같은 내용이면 다른 OPERATOR에게도 남의 제안이 재생된다(기존 관례). S3 ADMIN은 제안 응답의 `requestedBy`를 세션 요청자와 대조해 다르면 그 제안에 승인 요청을 붙이지 않는다(§3.3 M-6과 같은 원칙) — 시험 포함.
+- S3로 넘긴 구현 관례: 사업자 상세 advisory(`criticalChangeMode`·`subjectCorrection`)는 ADMIN 상세 해석과 같은 배포 단위로, 원문 조회 속도 제한은 ADMIN 프록시가 맡는다.
 
 ## 8. 단계 분할
 

@@ -48,7 +48,8 @@ class MasterApiMainMigrationsBootSpec(
         // 기대값 변경(MERCHANT-FLOW-001 FLOW-3 — 목록 증가): + V24(가맹점 등록 근거 표)·V25(그 runtime 권한).
         // 기대값 변경(MERCHANT-FLOW-001 FLOW-2c — 목록 증가): + V23(사업자 계약 사건 근거 CHECK 교체 — D-GOV-022, 권한 변경 없음).
         // 기대값 변경(MERCHANT-FLOW-001 FLOW-2a — 목록 증가): + V21(사업자 계약 schema·접수 건 개정·이관)·V22(그 runtime 권한).
-        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16", "17", "19", "20", "21", "22", "23", "24", "25")
+        // 기대값 변경(BIZ-CRIT-APPROVAL-001 S2 — 목록 증가): + V26(중요정보 변경 제안·1인 근거 원문 표, 근거 operation CHECK 확장)·V27(그 runtime 권한).
+        flyway.info().applied().map { it.version.version } shouldBe listOf("1", "2", "3", "4", "5", "6", "7", "9", "10", "11", "13", "14", "15", "16", "17", "19", "20", "21", "22", "23", "24", "25", "26", "27")
     }
 
     test("the runtime account (role-only, no database-level privilege) connects to the MASTER database and reads business tables") {

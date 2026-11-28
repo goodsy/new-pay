@@ -22,4 +22,10 @@ interface MasterOperationalMetrics {
 
     /** 옛 schemaVersion 발행 뒤 갱신 시점에 revision을 올려 현재 버전으로 다시 발행했다(MASTER-SNAPSHOT-002 §5.2). */
     fun schemaPromotion()
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 S2 리뷰 MINOR-2: 승인 근거 실행 중 무결성 결함(정상 경로에서 불가능한 상태 — 업무 거절로 닫지 않고 TX rollback, ADMIN은 결과 불명 → 회복·만료 경로).
+     * label은 연산 코드만.
+     */
+    fun integrityDefect(operation: String)
 }
