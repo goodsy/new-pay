@@ -151,6 +151,14 @@ enum class MasterRejection {
     // BIZ-NORM-002 M-3(BR-BIZ-311, D-GOV-005 ②): 사용중지(INACTIVE) 사업자의 정보 수정(update) 거절. reference 없음. 등록 완료는 그대로 `BUSINESS_NOT_DRAFT`.
     // 추가만(기존 저장 행 영향 없음 — `admin_request.result_code` VARCHAR(48), 값 집합 CHECK 없음).
     BUSINESS_INACTIVE,
+
+    // BIZ-CRIT-APPROVAL-001 §1.1·§3.3·§4.1(D-GOV-016 ③·D-GOV-025·D-GOV-026): 1인 경로에 2인 칸 변경(BR-BIZ-373·375) / 차단 칸 — 이력 있는 사업자의 기존 값 구분·법인등록번호 변경(BR-BIZ-385) /
+    // 제안 경로에 2인 칸이 아닌 변경 / 제안 요청자 ≠ 근거 요청자(M-6 — BR-BIZ-398) / 제안 ↔ 승인 명령 불일치(businessId·baseVersion·proposalId·digest). 모두 reference 없음. 추가만.
+    BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED,
+    BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED,
+    BUSINESS_CHANGE_APPROVAL_NOT_REQUIRED,
+    PROPOSAL_REQUESTER_MISMATCH,
+    PROPOSAL_CONTENT_MISMATCH,
 }
 
 /**

@@ -1,3 +1,6 @@
+// BIZ-CRIT-APPROVAL-001 S1: 옛 1인 오버로드(@Deprecated, S2에서 제거·이 파일 호출 전환)를 아직 부른다.
+@file:Suppress("DEPRECATION")
+
 package com.paycore.master.merchant.domain
 
 import com.paycore.master.merchant.domain.BusinessFixtures.businessItem
@@ -144,16 +147,17 @@ class BusinessProfileChangeSpec : BehaviorSpec({
             BusinessFixtures.individualRegistered().business.requireRegistered()
         }
 
-        Then("update: version mismatch, unchanged content and a missing reason for an important change are rejected in that order") {
+        // BIZ-CRIT-APPROVAL-001 §7.1(D-GOV-016 ③·D-GOV-025 ④): REGISTERED 상호 변경은 2인 — 1인 경로 기대값 `BUSINESS_CHANGE_REASON_REQUIRED` → `BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED`.
+        // version·변경 없음 순서 단언은 불변. 사유 있으면 1인 성공(옛 :154-156)은 근거 실행 성공 단언으로 이동(BusinessCriticalChangeSpec "success (moved from …)").
+        Then("update: version mismatch, unchanged content and a REGISTERED important change needing approval are rejected in that order") {
             val stored = BusinessFixtures.individualRegistered()
             val b = stored.business
+            val none = BusinessCriticalChangeFixtures.NO_HISTORY
             fun violation(block: () -> Unit) = shouldThrow<MasterRuleViolation>(block).rejection
-            violation { b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, null, 7, t0, operator) } shouldBe MasterRejection.BUSINESS_VERSION_CONFLICT
-            violation { b.updateProfile(stored.profile, INDIVIDUAL, b.displayName, stored.profile, null, 0, t0, operator) } shouldBe MasterRejection.BUSINESS_PROFILE_UNCHANGED
-            violation { b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, null, 0, t0, operator) } shouldBe MasterRejection.BUSINESS_CHANGE_REASON_REQUIRED
-            val edit = b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, BusinessChangeReason("상호 변경 신고"), 0, t0.plusSeconds(1), operator)
-            listOf(edit.business.version, edit.business.displayName.value, edit.business.registrationStatus, edit.business.updatedAt) shouldBe
-                listOf(1L, "새 상호", REGISTERED, t0.plusSeconds(1))
+            violation { b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, null, 7, none, t0, operator) } shouldBe MasterRejection.BUSINESS_VERSION_CONFLICT
+            violation { b.updateProfile(stored.profile, INDIVIDUAL, b.displayName, stored.profile, null, 0, none, t0, operator) } shouldBe MasterRejection.BUSINESS_PROFILE_UNCHANGED
+            violation { b.updateProfile(stored.profile, INDIVIDUAL, DisplayName("새 상호"), stored.profile, null, 0, none, t0, operator) } shouldBe
+                MasterRejection.BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED
         }
 
         Then("M-1 completeRegistration with the stored content succeeds (status change is the change); REGISTERED cannot complete again") {

@@ -1,3 +1,6 @@
+// BIZ-CRIT-APPROVAL-001 S1: 옛 1인 오버로드(@Deprecated, S2에서 제거·이 파일 호출 전환)를 아직 부른다.
+@file:Suppress("DEPRECATION")
+
 package com.paycore.master.merchant.adapter.persistence
 
 import com.paycore.master.MasterDbAccounts

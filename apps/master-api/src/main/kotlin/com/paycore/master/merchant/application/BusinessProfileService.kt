@@ -80,6 +80,8 @@ class BusinessProfileService(
         executor.execute(AdminOperation.UPDATE_BUSINESS, command.request, BusinessCommandFingerprintFields.of(command)) { work ->
             val stored = businesses.lockWithProfile(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
+            // BIZ-CRIT-APPROVAL-001 S1: 옛 오버로드(동작 불변) — S2가 잠금 뒤 계약·가맹점 이력 판정과 함께 새 오버로드로 바꾼다.
+            @Suppress("DEPRECATION")
             val edit = stored.business.updateProfile(
                 stored.profile, command.businessType, command.displayName, command.profile, command.reason, command.version, work.now, command.request.actor,
             )
@@ -93,6 +95,8 @@ class BusinessProfileService(
         executor.execute(AdminOperation.COMPLETE_BUSINESS_REGISTRATION, command.request, BusinessCommandFingerprintFields.of(command)) { work ->
             val stored = businesses.lockWithProfile(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
+            // BIZ-CRIT-APPROVAL-001 S1: 옛 오버로드(동작 불변) — S2가 잠금 뒤 계약·가맹점 이력 판정과 함께 새 오버로드로 바꾼다.
+            @Suppress("DEPRECATION")
             val edit = stored.business.completeRegistration(
                 stored.profile, command.businessType, command.displayName, command.profile, command.reason, command.version, work.now, command.request.actor,
             )

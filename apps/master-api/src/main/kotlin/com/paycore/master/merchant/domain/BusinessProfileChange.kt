@@ -9,18 +9,33 @@ package com.paycore.master.merchant.domain
  * - 하위 행 동일성 = 내용 + 순서(§4.1·C-10): 같은 키 = 유지, 그 밖 = 종료(`ended`) + 추가(`added`). 순서만 바뀌어도 종료 + 추가(M-4).
  *   업태·종목 순서는 유형 안 순서([BusinessProfile.orderedCategories]), 주소는 유형으로 구별(순서 없음).
  */
-class BusinessProfileChange private constructor(val entries: List<BusinessChangeEntry>, val important: Boolean) {
+class BusinessProfileChange private constructor(
+    val entries: List<BusinessChangeEntry>,
+    val important: Boolean,
+    /** BIZ-CRIT-APPROVAL-001 §3.4 파생값: 중요 판정에 기여한 항목 이름(변경 계산 순서, 생성이면 빈 목록). [important] = 이 목록이 비어 있지 않음. */
+    val importantFields: List<String>,
+    /** §3.4 파생값: 현재 대표자 집합이 바뀜(추가·종료·유형·순서 — 일반/중요 무관, 생성이면 false). */
+    val representativeChanged: Boolean,
+    /** §3.4·§3.6 파생값: 기존 값 있는 사업체 구분 변경 또는 기존 법인등록번호 변경·삭제(첫 입력 제외, 생성이면 false). */
+    val subjectCorrection: Boolean,
+) {
 
     val isEmpty: Boolean get() = entries.isEmpty()
 
     /** 등록 완료(M-1): 상태 전이 항목을 맨 앞에 붙인다(내용 변경이 없어도 이력 1건). */
     fun withStatusTransition(before: BusinessRegistrationStatus, after: BusinessRegistrationStatus): BusinessProfileChange =
-        BusinessProfileChange(listOf(BusinessChangeEntry.Value(REGISTRATION_STATUS, before.name, after.name)) + entries, important)
+        BusinessProfileChange(
+            listOf(BusinessChangeEntry.Value(REGISTRATION_STATUS, before.name, after.name)) + entries, important, importantFields, representativeChanged, subjectCorrection,
+        )
 
-    override fun toString(): String = "BusinessProfileChange(fields=${entries.map { it.field }}, important=$important)"
+    override fun toString(): String = "BusinessProfileChange(fields=${entries.map { it.field }}, important=$important, subjectCorrection=$subjectCorrection)"
 
     companion object {
         const val REGISTRATION_STATUS = "registrationStatus"
+        const val REPRESENTATIVES = "representatives"
+
+        /** BIZ-CRIT-APPROVAL-001 §3.6 정정 대상 항목 이름(기존 값 있는 사업체 구분·법인등록번호). */
+        val SUBJECT_FIELDS: Set<String> = setOf("businessType", "registration.corporateRegistrationNumber")
 
         /** 생성: 입력 항목 전부(이전 값 없음 — before null), 중요 여부 없음. */
         fun created(after: BusinessContent): BusinessProfileChange = compute(BusinessRegistrationStatus.DRAFT, null, after)
@@ -31,14 +46,14 @@ class BusinessProfileChange private constructor(val entries: List<BusinessChange
         @Suppress("CyclomaticComplexMethod", "LongMethod")
         private fun compute(beforeStatus: BusinessRegistrationStatus, before: BusinessContent?, after: BusinessContent): BusinessProfileChange {
             val entries = mutableListOf<BusinessChangeEntry>()
-            var important = false
+            val importantFields = mutableListOf<String>()
             val b = before?.profile?.canonical()
             val a = after.profile.canonical()
 
             fun value(field: String, changed: Boolean, old: String?, new: String?, importance: Boolean) {
                 if (!changed) return
                 entries += BusinessChangeEntry.Value(field, old, new)
-                if (before != null && importance) important = true
+                if (before != null && importance) importantFields += field
             }
 
             // 중요(§4.5): 상호, 구분(migration 행의 NULL → 첫 값 제외), 개업일·법인등록번호(비어 있던 값의 첫 입력 제외 — 기존 값 변경·삭제만).
@@ -66,7 +81,7 @@ class BusinessProfileChange private constructor(val entries: List<BusinessChange
                 importance = false,
             )
             val reps = rows(
-                "representatives",
+                REPRESENTATIVES,
                 b?.representatives.orEmpty().mapIndexed { i, r -> r to i + 1 },
                 a.representatives.mapIndexed { i, r -> r to i + 1 },
             ) { r, order -> mapOf("name" to BusinessPiiMask.name(r.name.value), "type" to r.type.name, "order" to order) }
@@ -74,7 +89,7 @@ class BusinessProfileChange private constructor(val entries: List<BusinessChange
                 entries += reps
                 if (before != null) {
                     // M-2: REGISTERED는 대표자 집합의 모든 변경이 중요. DRAFT는 기존 행 종료가 있을 때만(0명 → 첫 입력·유지 + 추가는 일반).
-                    if (beforeStatus == BusinessRegistrationStatus.REGISTERED || reps.ended.isNotEmpty()) important = true
+                    if (beforeStatus == BusinessRegistrationStatus.REGISTERED || reps.ended.isNotEmpty()) importantFields += reps.field
                 }
             }
             rows("categories", b?.orderedCategories().orEmpty(), a.orderedCategories()) { c, order ->
@@ -92,7 +107,12 @@ class BusinessProfileChange private constructor(val entries: List<BusinessChange
                     "primary" to c.primary, "order" to order,
                 )
             }?.let { entries += it }
-            return BusinessProfileChange(entries.sortedBy { FIELD_ORDER.indexOf(it.field) }, important)
+            // BIZ-CRIT-APPROVAL-001 §3.6: 정정 대상 = 기존 값이 있던 구분·법인등록번호의 중요 변경(첫 입력은 위 importance 규칙상 중요가 아니다).
+            val subjectCorrection = importantFields.any { it in SUBJECT_FIELDS }
+            return BusinessProfileChange(
+                entries.sortedBy { FIELD_ORDER.indexOf(it.field) }, importantFields.isNotEmpty(), importantFields.sortedBy { FIELD_ORDER.indexOf(it) },
+                representativeChanged = before != null && reps != null, subjectCorrection = subjectCorrection,
+            )
         }
 
         /** 동일성 키 = (내용, 순서). 바뀐 것이 없으면 null. */
