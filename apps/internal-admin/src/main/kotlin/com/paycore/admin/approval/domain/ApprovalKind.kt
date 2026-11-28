@@ -63,6 +63,13 @@ enum class ApprovalKind(
      * (계약 승인 전·1회·은퇴 코드 영구 점유)을 재검사. 미해결 키는 계약 승인·첫 MID와 같은 `MERCHANT:<mer_>`(C-15). **등록자 규칙 없음**(요청자 ≠ 승인자만 — Q-MC-10, D-MOPS-009 ③ 확장 안 함).
      */
     MERCHANT_CODE_CHANGE(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.MERCHANT),
+
+    /**
+     * 사업자 중요정보 변경(BIZ-CRIT-APPROVAL-001 §3.1·§4.1 — D-GOV-016 ③·D-GOV-025·D-GOV-026) — 요청 OPERATOR, 승인 APPROVER + 직전 TOTP + **대조 확인 체크**(P-5), 실행은 MASTER
+     * `ApplyBusinessCriticalChange`가 승인 근거·제안 대조·요청자 일치(M-6)·version·차단 칸을 재검사. 대상 = 사업자(미해결 키 `BUSINESS:<biz_>`), 대상 버전 0(기준 version은 명령 행 — C-16 선례).
+     * 등록자 규칙 없음(요청자 ≠ 승인자만 — BR-BIZ-396). 처리 서비스는 [com.paycore.admin.approval.application.BusinessChangeApprovalService](가맹점 서비스에 종류를 더하지 않는다 — §3.1).
+     */
+    BUSINESS_CRITICAL_CHANGE(ApprovalExecutionModel.OWNER_SERVICE, OPERATOR, ApprovalTargetKind.BUSINESS),
     ;
 
     val approverRole: String get() = APPROVER
@@ -71,7 +78,7 @@ enum class ApprovalKind(
         ROLE_GRANT -> grantedRole == "SECURITY_ADMIN" || grantedRole == "APPROVER"
         ROLE_REACTIVATE, ACCOUNT_UNLOCK, ACCOUNT_REACTIVATE -> true
         TOTP_REENROLL, PASSWORD_RESET, OPERATOR_CORRECTION_CANCEL, ACQ_REACQUISITION, MERCHANT_CONTRACT_APPROVAL, MERCHANT_FIRST_MID_ISSUANCE,
-        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL, MERCHANT_CURRENCY_ENABLEMENT, MERCHANT_CODE_CHANGE,
+        MERCHANT_PAYMENT_METHOD_ACTIVATION, MERCHANT_SITE_REVIEW_APPROVAL, MERCHANT_CURRENCY_ENABLEMENT, MERCHANT_CODE_CHANGE, BUSINESS_CRITICAL_CHANGE,
         -> false
     }
 

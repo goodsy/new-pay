@@ -69,6 +69,7 @@ class BusinessProfileServiceSpec : BehaviorSpec({
         val metrics: MutableList<String> = Collections.synchronizedList(mutableListOf())
         val callInTx: MutableList<Boolean> = Collections.synchronizedList(mutableListOf())
         var failAuditAt: Int? = null
+        var unresolved = false
         var reply: (MasterBusinessCommand) -> MasterBusinessCommandResult = { MasterBusinessCommandResult.Decided(true, "biz_01JC0000000000000000000009", null, false, null) }
         val views = mutableMapOf(
             "adm_01JC00000000000000000000V1" to AdminSessionView("adm_01JC00000000000000000000V1", "Operator", status, 1, 1, roles),
@@ -92,6 +93,10 @@ class BusinessProfileServiceSpec : BehaviorSpec({
             override fun detail(businessId: String): MasterCallResult = error("not used")
             override fun contractIntakes(businessId: String): MasterCallResult = error("not used")
             override fun history(businessId: String, afterSeq: Long): MasterCallResult = error("not used")
+            override fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
+            override fun approvalState(businessId: String): MasterCallResult = error("not used")
+            override fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult = error("not used")
+            override fun changeEvidence(businessId: String, historyId: Long): MasterCallResult = error("not used")
             override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult {
                 callInTx += TransactionSynchronizationManager.isActualTransactionActive()
                 events += "call"
@@ -141,6 +146,11 @@ class BusinessProfileServiceSpec : BehaviorSpec({
                 }
             },
             budget,
+            // BIZ-CRIT-APPROVAL-001 S3: 대기 SPI(기본 미해결 없음 — [unresolved]가 켜지면 그 사업자에 미해결 승인이 있다, S3 리뷰 ⑨).
+            object : com.paycore.admin.merchantops.application.provided.BusinessPendingApprovals {
+                override fun pendingFor(viewerActorId: String, businessId: String) = null
+                override fun hasUnresolved(businessId: String) = unresolved
+            },
         )
         fun row(i: Int) = audits[i].let { "${it.action}|${it.resultCode}|${it.detail}|${it.targetRef}|${it.correlationId}" }
         fun brnLeft(actor: String = "adm_01JC00000000000000000000V1"): Int = generateSequence { budget.admit(actor) }.takeWhile { it }.count()
@@ -405,6 +415,30 @@ class BusinessProfileServiceSpec : BehaviorSpec({
             f.audits.map { it.resultCode } shouldBe listOf("REQUESTED", "REJECTED", "REQUESTED", "REJECTED")
             f.audits[1].let { listOf(it.targetRef, it.detail!!.contains("rejection=BUSINESS_INACTIVE")) } shouldBe listOf(biz, true)
             f.commands.map { it.idempotencyKey }.distinct().size shouldBe 1
+        }
+    }
+
+    Given("BIZ-CRIT-APPROVAL-001 S3 review ⑨ — the 1-person path: approval-required / blocked rejections and a pending approval") {
+        Then("MASTER BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED / BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED → 409 Conflict(code); audit REQUESTED + REJECTED with the rejection and target") {
+            listOf("BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED", "BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED").forEach { code ->
+                val f = Fixture()
+                f.reply = { MasterBusinessCommandResult.Decided(false, null, code, false, null) }
+                f.service.execute(operatorId, BusinessInputFixture.update(sub(), biz, version = 0, reason = "정정"), ctx) shouldBe BusinessProfileResult.Conflict(code)
+                f.audits.map { it.resultCode } shouldBe listOf("REQUESTED", "REJECTED")
+                f.audits[1].let { listOf(it.targetRef, it.detail!!.contains("rejection=$code")) } shouldBe listOf(biz, true)
+            }
+        }
+        Then("an unresolved approval on the business → 409 BUSINESS_CHANGE_PENDING before MASTER for update and registration; one audit REJECTED + rejection=BUSINESS_CHANGE_PENDING") {
+            listOf(
+                BusinessInputFixture.update(sub(), biz, version = 0, reason = "정정"),
+                BusinessInputFixture.complete(sub(), biz, version = 0, reason = "정정"),
+            ).forEach { request ->
+                val f = Fixture().also { it.unresolved = true }
+                f.service.execute(operatorId, request, ctx) shouldBe BusinessProfileResult.Conflict("BUSINESS_CHANGE_PENDING")
+                f.commands.size shouldBe 0
+                f.audits.map { "${it.action}|${it.resultCode}|${it.targetRef}" } shouldBe listOf("${request.operation.auditAction}|REJECTED|$biz")
+                f.audits.single().detail!!.contains("rejection=BUSINESS_CHANGE_PENDING") shouldBe true
+            }
         }
     }
 

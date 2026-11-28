@@ -331,6 +331,8 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_approval_request" to "SELECT, INSERT",
             "admin_audit_event" to "SELECT, INSERT",
             "admin_bootstrap" to "SELECT, INSERT",
+            // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 V18 — 목록 증가, 완화 아님): 사업자 중요정보 변경 요청 고정 값 INSERT-only.
+            "admin_business_change_command" to "SELECT, INSERT",
             "admin_enrollment_code" to "SELECT, INSERT",
             // 기대값 변경(B2-2 MERCHANT-OPS-002 §9.5 V10): 가맹점 승인 요청 고정 값 INSERT-only.
             "admin_merchant_ops_command" to "SELECT, INSERT",
@@ -369,6 +371,8 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_audit_event", "admin_bootstrap", "admin_role_event", "admin_operator_cancel_command", "admin_ops_reconciliation_finding", "admin_acquiring_ops_command",
             // 기대값 변경(B2-2 V10): 가맹점 승인 명령 행도 INSERT-only.
             "admin_merchant_ops_command",
+            // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 V18): 사업자 중요정보 변경 명령 행도 INSERT-only.
+            "admin_business_change_command",
         )
 
         /** 초기화 스크립트의 ADMIN 건너뜀 안내(정확한 문구 — .env.example 수렴 절차가 "이 줄이 없어야 한다"로 참조). */
@@ -391,6 +395,7 @@ class AdminDatabaseAccountSpec(private val container: MySQLContainer) : Behavior
             "admin_audit_event" to "event_id", "admin_bootstrap" to "id", "admin_role_event" to "event_id", "admin_operator_cancel_command" to "approval_id",
             "admin_ops_reconciliation_finding" to "finding_id", "admin_acquiring_ops_command" to "approval_id",
             "admin_merchant_ops_command" to "approval_id",
+            "admin_business_change_command" to "approval_id",
         )
         fun firstColumn(table: String): String = FIRST_COLUMN.getValue(table)
     }

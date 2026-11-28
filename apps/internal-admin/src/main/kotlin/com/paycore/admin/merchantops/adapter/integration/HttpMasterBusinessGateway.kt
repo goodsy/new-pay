@@ -90,6 +90,53 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         return post("business-command-${command.operation.masterPath}", "$BASE/commands/${command.operation.masterPath}", body, ::decided, ::invalid)
     }
 
+    override fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult {
+        val body = linkedMapOf<String, Any?>("idempotencyKey" to command.idempotencyKey, "actor" to command.actor, "correlationId" to command.correlationId)
+        body.putAll(command.body)
+        return post("business-critical-change-proposal", "$BASE/commands/critical-change-proposals", body, ::proposalDecided, ::invalid)
+    }
+
+    override fun approvalState(businessId: String): MasterCallResult {
+        require(BUSINESS_ID.matches(businessId)) { "businessId" }
+        return query("business-approval-state", HttpMethod.GET, "$BASE/$businessId/approval-state", ByteArray(0), MasterResponseShape.BUSINESS_APPROVAL_STATE)
+    }
+
+    override fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult {
+        require(BUSINESS_ID.matches(businessId) && PROPOSAL_ID.matches(proposalId)) { "proposal arguments" }
+        return query(
+            "business-proposal-original", HttpMethod.GET, "$BASE/$businessId/critical-change-proposals/$proposalId/original", ByteArray(0),
+            MasterResponseShape.BUSINESS_PROPOSAL_ORIGINAL, notFoundCode = "CHANGE_PROPOSAL_NOT_FOUND",
+        )
+    }
+
+    override fun changeEvidence(businessId: String, historyId: Long): MasterCallResult {
+        require(BUSINESS_ID.matches(businessId) && historyId >= 1) { "evidence arguments" }
+        return query(
+            "business-change-evidence", HttpMethod.GET, "$BASE/$businessId/business-change-evidence/$historyId", ByteArray(0), MasterResponseShape.BUSINESS_CHANGE_EVIDENCE,
+            notFoundCode = "CHANGE_EVIDENCE_NOT_FOUND",
+        )
+    }
+
+    /** 제안 200: 성공(제안 요약 엄격 모양) 또는 공통 거절 모양(existing 없음). 그 밖은 Unknown(RESPONSE_UNREADABLE). */
+    @Suppress("UNCHECKED_CAST")
+    private fun proposalDecided(body: ByteArray?): MasterBusinessCommandResult {
+        val node = tree(body)?.takeIf { it.isObject } ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+        return when (node.get("outcome")?.takeIf { it.isString }?.asString()) {
+            "SUCCEEDED" -> {
+                val read = runCatching { MasterResponseShape.BUSINESS_PROPOSAL_SUCCEEDED.read(node) as Map<String, Any?> }.getOrNull()
+                    ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+                val proposal = read["proposal"] as Map<String, Any?>
+                if (proposal["proposalId"] != read["reference"]) return MasterBusinessCommandResult.Unknown("REFERENCE_MISMATCH")
+                MasterBusinessCommandResult.Decided(true, read["reference"] as String, null, read["replayed"] as Boolean, null, proposal)
+            }
+            "REJECTED" -> {
+                val read = runCatching { MasterResponseShape.COMMAND_REJECTED.read(node) as Map<String, Any?> }.getOrNull() ?: return MasterBusinessCommandResult.Unknown(UNREADABLE)
+                MasterBusinessCommandResult.Decided(false, null, read["rejection"] as String, read["replayed"] as Boolean, null)
+            }
+            else -> MasterBusinessCommandResult.Unknown(UNREADABLE)
+        }
+    }
+
     /**
      * MERCHANT-FLOW-001 FLOW-2b 계약 접수 건 명령(§4B.7 — `POST …/contract-intakes/commands/{open|move|complete}`). 사업자 명령과 같은 permit·서명·상한·상태 매핑. 200은 성공(`biz_`)·
      * 접수 건 거절 code([MasterResponseShape.CONTRACT_INTAKE_REJECTIONS])만, 400은 접수 건 path 문법([MasterResponseShape.CONTRACT_INTAKE_VALIDATION_FAILED])만 — 그 밖은 Unknown(fail-closed).
@@ -183,7 +230,14 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         return invalidOf(read["fieldErrors"] as List<Map<String, Any?>>)
     }
 
-    private fun query(operation: String, method: HttpMethod, path: String, body: ByteArray, shape: MasterResponseShape): MasterCallResult {
+    private fun query(
+        operation: String,
+        method: HttpMethod,
+        path: String,
+        body: ByteArray,
+        shape: MasterResponseShape,
+        notFoundCode: String = "BUSINESS_NOT_FOUND",
+    ): MasterCallResult {
         check(!TransactionSynchronizationManager.isActualTransactionActive()) { "MASTER is never called inside a database transaction (BUSINESS-PROFILE-001 §7.2)" }
         if (!permits.tryAcquire()) return MasterCallResult.Unavailable(BUSY).also { log(operation, it) }
         try {
@@ -191,7 +245,7 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
                 is Raw.Failed -> MasterCallResult.Unavailable(response.failure)
                 is Raw.Http -> when (response.status) {
                     OK -> read(response.body, shape)?.let { MasterCallResult.Found(it) } ?: MasterCallResult.Unavailable(UNREADABLE)
-                    NOT_FOUND -> if (errorCode(response.body) == "BUSINESS_NOT_FOUND") MasterCallResult.NotFound else MasterCallResult.Unavailable("HTTP_404")
+                    NOT_FOUND -> if (errorCode(response.body) == notFoundCode) MasterCallResult.NotFound else MasterCallResult.Unavailable("HTTP_404")
                     else -> MasterCallResult.Unavailable("HTTP_${response.status}")
                 }
             }
@@ -290,6 +344,7 @@ class HttpMasterBusinessGateway(private val settings: MasterOpsSettings, private
         private const val SERVICE_UNAVAILABLE = 503
         private const val MAX_CAUSE_DEPTH = 20
         private val BUSINESS_ID = Regex("^biz_[0-9A-HJKMNP-TV-Z]{26}$")
+        private val PROPOSAL_ID = Regex("^bcp_[0-9A-HJKMNP-TV-Z]{26}$")
         private val REGISTRATION_NUMBER = Regex("^[0-9]{10}$")
     }
 }

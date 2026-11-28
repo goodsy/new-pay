@@ -15,6 +15,12 @@ sealed interface BusinessProfileResult {
 
     data object Forbidden : BusinessProfileResult
 
+    /**
+     * BIZ-CRIT-APPROVAL-001 §5.2(409): `BUSINESS_CHANGE_PENDING`(그 사업자에 미해결 중요정보 변경 승인 — MASTER 미호출) 또는 MASTER 저장 거절 `BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED`·
+     * `BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED`(1인 경로 차단 — 화면은 승인 요청 전환·차단 안내).
+     */
+    data class Conflict(val code: String) : BusinessProfileResult
+
     data object RateLimited : BusinessProfileResult
 
     /** 같은 MASTER 키·다른 본문(409 — 결함 신호, 효과 없음). */

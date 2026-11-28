@@ -30,6 +30,8 @@ sealed interface BusinessProfileRequest {
         val version: Long,
         val reason: String?,
         override val content: BusinessProfileContent,
+        /** BIZ-CRIT-APPROVAL-001 BR-BIZ-391: 1인 경로 선택 근거 참조(없으면 null — MASTER 본문에 key를 보내지 않는다). 감사에는 있음 표시만. */
+        val evidenceRef: String? = null,
     ) : BusinessProfileRequest {
         init {
             require(operation != BusinessProfileOperation.CREATE) { "a change is an update or a registration completion" }

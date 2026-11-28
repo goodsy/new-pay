@@ -20,6 +20,7 @@ import com.paycore.admin.merchantops.domain.ActivationApprovalCommandBody
 import com.paycore.admin.merchantops.domain.ContractApprovalCommandBody
 import com.paycore.admin.merchantops.domain.CurrencyEnablementCommandBody
 import com.paycore.admin.merchantops.domain.FirstMidIssuanceCommandBody
+import com.paycore.admin.merchantops.domain.BusinessCriticalChangeCommandBody
 import com.paycore.admin.merchantops.domain.MerchantCodeChangeCommandBody
 import com.paycore.admin.merchantops.domain.SiteReviewApprovalCommandBody
 import org.springframework.stereotype.Service
@@ -124,6 +125,14 @@ class MerchantApprovalChannelService(private val gateway: MasterOpsGateway) : Me
         newCode: String, reasonCode: String,
     ): MerchantApprovalCommandOutput {
         val body = MerchantCodeChangeCommandBody(approvalId, requestedBy, approvedBy, approvedAt, executeBefore, evidenceRef, merchantId, currentCode, newCode, reasonCode)
+        return MerchantApprovalCommandOutput(body.fingerprint(), body.json())
+    }
+
+    override fun businessCriticalChange(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, businessId: String, baseVersion: Long,
+        proposalId: String, contentDigest: String,
+    ): MerchantApprovalCommandOutput {
+        val body = BusinessCriticalChangeCommandBody(approvalId, requestedBy, approvedBy, approvedAt, executeBefore, evidenceRef, businessId, baseVersion, proposalId, contentDigest)
         return MerchantApprovalCommandOutput(body.fingerprint(), body.json())
     }
 

@@ -303,9 +303,10 @@ class ArchitectureSpec : FunSpec({
             .allowEmptyShould(false).check(classes)
     }
 
-    test("MERCHANT-OPS-002 B2-2: the MASTER approval client is used only by MerchantOpsApprovalService and merchantops.application; approval reaches merchantops only via provided") {
+    // 허용 목록 확장(BIZ-CRIT-APPROVAL-001 S3 §3.1 — MASTER 서명 채널 재사용): BusinessChangeApprovalService 추가. 다른 호출자는 여전히 금지.
+    test("MERCHANT-OPS-002 B2-2: the MASTER approval client is used only by MerchantOpsApprovalService (+BusinessChangeApprovalService) and merchantops.application; approval reaches merchantops only via provided") {
         noClasses().that().resideInAPackage("$BASE_PACKAGE..")
-            .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.approval.application.") + "MerchantOpsApprovalService(\\$.*)?$")
+            .and().haveNameNotMatching("^" + Regex.escape("$BASE_PACKAGE.approval.application.") + "(MerchantOpsApprovalService|BusinessChangeApprovalService)(\\$.*)?$")
             .and().resideOutsideOfPackage("$BASE_PACKAGE.merchantops.application..")
             .should().dependOnClassesThat().haveFullyQualifiedName("$BASE_PACKAGE.merchantops.application.provided.MerchantApprovalClient")
             .allowEmptyShould(false).check(classes)

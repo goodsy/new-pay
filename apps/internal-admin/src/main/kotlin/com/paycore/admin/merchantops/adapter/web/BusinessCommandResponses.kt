@@ -27,6 +27,7 @@ internal object BusinessCommandResponses {
             },
         )
         BusinessProfileResult.Forbidden -> error(HttpStatus.FORBIDDEN, "FORBIDDEN")
+        is BusinessProfileResult.Conflict -> error(HttpStatus.CONFLICT, result.code)
         BusinessProfileResult.RateLimited -> error(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED")
         BusinessProfileResult.KeyReused -> error(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED")
         BusinessProfileResult.MasterBusy -> error(HttpStatus.SERVICE_UNAVAILABLE, "MASTER_BUSY")

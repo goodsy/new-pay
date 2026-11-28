@@ -35,8 +35,18 @@ data class RequestApproval(
     val context: AdminRequestContext,
 )
 
-data class DecideApproval(val approvalId: String, val approverActorId: String, val sessionGeneration: Long, val totpCode: String, val context: AdminRequestContext) {
-    override fun toString(): String = "DecideApproval(approvalId=$approvalId, approver=$approverActorId, totpCode=***)"
+/**
+ * [revalidated]: BIZ-CRIT-APPROVAL-001 P-5 — 승인자가 근거와 변경 후 대표자·상호·사업자등록번호를 대조했다는 확인(사업자 중요정보 변경 승인만 필수 — 없으면 400, TOTP 소비 전). 다른 종류는 무시한다.
+ */
+data class DecideApproval(
+    val approvalId: String,
+    val approverActorId: String,
+    val sessionGeneration: Long,
+    val totpCode: String,
+    val context: AdminRequestContext,
+    val revalidated: Boolean = false,
+) {
+    override fun toString(): String = "DecideApproval(approvalId=$approvalId, approver=$approverActorId, totpCode=***, revalidated=$revalidated)"
 }
 
 data class WithdrawApproval(val approvalId: String, val requesterActorId: String, val sessionGeneration: Long, val context: AdminRequestContext)

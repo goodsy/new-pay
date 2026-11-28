@@ -110,6 +110,7 @@ class ApprovalService(
             ?: if (target.status != "ACTIVE") NOT_ELIGIBLE else if (executor.rolesSuspendedBy(command.targetActorId, command.causeApprovalId).isEmpty()) "NOTHING_TO_REACTIVATE" else null
         ApprovalKind.OPERATOR_CORRECTION_CANCEL, ApprovalKind.ACQ_REACQUISITION, ApprovalKind.MERCHANT_CONTRACT_APPROVAL, ApprovalKind.MERCHANT_FIRST_MID_ISSUANCE,
         ApprovalKind.MERCHANT_PAYMENT_METHOD_ACTIVATION, ApprovalKind.MERCHANT_SITE_REVIEW_APPROVAL, ApprovalKind.MERCHANT_CURRENCY_ENABLEMENT, ApprovalKind.MERCHANT_CODE_CHANGE,
+        ApprovalKind.BUSINESS_CRITICAL_CHANGE,
         ->
             error("owner-service kinds are refused before the transaction (M-6)")
     }
@@ -473,6 +474,7 @@ class ApprovalService(
             "PAYMENT" -> ApprovalTarget.Payment(targetRef, 0)
             "ACQUISITION_FILE" -> ApprovalTarget.AcquisitionFile(targetRef)
             "MERCHANT" -> ApprovalTarget.Merchant.reconstitute(targetMerchantId, targetRef)
+            "BUSINESS" -> ApprovalTarget.Business(targetRef)
             else -> ApprovalTarget.AdminAccount(targetRef, 0)
         }
     }.getOrNull()

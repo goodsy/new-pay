@@ -49,6 +49,7 @@ class ApprovalController(
     private val justifications: OperatorCancelJustificationQuery,
     private val acquiring: AcquiringOpsApprovalUseCase,
     private val merchants: MerchantOpsApprovalUseCase,
+    private val businessOriginals: com.paycore.admin.approval.application.provided.BusinessChangeOriginalQuery,
 ) {
 
     @PostMapping
@@ -190,7 +191,7 @@ class ApprovalController(
     @PostMapping("/{approvalId}/approve")
     fun approve(@PathVariable approvalId: String, @RequestBody body: TotpBody, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
         val generation = generation(request) ?: return status(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
-        val command = DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), decisionContext(request))
+        val command = DecideApproval(approvalId, authentication.name, generation, body.totpCode.orEmpty(), decisionContext(request), revalidated = body.revalidated == true)
         return respond(if (query.isOwnerService(approvalId) == true) owners.approve(command) else approvals.approve(command), request)
     }
 
@@ -232,6 +233,20 @@ class ApprovalController(
             JustificationResult.NotFound -> status(HttpStatus.NOT_FOUND, "NOT_FOUND")
             JustificationResult.AuditUnavailable -> status(HttpStatus.SERVICE_UNAVAILABLE, "AUDIT_UNAVAILABLE")
             JustificationResult.RateLimited -> status(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED")
+        }
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 §5.2 변경 후 원문(M-1 — APPROVER와 그 요청 요청자만, 미해결 상태만, 열람마다 감사·속도 제한): 200 `{approvalId, content}` / 403 / 404 / 409 `APPROVAL_NOT_OPEN` / 429 / 503.
+     */
+    @GetMapping("/{approvalId}/proposal-original")
+    fun proposalOriginal(@PathVariable approvalId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =
+        when (val result = businessOriginals.original(authentication.name, approvalId, context(request))) {
+            is com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.Found -> ok(linkedMapOf("approvalId" to result.approvalId, "content" to result.content))
+            com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.Forbidden -> status(HttpStatus.FORBIDDEN, "FORBIDDEN")
+            com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.NotFound -> status(HttpStatus.NOT_FOUND, "NOT_FOUND")
+            com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.NotOpen -> status(HttpStatus.CONFLICT, "APPROVAL_NOT_OPEN")
+            com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.RateLimited -> status(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED")
+            is com.paycore.admin.approval.application.provided.BusinessChangeOriginalResult.Unavailable -> status(HttpStatus.SERVICE_UNAVAILABLE, result.code)
         }
 
     private fun respond(outcome: ApprovalOutcome, request: HttpServletRequest): ResponseEntity<out Any> = when (outcome) {
@@ -375,7 +390,8 @@ class ApprovalController(
         override fun toString(): String = "MerchantCodeChangeBody(merchantId=$merchantId, reasonCode=$reasonCode)"
     }
 
-    class TotpBody(val totpCode: String?) {
+    /** [revalidated]: 사업자 중요정보 변경 승인의 대조 확인 체크(BIZ-CRIT-APPROVAL-001 P-5 — 다른 종류는 무시, 거절 본문에는 의미 없음). */
+    class TotpBody(val totpCode: String?, val revalidated: Boolean? = null) {
         override fun toString(): String = "TotpBody(***)"
     }
 }

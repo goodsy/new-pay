@@ -107,7 +107,8 @@ class AdminSchemaSpec(private val container: MySQLContainer, private val dataSou
                 )
             } shouldBe listOf(
                 // 기대값 변경(B2-2 MERCHANT-OPS-002 §9.5 V9): 가맹점 승인 명령 표 admin_merchant_ops_command 추가.
-                "admin_account", "admin_acquiring_ops_command", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_enrollment_code",
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 V17 — 목록 증가, 완화 아님): 사업자 중요정보 변경 명령 표 admin_business_change_command 추가.
+                "admin_account", "admin_acquiring_ops_command", "admin_approval_request", "admin_audit_event", "admin_bootstrap", "admin_business_change_command", "admin_enrollment_code",
                 "admin_merchant_ops_command", "admin_operator_cancel_command", "admin_ops_reconciliation_checkpoint", "admin_ops_reconciliation_finding", "admin_owner_execution",
                 "admin_recovery_episode", "admin_role_event", "admin_session", "admin_session_attributes", "flyway_schema_history",
             )

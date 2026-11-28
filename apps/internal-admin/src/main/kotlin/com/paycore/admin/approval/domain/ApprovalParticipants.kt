@@ -31,6 +31,6 @@ object ApprovalParticipants {
     /** 대상별 2인 규칙: 계정 대상은 요청자·승인자·대상 모두 다름, Payment 대상은 요청자 ≠ 승인자(대상이 사람이 아니다). */
     fun distinct(target: ApprovalTarget, requester: String, approver: String): Boolean = when (target) {
         is ApprovalTarget.AdminAccount -> distinct(requester, approver, target.actorId)
-        is ApprovalTarget.Payment, is ApprovalTarget.AcquisitionFile, is ApprovalTarget.Merchant -> requester != approver
+        is ApprovalTarget.Payment, is ApprovalTarget.AcquisitionFile, is ApprovalTarget.Merchant, is ApprovalTarget.Business -> requester != approver
     }
 }

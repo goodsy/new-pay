@@ -48,7 +48,7 @@ class BusinessCriticalChangeQueryController(private val query: BusinessCriticalC
                 linkedMapOf(
                     "proposalId" to p.proposalId, "businessId" to p.businessId, "baseVersion" to p.baseVersion, "contentDigest" to p.contentDigest, "displayName" to p.displayName,
                     "changedFields" to p.changedFields, "importantFields" to p.importantFields, "representativeChanged" to p.representativeChanged,
-                    "subjectCorrection" to p.subjectCorrection, "changes" to p.changes, "requestedBy" to p.requestedBy, "requestedAt" to p.requestedAt.toString(),
+                    "subjectCorrection" to p.subjectCorrection, "changes" to p.changes, "requestedBy" to p.requestedBy, "requestedAt" to AdminChannelResponses.time(p.requestedAt),
                 ),
             )
         }
@@ -68,7 +68,7 @@ class BusinessCriticalChangeQueryController(private val query: BusinessCriticalC
             val history = historyId.takeIf(SEQ::matches)?.toLongOrNull() ?: return@guarded malformed(request)
             val e = query.evidence(BusinessId(id), history) ?: return@guarded notFound(request, AdminChannelResponses.CHANGE_EVIDENCE_NOT_FOUND)
             AdminChannelResponses.json(
-                request, OK, linkedMapOf("historyId" to e.historyId, "evidenceRef" to e.evidenceRef, "recordedBy" to e.recordedBy, "recordedAt" to e.recordedAt.toString()),
+                request, OK, linkedMapOf("historyId" to e.historyId, "evidenceRef" to e.evidenceRef, "recordedBy" to e.recordedBy, "recordedAt" to AdminChannelResponses.time(e.recordedAt)),
             )
         }
 

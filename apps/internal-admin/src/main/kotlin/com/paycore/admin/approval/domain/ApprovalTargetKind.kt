@@ -13,4 +13,7 @@ enum class ApprovalTargetKind {
      * 내부 키 `target_merchant_id` = merchantId(mer_ — 미해결 키·MASTER 호출 기준).
      */
     MERCHANT,
+
+    /** MASTER 사업자(BIZ-CRIT-APPROVAL-001 §3.1 — `target_ref` = `biz_<ULID>`, 대상 버전 0, V17 `ck_…_target`). 미해결 키 `BUSINESS:<biz_>`. */
+    BUSINESS,
 }

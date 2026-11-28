@@ -52,6 +52,10 @@ class ContractManagerQueryServiceSpec : BehaviorSpec({
                 override fun detail(businessId: String): MasterCallResult = error("not used")
                 override fun contractIntakes(businessId: String): MasterCallResult = section.also { calls += "contract-intakes:$businessId" }
                 override fun history(businessId: String, afterSeq: Long): MasterCallResult = error("not used")
+                override fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
+                override fun approvalState(businessId: String): MasterCallResult = error("not used")
+                override fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult = error("not used")
+                override fun changeEvidence(businessId: String, historyId: Long): MasterCallResult = error("not used")
                 override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
             },
         )

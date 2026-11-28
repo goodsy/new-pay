@@ -61,7 +61,10 @@ internal object BusinessProfileInputRules {
         }
         when (request) {
             is BusinessProfileRequest.Create -> add("registrationNumber", digits(request.registrationNumber, REGISTRATION_NUMBER_LENGTH))
-            is BusinessProfileRequest.Change -> request.reason?.let { add("reason", reason(it)) }
+            is BusinessProfileRequest.Change -> {
+                request.reason?.let { add("reason", reason(it)) }
+                request.evidenceRef?.let { add("evidenceRef", evidenceError(it)) }
+            }
         }
         formatErrors(request.content, ::add)
         if (errors.isNotEmpty()) return sorted(errors)
@@ -72,6 +75,19 @@ internal object BusinessProfileInputRules {
         aggregateErrors(request.content, target, ::add)
         return sorted(errors)
     }
+
+    /**
+     * BIZ-CRIT-APPROVAL-001(BR-BIZ-232 형식 — MASTER 제안·1인 근거 파서와 같은 규칙): 빈 값 REQUIRED, `[A-Za-z0-9._:#/-]{1,128}` 밖이면 FORMAT, 카드번호 모양이면 CARD_NUMBER_PATTERN.
+     * 원문은 오류·로그에 넣지 않는다.
+     */
+    fun evidenceError(raw: String): String? = when {
+        raw.isEmpty() -> "REQUIRED"
+        !EVIDENCE_TEXT.matches(raw) -> "FORMAT"
+        RegistrationInputRules.CARD_NUMBER.containsMatchIn(raw) -> CARD_NUMBER_PATTERN
+        else -> null
+    }
+
+    private val EVIDENCE_TEXT = Regex("^[A-Za-z0-9._:#/-]{1,128}$")
 
     /** submissionId(32 hex)와 수정·등록 완료의 경로 businessId(`biz_` + ULID). */
     fun identifiersWellFormed(request: BusinessProfileRequest): Boolean =

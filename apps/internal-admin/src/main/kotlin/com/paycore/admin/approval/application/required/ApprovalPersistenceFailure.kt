@@ -8,6 +8,12 @@ sealed class ApprovalPersistenceFailure(message: String, cause: Throwable?) : Ru
 
     /** 같은 Payment에 미해결(PENDING·EXECUTING·EXECUTION_UNKNOWN) 승인이 있다(V5 `unresolved_key` UNIQUE 1062 — ADMIN-PAYMENT-OPS-001 I-14). */
     class DuplicateUnresolved : ApprovalPersistenceFailure("an unresolved approval for the same Payment exists", null)
+    /**
+     * 같은 MASTER 제안이 이미 다른 승인 요청에 붙어 있다(V17 `uk_admin_business_change_command_proposal` 1062 — BIZ-CRIT-APPROVAL-001 S3 리뷰 MINOR-1). 끝난 요청의 같은 submissionId를 다시 보내
+     * MASTER가 같은 제안을 재생한 경우 — 새 제안이 필요하다(새 submissionId). 그 TX는 rollback된다.
+     */
+    class DuplicateProposal : ApprovalPersistenceFailure("the MASTER proposal is already attached to another approval request", null)
+
     /** 같은 (kind, approval_id) 대사 발견이 이미 있다(UNIQUE 1062 — 오류 아님, "이미 기록됨"). 그 TX는 rollback된다. */
     class DuplicateFinding : ApprovalPersistenceFailure("the same reconciliation finding is already recorded", null)
 

@@ -22,7 +22,6 @@ import com.paycore.master.merchant.domain.BusinessChangeProposal
 import com.paycore.master.merchant.domain.BusinessChangeProposalId
 import com.paycore.master.merchant.domain.MasterRejection
 import com.paycore.master.merchant.domain.MasterRuleViolation
-import com.paycore.master.merchant.domain.BusinessProfileRuleViolation
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
@@ -80,10 +79,13 @@ class BusinessCriticalChangeService(
         executor.executeApproved(command.operation, command.request, command.evidence, command.window, ApprovedCommands.fingerprintFields(command)) { work ->
             val stored = businesses.lockWithProfile(command.businessId) ?: throw MasterRuleViolation(MasterRejection.BUSINESS_NOT_FOUND)
             work.lockedNow()
-            val proposal = proposals.find(command.proposalId) ?: throw MasterRuleViolation(MasterRejection.PROPOSAL_CONTENT_MISMATCH)
             val history = histories.of(command.businessId)
             val approved = ApprovedBusinessChange(command.businessId, command.baseVersion, command.proposalId, command.contentDigest, command.evidence)
-            val edit = integrityGuarded(command) { stored.business.applyApprovedChange(stored.profile, proposal, approved, digestOf(proposal), history, work.now) }
+            // S3 재리뷰 N-6: 저장 제안 읽기(Mapper 재구성 — 불변식 위반은 저장 결함)도 무결성 결함 경계 안. 없는 제안은 업무 거절 그대로(MasterRuleViolation은 통과).
+            val (edit, proposal) = integrityGuarded(command) {
+                val found = proposals.find(command.proposalId) ?: throw MasterRuleViolation(MasterRejection.PROPOSAL_CONTENT_MISMATCH)
+                stored.business.applyApprovedChange(stored.profile, found, approved, digestOf(found), history, work.now) to found
+            }
             work.beginWrites()
             businesses.update(edit.business, stored.profile, edit.profile)
             val business = edit.business
@@ -108,7 +110,7 @@ class BusinessCriticalChangeService(
 
     /**
      * S2 리뷰 MINOR-2: 근거 실행 판정의 **무결성 결함**(Domain `check` 실패 — 재계산 요약 ≠ 제안 요약·1인 칸·빈 변경, 또는 승인된 내용의 규칙 위반)은 업무 거절이 아니다. 값 없는 WARN(연산·상관 ID·
-     * 결함 종류만 — 상호·ID·내용 없음)과 지표 `integrity_defect{operation}`을 남기고 그대로 던져 TX를 rollback한다(근거 행 없음). ADMIN은 503을 결과 불명(EXECUTION_UNKNOWN)으로 받고
+     * 결함 종류만 — 상호·ID·내용 없음 — 저장 제안 재구성 실패도 포함(N-6))과 지표 `integrity_defect{operation}`을 남기고 그대로 던져 TX를 rollback한다(근거 행 없음). ADMIN은 503을 결과 불명(EXECUTION_UNKNOWN)으로 받고
      * 결정 조회 NONE → 기한 뒤 기한 확인(`APPROVAL_EXPIRED` 저장)으로 닫힌다(명세 §4.1). 저장된 업무 거절([MasterRuleViolation])은 여기서 잡지 않는다.
      */
     private fun <T> integrityGuarded(command: ApprovedBusinessCriticalChangeCommand, block: () -> T): T = try {
@@ -117,7 +119,8 @@ class BusinessCriticalChangeService(
         throw e
     } catch (e: IllegalStateException) {
         integrityDefect(command, e)
-    } catch (e: BusinessProfileRuleViolation) {
+    } catch (e: IllegalArgumentException) {
+        // 승인된 내용의 규칙 위반(BusinessProfileRuleViolation)·저장 제안 재구성 실패(N-6) 모두.
         integrityDefect(command, e)
     }
 

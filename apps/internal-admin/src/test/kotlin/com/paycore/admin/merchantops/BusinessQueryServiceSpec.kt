@@ -111,6 +111,10 @@ class BusinessQueryServiceSpec : BehaviorSpec({
             override fun contractIntakes(businessId: String): MasterCallResult = MasterCallResult.NotFound
             override fun history(businessId: String, afterSeq: Long): MasterCallResult =
                 MasterCallResult.Found(linkedMapOf("items" to emptyList<Any>(), "nextAfter" to null)).also { calls += "history:$afterSeq" }
+            override fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
+            override fun approvalState(businessId: String): MasterCallResult = error("not used")
+            override fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult = error("not used")
+            override fun changeEvidence(businessId: String, historyId: Long): MasterCallResult = error("not used")
             override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult =
                 MasterBusinessCommandResult.Decided(false, null, "BUSINESS_REGISTRATION_NUMBER_DUPLICATE", false, null).also { calls += "command" }
         }
@@ -126,9 +130,16 @@ class BusinessQueryServiceSpec : BehaviorSpec({
         val window = BusinessReadWindow(object : BusinessReadLimits {
             override val businessReadsPerMinute = businessReads
         }) { 0L }
-        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, opsMetrics)
+        // BIZ-CRIT-APPROVAL-001 S3: 대기 SPI 인자 보강(이 Spec은 대기 승인 없음).
+        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, opsMetrics, object : com.paycore.admin.merchantops.application.provided.BusinessPendingApprovals {
+            override fun pendingFor(viewerActorId: String, businessId: String) = null
+            override fun hasUnresolved(businessId: String) = false
+        })
         val lookup = BusinessLookupService(tx, sessions, recorder, gateway, budget, window, opsMetrics, businessMetrics)
-        val profiles = BusinessProfileService(tx, sessions, recorder, gateway, limits, opsMetrics, businessMetrics, budget)
+        val profiles = BusinessProfileService(tx, sessions, recorder, gateway, limits, opsMetrics, businessMetrics, budget, object : com.paycore.admin.merchantops.application.provided.BusinessPendingApprovals {
+            override fun pendingFor(viewerActorId: String, businessId: String) = null
+            override fun hasUnresolved(businessId: String) = false
+        })
         val merchants = MerchantLookupService(tx, sessions, merchantGateway, recorder, limits, opsMetrics, budget)
         fun row(i: Int) = audits[i].let { "${it.action}|${it.resultCode}|${it.detail}|${it.targetRef}" }
     }

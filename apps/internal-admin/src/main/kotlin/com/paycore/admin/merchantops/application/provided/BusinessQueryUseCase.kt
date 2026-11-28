@@ -18,6 +18,12 @@ interface BusinessQueryUseCase {
     fun detail(actorId: String, businessId: String, context: AdminRequestContext): BusinessQueryResult
 
     fun history(actorId: String, businessId: String, afterSeq: Long?): BusinessQueryResult
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 R3-m2: 1인 경로 선택 근거 원문 1건(`historyId` = 변경 이력 행). 사업자 조회 권한 → 조회 창 → MASTER(사업자 범위 — 다른 사업자 이력은 404) → **APPROVER 또는 그 저장의 요청자**
+     * (MASTER 응답 `recordedBy` = 세션 계정)만 200, 아니면 403. 조회마다 감사 `BUSINESS_CHANGE_EVIDENCE_VIEWED`(값 없음 — 반환 전).
+     */
+    fun evidence(actorId: String, businessId: String, historyId: Long, context: AdminRequestContext): BusinessQueryResult
 }
 
 /**

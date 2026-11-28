@@ -1,6 +1,10 @@
 package com.paycore.admin.merchantops.adapter.web
 
 import com.paycore.admin.account.application.provided.AdminRequestContext
+import com.paycore.admin.account.application.provided.AdminSessionState
+import com.paycore.admin.merchantops.application.provided.BusinessChangeRequestOutcome
+import com.paycore.admin.merchantops.application.provided.BusinessChangeRequests
+import com.paycore.admin.merchantops.application.provided.BusinessProfileRequest
 import com.paycore.admin.merchantops.application.provided.BusinessProfileOperation
 import com.paycore.admin.merchantops.application.provided.BusinessProfileResult
 import com.paycore.admin.merchantops.application.provided.BusinessProfileUseCase
@@ -25,7 +29,43 @@ import java.util.UUID
  * 오류 본문에 입력 값이 없다. 성공 응답에 상태·version이 없다(재생 응답과 같은 모양 — 화면은 성공 뒤 상세를 다시 읽는다, C-18).
  */
 @RestController
-class BusinessCommandController(private val profiles: BusinessProfileUseCase, private val registry: MeterRegistry) {
+class BusinessCommandController(
+    private val profiles: BusinessProfileUseCase,
+    private val registry: MeterRegistry,
+    private val criticalChanges: BusinessChangeRequests,
+) {
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 §5.2 사업자 중요정보 변경 승인 요청(OPERATOR): 본문 = 수정 본문 + `evidenceRef`(필수 — 값 규칙) → 201 `{approvalId}` / 400 `INVALID_INPUT`(+ fieldErrors) /
+     * 409 `DUPLICATE_UNRESOLVED`·MASTER 저장 거절 code / 403 / 401 / 503(같은 submissionId로 다시). 처리는 approval 모듈(SPI [BusinessChangeRequests]).
+     */
+    @PostMapping("/api/businesses/{businessId}/critical-change-requests")
+    fun requestCriticalChange(@PathVariable businessId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        if (!isJson(request.contentType)) return rejectBody(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE")
+        if (request.contentLengthLong > MAX_BODY_BYTES) return rejectBody(HttpStatus.CONTENT_TOO_LARGE, "REQUEST_TOO_LARGE")
+        val body = request.inputStream.readNBytes(MAX_BODY_BYTES + 1)
+        if (body.size > MAX_BODY_BYTES) return rejectBody(HttpStatus.CONTENT_TOO_LARGE, "REQUEST_TOO_LARGE")
+        val generation = AdminSessionState.read { request.getSession(false)?.getAttribute(it) }?.takeIf { it.stage == AdminSessionState.Stage.AUTHENTICATED }?.sessionGeneration
+            ?: return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED")
+        val parsed = BusinessProfileBodyParser.parse(BusinessProfileOperation.UPDATE, businessId, body) as? BusinessProfileRequest.Change
+            ?: return error(HttpStatus.BAD_REQUEST, "INVALID_INPUT")
+        val context = AdminRequestContext(UUID.randomUUID().toString(), request.remoteAddr?.take(REMOTE_IP_MAX))
+        return when (val outcome = criticalChanges.request(authentication.name, generation, parsed, context)) {
+            is BusinessChangeRequestOutcome.Created ->
+                ResponseEntity.status(HttpStatus.CREATED).cacheControl(org.springframework.http.CacheControl.noStore()).body(mapOf("approvalId" to outcome.approvalId))
+            is BusinessChangeRequestOutcome.Invalid -> BusinessCommandResponses.of(com.paycore.admin.merchantops.application.provided.BusinessProfileResult.InvalidInput(outcome.fieldErrors))
+            is BusinessChangeRequestOutcome.Conflict -> error(HttpStatus.CONFLICT, outcome.code)
+            BusinessChangeRequestOutcome.Denied -> error(HttpStatus.FORBIDDEN, "FORBIDDEN")
+            BusinessChangeRequestOutcome.SessionReplaced -> {
+                request.getSession(false)?.invalidate()
+                error(HttpStatus.UNAUTHORIZED, "SESSION_REPLACED")
+            }
+            BusinessChangeRequestOutcome.NotFound -> error(HttpStatus.NOT_FOUND, "NOT_FOUND")
+            is BusinessChangeRequestOutcome.Unavailable -> error(HttpStatus.SERVICE_UNAVAILABLE, outcome.code)
+            BusinessChangeRequestOutcome.RetryLater -> error(HttpStatus.CONFLICT, "RETRY_LATER")
+            BusinessChangeRequestOutcome.IntegrityViolation -> error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_INTEGRITY")
+        }
+    }
 
     @PostMapping("/api/businesses")
     fun create(authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> =

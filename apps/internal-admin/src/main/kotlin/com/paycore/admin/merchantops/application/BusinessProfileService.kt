@@ -4,7 +4,7 @@ import com.paycore.admin.account.application.provided.AdminRequestContext
 import com.paycore.admin.account.application.provided.AdminSessionQuery
 import com.paycore.admin.account.application.provided.AdminSessionView
 import com.paycore.admin.audit.application.provided.AdminAuditRecorder
-import com.paycore.admin.merchantops.application.provided.BusinessProfileContent
+import com.paycore.admin.merchantops.application.provided.BusinessPendingApprovals
 import com.paycore.admin.merchantops.application.provided.BusinessProfileOperation
 import com.paycore.admin.merchantops.application.provided.BusinessProfileRequest
 import com.paycore.admin.merchantops.application.provided.BusinessProfileResult
@@ -45,6 +45,7 @@ class BusinessProfileService(
     private val metrics: MerchantOpsMetrics,
     private val businessMetrics: BusinessOpsMetrics,
     private val registrationNumbers: RegistrationNumberBudget,
+    private val pendingChanges: BusinessPendingApprovals,
 ) : BusinessProfileUseCase {
 
     private val audit = BusinessAudit(transactionManager, sessions, recorder)
@@ -64,6 +65,19 @@ class BusinessProfileService(
         if (!BusinessProfileInputRules.identifiersWellFormed(request)) return invalid(operation, BusinessProfileResult.InvalidInput(), ::reject, context)
         val fieldErrors = BusinessProfileInputRules.errors(request)
         if (fieldErrors.isNotEmpty()) return invalid(operation, BusinessProfileResult.InvalidInput(fieldErrors), ::reject, context)
+        // BIZ-CRIT-APPROVAL-001 §3.4·§5.2(P-8): 그 사업자에 미해결 중요정보 변경 승인이 있으면 수정·등록 완료를 MASTER 호출 전에 막는다(advisory — 경합은 MASTER version이 막는다).
+        if (request is BusinessProfileRequest.Change && pendingChanges.hasUnresolved(request.businessId)) {
+            // S3 리뷰 ⑨: 감사는 MASTER 저장 거절과 같은 모양(REJECTED + rejection=code) — MASTER 미호출.
+            return finish(
+                operation, REJECTED,
+                if (audit.record(view, context, context.correlationId, operation.auditAction, REJECTED, pre.text(rejection = CHANGE_PENDING), pre.target)) {
+                    BusinessProfileResult.Conflict(CHANGE_PENDING)
+                } else {
+                    BusinessProfileResult.AuditUnavailable
+                },
+                context.correlationId,
+            )
+        }
         if (registrations.tryReserve(actorId) == null) {
             metrics.rateLimited(REGISTRATION)
             return reject("RATE_LIMITED", BusinessProfileResult.RateLimited)
@@ -149,28 +163,12 @@ class BusinessProfileService(
                 body["businessId"] = request.businessId
                 body["version"] = request.version
                 body["reason"] = request.reason
+                // BIZ-CRIT-APPROVAL-001 BR-BIZ-391: 선택 근거는 있을 때만 key를 보낸다(MASTER 선택 key — 근거 없는 본문·지문은 S2 전과 같다).
+                request.evidenceRef?.let { body["evidenceRef"] = it }
             }
         }
-        content(body, request.content)
+        BusinessCommandBodies.content(body, request.content)
         return MasterBusinessCommand(request.operation, key, "$ACTOR_PREFIX$actorId", correlationId, body)
-    }
-
-    /** MASTER §6.6 본문 — 모든 key, 선택 값은 JSON null(명령 본문 규칙. 목록 검색과 다르다). 목록은 요청 순서 그대로(지문 순서). */
-    private fun content(body: MutableMap<String, Any?>, c: BusinessProfileContent) {
-        body["businessType"] = c.businessType
-        body["displayName"] = c.displayName
-        body["registration"] = c.registration.let {
-            linkedMapOf(
-                "corporateRegistrationNumber" to it.corporateRegistrationNumber, "openingDate" to it.openingDate, "countryCode" to it.countryCode,
-                "englishName" to it.englishName, "phoneNumber" to it.phoneNumber, "email" to it.email,
-            )
-        }
-        body["representatives"] = c.representatives.map { linkedMapOf("name" to it.name, "representativeType" to it.representativeType) }
-        body["categories"] = c.categories.map { linkedMapOf("categoryType" to it.categoryType, "name" to it.name) }
-        body["addresses"] = c.addresses.map {
-            linkedMapOf("addressType" to it.addressType, "postalCode" to it.postalCode, "baseAddress" to it.baseAddress, "detailAddress" to it.detailAddress)
-        }
-        body["contacts"] = c.contacts.map { linkedMapOf("name" to it.name, "email" to it.email, "phoneNumber" to it.phoneNumber, "primary" to it.primary) }
     }
 
     /**
@@ -193,8 +191,13 @@ class BusinessProfileService(
         is MasterBusinessCommandResult.Decided -> {
             // D-BIZ-003: 기존 사업자 요약은 사업자 조회 권한자에게만(판정을 코드로 남긴다 — create 권한 OPERATOR는 VIEW에 포함).
             val existing = result.existing?.takeIf { view.roles.any { it in BusinessPermissions.VIEW } }
-            (if (result.succeeded) "OK" else "REJECTED") to
-                BusinessProfileResult.Decided(if (result.succeeded) SUCCEEDED else REJECTED, result.reference, result.rejection, result.replayed, existing)
+            // BIZ-CRIT-APPROVAL-001 §5.2: 1인 경로의 2인 필요·차단 저장 거절은 409로 전달(화면이 승인 요청 전환·차단 안내를 한다).
+            if (result.rejection in CONFLICT_REJECTIONS) {
+                "REJECTED" to BusinessProfileResult.Conflict(requireNotNull(result.rejection))
+            } else {
+                (if (result.succeeded) "OK" else "REJECTED") to
+                    BusinessProfileResult.Decided(if (result.succeeded) SUCCEEDED else REJECTED, result.reference, result.rejection, result.replayed, existing)
+            }
         }
         is MasterBusinessCommandResult.Invalid -> "INVALID_INPUT" to BusinessProfileResult.InvalidInput(result.fieldErrors)
         MasterBusinessCommandResult.KeyReused -> "KEY_REUSED" to BusinessProfileResult.KeyReused
@@ -224,7 +227,10 @@ class BusinessProfileService(
                 BusinessAudit.maskedNumber(request.registrationNumber),
             )
             // 사유는 있음·없음만(reason=PRESENT|ABSENT — 원문은 MASTER master_change_history, C-13).
-            is BusinessProfileRequest.Change -> listOf("version=${request.version}", "reason=" + if (request.reason == null) "ABSENT" else "PRESENT")
+            // BIZ-CRIT-APPROVAL-001 R3-m2: 선택 근거는 있을 때만 `evidence=PRESENT`(원문 없음 — 근거 없는 수정의 기존 감사 detail은 그대로).
+            is BusinessProfileRequest.Change -> listOfNotNull(
+                "version=${request.version}", "reason=" + if (request.reason == null) "ABSENT" else "PRESENT", request.evidenceRef?.let { "evidence=PRESENT" },
+            )
         }
         val target: String? = (request as? BusinessProfileRequest.Change)?.businessId?.takeIf { BusinessAudit.BUSINESS_ID.matches(it) }
 
@@ -246,5 +252,7 @@ class BusinessProfileService(
         const val REGISTRATION = "REGISTRATION"
         const val REGISTRATION_NUMBER = "REGISTRATION_NUMBER"
         const val SUB_PREFIX = 8
+        const val CHANGE_PENDING = "BUSINESS_CHANGE_PENDING"
+        val CONFLICT_REJECTIONS = setOf("BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED", "BUSINESS_SUBJECT_CHANGE_NOT_ALLOWED")
     }
 }

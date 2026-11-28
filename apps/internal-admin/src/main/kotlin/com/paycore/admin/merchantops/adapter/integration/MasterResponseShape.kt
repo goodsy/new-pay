@@ -23,10 +23,11 @@ internal sealed interface MasterResponseShape {
     }
 
     /** 배열: 길이 [min]..[max]([min] 기본 0 — 기존 모양 불변. BIZ-3 리뷰 NIT-4: 400 fieldErrors는 1 이상). */
-    class Arr(private val item: MasterResponseShape, private val max: Int, private val min: Int = 0) : MasterResponseShape {
+    /** 배열: 길이 [min]..[max], [distinct]이면 같은 값 반복 금지(BIZ-CRIT-APPROVAL-001 S3 리뷰 MINOR-2 — 변경 항목 이름 집합). 기본 false(기존 모양 동작 불변). */
+    class Arr(private val item: MasterResponseShape, private val max: Int, private val min: Int = 0, private val distinct: Boolean = false) : MasterResponseShape {
         override fun read(node: JsonNode?): List<Any?> {
             require(node != null && node.isArray && node.size() in min..max) { "array" }
-            return node.iterator().asSequence().map { item.read(it) }.toList()
+            return node.iterator().asSequence().map { item.read(it) }.toList().also { if (distinct) require(it.distinct().size == it.size) { "duplicate" } }
         }
     }
 
@@ -193,6 +194,9 @@ internal sealed interface MasterResponseShape {
         /** B3-2 통화 활성화 기록 `cur_…`(§8.4 B3-2-5). */
         private val CURRENCY_REFERENCE = Text(Regex("^cur_$ULID$"))
 
+        /** BIZ-CRIT-APPROVAL-001 사업자 중요정보 변경 성공 reference = 사업자 `biz_…`. */
+        private val BUSINESS_REFERENCE = Text(Regex("^biz_$ULID$"))
+
         /** MC-1b 코드 변경 성공 reference = 가맹점 내부 키 `mer_…`(§3.7.2). */
         private val MERCHANT_REFERENCE = Text(Regex("^mer_$ULID$"))
 
@@ -207,6 +211,8 @@ internal sealed interface MasterResponseShape {
             "EnableCurrency" to CURRENCY_REFERENCE,
             // MERCHANT-CODE-001 MC-1b(§3.7.2): 코드 변경 → 그 가맹점 `mer_…`.
             "ChangeMerchantCode" to MERCHANT_REFERENCE,
+            // BIZ-CRIT-APPROVAL-001(§3.3 C): 사업자 중요정보 변경 → 그 사업자 `biz_…`.
+            "ApplyBusinessCriticalChange" to BUSINESS_REFERENCE,
         )
 
         /** 결정 조회 응답 `operation` 허용 목록(minor-4). */
@@ -464,6 +470,54 @@ internal sealed interface MasterResponseShape {
 
         /** 사업자 명령 성공(첫 응답·재생 같은 모양 — reference = `biz_`, C-18). */
         val BUSINESS_COMMAND_SUCCEEDED: MasterResponseShape = obj("outcome" to oneOf("SUCCEEDED"), "reference" to BUSINESS_ID, "replayed" to Flag)
+
+        // ---------------------------------------------------------------- BIZ-CRIT-APPROVAL-001 §5.1(MASTER 사업자 중요정보 변경 — 엄격 모양, 모르는 키·값이면 해석 불가)
+
+        private val PROPOSAL_ID = Text(Regex("^bcp_$ULID$"))
+        private val CONTENT_DIGEST = Text(Regex("^h1:[0-9a-f]{64}$"))
+        private val CHANGE_FIELD = oneOf(
+            "displayName", "businessType", "registration\\.corporateRegistrationNumber", "registration\\.openingDate", "registration\\.englishName",
+            "registration\\.phoneNumber", "registration\\.email", "representatives", "categories", "addresses", "contacts",
+        )
+        private val ADMIN_ACTOR = Text(Regex("^admin:adm_$ULID$"))
+
+        /** 제안 성공: 공통 3키 + `proposal`(ID·기준 version·`h1` digest·항목 이름·중요 대표자 변경·정정·요청자 — 상호·개인정보 없음, M-5). */
+        val BUSINESS_PROPOSAL_SUCCEEDED: MasterResponseShape = obj(
+            "outcome" to oneOf("SUCCEEDED"), "reference" to PROPOSAL_ID, "replayed" to Flag,
+            "proposal" to obj(
+                "proposalId" to PROPOSAL_ID, "baseVersion" to COUNT, "contentDigest" to CONTENT_DIGEST, "changedFields" to Arr(CHANGE_FIELD, max = 11, min = 1, distinct = true),
+                "representativeChanged" to Flag, "subjectCorrection" to Flag, "requestedBy" to ADMIN_ACTOR,
+            ),
+        )
+
+        /** A 단계(m-1): version·생명주기·등록 상태 3키만. */
+        val BUSINESS_APPROVAL_STATE: MasterResponseShape = obj(
+            "version" to COUNT, "lifecycle" to oneOf("ACTIVE", "TERMINATED"), "registrationStatus" to oneOf("DRAFT", "REGISTERED", "INACTIVE"),
+        )
+
+        /** 변경 후 원문(M-1 — MASTER 제안 원문 JSON: 구분·상호·등록정보·하위 행. 하위 행 키는 MASTER 정규 내용 이름 `type`). */
+        val BUSINESS_PROPOSAL_ORIGINAL: MasterResponseShape = obj(
+            "proposalId" to PROPOSAL_ID, "businessId" to BUSINESS_ID,
+            "content" to obj(
+                "businessType" to opt(BUSINESS_TYPE), "displayName" to DISPLAY_NAME,
+                "registration" to obj(
+                    "corporateRegistrationNumber" to opt(Text(Regex("^[0-9]{13}$"))), "openingDate" to opt(DATE), "countryCode" to oneOf("KR"),
+                    "englishName" to opt(Text(Regex("^(?! )[ -~]{1,100}(?<! )$"))), "phoneNumber" to opt(PHONE), "email" to opt(EMAIL),
+                ),
+                "representatives" to Arr(obj("name" to PERSON_NAME, "type" to oneOf("SOLE", "JOINT", "EACH")), max = 5),
+                "categories" to Arr(obj("type" to oneOf("BUSINESS_TYPE", "BUSINESS_ITEM"), "name" to CATEGORY_NAME), max = 20),
+                "addresses" to Arr(
+                    obj("type" to oneOf("REGISTERED", "ACTUAL"), "postalCode" to Text(Regex("^[0-9]{5}$")), "baseAddress" to ADDRESS_LINE, "detailAddress" to opt(ADDRESS_LINE)),
+                    max = 2,
+                ),
+                "contacts" to Arr(obj("name" to PERSON_NAME, "email" to EMAIL, "phoneNumber" to PHONE, "primary" to Flag), max = 5),
+            ),
+        )
+
+        /** 1인 경로 선택 근거 원문 1건 + 저장 행위자·시각(R3-m2 — 재리뷰 nit). */
+        val BUSINESS_CHANGE_EVIDENCE: MasterResponseShape = obj(
+            "historyId" to Whole(1), "evidenceRef" to Text(Regex("^[A-Za-z0-9._:#/-]{1,128}$")), "recordedBy" to ACTOR, "recordedAt" to TIME,
+        )
 
         /** 중복 거절만 `existing`(D-BIZ-003·C-14). 다른 거절은 [COMMAND_REJECTED](existing·reference 없음 — C-12). */
         val BUSINESS_DUPLICATE_REJECTED: MasterResponseShape = obj(

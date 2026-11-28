@@ -30,7 +30,7 @@ class ApprovalAuditTarget private constructor(val targetActorId: String?, val ta
         fun of(target: ApprovalTarget): ApprovalAuditTarget = when (target) {
             is ApprovalTarget.AdminAccount -> ApprovalAuditTarget(target.actorId, null, null)
             is ApprovalTarget.Merchant -> ApprovalAuditTarget(null, target.ref, target.merchantKey)
-            is ApprovalTarget.Payment, is ApprovalTarget.AcquisitionFile -> ApprovalAuditTarget(null, target.ref, null)
+            is ApprovalTarget.Payment, is ApprovalTarget.AcquisitionFile, is ApprovalTarget.Business -> ApprovalAuditTarget(null, target.ref, null)
         }
 
         fun ofMerchantKey(merchantId: String): ApprovalAuditTarget {
@@ -39,6 +39,12 @@ class ApprovalAuditTarget private constructor(val targetActorId: String?, val ta
         }
 
         fun ofPaymentRef(paymentRef: String?): ApprovalAuditTarget = ApprovalAuditTarget(null, paymentRef, null)
+
+        /** BIZ-CRIT-APPROVAL-001: **승인 행이 없는** 사업자 요청 단계 거절(요청 TX rollback·MASTER 제안 전) — 표기 = 형식 검사한 사업자 ID. */
+        fun ofBusinessRef(businessId: String): ApprovalAuditTarget {
+            require(ApprovalTarget.Business.BUSINESS_ID.matches(businessId)) { "business id format (biz_ + ULID)" }
+            return ApprovalAuditTarget(null, businessId, null)
+        }
 
         fun ofFileRef(fileId: String?): ApprovalAuditTarget = ApprovalAuditTarget(null, fileId, null)
     }

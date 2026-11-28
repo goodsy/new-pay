@@ -73,6 +73,7 @@ class OwnerServiceApprovalService(
     private val applier: OwnerOutcomeApplier,
     private val acquiring: AcquiringOpsApprovalService,
     private val merchants: MerchantOpsApprovalService,
+    private val businessChanges: BusinessChangeApprovalService,
 ) : OwnerServiceApprovalUseCase {
 
     private val transactions = LocalTransactions(transactionManager, maxAttempts = 1)
@@ -152,6 +153,8 @@ class OwnerServiceApprovalService(
     override fun approve(command: DecideApproval): ApprovalOutcome {
         val seenKind = transactions.execute({ false }) { repository.find(command.approvalId)?.kind }
         if (seenKind == ApprovalKind.ACQ_REACQUISITION) return acquiring.approve(command)
+        // BIZ-CRIT-APPROVAL-001: 사업자 중요정보 변경은 MASTER 승인 채널의 별도 서비스(같은 OWNER_SERVICE 2-TX — 잠근 행 종류를 TX1이 다시 확인).
+        if (seenKind == ApprovalKind.BUSINESS_CRITICAL_CHANGE) return businessChanges.approve(command)
         // MERCHANT-OPS-002 B2-2: 가맹점 계약 승인은 MASTER 승인 채널(같은 OWNER_SERVICE 2-TX — 잠근 행 종류를 TX1이 다시 확인).
         // B3-1: 가맹점 대상 종류 전부(개통·Site 심사 포함)가 같은 채널이다.
         if (seenKind?.merchantOps == true) return merchants.approve(command)

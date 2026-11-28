@@ -132,12 +132,16 @@ class BusinessContractProgressSpec : BehaviorSpec({
             override fun detail(businessId: String): MasterCallResult = detailReply.also { calls += "detail" }
             override fun contractIntakes(businessId: String): MasterCallResult = sectionReply.also { calls += "contract-intakes:$businessId" }
             override fun history(businessId: String, afterSeq: Long): MasterCallResult = error("not used")
+            override fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
+            override fun approvalState(businessId: String): MasterCallResult = error("not used")
+            override fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult = error("not used")
+            override fun changeEvidence(businessId: String, historyId: Long): MasterCallResult = error("not used")
             override fun command(command: MasterBusinessCommand): MasterBusinessCommandResult = error("not used")
         }
         val window = BusinessReadWindow(object : BusinessReadLimits {
             override val businessReadsPerMinute = businessReads
         }) { 0L }
-        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, metrics) { now }
+        val query = BusinessQueryService(tx, sessions, recorder, gateway, window, metrics, { now }, null) // BIZ-CRIT-APPROVAL-001 S3: 대기 SPI 없음(인자 보강)
         fun auditRows() = audits.map { "${it.action}|${it.resultCode}|${it.detail}|${it.targetRef}" }
     }
 

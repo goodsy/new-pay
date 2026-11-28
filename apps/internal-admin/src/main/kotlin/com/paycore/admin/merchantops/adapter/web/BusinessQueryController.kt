@@ -56,6 +56,13 @@ class BusinessQueryController(private val query: BusinessQueryUseCase, private v
         return respond(query.history(authentication.name, businessId, afterSeq))
     }
 
+    /** BIZ-CRIT-APPROVAL-001 R3-m2: 1인 경로 선택 근거 원문(APPROVER·그 저장 요청자만 — 조회마다 감사). */
+    @GetMapping("/api/businesses/{businessId}/change-evidence/{historyId}")
+    fun changeEvidence(@PathVariable businessId: String, @PathVariable historyId: String, authentication: Authentication, request: HttpServletRequest): ResponseEntity<out Any> {
+        val id = historyId.takeIf { SEQ.matches(it) }?.toLongOrNull() ?: return error(HttpStatus.BAD_REQUEST, "INVALID_INPUT")
+        return respond(query.evidence(authentication.name, businessId, id, context(request)))
+    }
+
     /** 읽기 전 거절(415·413)이면 null — 호출자가 [rejectedBody]로 응답한다. */
     private fun readBody(request: HttpServletRequest): ByteArray? {
         if (!isJson(request.contentType) || request.contentLengthLong > MAX_BODY_BYTES) return null

@@ -117,6 +117,9 @@ class BusinessHttpSpec(
             send(client, get("/api/businesses/$id")).let {
                 val body = json.readTree(it.contentAsString) as ObjectNode
                 body.remove("contractProgress") shouldBe json.readTree("""{"available":false,"intakes":[]}""")
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 §5 — 추가형, 완화 아님): advisory 키 3개. 섹션 불가(fail-safe)이면 판정 2개는 null, 대기 중 변경 없음도 null.
+                // 상세 문서 부분은 여전히 골든과 정확히 같아야 한다.
+                listOf("criticalChangeMode", "subjectCorrection", "pendingCriticalChange").map { key -> body.remove(key)?.isNull } shouldBe listOf(true, true, true)
                 body shouldBe golden.get("detail")
             }
             send(client, get("/api/businesses/$id/history")).let { json.readTree(it.contentAsString) shouldBe golden.get("history") }
@@ -472,16 +475,22 @@ class BusinessHttpSpec(
                 "/api/businesses", "/api/businesses/registration-number-lookups", "/api/businesses/searches", "/api/businesses/{businessId}",
                 "/api/businesses/{businessId}", "/api/businesses/{businessId}/business-contracts/{contractSeq}/resumptions",
                 "/api/businesses/{businessId}/business-contracts/{contractSeq}/suspensions", "/api/businesses/{businessId}/business-contracts/{contractSeq}/termination",
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 — 추가형): 1인 근거 원문 조회 경로.
+                "/api/businesses/{businessId}/change-evidence/{historyId}",
                 "/api/businesses/{businessId}/contract-intakes", "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/completion",
                 // 기대값 변경(MERCHANT-FLOW-001 FLOW-2d — 추가형): 접수 항목 수정 경로 1개. documents·deactivate는 여전히 없다.
                 "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/items",
-                "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions", "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
+                "/api/businesses/{businessId}/contract-intakes/{intakeSeq}/transitions",
+                // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 — 추가형): 중요정보 변경 요청 경로. documents·deactivate는 여전히 없다.
+                "/api/businesses/{businessId}/critical-change-requests",
+                "/api/businesses/{businessId}/history", "/api/businesses/{businessId}/registration",
             )
             routes.none { it.contains("documents") || it.contains("deactivate") } shouldBe true
             val migrations = File(System.getProperty("user.dir")).resolve("src/main/resources/db/migration/admin").list()!!.sorted()
             // BIZ-3 기준(HEAD 5dab2e7) ADMIN migration 8개 그대로(사업자 관리는 감사 action·targetRef 형식 변경이 없어 migration 불필요 — §1.4).
-            migrations.size shouldBe 8
-            migrations.none { it.contains("business", ignoreCase = true) } shouldBe true
+            // 기대값 변경(BIZ-CRIT-APPROVAL-001 S3 V17 — 추가형): 사업자 중요정보 변경 승인 migration 1개만 더해진다(BIZ-3 사업자 관리 자체는 여전히 migration 없음).
+            migrations.size shouldBe 9
+            migrations.filter { it.contains("business", ignoreCase = true) } shouldBe listOf("V17__business_critical_change_approval.sql")
         }
     }
 })

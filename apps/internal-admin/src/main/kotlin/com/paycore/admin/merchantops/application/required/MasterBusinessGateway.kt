@@ -31,6 +31,21 @@ interface MasterBusinessGateway {
 
     /** 명령(§6.6·§6.7 — 쓰기 permit, 매 호출 새 서명 시각). */
     fun command(command: MasterBusinessCommand): MasterBusinessCommandResult
+
+    /**
+     * BIZ-CRIT-APPROVAL-001 §5.1 제안 명령(`POST …/commands/critical-change-proposals` — 쓰기 permit). 성공은 [MasterBusinessCommandResult.Decided.proposal] 요약(엄격 모양)이 있고,
+     * 거절은 공통 거절 모양, 400 `BUSINESS_VALIDATION_FAILED`는 Invalid(효과 없음 확정).
+     */
+    fun criticalChangeProposal(command: MasterBusinessCommand): MasterBusinessCommandResult
+
+    /** A 단계 조회(`GET …/{biz}/approval-state`). 404 `BUSINESS_NOT_FOUND` → NotFound. */
+    fun approvalState(businessId: String): MasterCallResult
+
+    /** 변경 후 원문(`GET …/{biz}/critical-change-proposals/{bcp}/original`). 404 `CHANGE_PROPOSAL_NOT_FOUND` → NotFound. */
+    fun proposalOriginal(businessId: String, proposalId: String): MasterCallResult
+
+    /** 1인 경로 근거 원문(`GET …/{biz}/business-change-evidence/{historyId}`). 404 `CHANGE_EVIDENCE_NOT_FOUND` → NotFound. */
+    fun changeEvidence(businessId: String, historyId: Long): MasterCallResult
 }
 
 /**
@@ -54,7 +69,15 @@ class MasterBusinessCommand(
  *   (중복 요약 조회 실패 포함 — m-1, 같은 키 재전송이 재생 + 재조회). [Unknown]: timeout·연결 끊김·해석 불가·그 밖 상태 — 효과 유무를 모른다.
  */
 sealed interface MasterBusinessCommandResult {
-    data class Decided(val succeeded: Boolean, val reference: String?, val rejection: String?, val replayed: Boolean, val existing: Map<String, Any?>?) : MasterBusinessCommandResult {
+    /** [proposal]: BIZ-CRIT-APPROVAL-001 제안 성공 요약(제안 명령만 — 다른 명령은 null). */
+    data class Decided(
+        val succeeded: Boolean,
+        val reference: String?,
+        val rejection: String?,
+        val replayed: Boolean,
+        val existing: Map<String, Any?>?,
+        val proposal: Map<String, Any?>? = null,
+    ) : MasterBusinessCommandResult {
         init {
             require(succeeded == (reference != null && rejection == null && existing == null)) { "a success has a reference only" }
             require(!succeeded == (rejection != null && reference == null)) { "a rejection has a code and no reference" }

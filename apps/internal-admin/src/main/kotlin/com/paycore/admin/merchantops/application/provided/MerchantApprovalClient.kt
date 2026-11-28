@@ -55,6 +55,9 @@ enum class MerchantApprovalOperation(val path: String, val code: String) {
 
     /** MERCHANT-CODE-001 MC-1b 가맹점 코드 1회 변경(성공 reference `mer_…`). */
     CHANGE_MERCHANT_CODE("merchant-code-changes", "ChangeMerchantCode"),
+
+    /** BIZ-CRIT-APPROVAL-001 사업자 중요정보 변경 실행(성공 reference = 그 `biz_…`). 같은 MASTER 승인 채널(결정 조회·기한 확인 공용). */
+    APPLY_BUSINESS_CRITICAL_CHANGE("business-critical-changes", "ApplyBusinessCriticalChange"),
 }
 
 /**
@@ -280,6 +283,13 @@ interface MerchantApprovalContract {
     fun merchantCodeChange(
         approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, merchantId: String, currentCode: String,
         newCode: String, reasonCode: String,
+    ): MerchantApprovalCommandOutput
+
+    /** BIZ-CRIT-APPROVAL-001 §3.2: `operation` = ApplyBusinessCriticalChange, 명령 필드 businessId, baseVersion(10진), proposalId, contentDigest(번호·내용 없음 — P-6·M-5). */
+    @Suppress("LongParameterList")
+    fun businessCriticalChange(
+        approvalId: String, requestedBy: String, approvedBy: String, approvedAt: Instant, executeBefore: Instant, evidenceRef: String, businessId: String, baseVersion: Long,
+        proposalId: String, contentDigest: String,
     ): MerchantApprovalCommandOutput
 }
 

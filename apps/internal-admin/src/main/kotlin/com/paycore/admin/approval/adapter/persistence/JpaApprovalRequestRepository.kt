@@ -122,6 +122,10 @@ class JpaApprovalRequestRepository(private val entityManager: EntityManager) : A
         // MERCHANT-OPS-002 B2-2: 가맹점 대상도 대상 버전 0 고정(C-16 — pinned 비교 + MASTER 재판정).
         // MERCHANT-CODE-001 MC-1b: 내부 키는 target_merchant_id(새 행) 또는 target_ref(MC-1b 전 행 — mer_). CHECK ④가 두 값이 다른 가맹점을 가리키지 못하게 한다.
         // MC-3a(§5.6.4 — C-31): target_ref가 코드 형식이면 그 값이 표기(code), 내부 키는 target_merchant_id(코드 행은 V13 ③이 내부 키를 강제).
+        // BIZ-CRIT-APPROVAL-001: 사업자 대상도 대상 버전 0 고정(기준 version은 명령 행 base_version).
+        ApprovalTargetKind.BUSINESS -> ApprovalTarget.Business(requireNotNull(r.targetRef) { "business target" }).also {
+            require(r.targetSecurityVersion == 0L) { "business target version column is 0" }
+        }
         ApprovalTargetKind.MERCHANT -> ApprovalTarget.Merchant.reconstitute(r.targetMerchantId, requireNotNull(r.targetRef) { "merchant target" }).also {
             require(r.targetSecurityVersion == 0L) { "merchant target version column is 0" }
         }

@@ -316,6 +316,27 @@ class BusinessCriticalChangeServiceSpec(
         }
     }
 
+    Given("S3 N-6 a stored proposal that cannot be rebuilt (storage defect)") {
+        Then("is an integrity defect too: integrity_defect +1, value-free WARN, rollback, no evidence row") {
+            val id = created()
+            val pid = proposalOf(changes.propose(propose(id, 0, "새 법인 상호", corp)))
+            com.paycore.master.MasterDbAccounts.root(container).use {
+                it.prepareStatement("UPDATE paycore_master.business_change_proposal SET important_fields = JSON_ARRAY() WHERE proposal_id = ?").use { ps ->
+                    ps.setString(1, pid); ps.executeUpdate()
+                } shouldBe 1
+            }
+            fun defects() = registry.find("paycore.master.admin.integrity_defect").tags("operation", "ApplyBusinessCriticalChange").counter()?.count() ?: 0.0
+            val before = defects()
+            val command = apply(id, 0, pid, digestOf(pid))
+            CapturedLogs().use { logs ->
+                shouldThrow<IllegalArgumentException> { changes.applyWithEvidence(command) }
+                logs.lines().single { it.contains("integrity defect") }.let { w -> listOf(pid, id).filter { w.contains(it) } shouldBe emptyList() }
+            }
+            defects() shouldBe before + 1.0
+            listOf(version(id), count("SELECT COUNT(*) FROM admin_approval_evidence WHERE approval_id = ?", command.evidence.approvalId)) shouldBe listOf(0L, 0L)
+        }
+    }
+
     Given("§3.3 1-person path switch (§7.1 TC-13 and completeRegistration variants)") {
         Then("REGISTERED name change with a reason → stored BUSINESS_CRITICAL_CHANGE_APPROVAL_REQUIRED; DRAFT with contract history: update and completeRegistration → the same, stays DRAFT") {
             val id = created()

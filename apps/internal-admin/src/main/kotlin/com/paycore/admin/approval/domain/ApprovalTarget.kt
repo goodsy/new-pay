@@ -64,6 +64,24 @@ sealed interface ApprovalTarget {
     }
 
     /**
+     * MASTER 사업자 대상(`BUSINESS_CRITICAL_CHANGE` — BIZ-CRIT-APPROVAL-001 §3.1). 대상 버전 열은 0 고정이다: 권위 기준 version은 명령 행 `base_version`이고 승인 TX1이 MASTER 재조회 version과
+     * 비교하며(다르면 INVALIDATED(TARGET_CHANGED)), MASTER 실행 TX가 다시 비교한다.
+     */
+    data class Business(val businessId: String) : ApprovalTarget {
+        init {
+            require(BUSINESS_ID.matches(businessId)) { "business id format (biz_ + ULID)" }
+        }
+
+        override val kind: ApprovalTargetKind get() = ApprovalTargetKind.BUSINESS
+        override val ref: String get() = businessId
+        override val version: Long get() = 0
+
+        companion object {
+            val BUSINESS_ID = Regex("^biz_[0-9A-HJKMNP-TV-Z]{26}$")
+        }
+    }
+
+    /**
      * MASTER 가맹점 대상(`MERCHANT_CONTRACT_APPROVAL` — MERCHANT-OPS-002 B2-2 §9.5). 대상 버전 열은 0 고정(C-16): 명령 필드 자체(`contractId#revisionNo`)가 고정값이고, 승인 TX1이
      * 명령 행 `pinned_target`과 MASTER 재조회 값을 비교하며(INVALIDATED), MASTER가 실행 TX에서 업무 규칙을 다시 판정한다.
      */

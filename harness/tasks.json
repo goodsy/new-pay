@@ -941,20 +941,21 @@
       ],
       "maxRepairAttempts": 3,
       "lastGate": {
-        "tag": "BCA2-gate2",
+        "tag": "BCA3-gate2",
         "mode": "FULL",
         "verdict": "PASS",
-        "codeFingerprint": "sha256:b249b75e7864a851d9b1ab5bb01e307ff9f38cb9aa5f416c18141b3da1c7064d",
-        "evidence": "build/harness-evidence/BIZ-CRIT-APPROVAL-001-2026-11-28T170340Z.json"
+        "codeFingerprint": "sha256:7c2504973fd962373ee8574c64ab3b74a1051f92580735530be8a95e922409fa",
+        "evidence": "build/harness-evidence/BIZ-CRIT-APPROVAL-001-2026-11-28T181641Z.json"
       },
       "openItems": [
         "명세 rev 0.3a 리뷰 APPROVED(2026-11-29, 3회+확인). 사용자 결정 D-GOV-016③·025·026. Coordinator 해석(사용자 보고, 이의 시 변경): BR-BIZ-375(DRAFT+계약/가맹점 이력 → 중요정보 2인), BR-BIZ-391(DRAFT 1인 근거 선택·대조 없음, 근거 원문 business_change_evidence·이력엔 PRESENT/ABSENT)",
         "S2 구현 nit: 1인 근거 조회 endpoint를 businesses/{biz}/business-change-evidence/{historyId}로 사업자 범위, 응답에 저장 행위자 포함, 다른 사업자 historyId → 404 시험",
         "단계 S1 Domain → S2 MASTER 표·API·1인 경로 거절 → S3 ADMIN → S4 화면 → S5 대장·Demo, S2~S4는 같은 배포 단위(S2·S3 main 반영 뒤 Demo 미배포)",
         "[S1 커밋 2026-11-29] 리뷰 APPROVED + MINOR 보강. RED 1차는 NotImplementedError 위주(변이 검사 보강), 2차 실제 실패 RED 2건. 흔들린 시험 관찰: MerchantLabelApiSpec MC-3-14 permit(부하 중 503 1회, 재실행 통과 — 무관 경로). S2 할 일: 옛 오버로드·@Suppress 제거, m-4 Fixture 변경(§7.1 행 추가), 감사 rep=Y는 '중요' 대표자 변경만, 이력은 잠금 뒤 조회로 직접 생성(NONE은 test로 이동), NIT-7 이력에 요청자·승인자 모두",
-        "[S2 커밋 2026-11-29] 리뷰 2회 APPROVED. Coordinator 승인: §7.1 표 밖 Fixture 4곳·JpaBusinessRepositorySpec DRAFT 경로(기대값 불변·의도 보존 — 리뷰 확인). RED: 1차 35/182, 보완분 MAJOR-1·MINOR-1·3·4는 RED 없음(기존 동작 고정, 변이 검사 안 함) — MINOR-2만 RED. **main은 S4 전까지 등록 완료 사업자 중요정보 1인 수정 거절 — Demo 미배포(Demo는 FLOW-2d jar)**. S3 할 일: N-6 proposals.find를 integrityGuarded 안으로, NIT-5 requestedBy 대조, advisory 필드(criticalChangeMode·subjectCorrection), 원문 조회 속도 제한·미해결 상태 검사(ADMIN)"
+        "[S2 커밋 2026-11-29] 리뷰 2회 APPROVED. Coordinator 승인: §7.1 표 밖 Fixture 4곳·JpaBusinessRepositorySpec DRAFT 경로(기대값 불변·의도 보존 — 리뷰 확인). RED: 1차 35/182, 보완분 MAJOR-1·MINOR-1·3·4는 RED 없음(기존 동작 고정, 변이 검사 안 함) — MINOR-2만 RED. **main은 S4 전까지 등록 완료 사업자 중요정보 1인 수정 거절 — Demo 미배포(Demo는 FLOW-2d jar)**. S3 할 일: N-6 proposals.find를 integrityGuarded 안으로, NIT-5 requestedBy 대조, advisory 필드(criticalChangeMode·subjectCorrection), 원문 조회 속도 제한·미해결 상태 검사(ADMIN)",
+        "[S3 커밋 2026-11-29] 리뷰 2회 APPROVED. Coordinator 결정: ArchUnit MASTER 승인 client 허용에 BusinessChangeApprovalService(§3.1), 1인 경로 MASTER 거절 2종 409(§5.2), 대기 중 1인 수정 감사 REJECTED+rejection=BUSINESS_CHANGE_PENDING, original() 판정 순서 선례 맞춤. RED 1차 부분적(일부 구현 선행), 보완분 RED 4 + 변이 15종 검출. S4 착수 전: NIT-A(비활성 세션 원문 조회 시험), NIT-B(거부 경로 감사 실패 → 503 AUDIT_UNAVAILABLE)"
       ],
-      "nextResumeAction": "S3 ADMIN(승인 종류 BUSINESS_CRITICAL_CHANGE·명령 표 V17·V18·BusinessChangeApprovalService·원문 프록시) TDD → 리뷰 → 게이트",
+      "nextResumeAction": "S4 화면(사업자 수정 → 승인 요청 전환·대기 표시·승인자 대조 화면·1인 근거 칸) + NIT-A·B TDD → 리뷰 → FULL → S5 대장·Demo(MASTER·ADMIN 동시)",
       "detail": null
     },
     {
