@@ -6648,6 +6648,54 @@
       "humanAnswer": "전체 이력 기준(해지·만료·종료 포함, 접수만 제외), 이력 있으면 DRAFT라도 구분·법인번호 변경 차단, 이관 오류는 별도 데이터 정정 절차",
       "humanEvidence": "Claude Code 세션 사용자 답 (2026-11-29)",
       "appliedSpec": "D-GOV-026"
+    },
+    {
+      "id": "Q-MSG-1",
+      "status": "PROPOSED",
+      "question": "가맹점 코드 Hold 해제 방식",
+      "recommended": "정상 Snapshot 재수신·정합 확인 시 자동 해소(기존 head 막힘과 같은 방식) — Coordinator 잠정 적용(D-GOV-019 ③ '기존 Hold 해제 정책' 해석)",
+      "alternative": "2인 해제 명령(새 해제 기록 표·화면)",
+      "impact": "외부 노출 식별자·결제 생성 차단",
+      "dependentTasks": [
+        "MCODE-SNAPSHOT-GUARD-001"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/MCODE-SNAPSHOT-GUARD-001-PAYMENT-MERCHANT-CODE-GUARD.md §7",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-MSG-2",
+      "status": "PROPOSED",
+      "question": "MASTER 데이터 자체가 바뀐 경우의 정정 수단(BR-BIZ-068·배정 seq ≤2와 충돌) — revision 증가 없이 오면 Q-MSG-3 ②(a)일 때 새 결제 무기한 중단 가능",
+      "recommended": "2인 승인 + 사고 근거 결함 정정 경로를 별도 작업으로 명세",
+      "alternative": "Hold 영구 유지(결제는 정상)",
+      "impact": "외부 노출 식별자·결제 생성 차단",
+      "dependentTasks": [
+        "MCODE-SNAPSHOT-GUARD-001"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/MCODE-SNAPSHOT-GUARD-001-PAYMENT-MERCHANT-CODE-GUARD.md §7",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
+    },
+    {
+      "id": "Q-MSG-3",
+      "status": "PROPOSED",
+      "question": "정합성 의심 Snapshot 처리: ① businessId가 바뀐 Snapshot ② 같은 revision에서 코드만 바뀐 Snapshot(F4)",
+      "recommended": "① 기존 head 막힘으로 새 결제 생성 fail-closed(취소·조회·웹훅 계속) ② (b) 검증된 기존 내용·코드로 lease만 연장 + 코드 Hold(대가: 코드 필드 한정 무결성 대조 약화, outcome 값 1개 추가)",
+      "alternative": "② (a) 현행 fail-closed 유지(P-6 예외 명시)",
+      "impact": "외부 노출 식별자·결제 생성 차단",
+      "dependentTasks": [
+        "MCODE-SNAPSHOT-GUARD-001"
+      ],
+      "askedAt": null,
+      "origin": "docs/repository/MCODE-SNAPSHOT-GUARD-001-PAYMENT-MERCHANT-CODE-GUARD.md §7",
+      "humanAnswer": null,
+      "humanEvidence": null,
+      "appliedSpec": null
     }
   ]
 }
